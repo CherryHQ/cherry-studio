@@ -42,6 +42,7 @@ interface AddKnowledgeItemDialogProps {
 const isDirectPickSource = (source: KnowledgeItemType) => source === 'file' || source === 'directory'
 
 const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
+
 // Electron's open-dialog `filters` want bare extensions (no leading dot); the set above keeps the
 // dots for the post-pick safety filter.
 const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ext.replace(/^\./, ''))
@@ -51,6 +52,7 @@ const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExt
 const isValidKnowledgeUrl = (value: string) => {
   try {
     new URL(value)
+
     return true
   } catch {
     return false
@@ -137,6 +139,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   const buildPanelSubmitItems = useCallback(async (): Promise<KnowledgeAddItemInput[]> => {
     if (activeSource === 'url') {
       const url = urlValue.trim()
+
       return [{ type: 'url' as const, data: { source: url, url } }]
     }
 
@@ -152,6 +155,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
           const content = await window.api.file.readExternal(note.externalPath).catch((cause) => {
             throw new Error(`${note.name}: ${cause instanceof Error ? cause.message : String(cause)}`)
           })
+
           return { type: 'note' as const, data: { source: note.name, content } }
         })
       )
@@ -166,10 +170,13 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   const submitWithStrategy = useCallback(
     async (items: KnowledgeAddItemInput[], conflictStrategy: 'detect' | ConflictResolution) => {
       const result = await submitKnowledgeItems(items, conflictStrategy)
+
       if (result.status === 'conflicts') {
         setPendingConflict({ items, conflicts: result.conflicts })
+
         return
       }
+
       handleOpenChange(false)
     },
     [handleOpenChange, submitKnowledgeItems]
@@ -182,6 +189,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     if (activeSource === 'url' && !isValidKnowledgeUrl(urlValue.trim())) {
       setSubmitErrorMessage(t('library.import_dialog.error.invalid_url'))
+
       return
     }
 
@@ -206,12 +214,15 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     ): Promise<KnowledgeAddItemInput[]> => {
       const fileBatch = await resolveKnowledgeFileBatch(files, resolveItem, describeItem)
       const fileOutcome = selectKnowledgeFileBatchOutcome(fileBatch)
+
       if ('fatal' in fileOutcome) {
         throw fileOutcome.fatal
       }
+
       if (fileOutcome.skipped.length > 0) {
         toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: fileOutcome.skipped.length }))
       }
+
       return fileOutcome.resolved.map((data) => ({ type: 'file' as const, data }))
     },
     [t]
@@ -223,9 +234,11 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     if (pendingAddFiles?.length) {
       const supportedFiles = pendingAddFiles.filter((file) => isSupportedKnowledgeFile(file.name))
       const skippedCount = pendingAddFiles.length - supportedFiles.length
+
       if (skippedCount > 0) {
         toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
       }
+
       return collectResolvedFileInputs(supportedFiles, resolveFileEntryDataFromFile, (file) => file.name)
     }
 
@@ -240,9 +253,11 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     const supportedFiles = selected.filter((file) => isSupportedKnowledgeFile(file.origin_name || file.name))
     const skippedCount = selected.length - supportedFiles.length
+
     if (skippedCount > 0) {
       toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
     }
+
     return collectResolvedFileInputs(supportedFiles, resolveKnowledgeFileMetadataEntryData, describeFileMetadata)
   }, [collectResolvedFileInputs, pendingAddFiles, t])
 
@@ -262,8 +277,10 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   useEffect(() => {
     if (!open) {
       directPickStartedRef.current = false
+
       return
     }
+
     setNoteMode('import')
     setSelectedNotes([])
     setNoteDraft({ title: '', content: '' })
@@ -277,12 +294,15 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     if (!open || !directPick || directPickStartedRef.current) {
       return
     }
+
     directPickStartedRef.current = true
 
     const run = async () => {
       setIsResolvingSubmit(true)
+
       try {
         let items: KnowledgeAddItemInput[] | null
+
         if (pendingAddDirectoryPaths?.length) {
           const fileInputs = pendingAddFiles?.length ? await collectFileInputs() : []
           items = [
@@ -292,11 +312,14 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         } else {
           items = activeSource === 'file' ? await collectFileInputs() : await collectDirectoryInputs()
         }
+
         // Picker cancelled or nothing selectable — close the (panel-less) flow.
         if (!items || items.length === 0) {
           handleOpenChange(false)
+
           return
         }
+
         await submitWithStrategy(items, 'detect')
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
@@ -331,6 +354,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         .catch((error) => {
           setPendingConflict(null)
           const message = formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error'))
+
           // Direct-pick sources have no panel to fall back to, so report inline (toast) and close.
           if (directPick) {
             toast.error(message)
@@ -348,6 +372,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
   const handleConflictCancel = useCallback(() => {
     setPendingConflict(null)
+
     // No panel exists behind a direct-pick conflict, so cancelling ends the whole flow.
     if (directPick) {
       handleOpenChange(false)

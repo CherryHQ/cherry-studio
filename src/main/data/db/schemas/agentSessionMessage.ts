@@ -82,9 +82,11 @@ export const agentSessionMessageTable = sqliteTable(
 )
 
 export type AgentSessionMessageRow = typeof agentSessionMessageTable.$inferSelect
+
 export type InsertAgentSessionMessageRow = typeof agentSessionMessageTable.$inferInsert
 
 export const AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME = 'agent_session_message_ai'
+
 export const AGENT_SESSION_MESSAGE_INSERT_TRIGGER_SQL = `CREATE TRIGGER ${AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME} AFTER INSERT ON agent_session_message BEGIN
   UPDATE agent_session_message SET
     fts_rowid = (SELECT COALESCE(MAX(fts_rowid), 0) + 1 FROM agent_session_message),

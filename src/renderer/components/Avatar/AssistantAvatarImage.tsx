@@ -14,6 +14,7 @@ export function AssistantAvatarImage({
   size?: number
 }) {
   const [failedSrc, setFailedSrc] = useState<string>()
+
   return src && src !== failedSrc ? (
     <img
       src={src}

@@ -31,6 +31,7 @@ export const remotePollJobHandler: JobHandler<FileProcessingJobPayload> = {
   async execute(ctx) {
     const { config, prepared } = await prepareFileProcessingJob(ctx, 'remote-poll')
     const output = await executeRemotePolling(ctx, prepared, config)
+
     return await createFileProcessingJobOutput(ctx, output)
   }
 }

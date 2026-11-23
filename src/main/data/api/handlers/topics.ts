@@ -29,11 +29,13 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
     GET: async ({ query }) => {
       const parsed = ListTopicsQuerySchema.parse(query ?? {})
+
       return topicService.listByCursor(parsed)
     },
 
     POST: async ({ body }) => {
       const parsed = CreateTopicSchema.parse(body)
+
       return topicService.create(parsed)
     }
   },
@@ -41,6 +43,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics/latest': {
     GET: async ({ query }) => {
       const parsed = LatestTopicQuerySchema.parse(query ?? {})
+
       return { topic: topicService.getLatestActive(parsed) }
     }
   },
@@ -48,6 +51,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics/reusable-placeholder': {
     POST: async ({ body }) => {
       const parsed = ReuseOrCreateTopicSchema.parse(body)
+
       return topicService.reuseOrCreatePlaceholder(parsed)
     }
   },
@@ -59,12 +63,14 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateTopicSchema.parse(body)
+
       return topicService.update(params.id, parsed)
     },
 
     DELETE: async ({ params, query }) => {
       DeleteTopicQuerySchema.parse(query)
       topicService.delete(params.id, { permanent: true })
+
       return undefined
     }
   },
@@ -76,6 +82,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics/:id/move': {
     POST: async ({ params, body }) => {
       const parsed = MoveTopicSchema.parse(body)
+
       return topicService.move(params.id, parsed)
     }
   },
@@ -83,6 +90,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics/:id/active-node': {
     PUT: async ({ params, body }) => {
       const parsed = SetActiveNodeSchema.parse(body)
+
       return topicService.setActiveNode(params.id, parsed.nodeId)
     }
   },
@@ -90,6 +98,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics/:id/duplicate': {
     POST: async ({ params, body }) => {
       const parsed = DuplicateTopicSchema.parse(body)
+
       return topicService.duplicate(params.id, parsed)
     }
   },
@@ -97,6 +106,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
       topicService.reorder(params.id, parsed)
+
       return undefined
     }
   },
@@ -105,6 +115,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
       topicService.reorderBatch(parsed.moves)
+
       return undefined
     }
   }

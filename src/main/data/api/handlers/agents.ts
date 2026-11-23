@@ -24,13 +24,16 @@ function paginationFromQuery(query: ListQuery) {
   const page = query.page ?? 1
   const limit = query.limit ?? 50
   const offset = (page - 1) * limit
+
   return { page, limit, offset }
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- DataApi query input remains untrusted until ListQuerySchema validates pagination and filter fields.
 function parseListQuery(query: unknown): ListQuery {
   const parsed = ListQuerySchema.safeParse(query ?? {})
+
   if (!parsed.success) throw toDataApiError(parsed.error)
+
   return parsed.data
 }
 
@@ -38,14 +41,18 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agent-tasks': {
     GET: async ({ query }) => {
       const parsed = ListTasksQuerySchema.safeParse(query ?? {})
+
       if (!parsed.success) throw toDataApiError(parsed.error)
       const { page, limit, offset } = paginationFromQuery(parsed.data)
+
       const input: NonNullable<Parameters<typeof taskService.listAllTasks>[0]> = {
         limit,
         offset
       }
+
       if ('status' in parsed.data) input.status = parsed.data.status
       const { tasks, total } = taskService.listAllTasks(input)
+
       return { items: tasks, total, page }
     }
   },
@@ -53,7 +60,9 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agent-tasks/:taskId': {
     GET: async ({ params }) => {
       const task = taskService.getTaskDetail(params.taskId)
+
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
+
       return task
     }
   },
@@ -61,10 +70,12 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents': {
     GET: async ({ query }) => {
       const parsed = ListAgentsQuerySchema.safeParse(query ?? {})
+
       if (!parsed.success) throw toDataApiError(parsed.error)
       const { ids, builtinRole, inTrash, search, page, limit } = parsed.data
       const offset = (page - 1) * limit
       const { agents, total } = agentService.listAgents({ ids, builtinRole, limit, offset, search, inTrash })
+
       return { items: agents, total, page }
     }
   },
@@ -72,15 +83,20 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents/:agentId': {
     GET: async ({ params }) => {
       const agent = agentService.getAgent(params.agentId)
+
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+
       return agent
     },
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateAgentSchema.safeParse(body)
+
       if (!parsed.success) throw toDataApiError(parsed.error)
       const agent = agentService.updateAgent(params.agentId, parsed.data)
+
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+
       return agent
     }
   },
@@ -90,6 +106,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents/:agentId/heartbeat': {
     GET: async ({ params }) => {
       if (!agentService.getAgent(params.agentId)) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+
       return taskService.getHeartbeatStatus(params.agentId)
     }
   },
@@ -98,6 +115,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     GET: async ({ params, query }) => {
       const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
       const { tasks, total } = taskService.listTasks(params.agentId, { limit, offset })
+
       return { items: tasks, total, page }
     }
   },
@@ -105,7 +123,9 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents/:agentId/tasks/:taskId': {
     GET: async ({ params }) => {
       const task = taskService.getTask(params.agentId, params.taskId)
+
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
+
       return task
     }
   },
@@ -113,9 +133,11 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents/:agentId/tasks/:taskId/logs': {
     GET: async ({ params, query }) => {
       const task = taskService.getTask(params.agentId, params.taskId)
+
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
       const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
       const { logs, total } = taskService.getTaskLogs(params.taskId, { limit, offset })
+
       return { items: logs, total, page }
     }
   },
@@ -124,6 +146,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
       agentService.reorder(params.id, parsed)
+
       return undefined
     }
   },
@@ -132,6 +155,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
       agentService.reorderBatch(parsed.moves)
+
       return undefined
     }
   }

@@ -5,6 +5,7 @@ export {
   evaluateContextExpr,
   parseContextExpr
 } from './contextExpr'
+
 export {
   COMMAND_DEFINITIONS,
   type CommandId,
@@ -15,6 +16,7 @@ export {
   REGISTERED_COMMANDS,
   REGISTERED_KEYBINDINGS
 } from './definitions'
+
 export {
   findKeybindingConflicts,
   type FindKeybindingConflictsOptions,
@@ -31,6 +33,7 @@ export {
   type ResolvedCommandKeybinding,
   type ResolvedCommandShortcutPreference
 } from './keybindings'
+
 export {
   type CommandMenuState,
   MENU_CONTRIBUTIONS,

@@ -35,7 +35,9 @@ export interface NoteTransitionReport {
 const noteLocation = (file: string): NoteLocation | undefined => {
   if (file.endsWith('.zh.md')) return undefined
   const match = NOTE_PATH.exec(file)
+
   if (!match?.[1] || !match[2] || !match[3]) return undefined
+
   return { lifecycle: match[1] as Lifecycle, noteClass: match[2], filename: match[3], path: file }
 }
 
@@ -46,7 +48,9 @@ const repeatedIds = (ids: string[]): string[] => [...new Set(ids.filter((id, ind
 export const checkAgentNoteTransition = (fromPath: string, before: string, toPath: string, after: string) => {
   const from = noteLocation(fromPath)
   const to = noteLocation(toPath)
+
   if (!from || !to) return { errors: ['transition paths must identify English Agent Notes'] }
+
   if (noteIdentity(from) !== noteIdentity(to))
     return { errors: ['a lifecycle transition must preserve class and filename'] }
 
@@ -60,35 +64,47 @@ export const checkAgentNoteTransition = (fromPath: string, before: string, toPat
   if (from.lifecycle !== 'proposed' || !['implemented', 'rejected'].includes(to.lifecycle)) {
     errors.push(`unsupported lifecycle transition: ${from.lifecycle} → ${to.lifecycle}`)
   }
+
   if (to.lifecycle === 'implemented') {
     if (proposedNote.acceptanceCriteria.malformed.length)
       errors.push(
         `the proposed note has malformed acceptance criteria: ${proposedNote.acceptanceCriteria.malformed.join(', ')}`
       )
+
     if (implementedNote.verification.malformed.length)
       errors.push(
         `the implemented note has malformed verification: ${implementedNote.verification.malformed.join(', ')}`
       )
+
     const isUnnumberedHistoricalProposal =
       acceptanceCriteria.length === 0 &&
       proposedNote.acceptanceCriteria.malformed.length === 0 &&
       proposedNote.acceptanceCriteria.hasListItems
+
     if (acceptanceCriteria.length === 0 && !isUnnumberedHistoricalProposal)
       errors.push('the proposed note has no acceptance-criteria IDs')
     const repeatedCriteria = repeatedIds(acceptanceCriteria)
+
     if (repeatedCriteria.length) errors.push(`the proposed note repeats criteria: ${repeatedCriteria.join(', ')}`)
+
     if (!isUnnumberedHistoricalProposal) {
       const missing = acceptanceCriteria.filter((id) => !verification.includes(id))
+
       if (missing.length) errors.push(`Verification is missing ${missing.join(', ')}`)
       const extra = verification.filter((id) => !acceptanceCriteria.includes(id))
+
       if (extra.length) errors.push(`Verification contains unknown criteria: ${extra.join(', ')}`)
     }
+
     const repeatedVerification = repeatedIds(verification)
+
     if (repeatedVerification.length) errors.push(`Verification repeats criteria: ${repeatedVerification.join(', ')}`)
   }
+
   if (to.lifecycle === 'rejected' && !/^Status: rejected — \S/mu.test(after)) {
     errors.push('a rejected transition requires a one-line rejection reason')
   }
+
   return { transition, errors }
 }
 
@@ -104,19 +120,24 @@ const treePaths = (root: string, ref: string): Set<string> =>
 
 const noteMap = (paths: Set<string>): Map<string, NoteLocation> => {
   const notes = new Map<string, NoteLocation>()
+
   for (const file of paths) {
     const note = noteLocation(file)
+
     if (!note) continue
     const identity = noteIdentity(note)
     const existing = notes.get(identity)
+
     if (existing) throw new Error(`${identity} exists in both ${existing.lifecycle} and ${note.lifecycle}`)
     notes.set(identity, note)
   }
+
   return notes
 }
 
 const pairPaths = (file: string): string[] => {
   const stem = file.slice(0, -'.md'.length)
+
   return [file, `${stem}.zh.md`, `${stem}.i18n.yaml`]
 }
 
@@ -136,26 +157,33 @@ export const collectAgentNoteTransitionReport = (
   for (const identity of [...beforeNotes.keys()].sort()) {
     const from = beforeNotes.get(identity)!
     const to = afterNotes.get(identity)
+
     if (!to) {
       if (from.lifecycle === 'proposed')
         errors.push(`${identity}: proposed note was removed without an implemented or rejected successor`)
       continue
     }
+
     if (from.lifecycle === to.lifecycle) continue
+
     for (const pairPath of pairPaths(from.path)) {
       if (beforePaths.has(pairPath) && afterPaths.has(pairPath))
         errors.push(`${from.path}: head still contains ${pairPath}`)
     }
+
     for (const pairPath of pairPaths(to.path)) {
       if (beforePaths.has(pairPath)) errors.push(`${to.path}: base already contains ${pairPath}`)
+
       if (!afterPaths.has(pairPath)) errors.push(`${to.path}: head is missing ${pairPath}`)
     }
+
     const checked = checkAgentNoteTransition(
       from.path,
       git(root, ['show', `${scope.resolved.mergeBaseSha}:${from.path}`]),
       to.path,
       git(root, ['show', `${scope.resolved.headSha}:${to.path}`])
     )
+
     if (checked.transition) transitions.push(checked.transition)
     errors.push(...checked.errors.map((error) => `${identity}: ${error}`))
   }
@@ -165,6 +193,7 @@ export const collectAgentNoteTransitionReport = (
 
 const renderReport = (report: NoteTransitionReport): string => {
   if (report.transitions.length === 0) return 'No Agent Note lifecycle transitions found.\n'
+
   return `${report.transitions
     .map(
       ({ identity, from, to, acceptanceCriteria }) =>
@@ -185,9 +214,11 @@ const main = (): void => {
         json: { type: 'boolean', default: false }
       }
     })
+
     if (!values.base) throw new Error('missing required --base <ref>')
     const report = collectAgentNoteTransitionReport({ base: values.base, head: values.head })
     process.stdout.write(values.json ? `${JSON.stringify(report, null, 2)}\n` : renderReport(report))
+
     if (report.errors.length) {
       for (const error of report.errors) console.error(`  ${error}`)
       process.exitCode = 1

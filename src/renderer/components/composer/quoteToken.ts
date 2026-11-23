@@ -1,6 +1,7 @@
 import { formatQuotedText } from '@renderer/utils/formats'
 
 export const QUOTE_TOOLTIP_CONTENT_CLASS_NAME = 'max-w-[min(32rem,calc(100vw-2rem))]'
+
 export const QUOTE_TOOLTIP_BODY_CLASS_NAME =
   'whitespace-pre-wrap text-left overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:4]'
 
@@ -13,6 +14,7 @@ export function formatQuoteTooltipContent(content: string | null | undefined): s
 
 export function getQuoteTooltipContent(description: string | null | undefined, promptText: string | null | undefined) {
   const content = description || promptText
+
   if (!content) return undefined
 
   return formatQuoteTooltipContent(content.replace(BLOCKQUOTE_PROMPT_PATTERN, '$1'))

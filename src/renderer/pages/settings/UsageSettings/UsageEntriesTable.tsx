@@ -34,6 +34,7 @@ import {
 } from './UsageSettingsPrimitives'
 
 const EMPTY_VALUE = '-'
+
 const MODALITY_LABEL_KEYS = {
   language: 'common.language',
   embedding: 'models.type.embedding',
@@ -75,8 +76,10 @@ export function UsageEntriesTable({
   const durationFormatter = useMemo(() => createDurationFormatter(locale), [locale])
   const integerFormatter = useMemo(() => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }), [locale])
   const isInitialLoading = isLoading && entries.length === 0
+
   const getAriaSort = (column: AiUsageRecordListSortBy) =>
     sortBy === column ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'
+
   const renderSortHeader = (column: AiUsageRecordListSortBy, label: string, align: 'left' | 'right' = 'left') => {
     const isActive = sortBy === column
     const Icon = isActive ? (sortOrder === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
@@ -95,6 +98,7 @@ export function UsageEntriesTable({
       </Button>
     )
   }
+
   const formatMilliseconds = (value: number | null | undefined) => {
     if (value === null || value === undefined) {
       return EMPTY_VALUE
@@ -102,6 +106,7 @@ export function UsageEntriesTable({
 
     return durationFormatter(value)
   }
+
   const formatTps = (value: number | undefined) =>
     value === undefined ? EMPTY_VALUE : t('settings.usage.table.tpsValue', { value: integerFormatter.format(value) })
 
@@ -157,9 +162,11 @@ export function UsageEntriesTable({
                 {entries.map((entry) => {
                   const tps = getGenerationTokensPerSecond(entry)
                   const totalTokens = getAiUsageRecordTotalTokens(entry)
+
                   const sourceName = entry.sourceId
                     ? entry.sourceName || entry.sourceId
                     : t(MODALITY_LABEL_KEYS[entry.modality])
+
                   const modelName = entry.modelName || displayModelId(entry.modelId) || EMPTY_VALUE
                   const providerName = getProviderInfo(entry.providerId ?? '', entry.providerName).name || EMPTY_VALUE
                   const createdAt = new Date(entry.createdAt)

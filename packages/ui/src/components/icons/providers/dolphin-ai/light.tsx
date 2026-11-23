@@ -1,6 +1,7 @@
 import { type SVGProps, useId } from 'react'
 
 import type { IconComponent } from '../../types'
+
 const DolphinAiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
@@ -32,5 +33,7 @@ const DolphinAiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
     </svg>
   )
 }
+
 export { DolphinAiLight }
+
 export default DolphinAiLight

@@ -41,6 +41,7 @@ function SegmentedControl<TValue extends string = string>({
     if (value === undefined) {
       setInternalValue(option.value)
     }
+
     onValueChange?.(option.value)
   }
 

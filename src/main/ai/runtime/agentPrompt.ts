@@ -7,6 +7,7 @@ import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const logger = loggerService.withContext('AgentPrompt')
+
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
   'Within Cherry Studio, serve as Cherry Assistant, its built-in general-purpose Agent and onboarding guide. Help the user complete any request using the available tools.'
 
@@ -65,17 +66,21 @@ export async function buildAgentRuntimePrompt({
 
   if (builtinRole && !instructions?.trim()) {
     instructions = loadBuiltinAgentDefinition(builtinRole)?.instructions
+
     if (!instructions && isAssistant) {
       logger.error('Builtin Cherry Assistant definition missing; using minimal fallback instructions')
       instructions = MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS
     }
   }
+
   if (builtinRole) await provisionBuiltinAgent(agentDataPath, builtinRole)
 
   const resolvedInstructions = instructions?.trim()
     ? await replacePromptVariables(instructions, modelName ?? agent.modelName ?? undefined)
     : ''
+
   const hasAgentInstructions = Boolean(resolvedInstructions.trim())
+
   const parts = await promptBuilder.buildPromptParts(
     workspacePath,
     agent.configuration,
@@ -112,6 +117,8 @@ ${instructions}
 
 function getLanguageInstruction(agent: AgentEntity, effectiveLanguage?: string | null): string {
   const language = effectiveLanguage !== undefined ? effectiveLanguage : getEffectiveAgentLanguage(agent)
+
   if (!language) return ''
+
   return `By default, respond in ${language}. If the Agent System Prompt, Workspace Instructions, or Agent Persona (SOUL.md) specifies a different language, follow that instruction instead.`
 }

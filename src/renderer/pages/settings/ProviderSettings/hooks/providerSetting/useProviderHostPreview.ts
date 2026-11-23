@@ -29,6 +29,7 @@ export function useProviderHostPreview(params: {
     }
 
     const topology = getProviderHostTopology(provider)
+
     const previews = buildHostEndpointPreviews({
       provider,
       authConfig,
@@ -37,6 +38,7 @@ export function useProviderHostPreview(params: {
       anthropicApiHost,
       providerAnthropicHost: topology.anthropicBaseUrl
     })
+
     return {
       ...previews,
       isApiHostResettable: Boolean(defaultApiHost && apiHost !== defaultApiHost)

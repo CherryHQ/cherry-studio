@@ -4,6 +4,7 @@ import { PpioLight } from './light'
 
 const Ppio = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <PpioLight {...props} className={className} />
+
   return <PpioLight {...props} className={className} />
 }
 

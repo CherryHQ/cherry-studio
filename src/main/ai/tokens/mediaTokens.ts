@@ -37,6 +37,7 @@ function ratesToFn(rates: MediaRates): MediaTokensFn {
       durationSec !== undefined && Number.isFinite(durationSec) && durationSec > 0
         ? durationSec
         : FALLBACK_SECONDS[kind]
+
     return Math.ceil(seconds * rates[kind])
   }
 }

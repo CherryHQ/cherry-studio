@@ -6,7 +6,9 @@ import { ElevenlabsLight } from './light'
 
 const Elevenlabs = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ElevenlabsLight {...props} className={className} />
+
   if (variant === 'dark') return <ElevenlabsDark {...props} className={className} />
+
   return (
     <>
       <ElevenlabsLight className={cn('dark:hidden', className)} {...props} />

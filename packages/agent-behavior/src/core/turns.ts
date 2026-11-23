@@ -17,27 +17,35 @@ export const startsTurn = (entry: HistoryEntry): boolean =>
  */
 export function stoppedTurn(history: readonly HistoryEntry[], key: string): ItemId | undefined {
   let turn: ItemId | undefined
+
   for (const entry of history) {
     if (entry.kind === 'record' && entry.key === key) break
+
     if (startsTurn(entry)) turn = entry.id
   }
+
   return turn
 }
 
 /** A stop is recorded for the turn begun last; every stop writes its record in its deciding commit (R5). */
 export function turnStopping(history: readonly HistoryEntry[]): boolean {
   let stopped: boolean | undefined
+
   for (const entry of history) {
     if (startsTurn(entry)) stopped = false
     else if (stopped === false && entry.kind === 'record' && entry.record.type === 'turn-stop') stopped = true
   }
+
   return stopped === true
 }
 
 export type Turn = 'human' | 'round' | 'notification'
+
 /** Which turn `entry` starts, by `startsTurn`; `undefined` for an entry that starts none (a quiet marker included). */
 export function turnKind(entry: HistoryEntry): Turn | undefined {
   if (!startsTurn(entry)) return undefined
+
   if (entry.kind === 'user') return 'human'
+
   return entry.kind === 'marker' && entry.marker.type === 'goal-round' ? 'round' : 'notification'
 }

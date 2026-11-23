@@ -43,13 +43,16 @@ export function normalizePromptSuggestion(candidate: string): string {
       ''
     )
     .trim()
+
   const lower = text.toLowerCase()
   const words = suggestionWordCount(text)
+
   const asianCharacters = [...text].filter((char) =>
     /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\u30fc\uff70\p{Script=Hangul}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u.test(
       char
     )
   ).length
+
   const singleWords = new Set([
     'yes',
     'yeah',
@@ -69,10 +72,14 @@ export function normalizePromptSuggestion(candidate: string): string {
     'quit',
     'no'
   ])
+
   if (!text || text.length >= 100 || words > 12 || /[\r\n*]/.test(text)) return ''
+
   if (words < 2 && !text.startsWith('/') && (asianCharacters > 0 ? asianCharacters < 2 : !singleWords.has(lower)))
     return ''
+
   if (lower === 'done' || /^\P{L}*(完了(しました)?|完成了?|완료됨?)\P{L}*$/u.test(text)) return ''
+
   if (
     /^(nothing found\.?$|nothing to suggest|no suggestion)|\bsilence is\b|\bstay(s|ing)? silent\b|^\W*silence\W*$/.test(
       lower
@@ -82,9 +89,13 @@ export function normalizePromptSuggestion(candidate: string): string {
     )
   )
     return ''
+
   if (/^(\(.*\)|\[.*\]|（.*）|［.*］|【.*】|〔.*〕)$/.test(text) || /^\w+:\s/.test(text)) return ''
+
   if (/^(api error:|prompt is too long|request timed out|invalid api key|image was too large)/.test(lower)) return ''
+
   if (/[.!?]\s+[A-Z]|[。！？]\s*[\p{L}\p{N}]/u.test(text)) return ''
+
   if (
     /thanks|thank you|looks good|sounds good|that works|that worked|that's all|nice|great|perfect|makes sense|awesome|excellent/.test(
       lower
@@ -95,22 +106,26 @@ export function normalizePromptSuggestion(candidate: string): string {
     /(良さそう|よさそう|いいですね|看起来不错|太好了|完璧|完美|좋네요)(です|ですね|だね)?\P{L}*$/u.test(text)
   )
     return ''
+
   if (
     /^(let me|i'll|i've|i'm|i can|i would|i think|i notice|here's|here is|here are|that's|this is|this will|you can|you should|you could|sure,|of course|certainly|让我(?!们)|我来|我会|我将)/i.test(
       text
     )
   )
     return ''
+
   return text
 }
 
 function suggestionWordCount(text: string): number {
   if (!text.trim()) return 0
   let words = 0
+
   for (const segment of text.trim().split(/\s+/)) {
     let han = 0
     let phonetic = 0
     let other = 0
+
     for (const character of segment) {
       if (/\p{Script=Han}/u.test(character)) han++
       else if (
@@ -121,7 +136,9 @@ function suggestionWordCount(text: string): number {
         phonetic++
       else if (/[\p{L}\p{N}]/u.test(character)) other++
     }
+
     words += han === 0 && phonetic === 0 ? 1 : (other > 0 ? 1 : 0) + han / 2 + phonetic / 4
   }
+
   return Math.ceil(words)
 }

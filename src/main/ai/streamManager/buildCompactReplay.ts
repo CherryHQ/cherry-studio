@@ -2,18 +2,23 @@ import type { StreamChunkPayload } from '@shared/ai/transport'
 
 function utf8CodePointBytes(codePoint: number): number {
   if (codePoint <= 0x7f) return 1
+
   if (codePoint <= 0x7ff) return 2
+
   if (codePoint <= 0xffff) return 3
+
   return 4
 }
 
 function utf8ByteLength(value: string): number {
   let bytes = 0
+
   for (let index = 0; index < value.length;) {
     const codePoint = value.codePointAt(index)!
     bytes += utf8CodePointBytes(codePoint)
     index += codePoint > 0xffff ? 2 : 1
   }
+
   return bytes
 }
 
@@ -22,9 +27,11 @@ const deltaUtf8ByteLengths = new WeakMap<StreamChunkPayload, number>()
 
 function cachedDeltaUtf8ByteLength(payload: StreamChunkPayload, value: string): number {
   const cached = deltaUtf8ByteLengths.get(payload)
+
   if (cached !== undefined) return cached
   const bytes = utf8ByteLength(value)
   deltaUtf8ByteLengths.set(payload, bytes)
+
   return bytes
 }
 
@@ -36,6 +43,7 @@ interface Utf8Segment {
 /** Split without breaking Unicode code points. A configured limit below four bytes cannot split a single emoji further. */
 function splitUtf8(value: string, maxBytes: number): Utf8Segment[] {
   if (!value) return [{ value, byteLength: 0 }]
+
   if (!Number.isFinite(maxBytes) || maxBytes <= 0) return [{ value, byteLength: utf8ByteLength(value) }]
 
   const segments: Utf8Segment[] = []
@@ -58,20 +66,25 @@ function splitUtf8(value: string, maxBytes: number): Utf8Segment[] {
   }
 
   segments.push({ value: value.slice(segmentStart), byteLength: segmentBytes })
+
   return segments
 }
 
 /** Split a single oversized incoming delta before it enters the replay ring. */
 export function splitDeltaPayload(payload: StreamChunkPayload, maxDeltaBytes: number): StreamChunkPayload[] {
   const chunk = payload.chunk
+
   if (chunk.type !== 'text-delta' && chunk.type !== 'reasoning-delta' && chunk.type !== 'tool-input-delta') {
     return [payload]
   }
+
   const value = chunk.type === 'tool-input-delta' ? chunk.inputTextDelta : chunk.delta
 
   const segments = splitUtf8(value, maxDeltaBytes)
+
   if (segments.length === 1) {
     deltaUtf8ByteLengths.set(payload, segments[0].byteLength)
+
     return [payload]
   }
 
@@ -80,7 +93,9 @@ export function splitDeltaPayload(payload: StreamChunkPayload, maxDeltaBytes: nu
       chunk.type === 'tool-input-delta'
         ? { ...payload, chunk: { ...chunk, inputTextDelta: segment.value } }
         : { ...payload, chunk: { ...chunk, delta: segment.value } }
+
     deltaUtf8ByteLengths.set(segmentPayload, segment.byteLength)
+
     return segmentPayload
   })
 }
@@ -113,17 +128,22 @@ export function mergeDeltaPayload(
   if (tail.executionId !== incoming.executionId || tail.anchorMessageId !== incoming.anchorMessageId) {
     return undefined
   }
+
   const prev = tail.chunk
   const next = incoming.chunk
+
   if (
     (prev.type === 'text-delta' && next.type === 'text-delta' && prev.id === next.id) ||
     (prev.type === 'reasoning-delta' && next.type === 'reasoning-delta' && prev.id === next.id)
   ) {
     let mergedByteLength: number | undefined
+
     if (maxDeltaBytes !== undefined) {
       mergedByteLength = cachedDeltaUtf8ByteLength(tail, prev.delta) + cachedDeltaUtf8ByteLength(incoming, next.delta)
+
       if (mergedByteLength > maxDeltaBytes) return undefined
     }
+
     const merged: StreamChunkPayload = {
       ...tail,
       firstSequence: tail.firstSequence ?? tail.sequence,
@@ -134,25 +154,34 @@ export function mergeDeltaPayload(
         providerMetadata: next.providerMetadata ?? prev.providerMetadata
       }
     }
+
     if (mergedByteLength !== undefined) deltaUtf8ByteLengths.set(merged, mergedByteLength)
+
     return merged
   }
+
   if (prev.type === 'tool-input-delta' && next.type === 'tool-input-delta' && prev.toolCallId === next.toolCallId) {
     let mergedByteLength: number | undefined
+
     if (maxDeltaBytes !== undefined) {
       mergedByteLength =
         cachedDeltaUtf8ByteLength(tail, prev.inputTextDelta) + cachedDeltaUtf8ByteLength(incoming, next.inputTextDelta)
+
       if (mergedByteLength > maxDeltaBytes) return undefined
     }
+
     const merged: StreamChunkPayload = {
       ...tail,
       firstSequence: tail.firstSequence ?? tail.sequence,
       sequence: incoming.sequence,
       chunk: { ...prev, inputTextDelta: prev.inputTextDelta + next.inputTextDelta }
     }
+
     if (mergedByteLength !== undefined) deltaUtf8ByteLengths.set(merged, mergedByteLength)
+
     return merged
   }
+
   return undefined
 }
 
@@ -172,6 +201,7 @@ export function buildCompactReplay(
 
   const scopedKey = (payload: StreamChunkPayload, id: string): string =>
     JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, id])
+
   const openPartKey = (payload: StreamChunkPayload, kind: 'text' | 'reasoning', id: string): string =>
     scopedKey(payload, `${kind}:${id}`)
 
@@ -184,6 +214,7 @@ export function buildCompactReplay(
   for (const payload of buffer) {
     if (pending) {
       const merged = mergeDeltaPayload(pending, payload, maxDeltaBytes)
+
       if (merged) {
         pending = merged
         continue
@@ -191,6 +222,7 @@ export function buildCompactReplay(
     }
 
     const chunk = payload.chunk
+
     switch (chunk.type) {
       case 'text-start':
       case 'reasoning-start': {
@@ -205,10 +237,12 @@ export function buildCompactReplay(
         flushPending()
         const kind = chunk.type === 'text-delta' ? ('text' as const) : ('reasoning' as const)
         const key = openPartKey(payload, kind, chunk.id)
+
         if (!openParts.has(key)) {
           openParts.add(key)
           compact.push({ ...payload, chunk: { type: `${kind}-start`, id: chunk.id } })
         }
+
         pending = payload
         break
       }
@@ -216,6 +250,7 @@ export function buildCompactReplay(
       case 'text-end':
       case 'reasoning-end': {
         flushPending()
+
         if (!openParts.has(openPartKey(payload, chunk.type === 'text-end' ? 'text' : 'reasoning', chunk.id))) break
         compact.push(payload)
         break
@@ -234,5 +269,6 @@ export function buildCompactReplay(
   }
 
   flushPending()
+
   return compact
 }

@@ -57,6 +57,7 @@ function notifyPinReadModelChange(pins: readonly Pin[], kind: 'membership' | 'or
   if (pins.length === 0) return
 
   const pinIds = [...new Set(pins.map((pin) => pin.id))]
+
   const effects: DataApiDataChangeEffect[] = [
     kind === 'membership'
       ? { endpoint: '/pins', kind: 'membership', entityIds: pinIds }
@@ -66,6 +67,7 @@ function notifyPinReadModelChange(pins: readonly Pin[], kind: 'membership' | 'or
 
   for (const entityType of ['topic', 'session'] as const) {
     const entityIds = [...new Set(pins.flatMap((pin) => (pin.entityType === entityType ? [pin.entityId] : [])))]
+
     if (entityIds.length === 0) continue
 
     const endpoint = entityType === 'topic' ? '/topics' : '/agent-sessions'
@@ -94,6 +96,7 @@ export class PinService {
       .where(eq(pinTable.entityType, entityType))
       .orderBy(asc(pinTable.orderKey))
       .all()
+
     return rows.map(rowToPin)
   }
 
@@ -133,6 +136,7 @@ export class PinService {
         .where(and(eq(pinTable.entityType, dto.entityType), eq(pinTable.entityId, dto.entityId)))
         .limit(1)
         .all()
+
       if (existing) return { pin: rowToPin(existing), created: false }
 
       try {
@@ -145,12 +149,14 @@ export class PinService {
             scope: eq(pinTable.entityType, dto.entityType)
           }
         )
+
         const mapped = rowToPin(inserted)
         logger.info('Created pin', {
           id: mapped.id,
           entityType: mapped.entityType,
           entityId: mapped.entityId
         })
+
         return { pin: mapped, created: true }
       } catch (e) {
         if (classifySqliteError(e)?.kind !== 'unique') throw e
@@ -161,11 +167,15 @@ export class PinService {
           .where(and(eq(pinTable.entityType, dto.entityType), eq(pinTable.entityId, dto.entityId)))
           .limit(1)
           .all()
+
         if (!winner) throw e
+
         return { pin: rowToPin(winner), created: false }
       }
     })
+
     if (result.created) notifyPinReadModelChange([result.pin], 'membership')
+
     return result.pin
   }
 
@@ -193,8 +203,10 @@ export class PinService {
         pkColumn: pinTable.id,
         scopeColumn: pinTable.entityType
       })
+
       return tx.select().from(pinTable).where(eq(pinTable.id, id)).all().map(rowToPin)
     })
+
     notifyPinReadModelChange(pins, 'order')
   }
 
@@ -205,13 +217,16 @@ export class PinService {
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
     const ids = [...new Set(moves.map((move) => move.id))]
+
     const pins = this.db.transaction((tx) => {
       applyScopedMoves(tx, pinTable, moves, {
         pkColumn: pinTable.id,
         scopeColumn: pinTable.entityType
       })
+
       return tx.select().from(pinTable).where(inArray(pinTable.id, ids)).all().map(rowToPin)
     })
+
     notifyPinReadModelChange(pins, 'order')
   }
 
@@ -249,6 +264,7 @@ export class PinService {
    */
   purgeForEntitiesTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityIds: string[]): void {
     if (entityIds.length === 0) return
+
     for (const idChunk of chunk(entityIds, SQLITE_INARRAY_CHUNK)) {
       tx.delete(pinTable)
         .where(and(eq(pinTable.entityType, entityType), inArray(pinTable.entityId, idChunk)))

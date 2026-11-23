@@ -36,10 +36,13 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
     if (!provider?.endpointConfigs) return API_HOST_OPTIONS[0].value
     const firstConfig = Object.values(provider.endpointConfigs)[0]
     const firstUrl = firstConfig?.baseUrl
+
     if (!firstUrl) return API_HOST_OPTIONS[0].value
+
     try {
       const hostname = new URL(firstUrl).hostname
       const matched = API_HOST_OPTIONS.find((option) => hostname.includes(option.value))
+
       return matched?.value ?? API_HOST_OPTIONS[0].value
     } catch {
       return API_HOST_OPTIONS[0].value
@@ -50,6 +53,7 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
     async (value: string) => {
       setOpen(false)
       const newEndpointConfigs = replaceEndpointConfigDomain(provider?.endpointConfigs, value)
+
       try {
         await updateProvider({ endpointConfigs: newEndpointConfigs })
       } catch {
@@ -83,6 +87,7 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
         <MenuList>
           {API_HOST_OPTIONS.map((option) => {
             const isSelected = option.value === currentHost
+
             return (
               <MenuItem
                 key={option.value}

@@ -22,6 +22,7 @@ import { toast } from '@renderer/services/toast'
  */
 export const BinaryInstallFailureRow: FC<{ error: string; onShowError: () => void }> = ({ error, onShowError }) => {
   const { t } = useTranslation()
+
   return (
     <button
       type="button"
@@ -38,6 +39,7 @@ export const BinaryInstallFailureRow: FC<{ error: string; onShowError: () => voi
 /** Installs can take minutes (runtime downloads) — say so instead of leaving a bare spinner. */
 export const BinaryInstallingHint: FC = () => {
   const { t } = useTranslation()
+
   return (
     <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">{t('settings.dependencies.installingHint')}</p>
   )
@@ -65,11 +67,13 @@ export const BinaryInstallErrorDialog: FC<{
   const copiedResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   // Retain the last error so the dialog keeps its content during the close animation.
   const lastError = useRef<BinaryOperationError>({ name: '', message: '', action: 'install' })
+
   if (error) lastError.current = error
 
   useEffect(() => {
     copyRequestId.current++
     setCopied(false)
+
     return () => {
       if (copiedResetTimer.current) clearTimeout(copiedResetTimer.current)
       copiedResetTimer.current = undefined
@@ -78,11 +82,13 @@ export const BinaryInstallErrorDialog: FC<{
 
   const copyError = () => {
     const requestId = ++copyRequestId.current
+
     if (copiedResetTimer.current) clearTimeout(copiedResetTimer.current)
     copiedResetTimer.current = undefined
     navigator.clipboard.writeText(lastError.current.message).then(
       () => {
         if (requestId !== copyRequestId.current) return
+
         if (copiedResetTimer.current) clearTimeout(copiedResetTimer.current)
         setCopied(true)
         copiedResetTimer.current = setTimeout(() => setCopied(false), 2000)

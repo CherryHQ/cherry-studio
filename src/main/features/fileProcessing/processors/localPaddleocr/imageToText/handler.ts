@@ -13,9 +13,11 @@ export const localPaddleocrImageToTextHandler: FileProcessingCapabilityHandler<'
   mode: 'background',
   prepare(file, _config, signal) {
     signal?.throwIfAborted()
+
     if (file.type !== FILE_TYPE.IMAGE) {
       throw new Error('Local PaddleOCR only supports image files')
     }
+
     if (!application.get('LocalModelService').isDefaultModelReady('ocr')) {
       throw new Error('Local PaddleOCR model is not downloaded')
     }
@@ -26,6 +28,7 @@ export const localPaddleocrImageToTextHandler: FileProcessingCapabilityHandler<'
         const { text } = await application
           .get('OcrInferenceService')
           .recognize({ kind: 'path', imagePath: file.path }, executionContext.signal)
+
         return { kind: 'text', text }
       }
     }

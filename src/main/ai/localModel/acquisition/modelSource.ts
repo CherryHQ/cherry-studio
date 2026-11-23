@@ -9,10 +9,12 @@
 import type { DownloadUrls, ModelSourceId } from '../catalog/types'
 
 export type { ModelSourceId } from '../catalog/types'
+
 export type DownloadSourcePreference = 'china-first' | 'global-first'
 
 export function orderDownloadUrls(urls: DownloadUrls, preference: DownloadSourcePreference): string[] {
   if (!('china' in urls)) return [...urls]
+
   return preference === 'china-first' ? [urls.china, urls.global] : [urls.global, urls.china]
 }
 
@@ -65,5 +67,6 @@ export function modelSourceOrder(preference: DownloadSourcePreference): [ModelSo
 export function resolveModelFileUrl(id: ModelSourceId, repo: string, file: string, revision?: string): string {
   const source = SOURCES[id]
   const repoPath = source.remotePathTemplate.replace('{model}', repo).replace('{revision}', revision ?? source.revision)
+
   return `${source.remoteHost}/${repoPath}/${file}`
 }

@@ -4,6 +4,7 @@ import { Gpt4oTranscribeDiarizeLight } from './light'
 
 const Gpt4oTranscribeDiarize = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt4oTranscribeDiarizeLight {...props} className={className} />
+
   return <Gpt4oTranscribeDiarizeLight {...props} className={className} />
 }
 

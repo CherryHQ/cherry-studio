@@ -161,10 +161,13 @@ export type ResourceSelectorShellProps<T extends ResourceSelectorShellItem> =
  */
 function extractValueIds<T extends ResourceSelectorShellItem>(value: ResourceSelectorShellProps<T>['value']): string[] {
   if (value === null) return []
+
   if (typeof value === 'string') return [value]
+
   if (Array.isArray(value)) {
     return value.map((v) => (typeof v === 'string' ? v : v.id))
   }
+
   return [value.id]
 }
 
@@ -318,6 +321,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const [internalOpen, setInternalOpen] = useState(false)
   const [shellKey, setShellKey] = useState(0)
   const open = openProp ?? internalOpen
+
   const handleOpenChange = useCallback(
     (next: boolean) => {
       if (openProp === undefined) setInternalOpen(next)
@@ -327,19 +331,24 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   )
 
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
+
   const runPendingCloseAction = useCallback(() => {
     const action = pendingCloseActionRef.current
+
     if (!action) return
 
     pendingCloseActionRef.current = null
     action()
   }, [])
+
   const closeBeforeAction = useCallback(
     (action: () => void) => {
       pendingCloseActionRef.current = action
+
       if (!open) {
         setShellKey((key) => key + 1)
         runPendingCloseAction()
+
         return
       }
 
@@ -362,6 +371,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
     setSearchValue('')
     const frameId = window.requestAnimationFrame(runPendingCloseAction)
+
     return () => window.cancelAnimationFrame(frameId)
   }, [open, runPendingCloseAction])
 
@@ -375,6 +385,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     if (open && !wasOpenRef.current) {
       onOpenRef.current?.()
     }
+
     wasOpenRef.current = open
   }, [open])
 
@@ -397,11 +408,13 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   const { pinnedItems, unpinnedItems } = useMemo(() => {
     let filtered = items
+
     if (activeGroupId) {
       filtered = filtered.filter((item) => item.groupId === activeGroupId)
     }
 
     const query = searchValue.trim().toLowerCase()
+
     if (query) {
       filtered = filtered.filter(
         (item) =>
@@ -413,11 +426,13 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     const pinned = filtered.filter((item) => pinnedSet.has(item.id))
     const unpinned = filtered.filter((item) => !pinnedSet.has(item.id))
     const pinnedOrdered = pinnedIds.map((id) => pinned.find((item) => item.id === id)).filter(Boolean) as T[]
+
     return { pinnedItems: pinnedOrdered, unpinnedItems: unpinned }
   }, [activeGroupId, items, pinnedIds, pinnedSet, searchValue])
 
   const sections = useMemo<ResourceSelectorSection<T>[]>(() => {
     const nextSections: ResourceSelectorSection<T>[] = []
+
     if (pinnedItems.length > 0) {
       nextSections.push({
         key: 'pinned',
@@ -429,22 +444,27 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         items: pinnedItems
       })
     }
+
     nextSections.push({ key: 'rest', items: unpinnedItems })
+
     return nextSections
   }, [labels.pinnedTitle, pinnedItems, unpinnedItems])
 
   const { flatItems, sectionOffsets } = useMemo(() => {
     const offsets: number[] = []
     const flat: T[] = []
+
     for (const section of sections) {
       offsets.push(flat.length)
       flat.push(...section.items)
     }
+
     return { flatItems: flat, sectionOffsets: offsets }
   }, [sections])
 
   const firstEnabledIndex = useMemo(() => flatItems.findIndex((item) => !item.disabled), [flatItems])
   const [activeIndex, setActiveIndex] = useState(-1)
+
   const initActiveIndex = useCallback(() => {
     const selectedIdx = flatItems.findIndex((item) => selectedSet.has(item.id) && !item.disabled)
     setActiveIndex(selectedIdx >= 0 ? selectedIdx : firstEnabledIndex)
@@ -455,8 +475,10 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       wasOpenForActiveScrollRef.current = false
       pendingActiveScrollBlockRef.current = null
       setActiveIndex(-1)
+
       return
     }
+
     pendingActiveScrollBlockRef.current = wasOpenForActiveScrollRef.current ? 'nearest' : 'start'
     initActiveIndex()
     wasOpenForActiveScrollRef.current = true
@@ -467,18 +489,23 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       if (isMulti) {
         if (isItemType) {
           const byId = new Map<string, T>(items.map((item) => [item.id, item]))
+
           const mapped = ids.flatMap((id) => {
             const item = byId.get(id)
+
             return item ? [item] : []
           })
+
           props.onChange(mapped)
         } else {
           props.onChange(ids)
         }
+
         return
       }
 
       const id = ids[0] ?? null
+
       if (isItemType) {
         const item = id ? (items.find((candidate) => candidate.id === id) ?? null) : null
         props.onChange(item)
@@ -496,6 +523,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       if (isMulti) {
         if (multiEnabled) {
           const next = new Set(valueIds)
+
           if (next.has(item.id)) next.delete(item.id)
           else next.add(item.id)
           emitChange(Array.from(next))
@@ -503,6 +531,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
           emitChange([item.id])
           handleOpenChange(false)
         }
+
         return
       }
 
@@ -517,10 +546,13 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       if (flatItems.length === 0) return -1
       const total = flatItems.length
       let index = from
+
       for (let count = 0; count < total; count += 1) {
         index = (index + direction + total) % total
+
         if (!flatItems[index]?.disabled) return index
       }
+
       return -1
     },
     [flatItems]
@@ -537,30 +569,36 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
           event.preventDefault()
           pendingActiveScrollBlockRef.current = 'nearest'
           setActiveIndex((index) => step(index < 0 ? -1 : index, 1))
+
           return
         case 'ArrowUp':
           event.preventDefault()
           pendingActiveScrollBlockRef.current = 'nearest'
           setActiveIndex((index) => step(index < 0 ? flatItems.length : index, -1))
+
           return
         case 'Home':
           if (flatItems.length === 0) return
           event.preventDefault()
           pendingActiveScrollBlockRef.current = 'nearest'
           setActiveIndex(step(-1, 1))
+
           return
         case 'End':
           if (flatItems.length === 0) return
           event.preventDefault()
           pendingActiveScrollBlockRef.current = 'nearest'
           setActiveIndex(step(0, -1))
+
           return
         case 'Enter': {
           if (activeIndex < 0) return
           const item = flatItems[activeIndex]
+
           if (!item || item.disabled) return
           event.preventDefault()
           handleSelectItem(item)
+
           return
         }
       }
@@ -571,9 +609,11 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   useEffect(() => {
     if (activeIndex < 0) return
     const scrollBlock = pendingActiveScrollBlockRef.current
+
     if (!scrollBlock) return
     pendingActiveScrollBlockRef.current = null
     const item = flatItems[activeIndex]
+
     if (!item) return
     const element = listRef.current?.querySelector<HTMLElement>(`[data-option-row="${CSS.escape(item.id)}"]`)
     element?.scrollIntoView({ block: scrollBlock })
@@ -595,6 +635,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       if (item.pinDisabled) return null
 
       const isPinned = pinnedSet.has(item.id)
+
       return (
         <ModelSelectorRowActionButton
           disabled={item.disabled || isPinActionDisabled}
@@ -643,9 +684,11 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     (next: boolean) => {
       setMultiEnabledLocal(next)
       setUserOptedOut(!next)
+
       if (next || !isMulti || valueIds.length < 2) return
 
       const firstId = valueIds[0]
+
       if (isItemType) {
         const firstItem = items.find((item) => item.id === firstId) ?? null
         props.onChange(firstItem ? [firstItem] : [])
@@ -664,6 +707,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         ) : null}
         {groupOptions.map((group) => {
           const active = activeGroupId === group.id
+
           return (
             <ResourceGroupChip
               key={group.id}
@@ -690,6 +734,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     sections.map((section, sectionIndex) => {
       if (section.items.length === 0) return null
       const offset = sectionOffsets[sectionIndex] ?? 0
+
       return (
         <div key={section.key} role="group">
           {section.header != null ? (
@@ -699,6 +744,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
           ) : null}
           {section.items.map((item, itemIndex) => {
             const flatIndex = offset + itemIndex
+
             return (
               <ResourceSelectorOptionRow
                 key={item.id}

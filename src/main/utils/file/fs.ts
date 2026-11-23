@@ -78,14 +78,18 @@ export async function read(
   options?: { encoding?: 'text' | 'base64' | 'binary'; detectEncoding?: boolean }
 ): Promise<string | { data: string | Uint8Array; mime: string }> {
   const encoding = options?.encoding ?? 'text'
+
   if (encoding === 'text') {
     return readFile(path, 'utf-8')
   }
+
   const buf = await readFile(path)
   const inferredMime = mime.getType(path) ?? 'application/octet-stream'
+
   if (encoding === 'base64') {
     return { data: buf.toString('base64'), mime: inferredMime }
   }
+
   return { data: new Uint8Array(buf), mime: inferredMime }
 }
 
@@ -96,9 +100,11 @@ export async function readChunk(
   length: number
 ): Promise<Uint8Array<ArrayBuffer>> {
   const fileHandle = await fsOpen(path, 'r')
+
   try {
     const buffer = new Uint8Array(length)
     let totalBytesRead = 0
+
     while (totalBytesRead < length) {
       const { bytesRead } = await fileHandle.read(
         buffer,
@@ -106,9 +112,11 @@ export async function readChunk(
         length - totalBytesRead,
         offset + totalBytesRead
       )
+
       if (bytesRead === 0) break
       totalBytesRead += bytesRead
     }
+
     return totalBytesRead === buffer.byteLength ? buffer : buffer.slice(0, totalBytesRead)
   } finally {
     await fileHandle.close()
@@ -119,6 +127,7 @@ export async function readChunk(
 export async function exists(path: AbsoluteFilePath): Promise<boolean> {
   try {
     await access(path, constants.R_OK)
+
     return true
   } catch {
     return false
@@ -137,6 +146,7 @@ export type PathReadability = 'readable' | 'missing' | 'unverifiable'
 export async function probeReadable(path: AbsoluteFilePath): Promise<PathReadability> {
   try {
     await access(path, constants.R_OK)
+
     return 'readable'
   } catch (error) {
     return (error as NodeJS.ErrnoException)?.code === 'ENOENT' ? 'missing' : 'unverifiable'
@@ -165,12 +175,15 @@ export async function isSameFile(a: AbsoluteFilePath, b: AbsoluteFilePath): Prom
     // bigint: Windows NTFS file reference numbers exceed 2^53, so as doubles
     // two adjacent files can round to the same ino.
     const [sa, sb] = await Promise.all([fsStat(a, { bigint: true }), fsStat(b, { bigint: true })])
+
     return sa.dev === sb.dev && sa.ino === sb.ino
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
+
     if (code !== 'ENOENT') {
       logger.warn('isSameFile: stat failed, treating as different file', { a, b, code, err })
     }
+
     return false
   }
 }
@@ -203,6 +216,7 @@ export function shouldSilenceFsyncDirError(
   platform: NodeJS.Platform = process.platform
 ): boolean {
   if (code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP') return true
+
   return platform === 'win32' && (code === 'EPERM' || code === 'EACCES')
 }
 
@@ -218,6 +232,7 @@ export function shouldSilenceFsyncDirError(
 async function fsyncDirectoryOf(target: string): Promise<void> {
   try {
     const dirHandle = await fsOpen(path.dirname(target), 'r')
+
     try {
       await dirHandle.sync()
     } finally {
@@ -225,6 +240,7 @@ async function fsyncDirectoryOf(target: string): Promise<void> {
     }
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
+
     if (shouldSilenceFsyncDirError(code)) return
     logger.warn('fsync(dir) failed after atomic rename; durability not confirmed', { code })
   }
@@ -270,6 +286,7 @@ async function bestEffortUnlinkTmp(tmp: string): Promise<void> {
     await unlink(tmp)
   } catch (unlinkErr) {
     const code = (unlinkErr as NodeJS.ErrnoException).code
+
     if (code !== 'ENOENT') {
       logger.warn('atomicWriteFile: tmp cleanup failed; tmp file may remain on disk', {
         code
@@ -342,17 +359,23 @@ export interface ReadableFileSnapshot {
  */
 export async function openReadableFileSnapshot(target: AbsoluteFilePath): Promise<ReadableFileSnapshot> {
   const pathStat = await fsLstat(target, { bigint: true })
+
   if (!pathStat.isFile()) throw new Error('Snapshot source is not a regular file')
 
   const handle: FileHandle = await fsOpen(target, 'r')
+
   try {
     const handleStat = await handle.stat({ bigint: true })
+
     if (!handleStat.isFile() || pathStat.dev !== handleStat.dev || pathStat.ino !== handleStat.ino) {
       throw new Error('Snapshot source changed before it could be opened')
     }
+
     const size = Number(handleStat.size)
+
     if (!Number.isSafeInteger(size)) throw new RangeError('Snapshot source is too large to read safely')
     const { mtimeMs } = await handle.stat()
+
     return {
       dev: handleStat.dev,
       ino: handleStat.ino,
@@ -362,6 +385,7 @@ export async function openReadableFileSnapshot(target: AbsoluteFilePath): Promis
         if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > size) {
           throw new RangeError('Snapshot read length is outside the opened file')
         }
+
         return bytes === 0
           ? Readable.from(Buffer.alloc(0))
           : handle.createReadStream({ start: 0, end: bytes - 1, autoClose: false })
@@ -412,33 +436,42 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
     if (this.currentState === 'committed') {
       return this.committedVersion!
     }
+
     if (this.currentState === 'aborted') {
       throw new Error(`Prepared atomic write for ${this.target} was already aborted`)
     }
+
     if (this.settlement) {
       const version = await this.settlement
+
       if (version) return version
       throw new Error(`Prepared atomic write for ${this.target} was already aborted`)
     }
 
     this.settlement = this.commitOnce()
+
     return (await this.settlement)!
   }
 
   async abort(): Promise<void> {
     if (this.currentState !== 'prepared') return
+
     if (this.settlement) {
       await this.settlement.catch(() => undefined)
+
       return
     }
+
     this.settlement = this.abortOnce()
     await this.settlement
   }
 
   private async commitOnce(): Promise<PathVersion> {
     let version: PathVersion
+
     try {
       const fd = await fsOpen(this.tmp, 'r+')
+
       try {
         await fd.sync()
         const s = await fd.stat()
@@ -446,6 +479,7 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
       } finally {
         await fd.close()
       }
+
       await rename(this.tmp, this.target)
     } catch (err) {
       await bestEffortUnlinkTmp(this.tmp)
@@ -456,12 +490,14 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
     this.currentState = 'committed'
     this.committedVersion = version
     await fsyncDirectoryOf(this.target)
+
     return version
   }
 
   private async abortOnce(): Promise<undefined> {
     this.currentState = 'aborted'
     await bestEffortUnlinkTmp(this.tmp)
+
     return undefined
   }
 }
@@ -475,6 +511,7 @@ export async function prepareAtomicWrite(
   const tmp = tmpNameFor(target)
   const tmpHandle = await fsOpen(tmp, 'w', options?.mode)
   const bytes = typeof data === 'string' ? Buffer.from(data) : data
+
   try {
     try {
       await tmpHandle.writeFile(bytes)
@@ -483,17 +520,20 @@ export async function prepareAtomicWrite(
       await bestEffortUnlinkTmp(tmp)
       throw err
     }
+
     await tmpHandle.close()
   } catch (err) {
     await bestEffortUnlinkTmp(tmp)
     throw err
   }
+
   return new PreparedAtomicWriteImpl(target, tmp, bytes.byteLength, createContentHasherDigest(bytes))
 }
 
 function createContentHasherDigest(bytes: Uint8Array): ContentHash {
   const hasher = createContentHasher()
   hasher.update(bytes)
+
   return hasher.digest()
 }
 
@@ -544,11 +584,14 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
           this.size,
           this.hasher.digest()
         )
+
         if (this.aborted) {
           await prepared.abort()
           callback()
+
           return
         }
+
         this.enteredCommit = true
         await this.onPrepared(prepared)
         this.finalized = true
@@ -568,14 +611,17 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
   override _destroy(err: Error | null, callback: (err: Error | null) => void): void {
     if (this.finalized) {
       callback(err)
+
       return
     }
+
     const cleanup = () => {
       // Same rationale as _final: surface non-ENOENT cleanup failures so
       // operators can find the leaked tmp blob; never block destroy on
       // cleanup outcome.
       void bestEffortUnlinkTmp(this.tmp).finally(() => callback(err))
     }
+
     if (this.underlying.destroyed) {
       cleanup()
     } else {
@@ -586,11 +632,15 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
 
   async abort(): Promise<void> {
     if (this.aborted || this.finalized) return
+
     if (this.enteredCommit) {
       await finished(this).catch(() => undefined)
+
       return
     }
+
     this.aborted = true
+
     return new Promise<void>((resolve) => {
       this.once('close', () => resolve())
       this.destroy()
@@ -636,15 +686,19 @@ async function prepareAtomicCopyStream(
   signal?: AbortSignal
 ): Promise<PreparedAtomicWrite> {
   let result: PreparedAtomicWrite | undefined
+
   const writer = createPreparedAtomicWriteStream(dest, async (prepared) => {
     result = prepared
   })
+
   if (signal) {
     await pipeline(createReadStream(src), writer, { signal })
   } else {
     await pipeline(createReadStream(src), writer)
   }
+
   if (!result) throw new Error(`Atomic copy to ${dest} finished without a prepared write`)
+
   return result
 }
 
@@ -678,11 +732,13 @@ export async function atomicWriteIfUnchanged(
   expectedContentHash?: ContentHash
 ): Promise<PathVersion> {
   const prepared = await prepareAtomicWrite(target, data)
+
   try {
     // The payload may take arbitrarily long to materialize. Validate only
     // after it is durable and immediately before the atomic rename so an
     // edit that lands during preparation is not silently overwritten.
     await assertPathVersionUnchanged(target, expected, expectedContentHash)
+
     return await prepared.commit()
   } catch (error) {
     await prepared.abort()
@@ -700,12 +756,16 @@ export async function assertPathVersionUnchanged(
   const current: PathVersion = { mtime: Math.floor(s.mtimeMs), size: s.size }
   const sizeMatch = current.size === expected.size
   const mtimeMatch = current.mtime === expected.mtime
+
   if (!(sizeMatch && mtimeMatch)) {
     throw new PathStaleVersionError(target, expected, current)
   }
+
   const ambiguousMtime = current.mtime % 1000 === 0 && expected.mtime % 1000 === 0
+
   if (expectedContentHash !== undefined) {
     const actualHash = await hash(target)
+
     if (actualHash !== expectedContentHash) {
       throw new PathStaleVersionError(target, expected, current)
     }
@@ -731,6 +791,7 @@ export async function stat(
   path: AbsoluteFilePath
 ): Promise<{ size: number; createdAt: number; modifiedAt: number; isDirectory: boolean }> {
   const s = await fsStat(path)
+
   return {
     size: s.size,
     createdAt: Math.floor(s.birthtimeMs),
@@ -749,6 +810,7 @@ export async function lstat(target: AbsoluteFilePath): Promise<{
   isSymbolicLink: boolean
 }> {
   const s = await fsLstat(target)
+
   return {
     size: s.size,
     createdAt: Math.floor(s.birthtimeMs),
@@ -807,10 +869,12 @@ export async function move(src: AbsoluteFilePath, dest: AbsoluteFilePath): Promi
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
     await copy(src, dest)
+
     try {
       await unlink(src)
     } catch (unlinkErr) {
       const code = (unlinkErr as NodeJS.ErrnoException).code
+
       if (code !== 'ENOENT') {
         logger.warn('move: cross-device copy succeeded but source unlink failed; src remains on disk', {
           src,
@@ -845,11 +909,14 @@ export async function mkdir(target: AbsoluteFilePath): Promise<void> {
 /** Ensure a directory exists, creating any missing ancestors. Idempotent. */
 export async function ensureDir(target: AbsoluteFilePath): Promise<void> {
   const resolved = path.resolve(target)
+
   if (resolved === path.parse(resolved).root) {
     // Windows rejects recursive mkdir on volume roots, even when they exist.
     await fsStat(resolved)
+
     return
   }
+
   await fsMkdirPromise(target, { recursive: true })
 }
 
@@ -871,16 +938,21 @@ export async function download(url: string, dest: AbsoluteFilePath): Promise<voi
 /** Download into a prepared tmp file without replacing `dest` yet. */
 export async function prepareAtomicDownload(url: string, dest: AbsoluteFilePath): Promise<PreparedAtomicWrite> {
   const response = await fetch(url)
+
   if (!response.ok) {
     throw new Error(`download(${url}): HTTP ${response.status} ${response.statusText}`)
   }
+
   if (!response.body) {
     throw new Error(`download(${url}): response has no body`)
   }
+
   let prepared: PreparedAtomicWrite | undefined
+
   const writer = createPreparedAtomicWriteStream(dest, async (result) => {
     prepared = result
   })
+
   const reader = response.body.getReader()
   await new Promise<void>((resolve, reject) => {
     writer.on('error', (err) => {
@@ -891,14 +963,18 @@ export async function prepareAtomicDownload(url: string, dest: AbsoluteFilePath)
       reject(err)
     })
     writer.on('finish', resolve)
+
     const pump = async () => {
       try {
         for (;;) {
           const { value, done } = await reader.read()
+
           if (done) {
             writer.end()
+
             return
           }
+
           if (!writer.write(Buffer.from(value))) {
             await new Promise<void>((r) => writer.once('drain', r))
           }
@@ -907,9 +983,12 @@ export async function prepareAtomicDownload(url: string, dest: AbsoluteFilePath)
         writer.destroy(err as Error)
       }
     }
+
     void pump()
   })
+
   if (!prepared) throw new Error(`download(${url}): stream finished without a prepared write`)
+
   return prepared
 }
 
@@ -929,11 +1008,14 @@ export async function hashWithSize(
   const hasher = createContentHasher()
   const stream = createReadStream(path)
   let size = 0
+
   if (signal) addAbortSignal(signal, stream)
+
   for await (const chunk of stream) {
     const bytes = chunk as Buffer
     hasher.update(bytes)
     size += bytes.byteLength
   }
+
   return { contentHash: hasher.digest(), size }
 }

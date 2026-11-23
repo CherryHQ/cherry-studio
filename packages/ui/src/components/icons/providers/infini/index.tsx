@@ -4,6 +4,7 @@ import { InfiniLight } from './light'
 
 const Infini = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <InfiniLight {...props} className={className} />
+
   return <InfiniLight {...props} className={className} />
 }
 

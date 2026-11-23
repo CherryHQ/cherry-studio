@@ -31,4 +31,5 @@ export const agentTable = sqliteTable(
 )
 
 export type AgentRow = typeof agentTable.$inferSelect
+
 export type InsertAgentRow = typeof agentTable.$inferInsert

@@ -1,6 +1,7 @@
 import { type SVGProps, useId } from 'react'
 
 import type { IconComponent } from '../../types'
+
 const CohereLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
@@ -56,5 +57,7 @@ const CohereLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
     </svg>
   )
 }
+
 export { CohereLight }
+
 export default CohereLight

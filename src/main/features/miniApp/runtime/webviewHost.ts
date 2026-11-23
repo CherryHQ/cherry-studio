@@ -20,10 +20,13 @@ export function applyMiniAppWebviewPolicy(
   if (!isMiniAppPartition(params.partition)) return
 
   const appId = miniAppIdOfPartition(params.partition)
+
   if (!params.src.startsWith(`cherry-miniapp://${appId}/`)) {
     event.preventDefault()
+
     return
   }
+
   // REFUSED, not compared: the renderer names none of these (`WebviewContainer` renders
   // only `partition`, `useragent`, `style`, `data-*`, and `allowpopups` for `kind: 'site'`),
   // so any value is a bug or an attempt.
@@ -38,6 +41,7 @@ export function applyMiniAppWebviewPolicy(
   // the CSP. Denylisting individual prefs instead would need an edit every time Electron adds one.
   if (params.preload || params.webpreferences || params.blinkfeatures || params.disableblinkfeatures) {
     event.preventDefault()
+
     return
   }
 
@@ -77,16 +81,21 @@ export function installMiniAppWebviewHost(hostContents: Electron.WebContents): v
     // The partition must ALREADY be prepared: `ensurePartition` is async and this
     // handler is not, so it can only veto. The renderer awaits `mini_app.runtime.prepare`.
     const runtime = application.get('MiniAppRuntimeService')
+
     if (!runtime.isPartitionReady(appId)) {
       event.preventDefault()
+
       return
     }
+
     // Attaching mid-publish would put the old code back on top of files and grants
     // that are changing — the hole `withAppQuiesced` closes, re-entered from the side.
     if (runtime.isQuiescing(appId)) {
       event.preventDefault()
+
       return
     }
+
     // Imposed here, never accepted from the renderer.
     applyMiniAppWebviewPolicy(event, webPreferences, params, runtime.bridgePreloadPath)
   })
@@ -97,6 +106,7 @@ export function installMiniAppWebviewHost(hostContents: Electron.WebContents): v
   hostContents.on('did-attach-webview', (_event, contents) => {
     const runtime = application.get('MiniAppRuntimeService')
     const appId = runtime.resolveAppIdBySession(contents.session)
+
     if (!appId) return
 
     // The host id travels with the guest: a detached window closing must be able to
@@ -127,5 +137,6 @@ export function installMiniAppWebviewGate(): () => void {
   webContents.getAllWebContents().forEach(install)
   const onCreated = (_event: Electron.Event, contents: Electron.WebContents) => install(contents)
   app.on('web-contents-created', onCreated)
+
   return () => app.removeListener('web-contents-created', onCreated)
 }

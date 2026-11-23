@@ -24,6 +24,7 @@ export type IconType = 'icons' | 'providers' | 'models'
 
 const ICON_TYPES: IconType[] = ['icons', 'providers', 'models']
 const HASH_CACHE_FILE = path.join(__dirname, '../.icons-hash.json')
+
 const SOURCE_DIR_MAP: Record<IconType, string> = {
   icons: path.join(__dirname, '../icons/general'),
   providers: path.join(__dirname, '../icons/providers'),
@@ -46,6 +47,7 @@ type HashCache = Record<string, string>
 async function loadHashCache(): Promise<HashCache> {
   try {
     const data = await fs.readFile(HASH_CACHE_FILE, 'utf-8')
+
     return JSON.parse(data)
   } catch {
     return {}
@@ -62,9 +64,11 @@ function computeHash(content: string): string {
 
 function parseTypeArg(): IconType | null {
   const arg = process.argv.find((item) => item.startsWith('--type='))
+
   if (!arg) return null
 
   const value = arg.split('=')[1]
+
   if (value === 'icons' || value === 'providers' || value === 'models') return value
 
   throw new Error(`Invalid --type value: ${value}. Use "icons", "providers", or "models".`)
@@ -80,6 +84,7 @@ export function resolveActiveLogoDirs(type: LogoType, generatedDirNames: Iterabl
 
 function parseOnlyArg(): Set<string> | null {
   const arg = process.argv.find((item) => item.startsWith('--only='))
+
   if (!arg) return null
 
   const values = arg
@@ -95,12 +100,14 @@ function matchesOnly(only: Set<string> | null, dirName: string, filename: string
   if (!only) return true
 
   const basename = filename.replace(/\.svg$/, '')
+
   return only.has(dirName) || only.has(basename)
 }
 
 async function ensureOutputDir(type: IconType): Promise<string> {
   const outputDir = OUTPUT_DIR_MAP[type]
   await fs.mkdir(outputDir, { recursive: true })
+
   return outputDir
 }
 
@@ -110,13 +117,16 @@ async function ensureOutputDir(type: IconType): Promise<string> {
  */
 function toPascalCase(filename: string): string {
   const name = filename.replace(/\.svg$/, '')
+
   if (name === 'serpkite') return 'SerpKite'
 
   if (/^\d/.test(name)) {
     const match = name.match(/^(\d+)(.*)$/)
+
     if (match) {
       const [, numbers, rest] = match
       const restCamel = rest.replace(/-([a-z])/g, (_, char) => char.toUpperCase())
+
       return restCamel.charAt(0).toUpperCase() + restCamel.slice(1) + numbers
     }
   }
@@ -137,6 +147,7 @@ export function extractColorPrimary(svgContent: string): string {
 
   for (const [, color] of fills) {
     if (color === 'none' || color === 'currentColor' || color.startsWith('url(') || color.startsWith('var(')) continue
+
     if (/^(?:white|#fff(?:fff)?|#FFFFFF)$/i.test(color)) continue
     colorCounts.set(color, (colorCounts.get(color) || 0) + 1)
   }
@@ -145,6 +156,7 @@ export function extractColorPrimary(svgContent: string): string {
 
   let maxColor = '#000000'
   let maxCount = 0
+
   for (const [color, count] of colorCounts) {
     if (count > maxCount) {
       maxColor = color
@@ -154,6 +166,7 @@ export function extractColorPrimary(svgContent: string): string {
 
   // Normalize named colors
   if (/^black$/i.test(maxColor)) return '#000000'
+
   return maxColor
 }
 
@@ -181,6 +194,7 @@ function collectStaticSvgReferences(jsCode: string): Set<string> {
 
 function scopeStaticSvgReferences(jsCode: string, componentName: string): string {
   const references = collectStaticSvgReferences(jsCode)
+
   if (references.size === 0) return jsCode
 
   let scopedCode = jsCode.replace(
@@ -333,6 +347,7 @@ async function generateLogoDirDual(
   }
 
   let colorPrimary = extractColorPrimary(lightSvg)
+
   if (/^black$/i.test(colorPrimary)) colorPrimary = '#000000'
 
   generateMeta({
@@ -352,6 +367,7 @@ async function removeStaleLogoDirs(outputDir: string, activeDirNames: Set<string
     if (!entry.isDirectory() || activeDirNames.has(entry.name)) continue
 
     const logoDir = path.join(outputDir, entry.name)
+
     const hasGeneratedIcon = await fs
       .stat(path.join(logoDir, 'light.tsx'))
       .then(() => true)
@@ -372,6 +388,7 @@ async function generateFlatIndex(outputDir: string, components: Array<{ filename
   const exports = components
     .map(({ filename, componentName }) => {
       const basename = filename.replace('.tsx', '')
+
       return `export { ${componentName} } from './${basename}'`
     })
     .sort()
@@ -387,6 +404,7 @@ async function generateFlatIndex(outputDir: string, components: Array<{ filename
 
 ${exports}
 `
+
   await fs.writeFile(path.join(outputDir, 'index.ts'), indexContent, 'utf-8')
 }
 
@@ -403,8 +421,10 @@ async function generateType(type: IconType, force: boolean, only: Set<string> | 
   if (type === 'providers' || type === 'models') {
     const svgMap = buildLightDarkSvgMap(type)
     console.log(`Found ${svgMap.size} light/dark SVG pairs in ${SOURCE_DIR_MAP[type]}\n`)
+
     if (!only) {
       const removedStale = await removeStaleLogoDirs(outputDir, resolveActiveLogoDirs(type, svgMap.keys()))
+
       if (removedStale > 0)
         console.log(`Removed ${removedStale} stale generated icon director${removedStale === 1 ? 'y' : 'ies'}\n`)
     }
@@ -417,6 +437,7 @@ async function generateType(type: IconType, force: boolean, only: Set<string> | 
     for (const [dirName, pair] of svgMap) {
       // dirName is camelCase; we need the original file basename for componentName
       const baseFile = path.basename(pair.light)
+
       if (!matchesOnly(only, dirName, baseFile)) continue
 
       const componentName = toPascalCase(baseFile)
@@ -429,14 +450,17 @@ async function generateType(type: IconType, force: boolean, only: Set<string> | 
 
         const lightFile = path.join(outputDir, dirName, 'light.tsx')
         const darkFile = path.join(outputDir, dirName, 'dark.tsx')
+
         const lightExists = await fs
           .stat(lightFile)
           .then(() => true)
           .catch(() => false)
+
         const darkExists = await fs
           .stat(darkFile)
           .then(() => true)
           .catch(() => false)
+
         const outputExists = lightExists && (pair.dark ? darkExists : !darkExists)
 
         if (!force && hashCache[cacheKey] === hash && outputExists) {
@@ -458,12 +482,14 @@ async function generateType(type: IconType, force: boolean, only: Set<string> | 
 
     const { generateAvatars } = await import('./icons-generate-avatars')
     generateAvatars({ iconType: type, only })
+
     return
   }
 
   // type === 'icons' — flat mode
   const inputDir = SOURCE_DIR_MAP[type]
   const inputStat = await fs.stat(inputDir).catch(() => null)
+
   if (!inputStat || !inputStat.isDirectory()) {
     throw new Error(`Source directory not found for type=${type}. Expected: ${inputDir}`)
   }
@@ -488,6 +514,7 @@ async function generateType(type: IconType, force: boolean, only: Set<string> | 
       const cacheKey = `${type}:${svgFile}`
       const hash = computeHash(svgContent)
       const outputPath = path.join(outputDir, outputFilename)
+
       const outputExists = await fs
         .stat(outputPath)
         .then(() => true)

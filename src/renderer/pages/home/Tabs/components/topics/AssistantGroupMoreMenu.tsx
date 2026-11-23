@@ -50,6 +50,7 @@ export function AssistantGroupMoreMenu({
   onToggleSidebar: (assistantId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+
   const actionContext: AssistantGroupActionContext = {
     assistantId,
     assistantIconType,
@@ -70,7 +71,9 @@ export function AssistantGroupMoreMenu({
     sidebarPinned,
     t
   }
+
   const actions = resolveAssistantGroupActions(actionContext)
+
   const extraItems = actionsToCommandMenuExtraItems(actions, (action) => {
     void executeAssistantGroupAction(action, actionContext)
   })

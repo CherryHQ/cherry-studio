@@ -9,4 +9,5 @@ export const RuntimeForkAnchorSchema = z.strictObject({
 })
 
 export type RuntimeForkCheckpoint = z.infer<typeof RuntimeForkCheckpointSchema>
+
 export type RuntimeForkAnchor = z.infer<typeof RuntimeForkAnchorSchema>

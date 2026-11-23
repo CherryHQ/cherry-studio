@@ -4,6 +4,7 @@ import { MenloLight } from './light'
 
 const Menlo = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MenloLight {...props} className={className} />
+
   return <MenloLight {...props} className={className} />
 }
 

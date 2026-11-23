@@ -13,23 +13,30 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
 
 const historyTableClassName = 'rounded-none border-0 bg-card shadow-none'
+
 export const historyTableGridClassName =
   'grid min-w-[760px] grid-cols-[44px_minmax(180px,1fr)_minmax(280px,2.5fr)_100px_84px]'
+
 const historyHeaderClassName =
   'sticky top-0 z-10 border-border-subtle border-b bg-card text-muted-foreground text-sm leading-5'
+
 const historyHeaderCellClassName = 'flex h-8 min-w-0 items-center px-3 py-1.5 font-semibold'
+
 // The row itself paints no hover/selection fill: each cell paints its own `muted` layer instead. This keeps
 // the fixed action column's fill from stacking on top of a row-level fill (which, with alpha `muted`, read
 // darker), and lets every cell — action column included — animate the same transitionable `background-color`
 // in lockstep. The `group` marker drives the per-cell `group-hover` / `group-data-[state=selected]` variants.
 export const historyBodyRowClassName =
   'group border-border-subtle border-b bg-card text-muted-foreground text-sm leading-5'
+
 export const historyBodyCellClassName =
   'flex min-w-0 items-center px-3 py-1.5 transition-colors group-hover:bg-muted group-data-[state=selected]:bg-muted'
+
 // Opaque `bg-card` base keeps horizontally-scrolled cells from bleeding through the pinned column; the shared
 // body-cell class above supplies the matching `muted` hover/selection fill.
 export const historyFixedActionCellClassName =
   'sticky right-0 z-2 justify-center bg-card px-2 [border-left:0.5px_solid_var(--border-subtle)]'
+
 export const historyFixedActionShadowClassName =
   '[--history-fixed-action-shadow:color-mix(in_oklch,var(--foreground)_33.3333%,transparent)] [box-shadow:-8px_0_12px_-12px_var(--history-fixed-action-shadow)]'
 
@@ -51,10 +58,13 @@ export function HistoryVirtualTable<TItem>({
   renderRow
 }: HistoryVirtualTableProps<TItem>) {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+
   const updateFixedActionShadow = useCallback(() => {
     const scroller = scrollerRef.current
+
     if (!scroller) {
       onFixedActionShadowChange(false)
+
       return
     }
 
@@ -66,10 +76,12 @@ export function HistoryVirtualTable<TItem>({
     updateFixedActionShadow()
 
     const scroller = scrollerRef.current
+
     if (!scroller || typeof ResizeObserver === 'undefined') return
 
     const resizeObserver = new ResizeObserver(updateFixedActionShadow)
     resizeObserver.observe(scroller)
+
     if (scroller.firstElementChild) {
       resizeObserver.observe(scroller.firstElementChild)
     }
@@ -238,6 +250,7 @@ export function HistoryActionContextMenu<TContext = unknown>({
     async (action: ResolvedAction<TContext>) => {
       if (!action.availability.enabled) return
       const confirm = action.confirm
+
       if (confirm) {
         // Confirm gates a fallible action: ConfirmActionPopup runs it in-dialog and
         // surfaces failures (toast + retry), so a rejected action is never silent.
@@ -249,8 +262,10 @@ export function HistoryActionContextMenu<TContext = unknown>({
           danger: confirm.destructive,
           action: () => onAction(action)
         })
+
         return
       }
+
       await onAction(action)
     },
     [onAction]
@@ -260,13 +275,17 @@ export function HistoryActionContextMenu<TContext = unknown>({
     const toItems = (list: readonly ResolvedAction<TContext>[]): CommandContextMenuExtraItem[] => {
       const items: CommandContextMenuExtraItem[] = []
       let previousGroup: string | undefined
+
       for (const action of list) {
         if (!action.availability.visible) continue
+
         if (items.length > 0 && action.group !== previousGroup) {
           items.push({ type: 'separator' })
         }
+
         previousGroup = action.group
         const label = String(action.label)
+
         if (action.children.length > 0) {
           items.push({
             type: 'submenu',
@@ -289,8 +308,10 @@ export function HistoryActionContextMenu<TContext = unknown>({
           })
         }
       }
+
       return items
     }
+
     return toItems(actions)
   }, [actions, runAction])
 
@@ -322,6 +343,7 @@ export function HistoryActionsCell<TContext = unknown>({
 }: HistoryActionsCellProps<TContext>) {
   const [pendingDeleteAction, setPendingDeleteAction] = useState<ResolvedAction<TContext> | undefined>()
   const deleteAction = useMemo(() => findRowDeleteAction(actions), [actions])
+
   const handleAction = useCallback(
     (action: ResolvedAction<TContext>) => {
       window.requestAnimationFrame(() => {
@@ -341,8 +363,10 @@ export function HistoryActionsCell<TContext = unknown>({
           onClick={(action) => {
             if (action.confirm) {
               setPendingDeleteAction(action)
+
               return
             }
+
             handleAction(action)
           }}
         />
@@ -394,6 +418,7 @@ const DeleteActionButton = <TContext,>({ action, label, onClick }: DeleteActionB
       variant="ghost"
       onClick={(event) => {
         event.stopPropagation()
+
         if (action) onClick(action)
       }}>
       <Archive className="size-4" />
@@ -528,8 +553,11 @@ export function formatHistoryTime(value: string, t: TFunction) {
   const now = dayjs()
 
   if (!date.isValid()) return t('history.records.table.emptyValue')
+
   if (date.isSame(now, 'day')) return date.format('HH:mm')
+
   if (date.isSame(now.subtract(1, 'day'), 'day')) return t('common.yesterday')
+
   if (date.isSame(now, 'year')) return date.format('MM/DD')
 
   return date.format('YYYY/MM/DD')

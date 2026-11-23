@@ -54,6 +54,7 @@ const useGenerateImageToolController = ({ assistantId, launcher }: Props) => {
 
 const GenerateImageComposerRuntime: FC<Props> = (props) => {
   useGenerateImageToolController(props)
+
   return null
 }
 

@@ -24,6 +24,8 @@ export function getDistanceToBottom(element: ScrollGeometryElement, bottomInset 
 
 export function isMoreThanOneViewportFromBottom(element: ScrollGeometryElement, bottomInset = 0): boolean {
   const viewportSize = element.clientHeight
+
   if (viewportSize <= 0) return false
+
   return getDistanceToBottom(element, bottomInset) > viewportSize
 }

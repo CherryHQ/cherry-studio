@@ -43,32 +43,40 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
   const [promptsEnabled, setPromptsEnabled] = useState(false)
   const restoreInputFocusRef = useRef<(() => void) | null>(null)
   const { t } = useTranslation()
+
   const {
     isVisible: isQuickPanelVisible,
     open: openQuickPanelContext,
     symbol: quickPanelSymbol,
     updateList: updateQuickPanelList
   } = useQuickPanel()
+
   const { setTimeoutTimer } = useTimer()
+
   const bindingTarget = useMemo<PromptBindingTarget | undefined>(
     () => (agentId ? { type: 'agent', id: agentId } : assistantId ? { type: 'assistant', id: assistantId } : undefined),
     [agentId, assistantId]
   )
+
   const promptQuery = useMemo<ListPromptsQueryParams | undefined>(() => {
     if (!bindingTarget) return { visibility: 'global' }
+
     return bindingTarget.type === 'assistant'
       ? { targetType: 'assistant', targetId: bindingTarget.id, includeGlobal: true }
       : { targetType: 'agent', targetId: bindingTarget.id, includeGlobal: true }
   }, [bindingTarget])
 
   const queryOptions = { enabled: promptsEnabled, swrOptions: PROMPT_QUERY_SWR_OPTIONS }
+
   if (promptQuery) Object.assign(queryOptions, { query: promptQuery })
+
   const {
     data: promptsRaw,
     isLoading: isPromptsLoading,
     error: promptsError,
     refetch: refetchPrompts
   } = useQuery('/prompts', queryOptions)
+
   useDataChange('/prompts', () => {
     if (promptsEnabled) void refetchPrompts()
   })
@@ -86,9 +94,11 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
   const insertText = useCallback(
     (text: string, options?: QuickPanelCallBackOptions) => {
       const inputAdapter = options?.inputAdapter
+
       if (inputAdapter) {
         inputAdapter.insertText(text)
         inputAdapter.focus()
+
         return
       }
 
@@ -125,6 +135,7 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
           content: data.content,
           visibility: data.visibility
         }
+
         if (data.visibility === 'restricted' && bindingTarget) body.bindingTarget = bindingTarget
         await createPrompt({
           body
@@ -207,6 +218,7 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
         bindingTarget.type === 'assistant'
           ? t('settings.prompts.manageCurrentAssistant')
           : t('settings.prompts.manageCurrentAgent')
+
       actions.push({
         id: 'quick-phrases:manage-current',
         panelSymbol: ComposerPanelSymbol.QuickPhrases,
@@ -335,5 +347,6 @@ const QuickPhrasesModal = ({
 
 export const QuickPhrasesToolRuntime = (props: Props) => {
   const controller = useQuickPhrasesToolController(props)
+
   return <QuickPhrasesModal {...controller} />
 }

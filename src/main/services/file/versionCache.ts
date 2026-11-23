@@ -50,6 +50,7 @@ export interface VersionCache {
  */
 export function createVersionCacheImpl(capacity: number): VersionCache {
   const store = new LRUCache<FileEntryId, FileVersion>({ max: capacity })
+
   return {
     get: (id) => store.get(id),
     set: (id, version) => {

@@ -8,6 +8,7 @@ function createOptionsForFile(appPath, originalOptionsForFile) {
 
   return (filePath) => {
     const options = originalOptionsForFile?.(filePath)
+
     if (filePath !== helperPath) return options
 
     return { ...options, entitlements: helperEntitlements }
@@ -22,7 +23,9 @@ async function signMacApp(configuration, signer = signAsync) {
 }
 
 exports.createOptionsForFile = createOptionsForFile
+
 exports.signMacApp = signMacApp
+
 exports.default = async function (configuration) {
   await signMacApp(configuration)
 }

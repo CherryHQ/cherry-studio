@@ -20,6 +20,7 @@ const EMPTY_TOPICS: ReturnType<typeof useRawAssistantTopicsSource>['topics'] = [
 const EMPTY_ASSISTANT_TOPICS_VIEW: AssistantTopicsView = { rendererTopics: [], orderSignature: '' }
 
 type AssistantTopicsSnapshot = Pick<ReturnType<typeof useRawAssistantTopicsSource>, 'pages' | 'topics'>
+
 type AgentSessionsSnapshot = Pick<ReturnType<typeof useRawAgentSessionsSource>, 'pinIdBySessionId' | 'sessions'>
 
 export function shouldLoadResourceViewSource(
@@ -28,9 +29,11 @@ export function shouldLoadResourceViewSource(
   appId: SidebarAppId
 ): boolean {
   const app = getSidebarApp(appId)
+
   if (!app) return false
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId)
+
   return Boolean(activeTab?.type === 'route' && !activeTab.isDormant && tabBelongsToApp(app, activeTab.url))
 }
 
@@ -54,6 +57,7 @@ function useCommittedAssistantTopicsSource(enabled: boolean, retainDerivedView: 
 
   const isColdLoading = enabled && snapshot === null
   const snapshotIsCurrent = snapshot?.pages === rawSource.pages && snapshot?.topics === rawSource.topics
+
   // A failed background refresh keeps serving the stale snapshot (stale-while-
   // error). While a retry fetch is actually in flight `isRefreshing` stays
   // honest, but once the source is idle with an error, `!isFullyLoaded` alone
@@ -66,6 +70,7 @@ function useCommittedAssistantTopicsSource(enabled: boolean, retainDerivedView: 
       (!rawSource.error && (!rawSource.isFullyLoaded || (rawSourceReady && !snapshotIsCurrent))))
 
   const topics = snapshot?.topics ?? (enabled ? rawSource.topics : EMPTY_TOPICS)
+
   // Derived once per window here — kept-alive tabs consume this shared view
   // instead of each remapping the full list (see AssistantTopicsView).
   const topicsView = useMemo(
@@ -104,6 +109,7 @@ function useCommittedAssistantTopicsSource(enabled: boolean, retainDerivedView: 
 function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource {
   const rawSource = useRawAgentSessionsSource({ enabled })
   const [snapshot, setSnapshot] = useState<AgentSessionsSnapshot | null>(null)
+
   const rawSourceReady =
     enabled &&
     rawSource.isFullyLoaded &&
@@ -127,8 +133,10 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
   }, [rawSource.pinIdBySessionId, rawSource.sessions, rawSourceReady])
 
   const isColdLoading = enabled && snapshot === null
+
   const snapshotIsCurrent =
     snapshot?.pinIdBySessionId === rawSource.pinIdBySessionId && snapshot?.sessions === rawSource.sessions
+
   // See useCommittedAssistantTopicsSource: a failed background refresh serves
   // the stale snapshot and reports refreshing only while a fetch is in flight,
   // never as a perpetual error-idle state.
@@ -197,19 +205,25 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
 
 export function ResourceViewSourceProvider({ children }: { children: ReactNode }) {
   const { activeTabId, tabs } = useTabs()
+
   const assistantTopicsEnabled = useMemo(
     () => shouldLoadResourceViewSource(tabs, activeTabId, 'assistants'),
     [activeTabId, tabs]
   )
+
   const retainAssistantTopicsView = useMemo(() => {
     const app = getSidebarApp('assistants')
+
     if (!app) return false
+
     return tabs.some((tab) => tab.type === 'route' && !tab.isDormant && tabBelongsToApp(app, tab.url))
   }, [tabs])
+
   const agentSessionsEnabled = useMemo(
     () => shouldLoadResourceViewSource(tabs, activeTabId, 'agents'),
     [activeTabId, tabs]
   )
+
   const assistantTopicsSource = useCommittedAssistantTopicsSource(assistantTopicsEnabled, retainAssistantTopicsView)
   const agentSessionsSource = useCommittedAgentSessionsSource(agentSessionsEnabled)
 

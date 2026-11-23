@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 
 const PADDLEOCR_OCR_MODEL_OPTIONS = ['PP-OCRv6', 'PP-OCRv5'] as const
+
 const PADDLEOCR_DOCUMENT_MODEL_OPTIONS = [
   'PaddleOCR-VL-1.5',
   'PaddleOCR-VL-1.6',

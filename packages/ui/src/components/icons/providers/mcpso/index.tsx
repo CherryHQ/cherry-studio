@@ -4,6 +4,7 @@ import { McpsoLight } from './light'
 
 const Mcpso = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <McpsoLight {...props} className={className} />
+
   return <McpsoLight {...props} className={className} />
 }
 

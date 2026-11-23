@@ -47,6 +47,7 @@ export const AgentSessionEntitySchema = z.strictObject({
   /** Read-only soft-delete timestamp, present only for trashed sessions. */
   deletedAt: z.string().optional()
 })
+
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 
 // Create requires a real `agentId` — orphans only happen via cascade, never on insert.
@@ -57,6 +58,7 @@ export const CreateAgentSessionSchema = z.strictObject({
   model: UniqueModelIdSchema.nullable().optional(),
   workspace: AgentSessionWorkspaceSourceSchema
 })
+
 export type CreateAgentSessionDto = z.infer<typeof CreateAgentSessionSchema>
 
 export const UpdateAgentSessionSchema = z.strictObject({
@@ -77,6 +79,7 @@ export type UpdateAgentSessionDto = z.infer<typeof UpdateAgentSessionSchema>
  * side-effects / resource creation → dedicated endpoint).
  */
 export const SetAgentSessionWorkspaceSchema = AgentSessionWorkspaceSourceSchema
+
 export type SetAgentSessionWorkspaceDto = AgentSessionWorkspaceSource
 
 /** Query for `GET /agent-sessions` (cursor pagination + optional agent filter). */
@@ -89,19 +92,23 @@ export const ListAgentSessionsQuerySchema = z.strictObject({
   /** `true` lists only trashed sessions; omitted/false lists active sessions. */
   inTrash: z.boolean().optional()
 })
+
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
+
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
 
 /** Ordinary conversation entry can reject task-owned sessions without restricting task history reads. */
 export const GetAgentSessionQuerySchema = z.strictObject({
   excludeTaskSessions: z.boolean().optional()
 })
+
 export type GetAgentSessionQuery = z.infer<typeof GetAgentSessionQuerySchema>
 
 /** Optional owner scope for `GET /agent-sessions/latest`; omitted means global latest. */
 export const LatestAgentSessionQuerySchema = z.strictObject({
   agentId: z.string().min(1).optional()
 })
+
 export type LatestAgentSessionQuery = z.infer<typeof LatestAgentSessionQuerySchema>
 
 /** Exact creation target for atomically reusing or creating an empty session. */
@@ -110,6 +117,7 @@ export const ReuseOrCreateAgentSessionSchema = z.strictObject({
   workspace: AgentSessionWorkspaceSourceSchema,
   excludeSessionId: z.string().min(1).optional()
 })
+
 export type ReuseOrCreateAgentSessionDto = z.infer<typeof ReuseOrCreateAgentSessionSchema>
 
 export interface DeleteAgentSessionsResult {

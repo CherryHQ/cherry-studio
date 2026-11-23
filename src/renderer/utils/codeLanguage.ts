@@ -29,11 +29,13 @@ function buildExtensionCache(): Map<string, string> {
   }
 
   extensionToLanguageCache = new Map()
+
   for (const [langName, data] of codeLanguages) {
     if (data.extensions) {
       for (const ext of data.extensions) {
         // Store without the leading dot, lowercase
         const normalizedExt = ext.startsWith('.') ? ext.slice(1).toLowerCase() : ext.toLowerCase()
+
         // Only set if not already mapped (first language wins)
         if (!extensionToLanguageCache.has(normalizedExt)) {
           extensionToLanguageCache.set(normalizedExt, langName)
@@ -41,6 +43,7 @@ function buildExtensionCache(): Map<string, string> {
       }
     }
   }
+
   return extensionToLanguageCache
 }
 
@@ -56,9 +59,11 @@ export function getLanguageByExtension(extension: string): string {
   const normalizedExt = extension.startsWith('.') ? extension.slice(1).toLowerCase() : extension.toLowerCase()
 
   const override = PRIMARY_EXTENSION_OVERRIDES.get(normalizedExt)
+
   if (override) return override
 
   const cache = buildExtensionCache()
+
   return cache.get(normalizedExt) || normalizedExt
 }
 
@@ -77,6 +82,7 @@ export function getLanguageByFilePath(filePath: string): string {
   // and in the agent's read/write tools (and match no highlighter).
   const basename = filePath.split(/[\\/]/).pop() ?? ''
   const dot = basename.lastIndexOf('.')
+
   if (dot < 0) return 'text'
 
   return getLanguageByExtension(basename.slice(dot + 1))
@@ -94,6 +100,7 @@ export function getExtensionByLanguage(language: string): string {
 
   // 精确匹配语言名称
   const directMatch = codeLanguages.get(language)
+
   if (directMatch?.extensions?.[0]) {
     return directMatch.extensions[0]
   }

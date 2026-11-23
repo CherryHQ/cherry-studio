@@ -160,17 +160,20 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
     const analyze = async () => {
       if (isNoteMode) {
         setAnalysisLoading(false)
+
         return
       }
 
       setAnalysisLoading(true)
       setContentStats(null)
+
       try {
         const stats = isTopicMode
           ? await analyzeTopicContent(source?.data)
           : isMessagesMode
             ? analyzeMessagesContent(source?.data.messages)
             : analyzeMessageContent(source?.data)
+
         setContentStats(stats)
       } catch (error) {
         logger.error('analyze content failed:', error as Error)
@@ -190,6 +193,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
         setAnalysisLoading(false)
       }
     }
+
     void analyze()
   }, [source, isTopicMode, isMessagesMode, isConversationMode, isNoteMode])
 
@@ -201,10 +205,12 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       .map(([type, config]) => {
         const contentType = type as ContentType
         const count = contentStats[contentType] || 0
+
         const descriptionKey =
           isConversationMode && 'topicDescription' in config && config.topicDescription
             ? config.topicDescription
             : config.description
+
         return {
           type: contentType,
           count,
@@ -263,10 +269,12 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       })
       .catch((error) => {
         logger.warn('Failed to load last-used knowledge base:', error as Error)
+
         if (!cancelled) {
           setLastUsedLoaded(true)
         }
       })
+
     return () => {
       cancelled = true
     }
@@ -276,8 +284,10 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
     if (selectedBaseId || !lastUsedLoaded) {
       return
     }
+
     const lastUsedBase = bases.find((base) => base.id === lastUsedBaseId && base.status === 'completed')
     const preferredBase = lastUsedBase ?? bases.find((base) => base.status === 'completed')
+
     if (preferredBase) {
       setSelectedBaseId(preferredBase.id)
     }
@@ -330,6 +340,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       }
 
       const selectedBase = bases.find((base) => base.id === selectedBaseId)
+
       if (!selectedBase) {
         throw new Error('Selected knowledge base not found')
       }
@@ -343,11 +354,13 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
 
       if (isNoteMode) {
         const note = source.data
+
         if (!note.externalPath) {
           throw new Error('Note external path is required for export')
         }
 
         let content = ''
+
         try {
           content = await window.api.file.readExternal(note.externalPath)
         } catch (error) {
@@ -377,6 +390,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
             : processMessageContent(source?.data, selectedTypes)
 
         logger.debug('Processed content:', result)
+
         if (result.text.trim() && selectedTypes.some((type) => type !== CONTENT_TYPES.FILE)) {
           items.push({
             type: 'note',
@@ -394,7 +408,9 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
             resolveKnowledgeFileMetadataEntryData,
             (file) => file.origin_name || file.name
           )
+
           const fileOutcome = selectKnowledgeFileBatchOutcome(fileBatch)
+
           if (fileOutcome.fatal !== undefined) {
             throw fileOutcome.fatal
           }
@@ -423,6 +439,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
         // Nothing was saved, so report failure instead of a zero-item success;
         // the partial-failure warning above already tells the user why.
         resolve({ success: false, savedCount: 0 })
+
         return
       }
 

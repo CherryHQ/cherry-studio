@@ -13,13 +13,17 @@ const SNAPSHOT_TITLE_MAX = 80
  */
 export function deriveUrlSnapshotSlug(markdown: string, url: string, pageTitle?: string): string {
   const fromTitle = sanitizeFilename(preferredTitle(pageTitle, markdown))
+
   if (fromTitle && fromTitle !== 'untitled') {
     return fromTitle
   }
+
   const fromUrl = sanitizeFilename(urlStem(url).slice(0, SNAPSHOT_TITLE_MAX).trim())
+
   if (fromUrl && fromUrl !== 'untitled') {
     return fromUrl
   }
+
   return 'page'
 }
 
@@ -31,9 +35,11 @@ export function deriveUrlSnapshotSlug(markdown: string, url: string, pageTitle?:
  */
 export function deriveUrlSnapshotTitle(markdown: string, url: string, pageTitle?: string): string {
   const fromTitle = preferredTitle(pageTitle, markdown)
+
   if (fromTitle) {
     return fromTitle
   }
+
   return urlStem(url).slice(0, SNAPSHOT_TITLE_MAX).trim() || url
 }
 
@@ -44,9 +50,11 @@ function preferredTitle(pageTitle: string | undefined, markdown: string): string
 function firstHeadingOrLine(markdown: string): string {
   const lines = markdown.split('\n').map((line) => line.trim())
   const heading = lines.find((line) => /^#{1,6}\s+/.test(line))
+
   if (heading) {
     return heading.replace(/^#{1,6}\s+/, '')
   }
+
   return lines.find(Boolean) ?? ''
 }
 
@@ -57,6 +65,7 @@ function urlStem(url: string): string {
     // undecoded title was written out as `docs.example.com-%E4%BD%BF...` — unrecognisable in
     // the knowledge base listing and impossible to search for.
     const lastSegment = decodePathSegment(parsed.pathname.split('/').filter(Boolean).pop())
+
     return [parsed.hostname, lastSegment].filter(Boolean).join('-')
   } catch {
     return ''
@@ -66,6 +75,7 @@ function urlStem(url: string): string {
 /** `decodeURIComponent` throws on a malformed escape; keep the raw text rather than the stem. */
 function decodePathSegment(segment: string | undefined): string | undefined {
   if (!segment) return segment
+
   try {
     return decodeURIComponent(segment)
   } catch {
@@ -89,6 +99,7 @@ export function buildUrlSnapshotFile(url: string, markdown: string, timestamp: s
     resource: url,
     timestamp
   })
+
   return {
     slug: deriveUrlSnapshotSlug(markdown, url, pageTitle),
     fileText: frontmatter + markdown
@@ -110,5 +121,6 @@ export async function captureUrlSnapshotFile(
 ): Promise<string> {
   const { slug, fileText } = buildUrlSnapshotFile(url, markdown, new Date().toISOString(), pageTitle)
   const relativePath = reserveImportedFileRelativePath(`${slug}.md`, false, reservedPaths)
+
   return await writeFileIntoKnowledgeBaseAt(baseId, relativePath, fileText)
 }

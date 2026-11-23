@@ -20,7 +20,9 @@ function assertNever(x: never): never {
 }
 
 type StagedJournal = Extract<RestoreJournal, { state: 'staged' }>
+
 type PromotingJournal = Extract<RestoreJournal, { state: 'promoting' }>
+
 type FileResource = RestoreJournal['fileResources'][number]
 
 /**
@@ -52,14 +54,19 @@ interface PromotionContext {
  */
 export async function runRestorePromotion(): Promise<void> {
   const read = readRestoreJournal()
+
   if (read.kind === 'none') {
     return
   }
+
   if (read.kind === 'corrupt') {
     quarantineCorruptJournal(read.error)
+
     return
   }
+
   const journal = read.journal
+
   switch (journal.state) {
     case 'completed':
     case 'failed':
@@ -79,10 +86,13 @@ export async function runRestorePromotion(): Promise<void> {
  */
 export function cleanupTerminalRestoreArtifacts(): void {
   const read = readRestoreJournal()
+
   if (read.kind !== 'ok') {
     return
   }
+
   const journal = read.journal
+
   if (journal.state === 'staged' || journal.state === 'promoting') {
     return
   }
@@ -123,14 +133,19 @@ export function cleanupTerminalRestoreArtifacts(): void {
  */
 export function markRestoreFailedAfterCrash(): void {
   const read = readRestoreJournal()
+
   if (read.kind !== 'ok') {
     return
   }
+
   const journal = read.journal
+
   if (journal.state !== 'staged' && journal.state !== 'promoting') {
     return
   }
+
   const ctx = buildContext(journal)
+
   if (journal.state === 'promoting' && commitLanded(ctx, journal)) {
     // The commit rename is durably on disk: the new DB is live with the old
     // DB parked aside. Freezing THAT to failed would strand a half-promoted
@@ -140,8 +155,10 @@ export function markRestoreFailedAfterCrash(): void {
     logger.warn('Escaped crash left a committed promotion — keeping it resumable for the next boot', {
       restoreId: journal.restoreId
     })
+
     return
   }
+
   restoreLiveFromAside(ctx)
   finalize(ctx, 'failed', journal.state === 'promoting' ? journal.step : undefined)
 }
@@ -160,9 +177,11 @@ function commitLanded(ctx: PromotionContext, journal: PromotingJournal): boolean
   if (!fs.existsSync(ctx.livePath) || !fs.existsSync(ctx.asidePath)) {
     return false
   }
+
   if (PROMOTION_STEP_ORDER.indexOf(journal.step) >= PROMOTION_STEP_ORDER.indexOf(COMMIT_STEP)) {
     return true
   }
+
   return journal.step === 'live-aside' && !fs.existsSync(ctx.workPath)
 }
 
@@ -176,16 +195,20 @@ function commitLanded(ctx: PromotionContext, journal: PromotingJournal): boolean
  */
 export function isLiveDbStranded(): boolean {
   const read = readRestoreJournal()
+
   if (read.kind !== 'ok') {
     return false
   }
+
   const livePath = application.getPath('app.database.file')
   const asidePath = path.resolve(application.getPath('app.userdata'), read.journal.db.aside)
+
   return !fs.existsSync(livePath) && fs.existsSync(asidePath)
 }
 
 function buildContext(journal: StagedJournal | PromotingJournal): PromotionContext {
   const userData = application.getPath('app.userdata')
+
   return {
     journal,
     userData,
@@ -203,12 +226,14 @@ async function promoteStaged(journal: StagedJournal): Promise<void> {
   try {
     assertNoAddConflicts(ctx)
     sealWorkSidecars(ctx.workPath)
+
     if (!(await fingerprintMatches(ctx.livePath, journal.db.fingerprint))) {
       return expire(
         ctx,
         'live fingerprint mismatch — the DB changed after staging (write-gate leak or external writer)'
       )
     }
+
     if (!chainIsBundledPrefix(journal.db.chain)) {
       return expire(ctx, 'journal chain is not a prefix of the bundled migration chain (fork or ahead-of-code DB)')
     }
@@ -231,6 +256,7 @@ function assertNoAddConflicts(ctx: PromotionContext): void {
   for (const entry of ctx.journal.fileResources) {
     if (entry.kind === 'blob-add' || entry.kind === 'dir-add' || entry.kind === 'note-add') {
       const live = resolveEntry(ctx, entry.livePath)
+
       if (fs.existsSync(live)) {
         throw new Error(`add target already exists: ${entry.livePath} (${entry.kind})`)
       }
@@ -249,16 +275,20 @@ function sealWorkSidecars(workPath: string): void {
   if (!fs.existsSync(workPath)) {
     throw new Error(`work database missing: ${workPath}`)
   }
+
   if (!fs.existsSync(`${workPath}-wal`) && !fs.existsSync(`${workPath}-shm`)) {
     return
   }
+
   logger.warn('work.sqlite has leftover sidecars — folding WAL into the main file', { workPath })
   const sqlite = new Database(workPath, { fileMustExist: true })
+
   try {
     checkpointTruncateAssert(sqlite)
   } finally {
     sqlite.close()
   }
+
   if (fs.existsSync(`${workPath}-wal`)) {
     throw new Error(`work database WAL survived checkpoint+close: ${workPath}-wal`)
   }
@@ -267,11 +297,13 @@ function sealWorkSidecars(workPath: string): void {
 /** Both fingerprint sides use the same primitives: TRUNCATE checkpoint, then hash the main file. */
 async function fingerprintMatches(livePath: string, expected: string): Promise<boolean> {
   const sqlite = new Database(livePath, { fileMustExist: true })
+
   try {
     checkpointTruncateAssert(sqlite)
   } finally {
     sqlite.close()
   }
+
   return (await hashDbFile(livePath)) === expected
 }
 
@@ -284,9 +316,11 @@ async function fingerprintMatches(livePath: string, expected: string): Promise<b
  */
 function chainIsBundledPrefix(chain: readonly AppliedMigration[]): boolean {
   const bundled = readMigrationFiles({ migrationsFolder: application.getPath('app.database.migrations') })
+
   if (chain.length > bundled.length) {
     return false
   }
+
   return chain.every(
     (item, index) => item.folderMillis === bundled[index].folderMillis && item.hash === bundled[index].hash
   )
@@ -306,6 +340,7 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
   const ctx = buildContext(journal)
   const order = PROMOTION_STEP_ORDER.indexOf(journal.step)
   const commit = PROMOTION_STEP_ORDER.indexOf(COMMIT_STEP)
+
   if (order < commit) {
     // Commit-boundary marker lag: the work→live rename (fsynced) can outlive
     // its own journal marker when the crash lands between the two writes.
@@ -331,6 +366,7 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
         restoreId: journal.restoreId
       })
       let resumed: PromotingJournal
+
       try {
         resumed = markStep(journal, COMMIT_STEP)
       } catch (error) {
@@ -340,16 +376,21 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
         logger.error('Probe-detected commit marker could not be persisted — resuming in memory', error as Error)
         resumed = { ...journal, step: COMMIT_STEP }
       }
+
       await executeForward(ctx, resumed)
+
       return
     }
+
     logger.warn('Crash before the commit point — rolling back to the old DB', {
       restoreId: journal.restoreId,
       step: journal.step
     })
     rollbackPreCommit(ctx)
+
     return
   }
+
   // Forward resume is legitimate only while the committed state is intact:
   // new DB live AND old DB parked aside. A cleared aside means an interrupted
   // revert already re-installed the old DB — resuming forward would
@@ -361,8 +402,10 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
       step: journal.step
     })
     revertPostCommit(ctx)
+
     return
   }
+
   logger.warn('Crash at/after the commit point — resuming promotion', {
     restoreId: journal.restoreId,
     step: journal.step
@@ -390,8 +433,10 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
 async function executeForward(ctx: PromotionContext, journal: PromotingJournal): Promise<void> {
   let current = journal
   const commitIndex = PROMOTION_STEP_ORDER.indexOf(COMMIT_STEP)
+
   for (let i = PROMOTION_STEP_ORDER.indexOf(current.step) + 1; i < PROMOTION_STEP_ORDER.length; i++) {
     const step = PROMOTION_STEP_ORDER[i]
+
     try {
       runStep(ctx, step)
     } catch (error) {
@@ -412,26 +457,33 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
         current = { ...journal, step }
         continue
       }
+
       logger.error(`Promotion step '${step}' failed`, error as Error)
+
       if (i <= commitIndex) {
         rollbackPreCommit(ctx)
       } else {
         revertPostCommit(ctx)
       }
+
       return
     }
+
     try {
       current = markStep(current, step)
     } catch (error) {
       if (i < commitIndex) {
         logger.error(`Marker write for '${step}' failed before the commit point — rolling back`, error as Error)
         rollbackPreCommit(ctx)
+
         return
       }
+
       logger.error(`Marker write for '${step}' failed at/past the commit point — continuing in memory`, error as Error)
       current = { ...journal, step }
     }
   }
+
   logger.info('Restore promoted — new DB is live', { restoreId: ctx.journal.restoreId })
   finalize(ctx, 'completed', current.step)
 }
@@ -447,31 +499,39 @@ function runStep(ctx: PromotionContext, step: PromotionStep): void {
           moveIdempotent(resolveEntry(ctx, entry.stagingPath), resolveEntry(ctx, entry.livePath))
         }
       }
+
       return
     case 'sidecars-removed':
       // Stale live sidecars would be replayed by SQLite over the PROMOTED
       // main file on next open — delete them in the zero-connection window.
       fs.rmSync(`${ctx.livePath}-wal`, { force: true })
       fs.rmSync(`${ctx.livePath}-shm`, { force: true })
+
       return
     case 'live-aside':
       renameOnceIdempotent(ctx.livePath, ctx.asidePath)
+
       return
     case 'work-promoted':
       renameOnceIdempotent(ctx.workPath, ctx.livePath)
+
       return
     case 'entries-applied':
       for (const entry of ctx.journal.fileResources) {
         applyEntry(ctx, entry)
       }
+
       return
     case 'integrity-ok': {
       const result = integrityCheck(ctx.livePath)
+
       if (result !== 'ok') {
         throw new Error(`integrity_check on the promoted DB failed: ${result}`)
       }
+
       return
     }
+
     default:
       assertNever(step)
   }
@@ -479,8 +539,10 @@ function runStep(ctx: PromotionContext, step: PromotionStep): void {
 
 function integrityCheck(dbPath: string): string {
   let sqlite: Database.Database | undefined
+
   try {
     sqlite = new Database(dbPath, { fileMustExist: true })
+
     return String(sqlite.pragma('integrity_check', { simple: true }))
   } catch (error) {
     // Open failures (missing/locked/not-a-db) are integrity failures too.
@@ -502,18 +564,23 @@ function applyEntry(ctx: PromotionContext, entry: FileResource): void {
       return
     case 'note-add':
       moveIdempotent(resolveEntry(ctx, entry.stagingPath), resolveEntry(ctx, entry.livePath))
+
       return
     case 'note-overwrite':
     case 'overwrite': {
       const live = resolveEntry(ctx, entry.livePath)
       const aside = entry.asidePath ? resolveEntry(ctx, entry.asidePath) : undefined
+
       // Aside-first: the original must be parked before the overwrite lands.
       if (aside && fs.existsSync(live) && !fs.existsSync(aside)) {
         renameDurable(live, aside)
       }
+
       moveIdempotent(resolveEntry(ctx, entry.stagingPath), live)
+
       return
     }
+
     default:
       assertNever(entry.kind)
   }
@@ -551,10 +618,12 @@ function revertPostCommit(ctx: PromotionContext): void {
       ctx.journal.restoreId,
       'failed.sqlite'
     )
+
     fs.rmSync(parked, { force: true })
     renameDurable(ctx.livePath, parked)
     logger.warn('Promoted DB failed post-commit checks — parked until rollback completes', { parked })
   }
+
   restoreLiveFromAside(ctx)
   inverseManifest(ctx)
   finalize(ctx, 'failed')
@@ -586,6 +655,7 @@ function inverseManifest(ctx: PromotionContext): void {
 
 function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
   const live = resolveEntry(ctx, entry.livePath)
+
   switch (entry.kind) {
     case 'blob-add':
     case 'note-add':
@@ -596,22 +666,28 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
       // deleting it would be unrecoverable loss of data the old DB may
       // reference. The returned copy is discarded with the staging tree.
       const source = resolveEntry(ctx, entry.stagingPath)
+
       if (!fs.existsSync(source) && fs.existsSync(live)) {
         renameDurable(live, source)
       }
+
       return
     }
+
     case 'note-overwrite':
     case 'overwrite': {
       const aside = entry.asidePath ? resolveEntry(ctx, entry.asidePath) : undefined
+
       if (aside && fs.existsSync(aside)) {
         // `overwrite` covers both files and whole directories. A failed
         // promotion must clear either shape before restoring its aside.
         fs.rmSync(live, { recursive: true, force: true })
         renameDurable(aside, live)
       }
+
       return
     }
+
     default:
       assertNever(entry.kind)
   }
@@ -635,12 +711,14 @@ function quarantineCorruptJournal(error: string): void {
   const journalPath = application.getPath('feature.backup.restore.file')
   const quarantined = `${journalPath}.corrupt-${Date.now()}`
   logger.error('Corrupt restore journal — quarantining and clearing staging', { quarantined, error })
+
   try {
     fs.renameSync(journalPath, quarantined)
   } catch (renameError) {
     logger.error('Failed to quarantine corrupt journal', renameError as Error)
     fs.rmSync(journalPath, { force: true })
   }
+
   // No trustworthy restoreId — clear the whole staging root.
   fs.rmSync(application.getPath('feature.backup.restore.staging'), { recursive: true, force: true })
 }
@@ -654,6 +732,7 @@ function resolveEntry(ctx: PromotionContext, relativePath: string): string {
 function markStep(journal: PromotingJournal, step: PromotionStep): PromotingJournal {
   const next: PromotingJournal = { ...journal, step }
   writeRestoreJournal(next)
+
   return next
 }
 
@@ -665,15 +744,19 @@ function markStep(journal: PromotingJournal, step: PromotionStep): PromotingJour
 function moveIdempotent(source: string, target: string): void {
   const sourceExists = fs.existsSync(source)
   const targetExists = fs.existsSync(target)
+
   if (!sourceExists && targetExists) {
     return
   }
+
   if (sourceExists && targetExists) {
     throw new Error(`move conflict — both source and target exist: ${source} → ${target}`)
   }
+
   if (!sourceExists) {
     throw new Error(`move source missing: ${source} → ${target}`)
   }
+
   renameDurable(source, target)
 }
 
@@ -695,6 +778,7 @@ function renameDurable(source: string, target: string): void {
   fs.renameSync(source, target)
   fsyncDir(path.dirname(target))
   const sourceDir = path.dirname(source)
+
   if (sourceDir !== path.dirname(target)) {
     fsyncDir(sourceDir)
   }
@@ -704,7 +788,9 @@ function fsyncDir(dir: string): void {
   if (process.platform === 'win32') {
     return
   }
+
   const fd = fs.openSync(dir, 'r')
+
   try {
     fs.fsyncSync(fd)
   } finally {

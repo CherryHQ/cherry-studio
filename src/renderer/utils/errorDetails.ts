@@ -24,6 +24,7 @@ export function getErrorDetails(err: any, seen = new WeakSet()): any {
   for (const prop of allProps) {
     try {
       const value = err[prop]
+
       // Skip function properties
       if (typeof value === 'function') continue
       // Recursively process nested objects
@@ -34,6 +35,7 @@ export function getErrorDetails(err: any, seen = new WeakSet()): any {
   }
 
   seen.delete(err)
+
   return result
 }
 
@@ -44,15 +46,20 @@ export function formatErrorDetails(error: unknown, fallback: string = '[Unserial
     delete detailedError?.headers
     delete detailedError?.stack
     delete detailedError?.request_id
+
     if (!detailedError) return ''
     const message = typeof detailedError.message === 'string' ? detailedError.message : undefined
+
     if (message) return message
     const json = JSON.stringify(detailedError, null, 2)
+
     if (json === undefined) return fallback
+
     const formattedJson = json
       .split('\n')
       .map((line) => `  ${line}`)
       .join('\n')
+
     return `Error Details:\n${formattedJson}`
   } catch {
     return fallback
@@ -121,15 +128,19 @@ export function safeToString(value: unknown, space?: number): string {
 // 防止循环引用导致的 JSON.stringify 崩溃
 function getCircularReplacer() {
   const ancestors: object[] = []
+
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON.stringify provides the holder and arbitrary nested values; only the current ancestor path establishes a cycle.
   return function (this: unknown, _key: string, value: unknown) {
     if (typeof value === 'object' && value !== null) {
       while (ancestors.length > 0 && ancestors.at(-1) !== this) ancestors.pop()
+
       if (ancestors.includes(value)) {
         return '[Circular]'
       }
+
       ancestors.push(value)
     }
+
     return value
   }
 }

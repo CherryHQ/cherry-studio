@@ -35,6 +35,7 @@ const webSearchTool = tool({
     if (typeof query !== 'string' || !query.trim()) {
       return []
     }
+
     return markTrustedLocalToolTerminalFailure(
       await searchWeb(query.trim(), getToolCallContext(options).request.abortSignal)
     )
@@ -59,4 +60,5 @@ export function createWebSearchToolEntry() {
 }
 
 export type WebSearchToolInput = InferToolInput<typeof webSearchTool>
+
 export type WebSearchToolOutput = InferToolOutput<typeof webSearchTool>

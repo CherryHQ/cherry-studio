@@ -40,21 +40,26 @@ export const nativeSummaryUsage = defineDoc({
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- Later persisted summary records need their owner and usage contract; inference from the empty initial object would omit it.
   initial: (): { records: Record<string, { owner: GoalOwner; usage: UsageFact; runId?: number }> } => ({ records: {} })
 })
+
 export function conversationId(thread: ThreadId): ConversationId {
   const id = Number(thread)
+
   if (!Number.isSafeInteger(id) || id < 0 || String(id) !== thread)
     throw new Error(`Invalid Durable conversation ${thread}`)
+
   return id as ConversationId
 }
 
 export async function pages<T>(read: (cursor?: Cursor) => Promise<Page<T, Cursor>>): Promise<T[]> {
   const items: T[] = []
   let cursor: Cursor | undefined
+
   do {
     const page = await read(cursor)
     items.push(...page.items)
     cursor = page.next
   } while (cursor)
+
   return items
 }
 
@@ -67,9 +72,11 @@ export async function lineageEntries(tx: Tx, id: ConversationId, at?: EntryId): 
 function summaryUsage(entry: EntryRecord) {
   if (!CompactionEntry.is(entry)) return undefined
   const metadata = entry.data.metadata
+
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata) || typeof metadata.kind !== 'string')
     return undefined
   const decoded = decodeEntry({ id: runtimeId(String(entry.id)), kind: metadata.kind, data: metadata.data })
+
   return decoded?.kind === 'record' && decoded.record.type === 'summary-usage' ? decoded : undefined
 }
 
@@ -79,15 +86,20 @@ export function historyOf(
   owner: ConversationId
 ): HistoryEntry[] {
   const calls = new Map<string, string>()
+
   for (const task of tasks) {
     if (task.kind !== ToolTask.definition.name) continue
     const input = task.input as ToolTaskInput
+
     if (input.kind === 'model') calls.set(`${input.assistant}:${input.callId}`, String(task.id))
   }
+
   const callKeys = new Map<string, string>()
+
   return entries.flatMap((entry): HistoryEntry[] => {
     const id = runtimeId<'item'>(String(entry.id))
     const model = entry.model ?? []
+
     const text = model
       .flatMap((message) =>
         typeof message.content === 'string'
@@ -95,23 +107,33 @@ export function historyOf(
           : message.content.flatMap((part) => (part.type === 'text' ? [part.text] : []))
       )
       .join('\n')
+
     const decoded = decodeEntry({ id, kind: entry.kind, data: entry.data, text })
+
     if (decoded?.kind === 'record' && entry.conversationId !== owner) return []
+
     if (decoded) return [decoded]
+
     if (CompactionEntry.is(entry)) {
       const accounting = entry.conversationId === owner ? summaryUsage(entry) : undefined
+
       return [...(accounting ? [accounting] : []), { kind: 'compaction', id }]
     }
+
     return model.flatMap((message): HistoryEntry[] => {
       if (message.role === 'user') return [{ kind: 'user', id, text }]
+
       if (message.role === 'assistant') {
         if (message.stopReason === 'pending' || message.stopReason === 'deferred') return []
+
         const toolCalls = message.content.flatMap((part) => {
           if (part.type !== 'toolCall') return []
           const key = calls.get(`${entry.id}:${part.id}`) ?? `${entry.id}:${part.id}`
           callKeys.set(part.id, key)
+
           return [{ callId: part.id, callKey: callKeyOf(key), name: part.name, args: part.arguments }]
         })
+
         return [
           {
             kind: 'assistant',
@@ -131,6 +153,7 @@ export function historyOf(
           }
         ]
       }
+
       if (message.role === 'toolResult')
         return [
           {
@@ -144,6 +167,7 @@ export function historyOf(
             details: message.details
           }
         ]
+
       return []
     })
   })
@@ -156,6 +180,7 @@ export async function readFacts(
   at?: EntryId
 ): Promise<ConversationFacts> {
   const entries = await lineageEntries(tx, id, at)
+
   const tasks = (
     await Promise.all(
       [...new Set([id, ...entries.map((entry) => entry.conversationId)])].map((conversationId) =>
@@ -163,8 +188,10 @@ export async function readFacts(
       )
     )
   ).flat()
+
   const history = historyOf(entries, tasks, id)
   const summaries = await tx.doc(nativeSummaryUsage, id)
+
   for (const [key, value] of Object.entries(summaries.records)) {
     history.push({
       kind: 'record',
@@ -172,19 +199,23 @@ export async function readFacts(
       record: { type: 'summary-usage', value: { ...value.owner, usage: { ...value.usage } } }
     })
   }
+
   const live = await tx.doc(LiveDoc, id)
   const inbox = await tx.doc(InboxDoc, id)
   const record = (await tx.conversation(id))!
   const origin = history.findLast((entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin')
+
   const children = new Map<
     ThreadId,
     { running: boolean; runUsage: UsageFact[]; lastItem: ReturnType<typeof runtimeId<'item'>> }
   >()
+
   const childIds = new Set(
     history.flatMap((entry) =>
       entry.kind === 'record' && entry.record.type === 'subagent-run' ? [entry.record.value.sessionId] : []
     )
   )
+
   for (const child of childIds) {
     const childId = conversationId(child)
     const childEntries = await lineageEntries(tx, childId)
@@ -193,8 +224,10 @@ export async function readFacts(
     const ids = await runIds(tx, childId, childTasks, childEntries)
     const runUsage = Array.from(ids, () => ({ ...ZERO_USAGE }))
     const childSummaries = await tx.doc(nativeSummaryUsage, childId)
+
     for (const value of Object.values(childSummaries.records)) {
       const run = ids.findIndex((id) => id === value.runId)
+
       if (run < 0) continue
       const total = runUsage[run]
       total.input += value.usage.input
@@ -204,14 +237,19 @@ export async function readFacts(
       total.totalTokens += value.usage.totalTokens
       total.costUsd += value.usage.costUsd
     }
+
     for (const entry of childEntries) {
       if (entry.conversationId !== childId) continue
+
       if (!AssistantEntry.is(entry) && !CompactionEntry.is(entry)) continue
       const runId = entry.data.runId
+
       if (runId === undefined) continue
       const run = ids.indexOf(runId)
+
       if (run < 0) continue
       const summary = summaryUsage(entry)
+
       if (summary?.record.type === 'summary-usage') {
         const usage = runUsage[run]
         const value = summary.record.value.usage
@@ -222,6 +260,7 @@ export async function readFacts(
         usage.totalTokens += value.totalTokens
         usage.costUsd += value.costUsd
       }
+
       for (const message of entry.model ?? []) {
         if (message.role !== 'assistant') continue
         const value = message.usage
@@ -234,16 +273,20 @@ export async function readFacts(
         usage.costUsd += value.cost.total
       }
     }
+
     children.set(child, {
       running: childLive.run !== undefined,
       runUsage,
       lastItem: runtimeId(String(childEntries.at(-1)!.id))
     })
   }
+
   const keysSeen = new Set(history.flatMap((entry) => ('key' in entry && entry.key ? [entry.key] : [])))
+
   for (const task of tasks) {
     if (task.conversationId !== id) continue
     const input = task.input as { key?: string }
+
     if (
       task.kind === 'cherry.behavior-job' &&
       task.state.status !== 'terminal' &&
@@ -253,15 +296,18 @@ export async function readFacts(
     )
       keysSeen.add(input.key)
   }
+
   const outcome = tasks
     .filter((task) => task.conversationId === id && task.kind === GenerationTask.definition.name)
     .at(-1)?.state.outcome
+
   const liveFacts: ConversationFacts['live'] = {
     idle: !live.run && inbox.items.length === 0,
     leftoverInputs: live.run ? 0 : inbox.items.filter((item) => item.mode !== 'write').length,
     queuedUserInput: inbox.items.some((item) => item.mode !== 'write' && !item.entry),
     hostCallInFlight: false
   }
+
   if (!live.run && outcome) {
     Object.assign(liveFacts, {
       runEnd: {
@@ -269,6 +315,7 @@ export async function readFacts(
       }
     } satisfies Pick<ConversationFacts['live'], 'runEnd'>)
   }
+
   return {
     thread: threadId(id),
     lineage:
@@ -283,9 +330,11 @@ export async function readFacts(
 }
 
 export const ZERO_USAGE = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costUsd: 0 }
+
 export function taskRun(task: TaskRecord<JsonValue, JsonValue, JsonValue>): TaskId {
   return (task.input as GenerationInput).runId ?? task.id
 }
+
 export async function runIds(
   tx: Tx,
   id: ConversationId,
@@ -295,21 +344,28 @@ export async function runIds(
   tasks ??= await pages((cursor) => tx.scanTasks({ conversationId: id }, 256, cursor))
   entries ??= await lineageEntries(tx, id)
   const reservations = new Map<TaskId, number>()
+
   for (const entry of entries) {
     if (entry.conversationId !== id) continue
     const data = entry.data as { key?: string; cherryRun?: number } | undefined
+
     if (!data?.key || data.cherryRun === undefined) continue
     const input = await tx.submissionByRequest(id, data.key)
+
     if (input?.type === 'input' && input.runId !== undefined && input.runId > input.id)
       reservations.set(input.runId, Math.max(reservations.get(input.runId) ?? 0, data.cherryRun))
   }
+
   const ids: (TaskId | undefined)[] = []
+
   for (const run of [
     ...new Set(tasks.filter((task) => task.kind === GenerationTask.definition.name).map(taskRun))
   ].sort((a, b) => a - b)) {
     const number = Math.max(ids.length + 1, reservations.get(run) ?? 0)
+
     while (ids.length < number - 1) ids.push(undefined)
     ids.push(run)
   }
+
   return ids
 }

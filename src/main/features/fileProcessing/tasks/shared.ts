@@ -38,6 +38,7 @@ export interface FileProcessingJobPayload {
 
 /** What a file-processing job stores as its output; a completed task carries the artifact. */
 export const FileProcessingJobOutputSchema = z.object({ artifact: FileProcessingArtifactSchema }).strict()
+
 export type FileProcessingJobOutput = z.infer<typeof FileProcessingJobOutputSchema>
 
 /**

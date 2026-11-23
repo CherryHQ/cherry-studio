@@ -2,8 +2,10 @@ import { fileTypeFromBuffer } from 'file-type'
 
 /** Target square dimension for normalized entity images (avatar / logo). */
 const ENTITY_IMAGE_DIMENSION = 128
+
 /** Decode-work bound: a small file can still declare huge dimensions (bomb). */
 const MAX_ENTITY_INPUT_PIXELS = 100_000_000
+
 /** Longest edge for model-bound images. Every vision provider downscales below this on its own
  *  (Anthropic 1568, DeepSeek ~1300-equivalent), but an 8192+ edge is a hard provider reject.
  *  ponytail: one constant for all providers; make it a `Model` field if one ever needs more. */
@@ -19,6 +21,7 @@ const MODEL_IMAGE_MAX_EDGE = 2000
 export async function transcodeToEntityWebp(bytes: Uint8Array): Promise<Buffer> {
   // Delayed loading: a static import would map sharp's multi-MB libvips native library at boot.
   const sharp = (await import('sharp')).default
+
   // Only the first frame of an animated GIF is used — fine for a 128² entity image.
   // `failOn: 'none'` keeps slightly-malformed user images (truncated chunk, bad CRC) decodable;
   // sharp's default rejects them on a libvips warning, which varies by platform.
@@ -38,6 +41,7 @@ export async function transcodeToPng(bytes: Uint8Array): Promise<Uint8Array> {
   }
 
   const sharp = (await import('sharp')).default
+
   return sharp(bytes).png().toBuffer()
 }
 
@@ -53,8 +57,11 @@ export async function clampImageForModel(
   const sharp = (await import('sharp')).default
   const image = sharp(bytes, { failOn: 'none' })
   const { width, height } = await image.metadata()
+
   if (!width || !height) throw new Error('could not read image dimensions')
+
   if (width <= maxEdge && height <= maxEdge) return null
+
   return image.resize(maxEdge, maxEdge, { fit: 'inside', withoutEnlargement: true }).toBuffer()
 }
 
@@ -69,6 +76,7 @@ export async function cropPng(
   region: { x: number; y: number; width: number; height: number }
 ): Promise<Uint8Array> {
   const sharp = (await import('sharp')).default
+
   return sharp(bytes)
     .extract({ left: region.x, top: region.y, width: region.width, height: region.height })
     .png()

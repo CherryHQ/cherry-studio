@@ -28,6 +28,7 @@ import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
 const CONTAINER_CHILD_FAILURE_ERROR = 'One or more child items failed'
+
 /**
  * Item statuses that mean "indexing is in progress" — the item is being driven
  * by a job and is neither finished (completed/failed) nor being deleted. Used to
@@ -41,6 +42,7 @@ const KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES = [
 ] as const satisfies readonly KnowledgeItemStatus[]
 
 type KnowledgeItemRow = typeof knowledgeItemTable.$inferSelect
+
 type KnowledgeItemRowLike = Omit<KnowledgeItemRow, 'data'> & {
   data: KnowledgeItemData | string
 }
@@ -68,8 +70,10 @@ function decodeSortedKnowledgeItemCursor(
   sortOrder: SortedKnowledgeItemCursor['sortOrder']
 ): SortedKnowledgeItemCursor | null {
   if (!raw) return null
+
   try {
     const value = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as SortedKnowledgeItemCursor
+
     if (
       value.sortBy !== sortBy ||
       value.sortOrder !== sortOrder ||
@@ -79,9 +83,11 @@ function decodeSortedKnowledgeItemCursor(
     ) {
       throw new Error('Invalid knowledge item sort cursor')
     }
+
     return value
   } catch {
     logger.warn('Knowledge item sort cursor is unparseable; falling back to the first page', { cursor: raw })
+
     return null
   }
 }
@@ -123,8 +129,10 @@ function encodeKnowledgeItemListCursor(cursor: KnowledgeItemListCursor | SortedK
 
 function decodeKnowledgeItemListCursor(raw: string | undefined): KnowledgeItemListCursor | null {
   if (!raw) return null
+
   try {
     const value = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<KnowledgeItemListCursor>
+
     if (
       (value.directoryRank !== 0 && value.directoryRank !== 1) ||
       !Number.isFinite(value.createdAt) ||
@@ -133,9 +141,11 @@ function decodeKnowledgeItemListCursor(raw: string | undefined): KnowledgeItemLi
     ) {
       throw new Error('Invalid knowledge item cursor fields')
     }
+
     return value as KnowledgeItemListCursor
   } catch {
     logger.warn('Knowledge item cursor is unparseable; falling back to the first page', { cursor: raw })
+
     return null
   }
 }
@@ -143,6 +153,7 @@ function decodeKnowledgeItemListCursor(raw: string | undefined): KnowledgeItemLi
 export class KnowledgeItemService {
   private get db() {
     const dbService = application.get('DbService')
+
     return dbService.getDb()
   }
 
@@ -156,6 +167,7 @@ export class KnowledgeItemService {
     if (type !== undefined) {
       filterConditions.push(eq(knowledgeItemTable.type, type))
     }
+
     if (groupId !== undefined) {
       filterConditions.push(
         groupId === null ? isNull(knowledgeItemTable.groupId) : eq(knowledgeItemTable.groupId, groupId)
@@ -167,6 +179,7 @@ export class KnowledgeItemService {
     // pagination cannot surface a later-page directory after an earlier-page file.
     const directoryRank = sql<number>`case when ${knowledgeItemTable.type} = 'directory' then 0 else 1 end`
     const conditions = [...filterConditions]
+
     const sortColumn =
       sortBy === 'name'
         ? sql<string>`knowledge_item_name(${knowledgeItemTable.type}, ${knowledgeItemTable.data})`
@@ -175,10 +188,13 @@ export class KnowledgeItemService {
           : sortBy === 'status'
             ? sql<number>`case ${knowledgeItemTable.status} when 'idle' then 0 when 'preparing' then 1 when 'processing' then 2 when 'reading' then 3 when 'embedding' then 4 when 'completed' then 5 else 6 end`
             : knowledgeItemTable.updatedAt
+
     const ordering = keysetOrdering(sortColumn, knowledgeItemTable.id, { major: sortOrder, tie: 'asc' })
     const sortedCursor = sortBy ? decodeSortedKnowledgeItemCursor(query.cursor, sortBy, sortOrder) : null
+
     if (sortedCursor) conditions.push(ordering.where(sortedCursor))
     const cursor = sortBy ? null : decodeKnowledgeItemListCursor(query.cursor)
+
     if (cursor) {
       conditions.push(
         or(
@@ -204,6 +220,7 @@ export class KnowledgeItemService {
       )
       .limit(limit + 1)
       .all()
+
     const [{ count }] = this.db
       .select({ count: sql<number>`count(*)` })
       .from(knowledgeItemTable)
@@ -237,6 +254,7 @@ export class KnowledgeItemService {
     knowledgeBaseService.getById(baseId)
 
     const conditions = [eq(knowledgeItemTable.baseId, baseId)]
+
     if (!options.includeDeleting) {
       conditions.push(ne(knowledgeItemTable.status, 'deleting'))
     }
@@ -248,6 +266,7 @@ export class KnowledgeItemService {
     }
 
     const where = and(...conditions)
+
     const rows = this.db
       .select()
       .from(knowledgeItemTable)
@@ -264,6 +283,7 @@ export class KnowledgeItemService {
 
   getOutermostSelectedItemIds(baseId: string, itemIds: string[]): string[] {
     const selectedIds = [...new Set(itemIds)]
+
     if (selectedIds.length === 0) {
       return []
     }
@@ -276,12 +296,15 @@ export class KnowledgeItemService {
         .all()
         .map((row) => [row.id, row.baseId])
     )
+
     const missingItemId = selectedIds.find((itemId) => !baseIdByItemId.has(itemId))
+
     if (missingItemId) {
       throw DataApiErrorFactory.notFound('KnowledgeItem', missingItemId)
     }
 
     const invalidItemId = selectedIds.find((itemId) => baseIdByItemId.get(itemId) !== baseId)
+
     if (invalidItemId) {
       throw new Error(`Knowledge item '${invalidItemId}' does not belong to base '${baseId}'`)
     }
@@ -307,7 +330,9 @@ export class KnowledgeItemService {
       FROM ancestor
       WHERE id IS NOT NULL
     `)
+
     const selectedIdSet = new Set(selectedIds)
+
     const nestedIdSet = new Set(
       ancestorRows.filter((row) => selectedIdSet.has(row.ancestorId)).map((row) => row.selectedId)
     )
@@ -332,6 +357,7 @@ export class KnowledgeItemService {
     `)
 
     const rootIdsByBase = new Map<string, string[]>()
+
     for (const row of rows) {
       const rootItemIds = rootIdsByBase.get(row.baseId) ?? []
       rootItemIds.push(row.id)
@@ -358,6 +384,7 @@ export class KnowledgeItemService {
    */
   failInterruptedItems(error: string): number {
     const reason = error.trim()
+
     if (!reason) {
       throw DataApiErrorFactory.validation({
         error: ['Interrupted-item failure reason must be non-empty']
@@ -365,6 +392,7 @@ export class KnowledgeItemService {
     }
 
     const db = application.get('DbService').getDb()
+
     const updatedRows = db
       .update(knowledgeItemTable)
       .set({ status: 'failed', error: reason })
@@ -375,6 +403,7 @@ export class KnowledgeItemService {
     if (updatedRows.length > 0) {
       logger.info('Marked interrupted knowledge items as failed', { count: updatedRows.length })
     }
+
     return updatedRows.length
   }
 
@@ -388,6 +417,7 @@ export class KnowledgeItemService {
   createActive(baseId: string, item: CreateKnowledgeItemDto, options: { awaitingCopy?: boolean } = {}): KnowledgeItem {
     const status: KnowledgeItemStatus = item.type === 'directory' || options.awaitingCopy ? 'preparing' : 'processing'
     const dbService = application.get('DbService')
+
     const row = dbService.withWriteTx((tx) => {
       this.validateGroupOwnerTx(tx, baseId, item.groupId)
 
@@ -439,6 +469,7 @@ export class KnowledgeItemService {
     })
 
     logger.info('Created active knowledge item', { baseId, id: row.id, type: row.type, status })
+
     return rowToKnowledgeItem(row)
   }
 
@@ -508,6 +539,7 @@ export class KnowledgeItemService {
     if (status === 'failed') {
       return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update)
     }
+
     return this.applySubtreeStatusTx(this.db, baseId, rootIds, status)
   }
 
@@ -534,11 +566,13 @@ export class KnowledgeItemService {
         createdAt: knowledgeItemTable.createdAt
       })
       .all()
+
     this.reconcileContainersTx(
       tx,
       baseId,
       rows.map((row) => row.groupId)
     )
+
     return rows
       .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id))
       .map((row) => row.id)
@@ -564,6 +598,7 @@ export class KnowledgeItemService {
     }
 
     const uniqueRootIds = [...new Set(rootIds)]
+
     if (uniqueRootIds.length === 0) {
       return []
     }
@@ -606,22 +641,26 @@ export class KnowledgeItemService {
     }
 
     logger.info('Updated knowledge item subtree status', { baseId, rootIds, status, count: updatedIds.length })
+
     return updatedIds
   }
 
   deleteItemsByIds(baseId: string, itemIds: string[]): void {
     const uniqueItemIds = [...new Set(itemIds)]
+
     if (uniqueItemIds.length === 0) {
       return
     }
 
     const dbService = application.get('DbService')
+
     const rowsAffected = dbService.withWriteTx((tx) => {
       const targetRows = tx
         .select({ groupId: knowledgeItemTable.groupId })
         .from(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
         .all()
+
       tx.delete(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
         .run()
@@ -630,6 +669,7 @@ export class KnowledgeItemService {
         baseId,
         targetRows.map((row) => row.groupId)
       )
+
       return targetRows.length
     })
 
@@ -638,11 +678,13 @@ export class KnowledgeItemService {
 
   getSubtreeItems(baseId: string, rootIds: string[], options: GetSubtreeItemsOptions = {}): KnowledgeItem[] {
     const uniqueRootIds = [...new Set(rootIds)]
+
     if (uniqueRootIds.length === 0) {
       return []
     }
 
     const leafFilter = options.leafOnly ? sql`AND item.type IN ('file', 'url', 'note')` : sql``
+
     const rootFilter =
       options.includeRoots === true
         ? sql``
@@ -704,6 +746,7 @@ export class KnowledgeItemService {
     }
 
     const dbService = application.get('DbService')
+
     const { item, startContainerIds, blocked } = dbService.withWriteTx((tx) => {
       const [existingRow] = tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1).all()
 
@@ -749,6 +792,7 @@ export class KnowledgeItemService {
       this.reconcileContainers(item.baseId, startContainerIds)
       logger.info('Updated knowledge item status', { id, status })
     }
+
     return item
   }
 
@@ -775,6 +819,7 @@ export class KnowledgeItemService {
     label: string
   ): KnowledgeItem {
     const dbService = application.get('DbService')
+
     const row = dbService.withWriteTx((tx) => {
       const [existingRow] = tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1).all()
 
@@ -783,6 +828,7 @@ export class KnowledgeItemService {
       }
 
       const existingItem = rowToKnowledgeItem(existingRow)
+
       if (!allowedTypes.includes(existingItem.type)) {
         throw DataApiErrorFactory.validation({
           type: [`Knowledge item ${id} must be of type ${allowedTypes.join(' or ')} to store its ${label}`]
@@ -790,6 +836,7 @@ export class KnowledgeItemService {
       }
 
       const nextData = new Map(Object.entries({ ...existingItem.data, ...patch }))
+
       for (const [key, value] of Object.entries(patch)) {
         if (value === null) {
           nextData.delete(key)
@@ -818,6 +865,7 @@ export class KnowledgeItemService {
     })
 
     logger.info(`Updated knowledge item ${label}`, { id, ...patch })
+
     return rowToKnowledgeItem(row)
   }
 
@@ -868,9 +916,11 @@ export class KnowledgeItemService {
 
     while (queue.length > 0) {
       const containerId = queue.shift()
+
       if (!containerId || visited.has(containerId)) {
         continue
       }
+
       visited.add(containerId)
 
       const [containerRow] = tx
@@ -892,6 +942,7 @@ export class KnowledgeItemService {
         if (containerRow.groupId) {
           queue.push(containerRow.groupId)
         }
+
         continue
       }
 
@@ -913,6 +964,7 @@ export class KnowledgeItemService {
         if (containerRow.groupId) {
           queue.push(containerRow.groupId)
         }
+
         continue
       }
 

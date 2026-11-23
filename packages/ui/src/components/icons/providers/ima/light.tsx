@@ -1,6 +1,7 @@
 import { type SVGProps, useId } from 'react'
 
 import type { IconComponent } from '../../types'
+
 const ImaLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
@@ -99,5 +100,7 @@ const ImaLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
     </svg>
   )
 }
+
 export { ImaLight }
+
 export default ImaLight

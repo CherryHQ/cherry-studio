@@ -38,6 +38,7 @@ export function createKnowledgeIndexStoreAtPath(
   options: CreateKnowledgeIndexStoreOptions
 ): KnowledgeIndexStore {
   const driver = openBetterSqlite3IndexDriver(dbPath)
+
   try {
     // An index.sqlite from an older schema layout cannot be migrated in place —
     // `CREATE ... IF NOT EXISTS` never retrofits a new column/trigger onto an
@@ -49,6 +50,7 @@ export function createKnowledgeIndexStoreAtPath(
     // refused by the ensureIndexMeta base_id check below — but the reset drops its rows,
     // so no other base's data is ever served; only the explicit refusal diagnostic is skipped.)
     const storedVersion = readIndexSchemaVersion(driver)
+
     if (storedVersion !== null && storedVersion !== KNOWLEDGE_INDEX_SCHEMA_VERSION) {
       logger.warn('Knowledge index schema version mismatch — rebuilding the derived index', {
         baseId: options.baseId,
@@ -59,12 +61,14 @@ export function createKnowledgeIndexStoreAtPath(
     } else {
       createKnowledgeIndexSchema(driver)
     }
+
     // Stamp + verify the meta identity row before handing out the store, so an
     // index.sqlite swapped in from another base is rejected here (§4.1).
     ensureIndexMeta(driver, { baseId: options.baseId })
     const store = new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
     // Runs inside this close-on-throw region so a throwing hook still closes the driver.
     options.afterOpen?.(store)
+
     return store
   } catch (error) {
     // Close the driver opened above so a failed open never leaks the index file

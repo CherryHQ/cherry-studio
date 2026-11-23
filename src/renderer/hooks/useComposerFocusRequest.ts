@@ -8,6 +8,7 @@ export function useComposerFocusRequest(activeTopicId: string | null | undefined
 
   useEffect(() => {
     const requestedTopicId = requestedTopicIdRef.current
+
     if (!requestedTopicId || requestedTopicId !== activeTopicId) return
 
     requestedTopicIdRef.current = null

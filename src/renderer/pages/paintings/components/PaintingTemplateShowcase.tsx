@@ -55,10 +55,12 @@ const PaintingTemplateShowcase: FC<PaintingTemplateShowcaseProps> = ({ paintingI
   const { t } = useTranslation()
   const [styleSelection, setStyleSelection] = useState<{ paintingId: string; presetId: string }>()
   const promptedStyleIndex = templates.findIndex((preset) => preset.prompt === prompt)
+
   const rememberedStyleIndex =
     styleSelection?.paintingId === paintingId
       ? templates.findIndex((preset) => preset.id === styleSelection.presetId)
       : -1
+
   const selectedStyleIndex = rememberedStyleIndex >= 0 ? rememberedStyleIndex : promptedStyleIndex
   const activeStyleIndex = selectedStyleIndex >= 0 ? selectedStyleIndex : 0
 
@@ -70,8 +72,10 @@ const PaintingTemplateShowcase: FC<PaintingTemplateShowcaseProps> = ({ paintingI
       {templates.map((preset, index) => {
         const isSelected = index === selectedStyleIndex
         const middlePosition = Math.floor(templates.length / 2)
+
         const relativePosition =
           ((index - activeStyleIndex + middlePosition + templates.length) % templates.length) - middlePosition
+
         const isHidden = Math.abs(relativePosition) > 2
         const visiblePosition = Math.max(-2, Math.min(2, relativePosition))
         const carouselPosition = carouselPositions[visiblePosition + 2] ?? carouselPositions[2]

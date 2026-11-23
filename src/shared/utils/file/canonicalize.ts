@@ -77,6 +77,7 @@ function canonicalizeAbsolutePath(raw: string): string {
   if (raw.includes('\0')) {
     throw new Error('canonicalizeAbsolutePath: input contains null byte')
   }
+
   // UNC is a valid `AbsoluteFilePath` (see `AbsoluteFilePathSchema`) but has no
   // defined canonical form here: `\\server\share` is an indivisible root that
   // `..` must not escape, which neither branch below models. Reject explicitly
@@ -85,8 +86,10 @@ function canonicalizeAbsolutePath(raw: string): string {
   if (raw.startsWith('\\\\')) {
     throw new Error('canonicalizeAbsolutePath: UNC paths are not supported as canonical keys')
   }
+
   const isWindows = /^[A-Za-z]:[/\\]/.test(raw)
   const normalized = isWindows ? canonicalizeWindows(raw) : canonicalizePosix(raw)
+
   return normalized
 }
 
@@ -170,16 +173,21 @@ function canonicalizePosix(raw: string): string {
   if (!raw.startsWith('/')) {
     throw new Error('canonicalizeAbsolutePath: path must be absolute')
   }
+
   const segments = raw.slice(1).split('/')
   const stack: string[] = []
+
   for (const seg of segments) {
     if (seg === '' || seg === '.') continue
+
     if (seg === '..') {
       stack.pop()
       continue
     }
+
     stack.push(seg)
   }
+
   return stack.length === 0 ? '/' : '/' + stack.join('/')
 }
 
@@ -194,13 +202,17 @@ function canonicalizeWindows(raw: string): string {
   const drive = raw.slice(0, 2).toUpperCase()
   const segments = raw.slice(3).split(/[/\\]/)
   const stack: string[] = []
+
   for (const seg of segments) {
     if (seg === '' || seg === '.') continue
+
     if (seg === '..') {
       stack.pop()
       continue
     }
+
     stack.push(seg)
   }
+
   return stack.length === 0 ? `${drive}\\` : `${drive}\\${stack.join('\\')}`
 }

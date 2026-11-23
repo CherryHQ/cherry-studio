@@ -5,8 +5,11 @@ import type { RemoteFailure } from './errors'
 export const protocolSupportSchema = z.strictObject({
   protocolVersions: z.array(z.number().int().positive()).min(1).max(16)
 })
+
 export type ProtocolSupport = z.infer<typeof protocolSupportSchema>
+
 export type ProtocolOffer = ProtocolSupport
+
 export type ProtocolSelection = { protocolVersion: number }
 
 export function negotiateProtocol(
@@ -16,6 +19,7 @@ export function negotiateProtocol(
   const supported = protocolSupportSchema.parse(local).protocolVersions
   const offered = protocolSupportSchema.parse(remote).protocolVersions
   const common = supported.filter((version) => offered.includes(version))
+
   if (!common.length)
     return {
       ok: false,
@@ -25,5 +29,6 @@ export function negotiateProtocol(
         details: { supportedProtocolVersions: supported }
       }
     }
+
   return { ok: true, selection: { protocolVersion: Math.max(...common) } }
 }

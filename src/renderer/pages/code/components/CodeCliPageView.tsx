@@ -35,10 +35,12 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
     () => (configPanelProps ? { key: configPanelKey, props: configPanelProps } : null),
     [configPanelKey, configPanelProps]
   )
+
   const ownLoginTarget = useMemo(
     () => (ownLoginConfigPanelProps ? { key: configPanelKey, props: ownLoginConfigPanelProps } : null),
     [configPanelKey, ownLoginConfigPanelProps]
   )
+
   const configPanel = useExitPresence(configTarget)
   const ownLoginPanel = useExitPresence(ownLoginTarget)
 

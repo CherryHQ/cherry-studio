@@ -12,6 +12,7 @@ interface CodeCliPageProps {
 
 const CodeCliPage: FC<CodeCliPageProps> = ({ initialTool, onToolChange }) => {
   const viewProps = useCodeCliPageViewProps(initialTool, onToolChange)
+
   return <CodeCliPageView {...viewProps} />
 }
 

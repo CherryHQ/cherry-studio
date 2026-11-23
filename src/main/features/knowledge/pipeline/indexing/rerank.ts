@@ -29,6 +29,7 @@ function mergeRerankResults(
 
   for (const [index, result] of searchResults.entries()) {
     const score = resultMap.get(index)
+
     if (score === undefined) {
       continue
     }
@@ -46,6 +47,7 @@ async function rerankWithAiService(
   topN: number
 ): Promise<KnowledgeSearchResult[]> {
   const parsed = UniqueModelIdSchema.safeParse(base.rerankModelId)
+
   if (!parsed.success) {
     // A malformed model id fails identically on every search, so search is silently
     // degraded indefinitely — log at error level so the misconfiguration is visible.
@@ -53,6 +55,7 @@ async function rerankWithAiService(
       baseId: base.id,
       rerankModelId: base.rerankModelId
     })
+
     return searchResults
   }
 
@@ -67,11 +70,13 @@ async function rerankWithAiService(
     return mergeRerankResults(searchResults, result.ranking)
   } catch (error) {
     const normalizedError = error instanceof Error ? error : new Error(String(error))
+
     const context = {
       baseId: base.id,
       rerankModelId: base.rerankModelId,
       topN
     }
+
     // Persistent misconfiguration (401/403/404) degrades every search forever, so escalate
     // to error; transient failures (network/timeout/429/5xx) stay at warn. Pass the Error
     // instance itself so the stack and cause survive into the log.
@@ -80,6 +85,7 @@ async function rerankWithAiService(
     } else {
       logger.warn('Knowledge rerank failed, returning vector search results', normalizedError, context)
     }
+
     return searchResults
   }
 }

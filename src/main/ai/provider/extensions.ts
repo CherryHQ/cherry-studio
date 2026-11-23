@@ -108,6 +108,7 @@ export const GitHubCopilotExtension = ProviderExtension.create({
     const provider = (await import('@opeoginni/github-copilot-openai-compatible')).createGitHubCopilotOpenAICompatible(
       options
     )
+
     // Copilot is language-only; preserve its callable factory while completing the SDK contract.
     return Object.assign(provider, {
       specificationVersion: 'v3' as const,
@@ -249,6 +250,7 @@ export const MoonshotExtension = ProviderExtension.create({
     const module = await import('./custom/moonshotProvider')
     moonshotWebSearchToolFactory = module.createKimiWebSearchToolFor
     moonshotWebSearchToolName = module.KIMI_WEB_SEARCH_TOOL_NAME
+
     return module.createMoonshotProvider(settings)
   },
   toolFactories: {
@@ -262,6 +264,7 @@ export const MoonshotExtension = ProviderExtension.create({
         if (!moonshotWebSearchToolFactory || !moonshotWebSearchToolName) {
           throw new Error('Moonshot provider module was not loaded before resolving its tools')
         }
+
         return {
           tools: {
             [moonshotWebSearchToolName]: moonshotWebSearchToolFactory(credentials)

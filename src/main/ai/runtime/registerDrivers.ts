@@ -48,7 +48,9 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     input.signal.throwIfAborted()
     const driver = await this.loadImplementation()
     input.signal.throwIfAborted()
+
     if (!driver.fork) throw new AgentSessionForkError('unsupported_checkpoint')
+
     return driver.fork(input)
   }
 
@@ -80,6 +82,7 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     for (const projectEntry of await listEntries(projectsRoot)) {
       if (!projectEntry.isDirectory()) continue
       const projectDir = path.resolve(projectsRoot, projectEntry.name)
+
       for (const entry of await listEntries(projectDir)) {
         // A project dir holds only `{id}.jsonl` and `{id}/`, so either names the session.
         // The dir has to stand on its own: its jsonl sibling may already be gone, and
@@ -89,7 +92,9 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
           : entry.name.endsWith('.jsonl')
             ? entry.name.slice(0, -'.jsonl'.length)
             : null
+
         if (!token || keptResumeTokens.has(token)) continue
+
         for (const target of [path.resolve(projectDir, `${token}.jsonl`), path.resolve(projectDir, token)]) {
           if (await reclaimStale(target, options)) removed.push(target)
         }
@@ -107,15 +112,18 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
       if (!projectEntry.isDirectory()) continue
       const projectDir = path.resolve(projectsRoot, projectEntry.name)
       let removedFromProject = false
+
       for (const entry of await listEntries(projectDir)) {
         const token = entry.isDirectory()
           ? entry.name
           : entry.isFile() && entry.name.endsWith('.jsonl')
             ? entry.name.slice(0, -'.jsonl'.length)
             : null
+
         if (!token || !purgedResumeTokens.has(token)) continue
 
         const target = path.resolve(projectDir, entry.name)
+
         try {
           await fs.rm(target, { recursive: true, force: true })
           removed.push(target)
@@ -124,7 +132,9 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
           logger.warn('Failed to reclaim purged session artifact — retried next sweep', { target, error })
         }
       }
+
       if (!removedFromProject) continue
+
       try {
         await fs.rmdir(projectDir)
         removed.push(projectDir)
@@ -148,6 +158,7 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
 
   private loadImplementation(): Promise<AgentSessionRuntimeDriver> {
     this.implementationPromise ??= createClaudeCodeRuntimeDriver()
+
     return this.implementationPromise
   }
 }

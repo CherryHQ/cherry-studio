@@ -29,6 +29,7 @@ const meta: Meta<typeof MenuItem> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // ---------------------------------------------------------------------------
@@ -275,6 +276,7 @@ function SettingsSubmenuActiveBoldExample() {
   // the state-driven label weight onto `labelClassName`.
   const itemClassName =
     'h-8 rounded-[10px] border-transparent px-2.5 font-normal text-foreground/85 text-sm hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground/70'
+
   const itemLabelClassName = 'group-data-[active=true]:font-medium'
   const sectionTitleClassName = 'px-2.5 pt-1.5 pb-1 font-normal text-foreground-tertiary text-xs first:pt-0'
   const dividerClassName = 'my-1 bg-transparent'

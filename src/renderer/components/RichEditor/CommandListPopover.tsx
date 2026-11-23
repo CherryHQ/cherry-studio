@@ -37,6 +37,7 @@ const CommandListPopover = ({
     (item: Command, field: 'title' | 'description') => {
       const key = `richEditor.commands.${item.id}.${field}`
       const translated = t(key)
+
       return translated === key ? item[field] : translated
     },
     [t]
@@ -78,26 +79,32 @@ const CommandListPopover = ({
           event.preventDefault()
           shouldAutoScrollRef.current = true
           setInternalSelectedIndex((prev) => (prev === 0 ? items.length - 1 : prev - 1))
+
           return true
 
         case 'ArrowDown':
           event.preventDefault()
           shouldAutoScrollRef.current = true
           setInternalSelectedIndex((prev) => (prev === items.length - 1 ? 0 : prev + 1))
+
           return true
 
         case 'Enter':
           if (event.shiftKey) {
             return false
           }
+
           event.preventDefault()
+
           if (items[internalSelectedIndex]) {
             selectItem(internalSelectedIndex)
           }
+
           return true
 
         case 'Escape':
           event.preventDefault()
+
           return true
 
         default:
@@ -128,6 +135,7 @@ const CommandListPopover = ({
   // Get background and selected colors that work with both light and dark themes
   const colors = useMemo(() => {
     const isDark = theme === 'dark'
+
     return {
       background: 'var(--popover)',
       border: 'var(--border)',

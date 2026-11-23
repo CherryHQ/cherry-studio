@@ -22,7 +22,9 @@ export const CUSTOM_PROVIDER_ENDPOINTS = [
 ] as const
 
 export type CustomProviderTextEndpoint = (typeof CUSTOM_PROVIDER_TEXT_ENDPOINTS)[number]
+
 export type CustomProviderEndpoint = (typeof CUSTOM_PROVIDER_ENDPOINTS)[number]
+
 export type CustomProviderEndpointUrls = Partial<Record<CustomProviderEndpoint, string>>
 
 export interface CustomProviderCreationInput {
@@ -64,8 +66,10 @@ export function getCustomProviderDefaultChatEndpoint(
 
 export function buildCustomProviderCreationPayload(input: CustomProviderCreationInput): CustomProviderCreationPayload {
   const endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = {}
+
   for (const endpointType of CUSTOM_PROVIDER_ENDPOINTS) {
     const baseUrl = trim(input.endpointUrls[endpointType])
+
     if (baseUrl) {
       endpointConfigs[endpointType] = { baseUrl }
     }
@@ -79,12 +83,14 @@ export function buildCustomProviderCreationPayload(input: CustomProviderCreation
 
 export function buildCustomProviderEndpointPreview(baseUrl: string, endpointType: CustomProviderEndpoint): string {
   const value = trim(baseUrl)
+
   if (!value || !validateApiHost(value)) {
     return ''
   }
 
   const formattedHost =
     endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? formatApiHost(value, true, 'v1beta') : formatApiHost(value)
+
   return `${formattedHost}${ENDPOINT_PATHS[endpointType]}`
 }
 
@@ -103,6 +109,7 @@ export function findInvalidCustomProviderEndpointUrl(
 ): CustomProviderCreationInvalidUrl | null {
   for (const endpointType of CUSTOM_PROVIDER_ENDPOINTS) {
     const value = trim(endpointUrls[endpointType])
+
     if (value && !validateApiHost(value)) {
       return { field: 'endpointUrl', endpointType }
     }

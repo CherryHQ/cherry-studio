@@ -30,10 +30,12 @@ export interface CitationsGuidanceOptions {
 
 export function buildCitationsGuidance({ web, kb }: CitationsGuidanceOptions): string | undefined {
   if (!web && !kb) return undefined
+
   const tools = [
     ...(web ? [`\`${CHERRY_WEB_SEARCH_RUNTIME_NAME}\` / \`${CHERRY_WEB_FETCH_RUNTIME_NAME}\``] : []),
     ...(kb ? [`\`${CHERRY_KB_SEARCH_RUNTIME_NAME}\` / \`${CHERRY_KB_READ_RUNTIME_NAME}\``] : [])
   ].join(' and ')
+
   return `## Citations
 
 Results from ${tools} each carry an \`id\` field. When a statement in your reply is based on one of those results, append a citation marker immediately after it: [cite:ID] with the exact id (e.g. "Prices rose 3% in June. [cite:3f2a1b9c-2]"). Chain markers when several results support one statement: [cite:3f2a1b9c-1][cite:7d4e0a51-3]. Copy ids exactly — never invent or renumber them — and do not add a "References" or "Sources" section: the app renders citations from the inline markers.`

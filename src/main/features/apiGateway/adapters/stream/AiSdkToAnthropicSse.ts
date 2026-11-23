@@ -124,6 +124,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
   protected processChunk(chunk: UIMessageChunk): void {
     // Log only the chunk type — full payloads can carry prompt/tool/reasoning content.
     logger.silly('AiSdkToAnthropicSse - Processing chunk', { type: chunk.type })
+
     switch (chunk.type) {
       // === Text Events ===
       case 'text-start':
@@ -164,13 +165,17 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         const toolName = this.toClientToolName?.(chunk.toolName) ?? chunk.toolName
         const meta = chunk.providerMetadata
         const thoughtSignature = meta?.google?.thoughtSignature
+
         if (googleReasoningCache && typeof thoughtSignature === 'string') {
           googleReasoningCache.set(`google-${chunk.toolCallId}`, thoughtSignature)
         }
+
         const reasoningDetails = meta?.openrouter?.reasoning_details
+
         if (openRouterReasoningCache && Array.isArray(reasoningDetails)) {
           openRouterReasoningCache.set(`openrouter-${chunk.toolCallId}`, JSON.parse(JSON.stringify(reasoningDetails)))
         }
+
         this.handleToolCall({
           toolCallId: chunk.toolCallId,
           toolName,
@@ -204,11 +209,15 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
+
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
+
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+
     if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
       this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
     }
+
     if (metadata.stats?.inputTokenDetails?.cacheWriteTokens !== undefined) {
       this.cacheWriteTokens = metadata.stats.inputTokenDetails.cacheWriteTokens
     }
@@ -226,6 +235,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
   private splitAnthropicInputUsage() {
     const cacheRead = this.state.cacheReadTokens
     const cacheWrite = this.cacheWriteTokens
+
     if (cacheRead === undefined && cacheWrite === undefined) {
       return { inputTokens: this.state.inputTokens, cacheCreationInputTokens: 0, cacheReadInputTokens: null }
     }
@@ -233,6 +243,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     const cacheCreationInputTokens = cacheWrite ?? 0
     const cacheReadInputTokens = cacheRead ?? 0
     const inputTokens = Math.max(0, this.state.inputTokens - cacheCreationInputTokens - cacheReadInputTokens)
+
     return { inputTokens, cacheCreationInputTokens, cacheReadInputTokens }
   }
 
@@ -272,6 +283,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
 
     const index = this.state.textBlockIndex!
     const block = this.state.blocks.get(index)
+
     if (block) {
       block.content += text
     }
@@ -335,19 +347,24 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     if (!text) return
 
     const targetId = reasoningId || this.state.currentThinkingId
+
     if (!targetId) {
       const newId = `reasoning_${Date.now()}`
       this.startThinkingBlock(newId)
+
       return this.emitThinkingDelta(text, newId)
     }
 
     const index = this.state.thinkingBlocks.get(targetId)
+
     if (index === undefined) {
       this.startThinkingBlock(targetId)
+
       return this.emitThinkingDelta(text, targetId)
     }
 
     const block = this.state.blocks.get(index)
+
     if (block) {
       block.content += text
     }
@@ -372,24 +389,31 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     providerMetadata: Extract<UIMessageChunk, { type: 'reasoning-start' | 'reasoning-delta' }>['providerMetadata']
   ): void {
     const signature = providerMetadata?.anthropic?.signature
+
     if (typeof signature !== 'string' || !signature) return
 
     const targetId = reasoningId || this.state.currentThinkingId
+
     if (!targetId) return
     const index = this.state.thinkingBlocks.get(targetId)
+
     if (index === undefined) return
     const block = this.state.blocks.get(index)
+
     if (block) block.signature = signature
   }
 
   private stopThinkingBlock(reasoningId?: string): void {
     const targetId = reasoningId || this.state.currentThinkingId
+
     if (!targetId) return
 
     const index = this.state.thinkingBlocks.get(targetId)
+
     if (index === undefined) return
 
     const signature = this.state.blocks.get(index)?.signature
+
     if (signature) {
       const delta: SignatureDelta = { type: 'signature_delta', signature }
       const deltaEvent: RawContentBlockDeltaEvent = { type: 'content_block_delta', index, delta }
@@ -508,6 +532,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     if (this.state.textBlockIndex !== null) {
       this.stopTextBlock()
     }
+
     // Close all open thinking blocks
     for (const reasoningId of this.state.thinkingBlocks.keys()) {
       this.stopThinkingBlock(reasoningId)
@@ -515,6 +540,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
 
     // Emit message_delta with final stop reason and usage
     const inputUsage = this.splitAnthropicInputUsage()
+
     const usage: MessageDeltaUsage = {
       output_tokens: this.state.outputTokens,
       input_tokens: inputUsage.inputTokens,

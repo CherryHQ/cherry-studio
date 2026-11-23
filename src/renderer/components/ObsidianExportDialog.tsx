@@ -59,6 +59,7 @@ const parseTags = (input: string): string[] => {
   const value = input.trim()
   const bare = value.replace(/^\[|\]$/g, '')
   let items: string[]
+
   if (value.startsWith('[') && value.endsWith(']')) {
     try {
       const parsed: unknown = parse(value)
@@ -72,6 +73,7 @@ const parseTags = (input: string): string[] => {
   } else {
     items = bare.split(multitextSeparator)
   }
+
   return items.map((item) => item.trim().replace(/^#/, '')).filter((item) => item !== '')
 }
 
@@ -107,6 +109,7 @@ const convertToTreeData = (files: FileInfo[]): TreeSelectOption[] => {
     isLeaf: false,
     selectable: true
   }
+
   const treeData = [root]
 
   // 记录已创建的节点路径
@@ -145,10 +148,12 @@ const convertToTreeData = (files: FileInfo[]): TreeSelectOption[] => {
 
         // 获取父节点，将当前节点添加到父节点的children中
         const parentNode = pathMap.get(parentPath)
+
         if (parentNode) {
           if (!parentNode.children) {
             parentNode.children = []
           }
+
           parentNode.children.push(node)
         }
 
@@ -182,6 +187,7 @@ const convertToTreeData = (files: FileInfo[]): TreeSelectOption[] => {
     if (!parentNode.children) {
       parentNode.children = []
     }
+
     parentNode.children.push(fileNode)
   }
 
@@ -200,6 +206,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   rawContent
 }) => {
   const [defaultObsidianVault, setDefaultObsidianVault] = usePreference('data.integration.obsidian.default_vault')
+
   const [state, setState] = useState({
     title,
     tags: obsidianTags || '',
@@ -208,6 +215,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
     processingMethod: processingMethod,
     folder: ''
   })
+
   const [hasTitleBeenManuallyEdited, setHasTitleBeenManuallyEdited] = useState(false)
   const [vaults, setVaults] = useState<Array<{ path: string; name: string }>>([])
   const [files, setFiles] = useState<FileInfo[]>([])
@@ -240,13 +248,17 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         setLoading(true)
         setError(null)
         const vaultsData = await ipcApi.request('export.obsidian.get_vaults')
+
         if (vaultsData.length === 0) {
           setError(i18n.t('chat.topics.export.obsidian_no_vaults'))
           setLoading(false)
+
           return
         }
+
         setVaults(vaultsData)
         const vaultToUse = defaultObsidianVault || vaultsData[0]?.name
+
         if (vaultToUse) {
           setSelectedVault(vaultToUse)
         }
@@ -257,6 +269,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         setLoading(false)
       }
     }
+
     void fetchVaults()
   }, [defaultObsidianVault, setDefaultObsidianVault])
 
@@ -275,6 +288,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           setLoading(false)
         }
       }
+
       void fetchFiles()
     }
   }, [selectedVault])
@@ -282,11 +296,15 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   const handleOk = async () => {
     if (!selectedVault) {
       setError(i18n.t('chat.topics.export.obsidian_no_vault_selected'))
+
       return
     }
+
     setSubmitting(true)
+
     try {
       let markdown = ''
+
       if (rawContent) {
         markdown = rawContent
       } else if (topic) {
@@ -300,7 +318,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       } else {
         markdown = ''
       }
+
       let content = ''
+
       if (state.processingMethod !== ObsidianProcessingMethod.NEW_OR_OVERWRITE) {
         content = `\n---\n${markdown}`
       } else {
@@ -308,21 +328,28 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           { title: state.title, created: state.createdAt, source: state.source, tags: parseTags(state.tags) },
           { lineWidth: 0 }
         )
+
         content = `---\n${frontMatter}---\n${markdown}`
       }
+
       if (content === '') {
         toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+
         return
       }
+
       await navigator.clipboard.writeText(content)
+
       const success = await exportMarkdownToObsidian({
         ...state,
         folder: state.folder,
         vault: selectedVault
       })
+
       if (!success) {
         return
       }
+
       setOpen(false)
       resolve(true)
     } finally {
@@ -343,18 +370,23 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   const handleChange = (key: string, value: any) => {
     setState((prevState) => ({ ...prevState, [key]: value }))
   }
+
   const handleTitleInputChange = (newTitle: string) => {
     handleChange('title', newTitle)
     setHasTitleBeenManuallyEdited(true)
   }
+
   const handleVaultChange = (value: string) => {
     setSelectedVault(value)
     setState((prevState) => ({ ...prevState, folder: '' }))
   }
+
   const handleFileSelect = (value: string) => {
     handleChange('folder', value)
+
     if (value) {
       const selectedFile = files.find((file) => file.path === value)
+
       if (selectedFile) {
         if (selectedFile.type === 'markdown') {
           const fileName = selectedFile.name
@@ -364,6 +396,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           handleChange('processingMethod', ObsidianProcessingMethod.APPEND)
         } else {
           handleChange('processingMethod', ObsidianProcessingMethod.NEW_OR_OVERWRITE)
+
           if (!hasTitleBeenManuallyEdited) {
             handleChange('title', title)
           }

@@ -44,23 +44,30 @@ export class SkillSubscriptionService extends BaseService {
 
   list(sourceId: string): SkillSubscriptionSnapshot | null {
     this.requireSource(sourceId)
+
     return this.catalogs()[sourceId] ?? null
   }
 
   private requireSource(sourceId: string) {
     const source = this.sources().find((item) => item.id === sourceId)
+
     if (!source) throw new IpcError(skillErrorCodes.SUBSCRIPTION_REMOVED)
+
     return source
   }
 
   add(rawUrl: string) {
     const { signal } = this.controller
+
     return this.mutations.runExclusive(async () => {
       signal.throwIfAborted()
       const url = normalizeSubscriptionUrl(rawUrl)
+
       if (!url) throw new IpcError(skillErrorCodes.SUBSCRIPTION_INVALID)
       const existing = this.sources().find((source) => source.url === url)
+
       if (existing) return existing
+
       const snapshot = await readSkillSubscription(
         {
           id: randomUUID(),
@@ -71,10 +78,12 @@ export class SkillSubscriptionService extends BaseService {
         },
         signal
       )
+
       if (!snapshot.items.length) throw new IpcError(skillErrorCodes.SUBSCRIPTION_EMPTY)
       signal.throwIfAborted()
       application.get('CacheService').setPersist(CACHE_KEY, { ...this.catalogs(), [snapshot.source.id]: snapshot })
       await application.get('PreferenceService').set(SOURCES_KEY, [...this.sources(), snapshot.source])
+
       return snapshot.source
     })
   }
@@ -83,8 +92,10 @@ export class SkillSubscriptionService extends BaseService {
     const { signal } = this.controller
     signal.throwIfAborted()
     const pending = this.refreshes.get(sourceId)
+
     if (pending) return pending
     const source = this.requireSource(sourceId)
+
     const task = readSkillSubscription(source, signal)
       .then((snapshot) =>
         this.mutations.runExclusive(async () => {
@@ -95,18 +106,22 @@ export class SkillSubscriptionService extends BaseService {
             SOURCES_KEY,
             this.sources().map((item) => (item.id === sourceId ? snapshot.source : item))
           )
+
           return snapshot
         })
       )
       .finally(() => {
         if (this.refreshes.get(sourceId) === task) this.refreshes.delete(sourceId)
       })
+
     this.refreshes.set(sourceId, task)
+
     return task
   }
 
   remove(sourceId: string) {
     const { signal } = this.controller
+
     return this.mutations.runExclusive(async () => {
       signal.throwIfAborted()
       await application.get('PreferenceService').set(
@@ -121,7 +136,9 @@ export class SkillSubscriptionService extends BaseService {
 
   private item(sourceId: string, itemId: string) {
     const item = this.list(sourceId)?.items.find((entry) => entry.id === itemId)
+
     if (!item) throw new IpcError(skillErrorCodes.SUBSCRIPTION_REMOVED)
+
     return item
   }
 
@@ -134,6 +151,7 @@ export class SkillSubscriptionService extends BaseService {
     await this.mutations.runExclusive(() => {
       if (signal.aborted || !this.sources().some((source) => source.id === sourceId)) return
       const snapshot = this.catalogs()[sourceId]
+
       if (!snapshot) return
       application.get('CacheService').setPersist(CACHE_KEY, {
         ...this.catalogs(),
@@ -152,8 +170,10 @@ export class SkillSubscriptionService extends BaseService {
   async detail(sourceId: string, itemId: string) {
     const { signal } = this.controller
     const item = this.item(sourceId, itemId)
+
     if (!item.membersKnown && item.subscription?.kind === 'zip') {
       const downloaded = await downloadSkillPackage(item.subscription.url)
+
       try {
         await this.rememberMembers(
           sourceId,
@@ -165,6 +185,7 @@ export class SkillSubscriptionService extends BaseService {
         await safeRemoveDirectory(downloaded.tempDir)
       }
     }
+
     return this.item(sourceId, itemId)
   }
 
@@ -174,12 +195,15 @@ export class SkillSubscriptionService extends BaseService {
     const item = this.item(sourceId, itemId)
     const key = skillInstallIdentity(item.subscription!.url)
     let task = this.installs.get(key)
+
     if (!task) {
       task = skillService.installSubscription(item).finally(() => this.installs.delete(key))
       this.installs.set(key, task)
     }
+
     return task.then(async (result) => {
       await this.rememberMembers(sourceId, itemId, result.members, signal)
+
       return result
     })
   }

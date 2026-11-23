@@ -4,6 +4,7 @@ import { ModelscopeLight } from './light'
 
 const Modelscope = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ModelscopeLight {...props} className={className} />
+
   return <ModelscopeLight {...props} className={className} />
 }
 

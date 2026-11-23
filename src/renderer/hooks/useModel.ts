@@ -38,10 +38,13 @@ export function useDefaultModel(options: { enabled?: boolean } = {}) {
   const { model: defaultModel, isLoading: isDefaultModelLoading } = useModelById(
     enabled ? (defaultModelId as UniqueModelId) : null
   )
+
   const { model: quickModel } = useModelById(enabled ? ((quickModelId as UniqueModelId) ?? defaultModelId) : null)
+
   const { model: translateModel } = useModelById(
     enabled ? ((translateModelId as UniqueModelId) ?? defaultModelId) : null
   )
+
   const { model: paintingModel } = useModelById(enabled ? (paintingModelId as UniqueModelId) : null)
 
   return {
@@ -88,6 +91,7 @@ export function useModels(
         ? { swrOptions: options.swrOptions }
         : undefined
   )
+
   useDataChange('/models', () => void refetch())
 
   const models = data ?? EMPTY_MODELS
@@ -135,6 +139,7 @@ export function useModelMutations() {
         // Service/DataApi create is intentionally array-based. This wrapper keeps
         // the old single-model ergonomics at the renderer boundary.
         const [created] = await createTrigger({ body: [dto] })
+
         return created
       } catch (error) {
         logger.error('Failed to create model', { providerId: dto.providerId, modelId: dto.modelId, error })
@@ -244,10 +249,12 @@ export function useModelMutations() {
  */
 export function useModelById(uniqueModelId: UniqueModelId | null | undefined) {
   const modelKey = uniqueModelId ?? ''
+
   const { data, isLoading, error, refetch, mutate } = useQuery(`/models/${modelKey}`, {
     enabled: !!modelKey,
     swrOptions: { keepPreviousData: false }
   })
+
   useDataChange('/models/:uniqueModelId*', () => void refetch())
 
   return {

@@ -34,6 +34,7 @@ interface Props {
  */
 const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
   const { t } = useTranslation()
+
   // Every available mini app, not just the launchpad's pinned ones: presets seed
   // as `enabled`, so a pinned-only list is empty until the user pins something.
   const {
@@ -45,17 +46,22 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
     hideMiniApp,
     removeCustomMiniApp
   } = useMiniApps()
+
   const { shortcuts, setPinned } = useSidebarShortcuts()
   const { openMiniAppInSplit } = useMiniAppPopup()
   const openMiniAppInSplitRef = useRef(openMiniAppInSplit)
   openMiniAppInSplitRef.current = openMiniAppInSplit
   const miniAppsRef = useRef(miniApps)
   miniAppsRef.current = miniApps
+
   const openMiniApp = useCallback((appId: string) => {
     const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
+
     if (app) openMiniAppInSplitRef.current(app)
   }, [])
+
   const openedIds = useMemo(() => new Set(openedKeepAliveMiniApps.map((app) => app.appId)), [openedKeepAliveMiniApps])
+
   const sidebarFavoriteIds = useMemo(
     () =>
       new Set(
@@ -67,6 +73,7 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
       ),
     [shortcuts]
   )
+
   const toggleMiniApp = useCallback(
     (appId: string) => {
       const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
@@ -82,6 +89,7 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
 
   const renderMiniApp = (app: MiniAppType) => {
     const isOccupied = app.appId === occupiedAppId
+
     return (
       <div
         key={app.appId}

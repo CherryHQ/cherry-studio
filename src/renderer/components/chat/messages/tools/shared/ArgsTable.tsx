@@ -11,6 +11,7 @@ import { SkeletonSpan } from './GenericTools'
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool extensions own argument values; formatting must handle non-JSON values without interrupting message rendering.
 export const formatArgValue = (value: unknown): string => {
   if (value === undefined) return ''
+
   return safeToString(value)
 }
 

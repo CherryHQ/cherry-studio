@@ -35,6 +35,7 @@ export function useBinaryActions() {
       try {
         setBusy((prev) => new Set(prev).add(toolId))
         const input: InputFor<'binary.install_tool'> = { name: CODE_CLI_TOOL_PRESET_MAP[toolId].executable }
+
         if (targetVersion) input.targetVersion = targetVersion
         await ipcApi.request('binary.install_tool', input)
         toast.success(t(messages.successKey))
@@ -44,6 +45,7 @@ export function useBinaryActions() {
         setBusy((prev) => {
           const next = new Set(prev)
           next.delete(toolId)
+
           return next
         })
       }
@@ -87,18 +89,23 @@ export function useBinaryActions() {
         const result = await ipcApi.request('binary.remove_tool', {
           name: CODE_CLI_TOOL_PRESET_MAP[toolId].executable
         })
+
         // A Code CLI is a fixed tool: it has no removable definition, so a
         // fail-closed cleanup_blocked has no definition-only fallback — surface it
         // as an error the user resolves (e.g. stop a dependent) before retrying.
         if (result.status === 'cleanup_blocked') {
           toast.error(result.message ?? t('settings.dependencies.uninstallFailed'))
+
           return false
         }
+
         toast.success(t('settings.dependencies.uninstallSuccess'))
+
         return true
       } catch (error) {
         logger.error('Failed to remove:', error as Error)
         toast.error(t('settings.dependencies.uninstallFailed'))
+
         return false
       }
     },

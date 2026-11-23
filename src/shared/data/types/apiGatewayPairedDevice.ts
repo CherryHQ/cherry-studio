@@ -15,4 +15,5 @@ export const ApiGatewayPairedDeviceSchema = z.strictObject({
 export type ApiGatewayPairedDevice = z.infer<typeof ApiGatewayPairedDeviceSchema>
 
 export const ApiGatewayPairedDeviceMetadataSchema = ApiGatewayPairedDeviceSchema.pick({ name: true, platform: true })
+
 export type ApiGatewayPairedDeviceMetadata = z.infer<typeof ApiGatewayPairedDeviceMetadataSchema>

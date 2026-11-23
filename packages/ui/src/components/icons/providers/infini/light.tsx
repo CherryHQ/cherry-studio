@@ -1,6 +1,7 @@
 import { type SVGProps, useId } from 'react'
 
 import type { IconComponent } from '../../types'
+
 const InfiniLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
@@ -54,5 +55,7 @@ const InfiniLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
     </svg>
   )
 }
+
 export { InfiniLight }
+
 export default InfiniLight

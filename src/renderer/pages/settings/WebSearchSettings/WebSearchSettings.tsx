@@ -22,6 +22,7 @@ const webSearchFieldClassName =
 const WebSearchSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
+
   const {
     defaultFetchUrlsProvider,
     defaultSearchKeywordsProvider,
@@ -40,6 +41,7 @@ const WebSearchSettings: FC = () => {
       {featureSections.map((section) => {
         const defaultProvider =
           section.capability === 'fetchUrls' ? defaultFetchUrlsProvider : defaultSearchKeywordsProvider
+
         const selectedEntry =
           section.entries.find((entry) => entry.provider.id === defaultProvider?.id) ?? section.entries[0]
 

@@ -36,12 +36,15 @@ export function collectFromFeatures(scope: RequestScope, features: readonly Requ
     if (!shouldRun(feature, scope)) continue
 
     const modelAdapters = invokeContribution(feature, 'contributeModelAdapters', scope)
+
     if (modelAdapters) out.modelAdapters.push(...modelAdapters)
 
     const hooks = invokeContribution(feature, 'contributeHooks', scope)
+
     if (hooks) out.hookParts.push(hooks)
 
     const stopConditions = invokeContribution(feature, 'contributeStopConditions', scope)
+
     if (stopConditions) out.stopConditions.push(...stopConditions)
   }
 
@@ -50,10 +53,12 @@ export function collectFromFeatures(scope: RequestScope, features: readonly Requ
 
 function shouldRun(feature: RequestFeature, scope: RequestScope): boolean {
   if (!feature.applies) return true
+
   try {
     return feature.applies(scope)
   } catch (error) {
     logger.warn(`feature ${feature.name}.applies threw; treating as not applicable`, error as Error)
+
     return false
   }
 }
@@ -66,11 +71,14 @@ function invokeContribution<M extends ContributionMethod>(
   scope: RequestScope
 ): ReturnType<NonNullable<RequestFeature[M]>> | undefined {
   const fn = feature[method] as ((scope: RequestScope) => ReturnType<NonNullable<RequestFeature[M]>>) | undefined
+
   if (!fn) return undefined
+
   try {
     return fn.call(feature, scope)
   } catch (error) {
     logger.warn(`feature ${feature.name}.${method} threw; skipping contribution`, error as Error)
+
     return undefined
   }
 }

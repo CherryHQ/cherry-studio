@@ -40,18 +40,24 @@ function normalizeEntryPath(entryName: string): string {
 
 export async function readMarkdownFromZipFile(zipFilePath: string): Promise<Uint8Array> {
   const zip = new StreamZip.async({ file: zipFilePath })
+
   try {
     const entries = Object.values(await zip.entries())
     let markdownEntry: StreamZip.ZipEntry | undefined
+
     for (const entry of entries) {
       if (entry.isDirectory) {
         continue
       }
+
       const entryName = entry.name.toLowerCase()
+
       if (!entryName.endsWith('.md') && !entryName.includes('.md\\')) {
         continue
       }
+
       const relativePath = normalizeEntryPath(entry.name)
+
       if (relativePath.toLowerCase().endsWith('.md')) {
         markdownEntry = entry
         break

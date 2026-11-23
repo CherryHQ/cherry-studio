@@ -18,11 +18,13 @@ function parseArgs() {
   const dirArg = process.argv.find((a) => a.startsWith('--dir='))
   const dir = dirArg?.split('=')[1] || 'providers'
   const dryRun = process.argv.includes('--dry-run')
+
   return { dir, dryRun }
 }
 
 function normalizeSvg(content: string) {
   const svgTagMatch = content.match(/<svg([^>]*)>/s)
+
   if (!svgTagMatch) {
     return { result: content, changed: false, reason: 'no <svg> tag' }
   }
@@ -32,6 +34,7 @@ function normalizeSvg(content: string) {
 
   // Update width
   const wMatch = attrs.match(/\bwidth="([^"]*)"/)
+
   if (wMatch && wMatch[1] !== String(TARGET_SIZE)) {
     attrs = attrs.replace(/\bwidth="[^"]*"/, `width="${TARGET_SIZE}"`)
     changed = true
@@ -42,6 +45,7 @@ function normalizeSvg(content: string) {
 
   // Update height
   const hMatch = attrs.match(/\bheight="([^"]*)"/)
+
   if (hMatch && hMatch[1] !== String(TARGET_SIZE)) {
     attrs = attrs.replace(/\bheight="[^"]*"/, `height="${TARGET_SIZE}"`)
     changed = true
@@ -55,6 +59,7 @@ function normalizeSvg(content: string) {
   }
 
   const result = content.replace(/<svg[^>]*>/s, `<svg${attrs}>`)
+
   return { result, changed: true }
 }
 
@@ -67,6 +72,7 @@ async function main() {
   )
 
   let files: string[]
+
   try {
     files = (await fs.readdir(baseDir)).filter((f) => f.endsWith('.svg')).sort()
   } catch {
@@ -76,6 +82,7 @@ async function main() {
 
   if (files.length === 0) {
     console.log('No SVG files found.')
+
     return
   }
 
@@ -93,6 +100,7 @@ async function main() {
       if (!dryRun) {
         await fs.writeFile(filePath, result, 'utf-8')
       }
+
       console.log(`  + ${file}${dryRun ? ' (would change)' : ''}`)
       changedCount++
     } else {

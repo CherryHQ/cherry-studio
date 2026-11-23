@@ -86,6 +86,7 @@ interface WheelStepControlProps {
 
 function normalizeWheelDelta(event: WheelEvent): number {
   if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) return event.deltaY
+
   return Math.sign(event.deltaY) * WHEEL_STEP_THRESHOLD
 }
 
@@ -103,6 +104,7 @@ function WheelStepControl({ children, className, min, max, value, onValueChange 
 
       if (nextValue === value) {
         wheelDeltaRef.current = 0
+
         return
       }
 
@@ -130,9 +132,11 @@ function WheelStepControl({ children, className, min, max, value, onValueChange 
       if (!wheelTarget) return
 
       wheelTarget.addEventListener('wheel', handleWheel, { passive: false })
+
       return () => {
         wheelTarget.removeEventListener('wheel', handleWheel)
         wheelDeltaRef.current = 0
+
         if (wheelIdleTimerRef.current) clearTimeout(wheelIdleTimerRef.current)
         wheelIdleTimerRef.current = null
       }
@@ -162,7 +166,9 @@ export function resolveSupportedReasoningEffort(model: Model, effort: ThinkingOp
 /** Coerce a selection to one this model's endpoint declares — its default tier, or Standard when it declares no tiers at all. */
 export function resolveSupportedServiceTier(model: Model, tier: ServiceTierSelection): ServiceTierSelection {
   const control = model.requestControls?.serviceTier
+
   if (!control) return 'standard'
+
   return control.options.includes(tier) ? tier : control.default
 }
 
@@ -180,10 +186,13 @@ export function ModelSpeedControl({
 }: ModelSpeedControlProps) {
   const { t } = useTranslation()
   const [peakBurst, setPeakBurst] = useState(0)
+
   const reasoningOptions = useMemo(() => {
     const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
+
     return SLIDER_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
   }, [model])
+
   const supportsReasoning = reasoningOptions.length > 1
   const supportsFast = onFastModeChange !== undefined && model.supportsFastMode === true
   const serviceTierOptions = onServiceTierChange ? (model.requestControls?.serviceTier?.options ?? []) : []
@@ -203,12 +212,14 @@ export function ModelSpeedControl({
   const effectiveReasoningEffort = resolveSupportedReasoningEffort(model, reasoningEffort)
   const selectedOption = supportsReasoning ? effectiveReasoningEffort : undefined
   const defaultSliderEffort = model.reasoning?.defaultEffort
+
   const sliderSelection =
     effectiveReasoningEffort === 'default' &&
     defaultSliderEffort !== undefined &&
     sliderEfforts.includes(defaultSliderEffort)
       ? defaultSliderEffort
       : effectiveReasoningEffort
+
   const selectedIndex = sliderSelection === 'default' ? -1 : sliderEfforts.indexOf(sliderSelection)
   const currentIndex = selectedIndex >= 0 ? selectedIndex : 0
   const isPeakEffort = effectiveReasoningEffort !== 'default' && currentIndex === sliderEfforts.length - 1
@@ -219,8 +230,10 @@ export function ModelSpeedControl({
   const effectiveServiceTier = resolveSupportedServiceTier(model, serviceTier)
   const serviceTierLabel = t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])
   const triggerLabel = fastMode ? t('agent.speed.fast') : t('agent.speed.label')
+
   const handleSliderValueChange = (index: number) => {
     const effort = sliderEfforts[index]
+
     if (effort) {
       if (index === sliderEfforts.length - 1 && !isPeakEffort) setPeakBurst((burst) => burst + 1)
       onReasoningEffortChange(effort)

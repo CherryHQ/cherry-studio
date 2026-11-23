@@ -18,6 +18,7 @@ export type ChildLedger = {
   /** Position of the child's latest record: activity order. */
   readonly touched: number
 }
+
 type Facts = Pick<ConversationFacts, 'history' | 'children'>
 
 const runRecordOf = (entry: HistoryEntry): SubagentRunRecord | undefined =>
@@ -28,6 +29,7 @@ export function readSubagents(history: readonly HistoryEntry[]): ChildLedger[] {
   const ledgers = new Map<ThreadId, ChildLedger>()
   history.forEach((entry, at) => {
     const record = runRecordOf(entry)
+
     if (!record) return
     const known = ledgers.get(record.sessionId)
     const runs = new Map(known?.runs)
@@ -35,6 +37,7 @@ export function readSubagents(history: readonly HistoryEntry[]): ChildLedger[] {
     const latest = known && known.latest.run > record.run ? known.latest : record
     ledgers.set(record.sessionId, { child: record.sessionId, latest, runs, created: known?.created ?? at, touched: at })
   })
+
   return [...ledgers.values()].sort((a, b) => a.touched - b.touched)
 }
 
@@ -44,6 +47,7 @@ export function readSubagents(history: readonly HistoryEntry[]): ChildLedger[] {
  */
 export const runStarted = (facts: Facts, child: ThreadId, run: number): boolean =>
   (facts.children.get(child)?.runUsage.length ?? 0) >= run
+
 /** A recorded running run that is still going, or not started yet; one that ended unrecorded is not live. */
 export const isLive = (facts: Facts, record: SubagentRunRecord): boolean =>
   record.status === 'running' &&
@@ -54,6 +58,7 @@ export function runStopping(history: readonly HistoryEntry[], child: ThreadId, r
   const record = readSubagents(history)
     .find((ledger) => ledger.child === child)
     ?.runs.get(run)
+
   return record !== undefined && (record.stoppedBy !== undefined || record.status === 'finished')
 }
 
@@ -78,16 +83,19 @@ export type PendingResult = SubagentRunRecord & { readonly status: 'finished' }
 export function pendingResults(history: readonly HistoryEntry[]): PendingResult[] {
   const delivered = new Set<string>()
   const ended = new Map<string, PendingResult>()
+
   for (const entry of history) {
     if (entry.kind === 'marker' && entry.marker.type === 'subagent-notification')
       for (const run of entry.marker.runs) delivered.add(`${run.sessionId}:${run.run}`)
     const record = runRecordOf(entry)
+
     if (record?.status === 'finished' && record.background && !record.modelStopped) {
       const key = `${record.sessionId}:${record.run}`
       ended.delete(key)
       ended.set(key, record as PendingResult)
     }
   }
+
   return [...ended].flatMap(([key, record]) => (delivered.has(key) ? [] : [record]))
 }
 
@@ -106,53 +114,70 @@ export function subagentResults(
   if (history.some((entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin'))
     return { active: false, pending: [], notification: [] }
   const calls = history.flatMap((entry) => (entry.kind === 'assistant' ? entry.toolCalls : []))
+
   const triggers = new Map<string, string>(
     calls.flatMap((call) => [
       [keys.subagentSpawn(call.callKey), call.callId],
       [keys.subagentContinue(call.callKey), call.callId]
     ])
   )
+
   const runKey = (child: ThreadId, run: number) => JSON.stringify([child, run])
   const sources = new Map<string, string | undefined>()
   const delivered = new Set<string>()
   let latest: readonly DeliveredRun[] = []
   let answered = false
+
   for (const entry of history) {
     if (startsTurn(entry)) {
       latest = entry.kind === 'marker' && entry.marker.type === 'subagent-notification' ? entry.marker.runs : []
       answered = false
     }
+
     if (entry.kind === 'assistant' && entry.stop !== 'toolUse') answered = true
+
     if (entry.kind === 'marker' && entry.marker.type === 'subagent-notification')
       for (const run of entry.marker.runs) delivered.add(runKey(run.sessionId, run.run))
     const record = runRecordOf(entry)
+
     if (!record) continue
     const key = runKey(record.sessionId, record.run)
+
     if (entry.kind === 'record' && entry.key?.startsWith('subagent-continue:host-message:')) {
       sources.set(key, undefined)
       continue
     }
+
     const source =
       (entry.kind === 'record' && entry.key ? triggers.get(entry.key) : undefined) ??
       (record.run === 1 ? calls.find((call) => call.callKey === record.parentToolCallId)?.callId : undefined)
+
     if (source && !sources.has(key)) sources.set(key, source)
   }
+
   const notified = (notification ?? latest).map((run) => runKey(run.sessionId, run.run))
+
   const pending = readSubagents(history).flatMap(({ runs }) =>
     [...runs.values()].flatMap((record) => {
       const key = runKey(record.sessionId, record.run)
+
       return record.background && !record.modelStopped && (record.status === 'running' || !delivered.has(key))
         ? [key]
         : []
     })
   )
+
   if (active || !answered) pending.push(...notified)
+
   const resolve = (ids: readonly string[]) =>
     ids.flatMap((id) => {
       const call = sources.get(id)
+
       return call ? [call] : []
     })
+
   if (pending.some((id) => !sources.has(id))) return undefined
+
   return {
     active: pending.length > 0,
     pending: [...new Set(resolve(pending))],
@@ -167,9 +192,12 @@ export function subagentResults(
 export function suppressed(history: readonly HistoryEntry[]): boolean {
   for (let i = history.length - 1; i >= 0; i--) {
     const entry = history[i]
+
     if (entry.kind === 'record' && entry.record.type === 'turn-stop') return true
+
     if (startsTurn(entry)) return false
   }
+
   return false
 }
 
@@ -182,12 +210,15 @@ export const wakes = (result: PendingResult): boolean => result.stoppedBy !== 'u
  */
 export function interruptRoute(facts: Facts, child: ThreadId): 'stop-subagent' | 'stop-parent-turn' | undefined {
   const ledger = readSubagents(facts.history).find((candidate) => candidate.child === child)
+
   if (!ledger || !isLive(facts, ledger.latest)) return undefined
+
   return ledger.latest.background ? 'stop-subagent' : 'stop-parent-turn'
 }
 
 /** This package's own completion status of a child run; agent-runtime's `Subagent` carries none. */
 export type DelegationStatus = 'active' | 'completed' | 'unknown'
+
 /** One child run maps to one delegation: active while its record says running, completed once it ended. */
 export const delegationStatus = (record: SubagentRunRecord): DelegationStatus =>
   record.status === 'running' ? 'active' : 'completed'
@@ -198,13 +229,16 @@ export function subagentViews(facts: Facts, approvals: readonly ApprovalOutcome[
     .filter(({ latest }) => latest.background)
     .map(({ child, latest }) => {
       const live = isLive(facts, latest)
+
       const view: SubagentView = {
         sessionId: child,
         parentToolCallId: latest.parentToolCallId,
         description: latest.description,
         status: !live ? 'finished' : awaitingApproval(approvals, child) ? 'awaiting_approval' : 'running'
       }
+
       if (!live && latest.outcome !== undefined) Object.assign(view, { outcome: latest.outcome })
+
       return view
     })
 }

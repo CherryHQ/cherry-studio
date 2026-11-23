@@ -3,15 +3,18 @@ import type { Provider } from '@shared/data/types/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 export type AihubmixChatFamily = 'anthropic' | 'gemini' | 'openai-responses' | 'openai-chat' | 'compat'
+
 export type DmxapiChatFamily = 'openai-compat' | 'openai' | 'anthropic' | 'gemini'
 
 const isOpenAILLM = (modelId: string): boolean => {
   const id = modelId.toLowerCase()
+
   return /\bgpt\b|^o[134]/.test(id) && !id.includes('gpt-4o-image')
 }
 
 const isOpenAIChatCompletionOnly = (modelId: string): boolean => {
   const id = modelId.toLowerCase()
+
   return (
     id.includes('gpt-4o-search-preview') ||
     id.includes('gpt-4o-mini-search-preview') ||
@@ -22,6 +25,7 @@ const isOpenAIChatCompletionOnly = (modelId: string): boolean => {
 
 export function resolveAihubmixChatFamily(modelId: string): AihubmixChatFamily {
   if (modelId.startsWith('claude')) return 'anthropic'
+
   if (
     (modelId.startsWith('gemini') || modelId.startsWith('imagen')) &&
     !modelId.endsWith('no-think') &&
@@ -30,7 +34,9 @@ export function resolveAihubmixChatFamily(modelId: string): AihubmixChatFamily {
   ) {
     return 'gemini'
   }
+
   if (isOpenAILLM(modelId)) return isOpenAIChatCompletionOnly(modelId) ? 'openai-chat' : 'openai-responses'
+
   return 'compat'
 }
 
@@ -88,11 +94,13 @@ export interface GatewayModelRoute {
 
 export function resolveAihubmixChatRoute(modelId: string): GatewayModelRoute {
   const family = resolveAihubmixChatFamily(modelId)
+
   return { endpointType: AIHUBMIX_ENDPOINT[family], providerOptionsKey: AIHUBMIX_OPTIONS_KEY[family] }
 }
 
 export function resolveDmxapiChatRoute(modelId: string): GatewayModelRoute {
   const family = resolveDmxapiChatFamily(modelId)
+
   return { endpointType: DMXAPI_ENDPOINT[family], providerOptionsKey: DMXAPI_OPTIONS_KEY[family] }
 }
 
@@ -110,6 +118,8 @@ export function resolveGatewayChatRoute(provider: Provider, model: Model): Gatew
   const router =
     GATEWAY_MODEL_ROUTERS.get(provider.id) ??
     (provider.presetProviderId ? GATEWAY_MODEL_ROUTERS.get(provider.presetProviderId) : undefined)
+
   const route = router?.(model.apiModelId ?? model.id)
+
   return route && provider.endpointConfigs?.[route.endpointType] ? route : undefined
 }

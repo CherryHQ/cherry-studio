@@ -1,6 +1,7 @@
 import { type SVGProps, useId } from 'react'
 
 import type { IconComponent } from '../../types'
+
 const DmxapiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
@@ -24,5 +25,7 @@ const DmxapiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
     </svg>
   )
 }
+
 export { DmxapiLight }
+
 export default DmxapiLight

@@ -19,6 +19,7 @@ export function placeSelectionAgentWindow(size: Size, anchor: Rectangle | null, 
   const { width, height } = clampSize(size, workArea)
   const x = anchor ? anchor.x + (anchor.width - width) / 2 : workArea.x + (workArea.width - width) / 2
   const y = anchor ? anchor.y : workArea.y + (workArea.height - height) / 2
+
   return {
     x: clampAxis(x, width, workArea.x, workArea.width),
     y: clampAxis(y, height, workArea.y, workArea.height),
@@ -32,6 +33,7 @@ export function resizeSelectionAgentWindow(bounds: Rectangle, size: Size, workAr
   const { width, height } = clampSize(size, workArea)
   const fitsBelow = bounds.y + height <= workArea.y + workArea.height - GAP
   const y = fitsBelow ? bounds.y : bounds.y + bounds.height - height
+
   return {
     x: clampAxis(bounds.x + (bounds.width - width) / 2, width, workArea.x, workArea.width),
     y: clampAxis(y, height, workArea.y, workArea.height),

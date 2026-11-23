@@ -25,16 +25,19 @@ export function isSerializable(value: unknown): value is Serializable {
       if (seen.has(val)) {
         return false
       }
+
       seen.add(val)
 
       if (Array.isArray(val)) {
         const result = val.every((item) => _isSerializable(item))
         seen.delete(val)
+
         return result
       }
 
       // Check if it's a plain object
       const proto = Object.getPrototypeOf(val)
+
       if (proto !== null && proto !== Object.prototype && proto !== Array.prototype) {
         return false
       }
@@ -55,6 +58,7 @@ export function isSerializable(value: unknown): value is Serializable {
       // Recursively check all property values
       const result = Object.values(val).every((v) => _isSerializable(v))
       seen.delete(val)
+
       return result
     }
 

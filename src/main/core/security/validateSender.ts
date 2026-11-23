@@ -15,6 +15,7 @@ function resolveAppRoot(appRootDir: string): string {
   try {
     const realPath = realpathSync.native(appRootDir)
     cachedAppRoot = { input: appRootDir, realPath }
+
     return realPath
   } catch {
     return appRootDir
@@ -31,9 +32,11 @@ function resolveRendererPath(filePath: string): string | undefined {
       return join(realpathSync.native(candidate), ...missingSegments)
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
+
       if (code !== 'ENOENT' && code !== 'ENOTDIR') return undefined
 
       const parent = dirname(candidate)
+
       if (parent === candidate) return undefined
 
       missingSegments.unshift(basename(candidate))
@@ -75,6 +78,7 @@ export function isAppRendererUrl(
   if (!url) return false
 
   let parsed: URL
+
   try {
     parsed = new URL(url)
   } catch {
@@ -83,15 +87,19 @@ export function isAppRendererUrl(
 
   if (parsed.protocol === 'file:') {
     let filePath: string
+
     try {
       filePath = fileURLToPath(parsed)
     } catch {
       return false
     }
+
     const appRoot = resolveAppRoot(appRootDir)
+
     if (!isOutsidePath(relative(appRoot, filePath))) return true
 
     const resolvedFilePath = resolveRendererPath(filePath)
+
     return resolvedFilePath !== undefined && !isOutsidePath(relative(appRoot, resolvedFilePath))
   }
 
@@ -133,6 +141,7 @@ export function validateSender(
   if (event.sender.getType() === 'webview') return false
 
   const frame = event.senderFrame
+
   if (!frame) return false
 
   // Only the top-level frame may reach IpcApi. A sub-frame (e.g. an <iframe>

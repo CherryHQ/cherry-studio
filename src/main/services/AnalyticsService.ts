@@ -19,12 +19,15 @@ const POSTHOG_PROJECT_KEYS = {
   cn: 'phc_vwsf7qr54Vk2ff23Nj2B4PEYtSkkpheKrb8VcdfDujna',
   global: 'phc_G0omsYajA6A9BY5c0rnU04ZaZck25xpR0DqKhwfF39n'
 } as const satisfies Record<AppEdition, string>
+
 const POSTHOG_HOST = 'https://us.i.posthog.com'
 
 // Development builds record usage insights only in a project set through MAIN_VITE_POSTHOG_KEY.
 function resolvePostHogKey(): string {
   const override = import.meta.env.MAIN_VITE_POSTHOG_KEY?.trim()
+
   if (override) return override
+
   return import.meta.env.DEV ? '' : POSTHOG_PROJECT_KEYS[getAppEdition()]
 }
 
@@ -39,14 +42,17 @@ class ConsentRevokedError extends Error {
 function linkSignals(first: AbortSignal, second?: AbortSignal | null): AbortSignal {
   if (!second) return first
   const anySignals = (AbortSignal as typeof AbortSignal & { any?: (s: AbortSignal[]) => AbortSignal }).any
+
   if (typeof anySignals === 'function') return anySignals.call(AbortSignal, [first, second])
   const controller = new AbortController()
   const abort = () => controller.abort()
+
   if (first.aborted || second.aborted) abort()
   else {
     first.addEventListener('abort', abort, { once: true })
     second.addEventListener('abort', abort, { once: true })
   }
+
   return controller.signal
 }
 
@@ -113,8 +119,10 @@ export class AnalyticsService extends BaseService implements Activatable {
 
     const revokeController = new AbortController()
     this.revokeController = revokeController
+
     const revokedFetch: typeof fetch = async (input, init) => {
       if (revokeController.signal.aborted) throw new ConsentRevokedError()
+
       try {
         return await globalThis.fetch(input, {
           ...init,
@@ -142,6 +150,7 @@ export class AnalyticsService extends BaseService implements Activatable {
     })
 
     const posthogKey = resolvePostHogKey()
+
     if (posthogKey) {
       const { PostHog } = await import('posthog-node')
       this.posthog = new PostHog(posthogKey, {
@@ -168,25 +177,31 @@ export class AnalyticsService extends BaseService implements Activatable {
       // After a revocation the shared revoke signal fails every request, so the queue is dropped
       // without waiting out PostHog's retries.
       const revoked = !this.desiredEnabled
+
       if (revoked) this.revokeController?.abort()
       await this.posthog.shutdown(revoked ? 1_000 : undefined)
       this.posthog = null
     }
+
     if (this.client) {
       if (!this.desiredEnabled) {
         this.revokeController?.abort()
+
         try {
           const pending = this.client.getQueueSize()
           logger.info('Analytics queue discarded after consent revocation', { pending })
         } catch {
           logger.info('Analytics queue discarded after consent revocation')
         }
+
         await this.client.destroy({ flush: false })
       } else {
         await this.client.destroy()
       }
+
       this.client = null
     }
+
     this.revokeController = null
     logger.info('Analytics service deactivated')
   }

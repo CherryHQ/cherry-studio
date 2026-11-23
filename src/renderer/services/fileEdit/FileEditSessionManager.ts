@@ -32,6 +32,7 @@ export interface SessionSnapshot {
 interface DiskSnapshot extends DecodedFileText {
   baseline: FileEditBaseline
 }
+
 interface Session {
   resource: FileEditResource
   key: string
@@ -80,6 +81,7 @@ export class FileEditSessionManager {
   private inventory: readonly SessionSnapshot[] = []
   readonly subscribe = (listener: () => void) => {
     this.inventoryListeners.add(listener)
+
     return () => {
       this.inventoryListeners.delete(listener)
     }
@@ -93,11 +95,14 @@ export class FileEditSessionManager {
     this.inventory = [...this.sessions.values()].flatMap((session) =>
       !session.attachments.size && (session.snapshot.isDirty || !!session.snapshot.saveError) ? [session.snapshot] : []
     )
+
     for (const listener of this.inventoryListeners) listener()
   }
   async recover(sessionId: string, action: 'retry' | 'discard'): Promise<void> {
     const session = [...this.sessions.values()].find((candidate) => candidate.snapshot.sessionId === sessionId)
+
     if (!session || session.attachments.size) return
+
     if (action === 'discard') await this.replace(session, 'discard')
     else await this.flush(session)
   }
@@ -105,35 +110,43 @@ export class FileEditSessionManager {
   async prepareMutation(): Promise<PreparedFileMutation> {
     if (this.composing || this.mutationSettled) throw new Error('File editing is not ready for a transition')
     const affected = [...this.sessions.values()]
+
     if (affected.some((session) => session.transition)) throw new Error('A file transition is already running')
     const settlement = Promise.withResolvers<void>()
     this.mutationSettled = settlement.promise
     this.acquisitionEpoch++
+
     for (const session of affected) {
       session.transition = true
       session.readGeneration++
       this.cancelTimer(session)
       this.publish(session, { sealed: true })
     }
+
     const unseal = () => {
       for (const session of affected) {
         session.transition = false
         this.publish(session, { sealed: false })
         this.evict(session)
       }
+
       this.mutationSettled = undefined
       settlement.resolve()
     }
+
     // Sessions already parked in conflict/error keep their draft for recovery; they must not block other files.
     const flushable = affected.filter((session) => !session.snapshot.conflict && !session.snapshot.saveError)
     const results = await Promise.allSettled(flushable.map((session) => this.flush(session)))
     const failure = results.find((result) => result.status === 'rejected')
+
     if (failure?.status === 'rejected') {
       unseal()
       throw failure.reason
     }
+
     await Promise.all(affected.map((session) => session.queue))
     let finishing: Promise<void> | undefined
+
     return {
       finish: () => {
         finishing ??= (async () => {
@@ -144,6 +157,7 @@ export class FileEditSessionManager {
             unseal()
           }
         })()
+
         return finishing
       }
     }
@@ -152,23 +166,31 @@ export class FileEditSessionManager {
   async acquire(ownerId: string, handle: FileHandle): Promise<SessionLease> {
     const locator = handle.kind === 'path' ? handle.path : handle.entryId
     const key = JSON.stringify([ownerId, handle.kind, locator])
+
     for (;;) {
       while (this.mutationSettled) await this.mutationSettled
       const epoch = this.acquisitionEpoch
       const retained = this.sessions.get(key)
+
       if (retained) {
         const lease = this.attach(retained)
         void this.invalidate(retained)
+
         return lease
       }
+
       let opening = this.acquisitions.get(key)
+
       if (!opening) {
         opening = this.open(key, ownerId, locator, handle, epoch)
         this.acquisitions.set(key, opening)
       }
+
       try {
         const session = await opening
+
         if (this.mutationSettled || epoch !== this.acquisitionEpoch) continue
+
         return this.attach(session)
       } catch (error) {
         if (!(error instanceof AcquisitionInterruptedError)) throw error
@@ -190,10 +212,13 @@ export class FileEditSessionManager {
     epoch: number
   ): Promise<Session> {
     const resource = await ipcApi.request('file.edit.open', { handle })
+
     try {
       if (this.mutationSettled || epoch !== this.acquisitionEpoch) throw new AcquisitionInterruptedError()
       const disk = await this.read(resource)
+
       if (this.mutationSettled || epoch !== this.acquisitionEpoch) throw new AcquisitionInterruptedError()
+
       const session: Session = {
         key,
         resource,
@@ -224,7 +249,9 @@ export class FileEditSessionManager {
           sealed: false
         }
       }
+
       this.sessions.set(key, session)
+
       return session
     } catch (error) {
       await ipcApi
@@ -242,14 +269,18 @@ export class FileEditSessionManager {
     this.publish(session, { bindingEpoch: session.snapshot.bindingEpoch + 1 })
     let released = false
     const current = () => !released && session.binding === attachment && !session.snapshot.sealed
+
     const command = (run: () => Promise<void>) => {
       if (!current()) return Promise.reject(new Error('File editor binding is no longer writable'))
+
       return run()
     }
+
     return {
       getSnapshot: () => session.snapshot,
       subscribe: (listener) => {
         session.listeners.add(listener)
+
         return () => {
           session.listeners.delete(listener)
         }
@@ -270,14 +301,17 @@ export class FileEditSessionManager {
         )
           return false
         const draft = text.replace(/\r\n?/g, '\n')
+
         if (draft === session.snapshot.draft) return true
         this.publish(session, { draft, revision: session.snapshot.revision + 1 })
         this.schedule(session)
+
         return true
       },
       setAutoSave: (enabled) => {
         if (!current() || session.autoSave === enabled) return
         session.autoSave = enabled
+
         if (enabled && session.snapshot.isDirty) this.schedule(session)
         else this.cancelTimer(session)
       },
@@ -291,12 +325,15 @@ export class FileEditSessionManager {
         released = true
         session.attachments.delete(attachment)
         this.publishInventory()
+
         if (session.binding === attachment) {
           session.binding = undefined
           this.cancelTimer(session)
+
           if (session.snapshot.isDirty && !session.snapshot.saveError && !session.snapshot.conflict)
             void this.flush(session).catch(() => {})
         }
+
         this.evict(session)
       }
     }
@@ -307,14 +344,17 @@ export class FileEditSessionManager {
       patch.sealed !== undefined && patch.sealed !== session.snapshot.sealed
         ? session.snapshot.bindingEpoch + 1
         : (patch.bindingEpoch ?? session.snapshot.bindingEpoch)
+
     session.snapshot = { ...session.snapshot, ...patch, bindingEpoch }
     session.snapshot = { ...session.snapshot, isDirty: session.snapshot.draft !== session.disk.content }
+
     for (const listener of session.listeners) listener()
     this.publishInventory()
   }
 
   private async read(resource: FileEditResource): Promise<DiskSnapshot> {
     const result = await ipcApi.request('file.edit.read', { editId: resource.editId })
+
     return { ...decodeFileText(result.data), baseline: result.baseline }
   }
 
@@ -335,6 +375,7 @@ export class FileEditSessionManager {
 
   private schedule(session: Session): void {
     this.cancelTimer(session)
+
     if (!session.autoSave || session.snapshot.saveError || session.snapshot.conflict || session.snapshot.sealed) return
     session.timer = setTimeout(() => {
       void this.flush(session).catch(() => {})
@@ -352,6 +393,7 @@ export class FileEditSessionManager {
         session.pending--
         this.publish(session, { isSaving: session.pending > 0 })
         this.evict(session)
+
         if (
           !session.pending &&
           session.needsRevalidation &&
@@ -360,6 +402,7 @@ export class FileEditSessionManager {
         )
           void this.invalidate(session)
       })
+
     return task
   }
 
@@ -367,11 +410,13 @@ export class FileEditSessionManager {
     this.cancelTimer(session)
     const { draft } = session.snapshot
     const resource = session.resource
+
     return this.enqueue(session, async () => {
       try {
         if (session.snapshot.conflict) throw new IpcError(fileErrorCodes.STALE_VERSION, 'File has external changes')
         await this.save(session, draft, resource)
         this.publish(session, { saveError: undefined })
+
         if (session.snapshot.isDirty && session.pending === 1) this.schedule(session)
       } catch (error) {
         this.publish(session, { saveError: toError(error) })
@@ -384,26 +429,33 @@ export class FileEditSessionManager {
     for (let retries = 0; retries < 4; retries++) {
       if (text === session.disk.content) return
       const disk = session.disk
+
       try {
         const result = await ipcApi.request('file.edit.write', {
           editId: resource.editId,
           expected: disk.baseline,
           data: encodeFileText(text, disk.lineEnding, disk.hasBom)
         })
+
         this.adoptBaseline(session, { ...disk, content: text, baseline: result.baseline })
         this.publish(session, { metadataRecoveryPending: result.metadataRecoveryPending, saveError: undefined })
+
         return
       } catch (error) {
         if (!(error instanceof IpcError) || error.code !== fileErrorCodes.STALE_VERSION) throw error
       }
+
       const current = await this.read(resource)
+
       if (current.content === text || current.baseline.contentHash === disk.baseline.contentHash) {
         this.adoptBaseline(session, current)
         continue
       }
+
       this.publish(session, { conflict: true })
       throw new IpcError(fileErrorCodes.STALE_VERSION, 'File has external changes')
     }
+
     throw new IpcError(fileErrorCodes.STALE_VERSION, 'File changed repeatedly during save')
   }
 
@@ -413,10 +465,12 @@ export class FileEditSessionManager {
     this.cancelTimer(session)
     this.publish(session, { sealed: true })
     const { draft, revision } = session.snapshot
+
     return this.enqueue(session, async () => {
       try {
         if (mode !== 'discard') this.adoptBaseline(session, await this.read(session.resource))
         this.publish(session, { conflict: false, saveError: undefined, readError: undefined })
+
         if (mode === 'keep') await this.save(session, draft)
         else
           this.publish(session, {
@@ -436,15 +490,20 @@ export class FileEditSessionManager {
 
   private async invalidate(session: Session, preparing = false): Promise<void> {
     this.publish(session, { freshness: 'unknown' })
+
     if (session.pending || (session.snapshot.sealed && !preparing)) {
       session.needsRevalidation = true
+
       return
     }
+
     const generation = ++session.readGeneration
     const revision = session.snapshot.revision
     session.needsRevalidation = false
+
     try {
       const disk = await this.read(session.resource)
+
       if (
         session.readGeneration !== generation ||
         session.snapshot.revision !== revision ||
@@ -453,13 +512,17 @@ export class FileEditSessionManager {
       )
         return
       this.publish(session, { readError: undefined })
+
       if (session.snapshot.isDirty) {
         if (disk.baseline.contentHash !== session.disk.baseline.contentHash) this.publish(session, { conflict: true })
         else this.adoptBaseline(session, disk)
+
         return
       }
+
       const changed = disk.content !== session.disk.content
       this.adoptBaseline(session, disk)
+
       if (changed)
         this.publish(session, {
           draft: disk.content,
@@ -491,6 +554,7 @@ export class FileEditSessionManager {
       session.snapshot.saveError
     )
       return
+
     if (this.sessions.get(session.key) !== session) return
     this.sessions.delete(session.key)
     this.publishInventory()

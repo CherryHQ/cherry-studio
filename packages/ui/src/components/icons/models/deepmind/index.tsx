@@ -4,6 +4,7 @@ import { DeepmindLight } from './light'
 
 const Deepmind = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DeepmindLight {...props} className={className} />
+
   return <DeepmindLight {...props} className={className} />
 }
 

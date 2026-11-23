@@ -10,9 +10,11 @@ import type { ComposerDraftToken, ComposerSerializedToken } from '../../tokens'
 
 export const composerFileTokenId = (file: Pick<ComposerAttachment, 'fileTokenSourceId'>) => {
   const sourceId = getComposerFileTokenSourceId(file)
+
   if (!sourceId) {
     throw new Error('fileTokenSourceId is required to create a composer file token id')
   }
+
   return composerFileTokenIdFromSourceId(sourceId)
 }
 
@@ -54,12 +56,14 @@ export function mcpResourceToComposerToken(
   options: { reader: 'mcp_resource_read' | 'runtime' } = { reader: 'mcp_resource_read' }
 ): ComposerDraftToken {
   const name = resource.name || resource.uri
+
   // Agent sessions reach resources through their own MCP bridge, so naming the chat builtin there
   // would point the model at a tool its runtime does not have.
   const instruction =
     options.reader === 'mcp_resource_read'
       ? `read it with mcp_resource_read using serverId "${resource.serverId}" and uri "${resource.uri}"`
       : `read it from MCP server "${resource.serverName}" at uri "${resource.uri}"`
+
   return {
     id: composerMcpResourceTokenId(resource),
     kind: 'reference',

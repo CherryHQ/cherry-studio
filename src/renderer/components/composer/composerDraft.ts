@@ -21,6 +21,7 @@ export { COMPOSER_INPUT_MAX_LENGTH } from './composerLimits'
 const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
 
 type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
+
 type PersistedComposerSerializedToken = ComposerSerializedToken & {
   kind: ComposerMessageToken['kind']
 }
@@ -32,6 +33,7 @@ function isEditorSource(source: ComposerSerializableSource): source is Pick<Edit
 function appendTextContent(nodes: JSONContent[], text: string) {
   text.split(/\r\n?|\n/).forEach((line, index) => {
     if (index > 0) nodes.push({ type: 'hardBreak' })
+
     if (line) nodes.push({ type: 'text', text: line })
   })
 }
@@ -42,6 +44,7 @@ function getRestoredTextSuffix(payload: unknown): string {
     return ''
 
   const restoredTextSuffix = payload.restoredTextSuffix
+
   return typeof restoredTextSuffix === 'string' ? restoredTextSuffix : ''
 }
 
@@ -53,12 +56,14 @@ const composerTokenText = (token: ComposerDraftToken): string =>
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Live and restored token payloads vary by token kind; require an object before validating individual display-file fields or merging restored suffixes.
 function readPayloadObject(payload: unknown): Record<string, unknown> | undefined {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined
+
   return payload as Record<string, unknown>
 }
 /* oxlint-enable anti-slop/no-unsafe-dictionary-type */
 
 function readPayloadString(payload: NonNullable<ReturnType<typeof readPayloadObject>>, key: string) {
   const value = payload[key]
+
   return typeof value === 'string' ? value : undefined
 }
 
@@ -66,19 +71,24 @@ function createDisplayFileTokenPayload(token: ComposerSerializedToken): Composer
   if (token.kind !== 'file') return undefined
 
   const payload = readPayloadObject(token.payload)
+
   if (!payload) return undefined
 
   const displayPayload: ComposerMessageTokenPayload = {}
   const type = FileTypeSchema.safeParse(payload.type)
+
   if (type.success) displayPayload.type = type.data
 
   const ext = readPayloadString(payload, 'ext')
+
   if (ext) displayPayload.ext = ext
 
   const name = readPayloadString(payload, 'name')
+
   if (name) displayPayload.name = name
 
   const originName = readPayloadString(payload, 'origin_name')
+
   if (originName) displayPayload.origin_name = originName
 
   if (typeof payload.size === 'number') displayPayload.size = payload.size
@@ -90,6 +100,7 @@ function getRestorableQuoteTextSuffix(text: string, start: number): string {
   if (text.startsWith('\r\n', start)) return '\r\n'
 
   const next = text[start]
+
   return next === ' ' || next === '\n' || next === '\r' ? next : ''
 }
 
@@ -99,6 +110,7 @@ function createComposerTokenNode(
 ): JSONContent {
   const basePayload = readPayloadObject(token.payload)
   const payload = restoredTextSuffix ? { ...basePayload, restoredTextSuffix } : basePayload
+
   const attrs: ComposerDraftToken = {
     id: token.id,
     kind: token.kind,
@@ -121,18 +133,21 @@ function createComposerContent(
   isRestorableKind: (kind: ComposerSerializedToken['kind']) => boolean
 ): JSONContent {
   const nodes: JSONContent[] = []
+
   const tokens = sourceTokens
     .filter((token) => isRestorableKind(token.kind) && token.label)
     .toSorted((a, b) => a.textOffset - b.textOffset || a.index - b.index)
 
   if (!tokens.length) {
     appendTextContent(nodes, text)
+
     return { type: 'doc', content: createComposerLineParagraphs(nodes) }
   }
 
   let cursor = 0
   tokens.forEach((token) => {
     const offset = Math.max(cursor, Math.min(text.length, token.textOffset))
+
     if (offset > cursor) {
       appendTextContent(nodes, text.slice(cursor, offset))
       cursor = offset
@@ -140,6 +155,7 @@ function createComposerContent(
 
     const promptText = token.promptText
     const promptTextMatches = !!promptText && text.slice(offset, offset + promptText.length) === promptText
+
     if (promptText && !promptTextMatches) return
 
     const restoredTextSuffix =
@@ -168,6 +184,7 @@ export function createComposerDraftContent(
   options: { tokenizeVariables?: boolean; literalFencedCode?: boolean } = {}
 ): JSONContent {
   const inputTokens = draft.tokens.filter((token) => isComposerInputTokenKind(token.kind))
+
   if (!inputTokens.length && options.tokenizeVariables !== false) {
     return createPromptVariableContent(draft.text, { literalFencedCode: options.literalFencedCode })
   }
@@ -192,9 +209,11 @@ export function resolveComposerRestoreTokens(
   liveTokens.forEach((token) => {
     if (!token.promptText) return
     const textOffset = text.indexOf(token.promptText)
+
     if (textOffset < 0) return
     resolved.push({ ...token, index: resolved.length, textOffset })
   })
+
   return resolved
 }
 
@@ -206,11 +225,13 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
   const visitNode = (node: JSONContent) => {
     if (node.type === 'text') {
       text += node.text ?? ''
+
       return
     }
 
     if (node.type === 'hardBreak') {
       text += '\n'
+
       return
     }
 
@@ -222,6 +243,7 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
         textOffset: text.length
       })
       text += composerTokenText(token)
+
       return
     }
 
@@ -232,6 +254,7 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
         if (index > 0) text += '\n'
         visitNode(child)
       })
+
       return
     }
 
@@ -266,16 +289,19 @@ export function excludeComposerDraftTokens(
     .map((token) => {
       const start = Math.min(draft.text.length, Math.max(0, token.textOffset))
       const promptText = token.promptText ?? ''
+
       // The prompt text has moved (the user edited over it), so there is no span we can safely cut —
       // drop the token and leave the prose alone rather than slicing through what they wrote.
       if (!promptText || !draft.text.startsWith(promptText, start)) return { start, end: start }
       const end = start + promptText.length
+
       return { start, end: draft.text[end] === ' ' ? end + 1 : end }
     })
     .filter((cut) => cut.end > cut.start)
     .sort((first, second) => first.start - second.start)
     .forEach((cut) => {
       const previous = cuts.at(-1)
+
       if (previous && cut.start <= previous.end) previous.end = Math.max(previous.end, cut.end)
       else cuts.push({ ...cut })
     })
@@ -291,10 +317,12 @@ export function excludeComposerDraftTokens(
   /** An offset landing inside a removed range collapses to where that range started. */
   const rebase = (offset: number) => {
     let removed = 0
+
     for (const cut of cuts) {
       if (cut.start >= offset) break
       removed += Math.min(offset, cut.end) - cut.start
     }
+
     return offset - removed
   }
 
@@ -336,6 +364,7 @@ export function trimTextBoundaryBlankLines(text: string): string {
   const meaningfulLines = lines.filter((line) => text.slice(line.start, line.contentEnd).trim().length > 0)
   const first = meaningfulLines[0]
   const last = meaningfulLines.at(-1)
+
   return first && last ? text.slice(first.start, last.contentEnd) : ''
 }
 
@@ -346,18 +375,23 @@ export function trimTextBoundaryBlankLines(text: string): string {
  */
 export function trimComposerDraftBoundaryBlankLines(draft: ComposerSerializedDraft): ComposerSerializedDraft {
   const lines = getComposerLineRanges(draft.text)
+
   const tokenRanges = draft.tokens.map((token) => {
     const start = Math.min(draft.text.length, Math.max(0, token.textOffset))
     const end = Math.min(draft.text.length, start + (token.promptText?.length ?? 0))
+
     return { start, end }
   })
+
   const meaningfulLineIndexes = lines.flatMap((line, index) => {
     const hasText = draft.text.slice(line.start, line.contentEnd).trim().length > 0
     const hasToken = tokenRanges.some((token) => token.start <= line.contentEnd && token.end >= line.start)
+
     return hasText || hasToken ? [index] : []
   })
 
   const firstMeaningfulLineIndex = meaningfulLineIndexes[0]
+
   if (firstMeaningfulLineIndex === undefined) {
     return draft.text.length === 0 ? draft : { ...draft, text: '', tokens: [] }
   }
@@ -365,9 +399,11 @@ export function trimComposerDraftBoundaryBlankLines(draft: ComposerSerializedDra
   const lastMeaningfulLineIndex = meaningfulLineIndexes.at(-1) ?? firstMeaningfulLineIndex
   const start = lines[firstMeaningfulLineIndex].start
   const end = lines[lastMeaningfulLineIndex].contentEnd
+
   if (start === 0 && end === draft.text.length) return draft
 
   const text = draft.text.slice(start, end)
+
   const tokens = draft.tokens.map((token) => ({
     ...token,
     textOffset: Math.min(text.length, Math.max(0, token.textOffset - start))
@@ -380,6 +416,7 @@ export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): C
   const visibleTokens = draft.tokens.filter((token): token is PersistedComposerSerializedToken =>
     isComposerMessageTokenKind(token.kind)
   )
+
   if (visibleTokens.length === 0) return undefined
 
   return {

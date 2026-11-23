@@ -5,6 +5,7 @@ import { uuid } from 'systeminformation'
 export async function getMachineCode(): Promise<string> {
   const identity = await uuid()
   const machineID = identity.os.trim().toLowerCase()
+
   if (
     !/^(?:[0-9a-f]{32}|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/.test(machineID) ||
     /^(?:0+|f+)$/.test(machineID.replaceAll('-', ''))

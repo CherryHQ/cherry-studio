@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 const logger = loggerService.withContext('SeedRunner')
 
 export const SEED_KEY_PREFIX = 'seed:'
+
 /** Set after the first fully-successful seeding pass; while absent, the database is in its bootstrap window. */
 const BOOTSTRAP_MARKER_KEY = 'seedRunner:bootstrapCompleted'
 
@@ -71,6 +72,7 @@ export class SeedRunner {
       .where(eq(appStateTable.key, BOOTSTRAP_MARKER_KEY))
       .limit(1)
       .all()
+
     return row !== undefined
   }
 
@@ -94,9 +96,11 @@ export class SeedRunner {
       .all()
 
     const map = new Map<string, SeedJournal>()
+
     for (const row of rows) {
       map.set(row.key, row.value as SeedJournal)
     }
+
     return map
   }
 }

@@ -6,7 +6,9 @@ import { OpenaiLight } from './light'
 
 const Openai = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <OpenaiLight {...props} className={className} />
+
   if (variant === 'dark') return <OpenaiDark {...props} className={className} />
+
   return (
     <>
       <OpenaiLight className={cn('dark:hidden', className)} {...props} />

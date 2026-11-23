@@ -11,7 +11,9 @@ export function ensureAgentSessionRootTx(db: DbOrTx, sessionId: string): string 
     .from(messages)
     .where(and(eq(messages.sessionId, sessionId), eq(messages.role, 'root')))
     .get()
+
   if (root) return root.id
+
   const created = db
     .insert(messages)
     .values({
@@ -22,7 +24,9 @@ export function ensureAgentSessionRootTx(db: DbOrTx, sessionId: string): string 
     })
     .returning({ id: messages.id })
     .get()
+
   db.update(sessions).set({ activeNodeId: created.id }).where(eq(sessions.id, sessionId)).run()
+
   return created.id
 }
 
@@ -32,7 +36,9 @@ export function getAgentSessionHead(db: DbOrTx, sessionId: string): string | nul
     .from(sessions)
     .where(eq(sessions.id, sessionId))
     .get()
+
   if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+
   return session.activeNodeId
 }
 
@@ -56,12 +62,15 @@ export function agentSessionDescendantIds(sessionId: string, messageId: string) 
 
 export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: string | null) {
   const selected = head ?? getAgentSessionHead(db, sessionId)
+
   if (!selected) return []
+
   const rows = db
     .select()
     .from(messages)
     .where(and(eq(messages.sessionId, sessionId), inArray(messages.id, agentSessionPathIds(sessionId, selected))))
     .all()
+
   return orderAgentSessionPath(rows, selected).filter((row) => row.role !== 'root')
 }
 
@@ -71,6 +80,7 @@ export function readAgentSessionAncestry(db: DbOrTx, sessionId: string, head: st
     .from(messages)
     .where(and(eq(messages.sessionId, sessionId), inArray(messages.id, agentSessionPathIds(sessionId, head))))
     .all()
+
   return orderAgentSessionPath(rows, head)
 }
 
@@ -81,11 +91,13 @@ export function orderAgentSessionPath<T extends { id: string; parentId: string |
   const byId = new Map(rows.map((row) => [row.id, row]))
   const path: T[] = []
   let row = byId.get(selected)
+
   while (row) {
     path.push(row)
     byId.delete(row.id)
     row = row.parentId ? byId.get(row.parentId) : undefined
   }
+
   return path.reverse()
 }
 

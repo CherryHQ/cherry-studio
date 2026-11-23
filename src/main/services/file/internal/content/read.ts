@@ -47,6 +47,7 @@ export async function read(
 ): Promise<ReadResult<string | Uint8Array>> {
   const entry = deps.fileEntryService.getById(id)
   const physicalPath = resolvePhysicalPath(entry)
+
   try {
     return await observeExternalAccess(deps, entry, physicalPath, () => readByPath(physicalPath, options))
   } catch (error) {
@@ -63,6 +64,7 @@ export async function readChunk(
 ): Promise<ReadResult<Uint8Array>> {
   const entry = deps.fileEntryService.getById(id)
   const physicalPath = resolvePhysicalPath(entry)
+
   try {
     return await observeExternalAccess(deps, entry, physicalPath, () => readChunkByPath(physicalPath, offset, length))
   } catch (error) {

@@ -34,6 +34,7 @@ export async function resolveSdkConfig(
     apiKeyOverride,
     resolvedEndpoint
   })
+
   return {
     sdkConfig: {
       ...config,

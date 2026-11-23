@@ -12,7 +12,9 @@ export class VoiceInputStream implements AsyncIterable<SpeechPcmChunk> {
 
   write(chunk: SpeechPcmChunk): Promise<void> {
     if (this.failure) return Promise.reject(this.failure)
+
     if (this.ended || this.pending) return Promise.reject(new VoiceRuntimeError('invalid_request'))
+
     if (
       chunk.startFrame !== this.frames ||
       !chunk.samples.length ||
@@ -22,6 +24,7 @@ export class VoiceInputStream implements AsyncIterable<SpeechPcmChunk> {
     )
       return Promise.reject(new VoiceRuntimeError('invalid_audio'))
     this.frames += chunk.samples.length
+
     return new Promise((resolve, reject) => {
       this.pending = { chunk, resolve, reject }
       this.wake?.()
@@ -30,6 +33,7 @@ export class VoiceInputStream implements AsyncIterable<SpeechPcmChunk> {
 
   finish(frames: number): void {
     if (this.failure) throw this.failure
+
     if (this.pending || frames !== this.frames || !frames) throw new VoiceRuntimeError('invalid_request')
     this.ended = true
     this.wake?.()
@@ -46,6 +50,7 @@ export class VoiceInputStream implements AsyncIterable<SpeechPcmChunk> {
   async *[Symbol.asyncIterator](): AsyncGenerator<SpeechPcmChunk> {
     while (true) {
       if (this.failure) throw this.failure
+
       if (this.pending) {
         const item = this.pending
         this.pending = undefined

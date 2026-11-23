@@ -41,6 +41,7 @@ export async function getTopicImageCaptureMessages(topicId: string): Promise<Che
 const TopicImageCaptureHostContent = ({ topic }: TopicImageCaptureHostProps) => {
   const { assistant } = useAssistant(topic.assistantId, { loadDefaultModel: false })
   const loadMessages = useCallback(() => getTopicImageCaptureMessages(topic.id), [topic.id])
+
   const handleLoadError = useCallback(
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Message export loading can reject any value; report it and preserve its identity for pending topic-image actions.
     (error: unknown) => {
@@ -51,6 +52,7 @@ const TopicImageCaptureHostContent = ({ topic }: TopicImageCaptureHostProps) => 
     },
     [topic.id]
   )
+
   const { messages, partsByMessageId } = useMessageImageCaptureMessages({
     loadMessages,
     mapMessage: passThroughUIMessage,

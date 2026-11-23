@@ -35,6 +35,7 @@ export interface DoctorToolContext {
 }
 
 export type DoctorToolArgs = NonNullable<CallToolRequestParams['arguments']>
+
 export type DoctorToolResult = CallToolResult
 
 export enum ToolErrorCode {
@@ -61,6 +62,7 @@ export interface DoctorTool {
 const PROBE_TIMEOUT_MS = 15_000
 const READ_FILE_MAX_BYTES = 128 * 1024
 const READ_FILE_DEFAULT_LINES = 200
+
 /** userData is full of user content (databases, transcripts, cookies), so only these app-state paths are readable. */
 const READ_FILE_USERDATA_ALLOWLIST: readonly RegExp[] = [
   /^logs(\/|$)/,
@@ -68,6 +70,7 @@ const READ_FILE_USERDATA_ALLOWLIST: readonly RegExp[] = [
   /^Toolchain(\/|$)/,
   /^Crashpad(\/|$)/
 ]
+
 const DATA_API_GET_PATHS: readonly RegExp[] = [
   /^\/providers(?:\/[^/]+(?:\/api-keys)?)?$/,
   /^\/models(?:\/[^/]+\/[^/]+)?$/,
@@ -87,18 +90,23 @@ function json(value: unknown): DoctorToolResult {
 
 function requireString(args: DoctorToolArgs, key: string): string {
   const value = args[key]
+
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new ToolError(`'${key}' is required`, ToolErrorCode.InvalidParams)
   }
+
   return value
 }
 
 function optionalRecord(args: DoctorToolArgs, key: string): DoctorToolArgs | undefined {
   const value = args[key]
+
   if (value === undefined) return undefined
+
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new ToolError(`'${key}' must be an object`, ToolErrorCode.InvalidParams)
   }
+
   // SAFETY: The container check establishes a record; the selected tool and DataApi handlers validate its values.
   return value as DoctorToolArgs
 }
@@ -110,7 +118,9 @@ async function requestWrite(
 ): Promise<DoctorToolResult> {
   const outcome = await application.get('DoctorAgentService').requestWrite(ctx.sessionId, write, summary)
   const result = { ...json(outcome) }
+
   if (outcome.status === 'failed') result.isError = true
+
   return result
 }
 
@@ -143,21 +153,30 @@ const DATA_API_TOOL: DoctorTool = {
   async handler(args, ctx) {
     const method = requireString(args, 'method')
     const path = requireString(args, 'path')
+
     if (!path.startsWith('/')) throw new ToolError("'path' must start with /", ToolErrorCode.InvalidParams)
+
     if (method === 'GET') {
       if (!isDataApiGetPath(path)) throw new ToolError(`GET is not allowed on ${path}`, ToolErrorCode.InvalidParams)
       const result = await queryDataApi({ method: 'GET', path, query: optionalRecord(args, 'query') })
       const response = { ...json(result) }
+
       if (result.error) response.isError = true
+
       return response
     }
+
     if (method !== 'PATCH') throw new ToolError(`Unsupported method: ${method}`, ToolErrorCode.InvalidParams)
+
     if (!isDataApiPatchPath(path)) {
       throw new ToolError(`PATCH is not allowed on ${path}`, ToolErrorCode.InvalidParams)
     }
+
     const body = optionalRecord(args, 'body')
+
     if (!body || Object.keys(body).length === 0) throw new ToolError("'body' is required", ToolErrorCode.InvalidParams)
     assertNoSecretFields(body)
+
     return requestWrite(ctx, { kind: 'data_api_patch', path, body }, requireString(args, 'summary'))
   }
 }
@@ -179,24 +198,32 @@ const PREFERENCE_TOOL: DoctorTool = {
   async handler(args, ctx) {
     const action = requireString(args, 'action')
     const preferences = application.get('PreferenceService')
+
     if (action === 'list') return json(redactForModel(preferences.getAll()))
     const key = requireString(args, 'key')
+
     if (action === 'get') {
       // SAFETY: Redaction preserves the fresh wrapper object and converts each property to Serializable.
       const redacted = redactForModel({ [key]: preferences.get(key as never) }) as Record<string, Serializable>
+
       return json({ key, value: redacted[key] })
     }
+
     if (action !== 'set') throw new ToolError(`Unknown action: ${action}`, ToolErrorCode.InvalidParams)
+
     if (!isPreferenceWritable(key)) {
       throw new ToolError(`Preference "${key}" is not writable by the doctor`, ToolErrorCode.InvalidParams)
     }
+
     if (!('value' in args)) throw new ToolError("'value' is required", ToolErrorCode.InvalidParams)
     let parsed: ReturnType<typeof parsePreferenceWrite>
+
     try {
       parsed = parsePreferenceWrite(key, args.value)
     } catch (error) {
       throw new ToolError(error instanceof Error ? error.message : String(error), ToolErrorCode.InvalidParams)
     }
+
     return requestWrite(
       ctx,
       { kind: 'preference_set', key: parsed.key, value: parsed.value },
@@ -217,17 +244,21 @@ const PROBE_ENDPOINT_TOOL: DoctorTool = {
   async handler(args) {
     const url = requireString(args, 'url')
     let parsed: URL
+
     try {
       parsed = new URL(url)
     } catch {
       throw new ToolError('Invalid URL', ToolErrorCode.InvalidParams)
     }
+
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       throw new ToolError('Only http(s) URLs can be probed', ToolErrorCode.InvalidParams)
     }
+
     const diagnosis = await application
       .get('NetworkService')
       .diagnoseEndpoint({ id: 'custom', url }, AbortSignal.timeout(PROBE_TIMEOUT_MS))
+
     return json(diagnosis)
   }
 }
@@ -248,16 +279,20 @@ const DOCTOR_FIX_TOOL: DoctorTool = {
   },
   async handler(args, ctx) {
     const binding = application.get('DoctorAgentService').reportBindingForSession(ctx.sessionId)
+
     const candidate = {
       scope: binding.scope,
       runId: binding.reportRunId,
       checkId: args.checkId,
       fixId: args.fixId
     }
+
     if (typeof args.target === 'string') Object.assign(candidate, { target: args.target })
+
     if (!isDoctorFixRequest(candidate)) {
       throw new ToolError('The report declares no such fix for that check', ToolErrorCode.InvalidParams)
     }
+
     return requestWrite(ctx, { kind: 'doctor_fix', request: candidate }, requireString(args, 'summary'))
   }
 }
@@ -277,14 +312,21 @@ const SESSION_TOOL: DoctorTool = {
   },
   async handler(args, ctx) {
     const incident = application.get('DoctorAgentService').incidentForSession(ctx.sessionId)
+
     if (!incident) {
       throw new ToolError('This analysis was not opened from a failed message', ToolErrorCode.InvalidParams)
     }
+
     const action = requireString(args, 'action')
+
     if (action === 'overview') return json(incidentOverview(incident))
+
     if (action === 'messages') return json(incidentMessages(incident, clampInt(args.before, 5, 0, 20)))
+
     if (action === 'logs') return json(incidentLogs(incident, clampInt(args.limit, 100, 1, 300)))
+
     if (action === 'request') return json(incidentRequest(incident))
+
     if (action === 'transcript') return json(await incidentTranscript(incident, clampInt(args.limit, 60, 1, 200)))
     throw new ToolError(`Unknown action: ${action}`, ToolErrorCode.InvalidParams)
   }
@@ -300,11 +342,13 @@ function clampInt(value: unknown, fallback: number, min: number, max: number): n
 function realOrNearest(target: string): string {
   let current = target
   const suffix: string[] = []
+
   while (true) {
     try {
       return path.join(fs.realpathSync(current), ...suffix)
     } catch {
       const parent = path.dirname(current)
+
       if (parent === current) return target
       suffix.unshift(path.basename(current))
       current = parent
@@ -318,18 +362,22 @@ export function resolveDoctorReadablePath(requested: string): string {
   const [userData, logs] = roots
   const resolved = realOrNearest(path.isAbsolute(requested) ? requested : path.join(userData, requested))
   const relative = path.relative(userData, resolved).split(path.sep).join('/')
+
   const readable =
     isSameOrInside(resolved, logs) ||
     (isSameOrInside(resolved, userData) && READ_FILE_USERDATA_ALLOWLIST.some((pattern) => pattern.test(relative)))
+
   if (!readable) {
     throw new ToolError(
       'Access denied: only logs, config.json, Toolchain and Crashpad are readable by the doctor',
       ToolErrorCode.InvalidParams
     )
   }
+
   if (isBlockedSourceFile(path.basename(resolved))) {
     throw new ToolError('Access denied: cannot read credential files', ToolErrorCode.InvalidParams)
   }
+
   return resolved
 }
 
@@ -340,6 +388,7 @@ function sameFileIdentity(left: fs.Stats, right: fs.Stats): boolean {
 function assertOpenedPathIsStillReadable(resolved: string, opened: fs.Stats): void {
   const current = resolveDoctorReadablePath(resolved)
   const currentStat = fs.lstatSync(current)
+
   if (!sameFileIdentity(opened, currentStat)) {
     throw new ToolError('Access denied: path changed while being opened', ToolErrorCode.InvalidParams)
   }
@@ -347,18 +396,24 @@ function assertOpenedPathIsStillReadable(resolved: string, opened: fs.Stats): vo
 
 export function openDoctorReadablePath(resolved: string) {
   const initial = fs.lstatSync(resolved)
+
   if (initial.isSymbolicLink()) {
     throw new ToolError('Access denied: symbolic links are not readable by the doctor', ToolErrorCode.InvalidParams)
   }
+
   const noFollow = typeof fs.constants.O_NOFOLLOW === 'number' ? fs.constants.O_NOFOLLOW : 0
   const nonBlock = typeof fs.constants.O_NONBLOCK === 'number' ? fs.constants.O_NONBLOCK : 0
   const handle = fs.openSync(resolved, fs.constants.O_RDONLY | noFollow | nonBlock)
+
   try {
     const opened = fs.fstatSync(handle)
+
     if (!sameFileIdentity(initial, opened)) {
       throw new ToolError('Access denied: path changed while being opened', ToolErrorCode.InvalidParams)
     }
+
     assertOpenedPathIsStillReadable(resolved, opened)
+
     return { handle, stat: opened }
   } catch (error) {
     fs.closeSync(handle)
@@ -370,14 +425,20 @@ function listOpenedDirectory(resolved: string, handle: number): DoctorToolResult
   if (process.platform !== 'linux') {
     throw new ToolError('Directory listing is unavailable on this platform', ToolErrorCode.InvalidParams)
   }
+
   const descriptorPath = `/proc/self/fd/${handle}`
+
   const entries = fs.readdirSync(descriptorPath, { withFileTypes: true }).map((entry) => {
     const entryStat = entry.isFile() ? fs.lstatSync(path.join(descriptorPath, entry.name)) : undefined
     const details = { name: entry.name, kind: entry.isDirectory() ? 'dir' : 'file' }
+
     if (entryStat?.isFile()) Object.assign(details, { size: entryStat.size })
+
     return details
   })
+
   assertOpenedPathIsStillReadable(resolved, fs.fstatSync(handle))
+
   return json({ path: resolved, entries })
 }
 
@@ -396,23 +457,29 @@ const READ_FILE_TOOL: DoctorTool = {
   async handler(args) {
     const resolved = resolveDoctorReadablePath(requireString(args, 'path'))
     let opened: { handle: number; stat: fs.Stats }
+
     try {
       opened = openDoctorReadablePath(resolved)
     } catch (error) {
       if (error instanceof ToolError) throw error
+
       return { content: [{ type: 'text', text: `Not found: ${resolved}` }], isError: true }
     }
+
     try {
       if (opened.stat.isDirectory()) return listOpenedDirectory(resolved, opened.handle)
+
       if (!opened.stat.isFile()) {
         throw new ToolError('Access denied: path is not a regular file', ToolErrorCode.InvalidParams)
       }
+
       const lines = Math.min(Math.max(Number(args.lines) || READ_FILE_DEFAULT_LINES, 1), 2000)
       const start = Math.max(0, opened.stat.size - READ_FILE_MAX_BYTES)
       const buffer = Buffer.alloc(opened.stat.size - start)
       fs.readSync(opened.handle, buffer, 0, buffer.length, start)
       assertOpenedPathIsStillReadable(resolved, fs.fstatSync(opened.handle))
       const tail = buffer.toString('utf-8').split('\n').slice(-lines).join('\n')
+
       return json({ path: resolved, size: opened.stat.size, truncated: start > 0, text: redactTextForModel(tail) })
     } finally {
       fs.closeSync(opened.handle)

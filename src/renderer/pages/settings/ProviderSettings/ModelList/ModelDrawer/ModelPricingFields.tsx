@@ -126,11 +126,14 @@ function ModelPricingTierFields({
   const displayIndex = tierIndex + 1
   const removeLabel = t('models.price.remove_tier', { index: displayIndex })
   const minInputTokensLabel = t('models.price.min_input_tokens')
+
   const minInputTokensAriaLabel = t('models.price.field_for_tier', {
     field: minInputTokensLabel,
     index: displayIndex
   })
+
   const minInputTokensHelpId = `model-pricing-tier-${tierIndex}-min-input-tokens-help`
+
   const fieldLabel = (label: string) =>
     tierIndex === 0 ? label : t('models.price.field_for_tier', { field: label, index: displayIndex })
 
@@ -267,20 +270,26 @@ function translateErrors(errors: ModelPricingDraftErrors, t: TFunction) {
 
 export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProps) {
   const { t } = useTranslation()
+
   const [unit, setUnit] = useState<'token' | 'image'>(() =>
     getModelImagePriceDraft(pricing) === '' ? 'token' : 'image'
   )
+
   const [imagePrice, setImagePrice] = useState(() => getModelImagePriceDraft(pricing))
   const [imageError, setImageError] = useState<ModelPricingDraftError>()
+
   const [currencySymbol, setCurrencySymbol] = useState<ModelPricingCurrencySymbol>(() =>
     getModelPricingCurrencySymbol(pricing)
   )
+
   const [draft, setDraft] = useState<ModelPricingDraft>(() => createModelPricingDraft(pricing))
   const [errors, setErrors] = useState<ModelPricingDraftErrors>([])
 
   const commitImagePrice = (nextPrice?: string, nextCurrencySymbol = currencySymbol) => {
     const result = buildModelImagePricing(pricing, nextCurrencySymbol, nextPrice)
+
     if (nextPrice !== undefined) setImageError(result.error)
+
     if (result.pricing) onCommit(result.pricing)
   }
 
@@ -288,6 +297,7 @@ export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProp
     (nextDraft: ModelPricingDraft, nextCurrencySymbol: ModelPricingCurrencySymbol = currencySymbol) => {
       const result = buildModelPricingFromDraft(pricing, nextDraft, nextCurrencySymbol)
       setErrors(result.errors)
+
       if (result.pricing) {
         onCommit(result.pricing)
       }
@@ -341,6 +351,7 @@ export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProp
               }
 
               setCurrencySymbol(nextValue)
+
               if (unit === 'image') commitImagePrice(undefined, nextValue)
               else commitDraft(draft, nextValue)
             }}>
@@ -399,6 +410,7 @@ export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProp
               onBlur={(value) => {
                 const nextPrice = value === null ? '' : String(value)
                 setImagePrice(nextPrice)
+
                 if (nextPrice !== getModelImagePriceDraft(pricing)) commitImagePrice(nextPrice)
               }}
             />

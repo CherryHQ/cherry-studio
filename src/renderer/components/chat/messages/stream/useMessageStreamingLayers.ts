@@ -53,6 +53,7 @@ export function useMessageStreamingLayers({
   liveAssistants
 }: MessageStreamingLayersParams): MessageStreamingLayersResult {
   const { historyPartsByMessageId, partsByMessageId } = useStableMessagePartsLayers(messages, overlay)
+
   const liveMessageIdCandidates = useMemo(
     () =>
       Array.from(
@@ -63,7 +64,9 @@ export function useMessageStreamingLayers({
       ),
     [executions, liveAssistants]
   )
+
   const liveMessageIds = useStableStringArray(liveMessageIdCandidates)
+
   const streamingLayers = useMemo<MessageStreamingLayers>(
     () => ({ historyPartsByMessageId, liveMessageIds }),
     [historyPartsByMessageId, liveMessageIds]

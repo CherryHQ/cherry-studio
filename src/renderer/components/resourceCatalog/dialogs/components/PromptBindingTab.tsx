@@ -27,20 +27,24 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
   const [isBinding, setIsBinding] = useState(false)
   const isBindingRef = useRef(false)
   const bindingOperationGenerationRef = useRef(0)
+
   const bindingTarget = useMemo<PromptBindingTarget>(
     () => (target.type === 'assistant' ? { type: 'assistant', id: target.id } : { type: 'agent', id: target.id }),
     [target.id, target.type]
   )
+
   const {
     data: allPromptsData,
     error: allPromptsError,
     isLoading: isAllPromptsLoading,
     refetch: refetchAllPrompts
   } = useQuery('/prompts', { enabled, query: { visibility: 'restricted' } })
+
   const bindingParams =
     bindingTarget.type === 'assistant'
       ? { targetType: 'assistant' as const, targetId: bindingTarget.id }
       : { targetType: 'agent' as const, targetId: bindingTarget.id }
+
   const {
     data: boundPromptsData,
     error: boundPromptsError,
@@ -50,11 +54,14 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
     enabled,
     params: bindingParams
   })
+
   const { createPrompt } = usePromptMutations()
   const { bindPrompt, unbindPrompt } = usePromptBindingMutations(bindingTarget)
+
   const { applyReorderedList, isPending: isReordering } = useReorder('/prompt-bindings/:targetType/:targetId', {
     params: bindingParams
   })
+
   useDataChange('/prompts', () => {
     if (enabled) void refetchAllPrompts()
   })
@@ -74,6 +81,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
   }, [enabled])
 
   const boundPromptIds = useMemo(() => new Set((boundPromptsData ?? []).map((prompt) => prompt.id)), [boundPromptsData])
+
   const promptItems = useMemo(() => {
     return (allPromptsData ?? []).map((prompt) => ({
       id: prompt.id,
@@ -89,6 +97,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
       const operationGeneration = bindingOperationGenerationRef.current
       isBindingRef.current = true
       setIsBinding(true)
+
       try {
         if (shouldBind) {
           await bindPrompt(promptId)
@@ -116,6 +125,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
     async (data: { title: string; content: string; visibility: PromptVisibility }) => {
       try {
         const input: Parameters<typeof createPrompt>[0] = { ...data }
+
         if (data.visibility === 'restricted') input.bindingTarget = bindingTarget
         await createPrompt(input)
         setIsCreatePromptOpen(false)
@@ -129,6 +139,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
 
   const error = allPromptsError ?? boundPromptsError
   const isLoading = isAllPromptsLoading || isBoundPromptsLoading
+
   const handleReorderError = useCallback(
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Prompt binding reorder mutations may reject with any value; the shared formatter adds the localized failure prefix.
     (reorderError: unknown) => {

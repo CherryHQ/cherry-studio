@@ -94,6 +94,7 @@ export class AutoBackupService extends BaseService {
 
   protected override onInit(): void {
     const lastAttemptTimes = application.get('CacheService').getPersist(LAST_ATTEMPT_TIMES_KEY)
+
     for (const type of AUTO_BACKUP_TYPES) {
       this.schedules[type].lastSyncTime = lastAttemptTimes[type]
     }
@@ -102,6 +103,7 @@ export class AutoBackupService extends BaseService {
     this.registerDisposable(
       preferenceService.subscribeMultipleChanges(Object.values(WATCHED_PREFERENCES).flat(), (key) => {
         const type = AUTO_BACKUP_TYPES.find((candidate) => WATCHED_PREFERENCES[candidate].includes(key))
+
         if (type) {
           this.restartSchedule(type, key === 'data.backup.local.dir' ? 'immediate' : 'fromLastSyncTime')
         }
@@ -112,6 +114,7 @@ export class AutoBackupService extends BaseService {
 
   protected override onReady(): void {
     this.active = true
+
     for (const type of AUTO_BACKUP_TYPES) {
       this.restartSchedule(type, 'startup')
     }
@@ -122,11 +125,13 @@ export class AutoBackupService extends BaseService {
     this.unregisterAllSchedules()
     this.pendingRuns.clear()
     this.activeAbortController?.abort(new DOMException('Automatic backup service stopped.', 'AbortError'))
+
     for (const type of AUTO_BACKUP_TYPES) {
       this.schedules[type].generation++
       this.schedules[type].running = false
       this.schedules[type].retryCount = 0
     }
+
     await this.activeRun
   }
 
@@ -144,6 +149,7 @@ export class AutoBackupService extends BaseService {
 
   recordManualBackupCompletion(type: AutoBackupType): void {
     this.recordLastAttemptTime(type, Date.now())
+
     if (this.active) this.restartSchedule(type, 'fromLastSyncTime')
   }
 
@@ -180,12 +186,15 @@ export class AutoBackupService extends BaseService {
 
     this.unregisterSchedule(type)
     const settings = this.getScheduleSettings(type)
+
     if (!settings.enabled || settings.intervalMs <= 0) {
       logger.debug('Automatic backup is disabled or incomplete', { type })
+
       return
     }
 
     let delay = delayOverride ?? INITIAL_DELAY_MS
+
     if (delayOverride === undefined && mode === 'fromNow') {
       delay = settings.intervalMs
     } else if (delayOverride === undefined && (mode === 'startup' || mode === 'fromLastSyncTime')) {
@@ -193,6 +202,7 @@ export class AutoBackupService extends BaseService {
       delay = lastSyncTime
         ? Math.max(INITIAL_DELAY_MS, lastSyncTime + settings.intervalMs - Date.now())
         : settings.intervalMs
+
       if (mode === 'startup') {
         delay = Math.max(STARTUP_GRACE_PERIOD_MS, delay)
       }
@@ -212,6 +222,7 @@ export class AutoBackupService extends BaseService {
     if (this.activeRun) {
       this.pendingRuns.set(type, generation)
       logger.debug('Another automatic backup is running; queued', { type, activeType: this.activeRunType })
+
       return
     }
 
@@ -220,6 +231,7 @@ export class AutoBackupService extends BaseService {
     this.activeRun = run
     this.activeRunType = type
     this.activeAbortController = abortController
+
     try {
       await run
     } finally {
@@ -234,6 +246,7 @@ export class AutoBackupService extends BaseService {
 
   private async runAttempt(type: AutoBackupType, generation: number, signal: AbortSignal): Promise<void> {
     const state = this.schedules[type]
+
     if (!state.running) {
       state.running = true
       this.emit({ type, status: 'running' })
@@ -245,6 +258,7 @@ export class AutoBackupService extends BaseService {
 
       if (!this.isEnabled(type, generation)) {
         this.markStopped(type)
+
         return
       }
 
@@ -252,6 +266,7 @@ export class AutoBackupService extends BaseService {
       this.recordLastAttemptTime(type, timestamp)
       state.retryCount = 0
       state.running = false
+
       if (cleanupError) {
         logger.warn('Automatic backup completed but old backups could not be cleaned up', {
           type,
@@ -261,10 +276,12 @@ export class AutoBackupService extends BaseService {
       } else {
         this.emit({ type, status: 'succeeded', timestamp })
       }
+
       this.scheduleNext(type, 'fromNow', generation)
     } catch (error) {
       if (!this.isEnabled(type, generation)) {
         this.markStopped(type)
+
         return
       }
 
@@ -273,6 +290,7 @@ export class AutoBackupService extends BaseService {
         this.recordLastAttemptTime(type, Date.now())
         this.markStopped(type)
         this.scheduleNext(type, 'fromNow', generation)
+
         return
       }
 
@@ -280,15 +298,18 @@ export class AutoBackupService extends BaseService {
         logger.debug('Active data writers detected; automatic backup postponed', { type })
         this.markStopped(type, false)
         this.scheduleNext(type, 'immediate', generation, ACTIVE_WRITERS_POLL_MS)
+
         return
       }
 
       state.retryCount++
       const payloadTooLarge = error instanceof Error && error.message.includes(BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE)
+
       if (!payloadTooLarge && state.retryCount < MAX_ATTEMPTS) {
         const delay = 2 ** (state.retryCount - 1) * 10_000 - 3_000
         logger.warn('Automatic backup failed; retry scheduled', { type, retry: state.retryCount, delayMs: delay })
         this.scheduleNext(type, 'immediate', generation, delay)
+
         return
       }
 
@@ -323,8 +344,11 @@ export class AutoBackupService extends BaseService {
         disableStream: preferenceService.get('data.backup.webdav.disable_stream'),
         allowSelfSignedTls: preferenceService.get('data.backup.webdav.allow_self_signed_tls') ?? false
       }
+
       const { result: success, cleanupError } = await legacyBackupManager.backupToWebdav(null, config, signal)
+
       if (success === false) throw new Error('WebDAV automatic backup failed')
+
       return cleanupError
     }
 
@@ -341,13 +365,16 @@ export class AutoBackupService extends BaseService {
         syncInterval: preferenceService.get('data.backup.s3.sync_interval'),
         maxBackups: preferenceService.get('data.backup.s3.max_backups')
       }
+
       const { cleanupError } = await legacyBackupManager.backupToS3(null, config, signal)
+
       return cleanupError
     }
 
     if (type === 'local') {
       const directory = path.resolve(untildify(preferenceService.get('data.backup.local.dir')))
       await this.validateLocalBackupDirectory(directory)
+
       const { cleanupError } = await legacyBackupManager.backupToLocalDir(
         null,
         undefined,
@@ -358,10 +385,12 @@ export class AutoBackupService extends BaseService {
         },
         signal
       )
+
       return cleanupError
     }
 
     const credentials = await decryptToken(preferenceService.get('data.backup.nutstore.token'))
+
     if (!credentials) throw new Error('Nutstore credentials are unavailable')
 
     const config: WebDavConfig = {
@@ -372,8 +401,11 @@ export class AutoBackupService extends BaseService {
       maxBackups: preferenceService.get('data.backup.nutstore.max_backups'),
       skipBackupFile: preferenceService.get('data.backup.nutstore.skip_backup_file')
     }
+
     const { result: success, cleanupError } = await legacyBackupManager.backupToWebdav(null, config, signal)
+
     if (success === false) throw new Error('Nutstore automatic backup failed')
+
     return cleanupError
   }
 
@@ -392,6 +424,7 @@ export class AutoBackupService extends BaseService {
 
   private getScheduleSettings(type: AutoBackupType): ScheduleSettings {
     const preferenceService = application.get('PreferenceService')
+
     if (type === 'webdav') {
       return {
         enabled:
@@ -400,6 +433,7 @@ export class AutoBackupService extends BaseService {
         intervalMs: preferenceService.get('data.backup.webdav.sync_interval') * 60_000
       }
     }
+
     if (type === 's3') {
       return {
         enabled:
@@ -408,6 +442,7 @@ export class AutoBackupService extends BaseService {
         intervalMs: preferenceService.get('data.backup.s3.sync_interval') * 60_000
       }
     }
+
     if (type === 'local') {
       return {
         enabled:
@@ -416,6 +451,7 @@ export class AutoBackupService extends BaseService {
         intervalMs: preferenceService.get('data.backup.local.sync_interval') * 60_000
       }
     }
+
     return {
       enabled:
         preferenceService.get('data.backup.nutstore.auto_sync') &&
@@ -426,6 +462,7 @@ export class AutoBackupService extends BaseService {
 
   private isEnabled(type: AutoBackupType, generation: number): boolean {
     const settings = this.getScheduleSettings(type)
+
     return this.isCurrent(type, generation) && settings.enabled && settings.intervalMs > 0
   }
 
@@ -435,9 +472,11 @@ export class AutoBackupService extends BaseService {
 
   private markStopped(type: AutoBackupType, resetRetryCount = true): void {
     const state = this.schedules[type]
+
     if (resetRetryCount) {
       state.retryCount = 0
     }
+
     if (!state.running) return
     state.running = false
     this.emit({ type, status: 'stopped' })
@@ -445,14 +484,18 @@ export class AutoBackupService extends BaseService {
 
   private emit(event: AutoBackupEventInput): void {
     if (!this.active) return
+
     if (event.status === 'succeeded' || event.status === 'warning' || event.status === 'failed') {
       publishBackupResult(`backup:auto:${event.type}:${event.timestamp}`, event.status, event.timestamp)
     }
+
     const emittedEvent = { ...event, id: ++this.nextEventId }
     application.get('CacheService').setShared(`backup.auto_sync.state.${event.type}`, emittedEvent)
+
     if (event.status === 'warning' || event.status === 'failed') {
       this.pendingNotifications.set(event.type, emittedEvent)
     }
+
     application.get('IpcApiService').broadcastToType(WindowType.Main, 'backup.auto_sync_state_changed', emittedEvent)
   }
 
@@ -463,6 +506,7 @@ export class AutoBackupService extends BaseService {
   private schedulePendingRuns(): void {
     for (const [type, generation] of this.pendingRuns) {
       this.pendingRuns.delete(type)
+
       if (this.isEnabled(type, generation)) {
         this.scheduleNext(type, 'immediate', generation)
       }

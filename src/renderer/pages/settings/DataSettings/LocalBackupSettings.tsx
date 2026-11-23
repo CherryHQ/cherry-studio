@@ -60,6 +60,7 @@ const LocalBackupSettings: React.FC = () => {
 
   const onSyncIntervalChange = async (value: number) => {
     await setLocalBackupSyncInterval(value)
+
     if (value === 0) {
       await setLocalBackupAutoSync(false)
     } else {
@@ -79,6 +80,7 @@ const LocalBackupSettings: React.FC = () => {
     // if is in app data path, show error
     if (await window.api.isPathInside(resolvedDir, info.appDataPath)) {
       toast.error(t('settings.data.local.directory.select_error_app_data_path'))
+
       return false
     }
 
@@ -86,13 +88,16 @@ const LocalBackupSettings: React.FC = () => {
     // if is in app install path, show error
     if (await window.api.isPathInside(resolvedDir, info.installPath)) {
       toast.error(t('settings.data.local.directory.select_error_in_app_install_path'))
+
       return false
     }
 
     // check new app data path has write permission
     const hasWritePermission = await window.api.hasWritePermission(resolvedDir)
+
     if (!hasWritePermission) {
       toast.error(t('settings.data.local.directory.select_error_write_permission'))
+
       return false
     }
 
@@ -102,11 +107,13 @@ const LocalBackupSettings: React.FC = () => {
   const handleLocalBackupDirChange = async (value: string) => {
     if (value === localBackupDir) {
       setLocalBackupDirDraft(localBackupDir)
+
       return
     }
 
     if (value === '') {
       await handleClearDirectory()
+
       return
     }
 
@@ -116,6 +123,7 @@ const LocalBackupSettings: React.FC = () => {
       setResolvedLocalBackupDir(await window.api.resolvePath(value))
 
       await setLocalBackupAutoSync(true)
+
       return
     }
 

@@ -41,12 +41,14 @@ export function useImeAwareDebouncedValue(
   useEffect(() => {
     if (value === '') {
       setCommittedValue('')
+
       return
     }
 
     if (isComposingRef.current) return
 
     const timer = setTimeout(() => setCommittedValue(value), delayMs)
+
     return () => clearTimeout(timer)
   }, [delayMs, value])
 

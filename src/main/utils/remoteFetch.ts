@@ -40,6 +40,7 @@ function createLookup(target: ResolvedRemoteFetchUrl): LookupFunction {
   return (_hostname, options, callback) => {
     if (options.all) {
       callback(null, [target.address])
+
       return
     }
 
@@ -89,11 +90,13 @@ function getHeaderValue(headers: IncomingHttpHeaders, name: string): string | un
 
 function parseContentLength(headers: IncomingHttpHeaders): number | undefined {
   const contentLength = getHeaderValue(headers, 'content-length')
+
   if (!contentLength) {
     return undefined
   }
 
   const parsed = Number(contentLength)
+
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
 }
 
@@ -115,6 +118,7 @@ async function fetchRemoteResponse(
     allowPrivateNetwork:
       options.allowPrivateNetwork ?? application.get('PreferenceService').get('app.fetch.allow_private_network')
   })
+
   const requestOptions = getRequestOptions(target, options, signal)
   const request = target.url.startsWith('https:') ? httpsRequest : httpRequest
   const maxBytes = options.maxBytes ?? DEFAULT_REMOTE_FETCH_MAX_BYTES
@@ -137,20 +141,24 @@ async function fetchRemoteResponse(
 
       if (REDIRECT_STATUS_CODES.has(statusCode)) {
         const location = getHeaderValue(response.headers, 'location')
+
         if (!location || redirectsRemaining === 0) {
           response.resume()
           response.destroy()
           fail(new Error(`HTTP error: ${statusCode}`))
+
           return
         }
 
         let redirectUrl: URL
+
         try {
           redirectUrl = new URL(location, target.url)
         } catch {
           response.resume()
           response.destroy()
           fail(new Error(`Invalid redirect location: ${location}`))
+
           return
         }
 
@@ -167,6 +175,7 @@ async function fetchRemoteResponse(
           resolve,
           reject
         )
+
         return
       }
 
@@ -174,43 +183,54 @@ async function fetchRemoteResponse(
         response.resume()
         response.destroy()
         fail(new Error(`HTTP error: ${statusCode}`))
+
         return
       }
 
       const contentLength = parseContentLength(response.headers)
+
       if (options.method !== 'HEAD' && contentLength !== undefined && contentLength > maxBytes) {
         response.resume()
         response.destroy()
         fail(new Error(`Remote response too large: ${contentLength} bytes exceeds ${maxBytes} bytes`))
+
         return
       }
 
       let totalBytes = 0
+
       const checkChunk = (buffer: Buffer): Error | undefined => {
         totalBytes += buffer.length
+
         if (totalBytes > maxBytes) {
           return new Error(`Remote response too large: exceeded ${maxBytes} bytes`)
         }
+
         if (options.byteBudget) {
           if (buffer.length > options.byteBudget.remaining) {
             return new Error('Remote responses exceeded the shared byte budget')
           }
+
           options.byteBudget.remaining -= buffer.length
         }
+
         return undefined
       }
 
       if (destination !== undefined) {
         fileResponse = response
+
         const limiter = new Transform({
           transform(chunk: Buffer, _encoding, callback) {
             callback(checkChunk(chunk), chunk)
           }
         })
+
         void pipeline(response, limiter, createWriteStream(destination, { flags: 'wx' }), { signal }).then(() => {
           settled = true
           resolve({ body: Buffer.alloc(0), headers: response.headers, url: target.url })
         }, fail)
+
         return
       }
 
@@ -219,11 +239,14 @@ async function fetchRemoteResponse(
         if (settled) return
         const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
         const error = checkChunk(buffer)
+
         if (error) {
           response.destroy()
           fail(error)
+
           return
         }
+
         chunks.push(buffer)
       })
 
@@ -263,6 +286,7 @@ export async function fetchRemoteBytes(
   options: FetchRemoteTextOptions = {}
 ): Promise<{ body: Buffer; headers: IncomingHttpHeaders }> {
   const { body, headers } = await fetchRemoteBytesWithUrl(url, options)
+
   return { body, headers }
 }
 
@@ -285,11 +309,13 @@ export async function fetchRemoteFile(
 
 async function fetchRemote(url: string, options: FetchRemoteTextOptions, destination?: string) {
   const maxRedirects = options.maxRedirects ?? 0
+
   if (!Number.isSafeInteger(maxRedirects) || maxRedirects < 0) {
     throw new Error('maxRedirects must be a non-negative safe integer')
   }
 
   const signal = buildSignal(options)
   const requestOptions: ResolvedFetchRemoteTextOptions = { ...options, headers: new Headers(options.headers) }
+
   return fetchRemoteResponse(url, requestOptions, signal, maxRedirects, destination)
 }

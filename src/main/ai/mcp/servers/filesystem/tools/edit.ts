@@ -30,6 +30,7 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
   // Check if file exists
   try {
     const stats = await fs.stat(validPath)
+
     if (!stats.isFile()) {
       throw new Error(`Path is not a file: ${filePath}`)
     }
@@ -47,6 +48,7 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
         logger.info('File created', { path: validPath })
 
         const relativePath = path.relative(baseDir, validPath)
+
         return {
           content: [
             {
@@ -56,8 +58,10 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
           ]
         }
       }
+
       throw new Error(`File not found: ${filePath}`)
     }
+
     throw error
   }
 
@@ -71,6 +75,7 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
     logger.info('File overwritten', { path: validPath })
 
     const relativePath = path.relative(baseDir, validPath)
+
     return {
       content: [
         {
@@ -99,6 +104,7 @@ export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseD
 
   const relativePath = path.relative(baseDir, validPath)
   let diffSummary = `Edited: ${relativePath}`
+
   if (lineDiff > 0) {
     diffSummary += `\n+${lineDiff} lines`
   } else if (lineDiff < 0) {

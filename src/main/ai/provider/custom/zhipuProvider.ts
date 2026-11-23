@@ -29,6 +29,7 @@ export interface ZhipuProvider extends ProviderV3 {
 export function createZhipuProvider(settings: ZhipuProviderSettings = {}): ZhipuProvider {
   const { baseURL = 'https://open.bigmodel.cn/api/paas/v4', fetch: customFetch } = settings
   const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
+
   const headers = () => ({
     Authorization: `Bearer ${loadApiKey({
       apiKey: settings.apiKey,

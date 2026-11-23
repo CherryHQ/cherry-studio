@@ -10,6 +10,7 @@ import type { ApiGatewayStatusResult, ApiGatewayStopResult } from '@shared/types
 async function toStatusResult(action: () => Promise<void>): Promise<ApiGatewayStatusResult> {
   try {
     await action()
+
     return { success: true }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
@@ -19,6 +20,7 @@ async function toStatusResult(action: () => Promise<void>): Promise<ApiGatewaySt
 async function stopGateway(): Promise<ApiGatewayStopResult> {
   try {
     const outcome = await application.get('ApiGatewayService').stop()
+
     return { success: true, outcome }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }

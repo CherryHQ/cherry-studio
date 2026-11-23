@@ -57,16 +57,22 @@ export class WebSearchError extends Error {
       providerId: this.providerId,
       capability: this.capability
     }
+
     if (this.status !== undefined) info.status = this.status
+
     if (this.providerCode !== undefined) info.providerCode = this.providerCode
+
     if (this.retryAfter !== undefined) info.retryAfter = this.retryAfter
+
     if (this.requestId !== undefined) info.requestId = this.requestId
+
     return info
   }
 }
 
 export function isWebSearchError(error: unknown): error is WebSearchError {
   if (typeof error !== 'object' || error === null) return false
+
   return (
     'tag' in error &&
     error.tag === '@cherrystudio/web-search/error' &&

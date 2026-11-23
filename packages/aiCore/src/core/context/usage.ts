@@ -8,6 +8,7 @@ export function getContextInputTokens(
 ): number | undefined {
   const initialPromptTokens =
     providerMetadata?.google?.initialPromptTokenCount ?? providerMetadata?.vertex?.initialPromptTokenCount
+
   return typeof initialPromptTokens === 'number' && Number.isFinite(initialPromptTokens) && initialPromptTokens >= 0
     ? initialPromptTokens
     : inputTokens
@@ -20,5 +21,6 @@ export function getContextTokens(
 ): number | undefined {
   if (typeof usage.inputTokens !== 'number' || typeof usage.totalTokens !== 'number') return undefined
   const inputTokens = getContextInputTokens(usage.inputTokens, providerMetadata)
+
   return usage.totalTokens - usage.inputTokens + (inputTokens ?? usage.inputTokens)
 }

@@ -54,15 +54,18 @@ export function AgentRunTaskStopsProvider({ children }: { children: ReactNode })
 
   const stop = async (sessionId: string, taskId: string) => {
     const key = JSON.stringify([sessionId, taskId])
+
     if (pendingRef.current.has(key)) return
     pendingRef.current.add(key)
     setPending(new Set(pendingRef.current))
     let accepted = false
+
     try {
       accepted = await ipcApi.request('ai.agent.session.stop_background_task', { sessionId, taskId })
     } catch (error) {
       logger.warn('Failed to stop background task', { sessionId, taskId, error })
     }
+
     if (!accepted) {
       pendingRef.current.delete(key)
       setPending(new Set(pendingRef.current))
@@ -76,6 +79,7 @@ export function AgentRunTaskStopsProvider({ children }: { children: ReactNode })
 function RunTaskStopButton({ sessionId, taskId }: { sessionId?: string; taskId: string }) {
   const { t } = useTranslation()
   const stops = use(RunTaskStopsContext)
+
   if (!sessionId || !stops) return null
   const label = t('agent.right_pane.status.stop_run_task')
 
@@ -97,6 +101,7 @@ function RunTaskStopButton({ sessionId, taskId }: { sessionId?: string; taskId: 
 /** A shell run is a command, not an agent — the two read differently, so they get separate sections. */
 function isShellRunTask(task: AgentRunTask): boolean {
   const type = task.taskType ?? ''
+
   return type.includes('bash') || type.includes('shell')
 }
 
@@ -121,6 +126,7 @@ function RunTaskList({
     <div className="space-y-1.5">
       {tasks.map((task) => {
         const toolCallId = onOpenFlow && isSubagentRunTask(task) ? task.toolUseId : undefined
+
         const content = (
           <>
             <TaskStatusIcon status={task.status} />
@@ -206,16 +212,21 @@ function formatRunTaskUsage(
 ): string | undefined {
   if (!usage) return undefined
   const parts: string[] = []
+
   if (typeof usage.totalTokens === 'number') {
     parts.push(usage.totalTokens >= 1000 ? `${(usage.totalTokens / 1000).toFixed(1)}k` : String(usage.totalTokens))
   }
+
   if (typeof usage.toolUses === 'number' && formatToolUses) parts.push(formatToolUses(usage.toolUses))
+
   if (typeof usage.durationMs === 'number') parts.push(`${Math.round(usage.durationMs / 1000)}s`)
+
   return parts.length > 0 ? parts.join(' · ') : undefined
 }
 
 export function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentRunTask['status'] }) {
   const { t } = useTranslation()
+
   const label = {
     pending: t('message.tools.pending'),
     in_progress: t('message.tools.status.running'),
@@ -223,6 +234,7 @@ export function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] |
     error: t('message.tools.status.error'),
     stopped: t('message.tools.cancelled')
   }[status]
+
   let icon: ReactNode
 
   switch (status) {
@@ -290,21 +302,28 @@ export function AgentSessionDetailsSections({
   const { t } = useTranslation()
   const workflows = status.runTasks.filter(isLocalWorkflowRunTask)
   const shells = status.runTasks.filter((task) => !isLocalWorkflowRunTask(task) && isShellRunTask(task))
+
   const subagents = status.runTasks.filter(
     (task) => !isLocalWorkflowRunTask(task) && !isShellRunTask(task) && isSubagentRunTask(task)
   )
+
   const others = status.runTasks.filter(
     (task) => !isSubagentRunTask(task) && !isLocalWorkflowRunTask(task) && !isShellRunTask(task)
   )
+
   const currentTask = status.tasks.find((task) => task.status === 'in_progress')
+
   const workspaceLabel =
     workspaceType === 'system' ? t('agent.session.workspace_selector.no_project') : workspaceName || workspacePath
+
   const [preferences, persistSections] = usePreference('agent.details.sections')
   const defaults = getDefaultValue('agent.details.sections')
   const knownIds = new Set(defaults.map(({ id }) => id))
+
   const saveSections = (next: AgentDetailsSectionConfig[]) => {
     void persistSections(next).catch(() => toast.error(t('common.error')))
   }
+
   const labels = {
     workspace: { label: t('code.adv.permission_modes.workspace'), icon: <FolderOpen className="size-4" /> },
     desktop_control: { label: t('agent.right_pane.info.desktop_control.title'), icon: <Monitor className="size-4" /> },
@@ -316,6 +335,7 @@ export function AgentSessionDetailsSections({
     artifacts: { label: t('agent.right_pane.info.artifacts'), icon: <Package className="size-4" /> },
     context: { label: t('agent.right_pane.info.context'), icon: <Gauge className="size-4" /> }
   } satisfies Record<string, { label: string; icon: ReactNode }>
+
   const content = {
     workspace: workspaceLabel && (
       <div className="flex min-w-0 items-center gap-2 px-3 py-2">
@@ -358,8 +378,10 @@ export function AgentSessionDetailsSections({
               stopped: t('agent.right_pane.info.desktop_control.stopped'),
               unconfirmed: t('agent.right_pane.info.desktop_control.unconfirmed')
             }
+
             const name = row.appName ?? row.appId
             const stopLabel = t('agent.right_pane.info.desktop_control.stop')
+
             return (
               <div
                 key={JSON.stringify([row.ownerId, row.appId])}
@@ -472,15 +494,20 @@ export function AgentSessionDetailsSections({
     ),
     context: contextUsage && <div className="border-t border-border-subtle py-2">{contextUsage}</div>
   } satisfies Record<keyof typeof labels, ReactNode>
+
   const seen = new Set<string>()
+
   const sections = [...preferences, ...defaults].filter(
     (section): section is AgentDetailsSectionConfig & { id: keyof typeof labels } => {
       const { id } = section
+
       if (!knownIds.has(id) || !Object.hasOwn(labels, id) || seen.has(id)) return false
       seen.add(id)
+
       return true
     }
   )
+
   return (
     <>
       <div className="flex items-center justify-between gap-2 ps-3 pe-2 py-1">
@@ -558,29 +585,37 @@ function RunSection({
   onOpenFlow?: (input: AgentToolFlowOpenInput) => void
 }) {
   const { t } = useTranslation()
+
   if (!tasks.length) return null
+
   const current = tasks
     .filter((task) => task.status !== 'completed' && task.status !== 'stopped')
     .toSorted((a, b) => TASK_ORDER[a.status] - TASK_ORDER[b.status])
+
   const finished = tasks.filter((task) => task.status === 'completed' || task.status === 'stopped')
+
   const labels = {
     in_progress: t('message.tools.status.running'),
     error: t('message.tools.status.error'),
     pending: t('message.tools.pending')
   }
+
   const summary =
     (['in_progress', 'error', 'pending'] as const)
       .flatMap((state) => {
         const count = tasks.filter((task) => task.status === state).length
+
         return count ? [`${count} ${labels[state]}`] : []
       })
       .join(' · ') || String(tasks.length)
+
   const renderTasks = (items: AgentRunTask[]) =>
     id === 'workflows' ? (
       <WorkflowRunTaskList tasks={items} sessionId={sessionId} />
     ) : (
       <RunTaskList tasks={items} sessionId={sessionId} onOpenFlow={onOpenFlow} />
     )
+
   return (
     <DetailsSection id={id} title={title} icon={icon} summary={summary}>
       {renderTasks(current)}

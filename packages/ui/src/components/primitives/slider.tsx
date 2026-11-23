@@ -123,8 +123,10 @@ function Slider({
   const pointerDownRef = React.useRef(false)
   const canSnap = snapOnRelease && localValues.length === 1
   const dragging = canSnap && dragValues !== null
+
   const snapValues = (values: number[]) =>
     values.map((val) => Math.min(max, Math.max(min, Number((min + Math.round((val - min) / step) * step).toFixed(10)))))
+
   const isVertical = orientation === 'vertical'
 
   const sliderElement = (
@@ -141,6 +143,7 @@ function Slider({
       onValueChange={(newValues) => {
         if (dragging) setDragValues(newValues)
         const nextValues = canSnap ? snapValues(newValues) : newValues
+
         if (!canSnap || nextValues.some((val, index) => val !== localValues[index])) {
           setLocalValues(nextValues)
           onValueChange?.(nextValues)
@@ -162,8 +165,10 @@ function Slider({
       {...props}
       onPointerDownCapture={(event) => {
         props.onPointerDownCapture?.(event)
+
         if (canSnap && !props.disabled && !event.defaultPrevented && event.button === 0) {
           pointerDownRef.current = true
+
           if ((event.target as HTMLElement).closest('[data-slot=slider-thumb]')) {
             setDragValues(value ?? localValues)
           }
@@ -171,6 +176,7 @@ function Slider({
       }}
       onPointerMoveCapture={(event) => {
         props.onPointerMoveCapture?.(event)
+
         if (pointerDownRef.current && !dragging && !event.defaultPrevented) {
           setDragValues(value ?? localValues)
         }
@@ -226,10 +232,13 @@ function Slider({
         className={cn('relative', isVertical ? 'ml-2 flex h-full flex-col justify-between' : 'mt-1.5 h-4 w-full')}>
         {marks.map((mark) => {
           const range = max - min
+
           if (range === 0) return null
           const percentage = ((mark.value - min) / range) * 100
+
           const transform =
             percentage <= 0 ? 'translateX(0)' : percentage >= 100 ? 'translateX(-100%)' : 'translateX(-50%)'
+
           return (
             <span
               key={mark.value}

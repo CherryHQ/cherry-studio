@@ -34,6 +34,7 @@ export function buildTokenhubTransport(settings: TokenhubProviderSettings): Imag
   if (!settings.baseURL) {
     throw new Error('TokenHub provider requires a non-empty `baseURL` to build the image transport.')
   }
+
   return createTokenhubTransport({
     apiKey: settings.apiKey ?? '',
     // The `/v1/wand/*` image endpoints are host-root paths; the chat baseURL carries `/v1`.
@@ -45,6 +46,7 @@ export function buildTokenhubTransport(settings: TokenhubProviderSettings): Imag
 
 export function createTokenhubProvider(settings: TokenhubProviderSettings = {}): TokenhubProvider {
   const { baseURL, fetch: customFetch } = settings
+
   if (!baseURL) {
     throw new Error('TokenHub provider requires a non-empty `baseURL`.')
   }

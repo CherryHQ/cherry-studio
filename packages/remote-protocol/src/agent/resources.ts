@@ -6,6 +6,7 @@ import { decimal, digest, opaqueId, timestamp, unicodeText } from '../values'
 
 export const agentAuthorizationSchema = z.looseObject({ domain: z.literal('agent'), grantId: opaqueId })
 export const agentCursorSchema = z.strictObject({ sessionId: opaqueId, streamEpoch: opaqueId, seq: decimal })
+
 export const contentRefSchema = z.strictObject({
   contentId: opaqueId,
   revision: decimal,
@@ -13,6 +14,7 @@ export const contentRefSchema = z.strictObject({
   mediaType: z.string().min(1).max(128),
   sha256: digest
 })
+
 export const sessionSchema = z.looseObject({
   sessionId: opaqueId,
   agentId: opaqueId,
@@ -24,6 +26,7 @@ export const sessionSchema = z.looseObject({
   activeExecutionId: opaqueId.optional(),
   idleRevision: decimal.optional()
 })
+
 export const executionSchema = z
   .looseObject({
     executionId: opaqueId,
@@ -38,19 +41,24 @@ export const executionSchema = z
   })
   .superRefine((value, ctx) => {
     const terminal = ['completed', 'cancelled', 'failed', 'interrupted'].includes(value.status)
+
     if ((value.status === 'failed') !== Boolean(value.failure))
       ctx.addIssue({ code: 'custom', message: 'Failed executions require a failure; other outcomes cannot carry one' })
+
     if (
       terminal &&
       (!value.messageId ||
         (value.durable ? !value.history || !!value.persistenceFailure : !value.persistenceFailure || !!value.history))
     )
       ctx.addIssue({ code: 'custom', message: 'Terminal executions require a message and a persistence outcome' })
+
     if (!terminal && (value.durable || value.history || value.persistenceFailure))
       ctx.addIssue({ code: 'custom', message: 'Running executions cannot claim terminal persistence' })
   })
+
 // Bounded materialized message statistics, not the host's per-request ledger.
 const usageCount = z.number().nonnegative()
+
 export const messageUsageSchema = z.looseObject({
   inputTokens: usageCount.optional(),
   outputTokens: usageCount.optional(),
@@ -76,6 +84,7 @@ export const messageUsageSchema = z.looseObject({
     .max(32)
     .optional()
 })
+
 export type AgentMessageUsage = z.infer<typeof messageUsageSchema>
 
 /** Public model identity; no provider configuration or credentials. */
@@ -99,22 +108,28 @@ const messageMetadataSchema = z
     if ((value.status === 'error') !== Boolean(value.failure))
       ctx.addIssue({ code: 'custom', message: 'Error messages require a failure; other outcomes cannot carry one' })
   })
+
 export const messageSchema = messageMetadataSchema.safeExtend({ partIds: z.array(opaqueId).max(4096) })
+
 export const messageSummarySchema = messageMetadataSchema.safeExtend({
   partsMode: z.literal('paged'),
   partIds: z.never().optional()
 })
+
 export const messageListItemSchema = z.union([
   messageSchema.safeExtend({ partsMode: z.never().optional() }),
   messageSummarySchema
 ])
+
 const partBase = {
   partId: opaqueId,
   revision: decimal,
   executionId: opaqueId.optional(),
   toolCallId: opaqueId.optional()
 }
+
 const content = z.union([z.strictObject({ text: unicodeText.max(65_536) }), z.strictObject({ ref: contentRefSchema })])
+
 export const partSchema = z.discriminatedUnion('kind', [
   z.looseObject({ ...partBase, kind: z.literal('text'), content, state: z.enum(['streaming', 'completed']) }),
   z.looseObject({ ...partBase, kind: z.literal('reasoning'), content, state: z.enum(['streaming', 'completed']) }),
@@ -135,10 +150,12 @@ export const partSchema = z.discriminatedUnion('kind', [
   z.looseObject({ ...partBase, kind: z.literal('file'), name: unicodeText.max(1024), ref: contentRefSchema }),
   z.looseObject({ ...partBase, kind: z.literal('data'), name: opaqueId, content })
 ])
+
 export const workspaceSelectionSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('registered'), id: opaqueId }),
   z.strictObject({ kind: z.literal('system') })
 ])
+
 export const questionInputSchema = z
   .looseObject({
     questions: z
@@ -161,6 +178,7 @@ export const questionInputSchema = z
     ({ questions }) => new Set(questions.map((q) => q.question)).size === questions.length,
     'Question keys must be unique'
   )
+
 export const interactionResponseSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('approve') }),
   z.strictObject({ kind: z.literal('deny'), reason: unicodeText.min(1).max(4096).optional() }),
@@ -171,7 +189,9 @@ export const interactionResponseSchema = z.discriminatedUnion('kind', [
       .refine((answers) => Object.keys(answers).length > 0 && Object.keys(answers).length <= 4)
   })
 ])
+
 export type AgentWorkspaceSelection = z.infer<typeof workspaceSelectionSchema>
+
 export type AgentInteractionResponse = z.infer<typeof interactionResponseSchema>
 
 export const interactionSummarySchema = z.looseObject({
@@ -185,7 +205,9 @@ export const interactionSummarySchema = z.looseObject({
   inputDigest: digest,
   expiresAt: timestamp.optional()
 })
+
 export const interactionSchema = interactionSummarySchema.extend({ input: content })
+
 export const commandReceiptSchema = z.looseObject({
   commandId: opaqueId,
   method: opaqueId,
@@ -196,14 +218,25 @@ export const commandReceiptSchema = z.looseObject({
   result: z.json().optional(),
   error: remoteFailureSchema.optional()
 })
+
 export type AgentAuthorization = z.infer<typeof agentAuthorizationSchema>
+
 export type AgentCursor = z.infer<typeof agentCursorSchema>
+
 export type AgentSession = z.infer<typeof sessionSchema>
+
 export type AgentMessage = z.infer<typeof messageSchema>
+
 export type AgentMessageSummary = z.infer<typeof messageSummarySchema>
+
 export type AgentMessageListItem = z.infer<typeof messageListItemSchema>
+
 export type AgentPart = z.infer<typeof partSchema>
+
 export type AgentExecution = z.infer<typeof executionSchema>
+
 export type AgentInteraction = z.infer<typeof interactionSchema>
+
 export type ContentRef = z.infer<typeof contentRefSchema>
+
 export type CommandReceipt = z.infer<typeof commandReceiptSchema>

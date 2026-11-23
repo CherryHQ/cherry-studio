@@ -80,9 +80,11 @@ export function scanOrphanEntries(deps: ScanOrphanEntriesDeps): OrphanEntryRepor
   const counts = deps.fileRefService.countByEntryIds(candidates.map((row) => row.id))
   const rows = candidates.filter((row) => (counts.get(row.id) ?? 0) === 0)
   const byOrigin: Partial<Record<FileEntryOrigin, number>> = {}
+
   for (const row of rows) {
     byOrigin[row.origin] = (byOrigin[row.origin] ?? 0) + 1
   }
+
   return { total: rows.length, byOrigin }
 }
 
@@ -124,6 +126,7 @@ export type { OrphanReport } from '@shared/types/file'
  */
 export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
   const startedAt = Date.now()
+
   // A staged/promoting restore owns the file+DB surface — deleting "orphans"
   // mid-restore would reclaim rows/files the promotion is about to reference.
   if (hasPendingRestore()) {
@@ -134,21 +137,27 @@ export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
       outcome: 'aborted',
       abortReason: 'pending-restore'
     }
+
     logDbSweep(report)
+
     return report
   }
+
   try {
     const entries = scanOrphanEntries({
       fileEntryService: deps.fileEntryService,
       fileRefService: deps.fileRefService
     })
+
     const stats: DbSweepStats = {
       orphanEntriesByOrigin: entries.byOrigin,
       orphanEntriesTotal: entries.total,
       scanDurationMs: Date.now() - startedAt
     }
+
     const report: DbSweepReport = { ...stats, outcome: 'completed' }
     logDbSweep(report)
+
     return report
   } catch (err) {
     const failed: DbSweepReport = {
@@ -158,26 +167,33 @@ export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
       outcome: 'failed',
       errorMessage: (err as Error).message
     }
+
     logger.error('orphan-sweep', { event: 'orphan-sweep', ...failed })
+
     return failed
   }
 }
 
 function logDbSweep(report: DbSweepReport): void {
   const payload = { event: 'orphan-sweep', ...report }
+
   switch (report.outcome) {
     case 'completed':
       logger.info('orphan-sweep', payload)
+
       return
     case 'partial':
       logger.warn('orphan-sweep', payload)
+
       return
     case 'aborted':
       // Deliberate stand-aside (pending restore), not an anomaly.
       logger.info('orphan-sweep', payload)
+
       return
     case 'failed':
       logger.error('orphan-sweep', payload)
+
       return
     default:
       assertNever(report)
@@ -193,14 +209,17 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 function isUuidFileName(name: string): { id: string } | null {
   const dotIndex = name.indexOf('.')
   const stem = dotIndex < 0 ? name : name.slice(0, dotIndex)
+
   return UUID_RE.test(stem) ? { id: stem } : null
 }
 
 /** Atomic-write tmp residue: `<anything>.tmp-<UUID>`. */
 function isTmpResidueName(name: string): boolean {
   const tmpIdx = name.lastIndexOf('.tmp-')
+
   if (tmpIdx < 0) return false
   const suffix = name.slice(tmpIdx + '.tmp-'.length)
+
   return UUID_RE.test(suffix)
 }
 
@@ -210,6 +229,7 @@ const FRESHNESS_GATE_MS = 5 * 60 * 1000
 /** Architecture §10.4 safety thresholds — absolute floor below which any plan is fine. */
 const SMALL_RESIDUE_COUNT_FLOOR = 20
 const SMALL_RESIDUE_BYTES_FLOOR = 10 * 1024 * 1024
+
 /** Above the floor, abort if the plan covers more than this fraction of total. */
 const ABORT_FRACTION = 0.5
 
@@ -234,10 +254,13 @@ function isRetainedFile(
   fileEntryService: RunFileSweepDeps['fileEntryService']
 ): boolean {
   if (!ids.has(id)) return false
+
   if (!isTmpResidueName(name)) return true
   const entry = fileEntryService.findById(id)
+
   // A vanished snapshot row cannot establish that this ambiguous name is residue.
   if (!entry) return true
+
   return entry.origin === 'internal' && path.basename(resolvePhysicalPath(entry)) === name
 }
 
@@ -290,10 +313,13 @@ export async function inspectFileSweep(
   if (hasPendingRestore()) {
     const report = pendingRestoreFileSweepReport()
     logFileSweep(report)
+
     return report
   }
+
   const report = await runFileSweepInner(deps, false, options)
   logFileSweep(report)
+
   return report
 }
 
@@ -314,31 +340,41 @@ export async function runFileSweep(deps: RunFileSweepDeps, options: FileSweepOpt
   if (hasPendingRestore()) {
     const report = pendingRestoreFileSweepReport()
     logFileSweep(report)
+
     return report
   }
+
   const report = await runFileSweepInner(deps, true, options)
   logFileSweep(report)
+
   return report
 }
 
 function logFileSweep(report: FileSweepReport): void {
   const payload = { event: 'orphan-file-sweep', ...report }
+
   switch (report.outcome) {
     case 'completed':
       logger.debug('orphan-file-sweep', payload)
+
       return
     case 'partial':
       logger.warn('orphan-file-sweep', payload)
+
       return
     case 'aborted':
       if (report.abortReason === 'pending-restore') {
         logger.info('orphan-file-sweep', payload)
+
         return
       }
+
       logger.warn('orphan-file-sweep', payload)
+
       return
     case 'failed':
       logger.error('orphan-file-sweep', payload)
+
       return
     default:
       assertNever(report)
@@ -357,21 +393,25 @@ async function runFileSweepInner(
   options: FileSweepOptions
 ): Promise<FileSweepReport> {
   const startedAt = Date.now()
+
   try {
     const filesDir = application.getPath('feature.files.data')
     const idSnapshot: Set<FileEntryId> = deps.fileEntryService.listAllIds()
 
     let dirents: string[]
+
     try {
       dirents = await readdir(filesDir)
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code
+
       if (code === 'ENOENT') {
         // First-run / fresh install: feature.files.data is auto-ensured by
         // path-registry, so an ENOENT here usually means auto-mkdir failed
         // (warn-logged inside Application). Treat as "nothing to sweep".
         return emptyCompleted(idSnapshot.size, startedAt)
       }
+
       // Permission / I/O / wrong-type — surface as failure so the operator
       // (or future Sentry) sees a real signal, not a silent zero-count log.
       return {
@@ -387,25 +427,31 @@ async function runFileSweepInner(
     let candidatesCount = 0
     let candidatesBytes = 0
     let statFailedCount = 0
+
     for (const name of dirents) {
       const fullPath = path.join(filesDir, name)
       let st: Awaited<ReturnType<typeof lstat>>
+
       try {
         st = await lstat(fullPath)
       } catch (err) {
         const code = (err as NodeJS.ErrnoException).code
+
         if (code !== 'ENOENT') {
           statFailedCount++
           logger.warn('orphan-file-sweep-stat-failed', { path: fullPath, code })
         }
+
         continue
       }
+
       // Skip directories / symlinks / sockets — only regular files are sweep
       // candidates. A UUID-named subdirectory should never exist but if it
       // does, attempting to unlink would just throw and silently succeed-fail
       // forever; explicit guard makes the contract clear.
       if (!st.isFile()) continue
       const identity = isUuidFileName(name)
+
       if (
         identity &&
         (deps.intakeProtection?.isProtected(identity.id) ||
@@ -415,14 +461,17 @@ async function runFileSweepInner(
 
       // A tmp-shaped name is residue only after excluding the exact retained blob.
       const isCandidate = isTmpResidueName(name) || Boolean(identity && !idSnapshot.has(identity.id))
+
       if (!isCandidate) continue
       candidatesCount++
       candidatesBytes += st.size
+
       if (now - st.mtimeMs <= FRESHNESS_GATE_MS) continue
       planned.push({ path: fullPath, bytes: st.size, mtimeMs: st.mtimeMs })
     }
 
     const plannedBytes = planned.reduce((s, p) => s + p.bytes, 0)
+
     const abortReason = options.bypassSafetyThreshold
       ? undefined
       : pickAbortReason({
@@ -431,9 +480,11 @@ async function runFileSweepInner(
           filesOnDisk: candidatesCount,
           bytesOnDisk: candidatesBytes
         })
+
     if (deleteFiles && !options.bypassSafetyThreshold && !abortReason && planned.length > 0) {
       const countFraction = planned.length / Math.max(1, candidatesCount)
       const byteFraction = plannedBytes / Math.max(1, candidatesBytes)
+
       if (countFraction > ABORT_FRACTION || byteFraction > ABORT_FRACTION) {
         logger.warn('orphan-file-sweep-below-floor', {
           event: 'orphan-file-sweep-below-floor',
@@ -448,6 +499,7 @@ async function runFileSweepInner(
         })
       }
     }
+
     if (abortReason) {
       return {
         entriesInDb: idSnapshot.size,
@@ -486,10 +538,12 @@ async function runFileSweepInner(
     let failedDeleted = 0
     let oldestDeletedMtime: number | undefined
     const failedSamples: string[] = []
+
     for (const target of planned) {
       try {
         const name = path.basename(target.path)
         const identity = isUuidFileName(name)
+
         if (
           identity &&
           (deps.intakeProtection?.isProtected(identity.id) ||
@@ -499,16 +553,20 @@ async function runFileSweepInner(
         await unlink(target.path)
         actualDeleted++
         actualBytes += target.bytes
+
         if (oldestDeletedMtime === undefined || target.mtimeMs < oldestDeletedMtime) {
           oldestDeletedMtime = target.mtimeMs
         }
       } catch (err) {
         const code = (err as NodeJS.ErrnoException).code
+
         if (code === 'ENOENT') continue // genuinely fine — concurrent deletion
         failedDeleted++
+
         if (failedSamples.length < MAX_FAILED_SAMPLES) {
           failedSamples.push(`${path.basename(target.path)}: ${code ?? 'unknown'}`)
         }
+
         logger.warn('orphan-file-sweep-unlink-failed', { path: target.path, code })
       }
     }
@@ -526,9 +584,11 @@ async function runFileSweepInner(
       statFailedCount,
       scanDurationMs: Date.now() - startedAt
     }
+
     if (failedDeleted > 0) {
       return { ...stats, outcome: 'partial', failedDeleteCount: failedDeleted, failedSamples }
     }
+
     return { ...stats, outcome: 'completed' }
   } catch (err) {
     return {
@@ -565,10 +625,14 @@ function pickAbortReason(args: {
   bytesOnDisk: number
 }): 'count-fraction' | 'byte-fraction' | undefined {
   const { planned, plannedBytes, filesOnDisk, bytesOnDisk } = args
+
   if (planned < SMALL_RESIDUE_COUNT_FLOOR && plannedBytes < SMALL_RESIDUE_BYTES_FLOOR) return undefined
   const countFraction = planned / Math.max(1, filesOnDisk)
+
   if (countFraction > ABORT_FRACTION) return 'count-fraction'
   const byteFraction = plannedBytes / Math.max(1, bytesOnDisk)
+
   if (byteFraction > ABORT_FRACTION) return 'byte-fraction'
+
   return undefined
 }

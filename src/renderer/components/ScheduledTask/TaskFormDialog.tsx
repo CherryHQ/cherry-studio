@@ -84,6 +84,7 @@ const TASK_PROMPT_POLISH_SYSTEM_PROMPT = [
 ].join('\n')
 
 export type AgentInfo = { id: string; name: string }
+
 export type ChannelInfo = {
   id: string
   agentId?: string | null
@@ -96,6 +97,7 @@ export function toChannelInfo(channel: AgentChannelEntity): ChannelInfo {
   // Config keys are snake_case in the channel config schemas; only some channel
   // types carry allowed_channel_ids, hence the narrow local view of the union.
   const config = channel.config as { allowed_chat_ids?: string[]; allowed_channel_ids?: string[] } | undefined
+
   return {
     id: channel.id,
     agentId: channel.agentId ?? null,
@@ -114,6 +116,7 @@ export const TaskTimeSelect: FC<{
   onChange: (value: string) => void
 }> = ({ value, disabled, onChange }) => {
   const { t } = useTranslation()
+
   // An empty preset means the user cleared every hour; render no selection so the
   // UI agrees with the empty form value (which blocks saving until repopulated).
   // A non-empty value that fails to parse is unexpected, so fall back to the
@@ -133,14 +136,19 @@ export const TaskTimeSelect: FC<{
   // fall back to 00 once every hour is cleared.
   const [rememberedMinute, setRememberedMinute] = useState(() => {
     const parsed = parseTimes(value)
+
     return parsed && parsed.hours.length > 0 ? parsed.minute : '00'
   })
+
   const [lastValue, setLastValue] = useState(value)
+
   if (value !== lastValue) {
     setLastValue(value)
     const parsed = parseTimes(value)
+
     if (parsed && parsed.hours.length > 0) setRememberedMinute(parsed.minute)
   }
+
   const displayMinute = hours.length > 0 ? minute : rememberedMinute
 
   return (
@@ -156,6 +164,7 @@ export const TaskTimeSelect: FC<{
         value={hours}
         renderValue={(selectedHours) => {
           const values = Array.isArray(selectedHours) ? selectedHours : []
+
           return (
             <span className={cn('min-w-0 flex-1 truncate text-left', values.length === 0 && 'text-muted-foreground')}>
               {values.length > 0 ? values.join(', ') : t('agent.tasks.schedule.hours')}
@@ -175,8 +184,10 @@ export const TaskTimeSelect: FC<{
             // No hour selected: the minute cannot live in the value string, so
             // keep it only as the preview for the next hour selection.
             setRememberedMinute(nextMinute)
+
             return
           }
+
           onChange(formatTimes(hours, nextMinute))
         }}>
         <SelectTrigger aria-label={t('agent.tasks.schedule.minute')}>
@@ -470,6 +481,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
       setSubmitted(false)
       setPromptPreviewKey((key) => key + 1)
     }
+
     wasOpenRef.current = open
   }, [agents, open, task])
 
@@ -489,43 +501,59 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
 
   const isSystemWorkspace = workspaceId === null
   const selectedAgent = agents.find((agent) => agent.id === agentId)
+
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
     : (workspaces?.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId)
+
   const trigger = useMemo(() => formStateToTrigger(schedule), [schedule])
+
   const unchangedExistingSchedule =
     props.task !== undefined &&
     scheduleInputsEqual(schedule, initialDraftRef.current?.schedule ?? taskToDraftSnapshot(props.task).schedule)
+
   const resolvedTrigger = trigger ?? (unchangedExistingSchedule ? props.task?.trigger : null)
 
   const handleSave = useCallback(async () => {
     setSubmitted(true)
+
     if (!agentId || !name.trim() || !prompt.trim() || !resolvedTrigger) return
 
     setSaving(true)
+
     try {
       const timeout = Number(schedule.timeoutMinutes)
+
       const workspace =
         workspaceId === null
           ? ({ type: AGENT_WORKSPACE_TYPE.SYSTEM } as const)
           : ({ type: AGENT_WORKSPACE_TYPE.USER, workspaceId } as const)
+
       const timeoutMinutes = Number.isInteger(timeout) && timeout > 0 ? timeout : null
 
       let saved: boolean
+
       if (props.task) {
         const initialDraft = initialDraftRef.current ?? taskToDraftSnapshot(props.task)
         const updates: AgentTaskPatch = {}
 
         if (name !== initialDraft.name) updates.name = name.trim()
+
         if (prompt !== initialDraft.prompt) updates.prompt = prompt.trim()
+
         if (schedule.timeoutMinutes !== initialDraft.schedule.timeoutMinutes) {
           updates.timeoutMinutes = timeoutMinutes
         }
+
         if (workspaceId !== initialDraft.workspaceId) updates.workspace = workspace
+
         if (reuseSession !== initialDraft.reuseSession) updates.reuseSession = reuseSession
+
         if (!stringArraysEqual(channelIds, initialDraft.channelIds)) updates.channelIds = channelIds
+
         if (!scheduleInputsEqual(schedule, initialDraft.schedule)) {
           const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, resolvedTrigger)
+
           if (!triggersEqual(nextTrigger, props.task.trigger)) updates.trigger = nextTrigger
         }
 
@@ -541,6 +569,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
           channelIds: channelIds.length > 0 ? channelIds : undefined
         })
       }
+
       if (saved) onOpenChange(false)
     } finally {
       setSaving(false)

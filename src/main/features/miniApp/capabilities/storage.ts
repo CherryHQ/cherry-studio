@@ -20,6 +20,7 @@ const KeyParams = z.object({
     .min(1)
     .refine((k) => Buffer.byteLength(k, 'utf8') <= 256, 'key exceeds 256 bytes')
 })
+
 // Bounded in the SCHEMA so an oversized value is refused during parse, not after being
 // copied over IPC. The real ceiling is the whole-file cap `writeStorage` enforces.
 const SetParams = KeyParams.extend({ value: z.string().max(MINI_APP_STORAGE_MAX_BYTES) })
@@ -30,6 +31,7 @@ export const storageCapability = {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest params remain unparsed at dispatch; KeyParams bounds the UTF-8 key before reading app-owned storage.
   get(appId: string, params: unknown) {
     const { key } = KeyParams.parse(params)
+
     return { value: readStorage(appId)[key] ?? null }
   },
 
@@ -40,6 +42,7 @@ export const storageCapability = {
     // `writeStorage` refuses before it touches the disk, so a rejected save cannot
     // leave a half-written file behind and the previous contents stay readable.
     writeStorage(appId, { ...readStorage(appId), [key]: value })
+
     return { ok: true }
   },
 
@@ -52,6 +55,7 @@ export const storageCapability = {
     const map = readStorage(appId)
     delete map[key]
     writeStorage(appId, map)
+
     return { ok: true }
   },
 

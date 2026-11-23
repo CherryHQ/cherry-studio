@@ -11,6 +11,7 @@ import type { RetryPartData } from '@shared/data/types/uiParts'
  */
 const RetryStatusBlock: React.FC<{ data: RetryPartData }> = ({ data }) => {
   const { t } = useTranslation()
+
   if (data.state === 'settled') return null
 
   return (

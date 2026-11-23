@@ -41,6 +41,7 @@ export function useToolApprovalComposerOverrides({
     for (const parts of Object.values(persistedPartsByMessageId)) {
       for (const part of parts) {
         if (!isToolUIPart(part) || !isAskUserQuestionToolName(getToolName(part))) continue
+
         if (
           part.state !== 'approval-responded' &&
           part.state !== 'output-available' &&
@@ -48,6 +49,7 @@ export function useToolApprovalComposerOverrides({
         ) {
           continue
         }
+
         if (part.approval?.id) clearAskUserQuestionDraftCache(part.approval.id)
       }
     }
@@ -58,38 +60,50 @@ export function useToolApprovalComposerOverrides({
 
     const liveMessageIdSet = new Set(streamingLayers.liveMessageIds)
     const historyParts: Record<string, CherryMessagePart[]> = {}
+
     for (const [messageId, parts] of Object.entries(streamingLayers.historyPartsByMessageId)) {
       if (!liveMessageIdSet.has(messageId)) historyParts[messageId] = parts
     }
+
     return historyParts
   }, [streamingLayers])
+
   const currentParts = useMemo<Record<string, CherryMessagePart[]>>(() => {
     if (!streamingLayers) return partsByMessageId
 
     const liveParts: Record<string, CherryMessagePart[]> = {}
+
     for (const messageId of streamingLayers.liveMessageIds) {
       const parts = partsByMessageId[messageId]
+
       if (parts) liveParts[messageId] = parts
     }
+
     return liveParts
   }, [streamingLayers, partsByMessageId])
+
   const historyAskUserQuestionRequest = useMemo(
     () => (settledHistoryParts ? findLatestPendingAskUserQuestionRequest(settledHistoryParts) : null),
     [settledHistoryParts]
   )
+
   const currentAskUserQuestionRequest = useMemo(
     () => findLatestPendingAskUserQuestionRequest(currentParts),
     [currentParts]
   )
+
   const askUserQuestionRequest = currentAskUserQuestionRequest ?? historyAskUserQuestionRequest
+
   const historyPermissionRequest = useMemo(
     () => (settledHistoryParts ? findNextPendingPermissionRequest(settledHistoryParts, partsByMessageId) : null),
     [settledHistoryParts, partsByMessageId]
   )
+
   const currentPermissionRequest = useMemo(
     () => findNextPendingPermissionRequest(currentParts, partsByMessageId),
     [currentParts, partsByMessageId]
   )
+
   const permissionRequest = currentPermissionRequest ?? historyPermissionRequest
 
   return useMemo(() => {

@@ -19,6 +19,7 @@ interface SessionSendInput {
 function getInput(input: ToolInput | NormalToolResponse['arguments']): SessionSendInput {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) return {}
   const record = input as { message?: unknown }
+
   return {
     message: typeof record.message === 'string' ? record.message : undefined
   }
@@ -40,14 +41,17 @@ export function SessionSendTool({
   const { t } = useTranslation()
   const sessionInput = getInput(input)
   const result = parseSessionSendResult(output)
+
   const targetSessionName = result
     ? result.delivery?.receiverSnapshot?.sessionName?.trim() || t('message.tools.sessionCreate.untitled')
     : undefined
+
   const targetAgentName = result?.delivery?.receiverSnapshot?.agentName?.trim()
   const targetLabel = [targetAgentName, targetSessionName].filter(Boolean).join(' / ')
   const message = sessionInput.message?.trim()
   const errorText = hasError ? extractToolErrorText(output) : undefined
   const deliveryStatus = result?.status ? getSessionDeliveryStatus(result.status, t) : undefined
+
   const actionLabel = isStreaming
     ? t('message.tools.sessionSend.sending')
     : status === 'cancelled'

@@ -83,16 +83,20 @@ export class SchedulerService extends BaseService {
   validateTrigger(trigger: Trigger): void {
     if (trigger.kind === 'cron') {
       const probe = new Cron(trigger.expr, { timezone: trigger.timezone, maxRuns: trigger.limit })
+
       try {
         if (probe.nextRun() === null) throw new RangeError('Cron expression has no future occurrence')
       } finally {
         probe.stop()
       }
+
       return
     }
+
     if (trigger.kind === 'interval' && trigger.ms > MAX_TIMER_DELAY_MS) {
       throw new RangeError(`interval of ${trigger.ms} ms exceeds the maximum timer delay (${MAX_TIMER_DELAY_MS} ms)`)
     }
+
     if (trigger.kind === 'once' && trigger.at - Date.now() > MAX_TIMER_DELAY_MS) {
       throw new RangeError(`once trigger is more than ${MAX_TIMER_DELAY_MS} ms in the future`)
     }
@@ -120,6 +124,7 @@ export class SchedulerService extends BaseService {
     }
 
     logger.debug('Scheduled', { id, kind: trigger.kind })
+
     return { dispose: () => this.unregister(id) }
   }
 
@@ -132,17 +137,22 @@ export class SchedulerService extends BaseService {
    */
   pause(id: string): void {
     const cron = this.cronJobs.get(id)
+
     if (cron) {
       cron.pause()
       logger.debug('Paused cron', { id })
+
       return
     }
+
     if (this.intervalHandles.has(id)) {
       logger.warn('pause is a no-op for interval/once schedules — use unregister + re-register to "pause" instead', {
         id
       })
+
       return
     }
+
     logger.warn('pause called on unknown schedule id', { id })
   }
 
@@ -154,15 +164,20 @@ export class SchedulerService extends BaseService {
    */
   resume(id: string): void {
     const cron = this.cronJobs.get(id)
+
     if (cron) {
       cron.resume()
       logger.debug('Resumed cron', { id })
+
       return
     }
+
     if (this.intervalHandles.has(id)) {
       logger.warn('resume is a no-op for interval/once schedules', { id })
+
       return
     }
+
     logger.warn('resume called on unknown schedule id', { id })
   }
 
@@ -175,13 +190,17 @@ export class SchedulerService extends BaseService {
    */
   unregister(id: string): void {
     const cron = this.cronJobs.get(id)
+
     if (cron) {
       cron.stop()
       this.cronJobs.delete(id)
       logger.debug('Unregistered cron', { id })
+
       return
     }
+
     const interval = this.intervalHandles.get(id)
+
     if (interval) {
       clearTimeout(interval.handle)
       this.intervalHandles.delete(id)
@@ -200,11 +219,15 @@ export class SchedulerService extends BaseService {
    */
   async triggerNow(id: string): Promise<boolean> {
     const cron = this.cronJobs.get(id)
+
     if (!cron) {
       logger.warn('triggerNow only supported for cron schedules', { id })
+
       return false
     }
+
     await cron.trigger()
+
     return true
   }
 
@@ -219,12 +242,16 @@ export class SchedulerService extends BaseService {
    */
   getNextRun(id: string): Date | null {
     const cron = this.cronJobs.get(id)
+
     if (cron) return cron.nextRun() ?? null
     const timeout = this.intervalHandles.get(id)
+
     if (timeout) {
       const nextRunAt = timeout.kind === 'interval' && timeout.running ? Date.now() + timeout.ms : timeout.nextRunAt
+
       return new Date(nextRunAt)
     }
+
     return null
   }
 
@@ -249,21 +276,25 @@ export class SchedulerService extends BaseService {
       },
       callback
     )
+
     this.cronJobs.set(id, job)
   }
 
   private scheduleOnce(id: string, atMs: number, callback: ScheduleCallback): void {
     const delay = Math.max(0, atMs - Date.now())
+
     const handle = setTimeout(async () => {
       // Self-clean before invoking so a re-entrant registerSchedule(id, ...)
       // from inside the callback can install a new entry without conflict.
       this.intervalHandles.delete(id)
+
       try {
         await callback()
       } catch (err) {
         logger.error('once-schedule callback error', { id, error: err })
       }
     }, delay)
+
     handle.unref?.()
     this.intervalHandles.set(id, { handle, kind: 'once', ms: delay, callback, nextRunAt: atMs, running: false })
   }
@@ -271,13 +302,16 @@ export class SchedulerService extends BaseService {
   private scheduleInterval(id: string, ms: number, callback: ScheduleCallback): void {
     const fire = async (): Promise<void> => {
       const entry = this.intervalHandles.get(id)
+
       if (!entry || entry.kind !== 'interval') return
       entry.running = true
+
       try {
         await callback()
       } catch (err) {
         logger.error('interval-schedule callback error', { id, error: err })
       }
+
       // Re-arm only when this exact entry still owns the id. unregister()
       // removes it, while a re-entrant registerSchedule(id, ...) replaces it.
       if (this.intervalHandles.get(id) !== entry) return
@@ -300,11 +334,14 @@ export class SchedulerService extends BaseService {
       job.stop()
       logger.debug('Stopped cron on shutdown', { id })
     }
+
     this.cronJobs.clear()
+
     for (const [id, entry] of this.intervalHandles) {
       clearTimeout(entry.handle)
       logger.debug('Cleared interval/once on shutdown', { id })
     }
+
     this.intervalHandles.clear()
   }
 }

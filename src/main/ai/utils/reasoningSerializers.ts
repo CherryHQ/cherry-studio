@@ -56,6 +56,7 @@ const OMIT: ResolvedReasoningInvocation = {
 // resulting kind is what the sampling gates read. 'default' asked for nothing and is ordinary traffic.
 function omit(reason: string, model: Model, selection: CanonicalReasoningSelection): ResolvedReasoningInvocation {
   if (selection !== 'default') logger.info(`Reasoning '${selection}' not sent for ${model.id}: ${reason}`)
+
   return { ...OMIT, selection }
 }
 
@@ -74,6 +75,7 @@ export function normalizeRequestedSelection(
   model: Model
 ): CanonicalReasoningSelection {
   if (selection !== 'auto') return selection
+
   return (model.reasoning?.selectableEfforts ?? []).includes(selection) ? selection : 'default'
 }
 
@@ -100,17 +102,21 @@ export function resolveSelection(
     if (model.userDefaultReasoningEffort === undefined) return 'default'
     selection = model.userDefaultReasoningEffort
   }
+
   const selectable = model.reasoning?.selectableEfforts ?? []
+
   if (selection === 'none') {
     return selectable.includes(selection) ? selection : undefined
   }
 
   const declared = declaredEfforts(model)
+
   // A cross-dialect request can still carry canonical `auto`; let the wire profile map it when the
   // target has adjustable effort tiers. {@link resolveModeEffort} holds that mapping to this set.
   if (selection === 'auto') {
     return selectable.includes(selection) || declared.length > 0 ? selection : undefined
   }
+
   if (declared.length === 0) return undefined
 
   return nearestThinkingOption(selection, declared)
@@ -121,9 +127,13 @@ function resolveMode(
   profile: ReasoningWireProfile
 ): ReasoningWireMode | undefined {
   if (profile.disabled) return undefined
+
   if (selection === 'default') return profile.default
+
   if (selection === 'none') return profile.off
+
   if (selection === 'auto') return profile.auto ?? profile.effort
+
   return profile.effort
 }
 
@@ -141,17 +151,20 @@ function resolveModeEffort(
 ): ReasoningEffort | undefined {
   if (selection === 'default' || selection === 'none') return undefined
   const mapped = mode.effortMap?.[selection] ?? selection
+
   if (selection !== 'auto') return mapped
 
   // A profile with no auto mode resolves to its effort one, which has no tier to stand for `auto`.
   // The model's own default is the only one; without it `auto` keeps its plain meaning — omit the
   // value and let the provider decide, rather than send the literal `auto` no vendor accepts.
   const tier = mapped === 'auto' ? model.reasoning?.defaultEffort : mapped
+
   if (tier === undefined || tier === 'auto') return undefined
 
   const declared = declaredEfforts(model)
   const projected = nearestThinkingOption(tier, declared)
   const nearest = declared.find((effort) => effort === projected)
+
   return nearest ? (mode.effortMap?.[nearest] ?? nearest) : tier
 }
 
@@ -167,6 +180,7 @@ function resolveModeBudget(
   if (budget === undefined && policy.missing.type === 'fallback') {
     budget = policy.missing.value
   }
+
   if (budget === undefined) return undefined
 
   if (policy.min !== undefined) {
@@ -177,6 +191,7 @@ function resolveModeBudget(
     const minimum = policy.min ?? 1024
     const outputLimit = maxTokens ?? DEFAULT_MAX_TOKENS
     const maximumBudget = outputLimit - 1
+
     if (maximumBudget < minimum) return null
     budget = Math.min(Math.max(minimum, budget), maximumBudget)
   }
@@ -186,17 +201,21 @@ function resolveModeBudget(
 
 export function resolveReasoningInvocation(input: ResolveReasoningInvocationInput): ResolvedReasoningInvocation {
   const requested = input.selection ?? 'default'
+
   if (!input.model.reasoning || input.profile.disabled) {
     return omit('the model declares no reasoning, or its profile is disabled', input.model, requested)
   }
 
   const selection = resolveSelection(input.selection, input.model)
+
   if (!selection) return omit('the model does not declare this effort', input.model, requested)
 
   const mode = resolveMode(selection, input.profile)
+
   if (!mode) return omit('the profile has no wire mode for this effort', input.model, selection)
 
   const effort = resolveModeEffort(selection, mode, input.model)
+
   const budgetTokens =
     'budget' in mode ? resolveModeBudget(selection, input.model, mode.budget, input.maxTokens) : undefined
 
@@ -212,8 +231,10 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
   }
 
   const emissions: ResolvedReasoningEmission[] = []
+
   for (const operation of mode.operations) {
     let value: string | number | boolean | undefined
+
     switch (operation.value.source) {
       case 'literal':
         value = operation.value.value
@@ -228,6 +249,7 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
         value = input.assistantSummary ?? undefined
         break
     }
+
     if (value !== undefined) emissions.push({ target: operation.target, value })
   }
 
@@ -251,12 +273,14 @@ function encodeEmissions(invocation: ResolvedReasoningInvocation): JSONObject {
   for (const emission of invocation.emissions) {
     const path = emission.target.split('.')
     let cursor = result
+
     for (let index = 0; index < path.length - 1; index += 1) {
       const key = path[index]
       cursor[key] ??= {}
       // SAFETY: Closed wire targets never use a leaf as another target's prefix; all prefixes are created above.
       cursor = cursor[key] as JSONObject
     }
+
     cursor[path[path.length - 1]] = emission.value
   }
 

@@ -58,13 +58,17 @@ interface MetadataRange {
 function readVarint(bytes: Uint8Array, start: number): { value: number; end: number } | undefined {
   let value = 0
   let shift = 1
+
   for (let cursor = start; cursor < bytes.length; cursor += 1) {
     const byte = bytes[cursor]
     value += (byte & 0x7f) * shift
+
     if ((byte & 0x80) === 0) return { value, end: cursor + 1 }
     shift *= 128
+
     if (shift > 2 ** 28) return undefined
   }
+
   return undefined
 }
 
@@ -77,27 +81,34 @@ function readVarint(bytes: Uint8Array, start: number): { value: number; end: num
 export function parseOnnxMetadataInt(tail: Buffer, key: string, range: MetadataRange): number | undefined {
   const keyBytes = Buffer.from(key, 'latin1')
   let valid: number | undefined
+
   for (let index = tail.indexOf(keyBytes); index !== -1; index = tail.indexOf(keyBytes, index + 1)) {
     if (tail[index + keyBytes.length] !== 0x12) continue
     const length = readVarint(tail, index + keyBytes.length + 1)
+
     if (!length || length.value === 0 || length.value > 9) continue
     const value = tail.subarray(length.end, length.end + length.value)
+
     if (value.length !== length.value || !value.every((byte) => byte >= 0x30 && byte <= 0x39)) continue
     const parsed = Number.parseInt(value.toString('latin1'), 10)
+
     if (parsed >= range.min && parsed <= range.max) valid = parsed
   }
+
   return valid
 }
 
 async function readMetadataTail(filePath: string): Promise<Buffer | undefined> {
   try {
     const handle = await open(filePath, 'r')
+
     try {
       const { size } = await handle.stat()
       const start = Math.max(0, size - METADATA_TAIL_BYTES)
       const length = size - start
       const tail = Buffer.alloc(length)
       const { bytesRead } = await handle.read(tail, 0, length, start)
+
       return tail.subarray(0, bytesRead)
     } finally {
       await handle.close()
@@ -120,10 +131,13 @@ export async function readFunAsrNanoLimits(
     readMetadataTail(modelPaths.llm),
     readMetadataTail(modelPaths.encoder)
   ])
+
   const maxTotalLen = llmTail ? parseOnnxMetadataInt(llmTail, 'max_total_len', { min: 64, max: 131_072 }) : undefined
+
   const lfrWindowShift = encoderTail
     ? parseOnnxMetadataInt(encoderTail, 'lfr_window_shift', { min: 1, max: 16 })
     : undefined
+
   return {
     maxTotalLen: maxTotalLen ?? FALLBACK_MAX_TOTAL_LEN,
     samplesPerAudioToken: Math.round(
@@ -142,5 +156,6 @@ export async function readFunAsrNanoLimits(
  */
 export function computeFunAsrNanoChunkSamples(limits: FunAsrNanoLimits): number {
   const audioTokenBudget = Math.max(8, limits.maxTotalLen - PROMPT_TOKEN_OVERHEAD - OUTPUT_TOKEN_RESERVE)
+
   return Math.max(limits.samplesPerAudioToken, audioTokenBudget * limits.samplesPerAudioToken)
 }

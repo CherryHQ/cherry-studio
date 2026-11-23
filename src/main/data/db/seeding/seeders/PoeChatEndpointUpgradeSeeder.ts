@@ -42,6 +42,7 @@ export class PoeChatEndpointUpgradeSeeder implements ISeeder {
         .from(userProviderTable)
         .where(and(eq(userProviderTable.providerId, 'poe'), isNull(userProviderTable.defaultChatEndpoint)))
         .get()
+
       if (!provider) return
 
       const models = tx
@@ -54,6 +55,7 @@ export class PoeChatEndpointUpgradeSeeder implements ISeeder {
           )
         )
         .all()
+
       for (const model of models) {
         if (model.endpointTypes?.length) continue
         tx.update(userModelTable)

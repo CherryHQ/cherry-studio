@@ -22,6 +22,7 @@ const meta: Meta<typeof EmptyState> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 const Surface = ({ children }: { children: React.ReactNode }) => (

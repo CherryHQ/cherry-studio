@@ -17,8 +17,10 @@ export function runExec(code: string, ctx: ExecRuntimeContext): Promise<ExecResu
     abortSignal: ctx.parentOptions.abortSignal,
     async executeTool(name, params, requestId, signal) {
       const entry = ctx.registry.getByName(name)
+
       if (!entry) throw new Error(`Tool not found: ${name}`)
       const execute = entry.tool.execute
+
       if (typeof execute !== 'function') throw new Error(`Tool ${name} has no execute handler`)
 
       // `tool_exec` cannot pause for an interactive approval card mid-loop. Refuse gated tools so

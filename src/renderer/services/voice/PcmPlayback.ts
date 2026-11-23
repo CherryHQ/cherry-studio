@@ -41,12 +41,16 @@ export class PcmPlayback extends EventTarget implements SpeechPlayback {
         event.attemptId !== identity.attemptId
       )
         return
+
       if (!this.node) {
         this.fail()
+
         return
       }
+
       const message: PcmProcessorInput =
         event.type === 'pcm' ? { type: 'pcm', ...event.chunk } : { type: 'end', frames: event.frames }
+
       this.node.port.postMessage(message)
     })
     this.ready = this.initialize(format, capacityFrames)
@@ -56,35 +60,46 @@ export class PcmPlayback extends EventTarget implements SpeechPlayback {
   private async initialize(format: SpeechPcmFormat, capacityFrames: number): Promise<void> {
     await this.context.suspend()
     const { default: processorUrl } = await import('./pcmPlaybackProcessor.ts?worker&url')
+
     if (this.stopped) return
     await this.context.audioWorklet.addModule(processorUrl)
+
     if (this.stopped) return
+
     if (this.context.sampleRate !== format.sampleRate) throw new Error('Unexpected PCM sample rate')
+
     const node = new AudioWorkletNode(this.context, 'cherry-pcm-playback', {
       numberOfInputs: 0,
       numberOfOutputs: 1,
       outputChannelCount: [format.channels],
       processorOptions: { channels: format.channels, capacityFrames }
     })
+
     this.node = node
     node.onprocessorerror = () => this.fail()
     node.port.onmessage = ({ data }: MessageEvent<PcmProcessorOutput>) => {
       if (this.stopped) return
+
       if (data.type === 'error') {
         this.fail()
+
         return
       }
+
       this.metrics.consumedFrames = data.frames
+
       if (data.type === 'consumed') {
         this.metrics.underruns = data.underruns
         this.metrics.peakFrames = data.peakFrames
       }
+
       void this.acknowledge()
         .then(() => {
           if (data.type === 'drained' && !this.stopped) this.waitForOutput(data.contextTime)
         })
         .catch(() => this.fail())
     }
+
     node.connect(this.analyser)
     this.analyser.connect(this.context.destination)
     await this.transport.attach(this.identity)
@@ -93,12 +108,14 @@ export class PcmPlayback extends EventTarget implements SpeechPlayback {
   async play(): Promise<void> {
     this.paused = false
     await this.ready
+
     if (!this.stopped && !this.paused) await this.context.resume()
   }
 
   async pause(): Promise<void> {
     this.paused = true
     await this.ready
+
     if (!this.stopped) await this.context.suspend()
   }
 
@@ -108,12 +125,15 @@ export class PcmPlayback extends EventTarget implements SpeechPlayback {
     clearTimeout(this.drainTimer)
     this.unsubscribe()
     this.node?.disconnect()
+
     if (this.node) {
       this.node.port.onmessage = null
       this.node.port.close()
       this.node.onprocessorerror = null
     }
+
     this.analyser.disconnect()
+
     return (this.closing = this.context.close())
   }
 
@@ -128,6 +148,7 @@ export class PcmPlayback extends EventTarget implements SpeechPlayback {
     })().finally(() => {
       this.acknowledging = undefined
     })
+
     return this.acknowledging
   }
 
@@ -139,6 +160,7 @@ export class PcmPlayback extends EventTarget implements SpeechPlayback {
 
   private waitForOutput(contextTime: number): void {
     if (this.stopped) return
+
     if (this.context.getOutputTimestamp().contextTime! >= contextTime) {
       this.dispatchEvent(new Event('ended'))
     } else {

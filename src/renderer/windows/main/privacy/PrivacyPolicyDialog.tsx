@@ -29,7 +29,9 @@ export function buildPrivacyPolicyUrl(resourcesPath: string, language: string, t
   const filePath = AbsoluteFilePathSchema.parse(
     joinPath(resourcesPath, `cherry-studio/${getPrivacyPolicyAsset(language)}`)
   )
+
   const themeName = theme === ThemeMode.dark ? 'dark' : 'light'
+
   return `${toFileUrl(filePath)}?theme=${themeName}`
 }
 
@@ -70,6 +72,7 @@ export function PrivacyPolicyDialog({
       })
       .catch((error) => {
         logger.error('Failed to load privacy policy resource', error as Error)
+
         if (!cancelled) {
           setLoadFailed(true)
         }

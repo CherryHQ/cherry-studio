@@ -24,6 +24,7 @@ function resolveCherryInContext(context?: CherryInOAuthContext) {
 
   const apiHost = context?.apiHost ?? oauthServer
   validateCherryInApiHost(apiHost)
+
   return { oauthServer, apiHost }
 }
 
@@ -40,9 +41,11 @@ async function fetchCherryInApiKeys(accessToken: string, apiHost: string): Promi
 
   const keysArray = ApiKeysResponseSchema.parse(await response.json())
   const apiKeys = keysArray.filter(Boolean).join(',')
+
   if (!apiKeys) {
     throw new OAuthServiceError('No API keys received')
   }
+
   return apiKeys
 }
 
@@ -60,6 +63,7 @@ export const cherryInOAuthProvider = {
   createClient: (context?: CherryInOAuthContext) => {
     const { oauthServer, apiHost } = resolveCherryInContext(context)
     const tokenHost = context?.oauthServer ?? apiHost
+
     return new PkceOAuthClient({
       clientId: CHERRYIN_CONFIG.CLIENT_ID,
       authorizeUrl: `${oauthServer}/oauth2/auth`,
@@ -70,6 +74,7 @@ export const cherryInOAuthProvider = {
   },
   afterPersistTokens: async (tokenData, context) => {
     const { apiHost } = resolveCherryInContext(context)
+
     return { apiKeys: await fetchCherryInApiKeys(tokenData.access_token, apiHost) }
   }
 } satisfies OAuthRuntimeProviderDefinition<CherryInOAuthContext, Pick<CherryInSignInResult, 'apiKeys'>>

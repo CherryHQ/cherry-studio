@@ -10,8 +10,10 @@ const logger = loggerService.withContext('selectionAction')
 export function parseSelectionActions(items: readonly SelectionActionItem[]): SelectionAction[] {
   return items.flatMap((item) => {
     const result = SelectionActionSchema.safeParse(item)
+
     if (result.success) return [result.data]
     logger.warn('Skipping an invalid selection action', { id: item.id, issues: result.error.issues })
+
     return []
   })
 }
@@ -19,7 +21,9 @@ export function parseSelectionActions(items: readonly SelectionActionItem[]): Se
 /** A custom action's prompt with the selection filled in: `{{text}}` marks its place, otherwise it follows the prompt. */
 export function expandSelectionPrompt(prompt: string | undefined, selectedText: string): string {
   if (!prompt) return selectedText
+
   if (prompt.includes('{{text}}')) return prompt.replaceAll('{{text}}', () => selectedText)
+
   return prompt + '\n\n' + selectedText
 }
 
@@ -40,6 +44,7 @@ export const SELECTION_AGENT_ISSUE_HINT_KEYS = {
 /** Why a resolved agent id cannot run: it no longer exists, or its model is unset or deleted. */
 export function getSelectionAgentIssue(agent: AgentEntity | undefined): SelectionActionAgentIssue | null {
   if (!agent) return 'agent_unavailable'
+
   // `modelName` is resolved at read time and is null once the model or its provider is deleted.
   return agent.model && agent.modelName ? null : 'no_model'
 }
@@ -62,9 +67,11 @@ export function getSelectionActionAgent(
 
   if (action.isBuiltIn && !action.agentId) {
     const agent = agents.find((candidate) => candidate.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT)
+
     return { agent, issue: agent ? getSelectionAgentIssue(agent) : null }
   }
 
   const agent = action.agentId ? agents.find((candidate) => candidate.id === action.agentId) : undefined
+
   return { agent, issue: getSelectionAgentIssue(agent) }
 }

@@ -61,6 +61,7 @@ export const ToC: React.FC<ToCProps> = ({ items = [], editor, scrollContainerRef
 
     // Recalculate on resize
     const resizeObserver = new ResizeObserver(calculateMaxItems)
+
     if (scrollContainerRef?.current) {
       resizeObserver.observe(scrollContainerRef.current)
     }
@@ -75,10 +76,12 @@ export const ToC: React.FC<ToCProps> = ({ items = [], editor, scrollContainerRef
       : (() => {
           const step = filteredItems.length / maxDisplayItems
           const sampled: TableOfContentDataItem[] = []
+
           for (let i = 0; i < maxDisplayItems; i++) {
             const index = Math.floor(i * step)
             sampled.push(filteredItems[index])
           }
+
           return sampled
         })()
 
@@ -91,6 +94,7 @@ export const ToC: React.FC<ToCProps> = ({ items = [], editor, scrollContainerRef
 
     if (editor && scrollContainerRef?.current) {
       const element = editor.view.dom.querySelector(`[data-toc-id="${id}"]`) as HTMLElement
+
       if (element) {
         const container = scrollContainerRef.current
         const pos = editor.view.posAtDOM(element, 0)

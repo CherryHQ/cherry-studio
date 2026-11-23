@@ -82,12 +82,15 @@ function buildTurnHandle(rootSpan: Span, meta: AiTurnTraceMeta): AiTurnTraceHand
         rootSpan.setStatus({ code: SpanStatusCode.ERROR, message: 'aborted' })
       } else {
         rootSpan.setStatus({ code: SpanStatusCode.ERROR, message: error?.message ?? 'error' })
+
         if (error) rootSpan.recordException(error)
       }
+
       rootSpan.end()
     },
     toAgentRuntimeTraceContext() {
       if (!meta.sessionId || !meta.turnId) return undefined
+
       return {
         topicId: meta.topicId,
         traceId: spanContext.traceId,
@@ -119,22 +122,27 @@ export function startTraceRootSpan(
         })
       )
     : tracer.startSpan(name, options)
+
   if (meta.topicId) span.setAttribute('trace.topicId', meta.topicId)
+
   if (meta.modelName) span.setAttribute('trace.modelName', meta.modelName)
 
   const originalEnd = span.end.bind(span)
   span.end = (endTime?: any) => {
     originalEnd(endTime)
+
     // With developer mode off there is no TracerProvider, so `startSpan`
     // returned the API's NonRecordingSpan — not a ReadableSpan, nothing to
     // convert or persist. Without this guard the convert below threw on
     // every turn end (`startTime[0]` of undefined) and warned each time.
     // (`isRecording()` can't discriminate: an ended SDK span reports false too.)
     if (!('startTime' in span)) return
+
     try {
       // SAFETY: the configured SDK tracer exposes these fields; the startTime guard excludes API no-op spans.
       const spanEntity = convertSpanToSpanEntity(span as Span & TraceSpanSnapshot)
       const attributes = { ...spanEntity.attributes }
+
       if (meta.modelName) Object.assign(attributes, { modelName: meta.modelName })
       observabilitySinks.writeSpanEntity({
         ...spanEntity,

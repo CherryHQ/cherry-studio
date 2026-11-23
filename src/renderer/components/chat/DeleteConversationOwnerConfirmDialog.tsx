@@ -32,6 +32,7 @@ function useDeletionConfirmGuard(
   const runConfirm = async (action: () => void | Promise<void>): Promise<false | void> => {
     if (submittingRef.current || pending) return false
     submittingRef.current = true
+
     try {
       await action()
       confirmedCloseRef.current = true
@@ -39,6 +40,7 @@ function useDeletionConfirmGuard(
       // ConfirmDialog keeps itself open when confirm returns false, so a later
       // Cancel or Escape must still reach onOpenChange.
       submittingRef.current = false
+
       return false
     }
   }
@@ -47,10 +49,12 @@ function useDeletionConfirmGuard(
     if (!next && !confirmedCloseRef.current && (pending || submittingRef.current)) return
 
     if (!next || !open) onReset?.()
+
     if (!next) {
       submittingRef.current = false
       confirmedCloseRef.current = false
     }
+
     onOpenChange(next)
   }
 
@@ -70,14 +74,17 @@ export function DeleteConversationOwnerConfirmDialog({
   const checkboxId = useId()
   const [archiveRelatedTopics, setArchiveRelatedTopics] = usePreference('assistant.archive.related_topics')
   const [deleteChildren, setDeleteChildren] = useState(false)
+
   const { runConfirm, handleOpenChange } = useDeletionConfirmGuard(open, pending, onOpenChange, () =>
     setDeleteChildren(false)
   )
+
   const permanent = mode === 'permanent'
   const displayName = name?.trim() || t('common.unnamed')
   // Permanent cascades stay unchecked and unsaved. Only assistant archive
   // reuses the remembered related-topics choice.
   const shouldDeleteChildren = type === 'assistant' && !permanent ? archiveRelatedTopics : deleteChildren
+
   const checkboxLabel = t(
     permanent
       ? type === 'agent'
@@ -87,6 +94,7 @@ export function DeleteConversationOwnerConfirmDialog({
         ? 'conversation_owner.archive.related_sessions'
         : 'conversation_owner.archive.related_topics'
   )
+
   const childrenHint = permanent
     ? t(
         type === 'agent'
@@ -138,10 +146,13 @@ export function DeleteConversationOwnerConfirmDialog({
               disabled={pending}
               onCheckedChange={(checked) => {
                 const next = checked === true
+
                 if (type === 'agent' || permanent) {
                   setDeleteChildren(next)
+
                   return
                 }
+
                 void setArchiveRelatedTopics(next).catch((error) => {
                   toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
                 })
@@ -236,6 +247,7 @@ function PopupContainer({
 
   const handleConfirm = async (deleteChildren: boolean) => {
     setPending(true)
+
     try {
       await action(deleteChildren)
     } catch (error) {
@@ -243,6 +255,7 @@ function PopupContainer({
       setPending(false)
       throw error
     }
+
     resolve(true)
   }
 
@@ -292,8 +305,10 @@ function PermanentDeletePopupContainer(props: PermanentDeletePopupParams & Popup
     if (submittingRef.current) {
       throw new Error('Permanent delete confirmation is already submitting')
     }
+
     submittingRef.current = true
     setPending(true)
+
     try {
       await action()
     } catch (error) {
@@ -302,6 +317,7 @@ function PermanentDeletePopupContainer(props: PermanentDeletePopupParams & Popup
       setPending(false)
       throw error
     }
+
     resolve(true)
   }
 

@@ -101,6 +101,7 @@ export default openaiCompatible({
   },
   overrides: moonshotOverrides.map((override) => {
     const pricing = K31_CN_PRICING.get(override.apiModelId)
+
     return pricing ? { ...override, pricing } : override
   })
 })

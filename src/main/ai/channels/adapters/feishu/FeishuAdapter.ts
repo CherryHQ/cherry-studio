@@ -38,6 +38,7 @@ function resolveDomain(domain: FeishuDomain): Lark.Domain {
 
 function replyOptions(opts?: SendMessageOptions) {
   const replyTo = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
+
   return replyTo ? { replyTo, ...(opts?.replyInThread && { replyInThread: true }) } : undefined
 }
 
@@ -48,35 +49,48 @@ function splitThreadMarkdown(text: string): string[] {
   const contentLimit = FEISHU_MAX_LENGTH - 8
   const rawChunks: string[] = []
   let remaining = text
+
   while (remaining.length > contentLimit) {
     let splitIndex = remaining.lastIndexOf('\n\n', contentLimit - 2)
+
     if (splitIndex >= 0) splitIndex += 2
+
     if (splitIndex <= 0) {
       splitIndex = remaining.lastIndexOf('\n', contentLimit - 1)
+
       if (splitIndex >= 0) splitIndex += 1
     }
+
     if (splitIndex <= 0) {
       splitIndex = remaining.lastIndexOf(' ', contentLimit - 1)
+
       if (splitIndex >= 0) splitIndex += 1
     }
+
     if (splitIndex <= 0) splitIndex = clampSurrogateBoundary(remaining, contentLimit)
     rawChunks.push(remaining.slice(0, splitIndex))
     remaining = remaining.slice(splitIndex)
   }
+
   rawChunks.push(remaining)
 
   let fenceLanguage: string | null = null
+
   return rawChunks.map((chunk) => {
     const incomingFenceLanguage = fenceLanguage
+
     for (const line of chunk.split('\n')) {
       const match = /^```(\w*)\r?$/.exec(line)
+
       if (match) fenceLanguage = fenceLanguage === null ? match[1] : null
     }
 
     const suffix = fenceLanguage === null ? '' : chunk.endsWith('\n') ? '```' : '\n```'
     const preferredPrefix = incomingFenceLanguage === null ? '' : `\`\`\`${incomingFenceLanguage}\n`
+
     const prefix =
       preferredPrefix.length <= FEISHU_MAX_LENGTH - chunk.length - suffix.length ? preferredPrefix : '```\n'
+
     return `${prefix}${chunk}${suffix}`
   })
 }
@@ -112,12 +126,14 @@ class FeishuStreamSession {
 
   async update(text: string): Promise<void> {
     if (this.disposed) return
+
     const controller = await Promise.race([
       this.controllerReady,
       this.stream.then(() => {
         throw new Error('Feishu stream completed before its controller became ready')
       })
     ])
+
     if (this.disposed) return
     this.currentText = text
     await controller.setContent(text)
@@ -129,11 +145,13 @@ class FeishuStreamSession {
     } finally {
       this.resolveCompletion()
     }
+
     await this.stream
   }
 
   async error(message: string): Promise<void> {
     const displayText = this.currentText ? `${this.currentText}\n\n---\n**Error**: ${message}` : `**Error**: ${message}`
+
     try {
       await this.update(displayText)
     } catch {
@@ -141,6 +159,7 @@ class FeishuStreamSession {
     } finally {
       this.resolveCompletion()
     }
+
     await this.stream.catch(() => undefined)
   }
 
@@ -177,8 +196,10 @@ class FeishuAdapter extends ChannelAdapter {
 
   constructor(config: ChannelAdapterConfig<'feishu'>) {
     super(config)
+
     const { app_id, app_secret, encrypt_key, verification_token, allowed_chat_ids, domain, mention_only } =
       config.channelConfig
+
     this.appId = app_id
     this.appSecret = app_secret
     this.encryptKey = encrypt_key
@@ -200,6 +221,7 @@ class FeishuAdapter extends ChannelAdapter {
 
     if (!this.appId || !this.appSecret) {
       this.startRegistrationInBackground(signal)
+
       return
     }
 
@@ -239,10 +261,12 @@ class FeishuAdapter extends ChannelAdapter {
       outbound: { textChunkLimit: FEISHU_MAX_LENGTH },
       wsConfig: { pingTimeout: FEISHU_PING_TIMEOUT_SECONDS }
     })
+
     this.channel = channel
 
     let active = true
     const isCurrent = () => active && this.channel === channel && !signal.aborted && !this.shouldStop
+
     const unsubscribe = channel.on({
       message: (message) => {
         if (!isCurrent()) return
@@ -266,6 +290,7 @@ class FeishuAdapter extends ChannelAdapter {
       reject: (event) => {
         if (!isCurrent()) return
         this.log.warn('Feishu message rejected', { chatId: event.chatId, reason: event.reason })
+
         if (event.reason === 'no_mention' || event.reason === 'mention_all_blocked') return
         this.notifyDrop(event.chatId)
       },
@@ -284,18 +309,22 @@ class FeishuAdapter extends ChannelAdapter {
       await channel.connect()
     } catch (error) {
       const wasCurrent = this.channel === channel
+
       if (wasCurrent) this.channel = null
       await this.disconnectChannel(channel)
+
       if (signal.aborted || this.shouldStop || !wasCurrent || this.channel) return
       const message = `Feishu WebSocket connection failed: ${error instanceof Error ? error.message : String(error)}`
       this.log.error(message)
       this.markDisconnected(message)
       this.scheduleReconnect()
+
       return
     }
 
     if (signal.aborted || this.shouldStop || this.channel !== channel) {
       await this.disconnectChannel(channel)
+
       return
     }
 
@@ -306,10 +335,12 @@ class FeishuAdapter extends ChannelAdapter {
 
   private scheduleReconnect(): void {
     const signal = this.connectSignal
+
     if (this.shouldStop || this.reconnectTimer || !signal || signal.aborted) return
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       this.log.error('Feishu max reconnect attempts reached, giving up')
+
       return
     }
 
@@ -320,6 +351,7 @@ class FeishuAdapter extends ChannelAdapter {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       const retrySignal = this.connectSignal
+
       if (this.shouldStop || !retrySignal || retrySignal.aborted) return
       void this.startChannel(retrySignal).catch((error) => {
         const msg = error instanceof Error ? error.message : String(error)
@@ -347,6 +379,7 @@ class FeishuAdapter extends ChannelAdapter {
         if (signal.aborted) return
         this.emit('qr', verificationUri)
         this.sendQrToRenderer(verificationUri, 'pending')
+
         return registrationPoll(this.domain, deviceCode, { interval, expiresIn, signal })
       })
       .then((result) => {
@@ -390,9 +423,11 @@ class FeishuAdapter extends ChannelAdapter {
 
     const channel = this.channel
     this.channel = null
+
     if (channel) {
       await this.disconnectChannel(channel)
     }
+
     this.sendQrToRenderer('', 'disconnected')
     this.log.info('Feishu bot stopped')
   }
@@ -402,8 +437,10 @@ class FeishuAdapter extends ChannelAdapter {
       await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
       this.chatReactions.delete(this.responseKey(chatId, opts))
     }
+
     const options = replyOptions(opts)
     const messages = opts?.replyInThread && options ? splitThreadMarkdown(text) : [text]
+
     for (const message of messages) {
       await this.getChannel().send(chatId, { markdown: message }, options)
     }
@@ -411,11 +448,13 @@ class FeishuAdapter extends ChannelAdapter {
 
   override async sendFile(chatId: string, file: FileAttachment): Promise<void> {
     const source = Buffer.from(file.data, 'base64')
+
     if (file.media_type.startsWith('image/')) {
       await this.getChannel().send(chatId, { image: { source } })
     } else {
       await this.getChannel().send(chatId, { file: { source, fileName: file.filename } })
     }
+
     this.log.info('Sent file', { chatId, filename: file.filename, size: file.size, mediaType: file.media_type })
   }
 
@@ -430,11 +469,14 @@ class FeishuAdapter extends ChannelAdapter {
 
   private async setChatReaction(chatId: string, emoji: string, opts?: SendMessageOptions): Promise<void> {
     const messageId = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
+
     if (!messageId || !this.channel) return
 
     const reactionKey = this.responseKey(chatId, opts)
     const existing = this.chatReactions.get(reactionKey)
+
     if (existing?.messageId === messageId && existing.emoji === emoji) return
+
     if (existing) await this.clearChatReaction(reactionKey)
 
     try {
@@ -457,13 +499,16 @@ class FeishuAdapter extends ChannelAdapter {
     opts?: SendMessageOptions
   ): Promise<void> {
     const existing = this.chatReactions.get(this.responseKey(chatId, opts))
+
     if (existing && from.includes(existing.emoji)) await this.setChatReaction(chatId, emoji, opts)
   }
 
   private async clearChatReaction(reactionKey: string): Promise<void> {
     const reaction = this.chatReactions.get(reactionKey)
+
     if (!reaction) return
     this.chatReactions.delete(reactionKey)
+
     if (!this.channel) return
 
     try {
@@ -479,29 +524,37 @@ class FeishuAdapter extends ChannelAdapter {
   override async onTextUpdate(chatId: string, fullText: string, opts?: SendMessageOptions): Promise<void> {
     const streamKey = this.responseKey(chatId, opts)
     let stream = this.streams.get(streamKey)
+
     if (!stream) {
       stream = new FeishuStreamSession(this.getChannel(), chatId, opts)
       this.streams.set(streamKey, stream)
     }
+
     await stream.update(fullText)
   }
 
   override async onStreamComplete(chatId: string, finalText: string, opts?: SendMessageOptions): Promise<boolean> {
     const streamKey = this.responseKey(chatId, opts)
+
     if (opts?.replyToMessageId) {
       await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
       this.chatReactions.delete(streamKey)
     }
+
     const stream = this.streams.get(streamKey)
+
     if (!stream) return false
+
     try {
       await stream.complete(finalText)
+
       return true
     } catch (error) {
       this.log.warn('Failed to finalize Feishu stream, falling back to a message', {
         chatId,
         error: error instanceof Error ? error.message : String(error)
       })
+
       return false
     } finally {
       this.streams.delete(streamKey)
@@ -519,37 +572,48 @@ class FeishuAdapter extends ChannelAdapter {
       this.streams.get(key)?.dispose()
       this.streams.delete(key)
       await this.clearChatReaction(key)
+
       return true
     }
+
     const streamKey = this.responseKey(chatId, opts)
+
     if (opts?.replyToMessageId) {
       await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE], opts)
       this.chatReactions.delete(streamKey)
     }
+
     const stream = this.streams.get(streamKey)
+
     if (stream) {
       try {
         await stream.error(error)
       } finally {
         this.streams.delete(streamKey)
       }
+
       return true
     }
+
     await this.getChannel().send(chatId, { markdown: `**Error**: ${error}` }, replyOptions(opts))
+
     return true
   }
 
   private async handleMessage(message: Lark.NormalizedMessage, isCurrent: () => boolean): Promise<void> {
     if (!isCurrent()) return
+
     if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(message.chatId)) {
       this.log.warn('Dropping message from unauthorized chat', { chatId: message.chatId })
       this.notifyDrop(message.chatId)
+
       return
     }
 
     const text = message.content.trim()
     const conversationId = message.threadId
     const conversation = conversationId ? { conversationId: `thread:${conversationId}`, replyInThread: true } : {}
+
     if (isSlashCommand(text)) {
       const parts = text.split(/\s+/)
       this.emit('command', {
@@ -561,15 +625,20 @@ class FeishuAdapter extends ChannelAdapter {
         command: parts[0].slice(1).toLowerCase() as 'new' | 'compact' | 'help' | 'whoami',
         args: parts.slice(1).join(' ') || undefined
       })
+
       return
     }
 
     const { images, files } = await this.downloadResources(message)
+
     if (!isCurrent()) return
+
     if (!text && images.length === 0 && files.length === 0) {
       this.log.warn('Dropping message with no text and no resources', { chatId: message.chatId })
+
       return
     }
+
     const incoming: ChannelMessageEvent = {
       chatId: message.chatId,
       ...conversation,
@@ -578,7 +647,9 @@ class FeishuAdapter extends ChannelAdapter {
       messageId: message.messageId,
       text
     }
+
     if (images.length > 0) incoming.images = images
+
     if (files.length > 0) incoming.files = files
     this.emit('message', incoming)
   }
@@ -594,26 +665,34 @@ class FeishuAdapter extends ChannelAdapter {
         this.log.debug('Skipping unsupported Feishu sticker resource', { fileKey: resource.fileKey })
         continue
       }
+
       try {
         const resourceResponse = await this.getChannel().rawClient.im.v1.messageResource.get({
           path: { message_id: message.messageId, file_key: resource.fileKey },
           params: { type: resource.type === 'image' ? 'image' : 'file' }
         })
+
         const chunks: Buffer[] = []
         let size = 0
+
         for await (const chunk of resourceResponse.getReadableStream()) {
           const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
           size += buffer.length
+
           if (size > MAX_FILE_SIZE_BYTES) {
             this.log.warn('Feishu resource too large', { fileKey: resource.fileKey, size })
             break
           }
+
           chunks.push(buffer)
         }
+
         const buffer = Buffer.concat(chunks)
+
         if (size > MAX_FILE_SIZE_BYTES) continue
 
         const detected = await fileTypeFromBuffer(buffer)
+
         if (resource.type === 'image') {
           images.push({ data: buffer.toString('base64'), media_type: detected?.mime ?? 'image/png' })
           continue
@@ -642,15 +721,21 @@ class FeishuAdapter extends ChannelAdapter {
   private shouldNotifyDrop(chatId: string): boolean {
     const now = Date.now()
     const last = this.lastDropNotificationAt.get(chatId) ?? 0
+
     if (now - last < FeishuAdapter.DROP_NOTIFICATION_COOLDOWN_MS) {
       this.log.debug('Suppressing duplicate drop notification', { chatId })
+
       return false
     }
+
     this.lastDropNotificationAt.set(chatId, now)
+
     if (this.lastDropNotificationAt.size > 1000) {
       const oldest = [...this.lastDropNotificationAt.entries()].sort((a, b) => a[1] - b[1]).slice(0, 500)
+
       for (const [key] of oldest) this.lastDropNotificationAt.delete(key)
     }
+
     return true
   }
 
@@ -666,6 +751,7 @@ class FeishuAdapter extends ChannelAdapter {
 
   private getChannel(): Lark.LarkChannel {
     if (!this.channel) throw new Error('Feishu channel is not connected')
+
     return this.channel
   }
 

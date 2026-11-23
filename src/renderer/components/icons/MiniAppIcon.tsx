@@ -37,6 +37,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
         />
       )
     }
+
     if (appearance === 'sidebar') {
       const displayConfig = getIconDisplayConfig('mini-app', logoRef.meta.id)
       const iconScale = displayConfig?.scale ?? 1
@@ -54,12 +55,15 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
         </span>
       )
     }
+
     if (appearance === 'plain' || appearance === 'bare') {
       const displayConfig = getIconDisplayConfig('mini-app', logoRef.meta.id)
+
       const metrics =
         appearance === 'bare' && artworkSize !== undefined
           ? getProviderIconAssetMetrics({ kind: logoRef.kind, iconId: logoRef.meta.id })
           : undefined
+
       const iconSize =
         metrics && artworkSize !== undefined ? artworkSize * metrics.canvasScale : size * (displayConfig?.scale ?? 1)
 
@@ -106,6 +110,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
         />
       )
     }
+
     if (appearance === 'sidebar') {
       return (
         <span

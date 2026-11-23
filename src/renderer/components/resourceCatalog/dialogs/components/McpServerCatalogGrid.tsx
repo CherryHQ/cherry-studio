@@ -62,12 +62,15 @@ export function McpServerCatalogGrid({
 }) {
   const { t } = useTranslation()
   const { data, isLoading } = useQuery('/mcp-servers', {})
+
   const mcpServers = useMemo<McpServer[]>(
     () => data?.items.filter((server) => !isBrowserMcpServer(server)) ?? [],
     [data]
   )
+
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
   const settingsLabel = title ? `${title} ${t('settings.title')}` : t('settings.mcp.title')
+
   const catalog = useMemo<CatalogItem[]>(
     () =>
       mcpServers.map((server) => {

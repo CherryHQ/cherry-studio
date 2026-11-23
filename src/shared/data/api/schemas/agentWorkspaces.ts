@@ -5,11 +5,14 @@ import type { OrderEndpoints } from './_endpointHelpers'
 export const AgentWorkspaceNameSchema = z.string().trim().min(1)
 export const AgentWorkspacePathSchema = z.string().min(1)
 export const AGENT_WORKSPACE_TYPES = ['user', 'system'] as const
+
 export type AgentWorkspaceType = (typeof AGENT_WORKSPACE_TYPES)[number]
+
 export const AGENT_WORKSPACE_TYPE = {
   USER: 'user',
   SYSTEM: 'system'
 } as const satisfies Record<string, AgentWorkspaceType>
+
 export const AgentWorkspaceTypeSchema = z.enum(AGENT_WORKSPACE_TYPES)
 
 export const AgentSessionWorkspaceSourceSchema = z.discriminatedUnion('type', [
@@ -21,6 +24,7 @@ export const AgentSessionWorkspaceSourceSchema = z.discriminatedUnion('type', [
     type: z.literal('system')
   })
 ])
+
 export type AgentSessionWorkspaceSource = z.infer<typeof AgentSessionWorkspaceSourceSchema>
 
 export const AgentWorkspaceEntitySchema = z.strictObject({
@@ -32,9 +36,11 @@ export const AgentWorkspaceEntitySchema = z.strictObject({
   createdAt: z.string(),
   updatedAt: z.string()
 })
+
 export type AgentWorkspaceEntity = z.infer<typeof AgentWorkspaceEntitySchema>
 
 export const UpdateAgentWorkspaceSchema = AgentWorkspaceEntitySchema.pick({ name: true })
+
 export type UpdateAgentWorkspaceDto = z.infer<typeof UpdateAgentWorkspaceSchema>
 
 export interface AgentWorkspaceReferenceItem {

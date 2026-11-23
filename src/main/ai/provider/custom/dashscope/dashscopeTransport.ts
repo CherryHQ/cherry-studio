@@ -36,6 +36,7 @@ export const DEFAULT_DASHSCOPE_IMAGE_BASE_URL = 'https://maas.qianwenaiapi.com'
 // undici abandons response headers after 300s, below a sync image model's submit budget;
 // an injected fetch has no such bound, so this only backs the global-fetch fallback.
 const REQUEST_DISPATCHER_TIMEOUT_MS = 15 * 60 * 1000
+
 const longRunningDispatcher = new Agent({
   headersTimeout: REQUEST_DISPATCHER_TIMEOUT_MS,
   bodyTimeout: REQUEST_DISPATCHER_TIMEOUT_MS
@@ -133,12 +134,15 @@ type ResponseFamily = 'choices' | 'results' | 'image_url'
 
 function responseFamilyFor(descriptor: DashScopeModelDescriptor): ResponseFamily {
   const path = descriptor.endpoint
+
   if (path.endsWith('/image-generation/generation') || path.endsWith('/multimodal-generation/generation')) {
     return 'choices'
   }
+
   if (descriptor.id === 'qwen-mt-image') {
     return 'image_url'
   }
+
   return 'results'
 }
 
@@ -166,9 +170,13 @@ function extractImageUrls(output: DashScopeTaskOutput, family: ResponseFamily): 
 function toDashScopeSize(size: ImageGenerationSubmitInput['size']): string | undefined {
   if (!size) return undefined
   const value = String(size)
+
   if (value === 'auto') return undefined
+
   if (/^\d+\*\d+$/.test(value)) return value
+
   if (/^\d+x\d+$/i.test(value)) return value.replace(/x/i, '*')
+
   return undefined
 }
 
@@ -181,6 +189,7 @@ function resolveSizeParameter(input: ImageGenerationSubmitInput, bag: DashScopeP
   if (typeof bag.imageResolution === 'string' && bag.imageResolution) {
     return bag.imageResolution
   }
+
   return toDashScopeSize(input.size)
 }
 
@@ -190,15 +199,22 @@ function resolveSizeParameter(input: ImageGenerationSubmitInput, bag: DashScopeP
  */
 function buildText2ImageBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams) {
   const inputBlock: JSONObject = {}
+
   if (input.prompt) inputBlock.prompt = input.prompt
+
   if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
 
   const parameters: JSONObject = {}
   const sizeWire = resolveSizeParameter(input, bag)
+
   if (sizeWire) parameters.size = sizeWire
+
   if (input.n && input.n > 1) parameters.n = input.n
+
   if (typeof input.seed === 'number') parameters.seed = input.seed
+
   if (bag.promptExtend !== undefined) parameters.prompt_extend = bag.promptExtend
+
   if (bag.addWatermark !== undefined) parameters.watermark = bag.addWatermark
 
   return {
@@ -220,18 +236,28 @@ function buildText2ImageBody(input: ImageGenerationSubmitInput, bag: DashScopePr
  */
 function buildChatLikeBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams) {
   const content: Array<{ text?: string; image?: string }> = []
+
   if (input.prompt) content.push({ text: input.prompt })
+
   for (const file of input.files ?? []) content.push({ image: fileToDataUrl(file) })
 
   const parameters: JSONObject = {}
   const sizeWire = resolveSizeParameter(input, bag)
+
   if (sizeWire) parameters.size = sizeWire
+
   if (input.n && input.n > 1) parameters.n = input.n
+
   if (typeof input.seed === 'number') parameters.seed = input.seed
+
   if (bag.negativePrompt) parameters.negative_prompt = bag.negativePrompt
+
   if (bag.promptExtend !== undefined) parameters.prompt_extend = bag.promptExtend
+
   if (bag.thinkingMode !== undefined) parameters.thinking_mode = bag.thinkingMode
+
   if (bag.enableInterleave !== undefined) parameters.enable_interleave = bag.enableInterleave
+
   if (bag.addWatermark !== undefined) parameters.watermark = bag.addWatermark
 
   return {
@@ -248,18 +274,27 @@ function buildChatLikeBody(input: ImageGenerationSubmitInput, bag: DashScopeProv
  */
 function buildWanxV1Body(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams) {
   const inputBlock: JSONObject = {}
+
   if (input.prompt) inputBlock.prompt = input.prompt
+
   if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
   const refFile = input.files?.[0]
+
   if (refFile) inputBlock.ref_image = fileToDataUrl(refFile)
 
   const parameters: JSONObject = {}
   const sizeWire = resolveSizeParameter(input, bag)
+
   if (sizeWire) parameters.size = sizeWire
+
   if (input.n && input.n > 1) parameters.n = input.n
+
   if (typeof input.seed === 'number') parameters.seed = input.seed
+
   if (bag.style) parameters.style = bag.style
+
   if (typeof bag.refStrength === 'number') parameters.ref_strength = bag.refStrength
+
   if (bag.refMode) parameters.ref_mode = bag.refMode
 
   return {
@@ -275,18 +310,26 @@ function buildWanxV1Body(input: ImageGenerationSubmitInput, bag: DashScopeProvid
  */
 function buildWan25I2IBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams) {
   const inputBlock: JSONObject = {}
+
   if (input.prompt) inputBlock.prompt = input.prompt
+
   if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
+
   if (input.files && input.files.length > 0) {
     inputBlock.images = input.files.map((f) => fileToDataUrl(f))
   }
 
   const parameters: JSONObject = {}
   const sizeWire = resolveSizeParameter(input, bag)
+
   if (sizeWire) parameters.size = sizeWire
+
   if (input.n && input.n > 1) parameters.n = input.n
+
   if (typeof input.seed === 'number') parameters.seed = input.seed
+
   if (bag.promptExtend !== undefined) parameters.prompt_extend = bag.promptExtend
+
   if (bag.addWatermark !== undefined) parameters.watermark = bag.addWatermark
 
   return {
@@ -304,9 +347,13 @@ function buildWan25I2IBody(input: ImageGenerationSubmitInput, bag: DashScopeProv
 function buildQwenMtImageBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams) {
   const inputBlock: JSONObject = {}
   const firstFile = input.files?.[0]
+
   if (firstFile) inputBlock.image_url = fileToDataUrl(firstFile)
+
   if (bag.sourceLang) inputBlock.source_lang = bag.sourceLang
+
   if (bag.targetLang) inputBlock.target_lang = bag.targetLang
+
   return { model: input.modelId, input: inputBlock }
 }
 
@@ -319,22 +366,36 @@ function buildQwenMtImageBody(input: ImageGenerationSubmitInput, bag: DashScopeP
  */
 function buildWanxImageEditBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams) {
   const inputBlock: JSONObject = {}
+
   if (bag.function) inputBlock.function = bag.function
+
   if (input.prompt) inputBlock.prompt = input.prompt
   const baseFile = input.files?.[0]
+
   if (baseFile) inputBlock.base_image_url = fileToDataUrl(baseFile)
+
   if (input.mask) inputBlock.mask_image_url = fileToDataUrl(input.mask)
 
   const parameters: JSONObject = {}
+
   if (input.n && input.n > 1) parameters.n = input.n
+
   if (typeof input.seed === 'number') parameters.seed = input.seed
+
   if (bag.addWatermark !== undefined) parameters.watermark = bag.addWatermark
+
   if (typeof bag.strength === 'number') parameters.strength = bag.strength
+
   if (typeof bag.upscaleFactor === 'number') parameters.upscale_factor = bag.upscaleFactor
+
   if (typeof bag.topScale === 'number') parameters.top_scale = bag.topScale
+
   if (typeof bag.bottomScale === 'number') parameters.bottom_scale = bag.bottomScale
+
   if (typeof bag.leftScale === 'number') parameters.left_scale = bag.leftScale
+
   if (typeof bag.rightScale === 'number') parameters.right_scale = bag.rightScale
+
   if (bag.isSketch !== undefined) parameters.is_sketch = bag.isSketch
 
   return {
@@ -346,6 +407,7 @@ function buildWanxImageEditBody(input: ImageGenerationSubmitInput, bag: DashScop
 
 function buildRequestBody(input: ImageGenerationSubmitInput, descriptor: DashScopeModelDescriptor): JSONObject {
   const bag = (input.providerParams ?? {}) as DashScopeProviderParams
+
   // Descriptor ids arrive in both shapes: the catalog's canonical `modelId` (no dots,
   // what built-in listings resolve to) and the vendor `apiModelId` (what manually
   // added models keep). List both per body family.
@@ -404,6 +466,7 @@ class DashScopeTransport implements ImageGenerationTransport {
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const descriptor = input.modelDescriptor
+
     if (!descriptor) {
       throw new Error(`Missing modelDescriptor for DashScope model: ${input.modelId}`)
     }
@@ -422,10 +485,13 @@ class DashScopeTransport implements ImageGenerationTransport {
     }
 
     const taskId = response.output.task_id
+
     if (!taskId) {
       throw new DashScopeApiError('DashScope async submit returned no task_id', 0)
     }
+
     this.pendingDescriptors.set(taskId, descriptor)
+
     return { taskId }
   }
 
@@ -442,9 +508,11 @@ class DashScopeTransport implements ImageGenerationTransport {
     // descriptor persisted in the job input so the response family is still
     // resolved correctly instead of defaulting to `results`.
     const descriptor = this.pendingDescriptors.get(taskId) ?? options.modelDescriptor
+
     try {
       const result = await this.pollTaskResult(taskId, options)
       const family = descriptor ? responseFamilyFor(descriptor) : 'results'
+
       return extractImageUrls(result.output, family)
     } finally {
       this.pendingDescriptors.delete(taskId)
@@ -487,9 +555,12 @@ class DashScopeTransport implements ImageGenerationTransport {
           undefined,
           { timeout: 10000, signal }
         )
+
         transientRetries = 0
         const status = result.output.task_status
+
         if (status === 'SUCCEEDED') return result
+
         if (status === 'FAILED' || status === 'CANCELED' || status === 'UNKNOWN') {
           throw new DashScopeTaskFailedError(result.output.message || `DashScope task ${status.toLowerCase()}`)
         }
@@ -497,15 +568,19 @@ class DashScopeTransport implements ImageGenerationTransport {
         if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
           throw createAbortError('Task polling aborted')
         }
+
         // A terminal vendor failure or a 4xx (bar 429) poll response ends the
         // loop; 5xx / 429 fall through to transient retry.
         if (error instanceof DashScopeTaskFailedError) throw error
+
         if (error instanceof DashScopeApiError && isTerminalHttpStatus(error.statusCode)) throw error
 
         transientRetries++
+
         if (transientRetries >= maxTransientRetries) {
           throw error instanceof Error ? error : new Error(String(error))
         }
+
         const elapsedTime = Date.now() - startTime
         const pollDelay = interval ?? (elapsedTime < 60000 ? 3000 : 10000)
         await waitWithSignal(pollDelay, signal)
@@ -533,10 +608,12 @@ class DashScopeTransport implements ImageGenerationTransport {
     let externallyAborted = false
 
     const timeoutId = setTimeout(() => controller.abort(), timeout)
+
     const onExternalAbort = () => {
       externallyAborted = true
       controller.abort()
     }
+
     if (externalSignal?.aborted) {
       externallyAborted = true
       controller.abort()
@@ -554,23 +631,28 @@ class DashScopeTransport implements ImageGenerationTransport {
       },
       signal: controller.signal
     }
+
     if (method === 'POST' && body !== undefined) {
       fetchOptions.body = JSON.stringify(body)
     }
+
     if (!this.fetch) fetchOptions.dispatcher = longRunningDispatcher
 
     try {
       const response = await (this.fetch ?? fetch)(`${this.baseURL}${path}`, fetchOptions)
+
       if (!response.ok) {
         const errorText = (await response.text().catch(() => '')).slice(0, 500)
         throw new DashScopeApiError(`DashScope API error: ${response.status} - ${errorText}`, response.status)
       }
+
       return (await response.json()) as T
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         if (externallyAborted) throw createAbortError('DashScope API request aborted')
         throw new Error(`DashScope API request timeout after ${timeout / 1000}s`)
       }
+
       throw error
     } finally {
       clearTimeout(timeoutId)

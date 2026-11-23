@@ -12,6 +12,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
+
 const ExportMenuOptions: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()

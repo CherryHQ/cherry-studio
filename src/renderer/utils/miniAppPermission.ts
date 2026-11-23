@@ -29,16 +29,19 @@ const NAMESPACE_ORDER = ['ai', 'network', 'clipboard', 'file', 'storage', 'notif
 
 const namespaceRank = (namespace: string): number => {
   const index = NAMESPACE_ORDER.indexOf(namespace)
+
   return index === -1 ? NAMESPACE_ORDER.length : index
 }
 
 /** Namespaces in `NAMESPACE_ORDER` (unknown ones last, first-seen), leaves in the order given. */
 export function groupPermissionsByNamespace(keys: readonly string[]): Array<{ namespace: string; leaves: string[] }> {
   const groups = new Map<string, string[]>()
+
   for (const key of keys) {
     const namespace = permissionNamespaceOf(key)
     groups.set(namespace, [...(groups.get(namespace) ?? []), key])
   }
+
   return [...groups]
     .map(([namespace, leaves]) => ({ namespace, leaves }))
     .sort((a, b) => namespaceRank(a.namespace) - namespaceRank(b.namespace))

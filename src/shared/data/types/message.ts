@@ -31,6 +31,7 @@ import type { CherryDataPartTypes } from './uiParts'
  * incoming IDs with `MessageIdSchema.parse()` to reject non-UUID strings.
  */
 export const MessageIdSchema = z.uuid()
+
 export type MessageId = z.infer<typeof MessageIdSchema>
 
 /**
@@ -46,6 +47,7 @@ const MessageProviderPerformanceSchema = z.strictObject({
   measuredOutputTokens: z.number().nonnegative(),
   generationDurationMs: z.number().nonnegative()
 })
+
 export type MessageProviderPerformance = z.infer<typeof MessageProviderPerformanceSchema>
 
 const MessageRuntimeToolExecutionSpanSchema = z.strictObject({
@@ -74,7 +76,9 @@ export const MessageRuntimeTimingSchema = z.strictObject({
     z.discriminatedUnion('kind', [MessageRuntimeToolExecutionSpanSchema, MessageRuntimeApprovalWaitSpanSchema])
   )
 })
+
 export type MessageRuntimeTiming = z.infer<typeof MessageRuntimeTimingSchema>
+
 export type MessageRuntimeSpan = MessageRuntimeTiming['spans'][number]
 
 export const MessageStatsSchema = z.strictObject({
@@ -130,7 +134,9 @@ export const MessageStatsSchema = z.strictObject({
   timeCompletionMs: z.number().optional(),
   timeThinkingMs: z.number().optional()
 })
+
 export type MessageStats = z.infer<typeof MessageStatsSchema>
+
 export type MessageRuntimeStatsInput = Readonly<Pick<MessageStats, 'runtimeTiming' | 'contextTokens'>>
 
 // ============================================================================
@@ -412,24 +418,31 @@ export interface SerializedErrorData {
 export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
+
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
+
   if (v.modelSelection !== undefined && v.modelSelection !== 'default' && v.modelSelection !== 'explicit') return false
+
   if (v.turnOptions !== undefined) {
     if (typeof v.turnOptions !== 'object' || v.turnOptions === null || Array.isArray(v.turnOptions)) return false
+
     if (
       v.turnOptions.reasoningEffort !== undefined &&
       !ReasoningEffortOptionSchema.safeParse(v.turnOptions.reasoningEffort).success
     ) {
       return false
     }
+
     if (
       v.turnOptions.serviceTier !== undefined &&
       !ServiceTierSelectionSchema.safeParse(v.turnOptions.serviceTier).success
     ) {
       return false
     }
+
     if (v.turnOptions.fastMode !== undefined && typeof v.turnOptions.fastMode !== 'boolean') return false
   }
+
   return true
 })
 
@@ -447,6 +460,7 @@ export const ModelSnapshotSchema = z.strictObject({
   provider: z.string(),
   group: z.string().optional()
 })
+
 export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
 
 /**
@@ -463,6 +477,7 @@ export const MessageSnapshotSchema = z.strictObject({
   emoji: z.string().optional(),
   model: ModelSnapshotSchema
 })
+
 export type MessageSnapshot = z.infer<typeof MessageSnapshotSchema>
 
 // ============================================================================
@@ -479,6 +494,7 @@ export type MessageSnapshot = z.infer<typeof MessageSnapshotSchema>
  *   model. See `docs/dev/references/chat/message-tree.md`.
  */
 export const MessageRoleSchema = z.enum(['user', 'assistant', 'system', 'root'])
+
 export type MessageRole = z.infer<typeof MessageRoleSchema>
 
 /**
@@ -489,6 +505,7 @@ export type MessageRole = z.infer<typeof MessageRoleSchema>
  * letting it reach the DB and trip `message_root_parent_check`.
  */
 export const ContentMessageRoleSchema = z.enum(['user', 'assistant', 'system'])
+
 /** Roles that carry content — everything except the virtual-root sentinel. */
 export type ContentMessageRole = z.infer<typeof ContentMessageRoleSchema>
 
@@ -501,10 +518,12 @@ export function toContentRole(role: MessageRole): ContentMessageRole {
   if (role === 'root') {
     throw new Error('virtual root (role=root) must not be serialized into model history')
   }
+
   return role
 }
 
 export const TOPIC_MESSAGE_SEARCH_ROLES = ['user', 'assistant'] as const satisfies readonly MessageRole[]
+
 export type TopicMessageSearchRole = (typeof TOPIC_MESSAGE_SEARCH_ROLES)[number]
 
 export const AGENT_SESSION_MESSAGE_SEARCH_ROLES = [
@@ -512,6 +531,7 @@ export const AGENT_SESSION_MESSAGE_SEARCH_ROLES = [
   'assistant',
   'system'
 ] as const satisfies readonly MessageRole[]
+
 export type AgentSessionMessageSearchRole = (typeof AGENT_SESSION_MESSAGE_SEARCH_ROLES)[number]
 
 export function coerceSearchRole<TRole extends MessageRole>(
@@ -529,6 +549,7 @@ export function coerceSearchRole<TRole extends MessageRole>(
  * - paused: User stopped generation
  */
 export const MessageStatusSchema = z.enum(['pending', 'success', 'error', 'paused'])
+
 export type MessageStatus = z.infer<typeof MessageStatusSchema>
 
 /**
@@ -568,6 +589,7 @@ export const MessageSchema = z.strictObject({
   /** Last update timestamp (ISO string) */
   updatedAt: z.iso.datetime()
 })
+
 export type Message = z.infer<typeof MessageSchema>
 
 // ============================================================================

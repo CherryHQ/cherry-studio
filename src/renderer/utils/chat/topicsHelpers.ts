@@ -99,10 +99,12 @@ export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
   groupBy: ResourceListGroupResolver<T>
 ): T[] {
   const activeIndex = topics.findIndex((topic) => topic.id === payload.activeId)
+
   if (activeIndex < 0) return [...topics]
 
   const activeTopic = topics[activeIndex]
   const currentAssistantId = activeTopic.assistantId ?? null
+
   const movedTopic =
     currentAssistantId === targetAssistantId
       ? activeTopic
@@ -116,17 +118,20 @@ export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
 
   if (payload.overType === 'item') {
     const overIndex = next.findIndex((topic) => topic.id === payload.overId)
+
     if (overIndex >= 0) {
       insertIndex = payload.position === 'before' ? overIndex : overIndex + 1
     }
   } else {
     const lastTargetTopicIndex = next.findLastIndex((topic) => groupBy(topic)?.id === payload.targetGroupId)
+
     if (lastTargetTopicIndex >= 0) {
       insertIndex = lastTargetTopicIndex + 1
     }
   }
 
   next.splice(insertIndex, 0, movedTopic)
+
   return next
 }
 
@@ -213,6 +218,7 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistant
     }
 
     const assistant = assistantById?.get(assistantId)
+
     if (assistant) {
       return { id: `assistant:${assistant.id}`, label: assistant.name }
     }
@@ -226,6 +232,7 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId'>>(
   assistantRankById?: ReadonlyMap<string, number>
 ) {
   const assistantRank = topic.assistantId ? assistantRankById?.get(topic.assistantId) : undefined
+
   if (assistantRank !== undefined) {
     return assistantRank
   }
@@ -248,8 +255,11 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
       .map((topic, index) => ({ topic, index, rank: getAssistantGroupRank(topic, options.assistantRankById) }))
       .sort((a, b) => {
         if (a.rank !== b.rank) return a.rank - b.rank
+
         if (a.topic.pinned !== b.topic.pinned) return a.topic.pinned ? -1 : 1
+
         if (a.topic.pinned && b.topic.pinned) return a.index - b.index
+
         return (
           compareResourceOrderKey(readOptionalOrderKey(a.topic), readOptionalOrderKey(b.topic)) || a.index - b.index
         )

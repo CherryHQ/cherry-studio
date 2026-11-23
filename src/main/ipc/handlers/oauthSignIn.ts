@@ -14,6 +14,7 @@ export async function mapOAuthSignInCancellation<T>(request: Promise<T>): Promis
     if (error instanceof OAuthSignInCancelledError) {
       throw new IpcError(oauthErrorCodes.SIGN_IN_CANCELLED, error.message)
     }
+
     throw error
   }
 }
@@ -43,5 +44,6 @@ export async function runOAuthSignIn(
   if (senderId) {
     application.get('MainWindowService').showMainWindow()
   }
+
   return result
 }

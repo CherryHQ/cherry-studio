@@ -140,6 +140,7 @@ const CATEGORY_LABEL_KEYS: Record<ClaudeToolCategory, string> = {
   orchestration: 'library.config.agent.section.tools.category.orchestration',
   media: 'library.config.agent.section.tools.category.media'
 }
+
 const CATEGORY_LABEL_FALLBACKS: Record<ClaudeToolCategory, string> = {
   file: 'File',
   shell: 'Shell',
@@ -159,6 +160,7 @@ function getLeafTabIds(tabs: EditDialogTab[]) {
 
 function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
   const form = buildInitialAgentFormState(resource)
+
   return {
     avatar: form.avatar || '🤖',
     name: form.name,
@@ -226,25 +228,41 @@ function advanceAgentFormBaseline(
   const next = { ...latest }
 
   if (Object.hasOwn(payload, 'name')) next.name = submitted.name
+
   if (Object.hasOwn(payload, 'description')) next.description = submitted.description
+
   if (Object.hasOwn(payload, 'model')) next.model = submitted.model
+
   if (Object.hasOwn(payload, 'planModel')) next.planModel = submitted.planModel
+
   if (Object.hasOwn(payload, 'smallModel')) next.smallModel = submitted.smallModel
+
   if (Object.hasOwn(payload, 'instructions')) next.instructions = submitted.instructions
+
   if (Object.hasOwn(payload, 'mcps')) next.mcps = [...submitted.mcps]
+
   if (Object.hasOwn(payload, 'knowledgeBaseIds')) next.knowledgeBaseIds = [...submitted.knowledgeBaseIds]
+
   if (Object.hasOwn(payload, 'skillUpdates')) next.skillIds = [...submitted.skillIds]
+
   if (Object.hasOwn(payload, 'disabledTools')) next.disabledTools = [...submitted.disabledTools]
 
   const configuration = payload.configuration
+
   if (configuration) {
     if (Object.hasOwn(configuration, 'avatar')) next.avatar = submitted.avatar
+
     if (Object.hasOwn(configuration, 'permission_mode')) next.permissionMode = submitted.permissionMode
+
     if (Object.hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
+
     if (Object.hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
+
     if (Object.hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
+
     if (Object.hasOwn(configuration, 'heartbeat_timeout_minutes'))
       next.heartbeatTimeoutMinutes = submitted.heartbeatTimeoutMinutes
+
     if (Object.hasOwn(configuration, 'language')) {
       next.languageMode = submitted.languageMode
       next.languageCustom = submitted.languageCustom
@@ -316,12 +334,15 @@ function AgentEditDialogContent({
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
   const { model: selectedAgentModel } = useModelById(values.modelId)
+
   const promptModelName =
     selectedAgentModel?.name ?? (values.modelId === resource.model ? resource.modelName : undefined)
+
   const replaceFormBaseline = useCallback((next: AgentFormState) => {
     formBaselineRef.current = next
     setFormBaseline(next)
   }, [])
+
   const patchAgentForm = useCallback(
     (patch: Partial<AgentFormState>) => {
       const current = buildAgentFormState(formBaselineRef.current, form.getValues())
@@ -329,9 +350,11 @@ function AgentEditDialogContent({
     },
     [form]
   )
+
   const { updateAgent } = useAgentMutationsById(resource.id)
   const { bases: knowledgeBases, isLoading: knowledgeBasesLoading } = useKnowledgeBases()
   const availableKnowledgeBaseIds = useMemo(() => new Set(knowledgeBases.map((base) => base.id)), [knowledgeBases])
+
   const {
     skills,
     loading: skillsLoading,
@@ -339,7 +362,9 @@ function AgentEditDialogContent({
   } = useInstalledSkills(resource.id || undefined, {
     enabled: open && Boolean(resource.id)
   })
+
   useReconcileSkillsOnOpen(open && activeTab === 'tools.skills')
+
   const skillIdsFromQueryKey = useMemo(
     () =>
       skills
@@ -348,14 +373,18 @@ function AgentEditDialogContent({
         .join('\0'),
     [skills]
   )
+
   const skillIdsFromQuery = useMemo(
     () => (skillIdsFromQueryKey ? skillIdsFromQueryKey.split('\0') : []),
     [skillIdsFromQueryKey]
   )
+
   const currentFormState = useMemo(() => buildAgentFormState(formBaseline, values), [formBaseline, values])
+
   const saveIntent = useMemo(() => {
     return diffAgentSaveIntent(currentFormState, formBaseline)
   }, [currentFormState, formBaseline])
+
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -380,12 +409,14 @@ function AgentEditDialogContent({
     ],
     [caps.knowledgeBases, caps.mcp, caps.skills, sealedSkills, t]
   )
+
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
   const wasOpenRef = useRef(false)
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current
     wasOpenRef.current = open
+
     if (!justOpened) return
 
     form.reset(defaultValues)
@@ -426,6 +457,7 @@ function AgentEditDialogContent({
     const baselineSkillIds = formBaselineRef.current.skillIds
     const baselineSkillIdSet = new Set(baselineSkillIds)
     const newlyVisibleEnabledIds = skillIdsFromQuery.filter((id) => !baselineSkillIdSet.has(id))
+
     if (newlyVisibleEnabledIds.length === 0) return
 
     replaceFormBaseline({
@@ -458,6 +490,7 @@ function AgentEditDialogContent({
     // caused by this dialog's own saves must not overwrite newer form edits.
     const currentIds = form.getValues('knowledgeBaseIds')
     const convergedIds = currentIds.filter((id) => availableKnowledgeBaseIds.has(id))
+
     if (convergedIds.length !== currentIds.length) {
       replaceFormBaseline({
         ...formBaselineRef.current,
@@ -473,8 +506,10 @@ function AgentEditDialogContent({
   }, [activeTab, leafTabIds])
 
   const rootError = form.formState.errors.root?.message
+
   const autoSaveChangeKey =
     saveIntent && values.name.trim().length > 0 ? serializeAgentSaveAttempt(values, saveIntent.payload) : null
+
   const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
 
   const getCurrentSaveIntent = () =>
@@ -485,9 +520,11 @@ function AgentEditDialogContent({
     // start its follow-up pass before React has rendered the baseline state
     // advanced by the previous pass.
     const submittedValues = form.getValues()
+
     if (!submittedValues.name.trim()) return
     const submittedFormState = buildAgentFormState(formBaselineRef.current, submittedValues)
     const pending = diffAgentSaveIntent(submittedFormState, formBaselineRef.current)
+
     if (!pending) return
     const attemptedKey = serializeAgentSaveAttempt(submittedValues, pending.payload)
 
@@ -505,6 +542,7 @@ function AgentEditDialogContent({
       failedSaveKeyRef.current = attemptedKey
       form.setError('root', { message: saveFailedMessage })
       toast.error(saveFailedMessage)
+
       return
     }
 
@@ -528,28 +566,40 @@ function AgentEditDialogContent({
   const handleOpenChange = async (next: boolean, allowDiscard = true): Promise<boolean> => {
     if (next) {
       onOpenChange(next)
+
       return true
     }
+
     if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return false
     const valuesBeforeSave = JSON.stringify(form.getValues())
     const pendingSave = getPendingSave()
+
     if (pendingSave) await pendingSave
+
     if (JSON.stringify(form.getValues()) !== valuesBeforeSave) return false
 
     const currentValues = form.getValues()
     const pending = getCurrentSaveIntent()
+
     if (!pending || (!currentValues.name.trim() && allowDiscard)) {
       onOpenChange(false)
+
       return true
     }
+
     if (!currentValues.name.trim()) return false
+
     if (failedSaveKeyRef.current === serializeAgentSaveAttempt(currentValues, pending.payload)) {
       toast.error(saveFailedMessage)
+
       if (!allowDiscard || pendingSave) return false
       onOpenChange(false)
+
       return true
     }
+
     await flush()
+
     if (
       failedSaveKeyRef.current !== null ||
       JSON.stringify(form.getValues()) !== valuesBeforeSave ||
@@ -557,8 +607,10 @@ function AgentEditDialogContent({
     )
       return false
     onOpenChange(false)
+
     return true
   }
+
   const closeBeforeAction = useCloseBeforeAction((next) => handleOpenChange(next, false))
 
   return (
@@ -567,6 +619,7 @@ function AgentEditDialogContent({
       form={form}
       onActiveTabChange={async (tab) => {
         if (tab === activeTab) return
+
         if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
         setActiveTab(tab)
       }}
@@ -601,6 +654,7 @@ function AgentEditDialogContent({
             permissionAuthorityKey={`${resource.id}:${resource.configuration?.permission_mode ?? 'default'}`}
             beforeHeartbeatOpen={async () => {
               await flush()
+
               return failedSaveKeyRef.current === null
             }}
           />
@@ -1075,6 +1129,7 @@ function AgentPromptField({
   const [polishing, setPolishing] = useState(false)
   const instructions = form.watch('instructions')
   const name = form.watch('name')
+
   const processedInstructions = usePromptProcessor({
     prompt: instructions,
     modelName: modelName ?? undefined
@@ -1164,10 +1219,12 @@ function AgentToolsFields({
   const hasKnowledgeScope = knowledgeBaseIds.length > 0
   const legacyRestrictions = disabledTools.filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX))
   const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
+
   const builtinSections = useMemo(() => {
     const tools = caps
       .builtinTools(platform)
       .filter((tool) => !caps.knowledgeBases || hasKnowledgeScope || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
+
     return CLAUDE_TOOL_CATEGORIES.map((category) => ({
       category,
       label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),
@@ -1181,10 +1238,12 @@ function AgentToolsFields({
         }))
     })).filter((section) => section.items.length > 0)
   }, [caps, t, hasKnowledgeScope])
+
   const enabledToolIds = useMemo<ReadonlySet<string>>(
     () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
     [builtinSections, disabledSet]
   )
+
   const setToolEnabled = (name: string, enabled: boolean) =>
     form.setValue('disabledTools', enabled ? disabledTools.filter((n) => n !== name) : [...disabledTools, name], {
       shouldDirty: true
@@ -1192,6 +1251,7 @@ function AgentToolsFields({
 
   const mcpIds = useMemo(() => new Set(mcps), [mcps])
   const enableMCP = (id: string) => form.setValue('mcps', [...mcps, id], { shouldDirty: true })
+
   const disableMCP = (id: string) =>
     form.setValue(
       'mcps',

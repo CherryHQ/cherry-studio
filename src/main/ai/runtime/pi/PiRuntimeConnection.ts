@@ -149,16 +149,20 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
+
     await resolveApiGatewayRuntime(this.input.sessionId)
     await warmAgentMcpToolCatalogs(discovery.agent.mcps ?? [])
+
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
+
     const { agent, session } = initialSnapshot
     const workspacePath = session.workspace?.path
+
     if (!session.agentId || !workspacePath) throw new Error('Pi requires an agent and workspace')
     await prepareAgentSessionWorkspaceDirectory(session)
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
@@ -174,14 +178,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
     const linkedChannel = initialSnapshot.linkedChannel
     const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, this.input.knowledgeBaseIds)
+
     const isToolEnabled = (serverName: string, toolName: string) =>
       !this.disabledTools.has(buildPiMcpToolName(serverName, toolName))
+
     const citationsGuidance = buildCitationsGuidance({
       web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
       kb:
         (resolveAgentCapabilities(agent).allKnowledgeBases || knowledgeBaseScope.length > 0) &&
         (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME))
     })
+
     const prompt = await buildAgentRuntimePrompt({
       workspacePath,
       agentDataPath,
@@ -190,12 +197,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       effectiveLanguage: initialSnapshot.effectiveLanguage,
       modelName: initialSnapshot.model.name ?? initialSnapshot.model.id
     })
+
     const mountedServers = resolveMountedMcpServers(agent, {
       browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
       computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
       channelLinked: linkedChannel !== null
     })
+
     const mountedPolicies = listBuiltinToolPolicies({ mountedServers })
+
     const approvalContext = {
       sessionId: this.input.sessionId,
       workspacePath,
@@ -229,6 +239,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
       )
     }
+
     const mcpServers = buildAgentMcpServers(
       session,
       agent,
@@ -247,6 +258,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
+
     if (finalSnapshot.signature !== initialSnapshot.signature)
       throw new Error('Pi configuration changed during startup')
     this.connectionSignature = initialSnapshot.signature
@@ -256,22 +268,28 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.resumeToken ?? this.input.nativeSessionId
     )
     const nativeId = this.context.nativeThreadId
+
     if (!nativeId || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(nativeId)) throw new Error('Invalid Pi session identity')
     let files: string[]
+
     try {
       files = readdirSync(sessionDir).filter((file) => file.endsWith(`_${nativeId}.jsonl`))
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       files = []
     }
+
     if (files.length > 1) throw new Error('Pi session identity is ambiguous')
+
     if (
       (this.context.bindingState === 'bound' || messages.hasContextInput(this.input.sessionId, this.context.id)) &&
       files.length !== 1
     )
       throw new Error('Pi session history is missing')
+
     if (files.length && !lstatSync(application.getPath('feature.agents.pi.sessions', files[0])).isFile())
       throw new Error('Pi session must be a regular file')
+
     const manager = files.length
       ? pi.SessionManager.openExisting(
           application.getPath('feature.agents.pi.sessions', files[0]),
@@ -279,6 +297,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           workspacePath
         )
       : pi.SessionManager.create(workspacePath, sessionDir, { id: nativeId })
+
     const binding = await createPiGatewayModelBinding(
       this.input,
       initialSnapshot.provider,
@@ -290,11 +309,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         }
       }
     )
+
     const managedBashTool = pi.createBashToolDefinition(workspacePath, {
       commandPrefix: loginPathPrefix,
       shellPath,
       spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
     })
+
     const managedShellTools = [
       managedBashTool,
       ...(process.platform === 'win32'
@@ -305,17 +326,23 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           ]
         : [])
     ].map(withPiShellTimeout) as ToolDefinition[]
+
     const toolCallIdentity = async (call: CallRef) => {
       const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })
+
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+
       try {
         const id = opened.value.pi.toolCallId(call)
+
         if (!id) throw new Error('Behavior call has no native tool identity')
+
         return { toolCallId: id, parentToolCallId: opened.value.pi.relation()?.origin?.toolCallId }
       } finally {
         await opened.value.release()
       }
     }
+
     const behavior = await createPiBehaviorHost({
       input: this.input,
       root: () => runtimeId(nativeId),
@@ -328,13 +355,19 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       usageSessionId: async (thread) => {
         if (thread === nativeId) return this.input.sessionId
         const child = await this.observeChild(thread)
+
         if (!child) throw new Error('Native child usage context is unavailable')
+
         return child.projection.context.sessionId
       }
     })
+
     const settings: NonNullable<PiSessionOptions['settings']> = {}
+
     if (shellPath) settings.shellPath = shellPath
+
     if (loginPathPrefix) settings.shellCommandPrefix = loginPathPrefix
+
     const options = {
       ...binding,
       cwd: workspacePath,
@@ -357,15 +390,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       ],
       onEvent: (event: PiEvent) => this.handleNativeEvent(event)
     }
+
     const created = await createPiRuntime({
       backendId: runtimeId(this.context.backendId),
       load: async (thread) => {
         if (thread.id !== nativeId) return undefined
+
         return options
       },
       onError: (error, context) => {
         this.failure ??= error
         const compactionFailure = context?.operation === 'compact' ? context.compactionFailure : undefined
+
         if (
           compactionFailure &&
           context?.thread.id === nativeId &&
@@ -374,6 +410,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           // The matching root compaction-end already classified this occurrence.
           markReportingHandled(error)
         }
+
         logAiFailure(
           logger,
           'Pi Runtime operation failed',
@@ -386,20 +423,27 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         )
       }
     })
+
     if (created.status !== 'confirmed') throw new Error(created.error.message)
     this.runtime = created.value
+
     try {
       const opened = files.length
         ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(nativeId) })
         : await this.runtime.create(options)
+
       if (opened.status !== 'confirmed') throw this.failure ?? new Error(opened.error.message)
       this.failure = undefined
       this.handle = opened.value
+
       if (files.length) this.context = contexts.bindContext(this.context.id, nativeId)
       const observed = await this.handle.pi.observe((batch) => this.handleObservation(batch))
+
       if (observed.status !== 'confirmed') throw new Error(observed.error.message)
       this.observation = observed.value
+
       if (files.length) this.eventQueue.push({ type: 'resume-token', token: nativeId })
+
       return this
     } catch (error) {
       await this.close()
@@ -409,25 +453,31 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   async predictPrompt(signal: AbortSignal): Promise<string> {
     if (!this.handle || this.closing) return ''
+
     return this.handle.pi.predictPrompt(PROMPT_SUGGESTION_INSTRUCTION, signal)
   }
 
   async send(input: AgentRuntimeCommand): Promise<void> {
     if (!this.handle || !this.context || this.closing) throw new Error('Pi Runtime is unavailable')
+
     if (this.sending) throw new Error('Pi already has an active submission')
     this.sending = true
     this.failure = undefined
     this.turnUsage.reset()
     const content = buildAgentUserContent(input.message)
     const command = input.systemReminder ? undefined : parseManualCompactCommand(content)
+
     if (command) {
       this.manualCompactInFlight = true
       const result = await this.handle.pi.compact(command.instructions || undefined)
       this.manualCompactInFlight = false
+
       if (result.status !== 'confirmed') this.failure ??= new Error(result.error.message)
       this.finishTurn()
+
       return
     }
+
     try {
       await this.submit(input, input.systemReminder ? wrapSteerReminder(content) : content, 'reject')
     } catch (error) {
@@ -451,6 +501,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       logAiFailure(logger, 'Pi steer failed', error, 'agent.pi.steer', classifyPiFailure(error))
       this.eventQueue.push({ type: 'error', error })
     })
+
     return true
   }
 
@@ -459,16 +510,21 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       text,
       parts: input.message.data.parts
     })
+
     this.input.onInputPrepared?.(input.message.id, this.context!.id)
     const result = await this.handle!.input.submit(draft)
     this.eventQueue.push({ type: 'input-submission', contextId: this.context!.id, result })
+
     if (result.status !== 'acknowledged') applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
+
     if (result.status === 'acknowledged') {
       this.captureInput(result)
+
       if (result.facts.includes('locally-handled') && !this.active) this.finishTurn()
     } else {
       this.failure ??= new Error(result.error.message)
       this.finishTurn()
+
       if (result.status === 'unknown')
         void this.close().catch((error) => logger.error('Pi submission shutdown failed', { error }))
     }
@@ -482,24 +538,30 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         (projection) => this.eventQueue.push({ type: 'message-projection', projection }),
         (message) => this.adapter.decorate(message)
       )
+
       for (const event of batch.events) {
         if (event.type === 'context.changed') this.eventQueue.push({ type: 'context-usage', result: event.result })
+
         if (event.type === 'snapshot' && event.contextUsage)
           this.eventQueue.push({ type: 'context-usage', result: event.contextUsage })
         const inputs = event.type === 'snapshot' ? event.inputs : event.type === 'input.changed' ? [event.input] : []
+
         for (const input of inputs) {
           this.captureInput(input)
           const steer = input.inputId && this.pendingSteers.has(input.inputId) ? input.inputId : undefined
+
           if (steer && input.facts.includes('placed')) {
             this.pendingSteers.delete(steer)
             this.eventQueue.push({ type: 'steer-boundary', inputIds: [steer] })
           }
         }
+
         if (event.type === 'snapshot') {
           for (const relation of event.subagents ?? []) if (relation.child) void this.observeChild(relation.child.id)
           this.active = event.activity.state === 'active'
         } else if (event.type === 'activity.changed') {
           this.active = event.activity.state === 'active'
+
           if (this.active && !this.sending && !this.closing) {
             this.autonomous = true
             this.sending = true
@@ -522,6 +584,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         else if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
           throw new Error(`Pi observation ended: ${event.reason}`)
       }
+
       for (const input of batch.outcomes) {
         if (input.outcome !== 'completed' && !this.failure) {
           const error = new Error(input.error?.message ?? input.outcome)
@@ -539,7 +602,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           this.failure = error
         }
       }
+
       await this.projection.accept(batch)
+
       if (batch.backgroundResults) {
         const result = batch.backgroundResults
         this.eventQueue.push({
@@ -551,10 +616,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           active: result.status !== 'confirmed' || result.value.active
         })
       }
+
       for (const child of batch.children)
         void this.observeChild(child.thread.id).then(() =>
           this.childTasks.publish(child.thread.id, childTaskStatus(child.outcome))
         )
+
       if (batch.settled && this.sending && !this.manualCompactInFlight) this.finishTurn()
     } catch (error) {
       this.failure = error
@@ -575,6 +642,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   private handleBehaviorEvent(event: BehaviorEvent): void {
     if (this.handle && event.thread !== this.handle.thread.id) return
+
     if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
     else if (event.type === 'goal-notice') {
       this.projection?.notice(event.notice.text)
@@ -587,55 +655,74 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   private childOrigin(id: string) {
     const child = this.children.get(this.childKey(id))
+
     return child && child.state !== 'opening' ? child.resource.relation.origin : undefined
   }
 
   private async childResource(id: string): Promise<PiChildResource | undefined> {
     const child = this.children.get(this.childKey(id))
+
     return child?.state === 'opening' ? child.pending : child?.resource
   }
 
   private async observeChild(id: string, granted?: PiThreadHandle): Promise<PiChildResource | undefined> {
     const key = this.childKey(id)
     const existing = this.children.get(key)
+
     if (existing) {
       await granted?.release()
+
       if (existing.state === 'closing') {
         await existing.resource.projection.stop()
         await existing.resource.handle.release()
         this.children.delete(key)
+
         return this.observeChild(id)
       }
+
       return existing.state === 'opening' ? existing.pending : existing.resource
     }
+
     if (this.nativeClosed) {
       await granted?.release()
+
       return undefined
     }
+
     let handle: PiThreadHandle | undefined
     let resource: PiChildResource | undefined
+
     const pending = Promise.resolve()
       .then(async () => {
         if (granted) handle = granted
         else {
           const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: runtimeId(id) })
+
           if (opened.status !== 'confirmed') throw new Error(opened.error.message)
           handle = opened.value
         }
+
         const relation = handle.pi.relation()
+
         if (!relation?.origin) throw new Error('Native child creation origin is unavailable')
+
         const parent =
           relation.parent.id === this.handle?.thread.id ? undefined : await this.observeChild(relation.parent.id)
+
         const parentContext =
           parent?.projection.context ?? (relation.parent.id === this.handle?.thread.id ? this.context : undefined)
+
         if (!parentContext) throw new Error('Native child owner context is unavailable')
+
         const context = contexts.child(
           parentContext.id,
           id,
           relation.origin.toolCallId,
           relation.origin.description ?? id
         )
+
         const access = handle
+
         const projection = new ChildThreadProjection(
           context,
           {
@@ -643,8 +730,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             observe: (sink) =>
               access.observe(async (event) => {
                 await sink(event)
+
                 if (event.type === 'snapshot')
                   for (const child of event.subagents ?? []) if (child.child) void this.observeChild(child.child.id)
+
                 if (event.type === 'subagent.upsert' && event.subagent.child)
                   void this.observeChild(event.subagent.child.id)
               })
@@ -653,48 +742,64 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           (message) => this.adapter.decorate(message),
           (responseId, messageId) => this.eventQueue.push({ type: 'response-start', responseId, messageId })
         )
+
         resource = { relation, handle: access, projection }
         await projection.attach()
         this.children.set(key, { state: 'attached', resource })
         this.childTasks.publish(id, this.childTasks.status(id) ?? 'in_progress')
+
         return resource
       })
       .catch(async (error) => {
         logger.error('Failed to observe Pi child', { id, error })
+
         if (resource) {
           try {
             await resource.projection.stop()
           } catch (flushError) {
             this.children.set(key, { state: 'closing', resource })
             logger.error('Failed to flush Pi child attachment', { id, error: flushError })
+
             return undefined
           }
         }
+
         await handle?.release()
         this.children.delete(key)
+
         return undefined
       })
+
     this.children.set(key, { state: 'opening', pending })
+
     return pending
   }
 
   async childProjection(toolCallId: string) {
     if (this.closing) return undefined
+
     const known = (await this.childResources()).filter(
       (child) => (child.relation?.origin?.toolCallId ?? child.projection.context.spawnToolCallId) === toolCallId
     )
+
     if (known.length > 1) return undefined
+
     if (known[0]) {
       const projection = known[0].projection
       await projection.attach()
+
       return { snapshot: () => projection.snapshot(), subscribe: projection.subscribe.bind(projection) }
     }
+
     if (this.closing || !this.handle) return undefined
     const opened = await this.handle.pi.openChild(toolCallId, this.closingAccess.signal)
+
     if (opened.status !== 'confirmed') return undefined
     const child = await this.observeChild(opened.value.relation.child.id, opened.value.handle)
+
     if (!child) return undefined
     await child.projection.attach()
+
     return {
       snapshot: child.projection.snapshot.bind(child.projection),
       subscribe: child.projection.subscribe.bind(child.projection)
@@ -705,6 +810,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const child = (await this.childResources()).find((child) => child.projection.context.id === contextId)
     const projection = child?.projection
     const handle = child?.handle
+
     if (!handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
     await projection.flush()
     const { sessionId } = projection.context
@@ -718,15 +824,19 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const result = await handle.input.submit(draft)
     applyNativeSubmissionResult(sessionId, contextId, result)
     await projection.refresh()
+
     if (result.status !== 'acknowledged') throw new Error(result.error.message)
   }
 
   private async childResources(): Promise<PiChildResource[]> {
     const resources: PiChildResource[] = []
+
     for (const child of this.children.values()) {
       const resource = child.state === 'opening' ? await child.pending : child.resource
+
       if (resource) resources.push(resource)
     }
+
     return resources
   }
 
@@ -734,23 +844,30 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     await this.handle?.pi.settled()
     await this.observation?.drain()
     await this.childResources()
+
     if (this.closing) {
       await this.closePromise
+
       return
     }
+
     for (const child of await this.childResources()) await child.projection.drain()
   }
 
   async stopTask(taskId: string): Promise<boolean> {
     const handle = (await this.childResource(taskId))?.handle
+
     if (!handle?.interrupt) return false
     const result = await handle.interrupt()
+
     if (result.status !== 'confirmed') throw new Error(result.error.message)
+
     return true
   }
 
   private captureInput(input: InputState): void {
     this.eventQueue.push({ type: 'input-state', contextId: this.context!.id, input })
+
     if (!input.inputId || !input.nativeInput) return
     this.pendingBindings.set(input.inputId, input)
     this.flushInputs()
@@ -772,6 +889,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           nativeInput: { session: this.handle.thread, id: runtimeId(event.entryId) }
         })
       const steer = this.pendingSteers.has(event.inputId) ? event.inputId : undefined
+
       if (steer) {
         this.input.onSteerInjected?.([steer])
       }
@@ -779,6 +897,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     else if (event.type === 'session-append' && this.context) {
       // Native SessionManager synchronously flushes on the first conversation entry.
       const id = this.context.nativeThreadId
+
       if (
         this.context.bindingState === 'pending' &&
         id &&
@@ -803,6 +922,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             cancelled: event.aborted
           })
         )
+
         if (this.manualCompactInFlight) this.failure = failure
         else this.eventQueue.push({ type: 'compaction-error', error, aborted: event.aborted })
       } else {
@@ -825,6 +945,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.cancelQueuedInputs()
     this.flushInputs()
     this.sending = false
+
     if (this.failure) {
       logAiFailure(logger, 'Pi prompt failed', this.failure, 'agent.pi.prompt', classifyPiFailure(this.failure))
       this.eventQueue.push({ type: 'error', error: this.failure })
@@ -834,11 +955,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         runtimeSessionId: this.handle?.thread.id,
         leafId: this.checkpoint
       })
+
       this.eventQueue.push({
         type: 'turn-complete',
         forkAnchor: checkpoint.success ? { checkpoint: checkpoint.data } : undefined
       })
     }
+
     if (this.autonomous) {
       this.autonomous = false
       this.eventQueue.push({ type: 'autonomous-turn-state', state: 'finished' })
@@ -847,11 +970,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   private cancelQueuedInputs(): void {
     const result = this.handle?.pi.cancelQueuedInputs()
+
     if (!result) return
+
     if (result.status !== 'confirmed') throw new Error(result.error.message)
+
     for (const id of result.value) {
       this.pendingSteers.delete(id)
     }
+
     if (result.value.length) this.failure ??= new Error('Queued input was cancelled before Pi could consume it')
   }
 
@@ -875,6 +1002,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(() => this.reconcileOnce(input))
     this.reconcileChain = run.catch(() => undefined)
+
     return run
   }
 
@@ -886,6 +1014,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     knowledgeBaseIds?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult> {
     let snapshot: PiConnectionSnapshot
+
     try {
       snapshot = await capturePiConnectionSnapshot(
         this.input.sessionId,
@@ -897,6 +1026,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'
       throw error
     }
+
     // The approval gate reads the mode per tool call, so a change applies mid-turn from the next call.
     const nextPermissionMode = snapshot.agent.configuration?.permission_mode ?? 'default'
     const nextDisabled = normalizeDisabledTools(snapshot.agent.disabledTools, snapshot)
@@ -905,6 +1035,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const permissionChanged = this.permissionMode !== nextPermissionMode
     this.permissionMode = nextPermissionMode
     this.disabledTools = disabled
+
     if (
       this.failure ||
       snapshot.signature !== this.connectionSignature ||
@@ -913,10 +1044,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       Boolean(input.fastMode) !== Boolean(this.input.fastMode)
     )
       return 'rebuild'
+
     if (permissionChanged) {
       const result = await this.handle?.pi.permissionModeChanged()
+
       if (result && result.status !== 'confirmed') return 'failed'
     }
+
     return changed ? 'patched' : 'current'
   }
 
@@ -927,6 +1061,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private isToolDisabled(name: string): boolean {
     if (this.disabledTools.has(name)) return true
     const tool = this.resolveMcpToolMetadata(name)
+
     return (
       tool !== undefined &&
       (this.disabledTools.has(buildFunctionCallToolName(tool.serverName, tool.name)) ||
@@ -946,6 +1081,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   close(): Promise<void> {
     this.closing = true
     this.closingAccess.abort()
+
     return (this.closePromise ??= this.finishClose().catch((error) => {
       this.closePromise = undefined
       throw error
@@ -954,45 +1090,58 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   private async finishClose(): Promise<void> {
     toolApprovalRegistry.abort(this.input.sessionId, 'pi-session-closed')
+
     if (!this.nativeClosed) {
       let activeArchive = true
+
       try {
         agentSessionService.getById(this.input.sessionId)
       } catch (error) {
         if (!isDataApiError(error) || error.code !== ErrorCode.NOT_FOUND) throw error
         activeArchive = false
       }
+
       // User-stop persists behavior state and reads approval rows; deleted archives only need owner shutdown.
       if (activeArchive) {
         if (this.handle?.interrupt) {
           const interrupted = await this.handle.interrupt()
+
           if (interrupted.status !== 'confirmed') throw new Error(interrupted.error.message)
         }
+
         await Promise.all(
           (await this.childResources()).map(async ({ handle }) => {
             if (handle?.interrupt) {
               const result = await handle.interrupt()
+
               if (result.status !== 'confirmed') throw new Error(result.error.message)
             }
           })
         )
       }
+
       this.cancelQueuedInputs()
       await this.observation?.drain()
+
       for (const child of await this.childResources()) await child.projection.drain()
       const result = await this.runtime?.shutdown()
+
       if (result && result.status !== 'confirmed') throw new Error(result.error.message)
       this.nativeClosed = true
     }
+
     await this.observation?.drain()
+
     for (const [key, child] of this.children) {
       const resource = child.state === 'opening' ? await child.pending : child.resource
+
       if (!resource) continue
       this.children.set(key, { state: 'closing', resource })
       await resource.projection.stop()
       await resource.handle.release()
       this.children.delete(key)
     }
+
     await this.observation?.stop()
     await this.projection?.close()
     this.flushInputs()
@@ -1007,17 +1156,21 @@ function normalizeDisabledTools(
 ): Set<string> {
   const disabled = new Set((disabledTools ?? []).map(normalizePiDisabledToolId))
   const unresolved = new Set([...disabled].filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX)))
+
   const legacyTools: Array<{ ids: string[]; nameAlias?: string; piName: string }> = listBuiltinToolPolicies({
     mountedServers: new Set(Object.values(CHERRY_MCP_SERVER))
   }).map((tool) => ({
     ids: [legacyDisabledToolId(tool.serverName, tool.toolName)],
     piName: buildPiMcpToolName(tool.serverName, tool.toolName)
   }))
+
   const catalog = application.get('McpCatalogService')
+
   for (const [namespace, server] of snapshot.mcpServerSnapshots) {
     if (!server) continue
     const tools = catalog.listTools(server.id, { includeDisabled: false })
     const names = tools.map((tool) => buildPiMcpToolName(server.id, tool.name))
+
     for (const tool of tools) {
       const name = buildPiMcpToolName(server.id, tool.name)
       const piName = buildPiMcpToolName(server.id, tool.name, names.indexOf(name) !== names.lastIndexOf(name))
@@ -1026,6 +1179,7 @@ function normalizeDisabledTools(
         nameAlias: legacyDisabledToolId(server.name, tool.name),
         piName
       })
+
       if (
         disabled.has(buildFunctionCallToolName(server.name, tool.name)) ||
         disabled.has(`mcp__${server.id}__${tool.name}`)
@@ -1034,16 +1188,21 @@ function normalizeDisabledTools(
       }
     }
   }
+
   for (const id of unresolved) {
     // DSH used the configured namespace; display-name aliases are only safe when unambiguous.
     const exact = legacyTools.filter((tool) => tool.ids.includes(id))
     const matches = exact.length ? exact : legacyTools.filter((tool) => tool.nameAlias === id)
     const piNames = new Set(matches.map((tool) => tool.piName))
+
     if (piNames.size !== 1) continue
+
     for (const name of piNames) disabled.add(name)
     unresolved.delete(id)
   }
+
   assertLegacyDisabledToolsResolved(unresolved)
+
   // Sanitizing raw aliases can accidentally block another tool whose name collides.
   return disabled
 }
@@ -1060,6 +1219,8 @@ function mapCompactionTrigger(reason: 'manual' | 'threshold' | 'overflow'): Agen
 
 function parseManualCompactCommand(content: string): { instructions: string } | undefined {
   const trimmed = content.trim()
+
   if (!/^\/compact(?:\s|$)/.test(trimmed)) return undefined
+
   return { instructions: trimmed.slice('/compact'.length).trim() }
 }

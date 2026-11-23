@@ -42,6 +42,12 @@ the selected rule. An extending diagnostic configuration does not preserve the
 root `ignorePatterns`. Keep generated configurations at the repository root for
 relative plugin paths, and record the exact probe commit and effective scope.
 
+`node scripts/lint/apply-readable-spacing.mjs` replays the spacing migration using
+the upstream fixer. It copies the root scope and test exemptions into a temporary
+configuration, disables unrelated rules only for this edit, and removes that
+configuration afterwards. It does not replace the production lint gate; CI must
+verify the resulting source with the actual repository configuration.
+
 Run `pnpm test:scripts scripts/lint/__tests__/anti-slop.test.ts` to verify every
 available rule using a focused configuration extending the repository config.
 Rule-specific layers also add probes of actual repository enforcement. Use

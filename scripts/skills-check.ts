@@ -24,10 +24,13 @@ function isClaudeReadmeFile(file: string): boolean {
 
 function checkGitignore(filePath: string, expected: string, displayPath: string, errors: string[]) {
   const actual = readFileSafe(filePath)
+
   if (actual === null) {
     errors.push(`${displayPath} is missing`)
+
     return
   }
+
   if (actual !== expected) {
     errors.push(`${displayPath} is out of date (run pnpm skills:sync)`)
   }
@@ -42,10 +45,12 @@ function checkClaudeSkillSymlink(skillName: string, errors: string[]) {
   const expectedTarget = path.join('..', '..', '.agents', 'skills', skillName)
 
   let stat: fs.Stats
+
   try {
     stat = fs.lstatSync(claudeSkillDir)
   } catch {
     errors.push(`.claude/skills/${skillName} is missing (run pnpm skills:sync)`)
+
     return
   }
 
@@ -53,10 +58,12 @@ function checkClaudeSkillSymlink(skillName: string, errors: string[]) {
     errors.push(
       `.claude/skills/${skillName} must be a symlink, not a ${stat.isDirectory() ? 'directory' : 'file'} (run pnpm skills:sync)`
     )
+
     return
   }
 
   const actualTarget = fs.readlinkSync(claudeSkillDir)
+
   if (actualTarget !== expectedTarget) {
     errors.push(`.claude/skills/${skillName} symlink points to '${actualTarget}', expected '${expectedTarget}'`)
   }
@@ -70,11 +77,13 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
   const allowedClaudePrefixes = skillNames.map((skillName) => `.claude/skills/${skillName}/`)
 
   let trackedFiles: string[]
+
   try {
     const output = execSync('git ls-files -- .agents/skills .claude/skills', {
       cwd: ROOT_DIR,
       encoding: 'utf-8'
     })
+
     trackedFiles = output
       .split('\n')
       .map((line) => line.trim())
@@ -82,6 +91,7 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     errors.push(`failed to read tracked skill files via git ls-files: ${message}`)
+
     return
   }
 
@@ -90,9 +100,11 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
       if (sharedAgentsFiles.has(file) || isAgentsReadmeFile(file)) {
         continue
       }
+
       if (allowedAgentsPrefixes.some((prefix) => file.startsWith(prefix))) {
         continue
       }
+
       errors.push(`tracked file is outside public skill whitelist: ${file}`)
       continue
     }
@@ -101,9 +113,11 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
       if (sharedClaudeFiles.has(file) || isClaudeReadmeFile(file)) {
         continue
       }
+
       if (allowedClaudeSymlinks.has(file) || allowedClaudePrefixes.some((prefix) => file.startsWith(prefix))) {
         continue
       }
+
       errors.push(`tracked file is outside public skill whitelist: ${file}`)
     }
   }
@@ -117,6 +131,7 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
  */
 function main() {
   let skillNames: string[]
+
   try {
     skillNames = listSkillNames()
   } catch (error) {
@@ -132,6 +147,7 @@ function main() {
 
   for (const skillName of skillNames) {
     const agentSkillDir = path.join(AGENTS_SKILLS_DIR, skillName)
+
     if (!fs.existsSync(agentSkillDir)) {
       errors.push(`.agents/skills/${skillName} is missing`)
       continue
@@ -139,13 +155,16 @@ function main() {
 
     checkClaudeSkillSymlink(skillName, errors)
   }
+
   checkTrackedFilesAgainstWhitelist(skillNames, errors)
 
   if (errors.length > 0) {
     console.error('skills:check failed')
+
     for (const error of errors) {
       console.error(`- ${error}`)
     }
+
     process.exit(1)
   }
 

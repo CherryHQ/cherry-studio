@@ -12,9 +12,11 @@ type TesseractLanguagePacksProps = {
 
 export function TesseractLanguagePacks({ options, selectedLanguages, onChange }: TesseractLanguagePacksProps) {
   const { t } = useTranslation()
+
   const renderSelectedLanguages = useCallback(
     (selectedValue: string | string[], availableOptions: ComboboxOption[]) => {
       const selectedValues = Array.isArray(selectedValue) ? selectedValue : []
+
       if (selectedValues.length === 0) return <span className="text-muted-foreground">{t('common.select')}</span>
 
       const firstValue = selectedValues[0]

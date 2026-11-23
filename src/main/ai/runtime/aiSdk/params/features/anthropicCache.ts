@@ -35,11 +35,13 @@ function getCacheControl(ttl: AnthropicCacheTtl) {
 
 function hasVolatilePromptVariables(assistant: Assistant | undefined): boolean {
   const prompt = assistant?.prompt
+
   return Boolean(prompt && VOLATILE_PROMPT_VARIABLES.some((variable) => prompt.includes(variable)))
 }
 
 function estimateContentTokens(content: LanguageModelV3Message['content']): number {
   if (typeof content === 'string') return estimateTokenCount(content)
+
   if (Array.isArray(content)) {
     return content.reduce((acc, part) => {
       if (part.type === 'text') return acc + estimateTokenCount(part.text)
@@ -48,9 +50,11 @@ function estimateContentTokens(content: LanguageModelV3Message['content']): numb
         input: 'input' in part ? part.input : undefined,
         output: 'output' in part ? part.output : undefined
       })
+
       return serializedPayload === '{}' ? acc : acc + estimateTokenCount(serializedPayload)
     }, 0)
   }
+
   return 0
 }
 
@@ -66,7 +70,9 @@ function estimateToolTokens(tool: LanguageModelV3FunctionTool): number {
 
 function compareCacheKeys(a: string, b: string): number {
   if (a < b) return -1
+
   if (a > b) return 1
+
   return 0
 }
 
@@ -81,14 +87,17 @@ function withCacheProviderOptions<T extends { providerOptions?: unknown }>(
   cacheControl: ReturnType<typeof getCacheControl>
 ): T {
   const result = { ...value }
+
   const providerOptions =
     value.providerOptions && typeof value.providerOptions === 'object' ? { ...value.providerOptions } : {}
+
   Object.assign(providerOptions, {
     anthropic: {
       ...((value as Holder).providerOptions as { anthropic?: object } | undefined)?.anthropic,
       cacheControl
     }
   })
+
   return Object.assign(result, { providerOptions })
 }
 
@@ -103,6 +112,7 @@ function createCacheBreakpointBudget(): CacheBreakpointBudget {
     use() {
       if (this.remaining <= 0) return false
       this.remaining--
+
       return true
     }
   }
@@ -114,9 +124,11 @@ function hasCacheableContent(msg: LanguageModelV3Message): boolean {
 
 function sortToolsForCache(tools: LanguageModelV3CallOptions['tools']): LanguageModelV3CallOptions['tools'] {
   if (!tools?.length) return tools
+
   return [...tools].sort((a, b) => {
     const aName = isFunctionTool(a) ? a.name : a.id
     const bName = isFunctionTool(b) ? b.name : b.id
+
     return compareCacheKeys(aName, bName)
   })
 }
@@ -124,13 +136,17 @@ function sortToolsForCache(tools: LanguageModelV3CallOptions['tools']): Language
 function estimateToolsPrefix(sortedTools: LanguageModelV3CallOptions['tools']) {
   let totalTokens = 0
   let markerIndex = -1
+
   for (let i = 0; i < (sortedTools?.length ?? 0); i++) {
     const tool = sortedTools?.[i]
+
     if (!tool) continue
+
     if (!isFunctionTool(tool)) continue
     totalTokens += estimateToolTokens(tool)
     markerIndex = i
   }
+
   return { totalTokens, markerIndex }
 }
 
@@ -150,70 +166,92 @@ function applyToolCacheMarker(
     markedTools[markerIndex] as LanguageModelV3FunctionTool,
     cacheControl
   )
+
   return markedTools
 }
 
 type Holder = { providerOptions?: unknown }
+
 type HolderPath = (string | number)[]
 
 function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<string>): LanguageModelV3CallOptions {
   const holders: { path: HolderPath; key: string; rank: number }[] = []
+
   const inspect = (
     value: Pick<LanguageModelV3Message, 'providerOptions'> | LanguageModelV3ProviderTool,
     path: HolderPath
   ): boolean => {
     const anthropic = 'providerOptions' in value ? value.providerOptions?.anthropic : undefined
     const marker = anthropic?.cacheControl ?? anthropic?.cache_control
+
     if (typeof marker !== 'object' || marker === null || Array.isArray(marker)) return false
     holders.push({ path, key: path.join('.'), rank: marker.ttl === '1h' ? 1 : 0 })
+
     return true
   }
+
   const toolIndexes = (params.tools ?? [])
     .map((_, i) => i)
     .sort((a, b) => {
       const left = params.tools![a]
       const right = params.tools![b]
+
       return compareCacheKeys(isFunctionTool(left) ? left.name : left.id, isFunctionTool(right) ? right.name : right.id)
     })
+
   for (const i of toolIndexes) inspect(params.tools![i], ['tools', i])
   params.prompt.forEach((message, i) => {
     const messagePath: HolderPath = ['prompt', i]
+
     if (message.role === 'system') {
       inspect(message, messagePath)
+
       return
     }
+
     const contentIndexes: number[] = []
     const toolCallIndexes: number[] = []
+
     const useEmittedOrder =
       message.role === 'assistant' &&
       message.content.every((part) => part.type === 'text' || (part.type === 'tool-call' && !part.providerExecuted))
+
     // The adapter moves tool_use blocks to the end of each thinking-delimited segment.
     message.content.forEach((part, j) => {
       if (useEmittedOrder && part.type === 'tool-call' && !part.providerExecuted) {
         toolCallIndexes.push(j)
+
         return
       }
+
       if (useEmittedOrder && part.type === 'reasoning') {
         contentIndexes.push(...toolCallIndexes)
         toolCallIndexes.length = 0
       }
+
       contentIndexes.push(j)
     })
     contentIndexes.push(...toolCallIndexes)
     contentIndexes.forEach((j) => {
       const part = message.content[j]
+
       if (part.type === 'tool-approval-response') return
       const path: HolderPath = [...messagePath, 'content', j]
+
       if (inspect(part, path)) return
+
       if (message.role === 'tool' && part.type === 'tool-result') {
         const outputPath = [...path, 'output']
+
         if ('providerOptions' in part.output) {
           if (inspect(part.output, outputPath)) return
         } else if (part.output.type === 'content') {
           const index = part.output.value.findIndex((item) => item.providerOptions != null)
+
           if (index !== -1 && inspect(part.output.value[index], [...outputPath, 'value', index])) return
         }
       }
+
       if (j === message.content.length - 1) inspect(message, messagePath)
     })
   })
@@ -221,14 +259,17 @@ function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<str
   let rank = 1
   const lastLongSelection = holders.findLastIndex((holder) => selected.has(holder.key) && holder.rank === 1)
   let result: unknown = params
+
   for (const [index, holder] of holders.entries()) {
     const { path, key } = holder
     const invalidOrder = !selected.has(key) && (holder.rank > rank || (holder.rank === 0 && index < lastLongSelection))
+
     if (selected.has(key) || (!invalidOrder && remaining > 0)) {
       if (!selected.has(key)) remaining--
       rank = holder.rank
       continue
     }
+
     /* oxlint-disable anti-slop/no-known-value-widening -- This inspected SDK path crosses heterogeneous containers; copying it must preserve opaque payloads and untouched references. */
     // oxlint-disable-next-line anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type -- Inspected paths cross native SDK containers with non-JSON tool inputs; copying the path preserves opaque fields and untouched references.
     const remove = (node: unknown, depth: number): Record<string, unknown> | unknown[] => {
@@ -238,25 +279,33 @@ function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<str
         const anthropic = { ...holder.providerOptions.anthropic }
         delete anthropic.cacheControl
         delete anthropic.cache_control
+
         return { ...holder, providerOptions: { ...holder.providerOptions, anthropic } }
       }
+
       // SAFETY: inspect builds paths through existing object/array containers before this copy pass.
       const source = node as Record<string | number, unknown> // oxlint-disable-line anti-slop/no-unsafe-dictionary-type -- A traversal view of native SDK containers; unrelated values stay opaque.
       const copy = Array.isArray(node) ? [...node] : { ...source }
+
       const index = path[depth]
+
       // SAFETY: copy has the same container kind; the recorded path selects the existing child slot.
       ;(copy as typeof source)[index] = remove(source[index], depth + 1)
+
       return copy
     }
+
     /* oxlint-enable anti-slop/no-known-value-widening */
     result = remove(result, 0)
   }
+
   // Removing a higher-precedence hint can expose a previously shadowed fallback.
   return result === params ? params : clampCacheMarkers(result as LanguageModelV3CallOptions, selected)
 }
 
 function hasExplicitCacheControl(value: { providerOptions?: ProviderOptions }): boolean {
   const options = value.providerOptions?.anthropic
+
   return options?.cacheControl != null || options?.cache_control != null
 }
 
@@ -278,9 +327,12 @@ export async function transformAnthropicCacheParams(
   )
     return params
   const settings = resolveAnthropicCacheSettings(provider)
+
   if (!settings.enabled) return params
+
   if (!Array.isArray(params.prompt)) return params
   const selected = new Set<string>()
+
   if (params.prompt.length === 0) return clampCacheMarkers(params, selected)
 
   const messages = [...params.prompt]
@@ -292,9 +344,11 @@ export async function transformAnthropicCacheParams(
 
   if (settings.cacheSystemMessage && !volatileSystemPrompt) {
     let systemPrefixTokens = toolPrefix.totalTokens
+
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i]
       systemPrefixTokens += estimateContentTokens(msg.content)
+
       if (msg.role === 'system' && systemPrefixTokens >= settings.tokenThreshold && budget.use()) {
         messages[i] = withCacheProviderOptions(msg, cacheControl)
         selected.add(`prompt.${i}`)
@@ -317,17 +371,21 @@ export async function transformAnthropicCacheParams(
   if (settings.cacheLastNMessages > 0 && !volatileSystemPrompt) {
     const cumsumTokens: number[] = []
     let tokenSum = toolPrefix.totalTokens
+
     for (let i = 0; i < messages.length; i++) {
       tokenSum += estimateContentTokens(messages[i].content)
       cumsumTokens.push(tokenSum)
     }
 
     let cachedCount = 0
+
     for (let i = messages.length - 1; i >= 0 && cachedCount < settings.cacheLastNMessages; i--) {
       const msg = messages[i]
+
       if (msg.role === 'system' || cumsumTokens[i] < settings.tokenThreshold || !hasCacheableContent(msg)) {
         continue
       }
+
       if (!budget.use()) break
 
       if (typeof msg.content === 'string') {
@@ -340,11 +398,13 @@ export async function transformAnthropicCacheParams(
         selected.add(`prompt.${i}.content.${lastIndex}`)
         messages[i] = { ...msg, content: newContent } as LanguageModelV3Message
       }
+
       cachedCount++
     }
   }
 
   const toolsReordered = tools?.some((tool, i) => tool !== params.tools?.[i])
+
   return clampCacheMarkers(
     selected.size === 0 && !toolsReordered ? params : { ...params, prompt: messages, tools },
     selected

@@ -9,10 +9,15 @@ import type { QuickPanelFilterFn, QuickPanelListItem, QuickPanelSortFn } from '.
  */
 function buildItemHaystack(item: QuickPanelListItem): string {
   const parts: string[] = []
+
   if (item.filterText) parts.push(item.filterText)
+
   if (typeof item.label === 'string') parts.push(item.label)
+
   if (typeof item.description === 'string') parts.push(item.description)
+
   if (item.searchAliases) parts.push(...item.searchAliases)
+
   return parts.join(' ')
 }
 
@@ -26,30 +31,37 @@ function matchesFuzzyQuery(text: string, query: string): boolean {
 
   if (!LINE_TERMINATOR.test(query)) {
     let matched = 0
+
     for (let index = 0; index < text.length; index++) {
       const char = text[index]
+
       if (characters[matched].test(char)) {
         if (++matched === characters.length) return true
       } else if (LINE_TERMINATOR.test(char)) {
         matched = 0
       }
     }
+
     return false
   }
 
   // Literal newlines can consume line boundaries; retain overlapping prefixes without recursive retries.
   const prefixes = new Uint8Array(characters.length + 1)
   prefixes[0] = 1
+
   for (let index = 0; index < text.length; index++) {
     const char = text[index]
     const canSkip = !LINE_TERMINATOR.test(char)
+
     for (let length = characters.length - 1; length >= 0; length--) {
       prefixes[length + 1] = Number(
         (prefixes[length] && characters[length].test(char)) || (canSkip && prefixes[length + 1])
       )
     }
+
     if (prefixes[characters.length]) return true
   }
+
   return false
 }
 
@@ -73,10 +85,12 @@ export const defaultFilterFn: QuickPanelFilterFn = (item, searchText, _fuzzyRege
   if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(filterText)) {
     try {
       let pinyinText = pinyinCache.get(item)
+
       if (!pinyinText) {
         pinyinText = tinyPinyin.convertToPinyin(filterText, '', true).toLowerCase()
         pinyinCache.set(item, pinyinText)
       }
+
       return matchesFuzzyQuery(pinyinText, lowerSearchText)
     } catch (error) {
       return true
@@ -119,6 +133,7 @@ const calculateMatchScore = (item: QuickPanelListItem, searchText: string): numb
   if (lowerFilterText.includes(lowerSearchText)) {
     // Earlier position = higher score
     const position = lowerFilterText.indexOf(lowerSearchText)
+
     return 600 - position
   }
 
@@ -136,6 +151,7 @@ export const defaultSortFn: QuickPanelSortFn = (items, searchText) => {
   return [...items].sort((a, b) => {
     const scoreA = calculateMatchScore(a, searchText)
     const scoreB = calculateMatchScore(b, searchText)
+
     return scoreB - scoreA
   })
 }

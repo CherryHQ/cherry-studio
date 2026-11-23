@@ -6,7 +6,9 @@ import { HuggingfaceLight } from './light'
 
 const Huggingface = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <HuggingfaceLight {...props} className={className} />
+
   if (variant === 'dark') return <HuggingfaceDark {...props} className={className} />
+
   return (
     <>
       <HuggingfaceLight className={cn('dark:hidden', className)} {...props} />

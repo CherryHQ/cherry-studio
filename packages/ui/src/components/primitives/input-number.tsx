@@ -123,6 +123,7 @@ const sizeClasses: Record<NonNullable<InputNumberProps['size']>, string> = {
 const decimalsOf = (value: number) => {
   const [mantissa, exponent] = String(value).split('e')
   const fraction = mantissa.split('.')[1]?.length ?? 0
+
   return exponent ? Math.max(0, fraction - Number(exponent)) : fraction
 }
 
@@ -132,8 +133,10 @@ const decimalsOf = (value: number) => {
 const format = (value: number | null) => {
   if (value === null) return ''
   const text = String(value)
+
   return text.includes('e') ? value.toFixed(Math.min(100, decimalsOf(value))) : text
 }
+
 const allowsDecimal = (step?: number) => step === undefined || !Number.isInteger(step)
 
 const typablePattern = /^-?\d*\.?\d*(?:e[+-]?\d*)?$/i
@@ -153,18 +156,24 @@ const isEmptyRange = (min?: number, max?: number) => min !== undefined && max !=
 /** Normalizes on commit only: an integer `step` truncates, then the value is clamped into range. */
 function parse(raw: string, min?: number, max?: number, step?: number): number | null {
   const parsed = Number(raw)
+
   if (raw === '' || !Number.isFinite(parsed) || isEmptyRange(min, max)) {
     return null
   }
+
   const normalized = allowsDecimal(step) ? parsed : Math.trunc(parsed)
+
   if (min !== undefined && normalized < min) return min
+
   if (max !== undefined && normalized > max) return max
+
   return normalized
 }
 
 /** Reads what the field shows right now — the draft while editing, `value` otherwise. */
 function toNumber(raw: string): number | null {
   const parsed = Number(raw)
+
   return raw === '' || !Number.isFinite(parsed) ? null : parsed
 }
 
@@ -195,6 +204,7 @@ function stepFrom(base: number, step: number, min?: number, max?: number): numbe
   const decimals = Math.max(decimalsOf(size), decimalsOf(anchor))
   const stepped = Number((anchor + next * size).toFixed(decimals))
   const clamped = min !== undefined && stepped < min ? min : max !== undefined && stepped > max ? max : stepped
+
   // An arrow must never move the value against its own direction. A base already
   // outside the range would otherwise be dragged backwards by the clamp: pressing
   // Down on a value below `min` would raise it.
@@ -237,11 +247,13 @@ function InputNumber({
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const next = event.target.value
+
     // ReactDOM restores the rendered text on a controlled input whose state did
     // not change, so returning here is what drops the rejected input.
     if (!isTypable(next)) return
     setDraft(next)
     const parsed = Number(next)
+
     // A viable prefix like `"-"` or `"1e"` is not yet a value, and reporting it
     // as `null` would make callers that map null to a default write that default
     // mid-gesture. Only an emptied field is `null`.
@@ -257,19 +269,24 @@ function InputNumber({
     const settled = discarding.current || isIncomplete ? preEdit.current : parse(text, min, max, step)
     discarding.current = false
     const commit = onBlur?.(settled)
+
     if (!commit || typeof commit.then !== 'function') {
       setDraft(null)
+
       return
     }
+
     // Hold the settled value until the caller's `value` can catch up.
     const current = ++generation.current
     setDraft(format(settled))
     setBusy(true)
+
     const release = () => {
       if (generation.current !== current) return
       setBusy(false)
       setDraft(null)
     }
+
     commit.then(release, release)
   }
 
@@ -277,6 +294,7 @@ function InputNumber({
     if (event.key === 'Enter') {
       event.currentTarget.blur()
     }
+
     // Discards the edit and leaves the field, the way Escape dismisses elsewhere.
     // Swallowed so it stops at the React root: the app exits fullscreen on any
     // Escape that reaches `window`, and this one is spent leaving the edit.
@@ -286,9 +304,11 @@ function InputNumber({
       onValueChange?.(preEdit.current)
       event.currentTarget.blur()
     }
+
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       // Without this the caret jumps to the end of the text instead.
       event.preventDefault()
+
       if (isEmptyRange(min, max)) return
       const delta = (step ?? 1) * (event.key === 'ArrowUp' ? 1 : -1)
       // An empty field has no base to step from, so the first press lands on the
@@ -296,14 +316,17 @@ function InputNumber({
       const current = toNumber(text)
       const bound = event.key === 'ArrowUp' ? min : max
       const next = current === null ? (bound ?? stepFrom(0, delta, min, max)) : stepFrom(current, delta, min, max)
+
       // With no bound that way, stepping from an assumed zero can leave the range
       // entirely. There is no value to offer, so the field stays empty.
       if (current === null && bound === undefined && !inRange(next, min, max)) {
         return
       }
+
       setDraft(format(next))
       onValueChange?.(next)
     }
+
     onKeyDown?.(event)
   }
 

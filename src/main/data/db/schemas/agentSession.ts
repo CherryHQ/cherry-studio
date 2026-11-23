@@ -50,5 +50,7 @@ export const agentSessionTable = sqliteTable(
 )
 
 export type AgentSessionRow = typeof agentSessionTable.$inferSelect
+
 export type InsertAgentSessionRow = typeof agentSessionTable.$inferInsert
+
 export type AgentSessionType = AgentSessionRow['type']

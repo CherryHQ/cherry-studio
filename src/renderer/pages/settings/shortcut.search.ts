@@ -22,6 +22,7 @@ export const shortcutAnchorId = (commandId: string) => commandId.replace(/[._]/g
  */
 const categoryToBreadcrumbKey = (categoryKey: string): string => {
   const known = categoryKey.replace(/^settings\.shortcuts\./, 'settings.shortcuts.categories.')
+
   return /^(settings\.shortcuts\.categories\.(general|chat|topic))$/.test(known)
     ? known
     : 'settings.shortcuts.categories.assistant'
@@ -36,7 +37,9 @@ const isSearchableCommand = (definition: CommandDefinition): boolean => {
   const keybinding = definition.keybinding as
     | { editable?: boolean; supportedPlatforms?: SupportedPlatform[] }
     | undefined
+
   if (!keybinding || keybinding.editable === false) return false
+
   // Same filter the shortcut list applies at render time — unsupported
   // platforms would render no row and every jump would silently give up
   return isPlatformSupported(keybinding, currentPlatform)

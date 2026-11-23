@@ -29,6 +29,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/entries': {
     GET: async ({ query }) => {
       const validated = ListFilesQuerySchema.parse(query ?? {})
+
       return fileEntryService.listCursor(validated)
     }
   },
@@ -36,6 +37,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/entries/:id': {
     GET: async ({ params }) => {
       const id = FileEntryIdSchema.parse(params.id)
+
       return fileEntryService.getById(id)
     }
   },
@@ -43,6 +45,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/entries/by-content-hash': {
     GET: async ({ query }) => {
       const { contentHash } = ContentHashQuerySchema.parse(query)
+
       return fileEntryService.findInternalByContentHash(contentHash)
     }
   },
@@ -55,6 +58,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
     GET: async ({ query }) => {
       const { entryIds } = RefCountsQuerySchema.parse(query)
       const counts = fileRefService.countByEntryIds(entryIds)
+
       return entryIds.map((id) => ({ entryId: id, refCount: counts.get(id) ?? 0 }))
     }
   },
@@ -62,6 +66,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/entries/:id/refs': {
     GET: async ({ params }) => {
       const id = FileEntryIdSchema.parse(params.id)
+
       return fileRefService.findByEntryId(id)
     }
   },
@@ -69,6 +74,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/refs': {
     GET: async ({ query }) => {
       const validated = RefsBySourceQuerySchema.parse(query)
+
       return fileRefService.findBySource(validated)
     }
   }

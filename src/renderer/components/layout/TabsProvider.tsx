@@ -50,11 +50,13 @@ function hibernateTab(tab: Tab, hibernatedIds: ReadonlySet<string>): Tab {
   if (tab.isDormant || !hibernatedIds.has(tab.id)) return tab
 
   const savedState: TabSavedState = { scrollPosition: 0 }
+
   return { ...tab, isDormant: true, savedState }
 }
 
 // Route no longer served — its orphaned pinned tabs are dropped on restore.
 const LEGACY_LIBRARY_ROUTE_PATH = '/app/library'
+
 // OpenClaw was folded into the Code page (its sidebar entry + `/app/openclaw` route were removed),
 // so an already-persisted OpenClaw pin is redirected here rather than restoring to a dead route.
 const LEGACY_OPENCLAW_ROUTE_PATH = '/app/openclaw'
@@ -62,6 +64,7 @@ const CODE_ROUTE_PATH = '/app/code'
 
 function routePathOfTab(tab: Tab): string | null {
   if (tab.type !== 'route') return null
+
   return parseAppRouteUrl(tab.url)?.pathname ?? null
 }
 
@@ -79,25 +82,32 @@ export function migratePinnedTabs(pinnedTabs: Tab[]): PinnedRepairResult {
   let hasCodePin = pinnedTabs.some((tab) => routePathOfTab(tab) === CODE_ROUTE_PATH)
   const tabs: Tab[] = []
   let changed = false
+
   for (const tab of pinnedTabs) {
     if (isTransientMiniAppTab(tab)) {
       changed = true
       continue
     }
+
     const path = routePathOfTab(tab)
+
     if (path === LEGACY_LIBRARY_ROUTE_PATH) {
       changed = true
       continue
     }
+
     if (path === LEGACY_OPENCLAW_ROUTE_PATH) {
       changed = true
+
       if (hasCodePin) continue // a Code pin already exists — drop rather than duplicate it
       hasCodePin = true
       tabs.push({ ...tab, url: CODE_ROUTE_PATH, title: getDefaultRouteTitle(CODE_ROUTE_PATH) })
       continue
     }
+
     tabs.push(tab)
   }
+
   return { tabs, changed }
 }
 
@@ -106,26 +116,39 @@ export type PinnedRepairResult = { tabs: Tab[]; changed: boolean }
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Pinned-tab cache predates current tab fields; repair validates each stored entry and reconciles it with live tabs.
 export function repairPinnedTabs(raw: unknown, normalTabs: readonly Tab[]): PinnedRepairResult {
   if (raw === undefined) return { tabs: [], changed: false }
+
   if (!Array.isArray(raw)) return { tabs: [], changed: true }
 
   const valid: Tab[] = []
+
   for (const entry of raw) {
     if (!isPlainObject(entry)) continue
+
     if (typeof entry.id !== 'string' || !entry.id.trim()) continue
+
     if (entry.type !== 'route' && entry.type !== 'webview') continue
+
     if (typeof entry.url !== 'string' || !entry.url.trim()) continue
+
     try {
       new URL(entry.url, 'https://cherryai.com')
     } catch {
       continue
     }
+
     const tab = { ...entry } as Tab
+
     if (typeof tab.title !== 'string') tab.title = getDefaultRouteTitle(tab.url)
     tab.isPinned = true
+
     if ('isDormant' in tab && typeof tab.isDormant !== 'boolean') tab.isDormant = true
+
     if (typeof tab.lastAccessTime !== 'number' || !Number.isFinite(tab.lastAccessTime)) delete tab.lastAccessTime
+
     if (typeof tab.icon !== 'string') delete tab.icon
+
     if ('metadata' in tab && !isPlainObject(tab.metadata)) delete tab.metadata
+
     if ('savedState' in tab) {
       if (tab.savedState === undefined || !isPlainObject(tab.savedState)) delete tab.savedState
       else if ('scrollPosition' in tab.savedState && !Number.isFinite(tab.savedState.scrollPosition)) {
@@ -133,23 +156,30 @@ export function repairPinnedTabs(raw: unknown, normalTabs: readonly Tab[]): Pinn
         delete tab.savedState.scrollPosition
       }
     }
+
     valid.push(tab)
   }
+
   const seen = new Set(normalTabs.map((tab) => tab.id))
+
   const tabs = migratePinnedTabs(valid).tabs.filter((tab) => {
     if (seen.has(tab.id)) return false
     seen.add(tab.id)
+
     return true
   })
+
   return { tabs, changed: !isEqual(raw, tabs) }
 }
 
 function withLocalizedRouteTitle(tab: Tab): Tab {
   if (tab.type !== 'route') return tab
+
   // Chat / agent tabs are page-titled — never auto-localize, or the route title clobbers them.
   if (isPageTitledRoute(tab.url)) {
     return tab.title ? tab : { ...tab, title: getDefaultRouteTitle(tab.url) }
   }
+
   // Only auto-localize titles for top-level and settings routes. Parameterized
   // routes (e.g. /app/mini-app/<id>) preserve the title supplied at openTab
   // time so callers can pass per-entity names like a mini-app's display name.
@@ -163,6 +193,7 @@ function withLocalizedRouteTitle(tab: Tab): Tab {
   // routes the branch below still relocalizes the home tab, so language changes
   // are unaffected.
   if (!isTopLevelRoute(tab.url) && !isSettingsRouteTab(tab)) return tab
+
   return { ...tab, title: getDefaultRouteTitle(tab.url) }
 }
 
@@ -213,6 +244,7 @@ function computeInitialSession(params: {
     const activeTabId = pinnedHasActive
       ? persistedActiveTabId
       : (freshSession.normalTabs[0]?.id ?? pinnedTabs[0]?.id ?? '')
+
     return {
       normalTabs: restoreTabs(freshSession.normalTabs, activeTabId),
       pinnedTabs: restoreTabs(pinnedTabs, activeTabId),
@@ -226,6 +258,7 @@ function computeInitialSession(params: {
   // area is blank until the user clicks a tab.
   const activeInSession =
     pinnedHasActive || (!!persistedActiveTabId && restorableNormalTabs.some((t) => t.id === persistedActiveTabId))
+
   const activeTabId = activeInSession
     ? persistedActiveTabId
     : (restorableNormalTabs[0]?.id ?? pinnedTabs[0]?.id ?? initialDefaultTab?.id ?? '')
@@ -267,6 +300,7 @@ export function TabsProvider({
     (tab: Pick<Tab, 'isPinned'>) => includePinnedTabs && !!tab.isPinned,
     [includePinnedTabs]
   )
+
   const [persistedNormalTabs, setPersistedNormalTabs] = usePersistCache('ui.tab.normal_tabs')
   const [persistedActiveTabId, setPersistedActiveTabId] = usePersistCache('ui.tab.active_tab_id')
 
@@ -277,12 +311,15 @@ export function TabsProvider({
   // effects below would immediately persist that empty session over the real one — restore would
   // have to be reworked (e.g. re-seed when the hydrated value arrives) before that change lands.
   const initialSessionRef = useRef<InitialSession | null>(null)
+
   if (!initialSessionRef.current) {
     const restorableNormals = (persistedNormalTabs ?? []).filter((tab) => !isTransientMiniAppTab(tab))
+
     const initialPins =
       includePinnedTabs && !pinnedTabFeedbackService.episode.closed
         ? repairPinnedTabs(pinnedTabs, restorableNormals).tabs
         : []
+
     initialSessionRef.current = computeInitialSession({
       includePinnedTabs,
       initialDefaultTab,
@@ -302,11 +339,14 @@ export function TabsProvider({
     normalTabsRef.current = normalTabs
   }, [normalTabs])
   const renderEpisode = pinnedTabFeedbackService.episode
+
   const beginPinnedEpisode = useCallback(() => {
     if (!includePinnedTabs) return
+
     if (pinnedTabFeedbackService.episode.closed) persistPinnedTabs([])
     pinnedTabFeedbackService.begin()
   }, [includePinnedTabs, persistPinnedTabs])
+
   const setPinnedTabs = useCallback(
     (
       action: Tab[] | ((prev: readonly Tab[]) => Tab[]),
@@ -316,16 +356,20 @@ export function TabsProvider({
       if (!includePinnedTabs || episode !== pinnedTabFeedbackService.episode || episode.closed) return
       persistPinnedTabs((raw) => {
         const repaired = repairPinnedTabs(raw, survivingNormals).tabs
+
         const candidate = repairPinnedTabs(
           typeof action === 'function' ? action(repaired) : action,
           survivingNormals
         ).tabs
+
         return isEqual(raw, candidate) ? (raw as Tab[]) : candidate
       })
     },
     [includePinnedTabs, persistPinnedTabs]
   )
+
   const pinnedEpisodeClosed = renderEpisode.closed
+
   const availablePinnedTabs = useMemo(
     () => (includePinnedTabs && !pinnedEpisodeClosed ? repairPinnedTabs(pinnedTabs, normalTabs).tabs : []),
     [includePinnedTabs, pinnedTabs, normalTabs, pinnedEpisodeClosed]
@@ -335,6 +379,7 @@ export function TabsProvider({
   const [activeTabId, setActiveTabIdState] = useState<string>(() => initialSessionRef.current!.activeTabId)
 
   const activeTabIdRef = useRef(activeTabId)
+
   const setActiveTabId = useCallback((id: string) => {
     activeTabIdRef.current = id
     setActiveTabIdState(id)
@@ -344,6 +389,7 @@ export function TabsProvider({
   // This avoids mounting background pinned routers before the effect runs while keeping the cache
   // as the source of truth for all subsequent pinned-tab updates.
   const hasRestoredPinnedTabsRef = useRef(!includePinnedTabs)
+
   const pinnedTabsForRender = hasRestoredPinnedTabsRef.current
     ? availablePinnedTabs
     : initialSessionRef.current.pinnedTabs
@@ -363,6 +409,7 @@ export function TabsProvider({
 
   // LRU manager (singleton)
   const lruManagerRef = useRef<TabLruManager | null>(null)
+
   if (!lruManagerRef.current) {
     lruManagerRef.current = new TabLruManager()
   }
@@ -370,6 +417,7 @@ export function TabsProvider({
   // Merge tabs: pinned + normal (route titles follow current i18n language)
   const tabs = useMemo(() => {
     const currentPinnedTabs = includePinnedTabs ? pinnedTabsForRender : []
+
     return [...currentPinnedTabs.map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
   }, [includePinnedTabs, pinnedTabsForRender, normalTabs, i18n.language])
 
@@ -384,9 +432,11 @@ export function TabsProvider({
     const awake = nextTabs.map((tab) =>
       tab.id === nextActiveTabId && tab.isDormant ? { ...tab, isDormant: false } : tab
     )
+
     const hibernatedIds = new Set(lruManagerRef.current!.checkAndGetDormantCandidates(awake, nextActiveTabId))
     const prepared = awake.map((tab) => hibernateTab(tab, hibernatedIds))
     projectedTabsRef.current = prepared
+
     return prepared
   }, [])
 
@@ -395,14 +445,17 @@ export function TabsProvider({
       if (includePinnedTabs && (primaryId !== activeTabIdRef.current || !isEqual(projectedTabsRef.current, nextTabs))) {
         beginPinnedEpisode()
       }
+
       const prepared = applyTabLimit(nextTabs, primaryId)
       const normal = prepared.filter((tab) => !storesPinned(tab))
       normalTabsRef.current = normal
       setNormalTabs((prev) => (isEqual(prev, normal) ? prev : normal))
+
       if (includePinnedTabs) {
         const pinned = prepared.filter(storesPinned)
         setPinnedTabs(() => pinned, undefined, normal)
       }
+
       setActiveTabId(primaryId)
     },
     [applyTabLimit, storesPinned, includePinnedTabs, setPinnedTabs, setActiveTabId, beginPinnedEpisode]
@@ -415,22 +468,29 @@ export function TabsProvider({
     hasRestoredPinnedTabsRef.current = true
     const activeId = activeTabIdRef.current
     const prepared = applyTabLimit(tabs, activeTabId)
+
     if (includePinnedTabs) {
       const hibernatedIds = new Set(
         prepared.filter((tab, index) => tab.isDormant && !tabs[index].isDormant).map((tab) => tab.id)
       )
+
       const preparePins = (latest: readonly Tab[]): Tab[] => {
         const restored = restoring ? restoreTabs(latest, activeId) : [...latest]
         const localized = restored.map(withLocalizedRouteTitle)
+
         const next = localized.map((tab) =>
           hibernateTab(tab.id === activeId && tab.isDormant ? { ...tab, isDormant: false } : tab, hibernatedIds)
         )
+
         return next.every((tab, index) => tab === localized[index]) ? restored : next
       }
+
       const observedPinnedTabs = readPinnedTabs()
       const repair = repairPinnedTabs(observedPinnedTabs, normalTabsRef.current)
+
       if (!renderEpisode.closed) {
         const candidate = repairPinnedTabs(preparePins(repair.tabs), normalTabsRef.current).tabs
+
         if (pinnedTabFeedbackService.observe(renderEpisode, observedPinnedTabs, candidate) === 'tripped') {
           logger.warn('Pinned cache recovery', {
             key: 'ui.tab.pinned_tabs',
@@ -439,6 +499,7 @@ export function TabsProvider({
           })
         }
       }
+
       if (renderEpisode.closed) {
         const surviving = normalTabsRef.current.length ? normalTabsRef.current : [createLaunchpadFallbackTab()]
         const nextActiveId = surviving.some((tab) => tab.id === activeId) ? activeId : surviving[0].id
@@ -447,13 +508,18 @@ export function TabsProvider({
         projectedTabsRef.current = awake
         setNormalTabs((prev) => (isEqual(prev, awake) ? prev : awake))
         setActiveTabId(nextActiveId)
+
         if (!isEqual(pinnedTabs, [])) persistPinnedTabs([])
+
         return
       }
+
       if (repair.changed) logger.info('Repaired pinned cache value', { key: 'ui.tab.pinned_tabs' })
       setPinnedTabs(preparePins, renderEpisode)
     }
+
     const changed = prepared.filter((tab, index) => tab !== tabs[index])
+
     if (changed.some((tab) => !storesPinned(tab))) setNormalTabs(prepared.filter((tab) => !storesPinned(tab)))
   }, [
     tabs,
@@ -472,8 +538,10 @@ export function TabsProvider({
   const updateTab = useCallback(
     (id: string, updates: Partial<Tab>) => {
       const tab = projectedTabsRef.current.find((t) => t.id === id)
+
       if (!tab) return
       const updated = { ...tab, ...updates }
+
       if (isEqual(tab, updated)) return
       projectedTabsRef.current = projectedTabsRef.current.map((t) => (t.id === id ? updated : t))
 
@@ -490,7 +558,9 @@ export function TabsProvider({
   const setActiveTab = useCallback(
     (id: string) => {
       const targetTab = projectedTabsRef.current.find((t) => t.id === id)
+
       if (!targetTab) return
+
       if (id === activeTabId && !targetTab.isDormant) return
 
       // If a dormant tab was awakened, log it
@@ -499,9 +569,11 @@ export function TabsProvider({
       }
 
       const lastAccessTime = Date.now()
+
       const nextTabs = projectedTabsRef.current.map((tab) =>
         tab.id === id ? { ...tab, lastAccessTime, isDormant: false } : tab
       )
+
       commitTabs(nextTabs, id)
     },
     [activeTabId, commitTabs]
@@ -513,9 +585,11 @@ export function TabsProvider({
       const exists = currentTabs.some((item) => item.id === tab.id)
       const activeIndex = position === 'end' ? -1 : currentTabs.findIndex((item) => item.id === activeTabIdRef.current)
       const refreshed = { ...tab, lastAccessTime: Date.now(), isDormant: false }
+
       const next = exists
         ? currentTabs.map((item) => (item.id === tab.id ? refreshed : item))
         : currentTabs.toSpliced(activeIndex < 0 ? currentTabs.length : activeIndex + 1, 0, refreshed)
+
       commitTabs(next, tab.id)
     },
     [commitTabs]
@@ -524,10 +598,12 @@ export function TabsProvider({
   const closeTabs = useCallback(
     (ids: readonly string[], activateId?: string) => {
       const closingIdSet = new Set(ids)
+
       if (closingIdSet.size === 0) return
 
       const currentTabs = projectedTabsRef.current
       const closingTabs = currentTabs.filter((tab) => closingIdSet.has(tab.id))
+
       if (closingTabs.length === 0) return
 
       const remainingTabs = currentTabs.filter((tab) => !closingIdSet.has(tab.id))
@@ -535,6 +611,7 @@ export function TabsProvider({
 
       const currentActiveId = activeTabIdRef.current
       let newActiveId = currentActiveId
+
       if (fallbackTab) {
         newActiveId = fallbackTab.id
       } else if (closingIdSet.has(currentActiveId)) {
@@ -542,6 +619,7 @@ export function TabsProvider({
         // "close others"); otherwise hand the slot to the right neighbor and
         // fall back to the left one at the end of the strip.
         const preferredTab = activateId ? remainingTabs.find((tab) => tab.id === activateId) : undefined
+
         if (preferredTab) {
           newActiveId = preferredTab.id
         } else {
@@ -570,7 +648,9 @@ export function TabsProvider({
       activeTabId: latestActiveTabId,
       closeTabs: closeLatestTabs
     } = closeConversationTabsStateRef.current
+
     const tabIds = findClosableConversationTabIds(latestTabs, latestActiveTabId, appId, keys)
+
     if (tabIds.length > 0) closeLatestTabs(tabIds)
   }, [])
 
@@ -583,8 +663,10 @@ export function TabsProvider({
 
       if (!forceNew) {
         const existingTab = projectedTabsRef.current.find((t) => t.type === type && t.url === url)
+
         if (existingTab) {
           addTab(existingTab)
+
           return existingTab.id
         }
       }
@@ -602,6 +684,7 @@ export function TabsProvider({
       }
 
       addTab(newTab, position)
+
       return newTab.id
     },
     [addTab]
@@ -614,10 +697,12 @@ export function TabsProvider({
   const pinTab = useCallback(
     (id: string) => {
       const tab = projectedTabsRef.current.find((t) => t.id === id)
+
       if (!tab || tab.isPinned || isTransientMiniAppTab(tab)) return
 
       if (!includePinnedTabs) {
         updateTab(id, { isPinned: true })
+
         return
       }
 
@@ -641,10 +726,12 @@ export function TabsProvider({
   const unpinTab = useCallback(
     (id: string) => {
       const tab = projectedTabsRef.current.find((t) => t.id === id)
+
       if (!tab || !tab.isPinned) return
 
       if (!includePinnedTabs) {
         updateTab(id, { isPinned: false })
+
         return
       }
 
@@ -668,13 +755,16 @@ export function TabsProvider({
   const reorderTabs = useCallback(
     (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => {
       if (type === 'pinned' && !includePinnedTabs) return
+
       if (oldIndex === newIndex) return
+
       if (type === 'pinned') {
         beginPinnedEpisode()
         setPinnedTabs((prev) => {
           const newTabs = [...prev]
           const [removed] = newTabs.splice(oldIndex, 1)
           newTabs.splice(newIndex, 0, removed)
+
           return newTabs
         })
       } else {
@@ -682,6 +772,7 @@ export function TabsProvider({
           const newTabs = [...prev]
           const [removed] = newTabs.splice(oldIndex, 1)
           newTabs.splice(newIndex, 0, removed)
+
           return newTabs
         })
       }
@@ -695,6 +786,7 @@ export function TabsProvider({
   const detachTab = useCallback(
     (tabId: string, activateId?: string) => {
       const tab = tabs.find((t) => t.id === tabId)
+
       if (!tab) return
 
       void ipcApi

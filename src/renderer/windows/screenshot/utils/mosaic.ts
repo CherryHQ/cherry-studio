@@ -40,7 +40,9 @@ export function drawMosaic(
       for (let by = minBy; by <= maxBy; by++) {
         const blockX = bx * blockSize
         const blockY = by * blockSize
+
         if (blockX + blockSize <= 0 || blockY + blockSize <= 0) continue
+
         if (blockX >= selectionWidth || blockY >= selectionHeight) continue
         affectedBlocks.add(`${bx},${by}`)
       }
@@ -59,6 +61,7 @@ export function drawMosaic(
     const y0 = Math.max(0, blockY)
     const x1 = Math.min(selectionWidth, blockX + blockSize)
     const y1 = Math.min(selectionHeight, blockY + blockSize)
+
     if (x1 <= x0 || y1 <= y0) continue
 
     // Centre pixel of the clamped block, in physical coordinates. Blocks entirely
@@ -91,10 +94,12 @@ export function renderMosaicAbsolute(
 ): void {
   ctx.save()
   ctx.translate(selection.x, selection.y)
+
   const localAnnotation: MosaicAnnotation = {
     ...annotation,
     points: annotation.points.map((p) => ({ x: p.x - selection.x, y: p.y - selection.y }))
   }
+
   drawMosaic(ctx, localAnnotation, imageData, selection.width, selection.height, scaleFactor)
   ctx.restore()
 }
@@ -111,6 +116,7 @@ export function getSelectionImageData(
   offscreen.width = sw
   offscreen.height = sh
   const ctx = offscreen.getContext('2d')
+
   if (!ctx) return null
   ctx.drawImage(
     image,
@@ -123,5 +129,6 @@ export function getSelectionImageData(
     sw,
     sh
   )
+
   return ctx.getImageData(0, 0, sw, sh)
 }

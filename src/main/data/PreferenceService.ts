@@ -99,8 +99,10 @@ class PreferenceNotifier {
 
     return () => {
       const currentKeySubscriptions = this.subscriptions.get(key)
+
       if (currentKeySubscriptions) {
         currentKeySubscriptions.delete(callback)
+
         if (currentKeySubscriptions.size === 0) {
           this.subscriptions.delete(key)
         }
@@ -117,6 +119,7 @@ class PreferenceNotifier {
    */
   notify = (key: string, newValue: any, oldValue?: any): void => {
     const keySubscriptions = this.subscriptions.get(key)
+
     if (keySubscriptions && keySubscriptions.size > 0) {
       keySubscriptions.forEach((callback) => {
         try {
@@ -133,9 +136,11 @@ class PreferenceNotifier {
    */
   getTotalSubscriptionCount = (): number => {
     let total = 0
+
     for (const keySubscriptions of this.subscriptions.values()) {
       total += keySubscriptions.size
     }
+
     return total
   }
 
@@ -167,9 +172,11 @@ class PreferenceNotifier {
    */
   getSubscriptionStats = () => {
     const stats: Record<string, number> = {}
+
     for (const [key, keySubscriptions] of this.subscriptions.entries()) {
       stats[key] = keySubscriptions.size
     }
+
     return stats
   }
 }
@@ -184,6 +191,7 @@ const DefaultScope = 'default'
 type ResolvedPreferenceKey =
   | { readonly store: 'preference'; readonly key: PreferenceKeyType }
   | { readonly store: 'bootConfig'; readonly key: BootConfigKey }
+
 /**
  * PreferenceService manages preference data storage and synchronization across multiple windows
  *
@@ -221,6 +229,7 @@ export class PreferenceService extends BaseService {
       // Update cache with database values, keeping defaults for missing keys
       for (const result of results) {
         const key = result.key
+
         if (key in this.cache) {
           this.cache[key] = result.value
         }
@@ -258,6 +267,7 @@ export class PreferenceService extends BaseService {
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.Preference_Get, (event, key: UnifiedPreferenceKeyType) => {
       this.assertTrustedSender(event, IpcChannel.Preference_Get)
+
       return this.get(key)
     })
 
@@ -271,6 +281,7 @@ export class PreferenceService extends BaseService {
 
     this.ipcHandle(IpcChannel.Preference_GetMultipleRaw, (event, keys: UnifiedPreferenceKeyType[]) => {
       this.assertTrustedSender(event, IpcChannel.Preference_GetMultipleRaw)
+
       return this.getMultipleRaw(keys)
     })
 
@@ -281,12 +292,14 @@ export class PreferenceService extends BaseService {
 
     this.ipcHandle(IpcChannel.Preference_GetAll, (event) => {
       this.assertTrustedSender(event, IpcChannel.Preference_GetAll)
+
       return this.getAll()
     })
 
     this.ipcHandle(IpcChannel.Preference_Subscribe, async (event, keys: string[]) => {
       this.assertTrustedSender(event, IpcChannel.Preference_Subscribe)
       const windowId = BrowserWindow.fromWebContents(event.sender)?.id
+
       if (windowId === undefined) {
         // Push delivery requires a resolvable BrowserWindow — resolving here
         // would leave the renderer marked subscribed but never receiving
@@ -295,6 +308,7 @@ export class PreferenceService extends BaseService {
         logger.warn('Preference subscribe rejected: sender is not attached to a BrowserWindow')
         throw new Error('Preference subscribe requires a BrowserWindow sender')
       }
+
       this.subscribeForWindow(windowId, keys)
     })
   }
@@ -328,9 +342,11 @@ export class PreferenceService extends BaseService {
     if (!isBootConfigKey(key)) {
       return { store: 'preference', key: key as PreferenceKeyType }
     }
+
     if (!isPublicBootConfigKey(key)) {
       throw new Error(`Preference key "${key}" is not accessible via the unified preference API`)
     }
+
     return { store: 'bootConfig', key: toBootConfigKey(key) }
   }
 
@@ -342,12 +358,14 @@ export class PreferenceService extends BaseService {
    */
   public get<K extends UnifiedPreferenceKeyType>(key: K): UnifiedPreferenceType[K] {
     const route = this.resolveKey(key)
+
     if (route.store === 'bootConfig') {
       return bootConfigService.get(route.key) as UnifiedPreferenceType[K]
     }
 
     if (!this.isReady) {
       logger.warn(`Preference cache not initialized, returning default for ${key}`)
+
       return DefaultPreferences.default[route.key] as UnifiedPreferenceType[K]
     }
 
@@ -367,12 +385,16 @@ export class PreferenceService extends BaseService {
 
     if (route.store === 'bootConfig') {
       const oldValue = bootConfigService.get(route.key)
+
       if (isEqual(oldValue, value)) {
         bootConfigService.persist()
+
         return
       }
+
       // TS cannot correlate UnifiedPreferenceType[K] with BootConfigSchema via prefix stripping
       bootConfigService.set(route.key, value as any)
+
       try {
         bootConfigService.persist()
       } catch (error) {
@@ -380,12 +402,15 @@ export class PreferenceService extends BaseService {
         bootConfigService.set(route.key, oldValue)
         throw error
       }
+
       await this.notifyChange(key, value, oldValue)
+
       return
     }
 
     try {
       const cacheKey = route.key
+
       if (!(cacheKey in this.cache)) {
         throw new Error(`Preference ${cacheKey} not found in cache`)
       }
@@ -430,6 +455,7 @@ export class PreferenceService extends BaseService {
     }
 
     const output = {} as UnifiedPreferenceMultipleResultType<K>
+
     for (const key of keys) {
       output[key] = this.get(key)
     }
@@ -489,11 +515,13 @@ export class PreferenceService extends BaseService {
       // Handle BootConfig updates
       let bootConfigKeyCount = 0
       const previousBootConfigValues = new Map<BootConfigKey, BootConfigSchema[BootConfigKey]>()
+
       try {
         for (const { key, value, route } of items) {
           if (route.store !== 'bootConfig') continue
           bootConfigKeyCount++
           const oldValue = bootConfigService.get(route.key)
+
           if (!isEqual(oldValue, value)) {
             // TS cannot correlate UnifiedPreferenceType with BootConfigSchema via prefix stripping
             bootConfigService.set(route.key, value as any)
@@ -501,11 +529,13 @@ export class PreferenceService extends BaseService {
             allChanges.push([key, value, oldValue])
           }
         }
+
         if (bootConfigKeyCount > 0) bootConfigService.persist()
       } catch (error) {
         for (const [key, oldValue] of previousBootConfigValues) {
           bootConfigService.set(key, oldValue)
         }
+
         throw error
       }
 
@@ -515,11 +545,13 @@ export class PreferenceService extends BaseService {
         value: Exclude<UnifiedPreferenceType[UnifiedPreferenceKeyType], undefined>
         oldValue: PreferenceDefaultScopeType[PreferenceKeyType]
       }> = []
+
       let skippedCount = 0
 
       for (const { value, route } of items) {
         if (route.store !== 'preference') continue
         const cacheKey = route.key
+
         if (!(cacheKey in this.cache) || value === undefined) {
           throw new Error(`Preference ${cacheKey} not found in cache or value is undefined`)
         }
@@ -734,6 +766,7 @@ export class PreferenceService extends BaseService {
         if (!keyToWindows.has(key)) {
           keyToWindows.set(key, new Set())
         }
+
         keyToWindows.get(key)!.add(windowId)
         totalSubscriptions++
       }
@@ -753,11 +786,13 @@ export class PreferenceService extends BaseService {
     const mainProcessStats = this.notifier.getSubscriptionStats()
 
     const keyToWindowIds = new Map<string, number[]>()
+
     for (const [windowId, keys] of this.windowSubscriptions.entries()) {
       for (const key of keys) {
         if (!keyToWindowIds.has(key)) {
           keyToWindowIds.set(key, [])
         }
+
         keyToWindowIds.get(key)!.push(windowId)
       }
     }
@@ -765,6 +800,7 @@ export class PreferenceService extends BaseService {
     const allSubscribedKeys = new Set<string>([...Object.keys(mainProcessStats), ...keyToWindowIds.keys()])
 
     const details: PreferenceKeyStats[] = []
+
     for (const key of allSubscribedKeys) {
       details.push({
         key,
@@ -814,6 +850,7 @@ export class PreferenceService extends BaseService {
     for (const windowId of affectedWindows) {
       try {
         const window = BrowserWindow.fromId(windowId)
+
         if (window && !window.isDestroyed()) {
           window.webContents.send(IpcChannel.Preference_Changed, key, value, DefaultScope)
         } else {
@@ -858,6 +895,7 @@ export class PreferenceService extends BaseService {
    */
   public getAll(): UnifiedPreferenceType {
     const cachedValues = this.isReady ? this.cache : DefaultPreferences.default
+
     if (!this.isReady) {
       logger.warn('Preference cache not initialized, returning defaults')
     }
@@ -865,6 +903,7 @@ export class PreferenceService extends BaseService {
     // Merge preferences with BootConfig values, excluding internal (temp.*)
     // keys — they must never leak to the renderer or cross-window sync.
     const bootConfigAll = bootConfigService.getAll()
+
     const bootConfigEntries = Object.entries(bootConfigAll)
       .map(([k, v]) => [`${BOOT_CONFIG_PREFIX}${k}`, v] as const)
       .filter(([prefixedKey]) => isPublicBootConfigKey(prefixedKey))

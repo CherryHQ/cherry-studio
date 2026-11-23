@@ -15,6 +15,7 @@ export const formatCode = (value: string) => {
   const longestBacktickRun = Math.max(0, ...Array.from(normalized.matchAll(/`+/g), (match) => match[0].length))
   const fence = '`'.repeat(longestBacktickRun + 1)
   const padding = normalized.startsWith('`') || normalized.endsWith('`') ? ' ' : ''
+
   return `${fence}${padding}${normalized}${padding}${fence}`
 }
 
@@ -31,12 +32,15 @@ export function sanitizeWebviewAnnotationUrl(rawUrl: string): string {
 
     if (url.protocol === 'file:') {
       let pathname = url.pathname
+
       try {
         pathname = decodeURIComponent(pathname)
       } catch {
         // A malformed escape should not erase the otherwise valid file source.
       }
+
       const parts = pathname.split('/').filter(Boolean)
+
       return `file:${parts.at(-1) ?? ''}`
     }
 
@@ -45,6 +49,7 @@ export function sanitizeWebviewAnnotationUrl(rawUrl: string): string {
       url.password = ''
       url.search = ''
       url.hash = ''
+
       return `${url.origin}${url.pathname}`
     }
 
@@ -64,6 +69,7 @@ export function formatAgentWebviewAnnotationPrompt({
 }): string {
   const pageTitle = page.title.trim() ? escapeInlineMarkdown(page.title) : 'Untitled page'
   const sanitizedUrl = sanitizeWebviewAnnotationUrl(page.url)
+
   const metadata = [
     `- Page title: ${pageTitle}`,
     `- URL: ${formatCode(sanitizedUrl || 'Unavailable')}`,

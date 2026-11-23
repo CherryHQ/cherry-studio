@@ -10,5 +10,6 @@ export function LazyCodeEditor(props: CodeEditorProps) {
   useEffect(() => {
     if (!sharedSyntax) requestCmTheme?.()
   }, [sharedSyntax, requestCmTheme])
+
   return <Editor {...props} theme={props.theme ?? activeCmTheme} />
 }

@@ -4,6 +4,7 @@ import { EssentialAiLight } from './light'
 
 const EssentialAi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <EssentialAiLight {...props} className={className} />
+
   return <EssentialAiLight {...props} className={className} />
 }
 

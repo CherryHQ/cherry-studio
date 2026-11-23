@@ -7,6 +7,7 @@ export async function createDefaultBackupFileName(): Promise<string> {
     ipcApi.request('system.get_device_type'),
     window.api.system.getHostname()
   ])
+
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
 
   return `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`

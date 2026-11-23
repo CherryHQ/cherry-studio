@@ -31,11 +31,13 @@ import type {
 import replDocumentation from './skills/repl.md?raw'
 
 const logger = loggerService.withContext('AutomationReplService')
+
 const definition = defineUtilityProcess<AutomationKernelContract>({
   id: 'automation.repl',
   entry: 'automation-repl',
   cancellation: 'terminate'
 })
+
 const callSchema = z
   .object({
     name: z.string().max(100),
@@ -43,7 +45,9 @@ const callSchema = z
     target: z.string().min(1).max(512).optional()
   })
   .strict()
+
 const MAX_SESSIONS = 16
+
 const READ_OPERATIONS = new Set([
   'documentation',
   'getTab',
@@ -84,6 +88,7 @@ function withContext(
 ): CallToolResult {
   const contextual: CallToolResult = { ...result }
   const structuredContent = { replContext: context }
+
   if (execution) Object.assign(structuredContent, { execution })
   contextual.structuredContent = structuredContent
   contextual.content = [
@@ -99,6 +104,7 @@ function withContext(
       : []),
     { type: 'text', text: `REPL_CONTEXT ${JSON.stringify(context)}`, annotations: { audience: ['assistant'] } }
   ]
+
   return contextual
 }
 
@@ -147,16 +153,21 @@ export class AutomationReplService extends BaseService {
   ): Promise<AutomationRun> {
     const ceiling = access()
     const key = JSON.stringify([owner.kind, owner.sessionId, owner.ownerId])
+
     while (true) {
       signal?.throwIfAborted()
+
       if (!this.accepting) throw new Error('Automation REPL is stopped')
       const session = this.sessions.get(key)
+
       if (session?.closing) throw new Error('Automation session is closing')
+
       if (!session?.run) break
       const ready = Promise.withResolvers<void>()
       const subscription = session.released.onResolved(() => ready.resolve())
       const abort = () => ready.reject(signal?.reason)
       signal?.addEventListener('abort', abort, { once: true })
+
       try {
         await ready.promise
       } finally {
@@ -164,11 +175,13 @@ export class AutomationReplService extends BaseService {
         subscription.dispose()
       }
     }
+
     return this.beginRun(
       owner,
       runId,
       () => {
         const live = access()
+
         return {
           browser: ceiling.browser && live.browser,
           computer: ceiling.computer && live.computer,
@@ -190,8 +203,11 @@ export class AutomationReplService extends BaseService {
     const key = JSON.stringify([owner.kind, owner.sessionId, owner.ownerId])
     let session = this.sessions.get(key)
     const released = new Signal<void>()
+
     if (session?.closing) throw new Error('Automation session is closing')
+
     if (session?.run) throw new Error('This conversation already has an active automation run')
+
     if (!session) {
       if (this.sessions.size >= MAX_SESSIONS)
         throw new Error('Too many persistent automation sessions; close an idle conversation')
@@ -205,6 +221,7 @@ export class AutomationReplService extends BaseService {
       }
       this.sessions.set(key, session)
     }
+
     const state = session
     state.released = released
     const abort = new AbortController()
@@ -217,23 +234,30 @@ export class AutomationReplService extends BaseService {
     let computerSession: ComputerAutomationSession | undefined
     const operations = new Mutex()
     const children = new Set<Promise<unknown>>()
+
     const assertActive = () => {
       signal.throwIfAborted()
+
       if (!this.accepting || closing || state.run !== run) throw new Error('Automation run is no longer active')
       const live = access()
+
       return { browser: ceiling.browser && live.browser, computer: ceiling.computer && live.computer }
     }
+
     const release = async () => {
       const results = await Promise.allSettled([
         browser?.close(),
         computer ? application.get('ComputerUseService').finishTask(computer) : undefined
       ])
+
       browser = undefined
       computer = undefined
       computerSession = undefined
       const errors = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+
       if (errors.length) throw new AggregateError(errors, 'Automation control cleanup failed')
     }
+
     const run: AutomationRun = {
       execute: (code, callSignal) =>
         state.queue.runExclusive(async () => {
@@ -248,6 +272,7 @@ export class AutomationReplService extends BaseService {
           let timer = setTimeout(() => deadline.abort(new Error('Automation execution timed out')), remaining)
           approvalWaiting = (waiting) => {
             clearTimeout(timer)
+
             if (waiting) {
               remaining = Math.max(0, remaining - (Date.now() - resumedAt))
               waitingSince = Date.now()
@@ -257,12 +282,14 @@ export class AutomationReplService extends BaseService {
               timer = setTimeout(() => deadline.abort(new Error('Automation execution timed out')), remaining)
             }
           }
+
           const executionSignal = AbortSignal.any([
             activeCell.signal,
             signal,
             deadline.signal,
             ...(callSignal ? [callSignal] : [])
           ])
+
           executionSignal.throwIfAborted()
           const cell = randomUUID()
           const apps: ComputerUseApp[] = []
@@ -273,15 +300,19 @@ export class AutomationReplService extends BaseService {
           const documents: CallToolResult['content'] = []
           const documentedInCell = new Set<string>()
           const execution: AutomationExecution = { events: [], omitted: 0 }
+
           const record = (event: AutomationExecution['events'][number]) => {
             execution.events.push(event)
+
             if (execution.events.length > 64) {
               execution.events.shift()
               execution.omitted++
             }
           }
+
           const clearControl = async () => {
             await Promise.allSettled([...children])
+
             try {
               await release()
             } catch (cause) {
@@ -297,7 +328,9 @@ export class AutomationReplService extends BaseService {
               })
             }
           }
+
           let failedAction = false
+
           const dispatch = async (
             domain: string,
             // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Utility-process host calls carry untrusted action parameters; callSchema validates them before permission and target checks.
@@ -310,11 +343,13 @@ export class AutomationReplService extends BaseService {
             let mutating = false
             let operation = 'dispatch'
             let boundTarget: string | undefined
+
             try {
               const { name, args, target } = callSchema.parse(input)
               operation = name
               boundTarget = target ?? (name === 'getApp' && typeof args.query === 'string' ? args.query : undefined)
               mutating = !READ_OPERATIONS.has(name)
+
               if (failedAction && mutating)
                 throw Object.assign(
                   new Error(
@@ -322,16 +357,19 @@ export class AutomationReplService extends BaseService {
                   ),
                   { code: 'OBSERVATION_REQUIRED', effect: 'none' }
                 )
+
               if ((domain !== 'browser' && domain !== 'computer') || !allowed[domain])
                 throw Object.assign(new Error(`Automation capability unavailable: ${domain}`), {
                   code: 'CAPABILITY_UNAVAILABLE',
                   effect: 'none'
                 })
+
               if (!state.documents.has('repl') || (name === 'documentation' && !documentedInCell.has('repl'))) {
                 documents.push({ type: 'text', text: replDocumentation, annotations: { audience: ['assistant'] } })
                 state.documents.add('repl')
                 documentedInCell.add('repl')
               }
+
               if (
                 !documentedInCell.has(domain) &&
                 (name === 'documentation' ||
@@ -346,8 +384,10 @@ export class AutomationReplService extends BaseService {
                 state.documents.add(domain)
                 documentedInCell.add(domain)
               }
+
               if (name === 'documentation') return { ok: true, value: { status: 'documentation-emitted' } }
               let result
+
               if (domain === 'browser') {
                 browser ??= application.get('BrowserSessionService').createControl(owner)
                 result = await browser.execute(name, args, target, childSignal)
@@ -358,6 +398,7 @@ export class AutomationReplService extends BaseService {
                     current: () => {
                       if (!assertActive().computer) throw new Error('Computer Use access was revoked')
                       const policy = access().computerApproval
+
                       return {
                         sessionId: owner.sessionId,
                         topicId: owner.kind === 'agent' ? buildAgentSessionTopicId(owner.sessionId) : owner.sessionId,
@@ -373,9 +414,12 @@ export class AutomationReplService extends BaseService {
                     apps.push({ id: app.id, name: app.name, identity: app.identity })
                 })
               }
+
               if (mutating) record({ domain, operation, target: boundTarget, status: 'completed' })
+
               if (!assertActive()[domain]) throw new Error('Automation capability was revoked')
               childSignal.throwIfAborted()
+
               if (result.observation) {
                 observations.add(
                   {
@@ -391,9 +435,11 @@ export class AutomationReplService extends BaseService {
                 )
                 lastEmittedValue = JSON.stringify(result.value)
               }
+
               return { ok: true, value: result.value }
             } catch (cause) {
               if (mutating) failedAction = true
+
               const error = {
                 code: childSignal.aborted
                   ? 'CANCELLED'
@@ -415,20 +461,27 @@ export class AutomationReplService extends BaseService {
                 domain,
                 operation
               }
+
               if (boundTarget) Object.assign(error, { target: boundTarget })
+
               if (cause instanceof Error && 'dialog' in cause) Object.assign(error, { dialog: cause.dialog })
               record({ domain, operation, target: boundTarget, status: 'failed', error })
               observations.add({ error, domain })
+
               return { ok: false, error }
             }
           }
+
           try {
             const bootstrap = automationBootstrap()
+
             if (state.bootstrap !== undefined && state.bootstrap !== bootstrap) {
               state.documents.clear()
               await release()
             }
+
             state.bootstrap = bootstrap
+
             const output = await state.kernel.request(
               'execute',
               { code: z.string().max(64_000).parse(code), bootstrap },
@@ -436,22 +489,29 @@ export class AutomationReplService extends BaseService {
                 signal: executionSignal,
                 onHostCall: (domain, input, rpcSignal) => {
                   hostCallsStarted++
+
                   const child = operations.runExclusive(async () => {
                     const before = approvalWaitMs
                     const reply = await dispatch(domain, input, rpcSignal)
+
                     return { ...reply, approvalWaitMs: approvalWaitMs - before }
                   })
+
                   children.add(child)
                   void child.finally(() => children.delete(child)).catch(() => {})
+
                   return child
                 }
               }
             )
+
             if (output.context?.state === 'cleared') {
               state.documents.clear()
               await clearControl()
             }
+
             const completion = output.text?.trim()
+
             return withContext(
               {
                 content: [
@@ -480,6 +540,7 @@ export class AutomationReplService extends BaseService {
                 message: error instanceof Error ? error.message : String(error)
               }
             })
+
             return withContext(
               {
                 isError: true,
@@ -499,6 +560,7 @@ export class AutomationReplService extends BaseService {
             await Promise.allSettled([...children])
             clearTimeout(timer)
             approvalWaiting = () => {}
+
             activeCell = undefined
             state.lastUsed = Date.now()
           }
@@ -506,11 +568,13 @@ export class AutomationReplService extends BaseService {
       reset: () => {
         assertActive()
         activeCell?.abort(new Error('REPL reset'))
+
         return state.queue.runExclusive(async () => {
           assertActive()
           await state.kernel.stop({ resetFailures: true })
           state.documents.clear()
           await release()
+
           return withContext(
             { content: [{ type: 'text', text: 'Automation REPL reset.' }] },
             { ...clearedContext(randomUUID()), execution: 'not-started' }
@@ -529,10 +593,13 @@ export class AutomationReplService extends BaseService {
             released.resolve()
           }
         })
+
         return closing
       }
     }
+
     state.run = run
+
     return run
   }
 
@@ -540,12 +607,15 @@ export class AutomationReplService extends BaseService {
     const key = JSON.stringify([owner.kind, owner.sessionId, owner.ownerId])
     const session = this.sessions.get(key)
     application.get('ComputerUseService').approvals.clear(`${owner.kind}:${owner.sessionId}:${owner.ownerId}`)
+
     if (!session) return
     session.closing = true
+
     try {
       await session.run?.finish()
     } finally {
       await session.kernel.dispose()
+
       if (this.sessions.get(key) === session) this.sessions.delete(key)
     }
   }
@@ -555,6 +625,7 @@ export class AutomationReplService extends BaseService {
     this.callApps.clear()
     const results = await Promise.allSettled([...this.sessions.values()].map((session) => this.close(session.owner)))
     const errors = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+
     if (errors.length) throw new AggregateError(errors, 'Failed to close automation sessions')
   }
 }

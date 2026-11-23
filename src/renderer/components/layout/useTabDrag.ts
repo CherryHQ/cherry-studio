@@ -15,6 +15,7 @@ const TAB_GAP = 6
 const TAB_DRAG_SAFE_INSET = 16
 
 type DragMode = 'pending' | 'reorder' | 'detach'
+
 type HorizontalRect = Pick<DOMRectReadOnly, 'left' | 'width'>
 
 const getElementLayoutRect = (element: HTMLElement): HorizontalRect => {
@@ -26,6 +27,7 @@ const getElementLayoutRect = (element: HTMLElement): HorizontalRect => {
 
 const getRightInsetWidth = (boundaryRect: DOMRectReadOnly | null, insetElement: HTMLElement | null): number => {
   if (!boundaryRect || !insetElement) return 0
+
   return Math.max(0, boundaryRect.right - insetElement.getBoundingClientRect().left) + TAB_GAP
 }
 
@@ -119,8 +121,10 @@ export function useTabDrag({
   useEffect(() => {
     if (settling) {
       const id = requestAnimationFrame(() => setSettling(false))
+
       return () => cancelAnimationFrame(id)
     }
+
     return undefined
   }, [settling])
 
@@ -130,13 +134,16 @@ export function useTabDrag({
       const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
       const startIndex = dragRef.current.tabType === 'normal' ? normalReorderStartIndex : 0
       const rects = dragRef.current.originalRects
+
       for (let i = startIndex; i < list.length; i++) {
         if (list[i].id === dragTabId) continue
         const rect = rects.get(list[i].id)
+
         if (rect && clientX < rect.left + rect.width / 2) {
           return i
         }
       }
+
       return list.length
     },
     [normalTabs, normalReorderStartIndex, pinnedTabs]
@@ -170,6 +177,7 @@ export function useTabDrag({
       }
 
       const draggedRect = dragRef.current.originalRects.get(dragState.tabId)
+
       if (!draggedRect) return 0
       const draggedWidth = draggedRect.width + TAB_GAP
 
@@ -188,6 +196,7 @@ export function useTabDrag({
   const handlePointerDown = useCallback(
     (e: React.PointerEvent, tab: Tab, tabType: 'pinned' | 'normal') => {
       if (e.button !== 0) return
+
       if ((e.target as HTMLElement).closest('[role="button"]')) return
 
       const list = tabType === 'pinned' ? pinnedTabs : normalTabs
@@ -202,8 +211,10 @@ export function useTabDrag({
 
       // Store original positions of all tabs
       const originalRects = new Map<string, HorizontalRect>()
+
       for (const t of list) {
         const el = tabRefs.current.get(t.id)
+
         if (el) {
           const rect = el.getBoundingClientRect()
           originalRects.set(t.id, { left: rect.left, width: rect.width })
@@ -237,9 +248,12 @@ export function useTabDrag({
     (tabId: string) => {
       if (didDragRef.current) {
         didDragRef.current = false
+
         return false
       }
+
       setActiveTab(tabId)
+
       return true
     },
     [setActiveTab]
@@ -254,19 +268,24 @@ export function useTabDrag({
       dragRef.current.currentX = e.clientX
       // Refresh live geometry so resizing and sticky-button changes do not leave stale drag bounds.
       const liveTabList = tabListRef.current
+
       if (liveTabList) {
         dragRef.current.boundaryRect = liveTabList.getBoundingClientRect()
         dragRef.current.leftInsetWidth = Number.parseFloat(window.getComputedStyle(liveTabList).paddingLeft) || 0
       }
+
       const draggedElement = tabRefs.current.get(dragState.tabId)
+
       if (draggedElement) {
         dragRef.current.originalRects.set(dragState.tabId, getElementLayoutRect(draggedElement))
       }
+
       dragRef.current.rightInsetWidth = getRightInsetWidth(dragRef.current.boundaryRect, rightInsetRef.current)
       const deltaX = e.clientX - dragRef.current.startX
       const deltaY = e.clientY - dragRef.current.startY
 
       const tabBarRect = tabBarRef.current?.getBoundingClientRect()
+
       if (!tabBarRect) return
 
       const isOutsideTabBar =
@@ -295,6 +314,7 @@ export function useTabDrag({
         if (!dragRef.current.detachedCreated) {
           const allTabs = [...pinnedTabs, ...normalTabs]
           const tab = allTabs.find((t) => t.id === dragState.tabId)
+
           if (tab) {
             const drag = dragRef.current
             void ipcApi
@@ -309,6 +329,7 @@ export function useTabDrag({
               })
               .catch((error) => {
                 logger.error('Tab detach failed', error)
+
                 if (dragRef.current === drag) setDragState(null)
               })
             dragRef.current.detachedCreated = true
@@ -334,6 +355,7 @@ export function useTabDrag({
       if (e.pointerId !== dragRef.current.pointerId) return
 
       const el = tabRefs.current.get(dragState.tabId)
+
       if (el) {
         try {
           el.releasePointerCapture(dragRef.current.pointerId)
@@ -345,6 +367,7 @@ export function useTabDrag({
       // `dragState.mode` lags behind (setState flushes after the pointer events), so
       // key off the ref that the detach branch sets synchronously.
       const detaching = dragState.mode === 'detach' || dragRef.current.detachedCreated
+
       if (detaching) {
         // Send the final position even when no further pointermove follows the detach.
         if (dragRef.current.detachedCreated) {
@@ -354,17 +377,21 @@ export function useTabDrag({
             y: e.screenY - 20
           })
         }
+
         void ipcApi.request('tab.drag_end')
       } else if (dragState.mode === 'reorder') {
         didDragRef.current = true
         const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
         const oldIndex = list.findIndex((t) => t.id === dragState.tabId)
+
         if (oldIndex !== -1 && oldIndex !== dragState.insertIndex) {
           const insertIndex =
             dragRef.current.tabType === 'normal'
               ? Math.max(normalReorderStartIndex, dragState.insertIndex)
               : dragState.insertIndex
+
           const adjustedIndex = oldIndex < insertIndex ? insertIndex - 1 : insertIndex
+
           if (oldIndex !== adjustedIndex) {
             setSettling(true)
             reorderTabs(dragRef.current.tabType, oldIndex, adjustedIndex)
@@ -376,14 +403,17 @@ export function useTabDrag({
         cancelAnimationFrame(rafId.current)
         rafId.current = null
       }
+
       setDragState(null)
     }
 
     document.addEventListener('pointermove', onMove)
     document.addEventListener('pointerup', onUp)
+
     return () => {
       document.removeEventListener('pointermove', onMove)
       document.removeEventListener('pointerup', onUp)
+
       if (rafId.current !== null) {
         cancelAnimationFrame(rafId.current)
         rafId.current = null

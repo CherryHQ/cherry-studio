@@ -30,7 +30,9 @@ const TRANSPORT_CODES = new Set([
   'ENOTFOUND',
   'EAI_AGAIN'
 ])
+
 const MAX_CAUSE_DEPTH = 16
+
 const CONNECTION_STATE_CODES = new Set([
   SdkErrorCode.NotConnected,
   SdkErrorCode.AlreadyConnected,
@@ -41,11 +43,13 @@ const CONNECTION_STATE_CODES = new Set([
 function errorCauses(error: unknown): object[] {
   const causes: object[] = []
   const seen = new Set<object>()
+
   while (error && typeof error === 'object' && !seen.has(error) && causes.length < MAX_CAUSE_DEPTH) {
     causes.push(error)
     seen.add(error)
     error = 'cause' in error ? error.cause : undefined
   }
+
   return causes
 }
 
@@ -53,6 +57,7 @@ function errorCauses(error: unknown): object[] {
 export function normalizeMcpTransportError<TError>(error: TError): TError | McpTransportError {
   if (!(error instanceof Error) || error instanceof McpTransportError) return error
   const causes = errorCauses(error)
+
   if (
     causes.some(
       (cause) =>
@@ -65,10 +70,12 @@ export function normalizeMcpTransportError<TError>(error: TError): TError | McpT
     return error
   // Node fetch's TypeError needs its structured errno cause, not only the canonical message.
   const nodeTransport = causes.some((cause) => 'code' in cause && TRANSPORT_CODES.has(String(cause.code)))
+
   const chromiumTransport =
     error.name === 'Error' &&
     /^net::ERR_[A-Z0-9_]+$/.test(error.message) &&
     ['network', 'stream', 'proxy'].includes(classifyErrorCategory({ text: error.message }))
+
   return nodeTransport || chromiumTransport ? new McpTransportError(error) : error
 }
 
@@ -80,12 +87,15 @@ export function classifyMcpFailure(error: unknown, external: boolean, cancelled 
     reason: 'mcp_failed',
     outcome: 'failed'
   }
+
   if (cancelled || isCancellation(error))
     return { ...facts, kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }
   const causes = errorCauses(error)
+
   if (causes.some((cause) => SdkError.isInstance(cause) && CONNECTION_STATE_CODES.has(cause.code))) {
     return { ...facts, kind: 'defect', reason: 'connection_state' }
   }
+
   for (const cause of causes) {
     if (cause instanceof McpTransportError) {
       return {
@@ -95,14 +105,19 @@ export function classifyMcpFailure(error: unknown, external: boolean, cancelled 
         reason: 'transport_unavailable'
       }
     }
+
     if (isCancellation(cause)) return { ...facts, kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }
+
     if (cause instanceof McpConfigurationError)
       return { ...facts, source: 'environment', kind: 'expected', reason: 'configuration' }
+
     if (UnauthorizedError.isInstance(cause))
       return { ...facts, source: 'environment', kind: 'expected', reason: 'auth' }
+
     if (external && (SdkHttpError.isInstance(cause) || SseError.isInstance(cause) || ProtocolError.isInstance(cause))) {
       return { ...facts, source: 'tool', kind: 'expected', reason: 'remote_rejected' }
     }
+
     if (SdkError.isInstance(cause)) {
       if (
         [
@@ -125,12 +140,15 @@ export function classifyMcpFailure(error: unknown, external: boolean, cancelled 
         }
       }
     }
+
     if (cause instanceof TypeError || cause instanceof ReferenceError || cause instanceof SyntaxError) {
       return { ...facts, kind: 'defect', reason: 'runtime_exception' }
     }
+
     if (external && 'code' in cause && TRANSPORT_CODES.has(String(cause.code))) {
       return { ...facts, source: 'environment', kind: 'expected', reason: 'transport_unavailable' }
     }
   }
+
   return facts
 }

@@ -9,6 +9,7 @@ import { ImageBytesSchema } from './entityImage'
  * ever receives fixed, known files; the handler never accepts a path.
  */
 export const AgentMemoryFileKeySchema = z.enum(['soul', 'user', 'fact', 'journal'])
+
 export type AgentMemoryFileKey = z.infer<typeof AgentMemoryFileKeySchema>
 
 export const AgentMemoryFileSchema = z.object({
@@ -26,12 +27,14 @@ export const AgentMemoryFileSchema = z.object({
   /** True when only part of an oversized file is returned. */
   truncated: z.boolean()
 })
+
 export type AgentMemoryFile = z.infer<typeof AgentMemoryFileSchema>
 
 export const AgentMemorySnapshotSchema = z.object({
   directory: z.string(),
   files: z.array(AgentMemoryFileSchema)
 })
+
 export type AgentMemorySnapshot = z.infer<typeof AgentMemorySnapshotSchema>
 
 const AgentIdInputSchema = z.strictObject({ agentId: z.string().min(1).max(200) })

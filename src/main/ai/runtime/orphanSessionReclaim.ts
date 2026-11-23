@@ -26,14 +26,19 @@ export async function listEntries(dir: string): Promise<Dirent[]> {
  */
 export async function newestMtimeMs(target: string): Promise<number | null> {
   const stats = await fs.lstat(target).catch(() => null)
+
   if (!stats) return null
+
   if (!stats.isDirectory()) return stats.mtimeMs
 
   let newest = stats.mtimeMs
+
   for (const entry of await listEntries(target)) {
     const childNewest = await newestMtimeMs(path.resolve(target, entry.name))
+
     if (childNewest !== null && childNewest > newest) newest = childNewest
   }
+
   return newest
 }
 
@@ -47,13 +52,16 @@ export async function reclaimStale(
   { freshnessGateMs, now }: OrphanSessionReclaimOptions
 ): Promise<boolean> {
   const mtimeMs = await newestMtimeMs(target)
+
   if (mtimeMs === null || now - mtimeMs <= freshnessGateMs) return false
 
   try {
     await fs.rm(target, { recursive: true, force: true })
+
     return true
   } catch (error) {
     logger.warn('Failed to reclaim orphan session artifact — retried next sweep', { target, error })
+
     return false
   }
 }

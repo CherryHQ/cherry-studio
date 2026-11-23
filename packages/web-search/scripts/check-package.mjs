@@ -13,6 +13,7 @@ const require = createRequire(import.meta.url)
 const directory = mkdtempSync(join(tmpdir(), 'web-search-package-'))
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
+
 const entries = Object.keys(manifest.exports).map((key) =>
   key === '.' ? manifest.name : `${manifest.name}/${key.slice(2)}`
 )
@@ -25,7 +26,9 @@ try {
   const [packed] = JSON.parse(
     run(npm, ['pack', '--ignore-scripts', '--json', '--pack-destination', directory], packageRoot)
   )
+
   const files = new Set(packed.files.map((entry) => entry.path))
+
   for (const required of [
     'LICENSE',
     'README.md',
@@ -64,12 +67,14 @@ try {
     assert.equal(result.results[0].sourceInput, 'package')
     assert.equal(result.results[0].content, 'Content')
   `
+
   const imports = `
     import assert from 'node:assert/strict'
     import * as core from '@cherrystudio/web-search'
     import * as catalog from '@cherrystudio/web-search/catalog'
     import * as provider from '@cherrystudio/web-search/providers/tavily'
   `
+
   writeFileSync(
     join(directory, 'consumer.mjs'),
     `${imports}
@@ -106,6 +111,7 @@ try {
     const invalid: WebSearchCall = { providerId: 'tavily', capability: 'searchKeywords', input: 'package', config: {} }
     void invalid
   `
+
   writeFileSync(join(directory, 'consumer.mts'), types)
   writeFileSync(join(directory, 'consumer.cts'), types)
   run(process.execPath, [
@@ -142,6 +148,7 @@ try {
   )
 } catch (error) {
   if (error.stdout) process.stderr.write(error.stdout)
+
   if (error.stderr) process.stderr.write(error.stderr)
   throw error
 } finally {

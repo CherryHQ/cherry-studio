@@ -16,7 +16,9 @@ import type { Attachment, ContextMessage, ToolCall } from './types'
 
 /** Content types for each AI SDK message role */
 type UserContent = Extract<LanguageModelV3Message, { role: 'user' }>['content']
+
 type AssistantContent = Extract<LanguageModelV3Message, { role: 'assistant' }>['content']
+
 type ToolContent = Extract<LanguageModelV3Message, { role: 'tool' }>['content']
 
 /**
@@ -43,25 +45,33 @@ export function repairToolResultNames(prompt: LanguageModelV3Prompt): LanguageMo
       }
 
       let changed = false
+
       const content = msg.content.map((part) => {
         if (part.type !== 'tool-result') return part
         const toolName = toolCallNames.get(part.toolCallId)
+
         if (toolName === undefined || toolName === part.toolName) return part
         changed = true
+
         return { ...part, toolName }
       })
+
       return changed ? { ...msg, content } : msg
     }
 
     if (msg.role === 'tool') {
       let changed = false
+
       const content = msg.content.map((part) => {
         if (part.type !== 'tool-result') return part
         const toolName = toolCallNames.get(part.toolCallId)
+
         if (toolName === undefined || toolName === part.toolName) return part
         changed = true
+
         return { ...part, toolName }
       })
+
       return changed ? { ...msg, content } : msg
     }
 
@@ -87,6 +97,7 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
   for (const msg of repairToolResultNames(prompt)) {
     if (msg.role === 'system') {
       const message: AISDKMessage = { role: 'system', content: msg.content }
+
       if (msg.providerOptions) message._providerOptions = msg.providerOptions
       messages.push(message)
       continue
@@ -99,6 +110,7 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
         .join('\n')
 
       const attachments: Attachment[] = []
+
       for (const part of msg.content) {
         if (part.type === 'file') {
           // `attachment.data` here is just a presence/metadata signal
@@ -112,6 +124,7 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
             mediaType: part.mediaType,
             data: typeof part.data === 'string' ? part.data : ''
           }
+
           if (part.filename) attachment.filename = part.filename
           attachments.push(attachment)
         }
@@ -123,7 +136,9 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
         _userContent: msg.content,
         _originalText: text
       }
+
       if (msg.providerOptions) m._providerOptions = msg.providerOptions
+
       if (attachments.length) m.attachments = attachments
       messages.push(m)
       continue
@@ -141,6 +156,7 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
       // injects a spurious placeholder, duplicating the inline result on
       // round-trip. The inline result round-trips verbatim via _assistantContent.
       const inlineAnsweredIds = new Set<string>()
+
       for (const part of msg.content) {
         if (part.type === 'tool-result') inlineAnsweredIds.add(part.toolCallId)
       }
@@ -166,21 +182,27 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
             mediaType: part.mediaType,
             data: typeof part.data === 'string' ? part.data : ''
           }
+
           if (part.filename) attachment.filename = part.filename
           attachments.push(attachment)
         }
       }
 
       const joinedText = text.join('\n')
+
       const m: AISDKMessage = {
         role: 'assistant',
         content: joinedText,
         _assistantContent: msg.content,
         _originalText: joinedText
       }
+
       if (msg.providerOptions) m._providerOptions = msg.providerOptions
+
       if (toolCalls.length > 0) m.tool_calls = toolCalls
+
       if (thinking) m.thinking = thinking
+
       if (attachments.length) m.attachments = attachments
       messages.push(m)
       continue
@@ -192,9 +214,11 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
       // belongs to the whole turn — attach it to the FIRST IR message only, so
       // toAISDK re-emits exactly one providerOptions when coalescing the group.
       let firstOfMessage = true
+
       for (const part of msg.content) {
         if (part.type === 'tool-result') {
           const text = stringifyToolOutput(part.output)
+
           const message: AISDKMessage = {
             role: 'tool',
             content: text,
@@ -203,6 +227,7 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
             _originalText: text,
             _toolName: part.toolName
           }
+
           if (firstOfMessage && msg.providerOptions) message._providerOptions = msg.providerOptions
           messages.push(message)
           firstOfMessage = false
@@ -236,6 +261,7 @@ export function toAISDK(messages: ContextMessage[]): LanguageModelV3Prompt {
   const prompt: LanguageModelV3Prompt = []
 
   let i = 0
+
   while (i < messages.length) {
     const msg = asAISDK(messages[i])
     const contentModified = msg._originalText !== undefined && msg._originalText !== msg.content
@@ -245,6 +271,7 @@ export function toAISDK(messages: ContextMessage[]): LanguageModelV3Prompt {
         role: 'system',
         content: msg.content
       }
+
       if (msg._providerOptions) message.providerOptions = msg._providerOptions
       prompt.push(message)
       i++
@@ -256,6 +283,7 @@ export function toAISDK(messages: ContextMessage[]): LanguageModelV3Prompt {
         role: 'user',
         content: !contentModified && msg._userContent ? msg._userContent : [{ type: 'text', text: msg.content }]
       }
+
       if (msg._providerOptions) message.providerOptions = msg._providerOptions
       prompt.push(message)
       i++
@@ -268,6 +296,7 @@ export function toAISDK(messages: ContextMessage[]): LanguageModelV3Prompt {
         content:
           !contentModified && msg._assistantContent ? msg._assistantContent : [{ type: 'text', text: msg.content }]
       }
+
       if (msg._providerOptions) message.providerOptions = msg._providerOptions
       prompt.push(message)
       i++
@@ -280,6 +309,7 @@ export function toAISDK(messages: ContextMessage[]): LanguageModelV3Prompt {
       // message of the original tool turn (see fromAISDK). Take the first
       // non-undefined across the coalesced group.
       let providerOptions: SharedV3ProviderOptions | undefined
+
       while (i < messages.length && messages[i].role === 'tool') {
         const toolMsg = asAISDK(messages[i])
         const toolModified = toolMsg._originalText !== undefined && toolMsg._originalText !== toolMsg.content
@@ -307,12 +337,15 @@ export function toAISDK(messages: ContextMessage[]): LanguageModelV3Prompt {
             output: { type: 'text', value: toolMsg.content }
           })
         }
+
         i++
       }
+
       const message: Extract<LanguageModelV3Message, { role: 'tool' }> = {
         role: 'tool',
         content: toolResults
       }
+
       if (providerOptions) message.providerOptions = providerOptions
       prompt.push(message)
       continue

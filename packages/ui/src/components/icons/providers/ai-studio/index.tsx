@@ -6,7 +6,9 @@ import { AiStudioLight } from './light'
 
 const AiStudio = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AiStudioLight {...props} className={className} />
+
   if (variant === 'dark') return <AiStudioDark {...props} className={className} />
+
   return (
     <>
       <AiStudioLight className={cn('dark:hidden', className)} {...props} />

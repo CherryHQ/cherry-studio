@@ -6,7 +6,9 @@ import { AntAfuLight } from './light'
 
 const AntAfu = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AntAfuLight {...props} className={className} />
+
   if (variant === 'dark') return <AntAfuDark {...props} className={className} />
+
   return (
     <>
       <AntAfuLight className={cn('dark:hidden', className)} {...props} />

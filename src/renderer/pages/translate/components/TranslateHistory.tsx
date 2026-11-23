@@ -52,17 +52,23 @@ type Props = {
 
 const ITEM_HEIGHT = 104
 const UNKNOWN_LANGUAGE = { value: 'Unknown', langCode: 'unknown' as TranslateLangCode, emoji: '🏳️' }
+
 type DisplayLanguage = TranslateLanguage | typeof UNKNOWN_LANGUAGE
 
 const formatCreatedAt = (value: TranslateHistory['createdAt'], locale: string): string => {
   const d = new Date(value)
+
   if (Number.isNaN(d.getTime())) return ''
   const now = new Date()
+
   const isSameDay =
     d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+
   const time = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: false }).format(d)
+
   if (isSameDay) return time
   const date = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(d)
+
   return `${date} ${time}`
 }
 
@@ -71,9 +77,11 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
   const [showStared, setShowStared] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [confirmClearOpen, setConfirmClearOpen] = useState(false)
+
   const { items, total, hasMore, isLoadingMore, loadMore, status } = useTranslateHistories({
     star: showStared || undefined
   })
+
   const { getLanguage, getLabel } = useLanguageLabels()
   const { clear: clearHistory, update: updateHistory } = useTranslateHistory()
   const pendingLoadMoreRef = useRef(false)
@@ -83,6 +91,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
       items.map((item) => {
         const source = getLanguage(item.sourceLanguage)
         const target = getLanguage(item.targetLanguage)
+
         return {
           ...item,
           _sourceLabel: getLabel(source),
@@ -142,6 +151,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
   const handleReuse = useCallback(
     (item: DisplayedTranslateHistoryItem, files?: TranslationFiles) => {
       setSelectedId(null)
+
       if (files) {
         onHistoryItemClick(item, files)
       } else {
@@ -156,6 +166,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
   const handleListScroll = useCallback(
     (e: UIEvent<HTMLDivElement>) => {
       const el = e.currentTarget
+
       if (
         hasMore &&
         !isLoadingMore &&
@@ -175,7 +186,9 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
     ),
     [updateHistory]
   )
+
   const showHistoryActions = showStared || history.length > 0
+
   const header = (
     <div className="flex min-w-0 flex-1 items-center gap-2">
       <span className="truncate font-semibold text-base text-foreground">{`${t('translate.history.title')} (${total})`}</span>
@@ -303,6 +316,7 @@ const HistoryRow: FC<{
       onClick={() => onSelect(item.id)}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget) return
+
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
           onSelect(item.id)
@@ -494,13 +508,16 @@ const FileHistoryBody: FC<{ item: DisplayedTranslateHistoryItem; onReuse: (files
       .then((loaded) => {
         if (!active) return
         setFiles(loaded)
+
         if (!loaded.target?.path) toast.error(t('translate.history.file.unavailable'))
       })
       .catch((error) => {
         logger.error('Failed to load the files of a translate history entry', error as Error)
+
         if (!active) return
         toast.error(t('translate.history.file.unavailable'))
       })
+
     return () => {
       active = false
     }

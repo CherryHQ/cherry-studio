@@ -69,19 +69,24 @@ const HistoryTopBar = ({
   const [moveDialogOpen, setMoveDialogOpen] = useState(false)
   const [moveTargetId, setMoveTargetId] = useState('')
   const moveTargets = useMemo(() => Array.from(bulkMoveTargets), [bulkMoveTargets])
+
   const selectedMoveTarget = useMemo(
     () => moveTargets.find((target) => target.id === moveTargetId),
     [moveTargetId, moveTargets]
   )
+
   const canBulkDelete = bulkDeleteCount > 0 && !!onBulkDelete
   const canBulkMove = mode === 'assistant' && selectedCount > 0 && moveTargets.length > 0 && !!onBulkMove
 
   useEffect(() => {
     if (!moveDialogOpen) return
+
     if (moveTargets.length === 0) {
       setMoveTargetId('')
+
       return
     }
+
     if (!moveTargets.some((target) => target.id === moveTargetId)) {
       setMoveTargetId(moveTargets[0].id)
     }

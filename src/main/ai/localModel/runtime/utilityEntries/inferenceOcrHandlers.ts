@@ -14,10 +14,12 @@ import { cacheResource, currentRuntimeProfile, describeError, getPpu, withHardwa
 
 function getPaddleService(modelPaths: OcrModelPaths, logger: { info: (m: string) => void; warn: (m: string) => void }) {
   const key = `${modelPaths.detection}|${modelPaths.recognition}|${modelPaths.charactersDictionary}`
+
   return cacheResource(key, async () => {
     const { PaddleOcrService } = await getPpu()
     const profile = currentRuntimeProfile()
     let sessionFallback: { error: unknown } | undefined
+
     const service = new PaddleOcrService({
       model: {
         detection: modelPaths.detection,
@@ -32,16 +34,21 @@ function getPaddleService(modelPaths: OcrModelPaths, logger: { info: (m: string)
         }
       }
     })
+
     await service.initialize()
+
     if (sessionFallback) {
       try {
         await service.destroy()
       } catch (error) {
         logger.warn(`failed to dispose internally-fallen-back OCR service error=${describeError(error)}`)
       }
+
       throw new Error('OCR hardware session fell back internally to CPU', { cause: sessionFallback.error })
     }
+
     if (profile.id !== 'cpu') logger.info(`hardware provider active provider=${profile.id} runtime=ocr`)
+
     return service
   })
 }
@@ -52,10 +59,12 @@ export const ocrHandlers: UtilityProcessHandlers<OcrInferenceContract> = {
     // the fallback so a missing file cannot be misread as broken hardware.
     const bytes = source.kind === 'bytes' ? source.imageBytes : readFileSync(source.imagePath)
     const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+
     return withHardwareFallback(
       async () => {
         const service = await getPaddleService(modelPaths, logger)
         const result = await service.recognize(arrayBuffer)
+
         // ppu types these as optional; normalize here so callers never branch on null.
         return { text: result.text ?? '', lines: result.lines ?? [] }
       },

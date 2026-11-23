@@ -34,14 +34,17 @@ export function useMessageCaptureLeases(): MessageCaptureLeaseManager {
     const leaseCounts = leaseCountsRef.current
     const nextCount = (leaseCounts.get(messageId) ?? 0) + 1
     leaseCounts.set(messageId, nextCount)
+
     if (nextCount === 1) setLeasedMessageIds([...leaseCounts.keys()])
 
     let released = false
+
     return () => {
       if (released) return
       released = true
 
       const currentCount = leaseCounts.get(messageId) ?? 0
+
       if (currentCount <= 1) {
         leaseCounts.delete(messageId)
         setLeasedMessageIds([...leaseCounts.keys()])

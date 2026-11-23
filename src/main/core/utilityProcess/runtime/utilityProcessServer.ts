@@ -120,6 +120,7 @@ const abortError = (code: string, message: string): Error => {
   const error = new Error(message) as Error & { code: string }
   error.name = 'AbortError'
   error.code = code
+
   return error
 }
 
@@ -129,9 +130,11 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
 ): void {
   // SAFETY: dispatch below validates own method names before using the declared handler map.
   const handlers = options.handlers as Record<string, UtilityProcessHandlers<Contract>[keyof Contract['methods']]>
+
   const streams = options.streams as
     | Record<string, UtilityProcessStreamHandlers<Contract>[keyof UtilityProcessStreams<Contract>]>
     | undefined
+
   const active = new Map<number, ActiveRequest>()
   const tombstones = new Set<number>()
   let port: PortLike | null = null
@@ -169,17 +172,22 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
   const createLogger = (requestId?: number): UtilityProcessLogger => {
     const send = (level: LogLevel, message: string, fields?: LogFrame['fields']): void => {
       const base: Unstamped<LogFrame> = { kind: 'log', level, message }
+
       if (requestId !== undefined) base.requestId = requestId
+
       if (fields === undefined) {
         post(base)
+
         return
       }
+
       try {
         post({ ...base, fields })
       } catch {
         post({ ...base, message: `${message} (log fields dropped: not structured-cloneable)` })
       }
     }
+
     return {
       debug: (message, fields) => send('debug', message, fields),
       info: (message, fields) => send('info', message, fields),
@@ -187,6 +195,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
       error: (message, fields) => send('error', message, fields)
     }
   }
+
   const logger = createLogger()
 
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- postMessage can throw arbitrary clone failures; convert them to a clone-safe transport error before replying.
@@ -200,8 +209,10 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
     if (request.settled) return
     request.settled = true
     tombstones.delete(requestId)
+
     // After a fatal error the exit is the only truthful signal; a terminal would read as a healthy dispatch.
     if (failed) return
+
     try {
       post(frame)
     } catch (error) {
@@ -214,9 +225,11 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
     const controller = new AbortController()
     const request: ActiveRequest = { controller, settled: false, done: Promise.resolve(), hostReplies: new Map() }
     active.set(requestId, request)
+
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Selected handlers emit method-specific payloads; core checks request lifetime and structured-clone delivery.
     const emit = (event: unknown): void => {
       if (request.settled || tombstones.has(requestId)) return
+
       try {
         post({ kind: 'event', requestId, event })
       } catch (error) {
@@ -224,25 +237,33 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
         controller.abort(abortError(REQUEST_CANCELLED_CODE, 'event was not structured-cloneable'))
       }
     }
+
     let nextCallId = 0
+
     const callHost = (
       method: string,
       input: UtilityProcessHostCallFor<Contract>['input']
     ): Promise<UtilityProcessHostCallFor<Contract>['output']> => {
       if (request.settled || controller.signal.aborted) return Promise.reject(new Error('Request is no longer active'))
+
       if (request.hostReplies.size >= 64) return Promise.reject(new Error('Too many concurrent host calls'))
+
       return new Promise<UtilityProcessHostCallFor<Contract>['output']>((resolve, reject) => {
         const callId = ++nextCallId
+
         const cleanup = () => {
           request.hostReplies.delete(callId)
           controller.signal.removeEventListener('abort', abort)
         }
+
         const abort = () => {
           cleanup()
           reject(controller.signal.reason)
         }
+
         request.hostReplies.set(callId, (outcome) => {
           cleanup()
+
           if ('error' in outcome) reject(Object.assign(new Error(outcome.error.message), outcome.error))
           else {
             // SAFETY: the reply is correlated to this host call; both sides share its declared result contract.
@@ -250,6 +271,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
           }
         })
         controller.signal.addEventListener('abort', abort, { once: true })
+
         try {
           post({ kind: 'host-call', requestId, callId, method, input })
         } catch (error) {
@@ -258,6 +280,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
         }
       })
     }
+
     request.done = (async () => {
       try {
         const output = await handlers[method](input, {
@@ -266,6 +289,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
           callHost,
           logger: createLogger(requestId)
         })
+
         sendTerminal(requestId, request, { kind: 'result', requestId, output })
       } catch (error) {
         sendTerminal(requestId, request, { kind: 'error', requestId, error: toRemoteError(error) })
@@ -280,6 +304,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
   const dispatchStream = (frame: StreamOpenFrame): void => {
     const { requestId, method, input } = frame
     const controller = new AbortController()
+
     const channel = new StreamChannel(
       frame.outputLimits,
       frame.inputLimits,
@@ -288,8 +313,10 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
         controller.abort(abortError(REQUEST_CANCELLED_CODE, 'input consumer stopped'))
       }
     )
+
     const abort = () => channel.abort(controller.signal.reason)
     controller.signal.addEventListener('abort', abort, { once: true })
+
     const request: ActiveRequest = {
       controller,
       stream: channel,
@@ -297,6 +324,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
       done: Promise.resolve(),
       hostReplies: new Map()
     }
+
     active.set(requestId, request)
     request.done = (async () => {
       try {
@@ -306,6 +334,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
           write: (value) => channel.write(value),
           logger: createLogger(requestId)
         })
+
         controller.signal.throwIfAborted()
         await channel.finish()
         sendTerminal(requestId, request, { kind: 'result', requestId, output })
@@ -315,6 +344,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
         controller.abort(new Error('Stream handler finished'))
         channel.detach()
         active.delete(requestId)
+
         if (!failed) post({ kind: 'stream-closed', requestId })
       }
     })()
@@ -323,6 +353,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
   const violation = (message: string, requestId?: number): void => {
     failed = true
     const frame: Unstamped<ChildFrame> = { kind: 'protocol-error', message }
+
     if (requestId !== undefined) frame.requestId = requestId
     post(frame)
     abortAll(abortError(SHUTDOWN_CODE, `protocol violation: ${message}`))
@@ -335,23 +366,29 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
     shutdownPromise = (async () => {
       abortAll(abortError(SHUTDOWN_CODE, 'utility process is shutting down'))
       await Promise.allSettled([...active.values()].map((request) => request.done))
+
       try {
         await options.dispose?.({ logger })
       } catch (error) {
         logger.error('dispose failed', { error: toRemoteError(error) })
       }
+
       closePort()
       io.exit(0)
     })()
+
     return shutdownPromise
   }
 
   const onFrame = ({ data }: { data: unknown }): void => {
     if (failed || identity === null) return
+
     if (!isMainFrame(data) || !matchesIdentity(data, identity)) {
       violation('malformed or foreign frame')
+
       return
     }
+
     switch (data.kind) {
       case 'stream-open': {
         if (
@@ -362,64 +399,88 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
           typeof streams[data.method] !== 'function'
         ) {
           violation('invalid stream request', data.requestId)
+
           return
         }
+
         lastRequestId = data.requestId
         dispatchStream(data)
+
         return
       }
+
       case 'stream-data':
       case 'stream-credit':
       case 'stream-end':
       case 'stream-end-ack': {
         const request = active.get(data.requestId)
+
         if (!request) {
           // Main may have sent input or returned credit before observing the close acknowledgement.
           if (data.requestId <= lastRequestId) return
           violation('stream frame for unknown request', data.requestId)
+
           return
         }
+
         if (!request.stream) {
           violation('stream frame for ordinary request', data.requestId)
+
           return
         }
+
         try {
           request.stream.receive(data)
         } catch (error) {
           violation(toRemoteError(error).message, data.requestId)
         }
+
         return
       }
+
       case 'request': {
         if (shuttingDown) {
           violation('request after shutdown', data.requestId)
+
           return
         }
+
         if (data.requestId <= lastRequestId) {
           violation(`non-monotonic requestId ${data.requestId}`, data.requestId)
+
           return
         }
+
         if (!Object.hasOwn(handlers, data.method) || typeof handlers[data.method] !== 'function') {
           violation(`unknown method '${data.method}'`, data.requestId)
+
           return
         }
+
         lastRequestId = data.requestId
         dispatch(data.requestId, data.method, data.input)
+
         return
       }
+
       case 'host-reply':
         active.get(data.requestId)?.hostReplies.get(data.callId)?.(data.outcome)
+
         return
       case 'cancel': {
         const request = active.get(data.requestId)
+
         if (request !== undefined && !request.settled) {
           tombstones.add(data.requestId)
           request.controller.abort(abortError(REQUEST_CANCELLED_CODE, 'request cancelled by caller'))
         }
+
         return
       }
+
       case 'shutdown':
         void beginShutdown()
+
         return
     }
   }
@@ -432,8 +493,10 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
       failed = true
       post({ kind: 'startup-error', error: toRemoteError(error) })
       scheduleExit(CHILD_EXIT_CODES.startupFailed, CHILD_SELF_EXIT_DELAY_MS)
+
       return
     }
+
     post({ kind: 'ready' })
     port?.start()
   }
@@ -441,10 +504,13 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
   io.parentPort.once('message', (event) => {
     const data = event.data
     const transferred = event.ports?.[0]
+
     if (transferred === undefined || !isConnectFrame(data) || data.processId !== options.id) {
       io.exit(CHILD_EXIT_CODES.badConnect)
+
       return
     }
+
     identity = { protocol: PROTOCOL, version: PROTOCOL_VERSION, processId: data.processId, generation: data.generation }
     port = transferred
     port.on('message', onFrame)

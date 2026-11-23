@@ -8,6 +8,7 @@ export class Sequencer {
       () => undefined,
       () => undefined
     )
+
     return next
   }
 }
@@ -18,14 +19,17 @@ export class SequencerByKey<K> {
 
   queue<T>(key: K, task: () => T | PromiseLike<T>): Promise<T> {
     const next = (this.pending.get(key) ?? Promise.resolve()).then(task, task)
+
     const settled = next.then(
       () => undefined,
       () => undefined
     )
+
     this.pending.set(key, settled)
     void settled.then(() => {
       if (this.pending.get(key) === settled) this.pending.delete(key)
     })
+
     return next
   }
 

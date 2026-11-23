@@ -6,7 +6,9 @@ import { ComposioLight } from './light'
 
 const Composio = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ComposioLight {...props} className={className} />
+
   if (variant === 'dark') return <ComposioDark {...props} className={className} />
+
   return (
     <>
       <ComposioLight className={cn('dark:hidden', className)} {...props} />

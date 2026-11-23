@@ -11,10 +11,13 @@ export async function exposeAiError<T>(route: string, operation: () => Promise<T
     return await operation()
   } catch (error) {
     const serializedError = serializeError(error)
+
     if (!(error instanceof Error && error.name === 'AbortError')) {
       logger.error(`${route} failed`, serializedError)
     }
+
     const exposed = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, serializedError.message ?? '', serializedError)
+
     if (hasReportingOwner(error)) exposed.reportingHandled = true
     throw exposed
   }

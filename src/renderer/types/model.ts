@@ -13,6 +13,7 @@ export const EndPointTypeSchema = z.enum([
   'image-generation',
   'jina-rerank'
 ])
+
 export type EndpointType = z.infer<typeof EndPointTypeSchema>
 
 export type ModelPricing = {

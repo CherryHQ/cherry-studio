@@ -51,6 +51,7 @@ export abstract class BaseService {
 
   constructor() {
     const ctor = this.constructor
+
     if (BaseService.instances.has(ctor)) {
       const name = getServiceName(ctor as ServiceConstructor)
       throw new Error(
@@ -58,6 +59,7 @@ export abstract class BaseService {
           `Use ServiceContainer.get(${name}) to access the existing instance.`
       )
     }
+
     BaseService.instances.add(ctor)
   }
 
@@ -132,15 +134,19 @@ export abstract class BaseService {
     const handler = DIAGNOSTICS_ENABLED
       ? async (event: IpcMainInvokeEvent, ...args: any[]) => {
           const t0 = performance.now()
+
           try {
             return await listener(event, ...args)
           } finally {
             const dt = performance.now() - t0
+
             if (dt > SLOW_THRESHOLD_MS.ipcHandler) logger.info(`[Diagnostics/ipc] ${dt.toFixed(1)}ms ${channel}`)
           }
         }
       : listener
+
     ipcMain.handle(channel, handler)
+
     return this.registerDisposable(() => ipcMain.removeHandler(channel))
   }
 
@@ -153,6 +159,7 @@ export abstract class BaseService {
    */
   protected ipcOn(channel: string, listener: (event: IpcMainEvent, ...args: any[]) => void): Disposable {
     ipcMain.on(channel, listener)
+
     return this.registerDisposable(() => ipcMain.removeListener(channel, listener))
   }
 
@@ -174,7 +181,9 @@ export abstract class BaseService {
         logger.error(`[${name}] registerInterval callback failed`, err as Error)
       }
     }, intervalMs)
+
     handle.unref()
+
     return this.registerDisposable(() => clearInterval(handle))
   }
 
@@ -199,14 +208,19 @@ export abstract class BaseService {
   protected registerDisposable<T extends Disposable>(disposableOrFn: T | (() => void)): T | Disposable {
     if (typeof disposableOrFn !== 'function') {
       this._disposables.push(disposableOrFn)
+
       return disposableOrFn
     }
+
     const disposable = toDisposable(() => {
       const index = this._disposables.indexOf(disposable)
+
       if (index !== -1) this._disposables.splice(index, 1)
       disposableOrFn()
     })
+
     this._disposables.push(disposable)
+
     return disposable
   }
 
@@ -216,6 +230,7 @@ export abstract class BaseService {
    */
   private _cleanupDisposables(): void {
     let disposable: Disposable | undefined
+
     while ((disposable = this._disposables.shift())) disposable.dispose()
   }
 
@@ -279,8 +294,10 @@ export abstract class BaseService {
       logger.info(
         `[Diagnostics/_doInit] ${name}  onInit=${(t1 - t0).toFixed(1)}ms  onReady=${(t2 - t1).toFixed(1)}ms  total=${(t2 - t0).toFixed(1)}ms`
       )
+
       return
     }
+
     this._state = LifecycleState.Initializing
     await this.onInit()
     this._state = LifecycleState.Ready
@@ -294,6 +311,7 @@ export abstract class BaseService {
   public async _doStop(): Promise<void> {
     this._state = LifecycleState.Stopping
     this._stopInFlight = true
+
     try {
       // Auto-deactivate: independent try/catch, failure does not block onStop
       if (this._activated && isActivatable(this)) {
@@ -302,13 +320,16 @@ export abstract class BaseService {
         } catch {
           // best-effort — logged by service
         }
+
         this._activated = false
       }
+
       await this.onStop()
     } finally {
       this._stopInFlight = false
       this._cleanupDisposables()
     }
+
     this._state = LifecycleState.Stopped
   }
 
@@ -320,6 +341,7 @@ export abstract class BaseService {
     if (this._state === LifecycleState.Destroyed) {
       return
     }
+
     // An abandoned _doStop() keeps running after the shutdown ceiling expires.
     // Destroying underneath it would race live work and tear down the very
     // resources that work is using, so skip; the caller turns the unchanged
@@ -335,8 +357,10 @@ export abstract class BaseService {
     if (this._stopInFlight) {
       const name = getServiceName(this.constructor as ServiceConstructor)
       logger.warn(`Skipping destroy for '${name}' — stop still in flight`)
+
       return
     }
+
     // Safety net: deactivate if still active (e.g., destroy without stop)
     if (this._activated && isActivatable(this)) {
       try {
@@ -344,8 +368,10 @@ export abstract class BaseService {
       } catch {
         // best-effort
       }
+
       this._activated = false
     }
+
     await this.onDestroy()
     this._cleanupDisposables()
     this._state = LifecycleState.Destroyed
@@ -360,9 +386,12 @@ export abstract class BaseService {
    */
   public async _doActivate(): Promise<boolean> {
     if (!isActivatable(this)) return false
+
     if (this._activated || this._activating) return this._activated
+
     if (this._state !== LifecycleState.Ready) return false
     this._activating = true
+
     try {
       const start = performance.now()
       await this.onActivate()
@@ -371,6 +400,7 @@ export abstract class BaseService {
       logger.info(
         `Service '${getServiceName(this.constructor as ServiceConstructor)}' activated (${duration.toFixed(3)}ms)`
       )
+
       return true
     } finally {
       this._activating = false
@@ -386,8 +416,10 @@ export abstract class BaseService {
    */
   public async _doDeactivate(): Promise<boolean> {
     if (!isActivatable(this)) return false
+
     if (!this._activated || this._activating) return !this._activated
     this._activating = true
+
     try {
       const start = performance.now()
       await this.onDeactivate()
@@ -396,6 +428,7 @@ export abstract class BaseService {
       logger.info(
         `Service '${getServiceName(this.constructor as ServiceConstructor)}' deactivated (${duration.toFixed(3)}ms)`
       )
+
       return true
     } finally {
       this._activating = false
@@ -431,6 +464,7 @@ export abstract class BaseService {
     this._state = LifecycleState.Pausing
     await this.onPause()
     this._state = LifecycleState.Paused
+
     return true
   }
 
@@ -445,6 +479,7 @@ export abstract class BaseService {
     this._state = LifecycleState.Resuming
     await this.onResume()
     this._state = LifecycleState.Ready
+
     return true
   }
 }

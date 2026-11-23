@@ -47,6 +47,7 @@ const logger = loggerService.withContext('miniAppAiCapability')
 const CancelParams = z.object({ callId: z.string().max(64) })
 
 type ModelSlot = 'default' | 'quick'
+
 const ModelSlotSchema = z.enum(['default', 'quick'])
 const CapabilitiesParams = z.strictObject({ model: ModelSlotSchema.optional() }).optional()
 
@@ -81,8 +82,10 @@ const ChatParams = z
  */
 const inflight = new Map<string, number>()
 const burst = new Map<string, { start: number; calls: number }>()
+
 /** `${guestId}:${callId}` → streamId, for `ai.cancel`. Emptied by `settle`. */
 const cancellable = new Map<string, string>()
+
 /** streamId → how to settle it without the manager, for `forgetGuest`. Emptied by `settle`. */
 const abandonable = new Map<string, { guestId: number; abandon: () => void }>()
 let streamSeq = 0
@@ -105,6 +108,7 @@ function admit(appId: string): () => void {
   const now = Date.now()
 
   const b = burst.get(appId)
+
   if (!b || now - b.start >= BURST_WINDOW_MS) {
     burst.set(appId, { start: now, calls: 1 })
   } else if (b.calls >= BURST_MAX_CALLS) {
@@ -119,6 +123,7 @@ function admit(appId: string): () => void {
 
   inflight.set(appId, (inflight.get(appId) ?? 0) + 1)
   let released = false
+
   return () => {
     if (released) return
     released = true
@@ -150,16 +155,20 @@ function resolveModelFor(appId: string, slot: ModelSlot): UniqueModelId {
     .from(miniAppInstallationTable)
     .where(eq(miniAppInstallationTable.appId, appId))
     .all()
+
   const preferences = application.get('PreferenceService')
+
   const id =
     slot === 'quick'
       ? (row?.aiQuickModelId ??
         preferences.get('feature.quick_assistant.model_id') ??
         preferences.get('chat.default_model_id'))
       : (row?.aiModelId ?? preferences.get('chat.default_model_id'))
+
   if (!id) {
     throw new MiniAppUnavailableError(`No ${slot} model configured for ${appId} and no global default is set`)
   }
+
   // Parsed, not cast: `UniqueModelId` is a template-literal type, and a stored value
   // that lost its separator must fail here, not halfway through a provider call.
   return UniqueModelIdSchema.parse(id)
@@ -187,8 +196,10 @@ function rehydrate(error: SerializedError): Error {
   if (error.name === 'AbortError') {
     const aborted = new Error(error.message ?? 'The model stream failed')
     aborted.name = 'AbortError'
+
     return aborted
   }
+
   return new MiniAppUnavailableError('The model could not complete the request', { cause: error.name })
 }
 
@@ -204,6 +215,7 @@ export const aiCapability = {
     callId: string | undefined
   ): Promise<{ ok: true }> {
     const parsed = ChatParams.parse(params)
+
     // Refused, never overwritten: overwriting leaves the FIRST call running with
     // nothing able to name it. Freed by `settle`, so reuse after it ends is fine.
     if (callId && cancellable.has(`${guestId}:${callId}`)) {
@@ -229,12 +241,14 @@ export const aiCapability = {
         release()
         runtime.forgetStream(guestId, streamId)
         abandonable.delete(streamId)
+
         if (callId) cancellable.delete(`${guestId}:${callId}`)
         fn()
       }
 
       try {
         const streamManager = application.get('AiStreamManager')
+
         const prompt: Omit<Parameters<typeof streamManager.streamPrompt>[0], 'source' | 'listener'> = {
           streamId,
           uniqueModelId,
@@ -246,6 +260,7 @@ export const aiCapability = {
           // usage plugin (`buildFallbackModels.ts:158`) — real money, and no ledger row.
           maxRetries: 0
         }
+
         // `off` disables thinking where supported; `on` retains the model's default.
         if (parsed.reasoning === 'off') prompt.reasoningEffort = 'none'
         streamManager.streamPrompt({
@@ -269,6 +284,7 @@ export const aiCapability = {
 
         runtime.rememberStream(guestId, streamId)
         abandonable.set(streamId, { guestId, abandon: () => settle(() => resolve({ ok: true })) })
+
         // Keyed by GUEST too, so one app's tab cannot cancel another tab's call by
         // guessing a label. Dropped in `settle`, which every exit path goes through.
         if (callId) cancellable.set(`${guestId}:${callId}`, streamId)
@@ -291,7 +307,9 @@ export const aiCapability = {
   async cancel(_appId: string, params: unknown, guestId: number) {
     const { callId } = CancelParams.parse(params)
     const streamId = cancellable.get(`${guestId}:${callId}`)
+
     if (streamId) application.get('AiStreamManager').abort(streamId, 'mini-app-cancelled')
+
     return { ok: true }
   },
 
@@ -322,17 +340,20 @@ export const aiCapability = {
     // Argument validation still THROWS: a slot the guest invented is the guest's own bug,
     // and `available: false` would hide that typo behind a perfectly plausible answer.
     const slot = CapabilitiesParams.parse(params)?.model ?? 'default'
+
     try {
       // Derived with the repo's own predicates, and deliberately carries no model id or
       // provider name — the app degrades without learning what the user picked.
       const { providerId, modelId } = parseUniqueModelId(resolveModelFor(appId, slot))
       const model = modelService.getByKey(providerId, modelId)
+
       return { available: true, reasoning: isReasoningModel(model), contextWindow: model.contextWindow ?? null }
     } catch (error) {
       // Reported as a VALUE, and for every failure alike. This method exists so an app can
       // degrade instead of crash when the user swaps the model underneath it; throwing is
       // that crash. Catching by error type would let the next new one through as a throw.
       logger.warn('Mini app asked about a model slot that cannot be described', { appId, slot, error })
+
       return { available: false }
     }
   }

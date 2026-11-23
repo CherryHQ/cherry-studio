@@ -91,12 +91,14 @@ export interface CreateAihubmixImageModelOptions {
 
 function toBlob(file: AihubmixImageFile): Blob {
   const blob = new NodeBlob([file.data], { type: file.mediaType })
+
   // SAFETY: Node's global Blob is node:buffer.Blob; DOM typings narrow its bytes and stream declarations.
   return blob as NodeBlob & Blob
 }
 
 function isGoogleImageModel(modelId: string): boolean {
   const normalized = modelId.toLowerCase()
+
   return normalized.startsWith('imagen-') || (normalized.startsWith('gemini-') && normalized.includes('image'))
 }
 
@@ -106,6 +108,7 @@ function isGoogleGeminiImageModel(modelId: string): boolean {
 
 function normalizePersonGeneration(value: JSONValue | undefined): string | undefined {
   if (typeof value !== 'string') return undefined
+
   switch (value.toUpperCase()) {
     case 'ALLOW_ALL':
       return 'allow_all'
@@ -121,6 +124,7 @@ function normalizePersonGeneration(value: JSONValue | undefined): string | undef
 function normalizeAspectRatio(value: JSONValue | undefined): `${number}:${number}` | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.replace(/^ASPECT_/i, '').replace('_', ':')
+
   return /^\d+:\d+$/.test(normalized) ? (normalized as `${number}:${number}`) : undefined
 }
 
@@ -128,6 +132,7 @@ function normalizeAspectRatio(value: JSONValue | undefined): `${number}:${number
  *  legacy `ASPECT_1_1` and new canonical `1:1`. */
 function aspectRatioToIdeogramV3(value: string | undefined): string | undefined {
   if (!value) return undefined
+
   return value
     .replace(/^ASPECT_/i, '')
     .replace(/[_:]/g, 'x')
@@ -138,8 +143,11 @@ function aspectRatioToIdeogramV3(value: string | undefined): string | undefined 
  *  `ASPECT_1_1` and new canonical `1:1`. */
 function aspectRatioToIdeogramV1V2(value: string | undefined): string | undefined {
   if (!value) return undefined
+
   if (/^ASPECT_/i.test(value)) return value
+
   if (/^\d+:\d+$/.test(value)) return `ASPECT_${value.replace(':', '_')}`
+
   return value
 }
 
@@ -157,18 +165,21 @@ function wireNameAihubmixBag(
   providerOptions: ImageModelV3CallOptions['providerOptions']
 ): ImageModelV3CallOptions['providerOptions'] {
   if (!providerOptions?.aihubmix) return providerOptions
+
   const renamed = Object.fromEntries(
     Object.entries(providerOptions.aihubmix).map(([key, value]): [string, JSONValue | undefined] => [
       CANONICAL_KEYS.has(key) ? wireName(key as CanonicalParamKey) : key,
       value
     ])
   )
+
   return { ...providerOptions, aihubmix: renamed }
 }
 
 function normalizeImageSize(value: JSONValue | undefined): string | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.toUpperCase()
+
   return ['512', '1K', '2K', '4K'].includes(normalized) ? normalized : undefined
 }
 
@@ -189,9 +200,11 @@ function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: bool
         options.aspectRatio ??
         normalizeAspectRatio(options.size) ??
         normalizeAspectRatio(aihubmixOptions.aspectRatio ?? aihubmixOptions.aspect_ratio ?? openaiOptions.aspectRatio)
+
       const personGeneration = normalizePersonGeneration(
         aihubmixOptions.personGeneration ?? aihubmixOptions.person_generation ?? openaiOptions.personGeneration
       )
+
       const imageSize = normalizeImageSize(
         aihubmixOptions.imageResolution ??
           aihubmixOptions.imageSize ??
@@ -200,23 +213,30 @@ function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: bool
       )
 
       const googleDefaults: JSONObject = {}
+
       if (aspectRatio) googleDefaults.aspectRatio = aspectRatio
+
       if (personGeneration) googleDefaults.personGeneration = personGeneration
       const googleOptions = { ...googleDefaults, ...existingGoogle }
 
       if (isGeminiImage && (aspectRatio || imageSize || Object.keys(existingImageConfig).length > 0)) {
         const imageConfig: JSONObject = { ...existingImageConfig }
+
         if (aspectRatio) imageConfig.aspectRatio = aspectRatio
+
         if (imageSize) imageConfig.imageSize = imageSize
         googleOptions.imageConfig = imageConfig
       }
 
       const request = { ...options }
+
       if (aspectRatio) {
         request.aspectRatio = aspectRatio
         request.size = undefined
       }
+
       request.providerOptions = { ...providerOptions, google: googleOptions }
+
       return model.doGenerate(request)
     }
   }
@@ -259,6 +279,7 @@ function isDoubaoSeedreamModel(modelId: string): boolean {
  *  forwarded `providerOptions.aihubmix` bag (canonical camelCase). */
 function buildDoubaoBody(modelId: string, options: ImageModelV3CallOptions) {
   const bag = options.providerOptions?.aihubmix ?? {}
+
   const parsed = DoubaoParamsSchema.parse({
     size: typeof options.size === 'string' ? options.size : (bag.imageResolution ?? bag.size),
     n: options.n,
@@ -272,6 +293,7 @@ function buildDoubaoBody(modelId: string, options: ImageModelV3CallOptions) {
   const prompt = options.prompt ?? ''
   // Image edit: Doubao takes `image` as a single data URL or an array of them.
   const images = (options.files ?? []).map(fileToDataUrl)
+
   return {
     model: modelId,
     prompt,
@@ -293,11 +315,13 @@ function buildDoubaoBody(modelId: string, options: ImageModelV3CallOptions) {
 function parseOpenAIImageResults(data: any): string[] {
   const items = Array.isArray(data?.data) ? data.data : []
   const urls: string[] = []
+
   for (const item of items) {
     if (typeof item?.url === 'string') urls.push(item.url)
     else if (typeof item?.b64_json === 'string') urls.push(`data:image/png;base64,${item.b64_json}`)
     else if (typeof item?.base64_json === 'string') urls.push(`data:image/png;base64,${item.base64_json}`)
   }
+
   return urls
 }
 
@@ -321,6 +345,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
       fetch: fetchImpl,
       name: AIHUBMIX_GOOGLE_PROVIDER
     })
+
     return withAihubmixGoogleImageOptions(
       googleProvider.image(modelId, { maxImagesPerCall: 10 }),
       isGoogleGeminiImageModel(modelId)
@@ -360,6 +385,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
       const transport = createAihubmixFluxTransport({ apiRoot, apiKey: resolveApiKey(), fetch: fetchImpl })
       // The transport reads aspect_ratio from the bag after the SDK normalizes the native option.
       const transportBag = { ...bag, ...(typeof aspectRatio === 'string' && { aspect_ratio: aspectRatio }) }
+
       const { taskId } = await transport.submit({
         modelId,
         prompt,
@@ -371,7 +397,9 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         providerParams: transportBag,
         signal: abortSignal
       })
+
       const urls = await transport.poll(taskId, { signal: abortSignal })
+
       return wrap(urls)
     }
 
@@ -386,20 +414,25 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         formData.append('num_images', String(numImages))
 
         const v3Aspect = aspectRatioToIdeogramV3(aspectRatio)
+
         if (v3Aspect) {
           formData.append('aspect_ratio', v3Aspect)
         }
+
         if (bag.styleType && bag.styleType !== 'AUTO') {
           formData.append('style_type', bag.styleType)
         } else {
           formData.append('style_type', 'AUTO')
         }
+
         if (bag.seed) {
           formData.append('seed', bag.seed)
         }
+
         if (bag.negativePrompt) {
           formData.append('negative_prompt', bag.negativePrompt)
         }
+
         if (bag.magicPromptOption !== undefined) {
           formData.append('magic_prompt', bag.magicPromptOption ? 'ON' : 'OFF')
         }
@@ -426,30 +459,38 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
 
       if (mode === 'remix') {
         const file = bag.imageFiles?.[0]
+
         if (!file) {
           throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
         }
+
         const formData = new FormData()
         formData.append('prompt', prompt)
         formData.append('rendering_speed', bag.renderingSpeed || 'DEFAULT')
         formData.append('num_images', String(numImages))
 
         const v3Aspect = aspectRatioToIdeogramV3(aspectRatio)
+
         if (v3Aspect) {
           formData.append('aspect_ratio', v3Aspect)
         }
+
         if (bag.styleType) {
           formData.append('style_type', bag.styleType)
         }
+
         if (bag.seed) {
           formData.append('seed', bag.seed)
         }
+
         if (bag.negativePrompt) {
           formData.append('negative_prompt', bag.negativePrompt)
         }
+
         if (bag.magicPromptOption !== undefined) {
           formData.append('magic_prompt', bag.magicPromptOption ? 'ON' : 'OFF')
         }
+
         if (bag.imageWeight) {
           formData.append('image_weight', String(bag.imageWeight))
         }
@@ -487,21 +528,26 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
       const doubaoBody = buildDoubaoBody(modelId, options)
       // oxlint-disable-next-line anti-slop/no-known-value-widening -- Provider headers add runtime names below; preserve their spelling and copy only non-null string values.
       const reqHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+
       for (const [key, value] of Object.entries(headers())) {
         if (value != null) reqHeaders[key] = value
       }
+
       const response = await fetchImpl(`${withoutTrailingSlash(baseURL)}/images/generations`, {
         method: 'POST',
         headers: reqHeaders,
         body: JSON.stringify(doubaoBody),
         signal: abortSignal
       })
+
       if (!response.ok) {
         const message = await readErrorMessage(response, 'paintings.generate_failed')
         logger.error('Doubao Seedream API error', { modelId, message })
         throw createPaintingGenerateError('REMOTE_ERROR', { message })
       }
+
       const data = await response.json()
+
       return wrap(parseOpenAIImageResults(data))
     }
 
@@ -519,6 +565,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         headers,
         fetch: customFetch
       })
+
       return inner.doGenerate({ ...options, providerOptions: wireNameAihubmixBag(options.providerOptions) })
     }
 
@@ -543,14 +590,18 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
           magic_prompt_option: bag.magicPromptOption ? 'ON' : 'OFF'
         }
       }
+
       body = JSON.stringify(requestData)
       reqHeaders['Content-Type'] = 'application/json'
     } else if (mode === 'remix') {
       const file = bag.imageFiles?.[0]
+
       if (!file) {
         throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
       }
+
       const form = new FormData()
+
       const imageRequest = {
         prompt,
         model: modelId,
@@ -562,16 +613,20 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         negative_prompt: bag.negativePrompt || undefined,
         magic_prompt_option: bag.magicPromptOption ? 'ON' : 'OFF'
       }
+
       form.append('image_request', JSON.stringify(imageRequest))
       form.append('image_file', toBlob(file), file.name)
       body = form
     } else {
       // upscale
       const file = bag.imageFiles?.[0]
+
       if (!file) {
         throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
       }
+
       const form = new FormData()
+
       const imageRequest = {
         prompt,
         resemblance: bag.resemblance,
@@ -580,6 +635,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         seed: bag.seed ? +bag.seed : undefined,
         magic_prompt_option: bag.magicPromptOption ? 'AUTO' : 'OFF'
       }
+
       form.append('image_request', JSON.stringify(imageRequest))
       form.append('image_file', toBlob(file), file.name)
       body = form
@@ -594,10 +650,13 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     }
 
     const data = await response.json()
+
     if (data.output) {
       const base64s = data.output.b64_json.map((item: any) => item.bytesBase64)
+
       return wrap(base64s.map((b64: string) => `data:image/png;base64,${b64}`))
     }
+
     const items = Array.isArray(data?.data) ? data.data : []
     const urls = items.filter((item: any) => item.url).map((item: any) => item.url)
     const base64s = items.filter((item: any) => item.b64_json).map((item: any) => item.b64_json)
@@ -605,9 +664,11 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     if (urls.length > 0) {
       return wrap(urls)
     }
+
     if (base64s.length > 0) {
       return wrap(base64s.map((b64: string) => `data:image/png;base64,${b64}`))
     }
+
     return wrap([])
   }
 
@@ -638,5 +699,6 @@ function isDefaultModel(modelId: string, mode: AihubmixMode): boolean {
   if (mode !== 'generate') {
     return false
   }
+
   return !IDEOGRAM_V1_V2_MODELS.has(modelId)
 }

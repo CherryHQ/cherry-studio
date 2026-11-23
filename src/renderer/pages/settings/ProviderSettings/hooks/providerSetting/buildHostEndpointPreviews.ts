@@ -51,16 +51,24 @@ export function buildHostEndpointPreviews(params: {
 
   const hostPreview = (() => {
     if (primaryEndpoint === ENDPOINT_TYPE.OLLAMA_CHAT) return `${formattedHost}/chat`
+
     if (provider.id === 'gateway') return `${formattedHost}/language-model`
+
     if (isAzureOpenAIProvider(provider)) {
       const version = provider.settings?.apiVersion?.trim() || ''
       const path = primaryEndpoint === ENDPOINT_TYPE.OPENAI_RESPONSES ? '/v1/responses' : '/v1/chat/completions'
+
       return `${formattedHost}${path}?apiVersion=${version || 'v1'}`
     }
+
     if (primaryEndpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) return `${formattedHost}/chat/completions`
+
     if (primaryEndpoint === ENDPOINT_TYPE.OPENAI_RESPONSES) return `${formattedHost}/responses`
+
     if (primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return `${formattedHost}/messages`
+
     if (isVertexProvider(provider)) return `${formattedHost}/publishers/google`
+
     if (primaryEndpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) return `${formattedHost}/models`
 
     return formattedHost

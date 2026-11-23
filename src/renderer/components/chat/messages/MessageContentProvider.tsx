@@ -46,6 +46,7 @@ export function MessageContentProvider({
   const resolvedActions = actions ?? EMPTY_MESSAGE_ACTIONS
   const resolvedTopic = useMemo(() => topic ?? createFallbackTopic(messages), [messages, topic])
   const messageActivity = useMessageActivityState(resolvedTopic.id)
+
   const mergedRenderConfig = useMemo(
     () => ({
       ...defaultMessageRenderConfig,
@@ -53,6 +54,7 @@ export function MessageContentProvider({
     }),
     [renderConfig]
   )
+
   const value = useMemo<MessageListProviderValue>(
     () => ({
       state: {

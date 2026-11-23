@@ -9,9 +9,11 @@ export type Dim = { w: number; h: number }
 
 export function parseRatio(value: string): Dim | null {
   const dims = value.match(/^(\d+)[x×](\d+)$/)
+
   if (dims) return { w: Number(dims[1]), h: Number(dims[2]) }
 
   const aspect = value.match(/^(?:ASPECT_)?(\d+)[_:](\d+)$/i)
+
   if (aspect) return { w: Number(aspect[1]), h: Number(aspect[2]) }
 
   return null
@@ -19,6 +21,7 @@ export function parseRatio(value: string): Dim | null {
 
 function parseDims(s: string): Dim | null {
   const m = s.match(/^(\d+)\s*[x×]\s*(\d+)$/)
+
   return m ? { w: Number(m[1]), h: Number(m[2]) } : null
 }
 
@@ -28,6 +31,7 @@ function formatDims({ w, h }: Dim): string {
 
 function splitParens(label: string): { head: string; inner: string } {
   const m = label.match(/^(.*?)\s*[(（]([^)）]+)[)）]\s*$/)
+
   return m ? { head: m[1].trim(), inner: m[2].trim() } : { head: label.trim(), inner: '' }
 }
 
@@ -48,16 +52,19 @@ function splitParens(label: string): { head: string; inner: string } {
  */
 export function deriveChipLabel(label: string, value: string): string {
   const aspectMatch = value.match(/^(?:ASPECT_)?(\d+)[_:](\d+)$/i)
+
   if (aspectMatch) {
     return `${Number(aspectMatch[1])}:${Number(aspectMatch[2])}`
   }
 
   const { head, inner } = splitParens(label)
+
   if (parseDims(inner)) {
     return head
   }
 
   const dims = parseDims(value)
+
   if (dims) {
     return formatDims(dims)
   }

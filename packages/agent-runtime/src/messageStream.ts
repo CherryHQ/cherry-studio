@@ -25,6 +25,7 @@ export class RuntimeMessageStream {
       }),
       terminateOnError: true
     })
+
     this.reading = (async () => {
       try {
         for await (const message of stream) {
@@ -44,25 +45,33 @@ export class RuntimeMessageStream {
   append(chunks: readonly UIMessageChunk[], completeness: Completeness): Promise<RuntimeMessage> {
     const next = this.pending.then(() => {
       if (this.closed) throw new Error('Message stream is closed')
+
       if (this.failure) throw this.failure.error
+
       return new Promise<RuntimeMessage>((resolve, reject) => {
         const revision = ++this.revision
         this.receipt = { revision, resolve, reject }
+
         for (const chunk of chunks) this.controller.enqueue(chunk)
         // Step/finish chunks need not emit. A private metadata barrier acknowledges the entire batch.
         this.controller.enqueue({ type: 'message-metadata', messageMetadata: { completeness, revision } })
       })
     })
+
     this.pending = next
+
     return next
   }
 
   async close(): Promise<void> {
     await this.pending.catch(() => {})
+
     if (!this.closed) {
       this.closed = true
+
       if (!this.failure) this.controller.close()
     }
+
     await this.reading
   }
 }

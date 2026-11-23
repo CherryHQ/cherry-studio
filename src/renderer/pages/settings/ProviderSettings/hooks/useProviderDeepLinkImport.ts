@@ -51,6 +51,7 @@ export function useProviderDeepLinkImport(
   const navigate = useNavigate()
   const { createProvider } = useProviders()
   const { updateProviderById } = useProviderActions()
+
   const { trigger: addApiKeyTrigger } = useMutation('POST', '/providers/:providerId/api-keys', {
     refresh: ({ args }) => [
       '/providers',
@@ -71,17 +72,21 @@ export function useProviderDeepLinkImport(
 
         if (!updatedProvider) {
           void navigate({ to: '/settings/provider' })
+
           return
         }
 
         const providerId = updatedProvider.id
         const defaultChatEndpoint = resolveDefaultEndpoint(updatedProvider.type)
+
         if (updatedProvider.apiHost && !validateApiHost(updatedProvider.apiHost)) {
           logger.warn('Rejected deep-link apiHost with invalid scheme', { providerId })
           toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
           void navigate({ to: '/settings/provider' })
+
           return
         }
+
         const endpointConfigs = updatedProvider.apiHost
           ? {
               [defaultChatEndpoint]: {
@@ -129,6 +134,7 @@ export function useProviderDeepLinkImport(
       if (!parsed.success) {
         toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
         void navigate({ to: '/settings/provider' })
+
         return
       }
 

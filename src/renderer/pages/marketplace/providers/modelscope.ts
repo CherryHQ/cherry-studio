@@ -56,6 +56,7 @@ export const syncModelScopeServers = async (token: string): Promise<ModelScopeSy
     // Handle authentication errors
     if (response.status === 401 || response.status === 403) {
       clearModelScopeToken()
+
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
@@ -88,11 +89,13 @@ export const syncModelScopeServers = async (token: string): Promise<ModelScopeSy
     // Transform ModelScope servers to MCP servers format
     const allServers: McpServer[] = []
     logger.debug('ModelScope servers:', servers)
+
     for (const server of servers) {
       try {
         if (!server.operational_urls?.[0]?.url) continue
 
         const url = server.operational_urls[0].url
+
         const mcpServer: McpServer = {
           id: `@modelscope/${server.id}`,
           name: server.chinese_name || server.name || `ModelScope Server ${nanoid()}`,
@@ -108,6 +111,7 @@ export const syncModelScopeServers = async (token: string): Promise<ModelScopeSy
           logoUrl: server.logo_url || '',
           tags: server.tags || []
         }
+
         allServers.push(mcpServer)
       } catch (err) {
         logger.error('Error processing ModelScope server:', err as Error)
@@ -121,6 +125,7 @@ export const syncModelScopeServers = async (token: string): Promise<ModelScopeSy
     }
   } catch (error) {
     logger.error('ModelScope sync error:', error as Error)
+
     return {
       success: false,
       message: t('settings.mcp.sync.error'),

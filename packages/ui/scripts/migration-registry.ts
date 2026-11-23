@@ -38,9 +38,11 @@ export function parseMigrationRegistry(source: string): MigrationRegistry {
   if (!isRecord(parsed) || !Array.isArray(parsed.exclude) || !Array.isArray(parsed.rules)) {
     throw new Error('[theme-contract] migration registry has an invalid top-level shape')
   }
+
   if (!parsed.exclude.every((entry) => typeof entry === 'string')) {
     throw new Error('[theme-contract] migration registry exclude entries must be strings')
   }
+
   if (
     typeof parsed.version !== 'number' ||
     typeof parsed.contract !== 'string' ||
@@ -50,6 +52,7 @@ export function parseMigrationRegistry(source: string): MigrationRegistry {
   }
 
   const sources = new Set<string>()
+
   const rules = parsed.rules.map((entry, index): MigrationRule => {
     if (
       !isRecord(entry) ||
@@ -59,26 +62,33 @@ export function parseMigrationRegistry(source: string): MigrationRegistry {
     ) {
       throw new Error(`[theme-contract] migration rule ${index} has an invalid shape`)
     }
+
     if (!VARIABLE_NAME_PATTERN.test(entry.source)) {
       throw new Error(`[theme-contract] invalid migration source ${entry.source}`)
     }
+
     if (sources.has(entry.source)) {
       throw new Error(`[theme-contract] duplicate migration source ${entry.source}`)
     }
+
     if (!isMigrationStrategy(entry.strategy)) {
       throw new Error(`[theme-contract] ${entry.source} uses unknown migration strategy ${entry.strategy}`)
     }
+
     if (entry.strategy === 'exact' && !entry.target) {
       throw new Error(`[theme-contract] exact migration ${entry.source} requires a target`)
     }
+
     if (entry.target && !VARIABLE_NAME_PATTERN.test(entry.target)) {
       throw new Error(`[theme-contract] invalid migration target ${entry.target}`)
     }
+
     if (entry.target === entry.source) {
       throw new Error(`[theme-contract] migration ${entry.source} cannot target itself`)
     }
 
     sources.add(entry.source)
+
     return {
       source: entry.source,
       target: entry.target,

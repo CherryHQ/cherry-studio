@@ -6,7 +6,9 @@ import { InternlmLight } from './light'
 
 const Internlm = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <InternlmLight {...props} className={className} />
+
   if (variant === 'dark') return <InternlmDark {...props} className={className} />
+
   return (
     <>
       <InternlmLight className={cn('dark:hidden', className)} {...props} />

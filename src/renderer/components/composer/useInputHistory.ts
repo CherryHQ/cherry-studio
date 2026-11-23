@@ -24,20 +24,24 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
   const applyHistoryIndex = useCallback(
     (nextIndex: number) => {
       setHistoryIndex(nextIndex)
+
       if (nextIndex === -1) {
         applyDraft(draftBeforeHistoryRef.current ?? { text: '', tokens: [] }, { source: 'draft' })
         draftBeforeHistoryRef.current = null
         navigationHistoryRef.current = null
+
         return
       }
 
       const activeHistory = navigationHistoryRef.current ?? history
       const historyItem = activeHistory[nextIndex]
+
       if (!historyItem) {
         applyDraft(draftBeforeHistoryRef.current ?? { text: '', tokens: [] }, { source: 'draft' })
         draftBeforeHistoryRef.current = null
         navigationHistoryRef.current = null
         setHistoryIndex(-1)
+
         return
       }
 
@@ -49,6 +53,7 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
   const navigateHistory = useCallback(
     (direction: InputHistoryDirection, currentDraft: ComposerSerializedDraft) => {
       const activeHistory = navigationHistoryRef.current ?? history
+
       const nextIndex = getNextInputHistoryIndex({
         currentIndex: historyIndex,
         direction,
@@ -63,7 +68,9 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
         draftBeforeHistoryRef.current = currentDraft
         navigationHistoryRef.current = history
       }
+
       applyHistoryIndex(nextIndex)
+
       return true
     },
     [applyHistoryIndex, history, historyIndex]
@@ -82,12 +89,14 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
     setHistoryIndex(-1)
     draftBeforeHistoryRef.current = null
     navigationHistoryRef.current = null
+
     return draft
   }, [])
 
   const saveHistory = useCallback(
     (content: string) => {
       const normalizedContent = content.trim()
+
       if (!normalizedContent) {
         return
       }

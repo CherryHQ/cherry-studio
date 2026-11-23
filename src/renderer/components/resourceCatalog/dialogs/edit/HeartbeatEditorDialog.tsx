@@ -51,6 +51,7 @@ export function HeartbeatEditorDialog({
   const [busy, setBusy] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [runNotice, setRunNotice] = useState<HeartbeatRunResult | null>(null)
+
   const {
     data: status,
     error: statusError,
@@ -60,6 +61,7 @@ export function HeartbeatEditorDialog({
     enabled: open,
     swrOptions: { refreshInterval: 2000, keepPreviousData: false }
   })
+
   useEffect(() => {
     if (!open) return
     let cancelled = false
@@ -79,6 +81,7 @@ export function HeartbeatEditorDialog({
         logger.warn('Failed to read heartbeat tasks', { cause })
         setError(t('agent.heartbeat.load_failed'))
       })
+
     return () => {
       cancelled = true
     }
@@ -95,12 +98,14 @@ export function HeartbeatEditorDialog({
     setBusy(true)
     setError(null)
     setRunNotice(null)
+
     try {
       if (dirty) {
         const saved = await ipcApi.request('ai.agent.heartbeat.write', { agentId, ...document, content })
         setDocument(saved)
         setContent(hasHeartbeatTasks(saved.content) ? saved.content : '')
       }
+
       if (run) {
         const outcome = await ipcApi.request('ai.agent.heartbeat.run', { agentId })
         setRunNotice(outcome)
@@ -124,6 +129,7 @@ export function HeartbeatEditorDialog({
 
   async function close() {
     if (busy) return
+
     if (
       dirty &&
       !(await popup.confirm({

@@ -60,6 +60,7 @@ export function OcrStatusIcon({
   if (disabled) {
     const DisabledIcon = autoOcr === false ? TextSearch : ScanText
     const label = t('screenshot.ocr.disabled_while_annotating')
+
     return (
       <NormalTooltip content={label} side="bottom">
         <Button

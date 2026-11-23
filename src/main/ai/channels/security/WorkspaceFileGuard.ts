@@ -23,6 +23,7 @@ export async function resolveWorkspaceFile(workspaceRoot: string, userPath: stri
   const requested = path.resolve(workspaceRoot, userPath)
 
   let realRoot: string
+
   try {
     realRoot = await realpath(workspaceRoot)
   } catch (error) {
@@ -32,16 +33,19 @@ export async function resolveWorkspaceFile(workspaceRoot: string, userPath: stri
     if (isErrnoException(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
       throw new Error(`Session workspace is unavailable: ${workspaceRoot}`)
     }
+
     throw error
   }
 
   let realTarget: string
+
   try {
     realTarget = await realpath(requested)
   } catch (error) {
     if (isErrnoException(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
       throw new Error(`File not found in workspace: ${userPath}`)
     }
+
     throw error
   }
 

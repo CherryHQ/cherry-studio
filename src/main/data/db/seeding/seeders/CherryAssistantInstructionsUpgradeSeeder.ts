@@ -22,9 +22,11 @@ export class CherryAssistantInstructionsUpgradeSeeder implements ISeeder {
     db.transaction(
       (tx) => {
         const agents = tx.select().from(agentTable).where(isNull(agentTable.deletedAt)).all()
+
         for (const agent of agents) {
           if (agent.configuration.builtin_role !== 'assistant') continue
           const hash = createHash('sha256').update(agent.instructions, 'utf8').digest('hex')
+
           if (!LEGACY_INSTRUCTION_HASHES.has(hash)) continue
 
           tx.update(agentTable).set({ instructions: '' }).where(eq(agentTable.id, agent.id)).run()

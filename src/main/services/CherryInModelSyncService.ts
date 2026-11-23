@@ -22,10 +22,12 @@ export class CherryInModelSyncService extends BaseService {
 
   protected onReady(): void {
     this.stopped = false
+
     const initial = setTimeout(() => {
       void this.check()
       this.registerInterval(() => this.check(), CHECK_INTERVAL_MS)
     }, 30_000)
+
     initial.unref()
     this.registerDisposable(() => clearTimeout(initial))
   }
@@ -40,11 +42,13 @@ export class CherryInModelSyncService extends BaseService {
 
     try {
       const provider = this.getEnabledProvider()
+
       if (!provider || modelService.list({ providerId: provider.id }).length === 0) return
 
       const cache = application.get('CacheService')
       const lastAttempt = cache.getPersist(LAST_ATTEMPT_KEY)
       const now = Date.now()
+
       if (lastAttempt !== null && now - lastAttempt < CHECK_INTERVAL_MS) return
 
       const controller = new AbortController()
@@ -53,17 +57,22 @@ export class CherryInModelSyncService extends BaseService {
       cache.setPersist(LAST_ATTEMPT_KEY, now)
       const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)])
       const { models } = await listModels(provider, signal, { throwOnError: true })
+
       if (signal.aborted || !isEqual(provider, this.getEnabledProvider())) return
 
       const remote = new Map(
         models.filter((model) => model.endpointTypes?.length).map((model) => [model.apiModelId, model])
       )
+
       const updates = modelService.list({ providerId: provider.id }).flatMap((model) => {
         const modelId = parseUniqueModelId(model.id).modelId
         const endpointTypes = remote.get(modelId)?.endpointTypes
+
         if (!endpointTypes?.length || isEqual(model.endpointTypes, endpointTypes)) return []
+
         return [{ providerId: provider.id, modelId, patch: { endpointTypes } }]
       })
+
       if (updates.length === 0) return
 
       modelService.bulkUpdate(updates)

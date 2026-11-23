@@ -30,6 +30,7 @@ export async function miniAppDetail(appId: string): Promise<MiniAppDetail> {
   const runtime = application.get('MiniAppRuntimeService')
   // The same resolution the launcher tile uses — one place knows how a logo becomes a URL.
   const { logo, logoSrc } = miniAppService.getByAppId(appId)
+
   return {
     appId,
     version: row.version,
@@ -42,6 +43,7 @@ export async function miniAppDetail(appId: string): Promise<MiniAppDetail> {
     declared: (() => {
       const { required, optional } = declaredGrants(manifest)
       const granted = new Set(listGrants(appId))
+
       return [
         ...required.map((key) => ({ key, optional: false, granted: true })),
         ...optional.map((key) => ({ key, optional: true, granted: granted.has(key) }))
@@ -97,6 +99,7 @@ export async function clearMiniAppData(appId: string): Promise<void> {
 export async function grantMiniAppPermission(appId: string, permission: string): Promise<void> {
   const row = installationOf(appId)
   const manifest = MiniAppManifestSchema.parse(row.manifestJson)
+
   // OPTIONAL only, and against the CURRENT manifest: a required grant is a precondition
   // of the install, so there is no state in which it is absent and needs giving back.
   if (!declaredGrants(manifest).optional.some((key) => key === permission)) {
@@ -113,6 +116,7 @@ export async function grantPendingAdditions(appId: string): Promise<void> {
   const row = installationOf(appId)
   const manifest = MiniAppManifestSchema.parse(row.manifestJson)
   const pending = pendingDeclaredAdditions(appId, manifest, row.consentedDeclaredJson)
+
   if (pending.length === 0) return
 
   application.get('DbService').withWriteTx((tx) => {
@@ -141,9 +145,11 @@ export async function revokeMiniAppGrant(appId: string, permission: string): Pro
   // OPTIONAL only, against the CURRENT manifest: without this the renderer can hand in a
   // REQUIRED leaf and get the installed-but-broken app §6.0.1 exists to prevent.
   const manifest = MiniAppManifestSchema.parse(installationOf(appId).manifestJson)
+
   if (!declaredGrants(manifest).optional.some((key) => key === permission)) {
     throw new Error(`Mini app ${appId} does not declare ${permission} as optional; it cannot be revoked`)
   }
+
   // No quiesce, no connection reset: the bridge re-checks every call, so the next one already
   // fails, and an in-flight `net.fetch` runs on the default session where a reset cannot reach it.
   revokeGrant(appId, permission)
@@ -152,7 +158,9 @@ export async function revokeMiniAppGrant(appId: string, permission: string): Pro
 
 export async function checkUpdateOnOpen(appId: string): Promise<UpdateStatus> {
   if (!application.get('PreferenceService').get('feature.mini_app.check_updates_on_open')) return { status: 'current' }
+
   // A local package has no endpoint to check; `checkForUpdate` refuses it outright.
   if (installationOf(appId).source === 'file') return { status: 'current' }
+
   return checkForUpdate(appId)
 }

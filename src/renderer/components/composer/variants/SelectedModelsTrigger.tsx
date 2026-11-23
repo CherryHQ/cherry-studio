@@ -36,6 +36,7 @@ const MODEL_TAG_SIZE = 8
 
 function getProviderName(model: Model, providers: Provider[]) {
   const provider = providers.find((currentProvider) => currentProvider.id === model.providerId)
+
   return getProviderDisplayName(provider) || getProviderDisplayNameById(model.providerId)
 }
 
@@ -80,15 +81,18 @@ export const SelectedModelsTrigger = ({
   const [popoverOpen, setPopoverOpen] = useState(false)
   const closeTimerRef = useRef<number | null>(null)
   const singleModel = models.length === 1 ? models[0] : undefined
+
   const singleModelLabel = singleModel
     ? `${singleModel.name} | ${getProviderName(singleModel, providers)}`
     : fallbackLabel
+
   const selectedModelsLabel = t('models.selection.selected_models')
   const hasSelectionPopover = models.length > 1
   const canShowSelectionPopover = hasSelectionPopover && !suppressSelectionPopover
   const hasVisibleTriggerIcon = models.length > 0
 
   const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
+
   const modelProviderNames = useMemo(
     () => new Map(models.map((model) => [model.id, getProviderName(model, providers)])),
     [models, providers]
@@ -108,11 +112,13 @@ export const SelectedModelsTrigger = ({
 
   const openSelectionPopover = useCallback(() => {
     clearCloseTimer()
+
     if (canShowSelectionPopover) setPopoverOpen(true)
   }, [canShowSelectionPopover, clearCloseTimer])
 
   const scheduleSelectionPopoverClose = useCallback(() => {
     clearCloseTimer()
+
     if (!canShowSelectionPopover) return
 
     closeTimerRef.current = window.setTimeout(() => {

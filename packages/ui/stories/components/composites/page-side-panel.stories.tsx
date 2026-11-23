@@ -19,10 +19,12 @@ const meta: Meta<typeof PageSidePanel> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 const Scene = ({ side }: { side: 'left' | 'right' }) => {
   const [open, setOpen] = useState(false)
+
   return (
     <div className="relative h-[520px] w-full overflow-hidden rounded-md border bg-card">
       <div className="flex items-start gap-3 p-6">
@@ -66,6 +68,7 @@ export const Left: Story = {
 export const WithoutCloseButton: Story = {
   render: function NoCloseExample() {
     const [open, setOpen] = useState(false)
+
     return (
       <div className="relative h-[520px] w-full overflow-hidden rounded-md border bg-card">
         <div className="p-6">
@@ -88,6 +91,7 @@ export const SettingsPanel: Story = {
   render: function SettingsPanelExample() {
     const [open, setOpen] = useState(false)
     const [enabled, setEnabled] = useState(false)
+
     return (
       <div className="relative h-[520px] w-full overflow-hidden rounded-md border bg-card">
         <div className="p-6">

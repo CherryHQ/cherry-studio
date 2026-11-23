@@ -49,9 +49,11 @@ export function groupIntoTurns(history: ContextMessage[]): Turn[] {
       // Atomic turn: assistant + all subsequent tool results
       const start = i
       i++
+
       while (i < history.length && history[i].role === 'tool') {
         i++
       }
+
       turns.push({ startIndex: start, endIndex: i })
     } else {
       // Single-message turn: user, system, or plain assistant
@@ -78,6 +80,7 @@ export function groupIntoTurns(history: ContextMessage[]): Turn[] {
 function attachmentToPlaceholder(att: Attachment): string {
   const mt = att.mediaType.toLowerCase()
   const kind = mt.startsWith('image/') ? 'image' : mt ? 'document' : 'attachment'
+
   return att.filename ? `[${kind}: ${att.filename}]` : `[${kind}]`
 }
 
@@ -103,6 +106,7 @@ function stripAttachmentsForCompression(messages: ContextMessage[]): ContextMess
 
     const rest: ContextMessage = { ...msg, content: newContent }
     delete rest.attachments
+
     return rest
   })
 }
@@ -113,6 +117,7 @@ function stripAttachmentsForCompression(messages: ContextMessage[]): ContextMess
  */
 function buildToolNameMap(messages: ContextMessage[]): Map<string, string> {
   const map = new Map<string, string>()
+
   for (const m of messages) {
     if (m.role === 'assistant' && m.tool_calls) {
       for (const tc of m.tool_calls) {
@@ -120,6 +125,7 @@ function buildToolNameMap(messages: ContextMessage[]): Map<string, string> {
       }
     }
   }
+
   return map
 }
 
@@ -141,11 +147,14 @@ function buildToolNameMap(messages: ContextMessage[]): Map<string, string> {
  */
 function stripLargeToolResultsForCompression(messages: ContextMessage[], threshold: number): ContextMessage[] {
   const nameMap = buildToolNameMap(messages)
+
   return messages.map((msg) => {
     if (msg.role !== 'tool') return msg
+
     if (msg.content.length <= threshold) return msg
     const name = (msg.tool_call_id && nameMap.get(msg.tool_call_id)) ?? 'unknown'
     const stub = `[Tool ${name} returned ${msg.content.length} chars; omitted before summarization]`
+
     return { ...msg, content: stub }
   })
 }
@@ -201,6 +210,7 @@ export async function summarizeHistory(
 
   let instruction = ContextPrompts.CONTEXT_COMPACTION_INSTRUCTION
   const extra = opts.customCompressionInstructions?.trim()
+
   if (extra) {
     instruction += `\n\nAdditional Instructions:\n${extra}`
   }
@@ -208,6 +218,7 @@ export async function summarizeHistory(
   const assemble = (stubThreshold: number | undefined): ContextMessage[] => {
     const stubbed =
       stubThreshold !== undefined ? stripLargeToolResultsForCompression(messages, stubThreshold) : messages
+
     return [...stripAttachmentsForCompression(stubbed), { role: 'user', content: instruction }]
   }
 
@@ -217,9 +228,11 @@ export async function summarizeHistory(
   if (opts.maxInputTokens !== undefined) {
     for (const threshold of STUB_ESCALATION) {
       if (estimateObject(compressionMessages) <= opts.maxInputTokens) break
+
       if (opts.toolResultStubThreshold !== undefined && threshold >= opts.toolResultStubThreshold) continue
       compressionMessages = assemble(threshold)
     }
+
     return summarizeInChunks(
       compressionMessages.slice(0, -1),
       { role: 'user', content: instruction },
@@ -229,6 +242,7 @@ export async function summarizeHistory(
   }
 
   const raw = await compress(compressionMessages)
+
   return ContextPrompts.formatCompactSummary(raw)
 }
 
@@ -244,6 +258,7 @@ async function summarizeInChunks(
     ...(tool_calls && { tool_calls }),
     ...(tool_call_id && { tool_call_id })
   }))
+
   let summary = ''
   let budget = maxInputTokens
   let overflowRetries = 0
@@ -252,23 +267,29 @@ async function summarizeInChunks(
     const prefix: ContextMessage[] = summary
       ? [{ role: 'user', content: ContextPrompts.getCompactSummaryWrapper(summary) }]
       : []
+
     const chunk: ContextMessage[] = []
     let consumed = 0
     let splitAt = 0
     let used = estimateObject([...prefix, instruction])
+
     for (const message of remaining) {
       const cost = estimateObject(message) + 1
+
       if (used + cost <= budget) {
         chunk.push(message)
         used += cost
         consumed++
         continue
       }
+
       if (chunk.length || message.tool_calls?.length || message.role === 'tool') break
       let low = 0
       let high = message.content.length
+
       while (low < high) {
         const mid = Math.ceil((low + high) / 2)
+
         if (
           estimateObject([...prefix, { ...message, content: message.content.slice(0, mid) }, instruction]) <= budget
         ) {
@@ -277,20 +298,26 @@ async function summarizeInChunks(
           high = mid - 1
         }
       }
+
       if (low > 0 && /[\uD800-\uDBFF]/.test(message.content[low - 1])) low--
+
       if (low > 0) {
         chunk.push({ ...message, content: message.content.slice(0, low) })
         splitAt = low
       }
+
       break
     }
+
     if (!chunk.length) throw new Error('Compaction input cannot fit the summarizer context budget')
 
     try {
       const next = ContextPrompts.formatCompactSummary(await compress([...prefix, ...chunk, instruction]))
+
       if (!next.trim()) return ''
       summary = next
       remaining.splice(0, consumed)
+
       if (splitAt) remaining[0] = { ...remaining[0], content: remaining[0].content.slice(splitAt) }
       overflowRetries = 0
     } catch (error) {
@@ -298,6 +325,7 @@ async function summarizeInChunks(
       budget = Math.floor(Math.min(budget, estimateObject([...prefix, ...chunk, instruction])) * 0.75)
     }
   }
+
   return summary
 }
 
@@ -388,6 +416,7 @@ export class Janitor {
    */
   public async compress(history: ContextMessage[]): Promise<ContextMessage[]> {
     const evaluation = this.evaluateBudget(history)
+
     if (evaluation === null) return history
 
     let { splitIndex } = evaluation
@@ -395,6 +424,7 @@ export class Janitor {
 
     // Fire onBeforeCompress hook — the caller gets a chance to intervene
     const hook = this.config.onBeforeCompress
+
     if (hook) {
       const modified = await hook(history, {
         currentTokens,
@@ -404,6 +434,7 @@ export class Janitor {
       if (modified != null) {
         // Re-evaluate with the caller-modified history
         const reEval = this.evaluateBudget(modified)
+
         if (reEval === null) return modified
         history = modified
         splitIndex = reEval.splitIndex
@@ -427,6 +458,7 @@ export class Janitor {
     // E10: Skip check once after a compression to avoid cascading re-compression.
     if (this._suppressNextCompression) {
       this._suppressNextCompression = false
+
       return null
     }
 
@@ -445,6 +477,7 @@ export class Janitor {
     if (splitTurn <= 0) return null
 
     const splitIndex = turns[splitTurn].startIndex
+
     return { splitIndex, currentTokens }
   }
 
@@ -459,8 +492,10 @@ export class Janitor {
         { compressedMessages: toCompress }
       )
     }
+
     // E10: Suppress the immediate next compression check.
     this._suppressNextCompression = true
+
     return [...toKeep]
   }
 }

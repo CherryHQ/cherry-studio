@@ -50,6 +50,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
       window.cancelAnimationFrame(focusFrameRef.current)
       focusFrameRef.current = null
     }
+
     focusFrameRef.current = window.requestAnimationFrame(() => {
       inputRef.current?.focus()
       inputRef.current?.select()
@@ -60,6 +61,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
     if (!options?.keepQuery) {
       setQuery('')
     }
+
     setMatchCount(0)
     setActiveIndex(0)
   }, [])
@@ -67,14 +69,18 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
   const ensureWebviewReady = useCallback(
     (candidate: WebviewTag | null) => {
       if (!candidate) return null
+
       try {
         const webContentsId = candidate.getWebContentsId?.()
+
         if (!webContentsId) {
           logger.debug('WebviewSearch: missing webContentsId before action', { targetId })
+
           return null
         }
       } catch (error) {
         logger.debug('WebviewSearch: getWebContentsId failed before action', { targetId, error })
+
         return null
       }
 
@@ -86,12 +92,16 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
   const stopFindOnWebview = useCallback(
     (webview: WebviewTag | null) => {
       const usable = ensureWebviewReady(webview)
+
       if (!usable) return false
+
       try {
         usable.stopFindInPage('clearSelection')
+
         return true
       } catch (error) {
         logger.debug('stopFindInPage failed', { targetId, error })
+
         return false
       }
     },
@@ -103,6 +113,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
 
     for (const candidate of candidates) {
       const usable = ensureWebviewReady(candidate)
+
       if (usable) {
         return usable
       }
@@ -113,6 +124,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
 
   const stopSearch = useCallback(() => {
     const target = getUsableWebview()
+
     if (!target) return
     stopFindOnWebview(target)
   }, [getUsableWebview, stopFindOnWebview])
@@ -126,15 +138,20 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
   const performSearch = useCallback(
     (text: string, options?: Electron.FindInPageOptions) => {
       const target = getUsableWebview()
+
       if (!target) {
         logger.debug('Skip performSearch: webview not attached')
+
         return
       }
+
       if (!text) {
         stopSearch()
         resetSearchState({ keepQuery: true })
+
         return
       }
+
       try {
         target.findInPage(text, options)
       } catch (error) {
@@ -162,8 +179,10 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
   const openSearch = useCallback(() => {
     if (!isWebviewReady) {
       logger.debug('Skip openSearch: webview not ready')
+
       return
     }
+
     setIsVisible(true)
     focusInput()
   }, [focusInput, isWebviewReady])
@@ -180,6 +199,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
 
   useEffect(() => {
     attachedWebviewRef.current = activeWebview
+
     if (!activeWebview) {
       return
     }
@@ -189,6 +209,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
 
     return () => {
       activeWebview.removeEventListener('found-in-page', handle)
+
       if (attachedWebviewRef.current === activeWebview) {
         stopFindOnWebview(activeWebview)
         attachedWebviewRef.current = null
@@ -203,10 +224,13 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
 
   useEffect(() => {
     if (!isVisible) return
+
     if (!query) {
       performSearch('')
+
       return
     }
+
     performSearch(query)
   }, [activeWebview, isVisible, performSearch, query])
 
@@ -216,6 +240,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
       // names the pane it belongs to. Host keys have no such owner and fall through
       // to the ownership rules below.
       const guestTarget = event.target instanceof Element && event.target.tagName === 'WEBVIEW' ? event.target : null
+
       if (guestTarget && guestTarget !== webviewRef.current) return
 
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'f') {
@@ -224,6 +249,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
         if (!guestTarget && !hostShortcutEnabled) return
         event.preventDefault()
         openSearch()
+
         return
       }
 
@@ -235,17 +261,20 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
       const ownsFocus = overlayRef.current?.contains(active) ?? false
       const overlayFocused = active instanceof Element && active.closest(OVERLAY_SELECTOR) !== null
       const hasRival = document.querySelectorAll(OVERLAY_SELECTOR).length > 1
+
       if (!guestTarget && hasRival && (overlayFocused ? !ownsFocus : !hostShortcutEnabled)) return
 
       if (event.key === 'Escape') {
         event.preventDefault()
         closeSearch()
+
         return
       }
 
       if (event.key === 'Enter') {
         if (!guestTarget && !ownsFocus) return
         event.preventDefault()
+
         if (event.shiftKey) {
           goToPrevious()
         } else {
@@ -255,6 +284,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
     }
 
     window.addEventListener('keydown', handleKeydown, true)
+
     return () => {
       window.removeEventListener('keydown', handleKeydown, true)
     }
@@ -265,12 +295,14 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
       setIsVisible(false)
       resetSearchState()
       stopSearch()
+
       return
     }
   }, [isWebviewReady, resetSearchState, stopSearch])
 
   useEffect(() => {
     if (!targetId) return
+
     if (lastTargetIdRef.current === targetId) return
     lastTargetIdRef.current = targetId
     setIsVisible(false)
@@ -281,6 +313,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
   useEffect(() => {
     return () => {
       stopSearch()
+
       if (focusFrameRef.current !== null) {
         window.cancelAnimationFrame(focusFrameRef.current)
         focusFrameRef.current = null

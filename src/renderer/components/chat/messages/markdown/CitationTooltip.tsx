@@ -21,7 +21,9 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
     !resolveSafeExternalUrl(citation.url)?.requiresConfirmation &&
     citation.type !== 'knowledge' &&
     citation.type !== 'memory'
+
   const hasHoverContent = isWeb || Boolean(citation.title?.trim() || citation.content?.trim())
+
   if (!hasHoverContent) return <>{children}</>
 
   const tooltipContent = isWeb ? (

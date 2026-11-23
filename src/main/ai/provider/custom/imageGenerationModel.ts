@@ -126,6 +126,7 @@ export function createImageGenerationModel(
       })
 
       let urls: string[]
+
       if (submitResult.imageUrls) {
         urls = submitResult.imageUrls
       } else if (submitResult.taskId) {
@@ -134,6 +135,7 @@ export function createImageGenerationModel(
         }
 
         let cancelRequested = false
+
         const cancelRemoteTask = () => {
           if (cancelRequested) return
           cancelRequested = true
@@ -146,6 +148,7 @@ export function createImageGenerationModel(
         }
 
         abortSignal?.addEventListener('abort', cancelRemoteTask, { once: true })
+
         try {
           urls = await transport.poll(submitResult.taskId, { signal: abortSignal, onProgress })
         } finally {

@@ -20,6 +20,7 @@ export interface KnowledgeBaseDiscoveryPage {
 }
 
 type KnowledgeWorkflowJobType = Extract<JobType, `knowledge.${string}`>
+
 export const KNOWLEDGE_JOB_TYPES = [
   'knowledge.copy-sources',
   'knowledge.prepare-root',
@@ -33,6 +34,7 @@ declare const knowledgeBaseIdBrand: unique symbol
 declare const knowledgeItemIdBrand: unique symbol
 
 export type KnowledgeBaseId = string & { readonly [knowledgeBaseIdBrand]: true }
+
 export type KnowledgeItemId = string & { readonly [knowledgeItemIdBrand]: true }
 
 export type KnowledgeProgressDetail =
@@ -90,11 +92,13 @@ export function knowledgeQueueName(baseId: KnowledgeBaseId): string {
 
 export function knowledgeDeleteSubtreeIdempotencyKey(baseId: KnowledgeBaseId, rootItemIds: KnowledgeItemId[]): string {
   const rootKey = [...rootItemIds].sort().join(',')
+
   return `knowledge:${baseId}:${rootKey}:delete`
 }
 
 export function knowledgeReindexSubtreeIdempotencyKey(baseId: KnowledgeBaseId, rootItemIds: KnowledgeItemId[]): string {
   const rootKey = [...rootItemIds].sort().join(',')
+
   return `knowledge:${baseId}:${rootKey}:reindex`
 }
 
@@ -112,6 +116,7 @@ export function knowledgeIndexIdempotencyKey(
   parentJobId?: string | null
 ): string {
   const runKey = parentJobId ? `:${parentJobId}` : ''
+
   return `knowledge:${baseId}:${itemId}:index${runKey}`
 }
 

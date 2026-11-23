@@ -16,10 +16,12 @@ interface UnknownToolProps {
 const getToolDisplayName = (name: string) => {
   if (name.startsWith('mcp__')) {
     const parts = name.substring(5).split('__')
+
     if (parts.length >= 2) {
       return `${parts[0]}:${parts.slice(1).join(':')}`
     }
   }
+
   return name
 }
 
@@ -34,14 +36,17 @@ function extractMcpContent(
   output: unknown
 ): { text: string | null; images: Array<{ data: string; mimeType: string }>; links: ToolResultLinkData[] } | null {
   const result = CallToolResultSchema.safeParse(output)
+
   if (!result.success) return null
 
   const textParts: string[] = []
   const images: Array<{ data: string; mimeType: string }> = []
   const links: ToolResultLinkData[] = []
+
   for (const item of result.data.content) {
     if (item.type === 'text' && item.text) {
       const textLinks = getToolResultLinks(item)
+
       if (textLinks) {
         for (const link of textLinks) links.push(link)
       } else textParts.push(item.text)
@@ -49,10 +54,12 @@ function extractMcpContent(
       images.push({ data: item.data, mimeType: item.mimeType ?? 'image/png' })
     } else if (item.type === 'resource_link') {
       const resourceLinks = getToolResultLinks(item)
+
       if (resourceLinks) links.push(...resourceLinks)
       else textParts.push(item.uri)
     }
   }
+
   return { text: textParts.length > 0 ? textParts.join('\n\n') : null, images, links }
 }
 
@@ -69,6 +76,7 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
     if (name.startsWith('mcp__')) {
       return t('message.tools.labels.mcpServerTool')
     }
+
     return t('message.tools.labels.tool')
   }
 
@@ -76,7 +84,9 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Unknown tools have no shared input/output schema; retain objects and wrap primitive payloads for the generic argument table.
   const normalizeArgs = (value: unknown): Exclude<Parameters<typeof ToolArgsTable>[0]['args'], undefined> => {
     if (value === undefined || value === null) return null
+
     if (typeof value === 'object') return value as NonNullable<Parameters<typeof ToolArgsTable>[0]['args']>
+
     // Wrap primitive values
     return { value }
   }
@@ -86,11 +96,13 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
   // Try MCP CallToolResult format first — text into the output table, image blocks rendered inline.
   const mcpContent = extractMcpContent(output)
   const mcpImages = mcpContent?.images ?? []
+
   const links =
     mcpContent?.links ??
     (typeof output === 'string' || Array.isArray(output)
       ? getToolResultLinks({ type: 'text', text: typeof output === 'string' ? output : JSON.stringify(output) })
       : null)
+
   const normalizedOutput = mcpContent
     ? mcpContent.text !== null
       ? { value: mcpContent.text }
@@ -98,6 +110,7 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
     : links
       ? null
       : normalizeArgs(output)
+
   const displayLabel = isMcpTool ? `${getToolDescription(toolName)} ${displayName}` : undefined
 
   return {

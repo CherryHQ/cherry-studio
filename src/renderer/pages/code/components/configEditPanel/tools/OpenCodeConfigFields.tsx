@@ -34,6 +34,7 @@ export const OpenCodeConfigFields: FC<OpenCodeConfigFieldsProps> = ({ config, on
   const updateEnvField = useCallback(
     (key: string, value: string) => {
       const nextEnv = { ...env }
+
       if (value) nextEnv[key] = value
       else delete nextEnv[key]
       onChange({ ...config, env: nextEnv })

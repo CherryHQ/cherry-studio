@@ -26,7 +26,9 @@ export interface ComposerEditorPresetOptions {
 function showOnBlankDocument(placeholder: PlaceholderOptions['placeholder']): PlaceholderOptions['placeholder'] {
   return (props) => {
     const { doc } = props.editor.state
+
     if (doc.childCount > 1 || doc.firstChild?.childCount) return ''
+
     return typeof placeholder === 'function' ? placeholder(props) : (placeholder ?? '')
   }
 }

@@ -50,6 +50,7 @@ const PopupContainer: React.FC<Props> = ({ forceFullBackup = false, open, resolv
 
   const onOk = async () => {
     setSubmitting(true)
+
     try {
       await backup(forceFullBackup ? false : skipBackupFile)
       resolve()
@@ -72,6 +73,7 @@ const PopupContainer: React.FC<Props> = ({ forceFullBackup = false, open, resolv
         progress: Math.floor(progressData.progress)
       })
     }
+
     return t(getBackupProgressLabelKey(progressData.stage))
   }
 

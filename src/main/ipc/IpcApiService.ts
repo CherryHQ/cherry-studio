@@ -65,19 +65,24 @@ export class IpcApiService extends BaseService {
         senderType: event.sender.getType(),
         senderUrl: event.senderFrame?.url
       })
+
       const error = new IpcError(
         IpcErrorCode.FORBIDDEN_SENDER,
         `Rejected IpcApi request from untrusted sender: ${route}`
       )
+
       return { ok: false, error: error.toJSON() }
     }
 
     const t0 = DIAGNOSTICS_ENABLED ? performance.now() : 0
+
     try {
       const data = await this.router.dispatch(route, input, this.makeContext(event))
+
       return { ok: true, data }
     } catch (e) {
       const error = IpcError.from(e)
+
       if (!hasReportingOwner(e) && (!(e instanceof IpcError) || e.code === IpcErrorCode.INTERNAL)) {
         const cancelled = isCancellation(e)
         logFailure(logger, 'IPC handler failed', e, route, {
@@ -90,11 +95,13 @@ export class IpcApiService extends BaseService {
       } else if (hasReportingOwner(e)) {
         error.reportingHandled = true
       }
+
       // Never throw to ipcMain.handle: Electron's reject drops code/data, so serialize into the result.
       return { ok: false, error: error.toJSON() }
     } finally {
       if (DIAGNOSTICS_ENABLED) {
         const dt = performance.now() - t0
+
         if (dt > SLOW_THRESHOLD_MS.ipcHandler) logger.info(`[Diagnostics/ipc-api] ${dt.toFixed(1)}ms ${route}`)
       }
     }
@@ -127,6 +134,7 @@ export class IpcApiService extends BaseService {
    */
   send<E extends IpcEventName>(windowId: WindowId, event: E, payload: EventPayload<E>): void {
     const window = application.get('WindowManager').getWindow(windowId)
+
     if (window && !window.isDestroyed()) {
       window.webContents.send(IpcChannel.IpcApi_Event, event, payload)
     }

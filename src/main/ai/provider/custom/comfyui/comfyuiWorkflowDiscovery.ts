@@ -33,7 +33,9 @@ export async function listWorkflows(
     options,
     LIST_TIMEOUT_MS
   )
+
   const prefix = `${WORKFLOW_DIR}/`
+
   return entries
     .filter((entry) => entry.type === 'file' && entry.name.endsWith(WORKFLOW_FILE_EXTENSION))
     .map((entry) => {
@@ -43,6 +45,7 @@ export async function listWorkflows(
       // back and submitted.
       const relative = (entry.path ?? `${WORKFLOW_DIR}/${entry.name}`).replace(/^\/+/, '')
       const workflowPath = relative.startsWith(prefix) ? relative.slice(prefix.length) : relative
+
       return workflowPath.slice(0, -WORKFLOW_FILE_EXTENSION.length)
     })
 }

@@ -55,10 +55,13 @@ export class UtilityProcessManager extends BaseService {
   ): void {
     validateUtilityProcessDefinition(definition)
     const existing = this.definitions.get(definition.id)
+
     if (existing === definition) return
+
     if (existing !== undefined) {
       throw new Error(`utility process '${definition.id}' is already registered with a different definition object`)
     }
+
     this.definitions.set(definition.id, definition)
   }
 
@@ -71,8 +74,11 @@ export class UtilityProcessManager extends BaseService {
         `utility process '${definition.id}' is not registered; call register() from the consumer's onInit`
       )
     }
+
     const cached = this.clients.get(definition)
+
     if (cached !== undefined) return cached as UtilityProcessClient<Contract>
+
     const client: UtilityProcessClient<Contract> = {
       request: async (method, input, options) => {
         if (!this.accepting) {
@@ -84,6 +90,7 @@ export class UtilityProcessManager extends BaseService {
             }
           )
         }
+
         return this.hostFor(definition).request(method, input, options)
       },
       openStream: async (method, input, options) => {
@@ -91,12 +98,15 @@ export class UtilityProcessManager extends BaseService {
           throw new UtilityProcessError('PROCESS_BLOCKED', 'Utility process manager is not running', {
             processId: definition.id
           })
+
         return this.hostFor(definition).openStream(method, input, options)
       },
       stop: (options) => this.hosts.get(definition.id)?.stop(options) ?? Promise.resolve(),
       withStopped: async (operation, options) => this.hostFor(definition).withStopped(operation, options)
     }
+
     this.clients.set(definition, client)
+
     return client
   }
 
@@ -107,23 +117,28 @@ export class UtilityProcessManager extends BaseService {
     if (this.definitions.get(definition.id) !== definition || !this.accepting) {
       throw new Error('Utility process definition is not registered or manager is stopped')
     }
+
     const id = randomUUID()
     const key = `${definition.id}:${id}`
     const host = new ProcessHost(definition, this.deps, id)
     this.hosts.set(key, host)
     let disposed = false
+
     return {
       request: async (method, input, options) => {
         if (disposed || !this.accepting) throw new Error('Utility process instance is closed')
+
         return host.request(method, input, options)
       },
       openStream: async (method, input, options) => {
         if (disposed || !this.accepting) throw new Error('Utility process instance is closed')
+
         return host.openStream(method, input, options)
       },
       stop: (options) => host.stop(options),
       withStopped: async (operation, options) => {
         if (disposed || !this.accepting) throw new Error('Utility process instance is closed')
+
         return host.withStopped(operation, options)
       },
       dispose: async () => {
@@ -138,8 +153,10 @@ export class UtilityProcessManager extends BaseService {
 
   protected onInit(): void {
     this.accepting = true
+
     const onChildProcessGone = (_event: Electron.Event, details: Electron.Details): void => {
       if (details.type !== 'Utility') return
+
       for (const host of this.hosts.values()) {
         host.noteChildProcessGone({
           reason: details.reason,
@@ -148,6 +165,7 @@ export class UtilityProcessManager extends BaseService {
         })
       }
     }
+
     app.on('child-process-gone', onChildProcessGone)
     this.registerDisposable(() => app.off('child-process-gone', onChildProcessGone))
   }
@@ -164,10 +182,12 @@ export class UtilityProcessManager extends BaseService {
     definition: UtilityProcessDefinition<Contract, InitData>
   ): ProcessHost<Contract, InitData> {
     const existing = this.hosts.get(definition.id)
+
     // SAFETY: registration permits only one definition object per id; this host was created from it.
     if (existing !== undefined) return existing as ProcessHost<Contract, InitData>
     const host = new ProcessHost(definition, this.deps)
     this.hosts.set(definition.id, host)
+
     return host
   }
 
@@ -175,11 +195,13 @@ export class UtilityProcessManager extends BaseService {
   private async disposeHosts(): Promise<void> {
     this.accepting = false
     const hosts = [...this.hosts.entries()]
+
     for (const [id, host] of hosts) {
       host.retireWhenQuiescent(() => {
         if (this.hosts.get(id) === host) this.hosts.delete(id)
       })
     }
+
     await Promise.allSettled(hosts.map(([, host]) => host.dispose()))
   }
 }

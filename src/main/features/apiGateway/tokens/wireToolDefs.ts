@@ -17,6 +17,7 @@ export interface WireToolDef {
  */
 export async function toWireToolDefs(tools: ToolSet | undefined): Promise<WireToolDef[] | undefined> {
   if (!tools) return undefined
+
   return Promise.all(
     Object.entries(tools).map(async ([name, tool]) => ({
       name,

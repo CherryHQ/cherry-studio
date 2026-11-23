@@ -34,5 +34,6 @@ export function OpenTargetIcon({ target, className = 'size-4' }: { target: Exter
   if (target.kind === 'file_manager') {
     return isMac ? <FinderIcon className={className} /> : <FolderOpen className={className} />
   }
+
   return <FileText className={className} />
 }

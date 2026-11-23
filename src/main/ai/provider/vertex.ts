@@ -22,6 +22,7 @@ export function isVertexMaasModelId(modelId: string): boolean {
 export function normalizeVertexCredentials(credentials: Extract<AuthConfig, { type: 'iam-gcp' }>['credentials']) {
   const privateKey = credentials?.privateKey ?? credentials?.private_key
   const clientEmail = credentials?.clientEmail ?? credentials?.client_email
+
   return normalizedVertexCredentialsSchema.parse({
     ...(privateKey !== undefined && { privateKey }),
     ...(clientEmail !== undefined && { clientEmail })

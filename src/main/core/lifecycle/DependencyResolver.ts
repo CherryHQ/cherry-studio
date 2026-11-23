@@ -59,11 +59,13 @@ export class DependencyResolver {
 
     // Find nodes with no dependencies, sorted by priority
     const queue: string[] = []
+
     for (const [name, degree] of inDegree) {
       if (degree === 0) {
         queue.push(name)
       }
     }
+
     this.sortByPriority(queue, nodeMap)
 
     const result: string[] = []
@@ -74,9 +76,11 @@ export class DependencyResolver {
 
       // Collect newly available nodes
       const newlyAvailable: string[] = []
+
       for (const neighbor of adjacency.get(current)!) {
         const newDegree = inDegree.get(neighbor)! - 1
         inDegree.set(neighbor, newDegree)
+
         if (newDegree === 0) {
           newlyAvailable.push(neighbor)
         }
@@ -103,6 +107,7 @@ export class DependencyResolver {
     names.sort((a, b) => {
       const priorityA = nodeMap.get(a)?.priority ?? 100
       const priorityB = nodeMap.get(b)?.priority ?? 100
+
       return priorityA - priorityB
     })
   }
@@ -118,8 +123,10 @@ export class DependencyResolver {
     const dfs = (name: string, path: string[]): string[] | null => {
       if (stack.has(name)) {
         const cycleStart = path.indexOf(name)
+
         return [...path.slice(cycleStart), name]
       }
+
       if (visited.has(name)) return null
 
       visited.add(name)
@@ -127,10 +134,12 @@ export class DependencyResolver {
       path.push(name)
 
       const node = nodeMap.get(name)
+
       if (node) {
         for (const dep of node.dependencies) {
           if (nodeMap.has(dep)) {
             const cycle = dfs(dep, path)
+
             if (cycle) return cycle
           }
         }
@@ -138,11 +147,13 @@ export class DependencyResolver {
 
       stack.delete(name)
       path.pop()
+
       return null
     }
 
     for (const node of nodes) {
       const cycle = dfs(node.name, [])
+
       if (cycle) return cycle
     }
 
@@ -183,6 +194,7 @@ export class DependencyResolver {
     while (remaining > 0) {
       // Find all nodes with no remaining dependencies
       const currentLayer: string[] = []
+
       for (const [name, degree] of inDegree) {
         if (degree === 0) {
           currentLayer.push(name)
@@ -201,6 +213,7 @@ export class DependencyResolver {
       // Remove processed nodes and update degrees
       for (const name of currentLayer) {
         inDegree.set(name, -1) // Mark as processed
+
         for (const neighbor of adjacency.get(name)!) {
           const newDegree = inDegree.get(neighbor)! - 1
           inDegree.set(neighbor, newDegree)
@@ -221,6 +234,7 @@ export class DependencyResolver {
    */
   public validateAndAdjustPhases(nodes: DependencyNode[]): PhaseAdjustment[] {
     const nodeMap = new Map<string, DependencyNode>()
+
     for (const node of nodes) {
       nodeMap.set(node.name, node)
     }
@@ -229,16 +243,20 @@ export class DependencyResolver {
 
     // Iterate until no more adjustments needed
     let changed = true
+
     while (changed) {
       changed = false
+
       for (const node of nodes) {
         for (const depName of node.dependencies) {
           const depNode = nodeMap.get(depName)
+
           if (!depNode) continue
 
           // Check for invalid dependency patterns
           if (this.isInvalidDependency(node.phase, depNode.phase)) {
             const newPhase = this.getAdjustedPhase(node.phase, depNode.phase)
+
             if (newPhase !== node.phase) {
               adjustments.push({
                 serviceName: node.name,
@@ -272,14 +290,17 @@ export class DependencyResolver {
     if (servicePhase === Phase.BeforeReady && dependencyPhase !== Phase.BeforeReady) {
       return true
     }
+
     // Background can only depend on Background
     if (servicePhase === Phase.Background && dependencyPhase !== Phase.Background) {
       return true
     }
+
     // WhenReady can depend on BeforeReady or WhenReady, but not Background
     if (servicePhase === Phase.WhenReady && dependencyPhase === Phase.Background) {
       return true
     }
+
     return false
   }
 
@@ -291,18 +312,22 @@ export class DependencyResolver {
     if (servicePhase === Phase.BeforeReady && dependencyPhase === Phase.WhenReady) {
       return Phase.WhenReady
     }
+
     // BeforeReady depending on Background → adjust to Background (then may cascade)
     if (servicePhase === Phase.BeforeReady && dependencyPhase === Phase.Background) {
       return Phase.Background
     }
+
     // Background depending on BeforeReady → adjust to BeforeReady
     if (servicePhase === Phase.Background && dependencyPhase === Phase.BeforeReady) {
       return Phase.BeforeReady
     }
+
     // Background depending on WhenReady → adjust to WhenReady
     if (servicePhase === Phase.Background && dependencyPhase === Phase.WhenReady) {
       return Phase.WhenReady
     }
+
     // WhenReady depending on Background → adjust Background service to WhenReady
     // Note: This case is handled differently - we adjust the dependency, not the service
     // For now, we don't adjust WhenReady services
@@ -332,6 +357,7 @@ export class DependencyResolver {
     }
 
     collectDependents(serviceName)
+
     return Array.from(dependents)
   }
 
@@ -350,6 +376,7 @@ export class DependencyResolver {
 
     const collectDependencies = (name: string) => {
       const node = nodeMap.get(name)
+
       if (!node) return
 
       for (const depName of node.dependencies) {
@@ -362,6 +389,7 @@ export class DependencyResolver {
     }
 
     collectDependencies(serviceName)
+
     return Array.from(dependencies)
   }
 }

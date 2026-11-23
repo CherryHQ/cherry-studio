@@ -25,11 +25,14 @@ function withNoFollow(flags: number): number {
 
 async function resolveFileCI(dir: string, name: string): Promise<string> {
   const exact = path.join(dir, name)
+
   try {
     const fileStat = await lstat(exact)
+
     if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
       throw new Error(`Agent memory file must be a real file: ${exact}`)
     }
+
     return exact
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
@@ -38,17 +41,21 @@ async function resolveFileCI(dir: string, name: string): Promise<string> {
   try {
     const entries = await readdir(dir)
     const match = entries.find((entry) => entry.toLowerCase() === name.toLowerCase())
+
     if (!match) return exact
     const matchedPath = path.join(dir, match)
     const fileStat = await lstat(matchedPath)
+
     if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
       throw new Error(`Agent memory file must be a real file: ${matchedPath}`)
     }
+
     return matchedPath
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       logger.warn('Unexpected error reading directory', { dir, error: (error as Error).message })
     }
+
     return exact
   }
 }
@@ -61,26 +68,32 @@ type JournalEntry = {
 
 async function getAgentDataPath(ctx: MemoryToolContext): Promise<string> {
   const agent = agentService.getAgent(ctx.agentId)
+
   if (!agent) throw new Error(`Agent not found: ${ctx.agentId}`)
   const assertedPath = await assertAgentDataDirectory(path.dirname(ctx.agentDataPath), ctx.agentId)
+
   if (path.resolve(assertedPath) !== path.resolve(ctx.agentDataPath)) {
     throw new Error(`Agent data path mismatch for ${ctx.agentId}`)
   }
+
   return assertedPath
 }
 
 async function assertMemoryDirectory(ctx: MemoryToolContext): Promise<string> {
   const memoryDir = path.join(await getAgentDataPath(ctx), 'memory')
   const memoryStat = await lstat(memoryDir)
+
   if (!memoryStat.isDirectory() || memoryStat.isSymbolicLink()) {
     throw new Error(`Agent memory directory must be a real directory: ${memoryDir}`)
   }
+
   return memoryDir
 }
 
 async function assertRegularFileOrMissing(filePath: string): Promise<void> {
   try {
     const fileStat = await lstat(filePath)
+
     if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
       throw new Error(`Agent memory file must be a real file: ${filePath}`)
     }
@@ -98,6 +111,7 @@ async function memoryUpdate(content: string, ctx: MemoryToolContext): Promise<st
 
     const tmpPath = path.join(memoryDir, `.FACT.md.${randomUUID()}.tmp`)
     const handle = await open(tmpPath, 'wx', 0o600)
+
     try {
       await handle.writeFile(content, 'utf-8')
       await handle.close()
@@ -111,6 +125,7 @@ async function memoryUpdate(content: string, ctx: MemoryToolContext): Promise<st
     }
 
     logger.info('Memory FACT.md updated via tool', { agentId: ctx.agentId, length: content.length })
+
     return 'Memory updated.'
   })
 }
@@ -128,8 +143,10 @@ async function memoryAppend(text: string, tags: string[], ctx: MemoryToolContext
       withNoFollow(constants.O_APPEND | constants.O_CREAT | constants.O_WRONLY),
       0o600
     )
+
     try {
       const fileStat = await handle.stat()
+
       if (!fileStat.isFile()) throw new Error(`Agent journal must be a regular file: ${journalPath}`)
       await handle.appendFile(`${JSON.stringify(entry)}\n`, 'utf-8')
     } finally {
@@ -137,6 +154,7 @@ async function memoryAppend(text: string, tags: string[], ctx: MemoryToolContext
     }
 
     logger.info('Journal entry appended via tool', { agentId: ctx.agentId, tags })
+
     return `Journal entry added at ${entry.ts}.`
   })
 }
@@ -145,10 +163,13 @@ async function memorySearch(query: string, tagFilter: string, limit: number, ctx
   const journalPath = await resolveFileCI(await assertMemoryDirectory(ctx), 'JOURNAL.jsonl')
 
   let fileContent: string
+
   try {
     const handle = await open(journalPath, withNoFollow(constants.O_RDONLY))
+
     try {
       const fileStat = await handle.stat()
+
       if (!fileStat.isFile()) throw new Error(`Agent journal must be a regular file: ${journalPath}`)
       fileContent = await handle.readFile('utf-8')
     } finally {
@@ -158,17 +179,22 @@ async function memorySearch(query: string, tagFilter: string, limit: number, ctx
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return 'No journal entries found.'
     }
+
     throw new Error(`Failed to read journal at ${journalPath}: ${(error as Error).message}`)
   }
 
   const queryLower = query.toLowerCase()
   const tagLower = tagFilter.toLowerCase()
   const matches: JournalEntry[] = []
+
   for (const line of fileContent.split('\n')) {
     if (!line.trim()) continue
+
     try {
       const entry = JSON.parse(line) as JournalEntry
+
       if (tagFilter && !entry.tags?.some((tag) => tag.toLowerCase() === tagLower)) continue
+
       if (query && !entry.text.toLowerCase().includes(queryLower)) continue
       matches.push(entry)
     } catch {
@@ -177,8 +203,10 @@ async function memorySearch(query: string, tagFilter: string, limit: number, ctx
   }
 
   const result = matches.slice(-limit).reverse()
+
   if (result.length === 0) return 'No matching journal entries found.'
   logger.info('Journal search via tool', { agentId: ctx.agentId, query, tag: tagFilter, resultCount: result.length })
+
   return JSON.stringify(result, null, 2)
 }
 
@@ -199,6 +227,7 @@ const MemoryInputSchema = z
   .superRefine((args, ctx) => {
     if (args.action === 'update' && !args.content)
       ctx.addIssue({ code: 'custom', message: "'content' is required for update action", path: ['content'] })
+
     if (args.action === 'append' && !args.text)
       ctx.addIssue({ code: 'custom', message: "'text' is required for append action", path: ['text'] })
   })
@@ -224,6 +253,7 @@ Keep each file's scope exclusive: SOUL.md holds persona, USER.md holds user cont
 Use only this tool to update FACT.md or read and write JOURNAL.jsonl; never bypass it with file or shell tools.`
     }
   )
+
   server.registerTool(
     'memory',
     {
@@ -238,8 +268,10 @@ Use only this tool to update FACT.md or read and write JOURNAL.jsonl; never bypa
           : args.action === 'append'
             ? await memoryAppend(args.text!, args.tags ?? [], ctx)
             : await memorySearch(args.query ?? '', args.tag ?? '', args.limit ?? 20, ctx)
+
       return { content: [{ type: 'text', text }] }
     }
   )
+
   return server
 }

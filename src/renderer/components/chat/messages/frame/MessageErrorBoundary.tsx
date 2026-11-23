@@ -46,6 +46,7 @@ class MessageErrorBoundary extends React.Component<Props, State> {
     if (this.state.hasError) {
       return <ErrorFallback fallback={this.props.fallback} error={this.state.error} />
     }
+
     return this.props.children
   }
 }

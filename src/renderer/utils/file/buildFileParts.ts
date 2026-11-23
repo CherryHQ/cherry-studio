@@ -24,10 +24,14 @@ export function withComposerFilePartMeta(
   fileEntryId?: string
 ): FileUIPart {
   const metadata: CherryFileMeta = {}
+
   if (fileEntryId) metadata.fileEntryId = fileEntryId
   metadata.fileTokenSourceId = attachment.fileTokenSourceId
+
   if (attachment.composerFileKind) metadata.composerFileKind = attachment.composerFileKind
+
   if (attachment.path) metadata.originalPath = attachment.path
+
   return withCherryMeta(part, metadata)
 }
 
@@ -58,8 +62,10 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
         `Cannot send attachment "${attachment.origin_name || attachment.name}": it has no file path or image data`
       )
     }
+
     return attachment.path
   })
+
   return Promise.all(
     attachments.map(async (attachment, index) => {
       const entry = attachment.blob
@@ -75,20 +81,24 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
             path: paths[index]!,
             cleanupPolicy: 'delete_when_unreferenced'
           })
+
       const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
       const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(physicalPath))
+
       if (metadata === null) {
         // The physical file was just created by createInternalEntry above, so an
         // unreadable (null) metadata means a broken internal invariant — surface
         // it here rather than silently shipping an octet-stream part.
         throw new Error(`Failed to read metadata for freshly created file entry ${entry.id}`)
       }
+
       const basePart: FileUIPart = {
         type: 'file',
         mediaType: metadata.kind === 'file' ? metadata.mime : 'application/octet-stream',
         url: toFileUrl(physicalPath),
         filename: attachment.origin_name || attachment.name
       }
+
       return withComposerFilePartMeta(basePart, attachment, entry.id)
     })
   )

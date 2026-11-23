@@ -19,6 +19,7 @@ const OpenAIModelSchema = z.looseObject({
 
 const OpenAIModelItemSchema = z.unknown().transform((model) => {
   const parsed = OpenAIModelSchema.safeParse(model)
+
   return parsed.success ? parsed.data : undefined
 })
 
@@ -29,6 +30,7 @@ export const OpenAIModelsResponseSchema = z
   })
   .transform((response) => {
     const data = response.data.filter((model): model is z.output<typeof OpenAIModelSchema> => model !== undefined)
+
     return {
       ...response,
       data,
@@ -47,6 +49,7 @@ export const PoeModelsResponseSchema = z
     data: z.array(
       z.unknown().transform((model) => {
         const parsed = PoeModelSchema.safeParse(model)
+
         return parsed.success ? parsed.data : undefined
       })
     ),
@@ -54,6 +57,7 @@ export const PoeModelsResponseSchema = z
   })
   .transform((response) => {
     const data = response.data.filter((model): model is z.output<typeof PoeModelSchema> => model !== undefined)
+
     return { ...response, data, skippedModelCount: response.data.length - data.length }
   })
 

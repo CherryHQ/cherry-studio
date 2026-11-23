@@ -21,7 +21,9 @@ type Translate = (key: string, options?: Record<string, number | string>) => str
 
 function getElapsedMs(createdAt: string): number {
   const createdAtMs = Date.parse(createdAt)
+
   if (!Number.isFinite(createdAtMs)) return 0
+
   return Math.max(0, Date.now() - createdAtMs)
 }
 
@@ -48,6 +50,7 @@ export function usePlaceholderElapsedMs(isProcessing: boolean, createdAt: string
 
     return () => {
       clearInterval(timer)
+
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibilityChange)
       }
@@ -66,8 +69,11 @@ export function formatPlaceholderElapsed(elapsedMs: number, t: Translate): strin
   const seconds = String(totalSeconds % 60)
 
   if (days > 0) return t('message.tools.placeholder.elapsed.days', { days, hours, minutes, seconds })
+
   if (hours > 0) return t('message.tools.placeholder.elapsed.hours', { hours, minutes, seconds })
+
   if (minutes > 0) return t('message.tools.placeholder.elapsed.minutes', { minutes, seconds })
+
   return t('message.tools.placeholder.elapsed.seconds', { seconds })
 }
 
@@ -84,6 +90,8 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, statu
       </div>
     )
   }
+
   return null
 }
+
 export default React.memo(PlaceholderBlock)

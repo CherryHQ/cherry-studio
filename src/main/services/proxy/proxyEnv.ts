@@ -40,6 +40,7 @@ export const getProxyEnvironment = (env: NodeJS.ProcessEnv = process.env) => {
 
   for (const key of NODE_PROXY_ENV_KEYS) {
     const value = env[key]
+
     if (typeof value === 'string' && value.trim() !== '') {
       proxyEnv[key] = value
     }
@@ -53,6 +54,7 @@ export const proxyUrlHasCredentials = (proxyUrl?: string): boolean => {
 
   try {
     const url = new URL(proxyUrl)
+
     return url.username !== '' || url.password !== ''
   } catch {
     return false
@@ -77,12 +79,14 @@ export const isSocksProxyProtocol = (protocol: string | null): boolean => {
 
 export const buildNodeProxyEnvironment = (config: NodeProxyConfig): NodeJS.ProcessEnv => {
   const proxyUrl = config.proxyRules?.trim()
+
   if (!proxyUrl) {
     return {}
   }
 
   const normalizedByPassRules = normalizeProxyBypassRules(config.proxyBypassRules)
   const proxyProtocol = getProxyProtocol(proxyUrl)
+
   const env = {
     [CHERRY_NODE_PROXY_RULES_ENV]: proxyUrl,
     [CHERRY_NODE_PROXY_BYPASS_RULES_ENV]: normalizedByPassRules.join(','),

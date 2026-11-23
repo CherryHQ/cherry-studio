@@ -20,7 +20,9 @@ export function useMessageAuthorAvatarSources(
     }),
     [listKey]
   )
+
   const [resolved, setResolved] = useState({ session, sources: session.sources })
+
   const ids = useMemo(
     () => [
       ...new Set(
@@ -34,6 +36,7 @@ export function useMessageAuthorAvatarSources(
 
   useEffect(() => {
     session.active = true
+
     return () => {
       session.active = false
     }
@@ -41,6 +44,7 @@ export function useMessageAuthorAvatarSources(
 
   useEffect(() => {
     const added = ids.filter((id) => !session.requested.has(id))
+
     for (let offset = 0; offset < added.length; offset += AVATAR_PATH_BATCH_SIZE) {
       const batch = added.slice(offset, offset + AVATAR_PATH_BATCH_SIZE)
       batch.forEach((id) => session.requested.add(id))
@@ -48,10 +52,13 @@ export function useMessageAuthorAvatarSources(
         .request('file.batch_get_physical_paths', { ids: batch })
         .then((paths) => {
           if (!session.active) return
+
           for (const id of batch) {
             const path = paths[id]
+
             if (path) session.sources.set(id, toFileUrl(path))
           }
+
           setResolved({ session, sources: new Map(session.sources) })
         })
         .catch(() => {})

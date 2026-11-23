@@ -28,11 +28,14 @@ export function useSelectionAgentWindowRules(rules: SelectionAgentWindowRules | 
 
   const handleBlur = useEffectEvent(() => {
     if (!rules || !isAutoClose || rules.pinned) return
+
     if (rules.idle) void ipcApi.request('selection.dismiss_blurred_agent_window', 'close')
     else if (rules.collapsible) void ipcApi.request('selection.dismiss_blurred_agent_window', 'collapse')
   })
+
   const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (!rules || event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return
+
     if (rules.idle) void ipcApi.request('window.close')
     else rules.onEscape?.()
   })
@@ -44,6 +47,7 @@ export function useSelectionAgentWindowRules(rules: SelectionAgentWindowRules | 
     const onKeyDown = (event: KeyboardEvent) => handleKeyDown(event)
     window.addEventListener('blur', onBlur)
     window.addEventListener('keydown', onKeyDown)
+
     return () => {
       window.removeEventListener('blur', onBlur)
       window.removeEventListener('keydown', onKeyDown)

@@ -93,16 +93,19 @@ function useResourceListAutoCollapse({
   rootRef: RefObject<HTMLDivElement | null>
 }) {
   const rightPanelState = useOptionalRightPanelState()
+
   const [storedListWidth] = useWindowScopedPersistCache(
     RESOURCE_LIST_PANE_CACHE_KEY,
     RESOURCE_LIST_PANE_WINDOW_CACHE_KEY
   )
+
   // The prediction must size the pane that is actually presented; a list and an artifact
   // have different widths, and reading the wrong one strands the list collapsed.
   const paneProfile = rightPanelState?.activePaneWidth ?? getRightPaneWidthPolicy()
   const [storedPaneWidth] = useWindowScopedPersistCache(paneProfile.cacheKey, paneProfile.windowCacheKey)
 
   const dockedPaneOpen = Boolean(rightPanelState?.presentationOpen && !rightPanelState.presentationMaximized)
+
   // `fullWidthActive` is host-reported one commit late; `presentationMaximized` and
   // `layoutAnimationPending` flip synchronously in the provider, so together they
   // close the race where a maximize-click evaluation would run before the freeze
@@ -114,6 +117,7 @@ function useResourceListAutoCollapse({
     rightPanelState?.paneResizing ||
     listResizing
   )
+
   const userOpenSeq = rightPanelState?.userOpenSeq ?? 0
 
   const shellWidthRef = useRef(0)
@@ -152,11 +156,15 @@ function useResourceListAutoCollapse({
   const evaluate = useCallback(
     (forceNotify = false) => {
       if (suppressedRef.current) return
+
       if (frozenRef.current) {
         pendingEvaluateRef.current = true
+
         return
       }
+
       const shellWidth = shellWidthRef.current
+
       if (shellWidth <= 0) return
 
       const predictedCenter = predictCenterWidth({
@@ -166,9 +174,12 @@ function useResourceListAutoCollapse({
         paneWidth: widthsRef.current.paneWidth,
         paneMin: widthsRef.current.paneMin
       })
+
       let next = evaluateAutoCollapse(predictedCenter, collapsedRef.current)
+
       // Never newly collapse a list the user is not showing; releasing stays allowed.
       if (next && !collapsedRef.current && !leftPaneOpenRef.current) next = collapsedRef.current
+
       if (next !== collapsedRef.current || forceNotify) {
         collapsedRef.current = next
         notify(next, forceNotify)
@@ -181,11 +192,14 @@ function useResourceListAutoCollapse({
   // manual expand is never misread as a programmatic one (trigger 4).
   useLayoutEffect(() => {
     const signal = paneManualToggle
+
     if (!signal || signal.seq === consumedManualSeqRef.current) return
     consumedManualSeqRef.current = signal.seq
+
     if (signal.open) {
       suppressedRef.current = true
       suppressStartShellRef.current = shellWidthRef.current
+
       if (collapsedRef.current) {
         collapsedRef.current = false
         notify(false)
@@ -202,6 +216,7 @@ function useResourceListAutoCollapse({
   useLayoutEffect(() => {
     const wasOpen = previousLeftPaneOpenRef.current
     previousLeftPaneOpenRef.current = leftPaneOpen
+
     if (!wasOpen && leftPaneOpen) evaluate(true)
   }, [evaluate, leftPaneOpen])
 
@@ -234,10 +249,12 @@ function useResourceListAutoCollapse({
 
   useEffect(() => {
     const root = rootRef.current
+
     if (!root || typeof ResizeObserver === 'undefined') return
 
     const observer = new ResizeObserver(([entry]) => {
       const nextShellWidth = entry.contentRect.width
+
       if (nextShellWidth <= 0) return
       shellWidthRef.current = nextShellWidth
 
@@ -246,12 +263,15 @@ function useResourceListAutoCollapse({
           suppressedRef.current = false
           evaluate()
         }
+
         return
       }
+
       evaluate()
     })
 
     observer.observe(root)
+
     return () => observer.disconnect()
   }, [evaluate, rootRef])
 

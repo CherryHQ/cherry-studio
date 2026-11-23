@@ -33,10 +33,13 @@ import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
 const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
+
 const APP_ICON_SURFACE_CLASS =
   'relative flex size-14 items-center justify-center overflow-hidden rounded-[50%] [corner-shape:squircle] bg-muted group-focus-visible:inset-ring-2 group-focus-visible:inset-ring-ring'
+
 const APP_ICON_FRAME_CLASS =
   'relative flex size-full shrink-0 items-center justify-center overflow-hidden rounded-[inherit] [corner-shape:inherit] [color-scheme:light] dark:[color-scheme:dark] select-none'
+
 const APP_ICON_CLASS = 'size-full object-contain'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
@@ -58,6 +61,7 @@ export default function LaunchpadPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
+
   const {
     pinned,
     openedKeepAliveMiniApps,
@@ -68,6 +72,7 @@ export default function LaunchpadPage() {
     removeCustomMiniApp,
     reorderMiniAppsByStatus
   } = useMiniApps()
+
   const { shortcuts, isPinned, setPinned } = useSidebarShortcuts()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)
@@ -84,10 +89,12 @@ export default function LaunchpadPage() {
       ),
     [shortcuts]
   )
+
   const openedMiniAppIdSet = useMemo(
     () => new Set(openedKeepAliveMiniApps.map((app) => app.appId)),
     [openedKeepAliveMiniApps]
   )
+
   const toggleMiniApp = useCallback(
     (appId: string) => {
       const app = pinned.find((item) => item.appId === appId)
@@ -100,6 +107,7 @@ export default function LaunchpadPage() {
     },
     [pinned, t, setPinned, miniAppFavoriteIdSet]
   )
+
   const handleSortableDragStart = useCallback((event: { activeId: string | number }) => {
     draggedItemIdRef.current = String(event.activeId)
     suppressClickUntilRef.current = Date.now() + 500
@@ -120,7 +128,9 @@ export default function LaunchpadPage() {
   const navigateToUrl = useCallback(
     (url: string) => {
       const parsedUrl = parseAppRouteUrl(url)
+
       if (!parsedUrl) return
+
       if (parsedUrl.search) {
         return navigate({
           to: parsedUrl.pathname,
@@ -140,6 +150,7 @@ export default function LaunchpadPage() {
     // agents -> new session). Resuming the last-used instance is the sidebar's
     // job, not the launcher's.
     const path = getSidebarMenuPath(favorite, defaultPaintingProvider)
+
     if (!path) return
     void navigateToUrl(path)
   }
@@ -343,8 +354,10 @@ export default function LaunchpadPage() {
 /** Same pinned mini app objects in the same order. */
 function sameMiniAppItems(a: MiniAppType[], b: MiniAppType[]): boolean {
   if (a.length !== b.length) return false
+
   for (let i = 0; i < a.length; i++) {
     if (a[i] !== b[i]) return false
   }
+
   return true
 }

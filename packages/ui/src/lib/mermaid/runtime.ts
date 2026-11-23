@@ -14,6 +14,7 @@ export function loadMermaidRuntime() {
   runtime ??= import('@mermanjs/web-render')
     .then(async (merman) => {
       await merman.initMerman()
+
       // Canvas measurement works on the page and in a Web Worker alike, so both produce identical layouts.
       return { merman, measure: createCanvasTextMeasurer() }
     })
@@ -22,6 +23,7 @@ export function loadMermaidRuntime() {
       runtime = null
       throw error
     })
+
   return runtime
 }
 
@@ -50,6 +52,7 @@ export async function renderMermaidSvg(source: string, { theme, diagramId }: Ren
   // SAFETY: WorkerGlobalScope exposes FontFaceSource.fonts; this package compiles with DOM-only globals.
   const fontSet = typeof document === 'undefined' ? (self as typeof self & FontFaceSource).fonts : document.fonts
   const [{ merman, measure }] = await Promise.all([loadMermaidRuntime(), ensureFontFaces(theme.fontFaces, fontSet)])
+
   try {
     return merman.renderSvgWithTextMeasurer(source, measure, {
       presentation: {
@@ -75,8 +78,10 @@ export async function renderMermaidSvg(source: string, { theme, diagramId }: Ren
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Merman's WASM renderer can throw non-Error values; inspect its message before normalizing the rendering failure.
 function toError(error: unknown): Error {
   if (error instanceof Error) return error
+
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
     return new Error(error.message)
   }
+
   return new Error(String(error))
 }

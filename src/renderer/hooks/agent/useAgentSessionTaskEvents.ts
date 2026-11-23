@@ -18,5 +18,6 @@ export function useAgentSessionTaskEvents(sessionId: string | undefined): AgentS
   const cached = useSharedCacheValue(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
 
   if (!sessionId) return NO_EVENTS
+
   return cached ?? NO_EVENTS
 }

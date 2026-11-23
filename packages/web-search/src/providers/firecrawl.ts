@@ -44,6 +44,7 @@ export const firecrawl: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG.firecrawl,
   async execute(context) {
     const { call } = context
+
     if (call.capability === 'searchKeywords') {
       const payload = await requestJson(
         context,
@@ -56,6 +57,7 @@ export const firecrawl: WebSearchProviderModule = {
         FirecrawlSearchResponseSchema,
         (value) => checkProviderError(context, value, 'success')
       )
+
       return (payload.data?.web || []).slice(0, call.config.maxResults).map((item) => ({
         title: item.title?.trim() || '',
         content: item.markdown?.trim() || item.description?.trim() || '',
@@ -63,6 +65,7 @@ export const firecrawl: WebSearchProviderModule = {
         sourceInput: call.input
       }))
     }
+
     const payload = await requestJson(
       context,
       {
@@ -74,10 +77,13 @@ export const firecrawl: WebSearchProviderModule = {
       FirecrawlScrapeResponseSchema,
       (value) => checkProviderError(context, value, 'success')
     )
+
     const content = payload.data?.markdown?.trim()
+
     if (!content) throw invalidResponse(context, 'empty_content', 'Firecrawl scrape returned empty content')
     const metadata = payload.data?.metadata
     const title = Array.isArray(metadata?.title) ? metadata.title[0] : metadata?.title
+
     return [
       { title: title?.trim() || call.input, content, url: metadata?.sourceURL || call.input, sourceInput: call.input }
     ]

@@ -42,6 +42,7 @@ export function useConversationLocateRequest({
 }: UseConversationLocateRequestOptions) {
   const [request, setRequest] = useState<LocateRequest>()
   const key = navigationTabId ? navigationLocateKey(navigationTabId) : undefined
+
   const navigationRequest = useSyncExternalStore(
     useCallback((listener) => (key ? cacheService.subscribe(key, listener) : () => {}), [key]),
     useCallback(() => (key ? cacheService.getCasual<LocateRequest>(key) : undefined), [key])
@@ -63,11 +64,14 @@ export function useConversationLocateRequest({
   const requestLocate = useCallback((conversationId: string, messageId: string | null) => {
     setRequest({ conversationId, messageId })
   }, [])
+
   const clearLocate = useCallback(() => setRequest(undefined), [])
+
   const visibleRequest =
     request?.conversationId === activeConversationId && request?.conversationId === visibleConversationId
       ? request
       : undefined
+
   const locateMessageId = visibleRequest?.messageId ?? undefined
   const locateToEnd = visibleRequest?.messageId === null
 

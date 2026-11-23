@@ -22,6 +22,7 @@ interface Props {
 const ActionResultContent: FC<Props> = ({ message, partsByMessageId }) => {
   const { renderConfig } = useMessageListRenderConfig()
   const platformActions = useMessagePlatformActions()
+
   return (
     <MessageContentProvider
       messages={[message]}

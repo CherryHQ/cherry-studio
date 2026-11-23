@@ -11,6 +11,7 @@ export const deleteTableWhenAllCellsSelected: KeyboardShortcutCommand = ({ edito
   }
 
   let cellCount = 0
+
   const table = findParentNodeClosestToPos(selection.ranges[0].$from, (node) => {
     return node.type.name === 'table'
   })
@@ -23,6 +24,7 @@ export const deleteTableWhenAllCellsSelected: KeyboardShortcutCommand = ({ edito
     if (['tableCell', 'tableHeader'].includes(node.type.name)) {
       cellCount += 1
     }
+
     return true
   })
 

@@ -44,14 +44,19 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
   const [showOriginal, setShowOriginal] = useState(false)
 
   const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
+
   const assistantId =
     !action.isBuiltIn && action.runner === SELECTION_ACTION_RUNNER.ASSISTANT ? action.assistantId : undefined
+
   const { assistant: chosenAssistant, isLoading: isChosenLoading } = useAssistant(assistantId ?? '')
   const shouldUseFallback = action.isBuiltIn && !!quickAssistantId
+
   const { assistant: fallbackAssistant, isLoading: isFallbackLoading } = useAssistant(
     shouldUseFallback ? quickAssistantId : ''
   )
+
   const chosenAssistantId = chosenAssistant?.id ?? fallbackAssistant?.id
+
   const waitingForConfiguredAssistant =
     (Boolean(assistantId) && isChosenLoading) || (shouldUseFallback && isFallbackLoading)
 
@@ -71,6 +76,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
         case SELECTION_BUILTIN_ACTION_ID.REFINE:
           return t('selection.action.prompt.refine', { text: action.selectedText ?? '' })
       }
+
       return action.selectedText || ''
     }
 
@@ -106,6 +112,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
 
   const latestAssistantMessage = useMemo(() => {
     if (!latestAssistantUIMsg) return null
+
     return toMessageListItem(
       {
         ...latestAssistantUIMsg,

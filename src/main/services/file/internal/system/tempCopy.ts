@@ -36,8 +36,10 @@ export async function withTempCopy<T>(
   const dir = await mkdtemp(path.join(parent, 'tc-'))
   const filename = `${entry.name}${entry.ext ? `.${entry.ext}` : ''}` || 'file'
   const target = AbsoluteFilePathSchema.parse(path.join(dir, filename))
+
   try {
     await fsCopy(physical, target)
+
     return await fn(target)
   } finally {
     // Cleanup must not hijack the original error. `fsRemoveDir` wraps

@@ -76,22 +76,28 @@ export function useOpenClawGatewayController({
       errorToastKey: 'openclaw.error.select_provider_model',
       logLabel: 'Invalid OpenClaw model id configured'
     })
+
     if (!parsedModelId) return
 
     try {
       setLaunching(true)
+
       const syncResult = await ipcApi.request('openclaw.sync_config', {
         uniqueModelId: parsedModelId.uniqueModelId,
         port: gatewayPort
       })
+
       if (!syncResult.success) {
         toast.error(syncResult.message)
+
         return
       }
 
       const startResult = await ipcApi.request('openclaw.start_gateway', { port: gatewayPort })
+
       if (!startResult.success) {
         toast.error(startResult.message)
+
         return
       }
 
@@ -108,8 +114,10 @@ export function useOpenClawGatewayController({
     try {
       setStopping(true)
       const result = await ipcApi.request('openclaw.stop_gateway')
+
       if (!result.success) {
         toast.error(result.message)
+
         return
       }
     } catch (err) {

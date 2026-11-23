@@ -17,6 +17,7 @@ function getInvalidOperationReason(details: unknown): string | undefined {
   }
 
   const reason = details.reason
+
   return typeof reason === 'string' ? reason : undefined
 }
 
@@ -27,6 +28,7 @@ function getInvalidOperationOperation(details: unknown): string | undefined {
   }
 
   const operation = details.operation
+
   return typeof operation === 'string' ? operation : undefined
 }
 
@@ -37,6 +39,7 @@ export function getModelInUseAsDefaultUniqueModelId(error: unknown): UniqueModel
   }
 
   const dataError = toDataApiError(error)
+
   if (
     dataError.code !== ErrorCode.INVALID_OPERATION ||
     getInvalidOperationReason(dataError.details) !== MODEL_IN_USE_AS_DEFAULT_REASON
@@ -47,6 +50,7 @@ export function getModelInUseAsDefaultUniqueModelId(error: unknown): UniqueModel
   const operation = getInvalidOperationOperation(dataError.details)
   const modelPath = operation?.startsWith('delete model ') ? operation.slice('delete model '.length) : undefined
   const separatorIndex = modelPath?.indexOf('/')
+
   if (!modelPath || separatorIndex === undefined || separatorIndex <= 0 || separatorIndex === modelPath.length - 1) {
     return undefined
   }
@@ -58,6 +62,7 @@ export function getModelInUseAsDefaultUniqueModelId(error: unknown): UniqueModel
 export function getModelOperationErrorMessage(error: unknown, messages: ModelOperationErrorMessages): string {
   if (isDataApiError(error) || isSerializedDataApiError(error)) {
     const dataError = toDataApiError(error)
+
     if (
       dataError.code === ErrorCode.INVALID_OPERATION &&
       getInvalidOperationReason(dataError.details) === MODEL_IN_USE_BY_KNOWLEDGE_BASE_REASON

@@ -9,6 +9,7 @@ export const apiGatewayPairedDeviceHandlers: HandlersFor<ApiGatewayPairedDeviceS
   '/api-gateway/paired-devices/:id': {
     DELETE: async ({ params }) => {
       apiGatewayPairedDeviceService.delete(params.id)
+
       return undefined
     }
   }

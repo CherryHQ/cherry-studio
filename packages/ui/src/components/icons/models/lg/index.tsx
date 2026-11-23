@@ -4,6 +4,7 @@ import { LgLight } from './light'
 
 const Lg = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <LgLight {...props} className={className} />
+
   return <LgLight {...props} className={className} />
 }
 

@@ -21,6 +21,7 @@ const MarqueeText: FC<MarqueeTextProps> = ({ children, speed = 30, pauseDuration
   const checkOverflow = useCallback(() => {
     const container = containerRef.current
     const content = contentRef.current
+
     if (container && content) {
       const overflow = content.scrollWidth > container.clientWidth
       setIsOverflowing(overflow)
@@ -31,9 +32,11 @@ const MarqueeText: FC<MarqueeTextProps> = ({ children, speed = 30, pauseDuration
   useEffect(() => {
     checkOverflow()
     const observer = new ResizeObserver(checkOverflow)
+
     if (containerRef.current) {
       observer.observe(containerRef.current)
     }
+
     return () => observer.disconnect()
   }, [checkOverflow, children])
 
@@ -41,6 +44,7 @@ const MarqueeText: FC<MarqueeTextProps> = ({ children, speed = 30, pauseDuration
 
   useEffect(() => {
     const el = contentRef.current
+
     if (!shouldAnimate || !el || overflowAmount <= 0) return
 
     const scrollTime = overflowAmount / speed
@@ -81,11 +85,13 @@ const MarqueeText: FC<MarqueeTextProps> = ({ children, speed = 30, pauseDuration
         el.getBoundingClientRect() // force reflow
         el.style.transition = 'transform 0.3s ease-out'
         el.style.transform = 'translateX(0)'
+
         const onEnd = () => {
           el.style.transition = ''
           el.style.transform = ''
           el.removeEventListener('transitionend', onEnd)
         }
+
         el.addEventListener('transitionend', onEnd)
       }
     }

@@ -16,7 +16,9 @@ const errorHandler = createStatusCodeErrorResponseHandler()
 
 function requireKey(env: string): string {
   const k = process.env[env]
+
   if (!k) throw new Error(`${env} not set — generator falls back to models.dev`)
+
   return k
 }
 
@@ -24,12 +26,15 @@ function requireKey(env: string): string {
 function hostBase(providerOrUrl: string): string {
   if (/^https?:\/\//.test(providerOrUrl)) return providerOrUrl.replace(/\/+$/, '')
   const ec = PROVIDERS.find((p) => p.id === providerOrUrl)?.endpointConfigs ?? {}
+
   const base =
     ec['openai-chat-completions']?.baseUrl ??
     ec['openai-responses']?.baseUrl ??
     ec['anthropic-messages']?.baseUrl ??
     ec['google-generate-content']?.baseUrl
+
   if (!base) throw new Error(`no baseUrl for provider '${providerOrUrl}' in src/providers`)
+
   return base.replace(/\/+$/, '')
 }
 
@@ -50,6 +55,7 @@ export async function listModels<T>(opts: {
     successfulResponseHandler: createJsonResponseHandler(opts.schema),
     failedResponseHandler: errorHandler
   })
+
   return opts.pick(value).map((id) => ({ id }))
 }
 

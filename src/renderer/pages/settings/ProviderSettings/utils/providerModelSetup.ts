@@ -30,8 +30,10 @@ export async function persistProviderModels({
 }: PersistProviderModelsOptions): Promise<Model[]> {
   const uniqueSelectedModels = [...new Map(selectedModels.map((model) => [model.id, model])).values()]
   const persistedModels = new Map([...localModels, ...knownModels].map((model) => [model.id, model]))
+
   const modelsToRestore = uniqueSelectedModels.flatMap((model) => {
     const mapped = persistedModels.get(model.id)
+
     return mapped != null && (!mapped.isEnabled || mapped.isHidden) ? [mapped] : []
   })
 
@@ -42,25 +44,32 @@ export async function persistProviderModels({
         patch: { isEnabled: true, isHidden: false }
       }))
     )
+
     const updatedModelsById = new Map(updatedModels.map((model) => [model.id, model]))
     const missingResult = modelChunk.find((model) => !updatedModelsById.has(model.id))
+
     if (missingResult) {
       throw new Error(`Updated model was not returned: ${missingResult.id}`)
     }
+
     for (const model of updatedModels) persistedModels.set(model.id, model)
     onPersisted?.(updatedModels)
   }
 
   const missingModels = uniqueSelectedModels.filter((model) => !persistedModels.has(model.id))
+
   for (const modelChunk of chunkArray(missingModels, MODELS_BATCH_MAX_ITEMS)) {
     const createdModels = await createModels(
       modelChunk.map((model) => toCreateModelDto(provider.id, model, resolveCreateModelEndpointTypes(provider, model)))
     )
+
     const createdModelsById = new Map(createdModels.map((model) => [model.id, model]))
     const missingResult = modelChunk.find((model) => !createdModelsById.has(model.id))
+
     if (missingResult) {
       throw new Error(`Created model was not returned: ${missingResult.id}`)
     }
+
     for (const model of createdModels) persistedModels.set(model.id, model)
     onPersisted?.(createdModels)
   }
@@ -73,10 +82,13 @@ export function getProviderSetupErrorDetails(error: unknown, secrets: Iterable<s
   const serializedError = serializeHealthCheckError(error)
   const classification = classifyError(serializedError)
   let summary = healthCheckErrorToDisplayString(serializedError)
+
   for (const secret of secrets) {
     const normalizedSecret = secret.trim()
+
     if (normalizedSecret) summary = summary.replaceAll(normalizedSecret, '••••')
   }
+
   return {
     i18nKey: classification.category === 'unknown' ? null : classification.i18nKey,
     summary

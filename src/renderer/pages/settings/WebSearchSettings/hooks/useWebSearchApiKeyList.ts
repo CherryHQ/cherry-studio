@@ -63,6 +63,7 @@ export function useWebSearchApiKeyList(providerId: WebSearchProviderId) {
 
       await updateKeys([...keys, key])
       setPendingNewKey(null)
+
       return { isValid: true }
     },
     [keys, t, updateKeys]
@@ -71,6 +72,7 @@ export function useWebSearchApiKeyList(providerId: WebSearchProviderId) {
   const updateKey = useCallback(
     async (index: number, key: string): Promise<ApiKeyValidity> => {
       const otherKeys = keys.filter((_, itemIndex) => itemIndex !== index)
+
       const result = validateWebSearchApiKey(
         key,
         otherKeys,
@@ -83,12 +85,15 @@ export function useWebSearchApiKeyList(providerId: WebSearchProviderId) {
       }
 
       const nextKeys = replaceWebSearchApiKey(keys, index, key)
+
       if (!nextKeys) {
         logger.error('Invalid web search API key index', { index, length: keys.length })
+
         return { isValid: false, error: t('error.diagnosis.unknown') }
       }
 
       await updateKeys(nextKeys)
+
       return { isValid: true }
     },
     [keys, t, updateKeys]
@@ -97,8 +102,10 @@ export function useWebSearchApiKeyList(providerId: WebSearchProviderId) {
   const removeKey = useCallback(
     async (index: number) => {
       const nextKeys = removeWebSearchApiKey(keys, index)
+
       if (!nextKeys) {
         logger.error('Invalid web search API key index', { index, length: keys.length })
+
         return
       }
 
@@ -118,6 +125,7 @@ export function useWebSearchApiKeyList(providerId: WebSearchProviderId) {
     async (item: WebSearchApiKeyListItem) => {
       if (item.isNew) {
         setPendingNewKey(null)
+
         return
       }
 

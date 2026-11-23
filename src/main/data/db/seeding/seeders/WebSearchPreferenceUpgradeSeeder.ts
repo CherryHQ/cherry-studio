@@ -27,6 +27,7 @@ export class WebSearchPreferenceUpgradeSeeder implements ISeeder {
         )
       )
       .get()
+
     if (!legacyPreference) return
 
     db.transaction((tx) => {

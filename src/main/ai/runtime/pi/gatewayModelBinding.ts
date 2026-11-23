@@ -31,28 +31,33 @@ export async function createPiGatewayModelBinding(
   if (!isPiCompatibleModel(provider, model)) {
     throw new Error(`Provider "${provider.id}" cannot be routed through the internal gateway for pi agents`)
   }
+
   const preferredEndpoint =
     model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) &&
     model.endpointTypes.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
       ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES
       : undefined
+
   const { endpointType } = resolveEffectiveEndpoint(provider, model, preferredEndpoint)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   const api = mapEndpointToPiApi(endpointType, adapterFamily) ?? 'openai-completions'
   const gateway = await resolveApiGatewayRuntime(input.sessionId)
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const modalities: ('text' | 'image')[] = ['text']
+
   if (
     model.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ||
     model.inputModalities?.includes(MODALITY.IMAGE)
   ) {
     modalities.push('image')
   }
+
   const [{ InMemoryCredentialStore }, { ModelRuntime }, streamSimple] = await Promise.all([
     loadPiAi(),
     loadPiSdk(),
     loadPiApiStreamSimple(api)
   ])
+
   const modelRuntime =
     sharedModels ??
     (await ModelRuntime.create({
@@ -60,8 +65,10 @@ export async function createPiGatewayModelBinding(
       modelsPath: null,
       refreshOnCreate: false
     }))
+
   // Native provider re-registration replaces its models and stream handler.
   const providerName = sharedModels ? `cherry-gateway/${input.sessionId}/${randomUUID()}` : provider.id
+
   const registration: Parameters<ModelRuntime['registerProvider']>[1] = {
     name: provider.name,
     api,
@@ -69,6 +76,7 @@ export async function createPiGatewayModelBinding(
     // Pi interpolates configured keys; supply the gateway key through runtime credentials instead.
     apiKey: 'cherry-managed-runtime-key'
   }
+
   const definition: NonNullable<Parameters<ModelRuntime['registerProvider']>[1]['models']>[number] = {
     id: modelId,
     name: model.name,
@@ -78,22 +86,27 @@ export async function createPiGatewayModelBinding(
     contextWindow: resolveAgentContextWindow(model),
     maxTokens: model.maxOutputTokens ?? 8_192
   }
+
   // CherryIN can omit the signature delta on thinking blocks that must be replayed.
   if (provider.id === 'cherryin' && api === 'anthropic-messages') definition.compat = { allowEmptySignature: true }
   registration.models = [definition]
+
   const headers: NonNullable<Parameters<ModelRuntime['registerProvider']>[1]['headers']> = {
     ...gateway.usageHeaders,
     [CHERRY_REASONING_EFFORT_HEADER]: input.reasoningEffort ?? 'default'
   }
+
   if (input.serviceTier) headers[CHERRY_SERVICE_TIER_HEADER] = input.serviceTier
   headers[CHERRY_FAST_MODE_HEADER] = String(input.fastMode === true)
   registration.headers = headers
   // Pi's session retry policy owns retries; neither gateway nor HTTP client retries a step.
   registration.streamSimple = (model, context, options) => {
     const parent = getPiTraceContext(options?.telemetry)
+
     const capture = parent
       ? application.get('ApiGatewayService').captureAgentSessionUsage(input.sessionId, undefined, parent)
       : undefined
+
     try {
       // Native reasoning can enlarge per-call output caps before the gateway receives them.
       const stream = streamSimple(model, context, {
@@ -102,6 +115,7 @@ export async function createPiGatewayModelBinding(
         reasoning: undefined,
         maxRetries: 0
       })
+
       void stream
         .result()
         .then((message) => {
@@ -111,16 +125,20 @@ export async function createPiGatewayModelBinding(
           loggerService.withContext('PiGatewayModelBinding').error('Failed to observe native model response', { error })
         })
         .finally(() => capture?.release())
+
       return stream
     } catch (error) {
       capture?.release()
       throw error
     }
   }
+
   modelRuntime.registerProvider(providerName, registration)
   await modelRuntime.setRuntimeApiKey(providerName, gateway.apiKey)
   const registered = modelRuntime.getModel(providerName, modelId)
+
   if (!registered) throw new Error(`Pi gateway model ${modelId} was not registered`)
+
   return { modelRuntime, model: registered }
 }
 

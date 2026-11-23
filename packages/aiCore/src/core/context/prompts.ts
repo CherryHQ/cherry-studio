@@ -55,6 +55,7 @@ export const ContextPrompts = {
     const showsHead = headStr.length > 0
     const showsTail = tailStr.length > 0
     let descriptor: string
+
     if (showsHead && showsTail) {
       descriptor = `; first ${headStr.length} chars shown above, last ${tailStr.length} chars shown below`
     } else if (showsHead) {
@@ -172,6 +173,7 @@ Be concise but complete — err on the side of including information that would 
 
     // Extract <summary> content if present
     const match = out.match(/<summary>([\s\S]*?)<\/summary>/i)
+
     if (match) {
       out = match[1]
     }

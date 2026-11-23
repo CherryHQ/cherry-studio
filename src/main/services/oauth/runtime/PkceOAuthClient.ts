@@ -20,6 +20,7 @@ export const OAuthTokenResponseSchema = z.object({
   token_type: z.string().optional(),
   expires_in: z.number().optional()
 })
+
 export type OAuthTokenResponse = z.infer<typeof OAuthTokenResponseSchema>
 
 export interface PkceOAuthClientConfig {
@@ -91,6 +92,7 @@ export class PkceOAuthClient {
     url.searchParams.set('code_challenge', codeChallenge)
     url.searchParams.set('code_challenge_method', 'S256')
     url.searchParams.set('state', state)
+
     for (const [key, value] of Object.entries(this.config.extraAuthParams ?? {})) {
       url.searchParams.set(key, value)
     }

@@ -4,6 +4,7 @@ import { GptImage26SunburstLight } from './light'
 
 const GptImage26Sunburst = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GptImage26SunburstLight {...props} className={className} />
+
   return <GptImage26SunburstLight {...props} className={className} />
 }
 

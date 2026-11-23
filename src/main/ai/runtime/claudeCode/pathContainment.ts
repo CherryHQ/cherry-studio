@@ -23,12 +23,15 @@ async function resolveRealOrNearestExistingPath(targetPath: string): Promise<str
       try {
         const realCurrentPath = await fs.promises.realpath(currentPath)
         const relativeSuffix = path.relative(currentPath, targetPath)
+
         return path.normalize(path.join(realCurrentPath, relativeSuffix))
       } catch {
         const parentPath = path.dirname(currentPath)
+
         if (parentPath === currentPath) {
           return path.normalize(targetPath)
         }
+
         currentPath = parentPath
       }
     }
@@ -45,12 +48,15 @@ export async function isPathWithinAllowedRoots(
   }
 
   const absoluteTarget = path.isAbsolute(requestedPath) ? path.resolve(requestedPath) : path.resolve(cwd, requestedPath)
+
   const [resolvedWorkspace, resolvedAgentDataPath, resolvedTarget] = await Promise.all([
     resolveRealOrNearestExistingPath(path.resolve(cwd)),
     resolveRealOrNearestExistingPath(path.resolve(agentDataPath)),
     canonicalizePathForContainment(absoluteTarget, { allowMissing: true })
   ])
+
   if (!resolvedTarget) return false
+
   return (
     resolvedTarget === resolvedWorkspace ||
     isPathInside(resolvedTarget, resolvedWorkspace) ||

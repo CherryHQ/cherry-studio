@@ -11,6 +11,7 @@ import { trackSubscriptionEntryView, trackSubscriptionEvent } from '@renderer/se
 
 export function SubscriptionSettings() {
   const { t } = useTranslation()
+
   const {
     session: { status, loadState, login, cancelLogin, isAuthorizing, isCancellingLogin },
     plansQuery: { data: plans, error, isLoading: loading, mutate },
@@ -18,6 +19,7 @@ export function SubscriptionSettings() {
     upcomingPaid,
     isPlansReady
   } = useCherryCloudPlans()
+
   const paidPlan = activePaid ?? upcomingPaid
   const failed = Boolean(error) || (!loading && !isPlansReady)
 
@@ -27,10 +29,12 @@ export function SubscriptionSettings() {
   const usageViewReported = useRef(false)
   useEffect(() => {
     if (!plansLoaded) return
+
     if (!usageViewReported.current) {
       usageViewReported.current = true
       trackSubscriptionEvent({ event: 'subscription_usage_view', subscribed })
     }
+
     if (!subscribed) trackSubscriptionEntryView('settings')
   }, [plansLoaded, subscribed])
 
@@ -44,6 +48,7 @@ export function SubscriptionSettings() {
           if (isPlansReady || status?.phase === 'signed-out') {
             trackSubscriptionEvent({ event: 'subscription_faq_click', subscribed })
           }
+
           void openCherryCloudFaq()
         }}>
         {t('settings.subscription.faq')}
@@ -54,6 +59,7 @@ export function SubscriptionSettings() {
   if (status?.phase !== 'signed-in') {
     // Placeholders until the first status arrives, so a signed-in user never sees the sign-in prompt flash.
     const statusPending = !status && loadState === 'loading'
+
     return (
       <div className="space-y-6">
         {header}
@@ -128,8 +134,10 @@ export function SubscriptionSettings() {
               onClick={() => {
                 if (!paidPlan) {
                   if (isPlansReady) void startCherryCloudSubscription('settings')
+
                   return
                 }
+
                 trackSubscriptionEvent({ event: 'subscription_manage_click' })
                 void openCherryCloudAccountPortal({ entrySource: 'manage' })
               }}>

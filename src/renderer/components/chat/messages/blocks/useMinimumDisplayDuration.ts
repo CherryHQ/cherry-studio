@@ -30,10 +30,12 @@ export function useMinimumDisplayDuration<TValue>(
     }
 
     const currentValue = displayValueRef.current
+
     if (getKey(currentValue) === getKey(nextValue)) {
       clearPendingTimer()
       pendingValueRef.current = null
       displayValueRef.current = nextValue
+
       return clearPendingTimer
     }
 
@@ -41,6 +43,7 @@ export function useMinimumDisplayDuration<TValue>(
       clearPendingTimer()
       pendingValueRef.current = null
       syncValue(nextValue)
+
       return clearPendingTimer
     }
 
@@ -51,6 +54,7 @@ export function useMinimumDisplayDuration<TValue>(
     clearPendingTimer()
     timerRef.current = setTimeout(() => {
       const pendingValue = pendingValueRef.current
+
       if (!pendingValue) return
       pendingValueRef.current = null
       timerRef.current = null
@@ -62,6 +66,7 @@ export function useMinimumDisplayDuration<TValue>(
   }, [enabled, getKey, minimumDurationMs, nextValue, shouldBypass])
 
   const currentValue = displayValueRef.current
+
   if (!enabled || shouldBypass?.(currentValue, nextValue) || getKey(currentValue) === getKey(nextValue)) {
     return nextValue
   }

@@ -4,6 +4,7 @@ import { BytedanceLight } from './light'
 
 const Bytedance = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <BytedanceLight {...props} className={className} />
+
   return <BytedanceLight {...props} className={className} />
 }
 

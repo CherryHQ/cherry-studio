@@ -18,9 +18,11 @@ export function serveUtilityProcess<Contract extends UtilityProcessContract, Ini
   options: ServeUtilityProcessOptions<Contract, InitData>
 ): void {
   const parentPort = process.parentPort
+
   if (parentPort === undefined) {
     throw new Error('serveUtilityProcess() must run inside an Electron utility process (process.parentPort is missing)')
   }
+
   createUtilityProcessServer(options, {
     parentPort,
     exit: (code) => process.exit(code),

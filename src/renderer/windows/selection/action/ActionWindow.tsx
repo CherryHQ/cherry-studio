@@ -28,7 +28,9 @@ import ActionTranslate from './components/ActionTranslate'
  */
 const ActionWindow: FC = () => {
   const action = useWindowInitData<SelectionActionSession>()
+
   if (!action) return null
+
   return <SelectionActionContent action={action} />
 }
 
@@ -59,6 +61,7 @@ const SelectionActionContent: FC<{ action: SelectionActionSession }> = ({ action
   const [sessionId, setSessionId] = useState(0)
   const sourceEntityId = action.sessionId
   const isTranslate = action.isBuiltIn && action.id === SELECTION_BUILTIN_ACTION_ID.TRANSLATE
+
   if (action !== prevAction) {
     setPrevAction(action)
     setSessionId((n) => n + 1)
@@ -121,10 +124,12 @@ const SelectionActionContent: FC<{ action: SelectionActionSession }> = ({ action
     // sufficient; per-session scrollTop / lastScrollHeight reset lives in the
     // `[action]` reset effect above.
     const contentEl = contentElementRef.current
+
     if (contentEl) {
       contentEl.addEventListener('scroll', handleUserScroll)
       lastScrollHeight.current = contentEl.scrollHeight
     }
+
     return () => {
       if (contentEl) {
         contentEl.removeEventListener('scroll', handleUserScroll)
@@ -163,6 +168,7 @@ const SelectionActionContent: FC<{ action: SelectionActionSession }> = ({ action
   const handleWindowBlur = () => {
     if (shouldCloseWhenBlur.current) {
       handleClose()
+
       return
     }
 
@@ -171,6 +177,7 @@ const SelectionActionContent: FC<{ action: SelectionActionSession }> = ({ action
 
   const handleOpacityChange = (value: number[]) => {
     const nextOpacity = value[0]
+
     if (typeof nextOpacity === 'number') {
       setOpacity(nextOpacity)
     }

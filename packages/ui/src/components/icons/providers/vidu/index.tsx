@@ -4,6 +4,7 @@ import { ViduLight } from './light'
 
 const Vidu = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ViduLight {...props} className={className} />
+
   return <ViduLight {...props} className={className} />
 }
 

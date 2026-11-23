@@ -32,6 +32,7 @@ export const webSearchHandlers: IpcHandlersFor<typeof webSearchRequestSchemas> =
       ) {
         throw new IpcError(webSearchErrorCodes.WEB_SEARCH_PAGE_FETCH_FAILED, error.message)
       }
+
       throw error
     }
   }

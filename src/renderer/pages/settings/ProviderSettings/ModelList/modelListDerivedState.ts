@@ -17,6 +17,7 @@ import { normalizeModelGroupName } from './grouping'
 import { filterProviderSettingModelsByKeywords, getDuplicateProviderSettingModelNames } from './utils'
 
 export type ModelGroups = Record<string, Model[]>
+
 interface GroupModelsOptions {
   preferModelGroup?: boolean
 }
@@ -36,7 +37,9 @@ export const MODEL_LIST_CAPABILITY_FILTERS = [
 ] as const
 
 export type ModelListCapabilityFilter = (typeof MODEL_LIST_CAPABILITY_FILTERS)[number]
+
 export type ModelListFilter = ModelListCapabilityFilter | 'failed'
+
 export type ModelListCapabilityCounts = Record<ModelListCapabilityFilter, number>
 
 export type ModelListDerivedState = {
@@ -59,6 +62,7 @@ type CalculateModelListDerivedStateInput = {
 
 function getModelIdGroupName(model: Model): string | undefined {
   const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+
   return deriveModelGroupName(modelId)
 }
 
@@ -80,6 +84,7 @@ export const groupModelEntries = (
   options: GroupModelsOptions = {}
 ): Array<[string, Model[]]> => {
   const grouped = new Map<string, Model[]>()
+
   for (const model of models) {
     const inferredGroup = getModelIdGroupName(model)
     const hasLegacyProviderGroup = inferredGroup !== undefined && model.group?.trim() === model.providerId
@@ -88,6 +93,7 @@ export const groupModelEntries = (
     const fallbackGroup = shouldPreferStoredGroup ? inferredGroup : model.group
     const groupName = normalizeModelGroupName(preferredGroup, fallbackGroup ?? model.providerId)
     const bucket = grouped.get(groupName)
+
     if (bucket) {
       bucket.push(model)
     } else {
@@ -96,6 +102,7 @@ export const groupModelEntries = (
   }
 
   const entries = Array.from(grouped.entries())
+
   return preserveGroupOrder ? entries : sortBy(entries, [0])
 }
 
@@ -111,6 +118,7 @@ export const groupModels = (
 ): ModelGroups =>
   groupModelEntries(models, preserveGroupOrder, options).reduce((acc, [key, value]) => {
     acc[key] = value
+
     return acc
   }, {} as ModelGroups)
 
@@ -150,6 +158,7 @@ export const applyModelFilters = (
   selectedCapabilityFilter: ModelListCapabilityFilter
 ): Model[] => {
   const searchedModels = searchText ? filterProviderSettingModelsByKeywords(searchText, models) : models
+
   if (selectedCapabilityFilter === 'all') {
     return searchedModels
   }
@@ -159,6 +168,7 @@ export const applyModelFilters = (
 
 export const countModelsInGroups = (groups: ModelGroups | ReadonlyArray<readonly [string, Model[]]>): number => {
   const buckets = Array.isArray(groups) ? groups.map(([, models]) => models) : Object.values(groups)
+
   return buckets.reduce((acc, group) => acc + group.length, 0)
 }
 
@@ -166,6 +176,7 @@ export const getCapabilityModelCounts = (models: Model[]): ModelListCapabilityCo
   const counts = Object.fromEntries(
     MODEL_LIST_CAPABILITY_FILTERS.map((filter) => [filter, 0])
   ) as ModelListCapabilityCounts
+
   counts.all = models.length
 
   for (const model of models) {
@@ -186,8 +197,10 @@ export const calculateModelListDerivedState = ({
   failedModelIds
 }: CalculateModelListDerivedStateInput): ModelListDerivedState => {
   const searchedModels = applyModelFilters(models, searchText, 'all')
+
   const capabilityFilteredModels =
     selectedFilter === 'failed' ? searchedModels : applyModelFilters(searchedModels, '', selectedFilter)
+
   const filteredModels =
     selectedFilter === 'failed'
       ? capabilityFilteredModels.filter((model) => failedModelIds.has(model.id))

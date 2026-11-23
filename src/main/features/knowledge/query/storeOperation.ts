@@ -28,6 +28,7 @@ export async function runStoreOperation<T>(
         `Knowledge base '${baseId}' index store was closed during ${operation}; retry the operation`
       )
     }
+
     throw error
   }
 }

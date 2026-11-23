@@ -51,6 +51,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
     setLocalLocation(gcpConfig?.location ?? '')
     setLocalPrivateKey(credentials?.privateKey ?? '')
     setLocalClientEmail(credentials?.clientEmail ?? '')
+
     if (!serviceAccountJsonError) {
       setServiceAccountJson('')
       setServiceAccountJsonError(false)
@@ -77,6 +78,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
 
   const saveAuthConfig = async () => {
     activeSaveRequestsRef.current++
+
     try {
       await saveAuthConfigToServer({
         type: 'iam-gcp' as const,
@@ -87,12 +89,14 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
           clientEmail: localClientEmail
         }
       })
+
       if (activeSaveRequestsRef.current === 1) {
         isDraftDirtyRef.current = false
       }
     } catch (error) {
       logger.error('Failed to save Vertex AI auth config', { providerId, error })
       toast.error(t('settings.provider.save_failed'))
+
       if (activeSaveRequestsRef.current === 1) {
         isDraftDirtyRef.current = false
         resetLocalAuthConfig()
@@ -105,25 +109,30 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
   const handleServiceAccountJsonChange = async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
     setServiceAccountJson(value)
+
     if (serviceAccountJsonError) {
       setServiceAccountJsonError(false)
     }
 
     const trimmed = value.trim()
+
     if (!trimmed) {
       return
     }
 
     const parsed = parseVertexAIServiceAccountJson(trimmed)
+
     if (parsed) {
       setLocalPrivateKey(parsed.privateKey)
       setLocalClientEmail(parsed.clientEmail)
+
       if (parsed.projectId) {
         setLocalProjectId(parsed.projectId)
       }
 
       isJsonImportingRef.current = true
       activeSaveRequestsRef.current++
+
       try {
         await saveAuthConfigToServer({
           type: 'iam-gcp' as const,
@@ -169,19 +178,23 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
     }
 
     const parsed = parseVertexAIServiceAccountJson(value)
+
     if (!parsed) {
       toast.error(t('settings.provider.vertex_ai.service_account.json_parse_error'))
       setServiceAccountJsonError(true)
+
       return
     }
 
     setLocalPrivateKey(parsed.privateKey)
     setLocalClientEmail(parsed.clientEmail)
+
     if (parsed.projectId) {
       setLocalProjectId(parsed.projectId)
     }
 
     activeSaveRequestsRef.current++
+
     try {
       await saveAuthConfigToServer({
         type: 'iam-gcp' as const,
@@ -217,6 +230,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
     const trimmedLocation = locationValue.trim()
     const previousLocation = localLocation
     activeSaveRequestsRef.current++
+
     try {
       await saveAuthConfigToServer({
         type: 'iam-gcp' as const,
@@ -227,6 +241,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
           clientEmail: localClientEmail
         }
       })
+
       if (activeSaveRequestsRef.current === 1) {
         isDraftDirtyRef.current = false
       }
@@ -235,6 +250,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
       toast.error(t('settings.provider.save_failed'))
       // Only roll back location — do not clear credentials the user already confirmed.
       setLocalLocation(previousLocation)
+
       if (activeSaveRequestsRef.current === 1) {
         isDraftDirtyRef.current = false
       }
@@ -400,6 +416,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
             <div role="listbox" aria-label={t('settings.provider.vertex_ai.location')}>
               {DEFAULT_VERTEX_AI_LOCATIONS.map((loc) => {
                 const isSelected = localLocation === loc.value
+
                 return (
                   <button
                     key={loc.value}

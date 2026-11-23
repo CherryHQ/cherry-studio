@@ -33,6 +33,7 @@ const logger = loggerService.withContext('useMiniAppInstallPreview')
 const errorMessage = (error: unknown): string => {
   try {
     const message = error instanceof Error ? error.message : String(error)
+
     return typeof message === 'string' ? message : getErrorMessage(error)
   } catch {
     return getErrorMessage(error)
@@ -72,9 +73,11 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
 
   useEffect(() => {
     closedRef.current = false
+
     return () => {
       closedRef.current = true
       generationRef.current += 1
+
       if (tokenRef.current) {
         void releasePending(tokenRef.current)
         tokenRef.current = null
@@ -92,21 +95,29 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
       const generation = ++generationRef.current
       setBusy(true)
       setError(null)
+
       try {
         const result = await run()
+
         if (!result) return
+
         const release = () => {
           if (result.kind === 'install') void releasePending(result.installToken)
         }
+
         if (closedRef.current || generation !== generationRef.current) {
           release()
+
           return
         }
+
         if (expectAppId && result.manifest.id !== expectAppId) {
           release()
           setError({ key: 'miniApp.install.wrong_app', params: { id: result.manifest.id, expected: expectAppId } })
+
           return
         }
+
         tokenRef.current = result.kind === 'install' ? result.installToken : null
         setPreview(result)
       } catch (e) {
@@ -123,10 +134,12 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
   /** Back to the host: the consent is withdrawn, the host stays open. */
   const cancelPreview = useCallback(() => {
     generationRef.current += 1
+
     if (tokenRef.current) {
       void releasePending(tokenRef.current)
       tokenRef.current = null
     }
+
     setPreview(null)
     setBusy(false)
     setError(null)
@@ -141,32 +154,40 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
     // Consumed either way: main deletes the entry on `take` / `consume`, so a retry needs a new preview.
     const installToken = tokenRef.current
     tokenRef.current = null
+
     try {
       if (preview.kind === 'upgrade') {
         const { update } = preview
+
         const input: InputFor<'mini_app.update.apply'> = {
           appId: preview.appId,
           updateToken: update.updateToken
         }
+
         if (decision.consented) input.consented = true
+
         if (update.addedOptional.length > 0) input.grantedOptional = decision.grantedOptional
         await ipcApi.request('mini_app.update.apply', input)
         toast.success(t('miniApp.install.upgrade_success', { name, version: update.version }))
       } else {
         if (!installToken) return
+
         const input: InputFor<'mini_app.install.confirm'> = {
           installToken,
           grantedOptional: decision.grantedOptional
         }
+
         if (preview.installed) input.reinstall = { clearData: decision.clearData === true }
         await ipcApi.request('mini_app.install.confirm', input)
         toast.success(t(preview.installed ? 'miniApp.install.reinstall_success' : 'miniApp.install.success', { name }))
       }
+
       if (closedRef.current || generation !== generationRef.current) return
       setPreview(null)
       onDone()
     } catch (e) {
       logger.error('Failed to install mini app package', e as Error)
+
       if (closedRef.current || generation !== generationRef.current) return
       setPreview(null)
       setError({ key: 'miniApp.install.install_error', params: { message: errorMessage(e) } })

@@ -5,16 +5,20 @@
 
 /** Excel default column width: 8.43 chars (Calibri 11, MDW=7), about 64px. */
 export const DEFAULT_COL_WIDTH_PX = 64
+
 /** Excel default row height: 15pt = 20px. */
 export const DEFAULT_ROW_HEIGHT_PX = 20
+
 /** Hard row/column parse limits. Excess rows/columns are truncated and recorded as warnings. */
 export const MAX_ROWS = 200_000
 export const MAX_COLS = 500
+
 /**
  * Per-sheet cap on floating objects (images + charts combined). Anchor counts come from untrusted drawing XML, and
  * every object becomes a DOM node or an ECharts instance, so excess anchors are dropped and recorded as a warning.
  */
 export const MAX_FLOATING_OBJECTS = 64
+
 /** Merge definitions are untrusted and otherwise make viewport intersection work scale without a bound. */
 export const MAX_MERGED_RANGES = 4096
 
@@ -31,11 +35,13 @@ export const emuToPx = (emu: number): number => emu / 9525
 export const colName = (col: number): string => {
   let name = ''
   let n = col
+
   while (n > 0) {
     const rem = (n - 1) % 26
     name = String.fromCharCode(65 + rem) + name
     n = Math.floor((n - 1) / 26)
   }
+
   return name
 }
 
@@ -75,6 +81,7 @@ export const buildAxisLayout = (
   const sizes = new Array<number>(count)
   const offsets = new Array<number>(count)
   let offset = 0
+
   for (let i = 0; i < count; i++) {
     const oneBased = i + 1
     const rawSize = overrides[oneBased] ?? defaultSizePx
@@ -83,13 +90,16 @@ export const buildAxisLayout = (
     offsets[i] = offset
     offset += size
   }
+
   return { sizes, offsets, totalSize: offset }
 }
 
 /** Lookup the start offset in px for item i (0-based). Out-of-range indexes return totalSize. */
 export const axisOffset = (layout: AxisLayout, index: number): number => {
   if (index < 0) return 0
+
   if (index >= layout.offsets.length) return layout.totalSize
+
   return layout.offsets[index]
 }
 
@@ -100,18 +110,23 @@ export const axisOffset = (layout: AxisLayout, index: number): number => {
  */
 export const axisIndexAt = (layout: AxisLayout, px: number): number => {
   const last = layout.offsets.length - 1
+
   if (last < 0) return 0
   // Clamped rather than short-circuited at 0: leading hidden items all sit at offset 0, and the binary search
   // is what walks past them to the first visible one, which returning 0 for px <= 0 would skip.
   const position = Math.max(px, 0)
+
   if (position >= layout.totalSize) return last
   let low = 0
   let high = last
+
   while (low < high) {
     const mid = (low + high + 1) >> 1
+
     if (layout.offsets[mid] <= position) low = mid
     else high = mid - 1
   }
+
   return low
 }
 
@@ -154,6 +169,7 @@ export const mergeRectPx = (merge: MergeRangeLike, rowLayout: AxisLayout, colLay
   const y = axisOffset(rowLayout, merge.top - 1)
   const right = axisOffset(colLayout, merge.right)
   const bottom = axisOffset(rowLayout, merge.bottom)
+
   return { x, y, width: right - x, height: bottom - y }
 }
 
@@ -169,16 +185,20 @@ export const mergesInView = <M extends MergeRangeLike>(
   colLayout: AxisLayout
 ): MergeInView<M>[] => {
   const result: MergeInView<M>[] = []
+
   for (const merge of merges) {
     const rect = mergeRectPx(merge, rowLayout, colLayout)
+
     const intersects =
       rect.x < viewport.right &&
       rect.x + rect.width > viewport.left &&
       rect.y < viewport.bottom &&
       rect.y + rect.height > viewport.top
+
     if (!intersects) continue
     result.push({ merge, masterRow: merge.top, masterCol: merge.left, rect })
   }
+
   return result
 }
 
@@ -191,28 +211,35 @@ export const mergesInView = <M extends MergeRangeLike>(
 export const expandRangeToMerges = (rect: CellRangeRect, merges: MergeRangeLike[]): CellRangeRect => {
   let { top, left, bottom, right } = rect
   let grown = true
+
   while (grown) {
     grown = false
+
     for (const merge of merges) {
       if (merge.top > bottom || merge.bottom < top || merge.left > right || merge.right < left) continue
+
       if (merge.top < top) {
         top = merge.top
         grown = true
       }
+
       if (merge.left < left) {
         left = merge.left
         grown = true
       }
+
       if (merge.bottom > bottom) {
         bottom = merge.bottom
         grown = true
       }
+
       if (merge.right > right) {
         right = merge.right
         grown = true
       }
     }
   }
+
   return { top, left, bottom, right }
 }
 
@@ -220,6 +247,7 @@ export const expandRangeToMerges = (rect: CellRangeRect, merges: MergeRangeLike[
 export const rangeAddress = (rect: CellRangeRect): string => {
   const start = cellAddress(Math.min(rect.top, rect.bottom), Math.min(rect.left, rect.right))
   const end = cellAddress(Math.max(rect.top, rect.bottom), Math.max(rect.left, rect.right))
+
   return start === end ? start : `${start}:${end}`
 }
 

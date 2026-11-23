@@ -35,12 +35,15 @@ const GENERIC_REASONING_SHAPES: readonly string[] = [
 const NON_REASONING_GUARD = /-non-reasoning\b/i
 
 const regexCache = new Map<string, RegExp>()
+
 function membershipRegex(pattern: string): RegExp {
   let regex = regexCache.get(pattern)
+
   if (!regex) {
     regex = new RegExp(pattern, 'i')
     regexCache.set(pattern, regex)
   }
+
   return regex
 }
 
@@ -53,18 +56,25 @@ function membershipBaseName(rawModelId: string): string {
   const normalized = rawModelId.toLowerCase().startsWith('accounts/fireworks/models/')
     ? rawModelId.replace(/(\d)p(?=\d)/g, '$1.')
     : rawModelId
+
   const lower = normalized.toLowerCase()
   let base = lower.slice(lower.lastIndexOf('/') + 1)
+
   if (base.endsWith(':free')) base = base.slice(0, -':free'.length)
+
   if (base.endsWith('(free)')) base = base.slice(0, -'(free)'.length)
+
   if (base.endsWith(':cloud')) base = base.slice(0, -':cloud'.length)
+
   return base
 }
 
 /** Test an id against the rule table: profile rules + generic shapes grant membership. */
 export function matchReasoningMembership(rawModelId: string, rules: readonly ReasoningFamilyRule[]): boolean {
   const id = membershipBaseName(rawModelId)
+
   if (NON_REASONING_GUARD.test(id)) return false
+
   return (
     rules.some((rule) => rule.template !== true && membershipRegex(rule.pattern).test(id)) ||
     GENERIC_REASONING_SHAPES.some((pattern) => membershipRegex(pattern).test(id))

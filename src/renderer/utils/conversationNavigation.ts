@@ -9,15 +9,19 @@ export function getConversationSidebarApp(target: ConversationNavigationTarget):
 
 export function findConversationTab(tabs: readonly Tab[], target: ConversationNavigationTarget): Tab | undefined {
   const app = getConversationSidebarApp(target)
+
   if (!app?.conversationRoute) return undefined
 
   return tabs.find((tab) => {
     if (tab.type !== 'route') return false
+
     if (target.conversationType === 'agent') {
       const url = new URL(tab.url, 'app://x')
+
       const binding = cacheService.getCasual<{ taskId: string; runId?: string; sessionId: string }>(
         `scheduled-task.conversation.${tab.id}`
       )
+
       if (
         url.pathname === '/app/scheduled-tasks' &&
         binding?.taskId === url.searchParams.get('taskId') &&
@@ -26,6 +30,7 @@ export function findConversationTab(tabs: readonly Tab[], target: ConversationNa
       )
         return true
     }
+
     return tabBelongsToApp(app, tab.url) && app.conversationRoute?.keyFromUrl(tab.url) === target.conversationId
   })
 }

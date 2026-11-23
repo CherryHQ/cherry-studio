@@ -21,6 +21,7 @@ const TERMINAL_TOOL_STATES: ReadonlySet<string> = new Set(['output-available', '
 
 function isToolPart(part: CherryMessagePart): boolean {
   const t = part.type
+
   return t.startsWith('tool-') || t === 'dynamic-tool'
 }
 
@@ -32,6 +33,7 @@ function isToolPart(part: CherryMessagePart): boolean {
  */
 export function stripTransientStatusParts(parts: CherryMessagePart[]): CherryMessagePart[] {
   const filtered = parts.filter((part) => part.type !== 'data-retry')
+
   return filtered.length === parts.length ? parts : filtered
 }
 
@@ -43,6 +45,7 @@ export function finalizeInterruptedParts(
   const interruptionReason = status === 'paused' ? 'Interrupted by user' : 'Stream errored'
   const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
   const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
+
   return parts.map((part) => {
     // A `text` part left `streaming` by a mid-response failure renders as a still-typing
     // cursor instead of the truncated sentence the user actually received.
@@ -57,6 +60,7 @@ export function finalizeInterruptedParts(
         const thinkingMs = cherry?.thinkingMs
 
         let patch: Partial<CherryReasoningMeta> = {}
+
         if (typeof startedAt === 'number' && Number.isFinite(startedAt) && !Number.isFinite(thinkingMs)) {
           patch = {
             thinkingMs: Math.max(0, Date.now() - startedAt)
@@ -73,12 +77,15 @@ export function finalizeInterruptedParts(
           patch
         )
       }
+
       return part
     }
 
     if (part.type === 'data-agent-task-event') {
       const taskPart = part as CherryMessagePart & { data: AgentTaskEventPartData }
+
       if (taskPart.data.status !== 'in_progress') return part
+
       return {
         ...taskPart,
         data: {
@@ -91,7 +98,9 @@ export function finalizeInterruptedParts(
 
     if (!isToolPart(part)) return part
     const toolPart = part as CherryMessagePart & { state?: string; errorText?: string }
+
     if (toolPart.state && TERMINAL_TOOL_STATES.has(toolPart.state)) return part
+
     return {
       ...toolPart,
       state: 'output-error',
@@ -112,8 +121,10 @@ export function finalizeInterruptedParts(
 export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessagePart[] {
   const filtered = parts.filter((part) => {
     if (part.type !== 'text' && part.type !== 'reasoning') return true
+
     return part.text.trim().length > 0
   })
+
   return filtered.length === parts.length ? parts : filtered
 }
 

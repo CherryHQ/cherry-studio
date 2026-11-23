@@ -46,11 +46,13 @@ export interface BuiltinAgentDefaults {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Bundled agent.json is read as raw JSON; accept plain strings or locale maps with string values before provisioning typed defaults.
 function resolveLocalizedField(value: unknown, language: string): string | undefined {
   if (typeof value === 'string') return value
+
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
 
   const map = Object.fromEntries(
     Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
   )
+
   const prefix = language.split('-')[0]
   const prefixKey = Object.keys(map).find((key) => key.startsWith(prefix))
 
@@ -59,8 +61,10 @@ function resolveLocalizedField(value: unknown, language: string): string | undef
 
 export function getBuiltinAgentTemplateDirectory(builtinRole: string): string | undefined {
   const templateName = TEMPLATE_NAME_BY_ROLE.get(builtinRole)
+
   if (!templateName) {
     logger.warn('Unknown builtin role, skipping provisioning', { builtinRole })
+
     return undefined
   }
 
@@ -69,8 +73,10 @@ export function getBuiltinAgentTemplateDirectory(builtinRole: string): string | 
 
 export function getBuiltinAgentPluginTemplateDirectory(builtinRole: string): string | undefined {
   const templateName = PLUGIN_TEMPLATE_NAME_BY_ROLE.get(builtinRole)
+
   if (!templateName) {
     logger.warn('Unknown builtin role, skipping plugin provisioning', { builtinRole })
+
     return undefined
   }
 
@@ -82,23 +88,29 @@ export function loadBuiltinAgentDefinition(
   language: string = getAppLanguage()
 ): BuiltinAgentDefinition | undefined {
   const templateDir = getBuiltinAgentTemplateDirectory(builtinRole)
+
   if (!templateDir) return undefined
 
   const agentJsonPath = path.join(templateDir, 'agent.json')
+
   if (!fs.existsSync(agentJsonPath)) {
     logger.error('Builtin agent definition not found', { agentJsonPath, builtinRole })
+
     return undefined
   }
 
   try {
     const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
+
     for (const field of ['skills', 'disabled_tools'] as const) {
       const value = agentConfig[field]
+
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw skills and disabled_tools arrays must contain only string IDs before the bundle is returned to provisioning.
       if (value !== undefined && (!Array.isArray(value) || value.some((item: unknown) => typeof item !== 'string'))) {
         throw new Error(`Builtin agent ${field} must be a string array`)
       }
     }
+
     return {
       name: resolveLocalizedField(agentConfig.name, language),
       instructions: resolveLocalizedField(agentConfig.instructions, language),
@@ -112,17 +124,20 @@ export function loadBuiltinAgentDefinition(
       agentJsonPath,
       error: error instanceof Error ? error.message : String(error)
     })
+
     return undefined
   }
 }
 
 export function loadBuiltinAgentDefaults(builtinRole: BuiltinAgentRole, language?: string): BuiltinAgentDefaults {
   const definition = loadBuiltinAgentDefinition(builtinRole, language)
+
   if (!definition) {
     throw new Error(`Builtin Agent package definition is unavailable: ${builtinRole}`)
   }
 
   const { data: configuration, invalidKeys } = sanitizeAgentConfiguration(definition.configuration)
+
   if (!configuration || invalidKeys.length > 0) {
     throw new Error(
       `Builtin Agent package configuration is invalid for ${builtinRole}: ${invalidKeys.join(', ') || '<root>'}`
@@ -133,6 +148,8 @@ export function loadBuiltinAgentDefaults(builtinRole: BuiltinAgentRole, language
     name: definition.name?.trim() || 'Built-in Agent',
     configuration: { ...configuration, builtin_role: builtinRole }
   }
+
   if (definition.disabledTools) defaults.disabledTools = definition.disabledTools
+
   return defaults
 }

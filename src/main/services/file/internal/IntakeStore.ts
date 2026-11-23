@@ -12,6 +12,7 @@ import { AsyncInitializer } from '@shared/utils/async'
 import { fileIntakeLimits } from '../intakeTypes'
 
 const logger = loggerService.withContext('IntakeStore')
+
 export const metadataSchema = z.object({
   uploadId: z.string().min(1).max(256),
   filename: z
@@ -30,6 +31,7 @@ export const metadataSchema = z.object({
   checksumAlgorithm: z.literal('sha256').optional(),
   byteLength: z.number().int().min(0).max(fileIntakeLimits.fileBytes)
 })
+
 export const recordSchema = metadataSchema
   .extend({
     sha256: z
@@ -59,6 +61,7 @@ export const recordSchema = metadataSchema
       Boolean(record.expectedSha256),
     'Missing source digest'
   )
+
 export type Upload = z.infer<typeof recordSchema>
 
 export class IntakeStore {
@@ -85,6 +88,7 @@ export class IntakeStore {
   async syncDirectory(directory: string): Promise<void> {
     if (process.platform === 'win32') return
     const handle = await open(directory, 'r')
+
     try {
       await handle.sync()
     } finally {
@@ -95,12 +99,14 @@ export class IntakeStore {
   async save(upload: Upload): Promise<void> {
     const directory = this.directory(upload)
     const handle = await open(path.join(directory, 'state.tmp'), 'w', 0o600)
+
     try {
       await handle.writeFile(JSON.stringify(upload))
       await handle.sync()
     } finally {
       await handle.close()
     }
+
     await rename(path.join(directory, 'state.tmp'), path.join(directory, 'state.json'))
     await this.syncDirectory(directory)
     this.uploads.set(this.key(upload, upload.uploadId), upload)
@@ -112,10 +118,13 @@ export class IntakeStore {
 
   private async loadOnce(): Promise<void> {
     await mkdir(this.root(), { recursive: true })
+
     for (const key of await readdir(this.root())) {
       if (!/^[a-f0-9]{64}$/.test(key)) continue
+
       try {
         const upload = recordSchema.parse(JSON.parse(await readFile(path.join(this.root(), key, 'state.json'), 'utf8')))
+
         if (
           this.key(upload, upload.uploadId) !== key ||
           upload.offset > upload.byteLength ||
@@ -132,6 +141,7 @@ export class IntakeStore {
 
   isProtected(entryId: string): boolean {
     if (this.uncertain) return true
+
     return [...this.uploads.entries()].some(
       ([key, upload]) =>
         upload.entryId === entryId &&

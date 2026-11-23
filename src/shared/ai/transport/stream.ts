@@ -277,6 +277,7 @@ export interface AiStreamAttachTerminal {
   finalMessage?: CherryUIMessage
   finalMessages: Partial<Record<UniqueModelId, CherryUIMessage>>
 }
+
 export type AiStreamAttachResponse =
   | { status: 'not-found' }
   | {

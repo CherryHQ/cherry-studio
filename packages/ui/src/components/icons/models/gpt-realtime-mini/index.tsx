@@ -4,6 +4,7 @@ import { GptRealtimeMiniLight } from './light'
 
 const GptRealtimeMini = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GptRealtimeMiniLight {...props} className={className} />
+
   return <GptRealtimeMiniLight {...props} className={className} />
 }
 

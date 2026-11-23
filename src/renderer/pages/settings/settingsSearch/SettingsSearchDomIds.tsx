@@ -17,6 +17,7 @@ function buildDomIds(instanceId: string): SettingsSearchDomIds {
   // useId embeds «»/: characters that CSS selectors cannot consume unescaped;
   // strip to a safe slug so querySelector can use the derived ids verbatim
   const slug = instanceId.replace(/[^a-zA-Z0-9]+/g, '')
+
   return {
     listboxId: `settings-search-listbox-${slug}`,
     optionDomId: (index: number) => `settings-search-option-${slug}-${index}`
@@ -27,6 +28,7 @@ function buildDomIds(instanceId: string): SettingsSearchDomIds {
 export const SettingsSearchDomIdsProvider = ({ children }: { children: React.ReactNode }) => {
   const instanceId = useId()
   const value = useMemo(() => buildDomIds(instanceId), [instanceId])
+
   return <DomIdsContext value={value}>{children}</DomIdsContext>
 }
 

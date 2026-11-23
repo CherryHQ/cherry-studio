@@ -32,6 +32,7 @@ export type GatedSampling = Pick<SamplingSettings, 'temperature' | 'enableTemper
 /** Registry support plus the existing family policies for omitting explicit sampling. */
 function modelAcceptsSamplingParam(model: Model, key: 'temperature' | 'topP'): boolean {
   if (isGemini3Model(model) || isClaudeFixedSamplingModel(model)) return false
+
   return key === 'temperature' ? isSupportTemperatureModel(model) : isSupportTopPModel(model)
 }
 
@@ -49,24 +50,30 @@ export function stripUnsupportedModelParams(params: SamplingParams, model: Model
   const acceptsTopP = modelAcceptsSamplingParam(model, 'topP')
   const gemini4 = isGemini4Model(model)
   const normalizeTemperature = model.providerId === 'dashscope' && isQwenModel(model)
+
   if (acceptsTemperature && acceptsTopP && !normalizeTemperature) return params
 
   function strip<T>(values: Record<string, T>) {
     // oxlint-disable-next-line anti-slop/no-known-value-widening -- Preserve arbitrary input fields and their value domain while allowing the numeric temperature replacement.
     const cleaned: Record<string, T | number> = { ...values }
+
     if (!acceptsTemperature) delete cleaned.temperature
+
     if (!acceptsTopP) {
       delete cleaned.topP
       delete cleaned.top_p
     }
+
     if (gemini4 || isClaudeFixedSamplingModel(model)) {
       delete cleaned.topK
       delete cleaned.top_k
     }
+
     if (gemini4) {
       delete cleaned.cachedContent
       delete cleaned.cached_content
     }
+
     if (
       normalizeTemperature &&
       typeof cleaned.temperature === 'number' &&
@@ -75,6 +82,7 @@ export function stripUnsupportedModelParams(params: SamplingParams, model: Model
     ) {
       cleaned.temperature = 1.9
     }
+
     return cleaned
   }
 
@@ -95,6 +103,7 @@ export function getTemperature(
 ): number | undefined {
   if (isGemini3Model(model)) {
     logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, disabling temperature`)
+
     return undefined
   }
 
@@ -102,16 +111,19 @@ export function getTemperature(
 
   if (isClaudeFixedSamplingModel(model)) {
     logger.info(`Model ${model.id} rejects sampling parameters, disabling temperature`)
+
     return undefined
   }
 
   if (isClaudeReasoningModel(model) && reasoning.kind !== 'omit' && reasoning.kind !== 'off') {
     logger.info(`Model ${model.id} does not support reasoning with temperature, disabling temperature`)
+
     return undefined
   }
 
   if (!isSupportTemperatureModel(model)) {
     logger.info(`Model ${model.id} does not support temperature, disabling temperature`)
+
     return undefined
   }
 
@@ -137,6 +149,7 @@ export function getTopP(
 ): number | undefined {
   if (isGemini3Model(model)) {
     logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, disabling topP`)
+
     return undefined
   }
 
@@ -144,16 +157,19 @@ export function getTopP(
 
   if (isClaudeFixedSamplingModel(model)) {
     logger.info(`Model ${model.id} rejects sampling parameters, disabling topP`)
+
     return undefined
   }
 
   if (!isSupportTopPModel(model)) {
     logger.info(`Model ${model.id} does not support topP, disabling topP.`)
+
     return undefined
   }
 
   if (isTemperatureTopPMutuallyExclusiveModel(model) && settings.enableTemperature) {
     logger.info(`Model ${model.id} only accepts one of temperature and topP, disabling topP.`)
+
     return undefined
   }
 
@@ -161,9 +177,11 @@ export function getTopP(
 
   if (isClaudeReasoningModel(model) && reasoning.kind !== 'omit' && reasoning.kind !== 'off') {
     const clampedTopP = Math.max(0.95, Math.min(topP, 1))
+
     if (clampedTopP !== topP) {
       logger.info(`Claude Model ${model.id} has reasoning enabled, clamping topP from ${topP} to ${clampedTopP}`)
     }
+
     topP = clampedTopP
   }
 
@@ -177,12 +195,14 @@ export function filterStandardParams<T>(
   if ((isGemini3Model(model) || isGemini4Model(model)) && 'topK' in standardParams) {
     const { topK, ...rest } = standardParams
     logger.info(`Gemini model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)
+
     return rest
   }
 
   if (isClaudeFixedSamplingModel(model) && 'topK' in standardParams) {
     const { topK, ...rest } = standardParams
     logger.info(`Model ${model.id} rejects sampling parameters, dropping topK=${topK} from custom params`)
+
     return rest
   }
 
@@ -205,5 +225,6 @@ export function adjustMaxOutputTokensForReasoning(
   }
 
   const budget = reasoning.budgetTokens
+
   return budget ? Math.max(1, maxOutputTokens - budget) : maxOutputTokens
 }

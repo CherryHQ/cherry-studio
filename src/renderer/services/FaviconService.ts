@@ -21,14 +21,17 @@ class FaviconService {
 
   resolve(hostname: string): Promise<string> {
     const cached = this.readResolvedSrc(hostname)
+
     if (cached) return Promise.resolve(cached)
 
     const inflight = this.inflightByHostname.get(hostname)
+
     if (inflight) return inflight
 
     const request = this.probeFaviconSrc(hostname)
       .then((src) => {
         this.writeResolvedSrc(hostname, src)
+
         return src
       })
       .finally(() => {
@@ -36,6 +39,7 @@ class FaviconService {
       })
 
     this.inflightByHostname.set(hostname, request)
+
     return request
   }
 
@@ -55,10 +59,13 @@ class FaviconService {
 
     try {
       const cachedTimestamp = localStorage.getItem(cacheKey)
+
       if (!cachedTimestamp) return false
+
       if (Date.now() - parseInt(cachedTimestamp, 10) < FAILED_FAVICON_CACHE_DURATION) return true
 
       localStorage.removeItem(cacheKey)
+
       return false
     } catch {
       return false
@@ -75,21 +82,26 @@ class FaviconService {
 
   private readResolvedSrc(hostname: string): string | undefined {
     const inMemory = this.resolvedSrcByHostname.get(hostname)
+
     if (inMemory) return inMemory
 
     const cacheKey = `${RESOLVED_FAVICON_CACHE_PREFIX}${hostname}`
 
     try {
       const raw = localStorage.getItem(cacheKey)
+
       if (!raw) return undefined
 
       const entry = JSON.parse(raw) as { src?: string; at?: number }
+
       if (!entry.src || !entry.at || Date.now() - entry.at > RESOLVED_FAVICON_CACHE_DURATION) {
         localStorage.removeItem(cacheKey)
+
         return undefined
       }
 
       this.resolvedSrcByHostname.set(hostname, entry.src)
+
       return entry.src
     } catch {
       return undefined
@@ -109,9 +121,11 @@ class FaviconService {
   private probeFaviconSrc(hostname: string): Promise<string> {
     const urls = faviconUrlsFor(hostname)
     const candidates = urls.filter((url) => !this.isUrlFailedRecently(url))
+
     if (candidates.length === 0) return Promise.resolve(urls[0])
 
     const controller = new AbortController()
+
     const probes = candidates.map((url) =>
       fetch(url, { method: 'HEAD', signal: controller.signal, credentials: 'omit' }).then((response) => {
         if (response.ok) return url

@@ -11,6 +11,7 @@ const PPIO_APP_SECRET = import.meta.env.RENDERER_VITE_PPIO_APP_SECRET || ''
 
 const OAUTH_POPUP_TIMEOUT_MS = 10 * 60 * 1000
 const OAUTH_POPUP_CLOSE_POLL_MS = 500
+
 const OAUTH_POPUP_FEATURES =
   'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
 
@@ -57,8 +58,10 @@ const oauthPopupFlowManager = new OAuthPopupFlowManager()
 
 function openNamedPopup(authUrl: string, popupName: string, features: string): Window | null {
   const popup = window.open(authUrl, popupName, features)
+
   // Only retire the current flow once its replacement actually opens.
   if (popup) oauthPopupFlowManager.retire(popupName)
+
   return popup
 }
 
@@ -79,6 +82,7 @@ function isAihubmixOAuthPayload(data: unknown): data is AihubmixOAuthPayload {
 function isNestedApiKeyOAuthPayload(data: unknown): data is NestedApiKeyOAuthPayload {
   if (typeof data !== 'object' || data === null) return false
   const nestedData = (data as { data?: unknown }).data
+
   return (
     typeof nestedData === 'object' &&
     nestedData !== null &&
@@ -95,6 +99,7 @@ function startPopupMessageOAuth<T>({
   onError
 }: PopupMessageOAuthOptions<T>): void {
   const popup = openNamedPopup(authUrl, popupName, OAUTH_POPUP_FEATURES)
+
   if (!popup) return
   const openedPopup = popup
 
@@ -120,6 +125,7 @@ function startPopupMessageOAuth<T>({
 
   function messageHandler(event: MessageEvent): void {
     const data: unknown = event.data
+
     if (!active || event.source !== openedPopup || event.origin !== expectedOrigin || !matches(data)) return
 
     // A recognized callback is terminal. Stop accepting duplicate messages,
@@ -132,6 +138,7 @@ function startPopupMessageOAuth<T>({
       .then(async (key) => {
         if (!active) return
         await setKey(key)
+
         if (!active) return
         openedPopup.close()
         finish()
@@ -147,6 +154,7 @@ function startPopupMessageOAuth<T>({
   const closePollId = window.setInterval(() => {
     if (openedPopup.closed && !processingCallback) finish()
   }, OAUTH_POPUP_CLOSE_POLL_MS)
+
   const timeoutId = window.setTimeout(finish, OAUTH_POPUP_TIMEOUT_MS)
 
   oauthPopupFlowManager.register(popupName, finish)
@@ -163,6 +171,7 @@ export const oauthWithAihubmix = async (setKey) => {
     getKey: async (data) => {
       const callbackData = typeof data.data === 'object' && data.data !== null ? data.data : {}
       const { iv, encryptedData } = callbackData as { iv?: unknown; encryptedData?: unknown }
+
       if (typeof iv !== 'string' || typeof encryptedData !== 'string') {
         throw new Error('Invalid OAuth callback payload')
       }
@@ -171,9 +180,11 @@ export const oauthWithAihubmix = async (setKey) => {
       const decryptedData: any = await window.api.aes.decrypt(encryptedData, iv, secret)
       const { api_keys } = JSON.parse(decryptedData)
       const key = api_keys?.[0]?.value
+
       if (typeof key !== 'string' || key.length === 0) {
         throw new Error('No API key received')
       }
+
       return key
     },
     setKey,
@@ -192,6 +203,7 @@ export const oauthWithPPIO = async (setKey) => {
 
   if (!setKey) {
     logger.debug('[PPIO OAuth] No setKey callback provided, returning early')
+
     return
   }
 
@@ -206,6 +218,7 @@ export const oauthWithPPIO = async (setKey) => {
 
         if (!code) {
           reject(new Error('No authorization code received'))
+
           return
         }
 
@@ -213,8 +226,10 @@ export const oauthWithPPIO = async (setKey) => {
           reject(
             new Error('PPIO_APP_SECRET not configured. Please set RENDERER_VITE_PPIO_APP_SECRET environment variable.')
           )
+
           return
         }
+
         const formData = new URLSearchParams({
           client_id: PPIO_CLIENT_ID,
           client_secret: PPIO_APP_SECRET,
@@ -222,6 +237,7 @@ export const oauthWithPPIO = async (setKey) => {
           grant_type: 'authorization_code',
           redirect_uri: redirectUri
         })
+
         const tokenResponse = await fetch('https://ppio.com/oauth/token', {
           method: 'POST',
           headers: {
@@ -297,8 +313,10 @@ export const oauthWithCherryIn = async (
     oauthServer: config.oauthServer,
     apiHost: config.apiHost
   })
+
   if (!result.apiKeys) throw new Error('No API keys received')
   await setKey(result.apiKeys)
+
   return result.apiKeys
 }
 
@@ -314,6 +332,7 @@ export const oauthWithTokenDance = async (setKey) => {
 
 export const providerCharge = async (provider: string) => {
   const lang = await getLanguageCode()
+
   const chargeUrlMap = {
     silicon: {
       url: 'https://cloud.siliconflow.cn/expensebill'
@@ -342,6 +361,7 @@ export const providerCharge = async (provider: string) => {
 
 export const providerBills = async (provider: string) => {
   const lang = await getLanguageCode()
+
   const billsUrlMap = {
     silicon: {
       url: 'https://cloud.siliconflow.cn/bills'

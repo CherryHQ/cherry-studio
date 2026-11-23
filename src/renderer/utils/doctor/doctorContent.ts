@@ -9,15 +9,20 @@ import type {
 } from '@shared/types/doctor'
 
 type DisplayedDoctorDomain = DoctorCheckCatalog[DoctorCheckId]['domain']
+
 type DoctorFixLabelMap = {
   readonly [Id in DoctorFixableCheckId]: Readonly<Record<DoctorFixId<Id>, DoctorFixLabelDeclaration>>
 }
+
 type DoctorActionLabel = {
   readonly key: string
   readonly params?: Readonly<Record<string, string | number>>
 }
+
 type DoctorFixAction = Extract<DoctorAction, { kind: 'fix' }>
+
 type DoctorFixTargetNameResolver = (target: string) => string | undefined
+
 type DoctorFixLabelDeclaration =
   | string
   | ((action: DoctorFixAction, resolveTargetName: DoctorFixTargetNameResolver) => DoctorActionLabel)
@@ -60,6 +65,7 @@ const DOCTOR_FIX_LABEL_DECLARATIONS = {
   'mcp-servers-connected': {
     restart: (action, resolveTargetName) => {
       const name = action.target ? resolveTargetName(action.target) : undefined
+
       return name
         ? { key: 'settings.doctor.fixes.restart_mcp', params: { name } }
         : { key: 'settings.doctor.fixes.restart_mcp_generic' }
@@ -76,7 +82,9 @@ export function resolveDoctorFixLabel(
   resolveTargetName: DoctorFixTargetNameResolver
 ): DoctorActionLabel {
   const declaration = DOCTOR_FIX_LABELS_BY_CHECK[checkId]?.[action.fixId]
+
   if (!declaration) throw new Error(`Missing Doctor fix label: ${checkId}.${action.fixId}`)
+
   return typeof declaration === 'string' ? { key: declaration } : declaration(action, resolveTargetName)
 }
 
@@ -87,7 +95,9 @@ export function doctorCheckDetailParams(
 ): Record<string, string | number> | undefined {
   if (!params) return undefined
   const category = params.category
+
   if (typeof category !== 'string') return { ...params }
+
   return {
     ...params,
     category: t(`settings.doctor.error_category.${category}`, { defaultValue: category })

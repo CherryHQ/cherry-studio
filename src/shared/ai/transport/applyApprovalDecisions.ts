@@ -22,27 +22,36 @@ export function applyApprovalDecisions(
 ): CherryMessagePart[] {
   if (decisions.length === 0) return [...parts]
   const byApprovalId = new Map<string, ApprovalDecision>()
+
   for (const d of decisions) byApprovalId.set(d.approvalId, d)
 
   return parts.map((part) => {
     if (!isToolUIPart(part)) return part
     const id = part.approval?.id
+
     if (!id) return part
+
     if (part.state !== 'approval-requested') return part
     const decision = byApprovalId.get(id)
+
     if (!decision) return part
     const updated = { ...part }
+
     if (decision.updatedInput !== undefined) updated.input = decision.updatedInput
+
     const approval: Extract<CherryMessagePart, { state: 'approval-responded' }>['approval'] = {
       id: decision.approvalId,
       approved: decision.approved
     }
+
     if (decision.reason !== undefined) approval.reason = decision.reason
+
     const responded: Extract<CherryMessagePart, { state: 'approval-responded' }> = {
       ...updated,
       state: 'approval-responded',
       approval
     }
+
     return responded
   })
 }

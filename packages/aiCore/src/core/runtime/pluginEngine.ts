@@ -47,6 +47,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
    */
   use(plugin: AiPlugin): this {
     this.basePlugins.push(plugin)
+
     return this
   }
 
@@ -55,6 +56,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
    */
   usePlugins(plugins: AiPlugin[]): this {
     this.basePlugins.push(...plugins)
+
     return this
   }
 
@@ -63,6 +65,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
    */
   removePlugin(pluginName: string): this {
     this.basePlugins = this.basePlugins.filter((p) => p.name !== pluginName)
+
     return this
   }
 
@@ -72,6 +75,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
   getPluginStats() {
     // 创建临时 manager 来获取统计信息
     const tempManager = new PluginManager(this.basePlugins)
+
     return tempManager.getStats()
   }
 
@@ -84,6 +88,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
   private createManager<TParams = any, TResult = any>(requestPlugins: AiPlugin<any, any>[]) {
     const plugins = [...this.basePlugins, ...requestPlugins] as AiPlugin<TParams, TResult>[]
+
     return new PluginManager<TParams, TResult>(plugins)
   }
 
@@ -105,6 +110,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     // Same variance-safe narrowing as `executeStreamWithPlugins`: only the stored plugin array needs
     // a cast, after which params and context type-check against the manager's own generics.
     const manager = new PluginManager<TSettings>(this.basePlugins as AiPlugin<TSettings>[])
+
     return manager.executeTransformParams(settings, context)
   }
 
@@ -126,9 +132,11 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
     // 2. resolveModel — string → LanguageModel
     const resolved = await manager.executeFirst<LanguageModel>('resolveModel', modelId, context)
+
     if (!resolved) {
       throw new ModelResolutionError(modelId, this.providerId)
     }
+
     if (!isV3Model(resolved)) {
       throw new ModelResolutionError(
         modelId,
@@ -163,6 +171,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     let resolvedModel: LanguageModel | undefined
     let modelId: string
     const { model } = params
+
     if (typeof model === 'string') {
       // 字符串：需要通过插件解析
       modelId = model
@@ -208,9 +217,11 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
       // 2. 解析模型（如果是字符串）
       if (typeof model === 'string') {
         const resolved = await manager.executeFirst<LanguageModel>('resolveModel', modelId, context)
+
         if (!resolved) {
           throw new ModelResolutionError(modelId, this.providerId)
         }
+
         resolvedModel = resolved
         context.model = resolvedModel
       }
@@ -265,6 +276,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     let resolvedModel: ImageModelV3 | undefined
     let modelId: string
     const { model } = params
+
     if (typeof model === 'string') {
       // 字符串：需要通过插件解析
       modelId = model
@@ -316,9 +328,11 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
       // 2. 解析模型（如果是字符串）
       if (typeof model === 'string') {
         const resolved = await manager.executeFirst<ImageModelV3>('resolveModel', modelId, context)
+
         if (!resolved) {
           throw new ModelResolutionError(modelId, this.providerId)
         }
+
         resolvedModel = resolved
         context.model = resolvedModel
       }
@@ -362,6 +376,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     let resolvedModel: LanguageModel | undefined
     let modelId: string
     const { model } = params
+
     if (typeof model === 'string') {
       // 字符串：需要通过插件解析
       modelId = model
@@ -413,9 +428,11 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
       // 2. 解析模型（如果是字符串）
       if (typeof model === 'string') {
         const resolved = await manager.executeFirst<LanguageModel>('resolveModel', modelId, context)
+
         if (!resolved) {
           throw new ModelResolutionError(modelId, this.providerId)
         }
+
         resolvedModel = resolved
         // 更新 context.model 为已解析的 LanguageModel 实例
         // 后续 plugin（如 providerToolPlugin）需要 model.provider 来识别聚合供应商的协议
@@ -431,6 +448,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
         if (typeof resolvedModel === 'string') {
           throw new Error(`Model must be resolved before applying middlewares, got string: ${resolvedModel}`)
         }
+
         resolvedModel = wrapLanguageModel({
           model: resolvedModel as LanguageModelV3,
           middleware: context.middlewares

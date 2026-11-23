@@ -72,12 +72,15 @@ export class MessageConverterFactory {
     if (format === 'openai') {
       return new OpenAiMessageConverter() as IMessageConverter<InputParamsMap[T]>
     }
+
     if (format === 'openai-responses') {
       return new OpenAiResponsesMessageConverter() as IMessageConverter<InputParamsMap[T]>
     }
+
     if (format === 'gemini') {
       return new GeminiMessageConverter() as IMessageConverter<InputParamsMap[T]>
     }
+
     return new AnthropicMessageConverter({
       googleReasoningCache: options.googleReasoningCache,
       openRouterReasoningCache: options.openRouterReasoningCache

@@ -1,6 +1,7 @@
 import { type SVGProps, useId } from 'react'
 
 import type { IconComponent } from '../../types'
+
 const Gpt4oMiniSearchPreviewLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
@@ -41,5 +42,7 @@ const Gpt4oMiniSearchPreviewLight: IconComponent = (props: SVGProps<SVGSVGElemen
     </svg>
   )
 }
+
 export { Gpt4oMiniSearchPreviewLight }
+
 export default Gpt4oMiniSearchPreviewLight

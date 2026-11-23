@@ -48,6 +48,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
     }
 
     const target = event.target as HTMLElement
+
     if (!target.closest('[data-no-expand]')) {
       setIsExpanded((value) => !value)
     }
@@ -55,6 +56,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
 
   const checkScrollability = React.useCallback(() => {
     const scrollElement = scrollRef.current
+
     if (!scrollElement) {
       return
     }
@@ -71,21 +73,26 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
 
   React.useEffect(() => {
     const scrollElement = scrollRef.current
+
     if (!scrollElement) {
       return
     }
 
     const resizeObserver = new ResizeObserver(checkScrollability)
+
     const observeResizeTargets = () => {
       resizeObserver.disconnect()
       resizeObserver.observe(scrollElement)
+
       if (scrollElement.parentElement) {
         resizeObserver.observe(scrollElement.parentElement)
       }
+
       for (const child of scrollElement.children) {
         resizeObserver.observe(child)
       }
     }
+
     const mutationObserver = new MutationObserver(() => {
       observeResizeTargets()
       checkScrollability()

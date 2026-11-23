@@ -8,8 +8,11 @@ import { loggerService } from '@logger'
 const logger = loggerService.withContext('VersionService')
 
 type OS = 'win' | 'mac' | 'linux' | 'unknown'
+
 type Environment = 'prod' | 'dev'
+
 type Packaged = 'packaged' | 'unpackaged'
+
 type Mode = 'install' | 'portable'
 
 /**
@@ -39,6 +42,7 @@ class VersionService {
     if (!this.versionLogPath) {
       this.versionLogPath = application.getPath('feature.version_log.file')
     }
+
     return this.versionLogPath
   }
 
@@ -106,6 +110,7 @@ class VersionService {
   private parseVersionLine(line: string): VersionRecord | null {
     try {
       const parts = line.trim().split('|')
+
       if (parts.length !== 6) {
         return null
       }
@@ -134,6 +139,7 @@ class VersionService {
       }
     } catch (error) {
       logger.warn(`Failed to parse version line: ${line}`, error as Error)
+
       return null
     }
   }
@@ -165,11 +171,13 @@ class VersionService {
       const buffer = Buffer.alloc(bufferSize)
 
       const fd = fs.openSync(logPath, 'r')
+
       try {
         const startPosition = Math.max(0, fileSize - bufferSize)
         fs.readSync(fd, buffer, 0, bufferSize, startPosition)
 
         const content = buffer.toString('utf-8')
+
         const lines = content
           .trim()
           .split('\n')
@@ -181,6 +189,7 @@ class VersionService {
       }
     } catch (error) {
       logger.error('Failed to read version log:', error as Error)
+
       return []
     }
   }
@@ -213,6 +222,7 @@ class VersionService {
       if (lines.length === 0) {
         logger.info('First run detected, creating version log')
         this.appendVersionLine(currentLine)
+
         return
       }
 
@@ -254,6 +264,7 @@ class VersionService {
   getPreviousVersion(): VersionRecord | null {
     try {
       const lines = this.readLastVersionLines()
+
       if (lines.length === 0) {
         return null
       }
@@ -263,6 +274,7 @@ class VersionService {
       // Read from the end backwards to find the first different version
       for (let i = lines.length - 1; i >= 0; i--) {
         const record = this.parseVersionLine(lines[i])
+
         if (record && record.version !== currentVersion) {
           return record
         }
@@ -271,6 +283,7 @@ class VersionService {
       return null
     } catch (error) {
       logger.error('Failed to get previous version:', error as Error)
+
       return null
     }
   }

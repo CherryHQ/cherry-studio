@@ -15,5 +15,6 @@ export function nextMiniAppOrderKey(): string {
     .orderBy(desc(miniAppTable.orderKey))
     .limit(1)
     .all()
+
   return generateOrderKeyBetween(tail?.orderKey ?? null, null)
 }

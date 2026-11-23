@@ -15,10 +15,12 @@ export function useMessagePlatformActions(): MessagePlatformActions {
   const copyText = useCallback<NonNullable<MessageListActions['copyText']>>(async (text, options) => {
     if (!text && options?.emptyMessage) {
       toast.warning(options.emptyMessage)
+
       return
     }
 
     await navigator.clipboard.writeText(text)
+
     if (options?.successMessage) {
       toast.success(options.successMessage)
     }
@@ -26,6 +28,7 @@ export function useMessagePlatformActions(): MessagePlatformActions {
 
   const copyImage = useCallback<NonNullable<MessageListActions['copyImage']>>(async (blob, options) => {
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+
     if (options?.successMessage) {
       toast.success(options.successMessage)
     }
@@ -33,6 +36,7 @@ export function useMessagePlatformActions(): MessagePlatformActions {
 
   const copyRichContent = useCallback<NonNullable<MessageListActions['copyRichContent']>>(async (content, options) => {
     await writeComposerRichClipboardContent(content)
+
     if (options?.successMessage) {
       toast.success(options.successMessage)
     }

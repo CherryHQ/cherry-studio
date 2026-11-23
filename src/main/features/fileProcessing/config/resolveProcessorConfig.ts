@@ -35,12 +35,17 @@ export function getFileProcessorConfigById(processorId: FileProcessorId): FilePr
       const capabilityOverride = override?.capabilities?.[capability.feature]
 
       const merged = { ...capability }
+
       if (capabilityOverride?.apiHost !== undefined) Object.assign(merged, { apiHost: capabilityOverride.apiHost })
+
       if (capabilityOverride?.modelId !== undefined) Object.assign(merged, { modelId: capabilityOverride.modelId })
+
       if (capabilityOverride?.formulaLevel !== undefined)
         Object.assign(merged, { formulaLevel: capabilityOverride.formulaLevel })
+
       if (capabilityOverride?.mergeCrossPageForms !== undefined)
         Object.assign(merged, { mergeCrossPageForms: capabilityOverride.mergeCrossPageForms })
+
       return merged
     }),
     apiKeys: override?.apiKeys,
@@ -62,6 +67,7 @@ function assertProcessorUsable(config: FileProcessorMerged, feature: FileProcess
   // platform" sent people hunting for an OS problem when all they had to do was
   // download the model.
   const requiredModel = FILE_PROCESSOR_LOCAL_MODEL[config.id]
+
   if (requiredModel && !application.get('LocalModelService').isDefaultModelReady(requiredModel)) {
     throw new Error(`File processor ${config.id} needs the local ${requiredModel} model to be downloaded first`)
   }
@@ -74,6 +80,7 @@ export function resolveProcessorConfigByFeature(
   if (processorId) {
     const config = getFileProcessorConfigById(processorId)
     assertProcessorUsable(config, feature)
+
     return config
   }
 
@@ -87,6 +94,7 @@ export function resolveProcessorConfigByFeature(
   if (defaultProcessorId) {
     const config = getFileProcessorConfigById(defaultProcessorId)
     assertProcessorUsable(config, feature)
+
     return config
   }
 

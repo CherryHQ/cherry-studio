@@ -40,8 +40,10 @@ export function resolveMcpSourceToolAccess(server: McpServer, tool: McpPolicyToo
   if (isMcpToolDisabledBySource(server, tool)) {
     return { enabled: false, approval: 'prompt' }
   }
+
   if (isMcpToolForcePromptBySource(server, tool)) {
     return { enabled: true, approval: 'prompt' }
   }
+
   return { enabled: true, approval: 'auto' }
 }

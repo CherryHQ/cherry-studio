@@ -12,6 +12,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 
 export async function open(target: AbsoluteFilePath): Promise<void> {
   const errorMessage = await shell.openPath(target)
+
   if (errorMessage) {
     throw new Error(`shell.open(${target}) failed: ${errorMessage}`)
   }

@@ -71,9 +71,11 @@ export function usePaintingModelCatalog({
   // Per-provider option list, computed once from the full models array.
   const optionsByProvider = useMemo(() => {
     const map = new Map<string, ModelOption[]>()
+
     for (const providerId of providerOptions) {
       map.set(providerId, getPaintingModelOptions(providerId, dataModels))
     }
+
     return map
   }, [dataModels, providerOptions])
 
@@ -86,9 +88,11 @@ export function usePaintingModelCatalog({
 
     for (const providerId of providerOptions) {
       const providerModelOptions = optionsByProvider.get(providerId) ?? []
+
       if (providerModelOptions.length === 0) continue
 
       const provider = providerMap.get(providerId)
+
       if (!seenProviderIds.has(providerId)) {
         seenProviderIds.add(providerId)
         providers.push(createSelectorProvider(providerId, provider))
@@ -96,8 +100,10 @@ export function usePaintingModelCatalog({
 
       for (const modelOption of providerModelOptions) {
         const modelId = String(modelOption.value || '').trim()
+
         if (!modelId) continue
         const uniqueModelId = createUniqueModelId(providerId, modelId)
+
         if (seenModelIds.has(uniqueModelId)) continue
         seenModelIds.add(uniqueModelId)
         optionMap.set(uniqueModelId, modelOption)
@@ -116,15 +122,18 @@ export function usePaintingModelCatalog({
     }
 
     let selectedModelId: UniqueModelId | undefined
+
     if (normalizedApiModelId.length > 0) {
       const uniqueModelId = createUniqueModelId(currentProviderId, normalizedApiModelId)
       selectedModelId = uniqueModelId
 
       if (!seenModelIds.has(uniqueModelId)) {
         const currentProvider = providerMap.get(currentProviderId)
+
         if (!seenProviderIds.has(currentProviderId)) {
           providers.unshift(createSelectorProvider(currentProviderId, currentProvider))
         }
+
         models.unshift({
           id: uniqueModelId,
           providerId: currentProviderId,
@@ -139,9 +148,11 @@ export function usePaintingModelCatalog({
     }
 
     const selectedModel = selectedModelId ? models.find((model) => model.id === selectedModelId) : undefined
+
     const selectedProvider = selectedModel
       ? providers.find((provider) => provider.id === selectedModel.providerId)
       : undefined
+
     const fallbackLabel =
       normalizedApiModelId.length > 0
         ? (optionMap.get(createUniqueModelId(currentProviderId, normalizedApiModelId))?.label ?? normalizedApiModelId)
@@ -167,7 +178,9 @@ export function usePaintingModelCatalog({
   const ensureProviderCatalog = useCallback(
     async (providerId: string): Promise<ModelOption[]> => {
       const cached = optionsByProvider.get(providerId)
+
       if (cached && cached.length > 0) return cached
+
       return loadPaintingModelOptions(providerId)
     },
     [optionsByProvider]
@@ -182,6 +195,7 @@ export function usePaintingModelCatalog({
     () => optionsByProvider.get(currentProviderId) ?? [],
     [optionsByProvider, currentProviderId]
   )
+
   const selectedModelOption = useMemo(
     () => (normalizedApiModelId.length ? getModelOption(currentProviderId, normalizedApiModelId) : undefined),
     [normalizedApiModelId, currentProviderId, getModelOption]

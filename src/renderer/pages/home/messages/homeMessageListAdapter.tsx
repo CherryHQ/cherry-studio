@@ -68,6 +68,7 @@ import {
 
 const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
+
   return popup.show({ title, messages, processingMethod: '1' })
 }
 
@@ -114,13 +115,16 @@ export function useHomeMessageListProviderValue({
 }: HomeMessageListParams): MessageListProviderValue {
   const topicId = topic.id
   const assistantId = topic.assistantId
+
   const { trigger: copyBranchToNewTopicTrigger } = useMutation('POST', '/topics/:id/duplicate', {
     refresh: ['/topics']
   })
+
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const [translationLanguagesRequested, setTranslationLanguagesRequested] = useState(false)
+
   const {
     languages: translationLanguages,
     getLabel: getTranslationLanguageLabel,
@@ -129,12 +133,16 @@ export function useHomeMessageListProviderValue({
   } = useLanguages({
     enabled: normalInteractionsEnabled && translationLanguagesRequested
   })
+
   const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
   const { editingMessage, editingMessageId, startEditing } = useMessageEditing()
+
   const canStartNewContext =
     normalInteractionsEnabled && Boolean(chatWrite?.canStartNewContext) && editingMessage?.message.topicId !== topicId
+
   const resolvedAssistantId = assistant?.id ?? assistantId
+
   const messageItemCacheRef = useRef(
     new WeakMap<
       CherryUIMessage,
@@ -149,6 +157,7 @@ export function useHomeMessageListProviderValue({
   const messageItems = useMemo(() => {
     return messages.map((message) => {
       const cached = messageItemCacheRef.current.get(message)
+
       if (cached && cached.assistantId === resolvedAssistantId && cached.topicId === topicId) {
         return cached.item
       }
@@ -157,11 +166,13 @@ export function useHomeMessageListProviderValue({
         assistantId: resolvedAssistantId,
         topicId
       })
+
       messageItemCacheRef.current.set(message, {
         assistantId: resolvedAssistantId,
         item,
         topicId
       })
+
       return item
     })
   }, [messages, resolvedAssistantId, topicId])
@@ -177,11 +188,13 @@ export function useHomeMessageListProviderValue({
       if (current.has(messageId) === isTranslating) return current
 
       const next = new Set(current)
+
       if (isTranslating) {
         next.add(messageId)
       } else {
         next.delete(messageId)
       }
+
       return next
     })
   }, [])
@@ -227,6 +240,7 @@ export function useHomeMessageListProviderValue({
 
   const getDoctorSubject = useCallback((message: MessageListItem): DoctorSubjectRef | undefined => {
     const model = getMessageListItemModel(message)
+
     return model ? { kind: 'chat', providerId: model.provider, modelId: model.id } : undefined
   }, [])
 
@@ -267,6 +281,7 @@ export function useHomeMessageListProviderValue({
 
   useEffect(() => {
     const handle = requestAnimationFrame(() => onComponentUpdate?.())
+
     return () => cancelAnimationFrame(handle)
   }, [onComponentUpdate])
 
@@ -274,13 +289,16 @@ export function useHomeMessageListProviderValue({
     'chat.message.copy_last',
     () => {
       const lastMessage = messageItems.findLast((message) => !message.isContextBoundary)
+
       if (lastMessage) {
         const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
         const richContent = leafCapabilities.copyRichContent ? createComposerRichClipboardContentFromParts(parts) : null
         const text = getComposerTextFromParts(parts)
+
         const copyTask = richContent
           ? leafCapabilities.copyRichContent?.(richContent, { successMessage: t('message.copy.success') })
           : navigator.clipboard.writeText(text)
+
         void Promise.resolve(copyTask)
           .then(() => {
             if (!richContent) toast.success(t('message.copy.success'))
@@ -298,6 +316,7 @@ export function useHomeMessageListProviderValue({
     'chat.message.edit_last_user',
     () => {
       const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && !m.isContextBoundary)
+
       if (lastUserMessage) {
         void EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)
       }
@@ -310,8 +329,10 @@ export function useHomeMessageListProviderValue({
       if (data && data.id !== topic.id) return
 
       const requests = consumePendingTopicImageActions(topic.id, type)
+
       if (requests.length === 0) {
         void runMessageImageAction(runtime, type)
+
         return
       }
 
@@ -336,16 +357,20 @@ export function useHomeMessageListProviderValue({
 
   useEffect(() => {
     const topicId = topic.id
+
     return () => rejectPendingTopicImageActions(topicId, new Error('Topic image export was cancelled'))
   }, [topic.id])
 
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
       listRuntimeRef.current = runtime
+
       const clearBoundRuntime = () => {
         if (listRuntimeRef.current === runtime) listRuntimeRef.current = null
       }
+
       const unbindExternalRuntime = onBindRuntime?.(runtime)
+
       if (imageActionConsumer === 'capture') {
         const unbindCaptureRuntime = bindCaptureMessageImageRuntime({
           cancelMessage: 'Topic image export was cancelled',
@@ -355,9 +380,11 @@ export function useHomeMessageListProviderValue({
           settleActionRequest: settleTopicImageActionRequest,
           targetId: topic.id
         })
+
         return () => {
           unbindCaptureRuntime()
           clearBoundRuntime()
+
           if (typeof unbindExternalRuntime === 'function') {
             unbindExternalRuntime()
           }
@@ -378,6 +405,7 @@ export function useHomeMessageListProviderValue({
       return () => {
         unsubscribes.forEach((unsub) => unsub())
         clearBoundRuntime()
+
         if (typeof unbindExternalRuntime === 'function') {
           unbindExternalRuntime()
         }
@@ -419,8 +447,10 @@ export function useHomeMessageListProviderValue({
 
   const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
     const runtime = listRuntimeRef.current
+
     if (!runtime) {
       void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+
       return
     }
 
@@ -450,15 +480,19 @@ export function useHomeMessageListProviderValue({
 
       try {
         const resolved = resolvePartFromParts(partsByMessageIdRef.current, msgBlockId)
+
         if (resolved && resolved.part.type === 'text') {
           const textPart = resolved.part as { text?: string }
           const { updateCodeBlock } = await import('@renderer/utils/markdown')
           const updatedText = updateCodeBlock(textPart.text || '', originalContent, newContent)
+
           if (updatedText === null) {
             logger.warn(`Failed to save code block to message block ${msgBlockId}: no unique matching code block`)
             toast.error(t('code_block.edit.save.failed.label'))
+
             return
           }
+
           const allParts = [...(partsByMessageIdRef.current[resolved.messageId] || [])]
           allParts[resolved.index] = {
             ...resolved.part,
@@ -466,6 +500,7 @@ export function useHomeMessageListProviderValue({
           }
           await requireChatWrite('saveCodeBlock').editMessage(resolved.messageId, allParts)
           toast.success(t('code_block.edit.save.success'))
+
           return
         }
 
@@ -503,6 +538,7 @@ export function useHomeMessageListProviderValue({
         const persistedMessage = await dataApiService.get(`/messages/${messageId}`)
         const persistedParts = persistedMessage.data.parts ?? []
         const resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
+
         if (!resolved || resolved.messageId !== messageId || (resolved.part.type as string) !== 'data-error') return
 
         await requireChatWrite('removeMessageErrorPart').editMessage(
@@ -532,12 +568,15 @@ export function useHomeMessageListProviderValue({
       const isCurrentTranslation = () => translationAbortControllersRef.current.get(messageId) === controller
 
       const currentParts = partsByMessageIdRef.current[messageId]
+
       if (!currentParts) {
         logger.error(`[createTranslationUpdater] cannot find parts for message: ${messageId}`)
+
         return null
       }
 
       const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
+
       const loadingPart = {
         type: 'data-translation' as const,
         data: {
@@ -546,7 +585,9 @@ export function useHomeMessageListProviderValue({
           ...(sourceLanguage && { sourceLanguage })
         }
       }
+
       await write.editMessage(messageId, [...baseParts, loadingPart])
+
       if (!isCurrentTranslation()) return null
 
       let pendingUpdate = Promise.resolve()
@@ -566,6 +607,7 @@ export function useHomeMessageListProviderValue({
         pendingUpdate = pendingUpdate
           .then(() => {
             if (!isCurrentTranslation()) return
+
             return write.editMessage(messageId, [...baseParts, translationPart])
           })
           .catch((error) => {
@@ -587,16 +629,19 @@ export function useHomeMessageListProviderValue({
 
       const controller = new AbortController()
       let translationUpdater: Awaited<ReturnType<typeof createTranslationUpdater>> = null
+
       try {
         translationAbortControllersRef.current.get(messageId)?.abort()
         translationAbortControllersRef.current.set(messageId, controller)
         setMessageTranslating(messageId, true)
 
         translationUpdater = await createTranslationUpdater(messageId, language.langCode, controller)
+
         if (!translationUpdater) {
           if (translationAbortControllersRef.current.get(messageId) === controller) {
             toast.error(t('message.error.unknown'))
           }
+
           return
         }
 
@@ -609,6 +654,7 @@ export function useHomeMessageListProviderValue({
           logger.error('Message translation failed', error as Error)
           toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
         }
+
         // Clean up the empty data-translation part inserted by
         // createTranslationUpdater so BeatLoader doesn't spin forever.
         // Only clean up when this translation is still the current one —
@@ -616,8 +662,10 @@ export function useHomeMessageListProviderValue({
         // owns the current data-translation part.
         if (translationAbortControllersRef.current.get(messageId) === controller) {
           const currentParts = partsByMessageIdRef.current[messageId]
+
           if (currentParts) {
             const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
+
             if (baseParts.length !== currentParts.length) {
               try {
                 await requireChatWrite('removeMessageTranslation').editMessage(messageId, baseParts)
@@ -647,8 +695,10 @@ export function useHomeMessageListProviderValue({
   const removeMessageTranslation = useCallback<NonNullable<MessageListActions['removeMessageTranslation']>>(
     async (messageId) => {
       const currentParts = partsByMessageIdRef.current[messageId]
+
       if (!currentParts) return
       const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
+
       if (baseParts.length === currentParts.length) return
       await requireChatWrite('removeMessageTranslation').editMessage(messageId, baseParts)
     },
@@ -658,9 +708,11 @@ export function useHomeMessageListProviderValue({
   const getMessageSiblings = useCallback(
     (messageId: string) => {
       const group = siblingsContext?.siblingsMap[messageId]
+
       if (!group || group.length < 2) return null
 
       const activeIndex = group.findIndex((message) => message.id === messageId)
+
       return {
         group: group.map((message) => ({
           id: message.id,
@@ -689,6 +741,7 @@ export function useHomeMessageListProviderValue({
       if (onStartBranchDraft) {
         return onStartBranchDraft(messageId)
       }
+
       return requireChatWrite('startMessageBranch').setActiveNode(messageId)
     },
     [onStartBranchDraft, requireChatWrite]
@@ -725,6 +778,7 @@ export function useHomeMessageListProviderValue({
         },
         okText: t('common.delete')
       })
+
       if (!confirmed) return
 
       try {
@@ -751,6 +805,7 @@ export function useHomeMessageListProviderValue({
   const renderRegenerateModelPicker = useCallback<NonNullable<MessageListActions['renderRegenerateModelPicker']>>(
     ({ message, messageParts, trigger, onOpenChange }) => {
       const messageModel = getMessageListItemModel(message)
+
       const currentMentionModel = messageModel
         ? ({
             id: createUniqueModelId(messageModel.provider, messageModel.id),
@@ -763,12 +818,15 @@ export function useHomeMessageListProviderValue({
       const mentionModelFilter: ModelSelectorFilter = (model) => {
         if (isNonChatModel(model)) return false
         const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
+
         if (needsVision && !isVisionModel(model)) return false
+
         return true
       }
 
       const onSelectMentionModel = async (selected: SharedModel | undefined) => {
         if (!selected) return
+
         try {
           await regenerateMessageUsingModel(message.id, selected.id)
         } catch (error) {
@@ -929,6 +987,7 @@ export function useHomeMessageListProviderValue({
   )
 
   const assistantAvatarSources = useMessageAuthorAvatarSources(messageItems, topic.id)
+
   const meta = useMemo<MessageListMeta>(
     () => ({
       selectionLayer: true,

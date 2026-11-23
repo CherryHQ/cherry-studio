@@ -7,6 +7,7 @@ export function getQuickPanelSearchAliases(t: TFunction, key: string, extraAlias
   for (const value of [englishText, ...extraAliases]) {
     if (typeof value !== 'string') continue
     const alias = value.trim()
+
     if (!alias) continue
     aliases.add(alias)
   }

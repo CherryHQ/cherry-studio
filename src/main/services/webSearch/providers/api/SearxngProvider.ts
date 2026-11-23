@@ -21,6 +21,7 @@ export class SearxngProvider extends RemoteWebSearchProvider {
     const signal = httpOptions?.signal ?? undefined
     const credentials = this.credentials()
     let engines = this.provider.engines.map((engine) => engine.trim()).filter(Boolean)
+
     if (!engines.length) {
       engines = await discoverSearxngEngines({
         config: { apiHost: resolveProviderApiHost(this.provider, 'searchKeywords') },
@@ -29,7 +30,9 @@ export class SearxngProvider extends RemoteWebSearchProvider {
         signal
       })
     }
+
     const response = await this.executeRemote('searchKeywords', query, config, httpOptions, { credentials, engines })
+
     const results = await fetchSearchResultContents(
       response.results.map((item) => item.url),
       {
@@ -38,10 +41,12 @@ export class SearxngProvider extends RemoteWebSearchProvider {
         signal,
         getFallbackResult: (_url, index) => {
           const item = response.results[index]
+
           return item.content.trim() ? { ...item, title: item.title || item.url } : undefined
         }
       }
     )
+
     return { ...response, results: results.map((result) => ({ ...result, sourceInput: query })) }
   }
 }

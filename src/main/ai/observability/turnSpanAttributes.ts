@@ -46,13 +46,17 @@ export function applyTurnInputAttributes(span: Span, info: TurnInputInfo): void 
   try {
     span.setAttribute('gen_ai.operation.name', info.operation)
     span.setAttribute('gen_ai.conversation.id', info.topicId)
+
     if (info.agentName) span.setAttribute('gen_ai.agent.name', info.agentName)
     const prompt = lastUserText(info.messages)
+
     if (prompt) span.setAttribute('inputs', truncate(prompt, MAX_TURN_INPUT_CHARS))
     // Parse model id AFTER unconditional attributes — a malformed model id
     // must not wipe the attributes already set.
     const { providerId, modelId } = parseUniqueModelId(info.modelId)
+
     if (providerId) span.setAttribute('gen_ai.provider.name', providerId)
+
     if (modelId) span.setAttribute('gen_ai.request.model', modelId)
   } catch (error) {
     logger.warn('applyTurnInputAttributes failed', { error })
@@ -62,8 +66,10 @@ export function applyTurnInputAttributes(span: Span, info: TurnInputInfo): void 
 export function applyTurnOutputAttributes(span: Span, finalMessage: CherryUIMessage): void {
   try {
     const text = partsText(finalMessage.parts)
+
     if (text) span.setAttribute('outputs', truncate(text, MAX_TURN_OUTPUT_CHARS))
     const toolCalls = countToolParts(finalMessage.parts)
+
     if (toolCalls > 0) span.setAttribute('cs.tool_calls', toolCalls)
   } catch (error) {
     logger.warn('applyTurnOutputAttributes failed', { error })
@@ -74,16 +80,20 @@ export function applyTurnOutputAttributes(span: Span, finalMessage: CherryUIMess
  *  (A trailing user message with no text parts, e.g. tool-result-only, is skipped.) */
 function lastUserText(messages: UIMessage[] | undefined): string | undefined {
   if (!messages?.length) return undefined
+
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role !== 'user') continue
     const text = partsText(messages[i].parts)
+
     if (text) return text
   }
+
   return undefined
 }
 
 function partsText(parts: ReadonlyArray<{ type?: string; text?: string }> | undefined): string {
   if (!parts) return ''
+
   return parts
     .filter((part) => part?.type === 'text' && typeof part.text === 'string')
     .map((part) => part.text)
@@ -92,9 +102,11 @@ function partsText(parts: ReadonlyArray<{ type?: string; text?: string }> | unde
 
 function countToolParts(parts: ReadonlyArray<{ type?: string }> | undefined): number {
   if (!parts) return 0
+
   // Same shape the persistence layer treats as a tool part.
   return parts.filter((part) => {
     const type = part?.type
+
     return typeof type === 'string' && (type.startsWith('tool-') || type === 'dynamic-tool')
   }).length
 }

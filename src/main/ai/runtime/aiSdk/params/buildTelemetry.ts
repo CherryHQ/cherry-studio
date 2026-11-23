@@ -13,8 +13,10 @@ import type { RequestScope } from './scope'
  */
 export function buildTelemetry(scope: RequestScope): TelemetrySettings | undefined {
   const topicId = scope.traceContext?.topicId ?? scope.requestContext.topicId
+
   if (!topicId) return undefined
   const developerModeEnabled = application.get('PreferenceService').get('app.developer_mode.enabled')
+
   if (!developerModeEnabled) return undefined
 
   const parentContext = scope.traceContext
@@ -25,7 +27,9 @@ export function buildTelemetry(scope: RequestScope): TelemetrySettings | undefin
         isRemote: true
       })
     : undefined
+
   const modelName = scope.model.name ?? scope.model.id
+
   return {
     isEnabled: true,
     recordInputs: true,

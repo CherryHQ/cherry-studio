@@ -29,14 +29,17 @@ export function useIcon(iconRef: IconRef | undefined): CompoundIcon | undefined 
     if (!iconRef || cachedAtRender) return
     const key = `${iconRef.kind}:${iconRef.key}`
     const cached = getLoadedIcon(iconRef)
+
     if (cached) {
       // The icon finished loading between render and this effect (another
       // consumer's load resolving in a microtask). The render missed it, so
       // commit state — otherwise the fallback would stick until an unrelated
       // update. The render-hit case returns above without this extra render.
       setLoaded((prev) => (prev && prev.refKey === key && prev.icon === cached ? prev : { refKey: key, icon: cached }))
+
       return
     }
+
     let cancelled = false
     loadIcon(iconRef).then(
       (icon) => {
@@ -46,6 +49,7 @@ export function useIcon(iconRef: IconRef | undefined): CompoundIcon | undefined 
         // Chunk load failure: keep the caller's fallback rendering.
       }
     )
+
     return () => {
       cancelled = true
     }
@@ -53,6 +57,7 @@ export function useIcon(iconRef: IconRef | undefined): CompoundIcon | undefined 
   }, [refKey])
 
   if (!iconRef) return undefined
+
   // Guarding on refKey drops stale results from a previous ref after rapid switches.
   return cachedAtRender ?? (loaded && loaded.refKey === refKey ? loaded.icon : undefined)
 }

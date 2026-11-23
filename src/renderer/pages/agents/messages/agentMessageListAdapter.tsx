@@ -55,6 +55,7 @@ import {
 
 const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
+
   return popup.show({ title, messages, processingMethod: '1' })
 }
 
@@ -78,9 +79,11 @@ function withTerminalErrorFallback(
     const status = message.metadata?.status
     const parts = partsByMessageId[message.id] ?? message.parts ?? []
     const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
+
     const needsFallback =
       (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
       (status === 'success' && !hasVisiblePart)
+
     if (!needsFallback) continue
 
     if (next === partsByMessageId) next = { ...partsByMessageId }
@@ -99,6 +102,7 @@ function withTerminalErrorFallback(
 export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {
   const runtime = agentMessageListRuntimes.get(topicId) ?? null
   dispatchLocateMessage(runtime, messageId, highlight)
+
   return runtime !== null
 }
 
@@ -171,7 +175,9 @@ const resolveWorkspaceFilePath = (workspacePath: string | undefined, rawPath: st
 /** Resolve for an action the user explicitly asked for — an unresolvable path is an error they must see. */
 const requireWorkspaceFilePath = (workspacePath: string | undefined, rawPath: string): AbsoluteFilePath => {
   const resolved = resolveWorkspaceFilePath(workspacePath, rawPath)
+
   if (!resolved) throw new Error(`Cannot resolve "${rawPath}" to an absolute path without a workspace root`)
+
   return resolved
 }
 
@@ -214,6 +220,7 @@ export function useAgentMessageListProviderValue({
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const resolvedAgentId = assistantId ?? topic.assistantId
+
   const messageItemCacheRef = useRef(
     new WeakMap<
       CherryUIMessage,
@@ -224,10 +231,12 @@ export function useAgentMessageListProviderValue({
       }
     >()
   )
+
   const displayPartsByMessageId = useMemo(
     () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
     [messages, partsByMessageId, t]
   )
+
   const displayStreamingLayers = useMemo(() => {
     if (!streamingLayers) return undefined
 
@@ -236,22 +245,28 @@ export function useAgentMessageListProviderValue({
       streamingLayers.historyPartsByMessageId,
       t('error.no_response')
     )
+
     if (historyPartsByMessageId === streamingLayers.historyPartsByMessageId) return streamingLayers
 
     return { ...streamingLayers, historyPartsByMessageId }
   }, [messages, streamingLayers, t])
+
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
         const parts = displayPartsByMessageId[message.id] ?? message.parts ?? []
+
         if (parts.length === 0) return true
+
         return parts.some((part) => !hasPartParentToolCallId(part))
       }),
     [displayPartsByMessageId, messages]
   )
+
   const messageItems = useMemo(() => {
     return visibleMessages.map((message) => {
       const cached = messageItemCacheRef.current.get(message)
+
       if (cached && cached.assistantId === resolvedAgentId && cached.topicId === topic.id) {
         return cached.item
       }
@@ -260,11 +275,13 @@ export function useAgentMessageListProviderValue({
         assistantId: resolvedAgentId,
         topicId: topic.id
       })
+
       messageItemCacheRef.current.set(message, {
         assistantId: resolvedAgentId,
         item,
         topicId: topic.id
       })
+
       return item
     })
   }, [resolvedAgentId, visibleMessages, topic.id])
@@ -273,12 +290,14 @@ export function useAgentMessageListProviderValue({
     (message: MessageListItem): DoctorSubjectRef | undefined => {
       if (!resolvedAgentId) return undefined
       const model = message ? getMessageListItemModel(message) : undefined
+
       return model
         ? { kind: 'agent', agentId: resolvedAgentId, providerId: model.provider, modelId: model.id }
         : { kind: 'agent', agentId: resolvedAgentId }
     },
     [resolvedAgentId]
   )
+
   const {
     errorActions,
     exportActions,
@@ -323,6 +342,7 @@ export function useAgentMessageListProviderValue({
     async (path) => {
       const resolvedPath = requireWorkspaceFilePath(workspacePath, path)
       const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(resolvedPath))
+
       return metadata?.kind === 'directory'
     },
     [workspacePath]
@@ -354,10 +374,12 @@ export function useAgentMessageListProviderValue({
           settleActionRequest: settleAgentSessionImageActionRequest,
           targetId: sessionId
         })
+
         return unbindCaptureRuntime
       }
 
       agentMessageListRuntimes.set(topic.id, runtime)
+
       const unsubscribeSend = scrollToBottomOnSend
         ? EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, ({ topicId }: { topicId: string }) => {
             if (topicId === topic.id) runtime.scrollToBottom()
@@ -366,6 +388,7 @@ export function useAgentMessageListProviderValue({
 
       return () => {
         unsubscribeSend?.()
+
         if (agentMessageListRuntimes.get(topic.id) === runtime) {
           agentMessageListRuntimes.delete(topic.id)
         }
@@ -413,6 +436,7 @@ export function useAgentMessageListProviderValue({
   )
 
   const { notifyError } = leafCapabilities
+
   const openForkSourceSession = useCallback(
     async (sourceSessionId: string) => {
       try {
@@ -426,30 +450,38 @@ export function useAgentMessageListProviderValue({
     },
     [navigateToForkSource, notifyError, sessionId, t]
   )
+
   const forkSession = useCallback(
     async (messageId: string) => {
       if (!sessionId) return
+
       try {
         const result = await ipcApi.request('ai.agent.session.fork', {
           sourceSessionId: sessionId,
           messageId
         })
+
         openRoute('/app/agents', { sessionId: result.sessionId })
       } catch (error) {
         const reason = agentSessionForkFailureReason(error)
+
         if (reason) {
           notifyError(agentSessionForkReasonLabel(t, reason))
+
           return
         }
+
         throw error
       }
     },
     [sessionId, t, notifyError]
   )
+
   const agentRenderConfig = useMemo(
     () => ({ ...renderConfig, keepIntermediateAssistantText: true, expandToolSteps: true }),
     [renderConfig]
   )
+
   const state = useMemo<MessageListState>(
     () => ({
       topic,
@@ -591,6 +623,7 @@ export function useAgentMessageListProviderValue({
   )
 
   const assistantAvatarSources = useMessageAuthorAvatarSources(messageItems, topic.id)
+
   const meta = useMemo<MessageListMeta>(
     () => ({
       selectionLayer: true,

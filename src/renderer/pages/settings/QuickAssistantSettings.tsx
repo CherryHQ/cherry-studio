@@ -44,12 +44,15 @@ import type { Model } from '@shared/data/types/model'
 
 const QuickAssistantSettings: FC = () => {
   const [enableQuickAssistant, setEnableQuickAssistant] = usePreference('feature.quick_assistant.enabled')
+
   const [clickTrayToShowQuickAssistant, setClickTrayToShowQuickAssistant] = usePreference(
     'feature.quick_assistant.click_tray_to_show'
   )
+
   const [readClipboardAtStartup, setReadClipboardAtStartup] = usePreference(
     'feature.quick_assistant.read_clipboard_at_startup'
   )
+
   const [, setTray] = usePreference('app.tray.enabled')
   const [quickAssistantId, setQuickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
 
@@ -98,6 +101,7 @@ const QuickAssistantSettings: FC = () => {
 
   const handleClickTrayToShowQuickAssistant = async (checked: boolean) => {
     await setClickTrayToShowQuickAssistant(checked)
+
     if (checked) void setTray(true)
   }
 

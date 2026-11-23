@@ -59,9 +59,11 @@ export function summaryRow(
   const attachments = attachmentHandles?.length
     ? `\n\n[Files attached in this conversation remain readable in full via the read_file tool: ${attachmentHandles.join(', ')}]`
     : ''
+
   const persisted = persistedOutputPaths?.length
     ? `\n\n[Tool output archived from this conversation remains readable in full via the fs_read tool at: ${persistedOutputPaths.join(', ')}]`
     : ''
+
   return {
     id: summaryMessageId(boundaryId),
     role: 'user',
@@ -78,24 +80,32 @@ export function summaryRow(
  */
 export function estimateRowTokens(row: CompactionRow, dialect: TokenDialect): number {
   let total = 0
+
   for (const part of row.parts) {
     if (typeof part.text === 'string') {
       total += estimateTokenCount(part.text)
       continue
     }
+
     const mediaTokens = mediaPartTokens(part, dialect)
     total += mediaTokens ?? estimateTokenCount(JSON.stringify(part))
   }
+
   return total
 }
 
 /** Media cost by declared type, or `undefined` when the part carries no media. */
 function mediaPartTokens(part: { mediaType?: unknown }, dialect: TokenDialect): number | undefined {
   const mediaType = typeof part.mediaType === 'string' ? part.mediaType : undefined
+
   if (!mediaType) return undefined
+
   if (mediaType.startsWith('image/')) return imageTokensFor(dialect)
+
   if (mediaType.startsWith('audio/')) return mediaTokensFor(dialect, 'audio')
+
   if (mediaType.startsWith('video/')) return mediaTokensFor(dialect, 'video')
+
   return undefined
 }
 
@@ -104,6 +114,7 @@ export function findDeepestMarker(rows: CompactionRow[]): number {
   for (let i = rows.length - 1; i >= 0; i--) {
     if (rows[i].compactionSummary) return i
   }
+
   return -1
 }
 
@@ -118,7 +129,9 @@ export function applyDeepestMarker(
   persistedOutputPaths?: readonly string[]
 ): CompactionRow[] {
   const d = findDeepestMarker(rows)
+
   if (d < 0) return rows
+
   // non-null: findDeepestMarker only returns an index whose compactionSummary is truthy
   return [
     summaryRow(rows[d].id, rows[d].compactionSummary!, attachmentHandles, persistedOutputPaths),
@@ -138,11 +151,15 @@ export function applyDeepestMarker(
 export function planKeepBoundary(rows: CompactionRow[], keepBudget: number, dialect: TokenDialect): number | null {
   let acc = 0
   let keepStart: number | null = null
+
   for (let i = rows.length - 1; i >= 0; i--) {
     acc += estimateRowTokens(rows[i], dialect)
+
     if (acc > keepBudget) break
+
     if (rows[i].role === 'user') keepStart = i
   }
+
   if (keepStart === null) {
     for (let i = rows.length - 1; i >= 0; i--) {
       if (rows[i].role === 'user') {
@@ -151,6 +168,8 @@ export function planKeepBoundary(rows: CompactionRow[], keepBudget: number, dial
       }
     }
   }
+
   if (keepStart === null || keepStart === 0) return null
+
   return keepStart
 }

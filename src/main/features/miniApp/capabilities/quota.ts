@@ -53,12 +53,15 @@ export function base64CharCap(bytes: number): number {
 
 export function assertWithinQuota(kind: QuotaKind, usage: QuotaUsage, delta: QuotaUsage): void {
   const limits = MINI_APP_QUOTAS[kind]
+
   if (delta.bytes > limits.single) {
     throw new QuotaExceededError(`${kind} entry of ${delta.bytes} bytes exceeds the ${limits.single} byte cap`)
   }
+
   if (usage.bytes + delta.bytes > limits.bytes) {
     throw new QuotaExceededError(`${kind} would exceed its ${limits.bytes} byte budget`)
   }
+
   if (usage.count + delta.count > limits.count) {
     throw new QuotaExceededError(`${kind} would exceed its ${limits.count} entry budget`)
   }
@@ -93,6 +96,7 @@ export class WriteRateLimiter {
   check(appId: string, bytes = 0): void {
     const now = Date.now()
     const win = this.windows.get(appId)
+
     if (!win || now - win.start >= WINDOW_MS) {
       this.windows.set(appId, { start: now, used: 1 })
     } else if (win.used >= this.perSecond) {
@@ -103,10 +107,12 @@ export class WriteRateLimiter {
 
     const bucket = this.buckets.get(appId) ?? { tokens: this.burstBytes, at: now }
     const refilled = Math.min(this.burstBytes, bucket.tokens + ((now - bucket.at) / 1000) * this.refillBytesPerSecond)
+
     if (refilled < bytes) {
       this.buckets.set(appId, { tokens: refilled, at: now })
       throw new RateLimitedError(`write volume exceeded: more than ${this.refillBytesPerSecond} bytes per second`)
     }
+
     this.buckets.set(appId, { tokens: refilled - bytes, at: now })
   }
 }
@@ -133,6 +139,7 @@ export class ConcurrentRateLimiter {
   acquire(appId: string): ReleaseSlot {
     const now = Date.now()
     const win = this.windows.get(appId)
+
     if (!win || now - win.start >= 60_000) {
       this.windows.set(appId, { start: now, calls: 1 })
     } else if (win.calls >= this.perMinute) {
@@ -142,14 +149,17 @@ export class ConcurrentRateLimiter {
     }
 
     const live = this.inflight.get(appId) ?? 0
+
     if (live >= this.maxInFlight) {
       throw new RateLimitedError(`${this.label} concurrency cutoff: more than ${this.maxInFlight} in flight`)
     }
+
     this.inflight.set(appId, live + 1)
 
     // Idempotent: a caller that releases twice must not free somebody else's slot, and a
     // leaked slot is permanent — it is never reclaimed by a timer or a sweep.
     let released = false
+
     return () => {
       if (released) return
       released = true
@@ -188,6 +198,7 @@ export class HiddenBudget {
   check(guestId: number, visible: boolean): void {
     if (visible) return
     const used = this.used.get(guestId) ?? 0
+
     if (used >= this.allowance) {
       // Worded apart from the per-minute cutoffs on purpose: both land in the activity log
       // as refusals, and "wait a minute" and "the user has to come back" are different facts.
@@ -195,6 +206,7 @@ export class HiddenBudget {
         `${this.label} background budget exhausted: ${this.allowance} calls while hidden, refilled when the user opens the app again`
       )
     }
+
     this.used.set(guestId, used + 1)
   }
 

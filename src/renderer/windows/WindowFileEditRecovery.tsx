@@ -11,6 +11,7 @@ export function WindowFileEditRecovery() {
     <FileEditRecovery
       getReopenAction={(session) => {
         if (session.ownerId !== 'notes' || session.readError) return undefined
+
         return () => {
           setActiveFilePath(AbsoluteFilePathSchema.parse(session.locator))
           openTab('/app/notes')

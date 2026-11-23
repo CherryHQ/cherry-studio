@@ -22,6 +22,7 @@ export function useBundledCatalog<TItem>({ catalog, enabled = true, load }: UseB
   const [isLoading, setIsLoading] = useState(enabled)
   const [error, setError] = useState<Error | null>(null)
   const [revision, setRevision] = useState(0)
+
   const loadedCatalogRef = useRef<{
     catalog: string
     items: TItem[]
@@ -33,6 +34,7 @@ export function useBundledCatalog<TItem>({ catalog, enabled = true, load }: UseB
   useEffect(() => {
     if (!enabled) {
       setIsLoading(false)
+
       return
     }
 
@@ -40,12 +42,14 @@ export function useBundledCatalog<TItem>({ catalog, enabled = true, load }: UseB
       logger.warn('Bundled catalog resources path is not ready', { catalog })
       setItems([])
       setIsLoading(true)
+
       return
     }
 
     // Activity reconnects effects when a tab becomes visible; reuse matching loaded data
     // so returning to a tab cannot re-read or reorder its catalog.
     const loadedCatalog = loadedCatalogRef.current
+
     if (
       loadedCatalog?.catalog === catalog &&
       loadedCatalog.language === language &&
@@ -55,6 +59,7 @@ export function useBundledCatalog<TItem>({ catalog, enabled = true, load }: UseB
       setError(null)
       setItems(loadedCatalog.items)
       setIsLoading(false)
+
       return
     }
 

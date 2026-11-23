@@ -20,8 +20,10 @@ export async function exportTableToExcel(data: string[][]): Promise<boolean> {
   // Size columns based on their longest value.
   const colWidths = data[0].map((_, colIndex) => {
     const maxLength = Math.max(...data.map((row) => (row[colIndex] || '').toString().length))
+
     return { wch: Math.min(Math.max(maxLength + 2, 10), 50) }
   })
+
   worksheet['!cols'] = colWidths
 
   // Create the workbook.

@@ -30,6 +30,7 @@ const PROVIDER_SETTINGS_CATEGORIES: ReadonlySet<ErrorCategory> = new Set<ErrorCa
 
 function navTargetFor(category: ErrorCategory, providerSuffix: string): string | null {
   if (PROVIDER_SETTINGS_CATEGORIES.has(category)) return `/settings/provider${providerSuffix}`
+
   switch (category) {
     case 'region':
     case 'network':
@@ -50,6 +51,7 @@ function navTargetFor(category: ErrorCategory, providerSuffix: string): string |
  */
 export function getClaudeCodeExitCategory(error?: SerializedError): ErrorCategory | undefined {
   const category = error?.claudeCodeExitCategory
+
   return isErrorCategory(category) ? category : undefined
 }
 
@@ -57,11 +59,15 @@ export function getClaudeCodeExitCategory(error?: SerializedError): ErrorCategor
 export function getClaudeCodeExitInfo(error?: SerializedError): ClaudeCodeExitInfo | undefined {
   const category = getClaudeCodeExitCategory(error)
   const reference = error?.diagnosticReference
+
   if (!category || typeof reference !== 'string' || !reference) return undefined
 
   const info: ClaudeCodeExitInfo = { category, reference }
+
   if (typeof error?.processExitCode === 'number') info.exitCode = error.processExitCode
+
   if (typeof error?.processExitSignal === 'string') info.exitSignal = error.processExitSignal
+
   return info
 }
 
@@ -87,6 +93,7 @@ function readStructuredStatus(value: SerializedError | SerializedAiSdkRetryError
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
   const status = value.statusCode ?? value.status
   const parsed = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
+
   return typeof parsed === 'number' && !Number.isNaN(parsed) ? parsed : undefined
 }
 
@@ -109,6 +116,7 @@ export function getLocalModelResolutionFailure(
   // Format 1: "Cannot resolve modelId: <id>" or "Cannot resolve providerId: <id>"
   if (/^Cannot resolve (?:providerId|modelId)/.test(message)) {
     const prefixMatch = /^Cannot resolve (?:providerId|modelId):\s*([^,\s]+)/.exec(message)
+
     if (prefixMatch) {
       return { modelId: prefixMatch[1] }
     }
@@ -116,15 +124,18 @@ export function getLocalModelResolutionFailure(
     // Format 2: "Cannot resolve modelId="..."" or "Cannot resolve providerId="..."" (quoted)
     const providerId = /providerId="([^"]+)"/.exec(message)?.[1]
     const modelId = /modelId="([^"]+)"/.exec(message)?.[1]
+
     if (modelId) return { providerId, modelId }
 
     // Format 3: "[model1,model2,model3]" list format
     const list = /\[([^\]]*)\]/.exec(message)
+
     if (list) {
       const m = list[1]
         .split(',')
         .map((id) => id.trim())
         .find(Boolean)
+
       return m ? { modelId: m } : null
     }
 
@@ -133,6 +144,7 @@ export function getLocalModelResolutionFailure(
 
   // Format 4: "Model with id 'provider/model' not found" (DataApiErrorFactory.notFound)
   const modelIdMatch = /^Model with id '([^']+)' not found$/.exec(message)
+
   if (modelIdMatch) {
     return { modelId: modelIdMatch[1] }
   }
@@ -146,14 +158,18 @@ export function getLocalModelResolutionFailure(
  */
 export function getErrorHttpStatus(error: SerializedError): number | undefined {
   const outer = readStructuredStatus(error)
+
   if (outer !== undefined) return outer
+
   if (!isSerializedAiSdkRetryError(error)) return undefined
   const terminalStatus = readStructuredStatus(error.lastError)
+
   return terminalStatus !== undefined && terminalStatus >= 500 && terminalStatus < 600 ? terminalStatus : undefined
 }
 
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   const providerSuffix = providerId ? `?id=${encodeURIComponent(providerId)}` : ''
+
   const classify = (category: ErrorCategory): ErrorClassification => ({
     category,
     i18nKey: `error.diagnosis.${category}`,
@@ -163,11 +179,13 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   if (!error) return classify('unknown')
 
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
+
   if (claudeCodeExitCategory) return classify(claudeCodeExitCategory)
 
   if (isErrorCategory(error.providerErrorCategory) && error.providerErrorCategory !== 'unknown') {
     return classify(error.providerErrorCategory)
   }
+
   // Checked before text classification: the unknown-text fallback would reclassify this local
   // resolution failure as `bad_request` ("请求错误… If you changed model settings, reset them").
   if (getLocalModelResolutionFailure(error)) return classify('model')
@@ -175,6 +193,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   const responseBodyText = typeof error.responseBody === 'string' ? error.responseBody : ''
   let dataText = ''
+
   if (error.data !== undefined && error.data !== null) {
     try {
       dataText = typeof error.data === 'string' ? error.data : JSON.stringify(error.data)
@@ -188,30 +207,38 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     status: numStatus,
     finishReason: String(error.finishReason ?? '')
   })
+
   if (
     isSerializedAiSdkRetryError(error) &&
     readStructuredStatus(error) === undefined &&
     classifyErrorCategory({ finishReason: String(error.finishReason ?? '') }) === 'unknown'
   ) {
     const terminal = error.lastError
+
     const terminalCategory =
       terminal && typeof terminal === 'object' && !Array.isArray(terminal) && 'providerErrorCategory' in terminal
         ? terminal.providerErrorCategory
         : undefined
+
     // A retry wrapper's copied prose cannot override its terminal attempt's normalized identity.
     if (isErrorCategory(terminalCategory) && terminalCategory !== 'unknown') return classify(terminalCategory)
   }
+
   if (category !== 'unknown' && category !== 'bad_request') return classify(category)
 
   // Prefer a specific diagnosis over a generic request failure in another attempt.
   let nestedRecovery: ErrorClassification | null = null
+
   for (const nested of unwrapNestedErrors(error)) {
     const nestedClassification = classifyError(nested, providerId)
+
     if (nestedClassification.category !== 'unknown' && nestedClassification.category !== 'bad_request') {
       return nestedClassification
     }
+
     if (!nestedRecovery && nestedClassification.navTarget) nestedRecovery = nestedClassification
   }
+
   if (nestedRecovery) return nestedRecovery
 
   if (category === 'unknown' && error.streamStage === 'response-stream' && !error.i18nKey) {

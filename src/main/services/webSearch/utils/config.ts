@@ -32,6 +32,7 @@ function trimString(value: string): string {
 function trimStringList(values: readonly string[]): string[] {
   return values.flatMap((value) => {
     const text = trimString(value)
+
     return text ? [text] : []
   })
 }
@@ -40,6 +41,7 @@ export async function getProviderOverrides(
   preferences: WebSearchPreferenceReader
 ): Promise<WebSearchProviderOverrides> {
   const providerOverrides = await preferences.get('chat.web_search.provider_overrides')
+
   return providerOverrides || {}
 }
 
@@ -115,6 +117,7 @@ function inheritZhipuModelProviderApiKeys(provider: WebSearchProvider): WebSearc
   }
 
   let modelProviderKeys: string[] = []
+
   try {
     modelProviderKeys = trimStringList(providerService.getApiKeys('zhipu', { enabled: true }).map((entry) => entry.key))
   } catch {
@@ -128,6 +131,7 @@ function inheritZhipuModelProviderApiKeys(provider: WebSearchProvider): WebSearc
 export function resolveProviders(providerOverrides: WebSearchProviderOverrides): WebSearchProvider[] {
   return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
     const provider = mergeWebSearchProviderPreset(preset, providerOverrides[preset.id])
+
     return inheritZhipuModelProviderApiKeys(inheritExaMcpApiKeys(provider, providerOverrides))
   })
 }

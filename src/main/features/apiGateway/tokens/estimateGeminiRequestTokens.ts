@@ -46,6 +46,7 @@ export async function estimateGeminiRequestTokens(
     return await estimateConvertedRequest(body, modelString, signal, internal)
   } catch (error) {
     logger.warn('conversion-based estimate failed, using bounded raw-body estimate', error as Error)
+
     return boundedBodyTokens(body, tokenxTokenizer)
   }
 }
@@ -64,6 +65,7 @@ async function estimateConvertedRequest(
   let dialect: TokenDialect = 'google'
   let caps = ALL_MEDIA
   let resolved: ResolvedGatewayModelAddress | undefined
+
   try {
     resolved = await resolveGatewayModelAddress(modelString, internal)
     dialect = resolveModelTokenDialect(resolved.provider, resolved.model)
@@ -76,5 +78,6 @@ async function estimateConvertedRequest(
   const modelMessages = await toModelMessages(uiMessages, caps, tools, toolResultCaps)
   const tokenizer = await getTextTokenizer(dialect)
   const messageTokens = await estimateModelMessagesFootprint(modelMessages, { dialect, tokenizer }, signal)
+
   return messageTokens + countToolDefs(wireTools, tokenizer)
 }

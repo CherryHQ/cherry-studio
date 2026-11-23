@@ -7,7 +7,9 @@ export async function createDeviceIdentity(): Promise<Uint8Array> {
 
 export function readDeviceIdentity(bytes: Uint8Array) {
   const privateKey = privateKeyFromProtobuf(bytes)
+
   if (privateKey.type !== 'Ed25519') throw new Error('Remote identity must be Ed25519')
+
   return { privateKey, peerId: peerIdFromPrivateKey(privateKey) }
 }
 

@@ -65,18 +65,23 @@ function paginate(text: string, offset = 0, limit = READ_FILE_PAGE_SIZE): ReadFi
   // A start landing on a lone low surrogate means the prior page kept the high
   // half — skip the orphan.
   const startCode = text.charCodeAt(start)
+
   if (startCode >= 0xdc00 && startCode <= 0xdfff) start += 1
 
   let end = surrogateSafeEnd(text, Math.min(start + limit, text.length))
+
   // Guarantee forward progress: if backing off a surrogate split collapsed the
   // page to empty (start on a high surrogate with limit too small to clear the
   // pair), take the whole pair so `nextOffset` always advances past `start`.
   if (end <= start && start < text.length) end = Math.min(start + 2, text.length)
+
   const page: ReadFileOutput = {
     text: text.slice(start, end),
     totalChars: text.length
   }
+
   if (end < text.length) page.nextOffset = end
+
   return page
 }
 
@@ -89,10 +94,13 @@ export async function readFile(
   // allow-list — the model never sees (or can guess) entry ids, and can only read
   // files attached to this conversation.
   const entry = attachments.find((a) => a.handle === input.filename)
+
   if (!entry) {
     const available = attachments.map((a) => a.handle).join(', ') || '(none)'
+
     return { error: `No attached file named "${input.filename}". Available: ${available}` }
   }
+
   const entryId = entry.fileEntryId
 
   try {
@@ -112,13 +120,16 @@ export async function readFile(
     if (text === null) {
       return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
     }
+
     if (!text.trim()) return textResult(noExtractableTextNote(entry.handle))
+
     // Both are optional; `paginate`'s parameter defaults cover an omitted one.
     return paginate(text, input.offset, input.limit)
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) throw error
     // Log the detail; return a sanitized, filename-level message (no entry ids / paths).
     logger.error('read_file failed', error as Error, { filename: input.filename })
+
     return { error: `Failed to read attached file "${input.filename}".` }
   }
 }
@@ -128,10 +139,12 @@ export function readFileModelOutput(output: ReadFileResult): ToolResultOutput {
   if (isReadFileError(output)) {
     return { type: 'text', value: output.error }
   }
+
   const more =
     output.nextOffset != null
       ? `\n\n[Showing ${output.text.length} of ${output.totalChars} chars. Call read_file again with offset=${output.nextOffset} for more.]`
       : ''
+
   return { type: 'text', value: output.text + more }
 }
 
@@ -141,6 +154,7 @@ const readFileTool = tool({
   outputSchema: readFileResultSchema,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
+
     return readFile(input, { attachments: request.fileAttachments ?? [] }, request.abortSignal)
   },
   toModelOutput: ({ output }) => readFileModelOutput(output)
@@ -162,4 +176,5 @@ export function createReadFileToolEntry(): ToolEntry {
 }
 
 export type ReadFileToolInput = InferToolInput<typeof readFileTool>
+
 export type ReadFileToolOutput = InferToolOutput<typeof readFileTool>

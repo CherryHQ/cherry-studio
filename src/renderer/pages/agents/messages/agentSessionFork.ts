@@ -13,6 +13,7 @@ export function agentSessionForkAvailability(
   if (message.role !== 'assistant') return false
   const failure = message.status !== 'success' ? 'not_turn_boundary' : actions ? actions.fork : 'unsupported_checkpoint'
   const enabled = failure === null
+
   return {
     visible: true,
     enabled,

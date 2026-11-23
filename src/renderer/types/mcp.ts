@@ -23,6 +23,7 @@ export const McpServerTypeSchema = z
   .pipe(z.union([z.literal('stdio'), z.literal('sse'), z.literal('streamableHttp'), z.literal('inMemory')])) // 大多数情况下默认使用 stdio
 
 export const McpServerInstallSourceSchema = z.enum(['builtin', 'manual', 'protocol', 'unknown']).default('unknown')
+
 export type McpServerInstallSource = z.infer<typeof McpServerInstallSourceSchema>
 
 /**
@@ -122,8 +123,10 @@ export const McpServerConfigSchema = z
       .preprocess((val) => {
         if (typeof val === 'string' && val.trim() !== '') {
           const parsed = Number(val)
+
           return isNaN(parsed) ? val : parsed
         }
+
         return val
       }, z.number().optional())
       .describe('Timeout in seconds for requests to this server'),
@@ -187,6 +190,7 @@ export const McpServerConfigSchema = z
       if (schema.type === 'inMemory' && schema.name && !isBuiltinMcpServerName(schema.name)) {
         return false
       }
+
       return true
     },
     {
@@ -197,22 +201,27 @@ export const McpServerConfigSchema = z
     // 显式传入的type会覆盖掉从url推断的逻辑
     if (!schema.type) {
       const url = schema.baseUrl ?? schema.url ?? null
+
       // NOTE: url 暗示了服务器的类型为 streamableHttp 或 sse，未来可能会扩展其他类型
       if (url !== null) {
         const type = getMcpServerType(url)
+
         return {
           ...schema,
           type
         } as const
       }
     }
+
     return schema
   })
+
 /**
  * 将服务器别名（字符串ID）映射到其配置的对象。
  * 例如: { "my-tools": { command: "...", args: [...] }, "github": { ... } }
  */
 export const McpServersMapSchema = z.record(z.string(), McpServerConfigSchema)
+
 /**
  * 顶层配置对象Schema。
  * 表示整个MCP配置文件的结构。
@@ -229,8 +238,11 @@ export const McpConfigSchema = z.object({
 // 数据校验用类型，McpServerType 复用于 McpServer
 
 export type McpServerType = z.infer<typeof McpServerTypeSchema>
+
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>
+
 export type McpServersMap = z.infer<typeof McpServersMapSchema>
+
 export type McpConfig = z.infer<typeof McpConfigSchema>
 /**
  * 安全地验证一个未知对象，返回结果和可能的错误。

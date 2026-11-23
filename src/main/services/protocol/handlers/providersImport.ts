@@ -17,6 +17,7 @@ export function parseProvidersImportData(data: string) {
     return JSON.stringify(result)
   } catch (error) {
     logger.error('parseProvidersImportData error:', error as Error)
+
     return null
   }
 }
@@ -41,10 +42,12 @@ export async function handleProvidersProtocolUrl(url: URL) {
 
       if (!data) {
         logger.error('handleProvidersProtocolUrl data is null or invalid')
+
         return
       }
 
       const version = params.get('v')
+
       if (version == '1') {
         // TODO: handle different version
         logger.debug('handleProvidersProtocolUrl', { data, version })
@@ -53,6 +56,7 @@ export async function handleProvidersProtocolUrl(url: URL) {
       openSettingsInMainWindow(`/settings/provider?addProviderData=${encodeURIComponent(data)}`)
       break
     }
+
     default:
       logger.error(`Unknown MCP protocol URL: ${url}`)
       break

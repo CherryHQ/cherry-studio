@@ -18,6 +18,7 @@ export const checkpointItemSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('part'), messageId: opaqueId, value: partSchema }),
   z.strictObject({ kind: z.literal('interaction'), value: interactionSummarySchema })
 ])
+
 export const agentCheckpointDescriptorSchema = z.looseObject({
   checkpointId: opaqueId,
   cursor: agentCursorSchema,
@@ -27,6 +28,7 @@ export const agentCheckpointDescriptorSchema = z.looseObject({
   sha256: digest,
   expiresAt: timestamp
 })
+
 export const agentCheckpointPageSchema = z.looseObject({
   checkpointId: opaqueId,
   pageIndex: z.number().int().nonnegative(),
@@ -34,11 +36,14 @@ export const agentCheckpointPageSchema = z.looseObject({
   nextCursor: opaqueId.nullable(),
   pageDigest: digest
 })
+
 export type AgentCheckpointDescriptor = z.infer<typeof agentCheckpointDescriptorSchema>
+
 export type AgentCheckpointPage = z.infer<typeof agentCheckpointPageSchema>
 
 export function encodeAgentCheckpointPage(page: AgentCheckpointPage): Uint8Array {
   const parsed = agentCheckpointPageSchema.parse(page)
+
   return encodeCanonical({
     checkpointId: parsed.checkpointId,
     pageIndex: parsed.pageIndex,

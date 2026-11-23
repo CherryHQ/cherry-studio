@@ -43,18 +43,24 @@ function mapRequested<T>(
   resolve: (entity: T) => ResolvedShortcut
 ): Map<string, ResolvedShortcut> {
   const targetsByResourceId = new Map<string, SidebarShortcutTarget[]>()
+
   for (const target of targets) {
     const matches = targetsByResourceId.get(target.locator.resourceId) ?? []
     matches.push(target)
     targetsByResourceId.set(target.locator.resourceId, matches)
   }
+
   const result = new Map<string, ResolvedShortcut>()
+
   for (const entity of entities) {
     const matches = targetsByResourceId.get(idOf(entity))
+
     if (!matches) continue
     const resource = resolve(entity)
+
     for (const target of matches) result.set(createSidebarShortcutId(target), resource)
   }
+
   return result
 }
 
@@ -67,10 +73,13 @@ async function resolvePaginatedTargets<T>(
 ): Promise<Map<string, ResolvedShortcut>> {
   const ids = [...new Set(targets.map((target) => target.locator.resourceId))]
   const batches: string[][] = []
+
   for (let index = 0; index < ids.length; index += maxBatchSize) {
     batches.push(ids.slice(index, index + maxBatchSize))
   }
+
   const pages = await Promise.all(batches.map(fetchBatch))
+
   return mapRequested(
     targets,
     pages.flatMap((page) => page.items),
@@ -81,6 +90,7 @@ async function resolvePaginatedTargets<T>(
 
 function isActiveResourceUrl(url: string, pathname: string, param: string, resourceId: string): boolean {
   const parsed = new URL(url, 'app://cherry')
+
   return parsed.pathname === pathname && parsed.searchParams.get(param) === resourceId
 }
 
@@ -92,6 +102,7 @@ function collectionSubscription(
 
 function languageSubscription(invalidate: () => void): () => void {
   i18n.on('languageChanged', invalidate)
+
   return () => i18n.off('languageChanged', invalidate)
 }
 
@@ -101,6 +112,7 @@ function localizedCollectionSubscription(
   return (_targets, invalidate) => {
     const unsubscribeData = dataApiService.onDataChanged(endpoint, invalidate)
     const unsubscribeLanguage = languageSubscription(invalidate)
+
     return () => {
       unsubscribeData()
       unsubscribeLanguage()
@@ -114,8 +126,10 @@ const appProvider: SidebarShortcutProvider = {
     validates(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, target) && isSidebarAppId(target.locator.resourceId),
   async resolveMany(targets) {
     const result = new Map<string, ResolvedShortcut>()
+
     for (const target of targets) {
       const id = target.locator.resourceId
+
       if (!isSidebarAppId(id) || !getSidebarApp(id)) continue
       result.set(createSidebarShortcutId(target), {
         label: i18n.t(getSidebarIconLabelKey(id)),
@@ -125,16 +139,20 @@ const appProvider: SidebarShortcutProvider = {
         supportsNewTab: true
       })
     }
+
     return result
   },
   async activate(target, gateway) {
     if (!this.validate(target)) return
     const id = target.locator.resourceId
+
     const defaultPaintingProvider =
       id === 'paintings' ? await preferenceService.get('feature.paintings.default_provider') : ''
+
     if (!isSidebarAppId(id)) return
     const url = getSidebarMenuPath(id, defaultPaintingProvider)
     const app = getSidebarApp(id)
+
     if (!url || !app) return
     gateway.openWorkspace({
       url,
@@ -147,6 +165,7 @@ const appProvider: SidebarShortcutProvider = {
   subscribe: (_targets, invalidate) => languageSubscription(invalidate),
   isActive(target, navigation) {
     const app = isSidebarAppId(target.locator.resourceId) ? getSidebarApp(target.locator.resourceId) : undefined
+
     return !!app && (app.exactRouteFocus ? navigation.url === app.routePrefix : tabBelongsToApp(app, navigation.url))
   }
 }
@@ -156,6 +175,7 @@ const miniAppProvider: SidebarShortcutProvider = {
   validate: (target) => validates(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, target),
   async resolveMany(targets) {
     const miniApps = await dataApiService.get('/mini-apps')
+
     return mapRequested(
       targets,
       miniApps,
@@ -190,6 +210,7 @@ const agentProvider: SidebarShortcutProvider = {
       preferenceService.get('agent.icon_type'),
       preferenceService.get('chat.default_model_id')
     ])
+
     return resolvePaginatedTargets(
       targets,
       500,
@@ -229,6 +250,7 @@ const assistantProvider: SidebarShortcutProvider = {
       preferenceService.get('assistant.icon_type'),
       preferenceService.get('chat.default_model_id')
     ])
+
     return resolvePaginatedTargets(
       targets,
       500,
@@ -407,6 +429,7 @@ const codeCliProvider: SidebarShortcutProvider = {
   activate(target, gateway) {
     if (!this.validate(target)) return
     const tool = CODE_CLI_TOOL_BY_ID.get(target.locator.resourceId)
+
     if (!tool) return
     const isActiveToolUrl = (url: string) => isActiveResourceUrl(url, '/app/code', 'tool', tool.value)
     gateway.openWorkspace({
@@ -430,6 +453,7 @@ export const CORE_SIDEBAR_SHORTCUT_PROVIDERS: readonly SidebarShortcutProvider[]
   fileEntryProvider,
   codeCliProvider
 ]
+
 function resourceIconSubscription(
   endpoint: '/agents' | '/assistants',
   iconPreference: 'agent.icon_type' | 'assistant.icon_type'
@@ -440,6 +464,7 @@ function resourceIconSubscription(
       preferenceService.subscribeChange(iconPreference)(invalidate),
       preferenceService.subscribeChange('chat.default_model_id')(invalidate)
     ]
+
     return () => cleanups.forEach((cleanup) => cleanup())
   }
 }

@@ -17,7 +17,9 @@ export interface TaskListItem {
 }
 
 type TaskGetOutputObject = Exclude<NonNullable<ToolRendererProps<typeof AgentToolsType.TaskGet>['output']>, string>
+
 type TaskListOutputObject = Exclude<NonNullable<ToolRendererProps<typeof AgentToolsType.TaskList>['output']>, string>
+
 type TaskStopOutputObject = Exclude<NonNullable<ToolRendererProps<typeof AgentToolsType.TaskStop>['output']>, string>
 
 function isObject<T>(value: T): value is T & object {

@@ -35,6 +35,7 @@ const HighlightText: FC<HighlightTextProps> = ({ text, keyword, caseSensitive = 
           if (isMatch) {
             return <mark key={index}>{part}</mark>
           }
+
           return <span key={index}>{part}</span>
         })}
       </>

@@ -16,9 +16,11 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  */
 function requireOvms() {
   const manager = application.getOptional('OvmsManager')
+
   if (!manager) {
     throw new IpcError(ovmsErrorCodes.OVMS_NOT_AVAILABLE, 'OVMS is only available on Windows with an Intel CPU')
   }
+
   return manager
 }
 
@@ -35,10 +37,12 @@ export const ovmsHandlers: IpcHandlersFor<typeof ovmsRequestSchemas> = {
   'ovms.get_status': async () => requireOvms().getOvmsStatus(),
   'ovms.start': async () => {
     const result = await requireOvms().runOvms()
+
     if (!result.success) throw new IpcError(ovmsErrorCodes.OVMS_START_FAILED, result.message ?? 'Failed to start OVMS')
   },
   'ovms.stop': async () => {
     const result = await requireOvms().stopOvms()
+
     if (!result.success) throw new IpcError(ovmsErrorCodes.OVMS_STOP_FAILED, result.message ?? 'Failed to stop OVMS')
   }
 }

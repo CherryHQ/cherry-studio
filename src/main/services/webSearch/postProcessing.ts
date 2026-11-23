@@ -50,6 +50,7 @@ function applyCutoff(results: WebSearchResult[], config: WebSearchCompressionCon
 
   return results.map((result) => {
     const sliced = sliceContent(result.content, { maxTokens: perResultLimit }).content
+
     return {
       ...result,
       content: sliced.length < result.content.length ? `${sliced}...` : sliced

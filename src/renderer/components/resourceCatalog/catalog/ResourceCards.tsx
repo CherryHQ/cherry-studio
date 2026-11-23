@@ -20,6 +20,7 @@ import { SkillSourceBadge } from './SkillSourceBadge'
 // and without this it would also fire the card's primary action.
 function activateCardOnKeyDown(event: KeyboardEvent<HTMLDivElement>, activate: () => void) {
   if (event.target !== event.currentTarget) return
+
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
     activate()

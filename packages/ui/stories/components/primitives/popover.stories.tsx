@@ -28,6 +28,7 @@ const meta: Meta<typeof Popover> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {

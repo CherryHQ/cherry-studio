@@ -26,6 +26,7 @@ export default function AddModelDrawer({
 }: AddModelDrawerProps) {
   const { t } = useTranslation()
   const [footerBinding, setFooterBinding] = useState<AddModelDrawerFooterBinding | null>(null)
+
   const handleSuccess = useCallback(
     (modelIds: UniqueModelId[]) => {
       onSuccess?.(modelIds)

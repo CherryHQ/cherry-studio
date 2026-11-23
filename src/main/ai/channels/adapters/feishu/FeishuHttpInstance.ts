@@ -34,9 +34,11 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
         // the form (axios does this; native fetch does not). Build it ourselves and drop the
         // SDK's Content-Type so fetch can set one with a boundary.
         const form = new FormData()
+
         // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SDK upload endpoints own dynamic form fields and native Buffer values; this transport checks each entry before byte-preserving upload or string coercion.
         for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
           if (value === undefined || value === null) continue
+
           if (Buffer.isBuffer(value)) {
             const blob = new NodeBlob([value])
             // SAFETY: Node's global Blob is node:buffer.Blob; DOM typings narrow its bytes and stream declarations.
@@ -45,10 +47,12 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
             form.append(key, String(value))
           }
         }
+
         body = form
         headers.delete('content-type')
       } else {
         body = JSON.stringify(data)
+
         if (!headers.get('content-type')) {
           headers.set('content-type', 'application/json')
         }
@@ -56,6 +60,7 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
     }
 
     const fetchUrl = new URL(url)
+
     if (opts?.params) {
       for (const [key, value] of Object.entries(opts.params)) {
         fetchUrl.searchParams.set(key, String(value))
@@ -71,10 +76,12 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
       method: upperMethod,
       headers
     }
+
     if (upperMethod !== 'GET' && upperMethod !== 'HEAD' && body) request.body = body
     const res = await fetch(fetchUrl.toString(), request)
 
     const isStream = opts?.responseType === 'stream'
+
     const responseData = isStream
       ? res.body
         ? Readable.fromWeb(res.body as NodeReadableStream)
@@ -90,6 +97,7 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
             return text
           }
         })
+
     const responseHeaders = Object.fromEntries(res.headers.entries())
 
     if (!res.ok) {
@@ -99,7 +107,9 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
           : (responseData as { msg?: string; message?: string } | null)?.msg ||
             (responseData as { msg?: string; message?: string } | null)?.message ||
             res.statusText
+
       const error = new Error(`Feishu HTTP ${res.status}: ${detail}`)
+
       ;(error as Error & { response?: unknown }).response = {
         data: responseData,
         headers: responseHeaders,

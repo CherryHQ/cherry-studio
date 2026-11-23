@@ -26,6 +26,7 @@ export function useResourceListPaneResize({ onPaneCollapse }: ResourceListPaneRe
     RESOURCE_LIST_PANE_CACHE_KEY,
     RESOURCE_LIST_PANE_WINDOW_CACHE_KEY
   )
+
   const paneRef = useRef<HTMLDivElement>(null)
   const pendingPaneCollapseRef = useRef(false)
   const dragStateRef = useRef({ paneLeft: 0, startClientX: 0 })
@@ -40,12 +41,15 @@ export function useResourceListPaneResize({ onPaneCollapse }: ResourceListPaneRe
       const { paneLeft, startClientX } = dragStateRef.current
       const nextWidth = moveEvent.clientX - paneLeft
       const dragDelta = moveEvent.clientX - startClientX
+
       if (nextWidth < RESOURCE_LIST_PANE_MIN_WIDTH && dragDelta <= -RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD) {
         setStoredWidth(RESOURCE_LIST_PANE_DEFAULT_WIDTH)
         pendingPaneCollapseRef.current = true
         stop()
+
         return
       }
+
       setStoredWidth(clampResourceListPaneWidth(nextWidth))
     },
     [setStoredWidth]

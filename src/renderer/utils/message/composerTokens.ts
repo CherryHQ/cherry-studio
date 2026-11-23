@@ -12,6 +12,7 @@ function isTextPart(part: CherryMessagePart): part is Extract<CherryMessagePart,
 
 function getMessageParts(message: ExportableMessage): CherryMessagePart[] {
   const parts = (message as { parts?: unknown }).parts
+
   return Array.isArray(parts) ? (parts as CherryMessagePart[]) : []
 }
 
@@ -37,20 +38,26 @@ export function getComposerTokenClipboardText(token: ComposerMessageToken): stri
     const marker = token.id.startsWith(SKILL_TOKEN_ID_PREFIX)
       ? token.id.slice(SKILL_TOKEN_ID_PREFIX.length)
       : token.label
+
     return `/${marker}/`
   }
+
   if (token.kind === 'knowledge') {
     const marker = token.id.startsWith(KNOWLEDGE_TOKEN_ID_PREFIX)
       ? token.id.slice(KNOWLEDGE_TOKEN_ID_PREFIX.length)
       : token.label
+
     return `#${marker}#`
   }
+
   if (token.kind === 'folder') {
     return token.promptText ?? token.label
   }
+
   if (token.kind === 'link') {
     return token.promptText ?? token.label
   }
+
   return token.label
 }
 
@@ -65,6 +72,7 @@ export function replaceComposerTokenPromptText(
 
   tokens.forEach((token, index) => {
     const offset = Math.max(0, Math.min(content.length, token.textOffset))
+
     if (offset > cursor) {
       text += content.slice(cursor, offset)
       cursor = offset
@@ -90,10 +98,12 @@ export function getComposerTextFromParts(
 ): string {
   // Resolve tokens after selection so callbacks cannot change which parts participate.
   const textParts = parts.filter(isTextPart)
+
   return textParts
     .flatMap((part) => {
       const composer = readCherryMeta(part)?.composer
       const text = composer ? replaceComposerTokenPromptText(part.text, composer, getTokenText) : part.text
+
       return text.trim().length > 0 ? [text] : []
     })
     .join('\n\n')
@@ -107,8 +117,10 @@ export function getComposerTextFromMessage(
   if (message.role !== 'user') return fallbackContent
 
   const parts = getMessageParts(message)
+
   if (parts.length === 0) return fallbackContent
 
   const composerText = getComposerTextFromParts(parts, getTokenText)
+
   return composerText || fallbackContent
 }

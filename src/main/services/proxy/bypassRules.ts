@@ -49,6 +49,7 @@ export function createProxyBypassMatcher(
 
   const buildWildcardRegex = (pattern: string): RegExp => {
     const escapedSegments = pattern.split('*').map((segment) => segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+
     return new RegExp(`^${escapedSegments.join('.*')}$`, 'i')
   }
 
@@ -58,6 +59,7 @@ export function createProxyBypassMatcher(
     }
 
     const replaced = value.replace(/\*/g, '0')
+
     return ipaddrModule.isValid(replaced)
   }
 
@@ -69,11 +71,14 @@ export function createProxyBypassMatcher(
         return normalizedHostname === rule.domain
       case 'wildcardSubdomain': {
         const domain = rule.domain
+
         if (!domain) {
           return false
         }
+
         return normalizedHostname === domain || normalizedHostname.endsWith(`.${domain}`)
       }
+
       case 'generalWildcard':
         return rule.regex ? rule.regex.test(normalizedHostname) : false
       default:
@@ -83,6 +88,7 @@ export function createProxyBypassMatcher(
 
   const parseProxyBypassRule = (rule: string): ParsedProxyBypassRule | null => {
     const trimmedRule = rule.trim()
+
     if (!trimmedRule) {
       return null
     }
@@ -121,6 +127,7 @@ export function createProxyBypassMatcher(
     let workingRule = trimmedRule
     let scheme: string | undefined
     const schemeMatch = workingRule.match(/^([a-zA-Z][a-zA-Z\d+\-.]*):\/\//)
+
     if (schemeMatch) {
       scheme = schemeMatch[1].toLowerCase()
       workingRule = workingRule.slice(schemeMatch[0].length)
@@ -130,6 +137,7 @@ export function createProxyBypassMatcher(
       // For a bracketed IPv6 subnet like `[::ffff:127.0.0.0]/104` the `]` sits before the prefix,
       // not at the end — strip the pair wherever it wraps the literal.
       const cleanedCidr = workingRule.replace(/^\[/, '').replace(/\]/, '')
+
       if (ipaddrModule.isValidCIDR(cleanedCidr)) {
         return {
           type: 'cidr',
@@ -143,12 +151,14 @@ export function createProxyBypassMatcher(
 
     let port: string | undefined
     const portMatch = workingRule.match(/^(.+?):(\d+)$/)
+
     if (portMatch) {
       const potentialHost = portMatch[1]
       // `::1` is one IPv6 address, not host `:` on port `1`: an unbracketed literal has to survive the
       // split untouched, or every IPv6 rule whose last group is decimal silently stops matching.
       // `isValid` rejects bracketed hosts, so `[::1]:8080` still splits into host + port.
       const isUnbracketedIpv6 = ipaddrModule.isValid(workingRule) && ipaddrModule.parse(workingRule).kind() === 'ipv6'
+
       if (!isUnbracketedIpv6 && (!potentialHost.startsWith('[') || potentialHost.includes(']'))) {
         workingRule = potentialHost
         port = portMatch[2]
@@ -178,6 +188,7 @@ export function createProxyBypassMatcher(
     if (isWildcardIp(cleanedHost)) {
       // `*` may span several octets: Windows exceptions like `192.168.*` must still match `192.168.1.10`.
       const regexPattern = cleanedHost.replace(/\./g, '\\.').replace(/\*/g, '[\\d.]+')
+
       return {
         type: 'ip',
         matchType: 'generalWildcard',
@@ -190,6 +201,7 @@ export function createProxyBypassMatcher(
 
     if (workingRule.startsWith('*.')) {
       const domain = normalizedHost.slice(2)
+
       return {
         type: 'domain',
         matchType: 'wildcardSubdomain',
@@ -202,6 +214,7 @@ export function createProxyBypassMatcher(
 
     if (workingRule.startsWith('.')) {
       const domain = normalizedHost.slice(1)
+
       return {
         type: 'domain',
         matchType: 'wildcardSubdomain',
@@ -235,13 +248,16 @@ export function createProxyBypassMatcher(
 
   const isLocalHostname = (hostname: string): boolean => {
     const normalized = hostname.toLowerCase()
+
     if (normalized === 'localhost') {
       return true
     }
 
     const cleaned = hostname.replace(/^\[|\]$/g, '')
+
     if (ipaddrModule.isValid(cleaned)) {
       const parsed = ipaddrModule.parse(cleaned)
+
       return parsed.range() === 'loopback'
     }
 
@@ -260,12 +276,15 @@ export function createProxyBypassMatcher(
     }
 
     const cleaned = hostname.replace(/^\[|\]$/g, '')
+
     if (ipaddrModule.isValid(cleaned)) {
       const parsed = ipaddrModule.parse(cleaned)
       const range = parsed.range()
+
       if (range === 'linkLocal' || range === 'unspecified') {
         return true
       }
+
       // [::ffff:127.0.0.1]/104 — the one loopback family net::IsLocalhost() misses, which is
       // why Chromium carries a dedicated check beside it.
       if (
@@ -298,14 +317,17 @@ export function createProxyBypassMatcher(
 
     const parsedLeft = ipaddrModule.parse(left)
     const parsedRight = ipaddrModule.parse(right)
+
     return (
       parsedLeft.kind() === parsedRight.kind() && parsedLeft.toNormalizedString() === parsedRight.toNormalizedString()
     )
   }
 
   const parsedByPassRules: ParsedProxyBypassRule[] = []
+
   for (const rule of rules) {
     const parsedRule = parseProxyBypassRule(rule)
+
     if (parsedRule) {
       parsedByPassRules.push(parsedRule)
     } else {
@@ -316,6 +338,7 @@ export function createProxyBypassMatcher(
   return {
     isByPass(url: string, perCallLogger?: NodeProxyLogger): boolean {
       const log = perCallLogger ?? logger
+
       if (parsedByPassRules.length === 0) {
         return false
       }
@@ -340,6 +363,7 @@ export function createProxyBypassMatcher(
         // both `localhost,<-loopback>` and `<-loopback>,localhost`.
         for (let i = parsedByPassRules.length - 1; i >= 0; i--) {
           const rule = parsedByPassRules[i]
+
           if (rule.scheme && rule.scheme !== protocolName) {
             continue
           }
@@ -355,6 +379,7 @@ export function createProxyBypassMatcher(
               if (isLocalHostname(hostname)) {
                 return true
               }
+
               break
             case 'loopbackScope':
               // Reverse iteration short-circuits on the first match, so reaching this case means
@@ -362,6 +387,7 @@ export function createProxyBypassMatcher(
               if (isImplicitLoopbackScope(hostname)) {
                 return false
               }
+
               break
             case 'ip':
               if (!hostnameIsIp) {
@@ -375,20 +401,24 @@ export function createProxyBypassMatcher(
               if (rule.regex && rule.regex.test(cleanedHostname)) {
                 return true
               }
+
               break
             case 'cidr':
               if (hostnameIsIp && rule.cidr) {
                 const parsedHost = ipaddrModule.parse(cleanedHostname)
                 const [cidrAddress, prefixLength] = rule.cidr
+
                 if (parsedHost.kind() === cidrAddress.kind() && parsedHost.match([cidrAddress, prefixLength])) {
                   return true
                 }
               }
+
               break
             case 'domain':
               if (!hostnameIsIp && matchHostnameRule(hostname, rule)) {
                 return true
               }
+
               break
             default:
               log?.error?.(`Unknown proxy bypass rule type: ${rule.type}`)
@@ -397,6 +427,7 @@ export function createProxyBypassMatcher(
         }
       } catch (error) {
         log?.error?.('Failed to check bypass:', error)
+
         return false
       }
 

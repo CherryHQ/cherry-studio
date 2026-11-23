@@ -54,10 +54,13 @@ class ImportService {
     for (const importer of this.importers.values()) {
       if (importer.validate(fileContent)) {
         logger.info(`Detected importer: ${importer.name}`)
+
         return importer
       }
     }
+
     logger.warn('No matching importer found for file content')
+
     return null
   }
 
@@ -80,6 +83,7 @@ class ImportService {
       if (importerName) {
         // Use specified importer
         const foundImporter = this.getImporter(importerName)
+
         if (!foundImporter) {
           return {
             success: false,
@@ -88,10 +92,12 @@ class ImportService {
             error: `Importer "${importerName}" not found`
           }
         }
+
         importer = foundImporter
       } else {
         // Auto-detect importer
         importer = this.detectImporter(fileContent)
+
         if (!importer) {
           return {
             success: false,
@@ -114,6 +120,7 @@ class ImportService {
           })
         }
       }
+
       onProgress?.(5)
 
       // Parse before creating anything: a failed import must be side-effect free.
@@ -121,12 +128,14 @@ class ImportService {
       onProgress?.(10)
 
       const importerKey = `import.${importer.name.toLowerCase()}.assistant_name`
+
       const dto: CreateAssistantDto = {
         name: i18n.t(importerKey, {
           defaultValue: `${importer.name} Import`
         }),
         emoji: importer.emoji
       }
+
       const assistant = await dataApiService.post('/assistants', { body: dto })
       onProgress?.(20)
 
@@ -155,6 +164,7 @@ class ImportService {
       }
     } catch (error) {
       logger.error('Import failed:', error as Error)
+
       return {
         success: false,
         topicsCount: 0,
@@ -195,9 +205,11 @@ class ImportService {
           })
           continue
         }
+
         await this.purgeTrashedTopic(topicId, cause)
       }
     }
+
     try {
       await ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: false })
     } catch (activeError) {
@@ -206,8 +218,10 @@ class ImportService {
           assistantId,
           cause: String(cause)
         })
+
         return
       }
+
       try {
         await dataApiService.delete(`/assistants/${assistantId}`, { query: { permanent: true } })
       } catch (trashedError) {
@@ -219,6 +233,7 @@ class ImportService {
         }
       }
     }
+
     logger.info('Rolled back the assistant after a failed import', { assistantId, cause: String(cause) })
   }
 
@@ -265,6 +280,7 @@ class ImportService {
       status: 'success',
       setAsActive: false
     }
+
     if (siblingsGroupId) dto.siblingsGroupId = siblingsGroupId
 
     if (message.role === 'assistant' && message.model) {
@@ -278,6 +294,7 @@ class ImportService {
           provider: message.model.provider
         }
       }
+
       if (message.model.group) Object.assign(snapshot.model, { group: message.model.group })
       dto.messageSnapshot = snapshot
     }
@@ -296,11 +313,15 @@ class ImportService {
     createdTopicIds?: string[]
   ): Promise<number> {
     const { conversations } = result
+
     const totalSteps = conversations.reduce((count, conversation) => {
       const activeSourceId = conversation.activeSourceId ?? conversation.messages.at(-1)?.sourceId
+
       return count + 1 + conversation.messages.length + (activeSourceId ? 1 : 0)
     }, 0)
+
     let completedSteps = 0
+
     const completeStep = () => {
       completedSteps++
       onProgress?.(20 + Math.floor((completedSteps / totalSteps) * 79))
@@ -310,10 +331,12 @@ class ImportService {
       const createdTopic = await dataApiService.post('/topics', {
         body: { name: conversation.name, assistantId: assistant.id }
       })
+
       createdTopicIds?.push(createdTopic.id)
       completeStep()
 
       const messagesByParent = new Map<string | undefined, Map<ImportMessageNode['role'], ImportMessageNode[]>>()
+
       for (const message of conversation.messages) {
         const messagesByRole = messagesByParent.get(message.parentSourceId) ?? new Map()
         const siblings = messagesByRole.get(message.role) ?? []
@@ -324,9 +347,11 @@ class ImportService {
 
       const siblingGroupIds = new Map<string, number>()
       let nextSiblingGroupId = 1
+
       for (const messagesByRole of messagesByParent.values()) {
         for (const siblings of messagesByRole.values()) {
           if (siblings.length < 2) continue
+
           for (const sibling of siblings) siblingGroupIds.set(sibling.sourceId, nextSiblingGroupId)
           nextSiblingGroupId++
         }
@@ -334,14 +359,18 @@ class ImportService {
 
       const createdIds = new Map<string, string>()
       const pendingSourceIds = new Set(conversation.messages.map((message) => message.sourceId))
+
       while (pendingSourceIds.size > 0) {
         let createdInPass = 0
+
         for (const message of conversation.messages) {
           if (!pendingSourceIds.has(message.sourceId)) continue
 
           let parentId: string | null = null
+
           if (message.parentSourceId) {
             const createdParentId = createdIds.get(message.parentSourceId)
+
             if (!createdParentId) continue
             parentId = createdParentId
           }
@@ -349,6 +378,7 @@ class ImportService {
           const created = await dataApiService.post(`/topics/${createdTopic.id}/messages`, {
             body: this.toMessageDto(message, parentId, siblingGroupIds.get(message.sourceId), assistant)
           })
+
           createdIds.set(message.sourceId, created.id)
           pendingSourceIds.delete(message.sourceId)
           createdInPass++
@@ -362,14 +392,17 @@ class ImportService {
 
       const activeSourceId = conversation.activeSourceId ?? conversation.messages.at(-1)?.sourceId
       const activeNodeId = activeSourceId ? createdIds.get(activeSourceId) : undefined
+
       if (activeNodeId) {
         await dataApiService.put(`/topics/${createdTopic.id}/active-node`, { body: { nodeId: activeNodeId } })
       }
+
       if (activeSourceId) completeStep()
     }
 
     const messagesCount = conversations.reduce((count, conversation) => count + conversation.messages.length, 0)
     logger.info(`Persisted import: ${conversations.length} topics, ${messagesCount} messages`)
+
     return messagesCount
   }
 }

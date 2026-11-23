@@ -1,6 +1,7 @@
 import { DomUtils, parseDocument, Parser } from 'htmlparser2'
 
 const ACTIVE_CONTENT_ELEMENTS = new Set(['script', 'iframe', 'object', 'embed'])
+
 const URL_ATTRIBUTES = new Set([
   'action',
   'background',
@@ -16,6 +17,7 @@ const URL_ATTRIBUTES = new Set([
   'src',
   'srcset'
 ])
+
 const EXTERNAL_URL_PATTERN = /(?:^|[\s"'(,])(?:https?:|file:|\/\/)/i
 const SCRIPT_URL_PATTERN = /^\s*(?:javascript|vbscript):/i
 const ASCII_TAB_OR_NEWLINE_PATTERN = /[\t\n\r]/g
@@ -31,8 +33,10 @@ function decodeCssEscapes(value: string): string {
     (_, hexEscape: string | undefined, lineBreak: string | undefined, escaped) => {
       if (hexEscape) {
         const codePoint = Number.parseInt(hexEscape, 16)
+
         return codePoint === 0 || codePoint > 0x10ffff ? '\uFFFD' : String.fromCodePoint(codePoint)
       }
+
       return lineBreak ? '' : (escaped ?? '')
     }
   )
@@ -52,30 +56,36 @@ export function htmlArtifactRequiresUserConsent(html: string): boolean {
   try {
     let requiresUserConsent = false
     let styleDepth = 0
+
     const parser = new Parser(
       {
         onopentag(name, attributes) {
           if (ACTIVE_CONTENT_ELEMENTS.has(name)) {
             requiresUserConsent = true
           }
+
           if (name === 'style') {
             styleDepth += 1
           }
+
           if (name === 'meta' && attributes['http-equiv']?.toLowerCase() === 'refresh') {
             requiresUserConsent = true
           }
 
           for (const [attributeName, value] of Object.entries(attributes)) {
             const normalizedValue = normalizeUrlAttribute(value)
+
             if (attributeName.startsWith('on') || SCRIPT_URL_PATTERN.test(normalizedValue)) {
               requiresUserConsent = true
             }
+
             if (
               (URL_ATTRIBUTES.has(attributeName) || attributeName.endsWith(':href')) &&
               containsExternalUrl(normalizedValue)
             ) {
               requiresUserConsent = true
             }
+
             if (attributeName === 'style' && containsExternalCssUrl(value)) {
               requiresUserConsent = true
             }
@@ -99,6 +109,7 @@ export function htmlArtifactRequiresUserConsent(html: string): boolean {
     )
 
     parser.end(html)
+
     return requiresUserConsent
   } catch {
     return true
@@ -116,11 +127,13 @@ export function stripMetaRefresh(html: string): string {
   // browser side. The zero-width space is invisible in rendered comment text.
   const normalized = html.replace(/--!>/g, '--!\u200b>')
   const document = parseDocument(normalized)
+
   for (const meta of DomUtils.findAll(
     (element) => element.name === 'meta' && element.attribs['http-equiv']?.toLowerCase() === 'refresh',
     document.children
   )) {
     DomUtils.removeElement(meta)
   }
+
   return DomUtils.getOuterHTML(document)
 }

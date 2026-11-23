@@ -25,7 +25,9 @@ const destructiveBuiltinOperation = (ctx: ToolGuardContext): GuardHit | null => 
 
 const feedbackSubmissionCommand = (ctx: ToolGuardContext): GuardHit | null => {
   const command = ctx.input?.command
+
   if (typeof command !== 'string') return null
+
   return isLarkFormSubmissionCommand(command) || isGitHubIssueCreationCommand(command) ? {} : null
 }
 

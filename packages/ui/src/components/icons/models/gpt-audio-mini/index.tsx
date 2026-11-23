@@ -4,6 +4,7 @@ import { GptAudioMiniLight } from './light'
 
 const GptAudioMini = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GptAudioMiniLight {...props} className={className} />
+
   return <GptAudioMiniLight {...props} className={className} />
 }
 

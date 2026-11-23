@@ -13,6 +13,7 @@ export function MessageUserLayout({ children }: { children: ReactNode }) {
   const config = useMessageRenderConfig()
   const { t } = useTranslation()
   const bubble = config.messageStyle === 'bubble'
+
   return (
     <div className={cn('flex w-full', bubble && 'justify-end')}>
       <div

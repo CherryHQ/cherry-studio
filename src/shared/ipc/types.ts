@@ -42,7 +42,9 @@ export type IpcHandlersFor<S extends Record<string, RouteDef>> = {
 
 /** Parsed input type for a global request route. */
 export type InputFor<R extends IpcRoute> = z.infer<IpcRequestSchemas[R]['input']>
+
 /** Output type for a global request route. */
 export type OutputFor<R extends IpcRoute> = z.infer<IpcRequestSchemas[R]['output']>
+
 /** Payload type for a global event name. */
 export type EventPayload<E extends IpcEventName> = IpcEventSchemas[E]

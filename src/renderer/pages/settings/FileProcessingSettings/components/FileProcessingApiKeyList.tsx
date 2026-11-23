@@ -73,8 +73,10 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
   const handleSave = async () => {
     try {
       const result = await onUpdate(editValue)
+
       if (!result.isValid) {
         toast.warning(result.error)
+
         return
       }
 
@@ -88,6 +90,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
   const handleCancelEdit = () => {
     if (item.isNew || !item.key.trim()) {
       void onRemove()
+
       return
     }
 
@@ -207,6 +210,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
 
 export const FileProcessingApiKeyList: FC<FileProcessingApiKeyListProps> = ({ processorId, apiKeys, onSetApiKeys }) => {
   const { t } = useTranslation()
+
   const { keys, displayItems, hasPendingNewKey, addPendingKey, updateListItem, removeListItem } =
     useFileProcessingApiKeyList({
       processorId,

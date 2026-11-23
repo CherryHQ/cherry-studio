@@ -28,14 +28,18 @@ export function createDiagnosticBudgetSelector(limitBytes: number) {
   const trySelect = (candidate: DiagnosticBudgetCandidate<unknown>): boolean => {
     const candidatePartKeys = new Set<string>()
     let bytes = 0
+
     for (const part of candidate.parts) {
       if (selectedPartKeys.has(part.key) || candidatePartKeys.has(part.key)) continue
       candidatePartKeys.add(part.key)
       bytes += part.bytes
     }
+
     if (bytes > remainingBytes) return false
     remainingBytes -= bytes
+
     for (const key of candidatePartKeys) selectedPartKeys.add(key)
+
     return true
   }
 

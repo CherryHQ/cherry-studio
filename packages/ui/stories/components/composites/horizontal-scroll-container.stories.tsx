@@ -24,6 +24,7 @@ const meta: Meta<typeof HorizontalScrollContainer> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Default example

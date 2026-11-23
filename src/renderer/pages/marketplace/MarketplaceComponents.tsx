@@ -28,6 +28,7 @@ export function MarketplaceCategoryFilter({
   categoryLabel: (category: string) => string
 }) {
   const { t } = useTranslation()
+
   return (
     <div role="group" className="mb-3 shrink-0 pr-4" aria-label={t('marketplace.categories')}>
       <HorizontalScrollContainer
@@ -111,8 +112,10 @@ export function MarketplaceGrid<T extends { id: string }>({
     if (!element || !virtualized) return
     const observer = new ResizeObserver(([entry]) => setColumns(entry.contentRect.width >= 720 ? 2 : 1))
     observer.observe(element)
+
     return () => observer.disconnect()
   }, [element, virtualized])
+
   const rows = useVirtualizer({
     count: virtualized ? Math.ceil(items.length / columns) : 0,
     getScrollElement: () => element,
@@ -122,6 +125,7 @@ export function MarketplaceGrid<T extends { id: string }>({
     gap: 8,
     enabled: virtualized
   })
+
   if (!virtualized)
     return (
       <div className="grid grid-cols-1 gap-x-4 gap-y-2 @[720px]:grid-cols-2">
@@ -132,6 +136,7 @@ export function MarketplaceGrid<T extends { id: string }>({
         ))}
       </div>
     )
+
   return (
     <ScrollArea
       viewportProps={{ ref: setElement }}
@@ -173,6 +178,7 @@ export function MarketplaceLoadState({
   retry?: () => void | Promise<void>
 }) {
   const { t } = useTranslation()
+
   if (error)
     return (
       <div role="alert" className="text-error my-3 flex items-center justify-between gap-3 text-sm">
@@ -182,19 +188,23 @@ export function MarketplaceLoadState({
         </Button>
       </div>
     )
+
   if (loading)
     return (
       <div className="flex h-24 items-center justify-center">
         <Spinner text={t('common.loading')} />
       </div>
     )
+
   if (empty)
     return <EmptyState title={t('marketplace.no_results')} description={t('marketplace.no_results_description')} />
+
   return null
 }
 
 export function MarketplaceDetailContent({ className, ...props }: ComponentProps<typeof DialogContent>) {
   const { t } = useTranslation()
+
   return (
     <DialogContent
       size="default"

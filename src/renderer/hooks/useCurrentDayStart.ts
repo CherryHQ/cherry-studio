@@ -9,9 +9,11 @@ function subscribeToDayCheck(onCheck: () => void) {
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') onCheck()
   }
+
   const intervalId = window.setInterval(onCheck, DAY_CHECK_INTERVAL_MS)
   window.addEventListener('focus', onCheck)
   document.addEventListener('visibilitychange', handleVisibilityChange)
+
   return () => {
     window.clearInterval(intervalId)
     window.removeEventListener('focus', onCheck)

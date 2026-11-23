@@ -4,6 +4,7 @@ import { BurncloudLight } from './light'
 
 const Burncloud = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <BurncloudLight {...props} className={className} />
+
   return <BurncloudLight {...props} className={className} />
 }
 

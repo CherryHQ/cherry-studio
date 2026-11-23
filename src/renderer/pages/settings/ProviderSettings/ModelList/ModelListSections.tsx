@@ -18,6 +18,7 @@ import type { ModelListGroupSection } from './useProviderModelList'
 
 const MODEL_LIST_GROUP_ROW_ESTIMATE = 38
 const MODEL_LIST_MODEL_ROW_ESTIMATE = 44
+
 // A stable row keeps group spacing from moving between measured rows when a group collapses.
 const MODEL_LIST_GROUP_SEPARATOR_HEIGHT = 10
 
@@ -25,6 +26,7 @@ type HealthAwareModelListItemProps = Omit<React.ComponentProps<typeof ModelListI
 
 const HealthAwareModelListItem: React.FC<HealthAwareModelListItemProps> = (props) => {
   const modelStatus = useModelHealthStatus(props.model.id)
+
   return <ModelListItem {...props} modelStatus={modelStatus} />
 }
 
@@ -108,6 +110,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
     return enabledSections.flatMap(({ groupName, items }, index) => {
       const defaultOpen = index <= 5
       const open = groupOpenOverrides[groupName] ?? defaultOpen
+
       const groupRow: ModelListVirtualRow = {
         type: 'group',
         key: `group:${groupName}`,
@@ -116,6 +119,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
         defaultOpen,
         open
       }
+
       const separatorRow: ModelListVirtualRow = {
         type: 'separator',
         key: `separator:${groupName}`
@@ -175,8 +179,11 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
       role="list"
       estimateSize={(index) => {
         const row = virtualRows[index]
+
         if (row?.type === 'group') return MODEL_LIST_GROUP_ROW_ESTIMATE
+
         if (row?.type === 'separator') return MODEL_LIST_GROUP_SEPARATOR_HEIGHT
+
         return MODEL_LIST_MODEL_ROW_ESTIMATE
       }}
       overscan={10}

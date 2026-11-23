@@ -67,10 +67,12 @@ export function PromptPolishActions({
   const usesFallback = !value.trim()
   const generationSource = usesFallback ? (fallbackSource?.trim() ?? '') : value
   const modelLabel = defaultModel?.name?.trim() || t('library.config.prompt.no_default_model')
+
   const actionLabel = t(
     usesFallback ? 'library.config.prompt.generate_with_model' : 'library.config.prompt.polish_with_model',
     { model: modelLabel }
   )
+
   const cancelLabel = t('library.config.prompt.cancel_with_model', { model: modelLabel })
   const settingsLabel = t('library.config.prompt.open_default_model_settings')
   const onChangeRef = useRef(onChange)
@@ -87,8 +89,10 @@ export function PromptPolishActions({
   useEffect(() => {
     return () => {
       requestIdRef.current += 1
+
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       abortControllerRef.current?.abort(new DOMException('Prompt polish cancelled', 'AbortError'))
+
       // The owner of the running state can outlive this button, e.g. a dialog whose content unmounts on close.
       if (inFlightRef.current) onRunningChangeRef.current?.(false)
     }
@@ -106,6 +110,7 @@ export function PromptPolishActions({
   const canUndo = restoreState?.polished === value
   const undoDisabled = disabled || running
   const actionDisabled = disabled || !generationSource
+
   const settingsAction = {
     label: settingsLabel,
     onClick: () => openSettingsTab(DEFAULT_MODEL_SETTINGS_PATH)
@@ -117,17 +122,21 @@ export function PromptPolishActions({
     requestIdRef.current += 1
     inFlightRef.current = false
     abortControllerRef.current = null
+
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
       timeoutRef.current = null
     }
+
     updateRunning(false)
     controller.abort(reason)
+
     return true
   }
 
   const handleCancel = () => {
     const controller = abortControllerRef.current
+
     if (!controller) return
     stopActiveRequest(controller, new DOMException('Prompt polish cancelled', 'AbortError'))
   }
@@ -139,9 +148,11 @@ export function PromptPolishActions({
     const source = generationSource
     const requestUsesFallback = usesFallback
     const requestSystemPrompt = requestUsesFallback ? emptyValueSystemPrompt : existingValueSystemPrompt
+
     const failureTitle = t(
       requestUsesFallback ? 'library.config.prompt.generate_failed_title' : 'library.config.prompt.polish_failed_title'
     )
+
     const requestModel = defaultModelRef.current
 
     // The default-model query is normally empty while it loads. That is not a missing model;
@@ -152,6 +163,7 @@ export function PromptPolishActions({
         description: t('error.model.not_exists'),
         action: settingsAction
       })
+
       return
     }
 
@@ -185,21 +197,26 @@ export function PromptPolishActions({
       ) {
         return
       }
+
       if (!polished.trim()) {
         toast.error({
           title: failureTitle,
           description: t('error.no_response'),
           action: settingsAction
         })
+
         return
       }
+
       if (!requestUsesFallback && !preservesProtectedPromptTokens(original, polished)) {
         toast.error({
           title: t('library.config.prompt.polish_variables_changed_title'),
           description: t('library.config.prompt.polish_variables_changed_description')
         })
+
         return
       }
+
       if (polished === original) return
 
       setRestoreState({ original, polished })

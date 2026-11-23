@@ -9,8 +9,10 @@ export function parseAgentConfiguration(
   context: { entityId: string; entityType: 'agent' | 'session' }
 ): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
+
   if (invalidKeys.length > 0) {
     logger.warn('Agent configuration drift detected; dropping invalid keys', { ...context, invalidKeys })
   }
+
   return data
 }

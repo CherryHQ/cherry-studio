@@ -43,6 +43,7 @@ export async function runFormulaFiber(
   args: unknown
 ): Promise<string> {
   const doFetch = settings.fetch ?? globalThis.fetch
+
   const response = await doFetch(`${withoutTrailingSlash(settings.baseURL)}/formulas/${formulaUri}/fibers`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${settings.apiKey}`, 'Content-Type': 'application/json' },
@@ -50,10 +51,13 @@ export async function runFormulaFiber(
   })
 
   const fiber = (await response.json().catch(() => ({}))) as FormulaFiber
+
   if (fiber.status === 'succeeded') {
     const output = fiber.context?.output || fiber.context?.encrypted_output
+
     if (output) return output
   }
+
   // Throw rather than returning an "Error: …" string as a normal result: the SDK still hands the
   // message to the model, and the tool part is marked failed instead of masquerading as a search
   // that returned nothing.
@@ -123,6 +127,7 @@ export interface MoonshotProvider extends ProviderV3 {
 export function createMoonshotProvider(settings: MoonshotProviderSettings = {}): MoonshotProvider {
   const { baseURL = 'https://api.moonshot.cn/v1', fetch: customFetch } = settings
   const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
+
   const headers = () => ({
     Authorization: `Bearer ${loadApiKey({
       apiKey: settings.apiKey,

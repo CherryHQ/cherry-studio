@@ -23,4 +23,5 @@ import { LogoKeySchema } from './logoKey'
 
 /** Renderer-facing create logo — a preset key only (uploads use the set-logo command). */
 export const CreateLogoSchema = z.strictObject({ kind: z.literal('key'), key: LogoKeySchema })
+
 export type CreateLogoInput = z.infer<typeof CreateLogoSchema>

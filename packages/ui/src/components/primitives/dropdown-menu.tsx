@@ -21,6 +21,7 @@ function DropdownMenu({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
   const [open, setOpen] = useControllableState({ prop: openProp, defaultProp: defaultOpen, onChange: onOpenChange })
+
   return (
     <KeyboardLayerRoot open={open}>
       <DropdownMenuPrimitive.Root data-slot="dropdown-menu" open={open} onOpenChange={setOpen} {...props} />
@@ -30,6 +31,7 @@ function DropdownMenu({
 
 function DropdownMenuPortal({ container, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {
   const defaultPortalContainer = usePortalContainer()
+
   return (
     <DropdownMenuPrimitive.Portal
       data-slot="dropdown-menu-portal"
@@ -58,6 +60,7 @@ function DropdownMenuContent({
 }: DropdownMenuContentProps) {
   const { element, ref } = useKeyboardLayerRef(forwardedRef)
   const layer = useKeyboardLayerState(props.forceMount)
+
   return (
     <DropdownMenuPortal container={portalContainer} forceMount={props.forceMount}>
       <DropdownMenuPrimitive.Content
@@ -209,6 +212,7 @@ function DropdownMenuSub({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
   const [open, setOpen] = useControllableState({ prop: openProp, defaultProp: defaultOpen, onChange: onOpenChange })
+
   return (
     <KeyboardLayerRoot open={open}>
       <DropdownMenuPrimitive.Sub data-slot="dropdown-menu-sub" open={open} onOpenChange={setOpen} {...props} />
@@ -247,6 +251,7 @@ function DropdownMenuSubContent({
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
   const { element, ref } = useKeyboardLayerRef(forwardedRef)
   const open = React.use(KeyboardLayerOpenContext)
+
   return (
     <DropdownMenuPrimitive.SubContent
       ref={ref}

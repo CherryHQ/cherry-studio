@@ -1,5 +1,9 @@
 export { HelpTooltip } from './help-tooltip'
+
 export { type BaseIconTooltipProps, IconTooltip } from './icon-tooltip'
+
 export { InfoTooltip } from './info-tooltip'
+
 export type { IconTooltipProps } from './types'
+
 export { WarnTooltip } from './warn-tooltip'

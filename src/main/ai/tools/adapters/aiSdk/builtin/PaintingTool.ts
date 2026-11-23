@@ -27,11 +27,13 @@ export { GENERATE_IMAGE_TOOL_NAME }
 
 function buildGenerateImageTool(configuredModel?: ConfiguredPaintingModel) {
   const inputSchema = buildGenerateImageToolSchema(configuredModel?.support)
+
   return dynamicTool({
     description: GENERATE_IMAGE_DESCRIPTION,
     inputSchema,
     execute: async (input, options) => {
       const parsed = inputSchema.parse(input) as GenerateImageToolInput
+
       return configuredModel === undefined
         ? generateImageFromPrompt(parsed, getToolCallContext(options).request.abortSignal)
         : generateImageFromPrompt(parsed, getToolCallContext(options).request.abortSignal, configuredModel)
@@ -59,4 +61,5 @@ export function createGenerateImageToolEntry(): ToolEntry {
 }
 
 export type { GenerateImageToolInput }
+
 export type GenerateImageToolOutput = PaintingResult

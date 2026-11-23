@@ -11,6 +11,7 @@ export type AgentSessionStreamState = {
 
 const getAgentSessionStreamStatusCacheKey = (sessionId: string) =>
   `topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const
+
 const SESSION_ID_SEPARATOR = '\u0000'
 const EMPTY_AGENT_SESSION_STREAM_STATUSES = new Map<string, AgentSessionStreamState>()
 
@@ -35,11 +36,15 @@ function areAgentSessionStreamStatusesEqual(
   b: ReadonlyMap<string, AgentSessionStreamState>
 ): boolean {
   if (a === b) return true
+
   if (a.size !== b.size) return false
+
   for (const [sessionId, state] of a) {
     const other = b.get(sessionId)
+
     if (!other || other.status !== state.status || other.isPending !== state.isPending) return false
   }
+
   return true
 }
 
@@ -47,19 +52,23 @@ export function useAgentSessionStreamStatuses(
   sessionIds: readonly string[]
 ): ReadonlyMap<string, AgentSessionStreamState> {
   const sessionIdsKey = useMemo(() => Array.from(new Set(sessionIds)).sort().join(SESSION_ID_SEPARATOR), [sessionIds])
+
   const uniqueSessionIds = useMemo(
     () => (sessionIdsKey ? sessionIdsKey.split(SESSION_ID_SEPARATOR) : []),
     [sessionIdsKey]
   )
+
   const selector = useCallback(
     (values: readonly (TopicStatusSnapshotEntry | null | undefined)[]) => {
       const entries: Array<[string, AgentSessionStreamState]> = []
       uniqueSessionIds.forEach((sessionId, index) => {
         const state = toAgentSessionStreamState(values[index])
+
         if (state) entries.push([sessionId, state])
       })
 
       if (entries.length === 0) return EMPTY_AGENT_SESSION_STREAM_STATUSES
+
       return new Map(entries)
     },
     [uniqueSessionIds]

@@ -39,6 +39,7 @@ export function initSentry(): void {
     ],
     beforeSend: (event, hint) => {
       if (hasReportingOwner(hint?.originalException) || isCancellation(hint?.originalException)) return null
+
       return sanitizeSentryEvent({
         ...event,
         tags: { ...event.tags, ...buildContext.tags, window: windowSource, 'event.process': 'renderer' }
@@ -50,8 +51,10 @@ export function initSentry(): void {
   })
   loggerService.setErrorReporter(({ error, entry }) => {
     const context = getSentryLogContext(entry)
+
     if (!context) return
     context.tags['capture.source'] = 'log'
+
     if (error) captureException(error, context)
     else captureEvent({ ...context, level: 'error', message: context.tags.operation ?? context.tags['failure.reason'] })
   })

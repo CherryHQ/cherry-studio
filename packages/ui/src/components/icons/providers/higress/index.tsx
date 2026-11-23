@@ -4,6 +4,7 @@ import { HigressLight } from './light'
 
 const Higress = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <HigressLight {...props} className={className} />
+
   return <HigressLight {...props} className={className} />
 }
 

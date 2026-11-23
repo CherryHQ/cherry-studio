@@ -60,6 +60,7 @@ const LanguagePicker: FC<Props> = ({ value, onChange, disabled, className }) => 
           {options.map((lang) => {
             const isSelected = lang.langCode === value
             const label = getLabel(lang, false) ?? lang.value
+
             return (
               <button
                 key={lang.langCode}

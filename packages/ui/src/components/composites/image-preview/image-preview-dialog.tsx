@@ -36,6 +36,7 @@ const clampIndex = (index: number, length: number) => {
   if (length <= 0) {
     return 0
   }
+
   return Math.min(length - 1, Math.max(0, index))
 }
 
@@ -78,9 +79,11 @@ export function ImagePreviewDialog({
   const setActiveIndex = React.useCallback(
     (nextIndex: number) => {
       const clampedIndex = clampIndex(nextIndex, items.length)
+
       if (activeIndex == null) {
         setUncontrolledIndex(clampedIndex)
       }
+
       onActiveIndexChange?.(clampedIndex)
     },
     [activeIndex, items.length, onActiveIndexChange]
@@ -124,10 +127,12 @@ export function ImagePreviewDialog({
           if (!hasMultipleItems) {
             return
           }
+
           if (event.key === 'ArrowLeft') {
             event.preventDefault()
             showPrevious()
           }
+
           if (event.key === 'ArrowRight') {
             event.preventDefault()
             showNext()

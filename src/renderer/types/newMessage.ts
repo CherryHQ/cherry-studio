@@ -165,6 +165,7 @@ export enum AssistantMessageStatus {
   PAUSED = 'paused',
   ERROR = 'error'
 }
+
 // Message 核心类型 - 包含元数据和块集合
 export type Message = {
   id: string

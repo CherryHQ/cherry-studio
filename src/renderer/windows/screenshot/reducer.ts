@@ -88,6 +88,7 @@ export function overlayReducer(state: OverlayState, action: OverlayAction): Over
 
     case 'POINTER_DOWN_SELECTION': {
       if (state.phase !== 'selected' || !state.selection) return state
+
       return {
         ...state,
         // Stays in 'selected': entering 'moving' here would let a bare click flip the phase and
@@ -112,6 +113,7 @@ export function overlayReducer(state: OverlayState, action: OverlayAction): Over
 
     case 'POINTER_DOWN_HANDLE': {
       if (state.phase !== 'selected' || !state.selection) return state
+
       return {
         ...state,
         phase: 'resizing',
@@ -189,6 +191,7 @@ export function overlayReducer(state: OverlayState, action: OverlayAction): Over
             activeHandle: null
           }
         }
+
         return { ...state, phase: 'selected', dragOrigin: null, selectionAtDragStart: null }
       }
 
@@ -231,6 +234,8 @@ function moveSelection(
     x: selectionAtDragStart.x + (action.x - dragOrigin.x),
     y: selectionAtDragStart.y + (action.y - dragOrigin.y)
   }
+
   if (action.viewportWidth == null || action.viewportHeight == null) return moved
+
   return clampMovePosition(moved, action.viewportWidth, action.viewportHeight)
 }

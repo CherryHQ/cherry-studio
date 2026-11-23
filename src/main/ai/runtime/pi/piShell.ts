@@ -27,6 +27,7 @@ function readPiShellPathSetting(): string | undefined {
     const settings: unknown = JSON.parse(readFileSync(application.getPath('external.pi.settings_file'), 'utf8'))
     // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native settings have unknown extension fields; only the shellPath string is selected and checked here.
     const shellPath = (settings as Record<string, unknown> | null)?.shellPath
+
     return typeof shellPath === 'string' && shellPath.trim() ? shellPath.trim() : undefined
   } catch {
     return undefined
@@ -36,10 +37,13 @@ function readPiShellPathSetting(): string | undefined {
 export function resolvePiShellPath(): string | undefined {
   if (process.platform !== 'win32') return undefined
   const configured = readPiShellPathSetting()
+
   if (!configured) return autoDiscoverGitBash() ?? undefined
 
   const shellPath = validateGitBashPath(configured)
+
   if (!shellPath) throw new Error(`Configured Pi shellPath is unavailable or is not bash.exe: ${configured}`)
+
   return shellPath
 }
 
@@ -47,6 +51,7 @@ export function mergePiShellExecutionEnv(env: NodeJS.ProcessEnv): Record<string,
   const definedEnv = Object.fromEntries(
     Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined)
   )
+
   const binarySearchDirs = getBinarySearchDirs()
   const managedShimsDir = getBinaryShimsDir()
   const standaloneBinaryDirs = binarySearchDirs.filter((directory) => directory !== managedShimsDir)

@@ -45,6 +45,7 @@ export async function computeModelFieldReset(input: {
   currentValues?: PaintingData['params']
 }): Promise<Record<string, BaseConfigItem['initialValue']>> {
   const { providerId, oldModelId, newModelId, mode, currentValues = {} } = input
+
   if (oldModelId && oldModelId === newModelId) return {}
 
   const fetchSupport = async (modelId: string): Promise<ImageGenerationSupport | undefined> => {
@@ -52,9 +53,11 @@ export async function computeModelFieldReset(input: {
       const result = await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
         params: { providerId, modelId }
       })
+
       return result ?? undefined
     } catch (error) {
       logger.warn('Failed to prefetch image-generation-support', { providerId, modelId, error })
+
       return undefined
     }
   }
@@ -66,12 +69,15 @@ export async function computeModelFieldReset(input: {
 
   const oldItems = oldSupport ? imageGenerationToFields(oldSupport, { mode }) : []
   const newItems = newSupport ? imageGenerationToFields(newSupport, { mode }) : []
+
   if (newItems.length === 0) return {}
 
   const collectKeys = (items: BaseConfigItem[]): Set<string> => {
     const keys = new Set<string>()
+
     for (const item of items) {
       if (item.key) keys.add(item.key)
+
       // `customSize` widget aliases multiple persisted fields under one
       // BaseConfigItem (zhipu cogview). Collect each so the reset doesn't
       // half-clear the trio.
@@ -81,6 +87,7 @@ export async function computeModelFieldReset(input: {
         keys.add(item.sizeKey)
       }
     }
+
     return keys
   }
 
@@ -88,12 +95,14 @@ export async function computeModelFieldReset(input: {
   const newKeys = collectKeys(newItems)
 
   const patch: Record<string, BaseConfigItem['initialValue']> = {}
+
   for (const key of oldKeys) {
     if (!newKeys.has(key)) patch[key] = undefined
   }
 
   for (const item of newItems) {
     if (!item.key) continue
+
     if (Object.prototype.hasOwnProperty.call(patch, item.key)) continue
 
     const currentValue = currentValues[item.key]
@@ -114,8 +123,10 @@ export async function computeModelFieldReset(input: {
         ? item.options(item, currentValues)
         : item.options
       : []
+
     if (options.length > 0) {
       const allowedValues = new Set(options.map((option) => controlValue(option.value)))
+
       if (!allowedValues.has(controlValue(currentValue))) patch[item.key] = item.initialValue
       continue
     }
@@ -123,6 +134,7 @@ export async function computeModelFieldReset(input: {
     if (item.type === 'slider') {
       const numeric = optionalParamNumber(item.key, currentValue)
       const outOfRange = numeric === null || numeric < item.min || numeric > item.max
+
       if (outOfRange) patch[item.key] = item.initialValue
     }
   }

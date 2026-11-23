@@ -63,11 +63,13 @@ const logger = loggerService.withContext('DataApiDataChange')
  */
 export function notifyDataApiDataChange(effects: DataApiDataChangeEffect[]): void {
   if (effects.length === 0) return
+
   // Delivery boundary: notification delivery starts once bootstrap completes.
   // Not getOptional('WindowManager') — it throws for non-conditional services
   // (ServiceContainer semantics); not a bare get() fallback either — lazy
   // container creation would construct WhenReady services prematurely.
   if (!application.isReady()) return
+
   try {
     application.get('WindowManager').broadcast(IpcChannel.DataApi_DataChanged, effects)
   } catch (error) {

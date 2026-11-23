@@ -3,9 +3,11 @@ import { memo, useCallback, useState } from 'react'
 
 export function useDiffStyle() {
   const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified')
+
   const toggleDiffStyle = useCallback(() => {
     setDiffStyle((prev) => (prev === 'unified' ? 'split' : 'unified'))
   }, [])
+
   return { diffStyle, toggleDiffStyle }
 }
 

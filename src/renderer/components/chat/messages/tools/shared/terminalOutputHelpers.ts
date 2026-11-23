@@ -26,8 +26,10 @@ const light = {
 }
 
 type ColorPalette = typeof dark
+
 export const shellColorPalettes = { dark, light }
 export const TERMINAL_SURFACE_CLASS = 'bg-[#f5f5f5] text-[#1e1e1e] dark:bg-[#1e1e1e] dark:text-[#d4d4d4]'
+
 export const TERMINAL_LINK_CLASS =
   '[&_a]:text-[#0366d6]! [&_a:hover]:text-[#0550ae]! [&_[role=link]]:text-[#0366d6]! [&_[role=link]:hover]:text-[#0550ae]! dark:[&_a]:text-[#569cd6]! dark:[&_a:hover]:text-[#7cb9e8]! dark:[&_a:hover]:decoration-solid dark:[&_[role=link]]:text-[#569cd6]! dark:[&_[role=link]:hover]:text-[#7cb9e8]! dark:[&_[role=link]:hover]:decoration-solid'
 
@@ -84,6 +86,7 @@ function tokenize(line: string): Token[] {
     // Whitespace run
     if (isWhitespace(c)) {
       const start = i
+
       while (i < len && isWhitespace(line[i])) i++
       tokens.push({ type: TokenType.Whitespace, value: line.slice(start, i) })
       continue
@@ -94,7 +97,9 @@ function tokenize(line: string): Token[] {
       const quote = c
       const start = i
       i++ // skip opening quote
+
       while (i < len && line[i] !== quote) i++
+
       if (i < len) i++ // skip closing quote
       tokens.push({ type: TokenType.String, value: line.slice(start, i) })
       continue
@@ -104,13 +109,17 @@ function tokenize(line: string): Token[] {
     if (c === '$') {
       const start = i
       i++ // skip $
+
       if (i < len && line[i] === '{') {
         i++ // skip {
+
         while (i < len && line[i] !== '}') i++
+
         if (i < len) i++ // skip }
       } else {
         while (i < len && isWordChar(line[i])) i++
       }
+
       tokens.push({ type: TokenType.EnvVar, value: line.slice(start, i) })
       continue
     }
@@ -124,15 +133,19 @@ function tokenize(line: string): Token[] {
     // Flags: --long-flag or -x (short flag only if preceded by whitespace/start)
     if (c === '-') {
       const start = i
+
       if (i + 1 < len && line[i + 1] === '-') {
         // Long flag --xxx
         i += 2
+
         while (i < len && (isWordChar(line[i]) || line[i] === '-')) i++
         tokens.push({ type: TokenType.LongFlag, value: line.slice(start, i) })
         continue
       }
+
       // Short flag: only if previous token is whitespace or this is start of line
       const prev = tokens[tokens.length - 1]
+
       if (
         (!prev || prev.type === TokenType.Whitespace || prev.type === TokenType.Operator) &&
         i + 1 < len &&
@@ -142,9 +155,11 @@ function tokenize(line: string): Token[] {
         i += 2
         continue
       }
+
       // Otherwise treat '-' as start of a word (e.g. middle of hyphenated command)
       const wordStart = i
       i++
+
       while (i < len && (isWordChar(line[i]) || line[i] === '-')) i++
       tokens.push({ type: TokenType.Word, value: line.slice(wordStart, i) })
       continue
@@ -154,9 +169,11 @@ function tokenize(line: string): Token[] {
     if (isOperator(c)) {
       const start = i
       i++
+
       if (i < len && (line[i] === c || (c === '>' && line[i] === '>') || (c === '<' && line[i] === '<'))) {
         i++
       }
+
       tokens.push({ type: TokenType.Operator, value: line.slice(start, i) })
       continue
     }
@@ -168,6 +185,7 @@ function tokenize(line: string): Token[] {
       (c === '~' && i + 1 < len && line[i + 1] === '/')
     ) {
       const start = i
+
       while (
         i < len &&
         !isWhitespace(line[i]) &&
@@ -178,6 +196,7 @@ function tokenize(line: string): Token[] {
       ) {
         i++
       }
+
       tokens.push({ type: TokenType.Path, value: line.slice(start, i) })
       continue
     }
@@ -185,11 +204,15 @@ function tokenize(line: string): Token[] {
     // Number
     if (isDigit(c)) {
       const start = i
+
       while (i < len && isDigit(line[i])) i++
+
       if (i < len && line[i] === '.') {
         i++
+
         while (i < len && isDigit(line[i])) i++
       }
+
       // If followed by word chars, it's actually a word (e.g. "0x1f", "3abc")
       if (i < len && isWordChar(line[i])) {
         while (i < len && (isWordChar(line[i]) || line[i] === '-')) i++
@@ -197,12 +220,14 @@ function tokenize(line: string): Token[] {
       } else {
         tokens.push({ type: TokenType.Number, value: line.slice(start, i) })
       }
+
       continue
     }
 
     // Word (including hyphenated like create-vite, docker-compose)
     if (isWordChar(c)) {
       const start = i
+
       while (i < len && (isWordChar(line[i]) || line[i] === '-')) i++
       tokens.push({ type: TokenType.Word, value: line.slice(start, i) })
       continue
@@ -248,9 +273,11 @@ function colorizeLine(line: string, commandMode: boolean, p: ColorPalette): stri
 
   // Error / warning lines
   const trimmed = line.trimStart()
+
   if (ERROR_LINE_RE.test(trimmed)) {
     return `${p.red}${line}${RST}`
   }
+
   if (WARNING_LINE_RE.test(trimmed)) {
     return `${p.yellow}${line}${RST}`
   }

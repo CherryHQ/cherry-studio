@@ -11,6 +11,7 @@ import { isAvailablePaintingModel } from '../model/utils/paintingModelOptions'
 import { getValidPaintingOptions } from '../utils/providerSelection'
 
 type OvmsStatus = 'not-installed' | 'not-running' | 'running'
+
 interface OvmsState {
   supported: boolean
   status: OvmsStatus
@@ -30,12 +31,14 @@ export function resetOvmsCache(): void {
 
 async function loadOvmsState(): Promise<OvmsState> {
   if (cachedOvmsState) return cachedOvmsState
+
   if (!inflightOvmsPromise) {
     inflightOvmsPromise = (async () => {
       try {
         const supported = await ipcApi.request('ovms.is_supported')
         const status: OvmsStatus = supported ? await ipcApi.request('ovms.get_status') : 'not-running'
         cachedOvmsState = { supported, status }
+
         return cachedOvmsState
       } finally {
         // Clear inflight so a failed load can be retried next render cycle.
@@ -43,6 +46,7 @@ async function loadOvmsState(): Promise<OvmsState> {
       }
     })()
   }
+
   return inflightOvmsPromise
 }
 
@@ -66,7 +70,9 @@ export function buildPaintingProviderOptions(input: {
   const enabledProviderIds = new Set(
     input.providers.filter((provider) => provider.isEnabled).map((provider) => provider.id)
   )
+
   const capabilityProviderIds = new Set<string>()
+
   for (const model of input.models) {
     if (enabledProviderIds.has(model.providerId) && isAvailablePaintingModel(model)) {
       capabilityProviderIds.add(model.providerId)
@@ -90,8 +96,10 @@ export function usePaintingProviderOptions(): string[] {
       })
       .catch((error) => {
         logger.warn('Failed to load OVMS state', error)
+
         if (!cancelled) setOvmsState(DEFAULT_OVMS_STATE)
       })
+
     return () => {
       cancelled = true
     }

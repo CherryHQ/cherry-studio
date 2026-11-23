@@ -16,6 +16,7 @@ import ImportPopup from './ImportPopup'
 const ImportMenuOptions: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
+
   return (
     <SettingGroup theme={theme}>
       <SettingRow>

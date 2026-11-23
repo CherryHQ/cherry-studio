@@ -45,6 +45,7 @@ export function usePaintingModelSwitch({
           mode: tabToImageGenerationMode(painting.mode),
           currentValues: painting.params ?? {}
         })
+
         // Drop attached input images when the target model can't accept them:
         // the prompt-bar upload UI is gated on `isEditImageModel`, so a hidden
         // attachment left over from an edit model would otherwise still be
@@ -52,12 +53,15 @@ export function usePaintingModelSwitch({
         // clear must be explicit.
         const nextModel = models.find((model) => model.apiModelId === modelId)
         const keepInputFiles = nextModel ? isEditImageModel(nextModel) : false
+
         const updates: Parameters<typeof onPaintingChange>[0] = {
           params: { ...painting.params, ...resetPatch },
           model: modelId
         }
+
         if (!keepInputFiles) updates.inputFiles = []
         onPaintingChange(updates)
+
         return
       }
 
@@ -68,8 +72,10 @@ export function usePaintingModelSwitch({
         // surface it like the generate path instead of swallowing the switch.
         logger.error('Failed to load provider catalog on model switch', error as Error)
         presentPaintingGenerateError(error)
+
         return
       }
+
       const targetPainting = createDefaultPainting({ providerId })
 
       onPaintingChange({

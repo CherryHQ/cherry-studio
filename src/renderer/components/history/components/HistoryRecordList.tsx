@@ -22,9 +22,12 @@ function findPermanentDeleteAction(actions: readonly ResolvedAction[]): Resolved
     ) {
       return action
     }
+
     const nested = action.children.length > 0 ? findPermanentDeleteAction(action.children) : undefined
+
     if (nested) return nested
   }
+
   return undefined
 }
 
@@ -58,6 +61,7 @@ function HistoryRecordListRow<T>({ descriptor, item, ...props }: HistoryRecordLi
   const renderContent = (rowState: HistoryRowState) => (
     <HistoryRecordListRowContent descriptor={descriptor} item={item} rowState={rowState} {...props} />
   )
+
   return descriptor.renderRowState?.(item, renderContent) ?? renderContent({ isRenaming: false })
 }
 
@@ -67,6 +71,7 @@ interface HistoryRecordListRowContentProps<T> extends HistoryRecordListRowProps<
 
 function HistoryRecordListRowContent<T>(props: HistoryRecordListRowContentProps<T>) {
   const rowRef = useRef<HTMLDivElement>(null)
+
   return (
     <CommandFocusScope rootRef={rowRef} context={{ 'resource.focused': true }}>
       <HistoryRecordListScopedRow {...props} rowRef={rowRef} />
@@ -97,6 +102,7 @@ function HistoryRecordListScopedRow<T>({
 
   const canRunPermanentDelete = () => {
     if (pendingRef.current || rowStateRef.current.isRenaming) return false
+
     return isRunnablePermanentDelete(findPermanentDeleteAction(rowActionsRef.current.actions))
   }
 
@@ -105,8 +111,10 @@ function HistoryRecordListScopedRow<T>({
     () => {
       if (pendingRef.current || !canRunPermanentDelete()) return Promise.resolve()
       const action = findPermanentDeleteAction(rowActionsRef.current.actions)
+
       if (!isRunnablePermanentDelete(action)) return Promise.resolve()
       pendingRef.current = true
+
       try {
         return Promise.resolve(rowActionsRef.current.onAction(action)).finally(() => {
           pendingRef.current = false
@@ -160,6 +168,7 @@ export function HistoryRecordList<T>({
   const list = useMemo(() => Array.from(items), [items])
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null)
   const [showFixedActionShadow, setShowFixedActionShadow] = useState(false)
+
   const {
     getId,
     getName,
@@ -176,6 +185,7 @@ export function HistoryRecordList<T>({
     rowHeight,
     strings: { deleteLabel, pinLabel, unpinLabel }
   } = descriptor
+
   // The aggregate descriptor is recreated by each mode; memoize on the row fields instead.
   const rowDescriptor = useMemo<HistoryRecordDescriptor<T>>(
     () => descriptor,
@@ -200,6 +210,7 @@ export function HistoryRecordList<T>({
   )
 
   const openRename = useCallback((id: string, name: string) => setRenameTarget({ id, name }), [])
+
   const handleRenameSubmit = useCallback(
     (name: string) => {
       if (!renameTarget) return
@@ -207,12 +218,14 @@ export function HistoryRecordList<T>({
     },
     [onRename, renameTarget]
   )
+
   const handleRenameOpenChange = useCallback((open: boolean) => {
     if (!open) setRenameTarget(null)
   }, [])
 
   const emptyTitle = isLoading ? descriptor.strings.loadingTitle : descriptor.strings.emptyTitle
   const emptyDescription = isLoading ? descriptor.strings.loadingDescription : descriptor.strings.emptyDescription
+
   const emptyContent = (
     <div className="flex min-h-[320px] items-center justify-center px-5 py-8">
       <EmptyState compact icon={MessageSquareText} title={emptyTitle} description={emptyDescription} />

@@ -140,7 +140,9 @@ function parseHtmlArtifactBridgeMessage(message: string, messagePrefix: string):
 
   try {
     const payload = JSON.parse(message.slice(messagePrefix.length)) as Partial<HtmlArtifactBridgeMessage>
+
     if ((payload.type !== 'height' && payload.type !== 'wheel') || !Number.isFinite(payload.value)) return null
+
     return payload as HtmlArtifactBridgeMessage
   } catch {
     return null
@@ -157,6 +159,7 @@ export function getMaxPreviewHeight(viewport: HTMLElement, scrollContainer: HTML
   const scroller = scrollContainer?.contains(viewport) ? scrollContainer : null
   const scrollerHeight = scroller ? Math.max(scroller.clientHeight, scroller.getBoundingClientRect().height) : 0
   const availableHeight = scrollerHeight > 0 ? scrollerHeight : (viewport.ownerDocument.defaultView?.innerHeight ?? 0)
+
   return Math.max(1, Math.floor(availableHeight * MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO))
 }
 
@@ -220,31 +223,38 @@ export const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
   const scrollRuntime = useScrollRuntimeBoundary()
   const zoomScale = zoom / 100
   const [messagePrefix] = useState(() => `__cherry_html_artifact_${crypto.randomUUID()}:`)
+
   const src = useMemo(() => {
     const scrollActivationDelay = forwardBoundaryWheel ? SCROLL_ACTIVATION_DELAY_MS : 0
     const bridgeScript = `<script>${getHtmlArtifactBridgeScript(messagePrefix, scrollActivationDelay)}</script>`
     const instrumentedHtml = injectHtmlPreviewHeadElement(injectHtmlPreviewScrollbarGutter(html), bridgeScript)
+
     return `${HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX}${encodeURIComponent(instrumentedHtml)}`
   }, [forwardBoundaryWheel, html, messagePrefix])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
     const webview = webviewRef.current
+
     if (!viewport || !webview) return
 
     const handleConsoleMessage = (event: ConsoleMessageEvent) => {
       const message = parseHtmlArtifactBridgeMessage(event.message, messagePrefix)
+
       if (!message) return
 
       if (message.type === 'height') {
         contentHeightRef.current = message.value
+
         if (!onHeightChange) return
 
         const nextHeight = Math.min(
           getMaxPreviewHeight(viewport, scrollRuntime.getScrollContainer()),
           Math.max(1, Math.ceil(message.value * zoomScale))
         )
+
         onHeightChange(nextHeight)
+
         return
       }
 
@@ -263,12 +273,14 @@ export const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
   useLayoutEffect(() => {
     const viewport = viewportRef.current
     const contentHeight = contentHeightRef.current
+
     if (!viewport || contentHeight === null || !onHeightChange) return
 
     const nextHeight = Math.min(
       getMaxPreviewHeight(viewport, scrollRuntime.getScrollContainer()),
       Math.max(1, Math.ceil(contentHeight * zoomScale))
     )
+
     onHeightChange(nextHeight)
   }, [onHeightChange, scrollRuntime, zoomScale])
 
@@ -333,6 +345,7 @@ export const HtmlArtifactPreviewSurface = memo(function HtmlArtifactPreviewSurfa
     if (!authorized) {
       return <StaticHtmlPreview html={html} title={title} zoom={zoom} iframeRef={iframeRef} emptyText={emptyText} />
     }
+
     return (
       <InteractiveHtmlPreview
         html={html}

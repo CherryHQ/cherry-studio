@@ -4,7 +4,9 @@ export {
   type ResourcePaneConfig,
   ResourcePaneLocateOpener
 } from './resourcePane'
+
 export { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from './ResourcePaneCountButton'
+
 export {
   RightPanel,
   type RightPanelActions,

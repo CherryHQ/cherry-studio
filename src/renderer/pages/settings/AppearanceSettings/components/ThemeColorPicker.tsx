@@ -52,6 +52,7 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
     setDraftValue(nextValue)
 
     const nextColor = normalizeHexColor(nextValue)
+
     if (nextColor) {
       onChange(nextColor)
     }
@@ -62,10 +63,12 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
 
     if (!nextColor) {
       setDraftValue(normalizedValue)
+
       return
     }
 
     setDraftValue(nextColor)
+
     if (nextColor !== normalizedValue) {
       onChange(nextColor)
     }

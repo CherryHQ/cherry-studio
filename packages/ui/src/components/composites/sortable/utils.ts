@@ -16,6 +16,7 @@ export class BlurCancelPointerSensor extends PointerSensor {
     // Same window dnd-kit attaches its own resize / visibilitychange listeners to.
     const view = getWindow(props.event.target)
     let blurListener: (() => void) | null = null
+
     const stopListeningForBlur = () => {
       if (!blurListener) return
       view.removeEventListener('blur', blurListener)

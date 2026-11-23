@@ -89,11 +89,13 @@ import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution): CherryUIMessage {
   if (!exec.resolvedToolApprovals?.size) return message
+
   return {
     ...message,
     parts: message.parts.map((part) => {
       if (!isToolUIPart(part) || !part.approval) return part
       const approved = exec.resolvedToolApprovals?.get(part.toolCallId)
+
       if (approved === false) {
         return {
           ...part,
@@ -103,6 +105,7 @@ function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution):
           approval: { ...part.approval, approved: false as const }
         }
       }
+
       return approved === true && part.state === 'approval-requested'
         ? { ...part, state: 'approval-responded', approval: { ...part.approval, approved } }
         : part
@@ -111,6 +114,7 @@ function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution):
 }
 
 const logger = loggerService.withContext('AiStreamManager')
+
 type ManagedAiStreamRequest = AiStreamRequest & {
   taskIds?: readonly string[]
   usageContext?: InProcessUsageContext
@@ -129,10 +133,13 @@ type ManagedAiStreamRequest = AiStreamRequest & {
  */
 function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error', error?: SerializedError): void {
   const span = exec.rootSpan
+
   if (!span) return
   exec.rootSpan = undefined
+
   try {
     if (exec.finalMessage) applyTurnOutputAttributes(span, exec.finalMessage)
+
     if (outcome === 'ok') {
       span.setStatus({ code: SpanStatusCode.OK })
     } else if (outcome === 'aborted') {
@@ -140,8 +147,10 @@ function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error',
     } else {
       const message = error?.message ?? 'stream execution errored'
       span.setStatus({ code: SpanStatusCode.ERROR, message })
+
       if (error) span.recordException({ name: error.name ?? 'StreamError', message })
     }
+
     span.end()
   } catch (err) {
     logger.warn('Failed to end root span', err as Error)
@@ -246,6 +255,7 @@ function isPersistedReplyGroupAnchor(
 ): boolean {
   try {
     const message = messageService.getById(messageId)
+
     return (
       message.role === 'assistant' &&
       message.topicId === topicId &&
@@ -264,7 +274,9 @@ function toActiveExecution(exec: StreamExecution): ActiveExecution {
     attemptId: exec.attemptId,
     anchorMessageId: exec.anchorMessageId
   }
+
   if (exec.seedFromEmpty) active.seedFromEmpty = true
+
   return active
 }
 
@@ -280,8 +292,10 @@ function errorFromStreamChunk(errorText: string): SerializedError {
 function findBufferedToolInput(exec: StreamExecution, toolCallId: string): UIMessageChunk | undefined {
   for (let index = exec.buffer.length - 1; index >= 0; index--) {
     const chunk = exec.buffer[index].chunk
+
     if (chunk.type === 'tool-input-available' && chunk.toolCallId === toolCallId) return chunk
   }
+
   return undefined
 }
 
@@ -309,19 +323,25 @@ function hasHttpMetadata(error: SerializedError): boolean {
  */
 function withCompactionAnchors(message: CherryUIMessage, exec: StreamExecution): CherryUIMessage {
   const anchors = exec.compactionAnchors
+
   if (!anchors?.length) return message
   const parts = [...message.parts]
+
   for (const anchor of anchors) {
     // Narrow on `type` before reading `id` — only data parts carry one.
     const at = parts.findIndex((p) => p.type === 'data-compaction-anchor' && p.id === anchor.id)
+
     if (anchor.data.status === 'skipped') {
       if (at >= 0) parts.splice(at, 1)
       continue
     }
+
     const part: CherryMessagePart = { type: 'data-compaction-anchor', id: anchor.id, data: anchor.data }
+
     if (at >= 0) parts[at] = part
     else parts.push(part)
   }
+
   return { ...message, parts }
 }
 
@@ -333,12 +353,15 @@ function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
     role: 'assistant',
     parts: []
   } as CherryUIMessage
+
   exec.finalMessage = finalMessage
+
   return finalMessage
 }
 
 function toolNameFromApprovalChunk(chunk: UIMessageChunk): string | undefined {
   const metadata = (chunk as { providerMetadata?: { cherry?: { toolName?: unknown } } }).providerMetadata
+
   return typeof metadata?.cherry?.toolName === 'string' ? metadata.cherry.toolName : undefined
 }
 
@@ -382,10 +405,12 @@ export class AiStreamManager extends BaseService {
 
   private topicProjection(topicId: string): TopicMessageProjection {
     let projection = this.projections.get(topicId)
+
     if (!projection) {
       projection = new TopicMessageProjection(topicId, (message) => projectStreamMessageForRenderer(topicId, message))
       this.projections.set(topicId, projection)
     }
+
     return projection
   }
 
@@ -408,10 +433,12 @@ export class AiStreamManager extends BaseService {
       subscriptionId,
       () => {
         const projection = this.topicProjection(topicId)
+
         return {
           snapshot: () => projection.snapshot(),
           subscribe: (listener) => {
             const stop = projection.subscribe(listener)
+
             return () => {
               stop()
               this.releaseProjection(topicId)
@@ -429,6 +456,7 @@ export class AiStreamManager extends BaseService {
 
   private releaseProjection(topicId: string): void {
     const projection = this.projections.get(topicId)
+
     if (this.activeStreams.has(topicId) || projection?.observed) return
     projection?.dispose()
     this.projections.delete(topicId)
@@ -522,6 +550,7 @@ export class AiStreamManager extends BaseService {
     // No-op after boot (resolved promise); the only caller it can actually block is a
     // stream opened in the boot window before reconcile finished.
     await this.reconciled
+
     return this.withDispatchLock(req.topicId, async () => {
       // A renderer submit can land while the previous turn's terminal dispatch is still running;
       // admitting now would evict that stream before its terminal lifecycle ran (see startAgentSessionRun).
@@ -539,8 +568,10 @@ export class AiStreamManager extends BaseService {
           reason: 'paused' as const
         }
       }
+
       const admission = dispatchStreamRequest(this, subscriber, req)
       this.inFlightDispatches.set(admission, req.topicId)
+
       try {
         return await admission
       } finally {
@@ -587,11 +618,14 @@ export class AiStreamManager extends BaseService {
     const token = Symbol(reason ?? 'ai-stream-manager-pause')
     this.pauseHolds.add(token)
     logger.info('AiStreamManager paused', { reason: reason ?? null, holds: this.pauseHolds.size })
+
     return {
       dispose: () => {
         if (!this.pauseHolds.delete(token)) return
         logger.info('AiStreamManager pause hold released', { reason: reason ?? null, holds: this.pauseHolds.size })
+
         if (this.pauseHolds.size > 0) return
+
         // Shutdown wins: onStop owns the teardown; a compensation kick would only race it.
         if (this.isShuttingDown) return
         this.runReleaseCompensation()
@@ -621,6 +655,7 @@ export class AiStreamManager extends BaseService {
 
     const seen = new WeakSet<Promise<unknown>>()
     const pending = new Map<Promise<unknown>, string>()
+
     const collect = (): void => {
       for (const [promise, id] of this.drainWaitSet()) {
         if (seen.has(promise)) continue
@@ -634,20 +669,26 @@ export class AiStreamManager extends BaseService {
     }
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+
     const timeout = new Promise<'timeout'>((resolve) => {
       timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
     })
+
     try {
       for (;;) {
         collect()
+
         if (pending.size === 0) return { stragglerIds: [] }
+
         const winner = await Promise.race([
           Promise.allSettled([...pending.keys()]).then(() => 'done' as const),
           timeout
         ])
+
         if (winner === 'timeout') {
           const stragglerIds = [...new Set(pending.values())]
           logger.warn('drainInFlight timed out with unsettled work', { timeoutMs: opts.timeoutMs, stragglerIds })
+
           return { stragglerIds }
         }
       }
@@ -659,37 +700,48 @@ export class AiStreamManager extends BaseService {
   /** Advisory pre-flight enumeration for the restore orchestrator. Read-only, in-memory. */
   listActiveWork(): Array<{ id: string; summary: string }> {
     const work: Array<{ id: string; summary: string }> = []
+
     for (const [topicId, stream] of this.activeStreams) {
       if (!isLiveStatus(stream.status)) continue
       work.push({ id: topicId, summary: `stream:${stream.status} execs=${stream.executions.size}` })
     }
+
     for (const topicId of new Set(this.inFlightDispatches.values())) {
       work.push({ id: `dispatch:${topicId}`, summary: 'stream dispatch admitting' })
     }
+
     for (const topicId of this.inFlightChatContinuations.keys()) {
       work.push({ id: `chat-continuation:${topicId}`, summary: 'steer continuation launching' })
     }
+
     return work
   }
 
   private drainWaitSet(): Array<[Promise<unknown>, string]> {
     const entries: Array<[Promise<unknown>, string]> = []
+
     for (const [topicId, stream] of this.activeStreams) {
       // Only streams that persist are waited on. That's listener-derived, not lifecycle-derived:
       // a chunks-only prompt stream (API gateway, orphan translate) is excluded, while a
       const persistent = [...stream.listeners.keys()].some((id) => id.startsWith('persistence:'))
+
       if (!persistent) continue
+
       for (const exec of stream.executions.values()) entries.push([exec.loopPromise, topicId])
     }
+
     for (const [admission, topicId] of this.inFlightDispatches) {
       entries.push([admission, `dispatch:${topicId}`])
     }
+
     for (const [topicId, launch] of this.inFlightChatContinuations) {
       entries.push([launch, `chat-continuation:${topicId}`])
     }
+
     for (const [key, write] of topicNamingService.inFlightWrites()) {
       entries.push([write, `naming:${key}`])
     }
+
     return entries
   }
 
@@ -699,6 +751,7 @@ export class AiStreamManager extends BaseService {
     if (this.isShuttingDown || this.isWriteQuiesced) return
     const suppressed = [...this.suppressedChatContinuationTopicIds]
     this.suppressedChatContinuationTopicIds.clear()
+
     for (const topicId of suppressed) this.scheduleNextChatTurn(topicId)
   }
 
@@ -711,6 +764,7 @@ export class AiStreamManager extends BaseService {
   private reconcileStalePendingMessages(): void {
     try {
       const staleIds = messageService.findPendingAssistantMessageIds()
+
       if (staleIds.length === 0) return
       logger.info('Reconciling crash-orphaned pending assistant messages', { count: staleIds.length })
       messageService.markMessagesError(staleIds)
@@ -727,6 +781,7 @@ export class AiStreamManager extends BaseService {
    */
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
+
     const activeTopics = [...this.activeStreams.entries()].flatMap(([topicId, stream]) =>
       isLiveStatus(stream.status) ? [topicId] : []
     )
@@ -735,12 +790,16 @@ export class AiStreamManager extends BaseService {
     logger.info('Stopping active streams on shutdown', { count: activeTopics.length })
 
     const loopPromises: Promise<void>[] = []
+
     for (const topicId of activeTopics) {
       const stream = this.activeStreams.get(topicId)
+
       if (!stream) continue
+
       for (const exec of stream.executions.values()) {
         loopPromises.push(exec.loopPromise)
       }
+
       this.abort(topicId, 'app-shutdown')
     }
 
@@ -751,6 +810,7 @@ export class AiStreamManager extends BaseService {
     this.completedBatchTasks.clear()
     this.failedCompletionAttempts.clear()
     this.projectionSubscriptions.dispose()
+
     for (const projection of this.projections.values()) projection.dispose()
     this.projections.clear()
     this._onApprovalRequested.dispose()
@@ -768,21 +828,26 @@ export class AiStreamManager extends BaseService {
       if (isLive && intent.modelCount > 0) {
         throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
       }
+
       return { mode: 'start-new' }
     }
 
     const targetMessageId = intent.mode === 'append' ? intent.targetMessageId : intent.anchorMessageId
+
     if (!isPersistedReplyGroupAnchor(targetMessageId, topicId, intent.parentAnchorId, intent.siblingsGroupId)) {
       throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
     }
+
     if (!stream || !isLive) return { mode: 'start-new' }
 
     if (intent.mode === 'append') {
       if (stream.executions.has(intent.modelId)) {
         throw new AiStreamAdmissionError(aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP)
       }
+
       const groupExecution = [...stream.executions.values()].find((candidate) => {
         if (!candidate.anchorMessageId) return false
+
         if (intent.expectedGroupAnchorMessageId) {
           if (candidate.anchorMessageId !== intent.expectedGroupAnchorMessageId) return false
         } else if (intent.siblingsGroupId === undefined) {
@@ -790,6 +855,7 @@ export class AiStreamManager extends BaseService {
         } else if (candidate.siblingsGroupId !== intent.siblingsGroupId) {
           return false
         }
+
         return isPersistedReplyGroupAnchor(
           candidate.anchorMessageId,
           topicId,
@@ -797,13 +863,16 @@ export class AiStreamManager extends BaseService {
           intent.siblingsGroupId
         )
       })
+
       if (!groupExecution?.anchorMessageId) {
         throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
       }
+
       return { mode: 'append-live', groupAnchorMessageId: groupExecution.anchorMessageId }
     }
 
     const execution = stream.executions.get(intent.modelId)
+
     if (!execution || execution.anchorMessageId !== intent.anchorMessageId) {
       const compatibleExecution = [...stream.executions.values()].find(
         (candidate) =>
@@ -813,14 +882,18 @@ export class AiStreamManager extends BaseService {
           candidate.siblingsGroupId === intent.siblingsGroupId &&
           isPersistedReplyGroupAnchor(candidate.anchorMessageId, topicId, intent.parentAnchorId, intent.siblingsGroupId)
       )
+
       if (!stream.executions.has(intent.modelId) && compatibleExecution?.anchorMessageId) {
         return { mode: 'append-live', groupAnchorMessageId: compatibleExecution.anchorMessageId }
       }
+
       throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
     }
+
     if (execution.status === 'streaming') {
       throw new AiStreamAdmissionError(aiStreamAdmissionReasons.EXECUTION_NOT_READY)
     }
+
     return { mode: 'replace-live' }
   }
 
@@ -832,10 +905,12 @@ export class AiStreamManager extends BaseService {
    */
   send(input: SendInput): SendResult {
     const inputModelIds = new Set<UniqueModelId>()
+
     for (const { modelId } of input.models) {
       if (inputModelIds.has(modelId)) {
         throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
       }
+
       inputModelIds.add(modelId)
     }
 
@@ -846,9 +921,11 @@ export class AiStreamManager extends BaseService {
       if (input.models.length !== 1) {
         throw new AiStreamAdmissionError(aiStreamAdmissionReasons.SINGLE_MODEL_REQUIRED)
       }
+
       const [model] = input.models
       const previous = existing.executions.get(model.modelId)
       let admissionIntent: LiveExecutionChangeIntent
+
       if (liveExecutionChange.mode === 'append') {
         admissionIntent = {
           mode: 'append',
@@ -862,6 +939,7 @@ export class AiStreamManager extends BaseService {
         if (!model.request.messageId) {
           throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
         }
+
         admissionIntent = {
           mode: 'replace',
           modelId: model.modelId,
@@ -870,7 +948,9 @@ export class AiStreamManager extends BaseService {
           siblingsGroupId: liveExecutionChange.siblingsGroupId
         }
       }
+
       this.admitLiveExecutionChange(input.topicId, admissionIntent)
+
       const hasLiveSibling = [...existing.executions.entries()].some(
         ([modelId, execution]) => modelId !== model.modelId && execution.status === 'streaming'
       )
@@ -878,7 +958,9 @@ export class AiStreamManager extends BaseService {
       if (existing.cleanupTimer) clearTimeout(existing.cleanupTimer)
       existing.cleanupTimer = undefined
       existing.expiresAt = undefined
+
       for (const listener of input.listeners) existing.listeners.set(listener.id, listener)
+
       const nextExecution = this.createAndLaunchExecution(
         input.topicId,
         model.modelId,
@@ -889,17 +971,21 @@ export class AiStreamManager extends BaseService {
         model.rootSpan,
         model.abortController
       )
+
       // Replacing an existing key preserves its insertion position; appending a new key places the
       // new model last. Both cases keep the visual multi-model order stable.
       existing.executions.set(model.modelId, nextExecution)
       const failures = this.failedCompletionAttempts.get(input.topicId)
+
       if (previous && failures?.delete(previous.attemptId) && failures.size === 0) {
         this.failedCompletionAttempts.delete(input.topicId)
       }
+
       this.projections.get(input.topicId)?.begin([toActiveExecution(nextExecution)], false)
       existing.isMultiModel = existing.executions.size > 1
       existing.status = hasLiveSibling ? 'streaming' : 'pending'
       existing.lifecycle.onActiveExecutionsChanged(existing)
+
       return {
         mode: 'started',
         activeExecutions: [toActiveExecution(nextExecution)]
@@ -920,7 +1006,9 @@ export class AiStreamManager extends BaseService {
       if (input.models.length > 0) {
         this.admitLiveExecutionChange(input.topicId, { mode: 'start', modelCount: input.models.length })
       }
+
       for (const listener of input.listeners) this.addListener(input.topicId, listener)
+
       return {
         mode: 'injected',
         activeExecutions: [...existing.executions.values()].flatMap((execution) =>
@@ -943,6 +1031,7 @@ export class AiStreamManager extends BaseService {
       logger.debug('send(): empty models with no live stream — enqueue-only, nothing to start', {
         topicId: input.topicId
       })
+
       return { mode: 'injected', activeExecutions: [] }
     }
 
@@ -963,6 +1052,7 @@ export class AiStreamManager extends BaseService {
         rootSpan,
         abortController
       )
+
       executions.set(modelId, exec)
     }
 
@@ -980,12 +1070,15 @@ export class AiStreamManager extends BaseService {
       isPersistentConversation: input.isPersistentConversation === true,
       hasTaskResultOwner: input.listeners.some((listener) => listener.ownsTaskResult)
     }
+
     this.activeStreams.set(input.topicId, stream)
+
     if (stream.lifecycle !== promptStreamLifecycle) {
       const projection = this.topicProjection(input.topicId)
       projection.begin([...executions.values()].map(toActiveExecution), true)
       stream.listeners.set(projection.id, projection)
     }
+
     // Chat broadcasts to SharedCache so `useChatWithHistory.resumeActiveStream` can attach; prompt is silent.
     stream.lifecycle.onCreated(stream)
 
@@ -1046,7 +1139,9 @@ export class AiStreamManager extends BaseService {
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId
     }
+
     if (input.resolvedModel) identity.resolvedModel = input.resolvedModel
+
     const request: ManagedAiStreamRequest = {
       ...identity,
       messages,
@@ -1056,15 +1151,21 @@ export class AiStreamManager extends BaseService {
       serviceTier: input.serviceTier,
       fastMode: input.fastMode
     }
+
     if (input.usageContext) request.usageContext = input.usageContext
+
     if (input.tokenUsageSource) request.tokenUsageSource = input.tokenUsageSource
     request.source = input.source
+
     if (input.idleTimeoutMs !== undefined || input.maxRetries !== undefined) {
       const requestOptions: NonNullable<ManagedAiStreamRequest['requestOptions']> = {}
+
       if (input.idleTimeoutMs !== undefined) requestOptions.timeout = input.idleTimeoutMs
+
       if (input.maxRetries !== undefined) requestOptions.maxRetries = input.maxRetries
       request.requestOptions = requestOptions
     }
+
     return this.send({
       topicId: input.streamId,
       models: [{ modelId: input.uniqueModelId, request }],
@@ -1075,6 +1176,7 @@ export class AiStreamManager extends BaseService {
 
   startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
+
     const carriedListeners = existing
       ? [...existing.listeners.values()].filter(
           (listener) => !listener.id.startsWith('persistence:') && !listener.id.startsWith('agent-runtime:')
@@ -1107,6 +1209,7 @@ export class AiStreamManager extends BaseService {
    */
   async suspendUnadmittedRuntimeTurn(topicId: string): Promise<void> {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream || !isLiveStatus(stream.status)) return
 
     for (const id of stream.listeners.keys()) {
@@ -1123,6 +1226,7 @@ export class AiStreamManager extends BaseService {
     const execution = [...(this.activeStreams.get(topicId)?.executions.values() ?? [])].find(
       (candidate) => candidate.anchorMessageId === messageId
     )
+
     await execution?.loopPromise
   }
 
@@ -1133,6 +1237,7 @@ export class AiStreamManager extends BaseService {
    */
   hasLiveStream(topicId: string): boolean {
     const stream = this.activeStreams.get(topicId)
+
     return Boolean(stream && isLiveStatus(stream.status))
   }
 
@@ -1144,11 +1249,17 @@ export class AiStreamManager extends BaseService {
   /** True while archiving this topic could strand an admitted or queued chat turn. */
   hasUnsettledTopicWork(topicId: string): boolean {
     const status = this.activeStreams.get(topicId)?.status
+
     if (status === 'pending' || status === 'streaming' || status === 'awaiting-approval') return true
+
     if (this.hasTerminalPersistenceInFlight(topicId)) return true
+
     if (this.terminalDispatchInFlight.has(topicId)) return true
+
     if (this.pendingSteers.has(topicId) || this.startingNextChatTopicIds.has(topicId)) return true
+
     if (this.inFlightChatContinuations.has(topicId)) return true
+
     return [...this.inFlightDispatches.values()].includes(topicId)
   }
 
@@ -1176,10 +1287,13 @@ export class AiStreamManager extends BaseService {
       parentAnchorId,
       siblingsGroupId: compatibleSiblingsGroupId
     }
+
     const admission = this.admitLiveExecutionChange(topicId, intent)
+
     if (admission.mode !== 'replace-live') return admission
 
     const execution = this.activeStreams.get(topicId)?.executions.get(modelId)
+
     if (!execution) throw new AiStreamAdmissionError(aiStreamAdmissionReasons.EXECUTION_CHANGED)
 
     // Do not reset the row or replace the listener id until the old loop has completed every
@@ -1187,14 +1301,18 @@ export class AiStreamManager extends BaseService {
     await execution.loopPromise
 
     const current = this.activeStreams.get(topicId)
+
     if (!current) return { mode: 'start-new' }
     const currentExecution = current.executions.get(modelId)
+
     if (!currentExecution || currentExecution !== execution || currentExecution.anchorMessageId !== anchorMessageId) {
       if (isLiveStatus(current.status)) {
         throw new AiStreamAdmissionError(aiStreamAdmissionReasons.EXECUTION_CHANGED)
       }
+
       return { mode: 'start-new' }
     }
+
     return this.admitLiveExecutionChange(topicId, intent)
   }
 
@@ -1203,21 +1321,26 @@ export class AiStreamManager extends BaseService {
     for (const stream of this.activeStreams.values()) {
       if (isLiveStatus(stream.status)) return true
     }
+
     return false
   }
 
   pauseRuntimeTurn(topicId: string, reason: string): boolean {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream || !isLiveStatus(stream.status)) return false
 
     logger.info('Pausing runtime stream turn', { topicId, reason })
+
     for (const exec of stream.executions.values()) {
       if (exec.status === 'streaming') {
         exec.status = 'aborted'
         exec.abortController.abort(reason)
       }
     }
+
     stream.status = 'aborted'
+
     return true
   }
 
@@ -1252,19 +1375,25 @@ export class AiStreamManager extends BaseService {
     //                         drains it once that turn completes.
     //   • aborted / error   → drop; the persisted user row stays for the user to resend.
     const status = this.activeStreams.get(topicId)?.status
+
     if (status && isLiveStatus(status)) {
       this.appendPendingSteer(topicId, userMessageId, reasoningEffort, serviceTier, fastMode)
+
       return
     }
+
     if (status === 'aborted' || status === 'error') {
       logger.warn('Steer landed after a non-clean terminal — dropping (row stays resendable)', {
         topicId,
         userMessageId,
         terminal: status
       })
+
       return
     }
+
     this.appendPendingSteer(topicId, userMessageId, reasoningEffort, serviceTier, fastMode)
+
     if (status !== 'awaiting-approval') this.scheduleNextChatTurn(topicId)
   }
 
@@ -1277,6 +1406,7 @@ export class AiStreamManager extends BaseService {
   ): void {
     const queue = this.pendingSteers.get(topicId)
     const item = { userMessageId, reasoningEffort, serviceTier, fastMode: fastMode === true }
+
     if (queue) queue.push(item)
     else this.pendingSteers.set(topicId, [item])
   }
@@ -1285,17 +1415,22 @@ export class AiStreamManager extends BaseService {
 
   getInteractionWindow(topicId: string): string | undefined {
     const listeners = this.activeStreams.get(topicId)?.listeners.values()
+
     if (!listeners) return undefined
+
     for (const listener of listeners) {
       if (listener.isAlive() && listener.windowId) return listener.windowId
     }
+
     return undefined
   }
 
   addListener(topicId: string, listener: StreamListener): boolean {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream) return false
     stream.listeners.set(listener.id, listener)
+
     // Replay buffered chunks from every execution's ring buffer so late
     // listeners catch up. Ordering within a single execution is preserved;
     // across executions chunks are interleaved in the order we see each
@@ -1304,8 +1439,10 @@ export class AiStreamManager extends BaseService {
       for (const chunk of exec.buffer) {
         listener.onChunk(chunk.chunk, chunk.executionId, chunk.anchorMessageId, chunk.attemptId, chunk.sequence)
       }
+
       if (exec.finalMessage) listener.onMessage?.(exec.finalMessage, exec.modelId, exec.sourceKind)
     }
+
     return true
   }
 
@@ -1320,31 +1457,40 @@ export class AiStreamManager extends BaseService {
    */
   resolveToolApproval(topicId: string, toolCallId: string, approved: boolean): boolean {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream) return false
 
     let changed = false
     let pendingApprovalFlipped = false
+
     for (const exec of stream.executions.values()) {
       const pendingApprovals = exec.pendingApprovalToolCallIds
+
       if (!pendingApprovals?.delete(toolCallId)) continue
       exec.runtimeTiming.finishApproval({ toolCallId })
       ;(exec.resolvedToolApprovals ??= new Map()).set(toolCallId, approved)
       changed = true
+
       if (approved) {
         // AI SDK has no UI-stream approval-response chunk. Replaying the input advances the part
         // and lets a parallel batch surface its next approval before the tools execute.
         const inputChunk = findBufferedToolInput(exec, toolCallId)
+
         if (inputChunk) this.onChunk(topicId, exec.modelId, inputChunk, exec)
       } else {
         this.onChunk(topicId, exec.modelId, { type: 'tool-output-denied', toolCallId }, exec)
       }
+
       if (exec.finalMessage) {
         exec.finalMessage = withResolvedApprovals(exec.finalMessage, exec)
         this.projections.get(topicId)?.accumulate(exec.modelId, exec.attemptId, exec.finalMessage)
       }
+
       if (pendingApprovals.size === 0) pendingApprovalFlipped = true
     }
+
     if (pendingApprovalFlipped && isLiveStatus(stream.status)) stream.lifecycle.onApprovalPendingChanged(stream)
+
     return changed
   }
 
@@ -1354,31 +1500,44 @@ export class AiStreamManager extends BaseService {
     owner?: { anchorMessageId?: string; attemptId?: number }
   ): boolean {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream) return false
     let changed = false
     let pendingApprovalFlipped = false
+
     for (const exec of stream.executions.values()) {
       if (owner?.anchorMessageId !== undefined && exec.anchorMessageId !== owner.anchorMessageId) continue
+
       if (owner?.attemptId !== undefined && exec.attemptId !== owner.attemptId) continue
+
       if (!exec.pendingApprovalToolCallIds?.delete(toolCallId)) continue
+
       while (exec.runtimeTiming.finishApproval({ toolCallId })) {}
+
       changed = true
+
       if (exec.pendingApprovalToolCallIds.size === 0) pendingApprovalFlipped = true
     }
+
     if (changed && pendingApprovalFlipped) {
       stream.lifecycle.onApprovalPendingChanged(stream)
     }
+
     return changed
   }
 
   addCompletedRuntimeSpan(topicId: string, assistantMessageId: string, span: MessageRuntimeSpan): boolean {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream) return false
+
     const execution = [...stream.executions.values()].find(
       (candidate) => candidate.anchorMessageId === assistantMessageId
     )
+
     if (!execution) return false
     execution.runtimeTiming.addCompletedSpan(span)
+
     return true
   }
 
@@ -1387,19 +1546,24 @@ export class AiStreamManager extends BaseService {
   /** Abort all executions in a topic. */
   abort(topicId: string, reason: string): void {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream || !isLiveStatus(stream.status)) {
       if (isAgentSessionTopic(topicId)) {
         application.get('AgentSessionRuntimeService').abortPendingTurn(extractAgentSessionId(topicId), reason)
       }
+
       return
     }
+
     logger.info('Aborting stream', { topicId, reason })
+
     for (const exec of stream.executions.values()) {
       if (exec.status === 'streaming') {
         exec.status = 'aborted'
         exec.abortController.abort(reason)
       }
     }
+
     // Flip status to 'aborted' synchronously here, where Stop's fate is decided — `onExecutionPaused`
     // only runs after the loop settles asynchronously. A steer enqueue landing in that window reads
     // this 'aborted' off the in-grace stream and drops, instead of draining after Stop.
@@ -1421,15 +1585,19 @@ export class AiStreamManager extends BaseService {
         const runtimeClosing = application
           .get('AgentSessionRuntimeService')
           .closeSession(extractAgentSessionId(topicId), true)
+
         const drainReplacementLoops = async (): Promise<void> => {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)
+
             const replacementLoops = replacement
               ? [...replacement.executions.values()].flatMap((execution) => {
                   const loopPromise = execution.loopPromise
+
                   return !drainedLoops.has(loopPromise) ? [loopPromise] : []
                 })
               : []
+
             if (replacementLoops.length === 0) return
 
             replacementLoops.forEach((loopPromise) => drainedLoops.add(loopPromise))
@@ -1452,13 +1620,16 @@ export class AiStreamManager extends BaseService {
   /** Multi-model: chunks carry `sourceModelId` for renderer demux. */
   onChunk(topicId: string, modelId: UniqueModelId, chunk: UIMessageChunk, expectedExecution?: StreamExecution): void {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream || !isLiveStatus(stream.status)) return
 
     const exec = stream.executions.get(modelId)
+
     if (!exec || (expectedExecution && exec !== expectedExecution)) return
 
     const sourceModelId = modelId
     const anchorMessageId = exec.anchorMessageId
+
     const payload: StreamChunkPayload = {
       topicId,
       executionId: sourceModelId,
@@ -1471,11 +1642,13 @@ export class AiStreamManager extends BaseService {
     // Authoritative approval-lifecycle capture, keyed by toolCallId so a sibling tool's output never
     // clears another tool's still-pending approval; `resolveTerminalStatus` reads the set's size.
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
+
     if (chunk.type === 'tool-approval-request') {
       const pendingApprovals = (exec.pendingApprovalToolCallIds ??= new Set())
       pendingApprovals.add(chunk.toolCallId)
       exec.runtimeTiming.startApproval(chunk.approvalId, chunk.toolCallId, toolNameFromApprovalChunk(chunk))
       const publishedApprovals = (exec.publishedApprovalIds ??= new Set())
+
       if (!publishedApprovals.has(chunk.approvalId) && stream.isPersistentConversation) {
         publishedApprovals.add(chunk.approvalId)
         this._onApprovalRequested.fire({
@@ -1492,6 +1665,7 @@ export class AiStreamManager extends BaseService {
       exec.pendingApprovalToolCallIds?.delete(chunk.toolCallId)
       exec.runtimeTiming.finishApproval({ toolCallId: chunk.toolCallId })
     }
+
     // Broadcast payloads and consumers only care about "any pending?", so only
     // the empty↔non-empty flip warrants a rebroadcast — size changes within
     // parallel approvals would produce byte-identical payloads.
@@ -1519,9 +1693,11 @@ export class AiStreamManager extends BaseService {
     // and leave the replay unparseable for `readUIMessageStream`. Oversized
     // incoming deltas split first; ingest and attach share `maxDeltaBytes`.
     const bufferLimit = Math.max(1, this.config.maxBufferChunks)
+
     for (const segment of splitDeltaPayload(payload, this.config.maxDeltaBytes)) {
       const tail = exec.buffer.at(-1)
       const merged = tail ? mergeDeltaPayload(tail, segment, this.config.maxDeltaBytes) : undefined
+
       if (merged) {
         exec.buffer[exec.buffer.length - 1] = merged
       } else {
@@ -1529,16 +1705,20 @@ export class AiStreamManager extends BaseService {
           exec.buffer.shift()
           exec.droppedChunks += 1
         }
+
         exec.buffer.push(segment)
       }
     }
+
     // Keeps stripped outputs resolvable until the message lands in SQLite. Bounded; an evicted
     // entry just falls through to the persisted copy.
     if (chunk.type === 'tool-output-available' && shouldDeferToolOutput(chunk.output)) {
       const deferredOutputs = (exec.deferredOutputs ??= new Map())
       deferredOutputs.set(chunk.toolCallId, chunk.output)
+
       if (deferredOutputs.size > this.config.maxDeferredOutputs) {
         const oldest = deferredOutputs.keys().next()
+
         if (!oldest.done) deferredOutputs.delete(oldest.value)
       }
     }
@@ -1546,17 +1726,20 @@ export class AiStreamManager extends BaseService {
     // Synchronous fan-out (listeners must not block the loop). Inline
     // liveness scrub so dead listeners go before the next onChunk runs.
     const dead: string[] = []
+
     for (const [id, listener] of stream.listeners) {
       if (!listener.isAlive()) {
         dead.push(id)
         continue
       }
+
       try {
         listener.onChunk(chunk, sourceModelId, anchorMessageId, exec.attemptId, payload.sequence)
       } catch (err) {
         logger.warn('Listener threw', { topicId, listenerId: id, event: 'onChunk', err })
       }
     }
+
     for (const id of dead) stream.listeners.delete(id)
 
     // `backgroundMode: 'abort'` policy — drive through aborted → paused so partial output persists as `paused`.
@@ -1572,17 +1755,21 @@ export class AiStreamManager extends BaseService {
   /** Called when one execution finishes. Topic-level done only when ALL executions finished. */
   async onExecutionDone(topicId: string, modelId: UniqueModelId, expectedExecution?: StreamExecution): Promise<void> {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
+
     if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'streaming') return
 
     exec.status = 'done'
     exec.runtimeTiming.closeOpenToolSpans()
+
     if ((exec.pendingApprovalToolCallIds?.size ?? 0) === 0) {
       exec.runtimeTiming.closeOpenSpans()
       exec.runtimeTiming.complete()
     }
+
     endRootSpan(exec, 'ok')
 
     // Compute topic status first so listeners get isTopicDone
@@ -1600,25 +1787,30 @@ export class AiStreamManager extends BaseService {
     // when the runtime will continue this topic, keep the stream alive so the next turn reaches the
     // carried renderer listeners, but let the runtime drive the continuation.
     const chatChaining = stream.status === 'done' && this.hasPendingSteer(topicId)
+
     const agentChaining =
       topicDone &&
       !chatChaining &&
       stream.status === 'done' &&
       isAgentSessionTopic(topicId) &&
       application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
+
     const chaining = chatChaining || agentChaining
 
     if (topicDone && stream.status === 'done' && stream.isPersistentConversation) {
       const tasks = this.completedBatchTasks.get(topicId) ?? new Set<string>()
+
       for (const execution of stream.executions.values()) {
         for (const taskId of execution.taskIds ?? [stream.turnId]) tasks.add(taskId)
       }
+
       this.completedBatchTasks.set(topicId, tasks)
       stream.completedTaskCount = tasks.size
       stream.completionFailed = this.failedCompletionAttempts.has(topicId)
     }
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
+
     try {
       await this.broadcastExecutionDone(stream, exec, topicDone && !chaining)
 
@@ -1641,9 +1833,11 @@ export class AiStreamManager extends BaseService {
 
   async onExecutionPaused(topicId: string, modelId: UniqueModelId, expectedExecution?: StreamExecution): Promise<void> {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
+
     if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'aborted') return
 
     // Mixed done/aborted topics resolve to done, but cancelled work cannot complete a notification batch.
@@ -1671,6 +1865,7 @@ export class AiStreamManager extends BaseService {
     if (hadPendingApprovals && !isTopicDone) stream.lifecycle.onApprovalPendingChanged(stream)
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
+
     try {
       await this.broadcastExecutionPaused(stream, exec, isTopicDone)
 
@@ -1698,9 +1893,11 @@ export class AiStreamManager extends BaseService {
     originalError?: unknown
   ): Promise<void> {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
+
     if (!exec || (expectedExecution && exec !== expectedExecution)) return
 
     exec.status = 'error'
@@ -1730,7 +1927,9 @@ export class AiStreamManager extends BaseService {
       modelId: exec.modelId,
       attemptId: exec.attemptId
     }
+
     if (isTopicDone) prefix.topicAttemptWatermark = this.getTopicAttemptWatermark(stream)
+
     const result: StreamErrorResult = {
       ...prefix,
       anchorMessageId: exec.anchorMessageId,
@@ -1740,6 +1939,7 @@ export class AiStreamManager extends BaseService {
     }
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
+
     try {
       await this.dispatchToListeners(stream, exec, result, originalError)
       this.emitUnsuccessfulExecution(stream, exec, result)
@@ -1764,6 +1964,7 @@ export class AiStreamManager extends BaseService {
     this.completedBatchTasks.delete(topicId)
     this.failedCompletionAttempts.delete(topicId)
     const dropped = this.pendingSteers.get(topicId)
+
     if (dropped?.length) {
       logger.warn('Dropping queued steers without answering', {
         topicId,
@@ -1771,6 +1972,7 @@ export class AiStreamManager extends BaseService {
         droppedIds: dropped.map((item) => item.userMessageId)
       })
     }
+
     this.pendingSteers.delete(topicId)
   }
 
@@ -1782,9 +1984,11 @@ export class AiStreamManager extends BaseService {
    */
   broadcastTopicError(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream) return
     const exec = modelId ? stream.executions.get(modelId) : undefined
     const isTopicDone = !isLiveStatus(stream.status)
+
     const prefix: Omit<StreamErrorResult, 'anchorMessageId' | 'isTopicDone'> = {
       error,
       persistence: { status: 'failed', failure: toExecutionFailure(error, modelId, 'host') },
@@ -1793,14 +1997,18 @@ export class AiStreamManager extends BaseService {
       attemptId: exec?.attemptId,
       userMessageId: exec?.userMessageId
     }
+
     if (isTopicDone) prefix.topicAttemptWatermark = this.getTopicAttemptWatermark(stream)
+
     const result: StreamErrorResult = {
       ...prefix,
       anchorMessageId: exec?.anchorMessageId,
       isTopicDone
     }
+
     for (const listener of stream.listeners.values()) {
       if (listener.terminalPhase) continue
+
       try {
         void listener.onError(result)
       } catch (err) {
@@ -1821,8 +2029,10 @@ export class AiStreamManager extends BaseService {
    */
   terminateHeldTopicStream(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream) return
     const exec = modelId ? stream.executions.get(modelId) : undefined
+
     const result: StreamErrorResult = {
       error,
       status: 'error',
@@ -1832,14 +2042,17 @@ export class AiStreamManager extends BaseService {
       anchorMessageId: exec?.anchorMessageId,
       isTopicDone: true
     }
+
     for (const listener of stream.listeners.values()) {
       if (listener.id.startsWith('persistence:')) continue
+
       try {
         void listener.onError(result)
       } catch (err) {
         logger.warn('terminateHeldTopicStream listener threw', { topicId, err })
       }
     }
+
     stream.status = 'error'
     this.runTerminalLifecycle(stream)
   }
@@ -1848,22 +2061,29 @@ export class AiStreamManager extends BaseService {
    *  counted dispatch has released. Synchronous on both ends so the terminal handlers keep their timing. */
   private beginTerminalDispatch(topicId: string): () => void {
     let gate = this.terminalDispatchInFlight.get(topicId)
+
     if (!gate) {
       let release!: () => void
+
       const settled = new Promise<void>((resolve) => {
         release = resolve
       })
+
       gate = { pending: 0, settled, release }
       this.terminalDispatchInFlight.set(topicId, gate)
     }
+
     const inFlight = gate
     inFlight.pending += 1
     let released = false
+
     return () => {
       if (released) return
       released = true
       inFlight.pending -= 1
+
       if (inFlight.pending > 0) return
+
       if (this.terminalDispatchInFlight.get(topicId) === inFlight) this.terminalDispatchInFlight.delete(topicId)
       inFlight.release()
     }
@@ -1873,14 +2093,18 @@ export class AiStreamManager extends BaseService {
   private runTerminalLifecycle(stream: ActiveStream): void {
     if (this.hasTerminalPersistenceInFlight(stream.topicId)) {
       stream.terminalLifecyclePending = true
+
       return
     }
+
     stream.terminalLifecyclePending = false
     stream.lifecycle.onTerminal(stream)
+
     if (stream.status !== 'awaiting-approval') {
       this.completedBatchTasks.delete(stream.topicId)
       this.failedCompletionAttempts.delete(stream.topicId)
     }
+
     stream.lifecycle.cleanup(stream, () => {
       if (this.activeStreams.get(stream.topicId) === stream) {
         this.activeStreams.delete(stream.topicId)
@@ -1896,6 +2120,7 @@ export class AiStreamManager extends BaseService {
   private scheduleNextChatTurn(topicId: string): void {
     if (this.startingNextChatTopicIds.has(topicId)) return
     this.startingNextChatTopicIds.add(topicId)
+
     const launch = new Promise<void>((resolve) => {
       queueMicrotask(() => {
         void this.startNextChatTurn(topicId)
@@ -1907,6 +2132,7 @@ export class AiStreamManager extends BaseService {
           })
       })
     })
+
     this.inFlightChatContinuations.set(topicId, launch)
   }
 
@@ -1920,16 +2146,21 @@ export class AiStreamManager extends BaseService {
     // queued (its user row is already persisted) and the last hold's disposal re-kicks it.
     if (this.isWriteQuiesced) {
       this.suppressedChatContinuationTopicIds.add(topicId)
+
       return
     }
+
     const queue = this.pendingSteers.get(topicId)
     const pending = queue?.[0]
+
     if (!pending) {
       this.pendingSteers.delete(topicId)
+
       return
     }
 
     const previous = this.activeStreams.get(topicId)
+
     // Never evict a still-live/unsettled stream: its terminal hook hasn't run, so evicting would
     // strand the partial-output persistence (`onExecutionPaused` early-returns on a missing stream).
     // Let that hook drive — it chains on a clean done or drops on abort/error.
@@ -1937,12 +2168,15 @@ export class AiStreamManager extends BaseService {
 
     // Commit to consuming the head only now that we're actually going to dispatch it.
     queue.shift()
+
     if (queue.length === 0) this.pendingSteers.delete(topicId)
 
     const carried = previous ? [...previous.listeners.values()].filter(isRendererListener) : []
+
     if (previous) this.evictStream(topicId)
 
     const { userMessageId, reasoningEffort, serviceTier, fastMode } = pending
+
     const req: MainDispatchRequest = {
       trigger: 'steer-continuation',
       topicId,
@@ -1951,6 +2185,7 @@ export class AiStreamManager extends BaseService {
       serviceTier,
       fastMode
     }
+
     try {
       await this.dispatch(carried[0] ?? nullStreamListener, req)
     } catch (error) {
@@ -1960,9 +2195,12 @@ export class AiStreamManager extends BaseService {
       // every window spins). Surface the failure and write a terminal status. Don't re-queue — a
       // retry just re-fails, mirroring the agent runtime's `startNextTurn` failure path.
       logger.error('Chat steer continuation failed to launch', { topicId, userMessageId, error })
+
       if (previous) this.failChatContinuation(previous, carried, serializeError(error))
+
       return
     }
+
     // Re-attach any other windows that were on the prior turn (single subscriber goes through
     // `dispatch`; the rest catch up via buffer replay).
     for (const listener of carried.slice(1)) this.addListener(topicId, listener)
@@ -1983,14 +2221,17 @@ export class AiStreamManager extends BaseService {
       topicAttemptWatermark: this.getTopicAttemptWatermark(previous),
       isTopicDone: true
     }
+
     for (const listener of carried) {
       if (listener.id.startsWith('persistence:')) continue
+
       try {
         void listener.onError(result)
       } catch (err) {
         logger.warn('failChatContinuation listener threw', { topicId: previous.topicId, err })
       }
     }
+
     previous.status = 'error'
     previous.lifecycle.onTerminal(previous)
     this.dropPendingSteers(previous.topicId, 'error')
@@ -2001,9 +2242,11 @@ export class AiStreamManager extends BaseService {
   /** Returns `undefined` for never-opened or grace-period-expired topics. */
   inspect(topicId: string): TopicSnapshot | undefined {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream) return undefined
 
     const executions: ExecutionSnapshot[] = []
+
     for (const exec of stream.executions.values()) {
       executions.push({
         modelId: exec.modelId,
@@ -2035,7 +2278,9 @@ export class AiStreamManager extends BaseService {
 
   attach(sender: Electron.WebContents, req: AiStreamAttachRequest): AiStreamAttachResponse {
     const stream = this.activeStreams.get(req.topicId)
+
     if (!stream) return { status: 'not-found' }
+
     // Prompt-stream lifecycle returns false here — re-attach is meaningless
     // for one-shot ad-hoc streams, and the listener was already consumed by
     // the original caller.
@@ -2049,29 +2294,35 @@ export class AiStreamManager extends BaseService {
       // accumulated content.
       const finalMessages: Partial<Record<UniqueModelId, CherryUIMessage>> = {}
       let firstFinalMessage: CherryUIMessage | undefined
+
       for (const exec of stream.executions.values()) {
         if (!exec.finalMessage) continue
         const finalMessage = projectStreamMessageForRenderer(req.topicId, exec.finalMessage)
         finalMessages[exec.modelId] = finalMessage
+
         if (!firstFinalMessage) firstFinalMessage = finalMessage
       }
+
       return {
         status: stream.status === 'aborted' ? 'paused' : 'done',
         finalMessage: firstFinalMessage,
         finalMessages
       }
     }
+
     if (stream.status === 'error') {
       // Pick the first execution that surfaced an error; undefined when no
       // execution recorded one (rare — implies the stream entered the error
       // state via a topic-level path with no per-exec error attached).
       let firstError: SerializedError | undefined
+
       for (const exec of stream.executions.values()) {
         if (exec.error) {
           firstError = exec.error
           break
         }
       }
+
       return { status: 'error', error: firstError }
     }
 
@@ -2079,11 +2330,13 @@ export class AiStreamManager extends BaseService {
     // text-delta / reasoning-delta merging stays per-execution.
     const listener = new WebContentsListener(sender, req.topicId)
     const previous = stream.listeners.get(listener.id)
+
     // A coalesced delta must not straddle the replay cutoff, including for existing consumers.
     if (previous instanceof WebContentsListener) previous.flushPending()
     stream.listeners.set(listener.id, listener)
 
     const totalDropped = [...stream.executions.values()].reduce((sum, exec) => sum + exec.droppedChunks, 0)
+
     if (totalDropped > 0) {
       logger.warn('attach: replay has gaps due to buffer overflow', {
         topicId: req.topicId,
@@ -2094,6 +2347,7 @@ export class AiStreamManager extends BaseService {
     const bufferedChunks: StreamChunkPayload[] = []
     const replayThrough: Record<number, number> = {}
     const replayFrom: Record<number, number> = {}
+
     for (const exec of stream.executions.values()) {
       replayThrough[exec.attemptId] = exec.sequence
       const first = exec.buffer[0]
@@ -2102,6 +2356,7 @@ export class AiStreamManager extends BaseService {
         ...buildCompactReplay(exec.buffer, this.config.maxDeltaBytes).map(projectStreamChunkPayloadForRenderer)
       )
     }
+
     return { status: 'attached', bufferedChunks, replayThrough, replayFrom }
   }
 
@@ -2112,19 +2367,24 @@ export class AiStreamManager extends BaseService {
   /** Full output of a deferred tool call, while the stream that produced it is still active. */
   getDeferredToolOutput(topicId: string, toolCallId: string): { found: true; output: unknown } | { found: false } {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream) return { found: false }
 
     for (const exec of stream.executions.values()) {
       if (exec.persistence?.status === 'saved') continue
+
       if (exec.sourceKind === 'messages') {
         const part = exec.finalMessage?.parts.find((part) => isToolUIPart(part) && part.toolCallId === toolCallId)
+
         if (part && isToolUIPart(part) && part.state === 'output-available') return { found: true, output: part.output }
         continue
       }
+
       if (exec.deferredOutputs?.has(toolCallId)) {
         return { found: true, output: exec.deferredOutputs.get(toolCallId) }
       }
     }
+
     return { found: false }
   }
 
@@ -2148,6 +2408,7 @@ export class AiStreamManager extends BaseService {
     // `loopPromise` is overwritten right after launch; initialise to a resolved sentinel
     // so the `exec` object reference is stable inside the arrow function below.
     const userTaskId = request.messages?.findLast((message) => message.role === 'user')?.id
+
     const exec: StreamExecution = {
       modelId,
       taskIds: request.taskIds ?? (userTaskId ? [userTaskId] : undefined),
@@ -2196,12 +2457,15 @@ export class AiStreamManager extends BaseService {
   ): Promise<void> {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
+
     const publishMessage = (message: CherryUIMessage) => {
       exec.finalMessage = withResolvedApprovals(withCompactionAnchors(message, exec), exec)
       this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
       const active = this.activeStreams.get(topicId)
+
       if (!active || active.executions.get(modelId) !== exec) return
       const hadPending = !!exec.pendingApprovalToolCallIds?.size
+
       for (const part of message.parts) {
         if (
           isToolUIPart(part) &&
@@ -2211,12 +2475,15 @@ export class AiStreamManager extends BaseService {
           exec.runtimeTiming.finishApproval({ toolCallId: part.toolCallId })
         }
       }
+
       if (hadPending && !exec.pendingApprovalToolCallIds?.size) active.lifecycle.onApprovalPendingChanged(active)
+
       for (const [id, listener] of active.listeners) {
         if (!listener.isAlive()) {
           active.listeners.delete(id)
           continue
         }
+
         try {
           listener.onMessage?.(exec.finalMessage, modelId, exec.sourceKind)
         } catch (err) {
@@ -2226,6 +2493,7 @@ export class AiStreamManager extends BaseService {
     }
 
     let source: AiStreamSource
+
     try {
       // Pre-stream rejection (model resolution, param build) routes through
       // the error path with no half-open stream to tear down.
@@ -2245,6 +2513,7 @@ export class AiStreamManager extends BaseService {
           // otherwise reach the persisted message.
           const anchors = (exec.compactionAnchors ??= [])
           const at = anchors.findIndex((a) => a.id === anchorId)
+
           if (at >= 0) anchors[at] = { id: anchorId, data }
           else anchors.push({ id: anchorId, data })
           exec.finalMessage = withCompactionAnchors(exec.finalMessage ?? ensureTerminalFinalMessage(exec), exec)
@@ -2255,8 +2524,10 @@ export class AiStreamManager extends BaseService {
       if (signal.aborted && (err === signal.reason || isAbortError(err))) {
         if (exec.status === 'streaming') exec.status = 'aborted'
         await this.onExecutionPaused(topicId, modelId, exec)
+
         return
       }
+
       if (!signal.aborted) {
         logAiFailure(
           logger,
@@ -2267,7 +2538,9 @@ export class AiStreamManager extends BaseService {
           { topicId, modelId, err: chatErrorContext(err) }
         )
       }
+
       await this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
+
       return
     }
 
@@ -2278,6 +2551,7 @@ export class AiStreamManager extends BaseService {
     // `requestOptions.timeout`; otherwise `CHAT_STREAM_IDLE_TIMEOUT_MS`.
     const timeoutMs = request.requestOptions?.timeout ?? CHAT_STREAM_IDLE_TIMEOUT_MS
     let result: Awaited<ReturnType<typeof pipeStreamLoop>>
+
     if (source.kind === 'messages') {
       const { stream, idle } = withIdleTimeout(source.stream, exec.abortController, timeoutMs)
       result = await pipeMessageStream(
@@ -2286,10 +2560,12 @@ export class AiStreamManager extends BaseService {
         ensureTerminalFinalMessage(exec),
         (message) => {
           publishMessage(message)
+
           if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
         },
         (chunk) => {
           this.onChunk(topicId, modelId, chunk, exec)
+
           if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
         }
       )
@@ -2299,6 +2575,7 @@ export class AiStreamManager extends BaseService {
       result = await pipeStreamLoop(withReasoningTimingMetadata(idleStream), signal, {
         onChunk: (chunk) => {
           this.onChunk(topicId, modelId, chunk, exec)
+
           if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
         },
         accumulatorSeed: lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined,
@@ -2321,10 +2598,12 @@ export class AiStreamManager extends BaseService {
 
     if (result.threw !== undefined) {
       const abortShaped = signal.aborted && (result.threw.error === signal.reason || isAbortError(result.threw.error))
+
       if (abortShaped) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {
         const failure = classifyAiSdkFailure(result.threw.error)
+
         const context = {
           topicId,
           modelId,
@@ -2333,18 +2612,24 @@ export class AiStreamManager extends BaseService {
           origin: 'throw',
           cause: chatErrorContext(result.threw.error)
         }
+
         if (result.streamErrorText !== undefined)
           Object.assign(context, { chunk: chatErrorContext({ message: result.streamErrorText }) })
         logAiFailure(logger, 'AI stream error', result.threw.error, 'chat.stream.consume', failure, context)
       }
+
       const fromThrow = serializeError(result.threw.error)
+
       const serialized =
         result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow) && !fromThrow.i18nKey
           ? errorFromStreamChunk(result.streamErrorText)
           : fromThrow
+
       if (fromThrow.reportingHandled === true) serialized.reportingHandled = true
+
       if (!abortShaped) serialized.streamStage = 'response-stream'
       await this.onExecutionError(topicId, modelId, serialized, exec, result.threw.error)
+
       return
     }
 
@@ -2383,7 +2668,9 @@ export class AiStreamManager extends BaseService {
       modelId: exec.modelId,
       attemptId: exec.attemptId
     }
+
     if (isTopicDone) prefix.topicAttemptWatermark = this.getTopicAttemptWatermark(stream)
+
     const result: StreamDoneResult = {
       ...prefix,
       anchorMessageId: exec.anchorMessageId,
@@ -2393,6 +2680,7 @@ export class AiStreamManager extends BaseService {
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
+
     await this.dispatchToListeners(stream, exec, result)
     this.emitUnsuccessfulExecution(stream, exec, result)
   }
@@ -2410,7 +2698,9 @@ export class AiStreamManager extends BaseService {
       modelId: exec.modelId,
       attemptId: exec.attemptId
     }
+
     if (isTopicDone) prefix.topicAttemptWatermark = this.getTopicAttemptWatermark(stream)
+
     const result: StreamPausedResult = {
       ...prefix,
       anchorMessageId: exec.anchorMessageId,
@@ -2418,6 +2708,7 @@ export class AiStreamManager extends BaseService {
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
+
     await this.dispatchToListeners(stream, exec, result)
     this.emitUnsuccessfulExecution(stream, exec, result)
   }
@@ -2429,14 +2720,17 @@ export class AiStreamManager extends BaseService {
   ): void {
     if (!stream.isPersistentConversation || stream.hasTaskResultOwner) return
     const failure = result.persistence?.status === 'failed' ? result.persistence.failure : undefined
+
     if (!failure && result.status !== 'error' && result.status !== 'paused') return
     const reason: unknown = exec.abortController.signal.reason
+
     const status =
       failure || result.status === 'error'
         ? 'failed'
         : reason === 'user-requested' || reason === 'remote-cancel'
           ? 'cancelled'
           : 'interrupted'
+
     const timing = exec.runtimeTiming.snapshot()
     const finishedAt = timing.completedAt ?? Date.now()
     this._onConversationUnsuccessful.fire({
@@ -2456,7 +2750,9 @@ export class AiStreamManager extends BaseService {
     // Valid because attempt ids come from the process-global monotonic sequence;
     // replacing a model entry therefore always fences every older attempt it displaced.
     let watermark = 0
+
     for (const execution of stream.executions.values()) watermark = Math.max(watermark, execution.attemptId)
+
     return watermark
   }
 
@@ -2479,11 +2775,13 @@ export class AiStreamManager extends BaseService {
   ): Promise<void> {
     const dead: string[] = []
     const listeners = [...stream.listeners]
+
     const orderedListeners = [
       ...listeners.filter(([, listener]) => listener.terminalPhase === 'persistence'),
       ...listeners.filter(([, listener]) => listener.terminalPhase === undefined),
       ...listeners.filter(([, listener]) => listener.terminalPhase === 'cleanup')
     ]
+
     let suppressNotification = false
 
     for (const [id, listener] of orderedListeners) {
@@ -2491,14 +2789,17 @@ export class AiStreamManager extends BaseService {
         dead.push(id)
         continue
       }
+
       if (suppressNotification && listener.terminalPhase === undefined) continue
       const tracksPersistence = listener.terminalPhase === 'persistence'
+
       if (tracksPersistence) {
         this.terminalPersistenceCounts.set(
           stream.topicId,
           (this.terminalPersistenceCounts.get(stream.topicId) ?? 0) + 1
         )
       }
+
       try {
         const dispatch =
           result.status === 'success'
@@ -2506,6 +2807,7 @@ export class AiStreamManager extends BaseService {
             : result.status === 'paused'
               ? listener.onPaused(result)
               : listener.onError(result, stream.lifecycle === promptStreamLifecycle ? originalError : undefined)
+
         exec.finalMessage = result.finalMessage
         await dispatch
       } catch (err) {
@@ -2515,20 +2817,25 @@ export class AiStreamManager extends BaseService {
           suppressNotification = true
           continue
         }
+
         logger.warn('Listener threw', { topicId: stream.topicId, listenerId: id, status: result.status, err })
       } finally {
         exec.finalMessage = result.finalMessage
         exec.persistence = result.persistence
+
         if (tracksPersistence) {
           const remaining = (this.terminalPersistenceCounts.get(stream.topicId) ?? 1) - 1
+
           if (remaining === 0) this.terminalPersistenceCounts.delete(stream.topicId)
           else this.terminalPersistenceCounts.set(stream.topicId, remaining)
+
           if (remaining === 0 && stream.terminalLifecyclePending && this.activeStreams.get(stream.topicId) === stream) {
             this.runTerminalLifecycle(stream)
           }
         }
       }
     }
+
     for (const id of dead) stream.listeners.delete(id)
   }
 
@@ -2541,11 +2848,13 @@ export class AiStreamManager extends BaseService {
    */
   private resolveTerminalStatus(stream: ActiveStream): ActiveStream['status'] {
     const status = this.computeTopicStatus(stream)
+
     if (status === 'done' || status === 'aborted') {
       for (const exec of stream.executions.values()) {
         if (exec.pendingApprovalToolCallIds?.size) return 'awaiting-approval'
       }
     }
+
     return status
   }
 
@@ -2556,25 +2865,34 @@ export class AiStreamManager extends BaseService {
 
     for (const exec of stream.executions.values()) {
       if (exec.status === 'streaming') hasStreaming = true
+
       if (exec.status === 'error') hasError = true
+
       if (exec.status !== 'aborted') allAborted = false
     }
 
     if (hasStreaming) return stream.status === 'pending' ? 'pending' : 'streaming'
+
     if (allAborted) return 'aborted'
+
     if (hasError) return 'error'
+
     return 'done'
   }
 
   /** Immediate eviction (cancels grace-period timer if any). Used by `send` over previous-grace-period streams. */
   private evictStream(topicId: string): void {
     const stream = this.activeStreams.get(topicId)
+
     if (!stream) return
+
     if (stream.cleanupTimer) clearTimeout(stream.cleanupTimer)
+
     // Leak guard for executions whose terminal handler never fired; `endRootSpan` is idempotent.
     for (const exec of stream.executions.values()) {
       endRootSpan(exec, 'aborted')
     }
+
     this.activeStreams.delete(topicId)
     this.releaseProjection(topicId)
   }

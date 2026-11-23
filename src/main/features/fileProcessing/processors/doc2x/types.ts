@@ -103,14 +103,23 @@ export type PreparedDoc2xStartContext = PreparedDoc2xContext & {
 export type PreparedDoc2xQueryContext = PreparedDoc2xContext
 
 export type Doc2xPreuploadData = z.infer<typeof Doc2xPreuploadDataSchema>
+
 export type Doc2xLayoutBlock = z.infer<typeof Doc2xLayoutBlockSchema>
+
 export type Doc2xLayout = z.infer<typeof Doc2xLayoutSchema>
+
 export type Doc2xParsePage = z.infer<typeof Doc2xParsePageSchema>
+
 export type Doc2xParseResult = z.infer<typeof Doc2xParseResultSchema>
+
 export type Doc2xParseStatusData = z.infer<typeof Doc2xParseStatusDataSchema>
+
 export type Doc2xExportStatusData = z.infer<typeof Doc2xExportStatusDataSchema>
+
 export type Doc2xPreuploadResponse = z.infer<typeof Doc2xPreuploadResponseSchema>
+
 export type Doc2xParseStatusResponse = z.infer<typeof Doc2xParseStatusResponseSchema>
+
 export type Doc2xExportStatusResponse = z.infer<typeof Doc2xExportStatusResponseSchema>
 
 export type Doc2xTaskStage = 'parsing' | 'exporting'

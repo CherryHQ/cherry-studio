@@ -26,6 +26,7 @@ export function useWebviewNavigation({ webview, revision, targetId, url }: Optio
     const targetChanged = previousTargetIdRef.current !== targetId
     previousTargetIdRef.current = targetId
     setCurrentPageUrl(url)
+
     if (targetChanged || !isAddressEditingRef.current) {
       isAddressEditingRef.current = false
       setAddressValue(url)
@@ -35,16 +36,19 @@ export function useWebviewNavigation({ webview, revision, targetId, url }: Optio
   const updateCurrentPageUrl = useCallback((nextUrl: string) => {
     if (!nextUrl) return
     setCurrentPageUrl(nextUrl)
+
     if (!isAddressEditingRef.current) setAddressValue(nextUrl)
   }, [])
 
   const restoreCurrentPageUrl = useCallback(() => {
     let nextUrl = currentPageUrl
+
     try {
       nextUrl = webview?.getURL() || nextUrl
     } catch {
       // A detaching guest may no longer expose its URL; retain the committed address.
     }
+
     updateCurrentPageUrl(nextUrl)
     setAddressValue(nextUrl)
   }, [currentPageUrl, updateCurrentPageUrl, webview])
@@ -79,25 +83,32 @@ export function useWebviewNavigation({ webview, revision, targetId, url }: Optio
   useEffect(() => {
     if (!webview) {
       updateNavigationState()
+
       return
     }
+
     const syncGuest = () => {
       updateNavigationState()
+
       try {
         updateCurrentPageUrl(webview.getURL())
       } catch {
         // Native contents may not exist until dom-ready.
       }
     }
+
     syncGuest()
+
     const handleNavigation = (event: DidNavigateEvent | DidNavigateInPageEvent) => {
       if ('isMainFrame' in event && !event.isMainFrame) return
       updateCurrentPageUrl(event.url)
       scheduleNavigationUpdate(50)
     }
+
     webview.addEventListener('dom-ready', syncGuest)
     webview.addEventListener('did-navigate', handleNavigation)
     webview.addEventListener('did-navigate-in-page', handleNavigation)
+
     return () => {
       clearNavigationUpdate()
       webview.removeEventListener('dom-ready', syncGuest)

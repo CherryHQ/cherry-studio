@@ -23,4 +23,5 @@ export const remoteFailureSchema = z.looseObject({
   retryAfterMs: z.number().int().nonnegative().optional(),
   details: z.record(z.string(), z.json()).optional()
 })
+
 export type RemoteFailure = z.infer<typeof remoteFailureSchema>

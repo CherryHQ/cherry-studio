@@ -10,7 +10,9 @@ async function callVoice<T>(
 ): Promise<T> {
   try {
     const webContents = senderId ? application.get('WindowManager').getWindow(senderId)?.webContents : undefined
+
     if (!senderId || !webContents || webContents.isDestroyed()) throw new VoiceRuntimeError('forbidden_owner')
+
     return await operation(application.get('VoiceSessionService'), { windowId: senderId, webContents })
   } catch (error) {
     throw voiceIpcError(error)

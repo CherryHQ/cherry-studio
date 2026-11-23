@@ -4,6 +4,7 @@ import { RapidMlxLight } from './light'
 
 const RapidMlx = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <RapidMlxLight {...props} className={className} />
+
   return <RapidMlxLight {...props} className={className} />
 }
 

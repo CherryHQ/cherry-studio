@@ -30,9 +30,12 @@ const MAX_MARKETPLACE_JSON_BYTES = 16 * 1024 * 1024
 async function readMarketplace<T>(url: string, read: (response: Response) => Promise<T>, timeout = 15_000): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeout)
+
   try {
     const response = await net.fetch(url, { signal: controller.signal })
+
     if (!response.ok) throw new Error(`CherryIN HTTP ${response.status}`)
+
     return await read(response)
   } finally {
     clearTimeout(timer)
@@ -45,14 +48,18 @@ async function readMarketplaceJson<TResult>(response: Response, schema: z.ZodTyp
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
   let size = 0
+
   try {
     while (true) {
       const { done, value } = await reader.read()
+
       if (done) break
       size += value.byteLength
+
       if (size > MAX_MARKETPLACE_JSON_BYTES) throw new Error('CherryIN response exceeds the size limit')
       chunks.push(value)
     }
+
     return schema.parse(JSON.parse(new TextDecoder().decode(Buffer.concat(chunks, size))))
   } finally {
     // readMarketplace aborts the request on every exit, including an oversized body.
@@ -62,10 +69,12 @@ async function readMarketplaceJson<TResult>(response: Response, schema: z.ZodTyp
 
 function summarizeSkill(skill: CherrySkill) {
   const cached = application.get('CacheService').getPersist('skill.marketplace.members')
+
   const members = z
     .array(z.object({ path: z.string(), name: z.string() }))
     .nonempty()
     .safeParse(cached?.[skill.id])
+
   return summarizeMarketplaceSkill(skill, members.success ? members.data : undefined)
 }
 
@@ -75,6 +84,7 @@ export async function listMarketplaceSkills(input: { offset: number; limit: numb
   url.searchParams.set('offset', String(input.offset))
   url.searchParams.set('sort', 'popular')
   const page = await readMarketplace(url.href, async (response) => readMarketplaceJson(response, CherrySkillPageSchema))
+
   return { items: page.items.map(summarizeSkill), pagination: page.pagination }
 }
 
@@ -83,25 +93,32 @@ export async function getMarketplaceSkill(id: string, readMembers = false): Prom
     `${CHERRY_SKILL_MARKETPLACE_URL}/api/skills/${encodeURIComponent(id)}`,
     async (response) => readMarketplaceJson(response, CherrySkillDetailSchema)
   )
+
   if (skill.id !== id) throw new Error('CherryIN skill is unavailable')
   const detail = { ...summarizeSkill(skill), longDescription: skill.longDescription }
+
   if (readMembers && detail.hasPackage && !detail.membersKnown) {
     const downloaded = await downloadMarketplaceSkill(detail)
     await safeRemoveDirectory(downloaded.tempDir)
   }
+
   return { ...summarizeSkill(skill), longDescription: skill.longDescription }
 }
 
 // Check the archive before extraction: Windows may otherwise overwrite case-colliding entries.
 async function validatePortableArchive(file: string): Promise<void> {
   const zip = new StreamZip.async({ file })
+
   try {
     const paths = new Map<string, string>()
+
     for (const entry of Object.values(await zip.entries())) {
       if (((entry.attr >>> 16) & 0o170000) === 0o120000) throw new Error('Skill packages cannot contain symlinks')
       const parts = entry.name.replace(/\/$/, '').split('/')
+
       for (let length = 1; length <= parts.length; length++) {
         const part = parts[length - 1]
+
         if (
           !part ||
           part === '.' ||
@@ -113,6 +130,7 @@ async function validatePortableArchive(file: string): Promise<void> {
           throw new Error(`Unsupported skill package path: ${entry.name}`)
         const prefix = parts.slice(0, length).join('/')
         const key = prefix.normalize('NFC').toLowerCase()
+
         if (paths.has(key) && paths.get(key) !== prefix) throw new Error(`Conflicting skill package path: ${prefix}`)
         paths.set(key, prefix)
       }
@@ -124,6 +142,7 @@ async function validatePortableArchive(file: string): Promise<void> {
 
 export async function downloadSkillPackage(url: string, collection = false) {
   const tempDir = await createTempDir('skill-package')
+
   try {
     const zipPath = path.join(tempDir, 'package.zip')
     await fetchRemoteFile(url, zipPath, { timeoutMs: 60_000, maxBytes: MAX_ARCHIVE_SIZE, maxRedirects: 5 })
@@ -132,27 +151,33 @@ export async function downloadSkillPackage(url: string, collection = false) {
     await fs.mkdir(contentDir)
     await extractZip(zipPath, contentDir)
     const candidates = await findAllSkillDirectories(contentDir, contentDir)
+
     if (!candidates.length) throw new Error('Skill package contains no skills')
     const isCollection = candidates.length > 1 || (collection && candidates[0].sourcePath !== '')
     const directories: Array<MarketplaceSkillDetail['members'][number] & { skillDir: string }> = []
     const folderNames = new Set<string>()
+
     for (const candidate of candidates) {
       const memberPath = isCollection ? candidate.sourcePath.split(path.sep).join('/') : ''
       let skillDir = await validateRepositorySkillDirectory(contentDir, candidate.folderPath)
       await assertSkillDirectoryWithinLimits(skillDir)
       const metadata = await parseSkillMetadata(skillDir, memberPath, 'skills', { calculateSize: false })
       const folderName = sanitizeFolderName(isCollection ? metadata.filename : metadata.name)
+
       if (!folderName || folderNames.has(folderName.toLowerCase()))
         throw new Error(`Conflicting skill folder: ${folderName}`)
       folderNames.add(folderName.toLowerCase())
+
       if (!isCollection) {
         const stagedDir = path.join(tempDir, 'staged', folderName)
         await fs.mkdir(path.dirname(stagedDir))
         await fs.rename(skillDir, stagedDir)
         skillDir = stagedDir
       }
+
       directories.push({ path: memberPath, name: metadata.name, skillDir })
     }
+
     return { tempDir, directories }
   } catch (error) {
     await safeRemoveDirectory(tempDir)
@@ -162,14 +187,17 @@ export async function downloadSkillPackage(url: string, collection = false) {
 
 export async function downloadMarketplaceSkill(skill: MarketplaceSkillDetail) {
   if (!skill.hasPackage) throw new Error('CherryIN skill has no installable package')
+
   const downloaded = await downloadSkillPackage(
     CHERRY_SKILL_MARKETPLACE_URL + '/api/skills/' + encodeURIComponent(skill.id) + '/download',
     skill.tags.includes('collection')
   )
+
   const cache = application.get('CacheService')
   cache.setPersist('skill.marketplace.members', {
     ...cache.getPersist('skill.marketplace.members'),
     [skill.id]: downloaded.directories.map(({ path, name }) => ({ path, name }))
   })
+
   return downloaded
 }

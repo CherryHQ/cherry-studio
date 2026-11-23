@@ -30,6 +30,7 @@ function isRecord(value: unknown): value is {
 
 export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
   const cached = cacheService.get(getChatDraftCacheKey(topicId))
+
   if (!isRecord(cached)) return EMPTY_DRAFT_CACHE
 
   return {

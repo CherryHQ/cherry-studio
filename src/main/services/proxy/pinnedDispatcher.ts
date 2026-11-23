@@ -17,6 +17,7 @@ export function createPinnedDispatcher(target: ResolvedRemoteFetchUrl): Dispatch
     const url = new URL(target.url)
     const host = target.address.family === 6 ? `[${target.address.address}]` : target.address.address
     const authority = `${host}:${url.port || (url.protocol === 'https:' ? '443' : '80')}`
+
     return new ProxyAgent({
       uri: proxy.url,
       proxyTunnel: true,
@@ -43,6 +44,7 @@ export function createPinnedDispatcher(target: ResolvedRemoteFetchUrl): Dispatch
       userId: proxy.userId,
       password: proxy.password
     })
+
     return new Agent({
       connect: (options, callback) => connect({ ...options, hostname: target.address.address }, callback)
     })

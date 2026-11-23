@@ -28,17 +28,23 @@ export function parseDictationShortcut(value: string): string[] {
   if (!value) return []
   const codes = value.split('+')
   const modifiers = codes.filter(isDictationShortcutModifier)
+
   if (codes.length > 3 || modifiers.length === 0 || codes.length - modifiers.length > 1) return []
+
   if (new Set(modifiers.map((code) => MODIFIER_CODES.get(code))).size !== modifiers.length) return []
+
   if (new Set(codes).size !== codes.length) return []
+
   if (
     codes.some((code) => {
       if (isDictationShortcutModifier(code)) return false
       const token = normalizeShortcutToken(code)
+
       return !token || isShortcutModifier(token) || token === 'Escape'
     })
   )
     return []
+
   return codes.sort()
 }
 
@@ -53,12 +59,14 @@ export function formatDictationShortcut(value: string, isMac: boolean, left: str
     'ShiftLeft',
     'ShiftRight'
   ]
+
   return parseDictationShortcut(value)
     .sort((a, b) => (order.includes(a) ? order.indexOf(a) : 8) - (order.includes(b) ? order.indexOf(b) : 8))
     .map((code) => {
       const modifier = MODIFIER_CODES.get(code)
       const token = modifier ?? normalizeShortcutToken(code)!
       const label = formatKeyDisplay(token, isMac)
+
       return modifier ? `${code.endsWith('Left') ? left : right} ${label}` : label
     })
     .join(' + ')
@@ -73,6 +81,7 @@ export function getDictationShortcutBinding(
   const keyCode = codes.find((code) => !MODIFIER_CODES.has(code)) ?? codes[0] ?? ''
   // An unfinished chord has no character identity until that key is observed.
   const code = !keyByCode || keyByCode.has(keyCode) ? keyCode : ''
+
   return getShortcutBindingFromKeyboardEvent(
     {
       key: keyByCode?.get(code) ?? MODIFIER_CODES.get(code) ?? code,
@@ -88,12 +97,14 @@ export function getDictationShortcutBinding(
 
 export function dictationShortcutMatches(value: string, pressed: Pick<ReadonlySet<string>, 'size' | 'has'>): boolean {
   const codes = parseDictationShortcut(value)
+
   return codes.length > 0 && codes.length === pressed.size && codes.every((code) => pressed.has(code))
 }
 
 export function dictationShortcutsConflict(hold: string, toggle: string): boolean {
   const holdCodes = parseDictationShortcut(hold)
   const toggleCodes = parseDictationShortcut(toggle)
+
   return toggleCodes.length > 0 && toggleCodes.every((code) => holdCodes.includes(code))
 }
 
@@ -106,7 +117,9 @@ export function hasDictationCommandConflict(
     .reduce<ShortcutBinding[]>(
       (bindings, key) => {
         const count = bindings.length
+
         for (let index = 0; index < count; index++) bindings.push([...bindings[index], key])
+
         return bindings
       },
       [[]]

@@ -111,18 +111,23 @@ export class ResourceListUiService {
     }
 
     const previous = this.rowCache.get(itemId)
+
     if (previous && sameRowState(previous, next)) return previous
+
     if (sameRowState(EMPTY_ROW_STATE, next)) {
       this.rowCache.set(itemId, EMPTY_ROW_STATE)
+
       return EMPTY_ROW_STATE
     }
 
     this.rowCache.set(itemId, next)
+
     return next
   }
 
   getGroupSnapshot = (groupId: string): ResourceListGroupStateSnapshot => {
     const record = this.groupRecords.get(groupId)
+
     if (!record) return EMPTY_GROUP_STATE
 
     const next: ResourceListGroupStateSnapshot = {
@@ -133,10 +138,13 @@ export class ResourceListUiService {
       selectedVisible: this.state.selectedId !== null && record.visibleItemIds.has(this.state.selectedId),
       visibleCount: record.visibleCount
     }
+
     const previous = this.groupCache.get(groupId)
+
     if (previous && sameGroupState(previous, next)) return previous
 
     this.groupCache.set(groupId, next)
+
     return next
   }
 
@@ -144,10 +152,13 @@ export class ResourceListUiService {
 
   getListboxSnapshot = (): ResourceListListboxStateSnapshot => {
     const { activeId, selectedId } = this.state
+
     if (this.listboxSnapshot.activeId === activeId && this.listboxSnapshot.selectedId === selectedId) {
       return this.listboxSnapshot
     }
+
     this.listboxSnapshot = { activeId, selectedId }
+
     return this.listboxSnapshot
   }
 
@@ -161,6 +172,7 @@ export class ResourceListUiService {
 
   subscribeListbox = (listener: () => void) => {
     this.listboxListeners.add(listener)
+
     return () => {
       this.listboxListeners.delete(listener)
     }
@@ -173,6 +185,7 @@ export class ResourceListUiService {
 
     return () => {
       listeners.delete(listener)
+
       if (listeners.size === 0) {
         this.rowListeners.delete(itemId)
         this.rowCache.delete(itemId)
@@ -187,6 +200,7 @@ export class ResourceListUiService {
 
     return () => {
       listeners.delete(listener)
+
       if (listeners.size === 0) {
         this.groupListeners.delete(groupId)
         this.groupCache.delete(groupId)
@@ -210,6 +224,7 @@ export class ResourceListUiService {
 
   setRevealFocus = (revealFocus: ResourceListRevealFocus) => {
     const previousFocus = this.state.revealFocus
+
     if (previousFocus?.itemId === revealFocus?.itemId && previousFocus?.requestId === revealFocus?.requestId) return
 
     this.state = { ...this.state, revealFocus }
@@ -239,11 +254,13 @@ export class ResourceListUiService {
 
     for (const viewGroup of groups) {
       const itemIds = new Set<string>()
+
       for (const item of viewGroup.allItems) {
         const itemId = getItemId(item)
         itemIds.add(itemId)
         nextItemGroupIds.set(itemId, viewGroup.group.id)
       }
+
       const visibleItemIds = new Set(viewGroup.items.map(getItemId))
 
       const nextRecord: ResourceListGroupRecord = {
@@ -254,11 +271,13 @@ export class ResourceListUiService {
         visibleItemIds,
         visibleCount: viewGroup.visibleCount
       }
+
       const previousSnapshot = this.getGroupSnapshot(viewGroup.group.id)
       nextGroupRecords.set(viewGroup.group.id, nextRecord)
       this.groupRecords.set(viewGroup.group.id, nextRecord)
       this.groupCache.delete(viewGroup.group.id)
       const nextSnapshot = this.getGroupSnapshot(viewGroup.group.id)
+
       if (!sameGroupState(previousSnapshot, nextSnapshot)) {
         changedGroupIds.add(viewGroup.group.id)
       }

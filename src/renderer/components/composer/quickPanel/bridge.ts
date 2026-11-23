@@ -9,11 +9,13 @@ export const ROOT_QUICK_PANEL_ALLOWED_PREFIXES = [' ', '\n', '\t']
 
 export function hasComposerQuickPanelTriggerBoundary(textBeforeTrigger: string) {
   if (textBeforeTrigger.length === 0) return true
+
   return /\s/.test(textBeforeTrigger.slice(-1))
 }
 
 export function getComposerInputLeafText(node: ProseMirrorNode) {
   if (node.type.name === 'hardBreak') return '\n'
+
   return ''
 }
 
@@ -41,6 +43,7 @@ export function getComposerSuggestionTriggerContext(
   const textBeforeTrigger = editor.state.doc.textBetween(0, options.range.from, '\n', getComposerInputLeafText)
   const queryAnchor = textBeforeTrigger.length
   const triggerText = options.text || `${options.triggerChar}${options.query}`
+
   const cursorOffset = editor.state.selection?.from
     ? getComposerCursorTextOffset(editor)
     : queryAnchor + triggerText.length
@@ -60,6 +63,7 @@ export function getComposerPositionAtTextOffset(editor: Editor, textOffset: numb
 
   while (low < high) {
     const mid = Math.floor((low + high) / 2)
+
     if (getComposerTextOffset(editor, mid) < targetOffset) {
       low = mid + 1
     } else {

@@ -78,6 +78,7 @@ export interface MiniAppIdentityChange {
 /** Key-sorted, so two equal tables written in different orders compare equal. */
 function normalizeLocalizedText(text: LocalizedText): string {
   if (typeof text === 'string') return JSON.stringify(text)
+
   return JSON.stringify(Object.fromEntries(Object.entries(text).sort(([a], [b]) => (a < b ? -1 : 1))))
 }
 
@@ -183,22 +184,28 @@ class MiniAppUpdateReviewService {
     // `expiresAt` decides VALIDITY, nothing decides LIFETIME — so sweep on issue, the
     // only operation that grows the map. Two live tokens for one app is a real state.
     const now = Date.now()
+
     for (const [key, entry] of this.reviewed) {
       if (entry.expiresAt <= now) this.reviewed.delete(key)
     }
 
     const token = crypto.randomUUID()
     this.reviewed.set(token, { ...review, expiresAt: now + REVIEW_TTL_MS })
+
     return token
   }
 
   /** One-shot: consuming removes it, so a replay cannot re-apply a stale snapshot. */
   consume(appId: string, token: string | undefined): ReviewedUpdate {
     const review = token ? this.reviewed.get(token) : undefined
+
     if (!review) throw new Error(`Unknown or already-spent update token for ${appId}`)
     this.reviewed.delete(token!)
+
     if (review.appId !== appId) throw new Error(`Update token does not belong to ${appId}`)
+
     if (Date.now() > review.expiresAt) throw new Error(`Update token for ${appId} has expired; check again`)
+
     return review
   }
 }
@@ -232,6 +239,7 @@ function assertManifestMatchesReviewed(review: MiniAppManifest, packaged: MiniAp
       // same origin — and the next check would go there.
       update: [m.update?.url ?? null, m.update?.urlCn ?? null]
     })
+
   if (project(review) !== project(packaged)) {
     throw new Error(`Packaged manifest does not match the reviewed manifest for ${review.id}`)
   }
@@ -253,6 +261,7 @@ function updateEndpointsOf(row: MiniAppInstallationRow) {
   const update = MiniAppManifestSchema.parse(row.manifestJson).update
   const url = update?.url ?? row.sourceUrl!
   const pinned = pinnedOrigins(row)
+
   // BEFORE the request: validating the response is too late twice over — the request
   // is already made, and a response that OMITS `update` used to fall back and pass.
   for (const candidate of [url, update?.urlCn]) {
@@ -260,6 +269,7 @@ function updateEndpointsOf(row: MiniAppInstallationRow) {
       throw new Error(`Update endpoint for ${row.appId} left its origin pin (${pinned.join(', ')})`)
     }
   }
+
   return { url, urlCn: update?.urlCn }
 }
 
@@ -275,6 +285,7 @@ function declaredOrigins(manifest: MiniAppDistributionManifest): string[] {
   // One or two, canonical first. The accelerator is optional; the schema keeps
   // `update.urlCn` and `package.urlCn` both-or-neither, so a lone package mirror never lands here.
   const { url, urlCn } = manifest.update
+
   return urlCn ? [new URL(url).origin, new URL(urlCn).origin] : [new URL(url).origin]
 }
 
@@ -291,13 +302,17 @@ function assertPackageOrigins(manifest: MiniAppDistributionManifest, origins: re
     [manifest.package.url, origins[0]],
     [manifest.package.urlCn, origins[1]]
   ]
+
   for (const [url, origin] of pairs) {
     if (!url) continue
+
     if (!origin) throw new Error(`Mini app ${manifest.id} declares a package mirror with no matching update origin`)
+
     if (new URL(url).origin !== origin) {
       throw new Error(`Package url ${url} is not on its region's declared origin ${origin}`)
     }
   }
+
   // The icon has no region: any pinned origin will do, an unpinned one will not.
   if (manifest.package.iconUrl && !origins.includes(new URL(manifest.package.iconUrl).origin)) {
     throw new Error(`Icon url ${manifest.package.iconUrl} is not on a declared origin`)
@@ -325,14 +340,17 @@ function pinnedOrigins(row: MiniAppInstallationRow): string[] {
  */
 function describeIdentityChange(previous: MiniAppManifest, next: MiniAppManifest): MiniAppIdentityChange | undefined {
   const change: MiniAppIdentityChange = {}
+
   if (normalizeLocalizedText(previous.name) !== normalizeLocalizedText(next.name)) {
     change.name = { from: previous.name, to: next.name }
   }
+
   // By DIGEST, not by path: a same-path byte swap is the ordinary way to change an
   // app's face, and a path comparison cannot see it.
   if ((previous.icon?.sha256 ?? null) !== (next.icon?.sha256 ?? null)) {
     change.icon = { from: previous.icon?.path ?? null, to: next.icon?.path ?? null }
   }
+
   return Object.keys(change).length > 0 ? change : undefined
 }
 
@@ -362,6 +380,7 @@ function reviewUpdate(
   const { added, addedOptional, removed } = diffDeclaredSets(previous, next)
   const addedHosts = diffDeclaredHosts(previous, next)
   const identityChange = describeIdentityChange(previous, next)
+
   const updateToken = miniAppUpdateReviewService.issue({
     appId,
     manifest: next,
@@ -377,10 +396,12 @@ function reviewUpdate(
     payload,
     repin: opts.repin
   })
+
   // A CHECK lights the dot; an install the user is holding in their hands has nothing to
   // go and tell them about.
   if (opts.announce) application.get('MiniAppRuntimeService').noteUpdateAvailable(appId, next.version)
   const releaseNotes = resolveReleaseNotes(next)
+
   // `addedOptional` rides along on BOTH branches: it is shown, never blocking (§6.0.1).
   if (added.length > 0 || addedHosts.length > 0) {
     return {
@@ -395,6 +416,7 @@ function reviewUpdate(
       releaseNotes
     }
   }
+
   return { status: 'ready', version: next.version, addedOptional, removed, updateToken, identityChange, releaseNotes }
 }
 
@@ -420,16 +442,21 @@ export function reviewUpgradeOverInstalled(
  */
 async function checkBuiltinUpdate(appId: string, row: MiniAppInstallationRow, root: string): Promise<UpdateStatus> {
   const runtime = application.get('MiniAppRuntimeService')
+
   if ((await hashTree(root)) === row.contentHash) {
     runtime.noteUpdateAvailable(appId, null)
+
     return { status: 'current' }
   }
+
   const shipped = MiniAppManifestSchema.parse(
     JSON.parse(await fs.promises.readFile(path.join(root, 'manifest.json'), 'utf8'))
   )
+
   // The same check the url path does. A `resources/` directory holding the wrong app's
   // manifest would otherwise write that manifest onto THIS appId's installation row.
   if (shipped.id !== appId) throw new Error(`Builtin tree for ${appId} declares id ${shipped.id}`)
+
   // NO `semverGt` gate here, unlike the url path, and the difference is deliberate: that
   // gate refuses a SERVER-pushed downgrade or a same-version replay, and a builtin tree
   // arrives inside the signed Cherry the user already installed — there is no such pusher.
@@ -445,6 +472,7 @@ async function checkBuiltinUpdate(appId: string, row: MiniAppInstallationRow, ro
       shipped: shipped.version
     })
   }
+
   return reviewUpdate(appId, row, shipped, { kind: 'builtin', root }, { announce: true })
 }
 
@@ -461,20 +489,25 @@ const inFlightChecks = new Map<string, Promise<UpdateStatus>>()
 
 export function checkForUpdate(appId: string, builtinRoot?: string): Promise<UpdateStatus> {
   const pending = inFlightChecks.get(appId)
+
   if (pending) return pending
   const check = runUpdateCheck(appId, builtinRoot).finally(() => inFlightChecks.delete(appId))
   inFlightChecks.set(appId, check)
+
   return check
 }
 
 async function runUpdateCheck(appId: string, builtinRoot?: string): Promise<UpdateStatus> {
   const row = installationOf(appId)
+
   // `builtinRoot` is injectable for tests only; production always reads `resources/`.
   if (row.source === 'builtin') return checkBuiltinUpdate(appId, row, builtinRoot ?? miniAppBuiltinPath(appId))
+
   // A local package has no `sourceOrigin` to pin, and its own `update.url` cannot supply one.
   if (row.source !== 'url' || !row.sourceUrl || !row.sourceOrigin) {
     throw new Error(`Mini app ${appId} has no pinned update origin and cannot check for updates online`)
   }
+
   const endpoints = updateEndpointsOf(row)
   const pinned = pinnedOrigins(row)
   const remote = await fetchManifest(await mirrorOrder(endpoints.url, endpoints.urlCn))
@@ -484,16 +517,20 @@ async function runUpdateCheck(appId: string, builtinRoot?: string): Promise<Upda
   if (!sameOrigins(declaredOrigins(remote), pinned)) {
     throw new Error(`Update origins changed for ${appId}: pinned ${pinned.join(', ')}; re-install to move mirrors`)
   }
+
   if (remote.id !== appId) throw new Error(`Update manifest id mismatch for ${appId}`)
   const runtime = application.get('MiniAppRuntimeService')
+
   // STRICTLY greater: `!==` accepts a server-pushed downgrade, and same-version-new-bytes
   // is deliberately "current" — not bumping the version IS refusing to say it changed.
   if (!semverGt(remote.version, row.version)) {
     // EVERY exit records the answer: a check that finds nothing must CLEAR a dot an
     // earlier one lit, or the badge outlives its reason and nobody trusts it.
     runtime.noteUpdateAvailable(appId, null)
+
     return { status: 'current' }
   }
+
   if (!remote.package) throw new Error(`Update manifest for ${appId} declares no package url/hash`)
   assertPackageOrigins(remote, pinned)
 
@@ -505,13 +542,16 @@ export async function applyUpdate(
   opts: { updateToken: string; consented?: boolean; grantedOptional?: readonly string[] }
 ): Promise<void> {
   const review = miniAppUpdateReviewService.consume(appId, opts.updateToken)
+
   if ((review.added.length > 0 || review.addedHosts.length > 0) && !opts.consented) {
     const what = [...review.added, ...review.addedHosts.map((h) => `host ${h}`)]
     throw new Error(`Update for ${appId} needs consent for: ${what.join(', ')}`)
   }
+
   const runtime = application.get('MiniAppRuntimeService')
   // Registered BEFORE the download: from here the tile shows "updating" and refuses a second run.
   runtime.beginUpdate(appId, review.manifest.version)
+
   try {
     await applyReviewedUpdate(appId, review, opts.grantedOptional)
   } finally {
@@ -528,6 +568,7 @@ async function applyReviewedUpdate(
   // Bound to a local `const` before the branch: TypeScript does not keep a narrowing
   // of `review.payload` alive inside the closures below.
   const payload = review.payload
+
   if (payload.kind === 'file') {
     // Nothing to download and nothing to clean up — the bytes are the user's own file.
     await withPublishLock(appId, () =>
@@ -537,6 +578,7 @@ async function applyReviewedUpdate(
           publishUpdate(appId, review, (staging) => extractMiniAppArchive(payload.zipPath, staging), grantedOptional)
         )
     )
+
     return
   }
 
@@ -550,16 +592,19 @@ async function applyReviewedUpdate(
           publishUpdate(appId, review, (staging) => copyTreeToStaging(payload.root, staging), grantedOptional)
         )
     )
+
     return
   }
 
   // Downloaded OUTSIDE the lock: it is the slow part and it touches nothing shared.
   const pkg = review.manifest.package!
+
   const downloaded = await fetchPackage(
     await mirrorOrder(pkg.url, pkg.urlCn),
     { sha256: pkg.sha256, size: pkg.size, origins: payload.origins },
     (received, total) => application.get('MiniAppRuntimeService').noteUpdateProgress(appId, received / total)
   )
+
   try {
     await withPublishLock(appId, () =>
       // Offline BEFORE the mutation: until the old page is gone, the new grants belong
@@ -589,6 +634,7 @@ async function publishUpdate(
 ): Promise<void> {
   const { manifest: remote, added, addedOptional, removed } = review
   const row = installationOf(appId)
+
   // The token describes a diff FROM a specific version. If the app moved since,
   // replaying it revokes grants the current version declares.
   if (row.version !== review.baseVersion || row.contentHash !== review.baseContentHash) {
@@ -613,6 +659,7 @@ async function publishUpdate(
     // package declares anything different, the bytes are not what was reviewed.
     assertManifestMatchesReviewed(remote, manifest)
     const contentHash = await hashTree(staging)
+
     // The web path is bound to the reviewed bytes by the pinned sha256; the local path
     // has no such pin, and the file can be swapped under a byte-identical manifest.
     if (review.payload.kind === 'file' && contentHash !== review.payload.contentHash) {
@@ -643,6 +690,7 @@ async function publishUpdate(
         // Only the human's newly reviewed leaves extend the consent baseline.
         consentedDeclaredJson: [...new Set([...previousConsented, ...added, ...addedOptional])].sort()
       }
+
       // Repinning changes provenance; a code rollback does not restore it.
       if (review.repin) {
         installationPatch.source = review.repin.source
@@ -650,21 +698,27 @@ async function publishUpdate(
         installationPatch.sourceOrigin = review.repin.sourceOrigin ?? null
         installationPatch.sourceOriginCn = review.repin.sourceOriginCn ?? null
       }
+
       tx.update(miniAppInstallationTable).set(installationPatch).where(eq(miniAppInstallationTable.appId, appId)).run()
+
       const appPatch: Partial<typeof miniAppTable.$inferInsert> = {
         name: resolveLocalizedText(manifest.name, 'en'),
         url: `${MINI_APP_SCHEME}://${appId}/${manifest.entry}`
       }
+
       if (review.repin) appPatch.presetMiniAppId = review.repin.source === 'builtin' ? appId : null
       tx.update(miniAppTable).set(appPatch).where(eq(miniAppTable.appId, appId)).run()
+
       // ONLY what the user just consented to — the new required leaves plus the newly offered
       // optional ones they left ticked. Re-granting the full declared set would restore every
       // permission they had revoked.
       const chosenOptional = grantedOptional
         ? addedOptional.filter((key) => grantedOptional.includes(key))
         : addedOptional
+
       granted = [...added, ...chosenOptional]
       grantMiniAppPermissionsTx(tx, appId, granted, manifest.version)
+
       for (const key of removed) revokeGrantTx(tx, appId, key)
     })
   } catch (error) {
@@ -673,6 +727,7 @@ async function publishUpdate(
       await fs.promises.rm(installPath, { recursive: true, force: true })
       await fs.promises.rename(backup, installPath)
     }
+
     clearPublishJournal(appId)
     throw error
   } finally {
@@ -712,6 +767,7 @@ async function undoRollback(appId: string): Promise<void> {
   const installPath = miniAppInstallPath(appId)
   const backup = miniAppBackupPath(appId)
   const rolling = miniAppRollingPath(appId)
+
   if (!fs.existsSync(rolling)) return
 
   if (fs.existsSync(installPath) && !fs.existsSync(backup)) {
@@ -719,6 +775,7 @@ async function undoRollback(appId: string): Promise<void> {
   } else {
     await fs.promises.rm(installPath, { recursive: true, force: true })
   }
+
   await fs.promises.rename(rolling, installPath)
 }
 
@@ -756,6 +813,7 @@ function rolledBackSet(
 ): string[] {
   const oldDeclared = declaredGrantKeys(previousManifest)
   const stillDeclared = new Set(declaredGrantKeys(currentManifest))
+
   return oldDeclared.filter((key) => (stillDeclared.has(key) ? current.includes(key) : snapshot.includes(key))).sort()
 }
 
@@ -816,7 +874,9 @@ export async function rollbackUpdate(appId: string): Promise<void> {
       const installPath = miniAppInstallPath(appId)
       const backup = miniAppBackupPath(appId)
       const rolling = miniAppRollingPath(appId)
+
       if (!fs.existsSync(backup)) throw new Error(`No previous version retained for ${appId}`)
+
       if (!row.previousManifestJson || !row.previousContentHash) {
         throw new Error(`No previous record retained for ${appId}`)
       }
@@ -850,10 +910,12 @@ export async function rollbackUpdate(appId: string): Promise<void> {
         clearPublishJournal(appId)
         throw error
       }
+
       // Committed. A `.rolling` that will not delete stays journalled so startup retries it.
       const swept = await bestEffortCleanup('rollback retained tree', () =>
         fs.promises.rm(rolling, { recursive: true, force: true })
       )
+
       if (swept) clearPublishJournal(appId)
       // Cosmetic and therefore last, as in install and update: a failed icon may not
       // undo a committed rollback.
@@ -888,11 +950,13 @@ export async function previewMiniAppUrl(manifestUrl: string): Promise<{
   // manifest itself carries the pair every later fetch chooses between.
   const { url: resolvedUrl, manifest } = await fetchManifestAt(manifestUrl)
   const origins = declaredOrigins(manifest)
+
   // The host that served the manifest must be one the manifest declares, or a host merely
   // relaying someone else's manifest could pin an official-looking origin.
   if (!origins.includes(new URL(resolvedUrl).origin)) {
     throw new Error(`Mini app ${manifest.id} declares updates from a different origin`)
   }
+
   if (!manifest.package) throw new Error(`Mini app manifest for ${manifest.id} declares no package url/hash`)
   assertPackageOrigins(manifest, origins)
 
@@ -909,12 +973,15 @@ export async function previewMiniAppUrl(manifestUrl: string): Promise<{
 async function fetchManifestAt(manifestUrl: string): Promise<{ url: string; manifest: MiniAppDistributionManifest }> {
   const typed = assertHttps(manifestUrl)
   const candidates = [manifestUrl]
+
   if (!typed.pathname.endsWith('/manifest.json')) {
     const inside = new URL(typed)
     inside.pathname = `${typed.pathname.replace(/\/+$/, '')}/manifest.json`
     candidates.push(inside.href)
   }
+
   let lastError: unknown
+
   for (const url of candidates) {
     try {
       return { url, manifest: await fetchManifest([url]) }
@@ -922,7 +989,9 @@ async function fetchManifestAt(manifestUrl: string): Promise<{ url: string; mani
       lastError = error
     }
   }
+
   const reason = lastError instanceof Error ? lastError.message : String(lastError)
+
   if (candidates.length === 1) throw new Error(reason)
   throw new Error(`Neither ${candidates[0]} nor ${candidates[1]} is a mini app manifest: ${reason}`)
 }
@@ -933,14 +1002,17 @@ async function fetchManifestAt(manifestUrl: string): Promise<{ url: string; mani
  */
 async function previewIcon(manifest: MiniAppDistributionManifest, origins: readonly string[]): Promise<string | null> {
   if (!manifest.package.iconUrl || !manifest.icon) return null
+
   try {
     const bytes = await assertSupportedIconBytes(
       await fetchIcon(manifest.package.iconUrl, { sha256: manifest.icon.sha256, origins })
     )
+
     // The SAME pipeline the file preview uses (128x128 webp, bomb-guarded).
     return `data:image/webp;base64,${(await transcodeToEntityWebp(bytes)).toString('base64')}`
   } catch (error) {
     logger.warn('Mini app icon unavailable for the consent card', { id: manifest.id, error })
+
     return null
   }
 }
@@ -961,18 +1033,22 @@ export async function installFromUrlConfirmed(
   reinstall?: ReinstallOptions
 ): Promise<LocalMiniApp> {
   const { distribution: remote, origins, manifestUrl } = review
+
   const downloaded = await fetchPackage(await mirrorOrder(remote.package.url, remote.package.urlCn), {
     sha256: remote.package.sha256,
     size: remote.package.size,
     origins
   })
+
   // The download is guarded the moment it exists: `createStagingDir` failing between
   // the fetch and an inner try would otherwise strand the temp file for good.
   try {
     const staging = await createStagingDir()
+
     try {
       const manifest = await extractMiniAppArchive(downloaded.path, staging)
       assertManifestMatchesReviewed(remote, manifest)
+
       return await installExtracted(
         manifest,
         staging,

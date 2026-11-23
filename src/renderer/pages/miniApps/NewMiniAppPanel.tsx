@@ -86,12 +86,15 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     revokePreviewObjectUrl()
     setStagedFile(null)
     setTab('site')
+
     if (!app) {
       setName('')
       setUrl('')
       setLogo('')
+
       return
     }
+
     setName(app.name)
     setUrl(app.url)
     // Preset key or an existing uploaded logo's main-resolved URL.
@@ -114,12 +117,16 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
+
     if (!file) return
     const sizeError = checkEntityImageSize(file)
+
     if (sizeError) {
       toast.error(sizeError)
+
       return
     }
+
     // Stage the raw file + preview it; the bytes are uploaded on save via the
     // `mini_app.settings.set_logo` command (the renderer no longer creates file_entries).
     revokePreviewObjectUrl()
@@ -139,14 +146,17 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
 
   const handleSubmit = async () => {
     const trimmedUrl = url.trim()
+
     if (!MiniAppUrlSchema.safeParse(trimmedUrl).success) {
       toast.error(t('settings.miniApps.custom.url_invalid'))
+
       return
     }
 
     setSubmitting(true)
     const basePayload = { name: name.trim(), url: trimmedUrl }
     const appId = app ? app.appId : uuid()
+
     try {
       if (isEditing) {
         await updateCustomMiniApp(appId, basePayload)
@@ -158,6 +168,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
       toast.error(t('settings.miniApps.custom.save_error'))
       logger.error('Failed to save custom mini app:', error as Error)
       setSubmitting(false)
+
       return
     }
 
@@ -167,6 +178,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     // dialog in create mode, and a second Save would mint a fresh appId and
     // insert a duplicate row (mirrors the provider flow's non-fatal applyLogo).
     let logoFailed = false
+
     if (stagedFile) {
       try {
         const data = await prepareEntityImageBytes(stagedFile)
@@ -182,6 +194,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     if (!logoFailed) {
       toast.success(t('settings.miniApps.custom.save_success'))
     }
+
     handleClose()
     setSubmitting(false)
   }

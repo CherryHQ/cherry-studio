@@ -6,7 +6,9 @@ import { MonicaLight } from './light'
 
 const Monica = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MonicaLight {...props} className={className} />
+
   if (variant === 'dark') return <MonicaDark {...props} className={className} />
+
   return (
     <>
       <MonicaLight className={cn('dark:hidden', className)} {...props} />

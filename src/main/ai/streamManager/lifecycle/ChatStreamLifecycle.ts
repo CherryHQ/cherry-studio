@@ -18,6 +18,7 @@ export function createChatStreamLifecycle(
 ): StreamLifecycle {
   const broadcast = (stream: ActiveStream, status: TopicStreamStatus) => {
     const completedAt = status === 'done' ? Date.now() : undefined
+
     try {
       const activeExecutions: ActiveExecution[] = []
       const awaitingApprovalAnchors: ActiveExecution[] = []
@@ -28,8 +29,11 @@ export function createChatStreamLifecycle(
           attemptId: exec.attemptId,
           anchorMessageId: exec.anchorMessageId
         }
+
         if (exec.seedFromEmpty) entry.seedFromEmpty = true
+
         if (exec.status === 'streaming') activeExecutions.push(entry)
+
         // Main-side authoritative approval-anchor identity; renderer reads this
         // instead of inferring from `parts` / SWR-lagged status.
         if (exec.pendingApprovalToolCallIds?.size) awaitingApprovalAnchors.push(entry)
@@ -51,6 +55,7 @@ export function createChatStreamLifecycle(
       // must not turn a successfully started stream into a failed IPC response.
       logger.warn('Failed to broadcast chat stream status', { topicId: stream.topicId, status, error })
     }
+
     return completedAt
   }
 
@@ -70,6 +75,7 @@ export function createChatStreamLifecycle(
     },
     onTerminal(stream) {
       const completedAt = broadcast(stream, stream.status)
+
       if (
         stream.status === 'done' &&
         completedAt !== undefined &&
@@ -87,10 +93,12 @@ export function createChatStreamLifecycle(
               .trim()
           )
           .find((text) => text)
+
         const identity: Omit<ConversationCompletedEvent, 'completedAt' | 'responseText'> = {
           topicId: stream.topicId,
           turnId: stream.turnId
         }
+
         if (stream.completedTaskCount && stream.completedTaskCount > 1)
           identity.completedTaskCount = stream.completedTaskCount
         onConversationCompleted({

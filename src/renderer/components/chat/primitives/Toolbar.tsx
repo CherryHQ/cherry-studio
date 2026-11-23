@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 type ToolbarDensity = 'compact' | 'default'
+
 type ToolbarVariant = 'plain' | 'surface'
 
 export interface ToolbarProps extends ComponentProps<'div'> {

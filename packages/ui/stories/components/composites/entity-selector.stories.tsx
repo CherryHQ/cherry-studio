@@ -83,6 +83,7 @@ const meta: Meta<typeof EntitySelector> = {
 }
 
 export default meta
+
 // Decoupled from the component's generic props because each story uses `render` with its own
 // Demo component — we never pass args through meta, so tying Story to `typeof meta` pins args
 // to `never` and forces a useless `args: {}` on every entry.
@@ -90,6 +91,7 @@ type Story = StoryObj
 
 function DefaultDemo() {
   const [value, setValue] = useState<string>('item-1')
+
   return (
     <EntitySelector
       trigger={<Button variant="outline">Open</Button>}
@@ -116,11 +118,15 @@ export const Default: Story = {
 function WithSearchDemo() {
   const [value, setValue] = useState<string>('item-1')
   const [query, setQuery] = useState('')
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
+
     if (!q) return ITEMS
+
     return ITEMS.filter((it) => it.name.toLowerCase().includes(q))
   }, [query])
+
   return (
     <EntitySelector
       trigger={<Button variant="outline">Open</Button>}
@@ -172,6 +178,7 @@ function WithFilterPanelSlotDemo() {
             {['Tag A', 'Tag B', 'Tag C', 'Tag D'].map((label, i) => {
               const id = `tag-${i + 1}`
               const active = tags.includes(id)
+
               return (
                 <button
                   key={id}
@@ -194,6 +201,7 @@ function WithFilterPanelSlotDemo() {
               { id: 'desc', label: 'Desc', icon: <ArrowDown className="size-3" /> }
             ].map(({ id, label, icon }) => {
               const active = sort === id
+
               return (
                 <button
                   key={id}
@@ -233,6 +241,7 @@ function WithMultiSelectDemo() {
   const [single, setSingle] = useState<string>('item-1')
   const [multi, setMulti] = useState<string[]>([])
   const [enabled, setEnabled] = useState(false)
+
   return (
     <EntitySelector
       trigger={<Button variant="outline">Open</Button>}
@@ -268,6 +277,7 @@ export const WithMultiSelect: Story = {
 
 function WithContextMenuSlotDemo() {
   const [value, setValue] = useState<string>('item-1')
+
   return (
     <EntitySelector
       trigger={<Button variant="outline">Open (right-click rows)</Button>}
@@ -308,6 +318,7 @@ export const WithContextMenuSlot: Story = {
 
 function WithFooterSlotDemo() {
   const [value, setValue] = useState<string>('item-1')
+
   return (
     <EntitySelector
       trigger={<Button variant="outline">Open</Button>}
@@ -342,12 +353,14 @@ export const WithFooterSlot: Story = {
 }
 
 type RichItem = ExampleItem & { tagIds: string[]; createdAt: number }
+
 const ALL_TAGS = [
   { id: 'tag-a', label: 'Tag A' },
   { id: 'tag-b', label: 'Tag B' },
   { id: 'tag-c', label: 'Tag C' },
   { id: 'tag-d', label: 'Tag D' }
 ]
+
 const RICH_ITEMS: RichItem[] = ITEMS.map((it, i) => ({
   ...it,
   tagIds: [`tag-${'abcd'[i % 4]}`],
@@ -365,18 +378,24 @@ function FullFeaturedDemo() {
 
   const visibleItems = useMemo(() => {
     let next: RichItem[] = RICH_ITEMS
+
     if (tagIds.length) {
       const wanted = new Set(tagIds)
       next = next.filter((it) => it.tagIds.some((t) => wanted.has(t)))
     }
+
     const q = query.trim().toLowerCase()
+
     if (q) next = next.filter((it) => it.name.toLowerCase().includes(q))
+
     if (sort) {
       next = [...next].sort((a, b) => (sort === 'desc' ? b.createdAt - a.createdAt : a.createdAt - b.createdAt))
     }
+
     const pinnedSet = new Set(pinnedIds)
     const pinned = pinnedIds.map((id) => next.find((it) => it.id === id)).filter(Boolean) as RichItem[]
     const rest = next.filter((it) => !pinnedSet.has(it.id))
+
     return [...pinned, ...rest]
   }, [tagIds, query, sort, pinnedIds])
 
@@ -402,6 +421,7 @@ function FullFeaturedDemo() {
           <div className="flex flex-wrap gap-1.5">
             {ALL_TAGS.map((t) => {
               const active = tagIds.includes(t.id)
+
               return (
                 <button
                   key={t.id}
@@ -424,6 +444,7 @@ function FullFeaturedDemo() {
               { id: 'asc', label: 'Asc', icon: <ArrowUp className="size-3" /> }
             ].map(({ id, label, icon }) => {
               const active = sort === id
+
               return (
                 <button
                   key={id}
@@ -450,6 +471,7 @@ function FullFeaturedDemo() {
       }}
       renderItemContextMenu={(item, { close }) => {
         const isPinned = pinnedIds.includes(item.id)
+
         return (
           <div className="min-w-[140px] rounded-md border border-border/60 bg-popover p-1 shadow-md">
             <button
@@ -512,6 +534,7 @@ function ConsumerManagedSortDemo() {
     const pinnedSet = new Set(pinnedIds)
     const pinned = pinnedIds.map((id) => ITEMS.find((it) => it.id === id)).filter(Boolean) as ExampleItem[]
     const rest = ITEMS.filter((it) => !pinnedSet.has(it.id))
+
     return [...pinned, ...rest]
   }, [pinnedIds])
 
@@ -525,6 +548,7 @@ function ConsumerManagedSortDemo() {
       renderItem={(item, ctx) => <ExampleRow item={item} {...ctx} />}
       renderItemContextMenu={(item, { close }) => {
         const isPinned = pinnedIds.includes(item.id)
+
         return (
           <div className="min-w-[140px] rounded-md border border-border/60 bg-popover p-1 shadow-md">
             <button
@@ -566,6 +590,7 @@ function WithSectionsDemo() {
     const pinnedSet = new Set(pinnedIds)
     const pinned = pinnedIds.map((id) => ITEMS.find((it) => it.id === id)).filter(Boolean) as ExampleItem[]
     const rest = ITEMS.filter((it) => !pinnedSet.has(it.id))
+
     return { pinnedItems: pinned, restItems: rest }
   }, [pinnedIds])
 
@@ -586,6 +611,7 @@ function WithSectionsDemo() {
       renderItem={(item, ctx) => <ExampleRow item={item} {...ctx} />}
       renderItemContextMenu={(item, { close }) => {
         const isPinned = pinnedIds.includes(item.id)
+
         return (
           <div className="min-w-[140px] rounded-md border border-border/60 bg-popover p-1 shadow-md">
             <button

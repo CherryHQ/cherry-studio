@@ -116,6 +116,7 @@ function ComboboxOptionList<TExtra extends object>({
 
   const renderOptionGroups = (groupOptions: ComboboxOption<TExtra>[], fallbackToLabel: boolean) => {
     const groups = new Map<string | undefined, ComboboxOption<TExtra>[]>()
+
     for (const option of groupOptions) {
       const optionsInGroup = groups.get(option.group) ?? []
       optionsInGroup.push(option)
@@ -239,6 +240,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   const defaultTriggerLabelledBy = ariaLabelledBy ? `${ariaLabelledBy} ${defaultValueLabelId}` : undefined
 
   const open = controlledOpen ?? internalOpen
+
   const setOpen = React.useCallback(
     (nextOpen: boolean) => {
       if (onOpenChange) {
@@ -251,10 +253,12 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   )
 
   const value = controlledValue ?? internalValue
+
   const setValue = (newValue: string | string[]) => {
     if (controlledValue === undefined) {
       setInternalValue(newValue)
     }
+
     onChange?.(newValue)
   }
 
@@ -274,6 +278,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   const manualFilterEnabled = triggerSearchEnabled || (contentSearchEnabled && Boolean(filterOption))
   const activeSearch = triggerSearchEnabled ? triggerSearch : contentSearch
   const normalizedSearch = activeSearch.trim().toLowerCase()
+
   const visibleOptions = React.useMemo(() => {
     if (!manualFilterEnabled || !normalizedSearch) {
       return options
@@ -296,12 +301,15 @@ export function Combobox<TExtra extends object = Record<never, never>>({
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
+
     if (!nextOpen) {
       if (triggerSearch || contentSearch) {
         onSearch?.('')
       }
+
       setTriggerSearch('')
       setContentSearch('')
+
       return
     }
 
@@ -313,14 +321,17 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   const handleSelect = (selectedValue: string) => {
     if (multiple) {
       const currentValues = (value as string[]) || []
+
       const newValues = currentValues.includes(selectedValue)
         ? currentValues.filter((v) => v !== selectedValue)
         : [...currentValues, selectedValue]
+
       setValue(newValues)
     } else {
       if (selectedValue !== value) {
         setValue(selectedValue)
       }
+
       handleOpenChange(false)
     }
   }
@@ -328,6 +339,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   const handleRemoveTag = (tagValue: string, e: React.MouseEvent | React.KeyboardEvent): void => {
     e.preventDefault()
     e.stopPropagation()
+
     if (multiple) {
       const currentValues = (value as string[]) || []
       setValue(currentValues.filter((v) => v !== tagValue))
@@ -344,6 +356,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     if (multiple) {
       return ((value as string[]) || []).includes(optionValue)
     }
+
     return value === optionValue
   }
 
@@ -355,6 +368,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     if (!open) {
       handleOpenChange(true)
     }
+
     event.currentTarget.select()
   }
 
@@ -373,6 +387,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
 
     event.preventDefault()
     event.currentTarget.focus()
+
     if (!open) {
       handleOpenChange(true)
     }
@@ -382,6 +397,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     const nextSearch = event.target.value
     setTriggerSearch(nextSearch)
     onSearch?.(nextSearch)
+
     if (!open) {
       setOpen(true)
     }
@@ -394,6 +410,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
 
     if (event.key === 'Escape') {
       handleOpenChange(false)
+
       return
     }
 
@@ -401,19 +418,23 @@ export function Combobox<TExtra extends object = Record<never, never>>({
       if (!normalizedSearch) {
         event.preventDefault()
         handleOpenChange(false)
+
         return
       }
 
       const firstEnabledOption = visibleOptions.find((option) => !option.disabled)
+
       if (firstEnabledOption) {
         event.preventDefault()
         handleSelect(firstEnabledOption.value)
       }
+
       return
     }
 
     if (event.key === 'ArrowDown') {
       event.preventDefault()
+
       if (!open) {
         handleOpenChange(true)
       }
@@ -434,6 +455,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
 
     if (multiple) {
       const selectedValues = (value as string[]) || []
+
       if (selectedValues.length === 0) {
         return <span className="text-muted-foreground">{placeholder}</span>
       }
@@ -467,6 +489,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     }
 
     const selectedOption = options.find((opt) => opt.value === value)
+
     if (selectedOption) {
       return (
         <div className="flex min-w-0 flex-1 items-center gap-2 truncate">
@@ -550,6 +573,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           )}
           onKeyDown={(event) => {
             if (disabled) return
+
             if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
               event.preventDefault()
               handleOpenChange(true)
@@ -583,11 +607,14 @@ export function Combobox<TExtra extends object = Record<never, never>>({
 
   const state = disabled ? 'disabled' : error ? 'error' : 'default'
   const triggerWidth = width ? (typeof width === 'number' ? `${width}px` : width) : undefined
+
   const popoverWidth =
     typeof triggerWidth === 'string' && triggerWidth.trim().endsWith('%')
       ? 'var(--radix-popover-trigger-width)'
       : triggerWidth
+
   const commandProps: Pick<React.ComponentProps<typeof Command>, 'value' | 'onValueChange'> = {}
+
   if (!multiple) {
     commandProps.value = activeValue
     commandProps.onValueChange = setActiveValue

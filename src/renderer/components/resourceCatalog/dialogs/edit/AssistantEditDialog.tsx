@@ -112,7 +112,9 @@ type AssistantEditFormValues = {
 }
 
 type CustomParameter = AssistantFormState['customParameters'][number]
+
 type CustomParameterType = CustomParameter['type']
+
 type AssistantToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.knowledge'
 
 const logger = loggerService.withContext('AssistantEditDialog')
@@ -124,6 +126,7 @@ function isAssistantToolTab(value: string): value is AssistantToolTab {
 
 function defaultValuesForAssistant(resource: AssistantEditDialogResource): AssistantEditFormValues {
   const form = initialAssistantFormState(resource)
+
   return {
     name: form.name,
     description: form.description,
@@ -236,9 +239,11 @@ function AssistantEditDialogContent({
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { createGroup } = useGroupMutations('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
+
   const saveIntent = useMemo(() => {
     return diffAssistantSaveIntent(buildAssistantFormState(formBaseline, values), formBaseline, resource)
   }, [formBaseline, resource, values])
+
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -266,10 +271,13 @@ function AssistantEditDialogContent({
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current
     wasOpenRef.current = open
+
     if (!open) {
       setCreateGroupDialogOpen(false)
+
       return
     }
+
     if (!justOpened) return
 
     form.reset(defaultValues)
@@ -301,9 +309,11 @@ function AssistantEditDialogContent({
   const persist = async () => {
     // oxlint-disable-next-line no-restricted-globals -- Capture one submitted form across async save while the user continues editing.
     const submittedValues = structuredClone(form.getValues())
+
     if (!submittedValues.name.trim()) return
     const submittedFormState = buildAssistantFormState(formBaselineRef.current, submittedValues)
     const pending = diffAssistantSaveIntent(submittedFormState, formBaselineRef.current, resource)
+
     if (!pending) return
     const attemptedKey = JSON.stringify(submittedValues)
 
@@ -321,6 +331,7 @@ function AssistantEditDialogContent({
       failedSaveKeyRef.current = attemptedKey
       form.setError('root', { message: saveFailedMessage })
       toast.error(saveFailedMessage)
+
       return
     }
 
@@ -338,27 +349,39 @@ function AssistantEditDialogContent({
   const handleOpenChange = async (next: boolean, allowDiscard = true): Promise<boolean> => {
     if (next) {
       onOpenChange(next)
+
       return true
     }
+
     const valuesBeforeSave = JSON.stringify(form.getValues())
     const pendingSave = getPendingSave()
+
     if (pendingSave) await pendingSave
+
     if (JSON.stringify(form.getValues()) !== valuesBeforeSave) return false
 
     const currentValues = form.getValues()
     const pending = getCurrentSaveIntent()
+
     if (!pending || (!currentValues.name.trim() && allowDiscard)) {
       onOpenChange(false)
+
       return true
     }
+
     if (!currentValues.name.trim()) return false
+
     if (failedSaveKeyRef.current === JSON.stringify(currentValues)) {
       toast.error(saveFailedMessage)
+
       if (!allowDiscard || pendingSave) return false
       onOpenChange(false)
+
       return true
     }
+
     await flush()
+
     if (
       failedSaveKeyRef.current !== null ||
       JSON.stringify(form.getValues()) !== valuesBeforeSave ||
@@ -366,8 +389,10 @@ function AssistantEditDialogContent({
     )
       return false
     onOpenChange(false)
+
     return true
   }
+
   const closeBeforeAction = useCloseBeforeAction((next) => handleOpenChange(next, false))
 
   const handleCreateGroup = async (name: string) => {
@@ -515,14 +540,17 @@ function AssistantBasicFields({
   onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
+
   const handleAssistantModelChange = (modelId: UniqueModelId | null, model?: Model) => {
     const patch: Partial<AssistantEditFormValues> = { modelId }
     const nameLower = model?.name.toLowerCase() ?? ''
+
     if (nameLower.includes('kimi-k2')) {
       patch.temperature = 0.6
     } else if (nameLower.includes('moonshot')) {
       patch.temperature = 0.3
     }
+
     setFormValues(form, patch)
   }
 
@@ -610,6 +638,7 @@ function AssistantPromptField({
   const [polishing, setPolishing] = useState(false)
   const prompt = form.watch('prompt')
   const name = form.watch('name')
+
   const processedPrompt = usePromptProcessor({
     prompt,
     modelName: modelName ?? resource.modelName ?? undefined
@@ -677,6 +706,7 @@ function AssistantToolsFields({
   const mcpModeLabel = t('library.config.basic.mcp_mode')
 
   const enabledIds = useMemo(() => new Set(mcpServerIds), [mcpServerIds])
+
   const toggleMcpServer = (id: string, enabled: boolean) =>
     form.setValue(
       'mcpServerIds',
@@ -759,11 +789,13 @@ function AssistantAdvancedFields({
   const [globalTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
   const [globalCompressModelId] = usePreference('chat.context_settings.compress.model_id')
   const [globalCompressThreshold] = usePreference('chat.context_settings.compress.threshold_percent')
+
   const temperatureMarks = [
     { value: 0, label: t('library.config.basic.precise') },
     { value: 1, label: '1' },
     { value: 2, label: t('library.config.basic.creative') }
   ]
+
   const topPMarks = [
     { value: 0, label: '0' },
     { value: 0.5, label: '0.5' },
@@ -981,6 +1013,7 @@ function ContextManagementFields({
       form.setValue('contextTruncateThreshold', globalDefaults.truncateThreshold, { shouldDirty: true })
       form.setValue('contextCompressModelId', globalDefaults.compressModelId, { shouldDirty: true })
     }
+
     form.setValue('contextOverrideEnabled', checked, { shouldDirty: true })
   }
 
@@ -1205,8 +1238,10 @@ function CustomParametersField({
   const { t } = useTranslation()
   const add = () => onChange([...value, { name: '', type: 'string', value: '' }])
   const remove = (index: number) => onChange(value.filter((_, i) => i !== index))
+
   const updateField = (index: number, patch: Partial<CustomParameter>) => {
     const next = [...value] as CustomParameter[]
+
     if (patch.type && patch.type !== next[index].type) {
       next[index] = {
         name: next[index].name,
@@ -1216,6 +1251,7 @@ function CustomParametersField({
     } else {
       next[index] = { ...next[index], ...patch } as CustomParameter
     }
+
     onChange(next)
   }
 
@@ -1283,20 +1319,26 @@ function CustomParameterRow({
   onDelete: () => void
 }) {
   const { t } = useTranslation()
+
   const parameterValueLabel = param.name.trim()
     ? `${t('library.config.basic.custom_params_value')}: ${param.name.trim()}`
     : t('library.config.basic.custom_params_value')
+
   const jsonString =
     param.type === 'json'
       ? typeof param.value === 'string'
         ? param.value
         : JSON.stringify(param.value ?? '', null, 2)
       : ''
+
   const jsonInvalid = (() => {
     if (param.type !== 'json') return false
+
     if (!jsonString.trim()) return false
+
     try {
       JSON.parse(jsonString)
+
       return false
     } catch {
       return true

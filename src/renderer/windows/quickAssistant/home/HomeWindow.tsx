@@ -59,10 +59,12 @@ export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessa
   return messages.map((msg) => {
     if (!msg.parts) return msg
     let changed = false
+
     const newParts = msg.parts.map((part) => {
       if ((part.type !== 'text' && part.type !== 'reasoning') || part.state !== 'streaming') return part
 
       changed = true
+
       if (part.type === 'text') return { ...part, state: 'done' as const }
 
       const cherry = readCherryMeta(part)
@@ -70,12 +72,14 @@ export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessa
       const thinkingMs = cherry?.thinkingMs
 
       let patch: Partial<CherryReasoningMeta> = {}
+
       if (typeof startedAt === 'number' && Number.isFinite(startedAt) && typeof thinkingMs !== 'number') {
         patch = { thinkingMs: Math.round(Math.max(0, Date.now() - startedAt)) }
       }
 
       return withCherryMeta({ ...part, state: 'done' }, patch)
     })
+
     return changed ? { ...msg, parts: newParts } : msg
   })
 }
@@ -123,8 +127,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const requestText = useMemo(() => {
     const trimmedUserInput = userInputText.trim()
+
     if (!isFirstMessage || !clipboardText) return trimmedUserInput
+
     if (!trimmedUserInput || clipboardText === trimmedUserInput) return clipboardText
+
     return `${clipboardText}\n\n${trimmedUserInput}`
   }, [clipboardText, isFirstMessage, userInputText])
 
@@ -146,6 +153,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [lastCompletedVoiceMessage, setLastCompletedVoiceMessage] = useState<CherryUIMessage | null>(null)
   const voiceScopeGenerationRef = useRef(0)
   const voiceScopeTopicRef = useRef(temporaryTopicId)
+
   const voiceExecutionContextsRef = useRef(
     new Map<string, { topicId: string; generation: number; eligible: boolean }>()
   )
@@ -160,8 +168,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   useEffect(() => {
     if (!temporaryTopicId || voiceScopeTopicRef.current !== temporaryTopicId) return
+
     for (const execution of activeExecutions) {
       const key = `${execution.executionId}:${execution.attemptId}`
+
       if (voiceExecutionContextsRef.current.has(key)) continue
       voiceExecutionContextsRef.current.set(key, {
         topicId: temporaryTopicId,
@@ -175,8 +185,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     (executionId: string, { attemptId, message, isAbort, isError }: ExecutionFinishEvent) => {
       const key = `${executionId}:${attemptId}`
       const context = voiceExecutionContextsRef.current.get(key)
+
       if (!context) return
       voiceExecutionContextsRef.current.delete(key)
+
       if (context.topicId !== temporaryTopicId || context.generation !== voiceScopeGenerationRef.current) {
         return
       }
@@ -202,6 +214,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     },
     [autoReadEnabled, temporaryTopicId]
   )
+
   const {
     liveAssistants,
     reset: resetExecutionMessages,
@@ -209,6 +222,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   } = useExecutionOverlay(temporaryTopicId ?? 'pending-temp', activeExecutions, {
     onUpdate: (executionId, event) => {
       const context = voiceExecutionContextsRef.current.get(`${executionId}:${event.attemptId}`)
+
       if (!context || context.topicId !== temporaryTopicId || context.generation !== voiceScopeGenerationRef.current)
         return
       autoReadService.update({
@@ -221,12 +235,14 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     onLeave: () => autoReadService.cancelScope(temporaryTopicId ?? 'pending-temp'),
     onFinish: handleExecutionFinish
   })
+
   const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
 
   const prevActiveCountRef = useRef(activeExecutions.length)
   useEffect(() => {
     const wasActive = prevActiveCountRef.current > 0
     prevActiveCountRef.current = activeExecutions.length
+
     if (activeExecutions.length === 0 && wasActive) {
       // Terminal projection retains the final frame through the history handoff.
       if (liveAssistants.length) {
@@ -247,9 +263,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
+
     for (const message of [...chatMessages, ...allAssistants]) {
       next[message.id] = message.parts ?? []
     }
+
     return next
   }, [allAssistants, chatMessages])
 
@@ -262,12 +280,16 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     const latestAssistantId = liveAssistants[liveAssistants.length - 1]?.id
     const out: CherryUIMessage[] = []
     const turns = Math.max(users.length, allAssistants.length)
+
     for (let i = 0; i < turns; i++) {
       const u = users[i]
+
       if (u) {
         out.push(u)
       }
+
       const a = allAssistants[i]
+
       if (a) {
         out.push({
           ...a,
@@ -278,6 +300,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         })
       }
     }
+
     return out
   }, [chatMessages, allAssistants, liveAssistants, isPending])
 
@@ -312,6 +335,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const isLoading = isPreparing || isStreaming
   const isOutputted = messageItems.some((message) => message.role === 'assistant')
+
   const dictationTargetId =
     temporaryTopicId && (route === 'home' || route === 'chat') ? `quick-assistant-input:${temporaryTopicId}` : undefined
 
@@ -324,16 +348,20 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       sourceEntityId: temporaryTopicId,
       captureReplaceRange: () => {
         const input = inputRef.current
+
         if (!input || input.selectionStart === null || input.selectionEnd === null) return null
+
         return { from: input.selectionStart, to: input.selectionEnd }
       },
       replaceRange: ({ from, to }, text) => {
         const input = inputRef.current
+
         if (!input || from < 0 || to < from || to > input.value.length) return false
         const next = `${input.value.slice(0, from)}${text}${input.value.slice(to)}`
         const caret = from + text.length
         setUserInputText(next)
         queueMicrotask(() => inputRef.current?.setSelectionRange(caret, caret))
+
         return true
       }
     })
@@ -356,6 +384,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
     try {
       const text = await navigator.clipboard.readText()
+
       if (text && text !== lastClipboardTextRef.current) {
         lastClipboardTextRef.current = text
         setClipboardText(text.trim())
@@ -387,6 +416,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const handleSendMessage = useCallback(
     async (prompt?: string) => {
       if (isEmpty(requestText)) return
+
       if (!isTopicReady || !temporaryTopicId) return
 
       try {
@@ -395,6 +425,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setUserInputText('')
         setIsPreparing(true)
         const message = { text: [prompt, requestText].filter(Boolean).join('\n\n') }
+
         if (!isAssistantMode && currentModel) {
           void sendMessage(message, { body: { mentionedModels: [currentModel.id] } })
         } else {
@@ -426,11 +457,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const handleEsc = useCallback(() => {
     if (isLoading) {
       handlePause()
+
       return
     }
 
     if (route === 'home') {
       void handleCloseWindow()
+
       return
     }
 
@@ -466,6 +499,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       case 'NumpadEnter':
         if (isLoading) return
         e.preventDefault()
+
         if (requestText) {
           if (route === 'home') {
             featureMenusRef.current?.useFeature()
@@ -475,23 +509,27 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             focusInput()
           }
         }
+
         break
       case 'Backspace':
         if (userInputText.length === 0) {
           void clearClipboard()
         }
+
         break
       case 'ArrowUp':
         if (route === 'home') {
           e.preventDefault()
           featureMenusRef.current?.prevFeature()
         }
+
         break
       case 'ArrowDown':
         if (route === 'home') {
           e.preventDefault()
           featureMenusRef.current?.nextFeature()
         }
+
         break
       case 'Escape':
         handleEsc()
@@ -507,9 +545,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     if (!isMac) {
       return 'var(--popover)'
     }
+
     if (isMac && windowStyle === 'transparent' && theme === ThemeMode.light) {
       return 'transparent'
     }
+
     return 'var(--background)'
   }, [windowStyle, theme])
 
@@ -517,6 +557,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     if (clipboardText && route === 'home') {
       return t('quickAssistant.input.placeholder.title')
     }
+
     return t('quickAssistant.input.placeholder.empty', {
       model: quickAssistantId ? (currentAssistant?.name ?? '') : (currentModel?.name ?? '')
     })

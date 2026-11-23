@@ -16,6 +16,7 @@ export default function AgentSessionForkBlock({ sourceSessionId }: { sourceSessi
   const openSource = async () => {
     if (opening) return
     setOpening(true)
+
     try {
       await openForkSourceSession(sourceSessionId)
     } finally {

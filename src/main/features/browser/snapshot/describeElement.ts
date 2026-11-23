@@ -57,13 +57,16 @@ export const createAccessibilityContext = (
 const normalizeAccessibilityText = (value: unknown): string | null => {
   if (typeof value !== 'string') return null
   const normalized = value.replace(/\s+/g, ' ').trim()
+
   return normalized ? normalized.slice(0, ANNOTATION_EXPORT_LIMITS.accessibilityText) : null
 }
 
 const normalizeAccessibilityState = (property: CdpAccessibilityProperty): AccessibilityState | null => {
   if (!ACCESSIBILITY_STATE_NAMES.has(property.name as AccessibilityState['name'])) return null
   const value = property.value?.value
+
   if (typeof value !== 'boolean' && typeof value !== 'string') return null
+
   return {
     name: property.name as AccessibilityState['name'],
     value: typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, 64) : value
@@ -84,6 +87,7 @@ const normalizeAccessibilityNode = (node: CdpAccessibilityNode): AccessibleNodeS
 
 const buildElementResolverExpression = (selector: string) => {
   const segments = selector.split(WEBVIEW_SHADOW_SELECTOR_SEPARATOR)
+
   return `(() => {
     const segments = ${JSON.stringify(segments)};
     let root = document;
@@ -113,9 +117,11 @@ export async function describeElement(
   signal?: AbortSignal
 ): Promise<AccessibilityContext> {
   if (budget.remaining <= 0) return createAccessibilityContext('budget_exceeded')
+
   if (Date.now() >= deadline) return createAccessibilityContext('timeout')
 
   const objectGroup = `webview-annotation:${annotation.id}`
+
   try {
     const evaluated = await debuggerSession.send(
       'Runtime.evaluate',
@@ -128,14 +134,17 @@ export async function describeElement(
       },
       { deadline, signal }
     )
+
     if (evaluated.exceptionDetails) throw new Error('Element selector evaluation failed')
     const objectId = evaluated.result?.objectId
+
     if (!objectId || evaluated.result?.subtype === 'null') {
       return createAccessibilityContext('selector_not_found')
     }
 
     const described = await debuggerSession.send('DOM.describeNode', { objectId }, { deadline, signal })
     const backendNodeId = described.node?.backendNodeId
+
     if (!backendNodeId) throw new Error('Selected element has no backend DOM node')
 
     const ancestorsResult = await debuggerSession.send(
@@ -143,19 +152,25 @@ export async function describeElement(
       { backendNodeId },
       { deadline, signal }
     )
+
     const ancestorNodes = ancestorsResult.nodes ?? []
     const selectedNode = ancestorNodes.find((node) => node.backendDOMNodeId === backendNodeId) ?? ancestorNodes[0]
+
     if (!selectedNode) throw new Error('Selected element has no accessibility node')
 
     const orderedAncestors = ancestorNodes
       .filter((node) => node.nodeId !== selectedNode.nodeId && !node.ignored)
       .reverse()
+
     let pathTruncated = orderedAncestors.length > ANNOTATION_EXPORT_LIMITS.accessibilityPath
+
     const limitedAncestors =
       orderedAncestors.length <= ANNOTATION_EXPORT_LIMITS.accessibilityPath
         ? orderedAncestors
         : [orderedAncestors[0], ...orderedAncestors.slice(-(ANNOTATION_EXPORT_LIMITS.accessibilityPath - 1))]
+
     const availablePathSlots = Math.max(0, Math.min(limitedAncestors.length, budget.remaining - 1))
+
     if (availablePathSlots < limitedAncestors.length) pathTruncated = true
     const path = limitedAncestors.slice(0, availablePathSlots).map(normalizeAccessibilityNode)
     budget.remaining -= path.length
@@ -168,6 +183,7 @@ export async function describeElement(
     const walk = async (node: CdpAccessibilityNode, depth: number, isRoot: boolean): Promise<AccessibleNode[]> => {
       if (walkState.visited >= ANNOTATION_EXPORT_LIMITS.accessibilityNodes || budget.remaining <= 0) {
         walkState.truncated = true
+
         return []
       }
 
@@ -177,36 +193,45 @@ export async function describeElement(
       const hasChildren = (node.childIds?.length ?? 0) > 0
       const atDepthLimit = depth >= ANNOTATION_EXPORT_LIMITS.accessibilityDepth
       const role = normalizeAccessibilityText(node.role?.value)?.toLowerCase()
+
       const mayExposeFormValue =
         (isRoot && selectedIsFormControl) ||
         (role ? VALUE_BEARING_ACCESSIBILITY_ROLES.has(role) : false) ||
         (node.properties ?? []).some((property) => property.name === 'editable' && property.value?.value !== false)
+
       const mayDescend = !(selectedIsIframe && isRoot) && !mayExposeFormValue && hasChildren && !atDepthLimit
 
       if ((atDepthLimit || mayExposeFormValue) && hasChildren) {
         walkState.truncated = true
       } else if (mayDescend) {
         const request: Protocol.Accessibility.GetChildAXNodesRequest = { id: node.nodeId }
+
         if (node.frameId) request.frameId = node.frameId
         const childResult = await debuggerSession.send('Accessibility.getChildAXNodes', request, { deadline, signal })
+
         for (const child of childResult.nodes ?? []) {
           if (selectedFrameId && child.frameId && child.frameId !== selectedFrameId) continue
           children.push(...(await walk(child, depth + 1, false)))
+
           if (walkState.visited >= ANNOTATION_EXPORT_LIMITS.accessibilityNodes || budget.remaining <= 0) {
             if ((childResult.nodes?.at(-1)?.nodeId ?? child.nodeId) !== child.nodeId) {
               walkState.truncated = true
             }
+
             break
           }
         }
       }
 
       if (node.ignored && !isRoot) return children
+
       return [{ ...normalizeAccessibilityNode(node), children }]
     }
 
     const tree = (await walk(selectedNode, 1, true))[0] ?? null
+
     if (!tree) return createAccessibilityContext('budget_exceeded', { truncated: true })
+
     return createAccessibilityContext('available', {
       path,
       tree,

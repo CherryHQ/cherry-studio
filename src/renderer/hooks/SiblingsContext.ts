@@ -38,9 +38,11 @@ export function useMessageSiblings(messageId: string): {
   return useMemo(() => {
     if (!ctx) return null
     const group = ctx.siblingsMap[messageId]
+
     if (!group || group.length < 2) return null
 
     const activeIndex = group.findIndex((m) => m.id === messageId)
+
     return { group, activeIndex: activeIndex >= 0 ? activeIndex : 0 }
   }, [ctx, messageId])
 }

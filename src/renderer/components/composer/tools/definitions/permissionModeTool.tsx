@@ -34,6 +34,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     (nextMode: PermissionMode) => {
       if (!agentId || !agent) return false
       void updateAgent({ id: agentId, configuration: { permission_mode: nextMode } }, { showSuccessToast: false })
+
       return true
     },
     [agent, agentId, updateAgent]
@@ -42,10 +43,13 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const handleSelectMode = useCallback(
     (nextMode: PermissionMode) => {
       if (nextMode === currentMode) return
+
       if (nextMode === 'bypassPermissions') {
         setFullAccessPending(true)
+
         return
       }
+
       setFullAccessPending(false)
       applyMode(nextMode)
     },
@@ -61,6 +65,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const tooltipTitle = modeCard ? t(modeCard.titleKey, modeCard.titleFallback) : ''
   const launcherLabel = t('agent.settings.permissionMode.title', 'Permission Mode')
   const launcherTooltip = tooltipTitle ? `${launcherLabel} · ${tooltipTitle}` : launcherLabel
+
   const modeSubmenu = useMemo(
     () =>
       permissionModeCards

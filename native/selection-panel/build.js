@@ -7,12 +7,15 @@ const sourcePath = path.join(__dirname, 'selectionPanel.mm')
 
 function buildSelectionPanel({ platform = process.platform, arch = process.arch } = {}) {
   if (platform !== 'darwin') return
+
   if (process.platform !== 'darwin') throw new Error('The selection panel addon must be built on macOS')
+
   if (arch !== 'arm64' && arch !== 'x64') throw new Error(`Unsupported selection panel architecture: ${arch}`)
 
   const destination = path.join(projectRoot, 'resources/binaries', `darwin-${arch}`, 'selection-panel.node')
   mkdirSync(path.dirname(destination), { recursive: true })
   const temporary = `${destination}.${process.pid}.tmp`
+
   try {
     execFileSync(
       'xcrun',
@@ -42,6 +45,7 @@ function buildSelectionPanel({ platform = process.platform, arch = process.arch 
       { stdio: 'inherit' }
     )
     renameSync(temporary, destination)
+
     return destination
   } finally {
     rmSync(temporary, { force: true })

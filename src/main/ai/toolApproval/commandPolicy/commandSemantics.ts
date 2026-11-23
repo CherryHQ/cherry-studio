@@ -71,6 +71,7 @@ const WRAPPERS: ReadonlyMap<string, readonly string[]> = new Map(
     rtk: []
   })
 )
+
 const WRAPPER_FLAGS: ReadonlyMap<string, readonly string[]> = new Map(
   Object.entries({
     sudo: ['-A', '-b', '-E', '-H', '-k', '-K', '-n', '-P', '-S', '-v', '-V'],
@@ -92,6 +93,7 @@ const WRAPPER_FLAGS: ReadonlyMap<string, readonly string[]> = new Map(
     rtk: []
   })
 )
+
 const PACKAGE_GLOBAL_FLAGS = new Set([
   '--dry-run',
   '--no-dry-run',
@@ -107,6 +109,7 @@ const PACKAGE_GLOBAL_FLAGS = new Set([
   '--help',
   '-h'
 ])
+
 const GIT_GLOBAL_VALUES = new Set([
   '-C',
   '-c',
@@ -116,6 +119,7 @@ const GIT_GLOBAL_VALUES = new Set([
   '--super-prefix',
   '--config-env'
 ])
+
 const GIT_GLOBAL_FLAGS = new Set([
   '--bare',
   '--no-pager',
@@ -130,6 +134,7 @@ const GIT_GLOBAL_FLAGS = new Set([
   '--help',
   '-h'
 ])
+
 const OPTION_VALUES: ReadonlyMap<string, readonly string[]> = new Map(
   Object.entries({
     reset: ['--pathspec-from-file'],
@@ -142,6 +147,7 @@ const OPTION_VALUES: ReadonlyMap<string, readonly string[]> = new Map(
     publish: ['--tag', '--access', '--registry', '--otp', '--provenance-file']
   })
 )
+
 const GIT_OPERATION_OPTIONS: ReadonlyMap<string, readonly string[]> = new Map(
   Object.entries({
     push: [
@@ -262,6 +268,7 @@ const GIT_OPERATION_OPTIONS: ReadonlyMap<string, readonly string[]> = new Map(
     clean: ['--force', '--dry-run', '-d', '-x', '-X', '-i', '--interactive', '-q', '--quiet']
   })
 )
+
 const ALIASES: ReadonlyMap<string, ReadonlyMap<string, string>> = new Map([
   ['push', new Map([['-f', '--force']])],
   ['checkout', new Map([['-f', '--force']])],
@@ -292,6 +299,7 @@ const SCRIPT_RUNNERS = new Set([
   ...['sh', 'bash', 'zsh', 'dash', 'ksh', 'ash', 'fish', 'source', '.'],
   ...['node', 'nodejs', 'python', 'python3', 'py', 'ruby', 'perl', 'deno', 'bun', 'powershell', 'pwsh']
 ])
+
 const EXEC_OPTIONS: ReadonlyMap<string, readonly string[]> = new Map(
   Object.entries({
     find: ['-exec', '-execdir', '-ok', '-okdir'],
@@ -307,6 +315,7 @@ const POWERSHELL_ALIASES: ReadonlyMap<string, string> = new Map([
 
 export function executableName(value: string, insensitive = false): string {
   const name = value.replace(/\\/g, '/').split('/').at(-1) ?? value
+
   return (insensitive ? name.toLowerCase() : name).replace(/\.exe$/, '')
 }
 
@@ -320,32 +329,41 @@ export function resolveCommandWords(
   let index = 0
   let elevated = false
   const wrappers: CommandSemantics['wrappers'] = []
+
   while (index < words.length) {
     if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[index])) {
       index++
       continue
     }
+
     const base = executableName(words[index], insensitive)
     const name = (powershellAliases && POWERSHELL_ALIASES.get(base)) || base
     const wrapperOptions = WRAPPERS.get(name)
+
     if (!wrapperOptions) return { command: name, args: words.slice(index + 1), offset: index, elevated, wrappers }
     elevated ||= ['sudo', 'doas', 'pkexec'].includes(name)
     const start = index++
     let incomplete = false
+
     if (['command', 'builtin'].includes(name) && ['-v', '-V'].includes(words[index])) return undefined
+
     while (index < words.length && words[index].startsWith('-') && words[index] !== '-') {
       if (words[index] === '--') {
         index++
         break
       }
+
       const option = words[index].split('=')[0]
       const attached = option.length > 2 && !option.startsWith('--') && wrapperOptions.includes(option.slice(0, 2))
+
       if (!attached && !wrapperOptions.includes(option) && !WRAPPER_FLAGS.get(name)?.includes(option)) incomplete = true
       index += wrapperOptions.includes(option) && !words[index].includes('=') ? 2 : 1
     }
+
     if (name === 'timeout') index++
     wrappers.push({ executable: name, args: words.slice(start + 1, index), incomplete })
   }
+
   return undefined
 }
 
@@ -356,7 +374,9 @@ export function canonicalOption(command: CommandSemantics, option: string): stri
 export function interpretCommand(node: ExecutableCommand): CommandSemantics | undefined {
   const values = node.words.map((word) => word.value ?? word.raw)
   const resolved = resolveCommandWords(values, node.dialect === 'powershell')
+
   if (!resolved) return undefined
+
   const result: CommandSemantics = {
     node,
     executable: resolved.command,
@@ -372,40 +392,55 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
     incomplete:
       node.words[resolved.offset]?.value === undefined || resolved.wrappers.some((wrapper) => wrapper.incomplete)
   }
+
   for (const wrapper of result.wrappers.filter(({ executable }) => executable === 'xargs')) {
     const replaceIndex = wrapper.args.findIndex((arg) => arg === '-I' || arg === '--replace')
+
     const replacement =
       replaceIndex >= 0
         ? wrapper.args[replaceIndex + 1]
         : (wrapper.args.find((arg) => arg.startsWith('-I'))?.slice(2) ??
           wrapper.args.find((arg) => arg.startsWith('--replace='))?.slice(10))
+
     if (replacement && result.executable.includes(replacement)) result.incomplete = true
   }
+
   const packageManager = ['npm', 'pnpm', 'yarn'].includes(result.executable)
+
   const setOption = (option: string, argument: string | true) => {
     if (packageManager && (option === '--dry-run' || option === '--no-dry-run')) {
       if (option === '--no-dry-run' || ['false', '0'].includes(String(argument))) result.options.delete('--dry-run')
       else result.options.set('--dry-run', argument)
     } else result.options.set(option, argument)
   }
+
   // npm (nopt) reads a separate `true`/`false` after a flag as that flag's value.
   const npmSeparateBoolean = (attached: string | undefined, takesValue: boolean) => {
     const next = result.args[index + 1]?.value
+
     if (result.executable !== 'npm' || attached !== undefined || takesValue) return undefined
+
     return next === 'true' || next === 'false' ? next : undefined
   }
+
   let index = 0
+
   if (result.executable === 'git') {
     while (index < result.args.length && result.args[index].value?.startsWith('-')) {
       const value = result.args[index].value!
       const [option, attached] = value.split(/=(.*)/s)
+
       const shortAttached =
         value.length > 2 && (value.startsWith('-C') || value.startsWith('-c')) ? value.slice(2) : undefined
+
       const name = shortAttached ? value.slice(0, 2) : option
+
       if (GIT_GLOBAL_VALUES.has(name)) {
         const argument = attached ?? shortAttached ?? result.args[++index]?.value
+
         if (argument === undefined || argument === '') result.incomplete = true
         result.gitGlobalOptions.set(name, argument ?? true)
+
         if (name === '-c' && argument !== undefined) result.gitConfigurations.push(argument)
       } else if (GIT_GLOBAL_FLAGS.has(name) || name === '--exec-path')
         result.gitGlobalOptions.set(name, attached ?? true)
@@ -413,12 +448,14 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
         result.incomplete = true
         break
       }
+
       index++
     }
   } else if (['npm', 'pnpm', 'yarn', 'docker', 'podman'].includes(result.executable)) {
     while (index < result.args.length && result.args[index].value?.startsWith('-')) {
       const value = result.args[index].value!
       const [option, attached] = value.split(/=(.*)/s)
+
       const takesValue = [
         '--prefix',
         '--dir',
@@ -435,9 +472,12 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
         '--log-level',
         '--loglevel'
       ].includes(option)
+
       const separate = npmSeparateBoolean(attached, takesValue)
+
       if (separate) index++
       const argument = attached ?? separate ?? (takesValue ? result.args[++index]?.value : true)
+
       if (argument === undefined) result.incomplete = true
       else if (packageManager && attached === undefined && !takesValue && !PACKAGE_GLOBAL_FLAGS.has(option))
         result.uncertainSubcommand = true
@@ -445,7 +485,9 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
       index++
     }
   }
+
   const first = result.args[index]?.value
+
   const hasSubcommand = [
     'git',
     'npm',
@@ -460,27 +502,37 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
     'sc',
     'reg'
   ].includes(result.executable)
+
   if (hasSubcommand && result.args[index] && first === undefined) result.incomplete = true
+
   if (first && !first.startsWith('-')) {
     result.subcommands.push(first)
+
     if (!hasSubcommand) result.operands.push(first)
     index++
   }
+
   const valueOptions = new Set(OPTION_VALUES.get(result.subcommands[0] ?? '') ?? [])
   let literal = false
+
   for (; index < result.args.length; index++) {
     const word = result.args[index]
     const value = word.value
+
     if (value === '--' && !literal) {
       literal = true
       continue
     }
+
     if (!literal && value?.startsWith('-') && value !== '-') {
       const [option, attached] = value.split(/=(.*)/s)
+
       if (option.startsWith('--')) {
         const separate = npmSeparateBoolean(attached, valueOptions.has(option))
+
         if (separate) index++
         const argument = attached ?? separate ?? (valueOptions.has(option) ? result.args[++index]?.value : true)
+
         if (argument === undefined) result.incomplete = true
         setOption(canonicalOption(result, option), argument ?? true)
       } else {
@@ -488,8 +540,10 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
           const short = `-${option[offset]}`
           const name = canonicalOption(result, short)
           const argument = valueOptions.has(short) ? option.slice(offset + 1) || result.args[++index]?.value : true
+
           if (argument === undefined) result.incomplete = true
           result.options.set(name, argument ?? true)
+
           if (valueOptions.has(short)) break
         }
       }
@@ -501,6 +555,7 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
         result.incomplete = true
     }
   }
+
   if (
     result.executable === 'git' &&
     result.subcommands[0] === 'checkout' &&
@@ -509,12 +564,14 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
     !result.args.some(({ value }) => value === '--')
   )
     result.incomplete = true
+
   if (
     ['ssh', 'docker', 'podman', 'kubectl'].includes(result.executable) &&
     (result.executable === 'ssh' || result.subcommands.includes('exec') || result.subcommands.includes('run'))
   ) {
     result.incomplete = true
   }
+
   if (
     result.wrappers.some(
       ({ executable, args }) =>
@@ -523,14 +580,17 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
   )
     result.incomplete = true
   const known = result.executable === 'git' ? GIT_OPERATION_OPTIONS.get(result.subcommands[0] ?? '') : undefined
+
   if (known && [...result.options.keys()].some((option) => !known.includes(option) && !valueOptions.has(option)))
     result.incomplete = true
   const executable = result.executable
   const args = result.args
   const shells = ['sh', 'bash', 'zsh', 'dash', 'ksh', 'ash']
+
   if (executable === 'eval' || (node.dialect === 'powershell' && ['invoke-expression', 'iex'].includes(executable))) {
     const code = args.filter(({ value }) => value?.toLowerCase() !== '-command')
     const word = code[0]
+
     if (word)
       result.inline = {
         language: node.dialect,
@@ -538,12 +598,16 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
         word
       }
     result.incomplete ||= !result.inline?.code
+
     return result
   }
+
   let scriptIndex = -1
   let language = executable
+
   if (shells.includes(executable)) {
     scriptIndex = args.findIndex(({ value }) => value !== undefined && /^-[a-z]*c[a-z]*$/.test(value)) + 1
+
     if (scriptIndex > 0) language = 'bash'
   } else if (['powershell', 'pwsh'].includes(executable)) {
     scriptIndex =
@@ -557,8 +621,10 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
     const codeOptions = ['-c', '-e', '--eval', '-p', '--print']
     scriptIndex = args.findIndex(({ value }) => codeOptions.includes(value ?? '')) + 1
     const evalWord = args.find(({ value }) => value !== undefined && /^--(?:eval|print)=/.test(value))
+
     if (!scriptIndex && evalWord)
       result.inline = { language, code: evalWord.value!.replace(/^[^=]*=/, ''), word: evalWord }
+
     // Short-option grammar differs per interpreter, so `-c'code'` or `-pe` is not decoded.
     if (args.some(({ value }) => value !== undefined && !codeOptions.includes(value) && /^-[A-Za-z]*[cep]/.test(value)))
       result.incomplete = true
@@ -569,11 +635,14 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
     scriptIndex = args.findIndex(({ value }) => ['/c', '/k'].includes(value?.toLowerCase() ?? '')) + 1
     language = 'cmd'
   }
+
   if (scriptIndex > 0) {
     const word = args[scriptIndex]
+
     if (!word) result.incomplete = true
     else {
       let code = word.value
+
       if (
         language === 'powershell' &&
         ['-encodedcommand', '-enc', '-ec'].includes(args[scriptIndex - 1].value?.toLowerCase() ?? '') &&
@@ -582,13 +651,17 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
         if (!/^[A-Za-z0-9+/]+={0,2}$/.test(code)) result.incomplete = true
         else code = Buffer.from(code, 'base64').toString('utf16le')
       }
+
       result.inline = { language, code, word }
+
       if (code === undefined || language === 'cmd') result.incomplete = true
     }
   }
+
   // `bash <(curl …)` runs code that another command produces.
   if (!result.inline && SCRIPT_RUNNERS.has(executable) && args.some(({ raw }) => raw.startsWith('<(')))
     result.incomplete = true
+
   return result
 }
 
@@ -596,14 +669,18 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
 export function executedCommandWords(command: CommandSemantics): CommandWord[][] {
   const starts = EXEC_OPTIONS.get(command.executable) ?? []
   const result: CommandWord[][] = []
+
   for (let index = 0; index < command.args.length; index++) {
     if (!starts.includes(command.args[index].value ?? '')) continue
     const end = command.args.findIndex(({ value }, position) => position > index && (value === ';' || value === '+'))
     const words = command.args.slice(index + 1, end < 0 ? undefined : end)
+
     if (words.length) result.push(words)
+
     if (end < 0) break
     index = end
   }
+
   return result
 }
 
@@ -611,13 +688,21 @@ export function discardsGitWorktree(command: CommandSemantics): boolean {
   if (command.executable !== 'git') return false
   const name = command.subcommands[0]
   const options = command.options
+
   if (name === 'reset') return options.has('--hard')
+
   if (name === 'clean') return options.has('--force') && !options.has('--dry-run')
+
   if (name === 'restore') return !options.has('--staged') || options.has('--worktree')
+
   if (name === 'switch') return options.has('--discard-changes') || options.has('-C') || options.has('--force-create')
+
   if (name !== 'checkout') return false
+
   if (options.has('--force') || options.has('-B')) return true
+
   if (options.has('-b') || options.has('--orphan')) return false
+
   return (
     command.operands.length > 1 ||
     command.args.some(({ value }) => value === '--') ||
@@ -628,16 +713,23 @@ export function discardsGitWorktree(command: CommandSemantics): boolean {
 /** Follow only a known byte-preserving cat stage; other programs do not prove where the body goes. */
 export function findHeredocConsumer(analysis: CommandAnalysis, heredoc: CommandHeredoc): CommandSemantics | undefined {
   const pipeline = analysis.commands.filter((node) => node.pipeline === heredoc.pipeline)
+
   let index = pipeline.findIndex(
     (node) => node.range.start === heredoc.owner && node.range.source === heredoc.range.source
   )
+
   if (index < 0) return undefined
+
   while (index < pipeline.length) {
     const command = interpretCommand(pipeline[index++])
+
     if (!command) return undefined
+
     if (command.executable !== 'cat' || command.args.some(({ value }) => value !== '-' && value !== '-u'))
       return command
+
     if (index === pipeline.length) return command
   }
+
   return undefined
 }

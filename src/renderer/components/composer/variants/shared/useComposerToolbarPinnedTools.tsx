@@ -31,14 +31,17 @@ export function useComposerToolbarPinnedTools(prefKey: ComposerToolbarPinnedTool
   )
 
   const defaultPinnedIds = useMemo(() => getDefaultValue(prefKey), [prefKey])
+
   const isDefault = useMemo(
     () => pinnedIds.length === defaultPinnedIds.length && pinnedIds.every((id, i) => id === defaultPinnedIds[i]),
     [defaultPinnedIds, pinnedIds]
   )
+
   const resetPinnedIds = useCallback(() => setPinnedIds([...defaultPinnedIds]), [defaultPinnedIds, setPinnedIds])
 
   const customizeFooterAction = useMemo<ComposerToolFooterAction>(() => {
     const label = t('chat.input.toolbar.customize')
+
     return {
       id: 'composer:customize-toolbar',
       panelSymbol: ComposerPanelSymbol.Root,

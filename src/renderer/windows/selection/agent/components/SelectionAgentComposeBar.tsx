@@ -31,6 +31,7 @@ import type { SelectionAgentTarget } from '../selectionAgentSession'
 import { SelectionAgentCloseButton } from './SelectionAgentHeader'
 
 const UNMANAGED_TOKEN_KINDS = [] as const
+
 // The bar mounts no composer tools, so nothing calls these.
 const NO_TOOL_ACTIONS = { addNewTopic: () => undefined, onTextChange: () => undefined }
 const SELECTION_SETTINGS_PATH = '/settings/selection-assistant'
@@ -38,6 +39,7 @@ const SELECTION_SETTINGS_PATH = '/settings/selection-assistant'
 /** Puts the quote ahead of the instruction, as if it were the first token in the editor. */
 function prependQuoteToken(draft: ComposerSerializedDraft, quote: ComposerDraftToken): ComposerSerializedDraft {
   const prefix = `${quote.promptText ?? ''}\n`
+
   return {
     text: prefix + draft.text,
     tokens: [
@@ -83,6 +85,7 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
   const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
   const [hasQuote, setHasQuote] = useState(Boolean(selectedText))
   const focusedRef = useRef(false)
+
   const focusOnce = useCallback((actions: ComposerSurfaceActions) => {
     if (focusedRef.current) return
     focusedRef.current = true
@@ -90,9 +93,11 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
   }, [])
 
   const agents = useSelectionAgents([target.agentId])
+
   const agent = target.agentId
     ? agents?.find((candidate) => candidate.id === target.agentId)
     : agents?.find((candidate) => candidate.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT)
+
   // A missing Cherry Assistant is recreated on send, so only a bound agent can be unavailable here.
   const issue = !agents || (!target.agentId && !agent) ? null : getSelectionAgentIssue(agent)
   const binary = useClaudeCodeBinary(agent?.type === 'claude-code')
@@ -106,7 +111,9 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
     if (!hasQuote) return onSend(draft)
     onSend(prependQuoteToken(draft, createQuoteToken(selectedText, t('selection.action.builtin.quote'))))
   }
+
   const selectionLines = selectedText.trim().split('\n').length
+
   const selectionSize =
     selectionLines > 1
       ? t('selection.agent.line_count', { lines: selectionLines })
@@ -234,6 +241,7 @@ interface SelectionTargetLabelProps {
 /** Shows where the instruction goes; a click opens the selection settings, where it is changed. */
 const SelectionTargetLabel: FC<SelectionTargetLabelProps> = ({ icon, label, unavailable }) => {
   const { t } = useTranslation()
+
   return (
     <Tooltip content={t('selection.agent.change_in_settings')} delay={300} asChild>
       <Button
@@ -257,6 +265,7 @@ interface SelectionQuoteProps {
 /** The selection on one line behind the composer's quote icon; hover shows it whole and reveals the remove button. */
 const SelectionQuote: FC<SelectionQuoteProps> = ({ text, onRemove }) => {
   const { t } = useTranslation()
+
   return (
     // Fits its content so the rest of the title row stays a drag handle.
     <div className="group/quote flex w-fit min-w-0 max-w-full items-center gap-1 [-webkit-app-region:no-drag]">

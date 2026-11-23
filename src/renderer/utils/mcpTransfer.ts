@@ -15,11 +15,14 @@ export function isExportableMcpServer(server: McpServer): boolean {
 
 export function serializeMcpServersForExport(servers: readonly McpServer[]): string {
   const eligible = servers.filter(isExportableMcpServer)
+
   if (eligible.length === 0) throw new Error('no_exportable_mcp_servers')
 
   const names = new Set<string>()
+
   for (const server of eligible) {
     if (names.has(server.name)) throw new DuplicateMcpServerNameError(server.name)
+
     if (server.name === '__proto__') throw new Error('unsupported_mcp_server_name')
     names.add(server.name)
   }
@@ -58,9 +61,12 @@ export function serializeMcpServersForExport(servers: readonly McpServer[]): str
       ])
     )
   }
+
   const parsed = safeValidateMcpConfig(payload)
+
   if (!parsed.success || Object.keys(parsed.data.mcpServers).length !== eligible.length) {
     throw new Error('invalid_mcp_export')
   }
+
   return JSON.stringify(payload, null, 2)
 }

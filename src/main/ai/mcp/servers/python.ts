@@ -44,6 +44,7 @@ export function createPythonServer(): McpServer {
 
       try {
         const result = await application.get('PythonService').executeScript(code, context, clampedTimeout)
+
         return { content: [{ type: 'text', text: result }] }
       } catch (error) {
         logger.error('Python execution error', error as Error)
@@ -51,5 +52,6 @@ export function createPythonServer(): McpServer {
       }
     }
   )
+
   return server
 }

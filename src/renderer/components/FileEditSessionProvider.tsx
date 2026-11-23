@@ -13,13 +13,16 @@ export function FileEditSessionProvider({ children }: { children: ReactNode }) {
       if (event.target instanceof Element && event.target.closest('[data-file-edit]'))
         manager.setComposing(event.type === 'compositionstart')
     }
+
     document.addEventListener('compositionstart', composition, true)
     document.addEventListener('compositionend', composition, true)
+
     return () => {
       document.removeEventListener('compositionstart', composition, true)
       document.removeEventListener('compositionend', composition, true)
     }
   }, [manager])
+
   return <FileEditSessionContext value={manager}>{children}</FileEditSessionContext>
 }
 
@@ -29,6 +32,7 @@ export function FileEditRecovery({
   getReopenAction?: (session: SessionSnapshot) => (() => void) | undefined
 }) {
   const manager = use(FileEditSessionContext)
+
   if (!manager) throw new Error('File recovery requires a window session provider')
   const retained = useSyncExternalStore(manager.subscribe, manager.getSnapshot)
   const failures = retained.filter((session) => session.conflict || session.saveError || session.readError)
@@ -42,6 +46,7 @@ export function FileEditRecovery({
         <div className="fixed right-4 bottom-4 z-50 max-w-md space-y-3 rounded-lg border border-warning-border bg-warning-subtle p-3 text-warning-subtle-foreground">
           {failures.map((session) => {
             const reopen = getReopenAction?.(session)
+
             return (
               <div key={session.sessionId} role="alert" className="space-y-1">
                 <p className="break-all text-xs">{session.locator}</p>

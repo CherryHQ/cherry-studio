@@ -37,6 +37,7 @@ const JoplinSettings: FC = () => {
 
   const handleJoplinUrlBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     let url = e.target.value
+
     if (url && !url.endsWith('/')) {
       url = `${url}/`
       void setJoplinUrl(url)
@@ -47,10 +48,13 @@ const JoplinSettings: FC = () => {
     try {
       if (!joplinToken) {
         toast.error(t('settings.data.joplin.check.empty_token'))
+
         return
       }
+
       if (!joplinUrl) {
         toast.error(t('settings.data.joplin.check.empty_url'))
+
         return
       }
 
@@ -60,6 +64,7 @@ const JoplinSettings: FC = () => {
 
       if (!response.ok || data?.error) {
         toast.error(t('settings.data.joplin.check.fail'))
+
         return
       }
 

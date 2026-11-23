@@ -89,12 +89,14 @@ export interface LogoColumns {
  */
 export function getSingleFileRefId(table: SingleFileRefTable, sourceId: string): FileEntryId | null {
   const db: TxLike = application.get('DbService').getDb()
+
   const [row] = db
     .select({ fileEntryId: table.fileEntryId })
     .from(table)
     .where(eq(table.sourceId, sourceId))
     .limit(1)
     .all()
+
   return (row?.fileEntryId as FileEntryId | undefined) ?? null
 }
 
@@ -146,9 +148,11 @@ export function reconcileLogoSlotTx(
 
   if (input.kind === 'file') {
     setSingleFileRefTx(tx, table, sourceId, input.fileId)
+
     return { logoKey: null }
   }
 
   clearSingleFileRefTx(tx, table, sourceId)
+
   return { logoKey: input.kind === 'key' ? input.key : null }
 }

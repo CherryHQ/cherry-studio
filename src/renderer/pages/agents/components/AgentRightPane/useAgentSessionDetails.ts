@@ -20,6 +20,8 @@ export const AgentSessionDetailsContext = createContext<AgentSessionDetailsState
 
 export function useAgentSessionDetails() {
   const state = use(AgentSessionDetailsContext)
+
   if (!state) throw new Error('Session details require the Agent scope')
+
   return state
 }

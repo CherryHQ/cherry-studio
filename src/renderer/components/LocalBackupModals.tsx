@@ -70,10 +70,12 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
   const handleBackup = async () => {
     if (!localBackupDir) {
       setIsModalVisible(false)
+
       return
     }
 
     setBackuping(true)
+
     try {
       await backupToLocal({ customFileName })
       setIsModalVisible(false)

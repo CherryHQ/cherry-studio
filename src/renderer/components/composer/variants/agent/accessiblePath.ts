@@ -35,8 +35,10 @@ export const getAccessiblePathRelativePath = (
 ): PosixRelativeFilePath | AbsoluteFilePath => {
   for (const base of accessiblePaths) {
     const relative = getRelativePath(base, filePath)
+
     if (relative !== null) return relative
   }
+
   return filePath
 }
 
@@ -71,5 +73,6 @@ const isCaseInsensitivePlatform = isMac || isWin
 export const getPathComparisonKey = (value: string): string => {
   const parsed = AbsoluteFilePathSchema.safeParse(value)
   const key = (parsed.success ? toPathKey(parsed.data) : null) ?? value
+
   return isCaseInsensitivePlatform ? key.toLowerCase() : key
 }

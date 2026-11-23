@@ -15,10 +15,12 @@ export async function safeCall<TArgs extends unknown[], TResult>(
   ...args: TArgs
 ): Promise<Awaited<TResult> | undefined> {
   if (!cb) return undefined
+
   try {
     return await cb(...args)
   } catch (err) {
     logger.warn(`hook ${name} threw`, err as Error)
+
     return undefined
   }
 }
@@ -29,6 +31,7 @@ export function wrapForwardedHook<TArgs extends unknown[], TResult>(
   fn: ((...args: TArgs) => TResult) | undefined
 ): ((...args: TArgs) => Promise<Awaited<TResult> | undefined>) | undefined {
   if (!fn) return undefined
+
   return (...args) => safeCall(name, fn, ...args)
 }
 
@@ -41,12 +44,15 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
   if (!tools) return tools
 
   const wrapped: ToolSet = {}
+
   for (const [name, tool] of Object.entries(tools)) {
     const originalExecute = tool.execute
+
     if (typeof originalExecute !== 'function') {
       wrapped[name] = tool
       continue
     }
+
     wrapped[name] = {
       ...tool,
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ToolSet erases each tool's input type; its SDK inputSchema validates the value and this wrapper preserves its identity.
@@ -57,9 +63,11 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
           input,
           messages: options.messages
         }
+
         await safeCall('onToolExecutionStart', hooks.onToolExecutionStart, startEvent)
 
         const startTime = performance.now()
+
         try {
           // NB: AI SDK v6 allows `execute` to return AsyncIterable for preliminary results.
           // No current tool uses that; the end hook would fire prematurely if one did.
@@ -70,9 +78,11 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
             durationMs,
             toolOutput: { type: 'tool-result', output }
           })
+
           return output
         } catch (error) {
           const durationMs = performance.now() - startTime
+
           // Without this, a failed tool call survives only as the `tool-error` part's text in
           // the chat record — a bundle source that is opt-in and off by default.
           if (!options.abortSignal?.aborted) {
@@ -84,6 +94,7 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
               err: chatErrorContext(error)
             })
           }
+
           await safeCall('onToolExecutionEnd', hooks.onToolExecutionEnd, {
             ...startEvent,
             durationMs,
@@ -94,5 +105,6 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
       }
     } as ToolSet[string]
   }
+
   return wrapped
 }

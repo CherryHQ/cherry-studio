@@ -6,7 +6,9 @@ import { TesseractJsLight } from './light'
 
 const TesseractJs = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <TesseractJsLight {...props} className={className} />
+
   if (variant === 'dark') return <TesseractJsDark {...props} className={className} />
+
   return (
     <>
       <TesseractJsLight className={cn('dark:hidden', className)} {...props} />

@@ -61,6 +61,7 @@ export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDG
         path: ['dimensions'],
         message: 'Embedding model and dimensions must be provided together'
       })
+
       return
     }
 
@@ -75,6 +76,7 @@ export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDG
       })
     }
   })
+
 export type UpdateKnowledgeBaseDto = z.input<typeof UpdateKnowledgeBaseSchema>
 
 export const KNOWLEDGE_ITEMS_DEFAULT_LIMIT = 20
@@ -93,10 +95,13 @@ export const ListKnowledgeBasesQuerySchema = z.strictObject({
 })
 
 export type ListKnowledgeBasesQueryParams = z.input<typeof ListKnowledgeBasesQuerySchema>
+
 export type ListKnowledgeBasesQuery = z.output<typeof ListKnowledgeBasesQuerySchema>
+
 export type KnowledgeBaseListItem = KnowledgeBase & {
   itemCount: number
 }
+
 export interface KnowledgeBaseListResponse extends CursorPaginationResponse<KnowledgeBaseListItem> {
   total: number
 }
@@ -121,6 +126,7 @@ export const ListKnowledgeItemsQuerySchema = z.strictObject({
 })
 
 export type KnowledgeItemSortBy = z.infer<typeof KnowledgeItemSortBySchema>
+
 export interface KnowledgeItemSort {
   sortBy: KnowledgeItemSortBy
   sortOrder: 'asc' | 'desc'
@@ -130,11 +136,13 @@ export const ReorderKnowledgeBaseSchema = z.strictObject({
   anchor: OrderRequestSchema,
   groupId: KnowledgeBaseGroupIdInputSchema.nullable().optional()
 })
+
 export type ReorderKnowledgeBaseDto = z.infer<typeof ReorderKnowledgeBaseSchema>
 
 // This schema declares `cursor` + `limit` inline (above), so `z.input` already covers the
 // cursor-pagination params and the `& CursorPaginationParams` intersection would be redundant.
 export type ListKnowledgeItemsQueryParams = z.input<typeof ListKnowledgeItemsQuerySchema>
+
 export type ListKnowledgeItemsQuery = z.output<typeof ListKnowledgeItemsQuerySchema>
 
 export interface KnowledgeItemListResponse extends CursorPaginationResponse<KnowledgeItem> {

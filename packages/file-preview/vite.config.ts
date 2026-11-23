@@ -30,14 +30,17 @@ export default defineConfig(({ mode }) => ({
       async closeBundle() {
         const output = resolve(root, 'dist')
         await mkdir(resolve(output, 'assets'), { recursive: true })
+
         for (const directory of ['cmaps', 'standard_fonts']) {
           await cp(resolve(pdfjsRoot, directory), resolve(output, 'assets', directory), { recursive: true })
         }
+
         const stylesheet = resolve(output, 'styles.css')
         const css = postcss.parse(await readFile(stylesheet, 'utf8'))
         const animations = new Map<string, string>()
         css.walkAtRules((rule) => {
           if (rule.name === 'property') rule.params = rule.params.replace(/--tw-/g, '--fp-tw-')
+
           if (rule.name.endsWith('keyframes')) {
             animations.set(rule.params, `fp-${rule.params}`)
             rule.params = `fp-${rule.params}`
@@ -46,6 +49,7 @@ export default defineConfig(({ mode }) => ({
         css.walkDecls((declaration) => {
           declaration.prop = declaration.prop.replace(/--tw-/g, '--fp-tw-')
           declaration.value = declaration.value.replace(/--tw-/g, '--fp-tw-')
+
           for (const [name, scoped] of animations) {
             if (declaration.prop.startsWith('--animate-') || declaration.prop.startsWith('animation')) {
               declaration.value = declaration.value.replace(new RegExp(`\\b${name}\\b`, 'g'), scoped)
@@ -54,12 +58,15 @@ export default defineConfig(({ mode }) => ({
         })
         css.walkRules((rule) => {
           if (rule.parent?.type === 'atrule' && rule.parent.name.endsWith('keyframes')) return
+
           if (rule.selector.includes('&')) return
           rule.selector = postcss.list
             .comma(rule.selector)
             .map((selector) => {
               if (selector === ':root' || selector === ':host') return ':where(.file-preview-root)'
+
               if (selector === '.dark') return ':where(.dark .file-preview-root, .file-preview-root.dark)'
+
               return selector.includes('.file-preview-root')
                 ? selector
                 : `:where(.file-preview-root):is(${selector}), :where(.file-preview-root) ${selector}`

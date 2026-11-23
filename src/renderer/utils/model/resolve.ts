@@ -14,20 +14,26 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
  */
 export async function readDefaultModel(): Promise<Model | undefined> {
   const id = (await preferenceService.get('chat.default_model_id')) as UniqueModelId | undefined
+
   if (!id) return undefined
+
   return (await dataApiService.get(`/models/${id}`)) ?? undefined
 }
 
 export async function readQuickModel(): Promise<Model | undefined> {
   const id = ((await preferenceService.get('feature.quick_assistant.model_id')) ??
     (await preferenceService.get('chat.default_model_id'))) as UniqueModelId | undefined
+
   if (!id) return undefined
+
   return (await dataApiService.get(`/models/${id}`)) ?? undefined
 }
 
 export async function readTranslateModel(): Promise<Model | undefined> {
   const id = ((await preferenceService.get('feature.translate.model_id')) ??
     (await preferenceService.get('chat.default_model_id'))) as UniqueModelId | undefined
+
   if (!id) return undefined
+
   return (await dataApiService.get(`/models/${id}`)) ?? undefined
 }

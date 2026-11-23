@@ -177,8 +177,11 @@ const CredentialsSchema = z.object({
 // --------------- Derived & request types ---------------
 
 type QrCodeResponse = z.infer<typeof QrCodeResponseSchema>
+
 type QrStatusResponse = z.infer<typeof QrStatusResponseSchema>
+
 type GetConfigResp = z.infer<typeof GetConfigRespSchema>
+
 type Credentials = z.infer<typeof CredentialsSchema>
 
 interface SendTypingReq {
@@ -200,11 +203,13 @@ const MAX_CONTEXT_TOKENS = 1000
 
 function aesEcbDecrypt(encrypted: Buffer, key: Buffer): Buffer {
   const decipher = createDecipheriv('aes-128-ecb', key, null)
+
   return Buffer.concat([decipher.update(encrypted), decipher.final()])
 }
 
 function aesEcbEncrypt(data: Buffer, key: Buffer): Buffer {
   const cipher = createCipheriv('aes-128-ecb', key, null)
+
   return Buffer.concat([cipher.update(data), cipher.final()])
 }
 
@@ -216,9 +221,11 @@ function resolveImageAesKey(item: ImageItem): Buffer | null {
   if (item.aeskey) {
     return Buffer.from(item.aeskey, 'hex')
   }
+
   if (item.media?.aes_key) {
     return parseAesKey(item.media.aes_key)
   }
+
   return null
 }
 
@@ -226,26 +233,33 @@ function resolveImageAesKey(item: ImageItem): Buffer | null {
 
 function resolveCdnDownloadUrl(media?: CDNMedia): string | null {
   const fullUrl = media?.full_url?.trim()
+
   if (fullUrl) {
     try {
       const url = new URL(fullUrl)
+
       if (url.protocol === 'https:' && url.hostname.endsWith('.cdn.weixin.qq.com')) return url.toString()
       logger.warn('Ignoring an untrusted WeChat CDN URL', { hostname: url.hostname })
     } catch {
       logger.warn('Ignoring an invalid WeChat CDN URL')
     }
   }
+
   if (!media?.encrypt_query_param) return null
+
   return `${CDN_BASE_URL}/download?encrypted_query_param=${encodeURIComponent(media.encrypt_query_param)}`
 }
 
 async function cdnDownloadImage(item: ImageItem): Promise<Buffer | null> {
   const url = resolveCdnDownloadUrl(item.media)
+
   if (!url) return null
 
   const aesKey = resolveImageAesKey(item)
+
   if (!aesKey) {
     logger.warn('Image item has CDN media but no AES key')
+
     return null
   }
 
@@ -256,16 +270,21 @@ async function cdnDownloadImage(item: ImageItem): Promise<Buffer | null> {
   }
 
   const contentLength = response.headers.get('content-length')
+
   if (contentLength && Number.parseInt(contentLength, 10) > MAX_FILE_SIZE_BYTES) {
     logger.warn('Image too large, skipping CDN download', { size: contentLength })
+
     return null
   }
 
   const encrypted = Buffer.from(await response.arrayBuffer())
+
   if (encrypted.length > MAX_FILE_SIZE_BYTES) {
     logger.warn('Image too large after CDN download', { size: encrypted.length })
+
     return null
   }
+
   return aesEcbDecrypt(encrypted, aesKey)
 }
 
@@ -281,11 +300,15 @@ async function cdnDownloadImage(item: ImageItem): Promise<Buffer | null> {
  */
 function parseAesKey(aesKeyBase64: string): Buffer | null {
   const decoded = Buffer.from(aesKeyBase64, 'base64')
+
   if (decoded.length === 16) return decoded
+
   if (decoded.length === 32 && /^[0-9a-fA-F]{32}$/.test(decoded.toString('ascii'))) {
     return Buffer.from(decoded.toString('ascii'), 'hex')
   }
+
   logger.warn('Unexpected aes_key length after base64 decode', { length: decoded.length })
+
   return null
 }
 
@@ -297,19 +320,24 @@ function resolveFileAesKey(item: DownloadableFileItem): Buffer | null {
   if (item.aeskey) {
     return Buffer.from(item.aeskey, 'hex')
   }
+
   if (item.media?.aes_key) {
     return parseAesKey(item.media.aes_key)
   }
+
   return null
 }
 
 async function cdnDownloadFile(item: DownloadableFileItem): Promise<Buffer | null> {
   const url = resolveCdnDownloadUrl(item.media)
+
   if (!url) return null
 
   const aesKey = resolveFileAesKey(item)
+
   if (!aesKey) {
     logger.warn('File item has CDN media but no AES key')
+
     return null
   }
 
@@ -320,16 +348,21 @@ async function cdnDownloadFile(item: DownloadableFileItem): Promise<Buffer | nul
   }
 
   const contentLength = response.headers.get('content-length')
+
   if (contentLength && Number.parseInt(contentLength, 10) > MAX_FILE_SIZE_BYTES) {
     logger.warn('File too large, skipping CDN download', { size: contentLength })
+
     return null
   }
 
   const encrypted = Buffer.from(await response.arrayBuffer())
+
   if (encrypted.length > MAX_FILE_SIZE_BYTES) {
     logger.warn('File too large after CDN download', { size: encrypted.length })
+
     return null
   }
+
   return aesEcbDecrypt(encrypted, aesKey)
 }
 
@@ -381,10 +414,13 @@ async function cdnUploadMedia(
     uin,
     15_000
   )
+
   const uploadFullUrl = resp.upload_full_url?.trim()
   const uploadParam = resp.upload_param
+
   if (!uploadFullUrl && !uploadParam) {
     logger.error('getuploadurl response missing both upload_full_url and upload_param')
+
     return null
   }
 
@@ -392,6 +428,7 @@ async function cdnUploadMedia(
   const uploadUrl = uploadFullUrl
     ? uploadFullUrl
     : `${CDN_BASE_URL}/upload?encrypted_query_param=${encodeURIComponent(uploadParam!)}&filekey=${encodeURIComponent(filekey)}`
+
   const uploadResp = await net.fetch(uploadUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream' },
@@ -400,12 +437,15 @@ async function cdnUploadMedia(
 
   if (!uploadResp.ok) {
     logger.error('CDN upload failed', { status: uploadResp.status })
+
     return null
   }
 
   const downloadEncryptedQueryParam = uploadResp.headers.get('x-encrypted-param')
+
   if (!downloadEncryptedQueryParam) {
     logger.error('CDN upload response missing x-encrypted-param header')
+
     return null
   }
 
@@ -439,6 +479,7 @@ async function parseJsonResponse<TSchema extends z.ZodType>(
 ): Promise<z.output<TSchema>> {
   const text = await response.text()
   let raw: unknown
+
   try {
     raw = text ? JSON.parse(text) : {}
   } catch {
@@ -459,6 +500,7 @@ async function parseJsonResponse<TSchema extends z.ZodType>(
   }
 
   const body = ApiErrorBodySchema.safeParse(raw)
+
   if (body.success && typeof body.data.ret === 'number' && body.data.ret !== 0) {
     throw new ApiError(body.data.errmsg ?? `${label} failed`, {
       status: response.status,
@@ -493,6 +535,7 @@ async function apiFetch<TSchema extends z.ZodType>(
   const url = `${baseUrlOrigin}${endpoint}`
   const timeoutSignal = AbortSignal.timeout(timeoutMs)
   const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
+
   const response = await net.fetch(url, {
     method: 'POST',
     headers: buildHeaders(token, uin),
@@ -511,6 +554,7 @@ async function apiGet<TSchema extends z.ZodType>(
 ): Promise<z.output<TSchema>> {
   const url = `${baseUrlOrigin}${urlPath}`
   const response = await net.fetch(url, { method: 'GET', headers })
+
   return parseJsonResponse(response, urlPath, schema)
 }
 
@@ -531,6 +575,7 @@ async function getUpdates(
     40_000,
     signal
   )
+
   return { msgs: parsed.msgs as WeixinMessage[], get_updates_buf: parsed.get_updates_buf }
 }
 
@@ -591,6 +636,7 @@ async function apiSendTyping(
     status,
     base_info: buildBaseInfo()
   }
+
   await apiFetch(AcknowledgementSchema, baseUrl, '/ilink/bot/sendtyping', body, token, uin, 15_000)
 }
 
@@ -634,14 +680,17 @@ async function loadCredentials(tokenPath: string): Promise<Credentials | undefin
   try {
     const raw = await readFile(tokenPath, 'utf8')
     const result = CredentialsSchema.safeParse(JSON.parse(raw))
+
     if (!result.success) {
       throw new Error(`Invalid credentials format in ${tokenPath}`)
     }
+
     return result.data
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return undefined
     }
+
     throw error
   }
 }
@@ -670,6 +719,7 @@ const MAX_QR_RETRIES = 3
 async function loginFlow(options: LoginOptions): Promise<Credentials> {
   if (!options.force) {
     const existing = await loadCredentials(options.tokenPath)
+
     if (existing) return existing
   }
 
@@ -701,6 +751,7 @@ async function loginFlow(options: LoginOptions): Promise<Credentials> {
         } else if (status.status === 'expired') {
           logger.info('QR code expired', { attempt: qrRetries + 1, maxAttempts: MAX_QR_RETRIES })
         }
+
         lastStatus = status.status
       }
 
@@ -715,7 +766,9 @@ async function loginFlow(options: LoginOptions): Promise<Credentials> {
           accountId: status.ilink_bot_id,
           userId: status.ilink_user_id
         }
+
         await saveCredentials(credentials, options.tokenPath)
+
         return credentials
       }
 
@@ -777,6 +830,7 @@ export class WeixinBot {
   async hasCredentials(): Promise<boolean> {
     if (!this.tokenPath) return false
     const creds = await loadCredentials(this.tokenPath)
+
     return creds !== undefined
   }
 
@@ -785,6 +839,7 @@ export class WeixinBot {
     // Use provided signal or create an internal one that stop() can cancel
     this.loginAbort = new AbortController()
     const signal = options.signal ? AbortSignal.any([options.signal, this.loginAbort.signal]) : this.loginAbort.signal
+
     const credentials = await loginFlow({
       baseUrl: this.baseUrl,
       tokenPath: this.tokenPath!,
@@ -792,6 +847,7 @@ export class WeixinBot {
       signal,
       onQrUrl: this.onQrUrlCallback
     })
+
     this.loginAbort = null
 
     this.credentials = credentials
@@ -804,11 +860,13 @@ export class WeixinBot {
     }
 
     logger.info('Logged in', { userId: credentials.userId })
+
     return credentials
   }
 
   onMessage(handler: MessageHandler): this {
     this.handlers.push(handler)
+
     return this
   }
 
@@ -821,10 +879,12 @@ export class WeixinBot {
 
   async sendTyping(userId: string): Promise<void> {
     const contextToken = this.contextTokens.get(userId)
+
     if (!contextToken) return
 
     const credentials = await this.ensureCredentials()
     const config = await apiGetConfig(this.baseUrl, credentials.token, this.uin, userId, contextToken)
+
     if (!config.typing_ticket) return
 
     await apiSendTyping(this.baseUrl, credentials.token, this.uin, userId, config.typing_ticket, 1)
@@ -832,10 +892,12 @@ export class WeixinBot {
 
   async stopTyping(userId: string): Promise<void> {
     const contextToken = this.contextTokens.get(userId)
+
     if (!contextToken) return
 
     const credentials = await this.ensureCredentials()
     const config = await apiGetConfig(this.baseUrl, credentials.token, this.uin, userId, contextToken)
+
     if (!config.typing_ticket) return
 
     await apiSendTyping(this.baseUrl, credentials.token, this.uin, userId, config.typing_ticket, 2)
@@ -843,6 +905,7 @@ export class WeixinBot {
 
   async send(userId: string, text: string): Promise<void> {
     const contextToken = this.contextTokens.get(userId)
+
     if (!contextToken) {
       logger.warn('No cached context token, sending without context', { userId })
     }
@@ -858,12 +921,15 @@ export class WeixinBot {
   async downloadImage(imageItem: ImageItem): Promise<string | null> {
     try {
       const data = await cdnDownloadImage(imageItem)
+
       if (!data) return null
 
       const mime = detectImageMime(data)
+
       return `data:${mime};base64,${data.toString('base64')}`
     } catch (error) {
       logger.error('Failed to download WeChat image', error instanceof Error ? error : { error: String(error) })
+
       return null
     }
   }
@@ -874,10 +940,13 @@ export class WeixinBot {
   ): Promise<{ data: Buffer; filename: string; mediaType: string } | null> {
     try {
       const data = await cdnDownloadFile(file.item)
+
       if (!data) return null
+
       return { data, filename: file.filename, mediaType: file.mediaType }
     } catch (error) {
       logger.error('Failed to download WeChat file', error instanceof Error ? error : { error: String(error) })
+
       return null
     }
   }
@@ -900,10 +969,12 @@ export class WeixinBot {
   async sendFile(userId: string, filename: string, data: Buffer, mediaType: string): Promise<void> {
     if (mediaType.startsWith('image/')) {
       await this.sendImage(userId, data)
+
       return
     }
 
     const contextToken = this.contextTokenFor(userId)
+
     if (mediaType.startsWith('video/')) {
       const uploaded = await this.uploadMedia(userId, data, UploadMediaType.VIDEO)
       await this.sendMediaMessage(
@@ -914,6 +985,7 @@ export class WeixinBot {
         },
         contextToken
       )
+
       return
     }
 
@@ -951,6 +1023,7 @@ export class WeixinBot {
 
   private async runLoop(): Promise<void> {
     const credentials = await this.ensureCredentials()
+
     try {
       await apiNotifyLifecycle(this.baseUrl, credentials.token, this.uin, 'start')
     } catch (error) {
@@ -958,6 +1031,7 @@ export class WeixinBot {
         error: error instanceof Error ? error.message : String(error)
       })
     }
+
     logger.info('Long-poll loop started')
     let retryDelayMs = 1_000
 
@@ -965,6 +1039,7 @@ export class WeixinBot {
       try {
         const credentials = await this.ensureCredentials()
         this.currentPollController = new AbortController()
+
         const updates = await getUpdates(
           this.baseUrl,
           credentials.token,
@@ -980,6 +1055,7 @@ export class WeixinBot {
         for (const raw of updates.msgs ?? []) {
           this.rememberContext(raw)
           const incoming = this.toIncomingMessage(raw)
+
           if (incoming) {
             await this.dispatchMessage(incoming)
           }
@@ -1019,9 +1095,11 @@ export class WeixinBot {
     if (this.credentials) return this.credentials
 
     const stored = await loadCredentials(this.tokenPath!)
+
     if (stored) {
       this.credentials = stored
       this.baseUrl = normalizeBaseUrl(stored.baseUrl)
+
       return stored
     }
 
@@ -1039,9 +1117,11 @@ export class WeixinBot {
 
   private contextTokenFor(userId: string): string {
     const contextToken = this.contextTokens.get(userId)
+
     if (!contextToken) {
       logger.warn('No cached context token for media, sending without context', { userId })
     }
+
     return contextToken ?? ''
   }
 
@@ -1052,7 +1132,9 @@ export class WeixinBot {
   ): Promise<{ downloadEncryptedQueryParam: string; aeskey: Buffer; ciphertextSize: number }> {
     const credentials = await this.ensureCredentials()
     const uploaded = await cdnUploadMedia(this.baseUrl, credentials.token, this.uin, userId, data, mediaType)
+
     if (!uploaded) throw new Error('Failed to upload media to WeChat CDN')
+
     return uploaded
   }
 
@@ -1079,6 +1161,7 @@ export class WeixinBot {
 
   private async notifyStop(): Promise<void> {
     const credentials = this.credentials ?? (this.tokenPath ? await loadCredentials(this.tokenPath) : undefined)
+
     if (!credentials) return
     this.baseUrl = normalizeBaseUrl(credentials.baseUrl)
 
@@ -1095,6 +1178,7 @@ export class WeixinBot {
     if (this.handlers.length === 0) return
 
     const results = await Promise.allSettled(this.handlers.map(async (handler) => handler(message)))
+
     for (const result of results) {
       if (result.status === 'rejected') {
         this.reportError(result.reason)
@@ -1104,12 +1188,15 @@ export class WeixinBot {
 
   private rememberContext(message: WeixinMessage): void {
     const userId = message.message_type === MessageType.USER ? message.from_user_id : message.to_user_id
+
     if (userId && message.context_token) {
       // Evict oldest entry when map exceeds max size
       if (this.contextTokens.size >= MAX_CONTEXT_TOKENS && !this.contextTokens.has(userId)) {
         const oldest = this.contextTokens.keys().next().value
+
         if (oldest !== undefined) this.contextTokens.delete(oldest)
       }
+
       this.contextTokens.set(userId, message.context_token)
       this.persistContextTokens()
     }
@@ -1119,6 +1206,7 @@ export class WeixinBot {
     if (message.message_type !== MessageType.USER) return null
 
     const hasCdnMedia = (media?: CDNMedia) => Boolean(media?.encrypt_query_param || media?.full_url)
+
     const imageItems = message.item_list
       .filter((item) => item.type === MessageItemType.IMAGE && hasCdnMedia(item.image_item?.media))
       .map((item) => item.image_item!)
@@ -1129,9 +1217,11 @@ export class WeixinBot {
           { filename: item.file_item.file_name ?? 'file', mediaType: 'application/octet-stream', item: item.file_item }
         ]
       }
+
       if (item.type === MessageItemType.VIDEO && item.video_item && hasCdnMedia(item.video_item.media)) {
         return [{ filename: `video-${message.message_id}.mp4`, mediaType: 'video/mp4', item: item.video_item }]
       }
+
       if (item.type === MessageItemType.VOICE && item.voice_item && hasCdnMedia(item.voice_item.media)) {
         return [
           {
@@ -1141,6 +1231,7 @@ export class WeixinBot {
           }
         ]
       }
+
       return []
     })
 
@@ -1157,11 +1248,14 @@ export class WeixinBot {
 
   private persistContextTokens(): void {
     if (!this.contextTokenPath) return
+
     try {
       const tokens: Record<string, string> = {}
+
       for (const [k, v] of this.contextTokens) {
         tokens[k] = v
       }
+
       writeFile(this.contextTokenPath, JSON.stringify(tokens), { mode: 0o600 }).catch((err) => {
         logger.warn('Failed to persist context tokens', { error: err instanceof Error ? err.message : String(err) })
       })
@@ -1172,17 +1266,20 @@ export class WeixinBot {
 
   private restoreContextTokens(): void {
     if (!this.contextTokenPath) return
+
     try {
       if (!fs.existsSync(this.contextTokenPath)) return
       const raw = fs.readFileSync(this.contextTokenPath, 'utf8')
       const tokens = JSON.parse(raw) as Record<string, string>
       let count = 0
+
       for (const [userId, token] of Object.entries(tokens)) {
         if (typeof token === 'string' && token) {
           this.contextTokens.set(userId, token)
           count++
         }
       }
+
       if (count > 0) {
         logger.info('Restored context tokens from disk', { count })
       }
@@ -1202,13 +1299,16 @@ export class WeixinBot {
       logger.error('Bot error', error)
     } else {
       let message = '[Unserializable]'
+
       try {
         message = String(error)
       } catch {
         // Failed coercion must not replace the application handler's rejection.
       }
+
       logger.error('Bot error', { error: message })
     }
+
     this.onErrorCallback?.(error)
   }
 }
@@ -1217,6 +1317,7 @@ export class WeixinBot {
 
 function detectType(items: MessageItem[]): IncomingMessage['type'] {
   const first = items[0]
+
   switch (first?.type) {
     case MessageItemType.IMAGE:
       return 'image'
@@ -1235,6 +1336,7 @@ function extractText(items: MessageItem[]): string {
   return items
     .flatMap((item) => {
       const text = extractItemText(item)
+
       return text ? [text] : []
     })
     .join('\n')
@@ -1242,6 +1344,7 @@ function extractText(items: MessageItem[]): string {
 
 function extractItemText(item: MessageItem): string {
   let text: string
+
   switch (item.type) {
     case MessageItemType.TEXT:
       text = item.text_item?.text ?? ''
@@ -1263,7 +1366,9 @@ function extractItemText(item: MessageItem): string {
   const quoted = item.ref_msg
     ? [item.ref_msg.title, item.ref_msg.message_item && extractItemText(item.ref_msg.message_item)]
     : []
+
   const quote = quoted.filter((value): value is string => Boolean(value)).join(' | ')
+
   return quote ? `[quote: ${quote}]${text ? `\n${text}` : ''}` : text
 }
 
@@ -1291,9 +1396,13 @@ function voiceMediaType(item: VoiceItem): string {
 
 function detectImageMime(data: Buffer): string {
   if (data[0] === 0xff && data[1] === 0xd8) return 'image/jpeg'
+
   if (data[0] === 0x89 && data[1] === 0x50) return 'image/png'
+
   if (data[0] === 0x47 && data[1] === 0x49) return 'image/gif'
+
   if (data[0] === 0x52 && data[1] === 0x49) return 'image/webp'
+
   return 'image/jpeg'
 }
 

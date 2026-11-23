@@ -29,7 +29,9 @@ export class EmbeddingInferenceService extends InferenceServiceBase<EmbeddingInf
     const bundle = getModelBundle('qwen3-embedding-0.6b')
     const modelDir = localModelStorageService.resolveInstalledDir(bundle)
     const artifactsReady = bundle.requires.every((id) => localModelStorageService.isArtifactReady(id))
+
     if (!modelDir || !artifactsReady) throw new Error('the local embedding model is not fully downloaded')
+
     return { modelDir, dtype: bundleDtype(bundle) }
   }
 }

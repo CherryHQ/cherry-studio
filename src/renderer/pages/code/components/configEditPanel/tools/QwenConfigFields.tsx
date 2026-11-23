@@ -38,11 +38,14 @@ export const QwenConfigFields: FC<QwenConfigFieldsProps> = ({ config, onChange, 
     (key: string, value: boolean | undefined) => {
       const nextPermissions = { ...permissions }
       const nextAutoMode: Record<string, boolean> = {}
+
       if (value !== undefined) nextAutoMode[key] = value
+
       if (Object.keys(nextAutoMode).length > 0) nextPermissions.autoMode = nextAutoMode
       else delete nextPermissions.autoMode
 
       const next = { ...config }
+
       if (Object.keys(nextPermissions).length > 0) next.permissions = nextPermissions
       else delete next.permissions
       onChange(next)

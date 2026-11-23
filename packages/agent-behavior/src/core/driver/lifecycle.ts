@@ -32,14 +32,17 @@ export function decideOnOpen(
   const effects: Effect[] = []
   const goal = facts.lineage.kind === 'root' ? currentGoal(facts.history) : undefined
   const unsupported = goal?.phase === 'active' && !open.supportsTools
+
   if (goal && unsupported)
     ops.push(
       goalStop(facts, inputs, goal, { code: 'unsupported_model', message: 'the current model has no tool calling' })
     )
+
   if (!open.reopened || facts.lineage.kind === 'subagent') return { ops, effects, result: null }
 
   // A stop disarms too; otherwise an armed goal is disarmed without a stop (the person resumes it).
   const disarm = goal?.armed === true && !unsupported
+
   if (goal && disarm)
     ops.push(goalRecord(facts, { ...goal, armed: false }, keys.goalDisarm(goal.id, armSeq(facts.history, goal.id))))
   let startAt = -1
@@ -48,6 +51,7 @@ export function decideOnOpen(
   })
   const start: HistoryEntry | undefined = facts.history[startAt]
   const roundStopped = start !== undefined && runActive(facts.live) && roundOf(start) !== undefined
+
   if (roundStopped) {
     ops.push({
       type: 'append-record',
@@ -57,19 +61,26 @@ export function decideOnOpen(
     })
     effects.push({ type: 'stop-turn', thread: facts.thread, cause: 'goal-pause' })
   }
+
   const ended: SubagentRunRecord[] = []
+
   for (const { child, latest, created } of readSubagents(facts.history)) {
     const running = facts.children.get(child)?.running === true
+
     if (latest.background && running) effects.push({ type: 'stop-child', child, run: latest.run })
+
     if (latest.status !== 'running') continue
     // A foreground run lives in its calling tool: it ended unrecorded, or it stops with the round stopped above.
     const toolDied = (!running && runStarted(facts, child, latest.run)) || (roundStopped && created > startAt)
+
     if (!latest.background && !toolDied) continue
+
     const record: SubagentRunRecord = {
       ...latest,
       status: 'finished',
       outcome: latest.stoppedBy === 'user' ? 'stopped' : 'interrupted'
     }
+
     ended.push(record)
     ops.push({
       type: 'append-record',
@@ -78,6 +89,7 @@ export function decideOnOpen(
       key: keys.subagentEnd(child, latest.run)
     })
   }
+
   // The id is never read: pending results depend on order and content only.
   const history: HistoryEntry[] = [
     ...facts.history,
@@ -85,9 +97,12 @@ export function decideOnOpen(
       (value): HistoryEntry => ({ kind: 'record', id: '' as ItemId, record: { type: 'subagent-run', value } })
     )
   ]
+
   const pending = pendingResults(history)
+
   if (pending.length > 0)
     ops.push(facts.live.idle ? quietDelivery({ ...facts, history }, pending) : ensureDriver(facts))
+
   return { ops, effects, result: null }
 }
 
@@ -100,6 +115,7 @@ export function decideUserStop(facts: ConversationFacts, inputs: CallInputs, req
   const key = keys.turnStop(requestKey)
   const turn = stoppedTurn(facts.history, key)
   const goal = facts.lineage.kind === 'root' ? currentGoal(facts.history) : undefined
+
   return {
     ops: [
       {
@@ -132,21 +148,28 @@ export function decideStopSubagent(
   requestKey: string
 ): Step<SubagentStop> {
   const stopTurn = (): Step<SubagentStop> => ({ ...decideUserStop(facts, inputs, requestKey), result: 'stopped-turn' })
+
   if (facts.keysSeen.has(keys.turnStop(requestKey))) return stopTurn()
   const key = keys.subagentUserStop(requestKey)
+
   if (facts.keysSeen.has(key)) {
     const entry = facts.history.find((candidate) => candidate.kind === 'record' && candidate.key === key)
+
     const stopped =
       entry?.kind === 'record' && entry.record.type === 'subagent-user-stop' ? entry.record.value : undefined
+
     if (stopped?.run === undefined) return { ops: [], effects: [], result: 'not-running' }
+
     return {
       ops: [],
       effects: [{ type: 'stop-child', child: stopped.sessionId, run: stopped.run }],
       result: 'stopped-child'
     }
   }
+
   if (interruptRoute(facts, child) === 'stop-parent-turn') return stopTurn()
   const decided = decideUserStopSubagent(facts, inputs, child, requestKey)
+
   return { ...decided, result: decided.result ? 'stopped-child' : 'not-running' }
 }
 
@@ -156,5 +179,6 @@ export function decideStopSubagent(
  */
 export function decidePermissionModeChanged(facts: ConversationFacts): Step<null> {
   const goal = facts.lineage.kind === 'root' ? currentGoal(facts.history) : undefined
+
   return { ops: goal?.phase === 'active' && goal.armed ? [ensureDriver(facts)] : [], effects: [], result: null }
 }

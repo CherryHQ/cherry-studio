@@ -17,11 +17,13 @@ export function createStripReasoningReplayMiddleware(): LanguageModelMiddleware 
 
     transformParams: async ({ params }) => {
       if (!Array.isArray(params.prompt)) return params
+
       return {
         ...params,
         prompt: params.prompt.map((message) => {
           if (message.role !== 'assistant') return message
           const content = message.content.filter((part) => part.type !== 'reasoning')
+
           return content.length === message.content.length ? message : { ...message, content }
         })
       }

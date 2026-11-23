@@ -1,4 +1,5 @@
 export { EntitySelector } from './entity-selector'
+
 export type {
   EntityItemBase,
   EntitySelectorContextMenuFactory,

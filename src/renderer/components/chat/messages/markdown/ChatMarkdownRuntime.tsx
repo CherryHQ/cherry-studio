@@ -35,14 +35,18 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
   const { mathEnableSingleDollar } = useMessageRenderConfig()
   const actions = useOptionalMessageListActions()
   const isStreaming = block.status === 'streaming'
+
   const content =
     block.status === 'paused' && isEmpty(block.content) ? t('message.chat.completion.paused') : block.content
+
   const transformSource = useCallback(
     (source: string) => {
       const transform = (text: string) => {
         const cleaned = removeSvgEmptyLines(text)
+
         return postProcess ? postProcess(cleaned) : cleaned
       }
+
       return inlineHtmlPreviewMode ? transformMarkdownOutsideHtmlArtifacts(source, transform) : transform(source)
     },
     [inlineHtmlPreviewMode, postProcess]
@@ -50,13 +54,17 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
 
   const citationRegistry = useMemo(() => {
     if (!trustedCitations?.length) return EMPTY_CITATION_REGISTRY
+
     return new Map(trustedCitations.map((citation) => [citation.number, citation]))
   }, [trustedCitations])
+
   const mergedComponents = useMemo(
     () => (components ? { ...CHAT_MARKDOWN_COMPONENTS, ...components } : CHAT_MARKDOWN_COMPONENTS),
     [components]
   )
+
   const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : undefined
+
   // Host file openers own path resolution; relative paths without a workspace are rejected.
   // Surfaces without a file opener retain link hardening.
   const openFilePath = useMemo(

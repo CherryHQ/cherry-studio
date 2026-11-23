@@ -65,10 +65,15 @@ export interface VoiceOwner {
 }
 
 type SessionFile = { entry: InternalFileEntry; reference: Disposable }
+
 type VoiceOperation = 'speech' | 'transcription' | 'install'
+
 type AbortableVoiceOperation = Exclude<VoiceOperation, 'install'>
+
 type ActivePhase = Exclude<VoiceSessionPhase, 'idle'>
+
 type SessionKind = 'recording' | 'playback' | 'install'
+
 type Session = {
   id: string
   owner: VoiceOwner
@@ -103,6 +108,7 @@ type Session = {
   playback?: PlaybackState
   playbackTimeout?: ReturnType<typeof setTimeout>
 }
+
 type ActiveOperation = { session: Session; requestId: string; controller: AbortController }
 
 @Injectable('VoiceSessionService')
@@ -144,11 +150,13 @@ export class VoiceSessionService extends BaseService {
 
   protected override async onStop(): Promise<void> {
     this.accepting = false
+
     for (const controller of this.inspections.values()) controller.abort(new VoiceRuntimeError('aborted'))
     const cleanup = [...this.sessions.values()].map((session) => this.closeSession(session, true))
     const [results] = await Promise.all([Promise.allSettled(cleanup), Promise.allSettled(this.inspections.keys())])
     this.releaseLease()
     const failures = results.filter((result) => result.status === 'rejected').map((result) => result.reason)
+
     if (failures.length) throw new AggregateError(failures, 'Voice session cleanup failed')
   }
 
@@ -159,12 +167,15 @@ export class VoiceSessionService extends BaseService {
   getState(owner: VoiceOwner): VoiceSessionState {
     this.requireAdmission()
     this.requireOwner(owner)
+
     if (!this.hasSessionAccess(owner)) return { phase: 'idle', revision: this.voiceState.revision }
+
     return { ...this.voiceState }
   }
 
   listModels() {
     this.requireAdmission()
+
     return listVoiceModels()
   }
 
@@ -178,24 +189,28 @@ export class VoiceSessionService extends BaseService {
 
   describeModel(modelId: string) {
     this.requireAdmission()
+
     return describeVoiceModel(modelId)
   }
 
   downloadModel(owner: VoiceOwner, modelId: LocalVoiceModelId) {
     this.requireAdmission()
     this.requireOwner(owner)
+
     return downloadVoiceModel(modelId)
   }
 
   cancelModelDownload(owner: VoiceOwner, modelId: LocalVoiceModelId) {
     this.requireAdmission()
     this.requireOwner(owner)
+
     return cancelVoiceModelDownload(modelId)
   }
 
   removeModel(owner: VoiceOwner, modelId: LocalVoiceModelId) {
     this.requireAdmission()
     this.requireOwner(owner)
+
     return removeVoiceModel(modelId)
   }
 
@@ -222,24 +237,32 @@ export class VoiceSessionService extends BaseService {
     this.requireAdmission()
     this.requireOwner(owner)
     const powerEpoch = this.powerEpoch
+
     if (input.source === 'settings' && (this.lease || this.active)) throw new VoiceRuntimeError('busy')
+
     if ((this.lease ?? this.active?.session)?.kind === 'recording') throw new VoiceRuntimeError('busy')
     const session = this.createSession(owner, input.sessionId, 'recording', input.source, input.sourceEntityId)
     session.requestId = input.requestId
+
     try {
       if (this.inspections.size) {
         for (const controller of this.inspections.values()) controller.abort(new VoiceRuntimeError('aborted'))
         await Promise.allSettled(this.inspections.keys())
       }
+
       while (this.lease || this.active) {
         if (input.source === 'settings') throw new VoiceRuntimeError('busy')
         const displaced = this.lease ?? this.active!.session
+
         if (displaced.kind === 'recording') throw new VoiceRuntimeError('busy')
+
         if (this.lease === displaced && !displaced.closed) this.sendCommand(displaced, 'stop')
         await this.closeSession(displaced, true)
       }
+
       if (session.closed || powerEpoch !== this.powerEpoch) throw new VoiceRuntimeError('aborted')
       this.acquireLease(session)
+
       return this.transition(session, 'recording')
     } catch (error) {
       await this.closeSession(session, true)
@@ -250,6 +273,7 @@ export class VoiceSessionService extends BaseService {
   async createRecording(owner: VoiceOwner, input: InputFor<'file.voice_recording.create'>): Promise<InternalFileEntry> {
     this.requireAdmission()
     this.requireOwner(owner)
+
     if (
       input.mimeType !== 'audio/webm;codecs=opus' ||
       input.audio.byteLength < 4 ||
@@ -258,9 +282,11 @@ export class VoiceSessionService extends BaseService {
     )
       throw new VoiceRuntimeError('invalid_audio')
     const session = this.requireLeaseSession(owner, input.sessionId)
+
     if (session.kind !== 'recording' || session.phase !== 'recording' || session.files.size || session.pending.size)
       throw new VoiceRuntimeError('invalid_request')
     const entry = await this.track(session, this.createFile(session, input.audio, 'webm'))
+
     if (session.closed) throw new VoiceRuntimeError('aborted')
     this.transition(session, 'recorded')
     logger.debug('Voice recording captured', {
@@ -272,14 +298,17 @@ export class VoiceSessionService extends BaseService {
       mimeType: input.mimeType,
       durationMs: input.durationMs
     })
+
     return entry
   }
 
   async startStreamingTranscription(owner: VoiceOwner, input: InputFor<'ai.voice.transcription.start'>) {
     const session = this.requireLeaseSession(owner, input.sessionId)
+
     if (session.kind !== 'recording' || session.phase !== 'recording' || session.inputStream)
       throw new VoiceRuntimeError('invalid_request')
     const { modelId, options } = resolveTranscriptionRequest(input)
+
     try {
       const result = await this.run(
         session,
@@ -291,10 +320,13 @@ export class VoiceSessionService extends BaseService {
           session.inputStream = source
           const abort = () => source.close()
           signal.addEventListener('abort', abort, { once: true })
+
           const deadline = setTimeout(() => {
             if (this.active?.session === session) this.active.controller.abort(new VoiceRuntimeError('timeout'))
           }, 420_000)
+
           deadline.unref()
+
           try {
             const execution = startTranscription(
               {
@@ -305,6 +337,7 @@ export class VoiceSessionService extends BaseService {
               },
               signal
             )
+
             const updates = (async () => {
               for await (const update of execution.updates) {
                 signal.throwIfAborted()
@@ -316,6 +349,7 @@ export class VoiceSessionService extends BaseService {
                 })
               }
             })()
+
             const work = (async () => {
               await execution.ready
               signal.throwIfAborted()
@@ -325,9 +359,12 @@ export class VoiceSessionService extends BaseService {
                 type: 'ready'
               })
               const [result] = await Promise.all([execution.completed, updates])
+
               return result
             })()
+
             void updates.catch(() => undefined)
+
             return await this.consumeExecution(session, execution, work)
           } finally {
             clearTimeout(deadline)
@@ -338,7 +375,9 @@ export class VoiceSessionService extends BaseService {
         },
         { failurePhase: 'failed' }
       )
+
       await this.closeSession(session)
+
       return { text: result.text }
     } catch (error) {
       await this.closeSession(session, true)
@@ -358,21 +397,27 @@ export class VoiceSessionService extends BaseService {
 
   private requireInputStream(owner: VoiceOwner, input: { sessionId: string; requestId: string }): VoiceInputStream {
     const session = this.requireLeaseSession(owner, input.sessionId)
+
     if (!session.inputStream || session.requestId !== input.requestId || session.closed)
       throw new VoiceRuntimeError('invalid_request')
+
     return session.inputStream
   }
 
   async transcribe(owner: VoiceOwner, input: InputFor<'ai.transcription.generate'>) {
     if (this.active || this.inspections.size) throw new VoiceRuntimeError('busy')
     const session = this.requireLeaseSession(owner, input.sessionId)
+
     if (session.kind !== 'recording' || !['recorded', 'failed'].includes(session.phase ?? ''))
       throw new VoiceRuntimeError('invalid_request')
+
     if (!session.files.has(input.fileEntryId)) throw new VoiceRuntimeError('forbidden_owner')
+
     const {
       modelId,
       options: { language }
     } = resolveTranscriptionRequest(input)
+
     const result = await this.run(
       session,
       input.requestId,
@@ -381,6 +426,7 @@ export class VoiceSessionService extends BaseService {
       async (signal) => {
         const files = application.get('FileManager')
         const entry = await files.getById(input.fileEntryId)
+
         if (
           entry.origin !== 'internal' ||
           entry.ext !== 'webm' ||
@@ -390,9 +436,11 @@ export class VoiceSessionService extends BaseService {
         )
           throw new VoiceRuntimeError('invalid_audio')
         const audio = await files.read(input.fileEntryId, { encoding: 'binary' })
+
         if (!['audio/webm', 'video/webm', 'audio/webm;codecs=opus'].includes(audio.mime))
           throw new VoiceRuntimeError('invalid_audio')
         signal.throwIfAborted()
+
         const execution = startTranscription(
           {
             modelId,
@@ -402,9 +450,11 @@ export class VoiceSessionService extends BaseService {
           },
           signal
         )
+
         const transcript = await this.consumeExecution(session, execution, execution.completed)
         signal.throwIfAborted()
         await this.deleteFile(session, input.fileEntryId)
+
         return { sessionId: session.id, requestId: input.requestId, ...transcript }
       },
       {
@@ -413,7 +463,9 @@ export class VoiceSessionService extends BaseService {
         log: { locale: language, mimeType: 'audio/webm;codecs=opus' }
       }
     )
+
     await this.closeSession(session)
+
     return result
   }
 
@@ -427,13 +479,16 @@ export class VoiceSessionService extends BaseService {
 
   private requireTextInput(owner: VoiceOwner, input: { sessionId: string; requestId: string }): VoiceTextInput {
     const session = this.requireLeaseSession(owner, input.sessionId)
+
     if (!session.textInput || session.requestId !== input.requestId || session.closed)
       throw new VoiceRuntimeError('invalid_request')
+
     return session.textInput
   }
 
   async speech(owner: VoiceOwner, input: InputFor<'ai.speech.generate'>) {
     const resolvesPreferences = input.preferenceResolution === true
+
     if (resolvesPreferences) {
       resolveSpeechRequest({
         modelId: input.modelId,
@@ -442,20 +497,26 @@ export class VoiceSessionService extends BaseService {
         speed: input.speed
       })
     }
+
     let plan = resolvesPreferences ? undefined : resolveSpeechRequest(input)
     const trigger = input.trigger ?? 'manual'
     const session = await this.preparePlayback(owner, input, trigger)
+
     try {
       let resolved: OutputFor<'ai.speech.generate'>['resolved']
+
       if (resolvesPreferences && !session.speechPlan) {
         const powerEpoch = this.powerEpoch
         const configuration = await this.resolveAdmittedSpeech(session, input)
+
         if (session.closed || session.requestId !== input.requestId || powerEpoch !== this.powerEpoch) {
           throw new VoiceRuntimeError('aborted')
         }
+
         if (!configuration.modelId || !configuration.voice || configuration.status.status !== 'ready') {
           throw new VoiceRuntimeError(configuration.status.reason ?? 'voice_unavailable')
         }
+
         plan = resolveSpeechRequest({
           modelId: configuration.modelId,
           voice: configuration.voice,
@@ -469,10 +530,13 @@ export class VoiceSessionService extends BaseService {
           speed: plan.options.speed
         }
       }
+
       plan ??= resolveSpeechRequest(input)
+
       if (!plan.options.voice) throw new VoiceRuntimeError('voice_unavailable')
       const { modelId, options: speechOptions } = plan
       const definiteOptions = { ...speechOptions, voice: plan.options.voice }
+
       if (
         session.speechPlan &&
         (session.speechPlan.modelId !== modelId ||
@@ -485,13 +549,16 @@ export class VoiceSessionService extends BaseService {
       const normalizedText = input.text.normalize('NFC').trim()
       const ready = Promise.withResolvers<OutputFor<'ai.speech.generate'>>()
       const inputKind = input.textStream ? SpeechInputKind.TextStream : SpeechInputKind.Text
+
       const streaming =
         (input.preferStream || input.textStream) &&
         describeVoiceModel(modelId).model?.voiceCapabilities.speech?.some(
           (operation) => operation.input === inputKind && operation.output === SpeechOutputKind.PcmStream
         )
+
       if (input.textStream && (!streaming || input.remainingText?.length || input.retryAttemptId !== undefined))
         throw new VoiceRuntimeError('unsupported')
+
       const work = this.run(
         session,
         input.requestId,
@@ -499,6 +566,7 @@ export class VoiceSessionService extends BaseService {
         'speech',
         async (signal) => {
           if (input.textStream) session.textInput = new VoiceTextInput(normalizedText)
+
           const execution = startSpeech(
             {
               modelId,
@@ -513,9 +581,12 @@ export class VoiceSessionService extends BaseService {
             },
             signal
           )
+
           session.execution = execution
+
           try {
             const result = await execution.output
+
             if (result.kind === SpeechOutputKind.PcmStream) {
               const stream = new VoiceStream(
                 { sessionId: session.id, requestId: input.requestId, attemptId: session.playback!.attemptId },
@@ -528,13 +599,16 @@ export class VoiceSessionService extends BaseService {
                   } catch {
                     logger.warn('Expired voice stream owner unavailable')
                   }
+
                   void this.closeSession(session, true).catch(() => logger.warn('Expired voice stream cleanup failed'))
                 }
               )
+
               session.stream = stream
               session.generatedUnchunked = true
               session.playback = readyPlaybackOutput(session.playback!)
               this.publishPlayback(session)
+
               const response: OutputFor<'ai.speech.generate'> = {
                 sessionId: session.id,
                 requestId: input.requestId,
@@ -547,15 +621,19 @@ export class VoiceSessionService extends BaseService {
                 playback: createPlaybackSnapshot(session.playback, false),
                 ...(resolved && { resolved })
               }
+
               ready.resolve(response)
               await stream.relay(result.chunks, execution.completed)
               session.playback = completePlaybackSynthesis(session.playback)
               this.publishPlayback(session)
+
               return response
             }
+
             await this.consumeExecution(session, execution, Promise.resolve(result))
             signal.throwIfAborted()
             const wav = Buffer.from(result.audio)
+
             if (
               result.mediaType !== 'audio/wav' ||
               wav.length < 44 ||
@@ -564,17 +642,20 @@ export class VoiceSessionService extends BaseService {
               wav.readUInt32LE(4) + 8 !== wav.length
             )
               throw new VoiceRuntimeError('invalid_audio')
+
             if (session.closed || !this.accepting || session.owner.webContents.isDestroyed())
               throw new VoiceRuntimeError('aborted')
             const media = application.get('MediaProtocolService')
             const outputId = media.store(MediaKind.Audio, wav, 'audio/wav', { webContentsId: owner.webContents.id })
             session.outputId = outputId
             session.currentChunkIndex = input.chunkIndex
+
             if (input.chunkIndex === undefined) session.generatedUnchunked = true
             signal.throwIfAborted()
             session.playback = completePlaybackSynthesis(session.playback!)
             this.publishPlayback(session)
             this.armPlaybackTimeout(session)
+
             return {
               sessionId: session.id,
               requestId: input.requestId,
@@ -588,6 +669,7 @@ export class VoiceSessionService extends BaseService {
             }
           } finally {
             session.textInput?.close()
+
             if (session.execution === execution) {
               await execution.cancel()
               session.execution = undefined
@@ -606,8 +688,10 @@ export class VoiceSessionService extends BaseService {
           }
         }
       )
+
       void work.then(ready.resolve, ready.reject)
       const result = await ready.promise
+
       return resolved ? { ...result, resolved } : result
     } catch (error) {
       await this.abandonUnstartedPlayback(session, input.requestId)
@@ -626,17 +710,23 @@ export class VoiceSessionService extends BaseService {
   private requireStream(owner: VoiceOwner, input: InputFor<'ai.voice.stream.attach'>): VoiceStream | undefined {
     const session = this.requireLeaseSession(owner, input.sessionId)
     const stream = session.stream
+
     if (!stream || stream.identity.requestId !== input.requestId || stream.identity.attemptId !== input.attemptId)
       return undefined
+
     return stream
   }
 
   async releaseOutput(owner: VoiceOwner, input: InputFor<'ai.voice.output.release'>): Promise<void> {
     const session = this.requireLeaseSession(owner, input.sessionId)
+
     if (session.kind !== 'playback') throw new VoiceRuntimeError('forbidden_owner')
+
     if (!session.outputId) return
+
     if (session.outputId !== input.outputId) throw new VoiceRuntimeError('forbidden_owner')
     this.removeOutput(session)
+
     if (session.currentChunkIndex !== undefined) session.nextChunkIndex = session.currentChunkIndex + 1
     session.currentChunkIndex = undefined
   }
@@ -649,49 +739,67 @@ export class VoiceSessionService extends BaseService {
 
   async reportPlayback(owner: VoiceOwner, input: InputFor<'ai.voice.playback.report'>): Promise<VoiceSessionState> {
     const session = this.requireLeaseSession(owner, input.sessionId)
+
     if (!session.playback) throw new VoiceRuntimeError('invalid_request')
     const next = applyPlaybackReport(session.playback, input)
+
     if (next === session.playback) return this.getState(owner)
+
     if ((input.phase === 'completed' || input.phase === 'ended') && session.stream && !session.stream.drained)
       throw new VoiceRuntimeError('invalid_request')
+
     if (input.phase === 'completed' && session.outputId) throw new VoiceRuntimeError('invalid_request')
+
     if (input.phase === 'failed' && session.stream) {
       session.stream.close()
       await session.execution?.cancel()
       await Promise.allSettled(session.pending)
+
       if (session.closed) return this.getState(owner)
     }
+
     session.playback = next
+
     if (!next.pendingCommand) this.clearPlaybackTimeout(session)
+
     if (input.phase === 'completed' || input.phase === 'stopped') {
       await this.closeSession(session, input.phase === 'stopped')
+
       return this.getState(owner)
     }
+
     return this.publishPlayback(session)
   }
 
   async controlPlayback(owner: VoiceOwner, input: InputFor<'ai.voice.playback.control'>): Promise<VoiceSessionState> {
     this.requireControlOwner(owner)
     const session = this.lease
+
     if (!session || session.id !== input.sessionId || session.closed || !session.playback) {
       throw new VoiceRuntimeError('invalid_request')
     }
+
     const next = applyPlaybackCommand(
       session.playback,
       input.command,
       Boolean(session.outputId || (session.stream && !session.textInput))
     )
+
     if (next === session.playback) return this.getState(owner)
+
     if (input.command === 'retry' && session.stream) {
       session.stream.close()
       await session.execution?.cancel()
       await Promise.allSettled(session.pending)
+
       if (session.closed || this.lease !== session) throw new VoiceRuntimeError('aborted')
     }
+
     session.playback =
       input.command === 'retry' && session.stream ? { ...next, synthesis: 'generating', observed: 'empty' } : next
     this.publishPlayback(session)
     this.armPlaybackTimeout(session)
+
     try {
       this.sendCommand(session, input.command)
     } catch {
@@ -700,6 +808,7 @@ export class VoiceSessionService extends BaseService {
       this.publishPlayback(session)
       throw new VoiceRuntimeError('operation_failed')
     }
+
     return this.getState(owner)
   }
 
@@ -715,10 +824,13 @@ export class VoiceSessionService extends BaseService {
   private armPlaybackTimeout(session: Session): void {
     this.clearPlaybackTimeout(session)
     const playback = session.playback!
+
     if (!playback.pendingCommand) return
+
     if (playback.synthesis === 'generating' && playback.desired !== 'stopped') return
     session.playbackTimeout = setTimeout(() => {
       session.playbackTimeout = undefined
+
       if (session.closed || session.playback?.commandRevision !== playback.commandRevision) return
       session.playback = failPlayback(session.playback, 'control', 'operation_failed')
       this.publishPlayback(session)
@@ -729,6 +841,7 @@ export class VoiceSessionService extends BaseService {
   getMicrophoneStatus(owner: VoiceOwner): 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown' {
     this.requireAdmission()
     this.requireOwner(owner)
+
     return getMicrophoneStatus()
   }
 
@@ -766,17 +879,21 @@ export class VoiceSessionService extends BaseService {
   ): Promise<void> {
     this.requireOwner(owner)
     const session = this.sessions.get(input.sessionId)
+
     if (!session) return
     this.assertOwner(session, owner)
+
     const activeMatches =
       this.active?.session === session &&
       this.active.requestId === input.requestId &&
       session.operation === expectedOperation
+
     const preflightMatches =
       expectedOperation === 'speech' &&
       session.preflightAbort !== undefined &&
       session.requestId === input.requestId &&
       session.operation === undefined
+
     if (!activeMatches && !preflightMatches) return
     await this.closeSession(session, true)
   }
@@ -784,6 +901,7 @@ export class VoiceSessionService extends BaseService {
   async discard(owner: VoiceOwner, sessionId: string): Promise<void> {
     this.requireOwner(owner)
     const session = this.sessions.get(sessionId)
+
     if (!session) return
     this.assertOwner(session, owner)
     await this.closeSession(session)
@@ -797,11 +915,15 @@ export class VoiceSessionService extends BaseService {
     this.requireAdmission()
     this.requireOwner(owner)
     const powerEpoch = this.powerEpoch
+
     if (this.inspections.size) throw new VoiceRuntimeError('busy')
+
     if (this.lease?.kind === 'playback' && this.lease.id === input.sessionId && !this.active) {
       const session = this.lease
       this.assertOwner(session, owner)
+
       if (session.files.size || session.pending.size || session.outputId) throw new VoiceRuntimeError('busy')
+
       if (
         input.retryAttemptId !== undefined &&
         session.stream &&
@@ -809,34 +931,45 @@ export class VoiceSessionService extends BaseService {
         session.playback.attemptId === input.retryAttemptId
       ) {
         session.stream = undefined
+
         return session
       }
+
       if (input.retryAttemptId !== undefined) throw new VoiceRuntimeError('invalid_request')
       this.validateNextChunk(session, input, trigger)
+
       return session
     }
+
     if (input.retryAttemptId !== undefined) throw new VoiceRuntimeError('invalid_request')
+
     if (trigger === 'auto_read' && (this.lease || this.active)) throw new VoiceRuntimeError('busy')
     const occupied = this.lease ?? this.active?.session
+
     if (occupied && (occupied.kind !== 'playback' || this.lease !== occupied)) throw new VoiceRuntimeError('busy')
     const session = this.createSession(owner, input.sessionId, 'playback', input.source, input.sourceEntityId, trigger)
     session.requestId = input.requestId
     session.chunkCount = input.chunkCount
+
     try {
       while (this.lease || this.active) {
         const occupied = this.lease ?? this.active!.session
+
         if (trigger !== 'manual' || occupied.kind !== 'playback' || this.lease !== occupied) {
           throw new VoiceRuntimeError('busy')
         }
+
         if (!occupied.closed) this.sendCommand(occupied, 'stop')
         await this.closeSession(occupied, true)
       }
 
       if (session.closed || powerEpoch !== this.powerEpoch) throw new VoiceRuntimeError('aborted')
+
       if (input.chunkIndex !== undefined && input.chunkIndex !== 0) throw new VoiceRuntimeError('invalid_request')
       this.acquireLease(session)
       session.playback = beginPlaybackSynthesis(session.playback!)
       this.publishPlayback(session)
+
       return session
     } catch (error) {
       await this.closeSession(session, true)
@@ -852,6 +985,7 @@ export class VoiceSessionService extends BaseService {
     if (session.generatedUnchunked || input.chunkIndex === undefined || input.chunkCount === undefined) {
       throw new VoiceRuntimeError('invalid_request')
     }
+
     if (
       session.chunkCount !== input.chunkCount ||
       session.nextChunkIndex !== input.chunkIndex ||
@@ -870,6 +1004,7 @@ export class VoiceSessionService extends BaseService {
   private requireOwner(owner: VoiceOwner): void {
     if (!owner.windowId || owner.webContents.isDestroyed()) throw new VoiceRuntimeError('forbidden_owner')
     const managed = application.get('WindowManager').getWindow(owner.windowId)
+
     if (!managed || managed.webContents !== owner.webContents || managed.isDestroyed()) {
       throw new VoiceRuntimeError('forbidden_owner')
     }
@@ -878,12 +1013,14 @@ export class VoiceSessionService extends BaseService {
   private requireControlOwner(owner: VoiceOwner): void {
     this.requireAdmission()
     this.requireOwner(owner)
+
     if (!this.hasSessionAccess(owner)) throw new VoiceRuntimeError('forbidden_owner')
   }
 
   private hasSessionAccess(owner: VoiceOwner): boolean {
     if (this.lease?.owner.windowId === owner.windowId && this.lease.owner.webContents === owner.webContents) return true
     const type = application.get('WindowManager').getWindowType(owner.windowId)
+
     return type === WindowType.Main || type === WindowType.SubWindow
   }
 
@@ -896,8 +1033,11 @@ export class VoiceSessionService extends BaseService {
     this.requireAdmission()
     this.requireOwner(owner)
     const session = this.sessions.get(id)
+
     if (session) this.assertOwner(session, owner)
+
     if (!session || this.lease !== session || session.closed) throw new VoiceRuntimeError('invalid_request')
+
     return session
   }
 
@@ -912,21 +1052,26 @@ export class VoiceSessionService extends BaseService {
     this.requireAdmission()
     this.requireOwner(owner)
     const existing = this.sessions.get(id)
+
     if (existing) {
       this.assertOwner(existing, owner)
       throw new VoiceRuntimeError('invalid_request')
     }
+
     const terminate = () => {
       void this.closeSession(session, true).catch(() =>
         logger.warn('Voice cleanup failed', { sessionId: id, category: 'operation_failed' })
       )
     }
+
     const navigation = (...args: unknown[]) => {
       const details = args[0] as { isMainFrame?: boolean; isSameDocument?: boolean } | undefined
       const isMainFrame = details?.isMainFrame ?? (args[3] as boolean | undefined)
       const isInPlace = details?.isSameDocument ?? (args[2] as boolean | undefined)
+
       if (isMainFrame && !isInPlace) terminate()
     }
+
     const session: Session = {
       id,
       owner,
@@ -952,8 +1097,10 @@ export class VoiceSessionService extends BaseService {
         owner.webContents.removeListener('did-start-navigation', navigation)
       }
     }
+
     session.attach()
     this.sessions.set(id, session)
+
     return session
   }
 
@@ -964,10 +1111,12 @@ export class VoiceSessionService extends BaseService {
 
   private syncSleepHold(): void {
     const session = this.lease
+
     const working =
       session &&
       (this.active?.session === session ||
         (!session.closed && ['recording', 'recognizing', 'generating', 'playing'].includes(session.phase ?? '')))
+
     if (working) {
       this.sleepHold ??= application.get('PowerService').preventSleep(`voice:${session.kind}`)
     } else {
@@ -981,12 +1130,14 @@ export class VoiceSessionService extends BaseService {
     const owner = this.lease?.owner
     this.lease = undefined
     this.syncSleepHold()
+
     if (this.voiceState.phase !== 'idle') this.publishState({ phase: 'idle', revision: ++this.revision }, owner)
   }
 
   private transition(session: Session, phase: ActivePhase, reason?: VoiceErrorReason): VoiceSessionState {
     session.phase = phase
     this.syncSleepHold()
+
     const state: VoiceSessionState = {
       phase,
       revision: ++this.revision,
@@ -1001,7 +1152,9 @@ export class VoiceSessionService extends BaseService {
       }),
       ...(reason && { reason })
     }
+
     this.publishState(state)
+
     return { ...state }
   }
 
@@ -1012,9 +1165,11 @@ export class VoiceSessionService extends BaseService {
     ipc.broadcastToType(WindowType.Main, 'ai.voice.session_event', event)
     ipc.broadcastToType(WindowType.SubWindow, 'ai.voice.session_event', event)
     const type = owner && application.get('WindowManager').getWindowType(owner.windowId)
+
     if (owner && !owner.webContents.isDestroyed() && type !== WindowType.Main && type !== WindowType.SubWindow) {
       ipc.send(owner.windowId, 'ai.voice.session_event', event)
     }
+
     logger.debug('Voice state changed', {
       sessionId: state.phase === 'idle' ? undefined : state.sessionId,
       operation: this.lease?.operation,
@@ -1043,10 +1198,12 @@ export class VoiceSessionService extends BaseService {
 
   private async consumeExecution<T>(session: Session, execution: VoiceExecution, result: Promise<T>): Promise<T> {
     session.execution = execution
+
     try {
       return await result
     } finally {
       await execution.closed
+
       if (session.execution === execution) session.execution = undefined
     }
   }
@@ -1071,11 +1228,15 @@ export class VoiceSessionService extends BaseService {
     } = {}
   ): Promise<T> {
     this.requireAdmission()
+
     if (session.closed || (session.kind !== 'install' && this.lease !== session)) {
       throw new VoiceRuntimeError('aborted')
     }
+
     if (session.execution) throw new VoiceRuntimeError('operation_failed')
+
     if (this.active || this.inspections.size || session.pending.size) throw new VoiceRuntimeError('busy')
+
     if (session.requestId === requestId && session.operation !== undefined)
       throw new VoiceRuntimeError('invalid_request')
     const adapterId = getVoiceAdapterId(modelId)
@@ -1087,6 +1248,7 @@ export class VoiceSessionService extends BaseService {
     session.selectedModel = modelId
     session.resolvedAdapter = adapterId
     session.operation = operation
+
     if (session.playback) {
       session.playback = beginPlaybackSynthesis(session.playback)
       this.publishPlayback(session)
@@ -1103,24 +1265,29 @@ export class VoiceSessionService extends BaseService {
       adapter: session.resolvedAdapter,
       ...options.log
     })
+
     const result = Promise.resolve().then(async () => {
       try {
         controller.signal.throwIfAborted()
         const value = await work(controller.signal)
         controller.signal.throwIfAborted()
         session.terminalStatus = 'completed'
+
         return value
       } catch (error) {
         session.terminalStatus = controller.signal.aborted ? 'aborted' : 'failed'
+
         if (controller.signal.aborted || options.cleanupOnFailure) {
           for (const id of [...session.files.keys()]) await this.deleteFile(session, id)
           this.removeOutput(session)
         }
+
         const normalized = controller.signal.aborted
           ? new VoiceRuntimeError('aborted')
           : error instanceof VoiceRuntimeError
             ? error
             : new VoiceRuntimeError('operation_failed')
+
         if (!controller.signal.aborted) {
           logger.warn('Voice operation failed', {
             sessionId: session.id,
@@ -1133,6 +1300,7 @@ export class VoiceSessionService extends BaseService {
             ...options.log
           })
         }
+
         if (!session.closed && session.playback) {
           session.playback = failPlayback(session.playback, 'synthesis', normalized.reason)
           this.clearPlaybackTimeout(session)
@@ -1158,15 +1326,18 @@ export class VoiceSessionService extends BaseService {
         })
       }
     })
+
     return this.track(session, result)
   }
 
   private async track<T>(session: Session, work: Promise<T>): Promise<T> {
     session.pending.add(work)
+
     try {
       return await work
     } finally {
       session.pending.delete(work)
+
       if (
         !session.pending.size &&
         !session.files.size &&
@@ -1182,6 +1353,7 @@ export class VoiceSessionService extends BaseService {
 
   private async createFile(session: Session, bytes: Uint8Array, ext: 'webm'): Promise<InternalFileEntry> {
     const files = application.get('FileManager')
+
     const entry = await files.createInternalEntry({
       source: 'bytes',
       data: bytes,
@@ -1189,20 +1361,25 @@ export class VoiceSessionService extends BaseService {
       ext,
       cleanupPolicy: 'delete_when_unreferenced'
     })
+
     if (entry.origin !== 'internal') throw new VoiceRuntimeError('operation_failed')
     const reference = files.retainTemporaryEntry(entry.id)
     session.files.set(entry.id, { entry, reference })
+
     if (session.closed || !this.accepting || session.owner.webContents.isDestroyed()) {
       await this.deleteFile(session, entry.id)
       throw new VoiceRuntimeError('aborted')
     }
+
     return entry
   }
 
   private async deleteFile(session: Session, id: FileEntryId, releaseOnFailure = false): Promise<void> {
     const file = session.files.get(id)
+
     if (!file) return
     let deleted = false
+
     try {
       await application.get('FileManager').deleteRetainedTemporaryEntry(id)
       deleted = true
@@ -1218,6 +1395,7 @@ export class VoiceSessionService extends BaseService {
     if (session.cleanup) {
       return terminal ? session.cleanup.catch(() => this.closeSession(session, true)) : session.cleanup
     }
+
     session.closed = true
     session.inputStream?.close()
     session.textInput?.close()
@@ -1227,12 +1405,15 @@ export class VoiceSessionService extends BaseService {
     this.syncSleepHold()
     session.detach()
     session.preflightAbort?.abort(new VoiceRuntimeError('aborted'))
+
     if (this.active?.session === session) this.active.controller.abort(new VoiceRuntimeError('aborted'))
     const execution = session.execution
+
     const cleanup = (async () => {
       try {
         if (execution) await execution.cancel()
         await Promise.allSettled(session.pending)
+
         for (const id of [...session.files.keys()]) {
           try {
             await this.deleteFile(session, id, terminal)
@@ -1245,12 +1426,15 @@ export class VoiceSessionService extends BaseService {
             })
           }
         }
+
         this.sessions.delete(session.id)
         this.releaseLease(session)
       } catch (error) {
         session.cleanup = undefined
+
         if (!terminal) {
           session.attach()
+
           if (session.owner.webContents.isDestroyed()) {
             session.detach()
             void this.closeSession(session, true).catch(() =>
@@ -1258,10 +1442,13 @@ export class VoiceSessionService extends BaseService {
             )
           }
         }
+
         throw error
       }
     })()
+
     session.cleanup = cleanup
+
     return cleanup
   }
 
@@ -1269,6 +1456,7 @@ export class VoiceSessionService extends BaseService {
     const controller = new AbortController()
     session.preflightAbort = controller
     const powerEpoch = this.powerEpoch
+
     const configuration = this.track(
       session,
       resolveSpeechConfiguration(
@@ -1281,6 +1469,7 @@ export class VoiceSessionService extends BaseService {
         controller.signal
       )
     )
+
     return (
       configuration
         // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Speech preflight may reject with arbitrary configuration/provider failures; only session invalidation replaces the rejection.
@@ -1288,6 +1477,7 @@ export class VoiceSessionService extends BaseService {
           if (controller.signal.aborted || session.closed || powerEpoch !== this.powerEpoch) {
             throw new VoiceRuntimeError('aborted')
           }
+
           throw error
         })
         .finally(() => {
@@ -1298,6 +1488,7 @@ export class VoiceSessionService extends BaseService {
 
   private async abandonUnstartedPlayback(session: Session, requestId: string): Promise<void> {
     if (session.closed || this.lease !== session || session.requestId !== requestId || session.outputId) return
+
     if (session.operation) return
     await this.closeSession(session, true)
   }
@@ -1305,25 +1496,33 @@ export class VoiceSessionService extends BaseService {
   private async inspect<T>(owner: VoiceOwner, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
     this.requireAdmission()
     this.requireOwner(owner)
+
     if (this.active) throw new VoiceRuntimeError('busy')
     const controller = new AbortController()
     const terminate = () => controller.abort(new VoiceRuntimeError('aborted'))
+
     const navigation = (...args: unknown[]) => {
       const details = args[0] as { isMainFrame?: boolean; isSameDocument?: boolean } | undefined
       const isMainFrame = details?.isMainFrame ?? (args[3] as boolean | undefined)
       const isInPlace = details?.isSameDocument ?? (args[2] as boolean | undefined)
+
       if (isMainFrame && !isInPlace) terminate()
     }
+
     owner.webContents.once('destroyed', terminate)
     owner.webContents.on('render-process-gone', terminate)
     owner.webContents.on('did-start-navigation', navigation)
+
     const promise = Promise.resolve().then(async () => {
       controller.signal.throwIfAborted()
       const result = await work(controller.signal)
       controller.signal.throwIfAborted()
+
       return result
     })
+
     this.inspections.set(promise, controller)
+
     try {
       return await promise
     } finally {
@@ -1347,8 +1546,10 @@ export class VoiceSessionService extends BaseService {
           this.canDiscoverMicrophones(webContents, permission, details.requestingUrl, details.isMainFrame)
         )
       }
+
       return this.canUseNonMediaPermission(webContents, permission, details.requestingUrl, details.isMainFrame)
     }
+
     const request = (
       webContents: WebContents,
       permission: string,
@@ -1358,10 +1559,13 @@ export class VoiceSessionService extends BaseService {
       if (permission === 'media') {
         const mediaTypes = 'mediaTypes' in details ? details.mediaTypes : undefined
         callback(this.canUseMicrophone(webContents, permission, details.requestingUrl, details.isMainFrame, mediaTypes))
+
         return
       }
+
       callback(this.canUseNonMediaPermission(webContents, permission, details.requestingUrl, details.isMainFrame))
     }
+
     electronSession.defaultSession.setPermissionCheckHandler(check)
     electronSession.defaultSession.setPermissionRequestHandler(request)
     this.registerDisposable(() => {
@@ -1378,6 +1582,7 @@ export class VoiceSessionService extends BaseService {
   ): boolean {
     // Electron's default check grants every permission except this deprecated sync read.
     if (permission === 'deprecated-sync-clipboard-read') return false
+
     return this.isTrustedLiveAppMainFrame(webContents, requestingUrl, isMainFrame)
   }
 
@@ -1387,10 +1592,12 @@ export class VoiceSessionService extends BaseService {
     isMainFrame: boolean
   ): boolean {
     if (!this.accepting || !webContents || webContents.isDestroyed()) return false
+
     if (!isMainFrame || !requestingUrl || !isAppRendererUrl(requestingUrl)) return false
     const windows = application.get('WindowManager')
     const windowId = windows.getWindowIdByWebContents(webContents)
     const managed = windowId ? windows.getWindow(windowId) : undefined
+
     return Boolean(managed && !managed.isDestroyed() && managed.webContents === webContents)
   }
 
@@ -1401,6 +1608,7 @@ export class VoiceSessionService extends BaseService {
     isMainFrame: boolean
   ): boolean {
     if (permission !== 'media') return false
+
     return this.isTrustedLiveAppMainFrame(webContents, requestingUrl, isMainFrame)
   }
 
@@ -1412,8 +1620,10 @@ export class VoiceSessionService extends BaseService {
     mediaTypes?: readonly string[]
   ): boolean {
     if (mediaTypes?.length !== 1 || mediaTypes[0] !== 'audio') return false
+
     if (!this.canDiscoverMicrophones(webContents, permission, requestingUrl, isMainFrame)) return false
     const lease = this.lease
+
     return Boolean(
       lease &&
       !lease.closed &&
@@ -1427,6 +1637,7 @@ export class VoiceSessionService extends BaseService {
     this.powerEpoch += 1
     const event = { type: 'interruption' as const, revision: ++this.revision }
     const ipc = application.get('IpcApiService')
+
     for (const type of [
       WindowType.Main,
       WindowType.SubWindow,
@@ -1436,17 +1647,25 @@ export class VoiceSessionService extends BaseService {
     ]) {
       ipc.broadcastToType(type, 'ai.voice.session_event', event)
     }
+
     const session = this.lease
+
     if (!session || session.closed) return
+
     if (session.preflightAbort) {
       session.preflightAbort.abort(new VoiceRuntimeError('aborted'))
+
       return
     }
+
     if (session.phase === 'paused') return
+
     if (session.kind === 'recording') {
       this.sendCommand(session, 'interrupt')
+
       return
     }
+
     if (session.kind === 'playback' && session.phase !== 'failed') {
       void this.controlPlayback(session.owner, { sessionId: session.id, command: 'pause' }).catch(() => undefined)
     }

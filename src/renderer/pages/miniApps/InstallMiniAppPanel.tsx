@@ -27,6 +27,7 @@ import { useMiniAppPackageDrop } from './useMiniAppPackageDrop'
 const looksLikeUrl = (value: string): boolean => {
   try {
     const url = new URL(value.trim())
+
     return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname.length > 0
   } catch {
     return false
@@ -137,8 +138,10 @@ const InstallMiniAppPanel: FC<{ builtinAppId: string; open?: boolean; onClose?: 
   useEffect(() => {
     if (!open) {
       cancelPreview()
+
       return
     }
+
     void settle(
       () => ipcApi.request('mini_app.install.preview_builtin', { appId: builtinAppId }),
       'miniApp.install.preview_error'
@@ -152,6 +155,7 @@ const InstallMiniAppPanel: FC<{ builtinAppId: string; open?: boolean; onClose?: 
   }, [done, error, t])
 
   if (!previewDialog.value) return null
+
   return (
     <InstallConsentDialog
       key={

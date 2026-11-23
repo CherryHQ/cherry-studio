@@ -11,6 +11,7 @@ const runtime = () => application.get('OAuthRuntimeService')
 export const oauthHandlers: IpcHandlersFor<typeof oauthRequestSchemas> = {
   'oauth.sign_in': async ({ providerId, requestId }, ctx) => {
     const { accountId } = await runOAuthSignIn(ctx.senderId, providerId, requestId)
+
     return { accountId }
   },
   'oauth.sign_in.attach': ({ providerId, requestId }, ctx) =>
@@ -29,6 +30,7 @@ export const oauthHandlers: IpcHandlersFor<typeof oauthRequestSchemas> = {
     if (!isClaudeCodeProviderId(providerId)) {
       throw new Error(`Unsupported external-cli provider: ${providerId}`)
     }
+
     return application.get('CodeCliService').checkClaudeLogin()
   }
 }

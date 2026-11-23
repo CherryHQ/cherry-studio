@@ -23,5 +23,6 @@ export function clearModelHealthStatus(modelId: UniqueModelId) {
 export function useModelHealthStatus(modelId: UniqueModelId) {
   const subscribe = useCallback((listener: () => void) => cacheService.subscribe(keyFor(modelId), listener), [modelId])
   const getSnapshot = useCallback(() => readModelHealthStatus(modelId), [modelId])
+
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }

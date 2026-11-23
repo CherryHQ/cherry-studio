@@ -568,6 +568,7 @@ export const REGISTERED_KEYBINDINGS = KEYBINDING_RULES.map(registerKeybinding)
 const commandMap = new Map<CommandId, RegisteredCommandDefinition<CommandId>>(
   REGISTERED_COMMANDS.map((definition) => [definition.id, definition])
 )
+
 const keybindingMap = new Map<string, RegisteredKeybindingRule<CommandId>>(
   REGISTERED_KEYBINDINGS.map((rule) => [rule.command, rule])
 )

@@ -88,12 +88,15 @@ export class TranslateHistoryService {
     const refs: InsertTranslateHistoryFileRefRow[] = [
       { sourceId: row.id, fileEntryId: input.targetFileEntryId, role: 'target' }
     ]
+
     if (input.sourceFileEntryId !== undefined) {
       refs.push({ sourceId: row.id, fileEntryId: input.sourceFileEntryId, role: 'source' })
     }
+
     tx.insert(translateHistoryFileRefTable).values(refs).run()
 
     logger.info('Created file translate history', { id: row.id, refCount: refs.length })
+
     return rowToTranslateHistory(row)
   }
 
@@ -110,10 +113,12 @@ export class TranslateHistoryService {
     if (query?.search) {
       const escaped = query.search.replace(/[%_\\]/g, '\\$&')
       const pattern = `%${escaped}%`
+
       const searchCondition = or(
         sql`${translateHistoryTable.sourceText} LIKE ${pattern} ESCAPE '\\'`,
         sql`${translateHistoryTable.targetText} LIKE ${pattern} ESCAPE '\\'`
       )
+
       if (searchCondition) {
         filterConditions.push(searchCondition)
       }
@@ -123,8 +128,10 @@ export class TranslateHistoryService {
       major: 'desc',
       tie: 'asc'
     })
+
     const conditions = [...filterConditions]
     const cursor = decodeListCursor(query.cursor, asNumericKey, 'translate-history')
+
     if (cursor) {
       conditions.push(ordering.where(cursor))
     }
@@ -138,11 +145,13 @@ export class TranslateHistoryService {
       .orderBy(...ordering.orderBy)
       .limit(limit + 1)
       .all()
+
     const [{ count }] = db
       .select({ count: sql<number>`count(*)` })
       .from(translateHistoryTable)
       .where(filterConditions.length > 0 ? and(...filterConditions) : undefined)
       .all()
+
     const pageRows = rows.slice(0, limit)
 
     return {
@@ -188,6 +197,7 @@ export class TranslateHistoryService {
     }
 
     logger.info('Created translate history', { id: row.id })
+
     return rowToTranslateHistory(row)
   }
 
@@ -202,20 +212,27 @@ export class TranslateHistoryService {
       }
 
       const currentHistory = rowToTranslateHistory(current)
+
       const changesFileSnapshot =
         dto.sourceText !== undefined ||
         dto.targetText !== undefined ||
         dto.sourceLanguage !== undefined ||
         dto.targetLanguage !== undefined
+
       if (currentHistory.kind === 'file' && changesFileSnapshot) {
         throw DataApiErrorFactory.invalidOperation('update file translate history', 'only star can be changed')
       }
 
       const updates: Partial<typeof translateHistoryTable.$inferInsert> = {}
+
       if (dto.sourceText !== undefined) updates.sourceText = dto.sourceText
+
       if (dto.targetText !== undefined) updates.targetText = dto.targetText
+
       if (dto.sourceLanguage !== undefined) updates.sourceLanguage = dto.sourceLanguage
+
       if (dto.targetLanguage !== undefined) updates.targetLanguage = dto.targetLanguage
+
       if (dto.star !== undefined) updates.star = dto.star
 
       if (Object.keys(updates).length === 0) {
@@ -234,6 +251,7 @@ export class TranslateHistoryService {
       }
 
       logger.info('Updated translate history', { id, changes: Object.keys(dto) })
+
       return rowToTranslateHistory(row)
     })
   }

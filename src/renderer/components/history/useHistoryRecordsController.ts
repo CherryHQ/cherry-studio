@@ -81,6 +81,7 @@ export function useHistoryRecordsController<T>({
         : afterStatus.filter((item) => getSourceId(item) === selectedSourceId)
 
     const keywords = searchText.trim().toLowerCase()
+
     if (!keywords) return afterSource
 
     return afterSource.filter((item) => matchesSearch(item, keywords))
@@ -89,6 +90,7 @@ export function useHistoryRecordsController<T>({
   // Reset the source filter when the selected source disappears (e.g. its assistant was deleted).
   useEffect(() => {
     if (selectedSourceId === ALL_SOURCE_ID) return
+
     if (sources.some((source) => source.id === selectedSourceId)) return
 
     setSelectedSourceId(ALL_SOURCE_ID)
@@ -99,8 +101,10 @@ export function useHistoryRecordsController<T>({
     const visibleSelectableIds = new Set(
       visibleItems.filter((item) => !isPinned(getId(item))).map((item) => getId(item))
     )
+
     setSelectedIds((ids) => {
       const next = ids.filter((id) => visibleSelectableIds.has(id))
+
       return next.length === ids.length ? ids : next
     })
   }, [getId, isPinned, visibleItems])
@@ -109,12 +113,15 @@ export function useHistoryRecordsController<T>({
     () => visibleItems.filter((item) => !isPinned(getId(item))).map((item) => getId(item)),
     [getId, isPinned, visibleItems]
   )
+
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const selectedDeletableIds = useMemo(() => selectedIds.filter((id) => !isPinned(id)), [isPinned, selectedIds])
+
   const selectedSelectableCount = useMemo(
     () => selectableIds.filter((id) => selectedIdSet.has(id)).length,
     [selectableIds, selectedIdSet]
   )
+
   const selectAllState: SelectAllState =
     selectableIds.length > 0 && selectedSelectableCount === selectableIds.length
       ? true
@@ -137,17 +144,21 @@ export function useHistoryRecordsController<T>({
       const anchorIndex = selectableIds.indexOf(selectionAnchorIdRef.current ?? '')
       const targetIndex = selectableIds.indexOf(id)
       const isRangeSelection = selectRange && anchorIndex !== -1 && targetIndex !== -1
+
       const changedIds = isRangeSelection
         ? selectableIds.slice(Math.min(anchorIndex, targetIndex), Math.max(anchorIndex, targetIndex) + 1)
         : [id]
+
       if (!isRangeSelection) selectionAnchorIdRef.current = id
 
       setSelectedIds((ids) => {
         const next = new Set(ids)
+
         for (const changedId of changedIds) {
           if (checked) next.add(changedId)
           else next.delete(changedId)
         }
+
         return [...next]
       })
     },
@@ -162,6 +173,7 @@ export function useHistoryRecordsController<T>({
   const handleTogglePin = useCallback(
     async (item: T) => {
       const result = await onTogglePin(item)
+
       if (result !== false) {
         setSelectedIds((ids) => ids.filter((id) => id !== getId(item)))
       }
@@ -171,9 +183,11 @@ export function useHistoryRecordsController<T>({
 
   const handleBulkDelete = useCallback(async () => {
     const ids = selectedDeletableIds
+
     if (ids.length === 0) return
 
     const { succeeded } = await onBulkDelete(ids)
+
     if (succeeded.length === 0) return
 
     const deletedIdSet = new Set(succeeded)
@@ -188,9 +202,11 @@ export function useHistoryRecordsController<T>({
   const handleBulkMove = useCallback(
     async (targetId: string) => {
       const ids = selectedIds
+
       if (ids.length === 0 || !onBulkMove) return
 
       const movedIds = await onBulkMove(targetId, ids)
+
       if (!movedIds) return
 
       const movedIdSet = new Set(movedIds)

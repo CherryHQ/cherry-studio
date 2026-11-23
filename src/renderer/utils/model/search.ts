@@ -47,6 +47,7 @@ function getOrderedCharacterMatchSpan(keyword: string, text: string) {
 
   for (let textIndex = 0; textIndex < text.length; textIndex += 1) {
     const char = text[textIndex]
+
     if (char === keyword[keywordIndex]) {
       if (startIndex === -1) {
         startIndex = textIndex
@@ -65,9 +66,11 @@ function getOrderedCharacterMatchSpan(keyword: string, text: string) {
 
 function getKeywordMatchScore(keyword: string, fields: ModelSearchField[]) {
   const normalizedKeyword = normalizeSearchSegment(keyword)
+
   if (!normalizedKeyword) {
     return null
   }
+
   const allowsFlexibleMatching = keyword === normalizedKeyword
 
   let bestScore: number | null = null
@@ -79,6 +82,7 @@ function getKeywordMatchScore(keyword: string, fields: ModelSearchField[]) {
 
     const text = field.value.toLowerCase()
     const textIndex = text.indexOf(keyword)
+
     if (textIndex !== -1) {
       const score = field.weight * 100 + textIndex
       bestScore = bestScore === null ? score : Math.min(bestScore, score)
@@ -90,6 +94,7 @@ function getKeywordMatchScore(keyword: string, fields: ModelSearchField[]) {
 
     const normalizedText = normalizeSearchSegment(field.value)
     const normalizedIndex = normalizedText.indexOf(normalizedKeyword)
+
     if (normalizedIndex !== -1) {
       const score = 1000 + field.weight * 100 + normalizedIndex
       bestScore = bestScore === null ? score : Math.min(bestScore, score)
@@ -98,12 +103,14 @@ function getKeywordMatchScore(keyword: string, fields: ModelSearchField[]) {
     if (field.allowAbbreviation) {
       const tokenInitials = getTokenInitials(field.value)
       const tokenInitialsIndex = tokenInitials.indexOf(normalizedKeyword)
+
       if (tokenInitialsIndex !== -1) {
         const score = 1500 + field.weight * 100 + tokenInitialsIndex
         bestScore = bestScore === null ? score : Math.min(bestScore, score)
       }
 
       const abbreviationSpan = getOrderedCharacterMatchSpan(normalizedKeyword, normalizedText)
+
       if (abbreviationSpan !== null) {
         const score = 2000 + field.weight * 100 + abbreviationSpan
         bestScore = bestScore === null ? score : Math.min(bestScore, score)
@@ -125,6 +132,7 @@ function getKeywordMatchScore(keyword: string, fields: ModelSearchField[]) {
 
 export function getSearchMatchScore(keywords: string, fields: ModelSearchField[]) {
   const normalizedKeywords = keywords.toLowerCase().split(/\s+/).filter(Boolean)
+
   if (normalizedKeywords.length === 0) {
     return 0
   }
@@ -133,6 +141,7 @@ export function getSearchMatchScore(keywords: string, fields: ModelSearchField[]
 
   for (const keyword of normalizedKeywords) {
     const keywordScore = getKeywordMatchScore(keyword, fields)
+
     if (keywordScore === null) {
       return null
     }

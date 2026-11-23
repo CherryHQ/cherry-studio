@@ -38,12 +38,16 @@ export interface ImageParamCatalogEntry<S extends z.ZodTypeAny = z.ZodTypeAny> {
  */
 export function normalizeImageParamNumber<T>(value: T): T | number | undefined {
   if (value == null) return undefined
+
   if (typeof value === 'number') return value
+
   if (typeof value !== 'string') return value
 
   const trimmed = value.trim()
+
   if (!trimmed) return undefined
   const numeric = Number(trimmed)
+
   return Number.isFinite(numeric) ? numeric : value
 }
 
@@ -112,9 +116,11 @@ const canonicalParamKeySchema = z.enum(CANONICAL_PARAM_KEY)
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Painting form drafts contain unvalidated control values; validate the dynamic key, then apply that catalog entry's value schema.
 export function parseImageParamValue(key: string, value: unknown): ParamValue<CanonicalParamKey> {
   const parsedKey = canonicalParamKeySchema.safeParse(key)
+
   if (!parsedKey.success) return undefined
   const entry = IMAGE_PARAM_CATALOG[parsedKey.data]
   const parsed = entry.schema.safeParse(value)
+
   return parsed.success ? parsed.data : undefined
 }
 

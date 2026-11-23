@@ -13,6 +13,7 @@ export function getToolResultLinks(content: TextContent | ResourceLink): ToolRes
   const mimeType = content.type === 'resource_link' ? content.mimeType : undefined
   const name = content.type === 'resource_link' ? (content.title ?? content.name) : undefined
   let value: unknown = text
+
   if (content.type === 'text') {
     try {
       value = JSON.parse(text)
@@ -22,12 +23,15 @@ export function getToolResultLinks(content: TextContent | ResourceLink): ToolRes
   }
 
   const values = Array.isArray(value) ? value : [value]
+
   if (values.length === 0) return null
 
   const links: ToolResultLinkData[] = []
+
   for (const item of values) {
     if (typeof item !== 'string' || /\s/.test(item) || !URL.canParse(item)) return null
     const url = new URL(item)
+
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
     links.push({
       url: item,
@@ -36,5 +40,6 @@ export function getToolResultLinks(content: TextContent | ResourceLink): ToolRes
       name
     })
   }
+
   return links
 }

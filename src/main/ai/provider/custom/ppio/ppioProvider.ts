@@ -50,6 +50,7 @@ export function buildPpioTransport(settings: PpioProviderSettings): ImageGenerat
  */
 export function createPpioProvider(settings: PpioProviderSettings = {}): PpioProvider {
   const { baseURL, fetch: customFetch } = settings
+
   if (!baseURL) {
     throw new Error(
       'PPIO provider requires a non-empty `baseURL`. An empty value would resolve fetch paths against the renderer process origin (app://, file://) and surface as opaque "Failed to fetch" errors.'

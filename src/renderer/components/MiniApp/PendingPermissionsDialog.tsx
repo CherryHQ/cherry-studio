@@ -19,6 +19,7 @@ export const PendingPermissionsDialog: FC<{
   onCancel: () => void
 }> = ({ name, leaves, busy, open = true, onGrant, onSnooze, onCancel }) => {
   const { t } = useTranslation()
+
   return (
     <Dialog
       open={open}

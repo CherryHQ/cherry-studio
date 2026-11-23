@@ -39,10 +39,12 @@ export async function observeExternalAccess<T>(
   } catch (err) {
     if (entry.origin === 'external') {
       const code = (err as NodeJS.ErrnoException).code
+
       if (code === 'ENOENT' || code === 'ENOTDIR') {
         deps.danglingCache.onFsEvent(physicalPath, 'missing', 'ops')
       }
     }
+
     throw err
   }
 }

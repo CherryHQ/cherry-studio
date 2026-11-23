@@ -9,12 +9,15 @@ import { getTopicBranchCachePaths } from './useTopicMessagesCache'
 export function useTopicBranchActions(topicId: string) {
   const { isPending, status } = useTopicStreamStatus(topicId)
   const branchCachePaths = getTopicBranchCachePaths(topicId)
+
   const { trigger: reserveBranchTrigger } = useMutation('POST', '/messages/:id/branches', {
     refresh: branchCachePaths
   })
+
   const { trigger: deleteBranchTrigger } = useMutation('DELETE', '/messages/:id/branch', {
     refresh: branchCachePaths
   })
+
   const { trigger: deleteReservedBranchTrigger } = useMutation('DELETE', '/messages/:id', {
     refresh: branchCachePaths
   })

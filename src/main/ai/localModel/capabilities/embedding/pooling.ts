@@ -8,7 +8,9 @@
  */
 export function l2normalize(vector: number[]): number[] {
   let sumSquares = 0
+
   for (const value of vector) sumSquares += value * value
   const norm = Math.sqrt(sumSquares)
+
   return norm === 0 ? vector : vector.map((value) => value / norm)
 }

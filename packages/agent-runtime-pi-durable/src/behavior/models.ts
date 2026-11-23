@@ -12,9 +12,11 @@ export function meteredModels(models: Models, behavior: PiDurableBehavior): Mode
         if (!options?.sessionId) throw new Error('Durable model request has no provider session')
         const thread = await behavior.providerThread(options.sessionId)
         const allowance = await behavior.consumeRequest(thread)
+
         if (!allowance.ok) throw new Error(`quota exceeded: ${allowance.text}`)
         options.signal?.throwIfAborted()
         const input = models.streamSimple(model, messages, options)
+
         for await (const event of input) output.push(event)
         output.end(await input.result())
       } catch (cause) {
@@ -36,12 +38,15 @@ export function meteredModels(models: Models, behavior: PiDurableBehavior): Mode
           stopReason: options?.signal?.aborted ? 'aborted' : 'error',
           errorMessage: cause instanceof Error ? cause.message : String(cause)
         }
+
         output.push({ type: 'error', reason: error.stopReason as 'error' | 'aborted', error })
         output.end(error)
       }
     })()
+
     return output
   }
+
   return {
     getProviders: models.getProviders.bind(models),
     getProvider: models.getProvider.bind(models),

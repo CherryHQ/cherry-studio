@@ -33,6 +33,7 @@ export const TAB_NUMBER_COMMANDS = [
 
 export const NUMBER_COMMANDS = [...CONVERSATION_NUMBER_COMMANDS, ...TAB_NUMBER_COMMANDS]
 export const isNumberShortcut = (command: CommandId): boolean => NUMBER_COMMANDS.some((id) => id === command)
+
 export type NumberShortcutMode = 'conversation' | 'tab' | 'off'
 
 export function getNumberShortcutPreset(mode: NumberShortcutMode, platform?: SupportedPlatform) {
@@ -44,8 +45,10 @@ export function getNumberShortcutPreset(mode: NumberShortcutMode, platform?: Sup
       ])
     ) as Partial<Record<CommandId, PreferenceShortcutType>>
   }
+
   const secondary: ShortcutModifier = platform === 'darwin' ? 'Ctrl' : 'Alt'
   const preferences: Partial<Record<CommandId, PreferenceShortcutType>> = {}
+
   for (const [index, digit] of (['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const).entries()) {
     preferences[CONVERSATION_NUMBER_COMMANDS[index]] = {
       binding: [mode === 'conversation' ? 'CommandOrControl' : secondary, digit],
@@ -56,6 +59,7 @@ export function getNumberShortcutPreset(mode: NumberShortcutMode, platform?: Sup
       enabled: true
     }
   }
+
   return preferences
 }
 
@@ -65,10 +69,12 @@ export function getNumberShortcutMode(
 ) {
   for (const mode of ['conversation', 'tab', 'off'] as const) {
     const preset = getNumberShortcutPreset(mode, platform)
+
     if (
       NUMBER_COMMANDS.every((command) => {
         const actual = preferences[command] ?? getCommandDefaultShortcutPreference(command, platform)
         const expected = preset[command]
+
         return (
           actual &&
           expected &&
@@ -80,15 +86,19 @@ export function getNumberShortcutMode(
     )
       return mode
   }
+
   return 'custom'
 }
 
 export function getNumberShortcutUpdates(mode: NumberShortcutMode, platform?: SupportedPlatform) {
   const preset = getNumberShortcutPreset(mode, platform)
   const updates: Partial<Record<CommandShortcutPreferenceKey<CommandId>, PreferenceShortcutType>> = {}
+
   for (const command of NUMBER_COMMANDS) {
     const preference = preset[command]
+
     if (preference) updates[commandShortcutPreferenceKey(command)] = preference
   }
+
   return updates
 }

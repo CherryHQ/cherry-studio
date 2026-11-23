@@ -9,6 +9,7 @@ import { narrowKnowledgeJobInput } from './jobInput'
 
 export async function cancelJobOrThrow(jobId: string, reason: string): Promise<void> {
   const result = await application.get('JobManager').cancel(jobId, reason)
+
   if (result.outcome === 'timed-out') {
     throw new Error(`Job cancel timed out: ${jobId}`)
   }
@@ -16,6 +17,7 @@ export async function cancelJobOrThrow(jobId: string, reason: string): Promise<v
 
 export async function cancelFileProcessingTaskOrThrow(taskId: FileProcessingTaskId, reason: string): Promise<void> {
   const outcome = await application.get('FileProcessingService').cancelTask(taskId, reason)
+
   if (outcome === 'timed-out') {
     throw new Error(`File processing task cancel timed out: ${taskId}`)
   }
@@ -55,9 +57,11 @@ export async function cancelActiveKnowledgeJobs(
   const { rootItemIds, excludeJobId, onCancelTimeout, fileProcessingWaits } = options
 
   let subtreeItemIds: Set<string> | undefined
+
   if (rootItemIds) {
     const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
     subtreeItemIds = new Set(subtreeItems.map((item) => item.id))
+
     if (subtreeItemIds.size === 0) {
       return
     }
@@ -65,8 +69,10 @@ export async function cancelActiveKnowledgeJobs(
 
   const jobManager = application.get('JobManager')
   const queue = knowledgeQueueName(toKnowledgeBaseId(baseId))
+
   const cancelOne = (jobId: string) =>
     onCancelTimeout === 'throw' ? cancelJobOrThrow(jobId, reason) : jobManager.cancel(jobId, reason)
+
   const cancelTask = (taskId: FileProcessingTaskId) =>
     onCancelTimeout === 'throw'
       ? cancelFileProcessingTaskOrThrow(taskId, reason)
@@ -76,8 +82,10 @@ export async function cancelActiveKnowledgeJobs(
     const jobIds = activeJobs.flatMap((job) =>
       job.id !== excludeJobId && (!subtreeItemIds || jobTouchesSubtree(job, subtreeItemIds)) ? [job.id] : []
     )
+
     await Promise.all(jobIds.map(cancelOne))
   }
+
   // Read the waits only after the knowledge cancels settle: a copy job cancelled after its commit
   // still starts file processing before it returns.
   const cancelFileProcessingTasks = async (): Promise<void> => {
@@ -97,8 +105,10 @@ export async function cancelActiveKnowledgeJobs(
       status: [...ACTIVE_JOB_STATUSES],
       type: [...KNOWLEDGE_JOB_TYPES]
     })
+
     await collectAndCancel(activeJobs)
     await cancelFileProcessingTasks()
+
     return
   }
 
@@ -113,21 +123,27 @@ export async function cancelActiveKnowledgeJobs(
       type: [...KNOWLEDGE_JOB_TYPES],
       limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
     })
+
     await collectAndCancel(activeJobs)
+
     if (activeJobs.length < KNOWLEDGE_ACTIVE_JOB_LIMIT) {
       break
     }
   }
+
   await cancelFileProcessingTasks()
 }
 
 function jobTouchesSubtree(job: { type: string; input: unknown }, subtreeIds: Set<string>): boolean {
   const narrowed = narrowKnowledgeJobInput(job)
+
   if (!narrowed) {
     return false
   }
+
   if ('itemId' in narrowed.input && subtreeIds.has(narrowed.input.itemId)) {
     return true
   }
+
   return 'rootItemIds' in narrowed.input && narrowed.input.rootItemIds.some((itemId) => subtreeIds.has(itemId))
 }

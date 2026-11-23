@@ -15,6 +15,7 @@ export function DingTalkForm({
 }) {
   const { t } = useTranslation()
   const id = useId()
+
   const fields = [
     { key: 'client_id', label: t('agent.channels.dingtalk.clientId') },
     { key: 'robot_code', label: t('agent.channels.dingtalk.robotCode') },
@@ -23,6 +24,7 @@ export function DingTalkForm({
     { key: 'allowed_chat_ids', label: t('agent.channels.dingtalk.chatIds'), list: true },
     { key: 'allowed_user_ids', label: t('agent.channels.dingtalk.userIds'), list: true }
   ]
+
   return (
     <div className="flex flex-col gap-3">
       <ChannelQrRegistration channel={channel} />
@@ -32,6 +34,7 @@ export function DingTalkForm({
           const value = field.list
             ? ((channel.config[field.key] as string[]) ?? []).join(', ')
             : ((channel.config[field.key] as string) ?? '')
+
           return (
             <div key={field.key}>
               <Label htmlFor={`${id}-${field.key}`} className="mb-1 block text-xs">
@@ -46,6 +49,7 @@ export function DingTalkForm({
                 className="h-8 text-sm"
                 onBlur={(event) => {
                   if (event.target.value === value) return
+
                   const next = field.list
                     ? [
                         ...new Set(
@@ -58,6 +62,7 @@ export function DingTalkForm({
                     : field.secret
                       ? event.target.value
                       : event.target.value.trim()
+
                   onConfigChange({ configPatch: { [field.key]: next } })
                 }}
               />

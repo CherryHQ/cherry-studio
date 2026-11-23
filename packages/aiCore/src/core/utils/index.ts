@@ -11,5 +11,6 @@ export function deepMergeObjects<T extends PlainObject>(target: T, source: Plain
     const merged = isPlainObject(value) && isPlainObject(previous) ? deepMergeObjects(previous, value) : value
     Object.defineProperty(result, key, { value: merged, enumerable: true, writable: true, configurable: true })
   })
+
   return result as T
 }

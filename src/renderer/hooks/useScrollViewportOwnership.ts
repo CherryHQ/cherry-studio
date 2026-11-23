@@ -19,6 +19,7 @@ export function useScrollViewportOwnership(): ScrollViewportOwnership | null {
 /** Returns a predicate: does the owner runtime own this exact element? */
 export function useIsScrollViewportOwned(): (scrollContainer: HTMLElement | null) => boolean {
   const ownership = useScrollViewportOwnership()
+
   return useCallback(
     (scrollContainer) => scrollContainer !== null && scrollContainer === ownership?.scrollContainerRef.current,
     [ownership]

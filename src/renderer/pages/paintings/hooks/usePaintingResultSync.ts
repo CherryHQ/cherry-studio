@@ -44,6 +44,7 @@ export function usePaintingResultSync({
       // Re-check against the freshest state: the visible generation's own
       // applyIfVisible may have merged these files between render and commit.
       if (prev.id !== currentId || prev.files.length >= historyFiles.length) return prev
+
       return { ...prev, files: historyFiles }
     })
   }, [currentId, localFileCount, historyFiles, setCurrentPainting])

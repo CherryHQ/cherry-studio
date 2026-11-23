@@ -19,15 +19,19 @@ export function findClosableConversationTabIds(
   if (keys.length === 0) return []
 
   const app = getSidebarApp(appId)
+
   if (!app?.conversationRoute) return []
 
   const keySet = new Set(keys)
   const tabIds: string[] = []
+
   for (const tab of tabs) {
     if (tab.id === activeTabId) continue
+
     if (tab.type !== 'route' || !tabBelongsToApp(app, tab.url)) continue
 
     const key = app.conversationRoute.keyFromUrl(tab.url)
+
     if (key && keySet.has(key)) {
       tabIds.push(tab.id)
     }

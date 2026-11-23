@@ -4,6 +4,7 @@ import { TencentLight } from './light'
 
 const Tencent = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <TencentLight {...props} className={className} />
+
   return <TencentLight {...props} className={className} />
 }
 

@@ -9,6 +9,7 @@ const HTML_DOCUMENT_END_REGEX = /<\/html\s*>/i
 const HTML_LANGUAGE_REGEX = /^html?$/i
 const PROTECTED_HTML_PLACEHOLDER_PREFIX = '__CHERRY_STUDIO_HTML_ARTIFACT_'
 const LEADING_HTML_DOCTYPE_REGEX = /^(?:\s*(?:<!--[\s\S]*?-->|<\?[\s\S]*?\?>))*\s*<!doctype(?:\s|>)/i
+
 // A *closed* opening tag, so a half-streamed `<div` never counts as a fragment.
 const HTML_FRAGMENT_START_REGEX = /^<[a-z][a-z0-9-]*(?:\s[^>]*)?>/i
 
@@ -36,6 +37,7 @@ export function classifyHtmlArtifactSource(value: string): HtmlArtifactKind | un
   if (LEADING_HTML_DOCTYPE_REGEX.test(value)) return 'document'
 
   const content = stripLeadingHtmlMetadata(value)
+
   if (HTML_DOCUMENT_START_REGEX.test(content)) return 'document'
 
   return HTML_FRAGMENT_START_REGEX.test(content) ? 'fragment' : undefined
@@ -43,6 +45,7 @@ export function classifyHtmlArtifactSource(value: string): HtmlArtifactKind | un
 
 function isHtmlArtifact(node: Html): boolean {
   const content = stripLeadingHtmlMetadata(node.value)
+
   return content.length > 0 && !/^<svg[\s>]/i.test(content)
 }
 
@@ -52,6 +55,7 @@ function isHtmlMetadataOnly(node: Html): boolean {
 
 function isHtmlDocumentBoundary(node: Html): boolean {
   const content = stripLeadingHtmlMetadata(node.value)
+
   return HTML_DOCUMENT_START_REGEX.test(content) || HTML_DOCUMENT_END_REGEX.test(node.value)
 }
 
@@ -60,11 +64,13 @@ function findHtmlDocumentEnd(children: readonly RootContent[], startIndex: numbe
 
   while (true) {
     const child = children[documentStartIndex]
+
     if (child?.type !== 'html' || !isHtmlMetadataOnly(child)) break
     documentStartIndex += 1
   }
 
   const documentStart = children[documentStartIndex]
+
   if (
     documentStart?.type !== 'html' ||
     !HTML_DOCUMENT_START_REGEX.test(stripLeadingHtmlMetadata(documentStart.value))
@@ -74,6 +80,7 @@ function findHtmlDocumentEnd(children: readonly RootContent[], startIndex: numbe
 
   for (let index = documentStartIndex; index < children.length; index += 1) {
     const child = children[index]
+
     if (child?.type === 'html' && HTML_DOCUMENT_END_REGEX.test(child.value)) return index
   }
 
@@ -85,6 +92,7 @@ function getSourceRange(nodes: readonly RootContent[]): SourceRange | undefined 
   const last = nodes[nodes.length - 1]
   const start = first?.position?.start.offset
   const end = last?.position?.end.offset
+
   return start !== undefined && end !== undefined ? { start, end } : undefined
 }
 
@@ -92,6 +100,7 @@ function createHtmlDocumentCodeNode(nodes: readonly RootContent[], source: strin
   const first = nodes[0]
   const last = nodes[nodes.length - 1] ?? first
   const range = getSourceRange(nodes)
+
   if (!first || !last || !range) return undefined
 
   const position =
@@ -119,8 +128,10 @@ function collectProtectedHtmlRanges(tree: Root): SourceRange[] {
 
   for (let index = 0; index < tree.children.length; index += 1) {
     const documentEndIndex = findHtmlDocumentEnd(tree.children, index)
+
     if (documentEndIndex !== undefined) {
       const range = getSourceRange(tree.children.slice(index, documentEndIndex + 1))
+
       if (range) ranges.push(range)
       index = documentEndIndex
       continue
@@ -128,6 +139,7 @@ function collectProtectedHtmlRanges(tree: Root): SourceRange[] {
 
     const child = tree.children[index]
     const range = child ? getSourceRange([child]) : undefined
+
     if (!child || !range) continue
 
     if (child.type === 'code' && child.lang && HTML_LANGUAGE_REGEX.test(child.lang)) {
@@ -152,9 +164,11 @@ export function transformMarkdownOutsideHtmlArtifacts(source: string, transform:
 
   const processor = unified().use(remarkParse)
   const ranges = collectProtectedHtmlRanges(processor.parse(source))
+
   if (ranges.length === 0) return transform(source)
 
   let placeholderPrefix = PROTECTED_HTML_PLACEHOLDER_PREFIX
+
   while (source.includes(placeholderPrefix)) placeholderPrefix = `_${placeholderPrefix}`
 
   const protectedSources: string[] = []
@@ -167,12 +181,14 @@ export function transformMarkdownOutsideHtmlArtifacts(source: string, transform:
     maskedSource += `${source.slice(cursor, range.start)}${placeholderPrefix}${index}__`
     cursor = range.end
   }
+
   maskedSource += source.slice(cursor)
 
   let transformed = transform(maskedSource)
   protectedSources.forEach((protectedSource, index) => {
     transformed = transformed.replaceAll(`${placeholderPrefix}${index}__`, protectedSource)
   })
+
   return transformed
 }
 
@@ -187,19 +203,23 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
 
   for (let index = 0; index < tree.children.length; index += 1) {
     const documentEndIndex = findHtmlDocumentEnd(tree.children, index)
+
     if (documentEndIndex !== undefined) {
       const documentNodes = tree.children.slice(index, documentEndIndex + 1)
       const codeNode = createHtmlDocumentCodeNode(documentNodes, source)
+
       if (codeNode) {
         children.push(codeNode)
       } else {
         children.push(...documentNodes)
       }
+
       index = documentEndIndex
       continue
     }
 
     const child = tree.children[index]
+
     if (!child) continue
     children.push(
       child.type === 'html' && isHtmlArtifact(child) && !isHtmlDocumentBoundary(child)

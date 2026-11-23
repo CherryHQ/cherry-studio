@@ -221,4 +221,5 @@ export const aiUsageRecordTable = sqliteTable(
 )
 
 export type AiUsageRecordRow = typeof aiUsageRecordTable.$inferSelect
+
 export type InsertAiUsageRecordRow = typeof aiUsageRecordTable.$inferInsert

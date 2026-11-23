@@ -6,7 +6,9 @@ import { SensetimeLight } from './light'
 
 const Sensetime = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <SensetimeLight {...props} className={className} />
+
   if (variant === 'dark') return <SensetimeDark {...props} className={className} />
+
   return (
     <>
       <SensetimeLight className={cn('dark:hidden', className)} {...props} />

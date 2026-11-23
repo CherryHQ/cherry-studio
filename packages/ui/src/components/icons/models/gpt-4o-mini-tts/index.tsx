@@ -4,6 +4,7 @@ import { Gpt4oMiniTtsLight } from './light'
 
 const Gpt4oMiniTts = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt4oMiniTtsLight {...props} className={className} />
+
   return <Gpt4oMiniTtsLight {...props} className={className} />
 }
 

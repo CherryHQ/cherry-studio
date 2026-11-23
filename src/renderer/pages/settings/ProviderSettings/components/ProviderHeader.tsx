@@ -27,7 +27,9 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
       if (isTogglingEnabled) {
         return
       }
+
       setIsTogglingEnabled(true)
+
       try {
         await toggleProviderEnabled(enabled)
       } catch {

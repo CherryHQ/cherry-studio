@@ -25,8 +25,10 @@ export function reserveDurableBranchTx(
       anchorMessageId
     })
   const parent = contexts.branchTx(tx, sessionId, anchorMessageId)
+
   if (!parent || contexts.backendTx(tx, parent.backendId).locator.kind !== 'pi-durable')
     throw new Error('Durable edit requires an existing native backend')
+
   return contexts.reserveBranchTx(tx, {
     id: contextId,
     sessionId,
@@ -38,15 +40,20 @@ export function reserveDurableBranchTx(
 
 export function prepareDurableBranch(sessionId: string, messageId?: string) {
   agentSessionService.assertIndependentSession(sessionId)
+
   return application.get('DbService').withWriteTx((tx) => {
     const root = ensureAgentSessionRootTx(tx, sessionId)
     const existing = contexts.branchTx(tx, sessionId, messageId ?? root)
+
     if (existing) {
       if (contexts.backendTx(tx, existing.backendId).locator.kind !== 'pi-durable')
         throw new Error('The selected branch belongs to another runtime')
+
       return existing
     }
+
     const backend = allocateDurableBackendTx(tx)
+
     return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId: root })
   })
 }

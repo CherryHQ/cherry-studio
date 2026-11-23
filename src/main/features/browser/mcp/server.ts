@@ -24,19 +24,24 @@ export class BrowserServer {
   callTool(name: string, args: unknown, signal: AbortSignal): Promise<CallToolResult> {
     if (this.closing) throw new BrowserSessionError('debugger_unavailable')
     const tool = toolDefinitions.find((tool) => tool.name === name)
+
     if (!tool) throw new BrowserSessionError('not_allowed')
     const parsed = tool.inputSchema.parse(args)
+
     return this.control.run((controller, signal) => toolHandlers[tool.name](controller, parsed, signal), signal)
   }
 
   createServer(): McpServer {
     const server = new McpServer({ name: '@cherry/browser', version: '0.1.0' })
+
     for (const { name, description, inputSchema } of toolDefinitions) {
       server.registerTool(name, { description, inputSchema }, (args, context) =>
         this.callTool(name, args, context.mcpReq.signal)
       )
     }
+
     this.protocols.add(server)
+
     return server
   }
 
@@ -47,7 +52,9 @@ export class BrowserServer {
           this.control.close(),
           ...[...this.protocols].map((protocol) => protocol.close())
         ])
+
         const errors = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+
         if (errors.length) throw new AggregateError(errors, 'Failed to close browser server')
       } finally {
         this.onClosed()

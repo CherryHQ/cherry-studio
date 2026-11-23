@@ -37,6 +37,7 @@ export function normalizeAnthropicToolHistory(messages: MessageParam[]): Anthrop
 
   const markDuplicate = (messageIndex: number, contentIndex: number): void => {
     const messageDuplicates = duplicateIndexes.get(messageIndex)
+
     if (messageDuplicates) {
       messageDuplicates.add(contentIndex)
     } else {
@@ -52,10 +53,12 @@ export function normalizeAnthropicToolHistory(messages: MessageParam[]): Anthrop
 
       if (block.type === 'tool_use') {
         const first = seenToolUses.get(block.id)
+
         if (!first) {
           seenToolUses.set(block.id, { block, location: duplicateLocation })
           continue
         }
+
         if (first.location.messageIndex !== messageIndex) {
           return {
             status: 'conflict',
@@ -65,6 +68,7 @@ export function normalizeAnthropicToolHistory(messages: MessageParam[]): Anthrop
             duplicateLocation
           }
         }
+
         if (!isDeepStrictEqual(first.block, block)) {
           return {
             status: 'conflict',
@@ -79,10 +83,12 @@ export function normalizeAnthropicToolHistory(messages: MessageParam[]): Anthrop
         duplicateToolUseCount += 1
       } else if (block.type === 'tool_result') {
         const first = seenToolResults.get(block.tool_use_id)
+
         if (!first) {
           seenToolResults.set(block.tool_use_id, { block, location: duplicateLocation })
           continue
         }
+
         if (!isDeepStrictEqual(first.block, block)) {
           return {
             status: 'conflict',
@@ -105,7 +111,9 @@ export function normalizeAnthropicToolHistory(messages: MessageParam[]): Anthrop
     status: 'repaired',
     messages: messages.map((message, messageIndex) => {
       const messageDuplicates = duplicateIndexes.get(messageIndex)
+
       if (!messageDuplicates || !Array.isArray(message.content)) return message
+
       return {
         ...message,
         content: message.content.filter((_, contentIndex) => !messageDuplicates.has(contentIndex))

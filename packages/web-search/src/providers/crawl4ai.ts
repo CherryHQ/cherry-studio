@@ -22,6 +22,7 @@ export const crawl4ai: WebSearchProviderModule = {
     const { call } = context
     const { hostname } = new URL(context.apiHost)
     const cloud = hostname === 'crawl4ai.com' || hostname.endsWith('.crawl4ai.com')
+
     if (cloud && !call.credentials?.apiKey?.trim()) {
       throw new WebSearchError({
         ...call,
@@ -30,21 +31,26 @@ export const crawl4ai: WebSearchProviderModule = {
         message: 'Crawl4AI Cloud requires an API key'
       })
     }
+
     const request = {
       url: apiUrl(context.apiHost, cloud ? '/scrape' : '/md'),
       method: 'POST' as const,
       headers: bearer(context),
       body: cloud ? { url: call.input.trim(), format: 'md' } : { url: call.input.trim(), f: 'fit' }
     }
+
     const payload = cloud
       ? await requestJson(context, request, Crawl4AICloudScrapeResponseSchema)
       : await requestJson(context, request, Crawl4AIMarkdownResponseSchema, (value) =>
           checkProviderError(context, value, 'success')
         )
+
     if ('ok' in payload && !payload.ok) throw protocolError(context, 'provider_error', 'Crawl4AI fetch failed')
     const content = payload.markdown?.trim()
+
     if (!content) throw invalidResponse(context, 'empty_content', 'Crawl4AI fetch returned empty content')
     const url = 'url' in payload ? payload.url || call.input : call.input
+
     return [{ title: url, content, url, sourceInput: call.input }]
   }
 }

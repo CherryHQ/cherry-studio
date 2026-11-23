@@ -38,6 +38,7 @@ const meta: Meta<typeof Sortable> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 function useExampleData() {
@@ -46,7 +47,9 @@ function useExampleData() {
 
   const filteredList = useMemo(() => {
     const q = query.trim().toLowerCase()
+
     if (!q) return originalList
+
     return originalList.filter((x) => x.label.toLowerCase().includes(q))
   }, [query, originalList])
 

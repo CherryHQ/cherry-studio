@@ -53,9 +53,11 @@ const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 function applyEntryOrder(entries: ResolvedSidebarEntry[], orderedKeys: readonly string[]): ResolvedSidebarEntry[] {
   const byKey = new Map(entries.map((entry) => [entry.key, entry]))
   const optimisticKeys = new Set(orderedKeys)
+
   return [
     ...orderedKeys.flatMap((key) => {
       const entry = byKey.get(key)
+
       return entry ? [entry] : []
     }),
     ...entries.filter((entry) => !optimisticKeys.has(entry.key))
@@ -102,6 +104,7 @@ export default function Sidebar({
   useEffect(() => {
     if (previewSidebarWidth !== null) return
     const normalizedWidth = normalizeSidebarWidth(sidebarWidth)
+
     if (normalizedWidth !== sidebarWidth) setSidebarWidth(normalizedWidth)
   }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
 
@@ -117,21 +120,26 @@ export default function Sidebar({
   useEffect(() => {
     if (showSubscribeDot) trackSubscriptionEntryView('avatar_dot')
   }, [showSubscribeDot])
+
   const handleUserMenuOpenChange = useCallback(
     (open: boolean) => {
       setUserMenuOpen(open)
+
       if (!open && layout === 'hidden') setHoverVisible(false)
     },
     [layout]
   )
+
   const handleUserMenuToggle = useCallback(
     () => handleUserMenuOpenChange(!userMenuOpen),
     [handleUserMenuOpenChange, userMenuOpen]
   )
+
   useEffect(() => {
     if (!userMenuOpen) return
     const handleWindowBlur = () => handleUserMenuOpenChange(false)
     window.addEventListener('blur', handleWindowBlur)
+
     return () => window.removeEventListener('blur', handleWindowBlur)
   }, [handleUserMenuOpenChange, userMenuOpen])
 
@@ -156,6 +164,7 @@ export default function Sidebar({
     }),
     [avatar, handleUserMenuToggle, notificationCenter?.hasUnread, showSubscribeDot, unreadDescriptionId, t, userName]
   )
+
   const renderSidebarUserTrigger = useCallback(
     (trigger: ReactElement) => (
       <PopoverTrigger
@@ -170,6 +179,7 @@ export default function Sidebar({
     ),
     [notificationCenter?.hasUnread, showSubscribeDot, unreadDescriptionId]
   )
+
   const renderUserMenu = () =>
     userMenuOpen ? (
       <PopoverContent
@@ -204,14 +214,17 @@ export default function Sidebar({
         const { shortcut } = resolution
         const provider = registry.resolve(shortcut.target)
         const isResolved = resolution.status === 'resolved'
+
         const label = isResolved
           ? resolution.resource.label
           : shortcut.fallbackLabel || shortcut.target.locator.resourceId
+
         const renderIcon = isResolved
           ? resolution.resource.renderIcon
           : ({ glyphSize }: SidebarIconPresentation) => {
               const Icon =
                 resolution.status === 'loading' ? LoaderCircle : resolution.status === 'missing' ? CircleOff : WifiOff
+
               return (
                 <Icon
                   size={glyphSize}
@@ -220,12 +233,14 @@ export default function Sidebar({
                 />
               )
             }
+
         const activate = (inNewTab = false) => {
           if (!isResolved || !provider) return
           void activateShortcut(provider, shortcut.target, resolution.resource, inNewTab).catch(() =>
             toast.error(t('common.error'))
           )
         }
+
         const activateInNewTab =
           isResolved && provider && resolution.resource.supportsNewTab ? () => activate(true) : undefined
 
@@ -266,6 +281,7 @@ export default function Sidebar({
       }),
     [activateShortcut, navigation, registry, remove, resolutions, shortcuts, t]
   )
+
   const [entries, setOptimisticEntryOrder] = useOptimistic(resolvedEntries, applyEntryOrder)
 
   const handleReorder = useCallback(
@@ -273,10 +289,13 @@ export default function Sidebar({
       if (oldIndex === newIndex) return
       const byId = new Map(shortcuts.map((shortcut) => [shortcut.id, shortcut]))
       const reorderedEntries = arrayMove(entries, oldIndex, newIndex)
+
       const reorderedShortcuts = reorderedEntries.flatMap((entry) => {
         const shortcut = byId.get(entry.key)
+
         return shortcut ? [shortcut] : []
       })
+
       startTransition(async () => {
         setOptimisticEntryOrder(reorderedEntries.map((entry) => entry.key))
         await reorder(reorderedShortcuts).catch(() => undefined)

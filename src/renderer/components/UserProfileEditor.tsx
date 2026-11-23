@@ -52,6 +52,7 @@ export function UserProfileEditor() {
   const saveUserName = async () => {
     const nextUserName = userNameDraft.trim()
     setIsSavingUserName(true)
+
     try {
       await setUserName(nextUserName)
       setUserNameDraft(nextUserName)
@@ -85,8 +86,10 @@ export function UserProfileEditor() {
 
   const handleUploadAvatar = async (file: File) => {
     const sizeError = checkEntityImageSize(file)
+
     if (sizeError) {
       toast.error(sizeError)
+
       return
     }
 
@@ -106,6 +109,7 @@ export function UserProfileEditor() {
         open={avatarPopoverOpen}
         onOpenChange={(visible) => {
           setAvatarPopoverOpen(visible)
+
           if (!visible) setAvatarPopoverView('menu')
         }}>
         <PopoverTrigger asChild>
@@ -141,6 +145,7 @@ export function UserProfileEditor() {
                 onChange={(event) => {
                   const file = event.target.files?.[0]
                   event.target.value = ''
+
                   if (file) void handleUploadAvatar(file)
                 }}
               />
@@ -173,6 +178,7 @@ export function UserProfileEditor() {
                 event.preventDefault()
                 void saveUserName()
               }
+
               if (event.key === 'Escape') {
                 event.preventDefault()
                 event.stopPropagation()

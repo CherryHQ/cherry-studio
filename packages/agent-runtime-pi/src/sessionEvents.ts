@@ -10,6 +10,7 @@ import {
 const TOOL_LOADOUT_STATE = 'cherry.tool-loadout'
 
 export type CompactionReason = SessionBeforeCompactEvent['reason']
+
 export type AgentRuntimeEvent =
   | { type: 'session-append'; entries: SessionEntry[] }
   | { type: 'input-placed'; inputId: string; entryId: string }
@@ -29,10 +30,13 @@ export class SessionEvents {
     private readonly listener: (event: AgentRuntimeEvent) => void
   ) {
     this.cursor = manager.getEntryCount()
+
     const state = manager
       .getBranch()
       .findLast((entry) => entry.type === 'custom' && entry.customType === TOOL_LOADOUT_STATE)
+
     const data = state?.type === 'custom' ? state.data : undefined
+
     if (data && typeof data === 'object' && 'activated' in data && Array.isArray(data.activated)) {
       this.activatedTools = data.activated.filter((name): name is string => typeof name === 'string')
     }
@@ -44,6 +48,7 @@ export class SessionEvents {
 
   handle(event: AgentSessionEvent): void {
     this.flush()
+
     switch (event.type) {
       case 'input_placed':
         this.listener({ type: 'input-placed', inputId: event.inputId, entryId: event.entryId })
@@ -55,15 +60,18 @@ export class SessionEvents {
       case 'compaction_end': {
         const error = event.errorMessage ?? this.summaryFailure
         this.summaryFailure = undefined
+
         const ended: Extract<AgentRuntimeEvent, { type: 'compaction-end' }> = {
           type: 'compaction-end',
           reason: event.reason,
           aborted: event.aborted
         }
+
         if (error) ended.error = error
         this.listener(ended)
         break
       }
+
       case 'agent_settled':
         this.listener({
           type: 'turn-complete',
@@ -77,22 +85,27 @@ export class SessionEvents {
     if (this.manager.getEntryCount() === this.cursor) return []
     const start = this.cursor
     const entries = this.manager.getEntries().slice(start)
+
     for (const entry of entries) {
       if (entry.type === 'message' && entry.message.role === 'system') this.saveToolLoadout(entry.id)
     }
+
     const appended = this.manager.getEntries().slice(start)
     this.cursor = this.manager.getEntryCount()
     const copied: SessionEntry[] = JSON.parse(JSON.stringify(appended))
     this.listener({ type: 'session-append', entries: copied })
+
     return copied
   }
 
   private saveToolLoadout(entryId: string): void {
     if (!this.baseTools) return
     const { messages } = buildSessionContext(this.manager.getEntries(), entryId)
+
     const activated = getCurrentTools(messages as Message[])
       .map((tool) => tool.name)
       .filter((name) => !this.baseTools!.has(name))
+
     if (
       activated.length === this.activatedTools.length &&
       activated.every((name, i) => name === this.activatedTools[i])

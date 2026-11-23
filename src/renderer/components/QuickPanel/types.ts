@@ -3,6 +3,7 @@ import React from 'react'
 import type { ComposerDraftToken } from '@renderer/components/composer/tokens'
 
 export type QuickPanelCloseAction = 'enter' | 'click' | 'esc' | 'outsideclick' | 'enter_empty' | string | undefined
+
 export type QuickPanelTriggerInfo = {
   type: 'input' | 'button'
   position?: number
@@ -62,6 +63,7 @@ export type QuickPanelCallBackOptions = {
 }
 
 export type QuickPanelKeyDownEvent = KeyboardEvent | React.KeyboardEvent<HTMLElement>
+
 export type QuickPanelKeyDownHandler = (event: QuickPanelKeyDownEvent) => boolean
 
 /**

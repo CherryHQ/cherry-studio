@@ -51,6 +51,7 @@ function normalizeStreamError(error: unknown, providerId: string, modelId: strin
   if (InvalidResponseDataError.isInstance(error) && error.message === MISSING_FINISH_REASON_MESSAGE) {
     return new MissingFinishReasonError(error, providerId, modelId)
   }
+
   return error
 }
 /* oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns, anti-slop/no-known-value-widening */
@@ -71,8 +72,10 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   on<K extends keyof AgentLoopHooks>(key: K, fn: NonNullable<AgentLoopHooks[K]>): () => void {
     const list = (this.observers[key] ??= []) as Array<NonNullable<AgentLoopHooks[K]>>
     list.push(fn)
+
     return () => {
       const i = list.indexOf(fn)
+
       if (i >= 0) list.splice(i, 1)
     }
   }
@@ -86,20 +89,26 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
 
   private composedHooks(): AgentLoopHooks {
     const parts: Array<Partial<AgentLoopHooks>> = []
+
     for (const key of Object.keys(this.observers) as Array<keyof AgentLoopHooks>) {
       const list = this.observers[key]
+
       if (!list) continue
+
       for (const fn of list) {
         parts.push({ [key]: fn })
       }
     }
+
     if (this.params.hookParts) parts.push(...this.params.hookParts)
+
     return composeHooks(parts)
   }
 
   private async buildExecution(hooks: AgentLoopHooks) {
     const params = this.params
     const opts = params.options ?? {}
+
     const settings = {
       toolChoice: opts.toolChoice,
       activeTools: opts.activeTools,
@@ -120,17 +129,20 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       experimental_download: opts.download,
       onStepFinish: wrapForwardedHook('onStepFinish', hooks.onStepFinish)
     }
+
     if (params.contextOwner === 'caller') {
       const executor = await createExecutor<AppProviderSettingsMap, T>(
         params.providerId,
         params.providerSettings,
         params.plugins
       )
+
       const tools = params.tools
         ? Object.fromEntries(
             Object.entries(params.tools).map(([name, tool]) => [name, { ...tool, execute: undefined }])
           )
         : undefined
+
       const singleStep = {
         ...settings,
         model: params.modelId,
@@ -139,6 +151,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         maxRetries: 0,
         stopWhen: stepCountIs(1)
       }
+
       return {
         stream: (input: { messages: ModelMessage[]; abortSignal?: AbortSignal }) =>
           executor.streamText({ ...singleStep, ...input }),
@@ -146,15 +159,19 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           executor.generateText({ ...singleStep, ...input })
       }
     }
+
     const toolsWithHooks = wrapToolsWithExecutionHooks(params.tools, hooks)
     const forwardedPrepareStep = wrapForwardedHook('prepareStep', hooks.prepareStep)
+
     const prepareStep: AgentLoopHooks['prepareStep'] = async (options) => {
       const routedMessages = routeToolResultMedia(
         options.messages,
         params.mediaCapabilities ?? ALL_MEDIA,
         params.toolResultMediaCapabilities ?? params.mediaCapabilities ?? ALL_MEDIA
       )
+
       const prepared = await forwardedPrepareStep?.({ ...options, messages: routedMessages })
+
       const preparedMessages = prepared?.messages
         ? routeToolResultMedia(
             prepared.messages,
@@ -164,8 +181,10 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         : routedMessages
 
       if (!prepared && preparedMessages === options.messages) return undefined
+
       return { ...prepared, ...(preparedMessages !== options.messages && { messages: preparedMessages }) }
     }
+
     return createAgent<AppProviderSettingsMap, T, ToolSet>({
       providerId: params.providerId,
       providerSettings: params.providerSettings,
@@ -189,10 +208,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     mode: 'generate' | 'stream' = 'generate'
   ): Promise<{ text: string; usage: LanguageModelUsage; finishReason: FinishReason; rawFinishReason?: string }> {
     const hooks = this.composedHooks()
+
     try {
       await safeCall('onStart', hooks.onStart)
       signal?.throwIfAborted()
       const execution = await this.buildExecution(hooks)
+
       const generateInput =
         'prompt' in input
           ? { prompt: input.prompt, ...(signal && { abortSignal: signal }) }
@@ -206,6 +227,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
               ),
               ...(signal && { abortSignal: signal })
             }
+
       const result = await (async () => {
         if (mode === 'generate') return execution.generate(generateInput)
 
@@ -214,14 +236,21 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
             'prompt' in generateInput ? [{ role: 'user', content: generateInput.prompt }] : generateInput.messages,
           ...(signal && { abortSignal: signal })
         })
+
         let finished = false
+
         for await (const part of stream.fullStream) {
           signal?.throwIfAborted()
+
           if (part.type === 'error') throw part.error
+
           if (part.type === 'abort') throw signal?.reason ?? new Error('Model check aborted')
+
           if (part.type === 'finish') finished = true
         }
+
         signal?.throwIfAborted()
+
         const [text, usage, finishReason, rawFinishReason, steps] = await Promise.all([
           stream.text,
           stream.usage,
@@ -229,12 +258,16 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           stream.rawFinishReason,
           stream.steps
         ])
+
         if (!finished || !text.trim() || (finishReason !== 'stop' && finishReason !== 'length')) {
           throw new InvalidResponseDataError({ message: 'Invalid response from model check', data: undefined })
         }
+
         return { text, usage, finishReason, rawFinishReason, steps }
       })()
+
       signal?.throwIfAborted()
+
       const terminalError =
         this.params.contextOwner === 'caller'
           ? undefined
@@ -242,23 +275,29 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
               steps: result.steps,
               stopWhen: this.params.options?.stopWhen
             })
+
       if (terminalError) throw terminalError
       await safeCall('onFinish', hooks.onFinish)
+
       const completion: Awaited<ReturnType<Agent<T>['generate']>> = {
         text: result.text,
         usage: result.usage,
         finishReason: result.finishReason
       }
+
       if (result.rawFinishReason !== undefined) completion.rawFinishReason = result.rawFinishReason
+
       return completion
     } catch (err) {
       const isCancellation = signal?.aborted === true && (err === signal.reason || isAbortError(err))
+
       if (isCancellation) {
         await safeCall('onAbort', hooks.onAbort)
         throw err
       }
 
       logAiFailure(logger, 'agent generate error', err, 'agent.ai_sdk.generate', classifyAiSdkFailure(err))
+
       if (hooks.onError) {
         try {
           await hooks.onError({ error: err instanceof Error ? err : new Error(String(err)) })
@@ -272,6 +311,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           })
         }
       }
+
       throw err
     }
   }
@@ -281,11 +321,14 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     let outputController!: TransformStreamDefaultController<UIMessageChunk>
     let terminalOutcome: 'running' | 'success' | 'abort' = 'running'
     let committingFinish = false
+
     const claimTerminalOutcome = (outcome: 'success' | 'abort'): boolean => {
       if (terminalOutcome !== 'running') return false
       terminalOutcome = outcome
+
       return true
     }
+
     const { readable, writable } = new TransformStream<UIMessageChunk, UIMessageChunk>({
       start(controller) {
         outputController = controller
@@ -298,15 +341,18 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         controller.enqueue(chunk)
       }
     })
+
     const writer = writable.getWriter()
     this.currentWriter = writer
     const hooks = this.composedHooks()
 
     let writerSettled = false
+
     const settleWriter = async (failure?: { error: unknown }): Promise<void> => {
       if (writerSettled) return
       writerSettled = true
       this.currentWriter = undefined
+
       try {
         if (failure) {
           await writer.abort(failure.error)
@@ -322,6 +368,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime failures can be arbitrary rejections; serialize non-Error values before invoking the typed application hook.
     const invokeOnError = async (err: unknown): Promise<'retry' | 'abort' | void> => {
       if (!hooks.onError) return undefined
+
       try {
         return await hooks.onError({
           error: err instanceof Error ? err : new Error(serializeError(err).message ?? 'Unknown AI error')
@@ -334,6 +381,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           outcome: 'failed',
           runtime: 'ai-sdk'
         })
+
         return 'abort'
       }
     }
@@ -341,6 +389,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     const commitFinish = async (finish: Extract<UIMessageChunk, { type: 'finish' }>): Promise<boolean> => {
       const abortBeforeFinish = () => {
         if (!claimTerminalOutcome('abort')) return
+
         try {
           // Closes the readable side cleanly and rejects the pending writable
           // operation, so a backpressured finish cannot be delivered later.
@@ -351,12 +400,15 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       }
 
       signal.addEventListener('abort', abortBeforeFinish, { once: true })
+
       try {
         if (signal.aborted) abortBeforeFinish()
+
         if (terminalOutcome === 'abort') return false
 
         committingFinish = true
         await writer.write(finish)
+
         return terminalOutcome === 'success'
       } catch (error) {
         if (terminalOutcome === 'abort') return false
@@ -373,6 +425,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const execution = await this.buildExecution(hooks)
 
       const messages = initialMessages
+
       // Shape only the conversion input — keep `messages` (originalMessages for the
       // UI stream) untouched, so placeholders/strips never leak to the UI. See #16195.
       const modelMessages = await toModelMessages(
@@ -381,6 +434,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         params.tools,
         params.toolResultMediaCapabilities
       )
+
       let hasUsedProvidedMessageId = false
 
       const result = await execution.stream({
@@ -392,27 +446,34 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       // same order as the error-bearing chunks so terminal provider failures
       // retain their metadata without stealing an earlier tool error.
       const capturedUiErrors: Array<{ error: unknown }> = []
+
       const uiStream = result.toUIMessageStream({
         originalMessages: messages,
         sendSources: true,
         onError: (error) => {
           capturedUiErrors.push({ error })
+
           return error instanceof Error ? error.message : String(error)
         },
         generateMessageId: () => {
           if (!hasUsedProvidedMessageId && params.messageId) {
             hasUsedProvidedMessageId = true
+
             return params.messageId
           }
+
           return crypto.randomUUID()
         }
       })
+
       const reader = uiStream.getReader()
       let readFailure: { error: unknown } | undefined
       let pendingFinish: Extract<UIMessageChunk, { type: 'finish' }> | undefined
+
       try {
         while (true) {
           const { done, value } = await reader.read()
+
           if (done) break
 
           // AI SDK calls `onError` for invalid tool input, local tool execution
@@ -424,11 +485,14 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
             value.type === 'error'
               ? capturedUiErrors.shift()
               : undefined
+
           if (value.type === 'error' && capturedError) {
             await reader.cancel(capturedError.error).catch(() => {})
             throw capturedError.error
           }
+
           if (signal.aborted) break
+
           // Hold the success-looking finish marker until the loop result has
           // been classified. A cap-triggered or terminal-tool stop must reach
           // persistence as an error instead of briefly completing as success.
@@ -436,6 +500,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
             pendingFinish = value
             continue
           }
+
           await writer.write(value)
         }
       } catch (error) {
@@ -443,17 +508,23 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       } finally {
         reader.releaseLock()
       }
+
       if (readFailure) throw readFailure.error
+
       if (signal.aborted) {
         await safeCall('onAbort', hooks.onAbort)
+
         return
       }
 
       const steps = await Promise.resolve(result.steps)
+
       if (signal.aborted) {
         await safeCall('onAbort', hooks.onAbort)
+
         return
       }
+
       const terminalError =
         this.params.contextOwner === 'caller'
           ? undefined
@@ -461,14 +532,18 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
               steps: steps ?? [],
               stopWhen: params.options?.stopWhen
             })
+
       if (terminalError) throw terminalError
+
       if (pendingFinish) {
         if (!(await commitFinish(pendingFinish))) {
           await safeCall('onAbort', hooks.onAbort)
+
           return
         }
       } else if (signal.aborted || !claimTerminalOutcome('success')) {
         await safeCall('onAbort', hooks.onAbort)
+
         return
       }
 
@@ -483,9 +558,11 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       .then(() => settleWriter())
       .catch(async (err) => {
         const isCancellation = signal.aborted && (err === signal.reason || isAbortError(err))
+
         if (isCancellation) {
           await safeCall('onAbort', hooks.onAbort)
           await settleWriter()
+
           return
         }
 
@@ -494,8 +571,10 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           params.errorContext?.providerId ?? params.providerId,
           params.errorContext?.modelId ?? params.modelId
         )
+
         const action = await invokeOnError(streamError)
         const failure = classifyAiSdkFailure(err)
+
         if (action === 'retry') {
           // TODO: retry logic
           // retry is reserved for a future implementation — today the loop logs and aborts.
@@ -511,6 +590,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         } else {
           logAiFailure(logger, 'agentLoop error', streamError, 'agent.ai_sdk.stream', failure)
         }
+
         await settleWriter({ error: streamError })
       })
 

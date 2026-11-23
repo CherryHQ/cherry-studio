@@ -18,12 +18,15 @@ import { CANONICAL_PARAM_KEY, CURRENCY, MODALITY, MODEL_CAPABILITY, objectValues
 import { looseArray } from './forwardCompat'
 
 export const ModalitySchema = z.enum(objectValues(MODALITY))
+
 export type ModalityType = z.infer<typeof ModalitySchema>
 
 export const ModelCapabilityTypeSchema = z.enum(objectValues(MODEL_CAPABILITY))
+
 export type ModelCapabilityType = z.infer<typeof ModelCapabilityTypeSchema>
 
 export const CanonicalParamKeySchema = z.enum(objectValues(CANONICAL_PARAM_KEY))
+
 export type CanonicalParamKeyType = z.infer<typeof CanonicalParamKeySchema>
 
 // Thinking token limits schema (shared across reasoning types)
@@ -72,6 +75,7 @@ export const ReasoningControlSchema = z.discriminatedUnion('kind', [
     default: z.boolean().optional()
   })
 ])
+
 export type ReasoningControl = z.infer<typeof ReasoningControlSchema>
 
 /**
@@ -90,6 +94,7 @@ export type ReasoningControl = z.infer<typeof ReasoningControlSchema>
  * on {@link ReasoningFamilyRuleSchema}).
  */
 export const ReasoningWireDialectSchema = z.enum(['effort', 'budget', 'adaptive-always', 'adaptive-between-tools'])
+
 export type ReasoningWireDialect = z.infer<typeof ReasoningWireDialectSchema>
 
 /**
@@ -129,6 +134,7 @@ const compilableRegexSource = z.string().refine(
   (source) => {
     try {
       new RegExp(source, 'i')
+
       return true
     } catch {
       return false
@@ -171,6 +177,7 @@ export const ReasoningFamilyRuleSchema = z
       rule.wireDialect !== undefined,
     { message: 'a template rule with no knobs declares nothing — drop it or make it a profile' }
   )
+
 export type ReasoningFamilyRule = z.infer<typeof ReasoningFamilyRuleSchema>
 
 // Common reasoning fields shared across all reasoning type variants
@@ -201,13 +208,16 @@ export const ReasoningSupportSchema = z
   })
   .superRefine((r, ctx) => {
     const kinds = (r.controls ?? []).map((c) => c.kind)
+
     if (new Set(kinds).size !== kinds.length) {
       ctx.addIssue({ code: 'custom', message: 'at most one reasoning control per kind' })
     }
+
     for (const c of r.controls ?? []) {
       if (c.kind === 'effort' && c.default != null && !c.values.includes(c.default)) {
         ctx.addIssue({ code: 'custom', message: 'effort default must be a member of values' })
       }
+
       if (c.kind === 'budget' && (c.min > c.max || (c.default != null && (c.default < c.min || c.default > c.max)))) {
         ctx.addIssue({ code: 'custom', message: 'budget range must satisfy min <= default <= max' })
       }
@@ -306,16 +316,20 @@ const INTEGER_RANGE_PARAM_KEYS = [
 
 const ImageSupportsSchema = z.partialRecord(CanonicalParamKeySchema, SupportSpecSchema).transform((supports, ctx) => {
   const normalized = { ...supports }
+
   for (const key of INTEGER_RANGE_PARAM_KEYS) {
     const spec = supports[key]
+
     if (spec === undefined) continue
     const result = RangeIntSpecSchema.safeParse(spec)
+
     if (result.success) {
       normalized[key] = result.data
     } else {
       for (const issue of result.error.issues) ctx.addIssue({ ...issue, path: [key, ...issue.path] })
     }
   }
+
   return normalized
 })
 
@@ -463,7 +477,9 @@ function validateInputTokenPricingTiers(
       ...(tier.cacheWrite ? [{ rate: tier.cacheWrite, path: ['inputTokenTiers', index, 'cacheWrite'] }] : [])
     ])
   ]
+
   const currency = rates[0]?.rate.currency ?? CURRENCY.USD
+
   for (const { rate, path } of rates) {
     if ((rate.currency ?? CURRENCY.USD) !== currency) {
       ctx.addIssue({ code: 'custom', path: [...path, 'currency'], message: 'pricing currencies must match' })
@@ -541,12 +557,21 @@ export const ModelListSchema = z.object({
 })
 
 export type ThinkingTokenLimits = z.infer<typeof ThinkingTokenLimitsSchema>
+
 export type ReasoningSupport = z.infer<typeof ReasoningSupportSchema>
+
 export type ParameterSupport = z.infer<typeof ParameterSupportSchema>
+
 export type ImageGenerationMode = z.infer<typeof ImageGenerationModeSchema>
+
 export type SupportSpec = z.infer<typeof SupportSpecSchema>
+
 export type ImageModeDef = z.infer<typeof ImageModeDefSchema>
+
 export type ImageGenerationSupport = z.infer<typeof ImageGenerationSupportSchema>
+
 export type ModelPricing = z.infer<typeof ModelPricingSchema>
+
 export type ModelConfig = z.infer<typeof ModelConfigSchema>
+
 export type ModelList = z.infer<typeof ModelListSchema>

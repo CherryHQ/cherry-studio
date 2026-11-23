@@ -4,6 +4,7 @@ import { StabilityLight } from './light'
 
 const Stability = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <StabilityLight {...props} className={className} />
+
   return <StabilityLight {...props} className={className} />
 }
 

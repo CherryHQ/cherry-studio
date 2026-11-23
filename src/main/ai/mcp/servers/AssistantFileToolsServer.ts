@@ -37,12 +37,15 @@ const MAX_FAILURE_TEXT = 500
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- File tools catch arbitrary failures; safe conversion precedes control-character removal and model-visible length limits.
 function failureText(error: unknown): string {
   const message = getErrorMessage(error, 'Tool execution failed')
+
   const sanitized = Array.from(message, (char) => {
     const code = char.charCodeAt(0)
+
     return code < 0x20 || code === 0x7f ? ' ' : char
   })
     .join('')
     .trim()
+
   return sanitized ? sanitized.slice(0, MAX_FAILURE_TEXT) : 'Tool execution failed'
 }
 
@@ -53,10 +56,12 @@ async function runTool<TResult>(
 ): Promise<CallToolResult> {
   try {
     const value = await run()
+
     return { content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] }
   } catch (error) {
     if (signal.aborted || isAbortError(error)) throw error
     logger.error(`Tool error: ${name}`, { error })
+
     return { content: [{ type: 'text', text: failureText(error) }], isError: true }
   }
 }
@@ -74,8 +79,11 @@ export function createAssistantFileToolsServer(context: AssistantFileToolContext
           { attachments: listAgentSessionAttachments(context.sessionId) },
           ctx.mcpReq.signal
         )
+
         const output = readFileModelOutput(result)
+
         if (output.type !== 'text') throw new Error('read_file returned an unexpected output type')
+
         return output.value
       })
   )

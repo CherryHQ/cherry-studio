@@ -23,22 +23,28 @@ export function createLineDecoder(
 
   const emit = (line: string): void => {
     const clean = line.endsWith('\r') ? line.slice(0, -1) : line
+
     if (clean.length > cap) onLine(clean.slice(0, cap), true)
     else onLine(clean, false)
   }
 
   const consume = (text: string): void => {
     let start = 0
+
     for (;;) {
       const newline = text.indexOf('\n', start)
+
       if (newline === -1) break
+
       if (discarding) discarding = false
       else emit(pending + text.slice(start, newline))
       pending = ''
       start = newline + 1
     }
+
     if (discarding) return
     pending += text.slice(start)
+
     if (pending.length > cap) {
       onLine(pending.slice(0, cap), true)
       pending = ''
@@ -52,7 +58,9 @@ export function createLineDecoder(
     },
     end() {
       const tail = decoder.end()
+
       if (tail) consume(tail)
+
       if (!discarding && pending) emit(pending)
       pending = ''
       discarding = false

@@ -21,9 +21,12 @@ function preventActivation(event: PointerEvent, source: Draggable) {
   const target = event.target as Element
   // A nested list inside the marked region stays draggable: the marker only guards rows that contain it.
   const noDnd = target.closest('[data-no-dnd]')
+
   if (noDnd && source.element?.contains(noDnd)) return true
+
   // The row itself is a button (nav item, launchpad tile), so a press on it must still drag.
   if (target.closest('[data-dnd-row-control]')) return false
+
   return PointerSensor.defaults.preventActivation?.(event, source) ?? false
 }
 
@@ -31,6 +34,7 @@ function activationConstraints(event: PointerEvent) {
   if (event.pointerType === 'touch') {
     return [new PointerActivationConstraints.Delay({ value: 250, tolerance: 5 })]
   }
+
   // The library default also activates after a 200ms hold, which would swallow a slow click on a row.
   return [new PointerActivationConstraints.Distance({ value: 8 })]
 }
@@ -66,10 +70,12 @@ function createPlugins({ screenReaderInstructions, announcements }: SortableAcce
           : undefined,
       dragend: ({ operation: { source }, canceled }) => {
         if (!source) return undefined
+
         return (canceled ? announcements.onDragCancel : announcements.onDragEnd)({ activeId: source.id })
       }
     }
   }
+
   const configured = Accessibility.configure(options)
 
   return (defaults) => defaults.map((plugin) => (plugin === Accessibility ? configured : plugin))
@@ -92,6 +98,7 @@ function CancelDragOnWindowBlur() {
     }
 
     window.addEventListener('blur', cancelDrag)
+
     return () => window.removeEventListener('blur', cancelDrag)
   }, [manager])
 
@@ -196,6 +203,7 @@ function Sortable<T>({
     () =>
       previewIds?.flatMap((id) => {
         const item = itemById.get(id)
+
         return item === undefined ? [] : [item]
       }) ?? items,
     [itemById, items, previewIds]
@@ -208,6 +216,7 @@ function Sortable<T>({
 
   const handleDragStart = ({ operation: { source } }: DragStartEvent) => {
     longPressReleased.current = false
+
     if (source) {
       customOnDragStart?.({ activeId: source.id })
     }
@@ -228,11 +237,13 @@ function Sortable<T>({
     if (manager.dragOperation.controller?.signal.aborted) return
 
     const { source, target } = event.operation
+
     if (!source || !target || source.id === target.id) return
 
     const order = latestPreviewIds.current ?? itemIds
     const fromIndex = order.indexOf(source.id)
     const toIndex = order.indexOf(target.id)
+
     // The dragged row left `items` before the first dragover, e.g. the queue drained it.
     if (fromIndex === -1 || toIndex === -1) return
 
@@ -251,14 +262,17 @@ function Sortable<T>({
 
     if (canceled) {
       customOnDragCancel?.()
+
       return
     }
 
     customOnDragEnd?.()
+
     // Commit what the list shows: auto-scroll can carry the rows out from under the pointer before the drop.
     if (source && order) {
       const oldIndex = itemIds.indexOf(source.id)
       const newIndex = order.filter((id) => itemById.has(id)).indexOf(source.id)
+
       if (oldIndex !== newIndex) {
         onSortEnd({ oldIndex, newIndex })
       }
@@ -300,6 +314,7 @@ function Sortable<T>({
         style={{ ...listStyle, gap }}>
         {orderedItems.map((item, index) => {
           const id = getId(item)
+
           return (
             <SortableItem
               key={id}
@@ -324,6 +339,7 @@ function Sortable<T>({
           <DragOverlay>
             {(source) => {
               const item = itemById.get(source.id)
+
               return item === undefined ? null : (
                 <ItemRenderer item={item} renderItem={renderItem} itemStyle={itemStyle} dragOverlay />
               )

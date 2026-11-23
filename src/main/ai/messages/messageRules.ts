@@ -18,6 +18,7 @@ import { renderPersistedToolOutputs } from './persistedOutputRendering'
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical/provider message content may be a string or mixed blocks; this normalizer preserves blocks without claiming their schema.
 function contentToParts(content: unknown): unknown[] {
   if (typeof content === 'string') return content.length > 0 ? [{ type: 'text', text: content }] : []
+
   return Array.isArray(content) ? content : []
 }
 
@@ -45,7 +46,9 @@ function restoreLegacyToolStepBoundaries(messages: UIMessage[]): UIMessage[] {
         parts.push({ type: 'step-start' })
         completedToolGroup = false
       }
+
       parts?.push(part)
+
       if (isCompletedLocalTool(part)) completedToolGroup = true
     })
 
@@ -54,6 +57,7 @@ function restoreLegacyToolStepBoundaries(messages: UIMessage[]): UIMessage[] {
       out[messageIndex] = { ...message, parts }
     }
   })
+
   return out ?? messages
 }
 
@@ -67,16 +71,20 @@ function restoreLegacyToolStepBoundaries(messages: UIMessage[]): UIMessage[] {
  */
 export function coalesceConsecutiveSameRole(messages: ModelMessage[]): ModelMessage[] {
   const out: ModelMessage[] = []
+
   for (const message of messages) {
     const prev = out.at(-1)
+
     if (!prev || prev.role !== message.role || prev.providerOptions || message.providerOptions) {
       out.push(message)
       continue
     }
+
     if (prev.role === 'system') {
       out[out.length - 1] = { ...prev, content: `${prev.content}\n\n${(message as typeof prev).content}` }
       continue
     }
+
     out[out.length - 1] = {
       ...prev,
       content: [
@@ -85,6 +93,7 @@ export function coalesceConsecutiveSameRole(messages: ModelMessage[]): ModelMess
       ]
     } as ModelMessage
   }
+
   return out
 }
 
@@ -117,6 +126,7 @@ function toWireToolName(name: string): string {
   const digest = createHash('sha1').update(name).digest('hex').slice(0, NAME_DIGEST_LENGTH)
   const sanitized = name.replace(/[^A-Za-z0-9_-]/g, '_')
   const head = (/^[A-Za-z_]/.test(sanitized) ? sanitized : `_${sanitized}`).slice(0, 63 - NAME_DIGEST_LENGTH)
+
   return `${head}_${digest}`
 }
 
@@ -137,24 +147,32 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
     message.parts.forEach((part, partIndex) => {
       if (part.type !== 'dynamic-tool') {
         parts?.push(part)
+
         return
       }
+
       if (part.toolName.length === 0) {
         parts ??= message.parts.slice(0, partIndex)
+
         return
       }
+
       if (WIRE_TOOL_NAME.test(part.toolName) || tools?.[part.toolName]) {
         parts?.push(part)
+
         return
       }
+
       parts ??= message.parts.slice(0, partIndex)
       parts.push({ ...part, toolName: toWireToolName(part.toolName) })
     })
+
     if (parts) {
       out ??= [...messages]
       out[messageIndex] = { ...message, parts }
     }
   })
+
   return out ?? messages
 }
 
@@ -172,6 +190,7 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
 export function dropUnansweredApprovals<T extends UIMessage>(messages: T[]): T[] {
   return messages.map((message) => {
     if (!message.parts?.some((part) => isToolUIPart(part) && part.state === 'approval-requested')) return message
+
     return {
       ...message,
       parts: message.parts.filter((part) => !isToolUIPart(part) || part.state !== 'approval-requested')
@@ -197,19 +216,25 @@ function dropNonObjectToolInputs(messages: UIMessage[]): UIMessage[] {
       ) {
         const input =
           part.state === 'output-error' ? (part.input ?? ('rawInput' in part ? part.rawInput : undefined)) : part.input
+
         const isObject = input !== null && typeof input === 'object' && !Array.isArray(input)
+
         if (!isObject) {
           parts ??= message.parts.slice(0, partIndex)
+
           return
         }
       }
+
       parts?.push(part)
     })
+
     if (parts) {
       out ??= [...messages]
       out[messageIndex] = { ...message, parts }
     }
   })
+
   return out ?? messages
 }
 
@@ -222,10 +247,12 @@ export function deduplicateLocalToolParts<T extends UIMessage>(messages: T[]): T
     string,
     { messageIndex: number; partIndex: number; priority: number; providerExecuted: boolean }
   >()
+
   messages.forEach((message, messageIndex) => {
     if (message.role !== 'assistant') return
     message.parts.forEach((part, partIndex) => {
       if (!isToolUIPart(part)) return
+
       const priority =
         part.state === 'output-error' ||
         part.state === 'output-denied' ||
@@ -234,7 +261,9 @@ export function deduplicateLocalToolParts<T extends UIMessage>(messages: T[]): T
           : part.state === 'approval-responded'
             ? 1
             : 0
+
       const group = groups.get(part.toolCallId)
+
       if (!group) {
         groups.set(part.toolCallId, {
           messageIndex,
@@ -244,6 +273,7 @@ export function deduplicateLocalToolParts<T extends UIMessage>(messages: T[]): T
         })
       } else {
         group.providerExecuted ||= part.providerExecuted === true
+
         if (priority > group.priority) Object.assign(group, { messageIndex, partIndex, priority })
       }
     })
@@ -252,16 +282,20 @@ export function deduplicateLocalToolParts<T extends UIMessage>(messages: T[]): T
   let out: T[] | undefined
   messages.forEach((message, messageIndex) => {
     if (message.role !== 'assistant') return
+
     const parts = message.parts.filter((part, partIndex) => {
       if (!isToolUIPart(part)) return true
       const group = groups.get(part.toolCallId)!
+
       return group.providerExecuted || (group.messageIndex === messageIndex && group.partIndex === partIndex)
     })
+
     if (parts.length !== message.parts.length) {
       out ??= [...messages]
       out[messageIndex] = { ...message, parts }
     }
   })
+
   return out ?? messages
 }
 
@@ -277,17 +311,21 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
     message.parts.forEach((part, partIndex) => {
       if (!isToolUIPart(part)) return
       const approval = (part as { approval?: { approved?: boolean; reason?: string } }).approval
+
       if (approval?.approved !== false) return
       const reason = withUserDenialFeedback(approval.reason)
+
       if (reason === approval.reason) return
       parts ??= [...message.parts]
       parts[partIndex] = { ...part, approval: { ...approval, reason } } as T['parts'][number]
     })
+
     if (parts) {
       out ??= [...messages]
       out[messageIndex] = { ...message, parts }
     }
   })
+
   return out ?? messages
 }
 
@@ -306,17 +344,21 @@ export function renderEditedReasoningAsThinkText<T extends UIMessage>(messages: 
     let parts: T['parts'] | undefined
     message.parts.forEach((part, partIndex) => {
       if (part.type !== 'reasoning') return
+
       const marker = (part as { providerMetadata?: { cherry?: { editedReasoningReplay?: unknown } } }).providerMetadata
         ?.cherry?.editedReasoningReplay
+
       if (marker !== 'think') return
       parts ??= [...message.parts]
       parts[partIndex] = { type: 'text', text: `<think>\n${part.text}\n</think>` }
     })
+
     if (parts) {
       out ??= [...messages]
       out[messageIndex] = { ...message, parts }
     }
   })
+
   return out ?? messages
 }
 
@@ -342,11 +384,13 @@ export async function toModelMessages(
   toolResultCaps?: MediaCapabilities
 ): Promise<ModelMessage[]> {
   const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
+
   const shaped = restoreLegacyToolStepBoundaries(
     deduplicateLocalToolParts(
       dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
     )
   )
+
   // Anthropic serializes signed reasoning even when blank, which Bedrock rejects.
   // Redacted thinking has redactedData instead of a signature and must survive.
   const replayable = shaped.map((message) => {
@@ -356,12 +400,16 @@ export async function toModelMessages(
         part.text.trim().length > 0 ||
         typeof part.providerMetadata?.anthropic?.signature !== 'string'
     )
+
     return parts.length === message.parts.length ? message : { ...message, parts }
   })
+
   const model = await convertToModelMessages(renderEditedReasoningAsThinkText(replayable), {
     ignoreIncompleteToolCalls: true,
     tools
   })
+
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
+
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
 }

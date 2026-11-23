@@ -1,4 +1,5 @@
 export { defaultFilterFn, defaultSortFn } from './defaultStrategies'
+
 export {
   firstQuickPanelSelectableIndex,
   initialQuickPanelFocusIndex,
@@ -8,8 +9,11 @@ export {
   QuickPanelRow,
   type QuickPanelRowData
 } from './list'
+
 export { QuickPanelContext, QuickPanelProvider } from './QuickPanelProvider'
+
 export { QuickPanelView } from './QuickPanelView'
+
 export type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
@@ -28,4 +32,5 @@ export type {
   QuickPanelSortFn,
   QuickPanelTriggerInfo
 } from './types'
+
 export { useOptionalQuickPanel, useQuickPanel } from './useQuickPanel'

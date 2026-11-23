@@ -66,8 +66,10 @@ const PaintingPage: FC = () => {
   // Model-less receipts and drafts still use the first enabled catalog model.
   const composerPainting = useMemo<PaintingData>(() => {
     const painting = cachedGeneration ? { ...currentPainting, ...liveGenerationState } : currentPainting
+
     if (painting.model) return painting
     const fallback = modelCatalog.currentModelOptions.find((option) => option.isEnabled !== false)?.value
+
     return fallback ? { ...painting, model: String(fallback) } : painting
   }, [cachedGeneration, currentPainting, liveGenerationState, modelCatalog.currentModelOptions])
 
@@ -127,8 +129,10 @@ const PaintingPage: FC = () => {
   useEffect(() => {
     if (generating || showTemplateShowcase || !hasGeneratedImages) {
       setPromptDockCollapsed(false)
+
       return
     }
+
     setPromptDockCollapsed(true)
   }, [composerPainting.id, generating, hasGeneratedImages, showTemplateShowcase])
 

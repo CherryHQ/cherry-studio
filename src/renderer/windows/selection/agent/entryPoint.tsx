@@ -9,4 +9,5 @@ import SelectionAgentApp from './SelectionAgentApp'
 await prepareWindow({ preference: 'all' })
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
+
 root.render(<SelectionAgentApp />)

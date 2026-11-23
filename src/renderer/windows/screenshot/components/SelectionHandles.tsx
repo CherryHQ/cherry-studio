@@ -26,6 +26,7 @@ interface SelectionHandlesProps {
 /** Dot diameter in CSS px. */
 const HANDLE_SIZE = 12
 const HANDLE_BORDER_COLOR = '#ffffff'
+
 /** Edge-strip thickness in CSS px, centred on the edge so half the grab area lies inside. */
 const EDGE_THICKNESS = 8
 
@@ -173,6 +174,7 @@ export const SelectionHandles = memo(function SelectionHandles({
       ))}
       {HANDLE_CONFIGS.map((config) => {
         const pos = config.getPosition(selection)
+
         return (
           <div
             key={config.id}

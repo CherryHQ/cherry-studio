@@ -35,6 +35,7 @@ export function handleGuarded(
 ): void {
   ipcMain.handle(channel, (event, ...args) => {
     assertTrustedSender(event, channel, appRootDir)
+
     return handler(event, ...args)
   })
 }

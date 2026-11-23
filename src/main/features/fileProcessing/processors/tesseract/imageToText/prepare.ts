@@ -21,6 +21,7 @@ export function prepareContext(
   }
 
   const optionsResult = TesseractProcessorOptionsSchema.safeParse(config.options ?? {})
+
   if (!optionsResult.success) {
     logger.warn('Invalid Tesseract OCR options; falling back to default languages', optionsResult.error, {
       processorId: config.id

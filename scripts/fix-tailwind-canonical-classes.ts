@@ -43,9 +43,13 @@ const requireFromCwd = createRequire(`${process.cwd()}${path.sep}`)
 
 function getScriptKind(filePath: string): ts.ScriptKind {
   const ext = path.extname(filePath)
+
   if (ext === '.tsx') return ts.ScriptKind.TSX
+
   if (ext === '.jsx') return ts.ScriptKind.JSX
+
   if (ext === '.js' || ext === '.mjs' || ext === '.cjs') return ts.ScriptKind.JS
+
   return ts.ScriptKind.TS
 }
 
@@ -55,7 +59,9 @@ function isCnCall(node: ts.CallExpression): boolean {
 
 function getJsxAttributeName(name: ts.JsxAttributeName): string | null {
   if (ts.isIdentifier(name)) return name.text
+
   if (ts.isJsxNamespacedName(name)) return `${name.namespace.text}:${name.name.text}`
+
   return null
 }
 
@@ -72,6 +78,7 @@ function makeStringReplacement(
   const start = node.getStart()
   const end = node.getEnd()
   const quote = source[start]
+
   return {
     start: start + 1,
     end: end - 1,
@@ -82,6 +89,7 @@ function makeStringReplacement(
 
 function canonicalizeClassText(designSystem: DesignSystem, value: string) {
   const tokens = value.trim().split(/\s+/).filter(Boolean)
+
   if (tokens.length === 0) {
     return { text: value, count: 0 }
   }
@@ -89,6 +97,7 @@ function canonicalizeClassText(designSystem: DesignSystem, value: string) {
   const canonicalTokens = designSystem
     .canonicalizeCandidates(tokens, CANONICALIZE_OPTIONS)
     .map((token, index) => canonicalizeCssVariableToken(tokens[index], token))
+
   const count = tokens.reduce((total, token, index) => total + (token === canonicalTokens[index] ? 0 : 1), 0)
 
   return { text: canonicalTokens.join(' '), count }
@@ -96,10 +105,12 @@ function canonicalizeClassText(designSystem: DesignSystem, value: string) {
 
 function canonicalizeCssVariableToken(originalToken: string, canonicalToken: string): string {
   const match = originalToken.match(/^(?<prefix>.*-\[)var\((?<variable>--[A-Za-z0-9_-]+)\)\]!?$/)
+
   if (!match?.groups) return canonicalToken
 
   const prefix = match.groups.prefix.slice(0, -1)
   const important = originalToken.endsWith('!') ? '!' : ''
+
   return `${prefix}(${match.groups.variable})${important}`
 }
 
@@ -110,6 +121,7 @@ function addLiteralReplacement(
   node: ts.StringLiteralLike
 ): void {
   const result = canonicalizeClassText(designSystem, node.text)
+
   if (result.count === 0) return
 
   replacements.push(makeStringReplacement(source, node, result.text, result.count))
@@ -127,6 +139,7 @@ function collectCanonicalClassFindings(
   node: ts.StringLiteralLike
 ): void {
   const tokens = node.text.trim().split(/\s+/).filter(Boolean)
+
   if (tokens.length === 0) return
 
   const canonicalTokens = designSystem
@@ -154,6 +167,7 @@ function collectReplacements(source: string, filePath: string, designSystem: Des
   function visit(node: ts.Node): void {
     if (ts.isJsxAttribute(node) && node.initializer) {
       const attributeName = getJsxAttributeName(node.name)
+
       if (attributeName && CLASS_ATTRIBUTES.has(attributeName)) {
         if (ts.isStringLiteral(node.initializer)) {
           addLiteralReplacement(replacements, source, designSystem, node.initializer)
@@ -190,6 +204,7 @@ function collectReplacements(source: string, filePath: string, designSystem: Des
   }
 
   visit(sourceFile)
+
   return replacements
 }
 
@@ -204,6 +219,7 @@ export function findTailwindCanonicalClassFindingsInContent(
   function visit(node: ts.Node): void {
     if (ts.isJsxAttribute(node) && node.initializer) {
       const attributeName = getJsxAttributeName(node.name)
+
       if (attributeName && CLASS_ATTRIBUTES.has(attributeName)) {
         if (ts.isStringLiteral(node.initializer)) {
           collectCanonicalClassFindings(findings, content, sourceFile, designSystem, node.initializer)
@@ -240,6 +256,7 @@ export function findTailwindCanonicalClassFindingsInContent(
   }
 
   visit(sourceFile)
+
   return findings
 }
 
@@ -262,8 +279,10 @@ async function resolveStylesheet(id: string, base: string, cwd: string): Promise
 
   if (id === '@cherrystudio/ui/styles/theme.css') {
     const sourcePath = path.join(cwd, 'packages/ui/src/styles/theme.css')
+
     try {
       await fs.access(sourcePath)
+
       return sourcePath
     } catch {
       return requireFromCwd.resolve(id)
@@ -286,6 +305,7 @@ export async function loadTailwindDesignSystem(cwd = process.cwd()): Promise<Des
     from: entryPath,
     loadStylesheet: async (id, base) => {
       const stylesheetPath = await resolveStylesheet(id, base, cwd)
+
       return {
         path: stylesheetPath,
         base: path.dirname(stylesheetPath),
@@ -307,11 +327,13 @@ async function listSourceFiles(targetPath: string): Promise<string[]> {
   }
 
   const entries = await fs.readdir(targetPath, { withFileTypes: true })
+
   const files = await Promise.all(
     entries
       .toSorted((a, b) => a.name.localeCompare(b.name))
       .map(async (entry) => {
         const entryPath = path.join(targetPath, entry.name)
+
         if (entry.isDirectory()) {
           return IGNORED_DIRS.has(entry.name) ? [] : listSourceFiles(entryPath)
         }
@@ -329,6 +351,7 @@ async function listSourceFiles(targetPath: string): Promise<string[]> {
 
 export async function processPath(targetPath: string, designSystem: DesignSystem): Promise<ProcessSummary> {
   const files = await listSourceFiles(targetPath)
+
   const summary: ProcessSummary = {
     scannedFiles: files.length,
     changedFiles: 0,
@@ -338,6 +361,7 @@ export async function processPath(targetPath: string, designSystem: DesignSystem
   for (const filePath of files) {
     const source = await fs.readFile(filePath, 'utf8')
     const replacements = collectReplacements(source, filePath, designSystem)
+
     if (replacements.length === 0) continue
 
     await fs.writeFile(filePath, applyReplacements(source, replacements))
@@ -359,14 +383,17 @@ export async function runCli(argv = process.argv.slice(2), options: RunCliOption
 
   if (argv.length !== 1) {
     printUsage(stderr)
+
     return 1
   }
 
   const targetPath = path.resolve(cwd, argv[0])
+
   try {
     await fs.stat(targetPath)
   } catch {
     stderr.write(`Path does not exist: ${argv[0]}\n`)
+
     return 1
   }
 
@@ -380,6 +407,7 @@ export async function runCli(argv = process.argv.slice(2), options: RunCliOption
 }
 
 const currentFile = fileURLToPath(import.meta.url)
+
 if (process.argv[1] && path.resolve(process.argv[1]) === currentFile) {
   void runCli()
     .then((exitCode) => {

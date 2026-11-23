@@ -19,22 +19,28 @@ const logger = loggerService.withContext('BackupRestoreGate')
 export function prepareBackupRestoreSession(): boolean {
   const result = readRestoreJournal()
   const pending = result.kind === 'ok' && (result.journal.state === 'staged' || result.journal.state === 'promoting')
+
   if (pending && app.isReady()) {
     throw new Error('Restore session isolation must run before Electron is ready')
   }
+
   const sessionRoot = application.getPath('feature.backup.restore.session')
+
   try {
     fs.rmSync(sessionRoot, { recursive: true, force: true })
   } catch (error) {
     logger.warn('Could not clean up the previous restore session', { error })
   }
+
   if (!pending) {
     return false
   }
+
   fs.mkdirSync(sessionRoot, { recursive: true })
   const sessionDataPath = fs.mkdtempSync(application.getPath('feature.backup.restore.session', 'session-'))
   app.setPath('sessionData', sessionDataPath)
   logger.info('Prepared isolated sessionData for backup restore', { sessionDataPath })
+
   return true
 }
 
@@ -65,30 +71,39 @@ export async function runBackupRestoreGate(isolatedSession = false): Promise<'ha
     await runRestorePromotion()
   } catch (error) {
     logger.error('Restore promotion crashed unexpectedly — attempting last-resort recovery', error as Error)
+
     try {
       markRestoreFailedAfterCrash()
     } catch (journalError) {
       logger.error('Failed to mark the restore journal as failed', journalError as Error)
     }
+
     if (isLiveDbStranded()) {
       throw new Error(
         'Restore recovery failed: the live database is missing while the previous database is still parked aside — refusing to boot into an empty database'
       )
     }
   }
+
   const result = readRestoreJournal()
+
   if (result.kind === 'ok' && (result.journal.state === 'failed' || result.journal.state === 'expired')) {
     await app.whenReady()
     const language = resolveSystemLanguage(app.getLocale())
     dialog.showErrorBox(t('backup.restore.failed', undefined, language), t('backup.restore.retry', undefined, language))
   }
+
   cleanupTerminalRestoreArtifacts()
+
   if (isolatedSession) {
     if (readRestoreJournal().kind !== 'none') {
       throw new Error('Restore journal remains unresolved — refusing to relaunch or bootstrap with an isolated session')
     }
+
     application.relaunch()
+
     return 'handled'
   }
+
   return 'skipped'
 }

@@ -35,6 +35,7 @@ export class NodeProxyController {
     const proxyUrl = config.proxyRules?.trim()
     const normalizedBypassRules = normalizeProxyBypassRules(config.proxyBypassRules)
     const loopbackEscape = normalizedBypassRules.some((rule) => rule.toLowerCase() === '<-loopback>')
+
     // Keep local services reachable independently of the configured proxy. The matcher resolves
     // conflicts the way Chromium's does — later rules override earlier rules — so with the
     // `<-loopback>` escape hatch armed these defaults must stay out: appended at the end they
@@ -44,13 +45,16 @@ export class NodeProxyController {
         if (!normalizedBypassRules.includes(hostname)) normalizedBypassRules.push(hostname)
       }
     }
+
     // NO_PROXY goes out verbatim for child processes; the in-process undici path ignores it (the
     // backend arms EnvHttpProxyAgent without NO_PROXY), so the shared matcher is the single
     // bypass decision and the ordered semantics hold end to end.
     const configKey = JSON.stringify({ proxyUrl: proxyUrl ?? null, proxyBypassRules: normalizedBypassRules })
+
     if (this.currentConfigKey === configKey) return
 
     const proxyEndpoint = normalizeProxyEndpoint(proxyUrl)
+
     if (proxyEndpoint) {
       await this.getBackend().then((backend) =>
         backend.configure(proxyUrl, proxyEndpoint, normalizedBypassRules, () =>
@@ -74,14 +78,17 @@ export class NodeProxyController {
     this.backendPromise ??= import('./NodeProxyBackend').then(
       ({ NodeProxyBackend }) => new NodeProxyBackend(this.logger)
     )
+
     return this.backendPromise
   }
 
   private setEnvironment(url: string | undefined, normalizedBypassRules: string[]): void {
     for (const key of PROXY_ENV_KEYS) delete process.env[key]
+
     if (!url) return
 
     const env = buildNodeProxyEnvironment({ proxyRules: url, proxyBypassRules: normalizedBypassRules })
+
     for (const [key, value] of Object.entries(env)) process.env[key] = value
   }
 }

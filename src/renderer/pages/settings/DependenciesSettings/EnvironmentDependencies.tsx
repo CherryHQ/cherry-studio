@@ -102,12 +102,15 @@ const TOOL_IMAGE_ICONS: ReadonlyMap<string, string> = new Map([['babeldoc-stream
 
 const ToolIcon: FC<{ name?: string; icon?: string; className?: string }> = ({ name, icon, className }) => {
   const imageSrc = name ? TOOL_IMAGE_ICONS.get(name) : undefined
+
   if (imageSrc) {
     return <img src={imageSrc} alt="" className={cn('size-5 rounded-[5px]', className)} />
   }
+
   if (icon) {
     return <Icon icon={icon} className={cn('size-5', className)} />
   }
+
   return <Terminal className={cn('size-5', className)} />
 }
 
@@ -132,6 +135,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [showInstallSettings, setShowInstallSettings] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ name: string; runtime: boolean; custom: boolean } | null>(null)
   const [installError, setInstallError] = useState<BinaryOperationError | null>(null)
+
   // A custom tool whose backend cleanup was blocked: preserve the typed result so
   // the second confirmation can explain why cleanup stopped before offering the
   // explicitly destructive definition-only escape hatch.
@@ -139,12 +143,14 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     name: string
     result: CleanupBlockedResult
   } | null>(null)
+
   // Retain the last target so the confirm dialog keeps its message during the close animation.
   const deleteTargetRef = useRef<{ name: string; runtime: boolean; custom: boolean }>({
     name: '',
     runtime: false,
     custom: false
   })
+
   if (deleteTarget) deleteTargetRef.current = deleteTarget
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -155,6 +161,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   useEffect(() => {
     mountedRef.current = true
+
     return () => {
       mountedRef.current = false
     }
@@ -164,25 +171,32 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     const requestId = ++resolutionRequestIdRef.current
     const sizeGeneration = ++sizeGenerationRef.current
     setInstalledSizes({})
+
     try {
       const nextSnapshots = await ipcApi.request(
         'binary.get_tool_snapshots',
         PRESETS_BINARY_TOOLS.map((tool) => tool.name)
       )
+
       if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return false
       setSnapshots(nextSnapshots)
       setResolutionsReady(true)
       setSizeSnapshotGeneration(sizeGeneration)
+
       const queryFailure = Object.values(nextSnapshots).find(
         (snapshot) => snapshot.application?.status === 'unknown' && snapshot.application.reason === 'query_failed'
       )?.application
+
       if (propagateError && queryFailure?.status === 'unknown') {
         throw new Error(queryFailure.message ?? queryFailure.reason)
       }
+
       return true
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
+
       if (propagateError) throw error
+
       return false
     }
   }, [])
@@ -191,25 +205,33 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     async (force = false): Promise<Record<string, string> | null> => {
       const requestId = ++latestRequestIdRef.current
       setCheckingUpdates(true)
+
       try {
         const [versionsResult, stateResult] = await Promise.allSettled([
           ipcApi.request('binary.get_latest_versions', force),
           force ? refreshState(true) : Promise.resolve(true)
         ])
+
         if (versionsResult.status === 'rejected') throw versionsResult.reason
+
         if (stateResult.status === 'rejected') throw stateResult.reason
+
         if (mountedRef.current && requestId === latestRequestIdRef.current) {
           setLatestVersions(versionsResult.value)
+
           // Only the manual refresh (force) gets a toast — the background check on
           // mount must stay silent.
           if (force && stateResult.value) toast.success(t('settings.dependencies.updateCheckSuccess'))
         }
+
         return versionsResult.value
       } catch (error) {
         logger.error('Failed to fetch latest versions', error as Error)
+
         if (force && mountedRef.current && requestId === latestRequestIdRef.current) {
           toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
         }
+
         return null
       } finally {
         if (mountedRef.current && requestId === latestRequestIdRef.current) setCheckingUpdates(false)
@@ -243,6 +265,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     () => Object.values(snapshots).filter((snapshot) => !CODE_CLI_BINARIES.has(snapshot.name) && !!snapshot.definition),
     [snapshots]
   )
+
   // Operation status is part of each snapshot, so a window mounted mid-mutation
   // renders the same state as the window that initiated it. Install/update are
   // name-only: main resolves the fixed/custom recipe and never persists a recipe
@@ -251,6 +274,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const installTool = async (name: string, targetVersion?: string): Promise<void> => {
     try {
       const input: InputFor<'binary.install_tool'> = { name }
+
       if (targetVersion) input.targetVersion = targetVersion
       await ipcApi.request('binary.install_tool', input)
     } catch (error) {
@@ -273,6 +297,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       ...inventorySnapshots.map((snapshot) => snapshot.name),
       ...CODE_CLI_BINARIES
     ]
+
     if (allNames.includes(tool.name)) {
       toast.error(t('settings.dependencies.duplicateName'))
       throw new Error('duplicate')
@@ -300,6 +325,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const handleRemoveTool = async (target: { name: string; custom: boolean }) => {
     try {
       const result = await ipcApi.request('binary.remove_tool', { name: target.name })
+
       if (result.status === 'cleanup_blocked') {
         if (target.custom) {
           setDefinitionFallback({ name: target.name, result })
@@ -310,6 +336,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             action: 'remove'
           })
         }
+
         return
       }
     } catch (error) {
@@ -345,19 +372,23 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     () => inventorySnapshots.filter((snapshot) => !PRESETS_BINARY_TOOLS.some((tool) => tool.name === snapshot.name)),
     [inventorySnapshots]
   )
+
   useEffect(() => {
     if (mini || sizeSnapshotGeneration !== sizeGenerationRef.current) return
     let active = true
     const generation = sizeSnapshotGeneration
+
     const names = [
       ...new Set([...PRESETS_BINARY_TOOLS.map((tool) => tool.name), ...extraTools.map((tool) => tool.name)])
     ]
+
     void ipcApi.request('binary.get_tool_installed_sizes', names).then(
       (sizes) => {
         if (active && mountedRef.current && generation === sizeGenerationRef.current) setInstalledSizes(sizes)
       },
       () => undefined
     )
+
     return () => {
       active = false
     }
@@ -370,6 +401,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
     const uvAvailable = !!snapshots.uv && snapshots.uv.availability.source !== 'none'
     const bunAvailable = !!snapshots.bun && snapshots.bun.availability.source !== 'none'
+
     if (uvAvailable && bunAvailable) {
       return null
     }
@@ -429,6 +461,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           const snapshot = snapshots[tool.name]
           const latestVersion = latestVersions?.[tool.name]
           const view = interpretBinarySnapshot(snapshot, { latest: latestVersion })
+
           return (
             <BinaryToolPresetCard
               key={tool.name}
@@ -471,6 +504,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           // authoritative — availability never supplies the displayed spec.
           const toolSpec = snapshot.definition?.tool ?? snapshot.name
           const runtime = isRuntimeDependency(toolSpec)
+
           return (
             <CustomToolCard
               key={snapshot.name}
@@ -599,6 +633,7 @@ const BinaryToolPresetCard: FC<{
   const applied = applicationStatus === 'applied'
   const broken = applicationStatus === 'broken'
   const backendControllable = applied || broken
+
   const canInstall =
     (applicationStatus === 'absent' && source === 'none') || applicationStatus === 'unknown' || broken || failedInstall
 
@@ -785,6 +820,7 @@ const CustomToolCard: FC<{
   // an absent recipe with no external copy, and a prior failed install. An
   // externally satisfied (bundled/system) tool exposes neither — Remove only.
   const canUpdate = applicationStatus === 'applied'
+
   const canInstall =
     applicationStatus === 'broken' ||
     applicationStatus === 'unknown' ||
@@ -948,15 +984,19 @@ function AddToolDialog({
       setResults([])
       setSearching(false)
       setSearchError(false)
+
       return
     }
 
     const id = ++searchIdRef.current
+
     const timer = setTimeout(async () => {
       setSearching(true)
       setSearchError(false)
+
       try {
         const res = await ipcApi.request('binary.search_registry', query.trim())
+
         if (id === searchIdRef.current) setResults(res)
       } catch {
         if (id === searchIdRef.current) {
@@ -981,6 +1021,7 @@ function AddToolDialog({
   const handleSubmit = async () => {
     if (!selectedName.trim() || !selectedTool.trim()) return
     setAdding(true)
+
     try {
       await onAdd({
         name: selectedName.trim(),
@@ -1066,6 +1107,7 @@ function AddToolDialog({
 const isValidUrl = (value: string): boolean => {
   try {
     const url = new URL(value)
+
     return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password
   } catch {
     return false
@@ -1091,6 +1133,7 @@ const UrlPresetField: FC<{
   // The default preset's value is '' (no override); give it a non-empty
   // dropdown id so selection isn't lost to empty-string falsiness.
   const DEFAULT_ITEM_ID = '__default__'
+
   const items = presets.map((preset) => ({
     id: preset.url || DEFAULT_ITEM_ID,
     url: preset.url,
@@ -1167,6 +1210,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
     setDraft((current) => {
       const next = { ...current, [key]: value }
       draftRef.current = next
+
       return next
     })
   }
@@ -1183,6 +1227,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
     if (!nextOpen) setShowToken(false)
     onOpenChange(nextOpen)
   }
+
   const commit = (updates: Partial<BinaryInstallSettings>) => {
     const next = { ...draftRef.current, ...updates }
     draftRef.current = next
@@ -1193,10 +1238,13 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
         toast.error(formatErrorMessage(error))
       })
   }
+
   const commitUrl = (key: 'githubMirror' | 'npmRegistry' | 'pipIndexUrl', value: string) => {
     const trimmed = value.trim()
+
     if (trimmed && !isValidUrl(trimmed)) return // invalid stays in the draft, never persisted
     updateDraft(key, trimmed)
+
     if (trimmed !== settingsRef.current[key]) commit({ [key]: trimmed })
   }
 

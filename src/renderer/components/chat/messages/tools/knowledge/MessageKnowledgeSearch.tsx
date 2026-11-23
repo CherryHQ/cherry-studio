@@ -53,6 +53,7 @@ export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse
 
 export function MessageKnowledgeSearchToolBody({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const outputParse = kbSearchOutputSchema.safeParse(toolResponse.response)
+
   if (toolResponse.status !== 'done' || !outputParse.success) return null
 
   return (

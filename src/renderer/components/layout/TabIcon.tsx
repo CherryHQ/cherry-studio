@@ -20,6 +20,7 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
   // itself loads async (a size-stable placeholder covers that brief window).
   const Logo = useMiniAppLogo(tab.icon)
   const isMiniApp = tab.url.startsWith(MINI_APP_ROUTE_PREFIX)
+
   if (tab.url === '/app/browser' || tab.url.startsWith('/app/browser?')) {
     return (
       <Avatar className={cn('rounded-[3px]', className)} style={{ width: size, height: size }}>
@@ -30,11 +31,13 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
       </Avatar>
     )
   }
+
   if (tab.icon) {
     // Per-entity emoji (chat assistant / agent avatar), stored as `emoji:<glyph>`.
     if (tab.icon.startsWith(TAB_ICON_EMOJI_PREFIX)) {
       return <EmojiIcon emoji={tab.icon.slice(TAB_ICON_EMOJI_PREFIX.length)} size={size} className={className} />
     }
+
     if (getMiniAppsLogoRef(tab.icon)) {
       return Logo ? (
         <Logo.Avatar size={size} shape={isMiniApp ? 'circle' : 'rounded'} className={cn('select-none', className)} />
@@ -42,6 +45,7 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
         <span className={cn('inline-block shrink-0', className)} style={{ width: size, height: size }} />
       )
     }
+
     if (isMiniApp) {
       return (
         <img
@@ -53,6 +57,7 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
         />
       )
     }
+
     return (
       <img
         src={tab.icon}
@@ -63,6 +68,8 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
       />
     )
   }
+
   const Icon = getTabIcon(tab)
+
   return <Icon size={size} strokeWidth={1.6} className={className} />
 }

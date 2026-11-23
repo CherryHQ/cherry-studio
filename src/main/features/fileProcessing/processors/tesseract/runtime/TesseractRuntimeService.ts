@@ -108,11 +108,13 @@ export class TesseractRuntimeService extends BaseService {
 
       // Delayed loading: tesseract.js only loads when an OCR task actually needs a worker.
       const { createWorker } = await import('tesseract.js')
+
       const nextWorker = await createWorker(langs, undefined, {
         langPath: await this.getLangPath(),
         cachePath: await this.getCacheDir(),
         logger: (message) => logger.debug('Tesseract worker event', message)
       })
+
       try {
         this.throwIfStopped()
       } catch (error) {
@@ -145,16 +147,19 @@ export class TesseractRuntimeService extends BaseService {
     }
 
     let rejectAbort!: (error: Error) => void
+
     const abortHandler = () => {
       void this.invalidateWorker(worker).catch((error) => {
         logger.warn('Failed to terminate Tesseract worker after task abort', error as Error)
       })
       rejectAbort(this.createAbortError(signal.reason))
     }
+
     const abortPromise = new Promise<never>((_, reject) => {
       rejectAbort = reject
       signal.addEventListener('abort', abortHandler, { once: true })
     })
+
     if (signal.aborted) {
       abortHandler()
     }
@@ -162,6 +167,7 @@ export class TesseractRuntimeService extends BaseService {
     try {
       const result = await Promise.race([recognizePromise, abortPromise])
       signal?.throwIfAborted()
+
       return result
     } finally {
       signal.removeEventListener('abort', abortHandler)
@@ -180,6 +186,7 @@ export class TesseractRuntimeService extends BaseService {
   private async disposeWorker(): Promise<void> {
     if (!this.sharedWorker) {
       this.previousLangsKey = null
+
       return
     }
 
@@ -237,6 +244,7 @@ export class TesseractRuntimeService extends BaseService {
 
   private async getLangPath(): Promise<string> {
     const country = await regionService.getCountry()
+
     return country.toLowerCase() === 'cn' ? TESSERACT_LANGS_DOWNLOAD_URL_CN : ''
   }
 
@@ -271,6 +279,7 @@ export class TesseractRuntimeService extends BaseService {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AbortSignal reasons are arbitrary values; preserve an existing AbortError and normalize other reasons at the OCR cancellation boundary.
   private createAbortError(reason: unknown): Error {
     let message = 'The operation was aborted'
+
     try {
       if (reason instanceof Error) {
         if (reason.name === 'AbortError') return reason
@@ -282,6 +291,7 @@ export class TesseractRuntimeService extends BaseService {
 
     const error = new Error(message)
     error.name = 'AbortError'
+
     return error
   }
 }

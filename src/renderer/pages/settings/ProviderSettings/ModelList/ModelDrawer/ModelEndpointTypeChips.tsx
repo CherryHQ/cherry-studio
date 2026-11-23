@@ -18,11 +18,13 @@ export function ModelEndpointTypeChips({ value, onChange }: ModelEndpointTypeChi
 
   const toggle = (id: ModelDrawerEndpointType) => {
     const next = new Set(selected)
+
     if (next.has(id)) {
       next.delete(id)
     } else {
       next.add(id)
     }
+
     const ordered = MODEL_ENDPOINT_OPTIONS.map((option) => option.id).filter((optionId) => next.has(optionId))
     onChange(ordered)
   }
@@ -31,6 +33,7 @@ export function ModelEndpointTypeChips({ value, onChange }: ModelEndpointTypeChi
     <div className={drawerClasses.endpointChipRow}>
       {MODEL_ENDPOINT_OPTIONS.map((option) => {
         const active = selected.has(option.id)
+
         return (
           <Button
             key={option.id}

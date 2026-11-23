@@ -23,6 +23,7 @@ export async function selectOption(session: GuestSession, ref: BrowserRef, value
         [values],
         options
       )
+
       if (!ok) throw new BrowserSessionError('not_found')
     },
     options

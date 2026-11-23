@@ -44,6 +44,7 @@ const RIGHT_PANE_RESTORE_TRANSITION = { duration: 0.42, ease: CHAT_SHELL_TRANSIT
 
 export const RIGHT_PANE_CLIP_COLLAPSED = 'inset(0% 0% 0% 100%)'
 export const RIGHT_PANE_CLIP_REVEALED = 'inset(0% 0% 0% 0%)'
+
 /** Resolves against the main region, so spanning it never depends on a measurement. */
 export const RIGHT_PANE_WIDTH_FULL = '100%'
 
@@ -65,12 +66,15 @@ export function getRightPanePhaseTransition(phase: PersistentRightPanePhase) {
 
 export function getInitialPersistentRightPaneState(targetMode: RightPaneLayoutMode): PersistentRightPaneVisualState {
   if (targetMode === 'docked') return { phase: 'docked', reservesDockedSpace: true }
+
   if (targetMode === 'maximized') return { phase: 'maximized', reservesDockedSpace: false }
+
   return { phase: 'closed', reservesDockedSpace: false }
 }
 
 export function getSettledRightPaneMode(phase: PersistentRightPanePhase): RightPaneLayoutMode | null {
   if (phase === 'closed' || phase === 'docked' || phase === 'maximized') return phase
+
   return null
 }
 
@@ -143,6 +147,7 @@ export function planPersistentRightPaneTransition(
   // changed, so one that interrupts a close resumes from wherever it left the pane.
   if (targetMode === 'docked') {
     const runningPhase = isFullWidthRightPanePhase(currentPhase) ? 'minimizing' : 'opening-docked'
+
     return {
       // The box itself carries the shrink, so the pane content reflows into its docked layout
       // with the motion instead of committing once the motion has finished.

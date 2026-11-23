@@ -45,6 +45,7 @@ export const localDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'do
     if (file.ext?.toLowerCase() !== 'pdf') {
       throw new Error(`Local document processing only supports PDF files, got ${file.ext ?? 'no extension'}`)
     }
+
     if (!application.get('LocalModelService').isDefaultModelReady('ocr')) {
       throw new Error('Local OCR model is not downloaded')
     }
@@ -53,6 +54,7 @@ export const localDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'do
     signal?.throwIfAborted()
 
     const { pageCount, hasTextlessPages } = await inspectPdf(pdfBytes)
+
     if (pageCount > MAX_PDF_PAGES) {
       throw new Error(`PDF has ${pageCount} pages, which exceeds the ${MAX_PDF_PAGES}-page local processing limit`)
     }
@@ -65,6 +67,7 @@ export const localDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'do
 
           if (anydocMarkdown !== null) {
             executionContext.reportProgress(100)
+
             return { kind: 'markdown', markdownContent: anydocMarkdown }
           }
         }
@@ -72,6 +75,7 @@ export const localDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'do
         logger.info('PDF requires OCR fallback; using local OCR for the complete document', {
           pageCount
         })
+
         return {
           kind: 'markdown',
           markdownContent: await ocrPdfPagesToMarkdown(pdfBytes, pageCount, executionContext)
@@ -91,6 +95,7 @@ async function convertWithAnydoc(pdfBytes: Uint8Array): Promise<string | null> {
     if (isScannedPdfError(error)) {
       return null
     }
+
     // Encrypted and malformed PDFs are equally unreadable to the rasterizer, so
     // there is nothing to gain from spending minutes on OCR before failing.
     throw error
@@ -105,8 +110,10 @@ export function isScannedPdfError(error: unknown): boolean {
 
 async function inspectPdf(pdfBytes: Uint8Array): Promise<{ pageCount: number; hasTextlessPages: boolean }> {
   const parser = await createPdfParser({ data: pdfBytes })
+
   try {
     const result = await parser.getText()
+
     return {
       pageCount: result.total,
       hasTextlessPages: result.pages.some((page) => page.text.trim().length === 0)

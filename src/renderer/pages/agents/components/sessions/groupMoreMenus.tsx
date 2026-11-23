@@ -47,6 +47,7 @@ export function AgentGroupMoreMenu({
   permanentDeleteShortcut?: string
 }) {
   const { t } = useTranslation()
+
   const actionContext: AgentGroupActionContext = {
     agentId,
     assistantIconType,
@@ -65,7 +66,9 @@ export function AgentGroupMoreMenu({
     sidebarPinned,
     t
   }
+
   const actions = resolveAgentGroupActions(actionContext)
+
   const extraItems = actionsToCommandMenuExtraItems(actions, (action) => {
     void executeAgentGroupAction(action, actionContext)
   })
@@ -112,6 +115,7 @@ export function WorkdirGroupMoreMenu({
   workdirPath: string
 }) {
   const { t } = useTranslation()
+
   const actionContext: WorkdirGroupActionContext = {
     canPin,
     pinned,
@@ -128,7 +132,9 @@ export function WorkdirGroupMoreMenu({
     t,
     workdirPath
   }
+
   const actions = resolveWorkdirGroupActions(actionContext)
+
   const extraItems = actionsToCommandMenuExtraItems(actions, (action) => {
     void executeWorkdirGroupAction(action, actionContext)
   })

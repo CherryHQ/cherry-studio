@@ -48,6 +48,7 @@ export class FlushController {
   /** Wait for any in-progress flush to finish. */
   waitForFlush(): Promise<void> {
     if (!this.flushInProgress) return Promise.resolve()
+
     return new Promise<void>((resolve) => this.flushResolvers.push(resolve))
   }
 
@@ -60,13 +61,16 @@ export class FlushController {
   async flush(): Promise<void> {
     if (this.flushInProgress || this._completed) {
       if (this.flushInProgress && !this._completed) this.needsReflush = true
+
       return
     }
+
     this.flushInProgress = true
     this.needsReflush = false
     // Update timestamp BEFORE the API call to prevent concurrent callers
     // from also entering the flush.
     this.lastUpdateTime = Date.now()
+
     try {
       await this.doFlush()
       this.lastUpdateTime = Date.now()
@@ -74,6 +78,7 @@ export class FlushController {
       this.flushInProgress = false
       const resolvers = this.flushResolvers
       this.flushResolvers = []
+
       for (const resolve of resolvers) resolve()
 
       // If events arrived while the API call was in flight,
@@ -99,6 +104,7 @@ export class FlushController {
 
     if (elapsed >= throttleMs) {
       this.cancelPendingFlush()
+
       if (elapsed > LONG_GAP_THRESHOLD_MS) {
         // After a long gap, batch briefly so the first visible update
         // contains meaningful text rather than just 1-2 characters.

@@ -23,15 +23,18 @@ const logger = loggerService.withContext('miniAppNetwork')
  */
 export function shouldAllowRequest(url: string, appId: string): boolean {
   let parsed: URL
+
   try {
     parsed = new URL(url)
   } catch {
     return false
   }
+
   // DevTools' own frontend loads inside the guest's session. The guest cannot reach
   // `devtools:` itself — it is a privileged scheme, not web-accessible — so admitting it
   // opens nothing to the page; refusing it leaves the DevTools window blank.
   if (parsed.protocol === 'devtools:') return true
+
   // Not `startsWith`: `cherry-miniapp://com.example.a.evil` shares the prefix.
   return parsed.protocol === `${MINI_APP_SCHEME}:` && parsed.host === appId
 }
@@ -41,6 +44,7 @@ export async function installNetworkPolicy(session: Electron.Session, appId: str
     // No host allowlist here: the guest document may not reach the network at all. Remote
     // bytes arrive only via `cherry.network.fetch`, which checks hosts in the main process.
     const allowed = shouldAllowRequest(details.url, appId)
+
     if (!allowed) logger.debug('Blocked mini app request', { appId, url: details.url })
     callback({ cancel: !allowed })
   })

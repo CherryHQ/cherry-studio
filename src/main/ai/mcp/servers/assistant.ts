@@ -42,6 +42,7 @@ export function isBlockedSourceFile(basename: string): boolean {
   const isSensitiveEnv = name.startsWith('.env') && name !== '.env.example'
   const isPrivateKeyOrCert = /\.(pem|key|p12|pfx)$/.test(name)
   const isExactSensitive = ['credentials.json', 'id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519'].includes(name)
+
   return isSensitiveEnv || isPrivateKeyOrCert || isExactSensitive
 }
 
@@ -60,13 +61,17 @@ function resolveRealOrNearestExistingPath(targetPath: string): string {
       try {
         const realCurrentPath = fs.realpathSync(currentPath)
         const relativeSuffix = path.relative(currentPath, targetPath)
+
         return path.normalize(path.join(realCurrentPath, relativeSuffix))
       } catch {
         const parentPath = path.dirname(currentPath)
+
         if (parentPath === currentPath) {
           logger.warn('Could not resolve any existing ancestor for path', { targetPath })
+
           return path.normalize(targetPath)
         }
+
         currentPath = parentPath
       }
     }
@@ -93,6 +98,7 @@ const APPLY_SETTING_REGISTRY = {
     hint: 'theme: light | dark | system',
     apply: async (value) => {
       await application.get('PreferenceService').set('ui.theme_mode', value as ThemeMode)
+
       return `Theme switched to ${value}.`
     }
   }
@@ -111,13 +117,16 @@ function jsonResult(value: unknown): CallToolResult {
 
 function textResult(text: string, isError?: true): CallToolResult {
   const result: CallToolResult = { content: [{ type: 'text', text }] }
+
   if (isError) result.isError = isError
+
   return result
 }
 
 function readProductManifest(): JSONObject {
   const manifestPath = application.getPath('feature.agents.assistant.manifest.file')
   let rawManifest: string
+
   try {
     rawManifest = fs.readFileSync(manifestPath, 'utf-8')
   } catch {
@@ -125,19 +134,23 @@ function readProductManifest(): JSONObject {
   }
 
   let manifest: JSONValue
+
   try {
     manifest = JSON.parse(rawManifest)
   } catch {
     throw new Error('Product manifest contains invalid JSON')
   }
+
   const manifestRecord =
     typeof manifest === 'object' && manifest !== null && !Array.isArray(manifest) ? manifest : undefined
+
   const packageRecord =
     typeof manifestRecord?.package === 'object' &&
     manifestRecord.package !== null &&
     !Array.isArray(manifestRecord.package)
       ? manifestRecord.package
       : undefined
+
   if (
     manifestRecord?.schemaVersion !== 1 ||
     typeof packageRecord?.version !== 'string' ||
@@ -145,15 +158,19 @@ function readProductManifest(): JSONObject {
   ) {
     throw new Error('Product manifest schema is invalid')
   }
+
   return manifestRecord
 }
 
 function getManifestNavigationRoutes(manifest: JSONObject): string[] {
   const routes = manifest.routes
+
   if (typeof routes !== 'object' || routes === null || Array.isArray(routes)) {
     throw new Error('Product manifest routes are invalid')
   }
+
   const allRoutes = routes.all
+
   if (!Array.isArray(allRoutes)) {
     throw new Error('Product manifest routes are invalid')
   }
@@ -177,6 +194,7 @@ function navigate(args: z.infer<typeof NavigateInputSchema>): CallToolResult {
   const normalizedPath = args.path.startsWith('/') ? args.path : `/${args.path}`
 
   const allowedRoutes = getManifestNavigationRoutes(readProductManifest())
+
   if (!isAllowedNavigationPath(normalizedPath, allowedRoutes)) {
     throw new Error(`Blocked navigation to disallowed route: ${normalizedPath}`)
   }
@@ -187,6 +205,7 @@ function navigate(args: z.infer<typeof NavigateInputSchema>): CallToolResult {
   // Don't actually navigate here — the renderer will show a clickable button
   // that the user can click to navigate. This keeps the tool non-blocking.
   logger.info('Navigate tool called (deferred to user click)', { path: fullPath })
+
   return textResult(`Navigate link created: ${fullPath}`)
 }
 
@@ -206,6 +225,7 @@ function productInfo({ section }: z.infer<typeof ProductInfoInputSchema>): CallT
   const manifestVersion = (manifest.package as JSONObject).version
 
   let result: JSONObject
+
   if (section === undefined) {
     result = {
       runtimeVersion: app.getVersion(),
@@ -232,12 +252,14 @@ const ApplySettingInputSchema = z.object({
 
 async function applySetting({ setting, value }: z.infer<typeof ApplySettingInputSchema>): Promise<CallToolResult> {
   const entry: ApplySettingEntry = APPLY_SETTING_REGISTRY[setting]
+
   if (!entry.allowed.includes(value)) {
     throw new Error(`Value '${value}' is not valid for setting '${setting}'. Allowed: ${entry.allowed.join(', ')}`)
   }
 
   const message = await entry.apply(value)
   logger.info('apply_setting succeeded', { setting, value })
+
   return textResult(message)
 }
 
@@ -280,17 +302,20 @@ async function createAgent(
   if (!model) throw new Error("'model' is required when no default model is configured")
 
   const parsedModel = UniqueModelIdSchema.safeParse(model)
+
   if (!parsedModel.success) {
     throw new Error(`'model' must be in the form "providerId::modelId" (got "${model}")`)
   }
 
   const { providerId, modelId } = parseUniqueModelId(parsedModel.data)
+
   try {
     modelService.getByKey(providerId, modelId)
   } catch (error) {
     if (isDataApiError(error) && error.code === DataApiErrorCode.NOT_FOUND) {
       throw new Error(`Model is not configured in Cherry Studio: ${parsedModel.data}`)
     }
+
     throw error
   }
 
@@ -306,8 +331,10 @@ async function createAgent(
         env_vars: {}
       }
     })
+
     logger.info('create_agent succeeded', { agentId: result.id, name })
     const output = { ok: true as const, agentId: result.id, name: result.name, model: result.model }
+
     return {
       content: [{ type: 'text', text: JSON.stringify(output) }],
       structuredContent: output
@@ -332,7 +359,9 @@ const PrepareDiagnosticReportOutputSchema = z.object({
 
 function prepareDiagnosticReport(args: z.infer<typeof PrepareDiagnosticReportInputSchema>): CallToolResult {
   const description = normalizeDiagnosticDescription(args.description.trim())
+
   if (!description) throw new Error('description must not be blank')
+
   if (diagnosticDescriptionByteLength(description) > DIAGNOSTIC_DESCRIPTION_MAX_BYTES) {
     throw new Error(
       `description must not exceed ${DIAGNOSTIC_DESCRIPTION_MAX_BYTES} UTF-8 bytes after CRLF normalization`
@@ -340,6 +369,7 @@ function prepareDiagnosticReport(args: z.infer<typeof PrepareDiagnosticReportInp
   }
 
   const output = { ok: true as const, description }
+
   return {
     content: [{ type: 'text', text: JSON.stringify(output) }],
     structuredContent: output
@@ -364,6 +394,7 @@ const DiagnoseInputSchema = z
   .superRefine((args, ctx) => {
     if (args.action === 'health' && !args.provider_id)
       ctx.addIssue({ code: 'custom', message: "'provider_id' is required for health action", path: ['provider_id'] })
+
     if (args.action === 'read_source' && !args.file_path)
       ctx.addIssue({ code: 'custom', message: "'file_path' is required for read_source action", path: ['file_path'] })
   })
@@ -447,10 +478,12 @@ function diagnoseProviders(): CallToolResult {
 async function diagnoseHealth(providerId: string, signal: AbortSignal): Promise<CallToolResult> {
   const cacheService = application.get('CacheService')
   const cached = cacheService.get<CallToolResult>(healthCacheKey(providerId))
+
   if (cached) return cached
 
   try {
     let provider: ReturnType<typeof providerService.getByProviderId> | null = null
+
     try {
       provider = providerService.getByProviderId(providerId)
     } catch {
@@ -466,6 +499,7 @@ async function diagnoseHealth(providerId: string, signal: AbortSignal): Promise<
     if (provider.apiKeys.length === 0 && !isExternalCliProvider(provider)) {
       const result = jsonResult({ providerId, status: 'error', error: 'No API key configured', host })
       cacheService.set(healthCacheKey(providerId), result, HEALTH_CACHE_TTL)
+
       return result
     }
 
@@ -476,18 +510,26 @@ async function diagnoseHealth(providerId: string, signal: AbortSignal): Promise<
         { id: `provider:${providerId}`, url: apiHost },
         AbortSignal.any([signal, AbortSignal.timeout(HEALTH_TIMEOUT_MS)])
       )
+
     const layer = (result: { status: string; kind?: string; code?: string; durationMs: number }) => {
       const detail: Pick<typeof result, 'status' | 'kind' | 'code'> = { status: result.status }
+
       if (result.kind) detail.kind = result.kind
+
       if (result.code) detail.code = result.code
+
       return { ...detail, latencyMs: Math.round(result.durationMs) }
     }
+
     const dns = layer(diagnosis.dns)
     const tls = layer(diagnosis.tls)
     const proxy = { mode: diagnosis.proxy.configuredMode }
+
     if (diagnosis.proxy.mismatch) Object.assign(proxy, { mismatch: diagnosis.proxy.mismatch })
     const http = layer(diagnosis.http)
+
     if (diagnosis.http.status === 'ok') Object.assign(http, { httpStatus: diagnosis.http.data.status })
+
     const result = jsonResult({
       providerId,
       status: diagnosis.verdict,
@@ -497,7 +539,9 @@ async function diagnoseHealth(providerId: string, signal: AbortSignal): Promise<
       proxy,
       http
     })
+
     cacheService.set(healthCacheKey(providerId), result, HEALTH_CACHE_TTL)
+
     return result
   } catch (error) {
     return textResult(`Health check failed: ${getErrorMessage(error, 'Unknown error')}`, true)
@@ -507,7 +551,9 @@ async function diagnoseHealth(providerId: string, signal: AbortSignal): Promise<
 /** The System Doctor report in its `upload` projection: nothing local-only reaches the model. */
 async function diagnoseDoctor(tier: DoctorRunTier): Promise<CallToolResult> {
   const outcome = await application.get('DoctorService').run({ tier, subject: { kind: 'global' } })
+
   if (outcome.status !== 'completed') return jsonResult(outcome)
+
   return jsonResult(projectDoctorReport(outcome.report, 'upload'))
 }
 
@@ -517,6 +563,7 @@ function diagnoseLogs(requestedLines?: number): CallToolResult {
 
   try {
     const logsDir = application.getPath('app.logs')
+
     if (!fs.existsSync(logsDir)) return textResult(`Logs directory not found: ${logsDir}`, true)
 
     // Find the most recent .log file
@@ -549,6 +596,7 @@ function diagnoseErrors(requestedLines?: number): CallToolResult {
 
   try {
     const logsDir = application.getPath('app.logs')
+
     if (!fs.existsSync(logsDir)) return textResult('Logs directory not found', true)
 
     const logFiles = fs
@@ -567,6 +615,7 @@ function diagnoseErrors(requestedLines?: number): CallToolResult {
       if (errorLines.length >= limit) break
       const content = fs.readFileSync(path.join(logsDir, logFile.name), 'utf-8')
       const lines = content.split('\n')
+
       for (let i = lines.length - 1; i >= 0 && errorLines.length < limit; i--) {
         if (errorPattern.test(lines[i])) {
           errorLines.push(`[${logFile.name}] ${lines[i]}`)
@@ -604,8 +653,10 @@ function diagnoseMcpStatus(): CallToolResult {
 /** Parse a stored UniqueModelId ("provider::modelId") into a diagnostic summary. */
 function describeModelId(uniqueId: string | null) {
   if (!uniqueId) return null
+
   try {
     const { providerId, modelId } = parseUniqueModelId(uniqueId as UniqueModelId)
+
     return { id: uniqueId, provider: providerId, modelId }
   } catch {
     return { id: uniqueId, provider: '(unparseable)', modelId: '' }
@@ -617,6 +668,7 @@ async function diagnoseConfig(): Promise<CallToolResult> {
     const preferenceService = application.get('PreferenceService')
 
     const proxy = preferenceService.get('app.proxy.url')
+
     const settings = {
       language: preferenceService.get('app.language'),
       theme: preferenceService.get('ui.theme_mode'),
@@ -651,6 +703,7 @@ function readSource(filePath: string, requestedLines?: number): CallToolResult {
 
   // Security: only allow reading within app root and node_modules
   const allowedRoots = [realAppRoot, path.join(realAppRoot, 'node_modules')]
+
   if (!allowedRoots.some((root) => resolved.startsWith(root + path.sep) || resolved === root)) {
     throw new Error('Access denied: path must be within the app directory')
   }
@@ -663,10 +716,12 @@ function readSource(filePath: string, requestedLines?: number): CallToolResult {
   if (!fs.existsSync(resolved)) return textResult(`File not found: ${filePath}`, true)
 
   const stat = fs.statSync(resolved)
+
   if (stat.isDirectory()) {
     // List directory contents
     const entries = fs.readdirSync(resolved, { withFileTypes: true })
     const listing = entries.map((e) => `${e.isDirectory() ? 'd' : 'f'} ${e.name}`).join('\n')
+
     return textResult(`=== ${filePath} ===\n${listing}`)
   }
 
@@ -680,13 +735,16 @@ function readSource(filePath: string, requestedLines?: number): CallToolResult {
 
   try {
     const content = fs.readFileSync(resolved, 'utf-8')
+
     if (requestedLines && requestedLines > 0) {
       const allLines = content.split('\n')
       const limited = allLines.slice(0, Math.min(requestedLines, 1000)).join('\n')
+
       return textResult(
         `=== ${filePath} (first ${Math.min(requestedLines, allLines.length)} of ${allLines.length} lines) ===\n${limited}`
       )
     }
+
     return textResult(`=== ${filePath} ===\n${content}`)
   } catch (error) {
     return textResult(`Failed to read file: ${getErrorMessage(error, 'Unknown error')}`, true)
@@ -765,6 +823,8 @@ export function createAssistantServer(
   enabledToolNames: readonly AssistantToolName[] = DEFAULT_ASSISTANT_TOOL_NAMES
 ): McpServer {
   const server = new McpServer({ name: 'assistant', version: '1.0.0' })
+
   for (const name of new Set(enabledToolNames)) ASSISTANT_TOOLS[name](server, defaultModel)
+
   return server
 }

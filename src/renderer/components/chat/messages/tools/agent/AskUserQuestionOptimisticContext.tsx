@@ -10,6 +10,8 @@ export const AskUserQuestionOptimisticInputProvider = AskUserQuestionOptimisticI
 
 export function useAskUserQuestionOptimisticInput(toolCallId?: string): AskUserQuestionToolInput | undefined {
   const inputs = use(AskUserQuestionOptimisticInputContext)
+
   if (!toolCallId) return undefined
+
   return inputs[toolCallId]
 }

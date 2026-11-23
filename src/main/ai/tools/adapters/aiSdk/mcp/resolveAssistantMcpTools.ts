@@ -32,6 +32,7 @@ const WARM_TOOLS_TIMEOUT_MS = 10_000
  */
 async function warmToolsCacheWithTimeout(serverId: string): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined
+
   try {
     return await Promise.race([
       application
@@ -55,10 +56,12 @@ export function getEffectiveMcpMode(assistant: Assistant): McpMode {
 
 export function resolveServersForAssistant(assistant: Assistant, mode: McpMode): McpServer[] {
   const linkedIds = mode === 'auto' ? null : new Set(assistant.mcpServerIds)
+
   // Manual mode with nothing linked can only resolve to an empty set — skip the query. Every chat
   // request reaches here (the resource-tool gate), and 'manual' is the default mode.
   if (linkedIds?.size === 0) return []
   const { items: activeServers } = mcpServerService.list({ isActive: true })
+
   return activeServers.filter((server) => !isBrowserMcpServer(server) && (!linkedIds || linkedIds.has(server.id)))
 }
 
@@ -96,8 +99,10 @@ export function resolveMcpResourceServers(
 ): McpServer[] {
   if (!assistant) return []
   const mode = getEffectiveMcpMode(assistant)
+
   if (mode === 'disabled') return []
   const runtime = application.get('McpRuntimeService')
+
   return resolveServersForAssistant(assistant, mode).filter(
     (server) =>
       (!frozenServerIds || frozenServerIds.has(server.id)) &&
@@ -113,20 +118,25 @@ function isToolDisabled(server: McpServer, tool: { name: string; id: string; des
 /** Returns `[]` when the assistant is missing, MCP disabled, or no servers linked. */
 export async function resolveAssistantMcpToolIds(assistantId: string): Promise<string[]> {
   let assistant: Assistant | null
+
   try {
     assistant = assistantDataService.getById(assistantId)
   } catch {
     assistant = null
   }
+
   if (!assistant) {
     logger.debug('Assistant not found, skipping MCP resolution', { assistantId })
+
     return []
   }
 
   const mode = getEffectiveMcpMode(assistant)
+
   if (mode === 'disabled') return []
 
   const servers = resolveServersForAssistant(assistant, mode)
+
   if (servers.length === 0) return []
 
   const perServerResults = await Promise.allSettled(
@@ -140,13 +150,16 @@ export async function resolveAssistantMcpToolIds(assistantId: string): Promise<s
       // but the wait is capped so this chat hot path can never hang on a
       // slow connect (see `WARM_TOOLS_TIMEOUT_MS`).
       const warmed = await warmToolsCacheWithTimeout(server.id)
+
       if (!warmed) {
         logger.warn('Timed out warming MCP tools cache; falling back to the current (possibly empty) cache', {
           serverId: server.id,
           timeoutMs: WARM_TOOLS_TIMEOUT_MS
         })
       }
+
       const tools = catalog.listTools(server.id)
+
       return tools.filter((tool) => !isToolDisabled(server, tool)).map((tool) => tool.id)
     })
   )
@@ -154,6 +167,7 @@ export async function resolveAssistantMcpToolIds(assistantId: string): Promise<s
   return perServerResults.flatMap((result) => {
     if (result.status === 'fulfilled') return result.value
     logger.warn('Failed to list tools for an MCP server', { err: result.reason })
+
     return []
   })
 }

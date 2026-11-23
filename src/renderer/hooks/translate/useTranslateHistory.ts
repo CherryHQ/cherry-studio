@@ -33,12 +33,15 @@ export const useTranslateHistory = (options?: {
   const { trigger: addTrigger } = useMutation('POST', '/translate/histories', {
     refresh: ['/translate/histories']
   })
+
   const { trigger: updateTrigger } = useMutation('PATCH', '/translate/histories/:id', {
     refresh: ['/translate/histories']
   })
+
   const { trigger: removeTrigger } = useMutation('DELETE', '/translate/histories/:id', {
     refresh: ['/translate/histories']
   })
+
   const { trigger: clearTrigger } = useMutation('DELETE', '/translate/histories', {
     refresh: ['/translate/histories']
   })
@@ -52,6 +55,7 @@ export const useTranslateHistory = (options?: {
           sourceLanguage: toPersistedLangCodeOrNull(data.sourceLanguage),
           targetLanguage: toPersistedLangCodeOrNull(data.targetLanguage)
         }
+
         return addTrigger({ body })
       },
       [addTrigger]
@@ -70,15 +74,21 @@ export const useTranslateHistory = (options?: {
     useCallback(
       (id: string, data: UpdateTranslateHistoryInput) => {
         const body: UpdateTranslateHistoryDto = {}
+
         if (data.sourceText !== undefined) body.sourceText = data.sourceText
+
         if (data.targetText !== undefined) body.targetText = data.targetText
+
         if ('sourceLanguage' in data) {
           body.sourceLanguage = toPersistedLangCodeOrNull(data.sourceLanguage)
         }
+
         if ('targetLanguage' in data) {
           body.targetLanguage = toPersistedLangCodeOrNull(data.targetLanguage)
         }
+
         if (data.star !== undefined) body.star = data.star
+
         return updateTrigger({ params: { id }, body })
       },
       [updateTrigger]

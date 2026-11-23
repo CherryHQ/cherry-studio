@@ -38,6 +38,7 @@ export function expandHome(filepath: string): string {
   if (filepath.startsWith('~/') || filepath === '~') {
     return path.join(application.getPath('sys.home'), filepath.slice(1))
   }
+
   return filepath
 }
 
@@ -75,6 +76,7 @@ function levenshtein(a: string, b: string): number {
   if (a === '' || b === '') {
     return Math.max(a.length, b.length)
   }
+
   const matrix = Array.from({ length: a.length + 1 }, (_, i) =>
     Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
   )
@@ -85,6 +87,7 @@ function levenshtein(a: string, b: string): number {
       matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost)
     }
   }
+
   return matrix[a.length][b.length]
 }
 
@@ -115,13 +118,16 @@ export const LineTrimmedReplacer: Replacer = function* (content, find) {
 
     if (matches) {
       let matchStartIndex = 0
+
       for (let k = 0; k < i; k++) {
         matchStartIndex += originalLines[k].length + 1
       }
 
       let matchEndIndex = matchStartIndex
+
       for (let k = 0; k < searchLines.length; k++) {
         matchEndIndex += originalLines[i + k].length
+
         if (k < searchLines.length - 1) {
           matchEndIndex += 1
         }
@@ -149,6 +155,7 @@ export const BlockAnchorReplacer: Replacer = function* (content, find) {
   const searchBlockSize = searchLines.length
 
   const candidates: Array<{ startLine: number; endLine: number }> = []
+
   for (let i = 0; i < originalLines.length; i++) {
     if (originalLines[i].trim() !== firstLineSearch) {
       continue
@@ -178,9 +185,11 @@ export const BlockAnchorReplacer: Replacer = function* (content, find) {
         const originalLine = originalLines[startLine + j].trim()
         const searchLine = searchLines[j].trim()
         const maxLen = Math.max(originalLine.length, searchLine.length)
+
         if (maxLen === 0) {
           continue
         }
+
         const distance = levenshtein(originalLine, searchLine)
         similarity += (1 - distance / maxLen) / linesToCheck
 
@@ -194,18 +203,24 @@ export const BlockAnchorReplacer: Replacer = function* (content, find) {
 
     if (similarity >= SINGLE_CANDIDATE_SIMILARITY_THRESHOLD) {
       let matchStartIndex = 0
+
       for (let k = 0; k < startLine; k++) {
         matchStartIndex += originalLines[k].length + 1
       }
+
       let matchEndIndex = matchStartIndex
+
       for (let k = startLine; k <= endLine; k++) {
         matchEndIndex += originalLines[k].length
+
         if (k < endLine) {
           matchEndIndex += 1
         }
       }
+
       yield content.substring(matchStartIndex, matchEndIndex)
     }
+
     return
   }
 
@@ -224,12 +239,15 @@ export const BlockAnchorReplacer: Replacer = function* (content, find) {
         const originalLine = originalLines[startLine + j].trim()
         const searchLine = searchLines[j].trim()
         const maxLen = Math.max(originalLine.length, searchLine.length)
+
         if (maxLen === 0) {
           continue
         }
+
         const distance = levenshtein(originalLine, searchLine)
         similarity += 1 - distance / maxLen
       }
+
       similarity /= linesToCheck
     } else {
       similarity = 1.0
@@ -244,16 +262,21 @@ export const BlockAnchorReplacer: Replacer = function* (content, find) {
   if (maxSimilarity >= MULTIPLE_CANDIDATES_SIMILARITY_THRESHOLD && bestMatch) {
     const { startLine, endLine } = bestMatch
     let matchStartIndex = 0
+
     for (let k = 0; k < startLine; k++) {
       matchStartIndex += originalLines[k].length + 1
     }
+
     let matchEndIndex = matchStartIndex
+
     for (let k = startLine; k <= endLine; k++) {
       matchEndIndex += originalLines[k].length
+
       if (k < endLine) {
         matchEndIndex += 1
       }
     }
+
     yield content.substring(matchStartIndex, matchEndIndex)
   }
 }
@@ -263,19 +286,25 @@ export const WhitespaceNormalizedReplacer: Replacer = function* (content, find) 
   const normalizedFind = normalizeWhitespace(find)
 
   const lines = content.split('\n')
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
+
     if (normalizeWhitespace(line) === normalizedFind) {
       yield line
     } else {
       const normalizedLine = normalizeWhitespace(line)
+
       if (normalizedLine.includes(normalizedFind)) {
         const words = find.trim().split(/\s+/)
+
         if (words.length > 0) {
           const pattern = words.map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+')
+
           try {
             const regex = new RegExp(pattern)
             const match = line.match(regex)
+
             if (match) {
               yield match[0]
             }
@@ -288,9 +317,11 @@ export const WhitespaceNormalizedReplacer: Replacer = function* (content, find) 
   }
 
   const findLines = find.split('\n')
+
   if (findLines.length > 1) {
     for (let i = 0; i <= lines.length - findLines.length; i++) {
       const block = lines.slice(i, i + findLines.length)
+
       if (normalizeWhitespace(block.join('\n')) === normalizedFind) {
         yield block.join('\n')
       }
@@ -302,11 +333,13 @@ export const IndentationFlexibleReplacer: Replacer = function* (content, find) {
   const removeIndentation = (text: string) => {
     const lines = text.split('\n')
     const nonEmptyLines = lines.filter((line) => line.trim().length > 0)
+
     if (nonEmptyLines.length === 0) return text
 
     const minIndent = Math.min(
       ...nonEmptyLines.map((line) => {
         const match = line.match(/^(\s*)/)
+
         return match ? match[1].length : 0
       })
     )
@@ -320,6 +353,7 @@ export const IndentationFlexibleReplacer: Replacer = function* (content, find) {
 
   for (let i = 0; i <= contentLines.length - findLines.length; i++) {
     const block = contentLines.slice(i, i + findLines.length).join('\n')
+
     if (removeIndentation(block) === normalizedFind) {
       yield block
     }
@@ -398,6 +432,7 @@ export const TrimmedBoundaryReplacer: Replacer = function* (content, find) {
 
 export const ContextAwareReplacer: Replacer = function* (content, find) {
   const findLines = find.split('\n')
+
   if (findLines.length < 3) {
     return
   }
@@ -429,6 +464,7 @@ export const ContextAwareReplacer: Replacer = function* (content, find) {
 
             if (blockLine.length > 0 || findLine.length > 0) {
               totalNonEmptyLines++
+
               if (blockLine === findLine) {
                 matchingLines++
               }
@@ -440,6 +476,7 @@ export const ContextAwareReplacer: Replacer = function* (content, find) {
             break
           }
         }
+
         break
       }
     }
@@ -451,6 +488,7 @@ export const MultiOccurrenceReplacer: Replacer = function* (content, find) {
 
   while (true) {
     const index = content.indexOf(find, startIndex)
+
     if (index === -1) break
 
     yield find
@@ -499,8 +537,10 @@ export function replaceWithFuzzyMatch(
       // lastIndexOf('')). Skip empty candidates so neither path consumes one.
       if (search === '') continue
       const index = content.indexOf(search)
+
       if (index === -1) continue
       notFound = false
+
       if (replaceAll) {
         // split/join keeps newString literal. String.prototype.replaceAll
         // expands `$`-patterns ($&, $', $`, $$) in its replacement argument, so
@@ -508,8 +548,11 @@ export function replaceWithFuzzyMatch(
         // the matched or surrounding text instead of being written verbatim.
         return content.split(search).join(newString)
       }
+
       const lastIndex = content.lastIndexOf(search)
+
       if (index !== lastIndex) continue
+
       return content.substring(0, index) + newString + content.substring(index + search.length)
     }
   }
@@ -517,6 +560,7 @@ export function replaceWithFuzzyMatch(
   if (notFound) {
     throw new Error('old_string not found in content')
   }
+
   throw new Error(
     'Found multiple matches for old_string. Provide more surrounding lines in old_string to identify the correct match.'
   )
@@ -554,6 +598,7 @@ export async function runRipgrep(args: string[], options: RipgrepOptions = {}): 
       env: { ...process.env, ...getBinaryExecutionEnv() },
       stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe']
     })
+
     const timer =
       options.timeoutMs === undefined ? undefined : setTimeout(() => child.kill('SIGKILL'), options.timeoutMs)
 

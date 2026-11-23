@@ -78,6 +78,7 @@ export interface FileEntryRefCount {
 
 export const LIST_FILES_DEFAULT_LIMIT = 50
 export const LIST_FILES_MAX_LIMIT = 100
+
 /**
  * Upper bound on `entryIds` per `GET /files/entries/ref-counts` request. The
  * service still chunks the underlying `IN (…)` against SQLite's parameter cap;
@@ -103,10 +104,13 @@ export const ListFilesQuerySchema = z
     (q) => !(q.inTrash === true && q.origin === 'external'),
     'inTrash=true is incompatible with origin=external — external entries cannot be trashed (DB CHECK fe_external_no_delete)'
   )
+
 export type ListFilesQueryParams = z.input<typeof ListFilesQuerySchema> & CursorPaginationParams
+
 export type ListFilesQuery = z.output<typeof ListFilesQuerySchema>
 
 export const ContentHashQuerySchema = z.strictObject({ contentHash: ContentHashSchema })
+
 export type ContentHashQueryParams = z.input<typeof ContentHashQuerySchema>
 
 export interface FileEntryListResponse extends CursorPaginationResponse<FileEntry> {
@@ -127,14 +131,18 @@ export interface FileEntryStats {
 export const RefCountsQuerySchema = z.strictObject({
   entryIds: z.array(FileEntryIdSchema).max(REF_COUNTS_MAX_ENTRY_IDS)
 })
+
 export type RefCountsQueryParams = z.input<typeof RefCountsQuerySchema>
+
 export type RefCountsQuery = z.output<typeof RefCountsQuerySchema>
 
 export const RefsBySourceQuerySchema = z.strictObject({
   sourceType: FileRefSourceTypeSchema,
   sourceId: z.string().min(1)
 })
+
 export type RefsBySourceQueryParams = z.input<typeof RefsBySourceQuerySchema>
+
 export type RefsBySourceQuery = z.output<typeof RefsBySourceQuerySchema>
 
 export type FileSchemas = {

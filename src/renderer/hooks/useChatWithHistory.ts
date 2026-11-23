@@ -11,5 +11,6 @@ export function useChatWithHistory(
   const commands = useStreamCommands(topicId, initialMessages)
   const { activeExecutions } = useTopicStreamStatus(topicId)
   useTopicDbRefreshOnAwaitingApproval(topicId, refresh)
+
   return { ...commands, activeExecutions }
 }

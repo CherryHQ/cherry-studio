@@ -89,8 +89,13 @@ export const agentChannelTaskTable = sqliteTable(
 )
 
 export type AgentChannelRow = typeof agentChannelTable.$inferSelect
+
 export type InsertAgentChannelRow = typeof agentChannelTable.$inferInsert
+
 export type AgentChannelSessionRow = typeof agentChannelSessionTable.$inferSelect
+
 export type InsertAgentChannelSessionRow = typeof agentChannelSessionTable.$inferInsert
+
 export type AgentChannelTaskRow = typeof agentChannelTaskTable.$inferSelect
+
 export type InsertAgentChannelTaskRow = typeof agentChannelTaskTable.$inferInsert

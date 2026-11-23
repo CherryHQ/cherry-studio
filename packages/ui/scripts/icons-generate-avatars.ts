@@ -43,6 +43,7 @@ import { createRemoveBackgroundPlugin } from './svgo-remove-background'
 
 function parseOnlyArg(): Set<string> | null {
   const arg = process.argv.find((item) => item.startsWith('--only='))
+
   if (!arg) return null
 
   const values = arg
@@ -61,10 +62,13 @@ function parseOnlyArg(): Set<string> | null {
 function extractCssFills(svgCode: string): Map<string, string> {
   const map = new Map<string, string>()
   const styleMatch = svgCode.match(/<style[^>]*>([\s\S]*?)<\/style>/)
+
   if (!styleMatch) return map
+
   for (const rule of styleMatch[1].matchAll(/\.([a-zA-Z0-9_-]+)\s*\{[^}]*?\bfill\s*:\s*([^;}\s]+)/g)) {
     map.set(rule[1], rule[2])
   }
+
   return map
 }
 
@@ -74,12 +78,16 @@ function extractCssFills(svgCode: string): Map<string, string> {
  */
 function getElementFill(attrs: string, cssFills: Map<string, string>): string | null {
   const fillMatch = attrs.match(/\bfill="([^"]+)"/)
+
   if (fillMatch && fillMatch[1] !== 'none') return fillMatch[1]
   const classMatch = attrs.match(/\bclass="([^"]+)"/)
+
   if (classMatch) {
     const fill = cssFills.get(classMatch[1])
+
     if (fill && fill !== 'none') return fill
   }
+
   return null
 }
 
@@ -88,6 +96,7 @@ function getElementFill(attrs: string, cssFills: Map<string, string>): string | 
  */
 function parseAttrFloat(attrs: string, name: string): number {
   const match = attrs.match(new RegExp(`\\b${name}="([^"]+)"`))
+
   return match ? parseFloat(match[1]) : NaN
 }
 
@@ -104,8 +113,10 @@ function parseAttrFloat(attrs: string, name: string): number {
 function detectBackgroundByArea(svgCode: string): boolean {
   // Parse viewBox
   const vbMatch = svgCode.match(/viewBox\s*=\s*"([^"]+)"/)
+
   if (!vbMatch) return false
   const vbParts = vbMatch[1].split(/[\s,]+/).map(Number)
+
   if (vbParts.length !== 4 || !vbParts.every(isFinite)) return false
   const [vbX, vbY, vbW, vbH] = vbParts
 
@@ -122,6 +133,7 @@ function detectBackgroundByArea(svgCode: string): boolean {
   const pathMatches = [...stripped.matchAll(/<path\b([^>]*)>/g)]
   const rectMatches = [...stripped.matchAll(/<rect\b([^>]*)>/g)]
   const totalVisual = pathMatches.length + rectMatches.length + [...stripped.matchAll(/<image\b/g)].length
+
   if (totalVisual < 2) return false
 
   // Determine which element comes first in document order
@@ -133,24 +145,29 @@ function detectBackgroundByArea(svgCode: string): boolean {
   if (firstPathPos < firstRectPos && pathMatches.length > 0) {
     const attrs = pathMatches[0][1]
     const fill = getElementFill(attrs, cssFills)
+
     if (!fill) return false
 
     // Skip white/near-white fills — those are already handled by the svgo plugin (Rule 4)
     if (isWhiteFill(fill)) return false
 
     const dMatch = attrs.match(/\bd="([^"]+)"/)
+
     if (!dMatch) return false
 
     // Background shapes use a single closed subpath (1 M command).
     // Multiple M commands indicate scattered shapes (e.g. dots, letters).
     const mCount = (dMatch[1].match(/[Mm]/g) || []).length
+
     if (mCount > 1) return false
 
     bounds = parseSvgPathBounds(dMatch[1])
+
     if (!isFinite(bounds.minX)) return false
 
     // Apply translate transform if present
     const txMatch = attrs.match(/\btransform="[^"]*translate\(\s*(-?[\d.]+)[\s,]+(-?[\d.]+)\s*\)/)
+
     if (txMatch) {
       const dx = parseFloat(txMatch[1]) || 0
       const dy = parseFloat(txMatch[2]) || 0
@@ -162,10 +179,12 @@ function detectBackgroundByArea(svgCode: string): boolean {
   } else if (rectMatches.length > 0) {
     const attrs = rectMatches[0][1]
     const fill = getElementFill(attrs, cssFills)
+
     if (!fill) return false
 
     const w = parseAttrFloat(attrs, 'width')
     const h = parseAttrFloat(attrs, 'height')
+
     if (!isFinite(w) || !isFinite(h)) return false
     const x = parseAttrFloat(attrs, 'x') || 0
     const y = parseAttrFloat(attrs, 'y') || 0
@@ -176,6 +195,7 @@ function detectBackgroundByArea(svgCode: string): boolean {
 
   // Check if bounds cover the viewBox edges (within 15% tolerance)
   const margin = Math.max(vbW, vbH) * 0.15
+
   return (
     bounds.minX <= vbX + margin &&
     bounds.minY <= vbY + margin &&
@@ -199,10 +219,13 @@ export function detectHasBackground(svgPath: string): boolean {
 
   // Strategy 1: svgo plugin detection
   const bgPlugin = createRemoveBackgroundPlugin({ detectOnly: true })
+
   const svgoConfig: Config = {
     plugins: [bgPlugin.plugin]
   }
+
   optimize(processedSvg, svgoConfig)
+
   if (bgPlugin.wasRemoved()) return true
 
   // Strategy 2: Area-based fallback
@@ -343,11 +366,13 @@ export function generateAvatars(options: { iconType?: LogoType; only?: Set<strin
   const metaCatalogName = iconType === 'models' ? 'MODEL_ICON_META_CATALOG' : 'PROVIDER_ICON_META_CATALOG'
   const loadersName = iconType === 'models' ? 'MODEL_ICON_LOADERS' : 'PROVIDER_ICON_LOADERS'
   const keyTypeName = iconType === 'models' ? 'ModelIconKey' : 'ProviderIconKey'
+
   const catalogEntries = iconDirs.map((dirName) => ({
     dirName,
     colorName: getComponentName(baseDir, dirName),
     modulePath: resolveIconComponentModule(baseDir, dirName).modulePath
   }))
+
   codegenMetaCatalog({
     outPath: path.join(baseDir, 'meta-catalog.ts'),
     entries: catalogEntries,
@@ -362,6 +387,7 @@ export function generateAvatars(options: { iconType?: LogoType; only?: Set<strin
     keyTypeName
   })
   console.log(`Generated loaders.ts (${loadersName}) with ${catalogEntries.length} entries`)
+
   if (iconType === 'providers') {
     const catalogName = 'PROVIDER_ICON_CATALOG'
     codegenCatalog({

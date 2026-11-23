@@ -20,6 +20,7 @@ function createQwenThinkingMiddleware(enableThinking: boolean): LanguageModelMid
 
     transformParams: async ({ params }) => {
       const transformedParams = { ...params }
+
       // Process messages in prompt
       if (transformedParams.prompt && Array.isArray(transformedParams.prompt)) {
         transformedParams.prompt = transformedParams.prompt.map((message) => {
@@ -35,6 +36,7 @@ function createQwenThinkingMiddleware(enableThinking: boolean): LanguageModelMid
               )
             }
           }
+
           return message
         })
       }

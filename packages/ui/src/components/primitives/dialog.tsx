@@ -17,6 +17,7 @@ function Dialog({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   const [open, setOpen] = useControllableState({ prop: openProp, defaultProp: defaultOpen, onChange: onOpenChange })
+
   return (
     <KeyboardLayerRoot open={open}>
       <DialogPrimitive.Root data-slot="dialog" open={open} onOpenChange={setOpen} {...props} />
@@ -30,6 +31,7 @@ function DialogTrigger({ ...props }: React.ComponentProps<typeof DialogPrimitive
 
 function DialogPortal({ container, ...props }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
   const defaultPortalContainer = useDialogPortalContainer()
+
   return <DialogPrimitive.Portal data-slot="dialog-portal" container={container ?? defaultPortalContainer} {...props} />
 }
 
@@ -57,6 +59,7 @@ function DialogOverlay({ className, onPointerDown, ...props }: React.ComponentPr
 }
 
 type DialogContentSize = 'sm' | 'default' | 'lg' | 'xl'
+
 type DialogContentMotion = 'directional' | 'fade-scale'
 
 const dialogContentSizeClass: Record<DialogContentSize, string> = {
@@ -103,9 +106,11 @@ function DialogContent({
   const dialogPortalContainer = useDialogPortalContainer()
   const [contentElement, setContentElement] = React.useState<HTMLDivElement | null>(null)
   const [contentZIndex, setContentZIndex] = React.useState<string>()
+
   const handleRef = React.useCallback(
     (node: HTMLDivElement | null) => {
       setContentElement(node)
+
       if (typeof ref === 'function') {
         ref(node)
       } else if (ref) {

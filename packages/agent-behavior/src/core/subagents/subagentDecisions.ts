@@ -39,7 +39,9 @@ import {
 } from './subagentText'
 
 type Facts = ConversationFacts
+
 type SteerRecord = Extract<PolicyRecord, { readonly type: 'subagent-steer' }>['value']
+
 const SIMILAR = 5
 const messageInput = (text: string): TurnInput => turnInput({ type: 'subagent-message' }, text)
 const refuse = <R extends JsonValue>(result: R): Step<R> => ({ ops: [], effects: [], result })
@@ -51,7 +53,9 @@ export function resolveModel(
 ): { readonly key: string } | { readonly text: string } {
   const exact = candidates.filter((candidate) => candidate.exact)
   const name = (candidate: SubagentModelCandidate) => `${candidate.provider} / ${candidate.model}`
+
   if (exact.length === 1) return { key: exact[0].key }
+
   if (exact.length > 1)
     return {
       text: [
@@ -61,6 +65,7 @@ export function resolveModel(
       ].join('\n')
     }
   const similar = candidates.slice(0, SIMILAR).map(name)
+
   return {
     text: `No enabled model with tool support matches "${query}".${similar.length > 0 ? ` Similar: ${similar.join(', ')}` : ''}`
   }
@@ -69,9 +74,11 @@ export function resolveModel(
 /** Why a background run cannot start now: the armed goal's budget is used up (X5), or every slot is taken (S-e). */
 export function backgroundRefusal(facts: Facts, inputs: CallInputs): string | undefined {
   const goal = currentGoal(facts.history)
+
   if (goal?.phase === 'active' && goal.armed && budgetExceeded(goal, goalCounts(facts, goal.id).usage))
     return BUDGET_REFUSAL
   const running = runningBackground(facts).length
+
   return running >= inputs.settings.maxBackground ? capText(running) : undefined
 }
 
@@ -101,33 +108,46 @@ export function decideSpawn(facts: Facts, inputs: CallInputs, call: CallKey): St
   const background = booleanField(args, 'background') ?? false
   const key = keys.subagentSpawn(call)
   const input = messageInput(taskText(prompt))
+
   const spawned = facts.history.find(
     (entry) => entry.kind === 'record' && entry.record.type === 'subagent-run' && entry.key === key
   )
+
   if (spawned?.kind === 'record' && spawned.record.type === 'subagent-run')
     return refuse({ kind: 'spawn', key, child: spawned.record.value.sessionId, background, fork, input })
+
   if (facts.lineage.kind === 'subagent') return refuse({ kind: 'refused', text: IN_SUBAGENT })
+
   if (turnStopping(facts.history)) return refuse({ kind: 'refused', text: TURN_STOPPED })
+
   if (!description || !prompt)
     return refuse({ kind: 'refused', text: 'A subagent needs a non-empty description and prompt.' })
   const named = stringField(args, 'model')?.trim()
+
   if (named && fork) return refuse({ kind: 'refused', text: FORK_WITH_MODEL })
   const models = inputs.models
+
   if (!models)
     throw new Error('decideSpawn needs CallInputs.models (Models.current and, with a named model, Models.find)')
   const model = named ? resolveModel(named, models.candidates) : undefined
+
   if (model && 'text' in model) return refuse({ kind: 'refused', text: model.text })
   const refusal = background ? backgroundRefusal(facts, inputs) : undefined
+
   if (refusal) return refuse({ kind: 'refused', text: refusal })
   let at: ItemId | undefined
+
   for (const entry of facts.history) if (entry.kind === 'assistant') at = entry.id
+
   if (fork && !at)
     return refuse({ kind: 'refused', text: 'No assistant message holds this call, so there is nothing to fork.' })
   // S9: the named model; a fork keeps the parent's model, which shares its prompt cache; otherwise the host's default.
   const modelKey = model?.key ?? (fork ? models.parentModelKey : models.defaultChildModelKey)
   const origin: SubagentOrigin = { parentToolCallId: call, fork, description, modelKey }
   const spec: Pick<ChildSpec, 'boundary' | 'fork'> = { boundary: background ? 'background' : 'foreground' }
+
   if (fork && at) Object.assign(spec, { fork: { from: facts.thread, at } })
+
   const record: ChildSpec['record'] = {
     ...origin,
     ...goalForCall(facts.history, call),
@@ -135,6 +155,7 @@ export function decideSpawn(facts: Facts, inputs: CallInputs, call: CallKey): St
     run: 1,
     status: 'running'
   }
+
   const ops: TxOp[] = [
     {
       type: 'spawn-child',
@@ -142,7 +163,9 @@ export function decideSpawn(facts: Facts, inputs: CallInputs, call: CallKey): St
       key
     }
   ]
+
   if (background) ops.push(ensureReport(facts, { runKey: key, run: 1, text: input.text }))
+
   return { ops, effects: [], result: { kind: 'spawn', key, background, fork, input } }
 }
 
@@ -153,13 +176,17 @@ export function decideSpawn(facts: Facts, inputs: CallInputs, call: CallKey): St
  */
 export function decideSpawnAbandoned(facts: Facts, spawn: Key): Step<null> {
   const created = facts.history.find((entry) => entry.kind === 'record' && entry.key === spawn)
+
   const child =
     created?.kind === 'record' && created.record.type === 'subagent-run' ? created.record.value.sessionId : undefined
+
   const first = readSubagents(facts.history)
     .find((ledger) => ledger.child === child)
     ?.runs.get(1)
+
   if (first?.status !== 'running') return refuse(null)
   const stopped = stopRun(facts, first, 'user')
+
   return stopped.ended ? { ops: stopped.ops, effects: [], result: null } : refuse(null)
 }
 
@@ -194,22 +221,30 @@ export function decideMessage(
   const args = fieldsOf(inputs.args)
   const id = (stringField(args, 'id') ?? '').trim()
   const message = (stringField(args, 'message') ?? '').trim()
+
   if (!message) return refuse({ kind: 'refused', text: 'message_subagent needs a non-empty message.' })
   const key = keys.subagentContinue(call)
   const continued = facts.history.find((entry) => entry.kind === 'record' && entry.key === key)
+
   if (continued?.kind === 'record' && continued.record.type === 'subagent-run') {
     const { sessionId, run } = continued.record.value
+
     return refuse({ kind: 'continued', child: sessionId, run })
   }
+
   const sent = pendingSteer(facts, call)
+
   if (sent)
     return facts.keysSeen.has(keys.subagentSteerWithdrawn(call, sent.run))
       ? refuse({ kind: 'refused', text: notDeliveredText(sent.sessionId) })
       : steer(facts, call, sent.sessionId, sent.run, message, sent)
+
   if (cancelled) return refuse({ kind: 'refused', text: TURN_STOPPED })
   const target = resolveChild(readSubagents(facts.history), id)
+
   if (!target) return refuse({ kind: 'refused', text: unknownIdText(id, listed(facts, inputs)) })
   const { child, latest } = target
+
   if (isLive(facts, latest) && !latest.stoppedBy) {
     // The report job owns the first input; a message must not overtake it.
     if (facts.children.get(child)?.running !== true)
@@ -217,30 +252,39 @@ export function decideMessage(
         kind: 'refused',
         text: `Subagent ${child} has not started its run yet. Message it again once it is running.`
       })
+
     return steer(facts, call, child, latest.run, message, goalForCall(facts.history, call))
   }
+
   if (latest.stoppedBy === 'user')
     return refuse({
       kind: 'refused',
       text: `Subagent ${child} was stopped by the user and cannot be continued. Start a new subagent if the work is still needed.`
     })
+
   // A run being stopped would drop the message: it is answered once the stop is recorded (Y5).
   if (isLive(facts, latest))
     return refuse({ kind: 'stopping', child, run: latest.run, key: keys.subagentMessage(child, latest.run) })
+
   if (turnStopping(facts.history)) return refuse({ kind: 'refused', text: TURN_STOPPED })
   const refusal = backgroundRefusal(facts, inputs)
+
   if (refusal) return refuse({ kind: 'refused', text: refusal })
+
   if (!facts.children.has(child))
     return refuse({ kind: 'refused', text: `Subagent ${child} cannot be continued: its history is not available.` })
   const interrupted = latest.outcome === 'interrupted' || latest.outcome === 'aborted'
   const text = interrupted ? `${RECOVERY_HINT}\n\n${message}` : message
+
   const origin: SubagentOrigin = {
     parentToolCallId: latest.parentToolCallId,
     fork: latest.fork,
     description: latest.description,
     modelKey: latest.modelKey
   }
+
   const run = nextRun(facts.history, child)
+
   const record: SubagentRunRecord = {
     ...origin,
     ...goalForCall(facts.history, call),
@@ -249,7 +293,9 @@ export function decideMessage(
     run,
     status: 'running'
   }
+
   const report: ReportInput = { runKey: keys.subagentMessage(child, run), run, text, child }
+
   return {
     ops: [
       { type: 'append-record', thread: facts.thread, record: { type: 'subagent-run', value: record }, key },
@@ -263,6 +309,7 @@ export function decideMessage(
 /** The message intent recorded before `call` submitted it, retained across run boundaries and replay. */
 function pendingSteer(facts: Facts, call: CallKey): SteerRecord | undefined {
   let sent: SteerRecord | undefined
+
   for (const entry of facts.history)
     if (
       entry.kind === 'record' &&
@@ -270,6 +317,7 @@ function pendingSteer(facts: Facts, call: CallKey): SteerRecord | undefined {
       entry.key === keys.subagentSteer(call, entry.record.value.run)
     )
       sent = entry.record.value
+
   return sent
 }
 
@@ -284,8 +332,11 @@ function steer(
 ): Step<MessageDecision> {
   const key = keys.subagentSteer(call, run)
   const ownership: Pick<SteerRecord, 'goalId' | 'goalRoundId'> = {}
+
   if (owner.goalId !== undefined) Object.assign(ownership, { goalId: owner.goalId })
+
   if (owner.goalRoundId !== undefined) Object.assign(ownership, { goalRoundId: owner.goalRoundId })
+
   const value: SteerRecord = {
     sessionId: child,
     run,
@@ -293,6 +344,7 @@ function steer(
     digest: sha256Hex(message),
     withdrawn: false
   }
+
   return {
     ops: [{ type: 'append-record', thread: facts.thread, record: { type: 'subagent-steer', value }, key }],
     effects: [{ type: 'message-child', child, input: messageInput(message), key }],
@@ -303,13 +355,18 @@ function steer(
 /** A late message started a subsequent run: record it and report using the input already accepted by the harness. */
 export function decideMessageStarted(facts: Facts, call: CallKey, run: number, text: string): Step<null> {
   const sent = pendingSteer(facts, call)
+
   if (!sent) return refuse(null)
   const ledger = readSubagents(facts.history).find(({ child }) => child === sent.sessionId)
+
   if (!ledger || ledger.runs.has(run)) return refuse(null)
   const { parentToolCallId, fork, description, modelKey } = ledger.latest
   const ownership: Pick<SubagentRunRecord, 'goalId' | 'goalRoundId'> = {}
+
   if (sent.goalId !== undefined) Object.assign(ownership, { goalId: sent.goalId })
+
   if (sent.goalRoundId !== undefined) Object.assign(ownership, { goalRoundId: sent.goalRoundId })
+
   const record: SubagentRunRecord = {
     parentToolCallId,
     fork,
@@ -321,7 +378,9 @@ export function decideMessageStarted(facts: Facts, call: CallKey, run: number, t
     run,
     status: 'running'
   }
+
   const key = keys.subagentContinue(call)
+
   return {
     ops: [
       { type: 'append-record', thread: facts.thread, record: { type: 'subagent-run', value: record }, key },
@@ -343,7 +402,9 @@ export function decideMessageStarted(facts: Facts, call: CallKey, run: number, t
  */
 export function decideSteerWithdrawn(facts: Facts, call: CallKey): Step<null> {
   const sent = pendingSteer(facts, call)
+
   if (!sent) return refuse(null)
+
   return {
     ops: [
       {
@@ -363,6 +424,7 @@ function listed(facts: Facts, inputs: CallInputs): string[] {
     .reverse()
     .map(({ child, latest }) => {
       const status = statusText(latest, isLive(facts, latest), awaitingApproval(inputs.approvals, child))
+
       return `${child} — ${latest.description} — ${status}`
     })
 }
@@ -374,11 +436,14 @@ function listed(facts: Facts, inputs: CallInputs): string[] {
  */
 function stopRun(facts: Facts, record: SubagentRunRecord, by: SubagentStopper) {
   const { sessionId: child, run } = record
+
   const value: SubagentRunRecord = {
     ...record,
     stoppedBy: record.stoppedBy === 'user' ? 'user' : by
   }
+
   if (by === 'model') Object.assign(value, { modelStopped: true })
+
   if (runStarted(facts, child, run) || facts.children.get(child)?.running === true)
     return {
       ops: [
@@ -393,6 +458,7 @@ function stopRun(facts: Facts, record: SubagentRunRecord, by: SubagentStopper) {
       ended: false
     }
   const ended: SubagentRunRecord = { ...value, status: 'finished', outcome: 'stopped' }
+
   return {
     ops: [
       {
@@ -420,10 +486,13 @@ export function decideStop(facts: Facts, inputs: CallInputs): Step<StopDecision>
   if (facts.lineage.kind === 'subagent') return refuse({ kind: 'refused', text: IN_SUBAGENT })
   const id = (stringField(fieldsOf(inputs.args), 'id') ?? '').trim()
   const target = resolveChild(readSubagents(facts.history), id)
+
   if (!target) return refuse({ kind: 'refused', text: unknownIdText(id, listed(facts, inputs)) })
   const { child, latest } = target
+
   if (!isLive(facts, latest)) {
     const status = statusText(latest, false, false)
+
     return refuse({
       kind: 'not-running',
       result: {
@@ -433,7 +502,9 @@ export function decideStop(facts: Facts, inputs: CallInputs): Step<StopDecision>
       }
     })
   }
+
   const { ops, effects, ended } = stopRun(facts, latest, 'model')
+
   return {
     ops,
     effects,
@@ -442,6 +513,7 @@ export function decideStop(facts: Facts, inputs: CallInputs): Step<StopDecision>
       : { kind: 'stopping', child, run: latest.run, key: keys.subagentMessage(child, latest.run) }
   }
 }
+
 export const stoppedResult = (child: ThreadId, run: number, answer: RunEndFacts): ToolResultFact => ({
   text: stoppedText(child, answer.text.trim() || undefined),
   isError: false,
@@ -462,7 +534,9 @@ export function decideUserStopSubagent(
     const target: Pick<Extract<PolicyRecord, { type: 'subagent-user-stop' }>['value'], 'sessionId' | 'run'> = {
       sessionId: child
     }
+
     if (run !== undefined) Object.assign(target, { run })
+
     return {
       type: 'append-record',
       thread: facts.thread,
@@ -470,10 +544,13 @@ export function decideUserStopSubagent(
       key: keys.subagentUserStop(requestKey)
     }
   }
+
   const ledger = readSubagents(facts.history).find((candidate) => candidate.child === child)
+
   if (!ledger?.latest.background || !isLive(facts, ledger.latest))
     return { ops: [request()], effects: [], result: false }
   const { ops, effects, ended } = stopRun(facts, ledger.latest, 'user')
+
   // Like `decideRunEnd`: the driver delivers the end of a run nobody else will record.
   return { ops: [...ops, request(ledger.latest.run), ...(ended ? [ensureDriver(facts)] : [])], effects, result: true }
 }
@@ -483,8 +560,10 @@ export function budgetStops(facts: Facts, children: readonly ThreadId[]): Step<n
   const live = readSubagents(facts.history).filter(
     ({ child, latest }) => children.includes(child) && latest.background && isLive(facts, latest) && !latest.stoppedBy
   )
+
   // The driver that decided this delivers the ends it records here when it decides again.
   const stops = live.map(({ latest }) => stopRun(facts, latest, 'budget'))
+
   return { ops: stops.flatMap(({ ops }) => ops), effects: stops.flatMap(({ effects }) => effects), result: live.length }
 }
 
@@ -497,14 +576,18 @@ export function reportTarget(
   input: ReportInput
 ): { readonly child: ThreadId; readonly run: number } | undefined {
   let child = input.child
+
   for (const entry of facts.history)
     if (!child && entry.kind === 'record' && entry.record.type === 'subagent-run' && entry.key === input.runKey)
       child = entry.record.value.sessionId
+
   if (!child) return undefined
+
   const ended =
     readSubagents(facts.history)
       .find((ledger) => ledger.child === child)
       ?.runs.get(input.run)?.status === 'finished'
+
   return ended ? undefined : { child, run: input.run }
 }
 
@@ -521,16 +604,21 @@ export function decideRunEnd(
 ): Step<ToolResultFact> {
   const ledger = readSubagents(facts.history).find((candidate) => candidate.child === child)
   const record = ledger?.runs.get(run)
+
   if (!record) return refuse({ text: `No run ${run} of subagent ${child} is recorded.`, isError: true })
   const outcome = record.stoppedBy ? 'stopped' : answer.outcome
   const usage = facts.children.get(child)?.runUsage[run - 1]
   const ended: SubagentRunRecord = { ...record, status: 'finished', outcome, ...report }
+
   if (usage) Object.assign(ended, { usage })
   const key = keys.subagentEnd(child, run)
+
   const ops: TxOp[] = facts.keysSeen.has(key)
     ? []
     : [{ type: 'append-record', thread: facts.thread, record: { type: 'subagent-run', value: ended }, key }]
+
   if (ops.length > 0 && record.background && !record.modelStopped) ops.push(ensureDriver(facts))
+
   return {
     ops,
     effects: [],

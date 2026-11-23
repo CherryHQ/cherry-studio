@@ -35,6 +35,7 @@ class SelectiveDispatcher extends Dispatcher {
     if (opts.origin && this.shouldByPass(opts.origin.toString())) {
       return this.directDispatcher.dispatch(opts, handler)
     }
+
     return this.proxyDispatcher.dispatch(opts, handler)
   }
 
@@ -94,6 +95,7 @@ export class NodeProxyBackend {
   private async createHttpProxyAgents(proxyUrl: string, endpoint: ProxyEndpoint): Promise<HttpProxyAgents> {
     if (endpoint.kind === 'socks') {
       const { SocksProxyAgent } = await import('socks-proxy-agent')
+
       return { http: new SocksProxyAgent(proxyUrl), https: new SocksProxyAgent(proxyUrl) }
     }
 
@@ -101,6 +103,7 @@ export class NodeProxyBackend {
       import('http-proxy-agent'),
       import('https-proxy-agent')
     ])
+
     return { http: new HttpProxyAgent(endpoint.url), https: new HttpsProxyAgent(endpoint.url) }
   }
 
@@ -138,6 +141,7 @@ export class NodeProxyBackend {
 
       if (typeof args[0] === 'string' || args[0] instanceof URL) {
         url = args[0]
+
         if (typeof args[1] === 'function') {
           options = {}
           callback = args[1]
@@ -153,27 +157,34 @@ export class NodeProxyBackend {
       const targetOptions = url
         ? { ...urlToHttpOptions(typeof url === 'string' ? new URL(url) : url), ...options }
         : options
+
       const defaultAgent =
         targetOptions._defaultAgent || (defaultProtocol === 'https:' ? https.globalAgent : http.globalAgent)
+
       const protocol = targetOptions.protocol || agentProtocolSchema.parse(defaultAgent).protocol
       const hostname = targetOptions.hostname || targetOptions.host || 'localhost'
       const host = hostname.includes(':') && !hostname.startsWith('[') ? `[${hostname}]` : hostname
       const targetAgent = typeof targetOptions.agent === 'boolean' ? defaultAgent : targetOptions.agent || defaultAgent
+
       const port =
         targetOptions.port || targetOptions.defaultPort || agentPortSchema.parse(targetAgent).defaultPort || 80
 
       if (this.proxyBypassRuleMatcher.isByPass(`${protocol}//${host}:${port}`, this.logger)) {
         return url ? originalMethod(url, options, callback) : originalMethod(options, callback)
       }
+
       if (options.agent instanceof https.Agent) {
         // Per-request TLS option — mutating the shared proxy agent would leak
         // the caller's rejectUnauthorized to later unrelated requests.
         const tlsStance = options.agent.options.rejectUnauthorized
+
         if (typeof tlsStance === 'boolean') {
           ;(options as https.RequestOptions).rejectUnauthorized = tlsStance
         }
       }
+
       options.agent = agent
+
       return url ? originalMethod(url, options, callback) : originalMethod(options, callback)
     }
   }
@@ -185,10 +196,12 @@ export class NodeProxyBackend {
       void this.proxyDispatcher?.close()
       this.proxyDispatcher = null
       axios.defaults.adapter = this.originalAxiosAdapter
+
       return
     }
 
     axios.defaults.adapter = 'fetch'
+
     if (endpoint.kind === 'http') {
       // NO_PROXY is disabled for the in-process agent: undici's NO_PROXY matching is flat, so it
       // would outvote the ordered `<-loopback>` semantics. SelectiveDispatcher's matcher is the
@@ -200,6 +213,7 @@ export class NodeProxyBackend {
         this.logger
       )
       setGlobalDispatcher(this.proxyDispatcher)
+
       return
     }
 

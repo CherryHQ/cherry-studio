@@ -23,6 +23,7 @@ export const KnowledgeCitationCard: React.FC<{ citation: Citation; actions?: Cit
   actions
 }) => {
   const providerActions = useOptionalMessageListActions()
+
   const linkActions = {
     openBrowserUrl: actions?.openBrowserUrl ?? providerActions?.openBrowserUrl,
     openPath: actions?.openPath ?? providerActions?.openPath

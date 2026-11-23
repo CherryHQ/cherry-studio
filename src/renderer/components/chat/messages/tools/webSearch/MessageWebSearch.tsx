@@ -12,6 +12,7 @@ import { ToolDisclosure } from '../shared/ToolDisclosure'
 function parseResultUrl(url: string) {
   try {
     const hostname = new URL(url).hostname
+
     return { hostname, domain: hostname.replace(/^www\./, '') }
   } catch {
     return { hostname: '', domain: url }
@@ -34,6 +35,7 @@ function getProviderWebSearchTarget(response: unknown): string {
   if (!isRecord(response) || !isRecord(response.action)) return ''
 
   const action = response.action
+
   switch (action.type) {
     case 'search':
       return typeof action.query === 'string' ? action.query : ''
@@ -41,6 +43,7 @@ function getProviderWebSearchTarget(response: unknown): string {
       return typeof action.url === 'string' ? action.url : ''
     case 'findInPage':
       if (typeof action.pattern === 'string' && action.pattern) return action.pattern
+
       return typeof action.url === 'string' ? action.url : ''
     default:
       return ''
@@ -52,6 +55,7 @@ const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolR
   const inputParse = webSearchInputSchema.safeParse(toolResponse.arguments)
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
   const query = inputParse.success ? inputParse.data.query : getProviderWebSearchTarget(toolResponse.response)
+
   // A tool can share the `web_search` wire name without sharing our result shape: Kimi's official
   // formula returns an opaque (encrypted) payload its own platform resolves. An unparseable output
   // means we do not KNOW the count — reporting zero claimed the search found nothing when it had.
@@ -119,12 +123,14 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
 
 export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
+
   if (toolResponse.status !== 'done' || !outputParse.success) return null
 
   return (
     <ul className="flex flex-col gap-0.5 p-0 text-[13px] leading-5 [&>li]:m-0 [&>li]:p-0">
       {outputParse.data.map((result: WebSearchOutputItem) => {
         const { hostname, domain } = parseResultUrl(result.url)
+
         return (
           <li key={result.id}>
             <Link

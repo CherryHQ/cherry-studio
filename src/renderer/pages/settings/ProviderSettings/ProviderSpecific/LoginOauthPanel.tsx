@@ -45,6 +45,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
 
   useEffect(() => {
     mountedRef.current = true
+
     return () => {
       mountedRef.current = false
     }
@@ -61,8 +62,10 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
         setLoggedIn(true)
         setAccountId(account.accountId)
       }
+
       // The main process owns the write; revalidate this window's DataApi reads.
       await refreshProviderData()
+
       if (mountedRef.current) toast.success(t(`${ns}.sign_in_success`))
     },
     [ns, refreshProviderData, t]
@@ -70,29 +73,36 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
 
   const startSignIn = useCallback((): Promise<void> => {
     const existing = signInRequestRef.current
+
     if (existing) return existing
 
     setSigningIn(true)
     const requestId = crypto.randomUUID()
     signInRequestIdRef.current = requestId
+
     const request = Promise.resolve().then(async () => {
       try {
         const account = await ipcApi.request('oauth.sign_in', { providerId, requestId })
         await applySignInSuccess(account)
       } catch (error) {
         if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
+
         if (!mountedRef.current) return
         logger.error(`${providerId} sign-in failed`, error as Error)
         toast.error(t(`${ns}.sign_in_failed`))
       } finally {
         if (signInRequestRef.current === request) {
           signInRequestRef.current = null
+
           if (signInRequestIdRef.current === requestId) signInRequestIdRef.current = null
+
           if (mountedRef.current) setSigningIn(false)
         }
       }
     })
+
     signInRequestRef.current = request
+
     return request
   }, [applySignInSuccess, providerId, ns, t])
 
@@ -100,18 +110,24 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     const requestId = crypto.randomUUID()
     signInRequestIdRef.current = requestId
     setSigningIn(true)
+
     try {
       const result = await ipcApi.request('oauth.sign_in.attach', { providerId, requestId })
+
       if (result.status === 'completed') {
         await applySignInSuccess(result.account)
+
         return
       }
 
       const hasToken = await ipcApi.request('oauth.has_token', { providerId })
+
       if (!mountedRef.current) return
+
       if (hasToken) {
         const account = showAccountId ? await ipcApi.request('oauth.get_account', { providerId }) : { accountId: null }
         await applySignInSuccess(account)
+
         return
       }
 
@@ -119,12 +135,14 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
       setAccountId(null)
     } catch (error) {
       if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
+
       if (!mountedRef.current) return
       logger.error(`${providerId} attached sign-in failed`, error as Error)
       toast.error(t(`${ns}.sign_in_failed`))
     } finally {
       if (signInRequestIdRef.current === requestId) {
         signInRequestIdRef.current = null
+
         if (mountedRef.current) setSigningIn(false)
       }
     }
@@ -134,8 +152,10 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     try {
       const hasToken = await ipcApi.request('oauth.has_token', { providerId })
       setLoggedIn(hasToken)
+
       if (hasToken) {
         setAccountId(showAccountId ? (await ipcApi.request('oauth.get_account', { providerId })).accountId : null)
+
         return
       }
 
@@ -154,9 +174,11 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
 
   const handleCancelSignIn = useCallback(async () => {
     const requestId = signInRequestIdRef.current
+
     if (!requestId) return
 
     setCancellingSignIn(true)
+
     try {
       await ipcApi.request('oauth.cancel_sign_in', { providerId, requestId })
     } catch (error) {
@@ -173,9 +195,11 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
       content: t('settings.provider.oauth.logout_confirm'),
       centered: true
     })
+
     if (!confirmed) return
 
     setLoggingOut(true)
+
     try {
       await ipcApi.request('oauth.logout', { providerId })
       await refreshProviderData()

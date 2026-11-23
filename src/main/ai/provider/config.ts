@@ -110,16 +110,19 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   if (endpointType === ENDPOINT_TYPE.OLLAMA_CHAT || endpointType === ENDPOINT_TYPE.OLLAMA_GENERATE) {
     return formatOllamaApiHost(baseURL)
   }
+
   if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
     return formatApiHost(baseURL, appendApiVersion, 'v1beta')
   }
 
   // Provider-driven formatting (for providers without endpoint type info)
   if (isOllamaProvider(provider)) return formatOllamaApiHost(baseURL)
+
   if (isGeminiProvider(provider)) return formatApiHost(baseURL, appendApiVersion, 'v1beta')
 
   // Providers that don't append API version
   const noVersionProviders = ['copilot', CHERRYAI_PROVIDER_ID, 'perplexity', 'newapi', 'new-api', 'azure-openai']
+
   if (noVersionProviders.includes(provider.id) || noVersionProviders.includes(provider.presetProviderId ?? '')) {
     return formatApiHost(baseURL, false)
   }
@@ -149,8 +152,10 @@ function deriveImageBaseURL(provider: Provider): string {
     provider,
     ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   )
+
   const normalized = withoutTrailingSlash(baseURL) ?? baseURL
   const compatSuffix = '/compatible-mode/v1'
+
   return normalized.endsWith(compatSuffix) ? normalized.slice(0, -compatSuffix.length) : normalized
 }
 
@@ -170,6 +175,7 @@ type ConfigBuilderEntry = {
 
 function selectApiKey(ctx: BuilderContext): ApiKeyBuilderContext {
   const resolved = providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride)
+
   return {
     ...ctx,
     baseConfig: { ...ctx.baseConfig, apiKey: resolved.value },
@@ -180,6 +186,7 @@ function selectApiKey(ctx: BuilderContext): ApiKeyBuilderContext {
 function withSelectedApiKey(build: ProviderConfigBuilder): ConfigBuilderEntry['build'] {
   return async (ctx) => {
     const selected = selectApiKey(ctx)
+
     return {
       config: await build(selected),
       credentialReceipt: selected.apiKeySelection
@@ -282,6 +289,7 @@ export async function resolveProviderAiSdkConfig(
       build: withSelectedApiKey((ctx) => {
         const config = buildOpenAICompatibleConfig(ctx)
         config.providerSettings.transformRequestBody = transformZhipuRequestBody
+
         return config
       })
     },
@@ -293,6 +301,7 @@ export async function resolveProviderAiSdkConfig(
       build: withSelectedApiKey((ctx) => {
         const config = buildOpenAICompatibleConfig(ctx)
         config.providerSettings.transformRequestBody = transformLmStudioRequestBody
+
         return config
       })
     },
@@ -319,17 +328,22 @@ export async function resolveProviderAiSdkConfig(
       match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.doubao),
       build: withSelectedApiKey((ctx) => {
         const config = buildGenericProviderConfig(ctx)
+
         const settings = config.providerSettings as {
           headers?: Record<string, string>
           fetch?: typeof globalThis.fetch
         }
+
         if (application.get('PreferenceService').get('app.developer_mode.enabled')) {
           settings.headers = { ...settings.headers, 'X-Fornax-Trace': 'true' }
         }
+
         settings.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
           const response = await customFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
+
           return normalizeArkResponsesResponse(input, response)
         }
+
         return config
       })
     },
@@ -340,14 +354,17 @@ export async function resolveProviderAiSdkConfig(
       match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.dashscope),
       build: withSelectedApiKey((ctx) => {
         const config = buildGenericProviderConfig(ctx)
+
         if (isGenerateImageModel(ctx.model)) {
           config.providerSettings = {
             ...config.providerSettings,
             imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
           }
         }
+
         config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
           customFetch(input, { ...init, body: appendDashScopeWebExtractor(init?.body) })
+
         return config
       })
     },
@@ -406,6 +423,7 @@ export async function resolveProviderAiSdkConfig(
 
   const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
   let resolved: ResolvedProviderConfigBuild
+
   if (builder) {
     resolved = await builder.build(ctx)
   } else if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
@@ -453,8 +471,10 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
 function buildOpenCodeGoConfig(ctx: BuilderContext): ProviderConfig {
   const config =
     ctx.aiSdkProviderId === 'openai-compatible' ? buildOpenAICompatibleConfig(ctx) : buildGenericProviderConfig(ctx)
+
   const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
   const hasExplicitSession = Object.keys(headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
+
   return hasExplicitSession ? config : { ...config, conversationHeader: 'x-opencode-session' }
 }
 
@@ -472,6 +492,7 @@ function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
   // formatted one in baseConfig has `/v1` tacked on, which the codex path rejects.
   const rawBaseUrl =
     getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_RESPONSES) || 'https://chatgpt.com/backend-api/codex'
+
   const baseURL = rawBaseUrl.replace(/\/+$/, '')
 
   return {
@@ -525,6 +546,7 @@ function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
   // `/responses`); the formatted one in baseConfig would double the `/v1`.
   const rawBaseUrl =
     getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_RESPONSES) || 'https://cli-chat-proxy.grok.com/v1'
+
   const baseURL = rawBaseUrl.replace(/\/+$/, '')
 
   return {
@@ -548,6 +570,7 @@ function buildGrokCliFetch() {
   return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     let modelId = ''
     let body = init?.body
+
     if (typeof body === 'string') {
       try {
         const json = JSON.parse(body)
@@ -590,6 +613,7 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
           query: '',
           body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined
         })
+
         return customFetch(input, { ...init, headers: { ...init?.headers, ...signature } })
       }
     }
@@ -603,9 +627,11 @@ function buildCommonOptions(ctx: BuilderContext) {
       ...getExtraHeaders(ctx.actualProvider)
     }
   }
+
   if (ctx.aiSdkProviderId === 'openai') {
     options.headers['X-Api-Key'] = ctx.baseConfig.apiKey
   }
+
   return options
 }
 
@@ -614,6 +640,7 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
     ...getProviderAppHeaders(ctx.actualProvider),
     ...getExtraHeaders(ctx.actualProvider)
   }
+
   if (!isEmpty(ctx.baseConfig.apiKey)) {
     headers.Authorization = `Bearer ${ctx.baseConfig.apiKey}`
   }
@@ -654,6 +681,7 @@ function buildBedrockConfig(ctx: BuilderContext): ResolvedProviderConfigBuild {
 
   if (authConfig?.type === 'iam-aws') {
     const region = authConfig.region?.trim() || undefined
+
     return {
       config: {
         ...base,
@@ -670,6 +698,7 @@ function buildBedrockConfig(ctx: BuilderContext): ResolvedProviderConfigBuild {
 
   // API-key fallback. Region undefined so the SDK picks its own default, not a hardcode.
   const selected = selectApiKey(ctx)
+
   return {
     config: { ...base, providerSettings: { ...selected.baseConfig, baseURL } },
     credentialReceipt: selected.apiKeySelection
@@ -689,6 +718,7 @@ function buildVertexConfig(
   const googleCredentials = credentials
 
   const { privateKey, clientEmail } = normalizeVertexCredentials(googleCredentials)
+
   const creds = googleCredentials
     ? { ...googleCredentials, clientEmail, privateKey: formatPrivateKey(privateKey ?? '') }
     : undefined
@@ -783,11 +813,13 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
 
 function formatAzureBaseURL(baseURL: string, forAnthropic: boolean, includeApiVersion = false): string {
   const normalized = baseURL.replace(/\/v1$/, '').replace(/\/openai$/, '')
+
   return forAnthropic ? normalized : `${normalized}/openai${includeApiVersion ? '/v1' : ''}`
 }
 
 function isOfficialAzureOpenAIBaseURL(baseURL: string): boolean {
   const hostname = new URL(baseURL).hostname
+
   return (
     hostname.endsWith('.openai.azure.com') ||
     hostname.endsWith('.services.ai.azure.com') ||
@@ -830,6 +862,7 @@ function buildAzureConfig(
 
   if (apiVersion) {
     providerSettings.apiVersion = apiVersion
+
     if (useDeploymentBasedUrls) {
       providerSettings.useDeploymentBasedUrls = true
     }
@@ -840,6 +873,7 @@ function buildAzureConfig(
     providerSettings.fetch = (input, init) => {
       const url = new URL(input instanceof Request ? input.url : input)
       url.searchParams.set('api-version', apiVersion || 'v1')
+
       return customFetch(url, init)
     }
   }
@@ -912,8 +946,10 @@ function buildEndpointBaseURLs(provider: Provider): Partial<Record<EndpointType,
   const entries = Object.entries(provider.endpointConfigs ?? {}).flatMap(([endpointType, config]) => {
     if (!config?.baseUrl) return []
     const formatted = formatBaseURL(config.baseUrl, provider, endpointType as EndpointType)
+
     return [[endpointType, routeToEndpoint(formatted).baseURL] as const]
   })
+
   return Object.fromEntries(entries)
 }
 
@@ -965,6 +1001,7 @@ function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> 
  */
 function formatNewApiBaseURL(baseURL: string, endpointType: EndpointType | undefined): string {
   const host = withoutTrailingApiVersion(baseURL)
+
   return endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
     ? formatApiHost(host, true, 'v1beta')
     : formatApiHost(host, true)

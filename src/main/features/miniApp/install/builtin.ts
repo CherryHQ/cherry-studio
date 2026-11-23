@@ -37,9 +37,12 @@ export async function stageBuiltinMiniApp(
 ): Promise<{ stagingDir: string; contentHash: string; manifest: MiniAppManifest }> {
   const root = builtinRoot ?? miniAppBuiltinPath(appId)
   const stagingDir = await createStagingDir()
+
   try {
     const manifest = await copyTreeToStaging(root, stagingDir)
+
     if (manifest.id !== appId) throw new Error(`Builtin tree for ${appId} declares id ${manifest.id}`)
+
     return { stagingDir, contentHash: await hashTree(stagingDir), manifest }
   } catch (error) {
     await bestEffortCleanup('builtin staging', () => fs.promises.rm(stagingDir, { recursive: true, force: true }))

@@ -27,16 +27,21 @@ const AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE = 200
 
 export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
   const listSource = useTopics({ loadAll: true, enabled })
+
   const loadLatestTopic = useCallback(async (assistantId?: string | null) => {
     const result =
       assistantId === undefined
         ? await dataApiService.get('/topics/latest')
         : await dataApiService.get('/topics/latest', { query: { assistantId: assistantId ?? 'unlinked' } })
+
     return result.topic
   }, [])
+
   const reuseOrCreateTopic = useCallback(async (assistantId: string | null, excludeTopicId?: string) => {
     const body: ReuseOrCreateTopicDto = { assistantId }
+
     if (excludeTopicId) body.excludeTopicId = excludeTopicId
+
     return dataApiService.post('/topics/reusable-placeholder', { body })
   }, [])
 
@@ -49,17 +54,22 @@ export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {
     pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE,
     enabled
   })
+
   const loadLatestSession = useCallback(async (agentId?: string | null) => {
     const result =
       agentId === undefined
         ? await dataApiService.get('/agent-sessions/latest')
         : await dataApiService.get('/agent-sessions/latest', { query: { agentId: agentId ?? 'unlinked' } })
+
     return result.session
   }, [])
+
   const reuseOrCreateSession = useCallback(
     async (agentId: string, workspace: AgentSessionWorkspaceSource, excludeSessionId?: string) => {
       const input: ReuseOrCreateAgentSessionDto = { agentId, workspace }
+
       if (excludeSessionId) input.excludeSessionId = excludeSessionId
+
       return ipcApi.request('ai.agent.session.reuse_or_create', input)
     },
     []
@@ -69,6 +79,7 @@ export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {
 }
 
 type RawAssistantTopicsSource = ReturnType<typeof useRawAssistantTopicsSource>
+
 type RawAgentSessionsSource = ReturnType<typeof useRawAgentSessionsSource>
 
 /**
@@ -144,16 +155,20 @@ export const AgentSessionsSourceContext = createContext<AgentSessionsSource | nu
 
 export function useAssistantTopicsSource(): AssistantTopicsSource {
   const source = use(AssistantTopicsSourceContext)
+
   if (!source) {
     throw new Error('useAssistantTopicsSource must be used within ResourceViewSourceProvider')
   }
+
   return source
 }
 
 export function useAgentSessionsSource(): AgentSessionsSource {
   const source = use(AgentSessionsSourceContext)
+
   if (!source) {
     throw new Error('useAgentSessionsSource must be used within ResourceViewSourceProvider')
   }
+
   return source
 }

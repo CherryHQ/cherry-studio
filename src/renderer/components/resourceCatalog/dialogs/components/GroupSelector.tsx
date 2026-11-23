@@ -36,6 +36,7 @@ function encodeGroupSelectValue(groupId: string) {
 
 function decodeGroupSelectValue(value: string) {
   if (!value.startsWith(GROUP_SELECT_VALUE_PREFIX)) return null
+
   return value.slice(GROUP_SELECT_VALUE_PREFIX.length)
 }
 
@@ -57,6 +58,7 @@ export const GroupSelector: FC<Props> = ({
   const isUnavailable = Boolean(isLoading || error)
   const canOpen = !disabled && !isUnavailable && (hasGroupOptions || Boolean(onCreateGroup))
   const selectOpen = canOpen && open
+
   const placeholder = isLoading
     ? t('common.loading')
     : error
@@ -82,9 +84,12 @@ export const GroupSelector: FC<Props> = ({
           if (selectedValue === CREATE_GROUP_SELECT_VALUE) {
             setOpen(false)
             onCreateGroup?.()
+
             return
           }
+
           const groupId = decodeGroupSelectValue(selectedValue)
+
           if (groupId !== null) onChange(groupId)
         }}>
         <SelectTrigger

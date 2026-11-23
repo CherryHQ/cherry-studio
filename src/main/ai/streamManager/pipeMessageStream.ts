@@ -16,27 +16,36 @@ export async function pipeMessageStream(
   const reader = stream.getReader()
   let streamErrorText: string | undefined
   let threw: { error: unknown } | undefined
+
   const onAbort = () => {
     void reader.cancel(signal.reason).catch(() => {})
   }
+
   if (signal.aborted) onAbort()
   else signal.addEventListener('abort', onAbort, { once: true })
+
   try {
     while (true) {
       const { done, value } = await reader.read()
+
       if (done) break
+
       if (value.type === 'error') {
         threw = { error: value.error }
         break
       }
+
       if (value.type === 'message') {
         message = { ...message, parts: value.parts }
       } else {
         const chunk = value.chunk as CherryUIMessageChunk
         onControl(chunk)
+
         if (chunk.type === 'error') streamErrorText ??= chunk.errorText
+
         if (chunk.type === 'message-metadata' || chunk.type === 'finish' || chunk.type === 'start') {
           const metadata = chunk.messageMetadata
+
           if (metadata)
             message = {
               ...message,
@@ -44,14 +53,17 @@ export async function pipeMessageStream(
             }
         }
       }
+
       onMessage(message)
     }
   } catch (error) {
     threw = { error }
   } finally {
     signal.removeEventListener('abort', onAbort)
+
     if (threw) await reader.cancel(threw.error).catch(() => {})
     reader.releaseLock()
   }
+
   return { finalMessage: message, streamErrorText, threw, broadcastCompletedAt: performance.now() }
 }

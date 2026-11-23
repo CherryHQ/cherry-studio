@@ -101,15 +101,19 @@ export interface SkillToolInput {
   name?: string
   args?: string
 }
+
 export type SkillToolOutput = string | TextOutput[]
 
 export type ReadToolInput = FileReadInput
+
 export type ReadToolOutput = FileReadOutput | string | TextOutput[] | { content: (TextOutput | { type: 'image' })[] }
 
 export type TaskToolInput = AgentInput
+
 export type TaskToolOutput = AgentOutput | TextOutput[]
 
 export type AgentToolInput = AgentInput
+
 export type AgentToolOutput = AgentOutput | TextOutput[]
 
 // Historical TaskOutput messages still need rendering after the SDK removed its input type.
@@ -118,38 +122,50 @@ export type TaskOutputToolInput = {
   block: boolean
   timeout: number
 }
+
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical TaskOutput payloads lack a current SDK schema; truncateOutput checks text blocks and serializes other opaque results.
 export type TaskOutputToolOutput = Record<string, unknown> | unknown[] | string
 
 export type TaskStopToolInput = TaskStopInput
+
 export type TaskStopToolOutput = TaskStopOutput | string
 
 export type BashToolInput = BashInput
+
 export type BashToolOutput = BashOutput | string
 
 export type SearchToolInput = string
+
 export type SearchToolOutput = string
 
 export type GlobToolInput = GlobInput
+
 export type GlobToolOutput = GlobOutput | string
 
 export type TodoItem = Omit<TodoWriteInput['todos'][number], 'activeForm'> & { activeForm?: string }
+
 export type TodoWriteToolInput = { todos: TodoItem[] }
+
 export type TodoWriteToolOutput = TodoWriteOutput | string | TextOutput[]
 
 export type WebSearchToolInput = WebSearchInput
+
 export type WebSearchToolOutput = WebSearchOutput | string
 
 export type WebFetchToolInput = WebFetchInput
+
 export type WebFetchToolOutput = WebFetchOutput | string
 
 export type GrepToolInput = GrepInput
+
 export type GrepToolOutput = GrepOutput | string
 
 export type WriteToolInput = FileWriteInput
+
 export type WriteToolOutput = FileWriteOutput | string
 
 export type EditToolInput = FileEditInput
+
 export type EditToolOutput = FileEditOutput | string
 
 export type MultiEditToolInput = {
@@ -160,20 +176,24 @@ export type MultiEditToolInput = {
     replace_all?: boolean
   }>
 }
+
 export type MultiEditToolOutput = string
 
 export type BashOutputToolInput = Partial<TaskOutputToolInput> & {
   bash_id?: string
   filter?: string
 }
+
 export type BashOutputToolOutput = string
 
 export type NotebookEditToolInput = NotebookEditInput
+
 export type NotebookEditToolOutput = NotebookEditOutput | string
 
 export type ExitPlanModeToolInput = ExitPlanModeInput & {
   plan?: string
 }
+
 export type ExitPlanModeToolOutput = ExitPlanModeOutput | string
 
 export interface ToolSearchToolInput {
@@ -185,6 +205,7 @@ export const ToolSearchToolOutputSchema = z.union([
   z.array(z.object({ type: z.literal('tool_reference'), tool_name: z.string() })),
   z.string()
 ])
+
 export type ToolSearchToolOutput = z.infer<typeof ToolSearchToolOutputSchema>
 
 export const AskUserQuestionOptionSchema = z.object({
@@ -210,18 +231,23 @@ export const AskUserQuestionToolInputSchema = z.object({
 })
 
 type SDKAskUserQuestionItem = AskUserQuestionInput['questions'][number]
+
 type SDKAskUserQuestionOption = SDKAskUserQuestionItem['options'][number]
 
 export type AskUserQuestionOption = Omit<SDKAskUserQuestionOption, 'description'> & {
   description?: string
 }
+
 export type AskUserQuestionItem = Omit<SDKAskUserQuestionItem, 'options'> & {
   options: AskUserQuestionOption[]
 }
+
 export type AskUserQuestionToolInput = Omit<AskUserQuestionInput, 'questions'> & {
   questions: AskUserQuestionItem[]
 }
+
 export type AskUserQuestionToolOutput = AskUserQuestionOutput
+
 export type AskUserQuestionAnswer = NonNullable<AskUserQuestionInput['answers']>
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool names are read from live and persisted tool parts; strict equality recognizes the two supported names without trusting historical fields.
@@ -239,6 +265,7 @@ export const TO_MARKDOWN_RUNTIME_TOOL_NAME = `mcp__cherry-tools__${TO_MARKDOWN_T
  */
 export function isBackgroundAgentOutput(output: AgentToolOutput | undefined): boolean {
   if (!output || Array.isArray(output)) return false
+
   return output.status === 'async_launched' || output.status === 'remote_launched'
 }
 
@@ -249,49 +276,65 @@ export function isBackgroundAgentOutput(output: AgentToolOutput | undefined): bo
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Approval edits and stored tool arguments/results have not been decoded as questions; this parser owns their existing AskUserQuestion schema validation.
 export function parseAskUserQuestionToolInput(value: unknown): AskUserQuestionToolInput | undefined {
   const result = AskUserQuestionToolInputSchema.safeParse(value)
+
   return result.success ? result.data : undefined
 }
 
 export type ListMcpResourcesToolInput = ListMcpResourcesInput
+
 export type ListMcpResourcesToolOutput = ListMcpResourcesOutput | string
 
 export type ReadMcpResourceToolInput = ReadMcpResourceInput
+
 export type ReadMcpResourceToolOutput = ReadMcpResourceOutput | string
 
 export type KillBashToolInput = TaskStopInput
+
 export type KillBashToolOutput = TaskStopOutput | string
 
 export type TaskCreateToolInput = TaskCreateInput
+
 export type TaskCreateToolOutput = TaskCreateOutput | string
 
 export type TaskGetToolInput = TaskGetInput
+
 export type TaskGetToolOutput = TaskGetOutput | string
 
 export type TaskUpdateToolInput = TaskUpdateInput
+
 export type TaskUpdateToolOutput = TaskUpdateOutput | string
 
 export type TaskListToolInput = TaskListInput
+
 export type TaskListToolOutput = TaskListOutput | string
 
 export type EnterWorktreeToolInput = EnterWorktreeInput
+
 export type EnterWorktreeToolOutput = EnterWorktreeOutput | string
 
 export type ExitWorktreeToolInput = ExitWorktreeInput
+
 export type ExitWorktreeToolOutput = ExitWorktreeOutput | string
 
 /** The Workflow tool always launches in the background, so its result is a launch receipt. */
 export type WorkflowToolInput = WorkflowInput
+
 export type WorkflowToolOutput = WorkflowOutput | string
 
 // Agent-teams tools are runtime/experimental (not in the SDK typed union) — loosely typed.
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Experimental agent-team wire fields are not owned by the installed SDK; structured display checks consumed strings and retains foreign arguments.
 export type SendMessageToolInput = { to?: string; message?: string } & Record<string, unknown>
+
 export type SendMessageToolOutput = string
+
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The installed SDK provides no TeamCreate input contract; structured display reads checked strings from the raw runtime arguments.
 export type TeamCreateToolInput = Record<string, unknown>
+
 export type TeamCreateToolOutput = string
+
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The installed SDK provides no TeamDelete input contract; retain raw runtime arguments for historical structured display.
 export type TeamDeleteToolInput = Record<string, unknown>
+
 export type TeamDeleteToolOutput = string
 
 export type ToolInput =

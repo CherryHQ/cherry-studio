@@ -67,10 +67,12 @@ export function BrowserSettings() {
 
   const saveCustomUrl = async () => {
     const value = customUrlDraft.trim()
+
     if (customUrlSaving.current || value === customUrl) return
     customUrlSaving.current = true
     setSaving(true)
     setError(false)
+
     try {
       await setCustomUrl(value)
     } catch {
@@ -105,6 +107,7 @@ export function BrowserSettings() {
             onCheckedChange={async (value) => {
               setSaving(true)
               setError(false)
+
               try {
                 await setEnabled(value)
               } catch {
@@ -135,6 +138,7 @@ export function BrowserSettings() {
             onCheckedChange={async (value) => {
               setSaving(true)
               setError(false)
+
               try {
                 await setAutoOpenPanel(value)
               } catch {
@@ -165,6 +169,7 @@ export function BrowserSettings() {
             onCheckedChange={async (value) => {
               setSaving(true)
               setError(false)
+
               try {
                 await setOpenLinks(value)
               } catch {
@@ -188,8 +193,10 @@ export function BrowserSettings() {
             onValueChange={async (value) => {
               setSaving(true)
               setError(false)
+
               try {
                 await setStartPageMode(value as BrowserStartPageMode)
+
                 if (startPageMode === 'last' && value !== 'last') {
                   cacheService.setPersist('ui.browser.last_urls', {})
                 }

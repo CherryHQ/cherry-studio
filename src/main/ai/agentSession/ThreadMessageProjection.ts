@@ -15,8 +15,11 @@ import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 const logger = loggerService.withContext('ThreadMessageProjection')
+
 type Gap = Extract<ObservationPayload, { type: 'gap' }>['reason']
+
 type Closed = Extract<ObservationPayload, { type: 'closed' }>['reason']
+
 interface ProjectionState {
   activity: Activity
   inputs: readonly InputState[]
@@ -25,11 +28,13 @@ interface ProjectionState {
   closed?: Closed
   diagnostic?: RuntimeError
 }
+
 export interface ThreadMessageView extends ProjectionState {
   thread: Thread
   revision: number
   messages: readonly CherryUIMessage[]
 }
+
 export type ThreadProjectionUpdate =
   | { type: 'snapshot'; view: ThreadMessageView }
   | {
@@ -40,6 +45,7 @@ export type ThreadProjectionUpdate =
       order: readonly string[]
       state: ProjectionState
     }
+
 export type MessageDecorator = (message: CherryUIMessage, source: RuntimeMessage) => CherryUIMessage
 
 /** Main-owned current view. Native execution, product IDs and archive writes belong to its caller. */
@@ -80,6 +86,7 @@ export class ThreadMessageProjection {
     if (this.disposed) throw new Error('Thread projection is closed')
     this.listeners.add(listener)
     this.deliver(listener, { type: 'snapshot', view: this.snapshot() })
+
     return () => {
       this.listeners.delete(listener)
     }
@@ -96,16 +103,21 @@ export class ThreadMessageProjection {
       await this.pending
       const source = {}
       this.source = source
+
       const result = await handle.observe(async (event) => {
         if (this.source === source) await this.accept(event)
       })
+
       if (result.status !== 'confirmed') {
         this.source = undefined
         throw new Error(result.error.message)
       }
+
       this.observation = result.value
     })
+
     this.attachment = attached.catch(() => {})
+
     return attached
   }
 
@@ -114,15 +126,19 @@ export class ThreadMessageProjection {
     refresh: readonly string[] | true = []
   ): Promise<readonly CherryUIMessage[]> {
     if (this.disposed) return Promise.reject(new Error('Thread projection is closed'))
+
     const accepted = this.pending.then(() => {
       const changed = new Map<string, CherryUIMessage>()
       const invalidated = new Set(refresh === true ? this.entries.keys() : refresh)
+
       try {
         for (const item of 'type' in event ? [event] : event) {
           for (const message of this.reduce(item)) changed.set(message.id, message)
+
           if (item.type === 'snapshot') invalidated.clear()
           else if (item.type === 'message.upsert') invalidated.delete(item.message.id)
         }
+
         if (invalidated.size)
           for (const message of this.reduce(undefined, invalidated)) changed.set(message.id, message)
       } catch (error) {
@@ -138,20 +154,25 @@ export class ThreadMessageProjection {
         logger.warn('Thread projection requires a new observation baseline', { thread: this.thread, error })
         throw error
       }
+
       if (changed.size > 1)
         return [...this.entries.values()].flatMap((entry) => (changed.has(entry.view.id) ? [entry.view] : []))
+
       return [...changed.values()].filter((message) => this.entries.get(message.id)?.view === message)
     })
+
     this.pending = accepted.then(
       () => {},
       () => {}
     )
+
     return accepted
   }
 
   close(): Promise<void> {
     this.disposed = true
     this.source = undefined
+
     return (this.closing ??= (async () => {
       await this.attachment
       this.source = undefined
@@ -183,13 +204,16 @@ export class ThreadMessageProjection {
 
   private mergeInputs(inputs: readonly InputState[]): readonly InputState[] {
     const merged = [...this.state.inputs]
+
     for (const input of inputs) {
       const index = merged.findIndex(
         (previous) =>
           (input.inputId !== undefined && previous.inputId === input.inputId) ||
           (input.nativeInput !== undefined && previous.nativeInput?.id === input.nativeInput.id)
       )
+
       const previous = merged[index]
+
       const next: InputState = {
         ...previous,
         ...input,
@@ -197,14 +221,17 @@ export class ThreadMessageProjection {
         outcome: input.outcome ?? previous?.outcome,
         error: input.error ?? previous?.error
       }
+
       if (index < 0) merged.push(next)
       else merged[index] = next
     }
+
     return merged
   }
 
   private reduce(event?: ObservationPayload, refresh: ReadonlySet<string> = new Set()): readonly CherryUIMessage[] {
     if (this.state.closed === 'consumer-error' && event?.type !== 'snapshot') return []
+
     if (event) this.validate(event)
     const state = this.state
     let nextState = state
@@ -212,6 +239,7 @@ export class ThreadMessageProjection {
     let removed: string[] = []
     let order: string[] | undefined
     let orderChanged = false
+
     if (event?.type === 'snapshot') {
       candidates = new Map(event.messages.map((message) => [message.id, message]))
       removed = [...this.entries.keys()].filter((id) => !candidates.has(id))
@@ -224,22 +252,26 @@ export class ThreadMessageProjection {
       }
     } else if (event?.type === 'message.upsert' || event?.type === 'message.remove') {
       if (this.state.gap || this.state.closed) return []
+
       if (event.type === 'message.remove') {
         removed = this.entries.has(event.ref.id) ? [event.ref.id] : []
         orderChanged = removed.length > 0
       } else {
         candidates.set(event.message.id, event.message)
+
         if (event.replaces?.some((ref) => ref.id !== event.message.id && this.entries.has(ref.id))) {
           const replaced = new Set<string>(event.replaces.map((ref) => ref.id))
           replaced.add(event.message.id)
           order = []
           let inserted = false
+
           for (const id of this.entries.keys()) {
             if (replaced.has(id)) {
               if (!inserted) order.push(event.message.id)
               inserted = true
             } else order.push(id)
           }
+
           removed = [...replaced].filter((id) => id !== event.message.id && this.entries.has(id))
           orderChanged = true
         } else orderChanged = !this.entries.has(event.message.id)
@@ -254,19 +286,27 @@ export class ThreadMessageProjection {
     else if (event?.type === 'gap' || event?.type === 'closed') {
       nextState = event.type === 'gap' ? { ...state, gap: event.reason } : { ...state, closed: event.reason }
     }
+
     for (const id of refresh) {
       const source = this.entries.get(id)?.source
+
       if (source) candidates.set(id, source)
     }
+
     // Decorators may throw; commit only after every affected message has been projected.
     const projected = [...candidates.values()].map((source) => ({ source, view: this.project(source) }))
     const changed: CherryUIMessage[] = []
+
     for (const entry of projected) if (entry.view !== this.entries.get(entry.view.id)?.view) changed.push(entry.view)
+
     for (const id of removed) this.entries.delete(id)
+
     for (const entry of projected) this.entries.set(entry.source.id, entry)
+
     if (order) this.entries = new Map(order.map((id) => [id, this.entries.get(id)!]))
     this.state = nextState
     this.publish(changed, removed, orderChanged, state)
+
     return changed
   }
 
@@ -279,6 +319,7 @@ export class ThreadMessageProjection {
     if (!changed.length && !removed.length && !orderChanged && isDeepStrictEqual(state, this.state)) return
     this.revision++
     this.view = undefined
+
     if (this.listeners.size) {
       const update: ThreadProjectionUpdate = {
         type: 'change',
@@ -288,6 +329,7 @@ export class ThreadMessageProjection {
         order: [...this.entries.keys()],
         state: this.state
       }
+
       for (const listener of [...this.listeners]) this.deliver(listener, update)
     }
   }
@@ -313,14 +355,17 @@ export class ThreadMessageProjection {
             part.state === 'approval-responded' ||
             (part.state === 'output-available' && part.preliminary))
       )
+
     const normalized: CherryUIMessage = {
       id: source.id,
       role: source.role,
       parts: source.parts as CherryUIMessage['parts'],
       metadata: { status: pending ? 'pending' : 'success' }
     }
+
     const message = this.decorate?.(normalized, source) ?? normalized
     const previous = this.entries.get(message.id)?.view
+
     return previous && isDeepStrictEqual(message, previous) ? previous : message
   }
 }

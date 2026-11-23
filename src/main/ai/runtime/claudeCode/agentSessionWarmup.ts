@@ -158,6 +158,7 @@ function resolvePromptModelName(uniqueModelId: UniqueModelId, agent: AgentEntity
   if (uniqueModelId === agent.model) return agent.modelName || null
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const model = modelService.getByKey(providerId, modelId)
+
   return model.name ?? modelId
 }
 
@@ -170,28 +171,35 @@ type CustomHeaderSource = string | Readonly<Record<string, string>> | undefined
  */
 function mergeAnthropicCustomHeaders(...sources: CustomHeaderSource[]): string | undefined {
   const headers = new Map<string, { name: string; value: string }>()
+
   const setHeader = (rawName: string, rawValue: string) => {
     const name = rawName.trim()
+
     if (!name) return
     headers.set(name.toLowerCase(), { name, value: rawValue.trim() })
   }
 
   for (const source of sources) {
     if (!source) continue
+
     if (typeof source === 'string') {
       for (const line of source.split('\n')) {
         const separator = line.indexOf(':')
+
         if (separator < 0) continue
         setHeader(line.slice(0, separator), line.slice(separator + 1))
       }
+
       continue
     }
+
     for (const [name, value] of Object.entries(source)) {
       setHeader(name, value)
     }
   }
 
   if (headers.size === 0) return undefined
+
   return [...headers.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, { name, value }]) => `${name}: ${value}`)
@@ -210,6 +218,7 @@ function buildUsageModels(
       aliases: Set<string>
     }
   >()
+
   for (const { sdkModelId, ref } of entries) {
     const current = byModelId.get(ref.modelId) ?? {
       apiModelId: ref.apiModelId,
@@ -231,11 +240,13 @@ function buildUsageModels(
       }).pricingSnapshot,
       aliases: new Set<string>()
     }
+
     current.aliases.add(sdkModelId)
     current.aliases.add(ref.apiModelId)
     current.aliases.add(ref.modelId)
     byModelId.set(ref.modelId, current)
   }
+
   return [...byModelId].map(([modelId, snapshot]) => ({
     modelId,
     apiModelId: snapshot.apiModelId,
@@ -335,13 +346,17 @@ export async function deriveConnectionConfig(
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
   const session = agentSessionService.getById(sessionId)
+
   if (!session?.agentId) return unroutable
   const agent = agentService.getAgent(session.agentId)
+
   if (!agent) return unroutable
   // A cleared agent default still routes when the session carries its own
   // override — only a session with no effective model is unroutable.
   const effectiveModel = connectionModelId ?? (headless ? agent.model : (session.model ?? agent.model))
+
   if (!effectiveModel) return unroutable
+
   try {
     return {
       ok: true,
@@ -367,6 +382,7 @@ export async function deriveConnectionConfig(
       sessionId,
       error
     })
+
     return unroutable
   }
 }
@@ -376,6 +392,7 @@ async function deriveAgentProxyEnvironmentFingerprint(
   route: ClaudeCodeRouteFacts
 ): Promise<string> {
   const proxyEnvironment = getProxyEnvironment(process.env)
+
   return createAgentProxyEnvironmentFingerprint(
     {
       ...(await getClaudeCodeLoginShellEnvironment(proxyEnvironment)),
@@ -399,11 +416,13 @@ async function deriveConnectionConfigFromSnapshot(
   headless = false
 ): Promise<ConnectionConfig> {
   const cwd = session.workspace?.path
+
   if (!cwd) throw new Error(`Agent session ${session.id} has no workspace path`)
   let contextWindow = materialized?.contextWindow ?? null
   let maxOutputTokens = materialized?.maxOutputTokens ?? null
   let effectiveFastMode = materialized?.fastMode ?? fastMode
   let routeFacts = materialized?.route
+
   if (!routeFacts) {
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
     const provider = providerService.getByProviderId(providerId)
@@ -411,10 +430,12 @@ async function deriveConnectionConfigFromSnapshot(
     contextWindow = model.contextWindow ?? null
     maxOutputTokens = model.maxOutputTokens ?? null
     const { baseUrl } = resolveEffectiveEndpoint(provider, model)
+
     // A stale primary capture must not inherit newer sub-model settings.
     // Compare against the dispatch mode's effective model so ordinary overrides keep their aliases.
     const pinSubModelsToPrimary =
       connectionModelId !== undefined && connectionModelId !== (headless ? agent.model : (session.model ?? agent.model))
+
     routeFacts = deriveRouteFacts(
       provider,
       model,
@@ -423,15 +444,19 @@ async function deriveConnectionConfigFromSnapshot(
       pinSubModelsToPrimary ? undefined : agent.planModel,
       pinSubModelsToPrimary ? undefined : agent.smallModel
     )
+
     if (routeFacts.branch === 'external-cli') {
       effectiveFastMode =
         fastMode && isSupportFastMode(provider, model) && provider.fastMode.transport === 'claude-code'
     }
   }
+
   const skills = materialized?.skills ?? (await buildSkillWhitelist(agent, cwd))
   const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
+
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
+
   const rebuildFacts = {
     promptSuggestions: !headless && application.get('PreferenceService').get('agent.input.suggestions.enabled'),
     modelId: uniqueModelId,
@@ -470,6 +495,7 @@ async function deriveConnectionConfigFromSnapshot(
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
     notificationContext
   }
+
   const rebuildFactFingerprints = Object.fromEntries(
     Object.entries(rebuildFacts).map(([name, value]) => [
       name,
@@ -496,7 +522,9 @@ async function deriveConnectionConfigFromSnapshot(
 function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots?: McpServerSnapshotMap): unknown[] {
   return [...(mcpIds ?? [])].sort().map((mcpId) => {
     const server = snapshots ? snapshots.get(mcpId) : mcpServerService.findByIdOrName(mcpId)
+
     if (!server) return { mcpId, missing: true }
+
     return {
       mcpId,
       id: server.id,
@@ -514,9 +542,11 @@ function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots
 
 function captureMcpServerSnapshots(mcpIds: string[] | null | undefined): McpServerSnapshotMap {
   const snapshots = new Map<string, McpServer | undefined>()
+
   for (const mcpId of mcpIds ?? []) {
     snapshots.set(mcpId, mcpServerService.findByIdOrName(mcpId))
   }
+
   return snapshots
 }
 
@@ -539,13 +569,16 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   headless = false
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
+
   if (!session?.agentId) return undefined
 
   const agent = agentService.getAgent(session.agentId)
+
   if (!agent) return undefined
   // A cleared agent default still routes when the session carries its own
   // override — only a session with no effective model is unroutable.
   const uniqueModelId = connectionModelId ?? (headless ? agent.model : (session.model ?? agent.model))
+
   if (!uniqueModelId) return undefined
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
@@ -559,18 +592,23 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // compaction window from the one actually passed to Claude Code.
   const contextWindow = model.contextWindow
   const maxOutputTokens = model.maxOutputTokens
+
   const nativeFastMode =
     isExternalCliProvider(provider) &&
     fastMode &&
     isSupportFastMode(provider, model) &&
     provider.fastMode.transport === 'claude-code'
+
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
+
   // A stale primary capture must not inherit newer sub-model settings.
   // Compare against the dispatch mode's effective model so ordinary overrides keep their aliases.
   const pinSubModelsToPrimary =
     connectionModelId !== undefined && connectionModelId !== (headless ? agent.model : (session.model ?? agent.model))
+
   const planModel = pinSubModelsToPrimary ? undefined : agent.planModel
   const smallModel = pinSubModelsToPrimary ? undefined : agent.smallModel
+
   const route = await resolveClaudeCodeRuntimeRoute(
     session.id,
     provider,
@@ -586,12 +624,15 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       icon: agent.configuration?.avatar ?? null
     }
   )
+
   const resumeSessionId =
     (effectiveResume === undefined
       ? agentSessionMessageService.getLastRuntimeResumeToken(session.id)
       : effectiveResume) ?? undefined
+
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const promptModelName = resolvePromptModelName(uniqueModelId, agent)
+
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -617,6 +658,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     route,
     { reasoningEffort, serviceTier, fastMode }
   )
+
   // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
   // materialized this request. This runs after route materialization so a first-use gateway key is
   // already persisted and the connect-time fingerprint matches later pure reconciles.
@@ -645,7 +687,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     connectionModelId,
     headless
   )
+
   const sdkModelId = route.modelIds.primary
+
   const options = createClaudeCodeQueryOptions({
     modelId: sdkModelId,
     settings,
@@ -665,7 +709,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     settings,
     sdkModelId
   }
+
   if (route.branch === 'gateway' && contextWindow) request.contextWindow = { model: sdkModelId, tokens: contextWindow }
+
   return { ...request, usageCapture: route.usageCapture }
 }
 
@@ -680,15 +726,18 @@ function resolveClaudeCodeThinkingOptions(model: Model, reasoningEffort: Reasoni
     model,
     ENDPOINT_TYPE.ANTHROPIC_MESSAGES
   )
+
   const invocationModel = profile.support
     ? { ...model, reasoning: projectRuntimeReasoning(profile.support, profile.wire) }
     : model
+
   const invocation = resolveReasoningInvocation({
     selection: reasoningEffort,
     model: invocationModel,
     profile: profile.wire,
     maxTokens: model.maxOutputTokens
   })
+
   const encoded = encodeReasoningInvocation(invocation)
 
   return {
@@ -720,6 +769,7 @@ function deriveRouteFacts(
     provider: primaryProvider,
     model: primaryModel
   }
+
   const opusRef = primaryRef
   // Captured turns pin background slots to their original primary; later edits cannot redirect them.
   const sonnetRef = resolveRuntimeModelRef(planModel, primaryRef)
@@ -736,18 +786,21 @@ function deriveRouteFacts(
   // Pin incompatible background slots to the primary instead of exporting subscription credentials.
   if (isExternalCliProvider(primaryProvider)) {
     const pinToPrimary = (ref: RuntimeModelRef) => (ref.providerId === primaryProvider.id ? ref : primaryRef)
+
     const externalRefs = {
       primary: primaryRef,
       opus: primaryRef,
       sonnet: pinToPrimary(sonnetRef),
       haiku: pinToPrimary(haikuRef)
     }
+
     const modelIds = {
       primary: externalRefs.primary.apiModelId,
       opus: externalRefs.opus.apiModelId,
       sonnet: externalRefs.sonnet.apiModelId,
       haiku: externalRefs.haiku.apiModelId
     }
+
     return {
       branch: 'external-cli',
       credentialsFingerprint: 'external-cli',
@@ -764,6 +817,7 @@ function deriveRouteFacts(
 
   const slotModelId = (ref: RuntimeModelRef) =>
     toGatewayModelId(ref, isFirstPartyAnthropicSlot(ref, primaryRef, primaryBaseUrl))
+
   return {
     branch: 'gateway',
     baseUrl: application.get('ApiGatewayService').getInternalGatewayOrigin(),
@@ -791,6 +845,7 @@ async function resolveClaudeCodeRuntimeRoute(
   source: SourceSnapshot
 ): Promise<ClaudeCodeRuntimeRoute> {
   const facts = deriveRouteFacts(primaryProvider, primaryModel, primaryModelId, primaryBaseUrl, planModel, smallModel)
+
   switch (facts.branch) {
     case 'external-cli':
       return {
@@ -806,6 +861,7 @@ async function resolveClaudeCodeRuntimeRoute(
       }
     case 'gateway': {
       const gateway = await resolveApiGatewayRuntime(sessionId)
+
       return {
         ...facts,
         baseUrl: gateway.baseUrl,
@@ -835,21 +891,26 @@ function resolveRuntimeModelRef(
 ): RuntimeModelRef {
   if (!uniqueModelId) return fallback
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+
   if (providerId === fallback.providerId && modelId === fallback.modelId) return fallback
 
   try {
     let provider: ReturnType<typeof providerService.getByProviderId> | undefined
+
     try {
       provider = providerService.getByProviderId(providerId)
     } catch {
       provider = undefined
     }
+
     let model: ReturnType<typeof modelService.getByKey> | undefined
+
     try {
       model = modelService.getByKey(providerId, modelId)
     } catch {
       model = undefined
     }
+
     return {
       providerId,
       modelId,
@@ -866,6 +927,7 @@ function resolveRuntimeModelRef(
 /** Matches the internal gateway's endpoint preference without modifying the model catalog. */
 function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
   if (!ref.provider || !ref.model) return false
+
   return (
     resolveEffectiveEndpoint(ref.provider, ref.model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType ===
     ENDPOINT_TYPE.ANTHROPIC_MESSAGES
@@ -880,14 +942,17 @@ function toGatewayModelId(ref: RuntimeModelRef, isAnthropicNative: boolean): str
   const apiModelId = usesAnthropicMessagesEndpoint(ref)
     ? with1mSuffix(ref.apiModelId, ref.contextWindow, isAnthropicNative)
     : ref.apiModelId
+
   return formatGatewayModelId(ref.providerId, apiModelId)
 }
 
 /** Each gateway slot resolves its own provider for the first-party context-window policy. */
 function isFirstPartyAnthropicSlot(ref: RuntimeModelRef, primaryRef: RuntimeModelRef, primaryBaseUrl: string): boolean {
   const provider = ref.provider
+
   if (!provider) return false
   const baseUrl = resolveAnthropicBaseUrl(provider, ref === primaryRef ? primaryBaseUrl : '')
+
   return Boolean(baseUrl) && isAnthropicOfficialHost(baseUrl)
 }
 
@@ -895,6 +960,7 @@ function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
   // Claude SDK manages API versioning itself — ANTHROPIC_BASE_URL must not include /v1.
   const anthropicEndpointUrl = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
   const rawBaseUrl = anthropicEndpointUrl || baseUrl
+
   return rawBaseUrl ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false)) : undefined
 }
 
@@ -911,31 +977,40 @@ function mergeRuntimeSettings(
           [CHERRY_FAST_MODE_HEADER]: String(requestOptions.fastMode === true)
         }
       : undefined
+
   const customHeaders = mergeAnthropicCustomHeaders(
     settings.env?.ANTHROPIC_CUSTOM_HEADERS,
     route.customHeaders,
     requestHeaders
   )
+
   const runtimeEnv: NonNullable<ClaudeCodeSettings['env']> = { ...settings.env }
+
   if (route.branch === 'gateway') {
     runtimeEnv.API_TIMEOUT_MS = settings.env?.API_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT)
     runtimeEnv.API_FORCE_IDLE_TIMEOUT = settings.env?.API_FORCE_IDLE_TIMEOUT ?? '0'
     runtimeEnv.CLAUDE_STREAM_IDLE_TIMEOUT_MS = settings.env?.CLAUDE_STREAM_IDLE_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT)
   }
+
   runtimeEnv.ANTHROPIC_MODEL = route.modelIds.primary
   runtimeEnv.ANTHROPIC_DEFAULT_OPUS_MODEL = route.modelIds.opus
   runtimeEnv.ANTHROPIC_DEFAULT_SONNET_MODEL = route.modelIds.sonnet
   runtimeEnv.ANTHROPIC_DEFAULT_HAIKU_MODEL = route.modelIds.haiku
+
   if (route.apiKey) {
     runtimeEnv.ANTHROPIC_API_KEY = route.apiKey
     runtimeEnv.ANTHROPIC_AUTH_TOKEN = route.apiKey
   }
+
   if (route.baseUrl) runtimeEnv.ANTHROPIC_BASE_URL = route.baseUrl
+
   if (customHeaders) runtimeEnv.ANTHROPIC_CUSTOM_HEADERS = customHeaders
   const env = mergeAgentLoopbackProxyBypass(runtimeEnv, { additionalBypassRule: gatewayBypassRule(route) })
+
   if (route.branch === 'gateway' && !env.CLAUDE_CODE_SUBAGENT_MODEL?.trim()) {
     env.CLAUDE_CODE_SUBAGENT_MODEL = route.modelIds.primary
   }
+
   // `buildEnvironment` force-enables the SDK's ToolSearch via `ENABLE_TOOL_SEARCH=auto` before the
   // per-turn model is known, and the var is in the blocked list so agents cannot override it. When
   // the effective connection model rejects dynamically-loaded tool declarations (e.g. Kimi models
@@ -944,6 +1019,7 @@ function mergeRuntimeSettings(
   if (!route.toolSearchCompatible) {
     delete env.ENABLE_TOOL_SEARCH
   }
+
   return {
     ...settings,
     env
@@ -954,9 +1030,12 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
   sessionId: string
 ): Promise<WarmQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
+
   if (!session?.agentId) return undefined
   const agent = agentService.getAgent(session.agentId)
+
   if (!agent) return undefined
+
   // Prewarm interactive use of the agent default. Headless turns reconcile their own options.
   const request = await buildClaudeCodeQueryRequestForAgentSession(
     sessionId,
@@ -968,7 +1047,9 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     'standard',
     false
   )
+
   if (!request) return undefined
+
   return {
     key: request.key,
     options: request.options,

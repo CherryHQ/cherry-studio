@@ -6,7 +6,9 @@ import { SkyworkLight } from './light'
 
 const Skywork = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <SkyworkLight {...props} className={className} />
+
   if (variant === 'dark') return <SkyworkDark {...props} className={className} />
+
   return (
     <>
       <SkyworkLight className={cn('dark:hidden', className)} {...props} />

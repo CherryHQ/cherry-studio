@@ -69,6 +69,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const isMosaicTool = activeTool === 'mosaic'
 
   let top: number
+
   if (toolbarBelow) {
     const belowTop = toolbarTop + toolbarHeight + GAP
     // No room left below → flip above the toolbar, accepting that it covers part of

@@ -32,6 +32,7 @@ export class ModelSyncError extends Error {
 }
 
 type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/models:resolve`>
+
 type ModelSyncProviderEndpointSource = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
 
 export function resolveCreateModelEndpointTypes(
@@ -68,11 +69,15 @@ export function toCreateModelDto(
     name: model.name,
     group: model.group
   }
+
   if (capabilities) input.capabilities = [...capabilities]
+
   if (resolvedEndpointTypes?.length) input.endpointTypes = [...resolvedEndpointTypes]
+
   // Discovered rather than registry-supplied for local providers — Ollama's window comes from
   // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
   if (model.contextWindow) input.contextWindow = model.contextWindow
+
   return input
 }
 
@@ -85,11 +90,13 @@ export function toCreateModelDto(
  */
 async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Model>[]): Promise<Model[]> {
   const filteredModels = fetchedModels.filter((model) => !isEmpty(model.name))
+
   if (filteredModels.length === 0) {
     return []
   }
 
   const modelIds = filteredModels.map(getRawModelId)
+
   if (modelIds.some((modelId) => !modelId)) {
     throw new Error(i18n.t('settings.models.manage.sync_pull_failed'))
   }
@@ -98,8 +105,10 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
   const resolved = await dataApiService.get(resolveModelsPath, { query: { ids: modelIds } })
 
   const resolvedMap = new Map<string, Model>()
+
   for (const model of resolved) {
     const key = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+
     if (!resolvedMap.has(key)) {
       resolvedMap.set(key, model)
     }
@@ -141,6 +150,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       isEnabled: fetched.isEnabled ?? registry.isEnabled,
       isHidden: fetched.isHidden ?? registry.isHidden
     } satisfies Model
+
     // Fetchers use the raw id when the API has no display name; only then use the registry name.
     const keepFetchedName = !!fetched.name && fetched.name !== fetched.apiModelId
 
@@ -148,10 +158,13 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       if (field === 'endpointTypes' && fetched.endpointTypes?.length) {
         continue
       }
+
       if (field === 'name' && keepFetchedName) {
         continue
       }
+
       const value = registry[field]
+
       if (value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0)) {
         Object.assign(merged, { [field]: value })
       }
@@ -170,14 +183,17 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
 export async function fetchResolvedProviderModels(providerId: string): Promise<ListedModels<Model>> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
+
     const { models: fetched, skippedModels } = await ipcApi.request('ai.provider.model.list', {
       providerId,
       throwOnError: true
     })
+
     logger.info('Fetched provider models', { providerId, fetchedModelCount: fetched.length })
     // Enrichment rebuilds the array, so the notice main reported alongside the
     // models is carried onto the result.
     const models = await enrichFetchedModels(providerId, fetched)
+
     return skippedModels ? { models, skippedModels } : { models }
   } catch (error) {
     logger.error('Failed to fetch and resolve provider models', {

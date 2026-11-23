@@ -31,16 +31,20 @@ const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsByM
   useLayoutEffect(() => {
     const viewport = viewportRef.current
     const content = contentRef.current
+
     if (!viewport || !content) return
 
     followsLatest.current = true
+
     const followLatest = () => {
       if (followsLatest.current) viewport.scrollTop = viewport.scrollHeight
     }
+
     followLatest()
     const observer = new ResizeObserver(followLatest)
     observer.observe(viewport)
     observer.observe(content)
+
     return () => observer.disconnect()
   }, [scrollKey])
 

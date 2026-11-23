@@ -25,11 +25,13 @@ const logger = loggerService.withContext('ProviderModelManageDrawer')
 
 function uniqueById(models: Model[]): Model[] {
   const result = new Map<string, Model>()
+
   for (const model of models) {
     if (!result.has(model.id)) {
       result.set(model.id, model)
     }
   }
+
   return Array.from(result.values())
 }
 
@@ -48,9 +50,11 @@ async function deleteModelsSkippingDefaults(
   while (remainingIds.length > 0) {
     try {
       await deleteModels(remainingIds)
+
       return skippedIds
     } catch (error) {
       const blockedId = getModelInUseAsDefaultUniqueModelId(error)
+
       if (!blockedId || !remainingIds.includes(blockedId)) {
         throw error
       }
@@ -83,6 +87,7 @@ export function useProviderModelPullReconcile(providerId: string) {
   const { provider, enableProvider } = useProvider(providerId)
   const { models } = useModels({ providerId })
   const { createModels, deleteModels, isCreating, isDeleting, isBulkDeleting } = useModelMutations()
+
   const { trigger: reconcileModels, isLoading: isReconciling } = useMutation(
     'POST',
     '/providers/:providerId/models:reconcile',
@@ -91,6 +96,7 @@ export function useProviderModelPullReconcile(providerId: string) {
 
   const allModels = useMemo(() => uniqueById([...fetchedModels, ...models]), [fetchedModels, models])
   const remoteModelIds = useMemo(() => new Set(fetchedModels.map((model) => model.id)), [fetchedModels])
+
   const defaultModelIds = useMemo(
     () =>
       new Set(
@@ -100,10 +106,12 @@ export function useProviderModelPullReconcile(providerId: string) {
       ),
     [defaultModelId, quickAssistantModelId, translateModelId]
   )
+
   const removableModelIds = useMemo(
     () => models.filter((model) => !defaultModelIds.has(model.id)).map((model) => model.id),
     [defaultModelIds, models]
   )
+
   const staleModels = useMemo(() => {
     if (!hasLoadedCompleteRemoteModels) {
       return []
@@ -113,6 +121,7 @@ export function useProviderModelPullReconcile(providerId: string) {
       (model) => !remoteModelIds.has(model.id) && model.presetModelId != null && model.presetModelId !== ''
     )
   }, [hasLoadedCompleteRemoteModels, models, remoteModelIds])
+
   const defaultModelIdList = useMemo(() => [...defaultModelIds], [defaultModelIds])
   const staleModelIds = useMemo(() => staleModels.map((model) => model.id), [staleModels])
 
@@ -122,19 +131,24 @@ export function useProviderModelPullReconcile(providerId: string) {
     setIsLoadingModels(true)
     setHasLoadedCompleteRemoteModels(false)
     setLoadErrorMessage(null)
+
     try {
       const { models, skippedModels = [] } = await fetchResolvedProviderModels(providerId)
+
       if (!isLatestLoad()) return null
 
       const fetched = models.filter((model) => model.name?.trim())
+
       if (skippedModels.length > 0) {
         toast.warning({
           title: t('settings.models.manage.models_not_listed', { count: skippedModels.length }),
           description: skippedModels.join(', ')
         })
       }
+
       setFetchedModels(fetched)
       setHasLoadedCompleteRemoteModels(true)
+
       return { models: uniqueById(fetched), error: null }
     } catch (error) {
       if (!isLatestLoad()) return null
@@ -148,6 +162,7 @@ export function useProviderModelPullReconcile(providerId: string) {
       setLoadErrorMessage(
         t(classification.category === 'unknown' ? 'settings.models.manage.sync_pull_failed' : classification.i18nKey)
       )
+
       return { models: [], error }
     } finally {
       if (isLatestLoad()) setIsLoadingModels(false)
@@ -167,6 +182,7 @@ export function useProviderModelPullReconcile(providerId: string) {
     async (nextModels: Model[]) => {
       const currentIds = new Set(models.map((model) => model.id))
       const toAdd = uniqueById(nextModels).filter((model) => !currentIds.has(model.id))
+
       if (toAdd.length === 0) {
         return
       }
@@ -175,11 +191,13 @@ export function useProviderModelPullReconcile(providerId: string) {
         toAdd.map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model))),
         MODELS_BATCH_MAX_ITEMS
       )
+
       // A batch that lands commits and cannot be undone here, so the batches after
       // it stay worth sending: add what can be added, then report what actually
       // happened. A retry only fills the gaps — `toAdd` above drops existing rows.
       let addedCount = 0
       let failedCount = 0
+
       for (const chunk of chunks) {
         try {
           await createModels(chunk)
@@ -198,12 +216,15 @@ export function useProviderModelPullReconcile(providerId: string) {
 
       if (addedCount === 0) {
         toast.error(t('settings.models.manage.operation_failed'))
+
         return
       }
+
       if (failedCount > 0) {
         // The provider is turned on for the model set the user asked for, not for
         // part of it: a half-added library stays off until a retry completes it.
         toast.warning(t('settings.models.manage.add_partial_failure', { added: addedCount, failed: failedCount }))
+
         return
       }
 
@@ -229,12 +250,14 @@ export function useProviderModelPullReconcile(providerId: string) {
   const removeModels = useCallback(
     async (uniqueModelIds: UniqueModelId[]) => {
       const uniqueIds = Array.from(new Set(uniqueModelIds))
+
       if (uniqueIds.length === 0) {
         return
       }
 
       try {
         const skippedIds = await deleteModelsSkippingDefaults(uniqueIds, deleteModels)
+
         if (skippedIds.size > 0) {
           toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedIds.size }))
         }
@@ -252,6 +275,7 @@ export function useProviderModelPullReconcile(providerId: string) {
 
   const cleanStaleModels = useCallback(async () => {
     const uniqueIds = Array.from(new Set(staleModels.map((model) => model.id)))
+
     if (uniqueIds.length === 0) return
 
     try {
@@ -259,12 +283,15 @@ export function useProviderModelPullReconcile(providerId: string) {
         params: { providerId },
         body: { toAdd: [], toRemove: uniqueIds }
       })
+
       const survivors = new Set(reconciled.map((model) => model.id))
       const removedCount = uniqueIds.filter((id) => !survivors.has(id)).length
       const skippedCount = uniqueIds.length - removedCount
+
       if (removedCount > 0) {
         toast.success(t('settings.models.manage.clean_stale_success', { count: removedCount }))
       }
+
       if (skippedCount > 0) {
         toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedCount }))
       }

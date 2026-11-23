@@ -41,6 +41,7 @@ export type PermissionModeCard = {
 
 // ------------------ Channel config (Feishu) ------------------
 export type FeishuDomain = 'feishu' | 'lark'
+
 export type FeishuChannelConfig = {
   type: 'feishu'
   app_id: string

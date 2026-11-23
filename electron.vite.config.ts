@@ -40,7 +40,9 @@ type ElectronBuilderConfig = {
 const electronBuilderConfig = parse(
   readFileSync(resolve(__dirname, 'electron-builder.yml'), 'utf8')
 ) as ElectronBuilderConfig
+
 const bundledReleaseNotes = electronBuilderConfig.releaseInfo?.releaseNotes
+
 const bundledReleaseHistory = parseReleaseHistory(
   readFileSync(resolve(__dirname, 'resources/cherry-studio/release-history.json'), 'utf8')
 )
@@ -48,6 +50,7 @@ const bundledReleaseHistory = parseReleaseHistory(
 if (typeof bundledReleaseNotes !== 'string' || !bundledReleaseNotes.trim()) {
   throw new Error('electron-builder.yml must define non-empty releaseInfo.releaseNotes')
 }
+
 validateCurrentReleaseHistory({ releaseNotes: bundledReleaseNotes, version: pkg.version }, bundledReleaseHistory)
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
@@ -72,6 +75,7 @@ export function resolveSentryBuildSettings(env: NodeJS.ProcessEnv) {
 
 export function resolveRendererEdition(value: string | undefined): AppEdition {
   const edition = value?.trim().toLowerCase() || 'global'
+
   if (APP_EDITIONS.includes(edition as AppEdition)) return edition as AppEdition
   throw new Error(`Unsupported renderer edition: ${edition}`)
 }
@@ -80,6 +84,7 @@ const rendererEdition = resolveRendererEdition(process.env.CHERRY_EDITION)
 const sentryBuildContext = getSentryBuildContext(pkg.name, pkg.version, rendererEdition)
 const { sourceMapUploadEnabled } = resolveSentryBuildSettings(process.env)
 const sentrySourceMap = sourceMapUploadEnabled ? ('hidden' as const) : isDev
+
 export const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer' | 'utility-process') =>
   sourceMapUploadEnabled
     ? sentryVitePlugin({
@@ -107,6 +112,7 @@ const mainExternalDependencies = [
   // targets, not napi sub-packages, so rollup would fail on the .node; production keeps them installed.
   ...Object.keys(pkg.optionalDependencies ?? {})
 ]
+
 export const mainExternalModules = ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies]
 
 export const isMainExternalModule = (id: string) => {
@@ -122,17 +128,20 @@ const miniAppThemeAssetPlugin = (): Plugin => ({
   // `addWatchFile` is a build-phase call — it is not available from `generateBundle`.
   buildStart() {
     const stylesDir = resolve('packages/ui/src/styles')
+
     for (const name of readdirSync(stylesDir, { recursive: true, encoding: 'utf8' })) {
       if (name.endsWith('.css')) this.addWatchFile(join(stylesDir, name))
     }
   },
   async generateBundle() {
     let source: string
+
     try {
       source = await buildFlatContractCss()
     } catch (error) {
       return this.error(`failed to build assets/miniAppTheme.css: ${error instanceof Error ? error.message : error}`)
     }
+
     this.emitFile({ type: 'asset', fileName: 'assets/miniAppTheme.css', source })
   }
 })
@@ -142,6 +151,7 @@ const commandParserAssetsPlugin = (): Plugin => ({
   apply: 'build',
   buildStart() {
     const require = createRequire(import.meta.url)
+
     for (const filename of ['tree-sitter.wasm', 'tree-sitter-bash.wasm', 'tree-sitter-powershell.wasm']) {
       const source = readFileSync(require.resolve(`@vscode/tree-sitter-wasm/wasm/${filename}`))
       this.emitFile({ type: 'asset', fileName: `assets/command-parsers/${filename}`, source })
@@ -200,6 +210,7 @@ export default defineConfig({
         name: 'cherry-selection-panel',
         buildStart() {
           this.addWatchFile(selectionPanelSource)
+
           if (process.env.CHERRY_RELEASE_JS_ONLY !== 'true') buildSelectionPanel()
         }
       },
@@ -208,6 +219,7 @@ export default defineConfig({
         apply: 'build',
         buildStart() {
           for (const file of externalAppSources) this.addWatchFile(file)
+
           if (process.env.CHERRY_RELEASE_JS_ONLY !== 'true') buildExternalApp()
         }
       },
@@ -234,9 +246,11 @@ export default defineConfig({
           manualChunks: (id) => {
             // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
             if (id.includes('/node_modules/conf/')) return 'electron-store-conf'
+
             // rolldown drops this chunk's named exports when it merges with a re-export-only
             // facade chunk, leaving createOpenAI undefined at runtime. Keep it alone.
             if (id.includes('/node_modules/@ai-sdk/openai/')) return 'ai-sdk-openai'
+
             return undefined
           },
           comments: isProd ? { legal: false } : undefined

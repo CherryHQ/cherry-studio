@@ -13,7 +13,9 @@ export function useToolResult(ref: DeferredToolResultRef | undefined) {
     async () => {
       const { topicId, messageId, toolCallId } = ref!
       const response = await ipcApi.request('ai.tool.get_result', { topicId, messageId, toolCallId })
+
       if (!response.found) throw new Error(`Tool result is no longer available: ${ref!.toolCallId}`)
+
       return response.output
     },
     // A miss is permanent: neither the active stream nor SQLite holds the output.

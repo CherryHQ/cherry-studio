@@ -15,9 +15,11 @@ export class ChannelLogBuffer {
   append(channelId: string, entry: ChannelLogEntry) {
     const list = this.logs.get(channelId) ?? []
     list.push(entry)
+
     while (list.length > this.maxEntries) {
       list.shift()
     }
+
     this.logs.set(channelId, list)
   }
 

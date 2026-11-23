@@ -58,6 +58,7 @@ const BasicDataSettings: React.FC = () => {
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
   const [logRetentionDays, setLogRetentionDays] = usePreference('app.logs.retention_days')
+
   const refreshCacheSize = useCallback(async () => {
     try {
       const response = await ipcApi.request('app.cache_cleanup.inspect', { groups: ['normal_cache'] })
@@ -88,8 +89,10 @@ const BasicDataSettings: React.FC = () => {
     }
 
     const inspection = await ipcApi.request('app.user_data_relocation.inspect', { path: newAppDataPath })
+
     if (!inspection.valid) {
       showRelocationValidationError(inspection.reason)
+
       return
     }
 
@@ -176,6 +179,7 @@ const BasicDataSettings: React.FC = () => {
       okText: t('common.confirm'),
       cancelText: t('common.cancel')
     })
+
     if (!confirmed) return
 
     try {
@@ -198,6 +202,7 @@ const BasicDataSettings: React.FC = () => {
 
   const handleOpenPath = (path?: string) => {
     if (!path) return
+
     if (path?.endsWith('log')) {
       const dirPath = path.split(/[/\\]/).slice(0, -1).join('/')
       void ipcApi.request('system.shell.open_path', dirPath)
@@ -212,19 +217,23 @@ const BasicDataSettings: React.FC = () => {
     void ClearCachePopup.show({
       onClear: async (groups) => {
         setClearingCache(true)
+
         try {
           const legacyRequested = groups.includes('legacy_v1')
           const legacyMarkerReady = !legacyRequested || beginLegacyV1Cleanup()
           const runnableGroups = legacyMarkerReady ? groups : groups.filter((group) => group !== 'legacy_v1')
+
           const mainResult =
             runnableGroups.length > 0
               ? await ipcApi.request('app.cache_cleanup.run', { groups: runnableGroups })
               : { results: [] }
+
           const results = [...mainResult.results]
 
           if (legacyRequested && legacyMarkerReady) {
             const legacyIndex = results.findIndex(({ group }) => group === 'legacy_v1')
             const mainLegacyResult = results[legacyIndex]
+
             if (!mainLegacyResult) throw new Error('Missing main-process v1 cleanup result')
             results[legacyIndex] = finalizeLegacyV1Cleanup(
               mergeLegacyV1CleanupResults(
@@ -239,15 +248,18 @@ const BasicDataSettings: React.FC = () => {
           }
 
           const hasFailures = results.some(({ status }) => ['partial', 'skipped', 'failed'].includes(status))
+
           if (hasFailures) {
             toast.warning(t('settings.data.clear_cache.partial_success'))
           } else {
             toast.success(t('settings.data.clear_cache.success'))
           }
+
           return !hasFailures
         } catch (error) {
           logger.error('Cache cleanup failed', error as Error)
           toast.error(t('settings.data.clear_cache.error'))
+
           return false
         } finally {
           setClearingCache(false)
@@ -268,6 +280,7 @@ const BasicDataSettings: React.FC = () => {
         danger: true
       }
     })
+
     if (!confirmed) return
 
     try {

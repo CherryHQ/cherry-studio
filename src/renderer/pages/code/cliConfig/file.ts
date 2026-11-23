@@ -21,13 +21,16 @@ export type CliConfigReadFiles = Map<CliConfigTarget, CliConfigReadFile>
 export async function readConfigFiles(targets: readonly CliConfigTarget[]): Promise<CliConfigReadFiles> {
   if (!targets.length) return new Map()
   const { files } = await ipcApi.request('code_cli.read_config', { targets: [...targets] })
+
   return new Map(files.map((file) => [file.target, file]))
 }
 
 /** The read entry for `target`; a missing entry is a caller bug (readConfigFiles returns every requested target). */
 export function requireReadFile(target: CliConfigTarget, files: CliConfigReadFiles): CliConfigReadFile {
   const file = files.get(target)
+
   if (!file) throw new Error(`No read result for config target: ${target}`)
+
   return file
 }
 
@@ -50,6 +53,7 @@ export function readValidatedJsonOrNull(
   label: string
 ): Record<string, Serializable> | null {
   const { path, content } = requireReadFile(target, files)
+
   return content === null ? null : parseOrThrow(content, label, path, parseJsonOrThrow)
 }
 
@@ -60,11 +64,13 @@ export function readValidatedTomlOrNull(
   label: string
 ): TomlTable | null {
   const { path, content } = requireReadFile(target, files)
+
   return content === null ? null : parseOrThrow(content, label, path, parseTomlOrThrow)
 }
 
 export function parseTomlOrThrow(content: string): TomlTable {
   if (!content) return {}
+
   try {
     return parseToml(content)
   } catch (err) {
@@ -78,12 +84,16 @@ export function parseTomlOrThrow(content: string): TomlTable {
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- YAML tags may produce native values; adapters validate each managed field while preserving foreign fields.
 export function parseYamlOrThrow(content: string): Record<string, unknown> {
   if (!content) return {}
+
   try {
     const parsed: unknown = parseYaml(content)
+
     if (parsed == null) return {}
+
     if (typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('invalid YAML root: expected an object')
     }
+
     // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The non-array object root is checked above; tagged YAML values remain unknown.
     return parsed as Record<string, unknown>
   } catch (err) {
@@ -96,17 +106,23 @@ export function parseYamlOrThrow(content: string): Record<string, unknown> {
 export function parseYamlDocumentOrThrow(content: string): Document {
   try {
     const document: Document = parseDocument(content)
+
     if (document.errors.length > 0) throw document.errors[0]
     const root = document.contents
+
     if (root === null || (isScalar(root) && root.value === null)) {
       const mapping = document.createNode({})
+
       if (root && isScalar(root)) {
         mapping.comment = root.comment
         mapping.commentBefore = root.commentBefore
       }
+
       document.contents = mapping
     }
+
     if (!isMap(document.contents)) throw new Error('invalid YAML root: expected an object')
+
     return document
   } catch (err) {
     const rawMessage = err instanceof Error ? err.message : String(err)
@@ -118,12 +134,15 @@ export function parseJsonOrThrow(content: string): Record<string, Serializable> 
   if (!content) return {}
   const errors: ParseError[] = []
   const parsed = parseJsonc(content, errors, { allowTrailingComma: true, disallowComments: false })
+
   if (errors.length) {
     throw new Error(`invalid JSONC (${errors.length} parse error(s))`)
   }
+
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('invalid JSONC root: expected an object')
   }
+
   // SAFETY: JSONC parsing constructs JSON values; the checks above reject parse errors and non-object roots.
   return parsed as Record<string, Serializable>
 }

@@ -44,6 +44,7 @@ export function clampHeartbeatIntervalMinutes(raw: number | undefined): number {
   if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) {
     return DEFAULT_HEARTBEAT_INTERVAL_MINUTES
   }
+
   return Math.min(Math.max(MIN_HEARTBEAT_INTERVAL_MINUTES, Math.round(raw)), MAX_HEARTBEAT_INTERVAL_MINUTES)
 }
 

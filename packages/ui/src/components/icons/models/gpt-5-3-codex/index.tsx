@@ -4,6 +4,7 @@ import { Gpt53CodexLight } from './light'
 
 const Gpt53Codex = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt53CodexLight {...props} className={className} />
+
   return <Gpt53CodexLight {...props} className={className} />
 }
 

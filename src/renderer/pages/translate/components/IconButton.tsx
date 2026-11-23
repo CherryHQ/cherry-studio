@@ -4,6 +4,7 @@ import { NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 
 export type IconButtonSize = 'xs' | 'sm' | 'md'
+
 export type IconButtonTone = 'ghost' | 'destructive' | 'star'
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -25,11 +26,13 @@ const toneClass = (tone: IconButtonTone, active: boolean): string => {
   if (tone === 'destructive') {
     return 'text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:text-destructive'
   }
+
   if (tone === 'star') {
     return active
       ? 'text-amber-500 bg-amber-500/10 focus-visible:text-amber-500'
       : 'text-muted-foreground hover:bg-accent hover:text-amber-500 focus-visible:text-amber-500'
   }
+
   return active
     ? 'bg-accent text-accent-foreground focus-visible:text-accent-foreground'
     : 'text-muted-foreground hover:bg-accent hover:text-foreground'

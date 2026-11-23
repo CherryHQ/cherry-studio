@@ -22,16 +22,20 @@ export const useAppUpdateState = <TResult>(
   const updateAppUpdateState = useCallback(
     (state: Partial<CacheAppUpdateState>) => {
       const { manualCheck, ignore, ...statusPatch } = state
+
       if (statusPatch.checking) statusPatch.lastErrorKey = null
+
       if (manualCheck !== undefined || ignore !== undefined) {
         setIntent((previous) => ({
           manualCheck: manualCheck ?? previous.manualCheck,
           ignore: ignore ?? previous.ignore
         }))
       }
+
       if (Object.keys(statusPatch).length > 0) {
         const previous =
           cacheService.getShared('app.dist.update_status') ?? DefaultSharedCache['app.dist.update_status']
+
         cacheService.setShared('app.dist.update_status', { ...previous, ...statusPatch })
       }
     },
@@ -40,7 +44,9 @@ export const useAppUpdateState = <TResult>(
 
   const checkForUpdate = useCallback(async (): Promise<void> => {
     const current = cacheService.getShared('app.dist.update_status') ?? DefaultSharedCache['app.dist.update_status']
+
     if (current.checking || current.downloading) return
+
     if (current.downloaded) {
       try {
         await showDownloadedUpdate?.(current.info)
@@ -48,9 +54,12 @@ export const useAppUpdateState = <TResult>(
         logger.error('Failed to show update dialog', error as Error)
         toast.error(t('settings.about.updateError'))
       }
+
       return
     }
+
     updateAppUpdateState({ checking: true, manualCheck: true })
+
     try {
       await ipcApi.request('app.updater.check_for_update')
     } catch (error) {

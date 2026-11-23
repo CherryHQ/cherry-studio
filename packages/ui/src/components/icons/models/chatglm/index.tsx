@@ -4,6 +4,7 @@ import { ChatglmLight } from './light'
 
 const Chatglm = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ChatglmLight {...props} className={className} />
+
   return <ChatglmLight {...props} className={className} />
 }
 

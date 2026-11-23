@@ -6,10 +6,13 @@ const { join, resolve } = require('node:path')
 function inspectPeArchitecture(bytes) {
   if (bytes.length < 64 || bytes.toString('ascii', 0, 2) !== 'MZ') throw new Error('Invalid PE executable')
   const offset = bytes.readUInt32LE(0x3c)
+
   if (offset > bytes.length - 6 || bytes.toString('ascii', offset, offset + 4) !== 'PE\u0000\u0000') {
     throw new Error('Invalid PE executable')
   }
+
   if (bytes.readUInt16LE(offset + 4) !== 0x8664) throw new Error('Expected an x64 PE executable')
+
   return 'x64'
 }
 
@@ -17,14 +20,18 @@ function inspectPcmWav(bytes) {
   if (bytes.length < 12 || bytes.toString('ascii', 0, 4) !== 'RIFF' || bytes.toString('ascii', 8, 12) !== 'WAVE') {
     throw new Error('Invalid synthesized WAV')
   }
+
   if (bytes.readUInt32LE(4) + 8 !== bytes.length) throw new Error('Truncated synthesized WAV')
   let hasFormat = false
   let audio
+
   for (let offset = 12; offset + 8 <= bytes.length;) {
     const name = bytes.toString('ascii', offset, offset + 4)
     const length = bytes.readUInt32LE(offset + 4)
     const start = offset + 8
+
     if (length > bytes.length - start) throw new Error('Truncated synthesized WAV chunk')
+
     if (name === 'fmt ') {
       if (
         length < 16 ||
@@ -37,13 +44,16 @@ function inspectPcmWav(bytes) {
       ) {
         throw new Error('Expected mono 16 kHz PCM16 WAV')
       }
+
       hasFormat = true
     } else if (name === 'data') audio = bytes.subarray(start, start + length)
     offset = start + length + (length % 2)
   }
+
   if (!hasFormat || !audio?.length || audio.length % 2 !== 0 || !audio.some((byte) => byte !== 0)) {
     throw new Error('Synthesized WAV has no PCM speech')
   }
+
   return { sampleRate: 16000, channels: 1, frameCount: audio.length / 2 }
 }
 
@@ -56,7 +66,9 @@ function invokeRaw(helperPath, input, schema) {
     timeout: 30_000,
     killSignal: 'SIGKILL'
   })
+
   if (result.error || result.status !== 0 || result.stderr) throw new Error('Windows helper protocol invocation failed')
+
   try {
     return schema.parse(JSON.parse(result.stdout))
   } catch {
@@ -70,6 +82,7 @@ async function protocolSmoke(helperPath) {
   const client = new SystemSpeechNativeClient({ helperPath, timeoutMs: 30_000 })
   const capabilities = await client.request({ operation: 'capabilities', locale: 'en-US' })
   const unsupported = await client.request({ operation: 'capabilities', locale: 'zz-ZZ' })
+
   if (
     unsupported.result.supportedLocale !== null ||
     unsupported.result.appleAssetStatus !== 'unsupported' ||
@@ -77,11 +90,15 @@ async function protocolSmoke(helperPath) {
   ) {
     throw new Error('Voice enumeration depends on ASR locale support')
   }
+
   const absentDefault = await client.request({ operation: 'resolve_voice', locale: 'zz-ZZ' })
+
   if (absentDefault.result.voice !== null) throw new Error('Default voice substituted an unrelated language')
   await client.request({ operation: 'resolve_voice' })
+
   for (const locale of new Set(capabilities.result.voices.map((voice) => voice.locale))) {
     const { result } = await client.request({ operation: 'resolve_voice', locale })
+
     if (
       !result.voice ||
       result.voice.locale.toLowerCase() !== locale.toLowerCase() ||
@@ -90,20 +107,25 @@ async function protocolSmoke(helperPath) {
       throw new Error('Language default did not resolve to an installed voice')
     }
   }
+
   await client.request({ operation: 'list_asr_locales' })
+
   const missingRecognizer = invokeRaw(
     helperPath,
     JSON.stringify({ operation: 'probe_asr', locale: 'zz-ZZ' }),
     nativeResponseSchema
   )
+
   if (missingRecognizer.ok || missingRecognizer.error.code !== 'unsupported_locale')
     throw new Error('Missing recognizer was substituted')
+
   const synthesis = {
     operation: 'synthesize',
     voiceId: 'missing-voice',
     text: 'protocol check',
     outputPath: 'unused.wav'
   }
+
   const invalid = [
     '{}',
     'not json',
@@ -112,13 +134,18 @@ async function protocolSmoke(helperPath) {
     JSON.stringify(synthesis),
     ...[null, '1', 0.49, 2.01].map((speed) => JSON.stringify({ ...synthesis, speed }))
   ]
+
   for (const input of invalid) {
     const response = invokeRaw(helperPath, input, nativeResponseSchema)
+
     if (response.ok || response.error.code !== 'invalid_request') throw new Error('Invalid request was accepted')
   }
+
   const missingVoice = invokeRaw(helperPath, JSON.stringify({ ...synthesis, speed: 1 }), nativeResponseSchema)
+
   if (missingVoice.ok || missingVoice.error.code !== 'voice_unavailable')
     throw new Error('Missing voice was substituted')
+
   return capabilities.result.voices
 }
 
@@ -128,9 +155,11 @@ async function ttsSmoke(helperPath, voices) {
   const client = new SystemSpeechNativeClient({ helperPath, timeoutMs: 30_000 })
   const directory = mkdtempSync(join(tmpdir(), 'cherry speech-测试-'))
   const frameCounts = []
+
   try {
     for (const speed of [0.5, 1, 2]) {
       const outputPath = join(directory, `speech-${speed}.wav`)
+
       const response = await client.request({
         operation: 'synthesize',
         voiceId: voices[0].id,
@@ -138,16 +167,22 @@ async function ttsSmoke(helperPath, voices) {
         outputPath,
         speed
       })
+
       const actual = inspectPcmWav(readFileSync(outputPath))
+
       if (Object.entries(actual).some(([key, value]) => response.result[key] !== value)) {
         throw new Error('Synthesized WAV metadata does not match its bytes')
       }
+
       frameCounts.push(actual.frameCount)
     }
+
     if (frameCounts[0] <= frameCounts[2]) throw new Error('Installed voice did not apply the requested speed')
+
     for (const expected of ['cancelled', 'timeout']) {
       const controller = new AbortController()
       const timer = expected === 'cancelled' ? setTimeout(() => controller.abort(), 50) : undefined
+
       try {
         await new SystemSpeechNativeClient({ helperPath, timeoutMs: expected === 'timeout' ? 50 : 30_000 }).request(
           {
@@ -169,6 +204,7 @@ async function ttsSmoke(helperPath, voices) {
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
+
   return { synthesized: frameCounts.length, cancellation: true, timeout: true }
 }
 
@@ -178,8 +214,10 @@ async function asrSmoke(helperPath, voices) {
   // This round trip checks the native pipeline, not human-speech accuracy.
   await client.request({ operation: 'probe_asr', locale: 'en-US' })
   const voice = voices.find((candidate) => candidate.locale.toLowerCase() === 'en-us')
+
   if (!voice) throw new Error('ASR round-trip smoke requires an installed en-US SAPI voice')
   const directory = mkdtempSync(join(tmpdir(), 'cherry asr-测试-'))
+
   try {
     const inputPath = join(directory, 'input.wav')
     await client.request({
@@ -191,6 +229,7 @@ async function asrSmoke(helperPath, voices) {
     })
     inspectPcmWav(readFileSync(inputPath))
     const { result } = await client.request({ operation: 'transcribe', locale: 'en-US', inputPath })
+
     if (result.locale !== 'en-US' || !/\bfox\b/i.test(result.text) || !/\bdog\b/i.test(result.text))
       throw new Error('ASR round-trip did not recognize the expected words')
 
@@ -209,15 +248,18 @@ async function asrSmoke(helperPath, voices) {
     silent.writeUInt32LE(silent.length - 44, 40)
     writeFileSync(inputPath, silent)
     const silence = await client.request({ operation: 'transcribe', locale: 'en-US', inputPath })
+
     if (silence.result.text.trim()) throw new Error('ASR returned a transcript for silence')
 
     const longSilence = Buffer.concat([silent.subarray(0, 44), Buffer.alloc(32000 * 300)])
     longSilence.writeUInt32LE(longSilence.length - 8, 4)
     longSilence.writeUInt32LE(longSilence.length - 44, 40)
     writeFileSync(inputPath, longSilence)
+
     for (const expected of ['cancelled', 'timeout']) {
       const controller = new AbortController()
       const timer = expected === 'cancelled' ? setTimeout(() => controller.abort(), 50) : undefined
+
       try {
         await new SystemSpeechNativeClient({ helperPath, timeoutMs: expected === 'timeout' ? 50 : 30_000 }).request(
           { operation: 'transcribe', locale: 'en-US', inputPath },
@@ -233,6 +275,7 @@ async function asrSmoke(helperPath, voices) {
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
+
   return { locale: 'en-US', transcription: true, silence: true, cancellation: true, timeout: true }
 }
 
@@ -247,6 +290,7 @@ function verifySignature(file) {
     ],
     { windowsHide: true, encoding: 'utf8', timeout: 30_000, env: { ...process.env, CHERRY_SPEECH_SIGNED_FILE: file } }
   )
+
   if (result.error || result.status !== 0) throw new Error('Packaged Authenticode signature verification failed')
 }
 
@@ -256,6 +300,7 @@ async function main(argv = process.argv.slice(2)) {
   const packagedIndex = args.indexOf('--packaged')
   const appPath = packagedIndex < 0 ? undefined : resolve(args[packagedIndex + 1] || '')
   const allowed = new Set(['--tts', '--asr', '--require-signature', '--packaged'])
+
   if (
     args.some((arg, index) => !(packagedIndex >= 0 && index === packagedIndex + 1) && !allowed.has(arg)) ||
     (packagedIndex >= 0 && (!args[packagedIndex + 1] || args[packagedIndex + 1].startsWith('--'))) ||
@@ -263,16 +308,21 @@ async function main(argv = process.argv.slice(2)) {
   ) {
     throw new Error('Expected [--tts] [--asr] [--packaged app-directory] [--require-signature]')
   }
+
   const helperPath = appPath
     ? join(appPath, 'resources', 'system-speech', 'cherry-system-speech.exe')
     : resolve(__dirname, '../dist/native/win32-x64/cherry-system-speech.exe')
+
   inspectPeArchitecture(readFileSync(helperPath))
+
   if (appPath) inspectPeArchitecture(readFileSync(join(appPath, 'Cherry Studio.exe')))
   const signatureVerified = args.includes('--require-signature')
+
   if (signatureVerified) {
     verifySignature(helperPath)
     verifySignature(join(appPath, 'Cherry Studio.exe'))
   }
+
   const voices = await protocolSmoke(helperPath)
   const tts = args.includes('--tts') ? await ttsSmoke(helperPath, voices) : undefined
   const asr = args.includes('--asr') ? await asrSmoke(helperPath, voices) : undefined
@@ -282,7 +332,9 @@ async function main(argv = process.argv.slice(2)) {
 }
 
 exports.inspectPeArchitecture = inspectPeArchitecture
+
 exports.inspectPcmWav = inspectPcmWav
+
 exports.main = main
 
 if (require.main === module)

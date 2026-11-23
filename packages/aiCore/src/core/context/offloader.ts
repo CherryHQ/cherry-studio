@@ -71,13 +71,17 @@ export interface OffloaderConfig {
  */
 function snapToLineBoundary(content: string, charIndex: number, direction: 'head' | 'tail'): number {
   if (charIndex <= 0) return 0
+
   if (charIndex >= content.length) return content.length
 
   if (direction === 'head') {
     const lastNewline = content.lastIndexOf('\n', charIndex)
+
     return lastNewline === -1 ? charIndex : lastNewline + 1
   }
+
   const nextNewline = content.indexOf('\n', charIndex)
+
   return nextNewline === -1 ? charIndex : nextNewline + 1
 }
 
@@ -97,6 +101,7 @@ export interface HeadTailExcerpt {
 export function computeHeadTailExcerpt(content: string, headChars: number, tailChars: number): HeadTailExcerpt {
   const headEnd = headChars > 0 ? snapToLineBoundary(content, headChars, 'head') : 0
   const tailStart = tailChars > 0 ? snapToLineBoundary(content, content.length - tailChars, 'tail') : content.length
+
   return {
     head: headEnd > 0 ? content.slice(0, headEnd) : '',
     tail: tailStart < content.length ? content.slice(tailStart) : '',
@@ -120,12 +125,15 @@ export class Offloader {
     // (URI + physical path) is byte-stable — provider prefix caches survive.
     // 16 hex chars (64 bits) because the hash alone is the identity.
     const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(content))
+
     const hash = Array.from(new Uint8Array(digest))
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('')
       .substring(0, 16)
+
     const filename = `vfs_${hash}.txt`
     const uri = `${URI_SCHEME}${filename}`
+
     return { filename, uri }
   }
 
@@ -137,11 +145,13 @@ export class Offloader {
     physicalPath: string | null
   ): string {
     const { head, tail, totalChars, totalLines } = computeHeadTailExcerpt(content, headChars, tailChars)
+
     return ContextPrompts.getVFSOffloadReminder(uri, totalLines, totalChars, head, tail, physicalPath)
   }
 
   private async _resolvePhysicalPath(filename: string): Promise<string | null> {
     if (!this.adapter.getPhysicalPath) return null
+
     return await this.adapter.getPhysicalPath(filename)
   }
 

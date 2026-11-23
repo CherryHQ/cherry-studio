@@ -25,21 +25,26 @@ async function getNutstoreToken(showMessage = true) {
 
   if (!nutstoreToken) {
     showMessage && toast.error(i18n.t('message.error.invalid.nutstore_token'))
+
     return null
   }
+
   return nutstoreToken
 }
 
 async function createNutstoreConfig(nutstoreToken: string): Promise<WebDavConfig | null> {
   const result = await window.api.nutstore.decryptToken(nutstoreToken)
+
   if (!result) {
     logger.warn('Invalid nutstore token')
+
     return null
   }
 
   const nutstorePath = await preferenceService.get('data.backup.nutstore.path')
 
   const { username, access_token } = result
+
   return {
     webdavHost: NUTSTORE_HOST,
     webdavUser: username,
@@ -50,11 +55,13 @@ async function createNutstoreConfig(nutstoreToken: string): Promise<WebDavConfig
 
 export async function checkConnection() {
   const nutstoreToken = await getNutstoreToken()
+
   if (!nutstoreToken) {
     return false
   }
 
   const config = await createNutstoreConfig(nutstoreToken)
+
   if (!config) {
     return false
   }
@@ -69,13 +76,16 @@ export async function checkConnection() {
 
 export async function backupToNutstore({ customFileName = '' }: { customFileName?: string } = {}) {
   const nutstoreToken = await getNutstoreToken()
+
   if (!nutstoreToken) {
     return
   }
 
   const config = await createNutstoreConfig(nutstoreToken)
+
   if (!config) {
     toast.error(i18n.t('message.backup.failed'))
+
     return
   }
 
@@ -100,6 +110,7 @@ export async function backupToNutstore({ customFileName = '' }: { customFileName
 
     if (isSuccess) {
       await recordManualBackupCompletion('nutstore')
+
       if (cleanupFailed) {
         const message = i18n.t('message.backup.cleanup_failed')
         setNutstoreSyncState({ lastSyncError: message })
@@ -123,11 +134,13 @@ export async function backupToNutstore({ customFileName = '' }: { customFileName
 
 export async function restoreFromNutstore(fileName?: string) {
   const nutstoreToken = await getNutstoreToken(false)
+
   if (!nutstoreToken) {
     throw new Error('Nutstore credentials are unavailable')
   }
 
   const config = await createNutstoreConfig(nutstoreToken)
+
   if (!config) {
     throw new Error('Nutstore credentials are unavailable')
   }
@@ -138,10 +151,13 @@ export async function restoreFromNutstore(fileName?: string) {
 
 export async function createDirectory(path: string, options?: CreateDirectoryOptions) {
   const nutstoreToken = await getNutstoreToken()
+
   if (!nutstoreToken) {
     return
   }
+
   const config = await createNutstoreConfig(nutstoreToken)
+
   if (!config) {
     return
   }

@@ -23,14 +23,18 @@ const normalizeText = (text: string) => text.replace(/\r\n/g, '\n').replace(/\r/
 function mergeRanges(ranges: Array<[number, number]>) {
   const sorted = ranges.slice().sort((a, b) => a[0] - b[0])
   const merged: Array<[number, number]> = []
+
   for (const range of sorted) {
     const last = merged[merged.length - 1]
+
     if (!last || range[0] > last[1] + 1) {
       merged.push([range[0], range[1]])
       continue
     }
+
     last[1] = Math.max(last[1], range[1])
   }
+
   return merged
 }
 
@@ -40,11 +44,14 @@ function buildLineSnippet(line: string, regexes: RegExp[]) {
   }
 
   const matchRanges: Array<[number, number]> = []
+
   for (const regex of regexes) {
     regex.lastIndex = 0
     let match: RegExpExecArray | null
+
     while ((match = regex.exec(line)) !== null) {
       matchRanges.push([match.index, match.index + match[0].length])
+
       if (match[0].length === 0) {
         regex.lastIndex += 1
       }
@@ -59,28 +66,35 @@ function buildLineSnippet(line: string, regexes: RegExp[]) {
     Math.max(0, start - SEARCH_SNIPPET_LINE_FRAGMENT_RADIUS),
     Math.min(line.length, end + SEARCH_SNIPPET_LINE_FRAGMENT_RADIUS)
   ])
+
   const mergedRanges = mergeRanges(expandedRanges)
   const limitedRanges = mergedRanges.slice(0, SEARCH_SNIPPET_MAX_LINE_FRAGMENTS)
 
   let result = limitedRanges.map(([start, end]) => line.slice(start, end)).join(' ... ')
+
   if (limitedRanges[0][0] > 0) {
     result = `...${result}`
   }
+
   if (limitedRanges[limitedRanges.length - 1][1] < line.length) {
     result = `${result}...`
   }
+
   if (mergedRanges.length > SEARCH_SNIPPET_MAX_LINE_FRAGMENTS) {
     result = `${result}...`
   }
+
   if (result.length > SEARCH_SNIPPET_MAX_LINE_LENGTH) {
     result = `${result.slice(0, SEARCH_SNIPPET_MAX_LINE_LENGTH)}...`
   }
+
   return result
 }
 
 export function buildSearchSnippet(text: string, terms: string[], matchMode: KeywordMatchMode) {
   const normalized = normalizeText(stripMarkdownFormatting(text))
   const lines = normalized.split('\n')
+
   if (lines.length === 0) {
     return ''
   }
@@ -92,10 +106,13 @@ export function buildSearchSnippet(text: string, terms: string[], matchMode: Key
   if (regexes.length > 0) {
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i]
+
       const isMatch = regexes.some((regex) => {
         regex.lastIndex = 0
+
         return regex.test(line)
       })
+
       if (isMatch) {
         matchedLineIndexes.push(i)
       }
@@ -124,16 +141,20 @@ export function buildSearchSnippet(text: string, terms: string[], matchMode: Key
       truncated = true
       break
     }
+
     if (outputLines.length > 0 && outputLines[outputLines.length - 1] !== '...') {
       outputLines.push('...')
     }
+
     for (let i = start; i <= end; i += 1) {
       if (outputLines.length >= SEARCH_SNIPPET_MAX_LINES) {
         truncated = true
         break
       }
+
       outputLines.push(buildLineSnippet(lines[i], regexes))
     }
+
     if (truncated) {
       break
     }

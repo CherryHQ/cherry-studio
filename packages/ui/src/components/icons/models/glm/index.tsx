@@ -6,7 +6,9 @@ import { GlmLight } from './light'
 
 const Glm = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GlmLight {...props} className={className} />
+
   if (variant === 'dark') return <GlmDark {...props} className={className} />
+
   return (
     <>
       <GlmLight className={cn('dark:hidden', className)} {...props} />

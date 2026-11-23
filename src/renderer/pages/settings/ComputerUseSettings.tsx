@@ -28,6 +28,7 @@ export function ComputerUseSettings() {
   const [globalInput, setGlobalInput] = usePreference('app.computer_use.agent_control.global_input')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
+
   const { data, error, isLoading, isValidating, mutate } = useSWR(
     PERMISSION_KEY,
     () => ipcApi.request(PERMISSION_KEY),
@@ -40,6 +41,7 @@ export function ComputerUseSettings() {
       onError: (cause) => logger.warn('Permission query failed', cause)
     }
   )
+
   const {
     trigger,
     isMutating,
@@ -55,6 +57,7 @@ export function ComputerUseSettings() {
       onError: (cause) => logger.warn('Permission request failed', cause)
     }
   )
+
   const busy = isLoading || isValidating || isMutating
 
   return (
@@ -79,6 +82,7 @@ export function ComputerUseSettings() {
             onCheckedChange={async (value) => {
               setSaving(true)
               setSaveError(false)
+
               try {
                 await setEnabled(value)
               } catch (cause) {
@@ -116,6 +120,7 @@ export function ComputerUseSettings() {
                 onCheckedChange={async (value) => {
                   setSaving(true)
                   setSaveError(false)
+
                   try {
                     await setGlobalInput(value)
                   } catch (cause) {
@@ -140,6 +145,7 @@ export function ComputerUseSettings() {
               const id = permission.id
               const known = id === 'accessibility' || id === 'screenRecording'
               const label = known ? t(`settings.computerUse.${id}`) : permission.label
+
               return (
                 <Fragment key={id}>
                   {index > 0 && <SettingDivider />}
@@ -204,6 +210,7 @@ export function ComputerUseSettings() {
               onClick={async () => {
                 setSaving(true)
                 setSaveError(false)
+
                 try {
                   await ipcApi.request('computer_use.revoke_approval', { identity })
                 } catch (error) {

@@ -69,9 +69,11 @@ export class DefaultAssistantSeeder implements ISeeder {
       .where(isNull(assistantTable.deletedAt))
       .limit(1)
       .all()
+
     if (assistant) return false
 
     const [topic] = tx.select({ id: topicTable.id }).from(topicTable).where(isNull(topicTable.deletedAt)).limit(1).all()
+
     if (topic) return false
 
     const [message] = tx
@@ -81,6 +83,7 @@ export class DefaultAssistantSeeder implements ISeeder {
       .where(and(isNull(messageTable.deletedAt), isNull(topicTable.deletedAt)))
       .limit(1)
       .all()
+
     return !message
   }
 }

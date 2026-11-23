@@ -40,6 +40,7 @@ export function replaceApiKey(keys: string[], index: number, key: string): strin
 
   const nextKeys = [...keys]
   nextKeys[index] = key
+
   return normalizeApiKeys(nextKeys)
 }
 

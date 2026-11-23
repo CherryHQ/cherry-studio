@@ -81,16 +81,27 @@ const RANGE_DURATION_MS: Record<DiagnosticRange, number> = {
 }
 
 type InspectResult = OutputFor<'diagnostics.bundle.inspect'>
+
 type ExportInput = InputFor<'diagnostics.bundle.export'>
+
 type ExportResult = OutputFor<'diagnostics.bundle.export'>
+
 type SavedBundle = Extract<ExportResult, { status: 'saved' }>
+
 type UploadInput = InputFor<'diagnostics.bundle.upload'>
+
 type UploadResult = OutputFor<'diagnostics.bundle.upload'>
+
 type RetryUploadInput = InputFor<'diagnostics.bundle.retry_upload'>
+
 type RetryUploadResult = OutputFor<'diagnostics.bundle.retry_upload'>
+
 type SaveUploadInput = InputFor<'diagnostics.bundle.save_upload'>
+
 type SaveUploadResult = OutputFor<'diagnostics.bundle.save_upload'>
+
 type DiscardUploadInput = InputFor<'diagnostics.bundle.discard_upload'>
+
 type DiscardUploadResult = OutputFor<'diagnostics.bundle.discard_upload'>
 
 type RetainedUploadBundle =
@@ -127,6 +138,7 @@ function serializeTimeRange(range: DiagnosticTimeRange) {
 
 function formatTimestamp(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0')
+
   return (
     `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-` +
     `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
@@ -199,6 +211,7 @@ async function selectBundleSources(
 
   const trySelect = (candidate: DiagnosticBudgetCandidate<BundleSourceCandidate>): void => {
     if (!selector.trySelect(candidate)) return
+
     if (candidate.item.kind === 'chatRecords') {
       selectedChats.push(candidate.item)
     } else {
@@ -208,14 +221,19 @@ async function selectBundleSources(
 
   const firstChatResult = await chatIterator.next()
   const firstChat = firstChatResult.done ? undefined : toChatBudgetCandidate(firstChatResult.value)
+
   if (firstChat) observeChat(firstChat.item)
 
   const representatives: DiagnosticBudgetCandidate<BundleSourceCandidate>[] = []
+
   for (const kind of ['logs', 'traces'] as const) {
     const representative = sortedFiles.find((candidate) => candidate.kind === kind)
+
     if (representative) representatives.push(representative)
   }
+
   if (firstChat) representatives.push(firstChat)
+
   for (const representative of representatives.sort(compareBudgetCandidates)) trySelect(representative)
 
   const representativeSet = new Set(representatives)
@@ -223,10 +241,12 @@ async function selectBundleSources(
   let fileIndex = 0
   let chatResult = await chatIterator.next()
   let currentChat = chatResult.done ? undefined : toChatBudgetCandidate(chatResult.value)
+
   if (currentChat) observeChat(currentChat.item)
 
   while (fileIndex < remainingFiles.length || currentChat) {
     const file = remainingFiles[fileIndex]
+
     if (file && (!currentChat || compareBudgetCandidates(file, currentChat) <= 0)) {
       trySelect(file)
       fileIndex += 1
@@ -237,6 +257,7 @@ async function selectBundleSources(
     trySelect(currentChat)
     chatResult = await chatIterator.next()
     currentChat = chatResult.done ? undefined : toChatBudgetCandidate(chatResult.value)
+
     if (currentChat) observeChat(currentChat.item)
   }
 
@@ -264,6 +285,7 @@ function subtractChatStats(all: ChatRecordStats, included: ChatRecordStats): Cha
 
 function assertSafeArchiveName(name: string): void {
   const segments = name.split('/')
+
   if (
     !name ||
     path.posix.isAbsolute(name) ||
@@ -286,14 +308,18 @@ async function writeBundleZip(
   sources: readonly StagedSource[]
 ): Promise<void> {
   for (const entry of entries) assertSafeArchiveName(entry.name)
+
   for (const source of sources) assertSafeArchiveName(source.archiveName)
 
   const { ZipArchive } = await import('archiver')
+
   const stagingPath = AbsoluteFilePathSchema.parse(
     path.join(path.dirname(destination), `.cherry-studio-diagnostics-${randomUUID()}.tmp`)
   )
+
   const output = createAtomicWriteStream(stagingPath)
   const archive = new ZipArchive({ zlib: { level: 1 } })
+
   const completion = new Promise<void>((resolve, reject) => {
     output.once('finish', resolve)
     output.once('error', reject)
@@ -303,16 +329,21 @@ async function writeBundleZip(
 
   try {
     archive.pipe(output)
+
     for (const entry of entries) archive.append(entry.content, { name: entry.name })
+
     for (const source of sources) archive.file(source.path, { name: source.archiveName })
     await Promise.all([archive.finalize(), completion])
     const currentDestinationIdentity = await probeDestination(destination)
+
     if (!sameDestinationIdentity(expectedDestinationIdentity, currentDestinationIdentity)) {
       throw new Error('Diagnostic bundle destination changed before it could be written')
     }
+
     await move(stagingPath, destination)
   } catch (error) {
     archive.abort()
+
     if (!output.closed) await output.abort().catch(() => undefined)
     throw error
   } finally {
@@ -326,8 +357,10 @@ async function writeBundleZip(
 
 async function probeDestination(destination: AbsoluteFilePath): Promise<DestinationIdentity> {
   let snapshot: ReadableFileSnapshot | undefined
+
   try {
     snapshot = await openReadableFileSnapshot(destination)
+
     return {
       status: 'present',
       dev: snapshot.dev,
@@ -345,7 +378,9 @@ async function probeDestination(destination: AbsoluteFilePath): Promise<Destinat
 
 function sameDestinationIdentity(a: DestinationIdentity, b: DestinationIdentity): boolean {
   if (a.status !== b.status) return false
+
   if (a.status === 'missing' || b.status === 'missing') return true
+
   return a.dev === b.dev && a.ino === b.ino && a.modifiedAt === b.modifiedAt && a.size === b.size
 }
 
@@ -363,8 +398,10 @@ async function resolveThroughExistingAncestor(target: AbsoluteFilePath): Promise
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error
     const parent = AbsoluteFilePathSchema.parse(path.dirname(target))
+
     if (parent === target) throw error
     const resolvedParent = await resolveThroughExistingAncestor(parent)
+
     return AbsoluteFilePathSchema.parse(path.join(resolvedParent, path.basename(target)))
   }
 }
@@ -375,11 +412,14 @@ async function assertDestinationOutsideSources(destination: AbsoluteFilePath): P
     application.getPath('app.crash_dumps'),
     application.getPath('feature.trace')
   ].map((root) => AbsoluteFilePathSchema.parse(root))
+
   const destinationParent = await resolveThroughExistingAncestor(
     AbsoluteFilePathSchema.parse(path.dirname(destination))
   )
+
   const resolvedDestination = AbsoluteFilePathSchema.parse(path.join(destinationParent, path.basename(destination)))
   const resolvedRoots = await Promise.all(sourceRoots.map((root) => resolveThroughExistingAncestor(root)))
+
   if (resolvedRoots.some((root) => isPathInside(resolvedDestination, root))) {
     throw new IpcError(
       diagnosticsErrorCodes.DESTINATION_INSIDE_SOURCE,
@@ -433,6 +473,7 @@ export class DiagnosticBundleService {
     if (this.inFlightOperation) return { status: 'busy' }
     const operation = this.performExport(input, senderId)
     this.inFlightOperation = operation
+
     try {
       return await operation
     } finally {
@@ -444,6 +485,7 @@ export class DiagnosticBundleService {
     if (this.inFlightOperation) return { status: 'busy' }
     const operation = this.performUpload(input)
     this.inFlightOperation = operation
+
     try {
       return await operation
     } finally {
@@ -455,6 +497,7 @@ export class DiagnosticBundleService {
     if (this.inFlightOperation) return { status: 'busy' }
     const operation = this.performRetryUpload(input)
     this.inFlightOperation = operation
+
     try {
       return await operation
     } finally {
@@ -466,6 +509,7 @@ export class DiagnosticBundleService {
     if (this.inFlightOperation) return { status: 'busy' }
     const operation = this.performSaveUpload(input, senderId)
     this.inFlightOperation = operation
+
     try {
       return await operation
     } finally {
@@ -477,6 +521,7 @@ export class DiagnosticBundleService {
     if (this.inFlightOperation) return { status: 'busy' }
     const operation = this.performDiscardUpload(input)
     this.inFlightOperation = operation
+
     try {
       return await operation
     } finally {
@@ -487,6 +532,7 @@ export class DiagnosticBundleService {
   async refreshReport(reportId: string): Promise<OutputFor<'diagnostics.report.refresh'>> {
     const processingStatus = await cherryDiagnosticUploadClient.fetchStatus(reportId)
     diagnosticReportService.updateStatus(reportId, processingStatus)
+
     return { processingStatus }
   }
 
@@ -496,6 +542,7 @@ export class DiagnosticBundleService {
     submittedAt?: number
   ): Extract<UploadResult, { status: 'uploaded' }> {
     let historySaved = true
+
     try {
       diagnosticReportService.record({
         reportId,
@@ -507,22 +554,26 @@ export class DiagnosticBundleService {
       historySaved = false
       logger.warn('Failed to save diagnostic report history')
     }
+
     return { reportId, reportUrl: diagnosticReportUrl(reportId), processingStatus, historySaved, status: 'uploaded' }
   }
 
   private async performExport(input: ExportInput, senderId: WindowId | null): Promise<ExportResult> {
     if (!senderId) throw new Error('Diagnostic bundle export requires a managed window')
     const parent = application.get('WindowManager').getWindow(senderId)
+
     if (!parent) throw new Error('Diagnostic bundle export window is no longer available')
 
     const dialogOpenedAt = new Date()
     const suggestedFileName = `cherry-studio-diagnostics-${formatTimestamp(dialogOpenedAt)}.zip`
+
     const { canceled, filePath } = await dialog.showSaveDialog(parent, {
       defaultPath: suggestedFileName,
       filters: [{ name: t('dialog.diagnostic_bundle.zip_filter'), extensions: ['zip'] }],
       properties: ['createDirectory', 'showOverwriteConfirmation'],
       title: t('dialog.diagnostic_bundle.title')
     })
+
     if (canceled || !filePath) return { status: 'canceled' }
 
     const destination = AbsoluteFilePathSchema.parse(filePath)
@@ -532,6 +583,7 @@ export class DiagnosticBundleService {
     const chatCollection = input.includeChatRecords ? collectChatRecords(range) : emptyChatRecordCollection()
     const enabledFileCandidates = [...collection.logs, ...collection.traces]
     const destinationIdentity = await probeDestination(destination)
+
     if (enabledFileCandidates.some((candidate) => isSamePhysicalFile(destinationIdentity, candidate))) {
       throw new IpcError(
         diagnosticsErrorCodes.DESTINATION_IS_SOURCE,
@@ -541,11 +593,13 @@ export class DiagnosticBundleService {
 
     const selection = await selectBundleSources(enabledFileCandidates, chatCollection)
     mergeWarnings(collection.warnings, chatCollection.warnings)
+
     if (selection.omittedFiles.length > 0 || selection.omittedChats) {
       collection.warnings.add('size_limit_reached')
     }
 
     const tempRoot = AbsoluteFilePathSchema.parse(await mkdtemp(application.getPath('app.temp', 'diagnostic-bundle-')))
+
     try {
       return await this.buildBundle({
         bundleId: randomUUID(),
@@ -577,25 +631,30 @@ export class DiagnosticBundleService {
     const bundleId = randomUUID()
     const fileName = `cherry-studio-diagnostics-${formatTimestamp(createdAt)}-${bundleId}.zip`
     let tempRoot: AbsoluteFilePath
+
     try {
       tempRoot = AbsoluteFilePathSchema.parse(await mkdtemp(application.getPath('app.temp', 'diagnostic-upload-')))
     } catch {
       throw new IpcError(diagnosticsErrorCodes.BUNDLE_BUILD_FAILED, 'Failed to build diagnostic bundle')
     }
+
     const destination = AbsoluteFilePathSchema.parse(path.join(tempRoot, fileName))
     let retainTempRoot = false
 
     try {
       let bundle: SavedBundle
+
       try {
         const range = toTimeRange(input.range, Date.now())
         const collection = await collectDiagnosticSources(range, input)
         const chatCollection = input.includeChatRecords ? collectChatRecords(range) : emptyChatRecordCollection()
         const selection = await selectBundleSources([...collection.logs, ...collection.traces], chatCollection)
         mergeWarnings(collection.warnings, chatCollection.warnings)
+
         if (selection.omittedFiles.length > 0 || selection.omittedChats) {
           collection.warnings.add('size_limit_reached')
         }
+
         bundle = await this.buildBundle({
           allChatStats: selection.allChatStats,
           bundleId,
@@ -620,6 +679,7 @@ export class DiagnosticBundleService {
         fileName: bundle.fileName,
         filePath: bundle.filePath
       })
+
       if (uploadResult.status === 'uploaded') {
         return this.recordSuccessfulUpload(
           uploadResult.reportId,
@@ -635,23 +695,29 @@ export class DiagnosticBundleService {
         location: 'temporary',
         tempRoot
       }
+
       const retained: RetainedUpload = {
         bundle: retainedBundle,
         description,
         uploadFileName: bundle.fileName
       }
+
       if (uploadResult.fileSha256) Object.assign(retained, { fileSha256: uploadResult.fileSha256 })
       this.retainedUploads.set(bundle.bundleId, retained)
       retainTempRoot = true
+
       if (uploadResult.status === 'submission_unknown') {
         logger.warn('Diagnostic bundle submission result is unknown')
+
         return {
           bundleId: bundle.bundleId,
           fileName: bundle.fileName,
           status: 'submission_unknown'
         }
       }
+
       logger.warn('Diagnostic bundle submission failed', { reason: uploadResult.reason })
+
       return {
         bundleId: bundle.bundleId,
         fileName: bundle.fileName,
@@ -671,6 +737,7 @@ export class DiagnosticBundleService {
 
   private async performRetryUpload(input: RetryUploadInput): Promise<RetryUploadResult> {
     const retained = this.retainedUploads.get(input.bundleId)
+
     if (!retained) {
       throw new IpcError(
         diagnosticsErrorCodes.RETRY_NOT_AVAILABLE,
@@ -682,30 +749,38 @@ export class DiagnosticBundleService {
       {
         description: retained.description
       }
+
     if (retained.fileSha256) retry.expectedFileSha256 = retained.fileSha256
+
     const uploadResult = await cherryDiagnosticUploadClient.upload({
       ...retry,
       fileName: retained.uploadFileName,
       filePath: retained.bundle.filePath
     })
+
     if (uploadResult.status === 'uploaded') {
       this.retainedUploads.delete(input.bundleId)
       await this.cleanupTemporaryUpload(retained.bundle)
+
       return this.recordSuccessfulUpload(
         uploadResult.reportId,
         uploadResult.processingStatus ?? null,
         uploadResult.submittedAt
       )
     }
+
     if (uploadResult.status === 'submission_unknown') {
       logger.warn('Diagnostic bundle retry result is unknown')
+
       return {
         bundleId: retained.bundle.bundleId,
         fileName: retained.bundle.fileName,
         status: 'submission_unknown'
       }
     }
+
     logger.warn('Diagnostic bundle retry failed', { reason: uploadResult.reason })
+
     return {
       bundleId: retained.bundle.bundleId,
       fileName: retained.bundle.fileName,
@@ -716,12 +791,14 @@ export class DiagnosticBundleService {
 
   private async performSaveUpload(input: SaveUploadInput, senderId: WindowId | null): Promise<SaveUploadResult> {
     const retained = this.retainedUploads.get(input.bundleId)
+
     if (!retained) {
       throw new IpcError(
         diagnosticsErrorCodes.RETRY_NOT_AVAILABLE,
         'Diagnostic bundle is not available in this process'
       )
     }
+
     if (retained.bundle.location === 'saved') {
       return {
         bundleId: retained.bundle.bundleId,
@@ -730,9 +807,12 @@ export class DiagnosticBundleService {
         status: 'saved'
       }
     }
+
     const temporaryBundle = retained.bundle
+
     if (!senderId) throw new Error('Saving a diagnostic upload requires a managed window')
     const parent = application.get('WindowManager').getWindow(senderId)
+
     if (!parent) throw new Error('Diagnostic upload window is no longer available')
 
     const { canceled, filePath } = await dialog.showSaveDialog(parent, {
@@ -741,16 +821,20 @@ export class DiagnosticBundleService {
       properties: ['createDirectory', 'showOverwriteConfirmation'],
       title: t('dialog.diagnostic_bundle.title')
     })
+
     if (canceled || !filePath) return { status: 'canceled' }
 
     const destination = AbsoluteFilePathSchema.parse(filePath)
+
     try {
       await assertDestinationOutsideSources(destination)
       const resolvedDestination = await resolveThroughExistingAncestor(destination)
       const resolvedTempRoot = await realpath(temporaryBundle.tempRoot)
+
       if (resolvedDestination === resolvedTempRoot || isPathInside(resolvedDestination, resolvedTempRoot)) {
         throw new Error('Diagnostic upload cannot be saved inside its temporary directory')
       }
+
       await move(temporaryBundle.filePath, destination)
       retained.bundle = {
         bundleId: temporaryBundle.bundleId,
@@ -759,6 +843,7 @@ export class DiagnosticBundleService {
         location: 'saved'
       }
       await this.cleanupTemporaryUpload(temporaryBundle)
+
       return {
         bundleId: retained.bundle.bundleId,
         fileName: retained.bundle.fileName,
@@ -775,9 +860,11 @@ export class DiagnosticBundleService {
 
   private async performDiscardUpload(input: DiscardUploadInput): Promise<DiscardUploadResult> {
     const retained = this.retainedUploads.get(input.bundleId)
+
     if (!retained) return { status: 'not_found' }
     this.retainedUploads.delete(input.bundleId)
     await this.cleanupTemporaryUpload(retained.bundle)
+
     return { status: 'discarded' }
   }
 
@@ -824,6 +911,7 @@ export class DiagnosticBundleService {
 
     for (const [index, candidate] of selectedFiles.entries()) {
       const stagedPath = AbsoluteFilePathSchema.parse(path.join(tempRoot, `source-${index}.jsonl`))
+
       try {
         staged.push(await stageSourceCandidate(candidate, range, stagedPath))
       } catch (error) {
@@ -837,14 +925,17 @@ export class DiagnosticBundleService {
 
     let includedChatStats: ChatRecordStats = { bytes: 0, messageCount: 0, recordCount: 0 }
     let adjustedAllChatStats = allChatStats
+
     if (selectedChats.length > 0) {
       try {
         const stagedFileBytes = staged.reduce((bytes, source) => bytes + source.bytes, 0)
+
         const chatResult = await stageChatRecords(
           selectedChats,
           tempRoot,
           Math.max(0, DIAGNOSTIC_SOURCE_LIMIT_BYTES - stagedFileBytes)
         )
+
         staged.push(...chatResult.sources)
         includedChatStats = chatResult.included
         adjustedAllChatStats = { ...allChatStats, bytes: allChatStats.bytes + chatResult.observedByteDelta }
@@ -860,10 +951,12 @@ export class DiagnosticBundleService {
     // Mechanical error scan over the raw error logs. Gated on includeLogs so the
     // report cannot leak log contents the user opted out of; failure never blocks export.
     let scanReportJson: string | undefined
+
     let scan:
       | { status: 'included'; findingCount: number; truncated: boolean; skippedFileCount: number }
       | { status: 'skipped' }
       | { status: 'failed' } = { status: 'skipped' }
+
     if (input.includeLogs) {
       try {
         const scanned = await collectErrorLogRecords(application.getPath('app.logs'), range)
@@ -896,19 +989,24 @@ export class DiagnosticBundleService {
 
     const crashDumps = await collectCrashDumpInventory(range, collection.warnings)
     const system = await collectDiagnosticSystemInfo(collection.warnings)
+
     const included = {
       chatRecords: includedChatStats,
       logs: stagedStats(staged, 'logs'),
       traces: stagedStats(staged, 'traces')
     }
+
     const omittedCandidates = [...sizeOmittedFiles, ...failedCandidates]
+
     const omitted = {
       chatRecords: subtractChatStats(adjustedAllChatStats, included.chatRecords),
       logs: candidateStats(omittedCandidates, 'logs'),
       traces: candidateStats(omittedCandidates, 'traces')
     }
+
     const serializedRange = serializeTimeRange(range)
     const warnings = warningsArray(collection.warnings)
+
     const manifest = {
       schemaVersion: 2,
       bundleId,
@@ -946,15 +1044,19 @@ export class DiagnosticBundleService {
       { name: 'diagnostics.json', content: `${JSON.stringify(manifest, null, 2)}\n` },
       ...(scanReportJson !== undefined ? [{ name: SCAN_REPORT_ARCHIVE_NAME, content: scanReportJson }] : [])
     ]
+
     await writeBundleZip(destination, destinationIdentity, entries, staged)
 
     const archiveBytes = (await stat(destination)).size
+
     const stagedChatArchiveNames = new Set(
       staged.flatMap((source) => (source.kind === 'chatRecords' ? [source.archiveName] : []))
     )
+
     const omittedChatArchiveCount = [...expectedChatArchiveNames].filter(
       (archiveName) => !stagedChatArchiveNames.has(archiveName)
     ).length
+
     return {
       archiveBytes,
       bundleId,

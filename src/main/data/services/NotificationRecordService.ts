@@ -22,6 +22,7 @@ export type CreateNotificationRecordInput = Pick<
 
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const visible = () => and(isNull(table.dismissedAt), gt(table.createdAt, Date.now() - RETENTION_MS))
+
 const notifyChanged = () =>
   notifyDataApiDataChange([
     { endpoint: '/notifications', kind: 'membership' },
@@ -36,7 +37,9 @@ class NotificationRecordService {
 
   create(input: CreateNotificationRecordInput): NotificationRecord | null {
     const record = this.createTx(this.db, input)
+
     if (record) notifyChanged()
+
     return record
   }
 
@@ -49,15 +52,19 @@ class NotificationRecordService {
         .onConflictDoNothing()
         .returning({ key: appStateTable.key })
         .get()
+
       return consumed && input ? this.createTx(tx, input) : null
     })
+
     if (record) notifyChanged()
+
     return record
   }
 
   private createTx(db: DbOrTx, input: CreateNotificationRecordInput): NotificationRecord | null {
     if (input.createdAt <= Date.now() - RETENTION_MS) return null
     const insert = db.insert(table).values({ ...input, target: input.target ?? null })
+
     const write =
       input.category === 'official' && input.kind === 'announcement'
         ? insert.onConflictDoUpdate({
@@ -74,7 +81,9 @@ class NotificationRecordService {
             )
           })
         : insert.onConflictDoNothing({ target: table.eventKey })
+
     const record = write.returning().get()
+
     return record ?? null
   }
 
@@ -92,6 +101,7 @@ class NotificationRecordService {
     const { category, cursor: rawCursor, limit } = ListNotificationsQuerySchema.parse(query)
     const ordering = keysetOrdering(table.createdAt, table.id, { major: 'desc', tie: 'desc' })
     const cursor = decodeListCursor(rawCursor, asNumericKey, 'notifications')
+
     const rows = this.db
       .select()
       .from(table)
@@ -101,8 +111,10 @@ class NotificationRecordService {
       .orderBy(...ordering.orderBy)
       .limit(limit + 1)
       .all()
+
     const items = rows.slice(0, limit)
     const last = items.at(-1)
+
     return { items, nextCursor: rows.length > limit && last ? encodeCursor(last.createdAt, last.id) : undefined }
   }
 
@@ -120,6 +132,7 @@ class NotificationRecordService {
       .set({ readAt: Date.now() })
       .where(and(eq(table.id, id), visible(), isNull(table.readAt)))
       .run()
+
     if (changes) notifyChanged()
   }
 
@@ -129,6 +142,7 @@ class NotificationRecordService {
       .set({ readAt: Date.now() })
       .where(and(visible(), isNull(table.readAt)))
       .run()
+
     if (changes) notifyChanged()
   }
 
@@ -146,6 +160,7 @@ class NotificationRecordService {
         )
       )
       .run()
+
     if (changes) notifyChanged()
   }
 
@@ -155,6 +170,7 @@ class NotificationRecordService {
       .set({ dismissedAt: Date.now() })
       .where(and(eq(table.id, id), visible()))
       .run()
+
     if (changes) notifyChanged()
   }
 

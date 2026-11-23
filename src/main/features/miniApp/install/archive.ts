@@ -45,16 +45,21 @@ const S_IFDIR = 0x4000
  */
 function resolvePrefix(names: string[]): string {
   if (names.includes(MANIFEST_NAME)) return ''
+
   const tops = new Set(
     names.flatMap((name) => {
       const top = name.split('/')[0]
+
       return top ? [top] : []
     })
   )
+
   if (tops.size === 1) {
     const [only] = [...tops]
+
     if (names.includes(`${only}/${MANIFEST_NAME}`)) return `${only}/`
   }
+
   throw new Error(`Package is missing ${MANIFEST_NAME} at its root`)
 }
 
@@ -67,19 +72,25 @@ function resolvePrefix(names: string[]): string {
  */
 async function assertTreeContained(root: string): Promise<void> {
   const realRoot = await fs.promises.realpath(root)
+
   const walk = async (dir: string): Promise<void> => {
     for (const entry of await fs.promises.readdir(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name)
+
       if (entry.isSymbolicLink()) {
         throw new Error(`Package contains a symbolic link: ${path.relative(realRoot, full)}`)
       }
+
       const real = await fs.promises.realpath(full)
+
       if (real !== realRoot && !real.startsWith(realRoot + path.sep)) {
         throw new Error(`Package entry resolves outside the package root: ${entry.name}`)
       }
+
       if (entry.isDirectory()) await walk(full)
     }
   }
+
   await walk(realRoot)
 }
 
@@ -92,15 +103,19 @@ async function assertTreeContained(root: string): Promise<void> {
  */
 export async function assertExtractedTree(root: string, manifest: MiniAppManifest): Promise<void> {
   await assertTreeContained(root)
+
   if (fs.existsSync(path.join(root, MINI_APP_RESERVED_DIR))) {
     throw new Error(`Package must not contain the reserved '${MINI_APP_RESERVED_DIR}' directory`)
   }
+
   // `isFile`, not existence: a DIRECTORY named `index.html` satisfies `existsSync`,
   // installs cleanly, and 404s at first open. Symlinks were rejected above, so `stat`.
   const isFile = (rel: string) => fs.statSync(path.join(root, rel), { throwIfNoEntry: false })?.isFile() ?? false
+
   if (!isFile(manifest.entry)) {
     throw new Error(`Manifest entry file is missing or not a regular file: ${manifest.entry}`)
   }
+
   if (manifest.icon && !isFile(manifest.icon.path)) {
     throw new Error(`Manifest icon file is missing or not a regular file: ${manifest.icon.path}`)
   }
@@ -123,13 +138,16 @@ async function readEntryBounded(
 ): Promise<Buffer> {
   const chunks: Buffer[] = []
   let total = 0
+
   for await (const chunk of await zip.stream(name)) {
     total += (chunk as Buffer).length
+
     // Throwing destroys the stream, so the inflate stops AT the limit instead of running
     // to completion and being judged once the memory is already gone.
     if (total > limit) throw new Error(`Package ${label} is over the ${limit} byte limit`)
     chunks.push(chunk as Buffer)
   }
+
   return Buffer.concat(chunks)
 }
 
@@ -139,18 +157,24 @@ async function readEntryBounded(
  */
 async function scanArchive(zip: StreamZip.StreamZipAsync): Promise<{ prefix: string; manifest: MiniAppManifest }> {
   const entries = Object.values(await zip.entries())
+
   if (entries.length > MAX_ENTRIES) {
     throw new Error(`Package has too many entries: ${entries.length} exceeds ${MAX_ENTRIES}`)
   }
 
   let total = 0
+
   for (const e of entries) {
     total += e.size
+
     if (total > MINI_APP_MAX_EXTRACTED_BYTES) {
       throw new Error(`Package unpacks to ${total} bytes, over the ${MINI_APP_MAX_EXTRACTED_BYTES} limit`)
     }
+
     const mode = (e.attr >>> 16) & 0xffff & S_IFMT
+
     if (mode === S_IFLNK) throw new Error(`Package contains a symlink entry: ${e.name}`)
+
     // Mode 0 means the archive carries no unix metadata; anything else that is
     // neither a regular file nor a directory is a device/fifo/socket.
     if (mode !== 0 && mode !== S_IFREG && mode !== S_IFDIR) {
@@ -160,8 +184,10 @@ async function scanArchive(zip: StreamZip.StreamZipAsync): Promise<{ prefix: str
 
   const names = entries.map((e) => e.name)
   const prefix = resolvePrefix(names)
+
   for (const name of names) {
     const rel = prefix && name.startsWith(prefix) ? name.slice(prefix.length) : name
+
     if (rel.split('/')[0] === MINI_APP_RESERVED_DIR) {
       throw new Error(`Package must not contain the reserved '${MINI_APP_RESERVED_DIR}' directory`)
     }
@@ -170,6 +196,7 @@ async function scanArchive(zip: StreamZip.StreamZipAsync): Promise<{ prefix: str
   // The FAST refusal, on what the table claims — the total-size cap above still admits a
   // single 100 MB entry. `readEntryBounded` is what holds when the claim is a lie.
   const sizeOf = (rel: string) => entries.find((e) => e.name === `${prefix}${rel}`)?.size ?? 0
+
   if (sizeOf(MANIFEST_NAME) > MINI_APP_MAX_MANIFEST_BYTES) {
     throw new Error(`Package manifest is over the ${MINI_APP_MAX_MANIFEST_BYTES} byte limit`)
   }
@@ -183,12 +210,15 @@ async function scanArchive(zip: StreamZip.StreamZipAsync): Promise<{ prefix: str
   )
 
   const has = (rel: string) => names.includes(`${prefix}${rel}`)
+
   if (!has(manifest.entry)) {
     throw new Error(`Manifest entry file is missing from the package: ${manifest.entry}`)
   }
+
   if (manifest.icon && !has(manifest.icon.path)) {
     throw new Error(`Manifest icon file is missing from the package: ${manifest.icon.path}`)
   }
+
   if (manifest.icon && sizeOf(manifest.icon.path) > MINI_APP_MAX_ICON_BYTES) {
     throw new Error(`Package icon is over the ${MINI_APP_MAX_ICON_BYTES} byte limit`)
   }
@@ -204,31 +234,42 @@ async function scanArchive(zip: StreamZip.StreamZipAsync): Promise<{ prefix: str
 async function extractEntries(zip: StreamZip.StreamZipAsync, prefix: string, destDir: string): Promise<void> {
   const entries = Object.values(await zip.entries()).filter((e) => e.name.startsWith(prefix) && e.name !== prefix)
   const root = path.resolve(destDir)
+
   // node-stream-zip refuses `..`, absolute and drive names while reading the table; the
   // invariant is asserted here too, where the write happens, so it never depends on that.
   const target = (name: string) => {
     const out = path.resolve(root, name.slice(prefix.length))
+
     if (out !== root && !out.startsWith(root + path.sep)) {
       throw new Error(`Package entry escapes the package root: ${name}`)
     }
+
     return out
   }
+
   const dirs = new Set(entries.map((e) => (e.isDirectory ? e.name : path.posix.dirname(e.name))))
+
   for (const dir of dirs) await fs.promises.mkdir(target(dir), { recursive: true })
 
   let total = 0
+
   for (const entry of entries) {
     if (!entry.isFile) continue
+
     const budget = new Transform({
       transform(chunk: Buffer, _encoding, callback) {
         total += chunk.length
+
         if (total > MINI_APP_MAX_EXTRACTED_BYTES) {
           callback(new Error(`Package unpacks to more than ${MINI_APP_MAX_EXTRACTED_BYTES} bytes`))
+
           return
         }
+
         callback(null, chunk)
       }
     })
+
     await pipeline(await zip.stream(entry), budget, fs.createWriteStream(target(entry.name)))
   }
 }
@@ -242,7 +283,9 @@ function assertPackageSize(size: number): void {
 /** Streamed, never buffered: the file is allowed to be 50 MB. */
 export async function sha256File(filePath: string): Promise<string> {
   const hash = crypto.createHash('sha256')
+
   for await (const chunk of fs.createReadStream(filePath)) hash.update(chunk as Buffer)
+
   return `sha256:${hash.digest('hex')}`
 }
 
@@ -264,8 +307,10 @@ export async function previewMiniAppArchive(zipPath: string): Promise<MiniAppArc
   assertPackageSize(size)
 
   const zip = new StreamZip.async({ file: zipPath })
+
   try {
     const { prefix, manifest } = await scanArchive(zip)
+
     // The SAME pipeline the install uses (`transcodeToEntityWebp`, 128x128, bomb-guarded):
     // the `image/webp` label is then true, and the data URL is bounded whatever came in.
     const iconDataUrl = manifest.icon
@@ -277,6 +322,7 @@ export async function previewMiniAppArchive(zipPath: string): Promise<MiniAppArc
           )
         ).toString('base64')}`
       : null
+
     return { manifest, iconDataUrl, sha256: await sha256File(zipPath) }
   } finally {
     await zip.close()
@@ -290,6 +336,7 @@ export async function extractMiniAppArchive(zipPath: string, destDir: string): P
   assertPackageSize(size)
 
   const zip = new StreamZip.async({ file: zipPath })
+
   try {
     const { prefix, manifest } = await scanArchive(zip)
 
@@ -298,6 +345,7 @@ export async function extractMiniAppArchive(zipPath: string, destDir: string): P
     // CLAIMS. The protocol handler trusts that this root really contains everything.
     await assertExtractedTree(destDir, manifest)
     logger.info('Extracted mini app package', { id: manifest.id, version: manifest.version })
+
     return manifest
   } catch (error) {
     // Reset is best-effort: the ARCHIVE error is the result the caller acts on — an

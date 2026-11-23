@@ -11,6 +11,7 @@ import {
 } from '@shared/data/types/knowledge'
 
 export type DataSourceStatus = 'completed' | 'processing' | 'failed'
+
 export type DataSourceStatusIcon = 'check' | 'loader' | 'alert'
 
 export interface DataSourceDisplayContext {

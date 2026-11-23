@@ -13,12 +13,14 @@ const logger = loggerService.withContext('ReleaseNotesPage')
 export default function ReleaseNotesPage() {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? i18n.language
+
   const [bundledReleases] = useState(() =>
     mergeReleaseNotes(
       { releaseNotes: __APP_RELEASE_NOTES__, version: __APP_RELEASE_VERSION__ },
       __APP_RELEASE_HISTORY__
     )
   )
+
   const [remoteReleases, setRemoteReleases] = useState<ReleaseNotesEntry[] | null>(null)
   const [expandedVersions, setExpandedVersions] = useState<string[]>([__APP_RELEASE_VERSION__])
   const releases = remoteReleases ? mergeReleaseHistory(remoteReleases, bundledReleases) : bundledReleases

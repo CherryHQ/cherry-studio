@@ -181,7 +181,9 @@ const AnimatedBlockWrapper: React.FC<{
       </div>
     )
   }
+
   const variants = animation === 'fade' ? blockWrapperFadeVariants : blockWrapperVariants
+
   return (
     <motion.div
       className={wrapperClassName}
@@ -217,11 +219,13 @@ function isImageFilePart(part: CherryMessagePart): boolean {
 function extractImageUrl(part: CherryMessagePart): string | undefined {
   if (part.type !== 'file' || !('url' in part)) return undefined
   const filePart = part as { url?: string; mediaType?: string }
+
   return filePart.url || undefined
 }
 
 function toImageSource(part: CherryMessagePart): MessageImageSource | undefined {
   const url = extractImageUrl(part)
+
   return url ? { handle: fileHandleFromPart(part), url } : undefined
 }
 
@@ -235,11 +239,13 @@ export interface HoistedFileAttachment {
 
 function toFileAttachment(part: CherryMessagePart, key: string): HoistedFileAttachment | undefined {
   const handle = fileHandleFromPart(part)
+
   if (!handle) return undefined
 
   const name = (part as { filename?: string }).filename ?? ''
   const preview = readOnlyFileTokenPreviewFromPart(part)
   const previewPath = getPreviewPathFromFileUrl(preview?.url)
+
   const inputFilePreview =
     preview && previewPath
       ? {
@@ -251,6 +257,7 @@ function toFileAttachment(part: CherryMessagePart, key: string): HoistedFileAtta
           composerFileKind: preview.composerFileKind
         }
       : undefined
+
   return { key, handle, name, ext: name.match(/\.[^.]+$/)?.[0] ?? '', inputFilePreview }
 }
 
@@ -258,7 +265,9 @@ function toFileAttachment(part: CherryMessagePart, key: string): HoistedFileAtta
 // leaves no attachment at all.
 function isHoistableFilePart(part: CherryMessagePart, hoistNonImageFiles: boolean): boolean {
   if ((part.type as string) !== 'file') return false
+
   if (isImageFilePart(part)) return !!extractImageUrl(part)
+
   return hoistNonImageFiles && !!fileHandleFromPart(part)
 }
 
@@ -273,12 +282,17 @@ export function getHoistedAttachments(
 
   parts.forEach((part, index) => {
     if (!isHoistableFilePart(part, hoistNonImageFiles)) return
+
     if (isImageFilePart(part)) {
       const source = toImageSource(part)
+
       if (source) images.push(source)
+
       return
     }
+
     const attachment = toFileAttachment(part, `${messageId}-part-${index}`)
+
     if (attachment) files.push(attachment)
   })
 
@@ -290,6 +304,7 @@ function getVideoFilePath(part: CherryMessagePart): string | undefined {
   if (isDataUIPart(part) && part.type === 'data-video') {
     return part.data.filePath
   }
+
   return undefined
 }
 
@@ -330,6 +345,7 @@ function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
 
     if (isImageFilePart(part)) {
       const prev = acc[acc.length - 1]
+
       if (Array.isArray(prev) && isImageFilePart(prev[0].part)) {
         prev.push(entry)
       } else {
@@ -338,9 +354,12 @@ function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
     } else if (isToolUIPart(part)) {
       if (isAskUserQuestionToolName(getToolName(part))) {
         acc.push(entry)
+
         return acc
       }
+
       const prev = acc[acc.length - 1]
+
       if (Array.isArray(prev) && isToolUIPart(prev[0].part)) {
         prev.push(entry)
       } else {
@@ -349,6 +368,7 @@ function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
     } else if (isDataUIPart(part) && part.type === 'data-video') {
       const filePath = getVideoFilePath(part)
       const prev = acc[acc.length - 1]
+
       if (
         Array.isArray(prev) &&
         isDataUIPart(prev[0].part) &&
@@ -376,11 +396,13 @@ interface VisibleComposerFileToken {
 function isComposerTokenVisibleInText(token: ComposerMessageToken, text: string): boolean {
   if (!token.promptText) return true
   const offset = Math.max(0, Math.min(text.length, token.textOffset))
+
   return text.slice(offset, offset + token.promptText.length) === token.promptText
 }
 
 function getComposerFileTokenNames(token: ComposerMessageToken): Set<string> {
   const names = [token.payload?.origin_name, token.payload?.name, token.label].filter((name): name is string => !!name)
+
   return new Set(names)
 }
 
@@ -392,6 +414,7 @@ function getComposerTokenDisplayText(
   composer: ComposerMessageSnapshot
 ): string {
   const text = (part as { text?: string }).text ?? ''
+
   if (message.role !== 'user' || expandedTextPartIds.has(partId)) return text
 
   return buildUserMessagePreview(text, composer).content
@@ -405,12 +428,14 @@ function getVisibleComposerFileTokens(
   return parts.flatMap((part, index) => {
     if ((part.type as string) !== 'text') return []
     const composer = getCherryMeta(part)?.composer
+
     if (!composer) return []
     const partId = `${message.id}-part-${index}`
     const text = getComposerTokenDisplayText(part, message, partId, expandedTextPartIds, composer)
 
     return getDisplayComposerTokens(composer).flatMap((token) => {
       if (token.kind !== 'file' || !isComposerTokenVisibleInText(token, text)) return []
+
       return [{ token, sourceId: readComposerFileTokenIdSuffix(token.id), names: getComposerFileTokenNames(token) }]
     })
   })
@@ -422,6 +447,7 @@ function getFileEntrySourceId(entry: PartEntry): string | undefined {
 
 function getFileEntryName(entry: PartEntry): string {
   const filePart = entry.part as { filename?: string; url?: string }
+
   return (
     filePart.filename ||
     filePart.url
@@ -438,6 +464,7 @@ function readOnlyFileTokenPreviewFromPart(part: CherryMessagePart): ReadOnlyComp
   if (!isFileUIPart(part)) return undefined
 
   const cherryMeta = getCherryMeta(part)
+
   const originalPath = cherryMeta?.originalPath
     ? AbsoluteFilePathSchema.safeParse(cherryMeta.originalPath).data
     : undefined
@@ -458,8 +485,10 @@ function getReadOnlyFileTokenPreviews(
 
   for (const part of parts) {
     const sourceId = getCherryMeta(part)?.fileTokenSourceId
+
     if (!sourceId) continue
     const preview = readOnlyFileTokenPreviewFromPart(part)
+
     if (preview) previews.set(sourceId, preview)
   }
 
@@ -468,8 +497,10 @@ function getReadOnlyFileTokenPreviews(
 
 function getPreviewPathFromFileUrl(url: string | undefined) {
   if (!url) return null
+
   try {
     const parsed = fileUrlToPath(url as FileUrlString)
+
     return AbsoluteFilePathSchema.safeParse(parsed).data ?? null
   } catch {
     return null
@@ -484,6 +515,7 @@ function findUniqueVisibleFileTokenIndex(
   const matchingIndexes = tokens.flatMap((token, index) =>
     !usedTokenIndexes.has(index) && matches(token) ? [index] : []
   )
+
   return matchingIndexes.length === 1 ? matchingIndexes[0] : undefined
 }
 
@@ -491,11 +523,14 @@ function findUniqueVisibleFileTokenIndex(
 // one of its tokens is hoisted away, rendering it leaves an empty line inside the bubble.
 function rendersOnlyHoistedTokens(entry: PartEntry, hiddenTokens: ReadonlySet<ComposerMessageToken>): boolean {
   const { part } = entry
+
   if (part.type !== 'text' || part.text?.trim()) return false
 
   const composer = getCherryMeta(part)?.composer
+
   if (!composer) return false
   const tokens = getDisplayComposerTokens(composer)
+
   return tokens.length > 0 && tokens.every((token) => hiddenTokens.has(token))
 }
 
@@ -522,24 +557,30 @@ function getDisplayProjection(
   }
 
   const fileEntryNameCounts = new Map<string, number>()
+
   for (const entry of entries) {
     if ((entry.part.type as string) !== 'file') continue
 
     const name = getFileEntryName(entry)
+
     if (name) fileEntryNameCounts.set(name, (fileEntryNameCounts.get(name) ?? 0) + 1)
   }
 
   // Explicit source ids claim their tokens before any filename fallback, independent of part order.
   const explicitTokenIndexes = new Set<number>()
+
   for (const entry of entries) {
     if ((entry.part.type as string) !== 'file') continue
     const sourceId = getFileEntrySourceId(entry)
+
     if (!sourceId) continue
+
     const matchIndex = findUniqueVisibleFileTokenIndex(
       visibleComposerFileTokens,
       explicitTokenIndexes,
       (token) => token.sourceId === sourceId
     )
+
     if (matchIndex !== undefined) explicitTokenIndexes.add(matchIndex)
   }
 
@@ -547,6 +588,7 @@ function getDisplayProjection(
   const displayEntries: PartEntry[] = []
   const hiddenImageTokens = new Set<ComposerMessageToken>()
   const associatedReadOnlyFilePreviews = new Map<string, ReadOnlyComposerFileTokenPreview>()
+
   for (const entry of entries) {
     if ((entry.part.type as string) !== 'file') {
       displayEntries.push(entry)
@@ -554,6 +596,7 @@ function getDisplayProjection(
     }
 
     const sourceId = getFileEntrySourceId(entry)
+
     let matchIndex = sourceId
       ? findUniqueVisibleFileTokenIndex(
           visibleComposerFileTokens,
@@ -580,11 +623,14 @@ function getDisplayProjection(
 
     const matchedToken = visibleComposerFileTokens[matchIndex]
     const hoisted = isHoistedEntry(entry)
+
     const mappedPreview =
       !hoisted && matchedToken.sourceId && !isImageFilePart(entry.part)
         ? readOnlyFileTokenPreviewFromPart(entry.part)
         : undefined
+
     const imageKeepsOwnControl = hoisted || (isImageFilePart(entry.part) && !!extractImageUrl(entry.part))
+
     // A filename hit with no token key must not drop the only remaining control.
     if (!mappedPreview && !imageKeepsOwnControl) {
       if (!isHoistedEntry(entry)) displayEntries.push(entry)
@@ -592,9 +638,11 @@ function getDisplayProjection(
     }
 
     usedTokenIndexes.add(matchIndex)
+
     if (mappedPreview && matchedToken.sourceId) {
       associatedReadOnlyFilePreviews.set(matchedToken.sourceId, mappedPreview)
     }
+
     if (isHoistedEntry(entry)) {
       hiddenImageTokens.add(matchedToken.token)
     } else if (isImageFilePart(entry.part) && extractImageUrl(entry.part)) {
@@ -617,10 +665,15 @@ function getDisplayProjection(
 function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): PlaceholderStatus {
   for (let index = entries.length - 1; index >= 0; index--) {
     const { part } = entries[index]
+
     if (isToolUIPart(part)) return 'usingTools'
+
     if ((part.type as string) === 'reasoning' && (part as ReasoningUIPart).state === 'streaming') return 'thinking'
+
     if (isReasoningMessagePart(part)) return 'thinking'
+
     if ((part.type as string) === 'text' || (part.type as string) === 'data-code') return 'generating'
+
     if (isResultPart(part)) return 'generating'
   }
 
@@ -632,7 +685,9 @@ function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean
   const partType = part.type as string
 
   if (isHiddenPart(part)) return false
+
   if (partType === 'reasoning') return isReasoningMessagePart(part)
+
   if (
     partType === 'text' ||
     partType === 'data-code' ||
@@ -641,12 +696,17 @@ function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean
   ) {
     return isSubstantiveAnswerPart(part)
   }
+
   if (isToolUIPart(part)) {
     const toolResponse = getCachedToolProjection(part, `${messageId}-part-${entry.index}`).toolResponse
+
     return !!toolResponse && (canRenderMessageTool(toolResponse) || isReportArtifactsToolResponse(toolResponse))
   }
+
   if (partType === 'file') return !!(part as { url?: string }).url
+
   if (partType === 'data-video' || partType === 'data-error') return 'data' in part && !!part.data
+
   return true
 }
 
@@ -659,6 +719,7 @@ function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefi
   if ('providerMetadata' in part && part.providerMetadata) {
     return part.providerMetadata.cherry
   }
+
   return undefined
 }
 
@@ -673,6 +734,7 @@ const ErrorPartView = React.memo(function ErrorPartView({
   message: MessageListItem
 }) {
   const rawData = part.data
+
   const error = useMemo(
     () => ({
       ...rawData,
@@ -682,6 +744,7 @@ const ErrorPartView = React.memo(function ErrorPartView({
     }),
     [rawData]
   )
+
   return <ErrorBlock partId={partId} error={error} message={message} />
 })
 
@@ -698,6 +761,7 @@ const TranslationPartView = React.memo(function TranslationPartView({
 }) {
   const { removeMessageTranslation, notifySuccess } = useMessageListActions()
   const { t } = useTranslation()
+
   const handleRemoveTranslation = React.useCallback(async () => {
     await removeMessageTranslation?.(messageId)
     notifySuccess?.(t('translate.closed'))
@@ -726,6 +790,7 @@ function renderPart(
   options?: RenderGroupedEntryOptions
 ): React.ReactNode {
   const partType = part.type
+
   const inlineHtmlPreviewMode =
     message.role === 'assistant'
       ? (options?.inlineHtmlPreviewMode ?? (message.status === 'success' ? 'ready' : undefined))
@@ -735,6 +800,7 @@ function renderPart(
     case 'reasoning': {
       const reasoningPart = part
       const isReasoningStreaming = !options?.settleStreamingReasoning && reasoningPart.state === 'streaming'
+
       if (options?.reasoningDisplay === 'content') {
         return (
           <ThinkingBlockContent
@@ -745,6 +811,7 @@ function renderPart(
           />
         )
       }
+
       return (
         <ThinkingBlock key={partId} id={partId} content={reasoningPart.text || ''} isStreaming={isReasoningStreaming} />
       )
@@ -752,6 +819,7 @@ function renderPart(
 
     case 'data-compact': {
       const compactData = (part as { data: { content: string; compactedContent: string } }).data
+
       return (
         <CompactBlock
           key={partId}
@@ -773,6 +841,7 @@ function renderPart(
 
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data
+
       return (
         <TranslationPartView
           key={partId}
@@ -788,6 +857,7 @@ function renderPart(
       const cherryMeta = getCherryMeta(part)
       const references = cherryMeta?.references as ContentReference[] | undefined
       let converted = references ? referenceCitationsCache.get(references) : undefined
+
       if (references && !converted) {
         converted = {
           citations: convertReferencesToCitations(references),
@@ -795,6 +865,7 @@ function renderPart(
         }
         referenceCitationsCache.set(references, converted)
       }
+
       return (
         <MainTextBlock
           key={partId}
@@ -825,6 +896,7 @@ function renderPart(
     case 'data-code': {
       const codeData = (part as { data: { content: string; language?: string } }).data
       const codeContent = `\`\`\`${codeData.language ?? ''}\n${codeData.content}\n\`\`\``
+
       return (
         <MainTextBlock
           key={partId}
@@ -840,13 +912,17 @@ function renderPart(
 
     case 'data-error': {
       const errorPart = part
+
       if (!errorPart.data) return null
+
       return <ErrorPartView key={partId} partId={partId} part={errorPart} message={message} />
     }
 
     case 'data-video': {
       const rawData = 'data' in part ? part.data : undefined
+
       if (!rawData) return null
+
       return (
         <React.Suspense key={partId} fallback={null}>
           <MessageVideo url={rawData.url} filePath={rawData.filePath} />
@@ -856,7 +932,9 @@ function renderPart(
 
     case 'data-retry': {
       const rawData = 'data' in part ? part.data : undefined
+
       if (!rawData) return null
+
       return <RetryStatusBlock key={partId} data={rawData} />
     }
 
@@ -874,16 +952,23 @@ function renderPart(
 
     case 'file': {
       const filePart = part as { url?: string; mediaType?: string; filename?: string }
+
       if (filePart.mediaType?.startsWith('image/')) {
         const source = toImageSource(part)
+
         if (!source) return null
+
         return <MessageImageBlock key={partId} sources={[source]} isSingle={true} thumbnail={message.role === 'user'} />
       }
+
       const attachment = toFileAttachment(part, partId)
+
       if (!attachment) {
         logger.warn('File part addresses no file, skipping', { filename: filePart.filename })
+
         return null
       }
+
       return (
         <MessageAttachments
           key={partId}
@@ -907,6 +992,7 @@ function renderPart(
       }
 
       logger.warn('Unknown part type in MessagePartsRenderer', { type: partType })
+
       return null
     }
   }
@@ -922,25 +1008,31 @@ const toolProjectionCache = new WeakMap<object, Map<string, CachedToolProjection
 function getCachedToolProjection(part: CherryMessagePart, partId: string): CachedToolProjection {
   const cacheKey = part as object
   let projectionsById = toolProjectionCache.get(cacheKey)
+
   if (!projectionsById) {
     projectionsById = new Map()
     toolProjectionCache.set(cacheKey, projectionsById)
   }
 
   const cached = projectionsById.get(partId)
+
   if (cached) return cached
 
   const toolResponse = buildToolResponseFromPart(part, partId)
   const projection: CachedToolProjection = { toolResponse }
+
   if (toolResponse && canRenderMessageTool(toolResponse)) {
     projection.renderItem = { id: partId, toolResponse }
   }
+
   projectionsById.set(partId, projection)
+
   return projection
 }
 
 function settleToolResponse(toolResponse: ToolResponseLike): ToolResponseLike {
   if (!['pending', 'invoking', 'streaming'].includes(toolResponse.status)) return toolResponse
+
   return { ...toolResponse, status: 'cancelled' }
 }
 
@@ -954,7 +1046,9 @@ const ToolPartView = React.memo(function ToolPartView({
   settleActiveTools?: boolean
 }) {
   const toolResponse = getCachedToolProjection(part, partId).toolResponse
+
   if (!toolResponse) return null
+
   return <MessageTools toolResponse={settleActiveTools ? settleToolResponse(toolResponse) : toolResponse} />
 })
 
@@ -964,6 +1058,7 @@ function renderToolPart(part: CherryMessagePart, partId: string, settleActiveToo
 
 function settleToolRenderItem(item: ToolRenderItem): ToolRenderItem {
   const toolResponse = settleToolResponse(item.toolResponse)
+
   return toolResponse === item.toolResponse ? item : { ...item, toolResponse }
 }
 
@@ -975,6 +1070,7 @@ function buildToolRenderItems(
   return entries.flatMap((e): ToolRenderItem[] => {
     const id = `${messageId}-part-${e.index}`
     const renderItem = getCachedToolProjection(e.part, id).renderItem
+
     return renderItem ? [settleActiveTools ? settleToolRenderItem(renderItem) : renderItem] : []
   })
 }
@@ -982,20 +1078,24 @@ function buildToolRenderItems(
 function getReportArtifactToolResponses(entries: readonly PartEntry[], messageId: string) {
   return entries.flatMap((entry) => {
     const toolResponse = getCachedToolProjection(entry.part, `${messageId}-part-${entry.index}`).toolResponse
+
     return toolResponse && isReportArtifactsToolResponse(toolResponse) ? [toolResponse] : []
   })
 }
 
 function isReportArtifactEntry(entry: PartEntry, messageId: string): boolean {
   const toolResponse = getCachedToolProjection(entry.part, `${messageId}-part-${entry.index}`).toolResponse
+
   return !!toolResponse && isReportArtifactsToolResponse(toolResponse)
 }
 
 function useStableItemArray<T>(items: T[]): T[] {
   const stableRef = React.useRef(items)
+
   if (stableRef.current.length !== items.length || stableRef.current.some((item, index) => item !== items[index])) {
     stableRef.current = items
   }
+
   return stableRef.current
 }
 
@@ -1004,8 +1104,10 @@ function areReadOnlyFilePreviewsEqual(
   next: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
 ): boolean {
   if (previous.size !== next.size) return false
+
   for (const [key, prev] of previous) {
     const current = next.get(key)
+
     if (
       !current ||
       current.url !== prev.url ||
@@ -1015,6 +1117,7 @@ function areReadOnlyFilePreviewsEqual(
       return false
     }
   }
+
   return true
 }
 
@@ -1023,9 +1126,11 @@ function useStableReadOnlyFilePreviews(
   previews: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
 ): ReadonlyMap<string, ReadOnlyComposerFileTokenPreview> {
   const stableRef = React.useRef(previews)
+
   if (!areReadOnlyFilePreviewsEqual(stableRef.current, previews)) {
     stableRef.current = previews
   }
+
   return stableRef.current
 }
 
@@ -1043,9 +1148,11 @@ function renderGroupedEntry(
 
     if (isImageFilePart(firstPart)) {
       const images = entry.map((e) => toImageSource(e.part)).filter((s) => s !== undefined)
+
       if (images.length === 0) return null
 
       const thumbnail = message.role === 'user'
+
       if (images.length === 1) {
         return (
           <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
@@ -1053,6 +1160,7 @@ function renderGroupedEntry(
           </AnimatedBlockWrapper>
         )
       }
+
       return (
         <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
           <MessageImageBlock sources={images} isSingle={false} thumbnail={thumbnail} />
@@ -1062,9 +1170,11 @@ function renderGroupedEntry(
 
     if (isToolUIPart(firstPart)) {
       const toolItems = buildToolRenderItems(entry, message.id, options?.settleActiveTools)
+
       if (toolItems.length === 0) return null
 
       const stableGroupKey = `tool-group-${message.id}-part-${entry[0].index}`
+
       return (
         <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={enableAnimation} animation="fade">
           {options?.toolDisplay === 'disclosure' ? (
@@ -1079,6 +1189,7 @@ function renderGroupedEntry(
     if (isDataUIPart(firstPart) && firstPart.type === 'data-video') {
       const firstEntry = entry[0]
       const partId = `${message.id}-part-${firstEntry.index}`
+
       return (
         <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
           {renderPart(firstEntry.part, partId, message, isStreaming)}
@@ -1091,6 +1202,7 @@ function renderGroupedEntry(
 
   const partId = `${message.id}-part-${entry.index}`
   const rendered = renderPart(entry.part, partId, message, isStreaming, options)
+
   if (!rendered) return null
 
   const wrapperClassName =
@@ -1115,6 +1227,7 @@ function findLastLiveProcessBoundaryIndex(items: readonly LiveMessagePartLayoutI
   for (let index = items.length - 1; index >= 0; index--) {
     if (items[index].kind === 'process') return index
   }
+
   return -1
 }
 
@@ -1132,6 +1245,7 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
       const firstEntry = Array.isArray(entry) ? entry[0] : entry
       result.push({ kind: 'content', key: firstEntry.index, entry })
     }
+
     contentEntries = []
   }
 
@@ -1139,6 +1253,7 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
     if (processEntries.length > 0) {
       result.push({ kind: 'process', key: processEntries[0].index, entries: processEntries })
     }
+
     processEntries = []
   }
 
@@ -1163,6 +1278,7 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
 
   flushProcess()
   flushContent()
+
   return result
 }
 
@@ -1174,6 +1290,7 @@ function renderNestedHistory(
 ): React.ReactNode {
   const nestedItems = groupNestedHistoryEntries(entries)
   let lastProcessIndex = -1
+
   if (liveProcessMode === 'last') {
     for (let index = nestedItems.length - 1; index >= 0; index--) {
       if (nestedItems[index].kind === 'process') {
@@ -1197,6 +1314,7 @@ function renderNestedHistory(
     }
 
     const toolItems = buildToolRenderItems(item.entries, message.id, options.settleActiveTools)
+
     if (toolItems.length === 0) {
       return (
         <React.Fragment key={`reasoning-${message.id}-${item.key}`}>
@@ -1212,9 +1330,12 @@ function renderNestedHistory(
     }
 
     const isCurrentProcess = itemIndex === lastProcessIndex
+
     const isLiveProgress =
       liveProcessMode === 'settled' ? false : liveProcessMode === 'last' ? isCurrentProcess : undefined
+
     const lastProcessEntry = item.entries.at(-1)
+
     const isThinking =
       isCurrentProcess &&
       lastProcessEntry !== undefined &&
@@ -1223,6 +1344,7 @@ function renderNestedHistory(
 
     // Stated intents already say what each step is for, so thinking blocks between them only add noise.
     const showsReasoning = !toolItems.some(hasToolIntent)
+
     const visibleEntries = groupPartEntries(item.entries).filter(
       (entry) => showsReasoning || Array.isArray(entry) || !isReasoningMessagePart(entry.part)
     )
@@ -1259,9 +1381,11 @@ function arePartEntriesEqual(previous: readonly PartEntry[], next: readonly Part
 
 function areGroupedEntriesEqual(previous: GroupedEntry, next: GroupedEntry): boolean {
   if (Array.isArray(previous) !== Array.isArray(next)) return false
+
   if (!Array.isArray(previous) || !Array.isArray(next)) {
     return !Array.isArray(previous) && !Array.isArray(next) && arePartEntriesEqual([previous], [next])
   }
+
   return arePartEntriesEqual(previous, next)
 }
 
@@ -1273,10 +1397,13 @@ function areLiveLayoutItemsEqual(
     previous.length === next.length &&
     previous.every((item, index) => {
       const nextItem = next[index]
+
       if (item.kind !== nextItem.kind || item.key !== nextItem.key) return false
+
       if (item.kind === 'process') {
         return nextItem.kind === 'process' && arePartEntriesEqual(item.entries, nextItem.entries)
       }
+
       return nextItem.kind === 'part' && arePartEntriesEqual([item.entry], [nextItem.entry])
     })
   )
@@ -1335,6 +1462,7 @@ const ActiveMessageProcess = React.memo(
         ),
       [items, message.id]
     )
+
     const renderHistory = React.useCallback(
       (isExpanded: boolean) => {
         if (!isExpanded) return null
@@ -1354,6 +1482,7 @@ const ActiveMessageProcess = React.memo(
           }
 
           const isLastProcess = itemIndex === items.length - 1
+
           return (
             <React.Fragment key={`live-process-${message.id}-${item.key}`}>
               {renderNestedHistory(
@@ -1415,6 +1544,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   renderOptions: RenderGroupedEntryOptions
 }) {
   const { expandToolSteps, thoughtAutoCollapse } = useMessageRenderConfig()
+
   const projectedLiveItems = useMemo(
     () =>
       isActive
@@ -1424,26 +1554,32 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         : [],
     [entries, isActive, keepIntermediateAssistantText, message.id]
   )
+
   const liveProcessBoundary = useMemo(() => findLastLiveProcessBoundaryIndex(projectedLiveItems), [projectedLiveItems])
+
   // Keep hard-boundary parts in process history while enabled text stays in the response lane.
   const liveProcessItems = projectedLiveItems
     .slice(0, liveProcessBoundary + 1)
     .filter((item) => !keepIntermediateAssistantText || item.kind !== 'part' || item.entry.part.type !== 'text')
+
   const liveResultItems = projectedLiveItems.filter(
     (item, index) =>
       index > liveProcessBoundary ||
       (keepIntermediateAssistantText && item.kind === 'part' && item.entry.part.type === 'text')
   )
+
   const openTextTailIndex = isActive && isStreamLive ? findOpenTextTailIndex(entries) : null
 
   const completedLayout = useMemo(
     () => (isActive ? null : projectCompletedMessageParts(entries, { keepIntermediateAssistantText })),
     [entries, isActive, keepIntermediateAssistantText]
   )
+
   const completedRenderOptions = useMemo(
     () => ({ ...renderOptions, settleActiveTools: true, settleStreamingReasoning: true }),
     [renderOptions]
   )
+
   const activeResultRenderOptions = useMemo<RenderGroupedEntryOptions>(
     () => ({ ...renderOptions, inlineHtmlPreviewMode: 'generating' }),
     [renderOptions]
@@ -1503,8 +1639,10 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
               }
         )
       : null
+
   const completedResult = groupPartEntries(completedLayout.resultEntries).map((entry) => {
     const firstEntry = Array.isArray(entry) ? entry[0] : entry
+
     return (
       <MessageContentEntryView
         key={`message-content-${message.id}-${firstEntry.index}`}
@@ -1520,6 +1658,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   const hasVisibleCompletedHistory = completedHistoryEntries.some((entry) =>
     isPotentiallyVisibleEntry(entry, message.id)
   )
+
   if (!hasVisibleCompletedHistory) return <>{completedResult}</>
 
   if (!collapseHistory) {
@@ -1532,26 +1671,35 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   }
 
   const completedToolItems = buildToolRenderItems(completedHistoryEntries, message.id, true)
+
   const completedHasError = (() => {
     const historyHasError = completedHistoryEntries.some((entry) => {
       if ((entry.part.type as string) === 'data-error') return true
+
       if (!isToolUIPart(entry.part)) return false
 
       const toolResponse = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse
+
       return toolResponse?.status === 'error' || toolResponse?.response?.isError === true
     })
+
     const projectedIndexes = new Set(
       [...completedHistoryEntries, ...completedLayout.resultEntries].map((entry) => entry.index)
     )
 
     for (let index = entries.length - 1; index >= 0; index--) {
       const entry = entries[index]
+
       if (!projectedIndexes.has(entry.index) || !isPotentiallyVisibleEntry(entry, message.id)) continue
+
       if (isReasoningMessagePart(entry.part)) continue
+
       if ((entry.part.type as string) === 'data-error') return true
+
       if (!isToolUIPart(entry.part)) return false
 
       const toolResponse = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse
+
       return toolResponse?.status === 'error' || toolResponse?.response?.isError === true
     }
 
@@ -1592,6 +1740,7 @@ interface MessagePartsRendererContentProps extends Props {
 
 const ActiveTurnStatusView = ({ fallback }: { fallback: React.ReactNode }) => {
   const activeTurnStatus = useMessageListActiveTurnStatus()
+
   return activeTurnStatus ? activeTurnStatus(fallback) : fallback
 }
 
@@ -1609,67 +1758,87 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const { openAgentToolFlow, isAgentToolFlowActive, openFile, previewFile, previewInputFile } = useMessageListActions()
   const hoistNonImageFiles = !!hoistAttachments && !!(previewInputFile || previewFile || openFile)
   const { t } = useTranslation()
+
   const subscribeDisclosures = React.useCallback(
     (listener: () => void) => subscribeCachedMessageUiState(message.id, listener),
     [message.id]
   )
+
   const getDisclosures = React.useCallback(() => getCachedMessageUiState(message.id).disclosures, [message.id])
   const disclosures = React.useSyncExternalStore(subscribeDisclosures, getDisclosures, getDisclosures)
+
   const expandedTextPartIds = useMemo(() => {
     if (message.role !== 'user') return EMPTY_EXPANDED_TEXT_PART_IDS
+
     return new Set(
       messageParts.flatMap((part, index) => {
         const partId = `${message.id}-part-${index}`
+
         return part.type === 'text' && (disclosures?.[partId] ?? userMessageDefaultExpanded) ? [partId] : []
       })
     )
   }, [disclosures, message.id, message.role, messageParts, userMessageDefaultExpanded])
+
   const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
     () => new Set()
   )
+
   const handleTextPartExpandedChange = React.useCallback(
     (partId: string, expanded: boolean) => {
       updateCachedMessageUiState(message.id, (current) => {
         if (current.disclosures?.[partId] === expanded) return current
+
         return { ...current, disclosures: { ...current.disclosures, [partId]: expanded } }
       })
     },
     [message.id]
   )
+
   const handleTextPlayoutSettledChange = React.useCallback((partId: string, settled: boolean) => {
     setUnsettledTextPlayoutPartIds((current) => {
       const isUnsettled = current.has(partId)
+
       if (isUnsettled === !settled) return current
 
       const next = new Set(current)
+
       if (settled) {
         next.delete(partId)
       } else {
         next.add(partId)
       }
+
       return next
     })
   }, [])
 
   const partEntries = useMemo(() => {
     const shownErrors = new Set<string>()
+
     return messageParts.flatMap((part, index) => {
       if (hasPartParentToolCallId(part)) return []
+
       if (part.type === 'data-error') {
         // Older builds could persist one failure twice; each distinct error gets one card.
         const errorKey = JSON.stringify(part.data)
+
         if (shownErrors.has(errorKey)) return []
         shownErrors.add(errorKey)
       }
+
       return [{ part, index }]
     })
   }, [messageParts])
+
   const placeholderStatus = useMemo(() => getProcessingPlaceholderStatus(partEntries), [partEntries])
+
   const nextReportArtifactToolResponses = useMemo(
     () => getReportArtifactToolResponses(partEntries, message.id),
     [partEntries, message.id]
   )
+
   const reportArtifactToolResponses = useStableItemArray(nextReportArtifactToolResponses)
+
   const sessionToolResponses = useMemo(
     () =>
       isActiveTurnProcessing
@@ -1679,11 +1848,14 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
             .filter(isCherrySessionToolResponse),
     [isActiveTurnProcessing, message.id, partEntries]
   )
+
   const explicitReadOnlyFilePreviews = useMemo(() => getReadOnlyFileTokenPreviews(messageParts), [messageParts])
+
   const handleReadOnlyFilePreviewActivate = useCallback(
     (preview: ReadOnlyComposerFileTokenPreview, token: ChatTokenView) => {
       if (!previewInputFile) return
       const previewPath = getPreviewPathFromFileUrl(preview.url)
+
       if (!previewPath) return
 
       return previewInputFile({
@@ -1697,58 +1869,76 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     },
     [previewInputFile]
   )
+
   const visibleComposerFileTokens = useMemo(
     () => getVisibleComposerFileTokens(messageParts, message, expandedTextPartIds),
     [expandedTextPartIds, message, messageParts]
   )
+
   const displayProjection = useMemo(
     () => getDisplayProjection(partEntries, message, visibleComposerFileTokens, !!hoistAttachments, hoistNonImageFiles),
     [hoistAttachments, hoistNonImageFiles, message, partEntries, visibleComposerFileTokens]
   )
+
   const nextReadOnlyFilePreviews = useMemo(() => {
     const associated = displayProjection.associatedReadOnlyFilePreviews
+
     if (associated.size === 0) return explicitReadOnlyFilePreviews
 
     const merged = new Map(explicitReadOnlyFilePreviews)
+
     for (const [sourceId, preview] of associated) merged.set(sourceId, preview)
+
     return merged
   }, [displayProjection.associatedReadOnlyFilePreviews, explicitReadOnlyFilePreviews])
+
   const readOnlyFilePreviews = useStableReadOnlyFilePreviews(nextReadOnlyFilePreviews)
+
   const subagentEntries = useMemo(
     () =>
       openAgentToolFlow
         ? displayProjection.entries.filter((entry) => {
             if (!isToolUIPart(entry.part)) return false
+
             const name = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse?.tool
               .name
+
             return name === AgentToolsType.Agent || name === AgentToolsType.Task
           })
         : [],
     [displayProjection.entries, message.id, openAgentToolFlow]
   )
+
   const subagentStatuses = subagentEntries.map(({ part, index }) => {
     const response = getCachedToolProjection(part, `${message.id}-part-${index}`).toolResponse
+
     return response
       ? (getSubagentTaskStatus(messageParts, response.toolCallId, response.status) ?? response.status)
       : undefined
   })
+
   const completedSubagents = subagentStatuses.filter((status) => status === 'done').length
   const failedSubagents = subagentStatuses.filter((status) => status === 'error').length
   const stoppedSubagents = subagentStatuses.filter((status) => status === 'cancelled').length
   const allSubagentsCompleted = subagentEntries.length > 0 && completedSubagents === subagentEntries.length
+
   const viewingSubagent = subagentEntries.some(({ part, index }) => {
     const response = getCachedToolProjection(part, `${message.id}-part-${index}`).toolResponse
+
     return response?.toolCallId && isAgentToolFlowActive?.(response.toolCallId)
   })
+
   const [showSubagents, setSubagentsExpanded] = useMessageDisclosureState(
     'subtasks',
     isActiveTurnProcessing || !allSubagentsCompleted || viewingSubagent,
     message.id
   )
+
   React.useEffect(() => {
     if (viewingSubagent) setSubagentsExpanded(true)
   }, [viewingSubagent, setSubagentsExpanded])
   const subagentContentId = React.useId()
+
   const displayEntries = useMemo(
     () =>
       subagentEntries.length
@@ -1756,6 +1946,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         : displayProjection.entries,
     [displayProjection.entries, subagentEntries]
   )
+
   const hasVisibleNonArtifactEntry = useMemo(
     () =>
       displayEntries.some(
@@ -1763,27 +1954,35 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       ),
     [displayEntries, message.id]
   )
+
   // Settled tool parts keep their identity across streaming chunks, so citations only re-resolve
   // when a source part changes, not on every text delta.
   const nextCitationSourceParts = useMemo(() => messageParts.filter(isCitationSourcePart), [messageParts])
   const citationSourceParts = useStableItemArray(nextCitationSourceParts)
+
   const messageCitations = useMemo(
     () => resolveMessageCitations(citationSourceParts, message.role === 'assistant' ? priorCitationParts : undefined),
     [citationSourceParts, message.role, priorCitationParts]
   )
+
   const citationProjectionByPart = useMemo(() => {
     if (message.role !== 'assistant' || messageCitations.all.length === 0) return EMPTY_CITATION_PROJECTIONS
+
     const textParts = messageParts.filter((part) => {
       if (part.type !== 'text') return false
       const references = getCherryMeta(part)?.references as ContentReference[] | undefined
+
       return !references?.length || convertReferencesToCitations(references).length === 0
     })
+
     const projections = resolveCitationMarkerParts(
       textParts.map((part) => (part.type === 'text' ? part.text || '' : '')),
       messageCitations
     )
+
     return new Map(textParts.map((part, index) => [part, projections[index]]))
   }, [message.role, messageCitations, messageParts])
+
   const renderOptions = useMemo(
     () => ({
       citationProjectionByPart,
@@ -1809,6 +2008,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       displayProjection.hiddenImageTokens
     ]
   )
+
   const canRenderReportArtifacts =
     !isActiveTurnProcessing && unsettledTextPlayoutPartIds.size === 0 && reportArtifactToolResponses.length > 0
 
@@ -1827,6 +2027,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
           <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
         </AnimatedBlockWrapper>
       )
+
       // The status renderer replaces the placeholder while active (e.g. an api-retry line) and falls
       // back to it otherwise.
       return (
@@ -1835,6 +2036,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         </AnimatePresence>
       )
     }
+
     return (
       <MessageCompactionStatus
         messageId={message.id}

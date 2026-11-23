@@ -25,6 +25,7 @@ function ensure<T>(value: T | null, name: string): T {
   if (value === null) {
     throw new Error(`${name} must be used inside <TreeView />`)
   }
+
   return value
 }
 

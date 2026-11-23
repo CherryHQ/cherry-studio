@@ -17,14 +17,18 @@ import { OpenTargetIcon } from './OpenTargetIcon'
 export function getOpenTargetLabel(target: ExternalOpenTarget, t: TFunction): string {
   if (target.kind === 'file_manager') {
     if (isMac) return t('agent.session.file_manager.finder')
+
     if (isWin) return t('agent.session.file_manager.file_explorer')
+
     return t('agent.session.file_manager.files')
   }
+
   return target.name ?? t('agent.preview_pane.default_app')
 }
 
 export function getOpenTargetBadge(target: ExternalOpenTarget, t: TFunction) {
   if (target.kind !== 'system_default' || !target.name) return undefined
+
   return (
     <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-normal">
       {t('agent.preview_pane.default_app')}
@@ -48,6 +52,7 @@ export function buildOpenTargetMenuItems({
   const defaultApp = targets.find((target) => target.kind === 'system_default')
   const fileManager = targets.find((target) => target.kind === 'file_manager')
   const others = targets.filter((target) => target !== defaultApp && target !== fileManager)
+
   const item = (target: ExternalOpenTarget, label: string): CommandContextMenuExtraItem => ({
     type: 'item',
     id: `external-open-target.${target.id}`,
@@ -55,6 +60,7 @@ export function buildOpenTargetMenuItems({
     icon: <OpenTargetIcon target={target} />,
     onSelect: () => onOpen(target)
   })
+
   const revealLabel = t(
     isMac
       ? 'chat.input.tools.reveal_in_finder'
@@ -62,6 +68,7 @@ export function buildOpenTargetMenuItems({
         ? 'chat.input.tools.reveal_in_file_explorer'
         : 'chat.input.tools.reveal_in_file_manager'
   )
+
   return [
     ...(defaultApp ? [item(defaultApp, t('common.open_in', { name: getOpenTargetLabel(defaultApp, t) }))] : []),
     ...(fileManager ? [item(fileManager, revealLabel)] : []),
@@ -90,6 +97,7 @@ export async function loadOpenTargetMenuItems({
 }): Promise<readonly CommandContextMenuExtraItem[]> {
   try {
     const result = await externalOpenTargetService.list(targetPath, pathKind)
+
     return buildOpenTargetMenuItems({
       targets: result.targets,
       onOpen: (target) => {
@@ -101,6 +109,7 @@ export async function loadOpenTargetMenuItems({
     })
   } catch (error) {
     toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path: targetPath })))
+
     return []
   }
 }

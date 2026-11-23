@@ -25,6 +25,7 @@ import { useAgentConversationBootstrap } from './useAgentConversationBootstrap'
 const TaskFormDialog = lazy(() =>
   import('@renderer/components/ScheduledTask/TaskFormDialog').then((module) => ({ default: module.TaskFormDialog }))
 )
+
 const routeApi = getRouteApi('/app/scheduled-tasks')
 
 export default function ScheduledTasksPage() {
@@ -36,11 +37,13 @@ export default function ScheduledTasksPage() {
   const completed = useAllTasks('completed')
   const { task, error: taskError, isLoading: taskLoading, refetch: refreshTask } = useTask(taskId ?? null)
   const selectedTask = task?.id === taskId && !taskError ? task : null
+
   const { data: notification, error: notificationError } = useQuery('/notifications/:id', {
     params: { id: notificationId ?? '' },
     enabled: !!notificationId,
     swrOptions: { shouldRetryOnError: false }
   })
+
   const resultError =
     selectedTask?.runSummary?.status === 'failed' &&
     notificationId &&
@@ -50,19 +53,24 @@ export default function ScheduledTasksPage() {
     notification.target.taskId === selectedTask?.id
       ? notification.target.result?.errorSummary
       : undefined
+
   const conversation = useTaskConversation(selectedTask, runId)
+
   const bootstrap = useAgentConversationBootstrap({
     session: conversation.session,
     sessionLoading: conversation.sessionLoading,
     sessionSource: conversation.session ? 'query' : 'none'
   })
+
   const currentTabId = useCurrentTabId()
   const isActiveTab = useIsActiveTab()
+
   const { locateMessageId, locateToEnd, clearLocate } = useConversationLocateRequest({
     navigationTabId: currentTabId ?? undefined,
     activeConversationId: conversation.result?.session?.id,
     visibleConversationId: bootstrap.session?.id
   })
+
   const [paneOpen, setPaneOpen] = usePreference('topic.tab.show')
   const shell = useConversationShellPaneState({ persistedPaneOpen: paneOpen, setPersistedPaneOpen: setPaneOpen })
   useCommandHandler('app.sidebar.toggle', shell.toggleShellPane, { enabled: isActiveTab })
@@ -70,12 +78,15 @@ export default function ScheduledTasksPage() {
   const [createOpen, setCreateOpen] = useState<boolean>()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const { createTask } = useCreateTask()
+
   const ids = useMemo(
     () => [...new Set([...active.tasks, ...paused.tasks, ...completed.tasks].map((item) => item.agentId))].sort(),
     [active.tasks, paused.tasks, completed.tasks]
   )
+
   const { data: owners } = useQuery('/agents', { query: { ids, limit: 3 * TASKS_PAGE_LIMIT }, enabled: ids.length > 0 })
   const names = useMemo(() => new Map(owners?.items.map((agent) => [agent.id, agent.name])), [owners])
+
   const {
     data: availableAgents,
     isLoading: agentsLoading,
@@ -85,19 +96,25 @@ export default function ScheduledTasksPage() {
     query: { limit: 500 },
     enabled: createOpen === true
   })
+
   const selectTask = (id: string) => {
     void navigate({ to: '/app/scheduled-tasks', search: { taskId: id }, replace: true })
   }
+
   const selectRun = (id: string) => {
     if (taskId) void navigate({ to: '/app/scheduled-tasks', search: { taskId, runId: id }, replace: true })
   }
+
   const handleTaskDeleted = async (id: string) => {
     if (taskId === id) await navigate({ to: '/app/scheduled-tasks', search: {}, replace: true })
   }
+
   const changeCreateOpen = (open: boolean) => {
     setCreateOpen(open)
+
     if (!open) requestAnimationFrame(() => triggerRef.current?.focus())
   }
+
   const pane = (
     <ConversationNavigationPane className="border-r-[0.5px] border-border bg-background p-1.5 text-foreground">
       <ResourceList.Header>
@@ -129,7 +146,9 @@ export default function ScheduledTasksPage() {
       </div>
     </ConversationNavigationPane>
   )
+
   const selectedRun = conversation.result?.selectedRun
+
   const toolbar = (
     <div className="flex min-h-(--navbar-height) flex-wrap items-center gap-2 px-3 py-1.5">
       <ConversationSidebarToggleButton sidebarOpen={shell.shellPaneOpen} onSidebarToggle={shell.toggleShellPane} />
@@ -172,12 +191,15 @@ export default function ScheduledTasksPage() {
       )}
     </div>
   )
+
   const pending = taskLoading || conversation.loading || conversation.sessionLoading
   const error = taskError ?? conversation.error
+
   const waitingForFirstRun =
     (selectedTask?.status === 'active' || selectedTask?.status === 'paused') &&
     !selectedTask.runSummary &&
     !conversation.result?.total
+
   const empty = (
     <div
       className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground"
@@ -212,6 +234,7 @@ export default function ScheduledTasksPage() {
       )}
     </div>
   )
+
   const storedResult =
     selectedRun && !error && !pending ? (
       <div className="h-full min-h-0 overflow-y-auto p-6 text-sm select-text">
@@ -252,6 +275,7 @@ export default function ScheduledTasksPage() {
     ) : (
       empty
     )
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <AgentChat
@@ -304,8 +328,10 @@ export default function ScheduledTasksPage() {
             onOpenChange={changeCreateOpen}
             onCreate={async (agentId, form) => {
               const created = await createTask(agentId, form)
+
               if (!created) return false
               selectTask(created.id)
+
               return true
             }}
           />

@@ -38,7 +38,9 @@ const isCommandId = (value: unknown): value is CommandId =>
 
 const isMenuAnchor = (value: unknown): value is MenuAnchor => {
   if (value === undefined) return true
+
   if (!isRecord(value)) return false
+
   return (
     (value.x === undefined || typeof value.x === 'number') && (value.y === undefined || typeof value.y === 'number')
   )
@@ -154,25 +156,31 @@ export function showNativePopupMenu(
 ): Promise<NativePopupMenuResult<CommandId> | undefined> {
   if (!isNativePopupMenuModel(model) || !isMenuAnchor(anchor)) {
     logger.warn('Rejected invalid native command popup menu payload')
+
     return Promise.resolve(undefined)
   }
 
   return new Promise((resolve) => {
     let settled = false
+
     const settle = (result?: NativePopupMenuResult<CommandId>) => {
       if (settled) {
         return
       }
+
       settled = true
       resolve(result)
     }
 
     const runCommand = (command: CommandId): void => {
       const window = BrowserWindow.fromWebContents(event.sender) ?? undefined
+
       if (executeCommand(command, window)) {
         settle(undefined)
+
         return
       }
+
       settle({ type: 'command', command })
     }
 
@@ -181,8 +189,10 @@ export function showNativePopupMenu(
         registerAccelerator: false,
         executeCommand: runCommand
       })
+
       if (!template.length) {
         settle(undefined)
+
         return
       }
 

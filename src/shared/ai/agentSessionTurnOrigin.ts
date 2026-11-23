@@ -9,6 +9,7 @@ export const AutonomousTurnOriginSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('goal-round'), round: z.number().int().positive() }),
   z.strictObject({ kind: z.literal('background-work') })
 ])
+
 export type AutonomousTurnOrigin = z.infer<typeof AutonomousTurnOriginSchema>
 
 /** Live, per-message explanation for a runtime-started assistant turn. Shared cache, like the

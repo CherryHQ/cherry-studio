@@ -91,6 +91,7 @@ export async function dispatchStreamRequest(
   req: MainDispatchRequest
 ): Promise<AiStreamOpenResponse> {
   const provider = providers.find((p) => p.canHandle(req.topicId))
+
   if (!provider) {
     throw new Error(`No ChatContextProvider can handle topicId: ${req.topicId}`)
   }
@@ -115,6 +116,7 @@ export async function dispatchStreamRequest(
       topicId: req.topicId
     })
   }
+
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preparation failures remain unchanged unless the workspace-error guard identifies a blocked Session.
   const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((error: unknown) => {
     if (isAgentSessionWorkspaceError(error)) {
@@ -125,11 +127,14 @@ export async function dispatchStreamRequest(
         }
       }
     }
+
     throw error
   })
+
   if ('blocked' in prepared) {
     return { mode: 'blocked', ...prepared.blocked }
   }
+
   for (const model of prepared.models) {
     model.request.interactionWindowId = req.interactionWindowId
   }
@@ -182,14 +187,18 @@ export async function dispatchStreamRequest(
   const preparedChange = prepared.liveExecutionChange
   const canAppendToLiveStream = preparedChange?.mode === 'append' && manager.hasLiveStream(prepared.topicId)
   let preserveActiveNode = prepared.preserveActiveNode
+
   if (preparedChange?.mode === 'append' && !canAppendToLiveStream && preparedChange.activateFallback) {
     const fallbackActiveNodeId = reservedAssistantIds.at(-1)
+
     if (!fallbackActiveNodeId) {
       throw new Error(`Live-group append fallback produced no assistant placeholder (topicId=${prepared.topicId})`)
     }
+
     topicService.setActiveNode(prepared.topicId, fallbackActiveNodeId)
     preserveActiveNode = false
   }
+
   const liveExecutionChange =
     preparedChange?.mode === 'replace'
       ? preparedChange

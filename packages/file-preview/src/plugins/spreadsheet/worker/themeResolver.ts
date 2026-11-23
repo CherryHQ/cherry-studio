@@ -110,12 +110,15 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   const max = Math.max(rn, gn, bn)
   const min = Math.min(rn, gn, bn)
   const l = (max + min) / 2
+
   if (max === min) {
     return [0, 0, l]
   }
+
   const d = max - min
   const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
   let h: number
+
   switch (max) {
     case rn:
       h = (gn - bn) / d + (gn < bn ? 6 : 0)
@@ -126,7 +129,9 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
     default:
       h = (rn - gn) / d + 4
   }
+
   h *= 60
+
   return [h, s, l]
 }
 
@@ -134,23 +139,33 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   if (s === 0) {
     const v = Math.round(l * 255)
+
     return [v, v, v]
   }
+
   const hue2rgb = (p: number, q: number, t: number): number => {
     let tt = t
+
     if (tt < 0) tt += 1
+
     if (tt > 1) tt -= 1
+
     if (tt < 1 / 6) return p + (q - p) * 6 * tt
+
     if (tt < 1 / 2) return q
+
     if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6
+
     return p
   }
+
   const q = l < 0.5 ? l * (1 + s) : l + s - l * s
   const p = 2 * l - q
   const hn = h / 360
   const r = hue2rgb(p, q, hn + 1 / 3)
   const g = hue2rgb(p, q, hn)
   const b = hue2rgb(p, q, hn - 1 / 3)
+
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)]
 }
 
@@ -164,6 +179,7 @@ function applyTint(rgbHex: string, tint: number): string {
   const [h, s, l] = rgbToHsl(r, g, b)
   const newL = tint < 0 ? l * (1 + tint) : l * (1 - tint) + tint
   const [nr, ng, nb] = hslToRgb(h, s, Math.min(1, Math.max(0, newL)))
+
   return [nr, ng, nb].map((v) => clampByte(v).toString(16).padStart(2, '0')).join('')
 }
 
@@ -181,16 +197,19 @@ interface ClrNode {
 function readClr(node: ClrNode | undefined): string | undefined {
   if (!node) return undefined
   const value = node['a:srgbClr']?.['@_val'] ?? node['a:sysClr']?.['@_lastClr']
+
   return value && RGB_HEX_PATTERN.test(value) ? value : undefined
 }
 
 /** themeXml null -> built-in Office default theme color table. */
 export function parseTheme(themeXml: string | null): ResolvedTheme {
   let scheme = DEFAULT_OFFICE_THEME_CLR_SCHEME
+
   if (themeXml) {
     try {
       const parsed = xmlParser.parse(themeXml)
       const clrScheme = parsed?.['a:theme']?.['a:themeElements']?.['a:clrScheme']
+
       if (clrScheme) {
         scheme = {
           dk1: readClr(clrScheme['a:dk1']) ?? DEFAULT_OFFICE_THEME_CLR_SCHEME.dk1,
@@ -243,19 +262,28 @@ function argbToCss(argb: string): string {
 /** Priority: argb > theme+tint > indexed > undefined. */
 export function resolveColor(color: ExcelColorRef | undefined, theme: ResolvedTheme): string | undefined {
   if (!color) return undefined
+
   if (color.argb) {
     return argbToCss(color.argb)
   }
+
   if (color.theme !== undefined) {
     const base = theme.colors[color.theme]
+
     if (base === undefined) return undefined
+
     if (!color.tint) return base
+
     return rgbHexToCss(applyTint(base.slice(1), color.tint))
   }
+
   if (color.indexed !== undefined) {
     const rgbHex = INDEXED_PALETTE[color.indexed]
+
     if (rgbHex === undefined) return undefined
+
     return rgbHexToCss(rgbHex)
   }
+
   return undefined
 }

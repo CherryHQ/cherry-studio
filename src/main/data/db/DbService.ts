@@ -48,6 +48,7 @@ export class DbService extends BaseService {
 
   constructor() {
     super()
+
     try {
       this.ensureDatabaseIntegrity()
       // better-sqlite3 opens a bare filesystem path (not a file: URL) and keeps a single
@@ -56,6 +57,7 @@ export class DbService extends BaseService {
       this.sqlite = new Database(application.getPath('app.database.file'))
       registerKnowledgeFunctions(this.sqlite)
       this.db = drizzle({ client: this.sqlite, casing: 'snake_case' })
+
       if (DIAGNOSTICS_ENABLED) this.installSlowQueryProbe()
       logger.info('Database connection initialized', {
         dbPath: application.getPath('app.database.file')
@@ -109,6 +111,7 @@ export class DbService extends BaseService {
         const t0 = performance.now()
         const result = run(...args)
         logSlow(performance.now() - t0, method, describe(result, ...args), callerStack)
+
         return result
       }
 
@@ -120,6 +123,7 @@ export class DbService extends BaseService {
       stmt.run = measure(stmt.run.bind(stmt), 'run', (result) => `changes=${result.changes} sql=${sqlText}`)
       stmt.get = measure(stmt.get.bind(stmt), 'get', (result) => `${result == null ? '0' : '1'} sql=${sqlText}`)
       stmt.all = measure(stmt.all.bind(stmt), 'all', (result) => `${result.length} sql=${sqlText}`)
+
       return stmt
     }
 
@@ -198,6 +202,7 @@ export class DbService extends BaseService {
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
+
     return this.db
   }
 
@@ -254,6 +259,7 @@ export class DbService extends BaseService {
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
+
     return this.db.transaction(fn, { behavior: 'immediate' })
   }
 
@@ -268,6 +274,7 @@ export class DbService extends BaseService {
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
+
     snapshotTo(this.sqlite, targetPath)
   }
 
@@ -282,6 +289,7 @@ export class DbService extends BaseService {
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
+
     checkpointTruncateAssert(this.sqlite)
   }
 
@@ -299,6 +307,7 @@ export class DbService extends BaseService {
 
     if (dbExists) {
       const stats = fs.statSync(dbPath)
+
       if (stats.size === 0) {
         logger.warn('Database file is empty (0 bytes), removing')
         fs.unlinkSync(dbPath)
@@ -309,6 +318,7 @@ export class DbService extends BaseService {
 
     for (const suffix of ['-wal', '-shm']) {
       const auxPath = dbPath + suffix
+
       if (fs.existsSync(auxPath)) {
         logger.warn(`Removing orphaned auxiliary file: ${path.basename(auxPath)}`)
         fs.unlinkSync(auxPath)

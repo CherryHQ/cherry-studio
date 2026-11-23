@@ -27,8 +27,10 @@ export function useMagnifierFocus(
       const origRight = orig.x + orig.width
       const origBottom = orig.y + orig.height
       let handle: string = state.activeHandle
+
       if (handle.includes('w') && state.pointerPosition.x > origRight) handle = handle.replace('w', 'e')
       else if (handle.includes('e') && state.pointerPosition.x < orig.x) handle = handle.replace('e', 'w')
+
       if (handle.includes('n') && state.pointerPosition.y > origBottom) handle = handle.replace('n', 's')
       else if (handle.includes('s') && state.pointerPosition.y < orig.y) handle = handle.replace('s', 'n')
 

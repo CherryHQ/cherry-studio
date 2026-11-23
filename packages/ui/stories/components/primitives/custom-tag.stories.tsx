@@ -23,6 +23,7 @@ const meta: Meta<typeof CustomTag> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // 基础示例

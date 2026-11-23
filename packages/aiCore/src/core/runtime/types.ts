@@ -67,8 +67,11 @@ export type generateImageParams = Omit<Parameters<typeof generateImage>[0], 'mod
   onProviderCall?: RuntimeProviderCallHandler
   onProviderCallStart?: () => RuntimeProviderCallHandler
 }
+
 export type generateImageResult = Awaited<ReturnType<typeof generateImage>>
+
 export type generateTextParams = Parameters<typeof generateText>[0]
+
 export type streamTextParams = Parameters<typeof streamText>[0]
 
 // Embedding types (AI SDK v6 only has embedMany, no embed)
@@ -77,6 +80,7 @@ export type EmbedManyParams = Omit<Parameters<typeof embedMany>[0], 'model'> & {
   onProviderCall?: RuntimeProviderCallHandler
   onProviderCallStart?: () => RuntimeProviderCallHandler
 }
+
 export type EmbedManyResult = Awaited<ReturnType<typeof embedMany>>
 
 // Keep the model override so string ids can be resolved through RuntimeExecutor's provider registry.
@@ -88,4 +92,5 @@ export type RerankParams<VALUE extends JSONObject | string = string> = Omit<
   onProviderCall?: RuntimeProviderCallHandler
   onProviderCallStart?: () => RuntimeProviderCallHandler
 }
+
 export type RerankResult<VALUE extends JSONObject | string = string> = Awaited<ReturnType<typeof rerank<VALUE>>>

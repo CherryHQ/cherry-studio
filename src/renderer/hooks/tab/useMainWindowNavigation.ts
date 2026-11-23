@@ -19,12 +19,14 @@ function useOpenSettingsRoute() {
 
     if (!settingsTab) {
       settingsTabIdRef.current = null
+
       return
     }
 
     settingsTabIdRef.current = settingsTab.id
 
     const pendingPath = pendingSettingsPathRef.current
+
     if (!pendingPath) {
       return
     }
@@ -51,11 +53,13 @@ function useOpenSettingsRoute() {
           lastAccessTime: Date.now()
         })
         setActiveTab(settingsTab.id)
+
         return
       }
 
       if (settingsTabIdRef.current) {
         pendingSettingsPathRef.current = targetPath
+
         return
       }
 
@@ -74,6 +78,7 @@ function useMainRouteEventBridge(handleRoute: (path: string) => void) {
     }
 
     window.addEventListener(OPEN_MAIN_ROUTE_EVENT, handleOpenMainRoute)
+
     return () => {
       window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, handleOpenMainRoute)
     }
@@ -115,6 +120,7 @@ export function useMainWindowNavigation() {
       } else if (to.split('?')[0] === '/app/notes') {
         const notesTab = tabs.find((tab) => tab.type === 'route' && tab.url.split('?')[0] === '/app/notes')
         const notesTabId = notesTab?.id ?? pendingNotesTabIdRef.current
+
         if (notesTabId) {
           updateTab(notesTabId, { url: to })
           setActiveTab(notesTabId)
@@ -132,6 +138,7 @@ export function useMainWindowNavigation() {
 
   useEffect(() => {
     if (initData?.kind !== 'navigation') return
+
     if (handledNavigationRequestIdRef.current === initData.requestId) return
 
     handledNavigationRequestIdRef.current = initData.requestId
@@ -143,6 +150,7 @@ export function useMainWindowNavigation() {
   // ack/dedupe discipline as navigation init data — the payload must not replay on reload.
   useEffect(() => {
     if (initData?.kind !== 'tab-attach') return
+
     if (handledNavigationRequestIdRef.current === initData.requestId) return
 
     handledNavigationRequestIdRef.current = initData.requestId

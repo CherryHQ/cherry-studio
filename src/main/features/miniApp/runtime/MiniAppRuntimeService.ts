@@ -126,9 +126,11 @@ export class MiniAppRuntimeService extends BaseService {
     // 1. Capability bridge.
     this.ipcHandle(MINI_APP_BRIDGE_CHANNEL, async (event, payload) => {
       const requestId = (payload as { requestId?: string })?.requestId
+
       const emit = (chunk: string) => {
         if (requestId) event.sender.send(MINI_APP_STREAM_CHANNEL, { requestId, chunk })
       }
+
       return handleBridgeRequest(event.sender.id, payload, emit)
     })
 
@@ -139,6 +141,7 @@ export class MiniAppRuntimeService extends BaseService {
         // The callback's own value is the raw preference and can be null. Re-resolve,
         // so the guest sees the same locale `app.getInfo` reports.
         const locale = getAppLanguage()
+
         for (const appId of this.installedAppIds()) emitToApp(appId, 'app.localeChange', { locale })
       })
     )
@@ -158,6 +161,7 @@ export class MiniAppRuntimeService extends BaseService {
     // 6. Repair anything a crash left mid-publish, then drop staging trees — in a
     //    freshly started process every `.staging-*` is by definition abandoned.
     const unrepaired = new Set<string>()
+
     try {
       for (const outcome of await recoverInterruptedPublishes()) {
         if (outcome.action === 'failed') unrepaired.add(outcome.appId)
@@ -168,6 +172,7 @@ export class MiniAppRuntimeService extends BaseService {
       // deliberately outside the barrier — it touches no tree a guest can load.
       if (!this.recovered.isResolved) this.recovered.resolve(unrepaired)
     }
+
     await sweepAbandonedStaging()
   }
 
@@ -188,18 +193,22 @@ export class MiniAppRuntimeService extends BaseService {
     // through, `mini_app.runtime.prepare` included. Already resolved on a launch with
     // nothing to repair, which is almost all of them.
     const unrepaired = await this.recovered
+
     // Fail closed for THIS app only — the others recovered and must still open. Its tree is
     // whatever the crash left, which the committed rows no longer describe, so admitting it
     // runs one version's code under another version's manifest and grants.
     if (unrepaired.has(appId)) {
       throw new Error(`Mini app ${appId} could not be repaired after an interrupted publish`)
     }
+
     const partition = miniAppPartition(appId)
+
     if (this.readyPartitions.has(partition)) return
 
     // Concurrent prepares must share ONE registration: `readyPartitions` is set only
     // after the await, so every concurrent caller sails past it.
     const inflight = this.preparing.get(partition)
+
     if (inflight) return inflight
 
     const run = (async () => {
@@ -207,6 +216,7 @@ export class MiniAppRuntimeService extends BaseService {
       // BEFORE any policy is installed: from here on a generic session-wide pass must
       // leave this session alone, or it replaces what the next lines put on it.
       markSelfHardenedSession(sess)
+
       try {
         // Everything failable runs FIRST: `protocol.handle` is irreversible per
         // session, so a later failure would leave the app permanently unloadable.
@@ -223,14 +233,17 @@ export class MiniAppRuntimeService extends BaseService {
         } catch {
           // Never registered — nothing to undo.
         }
+
         throw error
       }
+
       this.sessionAppIds.set(sess, appId)
       this.readyPartitions.add(partition)
       logger.debug('Prepared mini app partition', { partition })
     })()
 
     this.preparing.set(partition, run)
+
     try {
       await run
     } finally {
@@ -283,6 +296,7 @@ export class MiniAppRuntimeService extends BaseService {
       this.flushTimer = setInterval(() => void miniAppActivityLog.flush(), ACTIVITY_COUNT_FLUSH_MS)
       this.flushTimer.unref()
     }
+
     this.guestAppIds.set(webContentsId, appId)
     this.guestStreams.set(webContentsId, new Set())
     // Shown unless the pool said otherwise: a guest attaches because a pane rendered it.
@@ -301,11 +315,15 @@ export class MiniAppRuntimeService extends BaseService {
    */
   setPaneVisible(hostWebContentsId: number, appId: string, visible: boolean): void {
     this.paneVisibility.set(`${hostWebContentsId}:${appId}`, visible)
+
     for (const [guestId, guestAppId] of this.guestAppIds) {
       if (guestAppId !== appId) continue
+
       if (webContents.fromId(guestId)?.hostWebContents?.id !== hostWebContentsId) continue
+
       if (this.guestVisible.get(guestId) === visible) continue
       this.guestVisible.set(guestId, visible)
+
       // The ONE refill: coming back into view is the user's own act, so it is the only
       // event that may hand a background budget back. Reset on the transition, not on the
       // next call, or an app that returns and makes none carries its old count into the
@@ -321,6 +339,7 @@ export class MiniAppRuntimeService extends BaseService {
    */
   forgetHost(hostWebContentsId: number): void {
     const prefix = `${hostWebContentsId}:`
+
     for (const key of this.paneVisibility.keys()) {
       if (key.startsWith(prefix)) this.paneVisibility.delete(key)
     }
@@ -342,9 +361,11 @@ export class MiniAppRuntimeService extends BaseService {
    */
   unregisterGuest(webContentsId: number): void {
     const appId = this.guestAppIds.get(webContentsId)
+
     for (const streamId of this.guestStreams.get(webContentsId) ?? []) {
       application.get('AiStreamManager').abort(streamId, 'miniapp-guest-destroyed')
     }
+
     this.guestStreams.delete(webContentsId)
     this.guestAppIds.delete(webContentsId)
     this.guestVisible.delete(webContentsId)
@@ -352,8 +373,10 @@ export class MiniAppRuntimeService extends BaseService {
     // The abort above never reaches a dead listener, so the calls settle here or never.
     aiCapability.forgetGuest(webContentsId)
     networkCapability.forgetGuest(webContentsId)
+
     // The app's last instance is gone: its counts land now, not at the next minute.
     if (appId !== undefined && this.guestsOf(appId).length === 0) void miniAppActivityLog.flush(appId)
+
     if (this.guestAppIds.size === 0) {
       this.stopFlushTimer()
     }
@@ -433,6 +456,7 @@ export class MiniAppRuntimeService extends BaseService {
       // Marked BEFORE the first check: otherwise the renderer can `prepare` between
       // "no guests left" and the mutation, and attach old code onto changing files.
       this.quiescingAppIds.add(appId)
+
       try {
         return await this.quiesceThenMutate(appId, mutate)
       } finally {
@@ -442,6 +466,7 @@ export class MiniAppRuntimeService extends BaseService {
         this.quiescingAppIds.delete(appId)
       }
     })
+
     // Keep the chain alive past a rejection, or one failed uninstall poisons every
     // later quiesce for that app.
     this.quiesceChain.set(
@@ -451,6 +476,7 @@ export class MiniAppRuntimeService extends BaseService {
         () => undefined
       )
     )
+
     return run
   }
 
@@ -475,6 +501,7 @@ export class MiniAppRuntimeService extends BaseService {
     // Offline now: the log is complete up to this moment, and the counts land BEFORE
     // whatever grant line the mutation writes.
     await miniAppActivityLog.flush(appId)
+
     return mutate()
   }
 
@@ -487,6 +514,7 @@ export class MiniAppRuntimeService extends BaseService {
    */
   private async waitForNoGuests(appId: string, timeoutMs: number): Promise<void> {
     const deadline = Date.now() + timeoutMs
+
     while (this.guestsOf(appId).length > 0 && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, GUEST_POLL_INTERVAL_MS))
     }
@@ -532,8 +560,10 @@ export class MiniAppRuntimeService extends BaseService {
       .from(miniAppInstallationTable)
       .where(eq(miniAppInstallationTable.appId, appId))
       .all()
+
     if (!row) return appId
     const manifest = MiniAppManifestSchema.parse(row.manifestJson)
+
     return resolveLocalizedText(manifest.name, getAppLanguage())
   }
 
@@ -545,6 +575,7 @@ export class MiniAppRuntimeService extends BaseService {
   /** The dot WITH its reasons: the tile's hover text and menu, and the panel's chip, read these. */
   private appsNeedingAttention(): CacheMiniAppAttention[] {
     const db = application.get('DbService').getDb()
+
     return db
       .select({
         appId: miniAppInstallationTable.appId,
@@ -614,8 +645,10 @@ export class MiniAppRuntimeService extends BaseService {
   /** Broadcast on every 2% step (and on completion), not on every chunk. */
   noteUpdateProgress(appId: string, fraction: number): void {
     const entry = this.updating.get(appId)
+
     if (!entry) return
     const clamped = Math.max(0, Math.min(1, fraction))
+
     if (entry.fraction !== null && clamped < 1 && clamped - entry.fraction < 0.02) return
     entry.fraction = clamped
     this.broadcastAttentionState()
@@ -648,6 +681,7 @@ export class MiniAppRuntimeService extends BaseService {
    */
   async clearUnrepaired(appId: string): Promise<void> {
     const unrepaired = await this.recovered
+
     ;(unrepaired as Set<string>).delete(appId)
   }
 
@@ -697,6 +731,7 @@ export class MiniAppRuntimeService extends BaseService {
         .from(miniAppInstallationTable)
         .where(eq(miniAppInstallationTable.appId, appId))
         .all().length > 0
+
     return installed ? miniAppInstallPath(appId) : undefined
   }
 }

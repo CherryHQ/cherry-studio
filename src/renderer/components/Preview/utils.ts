@@ -51,6 +51,7 @@ export function renderSvgInShadowHost(
       height: 100%;
     }
   `
+
   if (fit === 'contain') {
     style.textContent += `
       :host { display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
@@ -87,6 +88,7 @@ export function renderSvgInShadowHost(
       if (parserError) {
         throw new Error(`SVG parsing error: ${parserError.textContent || 'Unknown parsing error'}`)
       }
+
       throw new Error('Invalid SVG content: The provided string does not contain a valid SVG element.')
     }
   }
@@ -95,6 +97,7 @@ export function renderSvgInShadowHost(
   if (svgElement instanceof SVGSVGElement) {
     // Standardize the SVG element for proper scaling
     makeSvgSizeAdaptive(svgElement)
+
     if (fit === 'contain') {
       const intrinsicHeight = Number(
         svgElement
@@ -102,6 +105,7 @@ export function renderSvgInShadowHost(
           ?.trim()
           .split(/[\s,]+/)[3]
       )
+
       if (intrinsicHeight > 0) svgElement.style.setProperty('max-height', `${intrinsicHeight}px`)
     }
 

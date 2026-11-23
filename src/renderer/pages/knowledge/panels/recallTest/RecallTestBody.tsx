@@ -9,6 +9,7 @@ import { formatRecallPercent, formatRecallScore } from './utils'
 
 const RecallResultSummary = () => {
   const { t } = useTranslation()
+
   const {
     state: { results, duration, topScore, scoreKind }
   } = useRecallResult()

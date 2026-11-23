@@ -14,18 +14,25 @@ const logger = loggerService.withContext('useCliVersionStatus')
 const buildStatus = (snapshot: BinaryToolSnapshot | undefined, latest?: string): VersionStatus => {
   const view = interpretBinarySnapshot(snapshot, { latest })
   const operation = snapshot?.operation
+
   const status: Omit<VersionStatus, 'canUpgrade' | 'operation'> = {
     installed: view.installed,
     source: view.source
   }
+
   // Backend-application fact drives update/uninstall/repair authority; a fixed
   // CLI's identity comes from the preset, so it carries no custom definition.
   if (view.applicationStatus) status.applicationStatus = view.applicationStatus
+
   if (view.installedVersion !== undefined) status.current = view.installedVersion
+
   if (view.source === 'mise') status.latest = latest
+
   if (view.systemPath !== undefined) status.systemPath = view.systemPath
   const result: VersionStatus = { ...status, canUpgrade: view.hasUpdate }
+
   if (operation) result.operation = operation
+
   return result
 }
 
@@ -54,17 +61,23 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
 
     const refresh = async () => {
       const binaryNames = tools.map((toolId) => CODE_CLI_TOOL_PRESET_MAP[toolId].executable)
+
       const snapshots = await ipcApi.request('binary.get_tool_snapshots', binaryNames).catch((error) => {
         logger.error('Failed to get CLI tool snapshots', error as Error)
+
         return null
       })
+
       if (cancelled) return
+
       if (!snapshots) {
         // Only an install/remove event re-runs this read, so without a retry a first
         // attempt that races main-process readiness strands every tool for the session.
         attempts += 1
+
         if (attempts < SNAPSHOT_MAX_ATTEMPTS) retryTimer = setTimeout(() => void refresh(), SNAPSHOT_RETRY_MS)
         else setResolved(true)
+
         return
       }
 
@@ -75,45 +88,58 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
           delete latestRef.current[toolId]
         }
       }
+
       const hasAppliedCli = tools.some(
         (toolId) => snapshots[CODE_CLI_TOOL_PRESET_MAP[toolId].executable]?.application?.status === 'applied'
       )
+
       let latestVersions: Record<string, string> = {}
+
       if (hasAppliedCli) {
         latestVersions = await ipcApi.request('binary.get_latest_versions', false).catch((error) => {
           logger.error('Failed to read latest-version cache', error as Error)
+
           return {}
         })
+
         const needsLatest = tools.some((toolId) => {
           const binaryName = CODE_CLI_TOOL_PRESET_MAP[toolId].executable
           const snapshot = snapshots[binaryName]
+
           return (
             snapshot?.application?.status === 'applied' && !latestVersions[binaryName] && !latestRef.current[toolId]
           )
         })
+
         if (needsLatest) {
           latestVersions = await ipcApi.request('binary.get_latest_versions', true).catch((error) => {
             logger.error('Failed to get latest binary versions', error as Error)
+
             return {}
           })
         }
       }
+
       if (cancelled) return
 
       const next: Record<string, VersionStatus> = {}
+
       for (const toolId of tools) {
         const binaryName = CODE_CLI_TOOL_PRESET_MAP[toolId].executable
         const latest = latestVersions[binaryName] ?? latestRef.current[toolId]
         latestRef.current[toolId] = latest
         next[toolId] = buildStatus(snapshots[binaryName], latest)
       }
+
       setStatuses(next)
       setResolved(true)
     }
 
     void refresh()
+
     return () => {
       cancelled = true
+
       if (retryTimer) clearTimeout(retryTimer)
     }
   }, [availabilityRevision, toolKey, tools])

@@ -1,6 +1,7 @@
 import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../types'
+
 const KimiCli: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="19 19 83 83" {...props}>
     <path
@@ -21,5 +22,7 @@ const KimiCli: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 )
+
 export { KimiCli }
+
 export default KimiCli

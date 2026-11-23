@@ -6,7 +6,9 @@ import { WenxinLight } from './light'
 
 const Wenxin = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <WenxinLight {...props} className={className} />
+
   if (variant === 'dark') return <WenxinDark {...props} className={className} />
+
   return (
     <>
       <WenxinLight className={cn('dark:hidden', className)} {...props} />

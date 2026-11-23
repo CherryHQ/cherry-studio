@@ -31,11 +31,13 @@ export const PaintingImageAddButton: FC = () => {
   const pickImages = useCallback(async () => {
     if (selecting) return
     setSelecting(true)
+
     try {
       const picked = await window.api.file.select({
         properties: ['openFile', 'multiSelections'],
         filters: [{ name: 'Images', extensions: extensions.map((ext) => ext.replace(/^\./, '')) }]
       })
+
       if (picked?.length) {
         setFiles((current) => [...current, ...toComposerAttachments(picked)])
       }

@@ -46,6 +46,7 @@ export class AttachmentPresenceService extends BaseService {
     this.changed.add(sessionId)
     this.flushTimer ??= setTimeout(() => {
       this.flushTimer = undefined
+
       for (const id of this.changed)
         application.get('IpcApiService').broadcast('ai.agent.attachment_selections.changed', { sessionId: id })
       this.changed.clear()
@@ -57,11 +58,13 @@ export class AttachmentPresenceService extends BaseService {
     this.expiryTimer = setTimeout(
       () => {
         this.expiryTimer = undefined
+
         for (const [key, row] of this.rows)
           if (row.expiresAt <= Date.now()) {
             this.rows.delete(key)
             this.markChanged(row.input.sessionId)
           }
+
         this.scheduleExpiry()
       },
       Math.max(0, next - Date.now())
@@ -69,13 +72,17 @@ export class AttachmentPresenceService extends BaseService {
   }
   present(owner: FileIntakeOwner, auth: UploadOwner, generation: number, input: AgentAttachmentSelection) {
     const active = this.generations.get(owner.ownerId) ?? 0
+
     if (generation < active) return { accepted: false }
     const key = this.key(owner, input.selectionId)
     const previous = this.rows.get(key)
+
     if (previous && previous.input.sessionId !== input.sessionId) return { accepted: false }
+
     if (generation === active && previous && BigInt(input.sequence) <= BigInt(previous.input.sequence))
       return { accepted: false }
     this.generations.set(owner.ownerId, generation)
+
     if (this.rows.size >= 256 && !previous) return { accepted: false }
     this.rows.set(key, {
       input,
@@ -86,11 +93,13 @@ export class AttachmentPresenceService extends BaseService {
     })
     this.markChanged(input.sessionId)
     this.scheduleExpiry()
+
     return { accepted: true }
   }
   submitting(owner: FileIntakeOwner, selectionId: string | undefined, commandId: string): void {
     if (!selectionId) return
     const row = this.rows.get(this.key(owner, selectionId))
+
     if (row) {
       row.commandId = commandId
       this.markChanged(row.input.sessionId)
@@ -111,13 +120,16 @@ export class AttachmentPresenceService extends BaseService {
     const selections = [...this.rows.values()].filter(
       (row) => row.input.sessionId === sessionId && row.expiresAt > Date.now()
     )
+
     return Promise.all(
       selections.map(async (row) => {
         const receipt = row.commandId ? remoteCommandService.get({ ...row.auth, commandId: row.commandId }) : undefined
+
         const messageId =
           receipt?.result && typeof receipt.result === 'object' && 'userMessageId' in receipt.result
             ? String(receipt.result.userMessageId)
             : undefined
+
         const items = await Promise.all(
           row.input.items.map(async (item) => {
             try {
@@ -128,8 +140,11 @@ export class AttachmentPresenceService extends BaseService {
             }
           })
         )
+
         const selection: AgentAttachmentSelection = { ...row.input, items }
+
         if (messageId) Object.assign(selection, { messageId })
+
         return selection
       })
     )

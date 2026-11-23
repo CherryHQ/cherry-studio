@@ -25,11 +25,13 @@ export const groupHandlers: HandlersFor<GroupSchemas> = {
   '/groups': {
     GET: async ({ query }) => {
       const parsed = ListGroupsQuerySchema.parse(query)
+
       return groupService.listByEntityType(parsed.entityType)
     },
 
     POST: async ({ body }) => {
       const parsed = CreateGroupSchema.parse(body)
+
       return groupService.create(parsed)
     }
   },
@@ -37,18 +39,21 @@ export const groupHandlers: HandlersFor<GroupSchemas> = {
   '/groups/:id': {
     GET: async ({ params }) => {
       const id = GroupIdSchema.parse(params.id)
+
       return groupService.getById(id)
     },
 
     PATCH: async ({ params, body }) => {
       const id = GroupIdSchema.parse(params.id)
       const parsed = UpdateGroupSchema.parse(body)
+
       return groupService.update(id, parsed)
     },
 
     DELETE: async ({ params }) => {
       const id = GroupIdSchema.parse(params.id)
       groupService.delete(id)
+
       return undefined
     }
   },
@@ -58,6 +63,7 @@ export const groupHandlers: HandlersFor<GroupSchemas> = {
       const id = GroupIdSchema.parse(params.id)
       const anchor = OrderRequestSchema.parse(body)
       groupService.reorder(id, anchor)
+
       return undefined
     }
   },
@@ -66,6 +72,7 @@ export const groupHandlers: HandlersFor<GroupSchemas> = {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
       groupService.reorderBatch(parsed.moves)
+
       return undefined
     }
   }

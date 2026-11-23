@@ -27,6 +27,7 @@ const BINARIES_ROOT = path.join(REPO_ROOT, 'resources', 'binaries')
 // its own partial download again to resume it, while two worktrees running
 // against the shared cache at once must never write the same path.
 const STAGING_PREFIX = '.staging-'
+
 // A tree being replaced is parked under this prefix for the moment between the
 // two renames. A crash there leaves one behind, so it shares the staging rule:
 // cache-internal, never mirrored, swept when a run finishes.
@@ -42,6 +43,7 @@ const IMPACT = {
   rg: 'in-app search',
   mingit: 'the bundled git fallback (system git still works)'
 }
+
 const STAGING_DIR = STAGING_PREFIX + crypto.createHash('sha256').update(REPO_ROOT).digest('hex').slice(0, 8)
 
 /**
@@ -58,12 +60,15 @@ function resolveSharedCacheRoot() {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore']
     }).trim()
+
     if (!commonDir) return null
+
     return path.join(path.resolve(REPO_ROOT, commonDir), 'cherry-binaries')
   } catch (error) {
     // Not a git checkout is legitimate (a source tarball); anything else — git
     // missing, safe.directory refusal — silently disables sharing, so say so.
     console.warn(`Shared binary cache unavailable, downloading into resources/: ${error.message}`)
+
     return null
   }
 }
@@ -72,15 +77,19 @@ function resolveSharedCacheRoot() {
 function linkFile(src, dest, stats) {
   const srcStat = fs.statSync(src)
   const destStat = fs.statSync(dest, { throwIfNoEntry: false })
+
   if (destStat) {
     // ino is 0 on filesystems that do not report one; never treat that as a match.
     if (srcStat.ino !== 0 && destStat.ino === srcStat.ino) return
+
     // A copied bundle never matches inodes, so compare size+mtime too or every run
     // re-copies ~200MB. getTime(), since utimesSync loses sub-ms precision.
     if (destStat.size === srcStat.size && destStat.mtime.getTime() === srcStat.mtime.getTime()) return
     fs.rmSync(dest, { recursive: true, force: true })
   }
+
   fs.mkdirSync(path.dirname(dest), { recursive: true })
+
   try {
     fs.linkSync(src, dest)
     stats.linked += 1
@@ -96,12 +105,15 @@ function linkTree(srcDir, destDir, stats) {
   fs.mkdirSync(destDir, { recursive: true })
   const entries = fs.readdirSync(srcDir, { withFileTypes: true })
   const wanted = new Set(entries.map((entry) => entry.name))
+
   for (const stale of fs.readdirSync(destDir)) {
     if (!wanted.has(stale)) fs.rmSync(path.join(destDir, stale), { recursive: true, force: true })
   }
+
   for (const entry of entries) {
     const src = path.join(srcDir, entry.name)
     const dest = path.join(destDir, entry.name)
+
     if (entry.isDirectory()) linkTree(src, dest, stats)
     else linkFile(src, dest, stats)
   }
@@ -116,10 +128,13 @@ function linkTree(srcDir, destDir, stats) {
 function materialize(tools, platformKey, cacheRoot, bundleDir) {
   fs.mkdirSync(bundleDir, { recursive: true })
   const stats = { linked: 0, copied: 0 }
+
   for (const tool of tools) {
     const pkg = tool.packages[platformKey]
+
     if (!pkg) continue
     const versionDir = cachedVersionDir(cacheRoot, platformKey, tool)
+
     if (!fs.existsSync(versionDir)) continue
 
     if (pkg.dir) linkTree(path.join(versionDir, pkg.dir), path.join(bundleDir, pkg.dir), stats)
@@ -129,6 +144,7 @@ function materialize(tools, platformKey, cacheRoot, bundleDir) {
     // Marker last: a reader seeing the new version finds every binary in place.
     fs.writeFileSync(path.join(bundleDir, tool.versionFile), tool.version, 'utf8')
   }
+
   return stats
 }
 
@@ -146,27 +162,37 @@ function cachedVersionDir(cacheRoot, platformKey, tool) {
 function sweepUnreferencedVersions(cacheRoot, maxAgeMs) {
   const cutoff = Date.now() - maxAgeMs
   let reclaimed = 0
+
   // Every platform, not just this run's: a tree built for another platform would
   // otherwise sit here forever with nothing to visit it.
   for (const platformKey of readdirOrEmpty(cacheRoot)) {
     const platformDir = path.join(cacheRoot, platformKey)
+
     if (!statOrNull(platformDir)?.isDirectory()) continue
+
     for (const toolName of readdirOrEmpty(platformDir)) {
       if (toolName.startsWith(STAGING_PREFIX) || toolName.startsWith(RETIRED_PREFIX)) continue
       const toolDir = path.join(platformDir, toolName)
+
       if (!statOrNull(toolDir)?.isDirectory()) continue
+
       for (const version of readdirOrEmpty(toolDir)) {
         const versionDir = path.join(toolDir, version)
         const versionStat = statOrNull(versionDir)
+
         if (!versionStat || versionStat.mtimeMs > cutoff) continue
+
         if (hasReferencedFile(versionDir)) continue
         fs.rmSync(versionDir, { recursive: true, force: true })
         reclaimed += 1
       }
+
       rmdirIfEmpty(toolDir)
     }
+
     rmdirIfEmpty(platformDir)
   }
+
   return reclaimed
 }
 
@@ -195,12 +221,14 @@ function rmdirIfEmpty(dir) {
 function hasReferencedFile(dir) {
   for (const entry of readdirOrEmpty(dir, { withFileTypes: true })) {
     const target = path.join(dir, entry.name)
+
     if (entry.isDirectory()) {
       if (hasReferencedFile(target)) return true
     } else if ((statOrNull(target)?.nlink ?? 0) > 1) {
       return true
     }
   }
+
   return false
 }
 
@@ -230,15 +258,19 @@ const MINGIT_VERSION = '2.54.0'
 function miseUrl(file) {
   return `https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/${file}`
 }
+
 function bunUrl(asset) {
   return `https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/${asset}.zip`
 }
+
 function uvUrl(asset, ext) {
   return `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/${asset}.${ext}`
 }
+
 function rgUrl(asset, ext) {
   return `https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/ripgrep-${RG_VERSION}-${asset}.${ext}`
 }
+
 function mingitUrl(asset) {
   return `https://github.com/git-for-windows/git/releases/download/v${MINGIT_VERSION}.windows.1/${asset}`
 }
@@ -472,6 +504,7 @@ const TOOLS = [
 
 function verifyHash(filePath, expected) {
   const hash = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+
   if (hash !== expected) {
     fs.unlinkSync(filePath)
     throw new Error(`SHA256 mismatch: expected ${expected}, got ${hash}`)
@@ -484,14 +517,18 @@ function chmodExec(filePath) {
 
 function isUpToDate(binaryPaths, versionPath, expectedVersion) {
   if (binaryPaths.some((binaryPath) => !fs.existsSync(binaryPath))) return false
+
   // No marker path means the directory itself is version-scoped.
   if (!versionPath) return true
+
   if (!fs.existsSync(versionPath)) return false
+
   return fs.readFileSync(versionPath, 'utf8').trim() === expectedVersion
 }
 
 function download(url, dest) {
   console.log(`  Downloading: ${url}`)
+
   try {
     // -C - resumes a partial file, so an interrupted transfer over a slow link
     // does not restart from zero. `dest` is always version-scoped, so a resume
@@ -519,6 +556,7 @@ function download(url, dest) {
 async function extractZipArchive(archivePath, destinationDir) {
   fs.mkdirSync(destinationDir, { recursive: true })
   const zip = new StreamZip.async({ file: archivePath })
+
   try {
     await zip.extract(null, destinationDir)
   } catch (error) {
@@ -532,16 +570,20 @@ async function extract(archivePath, archive, outputDir, pkg) {
   if (archive === 'zip') {
     if (process.platform === 'win32') {
       const tmpExtract = path.join(outputDir, '__extract_tmp')
+
       try {
         await extractZipArchive(archivePath, tmpExtract)
+
         for (const b of pkg.binaries) {
           const expected = pkg.strip ? `${pkg.strip}/${b}` : b
           const src = path.join(tmpExtract, expected)
+
           // A short extraction must fail here, named after the archive, not
           // later as a copyFileSync ENOENT that points at nothing.
           if (!fs.existsSync(src)) {
             throw new Error(`archive ${path.basename(archivePath)} did not contain ${expected}`)
           }
+
           fs.copyFileSync(src, path.join(outputDir, b))
         }
       } finally {
@@ -558,6 +600,7 @@ async function extract(archivePath, archive, outputDir, pkg) {
     const destDir = path.join(outputDir, pkg.dir)
     fs.rmSync(destDir, { recursive: true, force: true })
     fs.mkdirSync(destDir, { recursive: true })
+
     if (process.platform === 'win32') {
       await extractZipArchive(archivePath, destDir)
     } else {
@@ -569,8 +612,10 @@ async function extract(archivePath, archive, outputDir, pkg) {
     // and collide across tools when two of them share `outputDir`.
     const tmpExtract = path.join(outputDir, '__extract_tmp')
     fs.mkdirSync(tmpExtract, { recursive: true })
+
     try {
       execFileSync('tar', ['xzf', archivePath, '-C', tmpExtract, '--strip-components=1'], { stdio: 'inherit' })
+
       for (const b of pkg.binaries) {
         fs.copyFileSync(path.join(tmpExtract, b), path.join(outputDir, b))
       }
@@ -589,11 +634,14 @@ async function extract(archivePath, archive, outputDir, pkg) {
  */
 async function downloadTool(tool, platformKey, outputDir, { versionFile = null, assetPath = null } = {}) {
   const pkg = tool.packages[platformKey]
+
   if (!pkg) {
     if (tool.required) {
       throw new Error(`[${tool.name}] No binary for "${platformKey}". Add an entry to packages.`)
     }
+
     console.log(`[${tool.name}] No binary for "${platformKey}", skipping`)
+
     return
   }
 
@@ -611,6 +659,7 @@ async function downloadTool(tool, platformKey, outputDir, { versionFile = null, 
     // it — leaving verifyBundledBinaries to reject the bundle on every run.
     discardStaging(outputDir, tool.name)
     console.log(`[${tool.name}] ${tool.version} already installed`)
+
     return
   }
 
@@ -622,6 +671,7 @@ async function downloadTool(tool, platformKey, outputDir, { versionFile = null, 
 
   if (pkg.archive === 'none') {
     const staged = path.join(staging, `${pkg.binaries[0]}.${tool.version}.part`)
+
     if (assetPath) fs.copyFileSync(assetPath, staged)
     else download(pkg.url, staged)
     verifyHash(staged, pkg.sha256)
@@ -629,6 +679,7 @@ async function downloadTool(tool, platformKey, outputDir, { versionFile = null, 
   } else {
     const ext = pkg.archive === 'tar.gz' ? 'tar.gz' : 'zip'
     const archivePath = path.join(staging, `${tool.name}-${tool.version}.${ext}`)
+
     if (assetPath) fs.copyFileSync(assetPath, archivePath)
     else download(pkg.url, archivePath)
     verifyHash(archivePath, pkg.sha256)
@@ -637,6 +688,7 @@ async function downloadTool(tool, platformKey, outputDir, { versionFile = null, 
   }
 
   commitStaged(staging, outputDir, pkg)
+
   for (const binaryPath of binaryPaths) chmodExec(binaryPath)
 
   if (versionPath) {
@@ -673,7 +725,9 @@ function commitStaged(staging, outputDir, pkg) {
     const finalDir = path.join(outputDir, pkg.dir)
     const retired = path.join(outputDir, `${RETIRED_PREFIX}${process.pid}-${pkg.dir}`)
     const hadPrevious = fs.existsSync(finalDir)
+
     if (hadPrevious) fs.renameSync(finalDir, retired)
+
     try {
       fs.renameSync(path.join(staging, pkg.dir), finalDir)
     } catch (error) {
@@ -681,14 +735,18 @@ function commitStaged(staging, outputDir, pkg) {
       // run publishing the same version — take it. Without that move, the same
       // error means the retire step failed and the old tree is still live.
       const publishedByPeer = (error.code === 'ENOTEMPTY' || error.code === 'EEXIST') && hadPrevious
+
       if (!publishedByPeer) {
         if (hadPrevious && !fs.existsSync(finalDir)) fs.renameSync(retired, finalDir)
         throw error
       }
     }
+
     fs.rmSync(retired, { recursive: true, force: true })
+
     return
   }
+
   for (const binary of pkg.binaries) {
     fs.renameSync(path.join(staging, binary), path.join(outputDir, binary))
   }
@@ -712,10 +770,12 @@ function claimPartial(root, tool, digest) {
   const parent = path.join(root, 'partial', STAGING_DIR, `${tool}-${digest}`)
   fs.mkdirSync(parent, { recursive: true })
   const directory = path.join(parent, `${process.pid}-${crypto.randomUUID()}.active`)
+
   for (const entry of fs.readdirSync(parent, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
     let available = entry.name.endsWith('.idle')
     const owner = /^(\d+)-.*\.active$/.exec(entry.name)
+
     if (owner) {
       try {
         process.kill(Number(owner[1]), 0)
@@ -723,15 +783,20 @@ function claimPartial(root, tool, digest) {
         available = error.code === 'ESRCH'
       }
     }
+
     if (!available) continue
+
     try {
       fs.renameSync(path.join(parent, entry.name), directory)
+
       return { directory, complete: false }
     } catch (error) {
       if (error.code !== 'ENOENT') throw error
     }
   }
+
   fs.mkdirSync(directory)
+
   return { directory, complete: false }
 }
 
@@ -751,9 +816,12 @@ async function prepareTools(
   const platformKey = `${platform}-${arch}`
   const bundleDir = path.join(resourcesDir, platformKey)
   const pending = []
+
   for (const tool of tools) {
     const pkg = tool.packages[platformKey]
+
     if (!pkg) continue
+
     if (
       isUpToDate(
         pkg.binaries.map((name) => path.join(bundleDir, name)),
@@ -766,12 +834,16 @@ async function prepareTools(
       pending.push(tool)
     }
   }
+
   if (pending.length === 0) {
     verifyBundledBinaries(platform, arch, { tools, resourcesDir })
+
     return
   }
+
   let temporary = false
   let root = cacheDir
+
   try {
     if (!root) throw new Error('No persistent asset cache configured')
     fs.mkdirSync(path.join(root, 'complete'), { recursive: true })
@@ -782,10 +854,12 @@ async function prepareTools(
     fs.mkdirSync(path.join(root, 'complete'))
     temporary = true
   }
+
   const transfers = []
   const assets = new Map()
   const errors = []
   let next = 0
+
   try {
     await Promise.all(
       Array.from({ length: Math.min(3, pending.length) }, async () => {
@@ -794,6 +868,7 @@ async function prepareTools(
           const pkg = tool.packages[platformKey]
           const blob = path.join(root, 'complete', pkg.sha256)
           const started = Date.now()
+
           try {
             if (fs.existsSync(blob)) {
               try {
@@ -805,10 +880,12 @@ async function prepareTools(
                 process.stderr.write(`[${tool.name}] Ignoring invalid asset cache: ${error.message}\n`)
               }
             }
+
             const transfer = claimPartial(root, tool.name, pkg.sha256)
             transfers.push(transfer)
             const asset = path.join(transfer.directory, 'asset.part')
             const downloadStarted = Date.now()
+
             try {
               await runCurl(pkg.url, asset)
             } catch (error) {
@@ -816,11 +893,13 @@ async function prepareTools(
               fs.rmSync(asset, { force: true })
               await runCurl(pkg.url, asset, false)
             }
+
             toolTiming(tool.name, 'download', downloadStarted, { cacheHit: false })
             const verifyStarted = Date.now()
             verifyHash(asset, pkg.sha256)
             toolTiming(tool.name, 'asset-verify', verifyStarted)
             transfer.complete = true
+
             try {
               fs.linkSync(asset, blob)
             } catch (error) {
@@ -831,6 +910,7 @@ async function prepareTools(
                 process.stderr.write(`[${tool.name}] Asset cache publication skipped: ${cacheError.message}\n`)
               }
             }
+
             assets.set(tool, asset)
           } catch (error) {
             errors.push(new Error(`[${tool.name}] ${error.message}`, { cause: error }))
@@ -838,8 +918,10 @@ async function prepareTools(
         }
       })
     )
+
     for (const [tool, assetPath] of assets) {
       const started = Date.now()
+
       try {
         await downloadTool(tool, platformKey, bundleDir, { versionFile: tool.versionFile, assetPath })
         toolTiming(tool.name, 'extract-install', started)
@@ -847,14 +929,17 @@ async function prepareTools(
         errors.push(new Error(`[${tool.name}] ${error.message}`, { cause: error }))
       }
     }
+
     if (errors.length) throw new AggregateError(errors, errors.map((error) => error.message).join('\n'))
   } finally {
     for (const transfer of transfers) {
       if (transfer.complete) fs.rmSync(transfer.directory, { recursive: true, force: true })
       else fs.renameSync(transfer.directory, transfer.directory.replace(/\.active$/, '.idle'))
     }
+
     if (temporary) fs.rmSync(root, { recursive: true, force: true })
   }
+
   verifyBundledBinaries(platform, arch, { tools, resourcesDir })
 }
 
@@ -876,8 +961,10 @@ async function main() {
 
   for (const tool of TOOLS) {
     const outputDir = cacheRoot ? cachedVersionDir(cacheRoot, platformKey, tool) : bundleDir
+
     try {
       await downloadTool(tool, platformKey, outputDir, { versionFile: cacheRoot ? null : tool.versionFile })
+
       if (cacheRoot && tool.packages[platformKey]) touch(outputDir)
     } catch (error) {
       if (tool.required) throw error
@@ -889,11 +976,13 @@ async function main() {
 
   if (!cacheRoot) {
     report(failed, `All binaries downloaded to ${bundleDir}`)
+
     return
   }
 
   const stats = materialize(TOOLS, platformKey, cacheRoot, bundleDir)
   let reclaimed = 0
+
   try {
     reclaimed = sweepUnreferencedVersions(cacheRoot, UNREFERENCED_CACHE_TTL_MS)
   } catch (error) {
@@ -904,12 +993,14 @@ async function main() {
 
   const how =
     stats.copied > 0 ? `${stats.linked} linked, ${stats.copied} copied (hard links unavailable)` : 'hard-linked'
+
   report(failed, `Bundle ${how} from ${downloadDir}${reclaimed ? `, reclaimed ${reclaimed} unused version(s)` : ''}`)
 }
 
 /** Retired trees exist only between two renames; anything left is debris. */
 function sweepRetired(dir) {
   if (!fs.existsSync(dir)) return
+
   for (const entry of fs.readdirSync(dir)) {
     if (entry.startsWith(RETIRED_PREFIX)) fs.rmSync(path.join(dir, entry), { recursive: true, force: true })
   }
@@ -917,6 +1008,7 @@ function sweepRetired(dir) {
 
 function touch(dir) {
   const now = new Date()
+
   try {
     fs.utimesSync(dir, now, now)
   } catch {
@@ -930,12 +1022,15 @@ function touch(dir) {
  */
 function report(failed, summary) {
   console.log(summary)
+
   if (failed.length === 0) return
   console.warn(`\n${'='.repeat(60)}`)
+
   for (const { name, message } of failed) {
     console.warn(`  ${name} FAILED — ${IMPACT[name] ?? 'this tool is unavailable'}`)
     console.warn(`    ${message}`)
   }
+
   console.warn(`  Retry with: pnpm download:binaries`)
   console.warn(`${'='.repeat(60)}\n`)
 }
@@ -956,21 +1051,26 @@ function verifyBundledBinaries(platform, arch, options = {}) {
 
   for (const tool of tools) {
     const pkg = tool.packages[platformKey]
+
     if (!pkg) {
       // isWindowsOnly tools (MinGit) legitimately have no package on macOS/Linux.
       if (!tool.isWindowsOnly) problems.push(`${tool.name} (no package for ${platformKey})`)
       continue
     }
+
     for (const binary of pkg.binaries) {
       if (!fs.existsSync(path.join(outputDir, binary))) problems.push(path.join(platformKey, binary))
     }
+
     // BinaryManager refuses to extract a tool whose marker is missing, so a
     // bundle without one ships a dead toolchain and no error until runtime.
     const markerPath = path.join(outputDir, tool.versionFile)
+
     if (!fs.existsSync(markerPath)) {
       problems.push(`${path.join(platformKey, tool.versionFile)} (missing; the app would never extract ${tool.name})`)
     } else {
       const marked = fs.readFileSync(markerPath, 'utf8').trim()
+
       if (marked !== tool.version) {
         problems.push(`${path.join(platformKey, tool.versionFile)} says ${marked}, expected ${tool.version}`)
       }
@@ -990,6 +1090,7 @@ function verifyBundledBinaries(platform, arch, options = {}) {
   if (problems.length > 0) {
     throw new Error(`Bundled binaries are not shippable for ${platformKey}:\n  ${problems.join('\n  ')}`)
   }
+
   console.log(`Verified all bundled binaries exist for ${platformKey}`)
 }
 

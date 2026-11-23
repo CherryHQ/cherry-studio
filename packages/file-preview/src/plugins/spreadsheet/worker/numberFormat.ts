@@ -44,6 +44,7 @@ export function formatCellValue(raw: CellValue, numFmt: string | undefined, date
 
   if (raw instanceof Date) {
     const serial = dateToExcelSerial(raw)
+
     try {
       return numfmt.format(pattern, serial, { throws: true })
     } catch {
@@ -56,8 +57,10 @@ export function formatCellValue(raw: CellValue, numFmt: string | undefined, date
   // Date parsing; all other strings remain plain text.
   if (typeof raw === 'string' && numFmt && numfmt.isDateFormat(numFmt) && ISO_DATE_STRING_RE.test(raw)) {
     const parsed = new Date(raw)
+
     if (!Number.isNaN(parsed.getTime())) {
       const serial = dateToExcelSerial(parsed)
+
       try {
         return numfmt.format(pattern, serial, { throws: true })
       } catch {

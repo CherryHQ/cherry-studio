@@ -4,6 +4,7 @@ import { CloudflareLight } from './light'
 
 const Cloudflare = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <CloudflareLight {...props} className={className} />
+
   return <CloudflareLight {...props} className={className} />
 }
 

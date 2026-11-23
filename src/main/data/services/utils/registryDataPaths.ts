@@ -24,19 +24,26 @@ export const OVERRIDE_MANIFEST = 'manifest.json'
  */
 export function readActiveOverrideManifest(): CatalogManifest | null {
   const manifestPath = application.getPath('feature.provider_registry.override', OVERRIDE_MANIFEST)
+
   if (!existsSync(manifestPath)) return null
+
   for (const file of REMOTE_REGISTRY_FILES) {
     if (!existsSync(application.getPath('feature.provider_registry.override', file))) return null
   }
+
   try {
     const manifest = CatalogManifestSchema.parse(JSON.parse(readFileSync(manifestPath, 'utf-8')))
+
     if (!isCatalogManifestCompatible(manifest, app.getVersion())) return null
+
     for (const file of REMOTE_REGISTRY_FILES) {
       const data = JSON.parse(
         readFileSync(application.getPath('feature.provider_registry.override', file), 'utf-8')
       ) as { version?: unknown }
+
       if (typeof data.version !== 'string' || data.version !== manifest.files[file]) return null
     }
+
     return manifest
   } catch {
     return null
@@ -51,6 +58,7 @@ export function readActiveOverrideManifest(): CatalogManifest | null {
 export function resolveRegistryPaths(): RegistryPaths {
   const bundled = 'feature.provider_registry.data' as const
   const modelData = readActiveOverrideManifest() ? 'feature.provider_registry.override' : bundled
+
   return {
     models: application.getPath(modelData, 'models.json'),
     providers: application.getPath(bundled, 'providers.json'),

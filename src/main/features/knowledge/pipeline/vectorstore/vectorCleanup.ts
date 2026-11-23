@@ -6,12 +6,14 @@ const logger = loggerService.withContext('KnowledgeVectorCleanup')
 
 export async function deleteKnowledgeItemVectors(base: KnowledgeBase, itemIds: string[]): Promise<void> {
   const uniqueItemIds = [...new Set(itemIds)]
+
   if (uniqueItemIds.length === 0) {
     return
   }
 
   const vectorStoreService = application.get('KnowledgeVectorStoreService')
   const store = vectorStoreService.getIndexStoreIfExists(base)
+
   if (!store) {
     return
   }
@@ -45,15 +47,19 @@ export async function reclaimKnowledgeIndexSpace(base: KnowledgeBase): Promise<v
     // schema open failure) — keep it inside the try so an open failure is best-effort just like a
     // reclaim failure, never failing the already-completed delete job.
     const store = application.get('KnowledgeVectorStoreService').getIndexStoreIfExists(base)
+
     if (!store) {
       return
     }
+
     const { vacuumed, reclaimedBytes } = store.reclaimSpace()
+
     if (vacuumed) {
       logger.info('Reclaimed knowledge index space after delete', { baseId: base.id, reclaimedBytes })
     }
   } catch (error) {
     const code = (error as { code?: string }).code
+
     if (code === 'SQLITE_CORRUPT' || code === 'SQLITE_NOTADB') {
       logger.error('Knowledge index appears corrupt during post-delete reclaim', error as Error, { baseId: base.id })
     } else {

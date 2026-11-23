@@ -8,19 +8,24 @@ type CreateAgentChannelInput = Parameters<typeof agentChannelService.createChann
 export function createAgentChannel(data: CreateAgentChannelInput): AgentChannelEntity {
   const channel = agentChannelService.createChannel(data)
   application.get('ChannelManager').requestReconcile(channel.id)
+
   return channel
 }
 
 export function updateAgentChannel(channelId: string, updates: UpdateAgentChannelDto): AgentChannelEntity {
   const channel = agentChannelService.updateChannel(channelId, updates)
+
   if (!channel) throw DataApiErrorFactory.notFound('Channel', channelId)
   application.get('ChannelManager').requestReconcile(channelId)
+
   return channel
 }
 
 export async function deleteAgentChannel(channelId: string): Promise<boolean> {
   const deleted = agentChannelService.deleteChannel(channelId)
+
   if (deleted) await application.get('ChannelManager').removeChannel(channelId)
+
   return deleted
 }
 
@@ -29,8 +34,10 @@ export async function createAgentChannelAndWaitForQr(
   timeoutMs = 30_000
 ): Promise<{ channel: AgentChannelEntity; qrUrl: string }> {
   const channel = agentChannelService.createChannel(data)
+
   try {
     const qrUrl = await application.get('ChannelManager').waitForQrAndReconcile(data.agentId, channel.id, timeoutMs)
+
     return { channel, qrUrl }
   } catch (error) {
     await deleteAgentChannel(channel.id)
@@ -45,8 +52,10 @@ export async function updateAgentChannelAndWaitForQr(
   timeoutMs = 30_000
 ): Promise<{ channel: AgentChannelEntity; qrUrl: string }> {
   const channel = agentChannelService.updateChannel(channelId, updates)
+
   if (!channel) throw DataApiErrorFactory.notFound('Channel', channelId)
   const qrUrl = await application.get('ChannelManager').waitForQrAndReconcile(agentId, channelId, timeoutMs)
+
   return { channel, qrUrl }
 }
 

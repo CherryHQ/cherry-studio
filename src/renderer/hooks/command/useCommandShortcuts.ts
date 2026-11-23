@@ -19,6 +19,7 @@ import { normalizeShortcutBinding } from '@shared/utils/shortcut'
 import { useCommandContextReader } from './useCommandContext'
 
 export type ShortcutSettingsGroup = 'general' | 'chat' | 'topic' | 'assistant'
+
 type CommandShortcutKey = CommandShortcutPreferenceKey<CommandId>
 
 const currentPlatform = platform as SupportedPlatform | undefined
@@ -26,6 +27,7 @@ const currentPlatform = platform as SupportedPlatform | undefined
 const shortcutPreferenceKeyMap = REGISTERED_KEYBINDINGS.reduce<Record<CommandId, CommandShortcutKey>>(
   (acc, rule) => {
     acc[rule.command] = rule.preferenceKey
+
     return acc
   },
   {} as Record<CommandId, CommandShortcutKey>
@@ -35,12 +37,15 @@ const commandCategoryToSettingsGroup = (categoryKey: string): ShortcutSettingsGr
   if (categoryKey === 'settings.shortcuts.general') {
     return 'general'
   }
+
   if (categoryKey === 'settings.shortcuts.chat') {
     return 'chat'
   }
+
   if (categoryKey === 'settings.shortcuts.topic') {
     return 'topic'
   }
+
   return 'assistant'
 }
 
@@ -80,13 +85,16 @@ export const getAllShortcutDefaultPreferences = (): Record<CommandShortcutKey, P
   return REGISTERED_KEYBINDINGS.reduce(
     (acc, rule) => {
       const defaultPreference = getCommandDefaultShortcutPreference(rule.command, currentPlatform)
+
       if (!defaultPreference) {
         return acc
       }
+
       acc[rule.preferenceKey] = {
         binding: defaultPreference.binding,
         enabled: defaultPreference.enabled
       }
+
       return acc
     },
     {} as Record<CommandShortcutKey, PreferenceShortcutType>
@@ -101,9 +109,11 @@ export const useCommandShortcuts = () => {
   const updatePreference = useCallback(
     async (key: CommandShortcutKey, patch: Partial<PreferenceShortcutType>) => {
       const rule = REGISTERED_KEYBINDINGS.find((item) => item.preferenceKey === key)
+
       if (!rule) return
       const currentValue = values[rule.command] as PreferenceShortcutType | undefined
       const state = resolveCommandShortcutPreference(rule.command, currentValue, currentPlatform)
+
       if (!state) return
       const nextValue = buildNextPreference(state, currentValue, patch)
       await setValues({ [rule.command]: nextValue })
@@ -115,11 +125,13 @@ export const useCommandShortcuts = () => {
     () =>
       REGISTERED_KEYBINDINGS.flatMap((rule): ShortcutListItem[] => {
         const command = findCommandDefinition(rule.command)
+
         if (!command) {
           return []
         }
 
         const supported = rule.supportedPlatforms
+
         if (supported && platform && !supported.includes(platform as SupportedPlatform)) {
           return []
         }
@@ -131,6 +143,7 @@ export const useCommandShortcuts = () => {
         const rawValue = values[rule.command] as PreferenceShortcutType | undefined
         const preference = resolveCommandShortcutPreference(rule.command, rawValue, currentPlatform)
         const defaultPreference = getCommandDefaultShortcutPreference(rule.command, currentPlatform)
+
         if (!preference || !defaultPreference) {
           return []
         }

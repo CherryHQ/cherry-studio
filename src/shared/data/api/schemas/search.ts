@@ -17,6 +17,7 @@ export type EntitySearchTarget =
   | { type: 'knowledge-base'; target: { knowledgeBaseId: string } }
 
 export type EntitySearchType = EntitySearchTarget['type']
+
 export const entitySearchTypes = [
   'assistant',
   'agent',
@@ -24,6 +25,7 @@ export const entitySearchTypes = [
   'session',
   'knowledge-base'
 ] as const satisfies readonly EntitySearchType[]
+
 export const EntitySearchTypeSchema = z.enum(entitySearchTypes)
 export const ENTITY_SEARCH_MAX_LIMIT_PER_TYPE = 200
 
@@ -33,7 +35,9 @@ export const EntitySearchQuerySchema = z.strictObject({
   updatedAtFrom: z.iso.datetime().optional(),
   limitPerType: z.coerce.number().int().positive().max(ENTITY_SEARCH_MAX_LIMIT_PER_TYPE).optional()
 })
+
 export type EntitySearchQueryParams = z.input<typeof EntitySearchQuerySchema>
+
 export type EntitySearchQuery = z.output<typeof EntitySearchQuerySchema>
 
 export type EntitySearchItem = {
@@ -67,7 +71,9 @@ export type EntitySearchSchemas = {
 }
 
 export const contentSearchSourceTypes = ['topic-message', 'session-message'] as const satisfies readonly string[]
+
 export type ContentSearchSourceType = (typeof contentSearchSourceTypes)[number]
+
 export const ContentSearchSourceTypeSchema = z.enum(contentSearchSourceTypes)
 
 export const CONTENT_SEARCH_DEFAULT_LIMIT_PER_SOURCE = 50
@@ -77,17 +83,20 @@ const ContentSearchCursorSchema = z.string().min(1)
 export const TopicMessageContentSearchFilterSchema = z.strictObject({
   topicId: z.string().min(1).optional()
 })
+
 export type TopicMessageContentSearchFilter = z.output<typeof TopicMessageContentSearchFilterSchema>
 
 export const SessionMessageContentSearchFilterSchema = z.strictObject({
   sessionId: z.string().min(1).optional()
 })
+
 export type SessionMessageContentSearchFilter = z.output<typeof SessionMessageContentSearchFilterSchema>
 
 export const ContentSearchFiltersSchema = z.strictObject({
   'topic-message': TopicMessageContentSearchFilterSchema.optional(),
   'session-message': SessionMessageContentSearchFilterSchema.optional()
 })
+
 export type ContentSearchFilters = z.output<typeof ContentSearchFiltersSchema>
 
 export const ContentSearchQuerySchema = z.strictObject({
@@ -98,7 +107,9 @@ export const ContentSearchQuerySchema = z.strictObject({
   limitPerSource: z.coerce.number().int().positive().max(CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE).optional(),
   createdAtFrom: z.iso.datetime().optional()
 })
+
 export type ContentSearchQueryParams = z.input<typeof ContentSearchQuerySchema>
+
 export type ContentSearchQuery = z.output<typeof ContentSearchQuerySchema>
 
 export interface TopicMessageContentSearchItem {

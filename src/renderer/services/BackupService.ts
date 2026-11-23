@@ -33,11 +33,14 @@ let backupSyncState: Record<AutoBackupType, RemoteSyncState> = {
   local: { lastSyncTime: null, syncing: false, lastSyncError: null },
   nutstore: { lastSyncTime: null, syncing: false, lastSyncError: null }
 }
+
 const backupSyncListeners = new Set<() => void>()
 
 export const getBackupSyncState = () => backupSyncState
+
 export const subscribeBackupSyncState = (listener: () => void) => {
   backupSyncListeners.add(listener)
+
   return () => backupSyncListeners.delete(listener)
 }
 
@@ -63,6 +66,7 @@ type ManualBackupOptions = { customFileName?: string }
 export async function backup(skipBackupFile = false) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
   const selectFolder = await window.api.file.selectFolder()
+
   if (selectFolder) {
     // Use the direct compatibility archive with the selected full or slim resource set.
     await window.api.backup.backup(filename, selectFolder, skipBackupFile)
@@ -87,6 +91,7 @@ export async function restore() {
         timestamp: Date.now(),
         source: 'backup'
       })
+
       // The main process has committed the restore journal and will relaunch.
       return
     } catch (error) {
@@ -143,8 +148,10 @@ export async function backupToWebdav({ customFileName = '' }: ManualBackupOption
       disableStream: webdavDisableStream,
       allowSelfSignedTls: webdavAllowSelfSignedTls
     })
+
     if (success) {
       await recordManualBackupCompletion('webdav')
+
       if (cleanupFailed) {
         const message = i18n.t('message.backup.cleanup_failed')
         setWebDAVSyncState({ lastSyncError: message })
@@ -178,6 +185,7 @@ export async function restoreFromWebdav(fileName?: string) {
       webdavPath: 'data.backup.webdav.path',
       webdavAllowSelfSignedTls: 'data.backup.webdav.allow_self_signed_tls'
     })
+
   await window.api.backup.restoreFromWebdav({
     webdavHost,
     webdavUser,
@@ -204,6 +212,7 @@ export async function backupToS3({ customFileName = '' }: ManualBackupOptions = 
     skipBackupFile: 'data.backup.s3.skip_backup_file',
     syncInterval: 'data.backup.s3.sync_interval'
   })
+
   const finalFileName = customFileName
     ? customFileName.endsWith('.zip')
       ? customFileName
@@ -219,6 +228,7 @@ export async function backupToS3({ customFileName = '' }: ManualBackupOptions = 
 
     if (success) {
       await recordManualBackupCompletion('s3')
+
       if (cleanupFailed) {
         const message = i18n.t('message.backup.cleanup_failed')
         setS3SyncState({ lastSyncError: message })
@@ -258,6 +268,7 @@ export async function restoreFromS3(fileName?: string) {
 
   if (!fileName) {
     const files = await window.api.backup.listS3Files(s3Config)
+
     if (files.length > 0) {
       fileName = files[0].fileName
     }
@@ -284,7 +295,9 @@ export async function backupToLocal({ customFileName = '' }: ManualBackupOptions
       localBackupMaxBackups: 'data.backup.local.max_backups',
       localBackupSkipBackupFile: 'data.backup.local.skip_backup_file'
     })
+
   const localBackupDir = await window.api.resolvePath(localBackupDirSetting)
+
   const finalFileName = customFileName
     ? customFileName.endsWith('.zip')
       ? customFileName
@@ -301,6 +314,7 @@ export async function backupToLocal({ customFileName = '' }: ManualBackupOptions
 
     if (result) {
       await recordManualBackupCompletion('local')
+
       if (cleanupFailed) {
         const message = i18n.t('message.backup.cleanup_failed')
         setLocalBackupSyncState({ lastSyncError: message })

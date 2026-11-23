@@ -12,13 +12,16 @@ export function nativeClient(timeoutMs?: number): SystemSpeechNativeClient {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- System helper and decoder failures are heterogeneous; native predicates map only verified codes to public voice reasons.
 export function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
+
   if (error instanceof VoiceRuntimeError) return error
+
   if (
     error instanceof UtilityProcessError &&
     typeof error.remote?.code === 'string' &&
     ['VOICE_AUDIO_INVALID', 'VOICE_AUDIO_UNSUPPORTED', 'VOICE_AUDIO_LIMIT'].includes(error.remote?.code ?? '')
   )
     return new VoiceRuntimeError('invalid_audio')
+
   if (error instanceof SystemSpeechError) {
     switch (error.code) {
       case 'cancelled':
@@ -36,5 +39,6 @@ export function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRun
         return new VoiceRuntimeError('invalid_request')
     }
   }
+
   return new VoiceRuntimeError('operation_failed')
 }

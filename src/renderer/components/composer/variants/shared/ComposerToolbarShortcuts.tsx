@@ -87,8 +87,10 @@ interface CustomizeOrderState {
 }
 
 const CUSTOMIZE_ROW_CLASS = 'flex h-8 items-center gap-1.5 rounded-md px-1.5 hover:bg-accent/60'
+
 const CUSTOMIZE_ROW_ICON_CLASS =
   'flex size-5 shrink-0 items-center justify-center text-muted-foreground [&>svg]:!size-[16px]'
+
 const TOOLBAR_ICON_CLASS = 'flex size-[18px] shrink-0 items-center justify-center [&>svg]:!size-[18px]'
 
 const haveSameOrder = (left: readonly string[], right: readonly string[]) =>
@@ -140,14 +142,18 @@ export const ComposerToolbarShortcuts = ({
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const panelUnavailable = !unifiedPanelControl?.available
   const toolbarManifests = useMemo(() => getComposerToolbarManifestsForScope(scope, t), [scope, t])
+
   const toolbarManifestById = useMemo(
     () => new Map(toolbarManifests.map((manifest) => [manifest.id, manifest])),
     [toolbarManifests]
   )
+
   const toolbarLaunchers = useMemo(() => {
     void toolLaunchersVersion
+
     return getLaunchers('popover')
   }, [getLaunchers, toolLaunchersVersion])
+
   // Thinking and permission-mode icons convey live state. Keep the last resolved
   // icon through launcher handoffs instead of flashing the generic manifest icon.
   const lastResolvedIconById = useRef<Map<string, ReactNode>>(new Map())
@@ -163,6 +169,7 @@ export const ComposerToolbarShortcuts = ({
   const candidates = useMemo<ShortcutCandidate[]>(() => {
     const manifestCandidates = toolbarManifests.map((manifest): ShortcutCandidate => {
       const opensPanel = manifest.kind === 'group' || manifest.kind === 'panel'
+
       return {
         id: manifest.id,
         label: manifest.label,
@@ -177,6 +184,7 @@ export const ComposerToolbarShortcuts = ({
         select: () => undefined
       }
     })
+
     const launcherCandidates = toolbarLaunchers.map((launcher): ShortcutCandidate => {
       const manifest = toolbarManifestById.get(launcher.id)
       // group/panel launchers open the unified panel; dialog launchers open a modal
@@ -184,6 +192,7 @@ export const ComposerToolbarShortcuts = ({
       const kind = manifest?.kind ?? launcher.kind
       const opensPanel = kind === 'group' || kind === 'panel'
       const label = manifest?.label ?? launcher.label
+
       return {
         id: launcher.id,
         label,
@@ -206,8 +215,10 @@ export const ComposerToolbarShortcuts = ({
           : () => dispatchLauncher(launcher, { source: 'popover', inputAdapter })
       }
     })
+
     const customCandidates = (customTools ?? []).map((tool): ShortcutCandidate => {
       const requiresPanel = tool.requiresPanel ?? true
+
       return {
         id: tool.id,
         label: tool.label,
@@ -226,10 +237,12 @@ export const ComposerToolbarShortcuts = ({
 
     const candidateById = new Map<string, ShortcutCandidate>()
     const candidateOrder: string[] = []
+
     for (const candidate of [...manifestCandidates, ...customCandidates, ...launcherCandidates]) {
       if (!candidateById.has(candidate.id)) candidateOrder.push(candidate.id)
       candidateById.set(candidate.id, candidate)
     }
+
     return candidateOrder.map((id) => candidateById.get(id)!)
   }, [
     customTools,
@@ -250,13 +263,16 @@ export const ComposerToolbarShortcuts = ({
     () => pinnedIds.map((id) => ({ id, candidate: candidateById.get(id) })),
     [candidateById, pinnedIds]
   )
+
   const visiblePinnedRows = useMemo(() => pinnedRows.filter((row) => row.candidate), [pinnedRows])
   const pinnedIdSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
   const candidateIds = useMemo(() => candidates.map((candidate) => candidate.id), [candidates])
+
   const leadingCandidateIds = useMemo(
     () => candidates.filter((candidate) => candidate.customizePlacement === 'leading').map((candidate) => candidate.id),
     [candidates]
   )
+
   const [customizeOrderState, setCustomizeOrderState] = useState<CustomizeOrderState>(() => ({
     preferredOrder: [],
     syncedPinnedIds: pinnedIds,
@@ -280,10 +296,12 @@ export const ComposerToolbarShortcuts = ({
     () => reconcileCustomizeOrder(customizeOrderState.preferredOrder, pinnedIds, candidateIds, leadingCandidateIds),
     [candidateIds, customizeOrderState.preferredOrder, leadingCandidateIds, pinnedIds]
   )
+
   const customizeRows = useMemo<CustomizeRow[]>(
     () => customizeOrderIds.map((id) => ({ id, candidate: candidateById.get(id) })),
     [candidateById, customizeOrderIds]
   )
+
   const visibleCustomizeRows = useMemo(() => customizeRows.filter((row) => row.candidate), [customizeRows])
 
   const customizeLabel = t('chat.input.toolbar.customize')
@@ -296,11 +314,13 @@ export const ComposerToolbarShortcuts = ({
 
   const togglePinned = (id: string, checked: boolean) => {
     const nextPinnedIdSet = new Set(pinnedIds)
+
     if (checked) {
       nextPinnedIdSet.add(id)
     } else {
       nextPinnedIdSet.delete(id)
     }
+
     requestPinnedIdsChange(customizeOrderIds.filter((candidateId) => nextPinnedIdSet.has(candidateId)))
   }
 
@@ -309,6 +329,7 @@ export const ComposerToolbarShortcuts = ({
     setCustomizeOrderState((current) => ({ ...current, preferredOrder: nextOrderIds }))
 
     const nextPinnedIds = nextOrderIds.filter((id) => pinnedIdSet.has(id))
+
     if (nextPinnedIds.length !== pinnedIds.length || nextPinnedIds.some((id, index) => id !== pinnedIds[index])) {
       requestPinnedIdsChange(nextPinnedIds)
     }
@@ -318,14 +339,17 @@ export const ComposerToolbarShortcuts = ({
     setCustomizeOrderState({ preferredOrder: [], syncedPinnedIds: pinnedIds, pendingPinnedIds: null })
     onResetPinnedIds()
   }
+
   const showModelRequiredToast = () => toast.error(t('code.model_required'))
 
   // Localized drag feedback so screen readers announce tool names, not internal ids (e.g. "web-search").
   const dragAccessibility = useMemo(() => {
     const nameOf = (id: string | number) => {
       const label = candidateById.get(String(id))?.label
+
       return typeof label === 'string' ? label : String(id)
     }
+
     return {
       screenReaderInstructions: { draggable: t('chat.input.toolbar.drag.instructions') },
       announcements: {
@@ -347,10 +371,12 @@ export const ComposerToolbarShortcuts = ({
           {visiblePinnedRows.map(({ candidate }) => {
             const shortcut = candidate!
             const blockedByMissingModel = isModelUnavailable && !shortcut.availableWithoutModel
+
             const tooltip =
               shortcut.disabled && shortcut.disabledReason
                 ? shortcut.disabledReason
                 : (shortcut.tooltip ?? shortcut.label)
+
             return (
               <Tooltip key={shortcut.id} content={tooltip} placement="top" isDisabled={blockedByMissingModel}>
                 <Button
@@ -407,8 +433,10 @@ export const ComposerToolbarShortcuts = ({
           itemStyle={{ cursor: 'default' }}
           renderItem={(row, _index, { dragging, dragHandleProps }) => {
             const candidate = row.candidate
+
             if (!candidate) return null
             const label = typeof candidate.label === 'string' ? candidate.label : undefined
+
             return (
               <div className={CUSTOMIZE_ROW_CLASS}>
                 <button

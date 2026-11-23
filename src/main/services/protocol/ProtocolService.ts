@@ -48,9 +48,11 @@ export class ProtocolService extends BaseService {
     this.registerProtocolScheme()
 
     const windowManager = application.get('WindowManager')
+
     const markMainRendererNotReady = () => {
       this.isMainRendererReady = false
     }
+
     this.registerDisposable(
       windowManager.onWindowCreatedByType(WindowType.Main, ({ window }) => {
         window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
@@ -66,6 +68,7 @@ export class ProtocolService extends BaseService {
       event.preventDefault()
       this.handleProtocolUrl(url)
     }
+
     app.on('open-url', openUrlHandler)
     this.registerDisposable(() => app.removeListener('open-url', openUrlHandler))
 
@@ -78,12 +81,14 @@ export class ProtocolService extends BaseService {
     //      WhenReady, fully alive by the time any 'second-instance' can fire.
     const secondInstanceHandler = (_event: Electron.Event, argv: string[]) => {
       const url = argv.find((arg) => arg.startsWith(`${CHERRY_STUDIO_PROTOCOL}://`))
+
       if (url) {
         this.handleProtocolUrl(url)
       } else {
         application.get('MainWindowService').showMainWindow()
       }
     }
+
     app.on('second-instance', secondInstanceHandler)
     this.registerDisposable(() => app.removeListener('second-instance', secondInstanceHandler))
 
@@ -118,17 +123,20 @@ export class ProtocolService extends BaseService {
 
   public installPendingMcpInstallRequest(windowId: string, requestId: string): McpServer[] {
     const requestIndex = this.findPendingMcpInstallRequest(windowId, requestId)
+
     if (requestIndex === -1) {
       throw new Error('MCP protocol install request not found')
     }
 
     const createdServers = mcpServerService.createMany(this.pendingMcpInstallRequests[requestIndex].servers)
     this.pendingMcpInstallRequests.splice(requestIndex, 1)
+
     return createdServers
   }
 
   public cancelPendingMcpInstallRequest(windowId: string, requestId: string): void {
     const requestIndex = this.findPendingMcpInstallRequest(windowId, requestId)
+
     if (requestIndex !== -1) {
       this.pendingMcpInstallRequests.splice(requestIndex, 1)
     }
@@ -166,6 +174,7 @@ export class ProtocolService extends BaseService {
 
     if (!this.areServicesReady || !this.isMainRendererReady) {
       this.pendingProtocolUrls.push(url)
+
       return
     }
 
@@ -178,6 +187,7 @@ export class ProtocolService extends BaseService {
     }
 
     const pendingUrls = this.pendingProtocolUrls.splice(0)
+
     for (const url of pendingUrls) {
       this.dispatchProtocolUrl(url)
     }
@@ -191,14 +201,17 @@ export class ProtocolService extends BaseService {
       switch (urlObj.hostname.toLowerCase()) {
         case 'mcp':
           this.handleMcpInstallProtocolUrl(urlObj)
+
           return
         case 'providers':
           handleProvidersProtocolUrl(urlObj).catch((error) =>
             logger.error('Failed to handle providers protocol URL', error as Error)
           )
+
           return
         case 'navigate':
           handleNavigateProtocolUrl(urlObj)
+
           return
         case 'oauth':
           // Retired OAuth callbacks must never fall through to the renderer broadcast.
@@ -231,8 +244,10 @@ export class ProtocolService extends BaseService {
 
   private handleMcpInstallProtocolUrl(url: URL) {
     const servers = parseMcpInstallProtocolUrl(url)
+
     if (!servers) {
       application.get('MainWindowService').showMainWindow()
+
       return
     }
 
@@ -244,6 +259,7 @@ export class ProtocolService extends BaseService {
 
   private handleArgvForUrl(args: string[]) {
     const url = args.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
+
     if (url) this.handleProtocolUrl(url)
   }
 
@@ -261,8 +277,10 @@ export class ProtocolService extends BaseService {
 
     try {
       const appPath = application.getPath('app.exe_file')
+
       if (!appPath) {
         logger.error('Could not determine App path.')
+
         return
       }
 
@@ -284,9 +302,11 @@ NoDisplay=true
         const { stdout, stderr } = await execAsync(
           `update-desktop-database ${escapePathForExec(application.getPath('feature.protocol.desktop_entries'))}`
         )
+
         if (stderr) {
           logger.warn(`update-desktop-database stderr: ${stderr}`)
         }
+
         logger.debug(`update-desktop-database stdout: ${stdout}`)
         logger.debug('Desktop database updated successfully.')
       } catch (updateError) {

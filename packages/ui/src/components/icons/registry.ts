@@ -343,6 +343,7 @@ function providerRef(key: string): IconRef | undefined {
   if (!Object.hasOwn(PROVIDER_ICON_META_CATALOG, key)) return undefined
   // SAFETY: the own-key check restricts this string to the fixed provider catalog's keys.
   const catalogKey = key as ProviderIconKey
+
   return { kind: 'provider', key: catalogKey, meta: PROVIDER_ICON_META_CATALOG[catalogKey] }
 }
 
@@ -350,6 +351,7 @@ function modelRef(key: string): IconRef | undefined {
   if (!Object.hasOwn(MODEL_ICON_META_CATALOG, key)) return undefined
   // SAFETY: the own-key check restricts this string to the fixed model catalog's keys.
   const catalogKey = key as ModelIconKey
+
   return { kind: 'model', key: catalogKey, meta: MODEL_ICON_META_CATALOG[catalogKey] }
 }
 
@@ -366,22 +368,26 @@ export function modelIconRef(key: ModelIconKey): IconRef {
 /** Resolve a dedicated model icon ref by matching modelId against MODEL_ICON_PATTERNS */
 export function resolveModelIconRef(modelId: string): IconRef | undefined {
   if (!modelId) return undefined
+
   for (const [regex, catalogKey] of MODEL_ICON_PATTERNS) {
     if (regex.test(modelId)) {
       return modelRef(catalogKey)
     }
   }
+
   return undefined
 }
 
 /** Resolve a provider icon ref by matching modelId against MODEL_TO_PROVIDER_PATTERNS */
 export function resolveModelToProviderIconRef(modelId: string): IconRef | undefined {
   if (!modelId) return undefined
+
   for (const [regex, catalogKey] of MODEL_TO_PROVIDER_PATTERNS) {
     if (regex.test(modelId)) {
       return providerRef(catalogKey)
     }
   }
+
   return undefined
 }
 
@@ -389,6 +395,7 @@ export function resolveModelToProviderIconRef(modelId: string): IconRef | undefi
 export function resolveProviderIconRef(providerId: string): IconRef | undefined {
   if (!providerId) return undefined
   const key = PROVIDER_ID_ALIASES.get(providerId) ?? providerId
+
   return providerRef(key) ?? modelRef(key)
 }
 

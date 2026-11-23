@@ -16,10 +16,12 @@ const TAILWIND_ADAPTER_VARIABLE_PATTERN = /--color-[a-z0-9-]*/
 const STYLE_SOURCE_EXTENSIONS = new Set(['.css'])
 const TYPESCRIPT_SOURCE_EXTENSIONS = new Set(['.ts', '.tsx'])
 const RUNTIME_THEME_INPUT_VARIABLES = new Set(RUNTIME_THEME_INPUT_TOKENS.map((token) => `--cs-theme-${token}`))
+
 const PUBLIC_SEMANTIC_VARIABLES = new Set([
   ...SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`),
   ...CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--${token}`)
 ])
+
 const REQUIRED_EXCLUDES = [
   'packages/ui/src/styles/theme.css',
   'packages/ui/src/styles/contract.css',
@@ -55,11 +57,13 @@ async function loadSourceEntries(
   extensions: ReadonlySet<string>
 ): Promise<SourceEntry[]> {
   const entries = await fs.readdir(directory, { withFileTypes: true })
+
   const nestedEntries = await Promise.all(
     entries.map(async (entry): Promise<SourceEntry[]> => {
       const entryPath = path.join(directory, entry.name)
 
       if (entry.isDirectory()) return loadSourceEntries(entryPath, repositoryRoot, extensions)
+
       if (!entry.isFile() || !extensions.has(path.extname(entry.name))) return []
 
       return [[path.relative(repositoryRoot, entryPath), await fs.readFile(entryPath, 'utf8')]]
@@ -83,16 +87,20 @@ function findTypeScriptAdapterVariable(source: string, fileName: string): string
 
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isJsxText(node)) {
       inspect(node.text)
+
       return
     }
 
     if (ts.isTemplateExpression(node)) {
       inspect(node.head.text)
+
       for (const span of node.templateSpans) {
         visit(span.expression)
         inspect(span.literal.text)
+
         if (adapterVariable) return
       }
+
       return
     }
 
@@ -100,6 +108,7 @@ function findTypeScriptAdapterVariable(source: string, fileName: string): string
   }
 
   visit(sourceFile)
+
   return adapterVariable
 }
 
@@ -134,6 +143,7 @@ function findTypeScriptDisallowedThemeWrite(source: string, fileName: string): s
           variableName.startsWith('--color-'))
       ) {
         disallowedVariable = variableName
+
         return
       }
     }
@@ -142,11 +152,13 @@ function findTypeScriptDisallowedThemeWrite(source: string, fileName: string): s
   }
 
   visit(sourceFile)
+
   return disallowedVariable
 }
 
 export function validateMigrationContractSources(sources: MigrationContractSources): void {
   const registry = parseMigrationRegistry(sources.migrationRegistry)
+
   const canonicalNames = new Set<string>([
     ...SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`),
     ...CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--${token}`)
@@ -155,9 +167,11 @@ export function validateMigrationContractSources(sources: MigrationContractSourc
   if (registry.version !== 1 || registry.contract !== 'shadcn-v2') {
     throw new Error('[theme-contract] migration registry must use the shadcn-v2 version 1 contract')
   }
+
   if (registry.defaultKind !== 'css-custom-property') {
     throw new Error('[theme-contract] migration registry defaultKind must be css-custom-property')
   }
+
   for (const requiredPath of REQUIRED_EXCLUDES) {
     if (!registry.exclude.includes(requiredPath)) {
       throw new Error(`[theme-contract] migration registry must exclude ${requiredPath}`)
@@ -175,14 +189,17 @@ export function validateMigrationContractSources(sources: MigrationContractSourc
   }
 
   const rendererTheme = stripComments(sources.rendererTheme)
+
   if (rendererTheme.includes('legacy-vars.css')) {
     throw new Error('[theme-contract] renderer theme cannot import the removed legacy compatibility layer')
   }
+
   if (rendererTheme.includes('--app-')) {
     throw new Error(
       '[theme-contract] renderer theme entry cannot own --app-* variables; keep host-local values in a dedicated stylesheet'
     )
   }
+
   if (/@theme(?:\s+inline)?\s*\{/.test(rendererTheme)) {
     throw new Error('[theme-contract] renderer theme must use the shared generated Tailwind adapter')
   }
@@ -207,6 +224,7 @@ export function validateMigrationContractSources(sources: MigrationContractSourc
     }
 
     const disallowedWrite = findTypeScriptDisallowedThemeWrite(source, fileName)
+
     if (disallowedWrite) {
       throw new Error(
         `[theme-contract] renderer TypeScript source ${fileName} cannot write shared theme variable ${disallowedWrite}; use a registered --cs-theme-* input or an owner-local --app-* variable`

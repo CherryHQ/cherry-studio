@@ -56,6 +56,7 @@ interface CliIconProps {
 
 export const CliIcon: FC<CliIconProps> = ({ id, size = 28, className }) => {
   const Icon = CLI_ICONS[id]
+
   if (!Icon) {
     return (
       <div
@@ -70,6 +71,7 @@ export const CliIcon: FC<CliIconProps> = ({ id, size = 28, className }) => {
   }
 
   const opticalViewBox = OPTICAL_VIEWBOXES[id as CodeCli]
+
   if (opticalViewBox) {
     return <Icon width={size} height={size} viewBox={opticalViewBox} className={className} />
   }

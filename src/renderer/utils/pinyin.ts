@@ -16,12 +16,14 @@ function getPinyinForms(text: string) {
   if (!hasChinese(text) || !tinyPinyin.isSupported()) return { full: '', initials: '', searchInitials: '' }
 
   const cached = cache.get(text)
+
   if (cached) return cached
 
   const tokens = tinyPinyin.parse(text)
   let full = ''
   let initials = ''
   let searchInitials = ''
+
   for (const token of tokens) {
     if (token.type === 2) {
       const syllable = token.target.toLowerCase()
@@ -35,15 +37,19 @@ function getPinyinForms(text: string) {
   }
 
   const forms = { full, initials, searchInitials }
+
   if (cache.size >= MAX_PINYIN_CACHE_SIZE) {
     cache.delete(cache.keys().next().value!)
   }
+
   cache.set(text, forms)
+
   return forms
 }
 
 export function toPinyinForms(text: string) {
   const { full, initials } = getPinyinForms(text)
+
   return { full, initials }
 }
 
@@ -51,6 +57,7 @@ export function toPinyinForms(text: string) {
 export function matchesPinyinInitials(text: string, query: string): boolean {
   if (!query || !/[a-z]/i.test(query)) return false
   const { searchInitials } = getPinyinForms(text)
+
   return searchInitials.includes(query.toLowerCase())
 }
 

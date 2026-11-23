@@ -33,10 +33,12 @@ interface Props {
 function useConcreteWebview(webview: WebviewTag | null) {
   const webviewRef = useRef<WebviewTag | null>(null)
   const revisionRef = useRef(0)
+
   if (webviewRef.current !== webview) {
     webviewRef.current = webview
     revisionRef.current++
   }
+
   return { webviewRef, webviewRevision: revisionRef.current }
 }
 
@@ -72,11 +74,13 @@ const MiniAppPane: FC<Props> = ({
     const handleInPageNav = (event: DidNavigateInPageEvent) => {
       if (event.isMainFrame) setCurrentUrl(event.url)
     }
+
     // Clicking into the page focuses the webview element itself; that is the
     // only signal the host gets, since events inside the guest never bubble out.
     const handleFocus = () => onActivateRef.current?.()
     webview.addEventListener('did-navigate-in-page', handleInPageNav)
     webview.addEventListener('focus', handleFocus)
+
     return () => {
       webview.removeEventListener('did-navigate-in-page', handleInPageNav)
       webview.removeEventListener('focus', handleFocus)

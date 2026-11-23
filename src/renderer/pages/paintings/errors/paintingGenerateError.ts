@@ -62,6 +62,7 @@ export function presentPaintingGenerateError(error: unknown) {
     } else {
       toast.error(message)
     }
+
     return
   }
 

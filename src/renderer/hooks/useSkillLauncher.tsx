@@ -17,14 +17,17 @@ const SkillLauncherContext = createContext<LaunchSkill | null>(null)
 
 export function SkillLauncherProvider({ children }: PropsWithChildren) {
   const { t } = useTranslation()
+
   const { trigger: enableSkill } = useMutation('PATCH', '/skills/:skillId', {
     refresh: ['/skills', '/skills/*']
   })
+
   const [pendingSkill, setPendingSkill] = useState<InstalledSkill | null>(null)
   const [isLaunching, setIsLaunching] = useState(false)
 
   const createSessionAndOpen = useCallback(async (skill: InstalledSkill) => {
     setIsLaunching(true)
+
     try {
       const { sessionId } = await ipcApi.request('ai.agent.skill_session.create', { skillId: skill.id })
       openRoute('/app/agents', { intent: 'skill', sessionId, skillId: skill.id })
@@ -37,8 +40,10 @@ export function SkillLauncherProvider({ children }: PropsWithChildren) {
     async (skill) => {
       if (!skill.isGlobalEnabled) {
         setPendingSkill(skill)
+
         return
       }
+
       try {
         await createSessionAndOpen(skill)
       } catch (error) {
@@ -51,9 +56,11 @@ export function SkillLauncherProvider({ children }: PropsWithChildren) {
 
   const confirmLaunch = useCallback(async () => {
     const skill = pendingSkill
+
     if (!skill) return
 
     setIsLaunching(true)
+
     try {
       const enabledSkill = await enableSkill({ params: { skillId: skill.id }, body: { isGlobalEnabled: true } })
       setPendingSkill(null)
@@ -89,6 +96,8 @@ export function SkillLauncherProvider({ children }: PropsWithChildren) {
 
 export function useSkillLauncher(): LaunchSkill {
   const launchSkill = use(SkillLauncherContext)
+
   if (!launchSkill) throw new Error('useSkillLauncher must be used within SkillLauncherProvider')
+
   return launchSkill
 }

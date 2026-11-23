@@ -37,12 +37,14 @@ const getElementOuterSize = (element: HTMLElement) => {
 //tell main the actual size of the content
 const updateWindowSize = (contentElement?: HTMLElement | null) => {
   const rootElement = document.getElementById('root')
+
   const targetElement =
     contentElement ??
     (rootElement?.firstElementChild instanceof HTMLElement ? rootElement.firstElementChild : rootElement)
 
   if (!targetElement) {
     logger.error('Toolbar content element not found')
+
     return
   }
 
@@ -70,15 +72,20 @@ const SelectionToolbar: FC = () => {
   const agents = useSelectionAgents(
     realActionItems.filter(isAgentSelectionAction).map((action) => action.agentId ?? null)
   )
+
   const { t } = useTranslation()
+
   const unavailableReasons = useMemo(() => {
     // Until agents load, leave every action usable rather than flash it disabled.
     if (!agents) return undefined
     const reasons: Record<string, string> = {}
+
     for (const action of realActionItems) {
       const issue = getSelectionActionAgent(action, agents)?.issue
+
       if (issue) reasons[action.id] = t(SELECTION_AGENT_ISSUE_LABEL_KEYS[issue])
     }
+
     return reasons
   }, [agents, realActionItems, t])
 
@@ -117,22 +124,27 @@ const SelectionToolbar: FC = () => {
    */
   const isUriOrFilePath = (text: string): boolean => {
     const trimmed = text.trim()
+
     // Must not contain newlines or whitespace
     if (/\s/.test(trimmed)) {
       return false
     }
+
     // URI patterns: http://, https://, ftp://, file://, etc.
     if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) {
       return true
     }
+
     // Windows absolute path: C:\, D:\, etc.
     if (/^[a-zA-Z]:[/\\]/.test(trimmed)) {
       return true
     }
+
     // Unix absolute path: /path/to/file
     if (/^\/[^/]/.test(trimmed)) {
       return true
     }
+
     return false
   }
 
@@ -159,12 +171,14 @@ const SelectionToolbar: FC = () => {
     const selectedText = action.selectedText.trim()
 
     let actionString = ''
+
     if (isUriOrFilePath(selectedText)) {
       actionString = selectedText
     } else {
       if (!action.searchEngine) return
 
       const customUrl = action.searchEngine.split('|')[1]
+
       if (!customUrl) return
 
       actionString = customUrl.replace('{{queryString}}', encodeURIComponent(selectedText))
@@ -199,15 +213,19 @@ const SelectionToolbar: FC = () => {
         switch (newAction.id) {
           case SELECTION_BUILTIN_ACTION_ID.COPY:
             void handleCopy()
+
             return
           case SELECTION_BUILTIN_ACTION_ID.SEARCH:
             handleSearch(newAction)
+
             return
           case SELECTION_BUILTIN_ACTION_ID.QUOTE:
             handleQuote(newAction)
+
             return
         }
       }
+
       handleDefaultAction(newAction)
     },
     [handleCopy, handleSearch]

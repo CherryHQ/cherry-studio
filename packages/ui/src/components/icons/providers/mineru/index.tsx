@@ -6,7 +6,9 @@ import { MineruLight } from './light'
 
 const Mineru = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MineruLight {...props} className={className} />
+
   if (variant === 'dark') return <MineruDark {...props} className={className} />
+
   return (
     <>
       <MineruLight className={cn('dark:hidden', className)} {...props} />

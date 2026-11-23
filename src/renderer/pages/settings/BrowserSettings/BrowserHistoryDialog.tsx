@@ -28,6 +28,7 @@ import type { BrowserVisit } from '@shared/data/api/schemas/browserVisits'
 
 export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void }) {
   const { t } = useTranslation()
+
   return (
     <DialogContent
       size="xl"
@@ -46,6 +47,7 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
   const { openTab } = useTabs()
+
   const {
     pages,
     hasNext,
@@ -55,6 +57,7 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
     isRefreshing,
     refresh: refetch
   } = useInfiniteQuery('/browser-visits', { query, limit: 50, swrOptions: { keepPreviousData: false } })
+
   const items = useInfiniteFlatItems(pages)
   const { trigger: deleteVisit } = useMutation('DELETE', '/browser-visits/:id')
   useDataChange('/browser-visits', () => void refetch())
@@ -62,9 +65,11 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
   useEffect(() => {
     pendingLoad.current = false
   }, [pages, historyError, isRefreshing])
+
   const loadMore = useCallback(
     (event: UIEvent<HTMLDivElement>) => {
       const element = event.currentTarget
+
       if (
         hasNext &&
         !isRefreshing &&
@@ -81,6 +86,7 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
 
   const locale = i18n.resolvedLanguage ?? i18n.language
   const timeFormat = useMemo(() => new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }), [locale])
+
   const groups = useMemo(() => {
     const today = new Date()
     const yesterday = new Date(today)
@@ -88,25 +94,31 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
     const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
     const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'long' })
     const grouped = new Map<string, { label: string; visits: BrowserVisit[] }>()
+
     for (const visit of items) {
       const date = new Date(visit.visitedAt)
       const day = date.toDateString()
+
       const label =
         day === today.toDateString()
           ? relative.format(0, 'day')
           : day === yesterday.toDateString()
             ? relative.format(-1, 'day')
             : dateFormat.format(date)
+
       const group = grouped.get(day)
+
       if (group) group.visits.push(visit)
       else grouped.set(day, { label, visits: [visit] })
     }
+
     return [...grouped.entries()].map(([day, { label, visits }]) => ({ group: day, header: label, items: visits }))
   }, [items, locale])
 
   const run = async <TResult,>(action: () => Promise<TResult>) => {
     setBusy(true)
     setError(false)
+
     try {
       await action()
     } catch {
@@ -201,6 +213,7 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
             renderItem={(visit) => {
               const title = visit.title || visit.url
               const host = new URL(visit.url).host.replace(/^www\./, '')
+
               return (
                 <div
                   role="listitem"

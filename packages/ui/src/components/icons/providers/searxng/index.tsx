@@ -4,6 +4,7 @@ import { SearxngLight } from './light'
 
 const Searxng = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <SearxngLight {...props} className={className} />
+
   return <SearxngLight {...props} className={className} />
 }
 

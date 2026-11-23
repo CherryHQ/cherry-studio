@@ -41,7 +41,9 @@ export const webLookupErrorSchema = z.object({
   userMessage: z.string().optional(),
   i18nKey: z.string().optional()
 })
+
 export type WebLookupError = z.infer<typeof webLookupErrorSchema>
+
 export type WebLookupResult = WebSearchOutput | WebLookupError
 
 /** Transient failure (network/provider hiccup) — a retry can succeed. Covers web_search and web_fetch. */
@@ -62,12 +64,16 @@ export const WEB_NETWORK_ERROR_NOTE =
   'Web access failed because of the current network environment. Tell the user to check their network connection and try again; do not retry automatically or provide configuration-specific guidance.'
 
 const WEB_NETWORK_ERROR_MESSAGE = 'Web access failed. Check your network connection and try again.'
+
 const WEB_PROVIDER_NOT_CONFIGURED_MESSAGE =
   'Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again.'
+
 const WEB_API_KEY_MISSING_MESSAGE =
   'Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.'
+
 const WEB_API_HOST_MISSING_MESSAGE =
   'Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.'
+
 const WEB_API_HOST_INVALID_MESSAGE =
   "Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again."
 
@@ -112,6 +118,7 @@ function classifyWebLookupError(error: unknown): WebLookupError {
 
   if (isPermanentWebSearchConfigError(error)) {
     const presentation = WEB_CONFIG_ERROR_PRESENTATION[error.code]
+
     return {
       error: message,
       retryable: false,
@@ -138,9 +145,11 @@ function webLookupNote(error: WebLookupError): string {
   if (error.i18nKey === 'web_lookup_network_error' || isProxyFakeIpError(error.error)) {
     return WEB_NETWORK_ERROR_NOTE
   }
+
   if (error.i18nKey === 'web_search_provider_unavailable') {
     return WEB_PROVIDER_NOT_CONFIGURED_NOTE
   }
+
   if (
     error.i18nKey === 'web_search_api_key_missing' ||
     error.i18nKey === 'web_search_api_host_missing' ||
@@ -148,6 +157,7 @@ function webLookupNote(error: WebLookupError): string {
   ) {
     return WEB_PROVIDER_CONFIGURATION_ERROR_NOTE
   }
+
   return WEB_LOOKUP_ERROR_NOTE
 }
 
@@ -164,11 +174,13 @@ export function webLookupModelOutput(
   if (isWebLookupError(output)) {
     return { type: 'text', value: webLookupNote(output) }
   }
+
   return { type: 'json', value: output }
 }
 
 function mapResponse(response: WebSearchResponse): WebSearchOutput {
   const prefix = newCitePrefix()
+
   return response.results.map((result, index) => ({
     id: citeId(prefix, index),
     title: result.title,
@@ -180,12 +192,14 @@ function mapResponse(response: WebSearchResponse): WebSearchOutput {
 export async function searchWeb(query: string, signal?: AbortSignal): Promise<WebLookupResult> {
   try {
     const response = await application.get('WebSearchService').searchKeywords({ keywords: [query] }, { signal })
+
     return mapResponse(response)
   } catch (error) {
     // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
     // retryable error that keeps the tool loop running after the request was already aborted.
     if (signal?.aborted || isAbortError(error)) throw error
     logger.error('webSearchService.searchKeywords failed', { error, query })
+
     return classifyWebLookupError(error)
   }
 }
@@ -193,12 +207,14 @@ export async function searchWeb(query: string, signal?: AbortSignal): Promise<We
 export async function fetchWeb(urls: string[], signal?: AbortSignal): Promise<WebLookupResult> {
   try {
     const response = await application.get('WebSearchService').fetchUrls({ urls }, { signal })
+
     return mapResponse(response)
   } catch (error) {
     // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
     // retryable error that keeps the tool loop running after the request was already aborted.
     if (signal?.aborted || isAbortError(error)) throw error
     logger.error('webSearchService.fetchUrls failed', { error, urls })
+
     return classifyWebLookupError(error)
   }
 }

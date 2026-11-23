@@ -25,6 +25,7 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
       swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS
     }
   )
+
   const models = options.existingModels ?? fallbackModelsQuery.models
   const { provider } = useProvider(providerId)
   const { createModels, isCreating } = useModelMutations()
@@ -51,6 +52,7 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
           providerId,
           modelCount: latestModels.length
         })
+
         return latestModels
       }
 
@@ -58,10 +60,12 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
         providerId
       })
       const { models: resolvedModels } = await fetchResolvedProviderModels(providerId)
+
       if (resolvedModels.length === 0) {
         logger.info('No remote provider models were resolved for sync', {
           providerId
         })
+
         return []
       }
 
@@ -71,6 +75,7 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
       })
 
       const existingModelIds = new Set<UniqueModelId>(latestModels.map((model) => model.id))
+
       const payload = resolvedModels
         .filter((model) => !existingModelIds.has(model.id))
         .map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(endpointProvider, model)))
@@ -80,6 +85,7 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
           providerId,
           resolvedModelCount: resolvedModels.length
         })
+
         return latestModels
       }
 

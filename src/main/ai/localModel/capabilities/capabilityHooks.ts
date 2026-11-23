@@ -34,12 +34,15 @@ async function demoteOcrDefaults(): Promise<void> {
   try {
     const preference = application.get('PreferenceService')
     const updates: Partial<UnifiedPreferenceType> = {}
+
     if (preference.get('feature.file_processing.default_image_to_text') === 'local-paddleocr') {
       updates['feature.file_processing.default_image_to_text'] = null
     }
+
     if (preference.get('feature.file_processing.default_document_to_markdown') === 'local-document') {
       updates['feature.file_processing.default_document_to_markdown'] = null
     }
+
     if (Object.keys(updates).length > 0) {
       await preference.setMultiple(updates)
     }

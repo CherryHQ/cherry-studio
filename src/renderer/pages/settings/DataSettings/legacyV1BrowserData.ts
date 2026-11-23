@@ -42,6 +42,7 @@ export function hasLegacyV1Marker(): boolean {
     )
   } catch (error) {
     logger.warn('Failed to inspect legacy localStorage marker', error as Error)
+
     return false
   }
 }
@@ -49,9 +50,11 @@ export function hasLegacyV1Marker(): boolean {
 export function beginLegacyV1Cleanup(): boolean {
   try {
     localStorage.setItem(LEGACY_CLEANUP_RETRY_MARKER_KEY, 'true')
+
     return true
   } catch (error) {
     logger.error('Failed to persist legacy cleanup retry marker', error as Error)
+
     return false
   }
 }
@@ -64,6 +67,7 @@ export function finalizeLegacyV1Cleanup(result: CacheCleanupGroupResult): CacheC
       logger.warn('Failed to clear legacy cleanup retry marker', error as Error)
     }
   }
+
   return result
 }
 
@@ -79,6 +83,7 @@ function inspectLegacyLocalStorage(): BrowserDataMeasurement {
   for (const key of keys) {
     try {
       const value = localStorage.getItem(key)
+
       if (value !== null) {
         bytes += byteLength(key) + byteLength(value)
       }
@@ -93,6 +98,7 @@ function inspectLegacyLocalStorage(): BrowserDataMeasurement {
 
 async function inspectLegacyIndexedDb(signal?: AbortSignal): Promise<BrowserDataMeasurement> {
   signal?.throwIfAborted()
+
   try {
     if (!(await Dexie.exists(LEGACY_DATABASE_NAME))) {
       return { bytes: 0, hasFailures: false }
@@ -100,6 +106,7 @@ async function inspectLegacyIndexedDb(signal?: AbortSignal): Promise<BrowserData
   } catch (error) {
     if (signal?.aborted) throw error
     logger.warn('Failed to check legacy IndexedDB existence', error as Error)
+
     return { bytes: 0, hasFailures: true }
   }
 
@@ -117,23 +124,30 @@ async function inspectLegacyIndexedDb(signal?: AbortSignal): Promise<BrowserData
       try {
         while (true) {
           signal?.throwIfAborted()
+
           const collection =
             lastPrimaryKey === undefined ? table.orderBy(':id') : table.where(':id').above(lastPrimaryKey)
+
           const primaryKeys = await collection.limit(INDEXED_DB_PAGE_SIZE).primaryKeys()
           signal?.throwIfAborted()
+
           if (primaryKeys.length === 0) break
 
           for (const primaryKey of primaryKeys) {
             signal?.throwIfAborted()
             const record = await table.get(primaryKey)
             signal?.throwIfAborted()
+
             if (record === undefined) {
               throw new Error('IndexedDB record missing from page')
             }
+
             const serialized = JSON.stringify(record)
+
             if (serialized === undefined) {
               throw new Error('IndexedDB record is not serializable')
             }
+
             bytes += byteLength(serialized)
           }
 
@@ -172,6 +186,7 @@ export async function inspectLegacyV1BrowserData(signal?: AbortSignal): Promise<
 async function deleteLegacyIndexedDb(onBlocked?: () => void): Promise<'cleared' | 'not_found' | 'failed'> {
   try {
     if (!(await Dexie.exists(LEGACY_DATABASE_NAME))) return 'not_found'
+
     return await new Promise<'cleared' | 'failed'>((resolve) => {
       const request = indexedDB.deleteDatabase(LEGACY_DATABASE_NAME)
       request.onsuccess = () => resolve('cleared')
@@ -179,6 +194,7 @@ async function deleteLegacyIndexedDb(onBlocked?: () => void): Promise<'cleared' 
         logger.error('Failed to delete legacy IndexedDB', request.error ?? new Error('IndexedDB deletion failed'))
         resolve('failed')
       }
+
       request.onblocked = () => {
         logger.warn('Waiting for legacy IndexedDB connections to close')
         onBlocked?.()
@@ -186,6 +202,7 @@ async function deleteLegacyIndexedDb(onBlocked?: () => void): Promise<'cleared' 
     })
   } catch (error) {
     logger.error('Failed to delete legacy IndexedDB', error as Error)
+
     return 'failed'
   }
 }
@@ -208,6 +225,7 @@ export async function clearLegacyV1BrowserData(onIndexedDbBlocked?: () => void):
   }
 
   const indexedDbResult = await deleteLegacyIndexedDb(onIndexedDbBlocked)
+
   if (indexedDbResult === 'cleared') {
     clearedItems++
   } else if (indexedDbResult === 'failed') {
@@ -215,6 +233,7 @@ export async function clearLegacyV1BrowserData(onIndexedDbBlocked?: () => void):
   }
 
   const hasSuccessfulStep = clearedItems > 0 || indexedDbResult === 'not_found'
+
   const status: CacheCleanupGroupResult['status'] =
     failedItems > 0 ? (hasSuccessfulStep ? 'partial' : 'failed') : clearedItems > 0 ? 'cleared' : 'not_found'
 
@@ -229,6 +248,7 @@ export function mergeLegacyV1CleanupResults(
   const hasSuccessfulStep = statuses.some((status) => status === 'cleared' || status === 'not_found')
 
   let status: CacheCleanupGroupResult['status']
+
   if (statuses.includes('partial')) {
     status = 'partial'
   } else if (statuses.includes('failed')) {

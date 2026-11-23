@@ -4,6 +4,7 @@ import { AihubmixLight } from './light'
 
 const Aihubmix = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AihubmixLight {...props} className={className} />
+
   return <AihubmixLight {...props} className={className} />
 }
 

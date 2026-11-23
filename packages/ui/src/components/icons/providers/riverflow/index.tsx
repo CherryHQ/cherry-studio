@@ -6,7 +6,9 @@ import { RiverflowLight } from './light'
 
 const Riverflow = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <RiverflowLight {...props} className={className} />
+
   if (variant === 'dark') return <RiverflowDark {...props} className={className} />
+
   return (
     <>
       <RiverflowLight className={cn('dark:hidden', className)} {...props} />

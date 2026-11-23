@@ -104,12 +104,14 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [cancelled, setCancelled] = useState(false)
+
   const [formValues, setFormValues] = useState<FieldType>({
     modelId: '',
     modelName: '',
     modelSource: 'https://www.modelscope.cn/models',
     task: 'text_generation'
   })
+
   const [error, setError] = useState<string | null>(null)
   const { t } = useTranslation()
   const { setIntervalTimer, clearIntervalTimer, setTimeoutTimer } = useTimer()
@@ -130,6 +132,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           if (prev >= 95) {
             return prev // Stop at 95% until actual completion
           }
+
           // Simulate realistic download progress with slowing speed
           const increment =
             prev < 30
@@ -147,6 +150,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
 
   const stopFakeProgress = (complete = false) => {
     clearIntervalTimer('progress')
+
     if (complete) {
       setProgress(100)
       // Reset progress after a short delay
@@ -158,6 +162,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
 
   const handlePresetSelect = (value: string) => {
     const selectedPreset = PRESET_MODELS.find((model) => model.modelId === value)
+
     if (selectedPreset) {
       setFormValues({
         modelId: selectedPreset.modelId,
@@ -172,6 +177,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
     if (value) {
       // Extract model name from model ID (part after last '/')
       const lastSlashIndex = value.lastIndexOf('/')
+
       if (lastSlashIndex !== -1 && lastSlashIndex < value.length - 1) {
         const modelName = value.substring(lastSlashIndex + 1)
         updateField('modelName', modelName)
@@ -191,35 +197,46 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
       } catch (error) {
         logger.error(`Failed to stop download: ${error}`)
       }
+
       return
     }
+
     resolve({})
   }
 
   const onFinish = async () => {
     const values = formValues
+
     if (!values.modelId) {
       setError(t('ovms.download.model_id.required'))
+
       return
     }
+
     if (!/^OpenVINO\/.+/.test(values.modelId)) {
       setError(t('ovms.download.model_id.model_id_pattern'))
+
       return
     }
+
     if (!values.modelName) {
       setError(t('ovms.download.model_name.required'))
+
       return
     }
+
     setError(null)
     setLoading(true)
     setCancelled(false) // Reset cancelled state
     startFakeProgress()
+
     try {
       const { modelName, modelId, modelSource, task } = values
       const normalizedModelSource = modelSource === HUGGINGFACE_SOURCE_VALUE ? '' : modelSource
       logger.info(
         `🔄 Downloading model: ${modelName} with ID: ${modelId}, source: ${normalizedModelSource}, task: ${task}`
       )
+
       const result = await ipcApi.request('ovms.add_model', {
         modelName,
         modelId,
@@ -234,6 +251,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
       } else {
         stopFakeProgress(false) // Reset progress on error
         logger.error(`Download failed, is it cancelled? ${cancelled}`)
+
         // Only show error if not cancelled by user
         if (!cancelled) {
           setError(result.message ?? null)
@@ -242,6 +260,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
     } catch (error: any) {
       stopFakeProgress(false) // Reset progress on error
       logger.error(`Download crashed, is it cancelled? ${cancelled}`)
+
       // Only show error if not cancelled by user
       if (!cancelled) {
         setError(error.message)

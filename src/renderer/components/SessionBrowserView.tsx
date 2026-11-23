@@ -55,33 +55,45 @@ export function SessionBrowserView({
   const tabPrefix = useId()
   useEffect(() => {
     if (browserRuntime.hasSession(sessionId)) return
+
     if (initialUrl === undefined && securityProfile === WebviewSecurityProfile.AgentBrowser)
       browserRuntime.openStartPage(sessionId)
     else browserRuntime.ensure(sessionId, initialUrl, securityProfile)
   }, [browserRuntime, sessionId, initialUrl, securityProfile])
+
   const title = (page: (typeof pages)[number]) =>
     page.title || (page.url === 'about:blank' ? t('webview.tabs.new') : page.url)
+
   const add = () => browserRuntime.openStartPage(sessionId)
+
   const closePages = (pageIds: readonly string[]) => {
     browserRuntime.closePages(sessionId, pageIds)
+
     if (browserRuntime.getPages(sessionId).length === 0) onEmpty?.()
   }
+
   const close = (pageId: string, focus: boolean) => {
     closePages([pageId])
     const next = browserRuntime.get(sessionId)
+
     if (focus && next)
       requestAnimationFrame(() => {
         document.getElementById(`${tabPrefix}-${next.pageId}`)?.focus()
       })
   }
+
   const getMenuItems = (pageId: string): readonly CommandContextMenuExtraItem[] => {
     const page = browserRuntime.get(sessionId, pageId)
+
     if (!page) return []
     const pages = browserRuntime.getPages(sessionId)
+
     const openElsewhere = (destination: 'tab' | 'window') => {
       const current = browserRuntime.get(sessionId, pageId)
+
       if (!current) return
       const url = `/app/browser?${new URLSearchParams({ url: current.url })}`
+
       if (destination === 'window') {
         void ipcApi
           .request('tab.detach', { id: crypto.randomUUID(), url, title: title(current), type: 'route' })
@@ -92,13 +104,16 @@ export function SessionBrowserView({
         openRoute('/app/browser', { url: current.url })
       }
     }
+
     const closeGroup = (group: 'others' | 'right' | 'all') => {
       const current = browserRuntime.getPages(sessionId)
       const index = current.findIndex((entry) => entry.pageId === pageId)
+
       if (index < 0) return
       const targets = group === 'right' ? current.slice(index + 1) : current
       closePages(targets.filter((entry) => group !== 'others' || entry.pageId !== pageId).map((entry) => entry.pageId))
     }
+
     return [
       {
         type: 'item',
@@ -119,6 +134,7 @@ export function SessionBrowserView({
         enabled: page.url !== 'about:blank',
         onSelect: () => {
           const current = browserRuntime.get(sessionId, pageId)
+
           if (!current || current.url === 'about:blank') return
           void navigator.clipboard.writeText(current.url).then(
             () => toast.success(t('message.copy.success')),
@@ -136,6 +152,7 @@ export function SessionBrowserView({
         enabled: isHttpUrl(page.url),
         onSelect: () => {
           const current = browserRuntime.get(sessionId, pageId)
+
           if (current && isHttpUrl(current.url))
             void openExternalWebsite(current.url).catch((error) =>
               logger.error('Failed to open browser tab externally', error)
@@ -166,7 +183,9 @@ export function SessionBrowserView({
       }
     ]
   }
+
   const executing = pages.find((page) => page.executing)
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <div className="flex min-h-(--navbar-height) min-w-0 shrink-0 items-center gap-2 border-border-subtle border-b bg-card px-2">
@@ -284,6 +303,7 @@ function ActiveSessionBrowserView({
   const [anchor, setAnchor] = useState<HTMLDivElement | null>(null)
   useLayoutEffect(() => {
     browserRuntime.update(sessionId, { anchor: isHostActive ? anchor : null }, pageId)
+
     return () => browserRuntime.update(sessionId, { anchor: null }, pageId)
   }, [browserRuntime, sessionId, pageId, anchor, isHostActive])
   const webviewRef = useRef<WebviewTag | null>(null)
@@ -292,8 +312,10 @@ function ActiveSessionBrowserView({
     webviewRef.current = resource?.guest ?? null
     setWebviewRevision((revision) => revision + 1)
   }, [resource?.guest])
+
   if (!resource) return null
   const pageTarget = { ...target, id: `${target.id}:${pageId}` }
+
   return (
     <BrowserChrome
       webviewRef={webviewRef}

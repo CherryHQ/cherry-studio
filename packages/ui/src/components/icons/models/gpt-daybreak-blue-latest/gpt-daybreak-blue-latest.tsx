@@ -4,6 +4,7 @@ import { GptDaybreakBlueLatestLight } from './light'
 
 const GptDaybreakBlueLatest = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GptDaybreakBlueLatestLight {...props} className={className} />
+
   return <GptDaybreakBlueLatestLight {...props} className={className} />
 }
 

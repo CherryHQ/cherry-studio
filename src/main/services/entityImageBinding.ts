@@ -30,6 +30,7 @@ export async function withCreatedImageEntry<T>(
 ): Promise<T> {
   const fileManager = application.get('FileManager')
   const webp = await transcodeToEntityWebp(bytes)
+
   const entry = await fileManager.createInternalEntry({
     source: 'bytes',
     data: webp,
@@ -37,6 +38,7 @@ export async function withCreatedImageEntry<T>(
     ext: 'webp',
     cleanupPolicy
   })
+
   try {
     return await bind(entry.id)
   } catch (error) {
@@ -61,6 +63,7 @@ export async function bindLogoImage(
   bind: (input: LogoBindInput) => MaybePromise<void>
 ): Promise<void> {
   if (image.kind === 'key') return bind({ kind: 'key', key: image.key })
+
   if (image.kind === 'default') return bind({ kind: 'default' })
   // Logos are ref-backed (provider_logo / mini_app_logo): reclaim on owner
   // delete or slot replacement.

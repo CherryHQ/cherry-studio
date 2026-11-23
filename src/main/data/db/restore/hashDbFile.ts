@@ -12,5 +12,6 @@ import { pipeline } from 'node:stream/promises'
 export async function hashDbFile(filePath: string): Promise<string> {
   const hash = createHash('sha256')
   await pipeline(createReadStream(filePath), hash)
+
   return hash.digest('hex')
 }

@@ -4,6 +4,7 @@ import { AimassLight } from './light'
 
 const Aimass = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AimassLight {...props} className={className} />
+
   return <AimassLight {...props} className={className} />
 }
 

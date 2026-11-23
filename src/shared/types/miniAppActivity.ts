@@ -79,7 +79,11 @@ export const MiniAppActivityListingSchema = z.object({
 })
 
 export type MiniAppActivityListing = z.infer<typeof MiniAppActivityListingSchema>
+
 export type MiniAppActivityCall = z.infer<typeof MiniAppActivityCallSchema>
+
 export type MiniAppActivityGrant = z.infer<typeof MiniAppActivityGrantSchema>
+
 export type MiniAppActivityCount = z.infer<typeof MiniAppActivityCountSchema>
+
 export type MiniAppActivityEntry = z.infer<typeof MiniAppActivityEntrySchema>

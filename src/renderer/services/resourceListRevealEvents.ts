@@ -14,11 +14,13 @@ export function emitResourceListReveal(payload: ResourceListRevealPayload) {
 
   if (typeof window === 'undefined') {
     emit()
+
     return
   }
 
   if (window.requestAnimationFrame) {
     window.requestAnimationFrame(emit)
+
     return
   }
 

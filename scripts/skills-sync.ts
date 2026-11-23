@@ -25,10 +25,12 @@ function ensureClaudeSkillSymlink(skillName: string): boolean {
   }
 
   let existing: fs.Stats | null = null
+
   try {
     existing = fs.lstatSync(claudeSkillDir)
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
+
     if (nodeError.code !== 'ENOENT') {
       throw error
     }
@@ -37,14 +39,17 @@ function ensureClaudeSkillSymlink(skillName: string): boolean {
   if (existing !== null) {
     if (existing.isSymbolicLink()) {
       const currentTarget = fs.readlinkSync(claudeSkillDir)
+
       if (currentTarget === expectedTarget) {
         return false
       }
     }
+
     fs.rmSync(claudeSkillDir, { force: true, recursive: true })
   }
 
   fs.symlinkSync(expectedTarget, claudeSkillDir)
+
   return true
 }
 
@@ -55,6 +60,7 @@ function ensureClaudeSkillSymlink(skillName: string): boolean {
  */
 function main() {
   let skillNames: string[]
+
   try {
     skillNames = listSkillNames()
   } catch (error) {
@@ -72,9 +78,11 @@ function main() {
   if (writeFileIfChanged(AGENTS_SKILLS_GITIGNORE, agentsGitignore)) {
     changedFiles.push('.agents/skills/.gitignore')
   }
+
   if (writeFileIfChanged(CLAUDE_SKILLS_GITIGNORE, claudeGitignore)) {
     changedFiles.push('.claude/skills/.gitignore')
   }
+
   for (const skillName of skillNames) {
     if (ensureClaudeSkillSymlink(skillName)) {
       changedSkillFiles.push(`.claude/skills/${skillName}`)
@@ -83,14 +91,17 @@ function main() {
 
   if (changedFiles.length === 0 && changedSkillFiles.length === 0) {
     console.log(`skills:sync up-to-date (${skillNames.length} public skill${skillNames.length === 1 ? '' : 's'})`)
+
     return
   }
 
   const updatedCount = changedFiles.length + changedSkillFiles.length
   console.log(`skills:sync updated ${updatedCount} file${updatedCount === 1 ? '' : 's'}:`)
+
   for (const file of changedFiles) {
     console.log(`- ${file}`)
   }
+
   for (const file of changedSkillFiles) {
     console.log(`- ${file}`)
   }

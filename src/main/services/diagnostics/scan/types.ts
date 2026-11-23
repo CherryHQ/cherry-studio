@@ -13,6 +13,7 @@
  */
 
 export const DIAGNOSTIC_DOMAINS = ['provider', 'network', 'agent', 'mcp', 'chat', 'environment'] as const
+
 export type DiagnosticDomain = (typeof DIAGNOSTIC_DOMAINS)[number]
 
 /**

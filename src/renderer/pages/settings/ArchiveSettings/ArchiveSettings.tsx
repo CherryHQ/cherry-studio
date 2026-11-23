@@ -70,7 +70,9 @@ const DELETE_SCOPE_KEYS: Record<ArchiveDomain, string> = {
 
 const DeleteScope: FC<{ domains: readonly ArchiveDomain[] }> = ({ domains }) => {
   const { t } = useTranslation()
+
   if (domains.length === 0) return null
+
   return (
     <ul className="list-disc space-y-1 pl-5 text-muted-foreground text-xs">
       {domains.map((domain) => (
@@ -126,6 +128,7 @@ function getFileReferenceBlockedKey(fileCount: number, referenceCount: number) {
       ? 'settings.data.trash.file_refs.blocked_one_one'
       : 'settings.data.trash.file_refs.blocked_one_other'
   }
+
   return referenceCount === 1
     ? 'settings.data.trash.file_refs.blocked_other_one'
     : 'settings.data.trash.file_refs.blocked_other_other'
@@ -138,6 +141,7 @@ const ArchiveSettings: FC = () => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const [retentionDays, setRetentionDays] = usePreference('data.trash.retention_days')
+
   const retentionOptions = useMemo(
     () =>
       RETENTION_DAY_OPTIONS.map((days) => ({
@@ -172,8 +176,10 @@ const ArchiveSettings: FC = () => {
   const loadFileReferencePreview = useCallback(async (entryIds: string[]) => {
     const token = ++referenceRequestToken.current
     setFileReferencePreview({ status: 'loading' })
+
     try {
       const requests: Array<Promise<FileEntryRefCount[]>> = []
+
       for (let index = 0; index < entryIds.length; index += REF_COUNTS_MAX_ENTRY_IDS) {
         requests.push(
           dataApiService.get('/files/entries/ref-counts', {
@@ -181,24 +187,32 @@ const ArchiveSettings: FC = () => {
           })
         )
       }
+
       const counts = (await Promise.all(requests)).flat()
+
       if (referenceRequestToken.current !== token) return
       const referencedIds = new Set(counts.filter(({ refCount }) => refCount > 0).map(({ entryId }) => entryId))
       const referencedEntryIds = entryIds.filter((entryId) => referencedIds.has(entryId))
       const refsByEntryId = new Map<string, FileRef[]>()
+
       for (let index = 0; index < referencedEntryIds.length; index += 8) {
         if (referenceRequestToken.current !== token) return
         const wave = referencedEntryIds.slice(index, index + 8)
+
         const results = await Promise.allSettled(
           wave.map((entryId) => dataApiService.get(`/files/entries/${entryId}/refs`))
         )
+
         if (referenceRequestToken.current !== token) return
+
         for (const [offset, result] of results.entries()) {
           if (result.status === 'rejected') throw result.reason
+
           if (result.value.length === 0) throw new Error('Referenced file no longer has reference details')
           refsByEntryId.set(wave[offset], result.value)
         }
       }
+
       const jobIds = [
         ...new Set(
           [...refsByEntryId.values()]
@@ -207,18 +221,24 @@ const ArchiveSettings: FC = () => {
             .map((ref) => ref.sourceId)
         )
       ]
+
       const jobTypesById = new Map<string, string | null>()
+
       for (let index = 0; index < jobIds.length; index += 8) {
         if (referenceRequestToken.current !== token) return
         const wave = jobIds.slice(index, index + 8)
+
         const results = await Promise.allSettled(
           wave.map((jobId) => dataApiService.get(`/jobs/${jobId}`).then(({ type }) => type))
         )
+
         if (referenceRequestToken.current !== token) return
+
         for (const [offset, result] of results.entries()) {
           jobTypesById.set(wave[offset], result.status === 'fulfilled' ? result.value : null)
         }
       }
+
       if (referenceRequestToken.current !== token) return
       setFileReferencePreview({
         status: 'ready',
@@ -237,9 +257,12 @@ const ArchiveSettings: FC = () => {
   useEffect(() => {
     if (!pendingDelete?.fileEntryIds) {
       setFileReferencePreview({ status: 'idle' })
+
       return
     }
+
     void loadFileReferencePreview(pendingDelete.fileEntryIds)
+
     return () => {
       referenceRequestToken.current += 1
     }
@@ -252,6 +275,7 @@ const ArchiveSettings: FC = () => {
   const handleConfirmDelete = async () => {
     if (!pendingDelete) return
     setIsDeleting(true)
+
     try {
       await pendingDelete.run(pendingDelete.items)
     } catch (error) {
@@ -265,9 +289,11 @@ const ArchiveSettings: FC = () => {
 
   const handleEmptyArchive = async () => {
     setIsEmptying(true)
+
     try {
       const { status, reclaimed, deletedCount, retainedReferencedFileCount } = await ipcApi.request('trash.purge_now')
       await invalidate(PURGE_INVALIDATE_PATHS)
+
       if (status === 'completed') {
         toast.success(
           retainedReferencedFileCount > 0
@@ -277,6 +303,7 @@ const ArchiveSettings: FC = () => {
               })
             : t(reclaimed ? 'settings.data.trash.empty_trash.success' : 'settings.data.trash.empty_trash.partial')
         )
+
         if (retainedReferencedFileCount > 0 && !reclaimed) {
           toast.info(t('settings.data.trash.empty_trash.partial'))
         }
@@ -301,7 +328,9 @@ const ArchiveSettings: FC = () => {
     isPermanentDeleting: isDeleting,
     onRequestDelete: handleRequestDelete
   }
+
   const isFilePreview = pendingDelete?.fileEntryIds !== undefined
+
   const fileReferenceBlocksDelete =
     isFilePreview && (fileReferencePreview.status !== 'ready' || fileReferencePreview.referencedFiles > 0)
 
@@ -332,7 +361,9 @@ const ArchiveSettings: FC = () => {
           {pendingDelete.items.map((item) => {
             const entryId = category === 'all' ? (item.id.startsWith('files:') ? item.id.slice(6) : undefined) : item.id
             const refs = entryId ? fileReferencePreview.refsByEntryId.get(entryId) : undefined
+
             if (!refs) return null
+
             return (
               <section key={item.id} aria-label={item.name} className="space-y-1">
                 <p className="font-medium">{item.name}</p>
@@ -340,6 +371,7 @@ const ArchiveSettings: FC = () => {
                   {refs.map((ref) => {
                     const type = fileReferencePreview.jobTypesById.get(ref.sourceId)
                     const role = 'role' in ref ? ref.role : '—'
+
                     const key =
                       ref.sourceType !== 'job'
                         ? 'settings.data.trash.file_refs.holder_other'
@@ -350,6 +382,7 @@ const ArchiveSettings: FC = () => {
                             : type === 'image-generation.generate' && role === 'mask'
                               ? 'settings.data.trash.file_refs.holder_image_mask'
                               : 'settings.data.trash.file_refs.holder_job'
+
                     return <li key={ref.id}>{t(key, { id: ref.sourceId, type, role, sourceType: ref.sourceType })}</li>
                   })}
                 </ul>

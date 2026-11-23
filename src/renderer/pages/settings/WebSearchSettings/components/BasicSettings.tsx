@@ -35,9 +35,11 @@ const BasicSettings: FC<Props> = ({ variant = 'card' }) => {
   // no local draft: a failed save leaves the saved value shown.
   const commitMaxResults = (value: number | null) => {
     const next = value === null ? 1 : Math.min(100, Math.max(1, Math.trunc(value)))
+
     if (next === maxResults) {
       return
     }
+
     void persist(() => setMaxResults(next), 'Failed to save web search max results')
   }
 

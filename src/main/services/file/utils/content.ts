@@ -13,7 +13,9 @@ import type { AbsoluteFilePath, FileVersion, ReadResult } from '@shared/types/fi
 import { runPathMutationExclusive } from '../pathMutationLock'
 
 export type TextReadOptions = { encoding?: 'text'; detectEncoding?: boolean }
+
 export type Base64ReadOptions = { encoding: 'base64' }
+
 export type BinaryReadOptions = { encoding: 'binary'; withContentHash?: boolean }
 
 /** Path-read result: the legacy shared `ReadResult` plus the optionally bound hash. */
@@ -51,6 +53,7 @@ export async function readByPath(
     let content: string | Uint8Array
     let contentMime: string
     let readByteLength: number | undefined
+
     if (encoding === 'text') {
       content = await fsRead(target, { encoding: 'text' })
       contentMime = mime.getType(target) ?? 'text/plain'
@@ -64,6 +67,7 @@ export async function readByPath(
       contentMime = out.mime
       readByteLength = out.data.byteLength
     }
+
     const afterStat = await fsStat(target)
     const after: FileVersion = { mtime: afterStat.modifiedAt, size: afterStat.size }
 
@@ -71,6 +75,7 @@ export async function readByPath(
       if (encoding === 'binary' && (options as BinaryReadOptions).withContentHash) {
         return { content, mime: contentMime, version: after, contentHash: hashContent(content) }
       }
+
       return { content, mime: contentMime, version: after }
     }
   }

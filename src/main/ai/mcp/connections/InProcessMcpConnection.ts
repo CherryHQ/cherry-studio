@@ -18,6 +18,7 @@ export async function createInProcessMcpConnection({
 }): Promise<McpConnection> {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
   const handle = serveStdio(() => endpoint.createServer(), { transport: serverTransport, legacy: 'reject' })
+
   const connection = new ClientMcpConnection(
     { name: 'Cherry Studio', version: appVersion },
     {
@@ -36,6 +37,7 @@ export async function createInProcessMcpConnection({
 
   try {
     await connection.connect(clientTransport, { timeout: connectTimeoutMs })
+
     if (connection.era !== 'modern') {
       throw new Error(`Builtin MCP endpoint negotiated unexpected ${connection.era} era`)
     }
@@ -50,5 +52,6 @@ export async function createInProcessMcpConnection({
   // required client → serveStdio → activation-backend shutdown order.
   connection.addCloseHook(() => handle.close())
   connection.addCloseHook(() => endpoint.close())
+
   return connection
 }

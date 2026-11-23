@@ -1,4 +1,5 @@
 export const AsrEngine = { Sherpa: 'sherpa', Mlx: 'mlx' } as const
+
 export type AsrEngine = (typeof AsrEngine)[keyof typeof AsrEngine]
 
 export interface FunAsrModelPaths {

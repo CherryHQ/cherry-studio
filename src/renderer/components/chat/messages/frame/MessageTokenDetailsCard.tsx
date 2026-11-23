@@ -26,6 +26,7 @@ function fitPrimaryMetricValue(element: HTMLElement) {
 
   for (const fontSize of PRIMARY_METRIC_FONT_SIZES) {
     element.style.fontSize = `${fontSize}px`
+
     if (element.scrollWidth <= element.clientWidth) return
   }
 
@@ -38,11 +39,13 @@ function PrimaryMetric({ label, value, testId }: { label: string; value: string;
 
   useLayoutEffect(() => {
     const element = valueRef.current
+
     if (!element) return
 
     fitPrimaryMetricValue(element)
     const handleResize = () => fitPrimaryMetricValue(element)
     window.addEventListener('resize', handleResize)
+
     return () => window.removeEventListener('resize', handleResize)
   }, [value])
 
@@ -121,6 +124,7 @@ function PerformanceBreakdown({
 
   const visibleLanes = PERFORMANCE_LANES.flatMap((lane) => {
     const intervals = performance.intervals.filter((interval) => interval.lane === lane)
+
     return intervals.length > 0 ? [{ lane, intervals }] : []
   })
 
@@ -192,6 +196,7 @@ const MessageTokenDetailsCard = ({
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale])
   const decimalFormatter = useMemo(() => new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }), [locale])
   const durationFormatter = useMemo(() => createDurationFormatter(locale), [locale])
+
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(locale, {
@@ -217,12 +222,17 @@ const MessageTokenDetailsCard = ({
   const performance = buildMessagePerformanceViewModel(stats, records)
   const createdAt = Date.parse(message.createdAt)
   const createdAtLabel = Number.isFinite(createdAt) ? dateFormatter.format(new Date(createdAt)) : undefined
+
   const formatTokens = (value: number) =>
     t('chat.message.token_details.tokens', { value: numberFormatter.format(value) })
+
   const unavailableLabel = t('chat.message.token_details.unavailable')
+
   const formatOptionalTokens = (value: number | undefined) =>
     value === undefined ? unavailableLabel : formatTokens(value)
+
   const formatMilliseconds = durationFormatter
+
   const costLabel = stats.costs
     ?.map((cost) =>
       formatCost(
@@ -235,21 +245,26 @@ const MessageTokenDetailsCard = ({
       )
     )
     .join(' · ')
+
   const providerReportedRequestCount =
     stats.costs?.reduce((sum, cost) => sum + cost.providerReportedRequestCount, 0) ?? 0
+
   const computedRequestCount = stats.costs?.reduce((sum, cost) => sum + cost.computedRequestCount, 0) ?? 0
+
   const costSourceLabel =
     providerReportedRequestCount > 0 && computedRequestCount === 0
       ? t('chat.message.token_details.cost_billed')
       : computedRequestCount > 0 && providerReportedRequestCount === 0
         ? t('chat.message.token_details.cost_estimated')
         : undefined
+
   const speedLabel =
     performance.modelTokensPerSecond === undefined
       ? unavailableLabel
       : t('chat.message.token_details.tokens_per_second_value', {
           value: decimalFormatter.format(performance.modelTokensPerSecond)
         })
+
   const detailMetrics = [
     reasoningTokens > 0
       ? {
@@ -303,11 +318,13 @@ const MessageTokenDetailsCard = ({
         }
       : undefined
   ].filter((metric): metric is { id: string; label: string; value: string } => metric !== undefined)
+
   const hasPerformanceBreakdown =
     performance.startedAt !== undefined &&
     performance.completedAt !== undefined &&
     performance.completedAt > performance.startedAt &&
     performance.intervals.length > 0
+
   const laneLabels: Record<MessagePerformanceLaneId, string> = {
     model: t('chat.message.token_details.lane_model'),
     tool: t('chat.message.token_details.lane_tool'),

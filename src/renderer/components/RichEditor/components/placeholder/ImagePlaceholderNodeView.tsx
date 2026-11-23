@@ -22,6 +22,7 @@ const ImagePlaceholderNodeView: React.FC<NodeViewProps> = ({ deleteNode, editor 
         onCancel: () => deleteNode()
       }
     })
+
     window.dispatchEvent(event)
   }, [editor, deleteNode])
 

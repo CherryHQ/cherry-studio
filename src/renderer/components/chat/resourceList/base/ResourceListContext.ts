@@ -243,6 +243,7 @@ export function getResourceListOptionDomId(itemId: string) {
 export const ResourceListContext = createContext<
   (Omit<ResourceListContextValue<ResourceListItemBase>, 'meta'> & Pick<ResourceListContextValue<never>, 'meta'>) | null
 >(null)
+
 export const ResourceListActionsContext = createContext<ResourceListActionMap | null>(null)
 export const ResourceListControlsContext = createContext<ResourceListControlsState | null>(null)
 export const ResourceListItemAccessorsContext = createContext<ResourceListItemAccessors<never> | null>(null)
@@ -253,69 +254,85 @@ export const ResourceListViewContext = createContext<ResourceListView<ResourceLi
 
 export function useResourceList<T extends ResourceListItemBase = ResourceListItemBase>() {
   const context = use(ResourceListContext)
+
   if (!context) {
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
+
   // SAFETY: T must match the nearest ResourceList.Provider, which constructs this value with that item type.
   return context as ResourceListContextValue<T>
 }
 
 export function useResourceListActions() {
   const actions = use(ResourceListActionsContext)
+
   if (!actions) {
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
+
   return actions
 }
 
 export function useResourceListControlsState() {
   const controls = use(ResourceListControlsContext)
+
   if (!controls) {
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
+
   return controls
 }
 
 export function useResourceListItemAccessors<T extends ResourceListItemBase = ResourceListItemBase>() {
   const accessors = use(ResourceListItemAccessorsContext)
+
   if (!accessors) {
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
+
   // SAFETY: T must match the nearest ResourceList.Provider, which constructs these accessors with that item type.
   return accessors as ResourceListItemAccessors<T>
 }
 
 export function useResourceListMeta<T extends ResourceListItemBase = ResourceListItemBase>() {
   const meta = use(ResourceListMetaContext)
+
   if (!meta) {
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
+
   // SAFETY: T must match the nearest ResourceList.Provider, which constructs this metadata with that item type.
   return meta as ResourceListMeta<T>
 }
 
 export function useResourceListSourceItems<T extends ResourceListItemBase = ResourceListItemBase>() {
   const sourceItems = use(ResourceListSourceItemsContext)
+
   if (!sourceItems) {
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
+
   // SAFETY: T must match the nearest ResourceList.Provider; these are its original T items.
   return sourceItems as readonly T[]
 }
 
 export function useResourceListUiStore() {
   const store = use(ResourceListUiStoreContext)
+
   if (!store) {
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
+
   return store
 }
 
 export function useResourceListView<T extends ResourceListItemBase = ResourceListItemBase>() {
   const view = use(ResourceListViewContext)
+
   if (!view) {
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
+
   // SAFETY: T must match the nearest ResourceList.Provider; this view is derived from its T items.
   return view as ResourceListView<T>
 }
@@ -324,6 +341,7 @@ export function useResourceListRowState(itemId: string): ResourceListRowStateSna
   const store = useResourceListUiStore()
   const subscribe = useCallback((listener: () => void) => store.subscribeRow(itemId, listener), [itemId, store])
   const getSnapshot = useCallback(() => store.getRowSnapshot(itemId), [itemId, store])
+
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
@@ -331,5 +349,6 @@ export function useResourceListGroupState(groupId: string): ResourceListGroupSta
   const store = useResourceListUiStore()
   const subscribe = useCallback((listener: () => void) => store.subscribeGroup(groupId, listener), [groupId, store])
   const getSnapshot = useCallback(() => store.getGroupSnapshot(groupId), [groupId, store])
+
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }

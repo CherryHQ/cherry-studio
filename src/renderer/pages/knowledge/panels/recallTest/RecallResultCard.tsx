@@ -22,6 +22,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
   const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = useState(false)
   const [copied, setCopiedTemporarily] = useTemporaryValue(false, 2000)
+
   const scoreLabel =
     item.scoreKind === 'relevance'
       ? t('knowledge.recall.result_relevance', { score: formatRecallPercent(item.score) })

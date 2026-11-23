@@ -22,6 +22,7 @@ export type PathStatus =
 function errorCode(error: unknown): string | undefined {
   try {
     const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+
     return typeof code === 'string' ? code : undefined
   } catch {
     return undefined
@@ -39,21 +40,26 @@ export async function getPathStatus(path: string): Promise<PathStatus> {
   // an input can never resolve to a real path, so it gets the same `missing`
   // verdict as an ENOENT.
   const parsed = AbsoluteFilePathSchema.safeParse(path)
+
   if (!parsed.success) {
     return { ok: false, reason: 'missing' }
   }
 
   try {
     const stats = await stat(parsed.data)
+
     return { ok: true, kind: stats.isDirectory ? 'directory' : 'file' }
   } catch (error) {
     // `ENOENT` (nothing there) and `ENOTDIR` (a path component is a
     // non-directory) both mean "does not resolve"; any other errno is reported
     // as inaccessible.
     const code = errorCode(error)
+
     if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: false, reason: 'missing' }
     const status: Extract<PathStatus, { reason: 'inaccessible' }> = { ok: false, reason: 'inaccessible' }
+
     if (code) status.code = code
+
     return status
   }
 }

@@ -29,9 +29,11 @@ export function invalid(reason: UserDataRelocationValidationReason, message: str
 
 export function assertUserDataRelocationRequest(pending: PendingRelocation): void {
   const inspection = assertRelocationPaths(pending.from, pending.to, { taskId: pending.taskId })
+
   if (!pending.copy && !inspection.targetExists) {
     invalid('target_missing', `switch target does not exist: ${pending.to}`)
   }
+
   if (pending.copy && !inspection.targetEmpty) {
     invalid('target_not_empty', `copy target must be empty: ${pending.to}`)
   }
@@ -50,13 +52,18 @@ export function assertRelocationPaths(
   options: { allowRelocationArtifacts?: boolean; taskId?: string } = {}
 ) {
   if (!path.isAbsolute(fromValue)) invalid('source_missing', `source must be an absolute path: ${fromValue}`)
+
   if (!path.isAbsolute(toValue)) invalid('target_not_absolute', `target must be an absolute path: ${toValue}`)
 
   const from = normalizeForCompare(fromValue)
   const to = normalizeForCompare(toValue)
+
   if (from === to) invalid('same_path', `source and target are the same path: ${toValue}`)
+
   if (isRootPath(toValue)) invalid('target_root', `target must not be a filesystem root: ${toValue}`)
+
   if (isPathInside(to, from)) invalid('target_inside_source', `target is inside source: ${toValue}`)
+
   if (isPathInside(from, to)) invalid('target_contains_source', `target contains source: ${toValue}`)
 
   assertDirectory(fromValue, 'source', 'source_missing')
@@ -64,21 +71,26 @@ export function assertRelocationPaths(
 
   const targetExists = pathEntryExists(toValue)
   const targetAncestor = resolveExistingAncestor(toValue)
+
   if (!fs.statSync(targetAncestor.path).isDirectory()) {
     invalid('target_parent_unwritable', `target ancestor is not a directory: ${targetAncestor.path}`)
   }
 
   const fromReal = normalizeForCompare(realPath(fromValue))
   const toEffective = normalizeForCompare(targetAncestor.effectivePath)
+
   if (fromReal === toEffective) invalid('same_path', `source and target resolve to the same path: ${toValue}`)
+
   if (isPathInside(toEffective, fromReal)) {
     invalid('target_inside_source', `target real path is inside source: ${toValue}`)
   }
+
   if (isPathInside(fromReal, toEffective)) {
     invalid('target_contains_source', `target real path contains source: ${toValue}`)
   }
 
   assertTargetIsNotProtected(toValue, toEffective)
+
   try {
     fs.accessSync(targetExists ? toValue : targetAncestor.path, fs.constants.W_OK)
   } catch {
@@ -86,10 +98,12 @@ export function assertRelocationPaths(
   }
 
   let targetEmpty = true
+
   if (targetExists) {
     assertDirectory(toValue, 'target', 'target_not_directory')
     const entries = fs.readdirSync(toValue)
     targetEmpty = entries.length === 0
+
     if (ACTIVE_PROFILE_MARKERS.some((marker) => entries.includes(marker))) {
       invalid(
         'target_in_use',
@@ -100,6 +114,7 @@ export function assertRelocationPaths(
 
   if (options.taskId) {
     const { workPath, asidePath } = relocationArtifactPaths(toValue, options.taskId)
+
     if (!options.allowRelocationArtifacts && (pathEntryExists(workPath) || pathEntryExists(asidePath))) {
       invalid('target_work_conflict', `relocation work paths already exist beside target: ${toValue}`)
     }
@@ -126,8 +141,10 @@ function assertTargetIsNotProtected(target: string, normalizedTarget: string): v
     application.getPath('app.extra_resources'),
     application.getPath('cherry.home')
   ]
+
   for (const protectedTree of protectedApplicationTrees) {
     const normalizedProtected = normalizeForCompare(resolveEffectivePath(protectedTree))
+
     if (
       normalizedTarget === normalizedProtected ||
       isPathInside(normalizedTarget, normalizedProtected) ||
@@ -138,6 +155,7 @@ function assertTargetIsNotProtected(target: string, normalizedTarget: string): v
   }
 
   const systemHome = application.getPath('sys.home')
+
   const protectedExact = [
     systemHome,
     ...(isWin ? [path.dirname(systemHome)] : []),
@@ -147,6 +165,7 @@ function assertTargetIsNotProtected(target: string, normalizedTarget: string): v
     application.getPath('sys.documents'),
     application.getPath('sys.desktop')
   ]
+
   if (protectedExact.some((value) => normalizeForCompare(resolveEffectivePath(value)) === normalizedTarget)) {
     invalid('target_protected', `target is a protected user or system directory: ${target}`)
   }
@@ -155,10 +174,12 @@ function assertTargetIsNotProtected(target: string, normalizedTarget: string): v
   const relative = path.relative(path.parse(resolved).root, resolved)
   const segments = relative.split(path.sep).filter(Boolean)
   const firstSegment = segments[0]?.toLowerCase()
+
   const isWindowsSystemVolume =
     isWin &&
     normalizeForCompare(path.parse(resolved).root) ===
       normalizeForCompare(path.parse(application.getPath('sys.appdata')).root)
+
   const protectedTopLevel = isWindowsSystemVolume
     ? ['windows', 'program files', 'program files (x86)', 'programdata', 'recovery', '$recycle.bin']
     : isMac
@@ -166,6 +187,7 @@ function assertTargetIsNotProtected(target: string, normalizedTarget: string): v
       : isLinux
         ? ['bin', 'boot', 'dev', 'etc', 'lib', 'lib64', 'proc', 'root', 'run', 'sbin', 'sys', 'usr', 'var']
         : []
+
   if (segments.length === 1 && firstSegment && protectedTopLevel.includes(firstSegment)) {
     invalid('target_protected', `target is a protected operating-system directory: ${target}`)
   }
@@ -180,9 +202,11 @@ function assertTargetIsNotProtected(target: string, normalizedTarget: string): v
 export function assertEffectiveSeparation(source: string, target: string): void {
   const sourceReal = normalizeForCompare(realPath(source))
   const targetEffective = normalizeForCompare(resolveEffectivePath(target))
+
   if (sourceReal === targetEffective || isPathInside(targetEffective, sourceReal)) {
     throw new Error(`target real path is inside source: ${target}`)
   }
+
   if (isPathInside(sourceReal, targetEffective)) {
     throw new Error(`target real path contains source: ${target}`)
   }
@@ -190,6 +214,7 @@ export function assertEffectiveSeparation(source: string, target: string): void 
 
 export function assertEmptyDirectory(directory: string, message: string): void {
   assertDirectory(directory, 'relocation artifact', 'target_work_conflict')
+
   if (fs.readdirSync(directory).length > 0) {
     invalid('target_work_conflict', `${message}: ${directory}`)
   }
@@ -212,6 +237,7 @@ function assertDirectory(value: string, label: string, reason: UserDataRelocatio
 export function relocationArtifactPaths(target: string, taskId: string) {
   const parent = path.dirname(target)
   const name = path.basename(target)
+
   return {
     workPath: path.join(parent, `.${name}.cherry-relocation-${taskId}-work`),
     asidePath: path.join(parent, `.${name}.cherry-relocation-${taskId}-aside`)
@@ -231,14 +257,18 @@ export function resolveEffectivePath(value: string): string {
 export function resolveExistingAncestor(value: string) {
   let cursor = path.resolve(value)
   const missingParts: string[] = []
+
   while (!pathEntryExists(cursor)) {
     const parent = path.dirname(cursor)
+
     if (parent === cursor) {
       invalid('target_parent_unwritable', `no existing ancestor for target: ${value}`)
     }
+
     missingParts.unshift(path.basename(cursor))
     cursor = parent
   }
+
   return { path: cursor, effectivePath: path.join(realPath(cursor), ...missingParts) }
 }
 
@@ -249,6 +279,7 @@ export function realPath(value: string): string {
 export function pathEntryExists(value: string): boolean {
   try {
     fs.lstatSync(value)
+
     return true
   } catch (error) {
     if (isErrno(error, 'ENOENT')) return false
@@ -258,6 +289,7 @@ export function pathEntryExists(value: string): boolean {
 
 function isRootPath(value: string): boolean {
   const resolved = path.resolve(value)
+
   return normalizeForCompare(resolved) === normalizeForCompare(path.parse(resolved).root)
 }
 
@@ -265,6 +297,7 @@ function isRootPath(value: string): boolean {
 // case-folded there so "/Data" and "/data" count as the same directory.
 export function normalizeForCompare(value: string): string {
   const resolved = path.resolve(value)
+
   return isWin || isMac ? resolved.toLowerCase() : resolved
 }
 

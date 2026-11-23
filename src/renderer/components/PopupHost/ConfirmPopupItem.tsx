@@ -18,6 +18,7 @@ import { popupService } from '@renderer/services/popup'
 
 function getIcon(type: ConfirmPopupType, icon: React.ReactNode) {
   if (icon === null) return null
+
   if (icon !== undefined) return icon
 
   const className = 'mt-0.5 size-5 shrink-0'
@@ -51,6 +52,7 @@ function shouldShowOkButton(props: ConfirmPopupProps) {
 
 function shouldShowCancelButton(type: ConfirmPopupType, props: ConfirmPopupProps) {
   if (props.okCancel === false) return false
+
   if (type !== 'confirm') return false
 
   return props.cancelButtonProps?.style?.display !== 'none'

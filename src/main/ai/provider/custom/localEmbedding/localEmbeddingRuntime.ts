@@ -7,5 +7,6 @@ import { application } from '@application'
  */
 export async function embedTexts(texts: string[], signal?: AbortSignal): Promise<number[][]> {
   if (texts.length === 0) return []
+
   return application.get('EmbeddingInferenceService').embed(texts, signal)
 }

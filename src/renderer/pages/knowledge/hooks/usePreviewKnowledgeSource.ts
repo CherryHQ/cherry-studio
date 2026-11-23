@@ -33,6 +33,7 @@ export const usePreviewKnowledgeSource = (
 ) => {
   const { t } = useTranslation()
   const requestVersionRef = useRef(0)
+
   const invalidatePreviewRequests = useCallback(() => {
     requestVersionRef.current += 1
   }, [])
@@ -49,28 +50,34 @@ export const usePreviewKnowledgeSource = (
 
       if (!source) {
         toast.warning(t('knowledge.data_source.preview.unavailable'))
+
         return
       }
 
       try {
         if (item.type === 'file' || (item.type === 'url' && item.data.relativePath)) {
           const physicalPath = await ipcApi.request('knowledge.get_file_path', { itemId: item.id })
+
           if (!isCurrentRequest()) return
           onPreviewFile({
             fileName: getKnowledgeItemDisplayTitle(item),
             filePath: normalizeFilePreviewPath(physicalPath)
           })
+
           return
         }
 
         if (item.type === 'url') {
           const previewUrl = sanitizeHttpUrl(source)
+
           if (!previewUrl) {
             toast.warning(t('knowledge.data_source.preview.unavailable'))
+
             return
           }
 
           await window.api.shell.openExternal(previewUrl)
+
           return
         }
 
@@ -84,10 +91,13 @@ export const usePreviewKnowledgeSource = (
           itemType: item.type,
           source
         })
+
         if (error instanceof IpcError && error.code === knowledgeErrorCodes.SOURCE_PATH_UNAVAILABLE) {
           toast.warning(t('knowledge.data_source.preview.unavailable'))
+
           return
         }
+
         toast.error(formatErrorMessageWithPrefix(previewError, t('knowledge.data_source.preview.failed')))
       }
     },

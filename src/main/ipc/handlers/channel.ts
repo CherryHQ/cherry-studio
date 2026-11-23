@@ -15,9 +15,11 @@ async function exposeChannelError<T>(operation: () => T | Promise<T>): Promise<T
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
       throw new IpcError(channelErrorCodes.CHANNEL_NOT_FOUND, error.message)
     }
+
     if (isDataApiError(error) && error.code === ErrorCode.VALIDATION_ERROR) {
       throw new IpcError(channelErrorCodes.CHANNEL_CONFIG_INVALID, error.message, error.details)
     }
+
     throw error
   }
 }
@@ -45,9 +47,11 @@ export const channelHandlers: IpcHandlersFor<typeof channelRequestSchemas> = {
   },
   'channel.wechat.has_credentials': async (channelId) => {
     const tokenPath = application.getPath('feature.agents.channels', `weixin_bot_${channelId}.json`)
+
     try {
       const raw = await fs.promises.readFile(tokenPath, 'utf8')
       const parsed = JSON.parse(raw)
+
       return channelRequestSchemas['channel.wechat.has_credentials'].output.parse({
         exists: true,
         userId: parsed.userId

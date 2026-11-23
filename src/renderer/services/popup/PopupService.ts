@@ -26,6 +26,7 @@ class PopupService {
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
+
     // Invariant: exactly one PopupHost per window. A second subscriber means every
     // entry renders twice (nested app shell, or a pooled window keeping an old tree
     // mounted while a new one commits) — always a bug. Log at error level, but do NOT
@@ -34,6 +35,7 @@ class PopupService {
     if (this.listeners.size > 1) {
       logger.error('multiple PopupHost mounted in one window; every popup will render once per host')
     }
+
     return () => {
       this.listeners.delete(listener)
     }
@@ -57,10 +59,12 @@ class PopupService {
 
   private remove(instanceId: string) {
     const timer = this.exitTimers.get(instanceId)
+
     if (timer) {
       clearTimeout(timer)
       this.exitTimers.delete(instanceId)
     }
+
     this.entries = this.entries.filter((entry) => entry.instanceId !== instanceId)
     this.notify()
   }
@@ -74,6 +78,7 @@ class PopupService {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- PopupHost and createPopup pass results through a heterogeneous internal store; the instance ID selects the paired typed resolver.
   settle(instanceId: string, result: unknown): void {
     const entry = this.entries.find((current) => current.instanceId === instanceId)
+
     if (!entry || !entry.open) return
 
     entry.resolve(result)
@@ -100,10 +105,12 @@ class PopupService {
   ): Promise<R> {
     if (!this.hasHost()) {
       logger.warn('createPopup show() with no PopupHost mounted; resolving dismissResult', { instanceId })
+
       return Promise.resolve(dismissResult)
     }
 
     let resolveFn!: (result: R) => void
+
     const promise = new Promise<R>((resolve) => {
       resolveFn = resolve
     })
@@ -125,11 +132,13 @@ class PopupService {
   showConfirm(confirmType: ConfirmPopupType, props: ConfirmPopupProps): Promise<boolean> {
     if (!this.hasHost()) {
       logger.warn('confirm popup with no PopupHost mounted; resolving false', { confirmType })
+
       return Promise.resolve(false)
     }
 
     const instanceId = this.generateInstanceId()
     let resolveFn!: (result: boolean) => void
+
     const promise = new Promise<boolean>((resolve) => {
       resolveFn = resolve
     })

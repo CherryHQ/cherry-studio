@@ -13,6 +13,7 @@ import { ToastViewport } from '@cherrystudio/ui'
  */
 export default function ToastHost() {
   const { t } = useTranslation()
+
   const labels = useMemo(
     () => ({
       close: t('common.close'),

@@ -52,6 +52,7 @@ type ModelCheckState =
   | { status: 'failed'; key: string; message: string; settingsPath: SettingsPath }
 
 const GENERIC_MODEL_CHECK_ERRORS = new Set(['Error', 'IpcError', 'AI_APICallError'])
+
 export interface DoctorAgentDialogProps {
   readonly subject: DoctorSubjectRef
   /** Set when opened from a failed message; the analysis then reads that conversation. */
@@ -81,10 +82,12 @@ export function DoctorAgentConsultation({
   const [pickerForced, setPickerForced] = useState(false)
   const showPicker = pickerForced || state.status === 'idle' || agent.isStale
   const { models } = useModels({ enabled: true })
+
   const modelLabel =
     state.status === 'idle'
       ? ''
       : (models.find((model) => model.id === state.modelId)?.name ?? state.modelId.split('::').pop() ?? state.modelId)
+
   const handleSettingsNavigate = useCallback(
     (navigate: () => void) => {
       onOpenChange(false)
@@ -154,6 +157,7 @@ function ModelPicker({
   const [selected, setSelected] = useState<Model | undefined>(undefined)
   const [checkState, setCheckState] = useState<ModelCheckState>({ status: 'idle' })
   const checkRequest = useRef(0)
+
   const filter = useCallback<ModelSelectorFilter>(
     (candidate, provider) =>
       provider?.isEnabled !== false &&
@@ -161,6 +165,7 @@ function ModelPicker({
       isGatewayRoutableModel(candidate),
     []
   )
+
   const model =
     selected ??
     models.find(
@@ -171,11 +176,14 @@ function ModelPicker({
           providers.find((provider) => provider.id === candidate.providerId)
         )
     )
+
   const provider = providers.find((candidate) => candidate.id === model?.providerId)
   const providerId = provider?.id
   const modelCheckKey = model ? JSON.stringify({ model, provider }) : ''
+
   const currentCheckState =
     checkState.status !== 'idle' && checkState.key === modelCheckKey ? checkState : ({ status: 'idle' } as const)
+
   const dataLoading = providersLoading || modelsLoading
 
   const start = async () => {
@@ -187,6 +195,7 @@ function ModelPicker({
 
     try {
       await checkDoctorAgentModel(model.id)
+
       if (request !== checkRequest.current) return
 
       setCheckState({ status: 'idle' })
@@ -197,16 +206,19 @@ function ModelPicker({
       const serializedError = serializeHealthCheckError(error)
       const classification = classifyError(serializedError, providerId)
       const detail = healthCheckErrorToDisplayString(serializedError)
+
       const message =
         classification.category !== 'unknown'
           ? t(classification.i18nKey)
           : !detail || GENERIC_MODEL_CHECK_ERRORS.has(detail)
             ? t('settings.doctor.agent.model_picker.check_failed')
             : detail
+
       const settingsPath = normalizeSettingsPath(
         classification.navTarget ??
           (providerId ? `/settings/provider?id=${encodeURIComponent(providerId)}` : '/settings/provider')
       )
+
       setCheckState({ status: 'failed', key, message, settingsPath })
     }
   }
@@ -276,6 +288,7 @@ function Consultation({
 }) {
   const { t } = useTranslation()
   const { state } = agent
+
   if (state.status === 'idle') return null
   const running = state.status === 'running'
 
@@ -368,6 +381,7 @@ function ProposalRow({
   readonly onApply: () => void
 }) {
   const { t } = useTranslation()
+
   return (
     <li className="flex items-start justify-between gap-3 rounded-lg border border-border p-3 text-xs">
       <div className="min-w-0 space-y-1">
@@ -398,6 +412,7 @@ function ChangeRow({
   readonly onUndo: () => void
 }) {
   const { t } = useTranslation()
+
   return (
     <li className="flex items-start justify-between gap-3 rounded-lg border border-border p-3 text-xs">
       <div className="min-w-0 space-y-1">
@@ -420,6 +435,7 @@ function ChangeRow({
 
 function WriteLabel({ write }: { readonly write: DoctorAgentWrite }) {
   const { t } = useTranslation()
+
   switch (write.kind) {
     case 'data_api_patch':
       return (

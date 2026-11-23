@@ -18,6 +18,7 @@ export class KnowledgeBaseOrderSeeder implements ISeeder {
         .from(appStateTable)
         .where(eq(appStateTable.key, `seed:${this.name}`))
         .get()
+
       if (journal) return
 
       const rows = tx
@@ -25,9 +26,11 @@ export class KnowledgeBaseOrderSeeder implements ISeeder {
         .from(knowledgeBaseTable)
         .orderBy(desc(knowledgeBaseTable.createdAt), desc(knowledgeBaseTable.id))
         .all()
+
       // The legacy migration assigns a0 to every row; initialized collections may still contain a valid a0.
       if (rows.some((row) => row.orderKey !== 'a0')) return
       const keys = generateOrderKeySequence(rows.length)
+
       for (const [index, row] of rows.entries()) {
         tx.update(knowledgeBaseTable)
           .set({ orderKey: keys[index], updatedAt: row.updatedAt })

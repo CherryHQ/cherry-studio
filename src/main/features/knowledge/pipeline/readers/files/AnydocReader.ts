@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { getErrorMessage } from '@main/utils/error'
 
 const logger = loggerService.withContext('KnowledgeAnydocReader')
+
 type AnydocModule = { toMarkdownBytes: typeof toMarkdownBytes }
 
 let anydocModulePromise: Promise<AnydocModule> | undefined
@@ -42,45 +43,57 @@ export class AnydocReader extends FileReader<Document<Metadata>> {
 
   async loadDataAsContent(fileContent: Uint8Array, filename?: string): Promise<Document<Metadata>[]> {
     let anydoc: AnydocModule
+
     try {
       anydoc = await loadAnydocModule()
     } catch (error) {
       const normalizedError = normalizeError(error)
+
       if (!didLogModuleLoadFailure) {
         didLogModuleLoadFailure = true
         logger.error('Failed to load the anydoc native module', normalizedError)
       }
+
       if (!this.createFallback) {
         throw normalizedError
       }
+
       return (await this.createFallback()).loadDataAsContent(fileContent, filename)
     }
 
     let markdown: string
+
     try {
       markdown = (await anydoc.toMarkdownBytes(fileContent)).trim()
     } catch (error) {
       const normalizedError = normalizeError(error)
+
       if (!this.createFallback) {
         logger.warn('anydoc conversion failed', normalizedError, { filename })
         throw normalizedError
       }
+
       logger.warn('anydoc conversion failed, falling back to the legacy reader', normalizedError, { filename })
+
       return (await this.createFallback()).loadDataAsContent(fileContent, filename)
     }
 
     if (markdown) {
       return [new Document({ text: markdown })]
     }
+
     if (this.fallbackOnEmpty && this.createFallback) {
       logger.warn('anydoc conversion produced no text, falling back to the legacy reader', { filename })
+
       return (await this.createFallback()).loadDataAsContent(fileContent, filename)
     }
+
     if (!this.createFallback) {
       const error = new Error('anydoc conversion produced no text')
       logger.warn('anydoc conversion failed', error, { filename })
       throw error
     }
+
     return []
   }
 }

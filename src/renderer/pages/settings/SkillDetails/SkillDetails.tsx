@@ -73,6 +73,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
 
   const handleToggle = async (checked: boolean) => {
     if (!skill) return
+
     try {
       await updateGlobalEnabled(checked)
     } catch (error) {
@@ -84,6 +85,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
   const handleMirrorToggle = async (checked: boolean) => {
     if (!skill || !appExternalExportEnabled) return
     setIsUpdatingMirror(true)
+
     try {
       await setMirrorEnabled(checked)
       await refetch()
@@ -97,6 +99,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
 
   const handleDelete = async () => {
     setDeleting(true)
+
     try {
       await uninstallSkill()
       setDeleteOpen(false)
@@ -110,9 +113,11 @@ export function SkillDetails({ skillId }: { skillId: string }) {
 
   const checkRemoteUpdate = async () => {
     setCheckingRemote(true)
+
     try {
       await fileBrowserRef.current?.flush()
       const result = await ipcApi.request('skill.remote.check', { skillId })
+
       if (result.state === 'unsupported') {
         toast.info({
           title: t('settings.skills.remote.unsupportedTitle'),
@@ -121,16 +126,20 @@ export function SkillDetails({ skillId }: { skillId: string }) {
               ? t('settings.skills.remote.unsupported.missing_provenance')
               : t('settings.skills.remote.unsupported.not_remote')
         })
+
         return
       }
+
       if (result.state === 'up_to_date') {
         toast.success(
           result.localChanges
             ? t('settings.skills.remote.upToDateWithLocalChanges')
             : t('settings.skills.remote.upToDate')
         )
+
         return
       }
+
       setRemoteCheck(result)
     } catch (error) {
       logger.error('Failed to check Skill update', error as Error, { skillId })
@@ -143,6 +152,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
   const applyRemoteUpdate = async () => {
     if (!remoteCheck) return
     setApplyingRemote(true)
+
     try {
       await fileBrowserRef.current?.flush()
       await ipcApi.request('skill.remote.apply', {

@@ -108,6 +108,7 @@ export type AbsoluteFilePath = z.infer<typeof AbsoluteFilePathSchema>
 
 // TODO: Add schema for them
 export type Base64String = `data:${string};base64,${string}`
+
 export type UrlString = `http://${string}` | `https://${string}`
 
 export const Base64StringSchema: z.ZodType<Base64String> = z

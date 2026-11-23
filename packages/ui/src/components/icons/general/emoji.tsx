@@ -1,6 +1,7 @@
 import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../types'
+
 const Emoji: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -40,5 +41,7 @@ const Emoji: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 )
+
 export { Emoji }
+
 export default Emoji

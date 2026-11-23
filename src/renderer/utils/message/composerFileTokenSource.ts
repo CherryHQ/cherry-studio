@@ -30,6 +30,7 @@ export function createComposerFileTokenSourceId(): string {
 
 export function withComposerFileTokenSourceId<T extends FileMetadata>(file: T): T & ComposerFileMetadata {
   if (getComposerFileTokenSourceId(file)) return file as T & ComposerFileMetadata
+
   return { ...file, fileTokenSourceId: createComposerFileTokenSourceId() }
 }
 
@@ -38,9 +39,11 @@ export function ensureComposerFileTokenSourceIds<T extends Pick<FileMetadata, 'f
   files: readonly T[]
 ): T[] {
   let changed = false
+
   const nextFiles = files.map((file) => {
     if (getComposerFileTokenSourceId(file)) return file
     changed = true
+
     return { ...file, fileTokenSourceId: createComposerFileTokenSourceId() }
   })
 
@@ -54,15 +57,18 @@ export function composerFileTokenIdFromSourceId(sourceId: string) {
 export function readComposerFileTokenIdSuffix(tokenId: string): string | undefined {
   if (!tokenId.startsWith(FILE_COMPOSER_TOKEN_ID_PREFIX)) return undefined
   const sourceId = tokenId.slice(FILE_COMPOSER_TOKEN_ID_PREFIX.length)
+
   return sourceId || undefined
 }
 
 export function readComposerFileTokenSourceIdFromTokenId(tokenId: string): string | undefined {
   const sourceId = readComposerFileTokenIdSuffix(tokenId)
+
   return isComposerFileTokenSourceId(sourceId) ? sourceId : undefined
 }
 
 export function getComposerFileTokenSourceId(file: Pick<FileMetadata, 'fileTokenSourceId'>): string | undefined {
   if (isComposerFileTokenSourceId(file.fileTokenSourceId)) return file.fileTokenSourceId
+
   return undefined
 }

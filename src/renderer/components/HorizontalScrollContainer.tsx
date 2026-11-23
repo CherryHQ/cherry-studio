@@ -48,6 +48,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
     if (expandable) {
       // 确保不是点击了其他交互元素（如 tag 的关闭按钮）
       const target = e.target as HTMLElement
+
       if (!target.closest('[data-no-expand]')) {
         setIsExpanded(!isExpanded)
       }
@@ -56,6 +57,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
 
   const checkScrollability = () => {
     const scrollElement = scrollRef.current
+
     if (scrollElement) {
       const parentElement = scrollElement.parentElement
       const availableWidth = parentElement ? parentElement.clientWidth : scrollElement.clientWidth
@@ -76,6 +78,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
 
   useEffect(() => {
     const scrollElement = scrollRef.current
+
     if (!scrollElement) return
 
     checkScrollability()
@@ -100,6 +103,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
       } else {
         window.removeEventListener('resize', checkScrollability)
       }
+
       scrollElement.removeEventListener('scroll', handleScroll)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

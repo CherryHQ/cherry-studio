@@ -31,6 +31,7 @@ export interface PersistedBlob {
 /** Mirror of the offloader's content-addressed naming (sha256 hex, first 16). */
 export function computeVfsFilename(text: string): string {
   const sha = createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 16)
+
   return `vfs_${sha}.txt`
 }
 
@@ -58,6 +59,7 @@ export async function persistToolOutputText(text: string): Promise<PersistedBlob
 
   const candidates = await fileManager.findInternalByContentHash(hashContent(data))
   const match = candidates.find((c) => isToolOutputBlobEntry(c) && c.size === data.byteLength)
+
   if (match) return { entry: match, vfsFilename }
 
   const entry = await fileManager.createInternalEntry({
@@ -67,6 +69,7 @@ export async function persistToolOutputText(text: string): Promise<PersistedBlob
     ext: 'txt',
     cleanupPolicy: 'delete_when_unreferenced'
   })
+
   return { entry, vfsFilename }
 }
 
@@ -91,11 +94,14 @@ export interface PersistableText {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored tool results are heterogeneous; trim only text envelopes whose complete content and siblings survive reconstruction.
 export function extractPersistableText(output: unknown): PersistableText | null {
   if (typeof output === 'string') return { text: output, shape: 'text' }
+
   if (typeof output !== 'object' || output === null || Array.isArray(output)) return null
 
   // SAFETY: Only these optional envelope fields are read; their values remain unvalidated until the checks below.
   const record = output as { isError?: unknown; content?: unknown; metadata?: unknown }
+
   if (record.isError) return null
+
   // Reconstruction rebuilds only `content` + `metadata`; any other sibling
   // field would be silently lost, so its presence disqualifies the output.
   for (const key of Object.keys(record)) {
@@ -103,16 +109,21 @@ export function extractPersistableText(output: unknown): PersistableText | null 
   }
 
   const content = record.content
+
   if (!Array.isArray(content) || content.length === 0) return null
   const texts: string[] = []
+
   for (const item of content) {
     if (typeof item !== 'object' || item === null) return null
     // SAFETY: The object check permits field inspection; the following checks establish text-block eligibility.
     const block = item as { type?: unknown; text?: unknown }
+
     if (block.type !== 'text') return null
+
     if (block.text !== undefined && typeof block.text !== 'string') return null
     texts.push(block.text || '')
   }
+
   // '\n' join matches mcpResultToTextSummary for all-text content.
   return { text: texts.join('\n'), shape: 'mcp-content', metadata: record.metadata }
 }
@@ -136,10 +147,13 @@ export function reconstructOutput(
   fullText: string
 ): string | ReconstructedMcpTextOutput {
   if (ref.shape === 'text') return fullText
+
   const output: ReconstructedMcpTextOutput = {
     content: [{ type: 'text', text: fullText }]
   }
+
   if (ref.metadata !== undefined) output.metadata = ref.metadata
+
   return output
 }
 
@@ -151,10 +165,12 @@ export function reconstructOutput(
  */
 export function spliceTextAtKey(skeleton: Serializable, key: string, text: string): Serializable {
   const segments = key.split('/').filter((s) => s.length > 0)
+
   if (segments.length === 0) return skeleton
 
   const replaceField = (record: Record<string, Serializable>, field: string) => {
     if (!(field in record)) return record
+
     return Object.fromEntries(
       Object.entries(record).map(([key, value]): [string, Serializable] => [key, key === field ? text : value])
     )
@@ -162,24 +178,32 @@ export function spliceTextAtKey(skeleton: Serializable, key: string, text: strin
 
   if (segments.length === 1) {
     if (typeof skeleton !== 'object' || skeleton === null || Array.isArray(skeleton)) return skeleton
+
     return replaceField(skeleton, segments[0])
   }
+
   const index = Number(segments[0])
+
   if (!Array.isArray(skeleton) || !Number.isInteger(index) || index < 0 || index >= skeleton.length) return skeleton
   const item = skeleton[index]
+
   if (typeof item !== 'object' || item === null || Array.isArray(item)) return skeleton
   const replaced = replaceField(item, segments[1])
+
   if (replaced === item) return skeleton
   const next = [...skeleton]
   next[index] = replaced
+
   return next
 }
 
 /** Inflate an entities envelope: splice each blob's text into the skeleton. */
 export function inflateEntities(ref: PersistedToolOutputEntitiesRef, texts: Record<string, string>): Serializable {
   let value = SerializableSchema.parse(ref.skeleton)
+
   for (const blob of ref.blobRefs) {
     if (blob.key in texts) value = spliceTextAtKey(value, blob.key, texts[blob.key])
   }
+
   return value
 }

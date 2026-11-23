@@ -17,19 +17,25 @@ export class ScheduledTasksShortcutSeeder implements ISeeder {
   run(db: DbType): void {
     const scope = and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'ui.sidebar_shortcut'))
     const row = db.select().from(preferenceTable).where(scope).get()
+
     if (!row || !Array.isArray(row.value)) return
+
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted shortcuts may be malformed; validate only the core-app locator fields needed to preserve their existing ordering.
     const appId = (item: unknown): string | undefined => {
       const parsed = appShortcutSchema.safeParse(item)
+
       return parsed.success ? parsed.data.target.locator.resourceId : undefined
     }
+
     if (row.value.some((item) => appId(item) === 'scheduled_tasks')) return
     const items = [...row.value]
     const after = items.findLastIndex((item) => ['agents', 'assistants'].includes(appId(item) ?? ''))
+
     const target: SidebarShortcutTarget = {
       kind: 'resource',
       locator: { providerId: 'core.app', resourceId: 'scheduled_tasks' }
     }
+
     items.splice(after < 0 ? items.length : after + 1, 0, {
       type: 'shortcut',
       id: createSidebarShortcutId(target),

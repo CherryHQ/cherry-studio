@@ -4,6 +4,7 @@ import { SophnetLight } from './light'
 
 const Sophnet = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <SophnetLight {...props} className={className} />
+
   return <SophnetLight {...props} className={className} />
 }
 

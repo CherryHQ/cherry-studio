@@ -19,14 +19,17 @@ export function getManualUpdateErrorMessageKey(
   error: { message?: string } | null | undefined
 ): NonNullable<CacheAppUpdateState['lastErrorKey']> {
   const message = error?.message ?? ''
+
   if (isUnpublishedReleaseError(message)) {
     return 'settings.about.updateNotPublished'
   }
+
   return 'settings.about.updateError'
 }
 
 function isUnpublishedReleaseError(message: string): boolean {
   const lower = message.toLowerCase()
+
   return (
     lower.includes('not_published') || (/\b503\b/.test(message) && /latest\.yml|httperror|http error/i.test(message))
   )
@@ -51,8 +54,10 @@ export function useAppUpdateHandler() {
 
   useIpcOn('app.updater.not_available', (payload) => {
     updateAppUpdateState({ checking: false, manualCheck: false, lastErrorKey: null })
+
     // Only surface the result for a user-initiated check.
     if (!manualCheckRef.current) return
+
     // A withheld feed (withdrawn, staged, or stale target) is not "up to date":
     // explain and offer the canonical manual download instead of the latest-version toast.
     if (!(payload?.isCurrent ?? true)) {
@@ -72,8 +77,10 @@ export function useAppUpdateHandler() {
             })
           }
         })
+
       return
     }
+
     toast.success(t('settings.about.updateNotAvailable'))
   })
 
@@ -101,6 +108,7 @@ export function useAppUpdateHandler() {
       downloaded: true,
       lastErrorKey: null
     })
+
     // Auto show update dialog when download completes (only if user manually triggered the check).
     // Dynamic import (S6c): the dialog drags the streamdown/remark markdown stack
     // (~0.84 MB) along — imperative, rarely shown, so it must not sit in main's first paint.
@@ -123,6 +131,7 @@ export function useAppUpdateHandler() {
       manualCheck: false,
       lastErrorKey: getManualUpdateErrorMessageKey(error)
     })
+
     // AppUpdaterService swallows updater failures after broadcasting UpdateError, so
     // AboutSettings.onCheckUpdate never sees them — surface it here for manual checks.
     if (manualCheckRef.current) {

@@ -33,6 +33,7 @@ function deepFreeze<T>(value: T): Readonly<T> {
     for (const nested of Object.values(value)) deepFreeze(nested)
     Object.freeze(value)
   }
+
   return value
 }
 
@@ -45,6 +46,7 @@ export function createAiUsagePricingSnapshot(
   ...args: Parameters<typeof buildPricingSnapshot>
 ): AiUsagePricingSnapshot | null {
   const snapshot = buildPricingSnapshot(...args)
+
   return snapshot ? cloneAndFreeze(snapshot) : null
 }
 
@@ -60,8 +62,11 @@ export function createAiUsageCaptureContext(input: CreateAiUsageCaptureContextIn
     input.billingModelId ?? input.modelId,
     input.invocationStartedAt === undefined ? new Date(input.capturedAt ?? Date.now()) : input.invocationStartedAt
   )
+
   const pricing = buildPricingSnapshot(resolved.pricing, input.capturedAt)
+
   if (pricing && resolved.billing) pricing.billing = resolved.billing
+
   return cloneAndFreeze({
     providerId: input.providerId,
     providerName: input.providerName ?? null,
@@ -74,6 +79,7 @@ export function createAiUsageCaptureContext(input: CreateAiUsageCaptureContextIn
           ? null
           : (() => {
               const parsed = AiUsagePricingSnapshotSchema.safeParse(input.pricingSnapshot)
+
               return parsed.success ? parsed.data : null
             })(),
     trustProviderReportedCost: input.trustProviderReportedCost === true,

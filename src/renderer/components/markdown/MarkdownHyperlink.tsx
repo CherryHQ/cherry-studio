@@ -15,6 +15,7 @@ const HYPERLINK_CARD_CLOSE_DELAY = 100
 const MarkdownHyperlink: React.FC<MarkdownHyperlinkProps> = ({ children, href, onOpenLink }) => {
   const [open, setOpen] = useState(false)
   const contextMenuRequested = useRef(false)
+
   const dismissPreview = () => {
     contextMenuRequested.current = true
     setOpen(false)

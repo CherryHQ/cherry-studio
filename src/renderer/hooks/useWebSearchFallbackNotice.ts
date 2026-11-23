@@ -11,6 +11,7 @@ export function useWebSearchFallbackNotice(): void {
 
   useEffect(() => {
     const seen = notices.current
+
     return () => seen.clear()
   }, [])
 
@@ -18,6 +19,7 @@ export function useWebSearchFallbackNotice(): void {
     const now = Date.now()
     const key = JSON.stringify([primaryProviderId, fallbackProviderId, capability])
     const previous = notices.current.get(key)
+
     if (previous !== undefined && now - previous < 10_000) return
     notices.current.set(key, now)
     toast.warning({

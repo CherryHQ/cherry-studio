@@ -47,6 +47,7 @@ async function commitPreparedForEntry(
   const snapshot = origin === 'internal' ? deps.fileEntryService.beginInternalContentCommit(id, Date.now()) : undefined
 
   let version: FileVersion
+
   try {
     version = await prepared.commit()
   } catch (error) {
@@ -66,6 +67,7 @@ async function commitPreparedForEntry(
         })
       }
     }
+
     throw error
   }
 
@@ -90,6 +92,7 @@ async function commitPreparedForEntry(
   }
 
   deps.versionCache.set(id, version)
+
   return version
 }
 
@@ -98,6 +101,7 @@ export async function write(deps: FileManagerDeps, id: FileEntryId, data: string
     const entry = deps.fileEntryService.getById(id)
     const physical = resolvePhysicalPath(entry)
     const prepared = await prepareAtomicWrite(physical, data)
+
     try {
       return await runPathMutationExclusive(() => commitPreparedForEntry(deps, id, entry.origin, prepared))
     } catch (error) {
@@ -117,22 +121,28 @@ export async function writeIfUnchanged(
 ): Promise<FileVersion> {
   return deps.contentWriteLock.runExclusive(id, async () => {
     const entry = deps.fileEntryService.getById(id)
+
     try {
       const address = resolvePhysicalPath(entry)
       const physical = expectedPath === undefined ? address : AbsoluteFilePathSchema.parse(await realpath(address))
       const prepared = await prepareAtomicWrite(physical, data)
+
       try {
         return await runPathMutationExclusive(async () => {
           const currentAddress = resolvePhysicalPath(deps.fileEntryService.getById(id))
           const currentPath = expectedPath === undefined ? currentAddress : await realpath(currentAddress)
+
           if (currentPath !== physical || (expectedPath !== undefined && currentPath !== expectedPath)) {
             throw new IpcError(fileErrorCodes.EDIT_TARGET_CHANGED, 'Editing target changed')
           }
+
           await assertPathVersionUnchanged(physical, expected, expectedContentHash)
+
           return commitPreparedForEntry(deps, id, entry.origin, prepared)
         })
       } catch (error) {
         await prepared.abort()
+
         if (error instanceof PathStaleVersionError) throw new StaleVersionError(id, expected, error.current)
         throw error
       }
@@ -146,6 +156,7 @@ export async function writeIfUnchanged(
           classifyFileFailure(error, entry.origin === 'external')
         )
       }
+
       throw error
     }
   })
@@ -153,21 +164,27 @@ export async function writeIfUnchanged(
 
 export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId): Promise<AtomicWriteStream> {
   const release = await deps.contentWriteLock.acquire(id)
+
   try {
     const entry = deps.fileEntryService.getById(id)
     const physical = resolvePhysicalPath(entry)
+
     const stream = createPreparedAtomicWriteStream(physical, async (prepared) => {
       await runPathMutationExclusive(() => commitPreparedForEntry(deps, id, entry.origin, prepared))
     })
+
     let released = false
+
     const releaseOnce = () => {
       if (released) return
       released = true
       release()
     }
+
     stream.once('finish', releaseOnce)
     stream.once('error', releaseOnce)
     stream.once('close', releaseOnce)
+
     return stream
   } catch (error) {
     release()

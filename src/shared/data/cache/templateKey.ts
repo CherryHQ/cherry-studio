@@ -37,6 +37,7 @@ export function templateToRegex(template: string): RegExp {
     if (match === '$' || match === '{' || match === '}') {
       return match
     }
+
     return '\\' + match
   })
 
@@ -57,9 +58,11 @@ export function findMatchingSharedCacheSchemaKey(key: string): keyof SharedCache
   }
 
   const schemaKeys = Object.keys(DefaultSharedCache) as Array<keyof SharedCacheSchema>
+
   for (const schemaKey of schemaKeys) {
     if (isTemplateKey(schemaKey)) {
       const regex = templateToRegex(schemaKey)
+
       if (regex.test(key)) {
         return schemaKey
       }

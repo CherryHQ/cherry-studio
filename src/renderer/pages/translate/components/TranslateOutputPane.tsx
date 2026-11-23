@@ -50,6 +50,7 @@ const TranslateOutputPane = ({
   const mountedRef = useRef(true)
   useEffect(() => {
     mountedRef.current = true
+
     return () => {
       mountedRef.current = false
     }
@@ -61,17 +62,22 @@ const TranslateOutputPane = ({
     setCopyingImage(true)
     const revision = imageCopyRevision.current
     const isCurrent = () => mountedRef.current && imageCopyRevision.current === revision
+
     try {
       const [{ exportService }, { copyImageToClipboard }] = await Promise.all([
         import('@renderer/services/ExportService'),
         import('@renderer/utils/image')
       ])
+
       if (!isCurrent()) return
       // Flatten the translucent window surface onto an opaque themed export backdrop.
       const dataUrl = await exportService.captureScrollableAsDataUrl(captureRef, '--card')
+
       if (!isCurrent()) return
+
       if (!dataUrl) throw new Error('Translation image capture returned no image')
       await copyImageToClipboard(dataUrl)
+
       if (isCurrent()) toast.success(t('message.copied'))
     } catch (error) {
       if (isCurrent()) {
@@ -80,6 +86,7 @@ const TranslateOutputPane = ({
       }
     } finally {
       imageCopyInFlight.current = false
+
       if (mountedRef.current) setCopyingImage(false)
     }
   }

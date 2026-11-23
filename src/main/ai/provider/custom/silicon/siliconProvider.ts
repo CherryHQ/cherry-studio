@@ -27,6 +27,7 @@ export interface SiliconProvider extends ProviderV3 {
 export function createSiliconProvider(settings: SiliconProviderSettings = {}): SiliconProvider {
   const { baseURL = 'https://api.siliconflow.cn/v1', fetch: customFetch } = settings
   const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
+
   const headers = () => ({
     Authorization: `Bearer ${loadApiKey({
       apiKey: settings.apiKey,

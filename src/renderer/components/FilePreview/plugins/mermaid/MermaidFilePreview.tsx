@@ -42,12 +42,14 @@ export default function MermaidFilePreview({ filePath, refreshKey }: FilePreview
         setLoadState({ status: 'error' })
       }
     )
+
     return () => {
       cancelled = true
     }
   }, [filePath, refreshKey])
 
   let content
+
   if (loadState.status === 'loading') {
     content = (
       <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -82,6 +84,7 @@ export default function MermaidFilePreview({ filePath, refreshKey }: FilePreview
   }
 
   const ready = loadState.status === 'ready' && Boolean(loadState.source.trim())
+
   const actions: Array<{
     label: string
     icon: typeof ZoomIn

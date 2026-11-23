@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 const logger = loggerService.withContext('RegionService')
 
 const CACHE_KEY = 'region.egressCountry'
+
 // Backstop for egress changes the app cannot observe via events — e.g. a
 // system-level VPN toggle that keeps the primary interface "online". Proxy
 // changes made through the app invalidate sooner via the appliedProxyKey guard.
@@ -38,6 +39,7 @@ class RegionService {
       return await this.getDetectedCountry(signal)
     } catch {
       signal?.throwIfAborted()
+
       return DEFAULT_COUNTRY
     }
   }
@@ -45,6 +47,7 @@ class RegionService {
   /** True only when the egress country is successfully detected as China. */
   async detectIsInChina(signal?: AbortSignal): Promise<boolean> {
     const country = await this.getDetectedCountry(signal)
+
     return country.toLowerCase() === 'cn'
   }
 
@@ -53,6 +56,7 @@ class RegionService {
       return await this.detectIsInChina(signal)
     } catch {
       signal?.throwIfAborted()
+
       return false
     }
   }
@@ -61,21 +65,25 @@ class RegionService {
   getCachedCountry(): string | null {
     const proxyKey = application.get('ProxyService').appliedProxyKey
     const cached = application.get('CacheService').get<CachedEgressRegion>(CACHE_KEY)
+
     return cached && cached.proxyKey === proxyKey ? cached.country : null
   }
 
   private async getDetectedCountry(signal?: AbortSignal): Promise<string> {
     signal?.throwIfAborted()
     const cached = this.getCachedCountry()
+
     if (cached) return cached
 
     const proxyKey = application.get('ProxyService').appliedProxyKey
+
     // A caller with its own deadline neither joins nor becomes the shared request: aborting it
     // must not cancel detection for everyone else.
     if (signal) return this.detectAndCache(proxyKey, signal)
 
     // Dedup concurrent detections for the active proxy — callers share one in-flight request.
     const current = this.inflight.get(proxyKey)
+
     if (current) {
       return current.promise
     }
@@ -83,21 +91,25 @@ class RegionService {
     const inflight = {
       promise: this.detectAndCache(proxyKey)
     }
+
     inflight.promise = inflight.promise.finally(() => {
       if (this.inflight.get(proxyKey) === inflight) {
         this.inflight.delete(proxyKey)
       }
     })
     this.inflight.set(proxyKey, inflight)
+
     return inflight.promise
   }
 
   private async detectAndCache(proxyKey: string | null, signal?: AbortSignal): Promise<string> {
     try {
       const country = await this.fetchCountry(signal)
+
       if (application.get('ProxyService').appliedProxyKey === proxyKey) {
         application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
       }
+
       return country
     } catch (error) {
       signal?.throwIfAborted()
@@ -121,11 +133,13 @@ class RegionService {
 
       const data = await response.json()
       const country = data.country_code
+
       if (!country) {
         throw new Error('IP info response missing country_code')
       }
 
       logger.info(`Detected user IP address country: ${country}`)
+
       return country
     } finally {
       clearTimeout(timeoutId)

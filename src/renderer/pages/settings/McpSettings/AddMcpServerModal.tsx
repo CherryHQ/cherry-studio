@@ -93,6 +93,7 @@ const initialJsonExample = `// Example JSON (stdio):
 const jsonSchema = z.object({
   serverConfig: z.string().min(1)
 })
+
 type JsonFieldType = z.infer<typeof jsonSchema>
 
 const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
@@ -147,19 +148,24 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   ): { serversToAdd: Partial<ParsedServerData>[]; error: null } | { serversToAdd: null; error: string } => {
     const trimmedInput = inputValue.trim()
     const parsedJson = parseJSON(trimmedInput)
+
     if (parsedJson === null) {
       logger.error('Failed to parse json.', { input: trimmedInput })
+
       return { serversToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
     }
 
     const { data: validConfig, error } = safeValidateMcpConfig(parsedJson)
+
     if (error) {
       logger.error('Failed to validate json.', { parsedJson, error })
+
       return { serversToAdd: null, error: formatZodError(error, t('settings.mcp.addServer.importFrom.invalid')) }
     }
 
     const serversToAdd = objectKeys(validConfig.mcpServers).map((key) => {
       const server = validConfig.mcpServers[key]
+
       return server.name ? server : { ...server, name: key }
     })
 
@@ -186,6 +192,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             )
           )
           setLoading(false)
+
           return
         }
 
@@ -193,6 +200,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         try {
           const installTimestamp = Date.now()
           const packageBuffer = await packageFile.arrayBuffer()
+
           const result = isMcpbImport
             ? await ipcApi.request('mcp.package.upload_mcpb', { buffer: packageBuffer, fileName: packageFile.name })
             : await ipcApi.request('mcp.package.upload_dxt', { buffer: packageBuffer, fileName: packageFile.name })
@@ -207,6 +215,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
                 )
             )
             setLoading(false)
+
             return
           }
 
@@ -216,6 +225,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           if (existingServers && existingServers.some((server) => server.name === manifest.name)) {
             toast.error(t('settings.mcp.addServer.importFrom.nameExists', { name: manifest.name }))
             setLoading(false)
+
             return
           }
 
@@ -286,6 +296,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             )
           )
           setLoading(false)
+
           return
         }
       } else {
@@ -297,27 +308,34 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         if (error !== null) {
           form.setError('serverConfig', { type: 'manual', message: error })
           setLoading(false)
+
           return
         }
 
         const seenNames = new Set(existingServers.map((server) => server.name))
+
         const duplicateServer = serversToAdd.find((server) => {
           if (!server.name) return false
+
           if (seenNames.has(server.name)) return true
           seenNames.add(server.name)
+
           return false
         })
+
         if (duplicateServer) {
           form.setError('serverConfig', {
             type: 'manual',
             message: t('settings.mcp.addServer.importFrom.nameExists', { name: duplicateServer.name })
           })
           setLoading(false)
+
           return
         }
 
         // 如果成功解析並通過所有檢查，立即加入伺服器（非啟用狀態）並關閉對話框
         const installTimestamp = Date.now()
+
         const serverDtos = serversToAdd.map((serverToAdd) =>
           toCreateMcpServerDto({
             ...serverToAdd,

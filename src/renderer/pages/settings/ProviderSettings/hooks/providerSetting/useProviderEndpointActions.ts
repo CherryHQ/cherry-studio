@@ -20,6 +20,7 @@ const logger = loggerService.withContext('ProviderSettings:EndpointActions')
 function getEndpointActionErrorMessage(error: unknown, fallback: string): string {
   if (isDataApiError(error) || isSerializedDataApiError(error)) {
     const dataError = toDataApiError(error)
+
     switch (dataError.code) {
       case ErrorCode.VALIDATION_ERROR:
       case ErrorCode.UNAUTHORIZED:
@@ -96,6 +97,7 @@ export function useProviderEndpointActions({
       }
 
       const trimmedApiHost = trim(nextApiHost)
+
       if (!validateApiHost(trimmedApiHost)) {
         return false
       }
@@ -105,12 +107,14 @@ export function useProviderEndpointActions({
       }
 
       const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
+
       if (!nextEndpointConfigs) {
         return false
       }
 
       await patchProvider({ endpointConfigs: nextEndpointConfigs })
       lastPersistedApiHostRef.current = trimmedApiHost
+
       return true
     },
     [buildNextApiEndpointConfigs, patchProvider, provider]
@@ -127,18 +131,22 @@ export function useProviderEndpointActions({
     }
 
     const trimmedApiHost = trim(apiHost)
+
     if (!validateApiHost(trimmedApiHost)) {
       debouncedPersistApiHost.cancel()
+
       return
     }
 
     if (!isVertexProvider(provider) && !trimmedApiHost) {
       debouncedPersistApiHost.cancel()
+
       return
     }
 
     if (trimmedApiHost === lastPersistedApiHostRef.current) {
       debouncedPersistApiHost.cancel()
+
       return
     }
 
@@ -160,18 +168,22 @@ export function useProviderEndpointActions({
 
         const raw = explicitNext !== undefined ? explicitNext : apiHost
         const trimmedApiHost = trim(raw)
+
         if (!validateApiHost(trimmedApiHost)) {
           setApiHost(providerApiHost)
           toast.error(t('settings.provider.api_host_no_valid'))
+
           return false
         }
 
         if (!isVertexProvider(provider) && !trimmedApiHost) {
           setApiHost(providerApiHost)
+
           return false
         }
 
         const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
+
         if (!nextEndpointConfigs) {
           return false
         }
@@ -189,6 +201,7 @@ export function useProviderEndpointActions({
       } catch (error) {
         logger.error('Failed to commit provider API host', { providerId: provider?.id, error })
         toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+
         return false
       }
     },
@@ -212,6 +225,7 @@ export function useProviderEndpointActions({
 
       const rawHost = explicitNext !== undefined ? explicitNext : anthropicApiHost
       const trimmedHost = trim(rawHost)
+
       try {
         if (trimmedHost) {
           const nextEndpointConfigs = {
@@ -221,8 +235,10 @@ export function useProviderEndpointActions({
               baseUrl: trimmedHost
             }
           }
+
           await patchProvider({ endpointConfigs: nextEndpointConfigs })
           setAnthropicApiHost(trimmedHost)
+
           return true
         }
 
@@ -230,10 +246,12 @@ export function useProviderEndpointActions({
         delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
         await patchProvider({ endpointConfigs: nextConfigs })
         setAnthropicApiHost('')
+
         return true
       } catch (error) {
         logger.error('Failed to commit Anthropic API host', { providerId: provider?.id, error })
         toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+
         return false
       }
     },
@@ -252,10 +270,12 @@ export function useProviderEndpointActions({
           apiVersion
         }
       })
+
       return true
     } catch (error) {
       logger.error('Failed to commit API version', { providerId: provider.id, error })
       toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+
       return false
     }
   }, [apiVersion, patchProvider, provider, t])
@@ -273,13 +293,16 @@ export function useProviderEndpointActions({
       danger: true,
       action: async () => {
         debouncedPersistApiHost.cancel()
+
         // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Reset reloads the persisted provider through DataApi; normalize its arbitrary rejection through the validated error-message formatter.
         const fresh = await dataApiService.get(`/providers/${provider.id}`).catch((error: unknown) => {
           throw new Error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
         })
+
         if (!fresh) {
           throw new Error(getEndpointActionErrorMessage(undefined, t('settings.provider.save_failed')))
         }
+
         const nextEndpointConfigs = {
           ...fresh.endpointConfigs,
           [primaryEndpoint]: {
@@ -291,6 +314,7 @@ export function useProviderEndpointActions({
         const previousPersistedApiHost = lastPersistedApiHostRef.current
         lastPersistedApiHostRef.current = trim(defaultApiHost)
         setApiHost(defaultApiHost)
+
         try {
           await patchProvider({ endpointConfigs: nextEndpointConfigs })
         } catch (error) {

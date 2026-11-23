@@ -71,6 +71,7 @@ export class PreferenceService {
   private setupChangeListeners() {
     if (!window.api?.preference?.onChanged) {
       logger.error('Preference API not available in preload context')
+
       return
     }
 
@@ -100,6 +101,7 @@ export class PreferenceService {
 
     // Notify specific key listeners
     const keyListeners = this.keyChangeListeners.get(key)
+
     if (keyListeners) {
       keyListeners.forEach((listener) => listener())
     }
@@ -118,6 +120,7 @@ export class PreferenceService {
         // cache) — fire-and-forget like subscribeChange.
         void this.subscribeToKeyInternal([key])
       }
+
       return this.cache[key]
     }
 
@@ -137,6 +140,7 @@ export class PreferenceService {
       return value
     } catch (error) {
       logger.error(`Failed to get preference ${key}:`, error as Error)
+
       return getDefaultValue(key)
     }
   }
@@ -172,6 +176,7 @@ export class PreferenceService {
     value: UnifiedPreferenceType[K]
   ): Promise<void> {
     const requestId = this.generateRequestId()
+
     return this.enqueueRequest(key, requestId, value)
   }
 
@@ -247,7 +252,9 @@ export class PreferenceService {
   ): Promise<UnifiedPreferenceType[K] | undefined> {
     try {
       const value = await window.api.preference.get(key)
+
       if (value === undefined || value === null) return undefined
+
       return value
     } catch {
       return undefined
@@ -277,6 +284,7 @@ export class PreferenceService {
 
     // Fetch uncached keys from main process
     let uncachedResults: Partial<UnifiedPreferenceType> = {}
+
     if (uncachedKeys.length > 0) {
       try {
         uncachedResults = await window.api.preference.getMultipleRaw(uncachedKeys)
@@ -428,32 +436,41 @@ export class PreferenceService {
    */
   private async subscribeToKeyInternal(keys: UnifiedPreferenceKeyType[], align = true): Promise<boolean> {
     if (!this.changeListenerCleanup) return false
+
     const keysToSubscribe = [...new Set(keys)].filter(
       (key) => !this.subscribedKeys.has(key) && !this.pendingSubscriptions.has(key)
     )
+
     if (keysToSubscribe.length > 0) {
       const task = (async () => {
         try {
           await window.api.preference.subscribe(keysToSubscribe)
           keysToSubscribe.forEach((key) => this.subscribedKeys.add(key))
           logger.verbose(`Subscribed to preference keys: ${keysToSubscribe.join(', ')}`)
+
           return true
         } catch (error) {
           logger.error(`Failed to subscribe to preference keys ${keysToSubscribe.join(', ')}:`, error as Error)
+
           return false
         }
       })().finally(() => {
         keysToSubscribe.forEach((key) => this.pendingSubscriptions.delete(key))
       })
+
       keysToSubscribe.forEach((key) => this.pendingSubscriptions.set(key, task))
     }
+
     const results = await Promise.all(
       keys.map(async (key) => this.pendingSubscriptions.get(key) ?? this.subscribedKeys.has(key))
     )
+
     if (!results.every(Boolean)) return false
+
     if (align) {
       await Promise.all(keys.flatMap((key) => (!this.alignedKeys.has(key) ? [this.alignSubscription(key)] : [])))
     }
+
     return true
   }
 
@@ -461,34 +478,46 @@ export class PreferenceService {
     key: K
   ): Promise<{ ok: true; value: UnifiedPreferenceType[K] } | { ok: false }> {
     const pending = this.pendingAlignments.get(key)
+
     if (pending) return pending
+
     const task = (async () => {
       try {
         for (let attempt = 0; attempt < 3; attempt++) {
           const version = this.pushVersions.get(key)
           const value = await window.api.preference.get(key)
+
           if (value === undefined || value === null) {
             this.alignedKeys.delete(key)
             logger.verbose(`Failed to align subscribed preference: ${key}`)
+
             return { ok: false } as const
           }
+
           // Reread on races; never return cache values that may have been rolled back.
           if (this.pushVersions.get(key) !== version) continue
           this.alignedKeys.add(key)
           const changed = !isEqual(this.cache[key], value)
           this.cache[key] = value
+
           if (changed) this.notifyChangeListeners(key)
+
           return { ok: true, value } as const
         }
+
         this.alignedKeys.delete(key)
+
         return { ok: false } as const
       } catch {
         this.alignedKeys.delete(key)
         logger.verbose(`Failed to align subscribed preference: ${key}`)
+
         return { ok: false } as const
       }
     })().finally(() => this.pendingAlignments.delete(key))
+
     this.pendingAlignments.set(key, task)
+
     return task
   }
 
@@ -498,6 +527,7 @@ export class PreferenceService {
     // Subscribe before reading so every change after the snapshot will arrive through pushes.
     try {
       if (!(await this.subscribeToKeyInternal([key], false))) return { ok: false }
+
       return await this.alignSubscription(key)
     } catch {
       return { ok: false }
@@ -515,6 +545,7 @@ export class PreferenceService {
    */
   public subscribeAllChanges = (callback: () => void): (() => void) => {
     this.allChangesListeners.add(callback)
+
     return () => {
       this.allChangesListeners.delete(callback)
     }
@@ -540,6 +571,7 @@ export class PreferenceService {
 
       return () => {
         keyListeners.delete(callback)
+
         if (keyListeners.size === 0) {
           this.keyChangeListeners.delete(key)
         }
@@ -625,6 +657,7 @@ export class PreferenceService {
    */
   private confirmOptimistic(key: UnifiedPreferenceKeyType, requestId: string): void {
     const optimisticState = this.optimisticValues.get(key)
+
     if (optimisticState && optimisticState.requestId === requestId) {
       this.optimisticValues.delete(key)
       logger.debug(`Optimistic update confirmed for ${key} (${requestId})`)
@@ -645,6 +678,7 @@ export class PreferenceService {
    */
   private rollbackOptimistic(key: UnifiedPreferenceKeyType, requestId: string): void {
     const optimisticState = this.optimisticValues.get(key)
+
     if (optimisticState && optimisticState.requestId === requestId) {
       // Restore original value (the real original value from first request)
       this.cache[key] = optimisticState.originalValue
@@ -725,11 +759,13 @@ export class PreferenceService {
    */
   private async processNextQueuedRequest(key: UnifiedPreferenceKeyType): Promise<void> {
     const queue = this.requestQueues.get(key)
+
     if (!queue || queue.length === 0) {
       return
     }
 
     const currentRequest = queue[0]
+
     try {
       await this.executeOptimisticUpdate(key, currentRequest.value, currentRequest.requestId)
       currentRequest.resolve()
@@ -744,6 +780,7 @@ export class PreferenceService {
    */
   private completeQueuedRequest(key: UnifiedPreferenceKeyType): void {
     const queue = this.requestQueues.get(key)
+
     if (queue && queue.length > 0) {
       queue.shift() // Remove completed request
 
@@ -790,4 +827,5 @@ export class PreferenceService {
 
 // Export singleton instance
 export const preferenceService = new PreferenceService()
+
 export default preferenceService

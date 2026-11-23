@@ -24,6 +24,7 @@ export class LocalModelService extends BaseService {
   private readonly installers = Object.fromEntries(
     ALL_MODEL_BUNDLE_IDS.map((id) => {
       const bundle = getModelBundle(id)
+
       return [
         id,
         new BundleInstaller(
@@ -57,6 +58,7 @@ export class LocalModelService extends BaseService {
   refreshStatus(id: LocalModelBundleId): ReturnType<BundleInstaller['getStatusInfo']> {
     const snapshot = this.installerFor(id).getStatusSnapshot()
     this.publishStatus(id, snapshot)
+
     return {
       status: snapshot.status,
       ...(snapshot.errorCode && { errorCode: snapshot.errorCode }),
@@ -107,14 +109,17 @@ export class LocalModelService extends BaseService {
 
     for (const id of ALL_MODEL_BUNDLE_IDS) {
       const installed = localModelStorageService.scanBundleFiles(getModelBundle(id)).status === 'installed'
+
       for (const artifact of getModelBundle(id).requires) {
         known.add(artifact)
+
         if (installed) stillNeeded.add(artifact)
       }
     }
 
     for (const artifact of known) {
       if (stillNeeded.has(artifact)) continue
+
       try {
         await localModelStorageService.removeArtifactIfUnused(artifact)
       } catch (error) {

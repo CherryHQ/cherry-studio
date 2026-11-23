@@ -32,6 +32,7 @@ const voiceCapabilities = z.strictObject({
     .array(z.strictObject({ input: z.enum(TranscriptionInputKind), output: z.enum(TranscriptionOutputKind) }))
     .optional()
 })
+
 const voiceModelDescriptor: z.ZodType<LocalVoiceModelDescriptor> = z
   .custom<LocalVoiceModelDescriptor>()
   .and(z.object({ voiceCapabilities }))
@@ -42,27 +43,34 @@ const languageTag = z
   .max(64)
   .regex(/^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/)
   .refine((value) => value.toLowerCase() !== 'auto')
+
 const language = languageTag.optional()
 const localeTag = languageTag
+
 const transcriptionLanguage = z.discriminatedUnion('source', [
   z.strictObject({ source: z.literal(TranscriptionLanguageSource.ModelDefault) }),
   z.strictObject({ source: z.literal(TranscriptionLanguageSource.Interface), locale: languageTag }),
   z.strictObject({ source: z.literal(TranscriptionLanguageSource.Explicit), locale: languageTag })
 ])
+
 const session = z.strictObject({ sessionId: z.uuid() })
+
 const request = session.extend({
   requestId: z.uuid(),
   source: z.enum(VOICE_SESSION_SOURCES).optional()
 })
+
 const sourceEntityId = z
   .string()
   .min(1)
   .max(256)
   .refine((value) => value === value.trim())
+
 const sessionAdmission = request.extend({ sourceEntityId: sourceEntityId.optional() })
 const abort = session.extend({ requestId: z.uuid() })
 const modelId = z.enum(LOCAL_VOICE_MODEL_IDS)
 const asrModelId = z.enum([APPLE_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID, FUNASR_MODEL_ID, QWEN3_ASR_MODEL_ID])
+
 const speechInput = sessionAdmission
   .extend({
     modelId: z.enum([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID, QWEN3_TTS_MODEL_ID, KOKORO_TTS_MODEL_ID]).optional(),
@@ -100,16 +108,20 @@ export const VOICE_SESSION_PHASES = [
   'paused',
   'failed'
 ] as const
+
 export type VoiceSessionPhase = (typeof VOICE_SESSION_PHASES)[number]
 
 export const VOICE_SESSION_COMMANDS = ['pause', 'resume', 'retry', 'stop', 'interrupt'] as const
+
 export type VoiceSessionCommand = (typeof VOICE_SESSION_COMMANDS)[number]
 
 const revision = z.number().int().nonnegative()
 const playbackControl = z.enum(['pause', 'resume', 'retry', 'stop'])
+
 const voiceReason = z.enum(
   Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>]
 )
+
 export const playbackStateSchema = z.strictObject({
   attemptId: revision,
   commandRevision: revision,
@@ -120,7 +132,9 @@ export const playbackStateSchema = z.strictObject({
   availableCommands: z.array(playbackControl),
   failure: z.strictObject({ stage: z.enum(['synthesis', 'playback', 'control']), reason: voiceReason }).optional()
 })
+
 export type VoicePlaybackState = z.infer<typeof playbackStateSchema>
+
 export type VoicePlaybackControl = z.infer<typeof playbackControl>
 
 const activePhase = z.enum(
@@ -129,6 +143,7 @@ const activePhase = z.enum(
     ...Array<Exclude<VoiceSessionPhase, 'idle'>>
   ]
 )
+
 export const voiceSessionStateSchema = z.union([
   z.strictObject({ revision, phase: z.literal('idle') }),
   session.extend({
@@ -142,6 +157,7 @@ export const voiceSessionStateSchema = z.union([
       .optional()
   })
 ])
+
 export type VoiceSessionState = z.infer<typeof voiceSessionStateSchema>
 
 export type VoiceSessionEvent =
@@ -168,6 +184,7 @@ const voiceStatus = z.strictObject({
     .enum(Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>])
     .optional()
 })
+
 const speechModelId = z.enum([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID, QWEN3_TTS_MODEL_ID, KOKORO_TTS_MODEL_ID])
 
 export const voiceRequestSchemas = {

@@ -21,6 +21,7 @@ export function BillingPeriodEditor({
 }) {
   const { t } = useTranslation()
   const timeLabels = { start: t('settings.provider.billing.start'), end: t('settings.provider.billing.end') }
+
   return (
     <PageSidePanelSection
       role="region"

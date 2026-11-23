@@ -41,6 +41,7 @@ export const notificationCapability = {
 
     const now = Date.now()
     const win = windows.get(appId)
+
     if (!win || now - win.start >= WINDOW_MS) {
       windows.set(appId, { start: now, used: 1 })
     } else if (win.used >= MAX_PER_WINDOW) {
@@ -66,6 +67,7 @@ export const notificationCapability = {
       timestamp: Date.now(),
       source: 'mini-app'
     })
+
     return { ok: true }
   }
 }

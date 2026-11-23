@@ -82,13 +82,16 @@ export class MiniAppSeeder implements ISeeder {
       .select({ appId: miniAppTable.appId, status: miniAppTable.status, orderKey: miniAppTable.orderKey })
       .from(miniAppTable)
       .all()
+
     if (existingRows.length === 0) return this.presetDefaultOrderKeys
 
     const existingIds = new Set(existingRows.map(({ appId }) => appId))
     const missingPresets = PRESETS_MINI_APPS.filter(({ id }) => !existingIds.has(id))
+
     const lastVisibleOrderKey = existingRows
       .filter(({ status }) => status === 'enabled' || status === 'pinned')
       .reduce<string | null>((last, { orderKey }) => (last === null || orderKey > last ? orderKey : last), null)
+
     const keys = generateOrderKeySequenceBetween(lastVisibleOrderKey, null, missingPresets.length)
 
     return new Map(missingPresets.map(({ id }, index) => [id, keys[index]]))

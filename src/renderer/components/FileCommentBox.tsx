@@ -20,27 +20,34 @@ export default function FileCommentBox({ onSubmit, onCancel, allowEmpty = false,
   const input = useRef<HTMLTextAreaElement>(null)
   // Unmounting a focused field can still report a blur, which must not cancel after a submit.
   const closed = useRef(false)
+
   const finish = (close: () => void) => {
     if (closed.current) return
     closed.current = true
     close()
   }
+
   const comment = text.trim()
   const canSubmit = allowEmpty || comment.length > 0
+
   const submit = () => {
     if (canSubmit) finish(() => onSubmit(comment))
   }
+
   const label = t(
     allowEmpty ? 'agent.preview_pane.comment.placeholder_optional' : 'agent.preview_pane.comment.placeholder',
     {
       shortcut: isMac ? '⌘↵' : 'Ctrl+↵'
     }
   )
+
   // Pierre settles focus after its gutter pointer events, so take it on the next frame.
   useEffect(() => {
     const frame = requestAnimationFrame(() => input.current?.focus())
+
     return () => cancelAnimationFrame(frame)
   }, [])
+
   return (
     <div
       className={cn('relative rounded-md', className)}
@@ -66,6 +73,7 @@ export default function FileCommentBox({ onSubmit, onCancel, allowEmpty = false,
         className="min-h-16 resize-none px-3 pt-2 pb-10 font-sans text-sm"
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing) return
+
           if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
             event.preventDefault()
             submit()

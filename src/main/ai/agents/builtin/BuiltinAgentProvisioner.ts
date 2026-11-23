@@ -47,13 +47,16 @@ function sha256(buffer: Buffer): string {
 
 export function getBuiltinAgentPluginDirectory(builtinRole: string): string | undefined {
   const templateDir = getBuiltinAgentPluginTemplateDirectory(builtinRole)
+
   if (!templateDir) return undefined
 
   // Claude Code runs out of process and cannot resolve Electron's virtual app.asar paths.
   const pluginDirectory = toAsarUnpackedPath(path.join(templateDir, '.claude'))
   const manifestPath = path.join(pluginDirectory, '.claude-plugin', 'plugin.json')
+
   if (!fs.existsSync(manifestPath)) {
     logger.error('Builtin agent plugin manifest not found', { builtinRole, manifestPath })
+
     return undefined
   }
 
@@ -65,9 +68,11 @@ export function getBuiltinAgentPluginDirectory(builtinRole: string): string | un
  */
 function copyMissingDirSync(src: string, dest: string): void {
   fs.mkdirSync(dest, { recursive: true })
+
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     const srcPath = path.join(src, entry.name)
     const destPath = path.join(dest, entry.name)
+
     if (entry.isDirectory()) {
       copyMissingDirSync(srcPath, destPath)
     } else if (!fs.existsSync(destPath)) {
@@ -93,14 +98,17 @@ export async function provisionBuiltinAgent(
   builtinRole: string
 ): Promise<BuiltinAgentDefinition | undefined> {
   const templateDir = getBuiltinAgentTemplateDirectory(builtinRole)
+
   if (!templateDir) return undefined
 
   if (!fs.existsSync(templateDir)) {
     logger.error('Builtin agent template not found', { templateDir, builtinRole })
+
     return undefined
   }
 
   const definition = loadBuiltinAgentDefinition(builtinRole)
+
   if (!definition) return undefined
 
   try {
@@ -111,10 +119,12 @@ export async function provisionBuiltinAgent(
     for (const soulFile of ['SOUL.md', 'USER.md']) {
       const srcFile = path.join(templateDir, soulFile)
       const destFile = path.join(agentDataPath, soulFile)
+
       if (!fs.existsSync(srcFile)) continue
 
       const destStat = fs.existsSync(destFile) ? fs.lstatSync(destFile) : undefined
       const shouldInitialize = !destStat || (destStat.isFile() && destStat.size === 0)
+
       if (shouldInitialize) {
         fs.copyFileSync(srcFile, destFile)
         continue
@@ -128,6 +138,7 @@ export async function provisionBuiltinAgent(
         // reading it so normal/custom personas do not pay a synchronous full-file hash per build.
         const candidateHashes = LEGACY_STOCK_SOUL_SHA256_BY_SIZE.get(destStat.size)
         const destHash = candidateHashes ? sha256(fs.readFileSync(destFile)) : undefined
+
         if (destHash && candidateHashes?.has(destHash)) {
           fs.copyFileSync(srcFile, destFile)
           logger.info('Migrated stale bundled SOUL.md to the current stock persona', { agentDataPath, destHash })
@@ -137,6 +148,7 @@ export async function provisionBuiltinAgent(
 
     const srcMemoryDir = path.join(templateDir, 'memory')
     const destMemoryDir = path.join(agentDataPath, 'memory')
+
     if (fs.existsSync(srcMemoryDir)) {
       copyMissingDirSync(srcMemoryDir, destMemoryDir)
     }
@@ -148,6 +160,7 @@ export async function provisionBuiltinAgent(
       agentDataPath,
       error: error instanceof Error ? error.message : String(error)
     })
+
     return undefined
   }
 }

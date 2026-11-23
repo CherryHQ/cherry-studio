@@ -7,8 +7,10 @@
 export function encodeVectorBlob(values: ArrayLike<number>): Uint8Array {
   const buffer = new ArrayBuffer(values.length * 4)
   const view = new DataView(buffer)
+
   for (let i = 0; i < values.length; i++) {
     view.setFloat32(i * 4, values[i], true)
   }
+
   return new Uint8Array(buffer)
 }

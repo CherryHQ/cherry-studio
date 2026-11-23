@@ -28,6 +28,7 @@ import { withScratch } from './scratch'
 import { completeSpeechOperation } from './sdkOperations'
 
 const LANGUAGES = ['zh-CN', 'en-US', 'en-GB'] as const
+
 const VOICES: LocalSpeechVoice[] = [
   'af_maple',
   'af_sol',
@@ -43,6 +44,7 @@ const VOICES: LocalSpeechVoice[] = [
 
 export function kokoroTtsSupport(environment: VoiceEnvironment) {
   if (!['darwin', 'linux', 'win32'].includes(environment.platform)) return VoiceModelSupport.UnsupportedPlatform
+
   return SHERPA_VOICE_SUPPORTED_PLATFORM_KEYS.some((key) => key === `${environment.platform}-${environment.arch}`)
     ? VoiceModelSupport.Supported
     : VoiceModelSupport.UnsupportedArchitecture
@@ -51,6 +53,7 @@ export function kokoroTtsSupport(environment: VoiceEnvironment) {
 export function getKokoroTtsStatus(signal?: AbortSignal): LocalVoiceStatus {
   checkAbort(signal)
   const { status } = application.get('LocalModelService').refreshStatus(KOKORO_TTS_BUNDLE_ID)
+
   switch (status) {
     case 'ready':
       return { status: 'ready' }
@@ -73,17 +76,23 @@ export function getKokoroTtsStatus(signal?: AbortSignal): LocalVoiceStatus {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native inference, filesystem and utility-process failures have heterogeneous shapes; convert verified model/process codes into bounded voice reasons.
 function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
+
   if (error instanceof VoiceRuntimeError) return error
+
   if (error instanceof UtilityProcessError) {
     if (error.code === 'PROCESS_BLOCKED') return new VoiceRuntimeError('busy')
+
     if (error.remote?.code === 'TTS_MODEL_LOAD_FAILED') return new VoiceRuntimeError('model_load_failed')
+
     if (
       ['PROCESS_START_FAILED', 'PROCESS_EXITED', 'PROCESS_PROTOCOL_ERROR', 'PROCESS_CIRCUIT_OPEN'].includes(error.code)
     )
       return new VoiceRuntimeError('worker_crashed')
   }
+
   if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'TTS_MODEL_LOAD_FAILED')
     return new VoiceRuntimeError('model_load_failed')
+
   return new VoiceRuntimeError('operation_failed')
 }
 
@@ -97,6 +106,7 @@ export function createKokoroSpeechModel(options: SpeechOptions): SpeechModelV3 {
       const speaker = VOICES.findIndex((voice) => voice.id === options.voice)
       const language = options.language ?? VOICES[speaker]?.locale
       const speed = options.speed ?? DEFAULT_SPEECH_SPEED
+
       if (
         speaker < 0 ||
         !LANGUAGES.some((locale) => locale === language) ||
@@ -107,12 +117,15 @@ export function createKokoroSpeechModel(options: SpeechOptions): SpeechModelV3 {
       )
         throw new VoiceRuntimeError('invalid_request')
       const status = getKokoroTtsStatus(input.abortSignal)
+
       if (status.status !== 'ready') throw new VoiceRuntimeError(status.reason ?? 'model_required')
+
       return withScratch(
         async (directory) => {
           const outputPath = join(directory, 'speech.wav')
           const timeout = AbortSignal.timeout(120_000)
           const signal = input.abortSignal ? AbortSignal.any([timeout, input.abortSignal]) : timeout
+
           try {
             await application
               .get('TtsInferenceService')
@@ -125,9 +138,11 @@ export function createKokoroSpeechModel(options: SpeechOptions): SpeechModelV3 {
             if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
             throw error
           }
+
           checkAbort(input.abortSignal)
           const audio = new Uint8Array(await readFile(outputPath))
           checkAbort(input.abortSignal)
+
           return { audio, warnings: [], response: { timestamp: new Date(), modelId: KOKORO_TTS_MODEL_ID } }
         },
         input.abortSignal,
@@ -154,11 +169,14 @@ export const kokoroSpeechDefinition: SpeechModelDefinition = {
   speechOperations: [completeSpeechOperation(createKokoroSpeechModel)],
   voices: async (signal) => {
     checkAbort(signal)
+
     return VOICES
   },
   getDefaultVoice: async (language, signal) => {
     checkAbort(signal)
+
     if (language && !LANGUAGES.some((locale) => locale === language)) return null
+
     return VOICES.find((voice) => voice.locale === language) ?? VOICES[0]
   },
   download: () =>

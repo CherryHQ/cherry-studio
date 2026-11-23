@@ -20,6 +20,7 @@ export type ReportInput = {
   /** A late message already submitted under this key; the report must not send it again under a different key. */
   readonly messageKey?: Key
 }
+
 export const ensureReport = (facts: Pick<ConversationFacts, 'thread'>, input: ReportInput): TxOp => ({
   type: 'ensure-job',
   job: { kind: 'subagent-report', scope: facts.thread, input: input satisfies JsonValue, onRestart: 'resume' },

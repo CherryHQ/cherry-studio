@@ -13,6 +13,7 @@ import type {
   QuickPanelSortFn,
   QuickPanelTriggerInfo
 } from './types'
+
 const QuickPanelContext = createContext<QuickPanelContextType | null>(null)
 
 type RegisteredKeyDownHandler = {
@@ -63,10 +64,12 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     return items.map((item, index) => {
       if (item.id && !usedIds.has(item.id)) {
         usedIds.add(item.id)
+
         return item
       }
 
       let id = generatedItemIdsRef.current.get(item)
+
       if (!id || usedIds.has(id)) {
         id = `quick-panel-item-${panelGenerationRef.current}-${index}-${generatedItemIdCounterRef.current}`
         generatedItemIdCounterRef.current += 1
@@ -74,6 +77,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       }
 
       usedIds.add(id)
+
       return { ...item, id }
     })
   }, [])
@@ -83,6 +87,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setList((prevList) => {
       // 先尝试引用匹配（快速路径）
       const refIndex = prevList.findIndex((item) => item === targetItem)
+
       if (refIndex !== -1) {
         return prevList.map((item, idx) => (idx === refIndex ? { ...item, isSelected } : item))
       }
@@ -178,6 +183,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
       clearTimer.current = window.setTimeout(() => {
         clearTimer.current = null
+
         if (!isMountedRef.current) return
 
         clearPanelState()
@@ -191,6 +197,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
     return () => {
       isMountedRef.current = false
+
       if (clearTimer.current) {
         window.clearTimeout(clearTimer.current)
         clearTimer.current = null
@@ -213,7 +220,9 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const dispatchKeyDown = useCallback((event: QuickPanelKeyDownEvent) => {
     if (!isVisibleRef.current) return false
     const registeredHandler = keyDownHandlerRef.current
+
     if (!registeredHandler || registeredHandler.generation !== panelGenerationRef.current) return false
+
     return registeredHandler.handler(event)
   }, [])
 

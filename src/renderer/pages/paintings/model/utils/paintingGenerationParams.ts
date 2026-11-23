@@ -14,6 +14,7 @@ export type PaintingGenerationState = Pick<
  */
 export function paintingGenerationStateToCache(state: PaintingGenerationState): CachePaintingGenerationState | null {
   if (!state.generationStatus) return null
+
   return {
     status: state.generationStatus,
     taskId: state.generationTaskId ?? null,
@@ -27,6 +28,7 @@ export function cacheToPaintingGenerationState(cached: CachePaintingGenerationSt
   if (!cached) {
     return { generationStatus: null, generationTaskId: null, generationError: null, generationProgress: null }
   }
+
   return {
     generationStatus: cached.status,
     generationTaskId: cached.taskId,

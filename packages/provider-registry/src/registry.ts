@@ -35,6 +35,7 @@ export function createRegistry(catalog: RegistryCatalog): Registry {
   const providers = [...catalog.providers.providers]
   const modelIndex = new ModelIndex(models)
   const overrideIndex = new ProviderModelIndex(catalog.providerModels.overrides)
+
   return {
     listModels: () => models,
     listProviders: () => providers,

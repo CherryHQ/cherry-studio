@@ -6,7 +6,9 @@ import { MoonshotLight } from './light'
 
 const Moonshot = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MoonshotLight {...props} className={className} />
+
   if (variant === 'dark') return <MoonshotDark {...props} className={className} />
+
   return (
     <>
       <MoonshotLight className={cn('dark:hidden', className)} {...props} />

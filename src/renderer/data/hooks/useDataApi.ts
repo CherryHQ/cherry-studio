@@ -64,6 +64,7 @@ import {
 } from '@shared/data/api/types'
 
 export { useDataChange } from './useDataChange'
+
 export { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 
 const logger = loggerService.withContext('useDataApi')
@@ -257,6 +258,7 @@ type InfiniteCacheValue<TResponse> = Parameters<SWRInfiniteKeyedMutator<TRespons
 
 // Snapshot filters can carry raw cursor values; later page cursors come from the typed response.
 type InfiniteQueryKey = [string, { limit: number; cursor?: unknown }]
+
 type InfiniteQueryKeyGetter = (
   pageIndex: number,
   previousPageData: CursorPaginationResponse<unknown> | null
@@ -272,7 +274,9 @@ function createInfiniteQueryKeyGetter<TQuery extends object>(
     if (!enabled || (previousPageData && !previousPageData.nextCursor)) return null
 
     const params: InfiniteQueryKey[1] = { ...query, limit }
+
     if (previousPageData?.nextCursor) params.cursor = previousPageData.nextCursor
+
     return [resolvedPath, params]
   }
 }
@@ -536,6 +540,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
       // would never fire. The ref is updated synchronously on trigger entry.
       if (isDev && paramsRecord) {
         const prev = inFlightParamsRef.current
+
         if (prev && JSON.stringify(prev) !== JSON.stringify(paramsRecord)) {
           logger.warn(
             `Concurrent trigger on template useMutation: ${method} ${String(path)}. ` +
@@ -545,6 +550,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
           )
         }
       }
+
       inFlightParamsRef.current = paramsRecord ?? null
 
       // Apply optimistic update if optimisticData is provided
@@ -557,7 +563,9 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
           body: capturedArgs?.body as BodyForPath<ConcreteApiPaths, TMethod>,
           query: capturedArgs?.query as QueryParamsForPath<ConcreteApiPaths, TMethod>
         }) as Promise<ResponseForPath<TPath, TMethod>>
+
         const [requestOutcome] = await Promise.allSettled([request, swrTrigger({ request })])
+
         if (requestOutcome.status === 'rejected') throw requestOutcome.reason
         const result = requestOutcome.value
 
@@ -572,9 +580,11 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
         // already succeeded and the caller's `await trigger()` must resolve
         // accordingly. Log and continue instead.
         const refreshOpt = opts?.refresh
+
         if (refreshOpt) {
           try {
             const keys = typeof refreshOpt === 'function' ? refreshOpt({ args: capturedArgs, result }) : refreshOpt
+
             if (keys.length > 0) {
               await invalidatePathPatterns(cache, globalMutate, keys)
             }
@@ -604,6 +614,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
         if (hasOptimisticData) {
           await globalMutate([resolvedPath])
         }
+
         try {
           opts?.onError?.(err as Error)
         } catch (callbackErr) {
@@ -611,6 +622,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
             error: callbackErr
           })
         }
+
         throw err
       } finally {
         if (inFlightParamsRef.current === paramsRecord) {
@@ -664,8 +676,10 @@ export function useInvalidateCache() {
     async (keys?: string | string[] | boolean): Promise<void> => {
       if (keys === true || keys === undefined) {
         await mutate(() => true)
+
         return
       }
+
       if (keys === false) return
       const patterns = typeof keys === 'string' ? [keys] : keys
       await invalidatePathPatterns(cache, mutate, patterns)
@@ -709,6 +723,7 @@ export function prefetch<TPath extends ApiPath>(
 ): Promise<ResponseForPath<TPath, 'GET'>> {
   const resolvedPath = resolveTemplate(path, options?.params)
   const key = buildSWRKey(resolvedPath, options?.query)
+
   return preload(key, getFetcher)
 }
 
@@ -751,12 +766,15 @@ export function useReadCache() {
       infinite?: { limit: number }
     ): TResponse | undefined => {
       const hasQuery = query !== undefined && Object.keys(query).length > 0
+
       const serialized = infinite
         ? unstable_serialize_infinite(createInfiniteQueryKeyGetter(path, query, infinite.limit))
         : hasQuery
           ? unstable_serialize([path, query])
           : unstable_serialize([path])
+
       const entry = cache.get(serialized)
+
       return entry?.data as TResponse | undefined
     },
     [cache]
@@ -869,6 +887,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
 ): UseInfiniteQueryResult<ResponseForPath<TPath, 'GET'>> {
   const limit = options?.limit ?? 10
   const enabled = options?.enabled !== false
+
   const swrOptions = useMemo(
     () => ({
       ...DEFAULT_SWR_OPTIONS,
@@ -886,6 +905,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     () => createInfiniteQueryKeyGetter(resolvedPath, options?.query, limit, enabled),
     [resolvedPath, options?.query, limit, enabled]
   )
+
   const infiniteFetcher = (key: InfiniteQueryKey) => {
     // SAFETY: Keys use this resolved TPath and its typed query plus cursor/limit; SWR preserves the tuple.
     return getFetcher(key as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]) as Promise<
@@ -908,6 +928,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
   const hasNext = useMemo(() => {
     if (!pages.length) return false
     const last = pages[pages.length - 1] as CursorPaginationResponse<unknown>
+
     return !!last.nextCursor
   }, [pages])
 
@@ -948,6 +969,7 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
   const resolvedPath = resolveTemplate(path, options?.params)
   const nextGetKey = createInfiniteQueryKeyGetter(resolvedPath, options?.query, limit)
   const nextInfiniteCacheKey = unstable_serialize_infinite(nextGetKey)
+
   const { getKey, infiniteCacheKey } = useMemo(
     () => ({ getKey: nextGetKey, infiniteCacheKey: nextInfiniteCacheKey }),
     // The serialized SWR key is the semantic identity; equivalent inline options must reuse this state.
@@ -961,16 +983,20 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
 
       const collectPageEntries = (cachedPages: Page[] | undefined) => {
         const entries: Array<{ key: InfiniteQueryKey; page: Page; serializedKey: string }> = []
+
         if (!cachedPages) return entries
 
         let previousPage: CursorPaginationResponse<unknown> | null = null
+
         for (let index = 0; index < cachedPages.length; index++) {
           const page = cachedPages[index]
           const key = getKey(index, previousPage)
+
           if (!key) break
           entries.push({ key, page, serializedKey: unstable_serialize(key) })
           previousPage = page as CursorPaginationResponse<unknown>
         }
+
         return entries
       }
 
@@ -978,6 +1004,7 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
       let didChange = false
       let committedPages: Page[] | undefined
       let previousPages: Page[] | undefined
+
       const pages = (await mutate(
         infiniteCacheKey,
         value as never,
@@ -985,6 +1012,7 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
           revalidate: false,
           populateCache: (nextPages: Page[] | undefined, currentPages: Page[] | undefined) => {
             didCommit = true
+
             if (nextPages === currentPages) return currentPages
             didChange = true
             previousPages = currentPages
@@ -992,19 +1020,23 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
             // SWR Infinite stores its loaded page count beside the aggregate data.
             const nextState = { ...cache.get(infiniteCacheKey), _l: Math.max(committedPages.length, 1) }
             cache.set(infiniteCacheKey, nextState)
+
             return committedPages
           }
         } as never
       )) as ResponseForPath<TPath, 'GET'>[] | undefined
+
       if (!didCommit || !didChange) return pages
       // SWR returns superseded async values without committing them; only mirror the committed aggregate.
       const ownsAggregateCommit = () => cache.get(infiniteCacheKey)?.data === committedPages
+
       if (!ownsAggregateCommit()) return pages
 
       const previousPageEntries = collectPageEntries(previousPages)
       const nextPageEntries = collectPageEntries(Array.isArray(pages) ? pages : undefined)
       const nextPageKeys = new Set(nextPageEntries.map((entry) => entry.serializedKey))
       const pageMutations: Promise<unknown>[] = []
+
       for (const { key, page } of nextPageEntries) {
         pageMutations.push(
           mutate(key, (currentPage: Page | undefined) => (ownsAggregateCommit() ? page : currentPage), {
@@ -1012,6 +1044,7 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
           })
         )
       }
+
       for (const { key, serializedKey } of previousPageEntries) {
         if (nextPageKeys.has(serializedKey)) continue
         pageMutations.push(
@@ -1022,14 +1055,18 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
           })
         )
       }
+
       await Promise.all(pageMutations)
+
       if (!ownsAggregateCommit()) return pages
+
       if (!Array.isArray(pages)) {
         const aggregateState = { ...cache.get(infiniteCacheKey) }
         // oxlint-disable-next-line anti-slop/no-known-value-widening -- SAFETY: Only SWR's private length key is deleted from a detached clone; its value is never interpreted.
         delete (aggregateState as { _l?: unknown })._l
         cache.set(infiniteCacheKey, aggregateState)
       }
+
       return pages
     },
     [cache, getKey, infiniteCacheKey, mutate]
@@ -1080,10 +1117,12 @@ export function useInfiniteFlatItems<P extends CursorPaginationResponse<any>>(
 ): P extends CursorPaginationResponse<infer T> ? T[] : never {
   const reversePages = options?.reversePages
   const reverseItems = options?.reverseItems
+
   return useMemo(() => {
     if (!pages) return [] as unknown[]
     const orderedPages = reversePages ? pages.slice().reverse() : pages
     const flattenPage = (page: P) => (reverseItems ? [...page.items].reverse() : page.items)
+
     return orderedPages.flatMap(flattenPage)
   }, [pages, reversePages, reverseItems]) as P extends CursorPaginationResponse<infer T> ? T[] : never
 }
@@ -1171,6 +1210,7 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     enabled: options?.enabled,
     swrOptions: options?.swrOptions
   }
+
   // SAFETY: Path and forwarded params share TPath; TypeScript cannot retain that conditional correlation here.
   const { data, isLoading, isRefreshing, error, refetch } = useQuery<TPath>(
     path,
@@ -1252,6 +1292,7 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
   ): Promise<ResponseForPath<TPath, TMethod>> => {
     // SAFETY: The captured method owns the options; TS cannot narrow generic TMethod in these branches.
     const query = options?.query
+
     switch (method) {
       case 'GET':
         return dataApiService.get(path, {
@@ -1313,6 +1354,7 @@ function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, Query
   ResponseForPath<TPath, 'GET'>
 > {
   const apiFetcher = createApiFetcher<TPath, 'GET'>('GET')
+
   return apiFetcher(path, { query })
 }
 
@@ -1328,11 +1370,13 @@ function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, Query
  */
 function assertValidPattern(pattern: string): void {
   if (!isDev) return
+
   if (pattern.endsWith('*') && !pattern.endsWith('/*')) {
     const msg = `Invalid refresh pattern "${pattern}": wildcard must be a full path segment (use "/foo/*" not "/foo*")`
     logger.error(msg)
     throw new Error(msg)
   }
+
   if (pattern === '/*' || pattern === '*') {
     const msg = `Invalid refresh pattern "${pattern}": bare wildcard would invalidate unrelated caches`
     logger.error(msg)
@@ -1357,10 +1401,13 @@ function assertValidPattern(pattern: string): void {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SWR global mutation visits keys owned by unrelated cache users; match only array keys with the selected DataApi path.
 function createKeyMatcher(pattern: string): (key: unknown) => boolean {
   assertValidPattern(pattern)
+
   if (pattern.endsWith('/*')) {
     const prefix = pattern.slice(0, -1) // keep trailing '/'
+
     return (key) => Array.isArray(key) && typeof key[0] === 'string' && key[0].startsWith(prefix)
   }
+
   return (key) => Array.isArray(key) && key[0] === pattern
 }
 
@@ -1379,9 +1426,11 @@ function createMultiKeyMatcher(patterns: string[]): (key: unknown) => boolean {
   patterns.forEach(assertValidPattern)
   const exact = patterns.filter((p) => !p.endsWith('/*'))
   const prefixes = patterns.flatMap((p) => (p.endsWith('/*') ? [p.slice(0, -1)] : []))
+
   return (key) => {
     if (!Array.isArray(key) || typeof key[0] !== 'string') return false
     const k = key[0]
+
     return exact.includes(k) || prefixes.some((prefix) => k.startsWith(prefix))
   }
 }
@@ -1414,15 +1463,19 @@ const INFINITE_PREFIX = '$inf$'
 function extractInfinitePath(key: string): string | undefined {
   if (!key.startsWith(INFINITE_PREFIX)) return undefined
   const openIdx = key.indexOf('@"', INFINITE_PREFIX.length)
+
   if (openIdx !== INFINITE_PREFIX.length) return undefined
   const pathStart = openIdx + 2
   let i = pathStart
+
   while (i < key.length) {
     const ch = key.charCodeAt(i)
+
     if (ch === 0x5c /* '\' */) {
       i += 2
       continue
     }
+
     if (ch === 0x22 /* '"' */) {
       try {
         return JSON.parse(key.slice(pathStart - 1, i + 1)) as string
@@ -1430,8 +1483,10 @@ function extractInfinitePath(key: string): string | undefined {
         return undefined
       }
     }
+
     i += 1
   }
+
   return undefined
 }
 
@@ -1447,14 +1502,18 @@ function findMatchingInfiniteKeys(cache: Cache, patterns: string[]): string[] {
   const exact = patterns.filter((p) => !p.endsWith('/*'))
   const prefixes = patterns.flatMap((p) => (p.endsWith('/*') ? [p.slice(0, -1)] : []))
   const matched: string[] = []
+
   for (const key of cache.keys()) {
     if (typeof key !== 'string' || !key.startsWith(INFINITE_PREFIX)) continue
     const path = extractInfinitePath(key)
+
     if (path === undefined) continue
+
     if (exact.includes(path) || prefixes.some((prefix) => path.startsWith(prefix))) {
       matched.push(key)
     }
   }
+
   return matched
 }
 
@@ -1470,6 +1529,7 @@ function findMatchingInfiniteKeys(cache: Cache, patterns: string[]): string[] {
 async function invalidatePathPatterns(cache: Cache, globalMutate: ScopedMutator, patterns: string[]): Promise<void> {
   await globalMutate(createMultiKeyMatcher(patterns))
   const infiniteKeys = findMatchingInfiniteKeys(cache, patterns)
+
   if (infiniteKeys.length > 0) {
     await Promise.all(infiniteKeys.map((k) => globalMutate(k)))
   }

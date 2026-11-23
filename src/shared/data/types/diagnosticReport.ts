@@ -7,6 +7,7 @@ export const DiagnosticProcessingStatusSchema = z.enum([
   'resolved',
   'closed'
 ])
+
 export type DiagnosticProcessingStatus = z.infer<typeof DiagnosticProcessingStatusSchema>
 
 export interface DiagnosticReportEntity {

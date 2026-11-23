@@ -257,12 +257,15 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
       .sort()
       .map((localKey) => [localKey, keys[localKey]])
   )
+
   const stableKeys = useMemo<T>(
     () => ({ ...keys }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keysDep is the semantic identity of `keys`
     [keysDep]
   )
+
   type PreferenceValue = UnifiedPreferenceType[UnifiedPreferenceKeyType]
+
   const keyEntries = useMemo(() => Object.entries<UnifiedPreferenceKeyType>(stableKeys), [stableKeys])
   const keyList = useMemo(() => keyEntries.map(([, key]) => key), [keyEntries])
 
@@ -331,6 +334,7 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
   // Convert raw values (including undefined) to exposed values (with defaults)
   const exposedValues = useMemo(() => {
     const result: Record<string, PreferenceValue> = {}
+
     for (const [localKey, prefKey] of keyEntries) {
       const rawValue = rawValues[localKey]
       Object.defineProperty(result, localKey, {
@@ -340,6 +344,7 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
         configurable: true
       })
     }
+
     return result
   }, [keyEntries, rawValues])
 
@@ -349,8 +354,10 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
       try {
         // Convert local keys back to preference keys
         const entries: [UnifiedPreferenceKeyType, PreferenceValue | undefined][] = []
+
         for (const [localKey, value] of Object.entries<PreferenceValue | undefined>(updates)) {
           const prefKey = stableKeys[localKey as keyof T]
+
           if (prefKey) {
             entries.push([prefKey, value])
           }

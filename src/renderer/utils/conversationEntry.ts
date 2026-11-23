@@ -21,9 +21,11 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
 
 export async function resolveChatEntryTopicId(): Promise<string | null> {
   const lastUsedTopicId = cacheService.getPersist('ui.chat.last_used_topic_id')
+
   if (lastUsedTopicId) {
     try {
       await dataApiService.get(`/topics/${lastUsedTopicId}`)
+
       return lastUsedTopicId
     } catch (error) {
       if (!isDataApiNotFoundError(error)) throw error
@@ -31,14 +33,17 @@ export async function resolveChatEntryTopicId(): Promise<string | null> {
   }
 
   const { topic } = await dataApiService.get('/topics/latest')
+
   return topic?.id ?? null
 }
 
 export async function resolveAgentEntrySessionId(): Promise<string | null> {
   const lastUsedSessionId = cacheService.getPersist('ui.agent.last_used_session_id')
+
   if (lastUsedSessionId) {
     try {
       await dataApiService.get(`/agent-sessions/${lastUsedSessionId}`, { query: { excludeTaskSessions: true } })
+
       return lastUsedSessionId
     } catch (error) {
       if (!isDataApiNotFoundError(error)) throw error
@@ -46,6 +51,7 @@ export async function resolveAgentEntrySessionId(): Promise<string | null> {
   }
 
   const { session } = await dataApiService.get('/agent-sessions/latest')
+
   return session?.id ?? null
 }
 
@@ -57,10 +63,12 @@ export async function resolveAgentEntrySessionId(): Promise<string | null> {
  */
 export async function resolveChatEntryTopicIdForAssistant(assistantId: string): Promise<string | null> {
   const { topic } = await dataApiService.get('/topics/latest', { query: { assistantId } })
+
   return topic?.id ?? null
 }
 
 export async function resolveAgentEntrySessionIdForAgent(agentId: string): Promise<string | null> {
   const { session } = await dataApiService.get('/agent-sessions/latest', { query: { agentId } })
+
   return session?.id ?? null
 }

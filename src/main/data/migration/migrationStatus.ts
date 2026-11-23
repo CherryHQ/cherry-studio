@@ -14,10 +14,12 @@ export const migrationStatusSchema = z.object({
 
 export function readMigrationV2Status(db: Pick<DbType, 'select'>) {
   const row = db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
+
   return row ? migrationStatusSchema.parse(row.value) : undefined
 }
 
 export function readMigrationV2CompletedAt(db: DbType): number | undefined {
   const status = readMigrationV2Status(db)
+
   return status?.status === 'completed' ? status.completedAt : undefined
 }

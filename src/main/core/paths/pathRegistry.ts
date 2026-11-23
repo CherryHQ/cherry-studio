@@ -30,6 +30,7 @@ function getUserSystemPath(name: UserSystemPathName, fallback: string): string {
     return app.getPath(name)
   } catch (error) {
     logger.warn(`Failed to resolve system path '${name}', using fallback '${fallback}'`, error as Error)
+
     return fallback
   }
 }
@@ -128,12 +129,15 @@ export function buildPathRegistry() {
           : process.platform === 'win32'
             ? 'open-computer-use.exe'
             : 'open-computer-use'
+
       if (app.isPackaged) return path.join(appExtraResources, 'computer-use', name)
       // Resolve on demand so an absent optional native package cannot prevent application startup.
       const sdkEntry = createRequire(path.join(app.getAppPath(), 'package.json')).resolve('@cherrystudio/computer-use')
+
       const nativeManifest = createRequire(sdkEntry).resolve(
         `@cherrystudio/computer-use-${process.platform}-${process.arch}/package.json`
       )
+
       return path.join(path.dirname(nativeManifest), 'runtime', name)
     },
 

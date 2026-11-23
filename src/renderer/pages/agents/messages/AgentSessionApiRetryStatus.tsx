@@ -13,11 +13,13 @@ function useRetryRemainingSeconds(retry: AgentSessionApiRetryState): number {
   useEffect(() => {
     if (!active) return
     const timer = setInterval(() => setNow(Date.now()), 500)
+
     return () => clearInterval(timer)
   }, [active])
 
   if (retry.status !== 'retrying') return 0
   const endsAt = Date.parse(retry.startedAt) + retry.retryDelayMs
+
   return Math.max(0, Math.ceil((endsAt - now) / 1000))
 }
 

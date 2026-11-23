@@ -81,6 +81,7 @@ const getEmojiNames = (record: EmojiRecord): string[] => {
     ...new Set(
       names.flatMap((name) => {
         const normalized = name.trim().toLowerCase()
+
         return normalized ? [normalized] : []
       })
     )
@@ -102,14 +103,17 @@ export const convertEmojiRecords = (records: EmojiRecord[]): EmojiData => {
 
   for (const record of [...records].sort((left, right) => left.order - right.order)) {
     const category = GROUP_TO_CATEGORY.get(record.group)
+
     if (!category) continue
 
     const variations = record.skins?.map((skin) => nativeEmojiToUnified(skin.emoji))
+
     const emoji: EmojiData['emojis'][typeof category][number] = {
       n: getEmojiNames(record),
       u: nativeEmojiToUnified(record.emoji),
       a: String(record.version)
     }
+
     if (variations?.length) emoji.v = variations
     emojis[category].push(emoji)
   }
@@ -119,6 +123,7 @@ export const convertEmojiRecords = (records: EmojiRecord[]): EmojiData => {
 
 const loadEmojiDataUrl = (url: string): Promise<EmojiData> => {
   const cached = dataCache.get(url)
+
   if (cached) return cached
 
   const promise = fetch(url)
@@ -136,6 +141,7 @@ const loadEmojiDataUrl = (url: string): Promise<EmojiData> => {
     })
 
   dataCache.set(url, promise)
+
   return promise
 }
 
@@ -146,6 +152,7 @@ export const loadEmojiData = async (locale: LanguageVarious): Promise<EmojiData>
     return await loadEmojiDataUrl(url)
   } catch (error) {
     if (url === dataEN) throw error
+
     return loadEmojiDataUrl(dataEN)
   }
 }

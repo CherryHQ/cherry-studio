@@ -37,6 +37,7 @@ export function usePaintingInitialDraft({
 
   useEffect(() => {
     if (currentPainting.id !== bootstrapDraftIdRef.current) return
+
     if (currentPainting.persistedAt || !isUntouchedDraft(currentPainting)) return
 
     if (

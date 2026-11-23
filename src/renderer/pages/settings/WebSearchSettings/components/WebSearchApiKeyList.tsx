@@ -47,12 +47,14 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
 
   const handleSave = async () => {
     const result = await persist(() => onUpdate(editValue), 'Failed to save web search API key')
+
     if (!result.ok) {
       return
     }
 
     if (!result.value.isValid) {
       toast.warning(result.value.error)
+
       return
     }
 
@@ -62,6 +64,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
   const handleCancelEdit = () => {
     if (item.isNew || !item.key.trim()) {
       void onRemove()
+
       return
     }
 
@@ -173,6 +176,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
 
 export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }) => {
   const { t } = useTranslation()
+
   const { provider, keys, displayItems, hasPendingNewKey, addPendingKey, updateListItem, removeListItem } =
     useWebSearchApiKeyList(providerId)
 

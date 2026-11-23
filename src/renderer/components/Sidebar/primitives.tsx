@@ -15,11 +15,13 @@ function isTextAvatar(str?: string): boolean {
   ) {
     return false
   }
+
   return true
 }
 
 function getUserAvatarFallback(user?: SidebarUser) {
   if (user?.avatar && isTextAvatar(user.avatar)) return user.avatar
+
   return user?.name ? user.name.slice(0, 1).toUpperCase() : ''
 }
 

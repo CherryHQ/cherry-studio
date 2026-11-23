@@ -21,11 +21,13 @@ type Executed<R extends JsonValue> = TransactResult<R> & {
 function dedupe<R extends JsonValue>(facts: ConversationFacts, decided: Step<R>): Step<R> {
   const seen = new Set<string>(facts.keysSeen)
   const ops: TxOp[] = []
+
   for (const op of decided.ops) {
     if (seen.has(op.key)) continue
     seen.add(op.key)
     ops.push(op)
   }
+
   return { ...decided, ops }
 }
 
@@ -39,6 +41,7 @@ async function execute(
   effect: Exclude<Effect, { type: 'start-turn' | 'retract-turn' | 'message-child' }>
 ) {
   const { ports, host } = context
+
   switch (effect.type) {
     case 'stop-turn':
       return ports.turns.stop(effect.thread, effect.cause, effect.turn)
@@ -59,26 +62,35 @@ export async function step<R extends JsonValue>(
   decide: (facts: ConversationFacts) => Step<R>
 ): Promise<Executed<R>> {
   let touched = false
+
   const committed = await context.ports.ledger.transact(thread, (facts) => {
     const decided = dedupe(facts, decide(facts))
     touched = touchesChildren(decided)
+
     return decided
   })
+
   let started: StartResult | undefined
   let retracted: RetractResult | undefined
   let messaged: MessageResult | undefined
   const { turns, helpers } = context.ports
+
   for (const effect of committed.effects) {
     if (effect.type === 'start-turn') started = await turns.start(effect.thread, effect.input, effect.key)
     else if (effect.type === 'retract-turn') retracted = await turns.retract(effect.thread, effect.key)
     else if (effect.type === 'message-child') messaged = await helpers.message(effect.child, effect.input, effect.key)
     else await execute(context, effect)
   }
+
   if (touched) await emitViews(context, thread)
   const executed: Executed<R> = { ...committed }
+
   if (started !== undefined) Object.assign(executed, { started })
+
   if (retracted !== undefined) Object.assign(executed, { retracted })
+
   if (messaged !== undefined) Object.assign(executed, { messaged })
+
   return executed
 }
 
@@ -96,6 +108,7 @@ const settingsSnapshot = (settings: Settings, thread: ThreadId): HostSettingsSna
 async function outcomesFor(host: HostPorts, facts: ConversationFacts): Promise<ApprovalOutcome[]> {
   const threads = [facts.thread, ...facts.children.keys()]
   const lists = await Promise.all(threads.map((thread) => host.approvals.outcomes(thread, [])))
+
   return lists.flat()
 }
 
@@ -106,6 +119,7 @@ export async function gatherInputs(
   extra: Pick<CallInputs, 'models' | 'verdict' | 'args'> = {}
 ): Promise<CallInputs> {
   const facts = await context.ports.ledger.read(thread)
+
   return {
     now: context.ports.clock.now(),
     settings: settingsSnapshot(context.host.settings, thread),

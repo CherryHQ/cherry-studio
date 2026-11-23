@@ -12,6 +12,7 @@ import { useOptionalMessageListActions } from '../messages/MessageListProvider'
 import type { MessageListActions } from '../messages/types'
 
 export type CitationCopyActions = Pick<MessageListActions, 'copyText' | 'notifyError'>
+
 export type CitationPanelActions = CitationCopyActions & {
   openBrowserUrl?: MessageListActions['openBrowserUrl']
   openPath?: (path: string) => void | Promise<void>
@@ -22,6 +23,7 @@ export const truncateText = (text: string, maxLength = 100) =>
 
 export const getCitationHostname = (citation: Citation) => {
   if (!citation.url) return undefined
+
   try {
     return new URL(citation.url).hostname
   } catch {
@@ -38,10 +40,13 @@ export const handleLinkClick = (
   }
 ) => {
   if (!url || (event.button !== 0 && event.button !== 1)) return
+
   if (isHttpUrl(url)) {
     event.preventDefault()
+
     if (event.button === 0 && actions?.openBrowserUrl) actions.openBrowserUrl(url)
     else openRoute('/app/browser', { url })
+
     return
   }
 

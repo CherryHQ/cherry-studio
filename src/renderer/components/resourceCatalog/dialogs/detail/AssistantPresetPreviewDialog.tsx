@@ -45,6 +45,7 @@ export function AssistantPresetPreviewDialog({
   const { t } = useTranslation()
 
   const { value: retainedPreset } = useExitPresence(preset)
+
   if (!retainedPreset) return null
 
   const description = retainedPreset.description?.trim()

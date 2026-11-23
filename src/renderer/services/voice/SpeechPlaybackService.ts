@@ -25,7 +25,9 @@ import {
 } from './VoiceService'
 
 export const SPEECH_PLAYBACK_SOURCE_LABELS = ['message', 'selection', 'document', 'preview'] as const
+
 export type SpeechPlaybackSourceLabel = (typeof SPEECH_PLAYBACK_SOURCE_LABELS)[number]
+
 export type SpeechPlaybackPhase = 'idle' | 'generating' | 'ready' | 'playing' | 'paused' | 'failed'
 
 export interface SpeechPlaybackProgress {
@@ -126,6 +128,7 @@ interface PlaybackRun {
 
 const logger = loggerService.withContext('SpeechPlaybackService')
 const sourceLabels = new Set<string>(SPEECH_PLAYBACK_SOURCE_LABELS)
+
 const IDLE_SNAPSHOT: SpeechPlaybackSnapshot = Object.freeze({
   phase: 'idle',
   progress: Object.freeze({ completed: 0, total: 0 })
@@ -140,6 +143,7 @@ function planningResult(plan: Exclude<ReadableTextPlan, { status: 'ready' }>): S
   if (plan.status === 'confirmation_required') {
     return { status: plan.status, normalizedLength: plan.normalizedLength }
   }
+
   return { status: plan.status, reason: plan.reason, normalizedLength: plan.normalizedLength }
 }
 
@@ -172,12 +176,14 @@ export class SpeechPlaybackService {
         const audio = new Audio()
         audio.crossOrigin = 'anonymous'
         audio.src = source
+
         return audio
       })
   }
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
+
     return () => this.listeners.delete(listener)
   }
 
@@ -188,10 +194,13 @@ export class SpeechPlaybackService {
     const generation = this.lifecycleGeneration
     this.unsubscribeState = this.voice.subscribe(() => {
       const state = this.voice.getSnapshot()
+
       if (state.phase !== 'idle' && state.playback?.failure) {
         const run = this.runs.get(state.sessionId)
+
         if (run?.output?.kind === 'pcm-stream') void this.disposeAudio(run).catch(() => undefined)
       }
+
       if (this.visibleRun) this.publish(this.visibleRun)
     })
     this.unsubscribeCommands = this.voice.subscribeCommands((event) => this.handleCommand(generation, event))
@@ -206,32 +215,40 @@ export class SpeechPlaybackService {
       })
     })
     this.ownerWindow.addEventListener('beforeunload', this.handleBeforeUnload)
+
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Voice startup may reject; this observer detaches only the matching playback lifecycle and rethrows the arbitrary failure.
     const initialization = this.voice.initialize().catch((error: unknown) => {
       if (generation === this.lifecycleGeneration && this.initialization === initialization) {
         this.detach()
         this.initialization = undefined
       }
+
       throw error
     })
+
     this.initialization = initialization
+
     return initialization
   }
 
   async start(input: SpeechPlaybackStartInput): Promise<SpeechPlaybackStartResult> {
     if (input.signal?.aborted) throw new VoiceDomainError('aborted')
+
     const plan = this.planText(input.text, {
       trigger: input.trigger,
       mode: input.textInput ? 'selection' : input.mode,
       confirmed: input.confirmed
     })
+
     if (plan.status !== 'ready') return planningResult(plan)
+
     if (input.textInput) plan.chunks = [input.text]
 
     if (!sourceLabels.has(input.sourceLabel)) {
       this.publishStartFailure(undefined, plan.chunks.length, 'invalid_request')
       throw new VoiceDomainError('invalid_request')
     }
+
     if (!plan.chunks.length) {
       this.publishStartFailure(input.sourceLabel, 0, 'invalid_request')
       throw new VoiceDomainError('invalid_request')
@@ -241,11 +258,14 @@ export class SpeechPlaybackService {
     const interruptionGeneration = this.interruptionGeneration
     const autoReadGeneration = this.autoReadGeneration
     let startedRun: PlaybackRun | undefined = undefined
+
     const abort = (): void => {
       if (startedRun) void this.terminate(startedRun, true).catch(() => undefined)
     }
+
     const detachAbort = (): void => input.signal?.removeEventListener('abort', abort)
     input.signal?.addEventListener('abort', abort, { once: true })
+
     const assertStartCurrent = (): void => {
       if (
         input.signal?.aborted ||
@@ -256,7 +276,9 @@ export class SpeechPlaybackService {
         throw new VoiceDomainError('aborted')
       }
     }
+
     let preferences: SpeechPreferenceInput
+
     try {
       await this.initialize()
       assertStartCurrent()
@@ -269,8 +291,10 @@ export class SpeechPlaybackService {
       this.publishStartFailure(input.sourceLabel, plan.chunks.length, reason)
       throw new VoiceDomainError(reason)
     }
+
     const deferredVisibilityToken = input.trigger === 'auto_read' && this.visibleRun ? this.visibilityToken : undefined
     const operation = this.voice.generateSpeech(this.speechInput(input, preferences, plan.chunks, 0))
+
     const run: PlaybackRun = {
       generation,
       sessionId: operation.sessionId,
@@ -292,8 +316,10 @@ export class SpeechPlaybackService {
       detachAbort,
       textInput: input.textInput
     }
+
     startedRun = run
     this.runs.set(run.sessionId, run)
+
     if (deferredVisibilityToken === undefined) {
       this.visibilityToken = Symbol()
       this.visibleRun = run
@@ -301,10 +327,12 @@ export class SpeechPlaybackService {
     }
 
     await this.finishGeneration(run, operation, deferredVisibilityToken)
+
     if (run.textInput) {
       const textInput = run.textInput
       run.inputTask = (async () => {
         let sequence = 0
+
         for await (const event of textInput) {
           this.assertCurrent(run)
           await this.voice.writeSpeechText({
@@ -315,15 +343,18 @@ export class SpeechPlaybackService {
           })
           sequence++
         }
+
         this.assertCurrent(run)
         await this.voice.finishSpeechText({ sessionId: run.sessionId, requestId: operation.requestId, sequence })
       })()
         // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Streaming text iteration and IPC writes can fail independently; this handler classifies their arbitrary rejection after cancelling input.
         .catch((error: unknown) => {
           textInput.cancel()
+
           if (!run.stopped) void this.failPlayback(run, errorReason(error)).catch(() => undefined)
         })
     }
+
     return { status: 'started' }
   }
 
@@ -337,12 +368,17 @@ export class SpeechPlaybackService {
 
   async stop(sessionId?: string): Promise<void> {
     const target = sessionId ?? this.visibleRun?.sessionId
+
     if (!target) throw new VoiceDomainError('invalid_request')
     const run = this.runs.get(target)
     const retryingCleanup = run?.stopped === true
+
     if (!retryingCleanup) await this.control(target, 'stop')
+
     if (!run || this.runs.get(target) !== run) return
+
     if (run.cleanup) return run.cleanup
+
     if (!retryingCleanup && run.cleanupError) throw run.cleanupError
     await this.terminate(run, true)
   }
@@ -351,6 +387,7 @@ export class SpeechPlaybackService {
     this.autoReadGeneration += 1
     const runs = [...this.runs.values()].filter((run) => run.trigger === 'auto_read')
     await Promise.all(runs.map((run) => this.terminate(run, true)))
+
     return runs.length > 0
   }
 
@@ -359,12 +396,14 @@ export class SpeechPlaybackService {
     command: InputFor<'ai.voice.playback.control'>['command']
   ): Promise<void> {
     const target = sessionId ?? this.visibleRun?.sessionId
+
     if (!target) throw new VoiceDomainError('invalid_request')
     await this.voice.controlPlayback({ sessionId: target, command })
   }
 
   canRetry(sessionId: string): boolean {
     const state = this.voice.getSnapshot()
+
     return (
       state.phase !== 'idle' &&
       state.sessionId === sessionId &&
@@ -383,6 +422,7 @@ export class SpeechPlaybackService {
     const runs = [...this.runs.values()]
     const results = await Promise.allSettled(runs.map((run) => this.terminate(run, false)))
     const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+
     if (failure) throw new VoiceDomainError(errorReason(failure.reason))
     this.listeners.clear()
     this.visibleRun = undefined
@@ -421,23 +461,28 @@ export class SpeechPlaybackService {
   ): Promise<void> {
     try {
       const result = (await operation.result) as Awaited<ReturnType<PlaybackVoiceService['generateSpeech']>['result']>
+
       if (run.operation === operation) run.operation = undefined
       this.assertCurrent(run)
+
       if (claimVisibilityWith !== undefined) {
         if (this.visibilityToken !== claimVisibilityWith) {
           await this.terminate(run, false)
           throw new VoiceDomainError('aborted')
         }
+
         this.visibilityToken = Symbol()
         this.visibleRun = run
         this.publish(run)
       }
+
       if (result.resolved) {
         run.modelId = result.resolved.modelId
         run.voice = result.resolved.voice
         run.language = result.resolved.language
         run.speed = result.resolved.speed
       }
+
       run.outputId = result.output.id
       run.output = result.output
       run.requestId = result.requestId
@@ -446,12 +491,15 @@ export class SpeechPlaybackService {
     } catch (error) {
       const reason = run.stopped || run.generation !== this.lifecycleGeneration ? 'aborted' : errorReason(error)
       const ownsGeneration = run.operation === operation
+
       if (ownsGeneration) run.operation = undefined
+
       if (!run.stopped && reason === 'aborted' && ownsGeneration) {
         await this.terminate(run, true)
       } else if (!run.stopped && reason !== 'aborted') {
         await this.handleFailure(run, reason)
       }
+
       throw new VoiceDomainError(reason)
     } finally {
       this.flushEnded(run)
@@ -461,6 +509,7 @@ export class SpeechPlaybackService {
   private async generateNext(run: PlaybackRun): Promise<void> {
     if (run.stopped || this.isPaused(run) || run.operation || run.releasing || run.index >= run.chunks.length) return
     this.publish(run)
+
     const operation = this.voice.generateSpeech({
       sessionId: run.sessionId,
       ...(run.modelId && { modelId: run.modelId }),
@@ -474,6 +523,7 @@ export class SpeechPlaybackService {
       chunkIndex: run.index,
       chunkCount: run.chunks.length
     })
+
     run.operation = operation
     await this.finishGeneration(run, operation).catch(() => undefined)
   }
@@ -491,19 +541,26 @@ export class SpeechPlaybackService {
 
   private async executeTarget(run: PlaybackRun): Promise<void> {
     const target = run.target
+
     if (!target || run.stopped) return
+
     if (target.desired === 'stopped') {
       await this.terminate(run, true)
+
       return
     }
+
     if (run.releasing) return
+
     if (target.pendingCommand === 'retry' && run.output?.kind === 'pcm-stream') {
       await this.disposeAudio(run)
+
       if (run.stopped || run.operation) return
       run.output = undefined
       run.outputId = undefined
       run.index = 0
       run.completed = 0
+
       const operation = this.voice.generateSpeech({
         ...this.speechInput(
           { text: '', trigger: run.trigger, sourceLabel: run.sourceLabel, sourceEntityId: run.sourceEntityId },
@@ -514,12 +571,17 @@ export class SpeechPlaybackService {
         ),
         retryAttemptId: target.attemptId
       })
+
       run.operation = operation
       await this.finishGeneration(run, operation)
+
       return
     }
+
     if (run.output && run.audioAttemptId !== target.attemptId) await this.preparePlayback(run)
+
     if (run.stopped) return
+
     if (this.isPaused(run)) {
       await run.audio?.pause()
       await this.report(run, 'paused')
@@ -533,13 +595,16 @@ export class SpeechPlaybackService {
   private preparePlayback(run: PlaybackRun): Promise<void> {
     if (run.preparing) return run.preparing.then(() => this.preparePlayback(run))
     const target = run.target!
+
     const preparing = (async () => {
       if (run.output && run.audioAttemptId !== target.attemptId) {
         await this.disposeAudio(run)
+
         if (run.stopped) return
         run.playAttempt = undefined
         run.failedAttempt = undefined
         let audio: SpeechPlayback
+
         switch (run.output.kind) {
           case 'audio':
             audio = new FinitePlayback(this.createAudio(run.output.url))
@@ -557,6 +622,7 @@ export class SpeechPlaybackService {
             )
             break
         }
+
         run.audio = audio
         run.audioAttemptId = target.attemptId
         run.ended = () => void this.handleEnded(run, audio)
@@ -567,7 +633,9 @@ export class SpeechPlaybackService {
     })().finally(() => {
       if (run.preparing === preparing) run.preparing = undefined
     })
+
     run.preparing = preparing
+
     return preparing
   }
 
@@ -588,17 +656,21 @@ export class SpeechPlaybackService {
 
   private playAudio(run: PlaybackRun): Promise<void> {
     const target = run.target!
+
     if (run.playAttempt && run.playCommandRevision === target.commandRevision) return run.playAttempt
     const failureRevision = run.audioFailureRevision
     const audio = run.audio
+
     const playAttempt = Promise.resolve()
       .then(() => this.performPlay(run, audio, target, failureRevision))
       .finally(() => {
         if (run.playAttempt === playAttempt) run.playAttempt = undefined
         this.flushEnded(run)
       })
+
     run.playAttempt = playAttempt
     run.playCommandRevision = target.commandRevision
+
     return playAttempt
   }
 
@@ -610,15 +682,20 @@ export class SpeechPlaybackService {
   ): Promise<void> {
     const assertPlayable = () => {
       this.assertCurrent(run, audio)
+
       if (run.audioFailureRevision !== failureRevision) throw new VoiceDomainError('operation_failed')
     }
+
     if (!audio) throw new VoiceDomainError('invalid_audio')
     assertPlayable()
+
     if (this.isPaused(run)) return
+
     try {
       await audio.play()
     } catch (error) {
       assertPlayable()
+
       if (
         error instanceof DOMException &&
         error.name === 'AbortError' &&
@@ -627,11 +704,15 @@ export class SpeechPlaybackService {
         return
       throw error
     }
+
     assertPlayable()
+
     if (this.isPaused(run)) {
       await audio.pause()
+
       return
     }
+
     await this.report(run, 'playing', undefined, target)
     assertPlayable()
   }
@@ -645,17 +726,23 @@ export class SpeechPlaybackService {
 
   private async handleEnded(run: PlaybackRun, audio: SpeechPlayback): Promise<void> {
     if (run.stopped || run.audio !== audio || run.releasing || !run.outputId) return
+
     if (run.playAttempt || run.operation) {
       run.pendingEnded = audio
+
       return
     }
+
     if (run.failedAttempt === run.audioAttemptId) return
     run.releasing = true
     const outputId = run.outputId
+
     try {
       await this.disposeAudio(run)
+
       try {
         await this.report(run, 'ended')
+
         if (run.output?.kind === 'audio') await this.voice.releaseOutput({ sessionId: run.sessionId, outputId })
         this.assertCurrent(run)
         run.outputId = undefined
@@ -666,6 +753,7 @@ export class SpeechPlaybackService {
       } finally {
         run.releasing = false
       }
+
       if (run.index >= run.chunks.length) {
         await this.completeReleasedRun(run)
       } else {
@@ -680,20 +768,25 @@ export class SpeechPlaybackService {
     try {
       const state = await this.report(run, 'completed')
       this.assertCurrent(run)
+
       if (state.phase !== 'idle' && state.sessionId === run.sessionId) {
         // Ignored completion reports retain Main ownership; cleanup failures must remain retryable.
         await this.terminate(run, true).catch(() => undefined)
+
         return
       }
+
       this.releaseRun(run, true)
     } catch (error) {
       const reason = errorReason(error)
       const wasVisible = this.visibleRun === run
+
       try {
         await this.terminate(run, false)
       } catch {
         return
       }
+
       if (wasVisible && !this.visibleRun) this.publishFailure(run.sourceLabel, run.chunks.length, reason)
     }
   }
@@ -704,56 +797,72 @@ export class SpeechPlaybackService {
     run.failedAttempt = attemptId
     run.audioFailureRevision += 1
     await audio?.pause().catch(() => undefined)
+
     try {
       await this.report(run, 'failed', reason)
     } catch (error) {
       logger.warn('Could not report playback failure', { sessionId: run.sessionId, reason: errorReason(error) })
+
       if (run.stopped || run.audio !== audio || run.target?.attemptId !== attemptId) return
       const wasVisible = this.visibleRun === run
+
       try {
         await this.terminate(run, false)
       } catch {
         return
       }
+
       if (wasVisible && !this.visibleRun) this.publishFailure(run.sourceLabel, run.chunks.length, reason)
     }
   }
 
   private async handleFailure(run: PlaybackRun, reason: VoiceErrorReason): Promise<void> {
     const state = this.voice.getSnapshot()
+
     if (state.phase !== 'idle' && state.sessionId === run.sessionId) {
       if (state.playback?.failure) {
         this.publish(run)
+
         return
       }
+
       if (run.target) {
         await this.failPlayback(run, reason)
+
         return
       }
     } else if (reason === 'busy' && !run.outputId) {
       this.rejectUnadmittedRun(run, reason)
+
       return
     }
+
     const wasVisible = this.visibleRun === run
     await this.terminate(run, false)
+
     if (wasVisible && !this.visibleRun) this.publishFailure(run.sourceLabel, run.chunks.length, reason)
   }
 
   private handleCommand(generation: number, event: VoiceCommandEvent): void {
     if (generation !== this.lifecycleGeneration) return
     const run = this.runs.get(event.sessionId)
+
     if (!run || (run.stopped && event.command !== 'stop')) return
+
     if (event.command === 'stop') {
       if (event.playback?.desired === 'stopped') this.acceptTarget(run, event.playback)
       void this.terminate(run, true).catch(() => undefined)
+
       return
     }
+
     if (!event.playback) return
     this.acceptTarget(run, event.playback)
     const attemptId = run.target?.attemptId
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- An audio playback command may fail in browser or IPC work; only the current attempt classifies and reports the failure.
     void this.executeTarget(run).catch((error: unknown) => {
       if (run.stopped || run.target?.attemptId !== attemptId) return
+
       return this.failPlayback(run, errorReason(error))
     })
   }
@@ -766,6 +875,7 @@ export class SpeechPlaybackService {
     run.detachAbort = undefined
     run.cleanupError = undefined
     const localCleanup = this.disposeAudio(run)
+
     const cleanup = (async () => {
       const tasks = [
         localCleanup,
@@ -774,9 +884,11 @@ export class SpeechPlaybackService {
           ? this.report(run, 'stopped').then(() => undefined)
           : this.voice.discardSession(run.sessionId)
       ]
+
       if (run.operation) tasks.unshift(this.voice.abortSpeech(run.operation))
       const results = await Promise.allSettled(tasks)
       const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+
       if (failure) throw new VoiceDomainError(errorReason(failure.reason))
       run.operation = undefined
       this.releaseRun(run, publishIdle)
@@ -791,7 +903,9 @@ export class SpeechPlaybackService {
       .finally(() => {
         if (run.cleanup === cleanup) run.cleanup = undefined
       })
+
     run.cleanup = cleanup
+
     return cleanup
   }
 
@@ -800,15 +914,19 @@ export class SpeechPlaybackService {
     run.detachAbort?.()
     run.detachAbort = undefined
     this.runs.delete(run.sessionId)
+
     if (this.visibleRun !== run) return
     this.visibleRun = undefined
+
     if (publishIdle) this.setSnapshot(IDLE_SNAPSHOT)
   }
 
   private rejectUnadmittedRun(run: PlaybackRun, reason: VoiceErrorReason): void {
     run.detachAbort?.()
     run.detachAbort = undefined
+
     if (this.runs.get(run.sessionId) === run) this.runs.delete(run.sessionId)
+
     if (this.visibleRun !== run) return
     this.visibleRun = undefined
     this.publishFailure(run.sourceLabel, run.chunks.length, reason)
@@ -819,17 +937,24 @@ export class SpeechPlaybackService {
     const audio = run.audio
     run.audio = undefined
     run.audioAttemptId = undefined
+
     if (audio) {
       if (run.ended) audio.removeEventListener('ended', run.ended)
+
       if (run.failed) audio.removeEventListener('error', run.failed)
     }
+
     run.ended = undefined
     run.failed = undefined
+
     if (!audio) return run.audioCleanup ?? Promise.resolve()
+
     const cleanup = audio.close().then(() => {
       if (run.audioCleanup === cleanup) run.audioCleanup = undefined
     })
+
     run.audioCleanup = cleanup
+
     return cleanup
   }
 
@@ -846,6 +971,7 @@ export class SpeechPlaybackService {
 
   private publish(run: PlaybackRun): void {
     if (this.visibleRun !== run) return
+
     if (run.cleanupError) {
       this.setSnapshot({
         phase: 'failed',
@@ -853,9 +979,12 @@ export class SpeechPlaybackService {
         progress: { completed: run.completed, total: run.chunks.length },
         error: run.cleanupError.reason
       })
+
       return
     }
+
     const state = this.voice.getSnapshot()
+
     if (state.phase === 'idle' || state.sessionId !== run.sessionId || !state.playback) return
     this.setSnapshot({
       phase: state.phase as Exclude<SpeechPlaybackPhase, 'idle'>,

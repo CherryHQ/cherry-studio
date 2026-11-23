@@ -37,6 +37,7 @@ export function CommandContextKeyProvider({ children }: { children: React.ReactN
   const [quickAssistantEnabled] = usePreference('feature.quick_assistant.enabled')
   const [selectionEnabled] = usePreference('feature.selection.enabled')
   const [screenshotEnabled] = usePreference('feature.screenshot.enabled')
+
   const baseValuesRef = useRef(
     new Map<RendererCommandContextKey, ContextValue>([
       ['platform', rendererPlatform],
@@ -45,6 +46,7 @@ export function CommandContextKeyProvider({ children }: { children: React.ReactN
       ['feature.screenshot.enabled', screenshotEnabled]
     ])
   )
+
   const stacksRef = useRef(new Map<RendererCommandContextKey, ContextEntry[]>())
   const nextEntryIdRef = useRef(0)
   const [snapshot, setSnapshot] = useState(() => buildSnapshot(baseValuesRef.current, stacksRef.current))
@@ -67,6 +69,7 @@ export function CommandContextKeyProvider({ children }: { children: React.ReactN
         id: nextEntryIdRef.current++,
         value
       }
+
       const entries = stacksRef.current.get(key) ?? []
       entries.push(entry)
       stacksRef.current.set(key, entries)
@@ -74,16 +77,19 @@ export function CommandContextKeyProvider({ children }: { children: React.ReactN
 
       return () => {
         const currentEntries = stacksRef.current.get(key)
+
         if (!currentEntries) {
           return
         }
 
         const nextEntries = currentEntries.filter((current) => current.id !== entry.id)
+
         if (nextEntries.length > 0) {
           stacksRef.current.set(key, nextEntries)
         } else {
           stacksRef.current.delete(key)
         }
+
         publishSnapshot()
       }
     },

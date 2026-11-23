@@ -30,6 +30,7 @@ export function HelpMenu({
   const { t, i18n } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
   const openReleaseNotes = useOpenReleaseNotes()
+
   const {
     open: menuOpen,
     onOpenChange: setMenuOpen,
@@ -37,6 +38,7 @@ export function HelpMenu({
     triggerProps,
     contentProps
   } = useAccountSubmenu()
+
   const pendingActionRef = useRef<(() => void | Promise<void>) | null>(null)
 
   const runAfterClose = (action: () => void | Promise<void>) => {
@@ -46,8 +48,10 @@ export function HelpMenu({
 
   const openDocs = () => {
     const language = i18n.resolvedLanguage ?? i18n.language
+
     const url =
       language === 'zh-CN' || language === 'zh-TW' ? 'https://cherryai.com.cn/docs' : 'https://cherryai.com/docs'
+
     openSmartMiniApp({
       appId: 'cherrystudio-guide',
       name: t('help.guide'),
@@ -83,12 +87,14 @@ export function HelpMenu({
           onCloseAutoFocus={(event) => {
             contentProps.onCloseAutoFocus(event)
             const action = pendingActionRef.current
+
             if (!action) return
             pendingActionRef.current = null
             event.preventDefault()
             void Promise.resolve()
               .then(() => {
                 onRequestClose?.()
+
                 return action()
               })
               .catch((error) => logger.error('Failed to run help menu action', error as Error))

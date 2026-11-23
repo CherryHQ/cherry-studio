@@ -45,15 +45,18 @@ const ASSISTANT_MUTABLE_FIELDS = {
  * - `mcpServerIds` / `knowledgeBaseIds` are synced to junction tables
  */
 export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS).partial().required({ name: true })
+
 export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
 
 export const DuplicateAssistantSchema = AssistantSchema.pick({ name: true })
+
 export type DuplicateAssistantDto = z.infer<typeof DuplicateAssistantSchema>
 
 export const ImportAssistantPhraseSchema = z.strictObject({
   title: PromptTitleSchema,
   content: PromptContentSchema
 })
+
 export type ImportAssistantPhraseDto = z.infer<typeof ImportAssistantPhraseSchema>
 
 /**
@@ -75,6 +78,7 @@ export const ImportAssistantSchema = CreateAssistantSchema.pick({
   groupName: GroupNameSchema.optional(),
   regularPhrases: z.array(ImportAssistantPhraseSchema).optional()
 })
+
 export type ImportAssistantDto = z.infer<typeof ImportAssistantSchema>
 
 /**
@@ -93,6 +97,7 @@ export type ImportAssistantDto = z.infer<typeof ImportAssistantSchema>
 export const UpdateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS)
   .partial()
   .extend({ settings: AssistantSettingsSchema.partial().optional() })
+
 export type UpdateAssistantDto = z.infer<typeof UpdateAssistantSchema>
 
 export const ASSISTANTS_DEFAULT_PAGE = 1
@@ -138,12 +143,14 @@ export const ListAssistantsQuerySchema = z.strictObject({
   /** Positive integer, max {@link ASSISTANTS_MAX_LIMIT}, defaults to {@link ASSISTANTS_DEFAULT_LIMIT} */
   limit: z.int().positive().max(ASSISTANTS_MAX_LIMIT).default(ASSISTANTS_DEFAULT_LIMIT)
 })
+
 /**
  * Renderer-facing query params (schema input — `page`/`limit` are optional,
  * filled by `.parse()` at the handler boundary).
  * Follows the `{...QueryParams, ...Query}` split used by KnowledgeService.
  */
 export type ListAssistantsQueryParams = z.input<typeof ListAssistantsQuerySchema>
+
 /**
  * Service-facing query (schema output — defaults guaranteed filled).
  */
@@ -157,6 +164,7 @@ export const DeleteAssistantQuerySchema = z.strictObject({
    */
   permanent: z.literal(true)
 })
+
 export type DeleteAssistantQueryParams = z.input<typeof DeleteAssistantQuerySchema>
 
 export interface DeleteAssistantResult {

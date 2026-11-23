@@ -64,19 +64,24 @@ export class Projection {
 
   private get model(): string | undefined {
     const option = this.configuration.configOptions?.find((item) => item.category === 'model' && item.type === 'select')
+
     return option?.type === 'select' ? option.currentValue : undefined
   }
 
   private updateConfiguration(value: AcpSessionState['configuration']): void {
     const model = this.model
     this.configuration = { ...this.configuration, ...value }
+
     if (this.model !== model) this.usage = undefined
   }
 
   contextUsage(): OperationResult<ThreadContextUsage> {
     const model = this.model
+
     if (!this.usage || !model) return unavailable('contextUsage', 'missing-native-context-or-model')
+
     if (this.usage.size <= 0) return unavailable('contextUsage', 'invalid-native-context')
+
     return {
       status: 'confirmed',
       value: {
@@ -106,23 +111,28 @@ export class Projection {
   async finish(completeness: Completeness): Promise<void> {
     for (const id of this.activeMessages) {
       const value = this.streams.get(id)
+
       if (value) {
         const end: Chunk[] = value.part ? [{ type: `${value.part.kind}-end`, id: value.part.id }] : []
         this.publish({ type: 'message.upsert', message: await value.stream.append(end, completeness) })
         value.part = undefined
       }
+
       const user = this.users.get(id)
+
       if (user) {
         user.metadata = { completeness }
         this.publish({ type: 'message.upsert', message: user })
       }
     }
+
     this.activeMessages.clear()
     this.boundary()
   }
 
   async update(update: SessionUpdate): Promise<void> {
     let event: ObservationPayload | undefined
+
     if (
       update.sessionUpdate === 'agent_message_chunk' ||
       update.sessionUpdate === 'agent_thought_chunk' ||
@@ -130,46 +140,58 @@ export class Projection {
     ) {
       const kind = update.sessionUpdate
       const nativeId = update.messageId ?? undefined
+
       const id =
         nativeId !== undefined
           ? JSON.stringify([this.sessionId, kind, nativeId])
           : this.current?.kind === kind
             ? this.current.id
             : `${this.epoch}:${++this.sequence}`
+
       this.current = { kind, id }
       const previous = this.messages.get(id)
       this.messages.set(id, { id, kind, nativeId, chunks: [...(previous?.chunks ?? []), update] })
       this.activeMessages.add(id)
+
       if (kind === 'user_message_chunk') {
         const message = this.users.get(id) ?? { id, role: 'user', parts: [], metadata: { completeness: 'partial' } }
         const content = update.content
+
         if (content.type === 'text') {
           const last = message.parts.at(-1)
+
           if (last?.type === 'text') last.text += content.text
           else message.parts.push({ type: 'text', text: content.text })
         } else {
           const file = filePart(content)
+
           if (file) message.parts.push(file)
         }
+
         this.users.set(id, message)
         event = { type: 'message.upsert', message }
       } else {
         const value = this.stream(id)
         const content = update.content
         const chunks: Chunk[] = []
+
         if (content.type === 'text') {
           const type = kind === 'agent_thought_chunk' ? 'reasoning' : 'text'
+
           if (value.part?.kind !== type) {
             value.part = { kind: type, id: String(++value.sequence) }
             chunks.push({ type: `${type}-start`, id: value.part.id })
           }
+
           chunks.push({ type: `${type}-delta`, id: value.part.id, delta: content.text })
         } else {
           if (value.part) chunks.push({ type: `${value.part.kind}-end`, id: value.part.id })
           const file = filePart(content)
+
           if (file) chunks.push(file)
           value.part = undefined
         }
+
         event = { type: 'message.upsert', message: await value.stream.append(chunks, 'partial') }
       }
     } else if (update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') {
@@ -178,6 +200,7 @@ export class Projection {
       this.current = undefined
       const id = JSON.stringify([this.sessionId, 'tool', update.toolCallId])
       this.activeMessages.add(id)
+
       const chunks: Chunk[] = [
         {
           type: 'tool-input-available',
@@ -187,6 +210,7 @@ export class Projection {
           dynamic: true
         }
       ]
+
       if (tool.status === 'completed')
         chunks.push({
           type: 'tool-output-available',
@@ -194,6 +218,7 @@ export class Projection {
           output: tool.rawOutput ?? tool.content ?? null,
           dynamic: true
         })
+
       if (tool.status === 'failed')
         chunks.push({
           type: 'tool-output-error',
@@ -207,15 +232,21 @@ export class Projection {
       event = { type: 'message.upsert', message: await this.stream(id).stream.append(chunks, 'partial') }
     } else {
       this.metadata.set(update.sessionUpdate, update)
+
       if (update.sessionUpdate === 'config_option_update')
         this.updateConfiguration({ configOptions: update.configOptions })
+
       if (update.sessionUpdate === 'current_mode_update' && this.configuration.modes)
         this.configuration.modes.currentModeId = update.currentModeId
+
       if (update.sessionUpdate === 'usage_update') this.usage = update
+
       if (update.sessionUpdate === 'usage_update' || update.sessionUpdate === 'config_option_update')
         event = { ...this.feed.snapshot, contextUsage: this.contextUsage() }
     }
+
     this.publishing = update
+
     try {
       // Snapshot ticks keep native-only updates on the same bounded observation queue.
       this.publish(event ?? this.feed.snapshot)
@@ -230,10 +261,12 @@ export class Projection {
 
   private stream(id: string) {
     let value = this.streams.get(id)
+
     if (!value) {
       value = { stream: new RuntimeMessageStream(id), sequence: 0 }
       this.streams.set(id, value)
     }
+
     return value
   }
 }
@@ -241,5 +274,6 @@ export class Projection {
 function filePart(content: ContentBlock): Extract<RuntimeMessage['parts'][number], { type: 'file' }> | undefined {
   if (content.type === 'image' || content.type === 'audio')
     return { type: 'file', mediaType: content.mimeType, url: `data:${content.mimeType};base64,${content.data}` }
+
   return undefined
 }

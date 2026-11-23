@@ -22,6 +22,7 @@ export function usePreviewHost(): PreviewHost {
 
 export function usePreviewLogger(context: string) {
   const { onDiagnostic } = usePreviewHost()
+
   return useMemo(
     () => ({
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Engine errors and format-specific diagnostics are opaque host details, forwarded without assuming an Error instance.

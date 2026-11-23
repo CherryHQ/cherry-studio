@@ -4,6 +4,7 @@ import { VolcengineLight } from './light'
 
 const Volcengine = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <VolcengineLight {...props} className={className} />
+
   return <VolcengineLight {...props} className={className} />
 }
 

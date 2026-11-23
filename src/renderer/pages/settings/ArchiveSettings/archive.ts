@@ -54,8 +54,10 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000
  */
 export function toEpochMs(v: string | number | undefined): number | undefined {
   if (v === undefined) return undefined
+
   if (typeof v === 'number') return Number.isFinite(v) ? v : undefined
   const ms = new Date(v).getTime()
+
   return Number.isNaN(ms) ? undefined : ms
 }
 
@@ -72,8 +74,11 @@ export function computeDaysRemaining(
 ): number | 'less-than-day' | null {
   if (retentionDays <= 0 || deletedAtMs === undefined) return null
   const remainingMs = deletedAtMs + retentionDays * MS_PER_DAY - now
+
   if (remainingMs <= 0) return 0
+
   if (remainingMs < MS_PER_DAY) return 'less-than-day'
+
   return Math.ceil(remainingMs / MS_PER_DAY)
 }
 
@@ -81,5 +86,6 @@ export function computeDaysRemaining(
 export function formatDeletedTime(ms: number | undefined): string {
   if (ms === undefined) return '—'
   const date = dayjs(ms)
+
   return date.isValid() ? date.format('YYYY-MM-DD HH:mm') : '—'
 }

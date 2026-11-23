@@ -36,6 +36,7 @@ const meta: Meta<typeof ContextMenu> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Default

@@ -31,19 +31,23 @@ export interface SkillFileBrowserHandles {
 
 function isMarkdownFile(filePath: string): boolean {
   const extension = filePath.split('.').pop()?.toLowerCase() ?? ''
+
   return MARKDOWN_EXTENSIONS.has(extension)
 }
 
 function projectNode(node: TreeNode): FileTreeNode | null {
   if (node.basename === 'node_modules') return null
+
   if (node.isTreeFile()) {
     return { id: node.path, name: node.basename, kind: 'file', path: node.path }
   }
+
   if (!node.isTreeDir()) return null
 
   const children = Object.values(node.children)
     .map(projectNode)
     .filter((child): child is FileTreeNode => child !== null)
+
   return { id: node.path, name: node.basename, kind: 'folder', path: node.path, children }
 }
 
@@ -56,20 +60,25 @@ function projectTree(root: TreeDir): FileTreeNode[] {
 function collectFiles(nodes: FileTreeNode[], files = new Set<string>()): Set<string> {
   for (const node of nodes) {
     if (node.kind === 'file') files.add(node.path)
+
     if (node.children) collectFiles(node.children, files)
   }
+
   return files
 }
 
 function findInitialFile(nodes: FileTreeNode[]): string | null {
   const rootSkillFile = nodes.find((node) => node.kind === 'file' && node.name.toLowerCase() === 'skill.md')
+
   if (rootSkillFile) return rootSkillFile.path
 
   for (const node of nodes) {
     if (node.kind === 'file') return node.path
     const child = node.children ? findInitialFile(node.children) : null
+
     if (child) return child
   }
+
   return null
 }
 
@@ -93,6 +102,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
     () => (access === 'read_write' && selectedFile ? createFilePathHandle(selectedFile) : undefined),
     [access, selectedFile]
   )
+
   const fileSession = useFileEditSession(editableHandle, `skill:${skillId}`)
   const notifyExternalChange = fileSession.notifyExternalChange
   const reloadFile = fileSession.reload
@@ -105,6 +115,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
     const task = reconcileChainRef.current
       .catch(() => undefined)
       .then(() => ipcApi.request('skill.reconcile', { skillId }))
+
     reconcileChainRef.current = task
     setIsSyncing(true)
     void task.then(
@@ -118,10 +129,13 @@ export const SkillFileBrowser = function SkillFileBrowser({
         setSyncError(normalized)
       }
     )
+
     const finish = () => {
       if (reconcileChainRef.current === task) setIsSyncing(false)
     }
+
     void task.then(finish, finish)
+
     return task
   }, [skillId])
 
@@ -130,31 +144,39 @@ export const SkillFileBrowser = function SkillFileBrowser({
       if (access !== 'read_write') return
       notifyExternalChange()
       const activePath = selectedFileRef.current
+
       if (event.type === 'updated' && activePath === event.path) {
         return
       }
+
       void reconcileSkill().catch(() => undefined)
     },
     [access, notifyExternalChange, reconcileSkill]
   )
 
   const { root, version, isLoading, error } = useDirectoryTree(rootPath, undefined, handleTreeMutation)
+
   const tree = useMemo(() => {
     void version
+
     return root ? projectTree(root) : []
   }, [root, version])
+
   const filePaths = useMemo(() => collectFiles(tree), [tree])
 
   useEffect(() => {
     if (!selectedFile) {
       const initialFile = findInitialFile(tree)
+
       if (initialFile) {
         const next = AbsoluteFilePathSchema.parse(initialFile)
         setSelectedFile(next)
         setViewMode(isMarkdownFile(next) ? 'preview' : 'edit')
       }
+
       return
     }
+
     if (filePaths.has(selectedFile) || fileSession.isDirty || fileSession.conflict) return
     const initialFile = findInitialFile(tree)
     const next = initialFile ? AbsoluteFilePathSchema.parse(initialFile) : null
@@ -169,10 +191,13 @@ export const SkillFileBrowser = function SkillFileBrowser({
   useEffect(() => {
     if (!selectedFile || fileSession.status !== 'ready') return
     const observed = observedSaveRef.current
+
     if (!observed || observed.path !== selectedFile) {
       observedSaveRef.current = { path: selectedFile, content: fileSession.savedContent }
+
       return
     }
+
     if (observed.content === fileSession.savedContent) return
     observedSaveRef.current = { path: selectedFile, content: fileSession.savedContent }
     setPreviewRevision((current) => current + 1)
@@ -183,6 +208,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
     if (access !== 'read_write' || !selectedFile) return
     const shouldReconcile = fileSession.isDirty || fileSession.saveError !== undefined || syncError !== null
     await fileSession.flush()
+
     if (shouldReconcile) await reconcileSkill()
     else await reconcileChainRef.current
   }, [access, fileSession, reconcileSkill, selectedFile, syncError])
@@ -197,12 +223,15 @@ export const SkillFileBrowser = function SkillFileBrowser({
       fileSession.saveError !== undefined ||
       isSyncing ||
       syncError !== null)
+
   const flushRef = useRef(flush)
   flushRef.current = flush
+
   const blocker = useBlocker({
     shouldBlockFn: async () => {
       try {
         await flushRef.current()
+
         return false
       } catch {
         return true
@@ -216,6 +245,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
   const selectFile = useCallback(
     async (nextFile: AbsoluteFilePath) => {
       if (nextFile === selectedFile || disabled) return
+
       try {
         await flush()
         setSelectedFile(nextFile)
@@ -229,13 +259,16 @@ export const SkillFileBrowser = function SkillFileBrowser({
 
   const discardAndSelectPending = useCallback(async () => {
     const nextFile = pendingFile
+
     try {
       await fileSession.discard()
     } catch {
       return
     }
+
     setSyncError(null)
     setPendingFile(null)
+
     if (nextFile) {
       setSelectedFile(nextFile)
       setViewMode(isMarkdownFile(nextFile) ? 'preview' : 'edit')
@@ -244,7 +277,9 @@ export const SkillFileBrowser = function SkillFileBrowser({
 
   const retryPendingSelection = useCallback(async () => {
     const nextFile = pendingFile
+
     if (!nextFile) return
+
     try {
       await flush()
       setPendingFile(null)
@@ -292,6 +327,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
   const canEdit = access === 'read_write' && fileSession.status === 'ready'
   let saveStatus = t('settings.skills.editor.saved')
   let statusIcon = <Check className="size-3.5" aria-hidden />
+
   if (fileSession.conflict) {
     saveStatus = t('settings.skills.editor.conflict')
     statusIcon = <AlertTriangle className="size-3.5" aria-hidden />
@@ -319,7 +355,9 @@ export const SkillFileBrowser = function SkillFileBrowser({
     saveStatus = t('settings.skills.editor.loadFailed')
     statusIcon = <AlertTriangle className="size-3.5" aria-hidden />
   }
+
   const showRecovery = fileSession.conflict || syncError !== null
+
   const previewHeader = (
     <>
       <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -353,6 +391,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
       ) : null}
     </>
   )
+
   const customPreviewHeader = (
     <div className="relative flex h-11 min-h-11 shrink-0 items-center gap-2 px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']">
       {previewHeader}
@@ -486,6 +525,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
         cancelText={t('settings.skills.editor.keepDraft')}
         onConfirm={async () => {
           if (blocker.status !== 'blocked') return
+
           try {
             await flushRef.current()
             blocker.proceed()
@@ -500,11 +540,13 @@ export const SkillFileBrowser = function SkillFileBrowser({
             disabled={fileSession.isSaving || isSyncing}
             onClick={async () => {
               if (blocker.status !== 'blocked') return
+
               try {
                 await fileSession.discard()
               } catch {
                 return
               }
+
               setSyncError(null)
               blocker.proceed()
             }}>

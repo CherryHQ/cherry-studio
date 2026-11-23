@@ -53,12 +53,14 @@ export function createDifyKnowledgeServer(difyKey: string, args: string[]): McpS
     { description: 'Search knowledge by id and query', inputSchema: SearchKnowledgeArgsSchema },
     ({ id, query, topK }) => performSearchKnowledge(id, query, topK ?? 6, difyKey, apiHost)
   )
+
   return server
 }
 
 async function performListKnowledges(difyKey: string, apiHost: string): Promise<CallToolResult> {
   try {
     const url = `${apiHost.replace(/\/$/, '')}/datasets`
+
     const response = await net.fetch(url, {
       method: 'GET',
       headers: {
@@ -150,9 +152,11 @@ async function performSearchKnowledge(
 
           let resultEntry = `#### ${index + 1}. ${docName} (Relevant Score: ${(score * 100).toFixed(1)}%)`
           resultEntry += `\n${content}`
+
           if (keywords.length > 0) {
             resultEntry += `\n*Keywords: ${keywords.join(', ')}*`
           }
+
           return resultEntry
         })
         .join('\n\n')

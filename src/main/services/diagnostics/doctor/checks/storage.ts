@@ -11,6 +11,7 @@ import { defineDoctorCheck } from '../types'
 const DISK_CRITICAL_BYTES = 1 * GB
 const DISK_LOW_BYTES = 5 * GB
 const DIAGNOSTIC_DATA_LARGE_BYTES = 200 * 1024 ** 2
+
 /**
  * Preboot silently falls back to the default directory when the configured custom one is
  * unusable (see `resolveUserDataLocation`), so the app boots but the user's data looks lost.
@@ -19,10 +20,13 @@ export const userDataLocation = defineDoctorCheck({
   id: 'storage-userdata-location',
   async run() {
     const actual = application.getPath('app.userdata')
+
     const configured = app.isPackaged
       ? bootConfigService.get('app.user_data_path')?.[getNormalizedExecutablePath()]
       : undefined
+
     if (!configured || configured === actual) return { status: 'pass' }
+
     return {
       status: 'warn',
       attribution: 'user-fixable',
@@ -46,9 +50,11 @@ export const diskSpace = defineDoctorCheck({
   id: 'storage-disk-space',
   async run() {
     const health = await application.get('StorageMonitorService').refreshHealth()
+
     if (health.freeBytes >= DISK_LOW_BYTES) return { status: 'pass' }
 
     const critical = health.freeBytes < DISK_CRITICAL_BYTES
+
     return {
       status: critical ? 'fail' : 'warn',
       attribution: 'user-fixable',
@@ -74,10 +80,14 @@ export const diagnosticDataSize = defineDoctorCheck({
   timeoutMs: 20_000,
   async run({ signal }) {
     const size = await inspectDiagnosticData(signal)
+
     if (size.bytes === null) throw new Error('Diagnostic data size is unavailable')
+
     if (size.completeness === 'partial' && size.bytes <= DIAGNOSTIC_DATA_LARGE_BYTES)
       throw new Error('Diagnostic data measurement is incomplete')
+
     if (size.bytes <= DIAGNOSTIC_DATA_LARGE_BYTES) return { status: 'pass' }
+
     return {
       status: 'warn',
       attribution: 'user-fixable',

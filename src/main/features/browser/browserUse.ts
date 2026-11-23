@@ -3,8 +3,11 @@ import type * as z from 'zod'
 import type { browserRefSchema, snapshotOptionsSchema } from '@main/ai/mcp/browserToolDefinitions'
 
 export type BrowserRef = z.infer<typeof browserRefSchema>
+
 export type SnapshotOptions = z.infer<typeof snapshotOptionsSchema>
+
 export type TabRetention = 'temporary' | 'deliverable' | 'handoff'
+
 export type SessionOwnership = { ownership: 'managed'; close: () => void } | { ownership: 'borrowed' }
 
 export interface SnapshotNode {

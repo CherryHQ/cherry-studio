@@ -1,6 +1,7 @@
 import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../types'
+
 const AiPrompt: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="2 3 20 20" {...props}>
     <path
@@ -19,5 +20,7 @@ const AiPrompt: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 )
+
 export { AiPrompt }
+
 export default AiPrompt

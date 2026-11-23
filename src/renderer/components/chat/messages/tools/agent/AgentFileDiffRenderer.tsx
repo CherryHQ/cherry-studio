@@ -34,6 +34,7 @@ export default function AgentFileDiffRenderer({ filePath, hunks }: { filePath?: 
   const { activeCodeTheme, isCodeThemeDark } = useCodeStyle()
   const { diffStyle, toggleDiffStyle } = useDiffStyle()
   const themeType: 'dark' | 'light' = isCodeThemeDark ? 'dark' : 'light'
+
   const diffOptions = useMemo(
     () => ({
       disableFileHeader: true,

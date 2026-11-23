@@ -14,6 +14,7 @@ export function resolveOptions(
   translate: (key: string) => string
 ): OptionItem[] {
   const rawOptions = typeof item.options === 'function' ? item.options(item, painting) : (item.options ?? [])
+
   return rawOptions.map((option) => ({
     ...option,
     label: option.labelKey ? translate(option.labelKey) : option.label
@@ -30,8 +31,10 @@ export function resolveOptionValue(
 ): string | number | undefined {
   const candidate = catalogValueOr(item.key, value, item.initialValue)
   const normalized = controlValue(candidate)
+
   const match = resolveOptions(item, painting, translate).find(
     (option) => normalized !== '' && controlValue(option.value) === normalized
   )
+
   return match?.value ?? item.initialValue
 }

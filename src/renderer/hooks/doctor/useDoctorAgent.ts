@@ -35,8 +35,10 @@ export function useDoctorAgent({
     async (modelId?: string) => {
       if (!reportRunId) return
       setBusy({ kind: 'start' })
+
       try {
         const result = await ipcApi.request('diagnostics.doctor.agent.start', { scope, reportRunId, modelId, incident })
+
         if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
         else if (result.status === 'no_model') toast.error(t('settings.doctor.agent.messages.no_model'))
         else if (result.status === 'failed') toast.error(t('settings.doctor.agent.messages.start_failed'))
@@ -53,6 +55,7 @@ export function useDoctorAgent({
   const cancel = useCallback(async () => {
     if (state.status !== 'running') return
     setBusy({ kind: 'cancel' })
+
     try {
       await ipcApi.request('diagnostics.doctor.agent.cancel', { key, runId: state.runId })
     } catch (error) {
@@ -67,8 +70,10 @@ export function useDoctorAgent({
     async (proposalId: string) => {
       if (state.status === 'idle') return
       setBusy({ kind: 'apply', id: proposalId })
+
       try {
         const result = await ipcApi.request('diagnostics.doctor.agent.apply', { key, runId: state.runId, proposalId })
+
         if (result.status === 'applied') {
           toast.success(
             t(
@@ -93,8 +98,10 @@ export function useDoctorAgent({
     async (changeId: string) => {
       if (state.status === 'idle') return
       setBusy({ kind: 'undo', id: changeId })
+
       try {
         const result = await ipcApi.request('diagnostics.doctor.agent.undo', { key, runId: state.runId, changeId })
+
         if (result.status === 'undone') toast.success(t('settings.doctor.agent.messages.undone'))
         else if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
         else toast.error(t('settings.doctor.agent.messages.undo_failed', { message: result.message }))

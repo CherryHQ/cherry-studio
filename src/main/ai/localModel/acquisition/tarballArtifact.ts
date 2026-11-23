@@ -40,14 +40,19 @@ export function artifactPlatformFiles(artifact: SharedArtifact): ArtifactPlatfor
 
 export function isArtifactSupported(artifact: SharedArtifact): boolean {
   if (!artifactPlatformFiles(artifact)) return false
+
   if (!artifact.minimumMacOS) return true
   const actual = process.getSystemVersion?.().split('.').map(Number)
   const required = artifact.minimumMacOS.split('.').map(Number)
+
   if (!actual || actual.some((part) => !Number.isFinite(part))) return false
+
   for (let index = 0; index < required.length; index += 1) {
     const difference = (actual[index] ?? 0) - required[index]
+
     if (difference !== 0) return difference > 0
   }
+
   return true
 }
 
@@ -63,7 +68,9 @@ function artifactInstallDir(artifact: SharedArtifact, platform: ArtifactPlatform
  */
 export function artifactEntryPath(artifact: SharedArtifact): string {
   const platform = artifactPlatformFiles(artifact)
+
   if (!platform) return path.join(application.getPath(artifact.installDirKey), '')
+
   return path.join(artifactInstallDir(artifact, platform), platform.entryFile)
 }
 
@@ -74,8 +81,10 @@ export function artifactEntryPath(artifact: SharedArtifact): string {
  */
 export function isArtifactInstalled(artifact: SharedArtifact): boolean {
   const platform = artifactPlatformFiles(artifact)
+
   if (!platform) return true
   const dir = artifactInstallDir(artifact, platform)
+
   return [platform.entryFile, ...platform.supportFiles].every((file) => fs.existsSync(path.join(dir, file)))
 }
 
@@ -87,8 +96,10 @@ function tarballUrls(
   if (platform.tarballUrls) {
     return orderDownloadUrls(platform.tarballUrls, registryOrder[0] === 'npmmirror' ? 'china-first' : 'global-first')
   }
+
   const { packageName } = platform
   const { version } = artifact
+
   return registryOrder.map((id) => `${NPM_REGISTRIES[id]}/${packageName}/-/${packageName}-${version}.tgz`)
 }
 
@@ -104,6 +115,7 @@ export async function installArtifact(
   registryOrder: readonly [ArtifactRegistryId, ...ArtifactRegistryId[]]
 ): Promise<void> {
   const platform = artifactPlatformFiles(artifact)
+
   if (!platform) return // nothing ships for this platform
 
   const tmpDir = artifactStagingDir(artifact)
@@ -144,6 +156,7 @@ async function extractPlatformFiles(
     strip: platform.tarballPrefix.split('/').filter(Boolean).length,
     filter: (entryPath) => entryPath.startsWith(platform.tarballPrefix) && wanted.has(path.basename(entryPath))
   })
+
   for (const file of wanted) {
     if (!fs.existsSync(path.join(extractDir, file))) {
       throw new Error(`tarball is missing expected file: ${platform.tarballPrefix}${file}`)
@@ -159,6 +172,7 @@ async function installExtractedFiles(
   platform: ArtifactPlatformFiles
 ): Promise<void> {
   await fs.promises.mkdir(installDir, { recursive: true })
+
   for (const file of [...platform.supportFiles, platform.entryFile]) {
     await fs.promises.rename(path.join(extractDir, file), path.join(installDir, file))
   }
@@ -175,6 +189,7 @@ const WINDOWS_ARTIFACT_REMOVAL_RETRY_DELAYS_MS = [50, 100, 200, 400] as const
 function isTransientWindowsRemovalError(error: unknown): boolean {
   if (process.platform !== 'win32' || typeof error !== 'object' || error === null) return false
   const code = 'code' in error ? error.code : undefined
+
   return code === 'EPERM' || code === 'EBUSY'
 }
 
@@ -185,11 +200,13 @@ export async function removeArtifact(artifact: SharedArtifact): Promise<void> {
   for (let attempt = 0; ; attempt += 1) {
     try {
       await fs.promises.rm(installDir, { recursive: true, force: true })
+
       return
     } catch (error) {
       const delayMs = isTransientWindowsRemovalError(error)
         ? WINDOWS_ARTIFACT_REMOVAL_RETRY_DELAYS_MS[attempt]
         : undefined
+
       if (delayMs === undefined) throw error
       await new Promise<void>((resolve) => setTimeout(resolve, delayMs))
     }

@@ -25,10 +25,13 @@ function resolveDmxPlatformFromProvider(provider: Provider | undefined): Platfor
   if (!provider?.endpointConfigs) return PlatformDomain.OFFICIAL
   const firstConfig = Object.values(provider.endpointConfigs)[0]
   const firstUrl = firstConfig?.baseUrl
+
   if (!firstUrl) return PlatformDomain.OFFICIAL
+
   if (firstUrl.includes('DMXAPI.com') || firstUrl.includes('dmxapi.com')) {
     return firstUrl.includes('ssvip') ? PlatformDomain.OVERSEA : PlatformDomain.INTERNATIONAL
   }
+
   return PlatformDomain.OFFICIAL
 }
 
@@ -66,11 +69,14 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
     async (domain: string) => {
       const next = domain as PlatformDomain
       const previous = resolveDmxPlatformFromProvider(provider)
+
       if (next === previous) {
         return
       }
+
       setSelectedPlatform(next)
       const newEndpointConfigs = replaceEndpointConfigDomain(provider?.endpointConfigs, next)
+
       try {
         await updateProvider({ endpointConfigs: newEndpointConfigs })
       } catch {
@@ -99,6 +105,7 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
           }}>
           {PlatformOptions.map((option) => {
             const id = `dmx-platform-${option.value}`
+
             return (
               <div key={option.value} className="flex items-start gap-2">
                 <RadioGroupItem value={option.value} id={id} className="mt-0.5" />

@@ -6,7 +6,9 @@ import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 
 function formatDuration(ms: number): string {
   const totalSeconds = Math.round(ms / 1000)
+
   if (totalSeconds < 60) return `${totalSeconds}s`
+
   return `${Math.floor(totalSeconds / 60)}m${totalSeconds % 60}s`
 }
 
@@ -23,6 +25,7 @@ export function AgentTool({ input, output }: ToolRendererProps<typeof AgentTools
   const completed = output && !Array.isArray(output) && output.status === 'completed' ? output : undefined
 
   const stats: string[] = []
+
   if (completed) {
     stats.push(formatTokens(completed.totalTokens))
     stats.push(t('message.tools.units.item', { count: completed.totalToolUseCount }))

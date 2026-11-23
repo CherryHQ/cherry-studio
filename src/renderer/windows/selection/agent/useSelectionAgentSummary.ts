@@ -25,6 +25,7 @@ export function usePendingMcpInteraction(topicId: string): boolean {
   useIpcOn('mcp.interaction.ended', ({ requestId }) =>
     setPending((ids) => (ids.has(requestId) ? new Set([...ids].filter((id) => id !== requestId)) : ids))
   )
+
   return pending.size > 0
 }
 
@@ -43,9 +44,13 @@ export function getSelectionAgentTurnStatus({
   needsInput
 }: TurnSummaryInput): SelectionAgentStatus {
   if (needsInput) return 'needs-input'
+
   if (awaitingApproval) return 'awaiting-approval'
+
   if (!turnSeen) return 'starting'
+
   if (classifyTurn(status).isStreamLive) return 'running'
+
   return status === 'error' ? 'failed' : 'done'
 }
 
@@ -55,9 +60,11 @@ export function countTurnSteps(
   partsByMessageId: Record<string, CherryMessagePart[]>
 ): number {
   let steps = 0
+
   for (let index = messages.length - 1; index >= 0 && messages[index].role !== 'user'; index--) {
     const message = messages[index]
     steps += (partsByMessageId[message.id] ?? message.parts).filter((part) => isToolUIPart(part)).length
   }
+
   return steps
 }

@@ -39,8 +39,10 @@ export function MarketplaceSkills({
     []
   )
   const triggerRef = useRef<HTMLButtonElement | null>(null)
+
   const filtered = useMemo(() => {
     const search = query.trim().toLocaleLowerCase()
+
     return (catalog.data ?? [])
       .filter(
         (skill) =>
@@ -52,16 +54,20 @@ export function MarketplaceSkills({
       )
       .sort((a, b) => (b.downloads ?? 0) - (a.downloads ?? 0))
   }, [catalog.data, query, category, preview])
+
   const groups = useMemo<[string, MarketplaceSkill[]][]>(() => {
     if (preview) return [['', filtered.slice(0, 6)]]
     const grouped = new Map<string, MarketplaceSkill[]>()
+
     for (const skill of filtered) {
       const group = grouped.get(skill.domain) ?? []
       group.push(skill)
       grouped.set(skill.domain, group)
     }
+
     return [...grouped]
   }, [filtered, preview])
+
   const installedUnavailable = installed.loading || Boolean(installed.error)
   const uninstallBusy = uninstallTarget ? mutating.has(uninstallTarget.id) : false
 
@@ -99,6 +105,7 @@ export function MarketplaceSkills({
               const complete = skill.members.length > 0 && count === skill.members.length
               const busy = mutating.has(skill.id)
               const name = localizeMarketplaceText(skill.name, i18n.language)
+
               return (
                 <MarketplaceCard
                   name={name}

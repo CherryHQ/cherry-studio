@@ -36,8 +36,10 @@ const logger = loggerService.withContext('miniAppActivityLog')
  * are, so an app opened once a month still shows its last session.
  */
 export const ACTIVITY_DAYS_KEPT = 7
+
 /** Per app per day. Past it the day gets one `truncated` line and nothing more. */
 export const ACTIVITY_DAY_BYTES = 5 * 1024 * 1024
+
 /** The backstop for long-running apps; the runtime also flushes at the moments it knows about. */
 export const ACTIVITY_COUNT_FLUSH_MS = 60_000
 const FILE_PATTERN = /^activity\.(\d{4}-\d{2}-\d{2})\.log$/
@@ -72,6 +74,7 @@ const TIER = {
 } as const satisfies Record<MiniAppMethod, 'event' | 'count'>
 
 type Facet = Record<string, string | number | boolean>
+
 // Refused calls are unvalidated; these are only the fields used for activity metadata.
 type Params =
   | { url?: unknown; text?: unknown; messages?: unknown; model?: unknown; value?: unknown; data?: unknown }
@@ -79,29 +82,37 @@ type Params =
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Refused bridge calls retain unvalidated parameter fields; log only string lengths/hosts and treat other values as absent.
 const str = (value: unknown): string => (typeof value === 'string' ? value : '')
+
 /** Decoded size of a base64 string without decoding it — the bridge carries no binary. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw file.save parameters can be malformed on refused calls; estimate bytes only from a string without decoding guest data.
 function base64Bytes(value: unknown): number {
   const s = str(value)
   const padding = s.endsWith('==') ? 2 : s.endsWith('=') ? 1 : 0
+
   return Math.max(0, Math.floor((s.length * 3) / 4) - padding)
 }
 
 /** Metadata only: sizes and addresses at most. Never a key, a name, a message or a text. */
 function facetOf(method: MiniAppMethod, params: Params, result: MiniAppReply | undefined): Facet | undefined {
   const out = result
+
   switch (method) {
     case 'network.fetch': {
       const facet: Facet = {}
+
       try {
         facet.host = new URL(str(params?.url)).hostname
       } catch {
         // An unparsable url is the refusal's own reason; nothing to attribute it to.
       }
+
       if (out && 'status' in out && typeof out.status === 'number') facet.status = out.status
+
       if (out && 'body' in out && out.body !== undefined) facet.bytes = base64Bytes(out.body)
+
       return facet
     }
+
     case 'clipboard.write':
       return { chars: str(params?.text).length }
     case 'clipboard.read':
@@ -110,12 +121,15 @@ function facetOf(method: MiniAppMethod, params: Params, result: MiniAppReply | u
       return out ? { saved: 'saved' in out && out.saved === true } : undefined
     case 'ai.chat': {
       const messages = Array.isArray(params?.messages) ? params.messages : []
+
       const bytes = messages.reduce(
         (sum: number, m) => sum + Buffer.byteLength(str((m as { content?: unknown })?.content)),
         0
       )
+
       return { model: str(params?.model) || 'default', messages: messages.length, bytes }
     }
+
     default:
       return undefined
   }
@@ -124,6 +138,7 @@ function facetOf(method: MiniAppMethod, params: Params, result: MiniAppReply | u
 /** What the counted tier adds up besides calls: the bytes a call moved in or out. */
 function bytesOf(method: MiniAppMethod, params: Params, result: MiniAppReply | undefined): number {
   const out = result
+
   switch (method) {
     case 'storage.set':
       return Buffer.byteLength(str(params?.value))
@@ -142,16 +157,19 @@ function bytesOf(method: MiniAppMethod, params: Params, result: MiniAppReply | u
 function localDay(ts: number): string {
   const d = new Date(ts)
   const pad = (n: number) => String(n).padStart(2, '0')
+
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 async function dayFiles(dir: string): Promise<string[]> {
   let names: string[]
+
   try {
     names = await fs.promises.readdir(dir)
   } catch {
     return []
   }
+
   // Names sort as dates: newest first.
   return names.filter((n) => FILE_PATTERN.test(n)).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
 }
@@ -200,6 +218,7 @@ export class MiniAppActivityLog {
     // and a stale call would leave a counter for the next `flush` to write out.
     if (this.forgotten.has(appId)) return
     const p = params && typeof params === 'object' ? (params as NonNullable<Params>) : undefined
+
     if (TIER[method] === 'count' && outcome === 'ok') {
       const perApp = this.counters.get(appId) ?? new Map<string, Counter>()
       const counter = perApp.get(method) ?? { calls: 0, bytes: 0 }
@@ -207,12 +226,15 @@ export class MiniAppActivityLog {
       counter.bytes += bytesOf(method, p, result)
       perApp.set(method, counter)
       this.counters.set(appId, perApp)
+
       return
     }
+
     // Merged rather than passed to `facetOf`: the reason belongs to the FAILURE, and
     // `facetOf` describes the call — it has no error to look at and should not grow one.
     const called = facetOf(method, p, result)
     const facet = reason ? { ...called, reason } : called
+
     const entry: Extract<MiniAppActivityEntry, { kind: 'call' }> = {
       v: 1,
       ts: Date.now(),
@@ -221,6 +243,7 @@ export class MiniAppActivityLog {
       outcome,
       durationMs
     }
+
     if (facet) entry.facet = facet
     this.append(appId, entry)
   }
@@ -241,32 +264,42 @@ export class MiniAppActivityLog {
     const files = await dayFiles(dir)
     const entries: MiniAppActivityEntry[] = []
     let bytes = 0
+
     for (const name of files) {
       const file = path.join(dir, name)
+
       // The footprint comes from the file SIZE, and no file is read once the page is full:
       // the panel calls this on every open, and the retention window can hold 35 MB.
       const size = await fs.promises.stat(file).then(
         (stat) => stat.size,
         () => null
       )
+
       if (size === null) continue
       bytes += size
+
       if (entries.length >= options.limit) continue
       let text: string
+
       try {
         text = await fs.promises.readFile(file, 'utf8')
       } catch {
         continue
       }
+
       const lines = text.split('\n')
+
       for (let i = lines.length - 1; i >= 0 && entries.length < options.limit; i--) {
         // A crash can leave a torn last line; it is skipped, not fatal.
         const entry = parseLine(lines[i])
+
         if (!entry) continue
+
         if (options.deniedOnly && !(entry.kind === 'call' && entry.outcome !== 'ok')) continue
         entries.push(entry)
       }
     }
+
     return { entries, bytes, days: files.length }
   }
 
@@ -284,6 +317,7 @@ export class MiniAppActivityLog {
     const dir = miniAppLogsPath(appId)
     await fs.promises.mkdir(dir, { recursive: true })
     const failure = await shell.openPath(dir)
+
     if (failure) throw new Error(failure)
   }
 
@@ -309,20 +343,26 @@ export class MiniAppActivityLog {
       const day = localDay(entry.ts)
       const file = path.join(dir, `activity.${day}.log`)
       await fs.promises.mkdir(dir, { recursive: true })
+
       // Keyed by DAY, not just by app: a host left running past the retention window would
       // otherwise keep one file per activity day until the next restart.
       if (this.swept.get(appId) !== day) {
         this.swept.set(appId, day)
         await this.sweep(dir, day)
       }
+
       const budget = await this.budgetFor(appId, day, file)
+
       if (budget.truncated) return
       const line = `${JSON.stringify(entry)}\n`
+
       if (budget.bytes + line.length > ACTIVITY_DAY_BYTES) {
         budget.truncated = true
         await fs.promises.appendFile(file, `${JSON.stringify({ v: 1, ts: entry.ts, kind: 'truncated' })}\n`)
+
         return
       }
+
       budget.bytes += line.length
       await fs.promises.appendFile(file, line)
     }).catch((error) => logger.warn('Could not record mini app activity', { appId, error }))
@@ -332,6 +372,7 @@ export class MiniAppActivityLog {
   private async sweep(dir: string, today: string): Promise<void> {
     const files = await dayFiles(dir)
     const keep = files.includes(`activity.${today}.log`) ? ACTIVITY_DAYS_KEPT : ACTIVITY_DAYS_KEPT - 1
+
     for (const name of files.slice(keep)) {
       await fs.promises.rm(path.join(dir, name), { force: true })
     }
@@ -339,15 +380,19 @@ export class MiniAppActivityLog {
 
   private async budgetFor(appId: string, day: string, file: string): Promise<DayBudget> {
     const known = this.budgets.get(appId)
+
     if (known?.day === day) return known
     let bytes = 0
+
     try {
       bytes = (await fs.promises.stat(file)).size
     } catch {
       // No file yet: the day starts empty.
     }
+
     const budget = { day, bytes, truncated: bytes >= ACTIVITY_DAY_BYTES }
     this.budgets.set(appId, budget)
+
     return budget
   }
 
@@ -358,13 +403,16 @@ export class MiniAppActivityLog {
   async flush(appId?: string): Promise<void> {
     const now = Date.now()
     const apps = appId === undefined ? [...this.counters.keys()] : [appId]
+
     for (const id of apps) {
       for (const [name, counter] of this.counters.get(id) ?? []) {
         if (counter.calls === 0) continue
         this.append(id, { v: 1, ts: now, kind: 'count', name, ...counter })
       }
+
       this.counters.delete(id)
     }
+
     const pending = appId === undefined ? [...this.chains.values()] : [this.chains.get(appId) ?? Promise.resolve()]
     await Promise.all(pending)
   }
@@ -375,14 +423,17 @@ export class MiniAppActivityLog {
       appId,
       next.catch(() => undefined)
     )
+
     return next
   }
 }
 
 function parseLine(line: string): MiniAppActivityEntry | undefined {
   if (!line) return undefined
+
   try {
     const parsed = MiniAppActivityEntrySchema.safeParse(JSON.parse(line))
+
     return parsed.success ? parsed.data : undefined
   } catch {
     return undefined

@@ -40,6 +40,9 @@ export const entityTagTable = sqliteTable(
 )
 
 export type InsertTagRow = typeof tagTable.$inferInsert
+
 export type TagRow = typeof tagTable.$inferSelect
+
 export type InsertEntityTagRow = typeof entityTagTable.$inferInsert
+
 export type EntityTagRow = typeof entityTagTable.$inferSelect

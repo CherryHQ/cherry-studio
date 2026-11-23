@@ -57,6 +57,7 @@ const composerTokenIcon: Partial<
 }
 
 type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputTokenKind }
+
 type ReadOnlyFilePreviewActivate = (
   preview: ReadOnlyComposerFileTokenPreview,
   token: ChatTokenView
@@ -65,6 +66,7 @@ type ReadOnlyFilePreviewActivate = (
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
 const USER_MESSAGE_PREVIEW_EFFECTIVE_LINE_COUNT = 5
+
 // A fresh empty array per render would cascade through trustedCitations into
 // ChatMarkdown's components map and force Streamdown to re-render (and
 // re-animate) every markdown block on each streaming tick.
@@ -76,6 +78,7 @@ function isComposerTokenBackedMessageToken(token: ComposerMessageToken): token i
 
 function LegacyComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
   const Icon = composerTokenIcon[token.kind]
+
   if (!Icon) return null
   const title = token.description ?? token.label
 
@@ -102,6 +105,7 @@ function ComposerMessageTokenChip({
   hidden?: boolean
 }) {
   const actions = useOptionalMessageListActions()
+
   if (hidden) return null
 
   if (isComposerTokenBackedMessageToken(token)) {
@@ -137,6 +141,7 @@ function renderComposerMessageContent(
     const offset = Math.max(0, Math.min(content.length, token.textOffset))
     const promptText = token.promptText
     const promptTextMatches = !!promptText && content.slice(offset, offset + promptText.length) === promptText
+
     if (promptText && !promptTextMatches) return
 
     if (offset > cursor) {
@@ -183,6 +188,7 @@ function buildComposerMessageMarkdownContent(content: string, composer: Composer
     const offset = Math.max(0, Math.min(content.length, token.textOffset))
     const promptText = token.promptText
     const promptTextMatches = !!promptText && content.slice(offset, offset + promptText.length) === promptText
+
     if (promptText && !promptTextMatches) return
 
     if (offset > cursor) {
@@ -210,13 +216,16 @@ function buildUserMessageTextPreview(content: string) {
 
   for (const match of content.matchAll(lineRegex)) {
     const [lineWithEnding, line] = match
+
     if (lineWithEnding.length === 0) break
+
     if (line.trim().length === 0) continue
 
     effectiveLineCount += 1
 
     if (effectiveLineCount === USER_MESSAGE_PREVIEW_EFFECTIVE_LINE_COUNT) {
       const remainingStart = match.index + lineWithEnding.length
+
       const hasMoreEffectiveLines = content
         .slice(remainingStart)
         .split(/\r\n|\r|\n/)
@@ -246,6 +255,7 @@ function buildComposerTokenPreviewProjection(
 
   const appendText = (text: string, rawStart: number) => {
     projectedContent += text
+
     for (let index = 1; index <= text.length; index += 1) {
       rawOffsets.push(rawStart + index)
     }
@@ -255,6 +265,7 @@ function buildComposerTokenPreviewProjection(
     const offset = Math.max(0, Math.min(content.length, token.textOffset))
     const promptText = token.promptText
     const promptTextMatches = !!promptText && content.slice(offset, offset + promptText.length) === promptText
+
     if (promptText && !promptTextMatches) return
 
     if (offset > cursor) {
@@ -265,6 +276,7 @@ function buildComposerTokenPreviewProjection(
     if (promptTextMatches) {
       cursor = Math.max(cursor, offset + promptText.length)
     }
+
     if (!hiddenComposerTokens?.has(token)) {
       // Count a rendered token chip as one visible character. Mapping its end
       // back to the raw prompt boundary keeps collapsed previews from slicing
@@ -290,9 +302,11 @@ export function buildUserMessagePreview(
 
   const projection = buildComposerTokenPreviewProjection(content, composer, hiddenComposerTokens)
   const preview = buildUserMessageTextPreview(projection.content)
+
   if (!preview.isTruncated) return { content, isTruncated: false }
 
   const rawEnd = projection.rawOffsets[preview.content.length] ?? content.length
+
   return { content: content.slice(0, rawEnd), isTruncated: true }
 }
 
@@ -365,19 +379,24 @@ const MainTextBlock: React.FC<Props> = ({
 }) => {
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
   const shouldRenderComposerTokens = role === 'user' && !!composer?.tokens.length
+
   const userMessagePreview = useMemo(
     () => buildUserMessagePreview(content, composer, hiddenComposerTokens),
     [composer, content, hiddenComposerTokens]
   )
+
   const isUserContentCollapsible = role === 'user' && userMessagePreview.isTruncated
   const [internalUserContentExpanded, setInternalUserContentExpanded] = useState(false)
   const isUserContentExpanded = userContentExpanded ?? internalUserContentExpanded
+
   const setUserContentExpanded = useCallback(
     (expanded: boolean | ((current: boolean) => boolean)) => {
       const nextExpanded = typeof expanded === 'function' ? expanded(isUserContentExpanded) : expanded
+
       if (userContentExpanded === undefined) {
         setInternalUserContentExpanded(nextExpanded)
       }
+
       onUserContentExpandedChange?.(nextExpanded)
     },
     [isUserContentExpanded, onUserContentExpandedChange, userContentExpanded]
@@ -386,11 +405,13 @@ const MainTextBlock: React.FC<Props> = ({
   const userDisplayContent = isUserContentCollapsible && !isUserContentExpanded ? userMessagePreview.content : content
 
   const [smoothedContent, setSmoothedContent] = useState(content)
+
   const { update: updateSmoothStream } = useSmoothStream({
     onUpdate: setSmoothedContent,
     streamDone: !isStreaming,
     initialText: content
   })
+
   useEffect(() => {
     updateSmoothStream(content, !isStreaming)
   }, [content, isStreaming, updateSmoothStream])
@@ -411,6 +432,7 @@ const MainTextBlock: React.FC<Props> = ({
     content: role === 'user' ? userDisplayContent : smoothedContent,
     status: isStreaming ? 'streaming' : 'success'
   }
+
   // Upstream completion can precede the smooth-stream tail. Keep the iframe unmounted
   // until its first srcDoc contains the complete artifact.
   const resolvedInlineHtmlPreviewMode =
@@ -425,15 +447,19 @@ const MainTextBlock: React.FC<Props> = ({
         : undefined,
     [citations.length, messageCitations, toolCitationProjection]
   )
+
   const processContent = useCallback(
     (rawText: string) => {
       if (citationReferences?.length && citations.length > 0) {
         const sourceType = determineCitationSource(citationReferences)
+
         return withCitationTags(rawText, citations, sourceType)
       }
+
       if (toolCitations) {
         return withToolCitationTags(rawText, toolCitations.citations, toolCitations.projection.byMarker).content
       }
+
       // No citation in this message or any loaded earlier turn, so no marker can resolve — an
       // unloaded page or an invented id (#19771). Drop them rather than printing internal ids.
       // User text is left alone: a literal `[cite:…]` there is the author's own.
@@ -441,13 +467,17 @@ const MainTextBlock: React.FC<Props> = ({
     },
     [citationReferences, citations, role, toolCitations]
   )
+
   const toolCitedCitations = toolCitations?.projection.cited ?? EMPTY_CITATIONS
   const footerCitations = citations.length > 0 ? citations : toolCitedCitations
   const trustedCitations = useMemo(() => footerCitations.map(toTooltipCitation), [footerCitations])
+
   const composerMarkdownContent = useMemo(() => {
     if (!shouldRenderComposerTokens || !renderInputMessageAsMarkdown || !composer) return undefined
+
     return buildComposerMessageMarkdownContent(userDisplayContent, composer, id)
   }, [composer, id, renderInputMessageAsMarkdown, shouldRenderComposerTokens, userDisplayContent])
+
   const composerMarkdownComponents = useMemo<Partial<Components>>(
     () => ({
       span: ({ children, ...props }) => {
@@ -457,11 +487,14 @@ const MainTextBlock: React.FC<Props> = ({
           dataComposerTokenIndex?: unknown
           dataComposerTokenBlock?: unknown
         }
+
         const rawIndex = rawProps[COMPOSER_TOKEN_MARKDOWN_ATTR] ?? rawProps.dataComposerTokenIndex
         const rawBlock = rawProps[COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR] ?? rawProps.dataComposerTokenBlock
         const tokenIndex = typeof rawIndex === 'string' ? Number.parseInt(rawIndex, 10) : NaN
+
         const token =
           rawBlock === id && Number.isFinite(tokenIndex) ? composerMarkdownContent?.tokens[tokenIndex] : undefined
+
         if (token) {
           return (
             <ComposerMessageTokenChip

@@ -63,9 +63,11 @@ function TextareaInput({
 
   const handleChange = useCallbackRef((event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = event.target.value
+
     if (props.maxLength && newValue.length > props.maxLength) {
       return
     }
+
     setValue(newValue)
   })
 
@@ -114,4 +116,5 @@ const Input = TextareaInput
 const CharCount = TextareaCharCount
 
 export { CharCount, Input }
+
 export type { TextareaCharCountProps, TextareaInputProps }

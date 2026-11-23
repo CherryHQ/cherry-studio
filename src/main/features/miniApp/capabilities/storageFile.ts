@@ -18,6 +18,7 @@ const StorageSchema = z.record(z.string(), z.string())
 
 export function readStorage(appId: string): Record<string, string> {
   let raw: string
+
   try {
     raw = fs.readFileSync(miniAppStorageFile(appId), 'utf8')
   } catch (error) {
@@ -31,14 +32,17 @@ export function readStorage(appId: string): Record<string, string> {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw new MiniAppUnavailableError(`Save file for ${appId} could not be read`)
     }
+
     return {}
   }
+
   try {
     return StorageSchema.parse(JSON.parse(raw))
   } catch (error) {
     // Read but unparseable: hand-edited, or torn by something below this process. The
     // data is already unusable, so starting over loses nothing that was still there.
     logger.warn('Discarding an unreadable mini app save file', { appId, error })
+
     return {}
   }
 }
@@ -46,14 +50,17 @@ export function readStorage(appId: string): Record<string, string> {
 export function writeStorage(appId: string, map: Record<string, string>): void {
   const content = JSON.stringify(map)
   const bytes = Buffer.byteLength(content, 'utf8')
+
   // Check BEFORE touching the disk: the temp file is the same size as the real one,
   // so writing first and checking after would let a rejected save fill the disk.
   if (bytes > MINI_APP_STORAGE_MAX_BYTES) {
     throw new QuotaExceededError(`Save file would be ${bytes} bytes (limit ${MINI_APP_STORAGE_MAX_BYTES})`)
   }
+
   if (Object.keys(map).length > MINI_APP_STORAGE_MAX_KEYS) {
     throw new QuotaExceededError(`Save file would hold ${Object.keys(map).length} keys`)
   }
+
   const target = miniAppStorageFile(appId)
   fs.mkdirSync(miniAppDataPath(appId), { recursive: true })
   const tmp = `${target}.${process.pid}.tmp`
@@ -82,6 +89,7 @@ function sizeOnDisk(file: string): number {
 export function storageUsage(appId: string) {
   let map: Record<string, string> = {}
   let bytes = 0
+
   try {
     map = readStorage(appId)
     bytes = Buffer.byteLength(JSON.stringify(map), 'utf8')
@@ -96,6 +104,7 @@ export function storageUsage(appId: string) {
     // clear the data.
     bytes = sizeOnDisk(miniAppStorageFile(appId))
   }
+
   return {
     bytes,
     count: Object.keys(map).length,

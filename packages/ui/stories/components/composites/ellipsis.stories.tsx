@@ -34,6 +34,7 @@ const meta = {
 } satisfies Meta<typeof Ellipsis>
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // 默认单行省略

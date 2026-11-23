@@ -38,6 +38,7 @@ export default function VideoFilePreview({ filePath, fileName, refreshKey }: Fil
   }
 
   const markReady = () => setReadyKey(mediaKey)
+
   const handleError = () => {
     logger.error('Failed to load video preview', new Error(`Browser rejected video file: ${filePath}`))
     setErrorKey(mediaKey)

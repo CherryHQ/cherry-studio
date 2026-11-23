@@ -69,37 +69,48 @@ export async function resolveGatewayRequest(config: MessageConfig) {
   const asClientError = (error: unknown): Error & { status: number } => {
     const err = (error instanceof Error ? error : new Error(String(error))) as Error & { status: number }
     err.status = 400
+
     return err
   }
 
   // 1. Resolve the external "providerId:apiModelId" address from Gemini's URL-path
   // override or the request body, then map it to the internal model id.
   const modelString = config.modelString ?? ('model' in params ? (params as { model?: string }).model : undefined)
+
   if (!modelString || typeof modelString !== 'string') {
     throw asClientError(new Error('Request is missing a "model" field'))
   }
+
   const isInternalRequest = config.requestHeaders
     ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
     : false
+
   const reasoningHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_REASONING_EFFORT_HEADER) : null
   const tierHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_SERVICE_TIER_HEADER) : null
   const reasoning = ReasoningEffortOptionSchema.safeParse(reasoningHeader ?? undefined)
   const tier = ServiceTierSelectionSchema.safeParse(tierHeader ?? undefined)
+
   if ((reasoningHeader && !reasoning.success) || (tierHeader && !tier.success))
     throw asClientError(new Error('Invalid internal Agent request options'))
   const selections: Omit<AssistantTurnOptions, 'fastMode'> = {}
+
   if (reasoning.success) selections.reasoningEffort = reasoning.data
+
   if (tier.success) selections.serviceTier = tier.data
+
   const turnOptions = {
     ...selections,
     fastMode:
       config.fastMode === true || (isInternalRequest && config.requestHeaders?.get(CHERRY_FAST_MODE_HEADER) === 'true')
   }
+
   const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
+
   const agentSessionId = config.requestHeaders
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
     : undefined
+
   // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
   const logContext = agentSessionId ? { providerId, modelId, agentSessionId } : { providerId, modelId }
 
@@ -113,16 +124,20 @@ export async function resolveGatewayRequest(config: MessageConfig) {
 
   const provider: Provider = config.provider ?? resolvedProvider
   const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
+
   const endpoint = resolveEffectiveEndpoint(
     provider,
     resolvedAddress.model,
     isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
   )
+
   const model =
     endpoint.endpointType && endpoint.endpointType !== resolvedAddress.model.endpointTypes?.[0]
       ? { ...resolvedAddress.model, endpointTypes: [endpoint.endpointType] }
       : resolvedAddress.model
+
   const resolvedModel = { provider, model }
+
   return {
     inputFormat,
     outputFormat,

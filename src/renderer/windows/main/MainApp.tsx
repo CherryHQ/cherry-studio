@@ -51,6 +51,7 @@ function BootFallback(): React.ReactElement {
     </div>
   )
 }
+
 // Behavior leaf inside the providers: the shared window runtime plus the main-only
 // concerns, then the popup/toast hosts. It sits inside the providers but outside every
 // TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never

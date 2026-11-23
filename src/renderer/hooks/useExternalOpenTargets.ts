@@ -19,6 +19,7 @@ export function useExternalOpenTargets(
     () => externalOpenTargetService.list(targetPath, pathKind),
     { shouldRetryOnError: false }
   )
+
   const resolvedPathKind = query.data?.pathKind ?? pathKind
 
   const openTarget = useCallback(
@@ -38,8 +39,10 @@ export function usePreferredExternalOpenTarget(targetPath: string, pathKind: Ext
   const [preferences, setPreferences] = usePersistCache('external_app.target.preferences')
   const resolvedPathKind = query.data?.pathKind ?? pathKind
   const preferenceScope = getExternalOpenTargetScope(targetPath, resolvedPathKind)
+
   const selectedTarget = useMemo(() => {
     const preferredTargetId = preferences[preferenceScope]
+
     return (
       query.targets.find((target) => target.id === preferredTargetId) ??
       query.targets.find((target) => target.id === query.data?.recommendedTargetId) ??

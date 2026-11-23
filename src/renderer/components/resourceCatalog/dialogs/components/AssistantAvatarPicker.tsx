@@ -45,6 +45,7 @@ export function AssistantAvatarPicker({
     setPending(false)
     setOpen(false)
     setView('menu')
+
     return () => {
       session.active = false
     }
@@ -53,42 +54,53 @@ export function AssistantAvatarPicker({
   const save = async (intent: InputFor<'assistant.set_avatar'>['avatar'] | File) => {
     const id = assistantId
     const session = sessionRef.current
+
     if (session.pending) return
     session.pending = true
     setPending(true)
+
     try {
       let avatar: InputFor<'assistant.set_avatar'>['avatar']
+
       if (intent instanceof File) {
         const data = await prepareAvatarImage(intent, () => session.active)
+
         if (!data) return
         avatar = { kind: 'image', data }
       } else {
         avatar = intent
       }
+
       if (!session.active) return
       await ipcApi.request('assistant.set_avatar', { assistantId: id, avatar })
       await invalidate([`/assistants/${id}`, '/assistants'])
+
       if (!session.active) return
       setOpen(false)
       setView('menu')
+
       if (onChanged) {
         const data = await dataApiService.get(`/assistants/${id}`)
+
         if (session.active) onChanged({ avatarSrc: data.avatarSrc, emoji: data.emoji })
       }
     } catch (error: any) {
       if (session.active) toast.error(error.message)
     } finally {
       session.pending = false
+
       if (session.active) setPending(false)
     }
   }
 
   const avatarSize = size === 'sm' ? 36 : 32
+
   return (
     <Popover
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
+
         if (!next) setView('menu')
       }}>
       <PopoverTrigger asChild>
@@ -131,6 +143,7 @@ export function AssistantAvatarPicker({
               onChange={(event) => {
                 const file = event.target.files?.[0]
                 event.target.value = ''
+
                 if (file) void save(file)
               }}
             />

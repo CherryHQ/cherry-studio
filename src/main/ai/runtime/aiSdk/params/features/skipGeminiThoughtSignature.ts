@@ -18,12 +18,14 @@ const logger = loggerService.withContext('skipGeminiThoughtSignaturePlugin')
  */
 function createSkipGeminiThoughtSignatureMiddleware(): LanguageModelMiddleware {
   const MAGIC_STRING = 'skip_thought_signature_validator'
+
   return {
     specificationVersion: 'v3',
 
     transformParams: async ({ params }) => {
       const transformedParams = { ...params }
       logger.debug('transformedParams', transformedParams)
+
       // Process messages in prompt
       if (transformedParams.prompt && Array.isArray(transformedParams.prompt)) {
         transformedParams.prompt = transformedParams.prompt.map((message) => {
@@ -31,6 +33,7 @@ function createSkipGeminiThoughtSignatureMiddleware(): LanguageModelMiddleware {
           if (message.role !== 'assistant') {
             return message
           }
+
           // Note: text part and reasoning part do not require thought signature validation
           // They are handled by messageConverter now.
           // Map to NEW part objects instead of mutating caller-owned parts in place.
@@ -42,12 +45,17 @@ function createSkipGeminiThoughtSignatureMiddleware(): LanguageModelMiddleware {
               if (part.type !== 'tool-call') {
                 return part
               }
+
               const extraContent = part.providerOptions?.openaiCompatible?.extra_content
+
               const extra =
                 extraContent && typeof extraContent === 'object' && !Array.isArray(extraContent) ? extraContent : {}
+
               const googleContent = extra.google
+
               const google =
                 googleContent && typeof googleContent === 'object' && !Array.isArray(googleContent) ? googleContent : {}
+
               // Google OpenAI-compatible API expects extra_content.google.thought_signature
               // See: https://ai.google.dev/gemini-api/docs/thought-signatures#openai
               return {

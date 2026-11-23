@@ -22,6 +22,7 @@ export function pinDirectoryPathPrefix(baseId: string, item: KnowledgeItemOf<'di
   const reservedTopLevelNames = collectReservedTopLevelNames(baseId, item.id)
   const pathPrefix = chooseDirectoryPathPrefix(item, reservedTopLevelNames)
   knowledgeItemService.updateDirectoryRelativePath(item.id, pathPrefix)
+
   return pathPrefix
 }
 
@@ -41,6 +42,7 @@ export async function createExpandedDirectoryChildren(
       source: item.data.source
     })
     knowledgeItemService.updateStatus(item.id, 'failed', { error: EMPTY_DIRECTORY_ERROR })
+
     return []
   }
 
@@ -58,12 +60,15 @@ function collectReservedTopLevelNames(baseId: string, excludeItemId?: string): S
   // A deleting directory's pending cleanup still removes its whole prefix, so it stays reserved.
   const items = knowledgeItemService.getItemsByBaseId(baseId, { includeDeleting: true })
   const names = new Set<string>()
+
   for (const relativePath of collectKnowledgeReservedRelativePaths(items, { excludeItemId })) {
     const topSegment = relativePath.split('/')[0]
+
     if (topSegment) {
       names.add(topSegment)
     }
   }
+
   return names
 }
 
@@ -88,6 +93,7 @@ async function createDirectoryChildren(
         },
         signal
       )
+
       leafItems.push(createdFile)
       continue
     }
@@ -101,6 +107,7 @@ async function createDirectoryChildren(
       },
       signal
     )
+
     const childLeafItems = await createDirectoryChildren(baseId, createdDirectory.id, child.children, signal)
     knowledgeItemService.updateStatus(createdDirectory.id, 'processing')
     leafItems.push(...childLeafItems)

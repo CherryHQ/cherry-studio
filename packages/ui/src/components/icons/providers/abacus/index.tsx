@@ -4,6 +4,7 @@ import { AbacusLight } from './light'
 
 const Abacus = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AbacusLight {...props} className={className} />
+
   return <AbacusLight {...props} className={className} />
 }
 

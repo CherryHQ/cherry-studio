@@ -54,11 +54,19 @@ export const MetadataSchema = z.record(z.string(), z.unknown()).optional()
 
 // Type exports
 export type ModelId = z.infer<typeof ModelIdSchema>
+
 export type ProviderId = z.infer<typeof ProviderIdSchema>
+
 export type Version = z.infer<typeof VersionSchema>
+
 export type ISOTimestamp = z.infer<typeof ISOTimestampSchema>
+
 export type NumericRange = z.infer<typeof NumericRangeSchema>
+
 export type StringRange = z.infer<typeof StringRangeSchema>
+
 export type ZodCurrency = z.infer<typeof ZodCurrencySchema>
+
 export type PricePerToken = z.infer<typeof PricePerTokenSchema>
+
 export type Metadata = z.infer<typeof MetadataSchema>

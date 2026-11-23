@@ -69,15 +69,20 @@ export class DurableProjection {
 
   observe(sink: (batch: DurableObservation) => void | Promise<void>): Observation {
     const active = this.preview?.id
+
     const historical = new Set(
       this.feed.snapshot.messages.filter((message) => message.id !== active).map((message) => message.id)
     )
+
     return this.feed.observeCaptured(sink, (event, delivery) => {
       for (const [committed, preview] of Object.entries(this.aliases))
         if (historical.has(preview)) historical.add(committed)
+
       const messages =
         event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+
       const completion = delivery === 'baseline' || event.type !== 'snapshot' ? undefined : this.completion
+
       return {
         value: {
           events: [event],
@@ -96,18 +101,22 @@ export class DurableProjection {
   input(input: InputState): void {
     if (!this.view) return
     const known = this.feed.state.inputs.find((value) => value.inputId && value.inputId === input.inputId)
+
     if (known && !input.nativeInput && (known.nativeInput || known.outcome)) return
     this.update(this.view, this.revision, [input])
   }
 
   beginAdmission(inputId: InputId): void {
     this.admitting.add(inputId)
+
     if (this.view) this.update(this.view, this.revision)
   }
 
   endAdmission(inputId: InputId, accepted: boolean): void {
     this.admitting.delete(inputId)
+
     if (!accepted && !this.cycle.size) this.pending = false
+
     if (this.view) this.update(this.view, this.revision)
   }
 
@@ -118,6 +127,7 @@ export class DurableProjection {
     const previousState = this.feed.state
     let inputs = previousState.inputs
     changed = changed.filter((input) => !inputs.some((known) => isDeepStrictEqual(known, input)))
+
     for (const input of changed) {
       inputs = [
         ...inputs.filter(
@@ -127,18 +137,22 @@ export class DurableProjection {
         ),
         input
       ]
+
       if (revision !== undefined) this.cycle.add(input.nativeInput?.id ?? input.inputId!)
     }
+
     for (const input of inputs)
       if (!input.outcome && !input.facts.includes('locally-handled'))
         this.cycle.add(input.nativeInput?.id ?? input.inputId!)
     const unfinished = inputs.some((input) => !input.outcome && !input.facts.includes('locally-handled'))
     const live = view.docs['pi.live'] as LiveState | undefined
     const content = new ContentProjection()
+
     for (const entry of view.entries) content.entry(entry)
     const after = view.entries.reduce((latest, entry) => Math.max(latest, entry.id), 0)
     const generation = live?.generation
     const previous = this.preview
+
     const preview =
       generation?.message && live?.run
         ? previous?.task === live.run.taskId && previous.attempt === generation.attempt
@@ -150,16 +164,21 @@ export class DurableProjection {
               after
             }
         : undefined
+
     if (generation?.message && preview) content.message(generation.message, preview.id, 'partial')
+
     for (const slot of live?.tools ?? []) {
       if (slot.output !== undefined && slot.taskId && !slot.entry) {
         content.progress(slot.callId, slot.output)
       }
     }
+
     for (const slot of live?.tools ?? [])
       for (const record of slot.nestedCalls?.calls ?? []) content.nested(slot.callId, projectNestedTool(record))
+
     for (const slot of live?.nestedTools ?? []) {
       if (slot.summary) continue
+
       const part = {
         type: 'dynamic-tool' as const,
         toolName: slot.name,
@@ -168,10 +187,14 @@ export class DurableProjection {
         input: slot.arguments,
         callProviderMetadata: { pi: { parentToolCallId: slot.parentCallId, nested: true } }
       }
+
       content.nested(slot.parentCallId, part)
+
       if (slot.output !== undefined) content.progress(slot.callId, slot.output)
+
       for (const child of slot.nestedCalls?.calls ?? []) content.nested(slot.callId, projectNestedTool(child))
     }
+
     const pending = Boolean(this.admitting.size || live?.run || live?.compactions?.length || unfinished)
     const results = subagentResults(history, Boolean(live?.run))
     this.backgroundResults = results
@@ -191,21 +214,25 @@ export class DurableProjection {
             entryId: view.entries.at(-1)?.id.toString()
           }
         : undefined
+
     if (this.completion) this.cycle.clear()
     this.pending = pending
     let reset = false
+
     if (previous && previous !== preview) {
       const candidates = view.entries.flatMap((entry) =>
         entry.byTaskId === previous.task && entry.id > previous.after
           ? (entry.model ?? []).flatMap((message, index) => (message.role === 'assistant' ? [{ entry, index }] : []))
           : []
       )
+
       if (candidates.length !== 1) reset = true
       else {
         const { entry, index } = candidates[0]
         this.aliases[entryMessageId(entry, index)] = previous.id
       }
     }
+
     if (reset) this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
     this.preview = preview
     this.feed.publish({
@@ -215,6 +242,7 @@ export class DurableProjection {
       activity: { state: live?.run ? 'active' : 'idle' }
     })
     this.completion = undefined
+
     for (const input of changed) this.feed.publish({ type: 'input.changed', input })
   }
 }
@@ -226,9 +254,11 @@ export function submissionState(
   inputId?: InputId
 ): InputState {
   let terminal: Pick<InputState, 'outcome' | 'error'> = {}
+
   if (record.type === 'input' && record.status === 'done') {
     const index = entry?.model?.findIndex((message) => message.role === 'assistant') ?? -1
     const message = entry?.model?.[index]
+
     if (message?.role === 'assistant') {
       const reason = message.stopReason
       const completed = reason === 'stop' && !message.content.some((part) => part.type === 'toolCall')
@@ -271,6 +301,7 @@ export function submissionState(
       }
     }
   }
+
   return {
     nativeInput: { session: thread, id: runtimeId(String(record.id)) },
     ...(inputId && { inputId }),

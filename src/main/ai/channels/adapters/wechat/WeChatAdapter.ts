@@ -26,6 +26,7 @@ class WeChatAdapter extends ChannelAdapter {
   protected override async checkReady(): Promise<boolean> {
     const bot = new WeixinBot({ tokenPath: this.tokenPath })
     const hasCreds = await bot.hasCredentials()
+
     return hasCreds
   }
 
@@ -42,6 +43,7 @@ class WeChatAdapter extends ChannelAdapter {
         this.sendQrToRenderer(url, 'pending')
       }
     })
+
     this.bot = bot
 
     // Abort guard — if disconnect() was called before login completes
@@ -52,10 +54,13 @@ class WeChatAdapter extends ChannelAdapter {
         const isExpired =
           error instanceof Error &&
           error.message === 'QR login failed after 3 expired QR codes. Use config tool to reconnect.'
+
         this.sendQrToRenderer('', isExpired ? 'expired' : 'error')
       }
+
       throw error
     })
+
     if (signal.aborted) return
 
     this.sendQrToRenderer('', 'confirmed', credentials.userId)
@@ -91,8 +96,10 @@ class WeChatAdapter extends ChannelAdapter {
     }
 
     const bot = this.bot
+
     try {
       const chunks = splitMessage(text, WECHAT_MAX_LENGTH)
+
       for (let i = 0; i < chunks.length; i++) {
         await bot.send(chatId, chunks[i])
 
@@ -144,33 +151,42 @@ class WeChatAdapter extends ChannelAdapter {
     bot.onMessage(async (msg: IncomingMessage) => {
       if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(msg.userId)) {
         this.log.debug('Dropping message from unauthorized user', { userId: msg.userId })
+
         return
       }
 
       // Download images from WeChat CDN (returns data URIs with base64)
       let images: ImageAttachment[] | undefined
+
       if (msg._imageItems && msg._imageItems.length > 0) {
         const dataUris = (await Promise.all(msg._imageItems.map((item) => bot.downloadImage(item)))).filter(
           (uri): uri is string => uri !== null
         )
+
         const parsed = dataUris
           .map((uri) => {
             const result = parseDataUrl(uri)
+
             if (!result || !result.isBase64 || !result.mediaType) return null
+
             return { media_type: result.mediaType, data: result.data }
           })
           .filter((img): img is ImageAttachment => img !== null)
+
         if (parsed.length > 0) images = parsed
       }
 
       // Download files from WeChat CDN
       let files: FileAttachment[] | undefined
+
       if (msg._fileItems && msg._fileItems.length > 0) {
         const results = await Promise.all(msg._fileItems.map((item) => bot.downloadFile(item)))
+
         const downloaded = results
           .filter((r): r is NonNullable<typeof r> => r !== null)
           .map((r) => {
             const ext = r.filename.includes('.') ? r.filename.split('.').pop()!.toLowerCase() : ''
+
             return {
               filename: r.filename,
               data: r.data.toString('base64'),
@@ -181,10 +197,12 @@ class WeChatAdapter extends ChannelAdapter {
               size: r.data.length
             } satisfies FileAttachment
           })
+
         if (downloaded.length > 0) files = downloaded
       }
 
       const text = msg.text.trim()
+
       if (!text && !images && !files) return
 
       if (isSlashCommand(text)) {
@@ -194,6 +212,7 @@ class WeChatAdapter extends ChannelAdapter {
               error: err instanceof Error ? err.message : String(err)
             })
           })
+
           return
         }
 

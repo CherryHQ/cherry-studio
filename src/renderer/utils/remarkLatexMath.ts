@@ -60,6 +60,7 @@ const CLOSE_PAREN = 41
 const OPEN_BRACKET = 91
 const CLOSE_BRACKET = 93
 const SPACE = 32
+
 const ENVIRONMENT_NAMES = new Set([
   'equation',
   'equation*',
@@ -78,12 +79,15 @@ const DISPLAY_COMMAND_PATTERN = /\\(?:begin|tag)\b/
 function hasUnescapedDisplayCommand(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
     if (value.charCodeAt(index) !== BACKSLASH) continue
+
     if (index + 1 < value.length && value.charCodeAt(index + 1) === BACKSLASH) {
       index += 1
       continue
     }
+
     if (/^(?:begin|tag)\b/.test(value.slice(index + 1))) return true
   }
+
   return false
 }
 
@@ -99,6 +103,7 @@ function removeNestedDelimiters(value: string, kind: Exclude<LatexMathKind, 'env
     }
 
     const marker = value.charCodeAt(index + 1)
+
     if (marker === open || marker === close) {
       index += 1
       continue
@@ -124,6 +129,7 @@ const latexDelimitedMath: Construct = {
       if (code !== BACKSLASH) return nok(code)
       effects.enter('latexDelimitedMath')
       effects.consume(code)
+
       return openingMarker
     }
 
@@ -137,41 +143,55 @@ const latexDelimitedMath: Construct = {
       } else {
         return nok(code)
       }
+
       effects.consume(code)
+
       return contentStart
     }
 
     function contentStart(code: number | null): State | undefined {
       if (code === null) return nok(code)
+
       if (code <= -3) {
         effects.enter('lineEnding')
         effects.consume(code)
         effects.exit('lineEnding')
+
         return contentStart
       }
+
       effects.enter('latexMathData')
+
       return content(code)
     }
 
     function content(code: number | null): State | undefined {
       if (code === null || code <= -3) {
         effects.exit('latexMathData')
+
         return code === null ? nok(code) : contentStart(code)
       }
+
       effects.consume(code)
+
       return code === BACKSLASH ? afterBackslash : content
     }
 
     function afterBackslash(code: number | null): State | undefined {
       if (code === null) return nok(code)
       effects.consume(code)
+
       if (code === open) depth += 1
+
       if (code === close) depth -= 1
+
       if (depth === 0) {
         effects.exit('latexMathData')
         effects.exit('latexDelimitedMath')
+
         return ok
       }
+
       return content
     }
   } satisfies Tokenizer
@@ -191,6 +211,7 @@ const latexNonLazyContinuation: Construct = {
       effects.enter('lineEnding')
       effects.consume(code)
       effects.exit('lineEnding')
+
       return lineStart
     }
   } satisfies Tokenizer
@@ -217,6 +238,7 @@ const latexDirectMath: Construct = {
 
     function start(code: number | null): State | undefined {
       effects.enter('latexDirectMath')
+
       return linePrefix(code)
     }
 
@@ -224,8 +246,10 @@ const latexDirectMath: Construct = {
       if (code === SPACE && indentation < 3) {
         indentation += 1
         effects.consume(code)
+
         return linePrefix
       }
+
       return openingFence(code)
     }
 
@@ -233,10 +257,13 @@ const latexDirectMath: Construct = {
       if (code === DOLLAR) {
         fenceSize += 1
         effects.consume(code)
+
         return openingFence
       }
+
       if (fenceSize < 2 || code !== BACKSLASH) return nok(code)
       effects.consume(code)
+
       return begin
     }
 
@@ -244,6 +271,7 @@ const latexDirectMath: Construct = {
       if (code !== beginPrefix.charCodeAt(prefixIndex)) return nok(code)
       effects.consume(code)
       prefixIndex += 1
+
       return prefixIndex === beginPrefix.length ? name : begin
     }
 
@@ -253,28 +281,37 @@ const latexDirectMath: Construct = {
         effects.consume(code)
         opening = `\\begin{${environmentName}}`
         closing = `\\end{${environmentName}}`
+
         return contentStart
       }
+
       if (code === null || !/[A-Za-z*]/.test(String.fromCharCode(code))) return nok(code)
       environmentName += String.fromCharCode(code)
       effects.consume(code)
+
       return name
     }
 
     function contentStart(code: number | null): State | undefined {
       if (code === null) return nok(code)
+
       if (code <= -3) return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
       effects.enter('latexDirectMathData')
+
       return content(code)
     }
 
     function content(code: number | null): State | undefined {
       if (code === null) return nok(code)
+
       if (code <= -3) {
         effects.exit('latexDirectMathData')
+
         return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
       }
+
       effects.consume(code)
+
       return code === BACKSLASH ? candidateStart : content
     }
 
@@ -288,7 +325,9 @@ const latexDirectMath: Construct = {
       } else {
         return content(code)
       }
+
       candidateIndex = 1
+
       return candidateMatch(code)
     }
 
@@ -296,13 +335,17 @@ const latexDirectMath: Construct = {
       if (code !== candidate.charCodeAt(candidateIndex)) return content(code)
       effects.consume(code)
       candidateIndex += 1
+
       if (candidateIndex !== candidate.length) return candidateMatch
 
       depth += candidateDepth
+
       if (depth === 0) {
         remainingFence = fenceSize
+
         return closingFence
       }
+
       return content
     }
 
@@ -311,15 +354,20 @@ const latexDirectMath: Construct = {
         if (code !== DOLLAR) return nok(code)
         remainingFence -= 1
         effects.consume(code)
+
         return closingFence
       }
+
       if (code === SPACE || code === 9) {
         effects.consume(code)
+
         return closingFence
       }
+
       if (code !== null && code > -3) return nok(code)
       effects.exit('latexDirectMathData')
       effects.exit('latexDirectMath')
+
       return ok(code)
     }
   } satisfies Tokenizer
@@ -338,6 +386,7 @@ const latexMultilineDollarMath: Construct = {
 
     function start(code: number | null): State | undefined {
       effects.enter('latexDirectMath')
+
       return linePrefix(code)
     }
 
@@ -345,8 +394,10 @@ const latexMultilineDollarMath: Construct = {
       if (code === SPACE && indentation < 3) {
         indentation += 1
         effects.consume(code)
+
         return linePrefix
       }
+
       return openingFence(code)
     }
 
@@ -354,24 +405,33 @@ const latexMultilineDollarMath: Construct = {
       if (code === DOLLAR) {
         fenceSize += 1
         effects.consume(code)
+
         return openingFence
       }
+
       if (fenceSize < 2 || code === null || code <= -3) return nok(code)
       effects.enter('latexDirectMathData')
+
       return firstLine(code)
     }
 
     function firstLine(code: number | null): State | undefined {
       if (code === null) return nok(code)
+
       if (code <= -3) {
         effects.exit('latexDirectMathData')
+
         return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
       }
+
       if (code === DOLLAR) {
         closingSize = 0
+
         return firstLineClosingFence(code)
       }
+
       effects.consume(code)
+
       return firstLine
     }
 
@@ -379,31 +439,41 @@ const latexMultilineDollarMath: Construct = {
       if (code === DOLLAR) {
         closingSize += 1
         effects.consume(code)
+
         return firstLineClosingFence
       }
+
       return closingSize === fenceSize ? nok(code) : firstLine(code)
     }
 
     function contentStart(code: number | null): State | undefined {
       if (code === null) return nok(code)
+
       if (code <= -3) return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
       contentSeenOnLine = false
       effects.enter('latexDirectMathData')
+
       return content(code)
     }
 
     function content(code: number | null): State | undefined {
       if (code === null) return nok(code)
+
       if (code <= -3) {
         effects.exit('latexDirectMathData')
+
         return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
       }
+
       if (code === DOLLAR) {
         closingSize = 0
+
         return closingFence(code)
       }
+
       if (code !== SPACE && code !== 9) contentSeenOnLine = true
       effects.consume(code)
+
       return content
     }
 
@@ -411,21 +481,28 @@ const latexMultilineDollarMath: Construct = {
       if (code === DOLLAR) {
         closingSize += 1
         effects.consume(code)
+
         return closingFence
       }
+
       if (closingSize !== fenceSize) return content(code)
+
       if (!contentSeenOnLine) return nok(code)
+
       return closingTail(code)
     }
 
     function closingTail(code: number | null): State | undefined {
       if (code === SPACE || code === 9) {
         effects.consume(code)
+
         return closingTail
       }
+
       if (code !== null && code > -3) return content(code)
       effects.exit('latexDirectMathData')
       effects.exit('latexDirectMath')
+
       return ok(code)
     }
   } satisfies Tokenizer
@@ -442,6 +519,7 @@ const latexBracketBlockMath: Construct = {
 
     function start(code: number | null): State | undefined {
       effects.enter('latexBracketMath')
+
       return linePrefix(code)
     }
 
@@ -449,20 +527,24 @@ const latexBracketBlockMath: Construct = {
       if (code === SPACE && indentation < 3) {
         indentation += 1
         effects.consume(code)
+
         return linePrefix
       }
+
       return openingMarker(code)
     }
 
     function openingMarker(code: number | null): State | undefined {
       if (code !== BACKSLASH) return nok(code)
       effects.consume(code)
+
       return openingBracket
     }
 
     function openingBracket(code: number | null): State | undefined {
       if (code !== OPEN_BRACKET) return nok(code)
       effects.consume(code)
+
       return openingTail
     }
 
@@ -471,47 +553,64 @@ const latexBracketBlockMath: Construct = {
     function openingTail(code: number | null): State | undefined {
       if (code === SPACE || code === 9) {
         effects.consume(code)
+
         return openingTail
       }
+
       if (code === null || code > -3) return nok(code)
+
       return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
     }
 
     function contentStart(code: number | null): State | undefined {
       if (code === null) return nok(code)
+
       if (code <= -3) return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
       effects.enter('latexBracketMathData')
+
       return content(code)
     }
 
     function content(code: number | null): State | undefined {
       if (code === null) return nok(code)
+
       if (code <= -3) {
         effects.exit('latexBracketMathData')
+
         return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
       }
+
       effects.consume(code)
+
       return code === BACKSLASH ? afterBackslash : content
     }
 
     function afterBackslash(code: number | null): State | undefined {
       if (code === null) return nok(code)
+
       if (code <= -3) return content(code)
       effects.consume(code)
+
       if (code === OPEN_BRACKET) depth += 1
+
       if (code === CLOSE_BRACKET) depth -= 1
+
       if (depth === 0) return closingTail
+
       return content
     }
 
     function closingTail(code: number | null): State | undefined {
       if (code === SPACE || code === 9) {
         effects.consume(code)
+
         return closingTail
       }
+
       if (code !== null && code > -3) return nok(code)
       effects.exit('latexBracketMathData')
       effects.exit('latexBracketMath')
+
       return ok(code)
     }
   } satisfies Tokenizer
@@ -540,6 +639,7 @@ const latexEnvironmentMath: Construct = {
       if (code !== BACKSLASH || startColumn > 4) return nok(code)
       effects.enter('latexEnvironmentMath')
       effects.consume(code)
+
       return begin
     }
 
@@ -547,6 +647,7 @@ const latexEnvironmentMath: Construct = {
       if (code !== beginPrefix.charCodeAt(prefixIndex)) return nok(code)
       effects.consume(code)
       prefixIndex += 1
+
       return prefixIndex === beginPrefix.length ? name : begin
     }
 
@@ -556,33 +657,44 @@ const latexEnvironmentMath: Construct = {
         effects.consume(code)
         opening = `\\begin{${environmentName}}`
         closing = `\\end{${environmentName}}`
+
         return contentStart
       }
+
       if (code === null || !/[A-Za-z*]/.test(String.fromCharCode(code))) return nok(code)
       environmentName += String.fromCharCode(code)
       effects.consume(code)
+
       return name
     }
 
     function contentStart(code: number | null): State | undefined {
       if (code === null) return nok(code)
+
       if (code <= -3) {
         effects.enter('lineEnding')
         effects.consume(code)
         effects.exit('lineEnding')
+
         return contentStart
       }
+
       effects.enter('latexMathData')
+
       return content(code)
     }
 
     function content(code: number | null): State | undefined {
       if (code === null || code <= -3) {
         effects.exit('latexMathData')
+
         return code === null ? nok(code) : contentStart(code)
       }
+
       effects.consume(code)
+
       if (code !== BACKSLASH) return content
+
       return candidateStart
     }
 
@@ -596,7 +708,9 @@ const latexEnvironmentMath: Construct = {
       } else {
         return content(code)
       }
+
       candidateIndex = 1
+
       return candidateMatch(code)
     }
 
@@ -604,14 +718,18 @@ const latexEnvironmentMath: Construct = {
       if (code !== candidate.charCodeAt(candidateIndex)) return content(code)
       effects.consume(code)
       candidateIndex += 1
+
       if (candidateIndex !== candidate.length) return candidateMatch
 
       depth += candidateDepth
+
       if (depth === 0) {
         effects.exit('latexMathData')
         effects.exit('latexEnvironmentMath')
+
         return ok
       }
+
       return content
     }
   } satisfies Tokenizer
@@ -631,9 +749,11 @@ const latexMathSyntax: MicromarkExtension = {
 function createDirectMath(token: Token, context: CompileContext): void {
   const raw = context.sliceSerialize(token).trimStart()
   const fence = /^\${2,}/.exec(raw)?.[0]
+
   if (!fence) return
   const closingIndex = raw.lastIndexOf(fence)
   const value = raw.slice(fence.length, closingIndex)
+
   const node: Math = {
     type: 'math',
     meta: null,
@@ -650,14 +770,17 @@ function createDirectMath(token: Token, context: CompileContext): void {
       ]
     }
   }
+
   context.enter(node, token)
 }
 
 function createBracketMath(token: Token, context: CompileContext): void {
   const raw = context.sliceSerialize(token).trimStart()
   const closingIndex = raw.lastIndexOf('\\]')
+
   if (closingIndex < 2) return
   const value = removeNestedDelimiters(raw.slice(2, closingIndex), 'bracket')
+
   const node: Math = {
     type: 'math',
     meta: null,
@@ -674,6 +797,7 @@ function createBracketMath(token: Token, context: CompileContext): void {
       ]
     }
   }
+
   context.enter(node, token)
 }
 
@@ -692,6 +816,7 @@ function createInlineMath(token: Token, context: CompileContext): void {
       latexMathKind: kind
     }
   }
+
   context.enter(node, token)
   context.buffer()
 }
@@ -699,6 +824,7 @@ function createInlineMath(token: Token, context: CompileContext): void {
 function exitInlineMath(token: Token, context: CompileContext): void {
   context.resume()
   const node = context.stack[context.stack.length - 1]
+
   if (node.type !== 'inlineMath') return
   context.exit(token)
   node.data!.hChildren = [{ type: 'text', value: node.value }]
@@ -747,6 +873,7 @@ function getLatexMathKind(node: InlineMath): LatexMathKind | undefined {
 function toPlainText(node: InlineMath): Text {
   const kind = getLatexMathKind(node)
   const value = kind === 'paren' ? `(${node.value})` : kind === 'bracket' ? `[${node.value}]` : node.value
+
   return { type: 'text', value, position: node.position }
 }
 
@@ -758,17 +885,22 @@ function demoteLinkMath(node: Link): void {
   const demote = (parent: Parent): void => {
     parent.children = parent.children.map((child) => {
       if (isInlineMath(child) && getLatexMathKind(child)) return toPlainText(child)
+
       if ('children' in child && Array.isArray(child.children)) demote(child as Parent)
+
       return child
     })
   }
+
   demote(node)
 }
 
 function isIndependentEnvironment(node: InlineMath, source: string): boolean {
   const offset = node.position?.start.offset
+
   if (offset === undefined) return false
   const lineStart = Math.max(source.lastIndexOf('\n', offset - 1), source.lastIndexOf('\r', offset - 1)) + 1
+
   return /^ {0,3}$/.test(source.slice(lineStart, offset))
 }
 
@@ -787,20 +919,27 @@ function demoteEmbeddedEnvironments(tree: Root, source: string): void {
 
 function isDollarDisplayMath(node: InlineMath, source: string): boolean {
   if (getLatexMathKind(node) !== undefined) return false
+
   if (!hasUnescapedDisplayCommand(node.value)) return false
+
   if (node.value.includes('\n') || node.value.includes('\r')) return false
+
   // A bare $ inside single-line $$ is prose or unbalanced input, not a display formula.
   if (node.value.replace(/\\./g, '').includes('$')) return false
   const start = node.position?.start.offset
   const end = node.position?.end.offset
+
   if (start === undefined || end === undefined) return false
   const raw = source.slice(start, end).trim()
+
   if (/[\r\n]/.test(raw)) return false
+
   return /^(\${2,})[^\r\n]*\1$/.test(raw)
 }
 
 function isDisplayLatexMath(node: InlineMath, source: string): boolean {
   const kind = getLatexMathKind(node)
+
   return (
     kind === 'environment' ||
     (kind === 'bracket' && (node.value.includes('\n') || DISPLAY_COMMAND_PATTERN.test(node.value))) ||
@@ -832,6 +971,7 @@ function createParagraph(children: PhrasingContent[]): Paragraph | undefined {
   if (children.length === 0) return undefined
   const first = children[0]
   const last = children[children.length - 1]
+
   return {
     type: 'paragraph',
     children,
@@ -851,13 +991,16 @@ function splitDisplayMath(paragraph: Paragraph, source: string): RootContent[] {
     }
 
     const before = createParagraph(phrasing)
+
     if (before) result.push(before)
     result.push(createDisplayMath(child))
     phrasing = []
   }
 
   const after = createParagraph(phrasing)
+
   if (after) result.push(after)
+
   return result
 }
 
@@ -870,8 +1013,10 @@ function promoteDisplayMath(tree: Root, source: string): void {
     ) {
       return
     }
+
     const replacements = splitDisplayMath(node, source)
     parent.children.splice(index, 1, ...replacements)
+
     return index + replacements.length
   })
 }
@@ -886,24 +1031,29 @@ function repairSetextEnvironments(tree: Root, source: string): void {
   // line backwards again for each unmatched opener sharing a closer.
   const linePrefixIsWhitespace = new Uint8Array(source.length)
   let whitespaceOnly = true
+
   for (let offset = 0; offset < source.length; offset++) {
     linePrefixIsWhitespace[offset] = whitespaceOnly ? 1 : 0
     const char = source[offset]
+
     if (char === '\n' || char === '\r') whitespaceOnly = true
     else if (char !== ' ' && char !== '\t') whitespaceOnly = false
   }
+
   const excludedRanges: Array<{ start: number; end: number }> = []
   const containerRanges: Array<{ start: number; end: number }> = []
   visit(tree, (node) => {
     const start = node.position?.start.offset
     const end = node.position?.end.offset
     const nodeType: string = node.type
+
     if (
       (nodeType === 'listItem' || nodeType === 'footnoteDefinition' || nodeType === 'defListDescription') &&
       start !== undefined &&
       end !== undefined
     )
       containerRanges.push({ start, end })
+
     if (
       node.type !== 'code' &&
       node.type !== 'inlineCode' &&
@@ -914,7 +1064,9 @@ function repairSetextEnvironments(tree: Root, source: string): void {
       nodeType !== 'defListTerm'
     )
       return undefined
+
     if (start !== undefined && end !== undefined) excludedRanges.push({ start, end })
+
     return SKIP
   })
   let excludedIndex = 0
@@ -923,9 +1075,11 @@ function repairSetextEnvironments(tree: Root, source: string): void {
   const matchingEnds = new Map<number, number>()
   const openings = new Map<number, Map<string, number[]>>()
   const marker = /\\(begin|end)\{(equation\*?|align\*?|aligned|gather\*?|gathered|multline\*?)\}/y
+
   for (let cursor = 0; cursor < source.length; cursor++) {
     while (excludedIndex < excludedRanges.length && excludedRanges[excludedIndex].end <= cursor) excludedIndex++
     const excludedRange = excludedRanges[excludedIndex]
+
     if (excludedRange && cursor >= excludedRange.start) {
       cursor = excludedRange.end - 1
       continue
@@ -937,43 +1091,55 @@ function repairSetextEnvironments(tree: Root, source: string): void {
       while (cursor < source.length && source[cursor] !== '\n' && source[cursor] !== '\r') cursor++
       continue
     }
+
     if (source.charCodeAt(cursor) !== BACKSLASH) continue
+
     if (source[cursor + 1] === '%') {
       cursor++
       continue
     }
+
     if (source.charCodeAt(cursor + 1) === BACKSLASH) {
       cursor++
       continue
     }
+
     marker.lastIndex = cursor
     const match = marker.exec(source)
+
     if (!match || !ENVIRONMENT_NAMES.has(match[2])) continue
+
     // Consume each flow-container boundary once. Sibling and nested owners have
     // separate marker stacks, so a closer cannot escape its container.
     while (activeContainers.length && containerRanges[activeContainers[activeContainers.length - 1]].end <= cursor)
       activeContainers.pop()
+
     while (containerIndex < containerRanges.length && containerRanges[containerIndex].start <= cursor) {
       while (
         activeContainers.length &&
         containerRanges[activeContainers[activeContainers.length - 1]].end <= containerRanges[containerIndex].start
       )
         activeContainers.pop()
+
       if (containerRanges[containerIndex].end > cursor) activeContainers.push(containerIndex)
       containerIndex++
     }
+
     const owner = activeContainers.at(-1) ?? -1
     const ownerOpenings = openings.get(owner) ?? new Map<string, number[]>()
     openings.set(owner, ownerOpenings)
     const name = match[2]
+
     if (match[1] === 'begin') {
       const stack = ownerOpenings.get(name) ?? []
       stack.push(cursor)
       ownerOpenings.set(name, stack)
     } else {
       const start = ownerOpenings.get(name)?.pop()
+
       if (start !== undefined) matchingEnds.set(start, marker.lastIndex)
     }
+
     cursor = marker.lastIndex - 1
   }
 
@@ -982,67 +1148,87 @@ function repairSetextEnvironments(tree: Root, source: string): void {
     // such as blockquote `>` prefixes. Skip that entire subtree rather
     // than passing those prefixes to KaTeX as mathematical operators.
     if (parent.type === 'blockquote') return SKIP
+
     if (!('children' in parent)) return undefined
     const children = parent.children as RootContent[]
     // A standalone closer still supports Markdown-looking formula bodies.
     // For an inline closer, unrelated structural siblings are stronger
     // evidence of prose than blank paragraph breaks alone.
     const structureCounts = [0]
+
     for (const child of children) {
       let structured = child.type !== 'paragraph'
+
       if (!structured) {
         visit(child, (descendant) => {
           if (descendant.type === 'link' || descendant.type === 'image') structured = true
         })
       }
+
       structureCounts.push(structureCounts[structureCounts.length - 1] + (structured ? 1 : 0))
     }
+
     const repaired: RootContent[] = []
+
     for (let i = 0; i < children.length; i++) {
       const node = children[i]
       const start = node.position?.start.offset
+
       const name =
         node.type === 'heading' && start !== undefined
           ? /^ {0,3}\\begin\{([^}\r\n]+)\}/.exec(source.slice(start, node.position?.end.offset))?.[1]
           : undefined
+
       const markerStart =
         start === undefined ? undefined : start + (source.slice(start, start + 3).match(/^ */)?.[0].length ?? 0)
+
       const closeEnd = markerStart === undefined ? undefined : matchingEnds.get(markerStart)
+
       if (!name || !ENVIRONMENT_NAMES.has(name) || closeEnd === undefined || start === undefined) {
         repaired.push(node)
         continue
       }
+
       // Child positions are ordered. Locate the first balanced closer's sibling
       // without scanning all later siblings again for nested heading candidates.
       let lo = i
       let hi = children.length
+
       while (lo < hi) {
         const mid = lo + Math.floor((hi - lo) / 2)
         const end = children[mid].position?.end.offset
+
         if (end !== undefined && end < closeEnd) lo = mid + 1
         else hi = mid
       }
+
       const endNode = children[lo]
       const end = endNode?.position?.end.offset
+
       if (end === undefined || end < closeEnd || source.slice(closeEnd, end).trim()) {
         // The first balanced closer has trailing prose: preserve the original
         // unsupported path instead of consuming unrelated Markdown later on.
         repaired.push(node)
         continue
       }
+
       // In or after unrelated structured siblings, an inline closing command may
       // be a prose mention. Preserve those siblings instead of swallowing them.
       const closerStart = closeEnd - `\\end{${name}}`.length
+
       if (structureCounts[lo + 1] > structureCounts[i + 1] && !linePrefixIsWhitespace[closerStart]) {
         repaired.push(node)
         continue
       }
+
       const raw = source.slice(start, closeEnd).trim()
       const position = { start: node.position!.start, end: endNode.position!.end }
       repaired.push(createDisplayMath({ type: 'inlineMath', value: raw, position }))
       i = lo
     }
+
     parent.children = repaired
+
     return undefined
   })
 }
@@ -1052,10 +1238,12 @@ function repairMathMeta(tree: Root, source: string): void {
     if (!/^\\(?:begin|tag)\b/.test(node.meta ?? '')) return
     const start = node.position?.start.offset
     const end = node.position?.end.offset
+
     if (start === undefined || end === undefined) return
 
     const raw = source.slice(start, end)
     const match = /^(\${2,})([^\r\n$]+)(\r\n|\n|\r)([\s\S]*[^\r\n])(?:\r\n|\n|\r)?\1[ \t]*$/.exec(raw)
+
     if (!match) return
 
     node.value = `${match[2]}${match[3]}${match[4]}`

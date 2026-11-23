@@ -10,10 +10,12 @@ export interface ComposerLink {
 
 export function parseComposerLink(value: string | undefined): ComposerLink | null {
   const url = value?.trim()
+
   if (!url || /\s/.test(url)) return null
 
   try {
     const parsed = new URL(url)
+
     if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || !parsed.hostname) return null
     const hostname = parsed.hostname.replace(/^www\./, '')
     const pathname = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/+$/, '')
@@ -32,6 +34,7 @@ export function parseComposerLink(value: string | undefined): ComposerLink | nul
 
 export function createComposerLinkToken(value: string): ComposerDraftToken | null {
   const link = parseComposerLink(value)
+
   if (!link) return null
 
   return {

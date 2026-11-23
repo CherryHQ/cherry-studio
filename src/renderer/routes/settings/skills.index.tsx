@@ -13,6 +13,7 @@ export const Route = createFileRoute('/settings/skills/')({
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The scope query may contain invalid values; the schema validates the allowed tab names before use.
   validateSearch: (search: Record<string, unknown>) => {
     const parsed = skillsIndexSearchSchema.safeParse(search)
+
     return parsed.success ? parsed.data : { scope: 'all' as const }
   },
   component: SkillsSettings

@@ -70,10 +70,13 @@ export const ApiKeyEntrySchema = z.object({
 })
 
 export type ApiKeyEntry = z.infer<typeof ApiKeyEntrySchema>
+
 export const RuntimeApiKeySchema = ApiKeyEntrySchema.omit({ key: true })
+
 export type RuntimeApiKey = z.infer<typeof RuntimeApiKeySchema>
 
 export const AuthTypeSchema = z.enum(['api-key', 'oauth', 'iam-aws', 'api-key-aws', 'iam-gcp', 'iam-azure'])
+
 export type AuthType = z.infer<typeof AuthTypeSchema>
 
 const AuthConfigApiKey = z.object({
@@ -137,7 +140,9 @@ export const AuthConfigSchema = z.discriminatedUnion('type', [
   AuthConfigIamGcp,
   AuthConfigIamAzure
 ])
+
 export type AuthConfig = z.infer<typeof AuthConfigSchema>
+
 /** The OAuth variant of {@link AuthConfig}, narrowed for token-bearing providers. */
 export type OAuthAuthConfig = Extract<AuthConfig, { type: 'oauth' }>
 
@@ -156,6 +161,7 @@ export type ProviderWebsites = z.infer<typeof ProviderWebsitesSchema>
 
 export const ANTHROPIC_CACHE_TTL_OPTIONS = ['5m', '1h'] as const
 const AnthropicCacheTtlSchema = z.enum(ANTHROPIC_CACHE_TTL_OPTIONS)
+
 export type AnthropicCacheTtl = z.infer<typeof AnthropicCacheTtlSchema>
 
 export const ProviderSettingsSchema = z.object({

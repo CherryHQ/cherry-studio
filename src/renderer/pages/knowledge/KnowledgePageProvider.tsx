@@ -36,8 +36,11 @@ import type { KnowledgeRestoreBaseInitialValues } from './panels/ragConfig/RagCo
 import type { KnowledgeFilePreviewTarget, KnowledgeTabKey } from './types'
 
 type EditableKnowledgeGroup = Pick<Group, 'id' | 'name'>
+
 type EditableKnowledgeBase = Pick<KnowledgeBase, 'id' | 'name'>
+
 type CreateKnowledgeBase = ReturnType<typeof useCreateKnowledgeBase>['createBase']
+
 type RestoreKnowledgeBase = ReturnType<typeof useRestoreKnowledgeBase>['restoreBase']
 
 interface KnowledgePageContextValue {
@@ -137,9 +140,11 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
   const [editingBase, setEditingBase] = useState<EditableKnowledgeBase | null>(null)
   const [editingGroup, setEditingGroup] = useState<EditableKnowledgeGroup | null>(null)
   const [restoringBase, setRestoringBase] = useState<KnowledgeBase | null>(null)
+
   const [restoreBaseInitialValues, setRestoreBaseInitialValues] = useState<
     KnowledgeRestoreBaseInitialValues | undefined
   >()
+
   const [isAddSourceDialogOpen, setIsAddSourceDialogOpen] = useState(false)
   const [pendingAddSource, setPendingAddSource] = useState<KnowledgeItemType | undefined>()
   const [pendingAddFiles, setPendingAddFiles] = useState<File[] | undefined>()
@@ -185,6 +190,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       if (bases.some((base) => base.id === pendingSelectedBaseId)) {
         setPendingSelectedBaseId(null)
         pendingSelectedBaseListRef.current = null
+
         return
       }
 
@@ -201,11 +207,14 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
         resetBaseNavigation()
         onBaseIdChange()
       }
+
       setSelectedItemId(null)
+
       return
     }
 
     const hasSelectedBase = bases.some((base) => base.id === selectedBaseId)
+
     if (!selectedBaseId || !hasSelectedBase) {
       resetBaseNavigation()
       setSelectedItemId(null)
@@ -328,6 +337,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
 
   const handleAddSourceDialogOpenChange = useCallback((open: boolean) => {
     setIsAddSourceDialogOpen(open)
+
     if (!open) {
       setPendingAddSource(undefined)
       setPendingAddFiles(undefined)
@@ -414,6 +424,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
 
       if (name === editingBase.name.trim()) {
         setEditingBase(null)
+
         return
       }
 
@@ -431,6 +442,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
 
       if (name === editingGroup.name.trim()) {
         setEditingGroup(null)
+
         return
       }
 

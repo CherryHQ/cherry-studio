@@ -93,11 +93,13 @@ export interface ToolCallContext {
  */
 export function getToolCallContext(options: ToolExecutionOptions): ToolCallContext {
   const request = options.experimental_context
+
   if (!isRequestContext(request)) {
     throw new Error(
       'Tool execute called without RequestContext. AiService.buildAgentParams must thread RequestContext through agentSettings.experimental_context.'
     )
   }
+
   return {
     request,
     toolCallId: options.toolCallId,
@@ -112,11 +114,13 @@ export function getToolCallContext(options: ToolExecutionOptions): ToolCallConte
  */
 export function getRequestContext(options: ToolExecutionOptions): RequestContext | undefined {
   const request = options.experimental_context
+
   return isRequestContext(request) ? request : undefined
 }
 
 function isRequestContext(value: unknown): value is RequestContext {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Partial<RequestContext>
+
   return typeof candidate.requestId === 'string'
 }

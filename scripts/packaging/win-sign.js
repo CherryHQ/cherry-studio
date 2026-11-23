@@ -15,32 +15,41 @@ const SIGN_RETRY_DELAYS_MS = [5000, 10000]
 async function shouldSignFile(file) {
   const extension = extname(file).toLowerCase()
   const isNativeLibrary = ['.node', '.dll', '.so', '.dylib'].includes(extension)
+
   // Installer containers (e.g. MSI/AppX) use SignTool's own format validation.
   if (!isNativeLibrary && extension !== '.exe') return true
 
   const handle = await open(file, 'r')
+
   try {
     const header = Buffer.alloc(64)
     const { bytesRead } = await handle.read(header, 0, header.length, 0)
+
     if (bytesRead !== header.length) throw new Error(`Truncated native binary: ${file}`)
 
     const { fileTypeFromBuffer } = await import('file-type')
     const format = (await fileTypeFromBuffer(header))?.ext
+
     if (format === 'elf' || format === 'macho') {
       if (isNativeLibrary && file.split(/[\\/]/).includes('node_modules')) {
         console.log(`Skipping Windows signing for ${format} dependency: ${file}`)
+
         return false
       }
+
       throw new Error(`Expected a Windows PE binary, found ${format}: ${file}`)
     }
 
     const peOffset = header.readUInt32LE(0x3c)
     const { size } = await handle.stat()
+
     if (format === 'exe' && peOffset >= 64 && peOffset <= size - 24) {
       const peHeader = Buffer.alloc(24)
       await handle.read(peHeader, 0, peHeader.length, peOffset)
+
       if (peHeader.readUInt32LE(0) === 0x00004550) return true
     }
+
     throw new Error(`Invalid or unsupported Windows PE binary: ${file}`)
   } finally {
     await handle.close()
@@ -75,6 +84,7 @@ function signFileWithRetry(options) {
           `Signing attempt ${attempt}/${MAX_SIGN_ATTEMPTS_PER_TIMESTAMP} with timestamp server: ${timestampUrl}`
         )
         signFile({ ...options, timestampUrl })
+
         return
       } catch (error) {
         lastError = error
@@ -96,6 +106,7 @@ function signFileWithRetry(options) {
 exports.default = async function (configuration) {
   if (process.env.WIN_SIGN) {
     const { path } = configuration
+
     if (configuration.path) {
       try {
         if (!(await shouldSignFile(path))) return

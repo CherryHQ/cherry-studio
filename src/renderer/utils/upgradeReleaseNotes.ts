@@ -12,7 +12,9 @@ export function collectUpgradeReleases(
     typeof releaseInfo.releaseNotes === 'string'
       ? [{ version: releaseInfo.version, releaseNotes: releaseInfo.releaseNotes }]
       : (releaseInfo.releaseNotes ?? []).map(({ version, note }) => ({ version, releaseNotes: note ?? '' }))
+
   const entries = new Map<string, ReleaseNotesEntry>()
+
   for (const entry of [...history, ...fallback]) {
     if (
       valid(entry.version) &&
@@ -24,5 +26,6 @@ export function collectUpgradeReleases(
       entries.set(entry.version, entry)
     }
   }
+
   return [...entries.values()].sort((left, right) => rcompare(left.version, right.version))
 }

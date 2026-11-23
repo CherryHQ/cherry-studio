@@ -19,7 +19,9 @@ function hasSuspiciousDecodedCharacters(text: string): boolean {
   for (const character of text) {
     characters++
     const codePoint = character.codePointAt(0)!
+
     if (codePoint === 0 || codePoint === 0xfffd) return true
+
     if (
       (codePoint < 0x20 && codePoint !== 0x09 && codePoint !== 0x0a && codePoint !== 0x0d) ||
       (codePoint >= 0x7f && codePoint <= 0x9f)
@@ -34,6 +36,7 @@ function hasSuspiciousDecodedCharacters(text: string): boolean {
 function decodeWithoutSuspiciousCharacters(data: Buffer, encoding: string): string | null {
   try {
     const text = iconv.decode(data, encoding)
+
     return hasSuspiciousDecodedCharacters(text) ? null : text
   } catch {
     return null
@@ -51,10 +54,12 @@ export function decodeTextBufferIfText(data: Buffer): string | null {
 
   if (!isBinary) {
     const utf8Text = decodeWithoutSuspiciousCharacters(data, 'UTF-8')
+
     if (utf8Text !== null) return utf8Text
   }
 
   const match = chardet.analyse(sample)[0]
+
   if (
     !match ||
     match.confidence < MIN_LEGACY_ENCODING_CONFIDENCE ||
@@ -73,6 +78,7 @@ export function decodeTextWithAutoEncoding(data: Buffer, logger: TextDecodingLog
   for (const encoding of [detected, 'UTF-8']) {
     try {
       const content = iconv.decode(data, encoding)
+
       if (!content.includes('�')) return content
       logger.warn(`Auto-detected ${encoding} but content has invalid characters; trying other encodings`)
     } catch (error) {
@@ -81,5 +87,6 @@ export function decodeTextWithAutoEncoding(data: Buffer, logger: TextDecodingLog
   }
 
   logger.error('Failed to decode buffer with all candidate encodings; falling back to UTF-8')
+
   return iconv.decode(data, 'UTF-8')
 }

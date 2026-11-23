@@ -45,7 +45,9 @@ export const GENERATE_IMAGE_DESCRIPTION = `Generate or edit an image with the us
  * returns `{ error }` carrying a model-facing note.
  */
 export const paintingErrorSchema = z.object({ error: z.string() })
+
 export type PaintingError = z.infer<typeof paintingErrorSchema>
+
 export type PaintingResult = GenerateImageOutput | PaintingError
 
 /** Transient failure (provider/network hiccup) — a retry can succeed. */
@@ -84,10 +86,13 @@ export function paintingModelOutput(
   if (isPaintingError(output)) {
     return { type: 'text', value: output.error }
   }
+
   if (output.length === 0) {
     return { type: 'text', value: 'Image generation returned no images.' }
   }
+
   const list = output.map((file) => `${file.name} (${file.id})`).join(', ')
+
   return { type: 'text', value: `Generated ${output.length} image(s): ${list}` }
 }
 
@@ -95,9 +100,11 @@ export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null
   const uniqueModelId = application
     .get('PreferenceService')
     .get('feature.paintings.default_model_id') as UniqueModelId | null
+
   if (!uniqueModelId) return null
 
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+
   try {
     modelService.getByKey(providerId, modelId)
   } catch (error) {
@@ -121,26 +128,36 @@ function extractParamValues(
   mode: ImageGenerationMode
 ): ParamValues {
   const supports = support?.modes[mode]?.supports
+
   if (!supports) return {}
 
   const candidate: Partial<Pick<GenerateImageToolInput, CanonicalParamKey>> = {}
+
   // Registry supports are validated against the finite canonical-key schema.
   for (const key of Object.keys(supports) as CanonicalParamKey[]) {
     const value = input[key]
+
     if (value !== undefined && value !== null && value !== '') candidate[key] = value
   }
 
   const parsed = buildParamsSchema(support, mode).parse(candidate)
+
   const regularEntries = Object.entries(supports).flatMap(([key, spec]) => {
     const value = parsed[key]
+
     if (value === undefined || (spec.type === 'size' && spec.pairedEnumKey)) return []
+
     return [[key, value]]
   })
+
   const pairedSizeEntries = Object.entries(supports).flatMap(([key, spec]) => {
     const value = parsed[key]
+
     if (value === undefined || spec.type !== 'size' || !spec.pairedEnumKey) return []
+
     return [[spec.pairedEnumKey, value]]
   })
+
   return Object.fromEntries([...regularEntries, ...pairedSizeEntries])
 }
 
@@ -149,10 +166,13 @@ async function resolveInputImages(
   support: ConfiguredPaintingModel['support']
 ): Promise<string[]> {
   const ids = limitGenerateImageInputIds(imageIds, editInputImageLimit(support))
+
   return Promise.all(
     ids.map(async (id) => {
       const { content, mime } = await application.get('FileManager').read(id, { encoding: 'base64' })
+
       if (!mime.startsWith('image/')) throw new Error(`FileEntry ${id} is not an image`)
+
       return `data:${mime};base64,${content}`
     })
   )
@@ -167,17 +187,20 @@ export async function generateImageFromPrompt(
 
   const { uniqueModelId, support } = configuredModel
   const mode = resolveMode(input)
+
   if ((mode === 'edit' && !support?.modes.edit) || (mode === 'generate' && support && !support.modes.generate)) {
     return { error: mode === 'edit' ? PAINTING_EDIT_NOT_SUPPORTED_NOTE : PAINTING_GENERATE_NOT_SUPPORTED_NOTE }
   }
 
   let inputImages: string[] | undefined
+
   if (mode === 'edit') {
     try {
       inputImages = await resolveInputImages(input.image_ids ?? [], support)
     } catch (error) {
       if (signal?.aborted || isAbortError(error)) throw error
       logger.warn('Failed to resolve generate_image input images', { error })
+
       return { error: PAINTING_INPUT_IMAGE_ERROR_NOTE }
     }
   }
@@ -198,12 +221,14 @@ export async function generateImageFromPrompt(
       cleanupPolicy: 'manual',
       requestOptions: signal ? { signal } : undefined
     })
+
     return files.map((file) => ({ id: file.id, name: file.name }))
   } catch (error) {
     // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
     // retryable error that keeps the tool loop running after the request was already aborted.
     if (signal?.aborted || isAbortError(error)) throw error
     logger.error('AiService.generateImage failed', error as Error, { uniqueModelId })
+
     return { error: PAINTING_ERROR_NOTE }
   }
 }

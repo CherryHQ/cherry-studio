@@ -22,14 +22,19 @@ export const UpdateReviewDialog: FC<{
   const { t } = useTranslation()
   // Offered optional leaves start on; only the exceptions are tracked.
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set())
+
   const toggle = (key: string, on: boolean) =>
     setDeclined((prev) => {
       const next = new Set(prev)
+
       if (on) next.delete(key)
       else next.add(key)
+
       return next
     })
+
   const needsConsent = update.status === 'needs-consent'
+
   return (
     <Dialog
       open={open}

@@ -55,6 +55,7 @@ const LEADING_DOCUMENT_PREAMBLE_REGEX =
 
 function hasHtmlElement(html: string, elementName: string): boolean {
   let found = false
+
   const parser = new Parser(
     {
       onopentag(name) {
@@ -63,7 +64,9 @@ function hasHtmlElement(html: string, elementName: string): boolean {
     },
     { lowerCaseTags: true }
   )
+
   parser.end(html)
+
   return found
 }
 
@@ -71,8 +74,10 @@ export function injectHtmlPreviewHeadElement(html: string, element: string): str
   const preambleEnd = html.match(LEADING_DOCUMENT_PREAMBLE_REGEX)?.[0].length ?? 0
   const remainder = html.slice(preambleEnd)
   const headMatch = remainder.match(/^<head(?:\s[^>]*)?>/i)
+
   if (headMatch?.index !== undefined) {
     const insertAt = preambleEnd + headMatch[0].length
+
     return `${html.slice(0, insertAt)}${element}${html.slice(insertAt)}`
   }
 
@@ -81,11 +86,13 @@ export function injectHtmlPreviewHeadElement(html: string, element: string): str
 
 export function injectHtmlPreviewBase(html: string, baseUrl = HTML_PREVIEW_DEFAULT_BASE_URL): string {
   if (!html.trim() || hasHtmlElement(html, 'base')) return html
+
   return injectHtmlPreviewHeadElement(html, `<base href="${escapeHtmlAttribute(baseUrl)}">`)
 }
 
 export function injectHtmlPreviewCsp(html: string, csp: string): string {
   if (!html.trim()) return html
+
   return injectHtmlPreviewHeadElement(
     html,
     `<meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(csp)}">`
@@ -98,6 +105,7 @@ export const HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE = `<style ${HTML_PREVIEW_SCROLL
 
 function isActiveOwnedScrollbarStyle(attributes: Record<string, string>): boolean {
   if (!(HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER in attributes)) return false
+
   // `disabled` stylesheets are not applied and must not suppress live head injection
   return !('disabled' in attributes)
 }
@@ -107,6 +115,7 @@ function hasHtmlPreviewScrollbarGutter(html: string): boolean {
   let ownedStyle = false
   let styleContent = ''
   let inactiveDepth = 0
+
   const parser = new Parser(
     {
       onopentag(name, attributes) {
@@ -131,17 +140,21 @@ function hasHtmlPreviewScrollbarGutter(html: string): boolean {
     },
     { lowerCaseTags: true }
   )
+
   parser.end(html)
+
   return found
 }
 
 export function injectHtmlPreviewScrollbarGutter(html: string): string {
   if (!html.trim() || hasHtmlPreviewScrollbarGutter(html)) return html
+
   return injectHtmlPreviewHeadElement(html, HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE)
 }
 
 export function applyHtmlPreviewScrollbarGutter(frameDocument: Document | null): void {
   const scrollRoot = frameDocument?.scrollingElement ?? frameDocument?.documentElement
+
   if (!scrollRoot || !('style' in scrollRoot)) return
 
   const style = (scrollRoot as HTMLElement).style
@@ -166,6 +179,7 @@ export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
     const withBase = injectHtmlPreviewBase(html, baseUrl)
     const withScrollbar = stableScrollbarGutter ? injectHtmlPreviewScrollbarGutter(withBase) : withBase
     const srcDoc = effectiveCsp ? injectHtmlPreviewCsp(withScrollbar, effectiveCsp) : withScrollbar
+
     return (
       <div className="h-full w-full overflow-hidden bg-white">
         {html.trim() ? (

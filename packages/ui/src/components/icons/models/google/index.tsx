@@ -4,6 +4,7 @@ import { GoogleLight } from './light'
 
 const Google = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GoogleLight {...props} className={className} />
+
   return <GoogleLight {...props} className={className} />
 }
 

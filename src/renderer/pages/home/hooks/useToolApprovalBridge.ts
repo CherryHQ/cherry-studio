@@ -32,6 +32,7 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
           topicId,
           anchorId: match.messageId
         })
+
         // Main signals failure via a resolved `{ ok: false }` (e.g. anchor deleted). Surface it as
         // a rejection so the caller resets the card instead of leaving it stuck "submitting".
         if (!result?.ok) {

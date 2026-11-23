@@ -33,6 +33,7 @@ const conversationQuerySchema = z.strictObject({
 })
 
 export type ReadConversationInput = z.infer<typeof conversationQuerySchema>
+
 export type ReadConversationResult = ReturnType<typeof readConversation>
 
 type ConversationCandidate = {
@@ -42,8 +43,10 @@ type ConversationCandidate = {
 
 function assertValidQuery(input: ReadConversationInput): void {
   const common = conversationQuerySchema.safeParse(input)
+
   if (!common.success)
     throw new ConversationReadError('INVALID_PARAMS', common.error.issues[0]?.message ?? 'Invalid query')
+
   if (
     input.messageId &&
     (input.cursor || input.nodeId || input.limit !== undefined || input.includeSiblings !== undefined)
@@ -59,6 +62,7 @@ function tryCandidate<TResult>(
 ): ConversationCandidate | null {
   try {
     read()
+
     return { source, sessionId }
   } catch (error) {
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return null
@@ -76,12 +80,14 @@ function identifyConversation(sessionId: string): ConversationCandidate {
   if (candidates.length === 0) {
     throw new ConversationReadError('NOT_FOUND', `Conversation not found: ${sessionId}`)
   }
+
   if (candidates.length > 1) {
     throw new ConversationReadError(
       'AMBIGUOUS',
       `Conversation id is ambiguous: ${sessionId} matches ${candidates.map((candidate) => candidate.source).join(', ')}`
     )
   }
+
   return candidates[0]
 }
 
@@ -93,11 +99,14 @@ function assertSourceQuery(source: ConversationSource, input: ReadConversationIn
       nodeId: input.nodeId,
       includeSiblings: input.includeSiblings
     })
+
     if (!result.success && !input.messageId) {
       throw new ConversationReadError('INVALID_PARAMS', result.error.issues[0]?.message ?? 'Invalid topic query')
     }
+
     return
   }
+
   if (source === 'agent') {
     if (input.nodeId !== undefined || input.includeSiblings !== undefined) {
       throw new ConversationReadError(
@@ -105,12 +114,16 @@ function assertSourceQuery(source: ConversationSource, input: ReadConversationIn
         "'node_id' and 'include_siblings' are only valid for topic sessions"
       )
     }
+
     const result = AgentSessionMessagesListQuerySchema.safeParse({ cursor: input.cursor, limit: input.limit })
+
     if (!result.success && !input.messageId) {
       throw new ConversationReadError('INVALID_PARAMS', result.error.issues[0]?.message ?? 'Invalid Agent query')
     }
+
     return
   }
+
   if (
     input.cursor !== undefined ||
     input.limit !== undefined ||
@@ -135,11 +148,14 @@ function readExactMessage(
   switch (candidate.source) {
     case 'topic': {
       const message = messageService.getById(messageId)
+
       if (message.topicId !== candidate.sessionId) {
         throw new ConversationReadError('NOT_FOUND', `Message not found in conversation: ${messageId}`)
       }
+
       return message
     }
+
     case 'agent':
       return agentSessionMessageService.getSessionMessage(candidate.sessionId, messageId)
   }
@@ -154,7 +170,9 @@ export function readConversation(input: ReadConversationInput) {
     if (!hasPersistentSource(candidate)) {
       throw new ConversationReadError('INVALID_PARAMS', 'Temporary conversations do not support exact message reads')
     }
+
     const message = readExactMessage(candidate, input.messageId)
+
     return { source: candidate.source, sessionId: candidate.sessionId, message }
   }
 
@@ -169,6 +187,7 @@ function readConversationPage(candidate: ConversationCandidate, input: ReadConve
       nodeId: input.nodeId,
       includeSiblings: input.includeSiblings
     })
+
     return {
       source: 'topic' as const,
       sessionId: candidate.sessionId,
@@ -179,11 +198,13 @@ function readConversationPage(candidate: ConversationCandidate, input: ReadConve
       rootId: result.rootId
     }
   }
+
   if (candidate.source === 'agent') {
     const result = agentSessionMessageService.listSessionMessages(candidate.sessionId, {
       cursor: input.cursor,
       limit: input.limit
     })
+
     return {
       source: 'agent' as const,
       sessionId: candidate.sessionId,
@@ -191,6 +212,7 @@ function readConversationPage(candidate: ConversationCandidate, input: ReadConve
       nextCursor: result.nextCursor
     }
   }
+
   return {
     source: 'temporary' as const,
     sessionId: candidate.sessionId,
@@ -204,11 +226,14 @@ export function readAllConversationMessages(input: Pick<ReadConversationInput, '
   const candidate = identifyConversation(input.sessionId)
   const messages: Array<Message | AgentSessionMessageEntity> = []
   let cursor: string | undefined
+
   do {
     const page = readConversationPage(candidate, { ...input, cursor, limit: 200, includeSiblings: false })
+
     if (page.source === 'topic') messages.unshift(...page.messages.map((entry) => entry.message))
     else messages.push(...page.messages)
     cursor = 'nextCursor' in page ? page.nextCursor : undefined
   } while (cursor)
+
   return { ...candidate, messages: candidate.source === 'agent' ? messages.reverse() : messages }
 }

@@ -42,7 +42,9 @@ const RESOLVED_TOOL_STATES: ReadonlySet<string> = new Set([
 
 function getToolName(part: PermissionToolPart): string {
   if (part.toolName?.trim()) return part.toolName
+
   if (part.type.startsWith('tool-')) return part.type.replace(/^tool-/, '')
+
   return ''
 }
 
@@ -56,8 +58,10 @@ function getStringField(value: unknown, fields: string[]): string | undefined {
 
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Runtime-defined permission inputs have no shared field schema; only checked nonblank strings become display titles.
   const record = value as Record<string, unknown>
+
   for (const field of fields) {
     const candidate = record[field]
+
     if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
   }
 
@@ -72,11 +76,15 @@ function getPermissionTitle(part: PermissionToolPart, fallback: string): string 
 function getCommandPolicy(part: PermissionToolPart): CommandApprovalDetails | undefined {
   for (const field of ['providerMetadata', 'callProviderMetadata', 'resultProviderMetadata'] as const) {
     const metadata = part[field]
+
     if (!metadata || typeof metadata !== 'object') continue
     const cherry = metadata.cherry
+
     if (!cherry || typeof cherry !== 'object') continue
     const policy = cherry.commandPolicy
+
     if (!policy || typeof policy !== 'object' || Array.isArray(policy)) continue
+
     if (
       (policy.cwd !== undefined && typeof policy.cwd !== 'string') ||
       typeof policy.reason !== 'string' ||
@@ -85,7 +93,9 @@ function getCommandPolicy(part: PermissionToolPart): CommandApprovalDetails | un
     )
       continue
     const details: Pick<CommandApprovalDetails, 'cwd'> = {}
+
     if (typeof policy.cwd === 'string') details.cwd = policy.cwd
+
     return Object.assign(details, {
       reason: policy.reason,
       revision: policy.revision,
@@ -101,6 +111,7 @@ function getCommandPolicy(part: PermissionToolPart): CommandApprovalDetails | un
       )
     })
   }
+
   return undefined
 }
 
@@ -109,6 +120,7 @@ export function findNextPendingPermissionRequest(
   sourcePartsByMessageId = partsByMessageId
 ): PermissionRequestComposerRequest | null {
   const messages = Object.entries(partsByMessageId)
+
   for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex--) {
     const [messageId, parts] = messages[messageIndex]
 
@@ -118,23 +130,29 @@ export function findNextPendingPermissionRequest(
       const toolPart = part as PermissionToolPart
       const toolName = getToolName(toolPart)
       const approvalId = toolPart.approval?.id
+
       if (toolName === AgentToolsType.AskUserQuestion || !approvalId) continue
       // A provider-executed dynamic tool part can carry the approval id while its state never
       // reaches `approval-requested`; an unresolved approval still needs a person to decide.
       const partState = toolPart.state ?? ''
+
       const awaitingApproval =
         partState === APPROVAL_REQUESTED ||
         (!RESOLVED_TOOL_STATES.has(partState) && toolPart.approval?.approved === undefined)
+
       if (!awaitingApproval) continue
 
       const toolResponse = buildToolResponseFromPart(part)
+
       if (!toolResponse) continue
 
       const parentToolCallId = getPartParentToolCallId(part)
       const allParts = Object.values(sourcePartsByMessageId).flat()
+
       const parent = parentToolCallId
         ? allParts.find((candidate) => isToolUIPart(candidate) && candidate.toolCallId === parentToolCallId)
         : undefined
+
       const taskEvents = parentToolCallId
         ? allParts.flatMap((candidate) =>
             candidate.type === 'data-agent-task-event' && candidate.data.toolUseId === parentToolCallId
@@ -144,6 +162,7 @@ export function findNextPendingPermissionRequest(
         : []
 
       const origin: Pick<PermissionRequestComposerRequest, 'source'> = {}
+
       if (parentToolCallId) {
         origin.source = {
           toolCallId: parentToolCallId,
@@ -153,6 +172,7 @@ export function findNextPendingPermissionRequest(
           isBackgrounded: taskEvents.findLast((event) => event.isBackgrounded !== undefined)?.isBackgrounded
         }
       }
+
       return {
         ...origin,
         commandPolicy: getCommandPolicy(toolPart),

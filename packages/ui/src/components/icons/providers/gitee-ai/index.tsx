@@ -6,7 +6,9 @@ import { GiteeAiLight } from './light'
 
 const GiteeAi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GiteeAiLight {...props} className={className} />
+
   if (variant === 'dark') return <GiteeAiDark {...props} className={className} />
+
   return (
     <>
       <GiteeAiLight className={cn('dark:hidden', className)} {...props} />

@@ -41,6 +41,7 @@ function base64UrlEncode(buffer: Buffer): string {
 
 function createAuthorizationParameters() {
   const codeVerifier = base64UrlEncode(randomBytes(32))
+
   return {
     state: randomBytes(16).toString('hex'),
     codeVerifier,
@@ -56,6 +57,7 @@ function escapeHtml(value: string): string {
     ['"', '&quot;'],
     ["'", '&#39;']
   ])
+
   return value.replace(/[&<>"']/g, (character) => entities.get(character) ?? character)
 }
 
@@ -88,10 +90,13 @@ function listen(server: Server): Promise<number> {
     server.listen(0, '127.0.0.1', () => {
       server.off('error', onError)
       const address = server.address()
+
       if (!address || typeof address === 'string') {
         reject(new Error('TokenDance callback server did not bind a TCP port'))
+
         return
       }
+
       resolve(address.port)
     })
   })
@@ -107,6 +112,7 @@ async function startCallbackServer(state: string): Promise<TokenDanceCallbackSer
     resolveCode = resolve
     rejectCode = reject
   })
+
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Settles callback errors, timeouts and arbitrary browser-launch rejections through the same promise without changing the reason.
   const settleReject = (error: unknown) => {
     if (settled) return
@@ -116,27 +122,37 @@ async function startCallbackServer(state: string): Promise<TokenDanceCallbackSer
 
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1')
+
     if (request.method !== 'GET' || url.pathname !== TOKEN_DANCE_CONFIG.callbackPath) {
       response.writeHead(404).end()
+
       return
     }
+
     if (url.searchParams.get('state') !== state) {
       response.writeHead(400).end()
+
       return
     }
+
     if (url.searchParams.has('error')) {
       response.writeHead(400).end()
       settleReject(new Error('TokenDance authorization was not completed'))
+
       return
     }
 
     const code = url.searchParams.get('code')
+
     if (!code) {
       response.writeHead(400).end()
+
       return
     }
+
     if (settled) {
       response.writeHead(409).end()
+
       return
     }
 
@@ -147,6 +163,7 @@ async function startCallbackServer(state: string): Promise<TokenDanceCallbackSer
   const port = await listen(server)
   const callbackUrl = new URL(`http://127.0.0.1:${port}${TOKEN_DANCE_CONFIG.callbackPath}`)
   callbackUrl.searchParams.set('state', state)
+
   const timeoutId = setTimeout(
     () => settleReject(new Error('TokenDance authorization timed out')),
     TOKEN_DANCE_CONFIG.authorizationTimeoutMs
@@ -158,7 +175,9 @@ async function startCallbackServer(state: string): Promise<TokenDanceCallbackSer
     fail: settleReject,
     close: () => {
       clearTimeout(timeoutId)
+
       if (!server.listening) return Promise.resolve()
+
       return new Promise<void>((resolve) => {
         server.close(() => resolve())
         server.closeAllConnections()
@@ -174,6 +193,7 @@ function buildAuthorizationUrl(callbackUrl: string, codeChallenge: string): stri
   url.searchParams.set('code_challenge_method', 'S256')
   url.searchParams.set('app_url', TOKEN_DANCE_CONFIG.appUrl)
   url.searchParams.set('key_name', TOKEN_DANCE_CONFIG.keyName)
+
   return url.toString()
 }
 
@@ -190,9 +210,11 @@ async function exchangeCode(code: string, codeVerifier: string): Promise<string>
   }
 
   const parsed = TokenDanceKeyResponseSchema.safeParse(await response.json())
+
   if (!parsed.success) {
     throw new Error('TokenDance API key exchange returned an invalid response')
   }
+
   return parsed.data.key
 }
 
@@ -204,6 +226,7 @@ export async function authorizeTokenDanceApiKey(): Promise<string> {
   try {
     const authorizationUrl = buildAuthorizationUrl(callbackServer.callbackUrl, codeChallenge)
     logger.info('Opening TokenDance API key authorization')
+
     try {
       await shell.openExternal(authorizationUrl)
     } catch (error) {
@@ -216,6 +239,7 @@ export async function authorizeTokenDanceApiKey(): Promise<string> {
     completeCallback(callback.response)
     callbackResponse = undefined
     logger.info('TokenDance API key authorization succeeded')
+
     return apiKey
   } catch (error) {
     if (callbackResponse) failCallback(callbackResponse)

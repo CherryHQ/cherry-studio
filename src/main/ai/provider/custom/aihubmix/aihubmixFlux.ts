@@ -48,6 +48,7 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId: string }> {
     const bag = input.providerParams ?? {}
     const inputBody: JSONObject = {}
+
     if (input.prompt) inputBody.prompt = input.prompt
 
     // aspectRatio gets normalized into `${number}:${number}` upstream and lives
@@ -57,8 +58,10 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
     const rawAspect =
       (typeof bag.aspect_ratio === 'string' ? bag.aspect_ratio : undefined) ??
       (typeof bag.aspectRatio === 'string' ? bag.aspectRatio : undefined)
+
     if (rawAspect) {
       const aspect = rawAspect.replace(/^ASPECT_/i, '').replace('_', ':')
+
       if (/^\d+:\d+$/.test(aspect)) inputBody.aspect_ratio = aspect
     }
 
@@ -67,14 +70,17 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
     else if (typeof bag.seed === 'string' && /^-?\d+$/.test(bag.seed.trim())) inputBody.seed = Number(bag.seed.trim())
 
     const safety = bag.safetyTolerance ?? bag.safety_tolerance
+
     if (typeof safety === 'number') inputBody.safety_tolerance = safety
     else if (typeof safety === 'string' && /^\d+$/.test(safety)) inputBody.safety_tolerance = Number(safety)
 
     const firstFile = input.files?.[0]
+
     if (firstFile) inputBody.input_image = fileToDataUrl(firstFile)
 
     const fetchImpl = this.settings.fetch ?? globalThis.fetch
     const url = `${this.settings.apiRoot}/v1/models/bfl/${input.modelId}/predictions`
+
     const response = await fetchImpl(url, {
       method: 'POST',
       headers: {
@@ -92,9 +98,11 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
 
     const json = (await response.json()) as { output?: Array<{ taskId?: string; id?: string }> }
     const taskId = json?.output?.[0]?.taskId ?? json?.output?.[0]?.id
+
     if (!taskId) {
       throw createPaintingGenerateError('REMOTE_ERROR', { message: 'No taskId returned from FLUX submit' })
     }
+
     return { taskId }
   }
 
@@ -109,46 +117,58 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
     // immediately.
     const maxTransientRetries = 10
     let transientRetries = 0
+
     while (true) {
       if (options.signal?.aborted) throw createAbortError('FLUX polling aborted')
+
       if (Date.now() - startedAt > MAX_WAIT_MS) {
         throw createPaintingGenerateError('REMOTE_ERROR', { message: 'FLUX task timed out' })
       }
+
       await waitWithSignal(POLL_INTERVAL_MS, options.signal)
 
       let json: { status?: string; result?: { sample?: string; samples?: string[] }; detail?: string }
+
       try {
         const response = await fetchImpl(url, {
           method: 'GET',
           headers: { Authorization: `Bearer ${this.settings.apiKey}` },
           signal: options.signal
         })
+
         if (!response.ok) {
           const message = await readErrorMessage(response, t('paintings.generate_failed'))
           throw new Error(message)
         }
+
         json = (await response.json()) as typeof json
       } catch (error) {
         // Re-raise an abort immediately; otherwise treat as transient and
         // retry up to the bounded ceiling before surfacing the failure.
         if (options.signal?.aborted) throw createAbortError('FLUX polling aborted')
+
         if (++transientRetries > maxTransientRetries) {
           throw createPaintingGenerateError('REMOTE_ERROR', {
             message: error instanceof Error ? error.message : 'FLUX polling failed'
           })
         }
+
         continue
       }
 
       transientRetries = 0
       const status = json?.status
+
       if (status === 'Ready') {
         const sample = json.result?.sample
+
         if (typeof sample === 'string') return [sample]
         const samples = json.result?.samples
+
         if (Array.isArray(samples) && samples.length > 0) return samples
         throw createPaintingGenerateError('REMOTE_ERROR', { message: 'FLUX Ready without a sample URL' })
       }
+
       if (status === 'Error' || status === 'Request Moderated' || status === 'Content Moderated') {
         throw createPaintingGenerateError('REMOTE_ERROR', { message: json?.detail || String(status) })
       }

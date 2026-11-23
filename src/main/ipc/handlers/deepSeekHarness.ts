@@ -13,6 +13,7 @@ export const deepSeekHarnessHandlers: IpcHandlersFor<typeof deepSeekHarnessReque
   'deepseek_harness.stop': async () => {
     try {
       await application.get('DeepSeekHarnessService').stop()
+
       return { success: true }
     } catch (error) {
       return { success: false, message: error instanceof Error ? error.message : 'Unknown error' }

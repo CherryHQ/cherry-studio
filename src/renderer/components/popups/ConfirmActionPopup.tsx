@@ -59,6 +59,7 @@ const PopupContainer: React.FC<Props> = ({
 
   const handleConfirm = useCallback(async () => {
     setLoading(true)
+
     try {
       await action()
     } catch (error) {
@@ -66,8 +67,10 @@ const PopupContainer: React.FC<Props> = ({
       // the dialog open + interactive so the user can retry or cancel.
       toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
       setLoading(false)
+
       return
     }
+
     resolve(true)
   }, [action, resolve, t])
 

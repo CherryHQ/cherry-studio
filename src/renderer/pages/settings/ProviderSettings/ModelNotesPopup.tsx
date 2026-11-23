@@ -34,6 +34,7 @@ const PopupContainer: FC<Props> = ({ providerId, open, resolve }) => {
 
   const handleSave = async () => {
     setSaving(true)
+
     try {
       await updateProvider({ providerSettings: { ...provider?.settings, notes } })
       resolve({})

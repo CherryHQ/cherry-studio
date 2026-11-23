@@ -34,7 +34,9 @@ import { isSyntheticTurnCloser } from './synthetic'
 import type { ClaudeArchive, ClaudeNativeMessage } from './types'
 
 type Part = RuntimeMessage['parts'][number]
+
 type ToolPart = Extract<Part, { type: 'dynamic-tool' }>
+
 export class ClaudeProjection {
   readonly feed: ClaudeFeed
   private readonly invocations = new ClaudeInvocations()
@@ -96,13 +98,16 @@ export class ClaudeProjection {
           : part
       )
     }
+
     for (const ref of replaces ?? []) this.messages.delete(ref.id)
     this.messages.set(message.id, message)
+
     return { type: 'message.upsert', message, replaces }
   }
 
   deny(toolCallId: string): ObservationPayload[] {
     this.denied.add(toolCallId)
+
     return [...this.messages.values()].flatMap((message) =>
       message.parts.some((part) => part.type === 'dynamic-tool' && part.toolCallId === toolCallId)
         ? [this.upsert(message)]
@@ -114,6 +119,7 @@ export class ClaudeProjection {
     const content = this.feed.snapshot.messages.filter(
       (message) => this.sources.has(message.id) && !this.retracted.has(message.id)
     )
+
     return {
       ...archive,
       content,
@@ -124,12 +130,15 @@ export class ClaudeProjection {
 
   remove(uuids: readonly string[]): ObservationPayload[] {
     const events: ObservationPayload[] = []
+
     for (const uuid of uuids) {
       this.retracted.add(uuid)
       this.feed.forget(uuid)
+
       for (const callId of this.results.get(uuid) ?? []) {
         const call = this.calls.get(callId)
         const owner = call && this.messages.get(call.id)
+
         if (owner && call)
           events.push(
             this.upsert({
@@ -140,9 +149,12 @@ export class ClaudeProjection {
             })
           )
       }
+
       this.results.delete(uuid)
+
       if (this.messages.delete(uuid)) events.push({ type: 'message.remove', ref: this.ref(uuid) })
     }
+
     return events
   }
 
@@ -151,9 +163,11 @@ export class ClaudeProjection {
     options: { aborted?: boolean; inputId?: InputId; live?: boolean } = {}
   ): ObservationPayload[] {
     if (!message.uuid || (message.type === 'assistant' && isSyntheticTurnCloser(message.message))) return []
+
     if (options.aborted) this.aborted.add(message.uuid)
     const partial = this.aborted.has(message.uuid)
     const content = message.message.content
+
     return this.upsertContent(
       message.uuid,
       message.type,
@@ -174,20 +188,26 @@ export class ClaudeProjection {
   ): ObservationPayload[] {
     if (this.retracted.has(uuid)) return []
     const events: ObservationPayload[] = []
+
     const value: RuntimeMessage = {
       id: uuid,
       role,
       parts: [],
       metadata: { completeness: this.aborted.has(uuid) ? 'partial' : 'complete', inputId: options.inputId }
     }
+
     const bound: number[] = []
+
     for (const [index, block] of content.entries()) {
       if (!block) continue
+
       if ('result' in block) {
         events.push(...this.applyResult(uuid, block.result))
         continue
       }
+
       let part = block.part
+
       const provisional =
         options.live && this.stream?.apiId === apiId
           ? [...this.stream!.blocks.entries()].find(
@@ -197,9 +217,11 @@ export class ClaudeProjection {
                 (!entry.callId || (part.type === 'dynamic-tool' && entry.callId === part.toolCallId))
             )
           : undefined
+
       if (provisional) {
         provisional[1].bound = uuid
         bound.push(provisional[0])
+
         if (part.type === 'dynamic-tool' && !provisional[1].stopped)
           part = {
             type: 'dynamic-tool',
@@ -210,37 +232,50 @@ export class ClaudeProjection {
             state: 'input-streaming'
           }
       }
+
       if (part.type === 'dynamic-tool') {
         const callId = part.toolCallId
+
         const previous = this.messages
           .get(uuid)
           ?.parts.find((item) => item.type === 'dynamic-tool' && item.toolCallId === callId)
+
         this.calls.set(part.toolCallId, { id: uuid, part })
+
         if (previous?.type === 'dynamic-tool' && previous.state.startsWith('output-')) part = previous
       }
+
       const key = `${uuid}:${index}`
+
       if (this.legacy[key]?.messageId !== uuid || this.legacy[key]?.parts[0] !== value.parts.length) {
         this.legacy[key] = { messageId: uuid, parts: [value.parts.length] }
         this.legacyChanged = true
       }
+
       value.parts.push(part)
     }
+
     this.sources.add(uuid)
+
     if (value.parts.length || content.length === 0) {
       const replaces = bound.length && this.stream ? [this.ref(this.stream.id)] : undefined
       events.push(this.upsert(value, replaces))
+
       if (bound.length && this.stream) {
         this.stream.id = `live:${randomUUID()}`
         events.push(...this.preview())
       }
     }
+
     return events
   }
 
   private applyResult(uuid: string, result: ToolResult): ObservationPayload[] {
     const call = this.calls.get(result.toolUseId)
     const owner = call && this.messages.get(call.id)
+
     if (!call || !owner) return []
+
     const base = {
       type: 'dynamic-tool' as const,
       toolName: call.part.toolName,
@@ -248,6 +283,7 @@ export class ClaudeProjection {
       input: call.part.input,
       callProviderMetadata: call.part.callProviderMetadata
     }
+
     const part: ToolPart =
       result.errorText !== undefined
         ? {
@@ -257,9 +293,11 @@ export class ClaudeProjection {
             resultProviderMetadata: { anthropic: { result: json(result.output) } }
           }
         : { ...base, state: 'output-available', output: result.output }
+
     const calls = this.results.get(uuid) ?? new Set<string>()
     calls.add(result.toolUseId)
     this.results.set(uuid, calls)
+
     return [
       this.upsert({
         ...owner,
@@ -272,6 +310,7 @@ export class ClaudeProjection {
 
   result(message: SDKResultMessage): ObservationPayload[] {
     if (message.subtype !== 'success' || message.structured_output === undefined) return []
+
     return this.upsertContent(message.uuid, 'assistant', [
       projectBlock({ type: 'text', text: JSON.stringify(message.structured_output) }, false)
     ])
@@ -281,22 +320,28 @@ export class ClaudeProjection {
     if (!this.stream?.message) return []
     const indices = new Set([...this.stream.blocks.values()].flatMap((block) => (!block.bound ? [block.part] : [])))
     const parts = this.stream.message.parts.filter((_, index) => indices.has(index))
+
     if (!parts.length) return []
     const message = { ...this.stream.message, id: this.stream.id, parts }
+
     for (const part of parts)
       if (part.type === 'dynamic-tool') this.calls.set(part.toolCallId, { id: message.id, part })
+
     return [this.upsert(message)]
   }
 
   async partial(message: SDKPartialAssistantMessage): Promise<ObservationPayload[]> {
     const event = message.event
+
     switch (event.type) {
       case 'message_start': {
         await this.stream?.reader.close()
         const id = `live:${randomUUID()}`
         this.stream = { apiId: event.message.id, id, reader: new RuntimeMessageStream(id), blocks: new Map() }
+
         return [{ type: 'activity.changed', activity: { state: 'active' } }]
       }
+
       // Turn usage/outcome comes from SDK result; message_stop also occurs on interrupted input.
       case 'message_delta':
       case 'message_stop':
@@ -308,18 +353,26 @@ export class ClaudeProjection {
       default: {
         const exhaustive: never = event
         void exhaustive
+
         return []
       }
     }
+
     const stream = this.stream
+
     if (!stream) return []
+
     type Chunk = Parameters<RuntimeMessageStream['append']>[0][number]
+
     const chunks: Chunk[] = []
     const key = String(event.index)
+
     if (event.type === 'content_block_start') {
       const block = event.content_block
       const projected = projectBlock(block, true)
+
       if (!projected) return []
+
       // Results commit with the transcript UUID that subsequent retractions address.
       if ('result' in projected) return []
       const part = projected.part
@@ -330,6 +383,7 @@ export class ClaudeProjection {
         stopped: false,
         citations: block.type === 'text' ? (block.citations ?? []) : undefined
       })
+
       if (part.type === 'dynamic-tool')
         chunks.push({
           type: 'tool-input-start',
@@ -344,6 +398,7 @@ export class ClaudeProjection {
           id: key,
           providerMetadata: part.providerMetadata
         })
+
         if (part.text) chunks.push({ type: 'text-delta', id: key, delta: part.text })
       } else if (part.type === 'reasoning') {
         chunks.push({
@@ -351,13 +406,18 @@ export class ClaudeProjection {
           id: key,
           providerMetadata: part.providerMetadata
         })
+
         if (part.text) chunks.push({ type: 'reasoning-delta', id: key, delta: part.text })
       }
     }
+
     const block = stream.blocks.get(event.index)
+
     if (!block) return []
+
     if (event.type === 'content_block_delta') {
       const delta = event.delta
+
       switch (delta.type) {
         case 'text_delta':
           chunks.push({ type: 'text-delta', id: key, delta: delta.text })
@@ -394,15 +454,20 @@ export class ClaudeProjection {
         }
       }
     }
+
     if (event.type === 'content_block_stop') {
       block.stopped = true
+
       if (block.type === 'text') chunks.push({ type: 'text-end', id: key })
+
       if (block.type === 'thinking' || block.type === 'redacted_thinking')
         chunks.push({ type: 'reasoning-end', id: key })
+
       if (block.callId) {
         const part = stream.message?.parts.find(
           (part) => part.type === 'dynamic-tool' && part.toolCallId === block.callId
         )
+
         if (part?.type === 'dynamic-tool')
           chunks.push({
             type: 'tool-input-available',
@@ -414,13 +479,18 @@ export class ClaudeProjection {
           })
       }
     }
+
     if (!chunks.length) return []
     stream.message = await stream.reader.append(chunks, 'partial')
+
     if (block.bound) {
       const owner = this.messages.get(block.bound)
+
       if (owner && block.callId && block.stopped && !this.aborted.has(block.bound)) {
         const call = this.calls.get(block.callId)
+
         if (call?.part.state === 'input-streaming') call.part = { ...call.part, state: 'input-available' }
+
         const value = {
           ...owner,
           parts: owner.parts.map(
@@ -430,26 +500,34 @@ export class ClaudeProjection {
                 : part
           )
         }
+
         return [this.upsert(value)]
       }
     }
+
     return this.preview()
   }
 
   restore(messages: readonly SessionMessage[], entries: readonly NativeArchiveEntry[]): ClaudeArchive {
     const before = this.feed.snapshot
     const metadata = new Map(entries.flatMap((entry) => (entry.uuid ? [[entry.uuid, entry]] : [])))
+
     const removals = entries.flatMap((entry) => {
       const ids = entry.supersedes ?? entry.retracted_message_uuids
+
       return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : []
     })
+
     const events = this.remove(removals)
     const selected = messages.filter((message) => !this.retracted.has(message.uuid))
     const inputs = new Map(before.inputs.map((input) => [input.nativeInput?.id, input.inputId]))
+
     for (const message of selected) {
       if (message.type === 'assistant' && isSyntheticTurnCloser(message.message)) continue
+
       if (metadata.get(message.uuid)?.isAbortedMidStream === true) this.aborted.add(message.uuid)
       const decoded = decodeArchiveContent(message.message, this.aborted.has(message.uuid))
+
       if (decoded)
         events.push(
           ...this.upsertContent(message.uuid, message.type, decoded.blocks, decoded.id, {
@@ -457,29 +535,36 @@ export class ClaudeProjection {
           })
         )
     }
+
     this.feed.publish(
       events,
       selected.map((message): ClaudeNativeMessage => {
         const entry = metadata.get(message.uuid)
         const native: ClaudeNativeMessage = { source: 'archive', message }
+
         if (message.type === 'assistant' && entry?.type === 'assistant' && entry.isApiErrorMessage === true) {
           Object.assign(native, { isApiErrorMessage: true } satisfies Pick<ClaudeNativeMessage, 'isApiErrorMessage'>)
         }
+
         return native
       }),
       this.legacy
     )
     this.legacyChanged = false
+
     const content = selected.flatMap((message) =>
       this.messages.has(message.uuid) ? [this.messages.get(message.uuid)!] : []
     )
+
     const ids = new Set(content.map((message) => message.id))
     const retained = new Map<string | undefined, RuntimeMessage[]>()
     let anchor: string | undefined
+
     for (const message of this.feed.snapshot.messages) {
       if (ids.has(message.id)) anchor = message.id
       else if (!this.retracted.has(message.id)) retained.set(anchor, [...(retained.get(anchor) ?? []), message])
     }
+
     this.feed.publish([
       {
         ...this.feed.snapshot,
@@ -489,6 +574,7 @@ export class ClaudeProjection {
         ]
       }
     ])
+
     return {
       content,
       legacy: { ...this.legacy },
@@ -510,7 +596,9 @@ export class ClaudeProjection {
       message?.source === 'live' && message.message.type !== 'command_lifecycle'
         ? this.invocations.accept(message.message)
         : []
+
     if (controls.some((control) => control.type === 'input-boundary')) this.control.beginTurn()
+
     if (message?.source === 'live' && message.message.type !== 'command_lifecycle') this.control.accept(message.message)
     this.feed.publish(
       events,

@@ -42,6 +42,7 @@ export const BUILTIN_LANGUAGE = {
 } as const satisfies Record<string, { langCode: PersistedLangCode; value: string; emoji: string }>
 
 type BuiltinLangCode<T> = T extends { readonly __builtinLangCode: infer Code extends string } ? Code : never
+
 type BuiltinTranslateLangCode = BuiltinLangCode<(typeof BUILTIN_LANGUAGE)[keyof typeof BUILTIN_LANGUAGE]['langCode']>
 
 /** Flat array of all builtin translate languages, derived from {@link BUILTIN_LANGUAGE}. */

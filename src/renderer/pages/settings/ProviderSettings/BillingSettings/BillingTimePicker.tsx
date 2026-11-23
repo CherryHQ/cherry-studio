@@ -20,6 +20,7 @@ function TimeColumn({
   useEffect(() => {
     column.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
   }, [value])
+
   return (
     <div className="min-w-0">
       <p className="pb-2 text-center text-xs text-muted-foreground">{label}</p>
@@ -30,6 +31,7 @@ function TimeColumn({
         className="h-56 space-y-1 overflow-y-auto px-1"
         onKeyDown={(event) => {
           const current = Number(value)
+
           const next =
             event.key === 'ArrowDown'
               ? (current + 1) % count
@@ -40,6 +42,7 @@ function TimeColumn({
                   : event.key === 'End'
                     ? count - 1
                     : undefined
+
           if (next === undefined) return
           event.preventDefault()
           onChange(String(next).padStart(2, '0'))
@@ -47,6 +50,7 @@ function TimeColumn({
         }}>
         {Array.from({ length: count }, (_, index) => {
           const item = String(index).padStart(2, '0')
+
           return (
             <Button
               key={item}
@@ -83,6 +87,7 @@ export function BillingTimePicker({
   const [open, setOpen] = useState(false)
   const content = useRef<HTMLDivElement>(null)
   const [hour] = value.split(':')
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>

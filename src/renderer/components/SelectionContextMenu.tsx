@@ -32,13 +32,16 @@ function extractSelectedText(selection: Selection, mathOptions?: { singleDollar:
   }
 
   const range = selection.getRangeAt(0).cloneRange()
+
   const startElement =
     range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement
+
   const endElement = range.endContainer instanceof Element ? range.endContainer : range.endContainer.parentElement
   const startKatex = startElement?.closest('.katex')
   const endKatex = endElement?.closest('.katex')
 
   if (startKatex) range.setStartBefore(startKatex)
+
   if (endKatex) range.setEndAfter(endKatex)
 
   const fragment = range.cloneContents()
@@ -57,8 +60,10 @@ function extractSelectedText(selection: Selection, mathOptions?: { singleDollar:
   const inlineMathSources = new Map<Node, string>()
   katexMathMlElements.forEach((element) => {
     const texSource = element.querySelector('annotation')?.textContent
+
     if (texSource !== null && texSource !== undefined) {
       const textNode = document.createTextNode(texSource)
+
       if (mathOptions) {
         // MathML retains display mode even when the selection excludes the outer KaTeX wrapper.
         if (element.querySelector('math[display="block"]')) {
@@ -67,6 +72,7 @@ function extractSelectedText(selection: Selection, mathOptions?: { singleDollar:
           inlineMathSources.set(textNode, texSource)
         }
       }
+
       element.replaceWith(textNode)
     }
   })
@@ -79,6 +85,7 @@ function extractSelectedText(selection: Selection, mathOptions?: { singleDollar:
   while (node) {
     if (node.nodeType === Node.TEXT_NODE) {
       const texSource = inlineMathSources.get(node)
+
       if (texSource !== undefined) {
         // Adjacent dollar fences would merge separate formulas.
         const useDollars = allowDollarFences && !result.endsWith('$')
@@ -88,6 +95,7 @@ function extractSelectedText(selection: Selection, mathOptions?: { singleDollar:
       }
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const element = node as Element
+
       if (element.tagName === 'BR') {
         result += '\n'
       } else if (
@@ -114,6 +122,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
   const [notesPath] = usePreference('feature.notes.path')
   const savingNote = useRef(false)
   const [isSavingNote, setIsSavingNote] = useState(false)
+
   const handleCopy = useCallback(
     (text: string) => {
       navigator.clipboard
@@ -136,12 +145,15 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
       if (!text.trim() || savingNote.current) return
       savingNote.current = true
       setIsSavingNote(true)
+
       try {
         const { exportContentToNotes } = await import('@renderer/services/ExportService')
+
         const title = text
           .split(/\r?\n/)
           .map((line) => line.trim())
           .find((line) => line && !MARKDOWN_FENCE_LINE.test(line))
+
         await exportContentToNotes(title?.slice(0, 50) || t('notes.untitled_note'), text, notesPath)
       } catch (error) {
         // The Notes exporter owns the write-failure toast.
@@ -193,10 +205,12 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
       const selectedText = selection ? extractSelectedText(selection) : ''
       const quoteText = selection ? extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }) : ''
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null
+
       const canSaveSelection =
         !!range &&
         [range.startContainer, range.endContainer].every((node) => {
           const element = node instanceof Element ? node : node.parentElement
+
           return (
             element &&
             event.currentTarget.contains(element) &&
@@ -205,12 +219,15 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
             )
           )
         })
+
       const target = event.target instanceof Element ? event.target : null
       const anchor = target?.closest('a[href]')
       const href = anchor?.getAttribute('href')
+
       if (href && isHttpUrl(href)) {
         const selectedLinkText =
           selectedText && selection && anchor && selection.getRangeAt(0).intersectsNode(anchor) ? selectedText : ''
+
         const linkItems: CommandContextMenuExtraItem[] = [
           {
             type: 'item',
@@ -240,6 +257,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
             onSelect: () => handleCopy(href)
           }
         ]
+
         return selectedLinkText
           ? [...getMenuItems(selectedLinkText, quoteText, canSaveSelection), { type: 'separator' }, ...linkItems]
           : linkItems

@@ -60,6 +60,7 @@ const BaseNavigatorContent = ({
   const [indicator, setIndicator] = useState<{ id: string; position: 'before' | 'after' } | null>(null)
   const savingRef = useRef(false)
   const dragDisabled = !onReorderBase || !onReorderGroup || isReordering
+
   const sensors = useSensors(
     useSensor(BlurCancelPointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, {
@@ -67,22 +68,30 @@ const BaseNavigatorContent = ({
       keyboardCodes: { start: ['Space'], cancel: ['Escape'], end: ['Space'] }
     })
   )
+
   const collisionDetection = useCallback<CollisionDetection>((args) => {
     const draggingGroup = args.active.data.current?.type === 'group'
+
     const droppableContainers = args.droppableContainers.filter(
       (container) =>
         !draggingGroup || (container.data.current?.type === 'group' && container.data.current.groupId !== null)
     )
+
     const candidates = { ...args, droppableContainers }
     const hits = pointerWithin(candidates)
+
     if (!draggingGroup && hits.length > 0) {
       const baseHits = hits.filter(({ id }) => String(id).startsWith('base:'))
+
       if (baseHits.length) return baseHits
     }
+
     return hits.length ? hits : closestCenter(candidates)
   }, [])
+
   const getIndicator = useCallback(({ active, over, activatorEvent }: DragOverEvent) => {
     if (!over || active.id === over.id) return null
+
     if (
       isKeyboardEvent(activatorEvent) &&
       hasSortableData(active) &&
@@ -97,8 +106,10 @@ const BaseNavigatorContent = ({
             : ('before' as const)
       }
     }
+
     const top = active.rect.current.translated?.top ?? 0
     const height = active.rect.current.translated?.height ?? 0
+
     return {
       id: String(over.id),
       position: top + height / 2 < over.rect.top + over.rect.height / 2 ? ('before' as const) : ('after' as const)
@@ -110,6 +121,7 @@ const BaseNavigatorContent = ({
     setPinned: setSidebarShortcutPinned,
     remove: removeSidebarShortcut
   } = useSidebarShortcuts()
+
   const sidebarPinnedBaseIds = useMemo(
     () =>
       new Set(
@@ -121,9 +133,11 @@ const BaseNavigatorContent = ({
       ),
     [sidebarShortcuts]
   )
+
   const handleToggleSidebar = useCallback(
     (base: KnowledgeBaseListItem) => {
       const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.KNOWLEDGE_BASE, base.id)
+
       if (sidebarPinnedBaseIds.has(base.id)) removeSidebarShortcut(target)
       else setSidebarShortcutPinned(target, true, base.name)
     },
@@ -137,10 +151,12 @@ const BaseNavigatorContent = ({
   // what the user collapsed (instead of what is open) keeps newly appearing
   // sections open by default.
   const [collapsedValues, setCollapsedValues] = useState<readonly string[]>([])
+
   const openValues = useMemo(
     () => sectionValues.filter((value) => !collapsedValues.includes(value)),
     [collapsedValues, sectionValues]
   )
+
   const handleValueChange = useCallback(
     (nextOpenValues: string[]) => {
       setCollapsedValues(sectionValues.filter((value) => !nextOpenValues.includes(value)))
@@ -152,35 +168,45 @@ const BaseNavigatorContent = ({
     setActiveLabel(null)
     setIndicator(null)
   }
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const target = getIndicator(event)
     clearDrag()
+
     if (!target || savingRef.current || !onReorderBase || !onReorderGroup) return
     const active = event.active.data.current
     const over = event.over?.data.current
+
     if (!active || !over) return
     let persist: () => Promise<void>
+
     if (active.type === 'group') {
       if (!active.groupId || !over.groupId || over.type !== 'group') return
       const from = sections.findIndex((section) => section.groupId === active.groupId)
       const to = sections.findIndex((section) => section.groupId === over.groupId)
+
       if (from < 0 || to < 0 || from === to) return
       persist = () => onReorderGroup(active.groupId, from < to ? { after: over.groupId } : { before: over.groupId })
     } else {
       const base = active.base as KnowledgeBaseListItem
       const targetGroupId = over.groupId as string | null
+
       const anchor: OrderRequest =
         over.type === 'base'
           ? target.position === 'before'
             ? { before: over.base.id }
             : { after: over.base.id }
           : { position: 'last' }
+
       const targetSection = sections.find((section) => section.groupId === targetGroupId)
+
       if (!targetSection) return
       setCollapsedValues((values) => values.filter((value) => value !== (targetGroupId ?? UNGROUPED_SECTION_VALUE)))
       persist = () => onReorderBase(base.id, { groupId: targetGroupId, anchor })
     }
+
     savingRef.current = true
+
     try {
       await persist()
     } catch (error) {

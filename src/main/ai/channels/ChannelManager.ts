@@ -51,12 +51,14 @@ export class ChannelManager extends BaseService {
   async start(): Promise<void> {
     this.acceptingConnections = true
     let channels: ReturnType<typeof channelService.listChannels>
+
     try {
       channels = channelService.listChannels()
     } catch (error) {
       logger.error('Failed to list channels during startup', {
         error: error instanceof Error ? error.message : String(error)
       })
+
       return
     }
 
@@ -69,6 +71,7 @@ export class ChannelManager extends BaseService {
     this.registration.dispose()
     logger.info('Stopping channel manager')
     const runtimes = [...this.runtimes.values()]
+
     for (const runtime of runtimes) runtime.requestReconcile()
     await Promise.allSettled(runtimes.map((runtime) => runtime.flush()))
     await Promise.allSettled(runtimes.map((runtime) => runtime.dispose()))
@@ -88,6 +91,7 @@ export class ChannelManager extends BaseService {
     const runtime = this.getOrCreateRuntime(channelId)
     const qrUrl = runtime.waitForQrUrl(agentId, timeoutMs)
     runtime.requestReconcile()
+
     return qrUrl
   }
 
@@ -95,26 +99,32 @@ export class ChannelManager extends BaseService {
     const runtime = this.runtimes.get(channelId)
     this.runtimes.delete(channelId)
     this.channelLogs.remove(channelId)
+
     if (runtime) {
       runtime.requestReconcile()
       await runtime.flush().catch((error) => this.logRuntimeError(channelId, error))
       await runtime.dispose()
     }
+
     application.get('CacheService').deleteShared(`channel.status.${channelId}`)
   }
 
   getAdapterStatuses(agentId: string): Array<{ channelId: string; connected: boolean }> {
     const result: Array<{ channelId: string; connected: boolean }> = []
+
     for (const [channelId, runtime] of this.runtimes) {
       const adapter = runtime.adapter
+
       if (adapter?.agentId === agentId) result.push({ channelId, connected: adapter.connected })
     }
+
     return result
   }
 
   getAgentAdapters(agentId: string): ChannelAdapter[] {
     return [...this.runtimes.values()].flatMap((runtime) => {
       const adapter = runtime.adapter
+
       return adapter?.agentId === agentId ? [adapter] : []
     })
   }
@@ -133,6 +143,7 @@ export class ChannelManager extends BaseService {
 
   private getOrCreateRuntime(channelId: string): ChannelRuntime {
     const existing = this.runtimes.get(channelId)
+
     if (existing) return existing
 
     const runtime = new ChannelRuntime(channelId, {
@@ -146,24 +157,31 @@ export class ChannelManager extends BaseService {
       onStatus: (status) => this.publishStatus(status),
       onError: (id, error) => this.logRuntimeError(id, error)
     })
+
     this.runtimes.set(channelId, runtime)
+
     return runtime
   }
 
   private readDesired(channelId: string): ChannelRuntimeDesired {
     if (!this.acceptingConnections) return { kind: 'disconnected' }
     const channel = channelService.getChannel(channelId)
+
     if (!channel?.isActive || !channel.agentId) return { kind: 'disconnected' }
+
     if (agentService.getLifecycleState(channel.agentId) !== 'active') return { kind: 'disconnected' }
+
     return { kind: 'connected', channel, agentId: channel.agentId }
   }
 
   reconcileAgent(agentId: string, clearSessionTracker = false): void {
     if (clearSessionTracker) channelMessageHandler.clearSessionTracker(agentId)
     const channelIds = new Set<string>()
+
     for (const [channelId, runtime] of this.runtimes) {
       if (runtime.ownerAgentId === agentId) channelIds.add(channelId)
     }
+
     try {
       for (const channel of channelService.listChannels({ agentId })) channelIds.add(channel.id)
     } catch (error) {
@@ -172,6 +190,7 @@ export class ChannelManager extends BaseService {
         error: error instanceof Error ? error.message : String(error)
       })
     }
+
     for (const channelId of channelIds) this.requestReconcile(channelId)
   }
 
@@ -181,8 +200,10 @@ export class ChannelManager extends BaseService {
         agentId: adapter.agentId,
         channelId: adapter.channelId
       })
+
       return
     }
+
     this.runtimes.get(adapter.channelId)?.trackDynamicChatId(adapter, event.chatId)
     channelMessageHandler.handleIncoming(adapter, event).catch((error) => {
       logger.error('Unhandled error in message handler', {
@@ -205,8 +226,10 @@ export class ChannelManager extends BaseService {
         agentId: adapter.agentId,
         channelId: adapter.channelId
       })
+
       return
     }
+
     this.runtimes.get(adapter.channelId)?.trackDynamicChatId(adapter, event.chatId)
     channelMessageHandler.handleCommand(adapter, event).catch((error) => {
       logger.error('Unhandled error in command handler', {
@@ -238,6 +261,7 @@ export class ChannelManager extends BaseService {
   private saveCredentials(agentId: string, channelId: string, credentials: { appId: string; appSecret: string }): void {
     try {
       const channel = channelService.getChannel(channelId)
+
       if (!channel || channel.agentId !== agentId) return
       const config = channel.config
       channelService.updateChannel(channelId, {

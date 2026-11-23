@@ -72,6 +72,7 @@ export const Dropzone = ({
         const firstRejection = fileRejections[0]
         const message = firstRejection?.errors[0]?.message ?? 'File upload rejected'
         onError?.(new Error(message))
+
         return
       }
 

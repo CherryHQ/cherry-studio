@@ -35,7 +35,9 @@ const WHEEL_LINE_HEIGHT_PX = 16
 
 function normalizeWheelDelta(delta: number, deltaMode: number, pageSize: number): number {
   if (deltaMode === WheelEvent.DOM_DELTA_LINE) return delta * WHEEL_LINE_HEIGHT_PX
+
   if (deltaMode === WheelEvent.DOM_DELTA_PAGE) return delta * pageSize
+
   return delta
 }
 
@@ -61,6 +63,7 @@ function pickPreferredSelectedMessage(
   return (
     messages.find((message) => {
       const ui = getMessageUiState(message.id)
+
       return ui.foldSelected && (ui.foldSelectedBranchId ?? null) === activeBranchMessageId
     }) ??
     messages.find((message) => message.isActiveBranch) ??
@@ -92,10 +95,12 @@ const MessageGroup = ({
   const navigateWithScrollRuntime = useScrollRuntimeNavigation()
   const { getScrollContainer, scrollByWheel } = useScrollRuntimeBoundary()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
+
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
     [messageUi]
   )
+
   const updateMessageUiState = useCallback(
     (messageId: string, updates: MessageUiState) => {
       actions.updateMessageUiState?.(messageId, updates)
@@ -110,6 +115,7 @@ const MessageGroup = ({
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(() =>
     getEffectiveMultiModelMessageStyle(messages, getMessageUiState, multiModelMessageStyleSetting)
   )
+
   const previousMessageIdsRef = useRef(messages.map((message) => message.id))
   const activeBranchSelectionQueueRef = useRef<Promise<void>>(Promise.resolve())
   const horizontalGroupRef = useRef<HTMLDivElement>(null)
@@ -122,6 +128,7 @@ const MessageGroup = ({
       } else {
         messageElementsRef.current.delete(messageId)
       }
+
       registerMessageElement?.(messageId, element)
     },
     [registerMessageElement]
@@ -141,12 +148,14 @@ const MessageGroup = ({
   // the single source of truth for which grouped reply is used as context.
   const [selectedMessageId, setSelectedMessageIdState] = useState<string>(() => {
     if (messages.length === 1) return messages[0]?.id
+
     return (
       pickPreferredSelectedMessage(messages, getMessageUiState, activeBranchMessageId)?.id ??
       messages.at(-1)?.id ??
       messages[0]?.id
     )
   })
+
   const previousActiveBranchMessageIdRef = useRef(activeBranchMessageId)
 
   // Branch navigation overrides browsing; streaming updates preserve it.
@@ -176,8 +185,10 @@ const MessageGroup = ({
     }
 
     const visibleMessageId = nextSelectedMessage?.id ?? selectedMessageId
+
     for (const message of messages) {
       const ui = getMessageUiState(message.id)
+
       if (message.id === visibleMessageId) {
         if (!ui.foldSelected || ui.foldSelectedBranchId !== activeBranchMessageId) {
           updateMessageUiState(message.id, { foldSelected: true, foldSelectedBranchId: activeBranchMessageId })
@@ -186,6 +197,7 @@ const MessageGroup = ({
         updateMessageUiState(message.id, { foldSelected: false })
       }
     }
+
     if (visibleMessageId !== selectedMessageId) setSelectedMessageIdState(visibleMessageId)
   }, [
     activeBranchMessage,
@@ -206,6 +218,7 @@ const MessageGroup = ({
         'setSelectedMessage',
         () => {
           const messageElement = messageElementsRef.current.get(message.id)
+
           if (messageElement) {
             if (!navigateWithScrollRuntime(messageElement)) {
               scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
@@ -217,6 +230,7 @@ const MessageGroup = ({
     },
     [navigateWithScrollRuntime, setTimeoutTimer]
   )
+
   useEffect(() => {
     if (captureMode) return
 
@@ -225,14 +239,18 @@ const MessageGroup = ({
       {
         locateMessage: (messageId) => {
           const message = messages.find((item) => item.id === messageId)
+
           if (!message) return
 
           const element = messageElementsRef.current.get(message.id)
+
           if (!element) return
 
           const display = window.getComputedStyle(element).display
+
           if (display === 'none') {
             setSelectedMessage(message)
+
             return
           }
 
@@ -247,11 +265,15 @@ const MessageGroup = ({
   const onSelectContext = useCallback(
     (msgId: string) => {
       const message = messages.find((msg) => msg.id === msgId)
+
       if (!message) {
         logger.error("the message to update doesn't exist in this group")
+
         return
       }
+
       const setActiveBranch = actions.setActiveBranch
+
       if (!setActiveBranch) return
 
       activeBranchSelectionQueueRef.current = activeBranchSelectionQueueRef.current
@@ -266,9 +288,11 @@ const MessageGroup = ({
 
   const groupContextMessageId = useMemo(() => {
     if (activeBranchMessageId) return activeBranchMessageId
+
     if (messages.length > 0) return messages[0].id
 
     logger.warn('Empty message group')
+
     return ''
   }, [activeBranchMessageId, messages])
 
@@ -279,11 +303,13 @@ const MessageGroup = ({
       const verticalPageSize = getScrollContainer()?.clientHeight ?? groupContainer.clientHeight
       const horizontalWheelDelta = normalizeWheelDelta(event.deltaX, event.deltaMode, groupContainer.clientWidth)
       const verticalWheelDelta = normalizeWheelDelta(event.deltaY, event.deltaMode, verticalPageSize)
+
       const horizontalDelta = event.shiftKey
         ? horizontalWheelDelta || normalizeWheelDelta(event.deltaY, event.deltaMode, groupContainer.clientWidth)
         : Math.abs(horizontalWheelDelta) > Math.abs(verticalWheelDelta)
           ? horizontalWheelDelta
           : 0
+
       const inMessageColumn = Boolean(target?.closest('.message-content-container'))
 
       // Column owns vertical while it can scroll. At its boundary the group's
@@ -293,11 +319,13 @@ const MessageGroup = ({
         if (verticalWheelDelta !== 0 && findVerticalWheelConsumer(target, verticalWheelDelta, groupContainer)) {
           return
         }
+
         if (horizontalDelta === 0) {
           if (verticalWheelDelta !== 0 && scrollByWheel(verticalWheelDelta)) {
             event.preventDefault()
             event.stopPropagation()
           }
+
           return
         }
       } else if (horizontalDelta === 0) {
@@ -305,10 +333,12 @@ const MessageGroup = ({
           event.preventDefault()
           event.stopPropagation()
         }
+
         return
       }
 
       const maxScrollLeft = groupContainer.scrollWidth - groupContainer.clientWidth
+
       const canScrollHorizontally =
         horizontalDelta < 0 ? groupContainer.scrollLeft > 0 : groupContainer.scrollLeft < maxScrollLeft
 
@@ -316,6 +346,7 @@ const MessageGroup = ({
 
       event.preventDefault()
       event.stopPropagation()
+
       if (canScrollHorizontally) {
         groupContainer.scrollLeft += horizontalDelta
       }
@@ -325,15 +356,18 @@ const MessageGroup = ({
 
   useEffect(() => {
     const groupContainer = horizontalGroupRef.current
+
     if (!groupContainer || multiModelMessageStyle !== 'horizontal') return
 
     groupContainer.addEventListener('wheel', handleHorizontalGroupWheel, { capture: true, passive: false })
+
     return () => groupContainer.removeEventListener('wheel', handleHorizontalGroupWheel, true)
   }, [handleHorizontalGroupWheel, multiModelMessageStyle])
 
   const renderMessage = useCallback(
     (message: MessageListItem, index: number) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
+
       const messageProps = {
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
@@ -464,6 +498,7 @@ const GridContainer = ({
   const isHorizontal = className?.includes('horizontal')
   const isGrid = className?.includes('grid')
   const isFoldOrVertical = className?.includes('fold') || className?.includes('vertical')
+
   const gridTemplateColumns = isHorizontal
     ? `repeat(${$count}, minmax(420px, 1fr))`
     : isGrid
@@ -482,6 +517,7 @@ const GridContainer = ({
   }
 
   const { children, onWheel, ref, ...rootProps } = props
+
   return (
     <ScrollArea
       {...rootProps}
@@ -512,12 +548,14 @@ const MessageWrapper = ({
   void $isInPopover
   const isHorizontal = className?.includes('horizontal')
   const isGridCard = className?.includes('grid') && !className?.includes('in-popover')
+
   const setElementRef = useCallback(
     (element: HTMLDivElement | null) => {
       if (messageId) onElementChange?.(messageId, element)
     },
     [messageId, onElementChange]
   )
+
   return (
     <div
       ref={messageId ? setElementRef : undefined}
@@ -570,10 +608,13 @@ const GridMessagePopover = ({
 
 function messageArrayShallowEqual(a: MessageListItem[], b: MessageListItem[]): boolean {
   if (a === b) return true
+
   if (a.length !== b.length) return false
+
   for (let i = 0; i < a.length; i++) {
     if (a[i] !== b[i]) return false
   }
+
   return true
 }
 
@@ -583,6 +624,7 @@ function messagePartsShallowEqual(
   messages: MessageListItem[]
 ): boolean {
   if (previous === next) return true
+
   return messages.every((message) => previous?.[message.id] === next?.[message.id])
 }
 

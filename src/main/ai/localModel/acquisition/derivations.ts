@@ -21,9 +21,11 @@ import type { BundleFileDerivation } from '../catalog/types'
 export function dictTextFromInferenceYml(yml: string): string {
   const config = parse(yml) as { PostProcess?: { character_dict?: unknown } } | null
   const characters = config?.PostProcess?.character_dict
+
   if (!Array.isArray(characters) || characters.length === 0) {
     throw new Error('inference.yml is missing PostProcess.character_dict')
   }
+
   return `\n${characters.map(String).join('\n')}\n`
 }
 

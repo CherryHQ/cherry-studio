@@ -8,6 +8,7 @@ type ShellTool = ReturnType<typeof createBashTool>
 export function withDurableShellTimeout(tool: ShellTool): ShellTool {
   // SAFETY: Native bash/PowerShell factories build this property map with pi-schema's object builder.
   const properties = tool.parameters.properties as Properties
+
   return {
     ...tool,
     description: `${tool.description} Commands default to a 120-second timeout; set timeout explicitly for longer work.`,

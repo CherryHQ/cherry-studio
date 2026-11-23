@@ -13,10 +13,13 @@ function remarkReleaseNoteCategories() {
   return (tree: Root) => {
     visit(tree, 'listItem', (item) => {
       const paragraph = item.children[0]
+
       if (paragraph?.type !== 'paragraph') return
       const text = paragraph.children[0]
+
       if (text?.type !== 'text') return
       const match = text.value.match(/^\[([^\]`\r\n]{1,32})\](?=\s)/)
+
       if (!match) return
       text.value = text.value.slice(match[0].length)
       paragraph.children.unshift({ type: 'inlineCode', value: `${RELEASE_NOTE_CATEGORY_PREFIX}${match[1].trim()}` })
@@ -49,6 +52,7 @@ type ReleaseNotesProps = {
 export const ReleaseNotes: FC<ReleaseNotesProps> = ({ content, className }) => {
   const id = useId()
   const { t } = useTranslation()
+
   return (
     <Markdown
       key={content}

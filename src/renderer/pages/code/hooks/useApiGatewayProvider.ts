@@ -48,6 +48,7 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
       // server is running; otherwise the caller must not write the CLI config or mark the gateway
       // current against a dead port. `startApiGateway` returns false on failure (it never rejects).
       const started = await startApiGateway()
+
       if (!started) {
         throw new Error('API gateway failed to start')
       }
@@ -56,14 +57,17 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
 
   const getApiKey = useCallback(async (): Promise<string> => {
     const key = await window.api.preference.get('feature.api_gateway.api_key')
+
     if (!key) {
       throw new Error('API gateway did not provide a key')
     }
+
     return key
   }, [])
 
   return useMemo(() => {
     const baseUrl = gatewayClientOrigin(host, port)
+
     const provider: Provider = {
       id: CLI_API_GATEWAY_PROVIDER_ID,
       // Display-only; the CLI provider key is decoupled from this title (see cliProviderKeyName).
@@ -79,6 +83,7 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
       settings: DEFAULT_PROVIDER_SETTINGS,
       isEnabled: true
     }
+
     return { provider, apiKey, ensureRunning, getApiKey }
   }, [host, port, apiKey, t, ensureRunning, getApiKey])
 }

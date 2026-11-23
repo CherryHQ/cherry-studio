@@ -20,11 +20,13 @@ export const SubWindowControls = () => {
   const handleTogglePin = async () => {
     const next = !pinned
     const ok = await ipcApi.request('window.sub.set_always_on_top', next)
+
     if (ok) setPinned(next)
   }
 
   const handleBackToMain = () => {
     const tab = tabs.find((tabItem) => tabItem.id === activeTabId) ?? tabs[0]
+
     if (!tab) return
     ipcApi.request('tab.attach', tab).catch((err) => {
       logger.error('Back to main window failed', err as Error)

@@ -97,6 +97,7 @@ export class AnthropicImporter implements ConversationImporter {
     try {
       const parsed = JSON.parse(fileContent)
       const conversations = Array.isArray(parsed) ? parsed : [parsed]
+
       return (
         conversations.length > 0 &&
         conversations.every(
@@ -141,6 +142,7 @@ export class AnthropicImporter implements ConversationImporter {
     for (const conversation of conversations) {
       try {
         const importedConversation = this.convertConversation(conversation)
+
         if (importedConversation) importedConversations.push(importedConversation)
       } catch (convError) {
         logger.warn(`Failed to convert conversation "${conversation.name}":`, convError as Error)
@@ -196,11 +198,13 @@ export class AnthropicImporter implements ConversationImporter {
       .replace(/-\d{8}$/, '')
 
     const versionFirst = base.match(/^claude-(\d+(?:[.-]\d+)?)-(opus|sonnet|haiku)/)
+
     if (versionFirst) {
       return { version: versionFirst[1].replace('-', '.'), family: versionFirst[2], ordering: 'version-first' as const }
     }
 
     const familyFirst = base.match(/^claude-(opus|sonnet|haiku)-(\d+(?:[.-]\d+)?)/)
+
     if (familyFirst) {
       return { version: familyFirst[2].replace('-', '.'), family: familyFirst[1], ordering: 'family-first' as const }
     }
@@ -220,6 +224,7 @@ export class AnthropicImporter implements ConversationImporter {
     }
 
     const familyLabel = family.charAt(0).toUpperCase() + family.slice(1)
+
     return {
       id: modelId,
       provider: 'anthropic',
@@ -244,8 +249,10 @@ export class AnthropicImporter implements ConversationImporter {
     // Index tool_result blocks by their tool_use_id for O(1) lookup
     const toolResultMap = new Map<string, AnthropicToolResultBlock>()
     const anonymousToolResults: AnthropicToolResultBlock[] = []
+
     for (const block of contentBlocks) {
       if (block.type !== 'tool_result') continue
+
       if (block.tool_use_id) {
         toolResultMap.set(block.tool_use_id, block)
       } else {
@@ -256,10 +263,12 @@ export class AnthropicImporter implements ConversationImporter {
     // Iterate content blocks in order, building v2 AI SDK parts
     let anonymousToolIndex = 0
     let hasTextBlock = false
+
     for (const contentBlock of contentBlocks) {
       switch (contentBlock.type) {
         case 'text': {
           const content = (contentBlock.text ?? '').trim()
+
           if (!content) break
 
           parts.push({ type: 'text', text: content })
@@ -276,12 +285,14 @@ export class AnthropicImporter implements ConversationImporter {
             text: contentBlock.thinking,
             state: 'done'
           }
+
           parts.push(withCherryMeta(reasoningPart, { thinkingMs }))
           break
         }
 
         case 'tool_use': {
           const toolId = contentBlock.id ?? `${anthropicMessage.uuid}-tool-${anonymousToolIndex}`
+
           const toolResult = contentBlock.id
             ? toolResultMap.get(contentBlock.id)
             : anonymousToolResults[anonymousToolIndex++]
@@ -294,6 +305,7 @@ export class AnthropicImporter implements ConversationImporter {
           }
 
           let toolPart: DynamicToolUIPart
+
           if (toolResult?.is_error) {
             toolPart = { ...base, state: 'output-error', errorText: this.extractToolResultContent(toolResult) }
           } else if (toolResult) {
@@ -301,6 +313,7 @@ export class AnthropicImporter implements ConversationImporter {
           } else {
             toolPart = { ...base, state: 'input-available' }
           }
+
           parts.push(toolPart)
           break
         }
@@ -312,12 +325,15 @@ export class AnthropicImporter implements ConversationImporter {
     }
 
     const messageText = (anthropicMessage.text ?? '').trim()
+
     if (!hasTextBlock && messageText) {
       parts.push({ type: 'text', text: messageText })
     }
 
     const node: Pick<ImportMessageNode, 'sourceId' | 'parentSourceId'> = { sourceId: anthropicMessage.uuid }
+
     if (parentSourceId) node.parentSourceId = parentSourceId
+
     return Object.assign(node, {
       role,
       parts,
@@ -347,17 +363,20 @@ export class AnthropicImporter implements ConversationImporter {
 
     const messagesById = new Map(conversation.chat_messages.map((message) => [message.uuid, message]))
     const usableMessageIds = new Set(usableMessages.map((message) => message.uuid))
+
     // Walk up the parent chain until an imported message is reached, so filtered-out
     // messages (and the export's root sentinel) never leak into the imported tree.
     // The visited set keeps cyclic parent pointers in malformed exports from hanging.
     const resolveUsableSourceId = (sourceId: string | null | undefined): string | undefined => {
       const visited = new Set<string>()
       let candidate = sourceId ?? undefined
+
       while (candidate && !usableMessageIds.has(candidate)) {
         if (visited.has(candidate)) return undefined
         visited.add(candidate)
         candidate = messagesById.get(candidate)?.parent_message_uuid ?? undefined
       }
+
       return candidate
     }
 
@@ -367,6 +386,7 @@ export class AnthropicImporter implements ConversationImporter {
     // Only flat exports imply ordering; explicit roots and branches remain authoritative,
     // including parent metadata on messages filtered out of the import.
     const hasParentPointers = conversation.chat_messages.some((message) => 'parent_message_uuid' in message)
+
     const messages = usableMessages.map((message, index) =>
       this.createMessage(
         message,

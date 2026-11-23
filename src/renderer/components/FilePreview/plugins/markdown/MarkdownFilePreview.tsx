@@ -86,6 +86,7 @@ function resolveMarkdownImageSrc(filePath: AbsoluteFilePath, src: string): strin
 
 function resolveMarkdownFileLink(workspacePath: AbsoluteFilePath, href: string | undefined): AbsoluteFilePath | null {
   const linkPath = parseFileLinkHref(href)
+
   if (!linkPath) return null
 
   const candidate = AbsoluteFilePathSchema.safeParse(linkPath).success ? linkPath : joinPath(workspacePath, linkPath)
@@ -106,16 +107,19 @@ function MarkdownPreviewContent({
 }: MarkdownPreviewContentProps): ReactNode {
   const navigation = useOptionalFilePreviewNavigation()
   const resolveImageSrc = useCallback((src: string) => resolveMarkdownImageSrc(filePath, src), [filePath])
+
   const openFilePath = useCallback(
     (path: string) => {
       if (!navigation) return
       const target = resolveMarkdownFileLink(navigation.workspacePath, path)
+
       if (target) return navigation.openFile(target)
     },
     [navigation]
   )
 
   if (loadState.status === 'loading') return <MarkdownPreviewLoading />
+
   if (loadState.status === 'error') return <MarkdownPreviewError />
 
   if (mode === 'source') {
@@ -136,6 +140,7 @@ function MarkdownPreviewContent({
   }
 
   const content = hideFrontmatter ? loadState.content.replace(YAML_FRONTMATTER_PATTERN, '') : loadState.content
+
   if (content.trim().length === 0) return <MarkdownPreviewEmpty />
 
   const markdown = (
@@ -176,9 +181,11 @@ export default function MarkdownFilePreview({
           typeof sourceMetadata === 'function'
             ? await Promise.resolve().then(sourceMetadata)
             : { kind: 'file', size: sourceMetadata }
+
         if (cancelled || loadedMetadata?.kind !== 'file') return
 
         const content = await window.api.fs.readText(filePath)
+
         if (!cancelled) {
           // A completed read resets document-derived renderer state, including failed images.
           setLoadState((current) => ({

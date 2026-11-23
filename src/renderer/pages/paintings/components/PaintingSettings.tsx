@@ -15,6 +15,7 @@ import PaintingSectionTitle from './PaintingSectionTitle'
 
 function resolveItemOptions(item: BaseConfigItem, painting: PaintingParams) {
   if (!isOptionsConfigItem(item)) return []
+
   return typeof item.options === 'function' ? item.options(item, painting) : (item.options ?? [])
 }
 
@@ -26,9 +27,11 @@ function shouldRenderConfigItem(item: BaseConfigItem, painting: PaintingParams) 
   if (item.condition && !item.condition(painting)) {
     return false
   }
+
   if (item.type === 'sizeChips' && resolveItemOptions(item, painting).length === 0) {
     return false
   }
+
   return true
 }
 
@@ -54,6 +57,7 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
   // The override only reaches transports that apply it; hide it where the value would be inert.
   const requestTimeoutSupported = supportsImageRequestTimeout(painting.providerId)
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
+
   const configItems = useMemo(
     () =>
       imageGenerationToFields(registrySupport, {

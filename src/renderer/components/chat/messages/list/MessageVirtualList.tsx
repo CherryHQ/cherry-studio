@@ -31,25 +31,33 @@ export const MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX = 6
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX = 12
 const MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX = 24
 const KEYBOARD_SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'])
+
 const KEYBOARD_SCROLL_OWNER_SELECTOR =
   'input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="combobox"],[role="listbox"],[role="slider"],[role="spinbutton"]'
+
 const KEYBOARD_FOCUS_OWNER_SELECTOR = `${KEYBOARD_SCROLL_OWNER_SELECTOR},button,a[href],summary,[tabindex]:not([tabindex="-1"])`
 
 function isKeyboardScrollIntent(event: KeyboardEvent, scroller: HTMLElement): boolean {
   const target = event.target instanceof HTMLElement ? event.target : null
+
   if (KEYBOARD_SCROLL_KEYS.has(event.key)) return !target?.closest(KEYBOARD_SCROLL_OWNER_SELECTOR)
+
   if (event.key !== ' ' && event.key !== 'Spacebar') return false
+
   return target === scroller || !hasIndependentKeyboardFocusOwner(target, scroller)
 }
 
 function getKeyboardScrollDelta(event: KeyboardEvent): number {
   if (event.key === 'ArrowUp' || event.key === 'PageUp' || event.key === 'Home') return -1
+
   if (event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === 'End') return 1
+
   return event.shiftKey ? -1 : 1
 }
 
 function getEventTargetElement(target: EventTarget | null): HTMLElement | null {
   const element = target instanceof Element ? target : null
+
   return element instanceof HTMLElement ? element : (element?.parentElement ?? null)
 }
 
@@ -59,6 +67,7 @@ function findNestedScroller(target: EventTarget | null, scroller: HTMLElement): 
 
 function hasIndependentKeyboardFocusOwner(target: EventTarget | null, scroller: HTMLElement): boolean {
   const owner = getEventTargetElement(target)?.closest(KEYBOARD_FOCUS_OWNER_SELECTOR)
+
   return owner instanceof HTMLElement && owner !== scroller
 }
 
@@ -68,6 +77,7 @@ function focusScrollerForKeyboard(scroller: HTMLElement): void {
 
 function isDocumentFocusUnowned(ownerDocument: Document): boolean {
   const { activeElement } = ownerDocument
+
   return (
     activeElement === ownerDocument.body || activeElement === ownerDocument.documentElement || activeElement === null
   )
@@ -141,6 +151,7 @@ export function MessageVirtualList<T>({
   topicId
 }: MessageVirtualListProps<T>): React.ReactElement {
   const { t } = useTranslation()
+
   const runtime = useChatVirtualizerRuntime({
     items,
     getItemKey,
@@ -154,10 +165,12 @@ export function MessageVirtualList<T>({
     bottomPadding,
     keepMountedKeys
   })
+
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
   const { beginScrollbarDrag, endScrollbarDrag, scrollToBottom, markUserInput, takeUserControl } = runtime
   const { onWheel } = runtime.scrollerProps
   const { armAutoscrollCandidate, confirmAutoscroll, dismissAutoscroll } = runtime
+
   // Latch the captured node like TabRouter does: a background tab detaches the
   // ref (element === null) while its DOM node lives on, and clearing this state
   // would unmount the virtualizer below — discarding virtua's measurements and
@@ -165,6 +178,7 @@ export function MessageVirtualList<T>({
   const setScrollerRef = useCallback(
     (element: HTMLDivElement | null) => {
       runtime.scrollerRef.current = element
+
       if (element) {
         setScrollerElement(element)
         onScrollContainerReady?.(element)
@@ -175,12 +189,15 @@ export function MessageVirtualList<T>({
 
   useEffect(() => {
     if (!scrollerElement) return
+
     const handleWheel = (event: WheelEvent) => {
       // A purely horizontal wheel neither scrolls this list nor signals
       // vertical intent — it must not take scroll ownership away.
       if (event.deltaY === 0) return
       const target = event.target instanceof Element ? event.target : null
+
       if (findVerticalWheelConsumer(target, event.deltaY, scrollerElement)) return
+
       if (
         isDocumentFocusUnowned(scrollerElement.ownerDocument) &&
         !hasIndependentKeyboardFocusOwner(event.target, scrollerElement)
@@ -188,7 +205,9 @@ export function MessageVirtualList<T>({
         focusScrollerForKeyboard(scrollerElement)
       onWheel(event)
     }
+
     scrollerElement.addEventListener('wheel', handleWheel, { passive: true })
+
     return () => scrollerElement.removeEventListener('wheel', handleWheel)
   }, [onWheel, scrollerElement])
 
@@ -199,9 +218,11 @@ export function MessageVirtualList<T>({
     pointerType: string
     lastClientY: number
   } | null>(null)
+
   useEffect(() => {
     if (!scrollerElement) return
     const ownerDocument = scrollerElement.ownerDocument
+
     const onPointerDown = (event: PointerEvent) => {
       const nestedScroller = findNestedScroller(event.target, scrollerElement)
       pointerGestureRef.current = {
@@ -209,64 +230,84 @@ export function MessageVirtualList<T>({
         pointerType: event.pointerType,
         lastClientY: event.clientY
       }
+
       if (!nestedScroller && !hasIndependentKeyboardFocusOwner(event.target, scrollerElement))
         focusScrollerForKeyboard(scrollerElement)
+
       if (event.target === scrollerElement) beginScrollbarDrag()
     }
+
     const onPointerMove = (event: PointerEvent) => {
       const gesture = pointerGestureRef.current
+
       if (event.buttons === 0 || !gesture) return
 
       const deltaY = gesture.lastClientY - event.clientY
       gesture.lastClientY = event.clientY
+
       if (!gesture.nestedScroller) {
         markUserInput()
+
         return
       }
 
       const isTouchLikePointer = gesture.pointerType === 'touch' || gesture.pointerType === 'pen'
+
       if (isTouchLikePointer && deltaY !== 0 && !canConsumeVerticalWheel(gesture.nestedScroller, deltaY))
         markUserInput()
     }
+
     // The release can land anywhere (a scrollbar drag ends off-list), so the
     // gesture flag resets at the document level.
     const onPointerEnd = () => {
       pointerGestureRef.current = null
       endScrollbarDrag()
     }
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || !isKeyboardScrollIntent(event, scrollerElement)) return
       const nestedScroller = findNestedScroller(event.target, scrollerElement)
       const delta = getKeyboardScrollDelta(event)
+
       if (nestedScroller && canConsumeVerticalWheel(nestedScroller, delta)) return
       markUserInput(delta < 0 ? 'up' : 'down')
     }
+
     let focusedVirtualDescendant: Node | null = null
+
     const restoreFocusAfterOwnerRemoval = () => {
       const focusOwner = focusedVirtualDescendant
+
       if (!focusOwner || (focusOwner.isConnected && scrollerElement.contains(focusOwner))) return
       focusedVirtualDescendant = null
 
       if (scrollerElement.isConnected && ownerDocument.hasFocus() && isDocumentFocusUnowned(ownerDocument))
         focusScrollerForKeyboard(scrollerElement)
     }
+
     const onFocusIn = (event: FocusEvent) => {
       const target = event.target
       focusedVirtualDescendant =
         target instanceof Node && target !== scrollerElement && scrollerElement.contains(target) ? target : null
     }
+
     const onFocusOut = (event: FocusEvent) => {
       const target = event.target
+
       if (!(target instanceof Node) || target !== focusedVirtualDescendant) return
       queueMicrotask(() => {
         if (focusedVirtualDescendant !== target) return
+
         if (target.isConnected && scrollerElement.contains(target)) {
           focusedVirtualDescendant = null
+
           return
         }
+
         restoreFocusAfterOwnerRemoval()
       })
     }
+
     const focusOwnerObserver = new MutationObserver(restoreFocusAfterOwnerRemoval)
     focusOwnerObserver.observe(scrollerElement, { childList: true, subtree: true })
     scrollerElement.addEventListener('pointerdown', onPointerDown, { passive: true })
@@ -276,6 +317,7 @@ export function MessageVirtualList<T>({
     scrollerElement.addEventListener('focusin', onFocusIn)
     scrollerElement.addEventListener('focusout', onFocusOut)
     scrollerElement.addEventListener('keydown', onKeyDown)
+
     // Chromium middle-click autoscroll synthesizes scrollTop without wheel or
     // pointer drag events. The runtime owns the candidate/confirmed lifecycle
     // so freeze suppression is time-bounded and not latched on a swallowed
@@ -284,20 +326,27 @@ export function MessageVirtualList<T>({
       if (event.target !== scrollerElement) return
       confirmAutoscroll()
     }
+
     const onAutoscrollMouseDown = (event: MouseEvent) => {
       const isMiddle = event.button === 1
       const insideScroller = scrollerElement.contains(event.target as Node)
+
       if (isMiddle && insideScroller) {
         const target = event.target instanceof Element ? event.target : null
+
         if (target?.closest('a,button,[role="button"]')) return
         armAutoscrollCandidate()
+
         return
       }
+
       dismissAutoscroll()
     }
+
     const onKeyDownAutoscrollDismiss = (event: KeyboardEvent) => {
       if (event.key === 'Escape') dismissAutoscroll()
     }
+
     const onWindowBlur = () => dismissAutoscroll()
     // Single document-level listener covers both inside and outside clicks;
     // a separate scroller listener would double-fire for inside clicks.
@@ -305,6 +354,7 @@ export function MessageVirtualList<T>({
     ownerDocument.addEventListener('keydown', onKeyDownAutoscrollDismiss)
     ownerDocument.addEventListener('scroll', onCapturedScroll, { capture: true, passive: true })
     ownerDocument.defaultView?.addEventListener('blur', onWindowBlur)
+
     return () => {
       dismissAutoscroll()
       focusOwnerObserver.disconnect()
@@ -347,6 +397,7 @@ export function MessageVirtualList<T>({
         onPointerDownCapture={(event) => {
           if (event.button !== 0 || !(event.target instanceof Element)) return
           const track = event.target.closest('[data-slot="scroll-area-scrollbar"]')
+
           if (track?.parentElement === event.currentTarget) beginScrollbarDrag()
         }}
         viewportProps={{

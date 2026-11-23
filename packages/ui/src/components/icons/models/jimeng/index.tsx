@@ -4,6 +4,7 @@ import { JimengLight } from './light'
 
 const Jimeng = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <JimengLight {...props} className={className} />
+
   return <JimengLight {...props} className={className} />
 }
 

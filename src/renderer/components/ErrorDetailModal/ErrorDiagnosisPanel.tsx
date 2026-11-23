@@ -28,21 +28,25 @@ export function ErrorDiagnosisPanel({ doctorController, subject, incident }: Err
   const { t } = useTranslation()
   const { interaction } = doctorController.session
   const showConnectivitySteps = subject.kind !== 'global'
+
   const activeDoctorTier =
     doctorController.viewModel.status === 'running'
       ? doctorController.viewModel.tier
       : interaction.kind === 'run'
         ? interaction.tier
         : undefined
+
   const isDoctorPending = doctorController.isAutoRunPending || activeDoctorTier !== undefined
   const completedChecks = doctorController.viewModel.rows.filter((row) => row.status !== 'pending').length
   const fixedCheckNames = doctorController.session.fixedCheckIds.map((checkId) => t(doctorCheckTitleKey(checkId)))
   const activeCheckId = doctorController.viewModel.activeCheckIds[0]
   const activeCheckName = activeCheckId ? t(doctorCheckTitleKey(activeCheckId)) : undefined
+
   const resultSummaryValues = {
     fixed: fixedCheckNames.join(', '),
     attention: t('message.tools.units.item', { count: doctorController.viewModel.summary.userFixable })
   }
+
   const hasDoctorNotices =
     doctorController.viewModel.isStale ||
     doctorController.session.relaunchRequired ||
@@ -74,10 +78,12 @@ export function ErrorDiagnosisPanel({ doctorController, subject, incident }: Err
 
   const providerId = subject.kind !== 'global' ? subject.providerId : undefined
   const providerName = providerId ? t(getProviderLabelKey(providerId, providerId)) : ''
+
   const extraRows =
     !isDoctorPending && doctorController.viewModel.status === 'completed'
       ? actionRequiredRows(doctorController).map((row) => {
           const result = row.result
+
           if (
             row.id !== 'provider-api-key-present' ||
             !result ||
@@ -88,6 +94,7 @@ export function ErrorDiagnosisPanel({ doctorController, subject, incident }: Err
           ) {
             return row
           }
+
           return {
             ...row,
             result: {
@@ -100,6 +107,7 @@ export function ErrorDiagnosisPanel({ doctorController, subject, incident }: Err
           }
         })
       : []
+
   const extraFindings =
     extraRows.length > 0 ? (
       <DoctorCheckAccordionItems

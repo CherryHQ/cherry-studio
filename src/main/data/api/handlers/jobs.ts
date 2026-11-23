@@ -14,6 +14,7 @@ export const jobHandlers: HandlersFor<JobSchemas> = {
   '/jobs': {
     GET: async ({ query }) => {
       const parsed = ListJobsQuerySchema.parse(query ?? {})
+
       return jobService.list({
         status: parsed.status,
         queue: parsed.queue,
@@ -29,7 +30,9 @@ export const jobHandlers: HandlersFor<JobSchemas> = {
   '/jobs/:id': {
     GET: async ({ params }) => {
       const snapshot = jobService.getById(params.id)
+
       if (!snapshot) throw DataApiErrorFactory.notFound('Job', params.id)
+
       return snapshot
     }
   }

@@ -1,4 +1,5 @@
 export { isKnownNavigationPath } from '@shared/utils/navigationPath'
+
 import { Compass } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
@@ -69,11 +70,13 @@ const SORTED_ROUTES = [...ROUTE_LABELS].sort((a, b) => b[0].length - a[0].length
 function getRouteInfo(path: string) {
   // Exact match first
   const exact = ROUTE_LABELS.get(path)
+
   if (exact) return exact
 
   // Strip query string for matching
   const cleanPath = path.split('?')[0]
   const clean = ROUTE_LABELS.get(cleanPath)
+
   if (clean) return clean
 
   // Longest prefix match
@@ -92,12 +95,14 @@ export function NavigateToolInline({ input, output }: { input?: unknown; output?
   const parsedInput = navigationInputSchema.safeParse(input)
   const basePath = parsedInput.success ? parsedInput.data.path : ''
   const rawQuery = parsedInput.success ? parsedInput.data.query : undefined
+
   const queryObj =
     rawQuery && typeof rawQuery === 'object'
       ? Object.fromEntries(
           Object.entries(rawQuery).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
         )
       : undefined
+
   const qs = queryObj ? new URLSearchParams(queryObj).toString() : ''
   const fullPath = qs ? `${basePath}?${qs}` : basePath
 
@@ -113,6 +118,7 @@ export function NavigateToolInline({ input, output }: { input?: unknown; output?
             .filter(Boolean)
             .join('')
         : ''
+
   const isSuccess = outputText.includes('Navigate link created')
 
   const navigateToRoute = useOptionalMessageListActions()?.navigateToRoute

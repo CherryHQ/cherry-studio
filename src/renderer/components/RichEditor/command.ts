@@ -98,11 +98,13 @@ export function registerToolbarCommand(cmd: Command): void {
   if (!cmd.showInToolbar) {
     cmd.showInToolbar = true
   }
+
   registerCommand(cmd)
 }
 
 export function unregisterToolbarCommand(id: string): void {
   const cmd = getCommand(id)
+
   if (cmd) {
     cmd.showInToolbar = false
     // Keep command for slash menu, just hide from toolbar
@@ -111,6 +113,7 @@ export function unregisterToolbarCommand(id: string): void {
 
 export function setCommandAvailability(id: string, isAvailable: (editor: Editor) => boolean): void {
   const cmd = getCommand(id)
+
   if (cmd) {
     cmd.isAvailable = isAvailable
   }
@@ -129,6 +132,7 @@ export function hideToolbarCommandsWhen(commandIds: string[], condition: () => b
   } else {
     commandIds.forEach((id) => {
       const cmd = getCommand(id)
+
       if (cmd) {
         cmd.showInToolbar = true
       }
@@ -505,8 +509,11 @@ export function filterCommands(options: CommandFilterOptions = {}): Command[] {
       const bTitleMatch = bTitle.includes(searchTerm)
 
       if (aExactMatch && !bExactMatch) return -1
+
       if (bExactMatch && !aExactMatch) return 1
+
       if (aTitleMatch && !bTitleMatch) return -1
+
       if (bTitleMatch && !aTitleMatch) return 1
 
       return a.title.localeCompare(b.title)
@@ -576,6 +583,7 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
       return filterCommands({ query })
     } catch (error) {
       logger.error('Error filtering commands:', error as Error)
+
       return []
     }
   },
@@ -585,6 +593,7 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
     // Find the original command by id
     if (props.id) {
       const command = getCommand(props.id)
+
       if (command) {
         command.handler(editor)
       }
@@ -599,6 +608,7 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
       onStart: (props) => {
         if (!props?.items || !props?.clientRect) {
           logger.warn('Invalid props in command suggestion onStart')
+
           return
         }
 
@@ -642,6 +652,7 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
       onKeyDown: (props) => {
         // Let CommandListPopover handle events first
         const popoverHandled = component.ref?.onKeyDown?.(props.event)
+
         if (popoverHandled) {
           return true
         }
@@ -649,6 +660,7 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
         // Handle Shift+Enter for newline when popover doesn't handle it
         if (props.event.key === 'Enter' && props.event.shiftKey) {
           props.event.preventDefault()
+
           // Close the suggestion menu
           if (cleanup) cleanup()
           component.destroy()
@@ -658,12 +670,14 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
           const { tr } = state
           tr.insertText('\n')
           dispatch(tr)
+
           return true
         }
 
         if (props.event.key === 'Escape') {
           if (cleanup) cleanup()
           component.destroy()
+
           return true
         }
 
@@ -684,6 +698,7 @@ export const createCommandSuggestion = (
   options: Pick<CommandFilterOptions, 'enableImageInsertion' | 'disabledCommands'> = {}
 ): Omit<SuggestionOptions<Command, MentionNodeAttrs>, 'editor'> => {
   const { enableImageInsertion = true, disabledCommands } = options
+
   if (enableImageInsertion && !disabledCommands?.length) return commandSuggestion
 
   return {
@@ -693,6 +708,7 @@ export const createCommandSuggestion = (
         return filterCommands({ query, enableImageInsertion, disabledCommands })
       } catch (error) {
         logger.error('Error filtering commands:', error as Error)
+
         return []
       }
     }

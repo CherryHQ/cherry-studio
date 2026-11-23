@@ -92,6 +92,7 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
 
   protected processChunk(chunk: UIMessageChunk): void {
     logger.silly('AiSdkToGeminiSse - Processing chunk', { type: chunk.type })
+
     switch (chunk.type) {
       case 'text-delta':
         this.appendText(chunk.delta || '', false, chunk.providerMetadata)
@@ -107,8 +108,10 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
         // function-calling turn; the Google provider surfaces it on the tool call's
         // provider metadata, so carry it out on the emitted functionCall part.
         const meta = chunk.providerMetadata
+
         const thoughtSignature =
           typeof meta?.google?.thoughtSignature === 'string' ? meta.google.thoughtSignature : undefined
+
         this.appendFunctionCall(chunk.toolName, chunk.input, thoughtSignature)
         break
       }
@@ -137,25 +140,32 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
   private appendText(text: string, thought: boolean, metadata?: ProviderMetadata): void {
     const signature = metadata?.google?.thoughtSignature
     const thoughtSignature = typeof signature === 'string' ? signature : undefined
+
     if (!text && thoughtSignature === undefined) return
+
     const part: GeminiResponsePart = {
       text,
       ...(thought && { thought: true }),
       ...(thoughtSignature !== undefined && { thoughtSignature })
     }
+
     const last = this.accumulatedParts[this.accumulatedParts.length - 1]
+
     if (last && last.functionCall === undefined && (last.thought ?? false) === thought) {
       last.text = (last.text ?? '') + text
+
       if (thoughtSignature !== undefined) last.thoughtSignature = thoughtSignature
     } else {
       this.accumulatedParts.push({ ...part })
     }
+
     this.emitParts([part])
   }
 
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AI SDK tool-input-error carries unvalidated input; the adapter forwards tool data without claiming schema validation.
   private appendFunctionCall(name: string, args: unknown, thoughtSignature?: string): void {
     const part: GeminiResponsePart = { functionCall: { name, args: args ?? {} } }
+
     if (thoughtSignature) part.thoughtSignature = thoughtSignature
     this.accumulatedParts.push(part)
     this.emitParts([part])
@@ -171,12 +181,17 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
+
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
+
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+
     if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
       this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
     }
+
     const reasoningTokens = metadata.stats?.outputTokenDetails?.reasoningTokens
+
     if (reasoningTokens !== undefined) this.thoughtsTokens = reasoningTokens
   }
 
@@ -188,12 +203,15 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     // reasoning-inclusive total as candidatesTokenCount would double-count
     // thoughts inside the frame.
     const candidatesTokenCount = Math.max(0, this.state.outputTokens - this.thoughtsTokens)
+
     const usage: GeminiUsageMetadata = {
       promptTokenCount: this.state.inputTokens,
       candidatesTokenCount,
       totalTokenCount: this.state.inputTokens + this.state.outputTokens
     }
+
     if (this.thoughtsTokens > 0) usage.thoughtsTokenCount = this.thoughtsTokens
+
     // The projected `inputTokens` is Gemini's cache-inclusive prompt total
     // (`promptTokenCount`), so cache reads are a subset of it — report them on
     // their own field without touching the sum, mirroring the thoughtsTokenCount
@@ -201,6 +219,7 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     if (this.state.cacheReadTokens !== undefined && this.state.cacheReadTokens > 0) {
       usage.cachedContentTokenCount = this.state.cacheReadTokens
     }
+
     return usage
   }
 

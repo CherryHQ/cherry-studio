@@ -30,4 +30,5 @@ export const TagSchema = z.strictObject({
   /** Last update timestamp (ISO string) */
   updatedAt: z.iso.datetime()
 })
+
 export type Tag = z.infer<typeof TagSchema>

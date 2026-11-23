@@ -38,6 +38,7 @@ function getAbortReason(signal: AbortSignal): Error {
 function createTimeoutError(timeoutMs: number): Error {
   const error = new Error(`Readable content extraction timed out after ${timeoutMs}ms`)
   error.name = 'TimeoutError'
+
   return error
 }
 
@@ -51,6 +52,7 @@ export class ReadableContentService {
   async extractPreviewText(source: string, options: PreviewTextOptions): Promise<string> {
     const { inputKind, maxLength, ...workerOptions } = options
     const result = await this.enqueue({ format: 'preview', inputKind, maxLength, source }, workerOptions)
+
     return result.content
   }
 
@@ -59,6 +61,7 @@ export class ReadableContentService {
     options: ReadableContentOptions
   ): Promise<ReadableContentResult> {
     const signal = options.signal ?? new AbortController().signal
+
     if (signal.aborted) {
       throw getAbortReason(signal)
     }
@@ -66,14 +69,17 @@ export class ReadableContentService {
     try {
       const queuedTask = this.queue.add(() => this.runWorker(input, signal, options.timeoutMs))
       const result = await this.waitForQueueTask(queuedTask, signal)
+
       if (!result) {
         throw new Error('Readable content extraction task did not return a result')
       }
+
       return result
     } catch (error) {
       if (signal.aborted) {
         throw getAbortReason(signal)
       }
+
       throw error
     }
   }
@@ -86,12 +92,14 @@ export class ReadableContentService {
     return new Promise((resolve, reject) => {
       let settled = false
       const cleanup = (): void => signal.removeEventListener('abort', handleAbort)
+
       const finish = (callback: () => void): void => {
         if (settled) return
         settled = true
         cleanup()
         callback()
       }
+
       const handleAbort = (): void => finish(() => reject(getAbortReason(signal)))
 
       signal.addEventListener('abort', handleAbort, { once: true })
@@ -138,6 +146,7 @@ export class ReadableContentService {
       const handleAbort = (): void => {
         finish(() => reject(getAbortReason(signal)))
       }
+
       const handleMessage = (message: ReadableContentWorkerMessage): void => {
         finish(() => {
           if (message.type === 'result') {
@@ -147,12 +156,15 @@ export class ReadableContentService {
           }
         })
       }
+
       const handleError = (error: Error): void => {
         finish(() => reject(error))
       }
+
       const handleExit = (code: number): void => {
         finish(() => reject(new Error(`Readable content worker exited before responding (code ${code})`)))
       }
+
       const timeout = setTimeout(() => {
         finish(() => reject(createTimeoutError(timeoutMs)))
       }, timeoutMs)

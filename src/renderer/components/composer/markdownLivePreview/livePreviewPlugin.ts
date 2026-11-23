@@ -17,7 +17,9 @@ import {
 } from './markdownSession'
 
 type Range = { from: number; to: number }
+
 type Span = Range & { className: string }
+
 /** `collapsesLine` removes the whole line while the marker is hidden, so it leaves no blank row. */
 type Marker = Range & { reveal: Range; collapsesLine?: boolean }
 
@@ -43,6 +45,7 @@ const livePreviewKey = new PluginKey<LivePreviewState>('composerMarkdownLivePrev
 
 const HEADING_NODE = /^ATXHeading([1-6])$/
 const SETEXT_HEADING_NODE = /^SetextHeading([12])$/
+
 const DELIMITED_NODES: ReadonlyMap<string, { mark: string; className: string }> = new Map([
   ['Emphasis', { mark: 'EmphasisMark', className: 'composer-md-emphasis' }],
   ['StrongEmphasis', { mark: 'EmphasisMark', className: 'composer-md-strong' }],
@@ -50,6 +53,7 @@ const DELIMITED_NODES: ReadonlyMap<string, { mark: string; className: string }> 
   ['InlineCode', { mark: 'CodeMark', className: 'composer-md-inline-code' }],
   ['Autolink', { mark: 'LinkMark', className: 'composer-md-link' }]
 ])
+
 const LITERAL_NODES = new Set(['Image', 'Table', 'HTMLBlock', 'HTMLTag', 'CodeBlock', 'LinkReference'])
 
 const COMPOSITION_END_SETTLE_MS = 40
@@ -60,6 +64,7 @@ const HIDDEN_SYNTAX_CLASS = `${SYNTAX_CLASS} composer-md-syntax-hidden`
 function collectMarkup({ text, lines, tree }: MarkdownSession) {
   const markup = lines.map<LineMarkup>(() => ({ spans: [], markers: [], blockClasses: [] }))
   const codeBlocks: MarkdownCodeBlock[] = []
+
   const documentRange = (range: Range) => ({
     from: toDocumentPosition(lines, range.from),
     to: toDocumentPosition(lines, range.to)
@@ -68,36 +73,45 @@ function collectMarkup({ text, lines, tree }: MarkdownSession) {
   /** Calls `visit` with the part of the range on each source line it crosses. */
   const forEachLineSlice = (from: number, to: number, visit: (lineIndex: number, slice: Range) => void) => {
     const last = findSourceLineIndex(lines, to)
+
     for (let index = findSourceLineIndex(lines, from); index <= last; index += 1) {
       const { textFrom, textTo } = lines[index]
       const sliceFrom = Math.max(from, textFrom)
       const sliceTo = Math.min(to, textTo)
+
       if (sliceTo > sliceFrom) visit(index, { from: sliceFrom - textFrom, to: sliceTo - textFrom })
     }
   }
+
   const forEachTextSlice = (from: number, to: number, visit: (index: number, slice: Range) => void) => {
     forEachLineSlice(from, to, (index, slice) => {
       // Inline decorations affect the atom's own element, so skip token chips.
       const { textFrom } = lines[index]
       let start = slice.from
+
       for (let column = slice.from; column <= slice.to; column += 1) {
         if (column < slice.to && text[textFrom + column] !== TOKEN_PLACEHOLDER) continue
+
         if (column > start) visit(index, { from: start, to: column })
         start = column + 1
       }
     })
   }
+
   const addSpan = (from: number, to: number, className: string) => {
     forEachTextSlice(from, to, (index, slice) => markup[index].spans.push({ ...slice, className }))
   }
+
   const addMarker = (from: number, to: number, reveal: Range, options?: Pick<Marker, 'collapsesLine'>) => {
     const documentReveal = documentRange(reveal)
     forEachTextSlice(from, to, (index, slice) =>
       markup[index].markers.push({ ...slice, ...options, reveal: documentReveal })
     )
   }
+
   const addDelimited = (node: SyntaxNode, markName: string, className: string) => {
     const marks = node.getChildren(markName)
+
     if (marks.length < 2) return
     const open = marks[0]
     const close = marks[marks.length - 1]
@@ -105,36 +119,45 @@ function collectMarkup({ text, lines, tree }: MarkdownSession) {
     addMarker(close.from, close.to, node)
     addSpan(open.to, close.from, className)
   }
+
   const addLink = (node: SyntaxNode) => {
     const marks = node.getChildren('LinkMark')
+
     // Inline links have destination parentheses even when the URL is empty.
     if (marks.length !== 4) return
     addMarker(node.from, marks[0].to, node)
     addMarker(marks[1].from, node.to, node)
     addSpan(marks[0].to, marks[1].from, 'composer-md-link')
   }
+
   const addAtxHeading = (node: SyntaxNode, level: string) => {
     addSpan(node.from, node.to, `composer-md-heading composer-md-heading-${level}`)
     const [mark, closingMark] = node.getChildren('HeaderMark')
+
     if (!mark) return
     const end = mark.to + (/^[ \t]*/.exec(text.slice(mark.to, node.to))?.[0].length ?? 0)
     addMarker(mark.from, end, node)
+
     if (closingMark) addMarker(closingMark.from, node.to, node)
   }
+
   const addQuote = (node: SyntaxNode) => {
     const first = findSourceLineIndex(lines, node.from)
     const last = findSourceLineIndex(lines, node.to)
+
     for (let index = first; index <= last; index += 1) {
       const { textFrom, textTo } = lines[index]
       addSpan(textFrom, textTo, 'composer-md-quote')
       markup[index].blockClasses.push('composer-md-quote-line')
     }
   }
+
   const addHorizontalRule = (node: SyntaxNode) => {
     const index = findSourceLineIndex(lines, node.from)
     addMarker(node.from, node.to, { from: lines[index].textFrom, to: lines[index].textTo })
     markup[index].blockClasses.push('composer-md-horizontal-rule')
   }
+
   const addQuoteMark = (node: SyntaxNode) => {
     const line = lines[findSourceLineIndex(lines, node.from)]
     addMarker(node.from, node.to + (text[node.to] === ' ' ? 1 : 0), { from: line.textFrom, to: line.textTo })
@@ -146,6 +169,7 @@ function collectMarkup({ text, lines, tree }: MarkdownSession) {
     const close = node.getChildren('CodeMark').length > 1 ? lines[last] : undefined
     const info = node.getChild('CodeInfo')
     const codeLines = lines.slice(first + 1, close ? last : last + 1)
+
     const block: MarkdownCodeBlock = {
       language: info ? text.slice(info.from, info.to).split(/\s+/)[0] : '',
       code: codeLines.map((line) => text.slice(line.textFrom, line.textTo)).join('\n'),
@@ -155,20 +179,26 @@ function collectMarkup({ text, lines, tree }: MarkdownSession) {
       close,
       nested: node.parent?.name !== 'Document'
     }
+
     codeBlocks.push(block)
+
     for (let index = first; index <= last; index += 1) markup[index].code = { block, line: lines[index] }
   }
 
   tree.iterate({
     enter: (ref) => {
       const { name } = ref
+
       if (LITERAL_NODES.has(name)) return false
+
       if (name === 'FencedCode') {
         addCodeBlock(ref.node)
+
         return false
       }
 
       const delimited = DELIMITED_NODES.get(name)
+
       if (delimited) addDelimited(ref.node, delimited.mark, delimited.className)
       else if (name === 'Link') addLink(ref.node)
       else if (name === 'URL' && ref.node.parent?.name !== 'Link' && ref.node.parent?.name !== 'Autolink')
@@ -182,15 +212,18 @@ function collectMarkup({ text, lines, tree }: MarkdownSession) {
       else {
         const atxLevel = HEADING_NODE.exec(name)?.[1]
         const setextLevel = SETEXT_HEADING_NODE.exec(name)?.[1]
+
         if (atxLevel) addAtxHeading(ref.node, atxLevel)
         else if (setextLevel) {
           const underline = ref.node.getChild('HeaderMark')
+
           if (underline) {
             addSpan(ref.from, underline.from - 1, `composer-md-heading composer-md-heading-${setextLevel}`)
             addMarker(underline.from, underline.to, ref.node, { collapsesLine: true })
           }
         }
       }
+
       return true
     }
   })
@@ -204,13 +237,17 @@ const isRevealed = (marker: Marker, selection: Selection) => isTouching(selectio
 /** Fences stay hidden unless the selection is in the block or the block has nothing else to show. */
 function codeLineAttrs({ block, line }: NonNullable<LineMarkup['code']>, selection: Selection) {
   const showFences = isTouching(selection, block.reveal) || block.codeLines.length === 0
+
   if (!showFences && (line === block.open || line === block.close)) return { class: 'composer-md-line-hidden' }
 
   const first = showFences ? block.open : block.codeLines[0]
   const last = showFences ? (block.close ?? block.codeLines.at(-1) ?? block.open) : block.codeLines.at(-1)
   const classes = ['composer-md-cb-line']
+
   if (line === first) classes.push('composer-md-cb-first')
+
   if (line === last) classes.push('composer-md-cb-last')
+
   return { class: classes.join(' '), ...(line === first && block.language && { 'data-language': block.language }) }
 }
 
@@ -219,15 +256,19 @@ function lineKey({ spans, markers, blockClasses, code }: LineMarkup, selection: 
   const spanKey = spans.map((span) => `${span.from}-${span.to}:${span.className}`).join()
   const markerKey = markers.map((marker) => `${marker.from}-${marker.to}:${+isRevealed(marker, selection)}`).join()
   const codeKey = code ? JSON.stringify(codeLineAttrs(code, selection)) : ''
+
   return `${spanKey}|${markerKey}|${blockClasses.join()}|${codeKey}`
 }
 
 function renderLine(line: SourceLine, markup: LineMarkup, selection: Selection): Decoration[] {
   const base = line.blockPosition + 1
+
   const inline = (range: Range, className: string) =>
     Decoration.inline(base + range.from, base + range.to, { class: className })
+
   const codeAttrs = markup.code && codeLineAttrs(markup.code, selection)
   const isCollapsed = markup.markers.some((marker) => marker.collapsesLine && !isRevealed(marker, selection))
+
   const blockClasses = [
     ...markup.blockClasses,
     ...(isCollapsed ? ['composer-md-line-hidden'] : []),
@@ -253,22 +294,27 @@ function renderLine(line: SourceLine, markup: LineMarkup, selection: Selection):
 function findLineAtPosition(lines: readonly SourceLine[], position: number) {
   let low = 0
   let high = lines.length - 1
+
   while (low < high) {
     const middle = Math.ceil((low + high) / 2)
+
     if (lines[middle].blockPosition <= position) low = middle
     else high = middle - 1
   }
+
   return low
 }
 
 function decorationsOnLine(decorations: DecorationSet, line: SourceLine) {
   const end = line.blockPosition + line.blockSize
+
   return decorations.find(line.blockPosition, end).filter((item) => item.from >= line.blockPosition && item.to <= end)
 }
 
 function createPreviewState(doc: ProseMirrorNode, selection: Selection, previous?: MarkdownSession): LivePreviewState {
   const session = createMarkdownSession(doc, previous)
   const { markup, codeBlocks } = collectMarkup(session)
+
   return {
     session,
     markup,
@@ -291,6 +337,7 @@ function updateReveal(previous: LivePreviewState, doc: ProseMirrorNode, selectio
   markup.forEach((line, index) => {
     if (line.markers.length === 0 && !line.code) return
     const key = lineKey(line, selection)
+
     if (key === keys[index]) return
     keys[index] = key
     removed.push(...decorationsOnLine(previous.decorations, session.lines[index]))
@@ -298,11 +345,13 @@ function updateReveal(previous: LivePreviewState, doc: ProseMirrorNode, selectio
   })
 
   if (added.length === 0 && removed.length === 0) return previous
+
   return { ...previous, keys, decorations: previous.decorations.remove(removed).add(doc, added) }
 }
 
 function updateDocument(previous: LivePreviewState, transaction: Transaction, state: EditorState): LivePreviewState {
   const ranges = getChangedRanges(transaction)
+
   if (ranges.length === 0) return createPreviewState(state.doc, state.selection, previous.session)
 
   // Steps, not the text diff, bound the edit: a replaced line with equal text loses its decorations.
@@ -317,18 +366,22 @@ function updateDocument(previous: LivePreviewState, transaction: Transaction, st
   const keys = markup.map((line) => lineKey(line, state.selection))
 
   const staleOldLines = new Set<number>()
+
   for (let index = firstChanged; index <= lastChangedOld; index += 1) staleOldLines.add(index)
 
   const added: Decoration[] = []
   session.lines.forEach((line, index) => {
     const isEdited = index >= firstChanged && index <= lastChangedNew
     const oldIndex = index < firstChanged ? index : index - lineDelta
+
     if (!isEdited && keys[index] === previous.keys[oldIndex]) return
+
     if (!isEdited) staleOldLines.add(oldIndex)
     added.push(...renderLine(line, markup[index], state.selection))
   })
 
   const removed = [...staleOldLines].flatMap((index) => decorationsOnLine(previous.decorations, previousLines[index]))
+
   return {
     session,
     markup,
@@ -356,13 +409,18 @@ function createLivePreviewPlugin() {
             ? { ...previous, decorations: previous.decorations.map(transaction.mapping, transaction.doc), stale: true }
             : previous
         }
+
         if (previous.stale) return createPreviewState(state.doc, state.selection, previous.session)
+
         if (transaction.docChanged) return updateDocument(previous, transaction, state)
+
         // Revealing under a pressed pointer shifts the text and misplaces a jittered click.
         if (pointerDown) return previous
+
         if (transaction.selectionSet || transaction.getMeta(livePreviewKey)) {
           return updateReveal(previous, state.doc, state.selection)
         }
+
         return previous
       }
     },
@@ -371,6 +429,7 @@ function createLivePreviewPlugin() {
       handleDOMEvents: {
         mousedown: () => {
           pointerDown = true
+
           return false
         }
       }
@@ -381,24 +440,30 @@ function createLivePreviewPlugin() {
         window.clearTimeout(settleTimer)
         composing = true
       }
+
       const endComposition = (event: CompositionEvent) => {
         if (event.target !== view.dom) return
         // Outlast ProseMirror's 20ms flush so the rebuild sees the committed text.
         settleTimer = window.setTimeout(() => {
           composing = false
+
           if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(livePreviewKey, true))
         }, COMPOSITION_END_SETTLE_MS)
       }
+
       const releasePointer = () => {
         if (!pointerDown) return
         pointerDown = false
+
         if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(livePreviewKey, true))
       }
+
       // The Composer can consume compositionend before ProseMirror calls plugin handlers.
       view.dom.addEventListener('compositionstart', startComposition, true)
       view.dom.addEventListener('compositionend', endComposition, true)
       window.addEventListener('mouseup', releasePointer)
       window.addEventListener('dragend', releasePointer)
+
       return {
         destroy: () => {
           window.clearTimeout(settleTimer)
@@ -415,7 +480,9 @@ function createLivePreviewPlugin() {
 /** Composition defers the parse, so a stale state answers from the current document instead. */
 export function getMarkdownCodeBlocks(state: EditorState): MarkdownCodeBlock[] {
   const preview = livePreviewKey.getState(state)
+
   if (!preview) return []
+
   return preview.stale ? collectMarkup(createMarkdownSession(state.doc)).codeBlocks : preview.codeBlocks
 }
 
@@ -425,6 +492,7 @@ export function findMarkdownCodeLine(state: EditorState, position: number) {
       if (position > line.blockPosition && position < line.blockPosition + line.blockSize) return { block, line }
     }
   }
+
   return null
 }
 

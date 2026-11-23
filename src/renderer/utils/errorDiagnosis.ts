@@ -28,9 +28,11 @@ export interface DiagnosisContext {
 
 async function getCherryAiDefaultFreeModel(): Promise<Model> {
   const model = await dataApiService.get(`/models/${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`)
+
   if (!model) {
     throw new Error(`Diagnosis model not found: ${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`)
   }
+
   return model
 }
 
@@ -61,6 +63,7 @@ function buildContextHint(errorInfo: Partial<SerializedError>, context?: Diagnos
     (msg.includes('territory') && (status === 403 || msg.includes('unsupported')))
   ) {
     const provider = errorInfo.provider || context?.providerId || 'the provider'
+
     return `## Context\n${provider} is blocking the request because the user's IP region is not supported. This is NOT an API-key issue. Suggest configuring an HTTP/SOCKS proxy in system settings, or switching to a provider available in the user's region. DO NOT suggest changing the API key.\n`
   }
 
@@ -68,6 +71,7 @@ function buildContextHint(errorInfo: Partial<SerializedError>, context?: Diagnos
   // a refused request out of the invalid-key bucket.
   if (status === 401 || msg.includes('api_key') || msg.includes('unauthorized')) {
     const provider = errorInfo.provider || context?.providerId || 'the provider'
+
     return `## Context\nThe user is calling ${provider} API and got an authentication error. Cherry Studio lets users configure API keys per provider in provider settings.\n`
   }
 
@@ -78,6 +82,7 @@ function buildContextHint(errorInfo: Partial<SerializedError>, context?: Diagnos
   // Explicit billing signals win over the HTTP 429 rate-limit default.
   if (status === 402 || (!serviceTierPermission && isQuotaErrorMessage(msg))) {
     const provider = errorInfo.provider || context?.providerId || 'the provider'
+
     return `## Context\nThe user's quota or account balance is exhausted on ${provider}. Suggest checking billing on the provider's website, topping up, or switching to a different provider. DO NOT suggest waiting or retrying - this is not a transient issue.\n`
   }
 
@@ -88,17 +93,20 @@ function buildContextHint(errorInfo: Partial<SerializedError>, context?: Diagnos
   // 403 sits below region/quota, matching `classifyError`'s `permission` ordering.
   if (status === 403 || msg.includes('forbidden')) {
     const provider = errorInfo.provider || context?.providerId || 'the provider'
+
     return `## Context\n${provider} refused this request with HTTP 403. The API key was NOT rejected as invalid, so this is usually an account plan, key permission, or resource-access restriction rather than a wrong key. Read the provider's own error text in the error data before concluding. DO NOT tell the user their API key is invalid or suggest regenerating it unless the provider's error text says so.\n`
   }
 
   if (status === 429 || msg.includes('rate_limit') || msg.includes('rate limit') || msg.includes('too many requests')) {
     const provider = errorInfo.provider || context?.providerId || 'the provider'
+
     return `## Context\nThe user is hitting a rate limit on ${provider} due to too many requests in a short window. This is NOT a billing or quota issue - the user has not run out of credit. Suggest waiting briefly before retrying, slowing down request frequency, or switching to a model with a higher rate limit. DO NOT mention billing, recharging, top-up, or running out of quota.\n`
   }
 
   // Model not found
   if (status === 404 || msg.includes('model_not_found') || msg.includes('model not found')) {
     const model = errorInfo.modelId || context?.modelId || 'unknown'
+
     return `## Context\nModel "${model}" was not found. The model may be deprecated, the ID may be wrong, or the user's API plan may not include this model.\n`
   }
 
@@ -173,6 +181,7 @@ function parseResponse(raw: string): DiagnosisResult {
   // Try to extract JSON object if model returned extra text around it
   if (!cleaned.trimStart().startsWith('{')) {
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+
     if (jsonMatch) {
       cleaned = jsonMatch[0]
     }
@@ -198,36 +207,44 @@ export async function diagnoseError(
   context?: DiagnosisContext
 ): Promise<DiagnosisResult> {
   const errorBag = error
+
   const errorInfo: Partial<SerializedError> = {
     name: error.name,
     message: error.message
   }
 
   const status = errorBag.statusCode ?? errorBag.status
+
   if (status) errorInfo.status = status
 
   if (context?.errorSource) errorInfo.source = context.errorSource
 
   const provider = context?.providerId ?? errorBag.provider ?? errorBag.providerId
+
   if (typeof provider === 'string' && provider) errorInfo.provider = provider
 
   const modelId = context?.modelId ?? errorBag.modelId
+
   if (typeof modelId === 'string' && modelId) errorInfo.modelId = modelId
 
   const cause = errorBag.cause
+
   if (cause && typeof cause === 'string') {
     errorInfo.cause = cause.slice(0, 400)
   }
 
   const responseBody = errorBag.responseBody
+
   if (responseBody && typeof responseBody === 'string') {
     errorInfo.responseBody = responseBody.slice(0, 800)
   }
 
   const data = errorBag.data
+
   if (data !== undefined && data !== null) {
     try {
       const dataString = typeof data === 'string' ? data : JSON.stringify(data)
+
       if (dataString) errorInfo.data = dataString.slice(0, 400)
     } catch {
       // Ignore non-serializable provider data.
@@ -235,11 +252,13 @@ export async function diagnoseError(
   }
 
   const finishReason = errorBag.finishReason
+
   if (finishReason && typeof finishReason === 'string') {
     errorInfo.finishReason = finishReason
   }
 
   const url = errorBag.url
+
   if (url && typeof url === 'string') {
     // Include API endpoint (strip query params for privacy)
     try {
@@ -287,9 +306,11 @@ The examples above demonstrate structure only. Write all four diagnosis fields i
   try {
     const model = await getCherryAiDefaultFreeModel()
     const response = await fetchGenerate({ prompt, content, model, throwOnError: true })
+
     if (!response) {
       throw new Error(`Empty response from model: ${model.id}`)
     }
+
     return parseResponse(response)
   } catch (error) {
     logger.error('Free diagnosis model unavailable', error as Error)
@@ -308,9 +329,11 @@ export async function classifyErrorByAI(error: SerializedError, language: string
   try {
     const model = await getCherryAiDefaultFreeModel()
     const response = await fetchGenerate({ prompt, content, model, throwOnError: true })
+
     return response?.trim() || ''
   } catch (error) {
     logger.warn('Free diagnosis model unavailable for error classification', error as Error)
+
     return ''
   }
 }

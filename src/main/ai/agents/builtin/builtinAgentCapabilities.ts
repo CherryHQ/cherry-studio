@@ -89,6 +89,7 @@ export function resolveAgentCapabilities(
   agent: Pick<AgentEntity, 'configuration'> | null | undefined
 ): AgentCapabilities {
   const role = agent?.configuration?.builtin_role
+
   return (role && CAPABILITIES_BY_ROLE[role]) || DEFAULT_CAPABILITIES
 }
 
@@ -98,9 +99,13 @@ export function resolveHostTools(
   { channelLinked }: { channelLinked: boolean }
 ): { readonly tools?: readonly AssistantToolName[] } | undefined {
   const hostTools = resolveAgentCapabilities(agent).hostTools
+
   if (!hostTools?.runtimes.includes(agent.type)) return undefined
+
   if (!channelLinked) return { tools: hostTools.tools }
+
   if (!hostTools.toolsInChannelSessions?.length) return undefined
+
   return { tools: hostTools.toolsInChannelSessions }
 }
 
@@ -118,6 +123,7 @@ export function resolveAutomationAccess(
   options: { channelLinked: boolean; browserEnabled?: boolean; computerUseEnabled?: boolean }
 ) {
   const local = !options.channelLinked && resolveAgentCapabilities(agent).environment === 'open'
+
   return {
     browser: local && options.browserEnabled === true && !agent.disabledTools?.includes(BROWSER_TOOL_GROUP),
     computer: local && options.computerUseEnabled === true && !agent.disabledTools?.includes(COMPUTER_USE_TOOL_GROUP)
@@ -138,24 +144,32 @@ export function resolveMountedMcpServers(
   }
 ): ReadonlySet<string> {
   const mounted = new Set<string>([CHERRY_MCP_SERVER.CHERRY_TOOLS])
+
   const memoryDisabled = agent.disabledTools?.some((name) =>
     ['mcp__*', 'mcp__agent_memory', 'mcp__agent_memory__*', 'mcp__agent_memory__memory'].includes(
       name.replaceAll('-', '_')
     )
   )
+
   if (!memoryDisabled) mounted.add(CHERRY_MCP_SERVER.AGENT_MEMORY)
+
   if (resolveAgentCapabilities(agent).environment === 'open') {
     const automation = resolveAutomationAccess(agent, { channelLinked, browserEnabled, computerUseEnabled })
+
     if (automation.browser || automation.computer) mounted.add(CHERRY_MCP_SERVER.AUTOMATION)
     mounted.add(CHERRY_MCP_SERVER.SKILLS)
     // Registering an MCP server writes to the user's environment, so it rides the same axis as skills.
     mounted.add(CHERRY_MCP_SERVER.MCP_MANAGER)
   }
+
   if (hostToolsEnabled(agent, { channelLinked })) {
     const hostTools = resolveAgentCapabilities(agent).hostTools
     mounted.add(CHERRY_MCP_SERVER.ASSISTANT)
+
     if (hostTools?.files !== false) mounted.add(CHERRY_MCP_SERVER.ASSISTANT_FILES)
+
     if (hostTools?.doctor) mounted.add(CHERRY_MCP_SERVER.DOCTOR)
   }
+
   return mounted
 }

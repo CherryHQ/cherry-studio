@@ -22,7 +22,9 @@ export class SelectionActionItemsUpgradeSeeder implements ISeeder {
       eq(preferenceTable.scope, 'default'),
       eq(preferenceTable.key, 'feature.selection.action_items')
     )
+
     const row = db.select({ value: preferenceTable.value }).from(preferenceTable).where(isActionItems).get()
+
     // A fresh install has no row yet; PreferenceSeeder then writes the default list, which includes it.
     if (!row || !Array.isArray(row.value)) return
 
@@ -34,6 +36,7 @@ export class SelectionActionItemsUpgradeSeeder implements ISeeder {
           ? item
           : { ...item, runner: item.assistantId ? SELECTION_ACTION_RUNNER.ASSISTANT : SELECTION_ACTION_RUNNER.DEFAULT }
       )
+
     // Existing installs get Ask Agent disabled so it does not take a toolbar slot they arranged.
     if (ASK_AGENT_DEFAULT && !items.some((item) => item.id === ASK_AGENT_DEFAULT.id)) {
       items.push({ ...ASK_AGENT_DEFAULT, enabled: false })

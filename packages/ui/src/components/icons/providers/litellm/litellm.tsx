@@ -6,7 +6,9 @@ import { LitellmLight } from './light'
 
 const Litellm = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <LitellmLight {...props} className={className} />
+
   if (variant === 'dark') return <LitellmDark {...props} className={className} />
+
   return (
     <>
       <LitellmLight className={cn('dark:hidden', className)} {...props} />

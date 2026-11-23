@@ -18,10 +18,13 @@ export function getBundledGitPath(): string | null {
   if (!isWin) {
     return null
   }
+
   const platformKey = `${process.platform}-${process.arch}`
+
   const gitExe = toAsarUnpackedPath(
     path.join(application.getPath('app.root.resources.binaries'), platformKey, 'git', 'cmd', 'git.exe')
   )
+
   return fs.existsSync(gitExe) ? gitExe : null
 }
 
@@ -33,5 +36,6 @@ export function getBundledGitPath(): string | null {
  */
 export function getBundledGitDir(): string | null {
   const gitExe = getBundledGitPath()
+
   return gitExe ? path.dirname(gitExe) : null
 }

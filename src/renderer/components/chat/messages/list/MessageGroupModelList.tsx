@@ -21,6 +21,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({
   displayMode
 }) => {
   const isCompact = displayMode === 'compact'
+
   const renderLabel = useCallback(
     (message: MessageListItem) => {
       const isProcessing = isMessageListItemProcessing(message)

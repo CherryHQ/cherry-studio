@@ -17,27 +17,35 @@ export function useNumberShortcutHints(commands: readonly CommandId[], enabled =
   useEffect(() => {
     if (!enabled) return
     let timer: ReturnType<typeof setTimeout> | undefined
+
     const reset = () => {
       clearTimeout(timer)
       timer = undefined
       setShowHints(false)
     }
+
     const keyDown = (event: KeyboardEvent) => {
       const primary = modifierKey === 'Meta' ? event.metaKey : modifierKey === 'Alt' ? event.altKey : event.ctrlKey
+
       if (!primary || (event.altKey && modifierKey !== 'Alt') || event.shiftKey || event.isComposing) {
         reset()
+
         return
       }
+
       if (event.key !== modifierKey || event.repeat || timer !== undefined) return
       timer = setTimeout(() => setShowHints(true), 500)
     }
+
     const keyUp = (event: KeyboardEvent) => {
       if (!(modifierKey === 'Meta' ? event.metaKey : modifierKey === 'Alt' ? event.altKey : event.ctrlKey)) reset()
     }
+
     window.addEventListener('keydown', keyDown)
     window.addEventListener('keyup', keyUp)
     window.addEventListener('blur', reset)
     document.addEventListener('visibilitychange', reset)
+
     return () => {
       reset()
       window.removeEventListener('keydown', keyDown)
@@ -49,15 +57,19 @@ export function useNumberShortcutHints(commands: readonly CommandId[], enabled =
 
   return useMemo(() => {
     const hints = new Map<CommandId, string>()
+
     if (!enabled || !showHints) return hints
+
     for (const command of commands) {
       const label = getCommandShortcutLabel(command, preferences[command], {
         context,
         isMac,
         platform: supportedPlatform
       })
+
       if (label) hints.set(command, label)
     }
+
     return hints
   }, [commands, context, enabled, preferences, showHints, supportedPlatform])
 }

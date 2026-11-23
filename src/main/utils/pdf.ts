@@ -4,8 +4,10 @@ import type { LoadParameters } from 'pdf-parse'
 
 export async function getPdfPageCount(filePath: string): Promise<number> {
   const parser = await createPdfParser({ url: pathToFileURL(filePath).href })
+
   try {
     const info = await parser.getInfo()
+
     return info.total
   } finally {
     await parser.destroy()
@@ -21,8 +23,10 @@ export async function getPdfPageCount(filePath: string): Promise<number> {
 export async function extractPdfText(data: Uint8Array | ArrayBuffer | string | URL): Promise<string> {
   if (data instanceof URL) {
     const parser = await createPdfParser({ url: data.href })
+
     try {
       const result = await parser.getText()
+
       return result.text
     } finally {
       await parser.destroy()
@@ -30,6 +34,7 @@ export async function extractPdfText(data: Uint8Array | ArrayBuffer | string | U
   }
 
   let buffer: Uint8Array
+
   if (typeof data === 'string') {
     // base64 string → Uint8Array
     const binaryString = atob(data)
@@ -41,8 +46,10 @@ export async function extractPdfText(data: Uint8Array | ArrayBuffer | string | U
   }
 
   const parser = await createPdfParser({ data: buffer })
+
   try {
     const result = await parser.getText()
+
     return result.text
   } finally {
     await parser.destroy()

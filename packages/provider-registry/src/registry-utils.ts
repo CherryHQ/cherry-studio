@@ -26,6 +26,7 @@ export function lookupRegistryModel(
 ): ModelLookupResult {
   const registryOverride = new ProviderModelIndex(providerModels).findOverride(providerId, modelId)
   const presetModel = new ModelIndex(models).findModel(registryOverride?.modelId ?? modelId)
+
   return { presetModel, registryOverride }
 }
 
@@ -45,7 +46,9 @@ export interface PersistedEndpointConfig {
 
 function wireCarriesReasoningSummary(config: RegistryEndpointConfig): boolean {
   const wire = config.reasoningFormat?.wire
+
   if (!wire || wire.disabled) return false
+
   return [wire.default, wire.auto, wire.effort].some((mode) =>
     mode?.operations.some((operation) => operation.value.source === 'assistant-summary')
   )
@@ -67,14 +70,18 @@ export function buildPersistedEndpointConfigs(
     const config: PersistedEndpointConfig = {}
 
     if (regConfig.baseUrl) config.baseUrl = regConfig.baseUrl
+
     if (regConfig.modelsApiUrls) config.modelsApiUrls = regConfig.modelsApiUrls
+
     if (regConfig.adapterFamily) config.adapterFamily = regConfig.adapterFamily
     const dialect = { ...regConfig.dialect }
+
     // Renderer-safe projection of the main-only wire, so a preset's effective
     // switch state can be displayed and overridden without exposing the wire.
     if (dialect.reasoningSummary === undefined && wireCarriesReasoningSummary(regConfig)) {
       dialect.reasoningSummary = true
     }
+
     if (Object.keys(dialect).length > 0) config.dialect = dialect
 
     if (Object.keys(config).length > 0) configs[k] = config
@@ -115,6 +122,7 @@ export function inferAdapterFamily(
   catalogConfig?: Pick<RegistryEndpointConfig, 'adapterFamily'> | Pick<PersistedEndpointConfig, 'adapterFamily'> | null
 ): string {
   if (catalogConfig?.adapterFamily) return catalogConfig.adapterFamily
+
   return ENDPOINT_TYPE_TO_DEFAULT_ADAPTER_FAMILY[endpointType] ?? 'openai-compatible'
 }
 

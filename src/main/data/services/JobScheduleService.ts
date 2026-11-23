@@ -51,7 +51,9 @@ export class JobScheduleService {
 
   listAllTx(tx: DbOrTx, filter: JobScheduleListFilter = {}): JobScheduleSnapshot[] {
     const conditions: SQL[] = []
+
     if (filter.type) conditions.push(eq(jobScheduleTable.type, filter.type))
+
     if (filter.enabled !== undefined) conditions.push(eq(jobScheduleTable.enabled, filter.enabled))
 
     const baseQuery = conditions.length
@@ -79,6 +81,7 @@ export class JobScheduleService {
       .where(eq(jobScheduleTable.enabled, true))
       .orderBy(asc(jobScheduleTable.createdAt))
       .all()
+
     return rows.map((r) => this.rowToSnapshot(r))
   }
 
@@ -93,6 +96,7 @@ export class JobScheduleService {
    */
   getByIdTx(tx: DbOrTx, id: string): JobScheduleSnapshot | null {
     const [row] = tx.select().from(jobScheduleTable).where(eq(jobScheduleTable.id, id)).limit(1).all()
+
     return row ? this.rowToSnapshot(row) : null
   }
 
@@ -108,6 +112,7 @@ export class JobScheduleService {
       .where(and(eq(jobScheduleTable.type, type), eq(jobScheduleTable.name, name)))
       .limit(1)
       .all()
+
     return row ? this.rowToSnapshot(row) : null
   }
 
@@ -122,6 +127,7 @@ export class JobScheduleService {
       .from(jobScheduleTable)
       .where(eq(jobScheduleTable.type, type))
       .all()
+
     return rows.map((r) => r.name).filter((n) => n !== '')
   }
 
@@ -153,6 +159,7 @@ export class JobScheduleService {
    */
   assertValidName(name: string): void {
     const parsed = JobScheduleNameAtomSchema.safeParse(name)
+
     if (!parsed.success) {
       throw DataApiErrorFactory.invalidOperation(
         `${JOB_ERROR_CODES.SCHEDULE_NAME_INVALID}: Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
@@ -184,30 +191,41 @@ export class JobScheduleService {
           'JobSchedule'
         )
     })
+
     const row = result[0]
+
     if (!row) throw new Error('jobScheduleService.create returned no row')
     logger.info('JobSchedule created', { id: row.id, type: dto.type, name: dto.name })
+
     return this.rowToSnapshot(row)
   }
 
   create(dto: CreateJobScheduleDto): JobScheduleSnapshot {
     if (dto.name) this.assertValidName(dto.name)
+
     return this.createTx(application.get('DbService').getDb(), dto)
   }
 
   updateTx(tx: DbOrTx, id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
     const updateData: Partial<InsertJobScheduleRow> = { updatedAt: Date.now() }
+
     if (patch.name !== undefined) updateData.name = patch.name ?? ''
+
     if (patch.trigger !== undefined) {
       updateData.trigger = patch.trigger
       updateData.nextRun = null
     }
+
     if (patch.jobInputTemplate !== undefined) updateData.jobInputTemplate = patch.jobInputTemplate
+
     if (patch.catchUpPolicy !== undefined) updateData.catchUpPolicy = patch.catchUpPolicy
+
     if (patch.enabled !== undefined) {
       updateData.enabled = patch.enabled
+
       if (!patch.enabled) updateData.nextRun = null
     }
+
     if (patch.metadata !== undefined) updateData.metadata = patch.metadata
 
     const result = withSqliteErrors(
@@ -221,21 +239,27 @@ export class JobScheduleService {
           )
       }
     )
+
     const row = result[0]
+
     if (!row) return null
     logger.info('JobSchedule updated', { id })
+
     return this.rowToSnapshot(row)
   }
 
   update(id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
     if (patch.name) this.assertValidName(patch.name)
+
     return this.updateTx(application.get('DbService').getDb(), id, patch)
   }
 
   setEnabledTx(tx: DbOrTx, id: string, enabled: boolean): boolean {
     const updateData: Partial<InsertJobScheduleRow> = { enabled, updatedAt: Date.now() }
+
     if (!enabled) updateData.nextRun = null
     const result = tx.update(jobScheduleTable).set(updateData).where(eq(jobScheduleTable.id, id)).run()
+
     return result.changes > 0
   }
 
@@ -246,6 +270,7 @@ export class JobScheduleService {
   deleteTx(tx: DbOrTx, id: string): boolean {
     const result = tx.delete(jobScheduleTable).where(eq(jobScheduleTable.id, id)).run()
     logger.info('JobSchedule deleted', { id, deleted: result.changes > 0 })
+
     return result.changes > 0
   }
 
@@ -330,22 +355,26 @@ export class JobScheduleService {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted trigger JSON may predate the current schema or be edited directly; parse it before returning a Trigger or the established sentinel.
   private validateTrigger(id: string, parsed: unknown): Trigger {
     const result = TriggerSchema.safeParse(parsed)
+
     if (result.success) return result.data
     logger.warn('JobSchedule trigger failed schema validation — using once-at-epoch sentinel', {
       id,
       issues: result.error.issues.map((i) => i.message)
     })
+
     return { kind: 'once', at: 0 }
   }
 
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored catch-up policies are not trusted as the current union; schema validation retains the skip-missed fallback for incompatible rows.
   private validateCatchUpPolicy(id: string, parsed: unknown): CatchUpPolicy {
     const result = CatchUpPolicySchema.safeParse(parsed)
+
     if (result.success) return result.data
     logger.warn('JobSchedule catchUpPolicy failed schema validation — defaulting to skip-missed', {
       id,
       issues: result.error.issues.map((i) => i.message)
     })
+
     return { kind: 'skip-missed' }
   }
 }

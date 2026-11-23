@@ -4,6 +4,7 @@ import { DatabricksLight } from './light'
 
 const Databricks = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DatabricksLight {...props} className={className} />
+
   return <DatabricksLight {...props} className={className} />
 }
 

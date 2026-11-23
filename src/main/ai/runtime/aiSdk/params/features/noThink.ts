@@ -17,6 +17,7 @@ function createNoThinkMiddleware(): LanguageModelMiddleware {
 
     transformParams: async ({ params }) => {
       const transformedParams = { ...params }
+
       // Process messages in prompt
       if (transformedParams.prompt && Array.isArray(transformedParams.prompt)) {
         transformedParams.prompt = transformedParams.prompt.map((message) => {
@@ -25,11 +26,13 @@ function createNoThinkMiddleware(): LanguageModelMiddleware {
             // Process content array
             if (Array.isArray(message.content)) {
               const lastContent = message.content[message.content.length - 1]
+
               // If the last content is text type, append ' /no_think'
               if (lastContent && lastContent.type === 'text' && typeof lastContent.text === 'string') {
                 // Avoid duplicate additions
                 if (!lastContent.text.endsWith('/no_think')) {
                   logger.debug('Adding /no_think to user message')
+
                   return {
                     ...message,
                     content: [
@@ -44,6 +47,7 @@ function createNoThinkMiddleware(): LanguageModelMiddleware {
               }
             }
           }
+
           return message
         })
       }

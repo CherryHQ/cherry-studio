@@ -68,6 +68,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
 
   const onOk = async () => {
     setSelecting(true)
+
     try {
       // Select conversation JSON file
       const file = await window.api.file.open({

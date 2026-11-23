@@ -108,6 +108,7 @@ const SIDEBAR_APP_DEFINITIONS = [
 ] as const satisfies readonly SidebarAppDefinition[]
 
 export type SidebarAppId = (typeof SIDEBAR_APP_DEFINITIONS)[number]['id']
+
 export type SidebarApp = SidebarAppDefinition<SidebarAppId>
 
 export const SIDEBAR_APPS: readonly SidebarApp[] = SIDEBAR_APP_DEFINITIONS
@@ -115,6 +116,7 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = SIDEBAR_APP_DEFINITIONS
 const SIDEBAR_APP_BY_ID: Record<SidebarAppId, SidebarApp> = SIDEBAR_APPS.reduce(
   (acc, app) => {
     acc[app.id] = app
+
     return acc
   },
   {} as Record<SidebarAppId, SidebarApp>
@@ -143,12 +145,15 @@ const sidebarFavoriteSet = new Set<SidebarAppId>(SIDEBAR_FAVORITE_ORDER)
 
 export function getSidebarMenuPath(favorite: SidebarAppId, defaultPaintingProvider: string): string {
   const app = getSidebarApp(favorite)
+
   if (!app) return ''
+
   return app.resolveUrl?.({ defaultPaintingProvider }) ?? app.routePrefix
 }
 
 export function resolveSidebarActiveItem(url: string): SidebarAppId | '' {
   const match = SIDEBAR_APPS.find((app) => (app.exactRouteFocus ? url === app.routePrefix : tabBelongsToApp(app, url)))
+
   return match?.id ?? ''
 }
 
@@ -179,7 +184,9 @@ export function createSidebarShortcutTarget(
     kind: 'resource',
     locator: { providerId, resourceId }
   }
+
   if (activationId !== undefined) target.activationId = activationId
+
   return target
 }
 
@@ -200,6 +207,7 @@ function isRecord(value: unknown): value is SidebarCandidate {
 export function isSidebarShortcutTarget(value: unknown): value is SidebarShortcutTarget {
   if (!isRecord(value) || value.kind !== 'resource' || !isRecord(value.locator)) return false
   const { providerId, resourceId } = value.locator
+
   return (
     typeof providerId === 'string' &&
     providerId.length > 0 &&
@@ -216,30 +224,39 @@ export function isSidebarShortcutItem(value: unknown): value is SidebarShortcutI
 function normalizeKnownSidebarShortcut(value: SidebarCandidate): SidebarShortcutItem | undefined {
   if (value.type === 'shortcut') {
     if (!isSidebarShortcutTarget(value.target)) return undefined
+
     if (RETIRED_SIDEBAR_SHORTCUT_PROVIDER_IDS.has(value.target.locator.providerId)) return undefined
+
     const item: SidebarShortcutItem = {
       type: 'shortcut',
       id: createSidebarShortcutId(value.target),
       target: value.target
     }
+
     if (typeof value.fallbackLabel === 'string' && value.fallbackLabel.length > 0)
       item.fallbackLabel = value.fallbackLabel
+
     return item
   }
 
   if (typeof value.type !== 'string' || !Object.hasOwn(LEGACY_PROVIDER_BY_TYPE, value.type)) return undefined
+
   if (typeof value.id !== 'string' || value.id.length === 0) return undefined
+
   if (value.type === 'app' && !isSidebarAppId(value.id)) return undefined
 
   const providerId = LEGACY_PROVIDER_BY_TYPE[value.type as keyof typeof LEGACY_PROVIDER_BY_TYPE]
   const target = createSidebarShortcutTarget(providerId, value.id)
+
   const item: SidebarShortcutItem = {
     type: 'shortcut',
     id: createSidebarShortcutId(target),
     target
   }
+
   if (typeof value.fallbackLabel === 'string' && value.fallbackLabel.length > 0)
     item.fallbackLabel = value.fallbackLabel
+
   return item
 }
 
@@ -261,15 +278,18 @@ export function normalizeSidebarShortcutItems(values: readonly unknown[] | undef
   for (const value of values ?? []) {
     if (!isRecord(value)) continue
     const shortcut = normalizeKnownSidebarShortcut(value)
+
     if (shortcut) {
       if (seen.has(shortcut.id)) continue
       seen.add(shortcut.id)
       items.push(shortcut)
       continue
     }
+
     if (!isForwardCompatibleSidebarItem(value)) continue
 
     const futureKey = `${String(value.type)}:${String(value.id)}`
+
     if (seen.has(futureKey)) continue
     seen.add(futureKey)
     items.push(value)
@@ -295,6 +315,7 @@ function isBuiltInAppShortcutTarget(target: SidebarShortcutTarget): target is Si
 export function getVisibleSidebarAppIds(values: readonly unknown[] | undefined): SidebarAppId[] {
   return getVisibleSidebarShortcutItems(values).flatMap((item) => {
     const { target } = item
+
     return isBuiltInAppShortcutTarget(target) ? [target.locator.resourceId] : []
   })
 }
@@ -304,6 +325,7 @@ export function getSidebarDefaultLandingUrl(
   defaultPaintingProvider: string
 ): string {
   const firstApp = getVisibleSidebarAppIds(values)[0]
+
   return firstApp ? getSidebarMenuPath(firstApp, defaultPaintingProvider) : ''
 }
 
@@ -314,7 +336,9 @@ export function addSidebarShortcut(
 ): SidebarStoredItem[] {
   const items = normalizeSidebarShortcutItems(values)
   const id = createSidebarShortcutId(target)
+
   if (items.some((item) => isSidebarShortcutItem(item) && item.id === id)) return items
+
   const chatIndex =
     isBuiltInAppShortcutTarget(target) && target.locator.resourceId === 'scheduled_tasks'
       ? items.findIndex(
@@ -324,9 +348,12 @@ export function addSidebarShortcut(
             item.target.locator.resourceId === 'assistants'
         )
       : -1
+
   const insertIndex = chatIndex === -1 ? items.length : chatIndex + 1
   const item: SidebarShortcutItem = { type: 'shortcut', id, target }
+
   if (fallbackLabel) item.fallbackLabel = fallbackLabel
+
   return [...items.slice(0, insertIndex), item, ...items.slice(insertIndex)]
 }
 
@@ -336,6 +363,7 @@ export function removeSidebarShortcut(
 ): SidebarStoredItem[] {
   const id = createSidebarShortcutId(target)
   const items = normalizeSidebarShortcutItems(values)
+
   return items.filter((item) => !isSidebarShortcutItem(item) || item.id !== id)
 }
 
@@ -351,16 +379,19 @@ export function reorderSidebarShortcuts(
 
   for (const requested of orderedItems) {
     const item = byId.get(requested.id)
+
     if (item && !seen.has(item.id)) {
       seen.add(item.id)
       reordered.push(item)
     }
   }
+
   for (const item of shortcuts) {
     if (!seen.has(item.id)) reordered.push(item)
   }
 
   let index = 0
+
   return items.map((item) => (isSidebarShortcutItem(item) ? reordered[index++] : item))
 }
 
@@ -380,6 +411,7 @@ export function isSidebarShortcutPinned(
   target: SidebarShortcutTarget
 ): boolean {
   const id = createSidebarShortcutId(target)
+
   return getVisibleSidebarShortcutItems(values).some((item) => item.id === id)
 }
 
@@ -406,9 +438,11 @@ export function getOrderedLaunchpadApps(stored: readonly string[] | undefined): 
       ordered.push(id)
     }
   }
+
   for (const id of SIDEBAR_FAVORITE_ORDER) {
     if (!seen.has(id)) {
       seen.add(id)
+
       if (id === 'marketplace' && ordered.includes('paintings')) {
         ordered.splice(ordered.indexOf('paintings') + 1, 0, id)
       } else {
@@ -440,6 +474,7 @@ export function reorderLaunchpadApps(
       next.push(id)
     }
   }
+
   for (const id of current) {
     if (!seen.has(id)) next.push(id)
   }

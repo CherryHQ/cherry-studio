@@ -21,6 +21,7 @@ export class LegacyFileCleanupPolicySeeder implements ISeeder {
 
   run(db: DbType): void {
     const completedAt = readMigrationV2CompletedAt(db)
+
     if (completedAt === undefined) return
 
     // 0006 backfilled durable refs for databases that already contained Agent

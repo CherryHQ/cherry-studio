@@ -30,6 +30,7 @@ export function resolveKnowledgeReacquireProducer(item: IndexableKnowledgeItem):
 
   if (item.type === 'file') {
     const { source, relativePath } = item.data
+
     return async () => async (signal) => {
       await copyFileIntoKnowledgeBaseAt(baseId, source, relativePath, { overwrite: true, signal })
     }
@@ -37,15 +38,20 @@ export function resolveKnowledgeReacquireProducer(item: IndexableKnowledgeItem):
 
   if (item.type === 'url') {
     const { url, relativePath } = item.data
+
     if (!relativePath) {
       return null
     }
+
     return async (signal) => {
       const page = await fetchKnowledgeWebPage(url, signal)
+
       if (!page.markdown) {
         throw new Error(`Knowledge URL returned empty markdown: ${url}`)
       }
+
       const { fileText } = buildUrlSnapshotFile(url, page.markdown, new Date().toISOString(), page.title)
+
       return async () => {
         await writeFileIntoKnowledgeBaseAt(baseId, relativePath, fileText, { overwrite: true })
       }
@@ -53,16 +59,20 @@ export function resolveKnowledgeReacquireProducer(item: IndexableKnowledgeItem):
   }
 
   const { source, content, relativePath } = item.data
+
   if (!relativePath) {
     return null
   }
+
   return async () => {
     // No network step — but still reject empty/whitespace-only content before the lock, like the
     // first-index guard: an empty note would otherwise leave a frontmatter-only snapshot behind.
     if (content.trim() === '') {
       throw new Error(`Knowledge note has empty content: ${source}`)
     }
+
     const { fileText } = buildNoteSnapshotFile(source, content, new Date().toISOString())
+
     return async () => {
       await writeFileIntoKnowledgeBaseAt(baseId, relativePath, fileText, { overwrite: true })
     }

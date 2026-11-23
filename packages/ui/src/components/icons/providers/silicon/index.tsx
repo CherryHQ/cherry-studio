@@ -6,7 +6,9 @@ import { SiliconLight } from './light'
 
 const Silicon = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <SiliconLight {...props} className={className} />
+
   if (variant === 'dark') return <SiliconDark {...props} className={className} />
+
   return (
     <>
       <SiliconLight className={cn('dark:hidden', className)} {...props} />

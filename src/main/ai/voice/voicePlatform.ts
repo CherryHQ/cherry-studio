@@ -34,6 +34,7 @@ export function getVoiceEnvironment(): VoiceEnvironment {
 
 export function getMicrophoneStatus(): 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown' {
   if (process.platform !== 'darwin' && process.platform !== 'win32') return 'unknown'
+
   try {
     return systemPreferences.getMediaAccessStatus('microphone')
   } catch {
@@ -46,7 +47,9 @@ export async function openMicrophoneSettings(): Promise<void> {
     darwin: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
     win32: 'ms-settings:privacy-microphone'
   }
+
   const url = urls[process.platform]
+
   if (!url) throw new VoiceRuntimeError('unsupported')
   await shell.openExternal(url)
 }
@@ -57,12 +60,15 @@ export function resolveDefaultAsrModel(
   explicitModelId?: LocalTranscriptionModelId
 ): LocalTranscriptionModelId | undefined {
   if (explicitModelId !== undefined) return explicitModelId
+
   if (platform.platform === 'darwin') {
     if (platform.majorVersion !== undefined && Number.isInteger(platform.majorVersion) && platform.majorVersion >= 13)
       return APPLE_ASR_MODEL_ID
   }
+
   if (platform.platform === 'win32' && platform.arch === 'x64') return WINDOWS_ASR_MODEL_ID
   const platformKey = `${platform.platform}-${platform.arch}`
+
   return FUNASR_SUPPORTED_PLATFORM_KEYS.some((supported) => supported === platformKey) ? FUNASR_MODEL_ID : undefined
 }
 
@@ -73,6 +79,7 @@ export function resolveDefaultSpeechModel(platform: {
   minorVersion?: number
 }): LocalSpeechModelId | undefined {
   if (platform.platform === 'win32' && platform.arch === 'x64') return WINDOWS_TTS_MODEL_ID
+
   if (
     platform.platform === 'darwin' &&
     platform.majorVersion !== undefined &&
@@ -80,8 +87,10 @@ export function resolveDefaultSpeechModel(platform: {
     platform.majorVersion >= 13
   )
     return APPLE_TTS_MODEL_ID
+
   if (SHERPA_VOICE_SUPPORTED_PLATFORM_KEYS.some((key) => key === `${platform.platform}-${platform.arch}`))
     return KOKORO_TTS_MODEL_ID
+
   return undefined
 }
 
@@ -90,17 +99,22 @@ export async function openSystemVoiceSettings(): Promise<void> {
     darwin: 'x-apple.systempreferences:com.apple.preference.universalaccess',
     win32: 'ms-settings:speech'
   }
+
   const url = urls[process.platform]
+
   if (!url) throw new VoiceRuntimeError('unsupported')
   await shell.openExternal(url)
 }
 
 export function mlxVoiceSupport(environment: VoiceEnvironment) {
   if (environment.platform !== 'darwin') return VoiceModelSupport.UnsupportedPlatform
+
   if (environment.arch !== 'arm64') return VoiceModelSupport.UnsupportedArchitecture
   const major = environment.majorVersion ?? 0
   const minor = environment.minorVersion ?? 0
+
   if (!Number.isInteger(major) || major < 26 || (major === 26 && (!Number.isInteger(minor) || minor < 2)))
     return VoiceModelSupport.UnsupportedVersion
+
   return VoiceModelSupport.Supported
 }

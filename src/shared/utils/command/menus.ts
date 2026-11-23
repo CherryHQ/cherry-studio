@@ -34,6 +34,7 @@ export const resolveMenuPresentationMode = (
   if (location === 'app.menu' || location === 'tray.menu') {
     return 'native'
   }
+
   return preferredMode
 }
 
@@ -52,6 +53,7 @@ const registerMenuContribution = (contribution: MenuContribution<CommandId>): Re
   if (!findCommandDefinition(contribution.command)) {
     throw new Error(`Cannot register menu contribution for unknown command: ${contribution.command}`)
   }
+
   return {
     ...contribution,
     when: contribution.when ? parseContextExpr(contribution.when) : undefined,

@@ -45,14 +45,17 @@ function getEnv(config: NonNullable<CliConfigWriteArgs['configBlob']>): Record<s
     // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the non-array container is checked; foreign env values remain unvalidated.
     return config.env as Record<string, unknown>
   }
+
   return {}
 }
 
 export function stripClaudeOneMMarker(value: string): string {
   const trimmed = value.trimEnd()
+
   if (trimmed.toLowerCase().endsWith(ONE_M_MARKER.toLowerCase())) {
     return trimmed.slice(0, -ONE_M_MARKER.length).trimEnd()
   }
+
   return value
 }
 
@@ -63,11 +66,13 @@ export function stripClaudeOneMMarker(value: string): string {
  */
 export function setClaudeOneMMarker(value: string, enabled: boolean): string {
   const base = stripClaudeOneMMarker(value).trim()
+
   return enabled && base ? `${base}${ONE_M_MARKER}` : base
 }
 
 export function hasClaudeDetailedModels(config: NonNullable<CliConfigWriteArgs['configBlob']>): boolean {
   const env = getEnv(config)
+
   return CLAUDE_DETAILED_MODEL_ROLES.some((role) => stripClaudeOneMMarker(stringValue(env[role.model]) ?? '').trim())
 }
 
@@ -75,16 +80,20 @@ export function stripClaudeDetailedModels(
   config: NonNullable<CliConfigWriteArgs['configBlob']>
 ): NonNullable<CliConfigWriteArgs['configBlob']> {
   const env = getEnv(config)
+
   if (!Object.keys(env).length) return config
 
   const nextEnv = { ...env }
+
   for (const key of CLAUDE_DETAILED_MODEL_ENV_KEYS) {
     delete nextEnv[key]
   }
 
   const nextConfig = { ...config }
+
   if (Object.keys(nextEnv).length) nextConfig.env = nextEnv
   else delete nextConfig.env
+
   return nextConfig
 }
 
@@ -94,8 +103,10 @@ export function getClaudeContextModelId(
   gatewayModels?: Map<UniqueModelId, Model>
 ): UniqueModelId | undefined {
   const env = getEnv(config)
+
   for (const role of CLAUDE_DETAILED_MODEL_ROLES) {
     const modelId = stripClaudeOneMMarker(stringValue(env[role.model]) ?? '').trim()
+
     // Env values are user-typed; invalid direct ids and unknown gateway addresses yield no context model.
     if (modelId) {
       return gatewayModels
@@ -103,5 +114,6 @@ export function getClaudeContextModelId(
         : safeCreateUniqueModelId(providerId, modelId)
     }
   }
+
   return undefined
 }

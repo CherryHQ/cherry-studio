@@ -15,6 +15,7 @@ export function matchPiSubagentModel(
   names: PiSubagentModelNames
 ): { readonly exact: boolean } | undefined {
   const needle = query.trim().toLowerCase()
+
   const searchable = [
     names.key,
     names.id,
@@ -22,6 +23,7 @@ export function matchPiSubagentModel(
     names.modelName,
     `${names.providerName} ${names.modelName}`
   ].map((name) => name.toLowerCase())
+
   return searchable.some((name) => name.includes(needle))
     ? { exact: needle !== '' && searchable.includes(needle) }
     : undefined

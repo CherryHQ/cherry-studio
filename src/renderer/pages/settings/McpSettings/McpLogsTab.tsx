@@ -23,6 +23,7 @@ const McpLogsTab = ({ serverId }: McpLogsTabProps) => {
 
   useEffect(() => {
     let disposed = false
+
     const unsubscribe = ipcApi.on('mcp.server.log', (log) => {
       if (log.serverId !== serverId) return
       setLogs((current) => appendServerLog(current, log))
@@ -31,6 +32,7 @@ const McpLogsTab = ({ serverId }: McpLogsTabProps) => {
     const loadHistory = async () => {
       try {
         const history = await ipcApi.request('mcp.server.get_logs', { serverId })
+
         if (!disposed) {
           setLogs((current) => mergeServerLogs(history, current))
         }
@@ -135,6 +137,7 @@ function appendServerLog(
   log: McpServerLogEntry & { serverId: string }
 ) {
   const merged = [...current, log]
+
   return merged.length > 200 ? merged.slice(merged.length - 200) : merged
 }
 
@@ -147,6 +150,7 @@ function mergeServerLogs(
 
   for (const log of [...history, ...current]) {
     const key = `${log.timestamp}:${log.level}:${log.source ?? ''}:${log.message}`
+
     if (seen.has(key)) continue
     seen.add(key)
     merged.push(log)

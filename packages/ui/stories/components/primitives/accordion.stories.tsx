@@ -42,7 +42,9 @@ const meta: Meta<typeof Accordion> = {
 }
 
 export default meta
+
 type AccordionArgs = ComponentProps<typeof Accordion>
+
 type Story = StoryObj<AccordionArgs>
 
 export const Default: Story = {

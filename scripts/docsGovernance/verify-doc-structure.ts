@@ -42,6 +42,7 @@ export const checkStructure = (referencesDir: string, domains: readonly string[]
           `${entry.name}/: not in the closed domain set — add it to REFERENCE_DOMAINS in scripts/docsGovernance/verify-doc-structure.ts deliberately, or relocate the directory`
         )
       }
+
       if (!fs.existsSync(path.join(referencesDir, entry.name, 'README.md'))) {
         failures.push(`${entry.name}/: missing README.md — every domain directory has a README home`)
       }
@@ -61,11 +62,14 @@ export const checkStructure = (referencesDir: string, domains: readonly string[]
 
 const main = () => {
   const failures = checkStructure(path.join(ROOT, 'docs/dev/references'))
+
   if (failures.length > 0) {
     console.error(`Found ${failures.length} docs structure violation(s):\n`)
+
     for (const failure of failures) console.error(`  ${failure}`)
     process.exit(1)
   }
+
   console.log('Docs structure OK.')
 }
 

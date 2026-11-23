@@ -21,6 +21,7 @@ export function useCurrentTabId(): string | null {
 
 export function useCurrentTab(): Tab | undefined {
   const currentTabId = useCurrentTabId()
+
   return useOptionalTabsContext()?.tabs.find((tab) => tab.id === currentTabId)
 }
 
@@ -31,5 +32,6 @@ export function useCurrentTab(): Tab | undefined {
 export function useIsActiveTab(): boolean {
   const currentTabId = useCurrentTabId()
   const activeTabId = useOptionalTabsContext()?.activeTabId
+
   return !!currentTabId && currentTabId === activeTabId
 }

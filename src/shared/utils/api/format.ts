@@ -64,6 +64,7 @@ export function hasApiVersion(host?: string): boolean {
 
   try {
     const url = new URL(host)
+
     return VERSION_REGEX.test(url.pathname)
   } catch {
     // If the input cannot be parsed as a full URL, treat it as a path and test directly.
@@ -186,6 +187,7 @@ export function withoutTrailingSharp<T extends string>(url: T): T {
  */
 export function formatApiHost(host?: string, supportApiVersion: boolean = true, apiVersion: string = 'v1'): string {
   const normalizedHost = withoutTrailingSlash(trim(host))
+
   if (!normalizedHost) {
     return ''
   }
@@ -209,6 +211,7 @@ export function formatApiHost(host?: string, supportApiVersion: boolean = true, 
 export function isBareVertexApiHost(host: string): boolean {
   try {
     const url = new URL(trim(host))
+
     return (
       url.hostname.endsWith('aiplatform.googleapis.com') &&
       url.pathname === '/' &&
@@ -230,5 +233,6 @@ export function formatOllamaApiHost(host: string): string {
     ?.replace(/\/v1$/, '')
     ?.replace(/\/api$/, '')
     ?.replace(/\/chat$/, '')
+
   return formatApiHost(normalizedHost + '/api', false)
 }

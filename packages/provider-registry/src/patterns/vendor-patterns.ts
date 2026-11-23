@@ -104,6 +104,7 @@ export function matchVendor(normalizedId: string): VendorKey | undefined {
   for (const [vendor, pattern] of Object.entries(VENDOR_PATTERNS) as [VendorKey, RegExp][]) {
     if (pattern.test(normalizedId)) return vendor
   }
+
   return undefined
 }
 
@@ -114,5 +115,6 @@ export function matchVendor(normalizedId: string): VendorKey | undefined {
  */
 export function isVendor(vendor: VendorKey): (normalizedId: string) => boolean {
   const pattern = VENDOR_PATTERNS[vendor]
+
   return (id: string) => pattern.test(id)
 }

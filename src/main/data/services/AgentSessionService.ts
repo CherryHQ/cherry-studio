@@ -63,7 +63,9 @@ const MAX_LIMIT = 200
 const SQLITE_INARRAY_CHUNK = 500
 const conversationFilter = eq(sessionsTable.type, 'conversation')
 const ordinaryConversationFilter = isNull(sessionsTable.taskId)
+
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
+
 export type SessionMetadataSearchMatch = {
   field: 'name' | 'description'
   snippet: string
@@ -108,6 +110,7 @@ export type ReuseOrCreateAgentSessionOutcome = ReusableAgentSessionPlaceholdersR
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
   const clean = nullsToUndefined(row.session)
+
   return {
     id: clean.id,
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
@@ -129,6 +132,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
 
 function buildSearchPredicate(search: string | undefined): SQL | undefined {
   const trimmed = search?.trim()
+
   if (!trimmed) return undefined
 
   const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
@@ -145,6 +149,7 @@ export function agentSessionReadModelEffects(
   if (sessionIds.length === 0) return []
   const entityIds = [...new Set(sessionIds)]
   const db = application.get('DbService').getDb()
+
   const backgroundIds = new Set(
     chunk(entityIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
       db
@@ -155,8 +160,11 @@ export function agentSessionReadModelEffects(
         .map((row) => row.id)
     )
   )
+
   const conversationIds = entityIds.filter((id) => !backgroundIds.has(id))
+
   if (conversationIds.length === 0) return [{ endpoint: '/agent-sessions/:sessionId', entityIds }]
+
   return [
     { endpoint: '/agent-sessions', kind, entityIds: conversationIds },
     { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: conversationIds },
@@ -170,6 +178,7 @@ function isPiServableUniqueModel(uniqueModelId: string): boolean {
   try {
     if (!isUniqueModelId(uniqueModelId)) return false
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+
     return isPiCompatibleModel(providerService.getByProviderId(providerId), modelService.getByKey(providerId, modelId))
   } catch {
     return false
@@ -179,6 +188,7 @@ function isPiServableUniqueModel(uniqueModelId: string): boolean {
 export class AgentSessionService {
   createChildArchiveTx(tx: DbOrTx, ownerSessionId: string, name: string): string {
     const owner = tx.select().from(sessionsTable).where(eq(sessionsTable.id, ownerSessionId)).get()
+
     if (!owner || owner.deletedAt) throw new Error('Child archive owner is unavailable')
     const id = uuidv4()
     this.insertTx(tx, {
@@ -192,6 +202,7 @@ export class AgentSessionService {
       updatedAt: Date.now()
     })
     ensureAgentSessionRootTx(tx, id)
+
     return id
   }
 
@@ -203,6 +214,7 @@ export class AgentSessionService {
       .from(sessionsTable)
       .where(eq(sessionsTable.id, id))
       .get()
+
     if (row?.owner) throw new Error('Child execution must be accessed through its native owner')
   }
   private readonly sessionUpdated = new Emitter<{ sessionId: string }>()
@@ -210,7 +222,9 @@ export class AgentSessionService {
 
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
+
     if (effects.length === 0) return
+
     if (kind === 'membership') effects.push({ endpoint: '/agent-workspaces', kind: 'membership' })
     notifyDataApiDataChange(effects)
   }
@@ -231,8 +245,11 @@ export class AgentSessionService {
   }): CursorPaginationResponse<AddressableAgentSession> {
     const limit = Math.min(Math.max(query.limit ?? DEFAULT_LIMIT, 1), 100)
     const filters = [conversationFilter, isNull(agentsTable.deletedAt), isNull(sessionsTable.deletedAt)]
+
     if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
+
     if (query.cursor) filters.push(gt(sessionsTable.id, query.cursor))
+
     const rows = application
       .get('DbService')
       .getDb()
@@ -248,8 +265,10 @@ export class AgentSessionService {
       .orderBy(asc(sessionsTable.id))
       .limit(limit + 1)
       .all()
+
     const hasNext = rows.length > limit
     const items = hasNext ? rows.slice(0, limit) : rows
+
     return { items, nextCursor: hasNext ? items.at(-1)?.sessionId : undefined }
   }
 
@@ -268,9 +287,13 @@ export class AgentSessionService {
     const limit = Math.min(query.limit, MAX_LIMIT)
     const filters: SQL[] = [conversationFilter, isNull(sessionsTable.deletedAt)]
     const search = buildSearchPredicate(query.q)
+
     if (search) filters.push(search)
+
     if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
+
     if (query.addressableOnly) filters.push(isNotNull(agentsTable.id))
+
     if (query.updatedAtFrom !== undefined) {
       filters.push(gte(sessionsTable.updatedAt, query.updatedAtFrom))
     }
@@ -293,17 +316,21 @@ export class AgentSessionService {
 
     const searchTerm = query.q.trim()
     const normalizedQuery = searchTerm.toLocaleLowerCase()
+
     return rows.map((row) => {
       const matches: SessionMetadataSearchMatch[] = []
+
       if (searchTerm && row.name.toLocaleLowerCase().includes(normalizedQuery)) {
         matches.push({ field: 'name', snippet: buildSearchSnippet(row.name, [searchTerm], 'substring') })
       }
+
       if (searchTerm && row.description?.toLocaleLowerCase().includes(normalizedQuery)) {
         matches.push({
           field: 'description',
           snippet: buildSearchSnippet(row.description, [searchTerm], 'substring')
         })
       }
+
       return {
         item: {
           type: 'session',
@@ -332,6 +359,7 @@ export class AgentSessionService {
       }
     )
     this.notifyReadModelChange([id], 'membership')
+
     return this.getById(id)
   }
 
@@ -348,27 +376,33 @@ export class AgentSessionService {
     taskId: string | null = null
   ): void {
     this.assertAgentExistsTx(tx, dto.agentId)
+
     if (dto.model !== undefined && dto.model !== null && !isUniqueModelId(dto.model)) {
       throw DataApiErrorFactory.invalidOperation('create session', `unknown model: ${dto.model}`)
     }
 
     let workspaceId: string
+
     switch (dto.workspace.type) {
       case AGENT_WORKSPACE_TYPE.USER: {
         const workspace = agentWorkspaceService.getByIdTx(tx, dto.workspace.workspaceId, { includeSystem: true })
+
         if (workspace.type !== AGENT_WORKSPACE_TYPE.USER) {
           throw DataApiErrorFactory.invalidOperation(
             'create session',
             'workspace source must reference a user workspace'
           )
         }
+
         workspaceId = workspace.id
         break
       }
+
       case AGENT_WORKSPACE_TYPE.SYSTEM: {
         workspaceId = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id, createdAt }).id
         break
       }
+
       default: {
         const exhaustive: never = dto.workspace
         throw DataApiErrorFactory.invalidOperation(
@@ -409,6 +443,7 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, sessionId), isNull(sessionsTable.deletedAt)))
       .returning({ id: sessionsTable.id })
       .all()
+
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Session', sessionId)
   }
 
@@ -419,6 +454,7 @@ export class AgentSessionService {
       .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
       .limit(1)
       .all()
+
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
   }
 
@@ -435,6 +471,7 @@ export class AgentSessionService {
 
   private readById(id: string, scope?: SQL): AgentSessionEntity {
     const db = application.get('DbService').getDb()
+
     const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
@@ -442,7 +479,9 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, id), scope, isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
+
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
+
     return rowToSession(row)
   }
 
@@ -477,6 +516,7 @@ export class AgentSessionService {
       )
       .limit(1)
       .all()
+
     return row ? rowToSession(row) : null
   }
 
@@ -487,6 +527,7 @@ export class AgentSessionService {
 
   getTaskSessionIdsByScheduleIdsTx(tx: DbOrTx, taskScheduleIds: readonly string[]): Map<string, string> {
     if (taskScheduleIds.length === 0) return new Map()
+
     const rows = tx
       .select({ taskScheduleId: sessionsTable.taskId, sessionId: sessionsTable.id })
       .from(sessionsTable)
@@ -499,6 +540,7 @@ export class AgentSessionService {
         )
       )
       .all()
+
     return new Map(rows.flatMap((row) => (row.taskScheduleId ? [[row.taskScheduleId, row.sessionId] as const] : [])))
   }
 
@@ -520,8 +562,11 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, params.sessionId), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
+
     if (!session) throw DataApiErrorFactory.notFound('Session', params.sessionId)
+
     if (session.agentId !== params.expectedAgentId || session.isTaskReuseTarget) return false
+
     if (session.taskId !== null && session.taskId !== params.taskScheduleId) return false
 
     const alreadyBound = tx
@@ -530,6 +575,7 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.taskId, params.taskScheduleId), eq(sessionsTable.isTaskReuseTarget, true)))
       .limit(1)
       .all()
+
     if (alreadyBound.length > 0) return false
 
     return (
@@ -555,10 +601,12 @@ export class AgentSessionService {
       .from(sessionsTable)
       .where(eq(sessionsTable.agentId, agentId))
       .all()
+
     const taskScheduleIds = sessions.flatMap((session) => (session.taskScheduleId ? [session.taskScheduleId] : []))
 
     if (options.deleteSessions) {
       const deliveryResults: AgentSessionMessageEntity[] = []
+
       const purgedSystemWorkspacePaths = tx
         .select({ path: agentWorkspaceTable.path })
         .from(sessionsTable)
@@ -572,6 +620,7 @@ export class AgentSessionService {
         )
         .all()
         .map((row) => row.path)
+
       return {
         sessionIds: this.deleteByAgentIdTx(tx, agentId, { validateAgent: false, deliveryResults }),
         taskScheduleIds,
@@ -584,7 +633,9 @@ export class AgentSessionService {
     if (taskScheduleIds.length > 0) {
       this.clearTaskReuseTx(tx, and(eq(sessionsTable.agentId, agentId), isNotNull(sessionsTable.taskId))!)
     }
+
     const sessionIds = sessions.map((session) => session.id)
+
     return {
       sessionIds,
       taskScheduleIds,
@@ -623,12 +674,14 @@ export class AgentSessionService {
    */
   getLatestActive(query: LatestAgentSessionQuery = {}): AgentSessionEntity | null {
     const db = application.get('DbService').getDb()
+
     const ownerFilter =
       query.agentId === 'unlinked'
         ? or(isNull(sessionsTable.agentId), isNull(agentsTable.id))
         : query.agentId
           ? eq(agentsTable.id, query.agentId)
           : undefined
+
     const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
@@ -638,12 +691,14 @@ export class AgentSessionService {
       .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(1)
       .all()
+
     return row ? rowToSession(row) : null
   }
 
   /** Reuse or create one exact empty placeholder under a serialized write transaction. */
   reuseOrCreatePlaceholderWithImpact(dto: ReuseOrCreateAgentSessionDto): ReuseOrCreateAgentSessionOutcome {
     const reservedId = uuidv4()
+
     const result = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
@@ -655,12 +710,14 @@ export class AgentSessionService {
             }
 
             const workspace = agentWorkspaceService.getByIdTx(tx, dto.workspace.workspaceId, { includeSystem: true })
+
             if (workspace.type !== AGENT_WORKSPACE_TYPE.USER) {
               throw DataApiErrorFactory.invalidOperation(
                 'reuse or create session',
                 'workspace source must reference a user workspace'
               )
             }
+
             return and(
               eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER),
               eq(sessionsTable.workspaceId, workspace.id)
@@ -692,9 +749,11 @@ export class AgentSessionService {
             .all()
 
           const reusable = reusableRows[0]
+
           if (reusable) {
             const now = Date.now()
             this.advanceLastActivityAtTx(tx, reusable.session.id, now)
+
             const updatedSession = tx
               .select({ session: sessionsTable, workspace: agentWorkspaceTable })
               .from(sessionsTable)
@@ -702,11 +761,14 @@ export class AgentSessionService {
               .where(eq(sessionsTable.id, reusable.session.id))
               .limit(1)
               .all()
+
             if (!updatedSession.length) throw DataApiErrorFactory.notFound('Session', reusable.session.id)
+
             const duplicateDeletion =
               dto.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM
                 ? this.cascadeDeleteSessionRowsTx(tx, reusableRows.slice(1))
                 : { deletedIds: [], taskScheduleIds: [], deliveryResults: [] }
+
             return {
               session: rowToSession(updatedSession[0]),
               created: false,
@@ -721,6 +783,7 @@ export class AgentSessionService {
             name: '',
             workspace: dto.workspace
           })
+
           const [created] = tx
             .select({ session: sessionsTable, workspace: agentWorkspaceTable })
             .from(sessionsTable)
@@ -728,6 +791,7 @@ export class AgentSessionService {
             .where(eq(sessionsTable.id, reservedId))
             .limit(1)
             .all()
+
           if (!created) throw DataApiErrorFactory.notFound('Session', reservedId)
 
           return {
@@ -750,7 +814,9 @@ export class AgentSessionService {
       'membership'
     )
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
+
     if (result.deletedDuplicateSessionIds.length > 0) pinService.notifyPurged()
+
     return {
       session: result.session,
       created: result.created,
@@ -772,10 +838,12 @@ export class AgentSessionService {
       .all()
 
     if (!row) throw DataApiErrorFactory.notFound('Session', sessionId)
+
     if (row.traceId) return row.traceId
 
     const traceId = randomBytes(16).toString('hex')
     tx.update(sessionsTable).set({ traceId }).where(eq(sessionsTable.id, sessionId)).run()
+
     return traceId
   }
 
@@ -799,8 +867,10 @@ export class AgentSessionService {
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
     const taskIdFilter = query.taskId ? eq(sessionsTable.taskId, query.taskId) : undefined
     const inTrash = query.inTrash === true
+
     const taskFilter =
       query.scope === 'all-conversations' || inTrash || query.ids ? undefined : ordinaryConversationFilter
+
     const activeAgentFilter = !inTrash && query.agentId ? isNotNull(agentsTable.id) : undefined
 
     const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []
@@ -812,6 +882,7 @@ export class AgentSessionService {
             and(eq(pinTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
           )
         : undefined
+
       const pinRows = db
         .select({ session: sessionsTable, workspace: agentWorkspaceTable, pinOrderKey: pinTable.orderKey })
         .from(sessionsTable)
@@ -843,12 +914,14 @@ export class AgentSessionService {
       }
 
       const hasMoreInPin = pinRows.length > limit
+
       for (const row of pinRows.slice(0, limit)) {
         items.push({ session: rowToSession(row), pinOrderKey: row.pinOrderKey })
       }
 
       if (hasMoreInPin) {
         const last = items[items.length - 1]
+
         return {
           items: items.map((i) => i.session),
           nextCursor: encodePinCursor(last.pinOrderKey ?? '', last.session.id)
@@ -866,6 +939,7 @@ export class AgentSessionService {
     const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'session'))
 
     let sessionAfter: SQL | undefined
+
     if (cursor.section === 'entity' && cursor.orderKey !== null) {
       sessionAfter = or(
         gt(sessionsTable.orderKey, cursor.orderKey),
@@ -897,11 +971,13 @@ export class AgentSessionService {
       .all()
 
     const hasMoreInSession = sessionRows.length > remaining
+
     for (const row of sessionRows.slice(0, remaining)) {
       items.push({ session: rowToSession(row) })
     }
 
     let nextCursor: string | undefined
+
     if (hasMoreInSession) {
       const last = sessionRows[remaining - 1]
       nextCursor = encodeEntityCursor(last.session.orderKey, last.session.id)
@@ -912,6 +988,7 @@ export class AgentSessionService {
 
   update(id: string, dto: UpdateAgentSessionDto): AgentSessionEntity {
     const patch: UpdateAgentSessionDto = {}
+
     if (dto.name !== undefined) {
       patch.name = dto.name
       // Name-only patches are user/manual renames. Auto-namers must opt out explicitly.
@@ -920,19 +997,25 @@ export class AgentSessionService {
       // Keep flag-only patches for repair/migration paths that need to adjust metadata.
       patch.isNameManuallyEdited = dto.isNameManuallyEdited
     }
+
     if (dto.description !== undefined) patch.description = dto.description
+
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
+
     if (dto.model !== undefined) patch.model = dto.model
+
     if (Object.keys(patch).length === 0) return this.getById(id)
 
     const result = withSqliteErrors(
       () => application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, patch)),
       defaultHandlersFor('Session', id)
     )
+
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     this.notifyReadModelChange([id], 'projection')
     this.sessionUpdated.fire({ sessionId: id })
+
     return this.getById(id)
   }
 
@@ -947,14 +1030,18 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
+
     if (!current) return { row: undefined, clearedTaskScheduleIds: [] }
+
     if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
+
     if (patch.model !== undefined && patch.model !== null && !isUniqueModelId(patch.model)) {
       throw DataApiErrorFactory.invalidOperation('update session', `unknown model: ${patch.model}`)
     }
 
     const previousAgentId = current.agentId
     const reassigned = patch.agentId !== undefined && patch.agentId !== previousAgentId
+
     if (reassigned && patch.model === undefined && current.model != null) {
       // A cross-runtime reassignment may make the override unservable, so clear it atomically;
       // same-runtime reassignment keeps the override.
@@ -968,7 +1055,9 @@ export class AgentSessionService {
           )
         )
         .all()
+
       const typeOf = new Map(agentTypes.map((row) => [row.id, row.type]))
+
       if (previousAgentId != null) {
         if (typeOf.get(previousAgentId) !== typeOf.get(patch.agentId as string)) {
           patch.model = null
@@ -982,19 +1071,24 @@ export class AgentSessionService {
         patch.model = null
       }
     }
+
     const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []
+
     if (reassigned && current.taskScheduleId) {
       this.clearTaskReuseTx(tx, eq(sessionsTable.id, id))
     }
+
     const [row] = tx
       .update(sessionsTable)
       .set(patch)
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .returning()
       .all()
+
     if (reassigned) {
       tx.update(sessionsTable).set({ agentId: patch.agentId }).where(eq(sessionsTable.ownerSessionId, id)).run()
     }
+
     return { row, clearedTaskScheduleIds }
   }
 
@@ -1014,6 +1108,7 @@ export class AgentSessionService {
       { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
     this.sessionUpdated.fire({ sessionId: id })
+
     return this.getById(id)
   }
 
@@ -1024,21 +1119,26 @@ export class AgentSessionService {
 
     if (source.type === AGENT_WORKSPACE_TYPE.USER) {
       const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)
+
       if (workspace.id === current.session.workspaceId) return
       // Repoint first, then drop the old system workspace so the session FK never dangles.
       tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
+
       if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
         agentWorkspaceService.deleteByIdTx(tx, current.session.workspaceId)
       }
+
       return
     }
 
     // Target is a system workspace; an existing system workspace is already correct.
     if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) return
+
     const workspace = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, {
       sessionId: id,
       createdAt: current.session.createdAt
     })
+
     tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
   }
 
@@ -1050,7 +1150,9 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
+
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
+
     return row
   }
 
@@ -1061,6 +1163,7 @@ export class AgentSessionService {
       .where(and(eq(agentSessionMessageTable.sessionId, sessionId), sql`${agentSessionMessageTable.role} != 'root'`))
       .limit(1)
       .all()
+
     if (message) {
       throw DataApiErrorFactory.invalidOperation(
         'update session workspace',
@@ -1105,10 +1208,13 @@ export class AgentSessionService {
       const { trashedIds, taskScheduleIds, deliveryResults } = application
         .get('DbService')
         .withWriteTx((tx) => this.trashByIdsTx(tx, [id], { requireAll: true }))
+
       publishTaskReadModelChanges(taskScheduleIds)
       getDataService('AgentSessionMessageService').publishDeliveryChanges(deliveryResults)
       this.notifyReadModelChange(trashedIds, 'membership')
+
       if (trashedIds.length > 0) pinService.notifyPurged()
+
       return { deletedIds: trashedIds, taskScheduleIds, deliveryResults }
     }
 
@@ -1120,13 +1226,18 @@ export class AgentSessionService {
         .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt)))
         .limit(1)
         .all()
+
       if (!row) throw DataApiErrorFactory.notFound('Session', id)
+
       return this.cascadeDeleteSessionRowsTx(tx, [row])
     })
+
     publishTaskReadModelChanges(result.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
+
     if (result.deletedIds.length > 0) pinService.notifyPurged()
+
     return result
   }
 
@@ -1138,6 +1249,7 @@ export class AgentSessionService {
       .where(eq(sessionsTable.id, id))
       .limit(1)
       .all()
+
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
 
     return this.cascadeDeleteSessionRowsTx(tx, [row]).taskScheduleIds
@@ -1145,6 +1257,7 @@ export class AgentSessionService {
 
   deleteByIds(ids: string[], options: { permanent?: boolean } = {}): DeleteAgentSessionsResult {
     const result = this.deleteByIdsWithImpact(ids, options)
+
     return { deletedIds: result.deletedIds }
   }
 
@@ -1153,6 +1266,7 @@ export class AgentSessionService {
     options: { permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
   ): AgentSessionBatchDeletionOutcome {
     const uniqueIds = Array.from(new Set(ids))
+
     if (uniqueIds.length === 0) {
       return { deletedIds: [], taskScheduleIds: [], deliveryResults: [], purgedSystemWorkspacePaths: [] }
     }
@@ -1160,6 +1274,7 @@ export class AgentSessionService {
     const result = application.get('DbService').withWriteTx((tx) => {
       if (options.permanent !== true) {
         const { trashedIds, taskScheduleIds, deliveryResults } = this.trashByIdsTx(tx, uniqueIds)
+
         return { deletedIds: trashedIds, taskScheduleIds, deliveryResults, purgedSystemWorkspacePaths: [] }
       }
 
@@ -1191,6 +1306,7 @@ export class AgentSessionService {
           )
           .map((row) => row.entityId)
           .sort()
+
         if (pinnedIds.length > 0) {
           throw DataApiErrorFactory.invalidOperation('delete pinned session', pinnedIds.join(','))
         }
@@ -1207,10 +1323,12 @@ export class AgentSessionService {
     publishTaskReadModelChanges(result.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
+
     if (result.deletedIds.length > 0) pinService.notifyPurged()
     logger.info(options.permanent === true ? 'Permanently deleted sessions' : 'Moved sessions to Recycle Bin', {
       count: result.deletedIds.length
     })
+
     return result
   }
 
@@ -1223,7 +1341,9 @@ export class AgentSessionService {
         .where(inArray(sessionsTable.ownerSessionId, idChunk))
         .all()
     )
+
     const uniqueIds = Array.from(new Set([...ids, ...children.map((row) => row.id)]))
+
     if (uniqueIds.length === 0) return { trashedIds: [], taskScheduleIds: [], deliveryResults: [] }
 
     const rows = chunk(uniqueIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
@@ -1233,25 +1353,32 @@ export class AgentSessionService {
         .where(and(inArray(sessionsTable.id, idChunk), isNull(sessionsTable.deletedAt)))
         .all()
     )
+
     const trashedIds = rows.map((row) => row.id)
+
     if (options.requireAll && trashedIds.length !== uniqueIds.length) {
       const foundIds = new Set(trashedIds)
       const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
       throw DataApiErrorFactory.notFound('Session', missingId)
     }
+
     if (trashedIds.length === 0) return { trashedIds, taskScheduleIds: [], deliveryResults: [] }
 
     const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, trashedIds)
     const taskScheduleIds = rows.flatMap((row) => (row.taskScheduleId ? [row.taskScheduleId] : []))
     // One timestamp for every chunk: restoreTrashedWithAgentTx matches deletedAt exactly.
     const deletedAt = options.deletedAt ?? Date.now()
+
     for (const idChunk of chunk(trashedIds, SQLITE_INARRAY_CHUNK)) {
       if (taskScheduleIds.length > 0) {
         this.clearTaskReuseTx(tx, and(inArray(sessionsTable.id, idChunk), isNotNull(sessionsTable.taskId))!)
       }
+
       tx.update(sessionsTable).set({ deletedAt }).where(inArray(sessionsTable.id, idChunk)).run()
     }
+
     pinService.purgeForEntitiesTx(tx, 'session', trashedIds)
+
     return { trashedIds, taskScheduleIds, deliveryResults }
   }
 
@@ -1261,6 +1388,7 @@ export class AgentSessionService {
     options: { validateAgent?: boolean; deletedAt?: number; sessionTypes?: readonly AgentSessionType[] } = {}
   ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
     if (options.validateAgent ?? true) this.assertAgentExistsTx(tx, agentId)
+
     const ids = tx
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
@@ -1273,6 +1401,7 @@ export class AgentSessionService {
       )
       .all()
       .map((row) => row.id)
+
     return this.trashByIdsTx(tx, ids, {
       deletedAt: options.deletedAt
     })
@@ -1305,10 +1434,12 @@ export class AgentSessionService {
       )
       .returning({ id: sessionsTable.id })
       .all()
+
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
 
     this.notifyReadModelChange([id], 'membership')
     logger.info('Restored session', { id })
+
     return this.getById(id)
   }
 
@@ -1341,6 +1472,7 @@ export class AgentSessionService {
 
   purgeExpiredByIdsTx(tx: DbOrTx, ids: readonly string[], cutoffMs: number): string[] {
     const uniqueIds = [...new Set(ids)]
+
     if (uniqueIds.length === 0) return []
 
     const rows = chunk(uniqueIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
@@ -1357,22 +1489,29 @@ export class AgentSessionService {
         )
         .all()
     )
+
     if (rows.length === 0) return []
 
     const purgedIds = rows.map((row) => row.session.id)
+
     const systemWorkspaceIds = rows
       .filter((row) => row.session.ownerSessionId === null && row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM)
       .map((row) => row.workspace.id)
+
     for (const idChunk of chunk(purgedIds, SQLITE_INARRAY_CHUNK)) {
       tx.delete(sessionsTable).where(inArray(sessionsTable.id, idChunk)).run()
     }
+
     pinService.purgeForEntitiesTx(tx, 'session', purgedIds)
+
     for (const workspaceId of systemWorkspaceIds) agentWorkspaceService.deleteByIdTx(tx, workspaceId)
+
     return purgedIds
   }
 
   deleteWorkspaceCascade(workspaceId: string): DeleteAgentSessionsResult {
     const result = this.deleteWorkspaceCascadeWithImpact(workspaceId)
+
     return { deletedIds: result.deletedIds }
   }
 
@@ -1382,17 +1521,21 @@ export class AgentSessionService {
       const channelReferences = agentChannelService.resetWorkspaceReferencesTx(tx, workspaceId)
       const taskReferences = getDataService('AgentTaskService').resetWorkspaceReferencesTx(tx, workspaceId)
       const taskScheduleIds = this.getTaskScheduleIdsForWorkspaceTx(tx, workspaceId)
+
       const sessionIds = tx
         .select({ id: sessionsTable.id })
         .from(sessionsTable)
         .where(eq(sessionsTable.workspaceId, workspaceId))
         .all()
         .map((session) => session.id)
+
       const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, sessionIds)
       const deletedIds = this.deleteByWorkspaceTx(tx, workspaceId)
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
+
       return { deletedIds, taskScheduleIds, channelReferences, taskReferences, deliveryResults }
     })
+
     publishTaskReadModelChanges([...result.taskScheduleIds, ...result.taskReferences.map((task) => task.id)])
     this.notifyReadModelChange(result.deletedIds, 'membership')
     pinService.notifyPurged()
@@ -1403,6 +1546,7 @@ export class AgentSessionService {
       resetTaskCount: result.taskReferences.length
     })
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
+
     return {
       deletedIds: result.deletedIds,
       taskScheduleIds: result.taskScheduleIds,
@@ -1416,13 +1560,16 @@ export class AgentSessionService {
       .where(eq(sessionsTable.workspaceId, workspaceId))
       .returning({ id: sessionsTable.id })
       .all()
+
     const sessionIds = deletedSessions.map((session) => session.id)
     pinService.purgeForEntitiesTx(tx, 'session', sessionIds)
+
     return sessionIds
   }
 
   deleteByAgentId(agentId: string, options: { permanent?: boolean } = {}): DeleteAgentSessionsResult {
     const result = this.deleteByAgentIdWithImpact(agentId, options)
+
     return { deletedIds: result.deletedIds }
   }
 
@@ -1432,20 +1579,25 @@ export class AgentSessionService {
     options: { permanent?: boolean; sessionTypes?: readonly AgentSessionType[] } = {}
   ): AgentSessionDeletionOutcome {
     const deliveryResults: AgentSessionMessageEntity[] = []
+
     const result = application.get('DbService').withWriteTx((tx) => {
       if (options.permanent !== true) {
         const trashed = this.trashByAgentIdTx(tx, agentId, { sessionTypes: options.sessionTypes })
         deliveryResults.push(...trashed.deliveryResults)
+
         return { deletedIds: trashed.trashedIds, taskScheduleIds: trashed.taskScheduleIds, deliveryResults }
       }
+
       const taskScheduleIds = this.getTaskScheduleIdsForAgentTx(tx, agentId)
       const deletedIds = this.deleteByAgentIdTx(tx, agentId, { deliveryResults })
+
       return { deletedIds, taskScheduleIds, deliveryResults }
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
+
     if (result.deletedIds.length > 0) pinService.notifyPurged()
     logger.info(
       options.permanent === true ? 'Permanently deleted agent sessions' : 'Moved agent sessions to Recycle Bin',
@@ -1454,6 +1606,7 @@ export class AgentSessionService {
         count: result.deletedIds.length
       }
     )
+
     return result
   }
 
@@ -1469,6 +1622,7 @@ export class AgentSessionService {
         .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
         .limit(1)
         .all()
+
       if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
     }
 
@@ -1481,6 +1635,7 @@ export class AgentSessionService {
 
     const result = this.cascadeDeleteSessionRowsTx(tx, rows)
     options.deliveryResults?.push(...result.deliveryResults)
+
     return result.deletedIds
   }
 
@@ -1501,6 +1656,7 @@ export class AgentSessionService {
   listSystemWorkspaceSessions(ids?: readonly string[]) {
     if (ids?.length === 0) return []
     const db = application.get('DbService').getDb()
+
     const select = (idChunk?: string[]) =>
       db
         .select({
@@ -1520,6 +1676,7 @@ export class AgentSessionService {
           )
         )
         .all()
+
     return ids ? chunk([...ids], SQLITE_INARRAY_CHUNK).flatMap(select) : select()
   }
 
@@ -1558,12 +1715,15 @@ export class AgentSessionService {
       tx,
       rows.map((row) => row.session.id)
     )
+
     const taskScheduleIds = this.getTaskScheduleIdsForSessionIdsTx(
       tx,
       rows.map((row) => row.session.id)
     )
+
     const normalSessionIds: string[] = []
     const systemWorkspaceIds = new Set<string>()
+
     for (const row of rows) {
       // Only the root owns a shared system workspace; child deletion must not remove it.
       if (row.session.ownerSessionId === null && row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
@@ -1574,11 +1734,14 @@ export class AgentSessionService {
     }
 
     const deleted = new Set(this.deleteByIdsTx(tx, normalSessionIds))
+
     for (const workspaceId of systemWorkspaceIds) {
       const workspaceSessionIds = this.deleteByWorkspaceTx(tx, workspaceId)
+
       for (const id of workspaceSessionIds) {
         deleted.add(id)
       }
+
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
     }
 
@@ -1617,6 +1780,7 @@ export class AgentSessionService {
 
   private deleteByIdsTx(tx: DbOrTx, ids: string[]): string[] {
     const uniqueIds = Array.from(new Set(ids))
+
     if (uniqueIds.length === 0) return []
 
     const deletedIds = chunk(uniqueIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
@@ -1629,6 +1793,7 @@ export class AgentSessionService {
     )
 
     pinService.purgeForEntitiesTx(tx, 'session', deletedIds)
+
     return deletedIds
   }
 
@@ -1644,6 +1809,7 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
+
     if (!target) throw DataApiErrorFactory.notFound('Session', id)
 
     applyMoves(tx, sessionsTable, [{ id, anchor }], {
@@ -1655,6 +1821,7 @@ export class AgentSessionService {
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
     application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+
     for (const id of new Set(moves.map((move) => move.id))) this.sessionUpdated.fire({ sessionId: id })
   }
 

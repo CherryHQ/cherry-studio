@@ -4,6 +4,7 @@ import { remoteFailureSchema } from './errors'
 import { decimal, digest, opaqueId } from './values'
 
 export const configurationAuthorizationSchema = z.looseObject({ domain: z.literal('configuration'), grantId: opaqueId })
+
 export const configurationMethods = {
   'configuration.export.prepare': {
     params: z.strictObject({}),
@@ -22,4 +23,5 @@ export const configurationMethods = {
     errors: remoteFailureSchema
   }
 }
+
 export type ConfigurationAuthorization = z.infer<typeof configurationAuthorizationSchema>

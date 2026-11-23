@@ -6,12 +6,16 @@ import { normalizeUrl } from './values'
 
 function providerBaseUrls(provider: Provider, cliTool: string): string[] {
   const adapter = getAdapter(cliTool)
+
   if (adapter) return adapter.providerBaseUrls(provider)
   const baseUrls: string[] = []
+
   for (const config of Object.values(provider.endpointConfigs ?? {})) {
     const baseUrl = normalizeUrl(config?.baseUrl)
+
     if (baseUrl) baseUrls.push(baseUrl)
   }
+
   return baseUrls
 }
 
@@ -24,6 +28,7 @@ export function cliConfigConnectionMatchesProvider(
 ): boolean {
   if (!connection) return true
   const baseUrl = normalizeUrl(connection.baseUrl)
+
   if (!baseUrl) return false
 
   if (!providerBaseUrls(provider, cliTool).includes(baseUrl)) {
@@ -43,8 +48,10 @@ export function cliConfigConnectionMatchesProvider(
   }
 
   const validKeys = new Set<string>()
+
   for (const entry of apiKeys) {
     if (entry.isEnabled) validKeys.add(entry.key)
   }
+
   return validKeys.size === 0 ? true : validKeys.has(connection.apiKey)
 }

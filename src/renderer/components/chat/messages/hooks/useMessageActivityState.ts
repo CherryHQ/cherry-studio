@@ -23,7 +23,9 @@ function getStableMessageActivityState(
     (Number(isApprovalAnchor) << 1) |
     (Number(isActiveTurnProcessing) << 2) |
     (Number(isStreamLive) << 3)
+
   const cached = MESSAGE_ACTIVITY_STATE_CACHE.get(key)
+
   if (cached) return cached
 
   const state = Object.freeze({
@@ -33,7 +35,9 @@ function getStableMessageActivityState(
     isActiveTurnProcessing,
     isStreamLive
   })
+
   MESSAGE_ACTIVITY_STATE_CACHE.set(key, state)
+
   return state
 }
 
@@ -46,6 +50,7 @@ function deriveMessageActivityState(
   const isProcessing = isMessageListItemProcessing(message) || isActiveExecutionTarget || isApprovalAnchor
   const topicTurnState = classifyTurn(topicStreamStatus)
   const isActiveTurnProcessing = isProcessing && (topicStreamStatus === undefined || topicTurnState.isTurnActive)
+
   const isStreamLive =
     isActiveTurnProcessing &&
     (topicStreamStatus === undefined ? message.status === 'pending' : topicTurnState.isStreamLive)
@@ -67,6 +72,7 @@ export class KeyedMessageActivityStore implements MessageActivityStore {
 
   getSnapshot = (message: MessageListItem): MessageActivityState => {
     const isApprovalAnchor = this.approvalMessageIds.has(message.id)
+
     return deriveMessageActivityState(
       message,
       this.activeMessageIds.has(message.id),
@@ -82,6 +88,7 @@ export class KeyedMessageActivityStore implements MessageActivityStore {
 
     return () => {
       listeners.delete(listener)
+
       if (listeners.size === 0) {
         this.listeners.delete(message.id)
       }
@@ -98,18 +105,23 @@ export class KeyedMessageActivityStore implements MessageActivityStore {
     const nextActiveMessageIds = new Set(activeMessageIds)
     const nextApprovalMessageIds = new Set(approvalMessageIds)
     const affectedMessageIds = new Set<string>()
+
     for (const messageId of this.activeMessageIds) {
       if (!nextActiveMessageIds.has(messageId)) affectedMessageIds.add(messageId)
     }
+
     for (const messageId of nextActiveMessageIds) {
       if (!this.activeMessageIds.has(messageId)) affectedMessageIds.add(messageId)
     }
+
     for (const messageId of this.approvalMessageIds) {
       if (!nextApprovalMessageIds.has(messageId)) affectedMessageIds.add(messageId)
     }
+
     for (const messageId of nextApprovalMessageIds) {
       if (!this.approvalMessageIds.has(messageId)) affectedMessageIds.add(messageId)
     }
+
     if (this.topicStreamStatus !== topicStreamStatus) {
       for (const [messageId, listeners] of this.listeners) {
         for (const subscription of listeners.values()) {
@@ -124,17 +136,22 @@ export class KeyedMessageActivityStore implements MessageActivityStore {
     this.approvalMessageIds = nextApprovalMessageIds
     this.topicStreamStatus = topicStreamStatus
     const changedListeners = new Set<() => void>()
+
     for (const messageId of affectedMessageIds) {
       const listeners = this.listeners.get(messageId)
+
       if (!listeners) continue
+
       for (const [listener, subscription] of listeners) {
         const nextSnapshot = this.getSnapshot(subscription.message)
+
         if (subscription.snapshot !== nextSnapshot) {
           subscription.snapshot = nextSnapshot
           changedListeners.add(listener)
         }
       }
     }
+
     changedListeners.forEach((listener) => listener())
   }
 
@@ -146,8 +163,10 @@ export class KeyedMessageActivityStore implements MessageActivityStore {
   ) {
     if (this.topicId === topicId) {
       this.update(activeMessageIds, approvalMessageIds, topicStreamStatus)
+
       return
     }
+
     this.topicId = topicId
     this.update(activeMessageIds, approvalMessageIds, topicStreamStatus)
   }
@@ -172,15 +191,19 @@ export function useMessageActivityState(
   awaitingApprovalAnchorsRef.current = awaitingApprovalAnchors
 
   const storeRef = useRef<KeyedMessageActivityStore>(undefined as never)
+
   if (!storeRef.current) storeRef.current = new KeyedMessageActivityStore()
   const store = storeRef.current
+
   const getMessageActivityState = useCallback((message: MessageListItem) => {
     const isActiveExecutionTarget = activeExecutionsRef.current.some(
       (execution) => execution.anchorMessageId === message.id
     )
+
     const isApprovalAnchor = awaitingApprovalAnchorsRef.current.some(
       (execution) => execution.anchorMessageId === message.id
     )
+
     return deriveMessageActivityState(message, isActiveExecutionTarget, isApprovalAnchor, statusRef.current)
   }, [])
 

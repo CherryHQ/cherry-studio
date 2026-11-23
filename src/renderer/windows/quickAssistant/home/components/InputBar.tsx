@@ -76,6 +76,7 @@ const InputBar = ({
   const dictation = useSyncExternalStore(dictationService.subscribe, dictationService.getSnapshot)
   useEffect(() => {
     if (loading) return undefined
+
     return setTimeoutTimer('focus', () => resolvedInputRef.current?.focus(), 0)
   }, [loading, resolvedInputRef, setTimeoutTimer])
 
@@ -106,6 +107,7 @@ const InputBar = ({
       : dictation.phase === 'idle'
         ? undefined
         : t(phaseTranslationKeys[dictation.phase])
+
   const dictationError = dictation.error
     ? t(errorTranslationKeys[dictation.error] ?? 'settings.voice.status.failed')
     : ''
@@ -238,6 +240,7 @@ const InputBar = ({
     </div>
   )
 }
+
 InputBar.displayName = 'InputBar'
 
 export default InputBar

@@ -83,10 +83,15 @@ export const SHORTCUT_NAMED_KEYS = [
 ] as const
 
 export type ShortcutModifier = (typeof SHORTCUT_MODIFIERS)[number]
+
 export type ShortcutLetter = (typeof SHORTCUT_LETTERS)[number]
+
 export type ShortcutDigit = (typeof SHORTCUT_DIGITS)[number]
+
 export type ShortcutFunctionKey = (typeof SHORTCUT_FUNCTION_KEYS)[number]
+
 export type ShortcutSymbol = (typeof SHORTCUT_SYMBOLS)[number]
+
 export type ShortcutNamedKey = (typeof SHORTCUT_NAMED_KEYS)[number]
 
 export type ShortcutToken =
@@ -120,6 +125,7 @@ const shortcutTokens = [
 const shortcutTokenSet = new Set<string>(shortcutTokens)
 const shortcutModifierSet = new Set<string>(SHORTCUT_MODIFIERS)
 const shortcutFunctionKeySet = new Set<string>(SHORTCUT_FUNCTION_KEYS)
+
 const shortcutTokenLowerCaseMap = new Map<string, ShortcutToken>(
   shortcutTokens.map((token) => [token.toLowerCase(), token])
 )
@@ -184,6 +190,7 @@ export const isShortcutCharacterToken = (
 
 export const normalizeShortcutToken = (value: string): ShortcutToken | undefined => {
   const trimmed = value.trim()
+
   if (!trimmed) return undefined
 
   if (isShortcutToken(trimmed)) {
@@ -191,31 +198,37 @@ export const normalizeShortcutToken = (value: string): ShortcutToken | undefined
   }
 
   const alias = keyAliases.get(trimmed)
+
   if (alias) {
     return alias
   }
 
   const canonicalToken = shortcutTokenLowerCaseMap.get(trimmed.toLowerCase())
+
   if (canonicalToken) {
     return canonicalToken
   }
 
   const domToken = domCodeToToken.get(trimmed)
+
   if (domToken) {
     return domToken
   }
 
   const letterMatch = trimmed.match(/^Key([A-Z])$/)
+
   if (letterMatch) {
     return letterMatch[1] as ShortcutLetter
   }
 
   const digitMatch = trimmed.match(/^(?:Digit|Numpad)(\d)$/)
+
   if (digitMatch) {
     return digitMatch[1] as ShortcutDigit
   }
 
   const upper = trimmed.toUpperCase()
+
   if (/^[A-Z]$/.test(upper) && isShortcutToken(upper)) {
     return upper
   }
@@ -225,9 +238,13 @@ export const normalizeShortcutToken = (value: string): ShortcutToken | undefined
   }
 
   const lower = trimmed.toLowerCase()
+
   if (lower === 'commandorcontrol') return 'CommandOrControl'
+
   if (lower === 'altgr') return 'AltGr'
+
   if (lower === 'numadd') return 'numadd'
+
   if (lower === 'numsub') return 'numsub'
 
   return undefined
@@ -240,12 +257,14 @@ export const normalizeShortcutBinding = (value: unknown): ShortcutBinding => {
   }
 
   const tokens: ShortcutToken[] = []
+
   for (const item of value) {
     if (typeof item !== 'string') {
       return []
     }
 
     const token = normalizeShortcutToken(item)
+
     if (!token) {
       return []
     }
@@ -260,6 +279,7 @@ export const isShortcutBinding = (value: unknown): value is ShortcutBinding => {
   if (!Array.isArray(value)) {
     return false
   }
+
   return value.every(isShortcutToken)
 }
 
@@ -294,6 +314,7 @@ export const convertKeyToAccelerator = (key: string): ShortcutToken | undefined 
 const getEventKeyToken = (event: KeyboardEventLike) => {
   const fromKey = convertKeyToAccelerator(event.key)
   const fromCode = event.code ? convertKeyToAccelerator(event.code) : undefined
+
   // Layouts move characters between physical keys, so a character follows the produced character;
   // named and keypad keys keep their physical identity (numenter / numadd / numsub).
   const token =
@@ -310,16 +331,20 @@ export const getShortcutBindingFromKeyboardEvent = (
 
   if (platform === 'darwin') {
     if (event.metaKey) binding.push('CommandOrControl')
+
     if (event.ctrlKey) binding.push('Ctrl')
   } else {
     if (event.ctrlKey) binding.push('CommandOrControl')
+
     if (event.metaKey) binding.push(platform ? 'Meta' : 'CommandOrControl')
   }
 
   if (event.altKey) binding.push('Alt')
+
   if (event.shiftKey) binding.push('Shift')
 
   const keyToken = getEventKeyToken(event)
+
   if (keyToken) binding.push(keyToken)
 
   return normalizeShortcutBinding(binding)
@@ -402,6 +427,7 @@ export const isValidShortcut = (binding: readonly string[]): boolean => {
 
   const hasModifier = binding.some(isShortcutModifier)
   const hasNonModifier = binding.some((key) => !isShortcutModifier(key))
+
   const isSpecialKey =
     binding.length === 1 && (binding[0] === 'Escape' || binding[0] === 'CapsLock' || isShortcutFunctionKey(binding[0]))
 

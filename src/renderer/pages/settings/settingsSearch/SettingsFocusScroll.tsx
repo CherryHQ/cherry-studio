@@ -34,6 +34,7 @@ const SettingsFocusScroll = ({ scopeRef }: SettingsFocusScrollProps) => {
 
     const attempt = (retryIndex: number) => {
       const el = scopeRef.current?.querySelector<HTMLElement>(`#${CSS.escape(pendingFocusId)}`)
+
       if (el) {
         el.scrollIntoView({ block: 'center' })
         el.classList.add(HIGHLIGHT_CLASS)
@@ -41,15 +42,21 @@ const SettingsFocusScroll = ({ scopeRef }: SettingsFocusScrollProps) => {
         // and would kill the fresh timer; the settings DOM dies with this mount.
         setTimeout(() => el.classList.remove(HIGHLIGHT_CLASS), HIGHLIGHT_MS)
         setPendingFocus(undefined)
+
         return
       }
+
       const delay = RETRY_DELAYS[retryIndex]
+
       if (delay === undefined) {
         setPendingFocus(undefined)
+
         return
       }
+
       retryTimer = setTimeout(() => attempt(retryIndex + 1), delay)
     }
+
     attempt(0)
 
     return () => clearTimeout(retryTimer)

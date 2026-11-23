@@ -1,16 +1,21 @@
 const PATH_SEGMENT_PATTERN = String.raw`[^/\n\r\`"'<>|]+`
+
 const ABSOLUTE_FILE_PATH_PATTERN = new RegExp(
   String.raw`^/(?!/)(?:${PATH_SEGMENT_PATTERN}/)+${PATH_SEGMENT_PATTERN}/?$`
 )
+
 const RELATIVE_EXPLICIT_PATH_PATTERN = new RegExp(
   String.raw`^\.{1,2}/(?:${PATH_SEGMENT_PATTERN}/)*${PATH_SEGMENT_PATTERN}/?$`
 )
+
 const HOME_RELATIVE_FILE_PATH_PATTERN = new RegExp(
   String.raw`^~[/\\](?:${PATH_SEGMENT_PATTERN}[/\\])*${PATH_SEGMENT_PATTERN}/?$`
 )
+
 const WORKSPACE_RELATIVE_FILE_PATH_PATTERN = new RegExp(
   String.raw`^(?:${PATH_SEGMENT_PATTERN}/)+${PATH_SEGMENT_PATTERN}\.[^/\`"'<>|.]+$`
 )
+
 const INLINE_FILE_PATH_LOCATION_PATTERN = /(?::\d+){1,2}$/
 const WINDOWS_DRIVE_FILE_PATH_PATTERN = /^[A-Za-z]:[/\\]/
 
@@ -22,7 +27,9 @@ export function setInlineFilePathHomePath(homePath: string | undefined): void {
 
 function expandHomeRelativePath(value: string): string {
   if (!value.startsWith('~/') && !value.startsWith('~\\')) return value
+
   if (!inlineFilePathHomePath) return value
+
   return `${inlineFilePathHomePath}${value.slice(1)}`
 }
 
@@ -36,12 +43,14 @@ export const resolveInlineFilePath = (value: string, options: { preserveWrapping
   const normalizedPath = options.preserveWrappingPunctuation
     ? value.trim().replace(INLINE_FILE_PATH_LOCATION_PATTERN, '')
     : normalizeInlineFilePath(value)
+
   return expandHomeRelativePath(normalizedPath)
 }
 
 export function isInlineFilePath(value: string): boolean {
   const normalizedPath = normalizeInlineFilePath(value)
   const resolvedPath = resolveInlineFilePath(value)
+
   return (
     ABSOLUTE_FILE_PATH_PATTERN.test(resolvedPath) ||
     HOME_RELATIVE_FILE_PATH_PATTERN.test(normalizedPath) ||
@@ -68,9 +77,11 @@ export function isInlineFilePath(value: string): boolean {
 export function parseFileLinkHref(href: string | undefined): string | null {
   if (!href) return null
   const rawPath = href.replace(/[?#].*$/, '') // drop query + hash
+
   if (!rawPath) return null
 
   let path: string
+
   try {
     path = decodeURIComponent(rawPath)
   } catch {
@@ -78,6 +89,8 @@ export function parseFileLinkHref(href: string | undefined): string | null {
   }
 
   if (!path || path.startsWith('//')) return null // protocol-relative → external
+
   if (!WINDOWS_DRIVE_FILE_PATH_PATTERN.test(path) && /^[a-z][a-z0-9+.-]*:/i.test(path)) return null
+
   return path
 }

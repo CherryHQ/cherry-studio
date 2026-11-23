@@ -103,6 +103,7 @@ const AgentSessionMessages = ({
   const sessionCreatedAt = session?.createdAt ?? session?.updatedAt ?? FALLBACK_TIMESTAMP
   const sessionLastActivityAt = session?.lastActivityAt ?? sessionCreatedAt
   const sessionUpdatedAt = session?.updatedAt ?? session?.createdAt ?? FALLBACK_TIMESTAMP
+
   const assistantProfile = useMemo(
     () =>
       activeAgent
@@ -114,15 +115,20 @@ const AgentSessionMessages = ({
         : undefined,
     [activeAgent]
   )
+
   const backgroundTaskAnchorMessageId = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index]
+
       if (message?.role !== 'assistant') continue
       const parts = partsByMessageId[message.id] ?? message.parts ?? []
+
       if (parts.length > 0) return message.id
     }
+
     return undefined
   }, [messages, partsByMessageId])
+
   const messageTail = useMemo(
     () =>
       backgroundTaskAnchorMessageId
@@ -147,13 +153,16 @@ const AgentSessionMessages = ({
     }),
     [sessionTopicId, sessionAssistantId, sessionName, sessionLastActivityAt, sessionCreatedAt, sessionUpdatedAt]
   )
+
   const diagnosticReport = useMemo(() => ({ location: 'agent' }), [])
 
   const messageIds = useStableStringArray(messages.map((message) => message.id))
+
   const afterMessages = useMemo(
     () => <AgentPendingAttachments key={sessionId} sessionId={sessionId} messageIds={messageIds} />,
     [messageIds, sessionId]
   )
+
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
     messages,
@@ -196,6 +205,7 @@ const AgentSessionMessages = ({
     void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
       logger.warn('Failed to acquire agent session warm lease', error as Error)
     })
+
     return () => {
       void ipcApi.request('ai.agent.session.close_warm', { sessionId }).catch((error) => {
         logger.warn('Failed to release agent session warm lease', error as Error)

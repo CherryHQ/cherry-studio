@@ -29,11 +29,13 @@ export function ItemRenderer<T>({
   itemStyle
 }: ItemRendererProps<T>) {
   const style: React.CSSProperties & { '--scale'?: number } = { ...itemStyle }
+
   if (dragOverlay) {
     style['--scale'] = 1.02
     style.zIndex = 999
     style.position = 'relative'
   }
+
   return (
     <div
       ref={ref}

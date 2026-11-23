@@ -33,9 +33,11 @@ export async function generateSpeech(
   abortSignal: AbortSignal
 ): Promise<SpeechResult> {
   abortSignal.throwIfAborted()
+
   if (!model || typeof model !== 'object' || model.specificationVersion !== 'v3') {
     throw new TypeError('Speech requires a resolved V3 model')
   }
+
   const result = await experimental_generateSpeech({
     model,
     text,
@@ -46,8 +48,11 @@ export async function generateSpeech(
     maxRetries: 0,
     abortSignal
   })
+
   abortSignal.throwIfAborted()
+
   if (result.audio.mediaType !== 'audio/wav') throw new Error('Speech output must be WAV')
+
   return { audio: result.audio.uint8Array, mediaType: 'audio/wav' }
 }
 
@@ -59,10 +64,13 @@ export async function transcribe(
   abortSignal: AbortSignal
 ): Promise<TranscriptionResult> {
   abortSignal.throwIfAborted()
+
   if (!model || typeof model !== 'object' || model.specificationVersion !== 'v3') {
     throw new TypeError('Transcription requires a resolved V3 model')
   }
+
   if (!(audio instanceof Uint8Array)) throw new TypeError('Transcription requires audio bytes')
+
   const result = await experimental_transcribe({
     model,
     audio,
@@ -70,7 +78,9 @@ export async function transcribe(
     maxRetries: 0,
     abortSignal
   })
+
   abortSignal.throwIfAborted()
+
   return {
     text: result.text,
     segments: result.segments,

@@ -4,6 +4,7 @@ import { DbrxLight } from './light'
 
 const Dbrx = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DbrxLight {...props} className={className} />
+
   return <DbrxLight {...props} className={className} />
 }
 

@@ -150,6 +150,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
   protected async onReady() {
     const preferenceService = application.get('PreferenceService')
+
     if (preferenceService.get('feature.quick_assistant.enabled')) {
       await this.activate()
     }
@@ -168,12 +169,14 @@ export class QuickAssistantService extends BaseService implements Activatable {
    */
   async onActivate(): Promise<void> {
     const focusedBefore = isMac ? BrowserWindow.getFocusedWindow() : null
+
     try {
       this.createQuickAssistant()
     } catch (error) {
       this.releaseActivationResources()
       throw error
     }
+
     if (focusedBefore && !focusedBefore.isDestroyed() && focusedBefore.id !== this.getQuickAssistant()?.id) {
       focusedBefore.focus()
     }
@@ -196,6 +199,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
       wm.close(this.windowId)
       this.windowId = null
     }
+
     this.isPinnedQuickAssistant = false
     this.hasBlurredSinceShow = false
     this.stopPostUnpinFocusPoll()
@@ -217,8 +221,10 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
       const onMainVisible = () => {
         const window = this.getQuickAssistant()
+
         if (window) window.hide()
       }
+
       const onMainClosed = () => {
         if (this.mainWindowRef === mainWindow) {
           this.mainWindowRef = null
@@ -257,6 +263,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
       }
 
       event.preventDefault()
+
       if (isSafeExternalUrl(url)) {
         void application
           .get('MainWindowService')
@@ -276,6 +283,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
       } else {
         logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${details.url}`)
       }
+
       return { action: 'deny' }
     })
   }
@@ -321,10 +329,12 @@ export class QuickAssistantService extends BaseService implements Activatable {
       // setPinQuickAssistant to decide whether the post-unpin focus poll
       // workaround is needed (see that method for the full rationale).
       this.hasBlurredSinceShow = true
+
       if (!this.isPinnedQuickAssistant) {
         this.hideQuickAssistant()
       }
     }
+
     // Renderer-facing event: HomeWindow listens to this and re-reads clipboard
     // + focuses input on every show. The symmetric "Hidden" event used to exist
     // but had no listener anywhere — removed as dead code.
@@ -333,10 +343,12 @@ export class QuickAssistantService extends BaseService implements Activatable {
       // any post-unpin focus poll from a previous lifetime is irrelevant.
       this.hasBlurredSinceShow = false
       this.stopPostUnpinFocusPoll()
+
       if (this.windowId && !window.isDestroyed()) {
         application.get('IpcApiService').send(this.windowId, 'quick_assistant.shown', undefined)
       }
     }
+
     const onHide = () => {
       this.stopPostUnpinFocusPoll()
     }
@@ -356,7 +368,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
   private getQuickAssistant(): BrowserWindow | null {
     if (!this.windowId) return null
     const window = application.get('WindowManager').getWindow(this.windowId)
+
     if (!window || window.isDestroyed()) return null
+
     return window
   }
 
@@ -367,6 +381,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
     if (!this.isActivated) return
 
     const window = this.getQuickAssistant()
+
     if (!window) return
 
     this.proceedShow()
@@ -375,6 +390,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
   /** Inner show pipeline. Assumes the quick window exists and its content is ready. */
   private proceedShow() {
     const window = this.getQuickAssistant()
+
     if (!window) return
 
     this.wasMainWindowFocused = this.mainWindowRef?.isFocused() ?? false
@@ -417,6 +433,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
   public hideQuickAssistant() {
     const window = this.getQuickAssistant()
+
     if (!window) return
 
     if (isWin) {
@@ -425,22 +442,26 @@ export class QuickAssistantService extends BaseService implements Activatable {
       // minimize animation entirely.
       window.setOpacity(0)
       window.minimize()
+
       return
     }
 
     if (isMac) {
       window.hide()
       const majorVersion = parseInt(process.getSystemVersion().split('.')[0], 10)
+
       if (majorVersion >= MACOS_AUTO_FOCUS_VERSION) {
         // macOS 26+ already returns focus to the previous foreground app on hide.
         return
       }
+
       // On older macOS, hide() leaves us as the frontmost app; app.hide() returns
       // focus to whatever was focused before the quick window — but only if THAT
       // window was not our own mainWindow (else we hide the whole app needlessly).
       if (!this.wasMainWindowFocused) {
         app.hide()
       }
+
       return
     }
 
@@ -462,10 +483,13 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
   public toggleQuickAssistant() {
     const window = this.getQuickAssistant()
+
     if (window?.isVisible()) {
       this.hideQuickAssistant()
+
       return
     }
+
     this.showQuickAssistant()
   }
 
@@ -500,20 +524,27 @@ export class QuickAssistantService extends BaseService implements Activatable {
     const startedAt = Date.now()
     this.postUnpinFocusPollTimer = setInterval(() => {
       const window = this.getQuickAssistant()
+
       if (!window || window.isDestroyed() || !window.isVisible()) {
         this.stopPostUnpinFocusPoll()
+
         return
       }
+
       if (this.isPinnedQuickAssistant) {
         // User re-pinned — no need to keep polling.
         this.stopPostUnpinFocusPoll()
+
         return
       }
+
       if (!window.isFocused()) {
         this.stopPostUnpinFocusPoll()
         this.hideQuickAssistant()
+
         return
       }
+
       // Retreat after the bounded window — the user has settled into the panel
       // and the bug-prone "about to switch away" period has passed.
       if (Date.now() - startedAt >= POST_UNPIN_FOCUS_POLL_MAX_MS) {

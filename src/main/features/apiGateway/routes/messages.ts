@@ -29,6 +29,7 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
     // `model` is "providerId:apiModelId"; ProxyStreamService resolves it.
     ({ body, request, headers }) => {
       const isInternalRequest = application.get('ApiGatewayService').isInternalRequest(request.headers)
+
       return processMessage({
         params: body,
         inputFormat: 'anthropic',
@@ -48,6 +49,7 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
     async ({ body, status, request }) => {
       if (!body.model) return status(400, invalidRequest('model parameter is required'))
       const isInternalRequest = application.get('ApiGatewayService').isInternalRequest(request.headers)
+
       return {
         input_tokens: await estimateAnthropicRequestTokens(
           // SAFETY: Containers are route-validated; malformed block/tool details fall back inside the estimator.

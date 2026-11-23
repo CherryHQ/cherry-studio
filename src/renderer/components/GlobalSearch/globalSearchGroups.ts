@@ -20,10 +20,15 @@ export const GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT = 5
 export const GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT = 5
 
 export type GlobalSearchFilter = 'all' | 'topic' | 'session' | 'assistant' | 'agent' | 'knowledge'
+
 export type GlobalMessageSearchSourceFilter = 'all' | 'topic' | 'session'
+
 type GlobalTopicMessageSearchResult = TopicMessageContentSearchItem & { sourceType: 'topic' }
+
 type GlobalSessionMessageSearchResult = SessionMessageContentSearchItem & { sourceType: 'session' }
+
 export type GlobalMessageSearchResult = GlobalTopicMessageSearchResult | GlobalSessionMessageSearchResult
+
 type GlobalMessageSearchSource = GlobalMessageSearchResult['sourceType']
 
 export type GlobalSearchGroupId = 'recent' | 'topic' | 'session' | 'message' | 'assistant' | 'agent' | 'knowledge-base'
@@ -154,6 +159,7 @@ export function sanitizeGlobalSearchRecentEntries(
   entries: readonly GlobalSearchRecentEntry[]
 ): GlobalSearchRecentEntry[] {
   const next = entries.filter((entry) => !isLegacyRouteRecentEntry(entry))
+
   return next.length === entries.length ? (entries as GlobalSearchRecentEntry[]) : next
 }
 
@@ -162,10 +168,12 @@ export function upsertGlobalSearchRecentEntry(
   entry: GlobalSearchRecentEntry
 ): GlobalSearchRecentEntry[] {
   const current = sanitizeGlobalSearchRecentEntries(entries)
+
   if (isLegacyRouteRecentEntry(entry)) return current
 
   const entryId = getGlobalSearchRecentEntryId(entry)
   const rest = current.filter((candidate) => getGlobalSearchRecentEntryId(candidate) !== entryId)
+
   const next = [entry, ...rest]
     .sort((a, b) => b.lastAccessTime - a.lastAccessTime)
     .slice(0, GLOBAL_SEARCH_RECENT_ITEM_LIMIT)
@@ -174,6 +182,7 @@ export function upsertGlobalSearchRecentEntry(
     next.length === current.length &&
     next.every((candidate, index) => {
       const previous = current[index]
+
       return previous && areGlobalSearchRecentEntriesEqual(previous, candidate)
     })
   ) {
@@ -211,11 +220,15 @@ export function createRecentRouteEntryFromTab(
   lastAccessTime = tab.lastAccessTime
 ): GlobalSearchRecentEntry | null {
   if (tab.type !== 'route') return null
+
   if (!lastAccessTime) return null
 
   const pathname = parseAppRouteUrl(tab.url)?.pathname
+
   if (pathname === undefined) return null
+
   if (LEGACY_ROUTE_PATHS.has(pathname)) return null
+
   if (COARSE_ENTITY_ROUTE_PATHS.has(pathname)) return null
 
   if (!INTERNAL_ROUTE_PREFIXES.some((prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix))) {
@@ -261,6 +274,7 @@ function getMessageResultParentId(result: GlobalMessageSearchResult) {
 
 function buildGlobalMessagePreviewItems(items: readonly GlobalMessageSearchResult[]): GlobalSearchPanelItem[] {
   const totalByParentId = new Map<string, number>()
+
   for (const item of items) {
     const parentId = getMessageResultParentId(item)
     totalByParentId.set(parentId, (totalByParentId.get(parentId) ?? 0) + 1)
@@ -274,6 +288,7 @@ function buildGlobalMessagePreviewItems(items: readonly GlobalMessageSearchResul
 
   for (const group of groups) {
     const messageItems = group.items.filter((item) => item.kind === 'message').slice(0, remainingCount)
+
     if (messageItems.length === 0) continue
 
     previewItems.push({
@@ -324,6 +339,7 @@ export function buildGlobalSearchGroups({
   }
 
   const itemsByType = new Map<EntitySearchType, EntitySearchItem[]>()
+
   for (const group of response?.groups ?? []) {
     itemsByType.set(group.type, group.items)
   }
@@ -334,8 +350,10 @@ export function buildGlobalSearchGroups({
   const includeAssistant = filter === 'all' || filter === 'assistant'
   const includeAgent = filter === 'all' || filter === 'agent'
   const includeKnowledge = filter === 'all' || filter === 'knowledge'
+
   const shouldCollapseEntityGroup = (groupId: GlobalSearchGroupId) =>
     filter === 'all' && (groupId === 'topic' || groupId === 'session') && !expandedGroupIds.has(groupId)
+
   const toPanelGroup = (groupId: GlobalSearchGroupId, items: GlobalSearchPanelItem[]): GlobalSearchPanelGroup => {
     if (!shouldCollapseEntityGroup(groupId) || items.length <= GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT) {
       return { id: groupId, items, total: items.length }
@@ -359,6 +377,7 @@ export function buildGlobalSearchGroups({
       id: `${result.type}:${result.id}`,
       result
     }))
+
     if (topicItems.length > 0) groups.push(toPanelGroup('topic', topicItems))
   }
 
@@ -368,6 +387,7 @@ export function buildGlobalSearchGroups({
       id: `${result.type}:${result.id}`,
       result
     }))
+
     if (sessionItems.length > 0) groups.push(toPanelGroup('session', sessionItems))
   }
 
@@ -388,6 +408,7 @@ export function buildGlobalSearchGroups({
       id: `${result.type}:${result.id}`,
       result
     }))
+
     if (items.length > 0) groups.push({ id: 'assistant', items })
   }
 
@@ -397,6 +418,7 @@ export function buildGlobalSearchGroups({
       id: `${result.type}:${result.id}`,
       result
     }))
+
     if (items.length > 0) groups.push({ id: 'agent', items })
   }
 
@@ -406,6 +428,7 @@ export function buildGlobalSearchGroups({
       id: `${result.type}:${result.id}`,
       result
     }))
+
     if (items.length > 0) groups.push({ id: 'knowledge-base', items })
   }
 
@@ -443,21 +466,27 @@ export function buildGlobalMessageSearchGroups({
 
   return Array.from(groupsByParent.entries()).map(([parentId, group]) => {
     const expanded = expandedParentIds.has(parentId)
+
     const orderedResults = [...group.results].sort((a, b) => {
       const timeA = dayjs(a.createdAt).valueOf() || 0
       const timeB = dayjs(b.createdAt).valueOf() || 0
+
       if (timeA !== timeB) return timeA - timeB
+
       return a.messageId.localeCompare(b.messageId)
     })
+
     const visibleResults = expanded
       ? orderedResults
       : orderedResults.slice(0, GLOBAL_MESSAGE_SEARCH_GROUP_COLLAPSED_LIMIT)
+
     const items: GlobalMessageSearchPanelItem[] = visibleResults.map((result) => ({
       kind: 'message',
       id: `${parentId}:${result.messageId}`,
       parentId,
       result
     }))
+
     const remainingCount = group.results.length - visibleResults.length
 
     if (remainingCount > 0) {

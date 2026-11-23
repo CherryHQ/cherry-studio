@@ -79,6 +79,7 @@ export async function getParseStatus(
   context: PreparedDoc2xQueryContext
 ): Promise<Doc2xParseStatusResponse> {
   const endpoint = `${context.apiHost}/api/v2/parse/status?uid=${providerTaskId}`
+
   const response = await net.fetch(endpoint, {
     method: 'GET',
     headers: {
@@ -107,18 +108,22 @@ export async function triggerExportTask(
 ): Promise<Doc2xExportStatusResponse> {
   const endpoint = `${context.apiHost}/api/v2/convert/parse`
   const isV3Model = options.modelVersion === 'v3-2026'
+
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${context.apiKey}`,
     Accept: 'application/json'
   }
+
   const body = { uid: providerTaskId, to: 'md', formula_mode: 'normal' }
+
   if (isV3Model) {
     Object.assign(body, {
       formula_level: options.formulaLevel ?? 0,
       merge_cross_page_forms: options.mergeCrossPageForms ?? false
     })
   }
+
   const response = await net.fetch(endpoint, {
     method: 'POST',
     headers,
@@ -139,6 +144,7 @@ export async function getExportResult(
   context: PreparedDoc2xQueryContext
 ): Promise<Doc2xExportStatusResponse> {
   const endpoint = `${context.apiHost}/api/v2/convert/parse/result?uid=${providerTaskId}`
+
   const response = await net.fetch(endpoint, {
     method: 'GET',
     headers: {

@@ -13,6 +13,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { useTooltipPortalContainer, useTooltipZIndex } from './portal-container'
 
 type Side = 'top' | 'bottom' | 'left' | 'right'
+
 type Align = 'start' | 'center' | 'end'
 
 /**
@@ -55,18 +56,24 @@ function useTooltipUnmountDelay(open: boolean): boolean {
   React.useEffect(() => {
     if (open) {
       setVisible(true)
+
       return
     }
+
     const timer = window.setTimeout(() => setVisible(false), TOOLTIP_EXIT_ANIMATION_MS)
+
     return () => window.clearTimeout(timer)
   }, [open])
+
   return visible
 }
 
 /** 清扫延迟 = 退出动画窗口 + 余量：正常实例在退出窗口内自行卸载，此期间不触发清扫。 */
 const TOOLTIP_SWEEP_DELAY_MS = TOOLTIP_EXIT_ANIMATION_MS + 50
+
 /** open 态重检周期：打开的内容无法仅凭 data-state 区分活实例与残骸，需周期性核对 trigger 引用。 */
 export const STALE_OPEN_SWEEP_MS = 3000
+
 /** 清扫目标：本组件门控渲染且带清扫标记的内容（原生属性查询，避免逐元素 JS 判定）。 */
 const SWEEPABLE_CONTENT_SELECTOR = '[data-slot="tooltip-content"][data-tooltip-sweepable]'
 
@@ -82,21 +89,26 @@ function useTooltipController(
 ) {
   const [innerOpen, setInnerOpen] = React.useState(controlledOpen ?? defaultOpen)
   const [wasControlled, setWasControlled] = React.useState(controlledOpen != null)
+
   if (wasControlled !== (controlledOpen != null)) {
     setWasControlled(controlledOpen != null)
+
     // 受控期间内部态不更新，切回非受控时必须复位，否则会复活切换前的陈旧 open
     if (controlledOpen == null) setInnerOpen(false)
   }
+
   const effectiveOpen = controlledOpen != null ? controlledOpen : disabled ? false : innerOpen
   const contentVisible = useTooltipUnmountDelay(effectiveOpen)
   // disabled 早退后组件仍挂载，内部打开态必须复位，否则重新启用时会不经 hover 直接打开；
   // 复位必须发生在渲染期且禁用/恢复两端都做——<Activity> 隐藏期间效果不运行，其子树的
   // 渲染期更新还可能被推迟到恢复可见时才提交，单端复位会被整段吞掉
   const [wasDisabled, setWasDisabled] = React.useState(disabled)
+
   if (wasDisabled !== disabled) {
     setWasDisabled(disabled)
     setInnerOpen(false)
   }
+
   const handleOpenChange = React.useCallback(
     (next: boolean) => {
       if (controlledOpen == null) setInnerOpen(next)
@@ -104,6 +116,7 @@ function useTooltipController(
     },
     [controlledOpen, onOpenChange]
   )
+
   return { contentVisible, effectiveOpen, handleOpenChange }
 }
 
@@ -121,42 +134,55 @@ function setupTooltipOrphanSweeper(): void {
   const observedRoots = new WeakSet<Document | ShadowRoot>()
   // 已观察 shadow root 的弱引用清单，替代「全文档元素级遍历 + 逐元素递归」的引用搜索
   const shadowRoots: WeakRef<ShadowRoot>[] = []
+
   /** 查找对某 contentId 的 trigger 引用：document 单查询 + 已观察 shadow root 逐个单查询。
    * 只覆盖已观察的 shadow root（宿主插入后迟 attach 的 root 为已知边界）；iframe 不可达。 */
   const hasActiveAriaReference = (tooltipId: string): boolean => {
     const selector = `[aria-describedby~="${CSS.escape(tooltipId)}"]`
+
     if (document.querySelector(selector)) return true
+
     for (let i = shadowRoots.length - 1; i >= 0; i--) {
       const root = shadowRoots[i].deref()
+
       // 顺带压缩死引用：WeakRef 清理不会缩短数组，索引必须自己收缩
       if (!root) {
         shadowRoots.splice(i, 1)
         continue
       }
+
       if (root.isConnected && root.querySelector(selector)) return true
     }
+
     return false
   }
+
   /** 内容是否脱离 popper 定位：活实例恒被 floating-ui 定位（wrapper 保有 transform），
    * popper 失去 floating 元素时该 transform 会被移除；删除中断（React 抛错）的残骸不在覆盖内。 */
   const isUnpositioned = (node: Element): boolean => {
     const wrapper = node.parentElement
+
     return !wrapper?.hasAttribute('data-radix-popper-content-wrapper') || !wrapper.style.transform
   }
+
   const cancelPending = (node: Element) => {
     const previous = pending.get(node)
+
     if (previous != null) window.clearTimeout(previous)
     pending.delete(node)
   }
+
   const maybeSweep = (node: Element) => {
     // 任何状态变化都取消旧 timer：reopen 后再 close 时，旧 timer 不得截断新一轮退出窗口
     cancelPending(node)
     const state = node.getAttribute('data-state')
+
     if (state === 'closed') {
       pending.set(
         node,
         window.setTimeout(() => {
           pending.delete(node)
+
           // 复查标记：排队期间调用方可能已开启 forceMount（内容回到用户持有，不得清扫）
           if (
             node.isConnected &&
@@ -175,33 +201,42 @@ function setupTooltipOrphanSweeper(): void {
         window.setTimeout(() => {
           if (!node.isConnected || !node.hasAttribute('data-tooltip-sweepable')) {
             pending.delete(node)
+
             return
           }
+
           if (node.getAttribute('data-state') === 'closed') {
             pending.delete(node)
             maybeSweep(node) // 刚关闭，重新走 closed 窗口
+
             return
           }
+
           // 内容里可能有多个 role=tooltip（用户内容自身可含）：任一 id 被 trigger 引用即活实例；
           // 无候选（数组为空）时 every 恒真，必须保留 length 判断以免误删
           const tooltipIds = Array.from(node.querySelectorAll<HTMLElement>('[role="tooltip"][id]'))
             .map((el) => el.id)
             .filter(Boolean)
+
           // 仍被定位即活实例；不能只看 aria 引用——trigger 自带 aria-describedby 会覆盖 Radix 的引用
           if (tooltipIds.length > 0 && isUnpositioned(node) && tooltipIds.every((id) => !hasActiveAriaReference(id))) {
             pending.delete(node)
             node.remove()
+
             return
           }
+
           maybeSweep(node)
         }, STALE_OPEN_SWEEP_MS)
       )
     }
   }
+
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       if (mutation.type === 'attributes') {
         const target = mutation.target as Element
+
         if (target.getAttribute('data-slot') === 'tooltip-content') {
           // 标记被移除 = 内容回到调用方持有（如 forceMount 打开）：撤销排队中的清扫
           if (target.hasAttribute('data-tooltip-sweepable')) {
@@ -210,40 +245,53 @@ function setupTooltipOrphanSweeper(): void {
             cancelPending(target)
           }
         }
+
         continue
       }
+
       for (const node of mutation.addedNodes) {
         const element = node as Element
         const isElement = element.nodeType === 1
+
         if (!isElement && element.nodeType !== 11) continue // 元素或 DocumentFragment（其子树整体追加）
+
         // content 内部元素（arrow/svg/文本）的 churn 与关闭判定无关
         if (isElement && element.parentElement?.getAttribute('data-slot') === 'tooltip-content') continue
+
         // 一条原生属性查询取代逐元素 JS 遍历：大子树挂载时不再做 O(子树) 的 JS 工作
         if (isElement && element.matches(SWEEPABLE_CONTENT_SELECTOR)) maybeSweep(element)
+
         for (const target of element.querySelectorAll(SWEEPABLE_CONTENT_SELECTOR)) {
           maybeSweep(target)
         }
+
         // shadow 宿主没有对应选择器，只查节点自身与直接子级（宿主随深层子树一并插入不在支持范围）
         if (isElement && element.shadowRoot) scanShadowTree(element.shadowRoot)
+
         for (const child of element.children) {
           if (child.shadowRoot) scanShadowTree(child.shadowRoot)
         }
       }
     }
   })
+
   // shadow 边界不穿透：已挂 root 的宿主连同其内容一并纳入观察，嵌套宿主逐层递归
   function scanShadowTree(root: ShadowRoot): void {
     ensureObserved(root)
+
     for (const el of root.querySelectorAll(SWEEPABLE_CONTENT_SELECTOR)) {
       maybeSweep(el)
     }
+
     for (const child of root.children) {
       if (child.shadowRoot) scanShadowTree(child.shadowRoot)
     }
   }
+
   function ensureObserved(root: Document | ShadowRoot): void {
     if (observedRoots.has(root)) return
     observedRoots.add(root)
+
     if (root instanceof ShadowRoot) shadowRoots.push(new WeakRef(root))
     observer.observe(root, {
       childList: true,
@@ -252,8 +300,10 @@ function setupTooltipOrphanSweeper(): void {
       attributeFilter: ['data-state', 'data-tooltip-sweepable']
     })
   }
+
   ensureObserved(document)
 }
+
 if (typeof document !== 'undefined' && typeof window !== 'undefined') {
   setupTooltipOrphanSweeper()
 }
@@ -262,8 +312,11 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined') {
 const TooltipOverlayContext = React.createContext<boolean | null>(null)
 
 export type TooltipProviderProps = React.ComponentProps<typeof RadixProvider>
+
 export type TooltipRootProps = React.ComponentProps<typeof RadixRoot>
+
 export type TooltipTriggerProps = React.ComponentProps<typeof RadixTrigger>
+
 export type TooltipContentProps = React.ComponentProps<typeof RadixContent> & {
   portalContainer?: React.ComponentProps<typeof RadixPortal>['container']
   showArrow?: boolean
@@ -275,15 +328,18 @@ function TooltipProvider({ delayDuration = 0, ...props }: TooltipProviderProps) 
 
 function TooltipRoot({ delayDuration = 0, open: openProp, defaultOpen, onOpenChange, ...props }: TooltipRootProps) {
   const surfaceActive = React.use(TooltipSurfaceContext)
+
   const {
     contentVisible: controllerContentVisible,
     effectiveOpen: controllerEffectiveOpen,
     handleOpenChange
   } = useTooltipController(openProp, onOpenChange, defaultOpen, !surfaceActive)
+
   // 非活跃 surface 强制关闭并跳过退出窗口：anchor 被 display:none 藏起时看不到任何离开事件，
   // portal content 不得比 anchor 活得更久；关闭同时复位内部 open 态，surface 恢复后不会无 hover 复活
   const contentVisible = surfaceActive && controllerContentVisible
   const effectiveOpen = surfaceActive && controllerEffectiveOpen
+
   return (
     <TooltipOverlayContext value={contentVisible}>
       <TooltipProvider delayDuration={delayDuration}>
@@ -305,6 +361,7 @@ function TooltipTrigger({ onFocus, ...props }: TooltipTriggerProps) {
       data-slot="tooltip-trigger"
       onFocus={(e) => {
         onFocus?.(e)
+
         // Radix composeEventHandlers respects defaultPrevented
         if (!e.defaultPrevented && !e.target.matches(':focus-visible')) {
           e.preventDefault()
@@ -347,11 +404,13 @@ function TooltipContent({
   const defaultPortalContainer = useTooltipPortalContainer()
   const zIndex = useTooltipZIndex()
   const contentVisible = React.use(TooltipOverlayContext)
+
   // 显式 forceMount 保留 Radix 公共契约（closed 也常驻 DOM），豁免 150ms 门控
   if (contentVisible === false && !forceMount) return null
   const container = portalContainer ?? defaultPortalContainer ?? undefined
   const contentStyle = zIndex ? { zIndex, ...style } : style
   const arrow = showArrow ? <RadixArrow width={12} height={6} className={arrowStyles} /> : null
+
   // 有 overlay context（TooltipRoot 组合）时挂载由门控接管：forceMount + 150ms 退出窗口；
   // 显式 forceMount 内容由用户持有生命周期，不带清扫标记；独立使用保持 Radix 原生 presence 卸载。
   if (contentVisible !== null) {
@@ -371,6 +430,7 @@ function TooltipContent({
       </RadixPortal>
     )
   }
+
   return (
     // Portal 层也须 forceMount：其内部 Presence 同样会在 closed 时卸载整棵子树
     <RadixPortal container={container} forceMount={forceMount ? true : undefined}>
@@ -436,12 +496,14 @@ export const Tooltip = ({
   // resets the open state so nothing resurfaces unhovered when the surface comes back.
   const surfaceActive = React.use(TooltipSurfaceContext)
   const disabled = !tooltipContent || isDisabled || !surfaceActive
+
   const { contentVisible, effectiveOpen, handleOpenChange } = useTooltipController(
     isOpen,
     onOpenChange,
     false,
     disabled
   )
+
   const triggerWrapperClassName = cn(
     'relative z-10',
     fullWidthTrigger ? 'block w-full max-w-full min-w-0' : 'inline-block',

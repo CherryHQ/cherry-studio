@@ -18,6 +18,7 @@ import { MIN_INPUT_ROOM_RATIO } from '../constants'
  */
 export function resolveInputRoom(contextWindow: number, reservation: number | undefined): number {
   if (reservation === undefined) return contextWindow
+
   // Floored: a reservation at or above the window would otherwise yield a
   // non-positive budget, which reads as "compact everything, forever".
   return Math.max(contextWindow - reservation, Math.floor(contextWindow * MIN_INPUT_ROOM_RATIO))

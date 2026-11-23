@@ -35,6 +35,7 @@ export function resolveCommand(
   powershell = false
 ): { command: string; args: string[] } | undefined {
   const resolved = resolveCommandWords(words, true, powershell)
+
   return resolved ? { command: resolved.command, args: resolved.args } : undefined
 }
 
@@ -42,21 +43,26 @@ export function resolveCommand(
 export function parseShellCommand(command: string, powershell = false): ParsedShellCommand {
   const parsed = parseCommandSyntax(command, 'bash')
   const pipelines = new Map<string, ShellCommand[]>()
+
   for (const node of parsed.commands) {
     const stdin = parsed.redirections
       .filter((redirect) => redirect.pipeline === node.pipeline && redirect.operator === '<<<')
       .flatMap((redirect) => (redirect.target ? [redirect.target.value ?? redirect.target.raw] : []))
+
     const resolved = resolveCommand([...node.words.map((word) => word.value ?? word.raw), ...stdin], powershell)
+
     if (!resolved) continue
     const commands = pipelines.get(node.pipeline) ?? []
     commands.push({ ...resolved, substitutions: node.substitutions })
     pipelines.set(node.pipeline, commands)
   }
+
   return {
     pipelines: [...pipelines.values()].map((commands) => ({ commands })),
     heredocs: parsed.heredocs.map((heredoc) => {
       const resolved = findHeredocConsumer(parsed, heredoc)
       const result: ShellHeredoc = { ...heredoc }
+
       if (resolved) {
         result.consumer = {
           command: resolved.executable,
@@ -64,6 +70,7 @@ export function parseShellCommand(command: string, powershell = false): ParsedSh
           substitutions: []
         }
       }
+
       return result
     })
   }

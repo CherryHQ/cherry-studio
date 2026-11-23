@@ -87,15 +87,21 @@ export class JobService {
    */
   private listConditions(filter: Omit<JobListFilter, 'limit' | 'offset'>): SQL[] {
     const conditions: SQL[] = []
+
     if (filter.status?.length) conditions.push(inArray(jobTable.status, filter.status))
+
     if (filter.queue) conditions.push(eq(jobTable.queue, filter.queue))
+
     if (Array.isArray(filter.type)) {
       if (filter.type.length) conditions.push(inArray(jobTable.type, filter.type))
     } else if (filter.type) {
       conditions.push(eq(jobTable.type, filter.type))
     }
+
     if (filter.scheduleId) conditions.push(eq(jobTable.scheduleId, filter.scheduleId))
+
     if (filter.parentId) conditions.push(eq(jobTable.parentId, filter.parentId))
+
     return conditions
   }
 
@@ -138,11 +144,13 @@ export class JobService {
       : db.select({ count: count() }).from(jobTable)
 
     const [r] = query.all()
+
     return r?.count ?? 0
   }
 
   getById(id: string): JobSnapshot | null {
     const [row] = this.getDb().select().from(jobTable).where(eq(jobTable.id, id)).limit(1).all()
+
     return row ? this.rowToSnapshot(row) : null
   }
 
@@ -168,6 +176,7 @@ export class JobService {
       .orderBy(desc(jobTable.finishedAt))
       .limit(limit)
       .all()
+
     return rows.map((r) => this.rowToSnapshot(r))
   }
 
@@ -186,14 +195,17 @@ export class JobService {
    */
   getRunStatesByScheduleIds(type: string, scheduleIds: readonly string[]): Map<string, JobScheduleRunState> {
     const uniqueScheduleIds = [...new Set(scheduleIds)]
+
     if (uniqueScheduleIds.length === 0) return new Map()
 
     const db = this.getDb()
+
     const requestedSchedules = () =>
       sql`WITH requested_schedules(schedule_id) AS (VALUES ${sql.join(
         uniqueScheduleIds.map((scheduleId) => sql`(${scheduleId})`),
         sql`, `
       )})`
+
     const terminalStatuses = sql.join(
       TERMINAL_JOB_STATUSES.map((status) => sql`${status}`),
       sql`, `
@@ -282,16 +294,20 @@ export class JobService {
     return new Map(
       uniqueScheduleIds.flatMap((scheduleId): Array<[string, JobScheduleRunState]> => {
         const running = runningByScheduleId.get(scheduleId)
+
         if (running !== undefined) return [[scheduleId, { kind: running ? 'running' : 'unfinished' }]]
 
         const terminal = terminalByScheduleId.get(scheduleId)
         // Strict > : on a timestamp tie the persisted terminal row beats the
         // optimistic cancelled projection.
         const cancellingAt = cancelRequestedAtByScheduleId.get(scheduleId)
+
         if (cancellingAt != null && (!terminal || cancellingAt > terminal.finishedAt)) {
           return [[scheduleId, { kind: 'terminal', status: 'cancelled', finishedAt: cancellingAt }]]
         }
+
         if (!terminal || !isTerminalJobStatus(terminal.status)) return []
+
         return [[scheduleId, { kind: 'terminal', status: terminal.status, finishedAt: terminal.finishedAt }]]
       })
     )
@@ -324,8 +340,11 @@ export class JobService {
       () => tx.insert(jobTable).values(dto).returning().all(),
       defaultHandlersFor('Job', dto.id ?? '<auto>')
     )
+
     const row = result[0]
+
     if (!row) throw new Error('jobService.create returned no row')
+
     return this.rowToSnapshot(row)
   }
 
@@ -364,6 +383,7 @@ export class JobService {
       .where(and(eq(jobTable.idempotencyKey, key), inArray(jobTable.status, ACTIVE_JOB_STATUSES)))
       .limit(1)
       .all()
+
     return row ? this.rowToSnapshot(row) : null
   }
 
@@ -379,6 +399,7 @@ export class JobService {
       .from(jobTable)
       .where(and(eq(jobTable.queue, queue), eq(jobTable.status, 'running')))
       .all()
+
     return r?.count ?? 0
   }
 
@@ -389,6 +410,7 @@ export class JobService {
    */
   countRunningGlobalTx(tx: DbOrTx): number {
     const [r] = tx.select({ count: count() }).from(jobTable).where(eq(jobTable.status, 'running')).all()
+
     return r?.count ?? 0
   }
 
@@ -404,6 +426,7 @@ export class JobService {
    */
   claimNextPendingTx(tx: DbOrTx, queue: string): JobRow | null {
     const now = Date.now()
+
     const [candidate] = tx
       .select()
       .from(jobTable)
@@ -418,6 +441,7 @@ export class JobService {
       .orderBy(asc(jobTable.priority), asc(jobTable.scheduledAt))
       .limit(1)
       .all()
+
     if (!candidate) return null
 
     const updated = tx
@@ -426,6 +450,7 @@ export class JobService {
       .where(and(eq(jobTable.id, candidate.id), eq(jobTable.status, 'pending'), eq(jobTable.cancelRequested, false)))
       .returning()
       .all()
+
     return updated[0] ?? null
   }
 
@@ -440,6 +465,7 @@ export class JobService {
     error: JobError | null
   ): boolean {
     const now = Date.now()
+
     const result = tx
       .update(jobTable)
       .set({
@@ -457,6 +483,7 @@ export class JobService {
       // resurrect the row as 'completed'.
       .where(and(eq(jobTable.id, jobId), notInArray(jobTable.status, [...TERMINAL_JOB_STATUSES])))
       .run()
+
     return result.changes > 0
   }
 
@@ -481,10 +508,12 @@ export class JobService {
 
   setCancelRequestedTx(tx: DbOrTx, jobId: string): void {
     const now = Date.now()
+
     const activeStatuses = sql.join(
       ACTIVE_JOB_STATUSES.map((status) => sql`${status}`),
       sql`, `
     )
+
     tx.update(jobTable)
       .set({
         cancelRequested: true,
@@ -620,7 +649,9 @@ export class JobService {
    */
   cancelManyTx(tx: DbOrTx, filter: { queue?: string; type?: string }, error: JobError | null) {
     const conditions: SQL[] = [inArray(jobTable.status, ACTIVE_JOB_STATUSES)]
+
     if (filter.queue) conditions.push(eq(jobTable.queue, filter.queue))
+
     if (filter.type) conditions.push(eq(jobTable.type, filter.type))
 
     const matching = tx
@@ -628,10 +659,12 @@ export class JobService {
       .from(jobTable)
       .where(and(...conditions))
       .all()
+
     const runningIds = matching.filter((r) => r.status === 'running').map((r) => r.id)
     const nonRunningIds = matching.filter((r) => r.status !== 'running').map((r) => r.id)
 
     const now = Date.now()
+
     if (runningIds.length) {
       tx.update(jobTable)
         .set({
@@ -642,7 +675,9 @@ export class JobService {
         .where(inArray(jobTable.id, runningIds))
         .run()
     }
+
     let transitioned = 0
+
     if (nonRunningIds.length) {
       const result = tx
         .update(jobTable)
@@ -654,8 +689,10 @@ export class JobService {
         })
         .where(inArray(jobTable.id, nonRunningIds))
         .run()
+
       transitioned = result.changes
     }
+
     return { runningIds, transitioned }
   }
 
@@ -674,6 +711,7 @@ export class JobService {
       .set({ status: 'pending', updatedAt: now })
       .where(and(eq(jobTable.status, 'delayed'), lte(jobTable.scheduledAt, now)))
       .run()
+
     return result.changes
   }
 
@@ -689,6 +727,7 @@ export class JobService {
       .delete(jobTable)
       .where(and(inArray(jobTable.status, TERMINAL_JOB_STATUSES), lte(jobTable.finishedAt, cutoffMs)))
       .run()
+
     return result.changes
   }
 
@@ -716,19 +755,24 @@ export class JobService {
 
     const perSchedule = new Map<string, number>()
     const toDelete: string[] = []
+
     for (const row of allTerminal) {
       const key = row.scheduleId ?? `type:${row.type}`
       const c = (perSchedule.get(key) ?? 0) + 1
       perSchedule.set(key, c)
+
       if (c > keepPerSchedule) toDelete.push(row.id)
     }
+
     if (toDelete.length === 0) return 0
     const result = tx.delete(jobTable).where(inArray(jobTable.id, toDelete)).run()
+
     return result.changes
   }
 
   pruneTerminalKeepLatestPerSchedule(keepPerSchedule: number): number {
     const dbService = application.get('DbService')
+
     return dbService.withWriteTx((tx) => this.pruneTerminalKeepLatestPerScheduleTx(tx, keepPerSchedule))
   }
 
@@ -789,11 +833,13 @@ export class JobService {
   private validateError(rowId: string, parsed: unknown): JobError | null {
     if (parsed == null) return null
     const result = JobErrorSchema.safeParse(parsed)
+
     if (result.success) return result.data
     logger.warn('Job error column failed schema validation — using sentinel', {
       rowId,
       issues: result.error.issues.map((i) => i.message)
     })
+
     return {
       code: 'JOB_CORRUPT_ERROR_ROW',
       message: 'Persisted error column did not match JobErrorSchema',

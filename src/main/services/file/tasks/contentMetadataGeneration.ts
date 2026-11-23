@@ -31,7 +31,9 @@ export function ensureContentMetadataGeneration(): ContentMetadataGenerationResu
       .from(appStateTable)
       .where(eq(appStateTable.key, CONTENT_METADATA_GENERATION_KEY))
       .get()
+
     const parsed = ContentMetadataGenerationSchema.safeParse(marker?.value)
+
     if (parsed.success && parsed.data.version === CONTENT_METADATA_GENERATION_VERSION) {
       return { invalidated: 0, applied: false }
     }

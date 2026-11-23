@@ -13,6 +13,7 @@ import SelectionToolbar from './SelectionToolbar'
 function SelectionToolbarRuntime(): null {
   useLanguageSync()
   useCustomCss()
+
   return null
 }
 

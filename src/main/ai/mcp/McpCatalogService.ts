@@ -53,6 +53,7 @@ export class McpCatalogService extends BaseService {
       application.get('McpRuntimeService').onToolListChanged(({ serverId, tools }) => {
         try {
           const server = this.getServerById(serverId)
+
           if (server.isActive) this.writeToolsCache(serverId, this.projectTools(server, tools))
         } catch (error) {
           logger.warn('Failed to project changed tools', { serverId, error })
@@ -95,11 +96,13 @@ export class McpCatalogService extends BaseService {
     const cacheKey = mcpToolsCacheKey(serverId)
     const previous = cacheService.getShared(cacheKey) as McpTool[] | undefined
     cacheService.setShared(cacheKey, tools)
+
     if (failureBackoffMs > 0) {
       cacheService.set(failedToolsBackoffKey(serverId), true, failureBackoffMs)
     } else {
       cacheService.delete(failedToolsBackoffKey(serverId))
     }
+
     if (JSON.stringify(previous ?? []) !== JSON.stringify(tools)) {
       this._onToolsCacheUpdated.fire({ serverId })
     }
@@ -116,11 +119,13 @@ export class McpCatalogService extends BaseService {
 
   private filterEnabledTools(server: McpServer, tools: McpTool[]): McpTool[] {
     let latestServer: McpServer
+
     try {
       latestServer = this.getServerById(server.id)
     } catch {
       latestServer = server
     }
+
     return tools.filter((tool) => !isMcpToolDisabledBySource(latestServer, tool))
   }
 
@@ -137,11 +142,13 @@ export class McpCatalogService extends BaseService {
   private async listToolsImpl(server: McpServer, cacheMode: CacheMode, windowId?: string | null): Promise<McpTool[]> {
     try {
       const runtime = application.get('McpRuntimeService')
+
       // A window context lets an OAuth-only server open the sign-in browser on first connect;
       // background warmers still use the non-interactive path.
       const tools = windowId
         ? await runtime.listToolsWithContext(server.id, { windowId }, cacheMode)
         : await runtime.listTools(server.id, cacheMode)
+
       return this.projectTools(server, tools)
     } catch (error: unknown) {
       logger.error('Failed to list tools', error as Error, { serverId: server.id, serverName: server.name })
@@ -153,6 +160,7 @@ export class McpCatalogService extends BaseService {
     if (!server.isActive) {
       this.writeToolsCache(server.id, [])
       this.runtimeService().setServerStatus(server.id, 'disabled')
+
       return []
     }
 
@@ -161,9 +169,11 @@ export class McpCatalogService extends BaseService {
 
     try {
       const tools = await withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
+
       if (this.projectionRevisions.get(server.id) !== revision) return this.listTools(server.id, options)
       this.writeToolsCache(server.id, tools)
       this.runtimeService().setServerStatus(server.id, 'connected')
+
       return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)
     } catch (error) {
       if (this.projectionRevisions.get(server.id) !== revision) throw error
@@ -186,31 +196,40 @@ export class McpCatalogService extends BaseService {
    */
   public listTools(serverId: string, options: ListToolsOptions = {}): McpTool[] {
     const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId)) as McpTool[] | undefined
+
     // `undefined` = never warmed (distinct from a warmed-but-empty/dead server that holds `[]`).
     // Kick a one-shot, non-blocking refresh so the next read is populated; dead servers keep
     // their `[]` and are not re-probed here. Routed through the single-flighted warm so a kick
     // racing an in-flight session warm doesn't open a second connection to the same server.
     if (cached === undefined) void this.warmToolsCache(serverId)
     const tools = cached ?? []
+
     if (options.includeDisabled || tools.length === 0) return tools
     let server: McpServer | undefined
+
     try {
       server = this.getServerById(serverId)
     } catch {
       server = undefined
     }
+
     return server ? tools.filter((tool) => !isMcpToolDisabledBySource(server, tool)) : tools
   }
 
   /** Fill an empty snapshot; list_changed keeps a populated one fresh, and failed reads back off. */
   public async warmToolsCache(serverId: string): Promise<void> {
     const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId)) as McpTool[] | undefined
+
     if (cached !== undefined && cached.length > 0) return
+
     if (application.get('CacheService').has(failedToolsBackoffKey(serverId))) {
       logger.debug('Skipping MCP tools warm during retry backoff', { serverId })
+
       return
     }
+
     let refresh = this.warmRefreshInFlight.get(serverId)
+
     if (!refresh) {
       refresh = this.getCurrentTools(serverId, { includeDisabled: true })
         .then(() => undefined)
@@ -222,6 +241,7 @@ export class McpCatalogService extends BaseService {
         })
       this.warmRefreshInFlight.set(serverId, refresh)
     }
+
     await refresh
   }
 
@@ -249,12 +269,15 @@ export class McpCatalogService extends BaseService {
   private async prewarmActiveServerTools(): Promise<void> {
     try {
       const { items: servers } = mcpServerService.list({ isActive: true })
+
       for (let index = 0; index < servers.length; index += PREWARM_CONCURRENCY) {
         if (this.prewarmCancelled || this.isStopped || this.isDestroyed) return
         const batch = servers.slice(index, index + PREWARM_CONCURRENCY)
+
         const results = await Promise.allSettled(
           batch.map((server) => this.listToolsForServer(server, { includeDisabled: true }))
         )
+
         results.forEach((result, resultIndex) => {
           if (result.status === 'fulfilled') return
           const server = batch[resultIndex]

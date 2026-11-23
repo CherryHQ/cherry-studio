@@ -6,7 +6,9 @@ import { AwsLight } from './light'
 
 const Aws = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AwsLight {...props} className={className} />
+
   if (variant === 'dark') return <AwsDark {...props} className={className} />
+
   return (
     <>
       <AwsLight className={cn('dark:hidden', className)} {...props} />

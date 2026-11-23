@@ -47,6 +47,7 @@ export function compactionSummaryExtension(
   return (pi) => {
     pi.on('session_before_compact', async (event, ctx) => {
       const { preparation, signal } = event
+
       try {
         const request: Omit<CompactionSummaryRequest, 'signal'> = {
           reason: event.reason,
@@ -57,21 +58,28 @@ export function compactionSummaryExtension(
             ctx.model!
           )
         }
+
         if (preparation.previousSummary !== undefined) request.previousSummary = preparation.previousSummary
+
         if (event.customInstructions !== undefined) request.instructions = event.customInstructions
         const result = await summarize(Object.assign(request, { signal }))
         const summary = typeof result === 'string' ? result : result.summary
+
         if (!summary.trim()) throw new Error('The summarizer returned an empty summary')
+
         const compaction: CompactionResult = {
           summary,
           firstKeptEntryId: preparation.firstKeptEntryId,
           tokensBefore: preparation.tokensBefore
         }
+
         if (typeof result !== 'string') compaction.usage = result.usage
+
         return { compaction }
       } catch (error) {
         // A throwing handler would make Pi fall back to its own summarizer on the session model.
         if (!signal.aborted) onFailure(error instanceof Error ? error.message : String(error))
+
         return { cancel: true }
       }
     })

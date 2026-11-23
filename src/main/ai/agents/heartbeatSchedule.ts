@@ -51,6 +51,7 @@ const AGENT_TASK_TYPE = 'agent.task' as const
 export function isReservedHeartbeatScheduleName(name: string): boolean {
   if (!name.startsWith('heartbeat_')) return false
   const agentId = name.slice('heartbeat_'.length)
+
   return agentId.length > 0 && agentService.getAgent(agentId) !== null
 }
 
@@ -75,6 +76,7 @@ type HeartbeatJobInputTemplate = {
 function isHeartbeatRow(row: { jobInputTemplate: unknown }, agentId: string): boolean {
   if (typeof row.jobInputTemplate !== 'object' || row.jobInputTemplate === null) return false
   const template = row.jobInputTemplate as { agentId?: unknown; prompt?: unknown }
+
   return template.agentId === agentId && template.prompt === HEARTBEAT_PROMPT_SENTINEL
 }
 
@@ -84,7 +86,9 @@ function matchesFallbackIdentity(row: JobScheduleSnapshot, agentId: string): boo
   // Preserve foreign tasks that happen to occupy a reserved name.
   if (row.name !== `heartbeat_${agentId}`) return false
   const template = row.jobInputTemplate as { agentId?: unknown; prompt?: unknown } | null
+
   if (template?.agentId !== agentId) return false
+
   return typeof template.prompt === 'string' && template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL
 }
 
@@ -104,17 +108,22 @@ function findHeartbeatRow(agentId: string, rows: JobScheduleSnapshot[]) {
 export function reclaimHeartbeatWorkspacesTx(tx: DbOrTx, deletedSchedules: JobScheduleSnapshot[]): void {
   for (const schedule of deletedSchedules) {
     const input = schedule.jobInputTemplate
+
     if (typeof input !== 'object' || input === null || Array.isArray(input)) continue
     const template = input as { agentId?: unknown; prompt?: unknown; workspace?: unknown }
+
     if (typeof template.agentId !== 'string' || typeof template.prompt !== 'string') continue
+
     const reservedName =
       schedule.name === `heartbeat_${template.agentId}` || schedule.name?.startsWith(`heartbeat_${template.agentId}__`)
+
     if (
       !isHeartbeatRow(schedule, template.agentId) &&
       !(reservedName && template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL)
     )
       continue
     const workspace = AgentSessionWorkspaceSourceSchema.safeParse(template.workspace)
+
     if (workspace.success && workspace.data.type === AGENT_WORKSPACE_TYPE.USER) {
       agentWorkspaceService.deleteIfUnreferencedTx(tx, workspace.data.workspaceId)
     }
@@ -126,10 +135,13 @@ export function reclaimHeartbeatWorkspacesTx(tx: DbOrTx, deletedSchedules: JobSc
 function isScheduleNameConflict(error: unknown): boolean {
   try {
     const prefix = JOB_ERROR_CODES.SCHEDULE_NAME_CONFLICT
+
     if (error instanceof DataApiError) {
       return error.code === ErrorCode.CONFLICT && error.message.startsWith(prefix)
     }
+
     const message = error instanceof Error ? error.message : String(error)
+
     return message.startsWith(prefix)
   } catch {
     return false
@@ -140,6 +152,7 @@ function isScheduleNameConflict(error: unknown): boolean {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JobScheduleSnapshot retains raw persisted jobInputTemplate JSON; compare consumed heartbeat fields without trusting a current-template assertion.
 function templateDrifted(current: unknown, target: HeartbeatJobInputTemplate): boolean {
   if (typeof current !== 'object' || current === null) return true
+
   const template = current as {
     agentId?: unknown
     prompt?: unknown
@@ -147,10 +160,14 @@ function templateDrifted(current: unknown, target: HeartbeatJobInputTemplate): b
     reuseRevision?: unknown
     workspace?: unknown
   }
+
   if (template.agentId !== target.agentId || template.prompt !== target.prompt) return true
+
   if (template.timeoutMinutes !== target.timeoutMinutes) return true
+
   // reuseRevision is read at run time, so drift there must not report 'noop'.
   if (template.reuseRevision !== target.reuseRevision) return true
+
   return Object.hasOwn(template, 'workspace')
 }
 
@@ -162,22 +179,29 @@ function pauseHeartbeatRows(
 ): string[] {
   // Pause every migrated duplicate; only an explicit toggle-off resets the breaker.
   const paused: string[] = []
+
   for (const row of rows) {
     if (!matchesHeartbeatIdentity(row, agentId)) continue
     const clearMarker = options.clearBreakerMarker && isCircuitBreakerPaused(row.metadata)
+
     if (!row.enabled && !clearMarker) continue
     application.get('DbService').withWriteTx((tx) => {
       const patch: UpdateJobScheduleDto = {}
+
       if (row.enabled) patch.enabled = false
+
       if (clearMarker) patch.metadata = writeCircuitBreakerPaused(row.metadata, false)
       application.get('JobManager').updateJobScheduleTx(tx, row.id, patch)
     })
+
     if (row.enabled) {
       application.get('JobManager').syncJobScheduleTimerById(row.id)
       paused.push(row.id)
     }
   }
+
   if (paused.length > 0) logger.info('Heartbeat schedule paused', { agentId, scheduleIds: paused })
+
   return paused
 }
 
@@ -222,23 +246,30 @@ export async function syncHeartbeatSchedule(
 ): Promise<HeartbeatSyncOutcome> {
   signal.throwIfAborted()
   const agent = agentService.getAgent(agentId)
+
   if (!agent) return 'skipped-missing-agent'
 
   // The ids of anything this sync wrote — the mid-sync deletion guard below
   // needs them to undo the writes.
   const touchedScheduleIds: string[] = []
+
   const finalize = async (outcome: HeartbeatSyncOutcome): Promise<HeartbeatSyncOutcome> => {
     // Agent deletion may finish during file IO; compensate any writes that followed it.
     if (touchedScheduleIds.length === 0) return outcome
     const state = agentService.getLifecycleState(agentId)
+
     if (state === 'active') return outcome
+
     if (state === 'trashed') {
       const { scheduleIds } = application
         .get('DbService')
         .withWriteTx((tx) => agentTaskService.setOwnerStateTx(tx, agentId, 'trashed', Date.now()))
+
       for (const scheduleId of scheduleIds) application.get('JobManager').syncJobScheduleTimerById(scheduleId)
+
       return 'skipped-missing-agent'
     }
+
     for (const scheduleId of touchedScheduleIds) {
       try {
         deleteHeartbeatSchedule(scheduleId)
@@ -246,12 +277,14 @@ export async function syncHeartbeatSchedule(
         logger.warn('Failed to remove heartbeat schedule for an agent deleted mid-sync', { agentId, error })
       }
     }
+
     if (touchedScheduleIds.length > 0) {
       logger.info('Removed heartbeat schedule for an agent deleted mid-sync', {
         agentId,
         scheduleIds: touchedScheduleIds
       })
     }
+
     return 'skipped-missing-agent'
   }
 
@@ -260,21 +293,26 @@ export async function syncHeartbeatSchedule(
     for (const row of rows) {
       if (!matchesHeartbeatIdentity(row, agentId)) continue
       const current = jobScheduleService.getByIdTx(tx, row.id)
+
       if (!current || !matchesHeartbeatIdentity(current, agentId)) continue
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical templates retain unrecognized fields when workspace is removed; only workspace is schema-validated here.
       const input = current.jobInputTemplate as Record<string, unknown>
+
       if (!Object.hasOwn(input, 'workspace')) continue
       const { workspace, ...template } = input
       application.get('JobManager').updateJobScheduleTx(tx, current.id, { jobInputTemplate: template })
       const source = AgentSessionWorkspaceSourceSchema.safeParse(workspace)
+
       if (source.success && source.data.type === AGENT_WORKSPACE_TYPE.USER) {
         const directory = agentDataDirectoryPath(application.getPath('feature.agents.data'), agentId)
         agentWorkspaceService.deleteIfUnreferencedTx(tx, source.data.workspaceId, directory)
         changedWorkspaceIds.push(source.data.workspaceId)
       }
+
       touchedScheduleIds.push(current.id)
     }
   })
+
   if (changedWorkspaceIds.length > 0) {
     notifyDataApiDataChange([{ endpoint: '/agent-workspaces', kind: 'membership', entityIds: changedWorkspaceIds }])
   }
@@ -293,12 +331,14 @@ export async function syncHeartbeatSchedule(
       type: agent.type
     })
     touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows, { clearBreakerMarker: false }))
+
     return finalize('skipped-capability')
   }
 
   // Honor runtime capabilities even for schedules provisioned before a capability change.
   if (capabilities.heartbeat !== true) {
     touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows, { clearBreakerMarker: false }))
+
     return finalize('skipped-capability')
   }
 
@@ -308,6 +348,7 @@ export async function syncHeartbeatSchedule(
     // Keep disabled rows for reuse; an explicit toggle-off also resets the breaker.
     const pausedScheduleIds = pauseHeartbeatRows(agentId, rows, { clearBreakerMarker: true })
     touchedScheduleIds.push(...pausedScheduleIds)
+
     return finalize(pausedScheduleIds.length > 0 ? 'paused' : 'skipped-disabled')
   }
 
@@ -315,6 +356,7 @@ export async function syncHeartbeatSchedule(
 
   const agentsDataRoot = application.getPath('feature.agents.data')
   const agentDataPath = agentDataDirectoryPath(agentsDataRoot, agentId)
+
   try {
     // A symlinked/tampered agent directory must not lead provisioning (or
     // the run side's heartbeat.md read) outside managed storage.
@@ -325,26 +367,33 @@ export async function syncHeartbeatSchedule(
     // Pause like the other skip branches: a still-enabled row would keep
     // firing completed skip jobs until a later successful sync re-arms it.
     touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows, { clearBreakerMarker: false }))
+
     return finalize('skipped-untrusted-path')
   }
+
   signal.throwIfAborted()
+
   try {
     await ensureHeartbeatFile(agentDataPath)
     signal.throwIfAborted()
   } catch (error) {
     signal.throwIfAborted()
+
     // A non-regular occupant at heartbeat.md makes every tick fail its read
     // — pause like the untrusted path instead of firing skips forever.
     if (!(error instanceof HeartbeatFileNotRegularError)) throw error
     logger.warn('Heartbeat file path is not a regular file; heartbeat not armed', { agentId, agentDataPath })
     touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows, { clearBreakerMarker: false }))
+
     return finalize('skipped-untrusted-path')
   }
+
   // Re-check inside the provisioning window: mkdir follows ancestor links,
   // so a directory swapped in after the entry check must not arm a row.
   await assertAgentStoragePath(agentsDataRoot, agentDataPath)
   signal.throwIfAborted()
   const trigger: Trigger = { kind: 'interval', ms: intervalMinutes * 60_000 }
+
   const jobInputTemplate: HeartbeatJobInputTemplate = {
     agentId,
     prompt: HEARTBEAT_PROMPT_SENTINEL,
@@ -361,22 +410,30 @@ export async function syncHeartbeatSchedule(
     // Preserve migrated names and newly committed breaker stops when repairing drift.
     const repair = application.get('DbService').withWriteTx((tx) => {
       const current = jobScheduleService.getByIdTx(tx, row.id)
+
       if (!current || !matchesHeartbeatIdentity(current, agentId)) return null
       const breakerPaused = !current.enabled && isCircuitBreakerPaused(current.metadata)
       const reenable = !current.enabled && !breakerPaused
       const triggerChanged = !triggersEqual(current.trigger, trigger)
+
       if (!reenable && !triggerChanged && !templateDrifted(current.jobInputTemplate, jobInputTemplate)) return null
       const patch: UpdateJobScheduleDto = {}
+
       if (reenable) patch.enabled = true
+
       if (triggerChanged) patch.trigger = trigger
       patch.jobInputTemplate = jobInputTemplate
       jobManager.updateJobScheduleTx(tx, current.id, patch)
+
       return { breakerPaused, rearm: (reenable || triggerChanged) && !breakerPaused }
     })
+
     if (!repair) return touchedScheduleIds.includes(row.id) ? 'updated' : 'noop'
     const { breakerPaused, rearm } = repair
+
     if (rearm) armCommittedScheduleTimer(row.id)
     touchedScheduleIds.push(row.id)
+
     if (breakerPaused) {
       logger.info('Heartbeat schedule left paused by the circuit breaker; drift repaired', {
         agentId,
@@ -385,12 +442,14 @@ export async function syncHeartbeatSchedule(
     } else {
       logger.info('Heartbeat schedule repaired', { agentId, scheduleId: row.id, intervalMinutes })
     }
+
     return 'updated'
   }
 
   const existing = findHeartbeatRow(agentId, rows)
   // Converge migrated duplicates independently so one removal failure cannot strand the rest.
   const duplicates = rows.filter((row) => row.id !== existing?.id && matchesHeartbeatIdentity(row, agentId))
+
   const removals = await Promise.allSettled(
     duplicates.map(async (row) => {
       try {
@@ -401,9 +460,11 @@ export async function syncHeartbeatSchedule(
         pauseHeartbeatSchedule(agentId, row.id, 'Failed to remove a duplicate heartbeat schedule')
         throw error
       }
+
       logger.info('Removed duplicate heartbeat schedule', { agentId, scheduleId: row.id })
     })
   )
+
   removals.forEach((result, index) => {
     if (result.status === 'rejected') {
       logger.warn('Failed to remove duplicate heartbeat schedule', {
@@ -414,6 +475,7 @@ export async function syncHeartbeatSchedule(
     }
   })
   signal.throwIfAborted()
+
   if (!existing) {
     // (type, name) is UNIQUE: a concurrent sync may have registered this row
     // against a stale snapshot — a benign race, repair the winner in place.
@@ -428,21 +490,26 @@ export async function syncHeartbeatSchedule(
           catchUpPolicy: { kind: 'skip-missed' }
         })
       )
+
       armCommittedScheduleTimer(id)
       touchedScheduleIds.push(id)
       logger.info('Heartbeat schedule created', { agentId, scheduleId: id, intervalMinutes })
+
       return finalize('created')
     } catch (error) {
       if (!isScheduleNameConflict(error)) throw error
       const winner = jobScheduleService.getByTypeAndName(AGENT_TASK_TYPE, scheduleName)
+
       // Only repair a conflicting row owned by this agent and identified as its heartbeat.
       if (winner && matchesHeartbeatIdentity(winner, agentId)) {
         logger.info('Heartbeat create raced a concurrent sync; repairing winner', {
           agentId,
           scheduleId: winner.id
         })
+
         return finalize(repairRow(winner))
       }
+
       // Preserve foreign rows occupying reserved names; sentinel identity permits another name.
       const disambiguated = `${scheduleName}__${randomUUID().slice(0, 8)}`
       logger.warn('Reserved heartbeat schedule name is used by a foreign row; using a disambiguated name', {
@@ -451,6 +518,7 @@ export async function syncHeartbeatSchedule(
         disambiguated,
         winnerId: winner?.id
       })
+
       const { id } = application.get('DbService').withWriteTx((tx) =>
         jobManager.registerJobScheduleTx(tx, {
           type: AGENT_TASK_TYPE,
@@ -460,9 +528,11 @@ export async function syncHeartbeatSchedule(
           catchUpPolicy: { kind: 'skip-missed' }
         })
       )
+
       armCommittedScheduleTimer(id)
       touchedScheduleIds.push(id)
       logger.info('Heartbeat schedule created', { agentId, scheduleId: id, intervalMinutes })
+
       return finalize('created')
     }
   }
@@ -494,6 +564,7 @@ export async function repairHeartbeatSchedules(
     }
   })
   const provisioned = (counts.get('created') ?? 0) + (counts.get('updated') ?? 0)
+
   if (provisioned > 0) {
     logger.info('Heartbeat schedules provisioned at startup', {
       agents: agents.length,

@@ -21,11 +21,13 @@ const matchPatternRegExp = (() => {
   const label = String.raw`(?:[0-9A-Za-z](?:[0-9A-Za-z-]*[0-9A-Za-z])?)`
   const host = String.raw`(?<host>(?:\*|${label})(?:\.${label})*)`
   const path = String.raw`(?<path>/(?:\*|[0-9A-Za-z._~:/?[\]@!$&'()+,;=-]|%[0-9A-Fa-f]{2})*)`
+
   return new RegExp(String.raw`^(?:${allURLs}|${scheme}://${host}${path})$`)
 })()
 
 function parseMatchPattern(pattern: string): ParsedMatchPattern | null {
   const execResult = matchPatternRegExp.exec(pattern)
+
   if (!execResult) {
     return null
   }
@@ -43,6 +45,7 @@ function parseMatchPattern(pattern: string): ParsedMatchPattern | null {
         path: groups.path
       }
 }
+
 const supportedSchemes = ['http', 'https'] as const
 
 function testScheme(schemePattern: string, scheme: string): boolean {
@@ -56,6 +59,7 @@ function testHost(hostPattern: string, host: string): boolean {
 
   if (hostPattern.startsWith('*.')) {
     const suffix = hostPattern.slice(2)
+
     return host === suffix || host.endsWith(`.${suffix}`)
   }
 
@@ -68,6 +72,7 @@ function testPath(pathPattern: string, path: string): boolean {
   }
 
   const [first, ...rest] = pathPattern.split('*')
+
   if (rest.length === 0) {
     return path === first
   }
@@ -77,11 +82,14 @@ function testPath(pathPattern: string, path: string): boolean {
   }
 
   let position = first.length
+
   for (const part of rest.slice(0, -1)) {
     const partPosition = path.indexOf(part, position)
+
     if (partPosition === -1) {
       return false
     }
+
     position = partPosition + part.length
   }
 
@@ -107,6 +115,7 @@ function compileBlacklistPatterns(patterns: readonly string[]) {
 
   for (const rawPattern of patterns) {
     const pattern = rawPattern.trim()
+
     if (!pattern) {
       continue
     }
@@ -121,11 +130,13 @@ function compileBlacklistPatterns(patterns: readonly string[]) {
           error: error instanceof Error ? error.message : String(error)
         })
       }
+
       continue
     }
 
     try {
       const parseResult = parseMatchPattern(pattern)
+
       if (!parseResult) {
         throw new Error(`Invalid match pattern: ${pattern}`)
       }
@@ -156,12 +167,14 @@ export function filterResultsByUrlRules<T extends { readonly url: string }>(
   patterns: readonly string[]
 ) {
   const { matchPatterns, regexPatterns, diagnostics } = compileBlacklistPatterns(patterns)
+
   return {
     diagnostics,
     results: results.filter((result) => {
       try {
         const url = new URL(result.url)
         const target = `${url.origin}${url.pathname}${url.search}`
+
         return (
           !regexPatterns.some((regex) => regex.test(target)) &&
           !matchPatterns.some((pattern) => matchesPattern(pattern, url))
@@ -172,6 +185,7 @@ export function filterResultsByUrlRules<T extends { readonly url: string }>(
           value: result.url,
           error: error instanceof Error ? error.message : String(error)
         })
+
         return true
       }
     })

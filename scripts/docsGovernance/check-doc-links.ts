@@ -22,11 +22,14 @@ interface BrokenLink {
 function findMarkdownFiles(dir: string): string[] {
   const results: string[] = []
   const entries = fs.readdirSync(dir, { withFileTypes: true })
+
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name)
+
     if (entry.isDirectory()) {
       // The website renderer validates its GitBook content separately.
       if (fullPath === path.join(ROOT, 'docs/website/content')) continue
+
       // Skip node_modules, .git, out, dist
       if (['node_modules', '.git', 'out', 'dist'].includes(entry.name)) continue
       results.push(...findMarkdownFiles(fullPath))
@@ -34,6 +37,7 @@ function findMarkdownFiles(dir: string): string[] {
       results.push(fullPath)
     }
   }
+
   return results
 }
 
@@ -56,15 +60,18 @@ function checkFile(filePath: string): BrokenLink[] {
     let match: RegExpExecArray | null
 
     LINK_RE.lastIndex = 0
+
     while ((match = LINK_RE.exec(line)) !== null) {
       const rawLink = match[1]
 
       // Skip external links, anchors, special protocols, and placeholder links
       if (isExternalLink(rawLink) || isAnchorOnly(rawLink)) continue
+
       if (rawLink.includes('<') || rawLink.includes('>')) continue
 
       // Strip anchor fragment from link
       const linkPath = rawLink.split('#')[0]
+
       if (!linkPath) continue // Was just an anchor
 
       const resolved = path.resolve(dir, linkPath)
@@ -86,10 +93,12 @@ function checkFile(filePath: string): BrokenLink[] {
 function main() {
   const scanDirs = ['docs', 'src', 'packages', '.agents'].flatMap((d) => {
     const mapped = path.join(ROOT, d)
+
     return fs.existsSync(mapped) ? [mapped] : []
   })
 
   let allFiles: string[] = []
+
   for (const dir of scanDirs) {
     allFiles.push(...findMarkdownFiles(dir))
   }
@@ -104,6 +113,7 @@ function main() {
   console.log(`Checking ${allFiles.length} markdown files for broken links...`)
 
   const allBroken: BrokenLink[] = []
+
   for (const file of allFiles) {
     allBroken.push(...checkFile(file))
   }
@@ -114,6 +124,7 @@ function main() {
   }
 
   console.error(`\nFound ${allBroken.length} broken link(s):\n`)
+
   for (const b of allBroken) {
     console.error(`  ${b.file}:${b.line}`)
     console.error(`    Link: ${b.link}`)

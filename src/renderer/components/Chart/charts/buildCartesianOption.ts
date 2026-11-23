@@ -9,6 +9,7 @@ type OptionObject = Record<string, unknown>
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Nested chart options may be absent or nonrecord values; merge only nonarray objects and preserve formatter callbacks.
 export function toOptionObject(value: unknown): OptionObject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+
   return value as OptionObject
 }
 
@@ -21,7 +22,9 @@ function mergeAxis(base: OptionObject, extension: OptionObject, data?: Array<num
   const extensionAxisPointer = toOptionObject(extension.axisPointer)
 
   const axis = { ...base, ...extension }
+
   if (data) axis.data = data
+
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- Native ECharts fields and formatter callbacks survive this partial merge without being claimed as parsed chart values.
   return Object.assign(axis, {
     axisLine: {
@@ -82,6 +85,7 @@ export function buildCartesianOption({
     toOptionObject(horizontal ? option.yAxis : option.xAxis),
     categories
   )
+
   const valueAxis = mergeAxis(
     {
       type: 'value',
@@ -92,6 +96,7 @@ export function buildCartesianOption({
     },
     toOptionObject(horizontal ? option.xAxis : option.yAxis)
   )
+
   const tooltip = toOptionObject(option.tooltip)
   const legend = option.legend
   const hasDataZoom = visibleCategoryCount !== undefined && categories.length > visibleCategoryCount

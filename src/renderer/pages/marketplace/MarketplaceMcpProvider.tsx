@@ -53,7 +53,9 @@ const MarketplaceMcpProvider: React.FC<Props> = ({ provider, existingServers }) 
     return [...availableServers].sort((a, b) => {
       // Servers with logo come first
       if (a.logoUrl && !b.logoUrl) return -1
+
       if (!a.logoUrl && b.logoUrl) return 1
+
       // If both have or both don't have logo, sort by name
       return a.name.localeCompare(b.name)
     })
@@ -64,7 +66,9 @@ const MarketplaceMcpProvider: React.FC<Props> = ({ provider, existingServers }) 
     if (!searchText.trim()) {
       return sortedServers
     }
+
     const lowerSearchText = searchText.toLowerCase()
+
     return sortedServers.filter(
       (server) =>
         server.name.toLowerCase().includes(lowerSearchText) ||
@@ -80,6 +84,7 @@ const MarketplaceMcpProvider: React.FC<Props> = ({ provider, existingServers }) 
       setAllServers((previous) => {
         const next = { ...previous }
         delete next[provider.key]
+
         return next
       })
     },
@@ -89,6 +94,7 @@ const MarketplaceMcpProvider: React.FC<Props> = ({ provider, existingServers }) 
   const handleFetch = useCallback(async () => {
     if (!token.trim()) {
       toast.error(t('settings.mcp.sync.tokenRequired', 'API Token is required'))
+
       return
     }
 
@@ -117,6 +123,7 @@ const MarketplaceMcpProvider: React.FC<Props> = ({ provider, existingServers }) 
   }, [provider, setAllServers, t, token])
 
   const isFetchDisabled = !token
+
   return (
     <DetailContainer>
       <ProviderHeader>
@@ -207,6 +214,7 @@ const MarketplaceMcpProvider: React.FC<Props> = ({ provider, existingServers }) 
                 {(() => {
                   const isAlreadyAdded = existingServers.some((existing) => isSameMcpServerCandidate(existing, server))
                   const isAdding = adding.has(server.id)
+
                   return (
                     <Button
                       disabled={isAlreadyAdded || isAdding}
@@ -219,6 +227,7 @@ const MarketplaceMcpProvider: React.FC<Props> = ({ provider, existingServers }) 
                         if (!isAlreadyAdded && !pending.current.has(server.id)) {
                           pending.current.add(server.id)
                           setAdding(new Set(pending.current))
+
                           try {
                             await addMcpServer(toCreateMcpServerDto(server))
                             toast.success(t('settings.mcp.addSuccess'))

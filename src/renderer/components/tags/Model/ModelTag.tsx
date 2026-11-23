@@ -45,6 +45,7 @@ export const MODEL_DISPLAY_TAGS = [
 ] as const satisfies readonly ModelTag[]
 
 export type ModelDisplayCapabilityTag = (typeof MODEL_DISPLAY_CAPABILITY_TAGS)[number]
+
 export type ModelDisplayTag = (typeof MODEL_DISPLAY_TAGS)[number]
 
 const INPUT_MODALITY_BY_DISPLAY_TAG: Partial<Record<ModelDisplayCapabilityTag, Modality>> = {
@@ -92,6 +93,7 @@ export function modelMatchesDisplayTag(
   }
 
   const inputModality = INPUT_MODALITY_BY_DISPLAY_TAG[tag]
+
   return model.capabilities.includes(tag) || Boolean(inputModality && model.inputModalities?.includes(inputModality))
 }
 

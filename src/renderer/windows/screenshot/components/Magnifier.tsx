@@ -19,15 +19,20 @@ import type { SelectionRect } from '../types'
 /** Loupe size in CSS px; the backing store is this times the scale factor. */
 const MAG_WIDTH = 160
 const MAG_HEIGHT = 100
+
 /** Requested cell size in CSS px per source pixel, before rounding to whole device pixels. */
 const CELL_SIZE = 11
+
 /** Distance from the cursor in CSS px. */
 const OFFSET_X = 12
 const OFFSET_Y = 12
+
 /** Coordinate + colour bar height in CSS px. Two 16px lines plus breathing room. */
 const INFO_HEIGHT = 46
+
 /** Shortcut hint bar height in CSS px — three 14px lines plus breathing room. */
 const HINT_HEIGHT = 54
+
 /** How long the "copied" acknowledgement replaces the colour text, in ms. */
 const COPIED_RESET_MS = 1000
 
@@ -100,6 +105,7 @@ export const Magnifier = memo(function Magnifier({
   useEffect(() => {
     if (!copied) return
     const timer = setTimeout(() => setCopied(false), COPIED_RESET_MS)
+
     return () => clearTimeout(timer)
   }, [copied])
 
@@ -111,8 +117,10 @@ export const Magnifier = memo(function Magnifier({
     const physMagH = MAG_HEIGHT * scaleFactor
     // Forced odd: only an odd count has an exact centre cell for the picker to read.
     let cols = Math.ceil(physMagW / zoom)
+
     if (cols % 2 === 0) cols++
     let rows = Math.ceil(physMagH / zoom)
+
     if (rows % 2 === 0) rows++
     const halfCols = Math.floor(cols / 2)
     const halfRows = Math.floor(rows / 2)
@@ -120,6 +128,7 @@ export const Magnifier = memo(function Magnifier({
     const offsetY = Math.round((physMagH - rows * zoom) / 2)
     const centerPhysX = Math.floor(focusX * scaleFactor)
     const centerPhysY = Math.floor(focusY * scaleFactor)
+
     return {
       zoom,
       physMagW,
@@ -139,10 +148,12 @@ export const Magnifier = memo(function Magnifier({
     if (!visible) return
 
     const canvas = canvasRef.current
+
     if (!canvas) return
     // willReadFrequently: the centre pixel is read every pointer move, and without it
     // each read forces a GPU→CPU readback.
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
+
     if (!ctx) return
 
     const { zoom, physMagW, physMagH, cols, rows, halfCols, halfRows, offsetX, offsetY, srcX, srcY } = gridParams
@@ -193,16 +204,19 @@ export const Magnifier = memo(function Magnifier({
     ctx.strokeStyle = 'rgba(128, 128, 128, 0.1)'
     ctx.lineWidth = 1
     ctx.beginPath()
+
     for (let i = 0; i <= cols; i++) {
       const x = offsetX + i * zoom + 0.5
       ctx.moveTo(x, offsetY)
       ctx.lineTo(x, offsetY + rows * zoom)
     }
+
     for (let i = 0; i <= rows; i++) {
       const y = offsetY + i * zoom + 0.5
       ctx.moveTo(offsetX, y)
       ctx.lineTo(offsetX + cols * zoom, y)
     }
+
     ctx.stroke()
 
     // Centre cell: dark halo then bright inner, so it reads on any background.

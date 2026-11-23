@@ -25,6 +25,7 @@ type PreviewProps = { src: string } & PopupInjectedProps<void>
 
 const ImagePreviewContainer: React.FC<PreviewProps> = ({ src, open, resolve }) => {
   const { t } = useTranslation()
+
   const labels = useMemo<Partial<ImagePreviewLabels>>(
     () => ({
       close: t('preview.close'),
@@ -49,6 +50,7 @@ const ImagePreviewContainer: React.FC<PreviewProps> = ({ src, open, resolve }) =
       if (src.startsWith('blob:')) {
         URL.revokeObjectURL(src)
       }
+
       resolve()
     }
   }

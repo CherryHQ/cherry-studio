@@ -14,6 +14,7 @@ function getClientSecret(): string {
   if (!CLIENT_SECRET) {
     throw new Error('CherryAI client secret is not configured')
   }
+
   return CLIENT_SECRET + '.' + CLIENT_SECRET_SUFFIX
 }
 
@@ -21,6 +22,7 @@ function requireClientSecret(clientSecret: string): string {
   if (!clientSecret) {
     throw new Error('CherryAI client secret is not configured')
   }
+
   return clientSecret
 }
 
@@ -72,6 +74,7 @@ export class SignatureClient {
     const timestamp = Math.floor(Date.now() / 1000).toString()
 
     let bodyString = ''
+
     if (body) {
       bodyString = typeof body === 'object' ? JSON.stringify(body) : body.toString()
     }
@@ -100,15 +103,18 @@ export class SignatureClient {
     if (!Number.isSafeInteger(fileSize) || fileSize <= 0) {
       throw new Error('fileSize must be a positive safe integer')
     }
+
     if (!/^[0-9a-f]{64}$/.test(normalizedFileSha256)) {
       throw new Error('fileSha256 must be a 64-character hexadecimal digest')
     }
+
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(requestId)) {
       throw new Error('requestId must be a lowercase UUID v4')
     }
 
     const timestamp = Math.floor(Date.now() / 1000).toString()
     const descriptionSha256 = createHash('sha256').update(description, 'utf8').digest('hex')
+
     const signatureString = [
       'v2',
       'POST',
@@ -121,6 +127,7 @@ export class SignatureClient {
       normalizedFileSha256,
       descriptionSha256
     ].join('\n')
+
     const signature = createHmac('sha256', this.clientSecret).update(signatureString).digest('hex')
 
     return {
@@ -142,6 +149,7 @@ export function generateSignature(options: SignatureOptions): SignatureHeaders {
   if (!signatureClient) {
     signatureClient = new SignatureClient()
   }
+
   return signatureClient.generateSignature(options)
 }
 
@@ -151,5 +159,6 @@ export function generateDiagnosticUploadHeaders(
   if (!signatureClient) {
     signatureClient = new SignatureClient()
   }
+
   return signatureClient.generateDiagnosticUploadHeaders(options)
 }

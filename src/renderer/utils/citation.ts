@@ -52,8 +52,10 @@ export function determineCitationSource(
 ): WebSearchSource | undefined {
   if (citationReferences?.length) {
     const validReference = citationReferences.find((ref) => ref.citationBlockSource)
+
     return validReference?.citationBlockSource
   }
+
   return undefined
 }
 
@@ -71,6 +73,7 @@ export function withCitationTags(content: string, citations: Citation[], sourceT
   const cleaned = citations.map(toTooltipCitation)
   const citationMap = new Map(cleaned.map((c) => [c.number, c]))
   const normalizedContent = normalizeCitationMarks(content, citationMap, sourceType)
+
   return mapCitationMarksToTags(normalizedContent, new Map(cleaned.map((c) => [String(c.number), c])))
 }
 
@@ -84,11 +87,13 @@ export function normalizeCitationMarks(
   sourceType?: WebSearchSource
 ): string {
   const codeBlockRegex = MARKDOWN_CODE_PATTERN
+
   const getSkipRanges = () => {
     const skipRanges: Array<{ start: number; end: number }> = []
 
     codeBlockRegex.lastIndex = 0
     let match: RegExpExecArray | null
+
     while ((match = codeBlockRegex.exec(content)) !== null) {
       skipRanges.push({
         start: match.index,
@@ -103,8 +108,10 @@ export function normalizeCitationMarks(
   const shouldSkip = (pos: number, skipRanges = getSkipRanges()): boolean => {
     for (const range of skipRanges) {
       if (pos >= range.start && pos < range.end) return true
+
       if (range.start > pos) break
     }
+
     return false
   }
 
@@ -114,14 +121,17 @@ export function normalizeCitationMarks(
 
     regex.lastIndex = 0 // 重置正则状态
     let m: RegExpExecArray | null
+
     while ((m = regex.exec(content)) !== null) {
       if (!shouldSkip(m.index, skipRanges)) {
         const replacement = getReplacementFn(m)
+
         if (replacement !== null) {
           replacements.push({ start: m.index, end: m.index + m[0].length, replacement })
         }
       }
     }
+
     replacements.reverse().forEach(({ start, end, replacement }) => {
       content = content.slice(0, start) + replacement + content.slice(end)
     })
@@ -130,6 +140,7 @@ export function normalizeCitationMarks(
   const normalizePlainBracketMarks = () => {
     applyReplacements(/\[(\d+)\]/g, (match) => {
       const citationNum = parseInt(match[1], 10)
+
       return citationMap.has(citationNum) ? `[cite:${citationNum}]` : null
     })
   }
@@ -141,26 +152,31 @@ export function normalizeCitationMarks(
     case WEB_SEARCH_SOURCE.PERPLEXITY: {
       applyReplacements(/\[<sup>(\d+)<\/sup>\]\([^)]*\)/g, (m) => {
         const citationNum = parseInt(m[1], 10)
+
         return citationMap.has(citationNum) ? `[cite:${citationNum}]` : null
       })
       normalizePlainBracketMarks()
       break
     }
+
     case WEB_SEARCH_SOURCE.GEMINI: {
       const firstCitation = Array.from(citationMap.values())[0]
       const metadata = firstCitation?.metadata
+
       if (metadata?.length) {
         const encoder = new TextEncoder()
         const contentBytes = encoder.encode(content)
 
         const byteOffsetToCharOffset = (byteOffset: number): number => {
           const decoder = new TextDecoder()
+
           return decoder.decode(contentBytes.slice(0, byteOffset)).length
         }
 
         const insertions: Array<{ position: number; tag: string }> = []
         metadata.forEach((entry) => {
           const parsed = groundingSupportSchema.safeParse(entry)
+
           if (!parsed.success) return
           const support = parsed.data
           const { endIndex } = support.segment
@@ -168,6 +184,7 @@ export function normalizeCitationMarks(
           const tag = support.groundingChunkIndices
             .map((citationNum) => {
               const citation = citationMap.get(citationNum + 1)
+
               return citation ? `[cite:${citationNum + 1}]` : ''
             })
             .filter(Boolean)
@@ -179,21 +196,26 @@ export function normalizeCitationMarks(
         })
 
         insertions.sort((a, b) => b.position - a.position)
+
         for (const { position, tag } of insertions) {
           if (!shouldSkip(position)) {
             content = content.slice(0, position) + tag + content.slice(position)
           }
         }
       }
+
       break
     }
+
     case WEB_SEARCH_SOURCE.GROK: {
       applyReplacements(/\[\[(\d+)\]\]\([^)]*\)/g, (m) => {
         const citationNum = parseInt(m[1], 10)
+
         return citationMap.has(citationNum) ? `[cite:${citationNum}]` : null
       })
       break
     }
+
     default: {
       // 简单数字格式: [N] → [cite:N]
       normalizePlainBracketMarks()
@@ -225,6 +247,7 @@ export function mapCitationMarksToTags(content: string, citationMap: Map<string,
   return mapMarkdownOutsideCode(content, (text) =>
     text.replace(CITATION_MARKER_PATTERN, (_match, space: string, id: string) => {
       const citation = citationMap.get(id)
+
       return citation ? `${space}${generateCitationTag(citation)}` : ''
     })
   )
@@ -242,6 +265,7 @@ export const isLinkableCitationUrl = (url?: string): boolean => !!url && url.sta
 /** Build the rendered tag for a single citation. */
 export function generateCitationTag(citation: Citation): string {
   const supTag = `<sup data-citation='${citation.number}'>${citation.number}</sup>`
+
   if (!isLinkableCitationUrl(citation.url)) {
     // Knowledge-base and memory citations have no URL. Wrapping them in `[...]()` yields an empty
     // href, which rehype-harden unwraps into `<span>…<sup/></span>` — dropping the tooltip, since
@@ -251,5 +275,6 @@ export function generateCitationTag(citation: Citation): string {
   }
 
   const safeUrl = citation.url.replace(/\|/g, '%7C')
+
   return `[${supTag}](${safeUrl})`
 }

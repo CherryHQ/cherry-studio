@@ -14,6 +14,7 @@ export function unavailable<T>(
 
 export async function deadline<T>(promise: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
+
   try {
     return await Promise.race([
       promise,
@@ -29,12 +30,14 @@ export async function deadline<T>(promise: Promise<T>): Promise<T> {
 export async function untilAborted<T>(work: () => Promise<T>, signal: AbortSignal): Promise<T> {
   signal.throwIfAborted()
   let abort = () => {}
+
   try {
     return await Promise.race([
       Promise.resolve().then(work),
       new Promise<never>((_, reject) => {
         abort = () => reject(signal.reason)
         signal.addEventListener('abort', abort, { once: true })
+
         if (signal.aborted) abort()
       })
     ])

@@ -30,6 +30,7 @@ export const useViewSourceTool = ({
     if (viewMode === 'split') return
 
     const canEnterEdit = canEdit && !isStreaming
+
     if (canEnterEdit) {
       registerTool({
         ...TOOL_SPECS.edit,
@@ -37,6 +38,7 @@ export const useViewSourceTool = ({
         tooltip: viewMode === 'edit' ? t('preview.label') : t('code_block.edit.label'),
         onClick: () => onViewModeChange(viewMode === 'edit' ? (hasSpecialView ? 'special' : 'source') : 'edit')
       })
+
       return () => removeTool(TOOL_SPECS.edit.id)
     }
 
@@ -49,6 +51,7 @@ export const useViewSourceTool = ({
       tooltip: showingSource ? t('preview.label') : t('preview.source'),
       onClick: () => onViewModeChange(showingSource ? 'special' : 'source')
     })
+
     return () => removeTool(TOOL_SPECS['view-source'].id)
   }, [canEdit, hasSpecialView, isStreaming, onViewModeChange, registerTool, removeTool, t, viewMode])
 }

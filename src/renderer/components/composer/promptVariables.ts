@@ -25,10 +25,13 @@ const PROMPT_VARIABLE_ID_PATTERN = /^prompt-variable:(\d+):/
 function pushTextSegment(segments: PromptVariableSegment[], text: string) {
   if (!text) return
   const previous = segments[segments.length - 1]
+
   if (previous?.type === 'text') {
     previous.text += text
+
     return
   }
+
   segments.push({ type: 'text', text })
 }
 
@@ -51,6 +54,7 @@ export function parsePromptVariableSegments(text: string): PromptVariableSegment
   }
 
   pushTextSegment(segments, text.slice(cursor))
+
   return segments.length ? segments : [{ type: 'text', text }]
 }
 
@@ -76,10 +80,12 @@ export function createPromptVariableMarkerRule(options: { startIndex?: number } 
       const raw = match[0]
       const matchIndex = match.index ?? 0
       const variableName = match[1]?.trim() ?? ''
+
       if (!raw || !variableName) return null
 
       const token = createPromptVariableToken(variableName, raw, startIndex + variableIndex)
       variableIndex += 1
+
       return { from: matchIndex, to: matchIndex + raw.length, token }
     }
   }
@@ -88,9 +94,11 @@ export function createPromptVariableMarkerRule(options: { startIndex?: number } 
 function readPromptVariableIndex(token: ComposerDraftToken): number | undefined {
   if (token.kind !== 'promptVariable') return undefined
   const match = PROMPT_VARIABLE_ID_PATTERN.exec(token.id)
+
   if (!match) return undefined
 
   const index = Number.parseInt(match[1], 10)
+
   return Number.isFinite(index) ? index : undefined
 }
 
@@ -101,6 +109,7 @@ export function getNextPromptVariableIndex(editor: Editor): number {
     if (node.type.name !== COMPOSER_TOKEN_NODE_NAME) return
     const token = normalizeComposerTokenAttrs(node.attrs)
     const index = readPromptVariableIndex(token)
+
     if (index !== undefined) nextIndex = Math.max(nextIndex, index + 1)
   })
 
@@ -141,6 +150,7 @@ export function tokenizePromptVariablesInEditor(editor: Editor, update: Transact
 
       const from = position + offset
       const to = from + segment.raw.length
+
       if (
         !isMarkdownFencedCodePosition(editor.state, from) &&
         changedRanges.some(({ newRange }) => newRange.from < to && newRange.to > from)
@@ -152,6 +162,7 @@ export function tokenizePromptVariablesInEditor(editor: Editor, update: Transact
         })
         variableIndex += 1
       }
+
       offset += segment.raw.length
     }
   })
@@ -159,31 +170,39 @@ export function tokenizePromptVariablesInEditor(editor: Editor, update: Transact
   if (!replacements.length) return false
 
   const tokenNodeType = editor.schema.nodes[COMPOSER_TOKEN_NODE_NAME]
+
   if (!tokenNodeType) return false
 
   const transaction = editor.state.tr
+
   for (const replacement of replacements.reverse()) {
     transaction.replaceWith(replacement.from, replacement.to, tokenNodeType.create(replacement.token))
   }
 
   if (!transaction.docChanged) return false
   editor.view.dispatch(transaction)
+
   return true
 }
 
 function getSelectionNode(selection: Selection): ProseMirrorNode | null {
   if (selection instanceof NodeSelection) return selection.node
+
   if (!('node' in selection)) return null
+
   return selection.node as ProseMirrorNode
 }
 
 export function getSelectedPromptVariableToken(editor: Editor) {
   const selection = editor.state.selection
   const node = getSelectionNode(selection)
+
   if (!node) return null
+
   if (node.type.name !== COMPOSER_TOKEN_NODE_NAME) return null
 
   const token = normalizeComposerTokenAttrs(node.attrs)
+
   if (token.kind !== 'promptVariable') return null
 
   return {
@@ -198,6 +217,7 @@ export function selectPromptVariableToken(editor: Editor, direction: 1 | -1): Co
   editor.state.doc.descendants((node, position) => {
     if (node.type.name !== COMPOSER_TOKEN_NODE_NAME) return
     const token = normalizeComposerTokenAttrs(node.attrs)
+
     if (token.kind === 'promptVariable') tokens.push({ position, token })
   })
 
@@ -205,6 +225,7 @@ export function selectPromptVariableToken(editor: Editor, direction: 1 | -1): Co
 
   const currentPosition = editor.state.selection.from
   const currentIndex = tokens.findIndex((token) => token.position === currentPosition)
+
   const nextIndex =
     direction > 0
       ? currentIndex >= 0
@@ -219,30 +240,38 @@ export function selectPromptVariableToken(editor: Editor, direction: 1 | -1): Co
 
   const target = tokens[nextIndex >= 0 ? nextIndex : tokens.length - 1]
   editor.chain().focus().setNodeSelection(target.position).run()
+
   if (editor.commands?.editComposerToken) {
     editor.commands.editComposerToken(target.token.id, target.position)
   } else {
     requestComposerPromptVariableEdit(editor.view?.dom, target.token.id, target.position)
   }
+
   return target.token
 }
 
 export function updateSelectedPromptVariableToken(editor: Editor, nextValue: string): boolean {
   const selected = getSelectedPromptVariableToken(editor)
+
   if (!selected) return false
 
   const selection = editor.state.selection
   const node = getSelectionNode(selection)
+
   if (!node) return false
   const nextLabel = nextValue || selected.token.label
+
   const transaction = editor.state.tr.setNodeMarkup(selected.position, undefined, {
     ...node.attrs,
     label: nextLabel,
     promptText: nextValue
   })
+
   if (selection instanceof NodeSelection) {
     transaction.setSelection(NodeSelection.create(transaction.doc, selected.position))
   }
+
   editor.view.dispatch(transaction)
+
   return true
 }

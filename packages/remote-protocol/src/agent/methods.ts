@@ -30,9 +30,11 @@ const method = <P extends z.ZodType, R extends z.ZodType>(params: P, result: R) 
   result,
   errors: remoteFailureSchema
 })
+
 const session = { sessionId: opaqueId }
 const command = { commandId: opaqueId, ...session }
 const subscription = { subscriptionId: opaqueId }
+
 export const agentMethods = {
   ...taskMethods,
   'agent.agents.list': method(
@@ -190,9 +192,13 @@ export const agentMethods = {
   ),
   'agent.subscriptions.close': method(z.strictObject(subscription), z.looseObject({ closed: z.literal(true) }))
 }
+
 export type AgentMethod = keyof typeof agentMethods
+
 export type AgentParams<M extends AgentMethod> = z.infer<(typeof agentMethods)[M]['params']>
+
 export type AgentResult<M extends AgentMethod> = z.infer<(typeof agentMethods)[M]['result']>
+
 export type AgentMutation =
   | 'agent.sessions.create'
   | 'agent.messages.send'

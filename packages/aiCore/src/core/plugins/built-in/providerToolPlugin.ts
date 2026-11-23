@@ -9,6 +9,7 @@ import { definePlugin } from '../'
 import { mergeProviderOptions } from '../../options'
 import { extensionRegistry } from '../../providers'
 import type { ToolCapability } from '../../providers/types/toolFactory'
+
 export const providerToolPlugin = (
   capability: ToolCapability,
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Dynamically resolved provider factories own distinct config types, including native callbacks; forward each value to its factory without claiming a shared schema.
@@ -27,6 +28,7 @@ export const providerToolPlugin = (
           : undefined
 
       const resolved = await extensionRegistry.resolveToolCapability(providerId, capability, modelProvider)
+
       if (!resolved) return params
 
       const userConfig = config[providerId] ?? {}
@@ -35,6 +37,7 @@ export const providerToolPlugin = (
       if (patch.tools) {
         params.tools = { ...params.tools, ...patch.tools }
       }
+
       if (patch.providerOptions) {
         params.providerOptions = mergeProviderOptions(params.providerOptions, patch.providerOptions)
       }

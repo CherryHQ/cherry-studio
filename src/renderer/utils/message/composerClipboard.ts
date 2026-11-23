@@ -97,13 +97,16 @@ type FileClipboardPayload = NonNullable<ComposerClipboardToken['payload']> & {
   path?: string
   fileTokenSourceId?: string
 }
+
 type ClipboardComposerMessageToken = Omit<ComposerMessageToken, 'payload'> & {
   payload?: FileClipboardPayload
 }
+
 type ComposerClipboardDraftToken = ComposerClipboardSourceToken & {
   index: number
   textOffset: number
 }
+
 interface ComposerClipboardDraft {
   text: string
   tokens: readonly ComposerClipboardDraftToken[]
@@ -130,6 +133,7 @@ function readNumber(value: unknown): number | undefined {
 
 function stripFileUrl(value: string | undefined): string | undefined {
   if (!value) return undefined
+
   if (!value.startsWith('file://')) return value
 
   try {
@@ -158,10 +162,15 @@ function readFileDisplayPayload(
   const handle = readString(payload.handle)
 
   if (type) result.type = type
+
   if (ext) result.ext = ext
+
   if (name) result.name = name
+
   if (originName) result.origin_name = originName
+
   if (readNumber(payload.size) !== undefined) result.size = readNumber(payload.size)
+
   if (options.includeHandle && handle) result.handle = handle
 
   return Object.keys(result).length > 0 ? result : undefined
@@ -198,6 +207,7 @@ function registerFileRestorationHandle(file: ComposerAttachment): string {
   // Release retained image bytes even if the user never pastes or copies again.
   const timer = setTimeout(() => fileRestorationRegistry.delete(handle), COMPOSER_CLIPBOARD_FILE_HANDLE_TTL_MS)
   timer.unref?.()
+
   return handle
 }
 
@@ -205,7 +215,9 @@ function resolveFileRestorationHandle(handle: string, sourceId: string): Compose
   pruneExpiredFileRestorationHandles()
 
   const entry = fileRestorationRegistry.get(handle)
+
   if (!entry || entry.sourceId !== sourceId) return null
+
   return { ...entry.file }
 }
 
@@ -221,6 +233,7 @@ function createAttachmentFromWritePayload(
   const pathResult = AbsoluteFilePathSchema.safeParse(stripFileUrl(readString(payload.path)))
   const path = pathResult.success ? pathResult.data : undefined
   const blob = payload.blob instanceof Blob ? payload.blob : undefined
+
   if (!sourceId || payloadSourceId !== sourceId || (!path && !blob)) return null
 
   const name = readString(payload.name) || readString(payload.origin_name) || token.label
@@ -243,6 +256,7 @@ function createFilePayloadForWrite(token: Pick<ComposerClipboardSourceToken, 'id
   const payload = readFileDisplayPayload(token.payload)
   const file = createAttachmentFromWritePayload(token, token.payload)
   const handle = file ? registerFileRestorationHandle(file) : null
+
   if (!handle) return payload
 
   return {
@@ -270,14 +284,17 @@ function registerTrustedPromptFragmentNonce(): string {
   pruneExpiredPromptFragmentNonces()
   const nonce = createComposerSecureRandomId('composer-prompt')
   trustedPromptFragmentNonces.set(nonce, Date.now() + COMPOSER_CLIPBOARD_PROMPT_NONCE_TTL_MS)
+
   return nonce
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Any app can forge clipboard MIME data; only a string nonce retained in this renderer session may restore hidden prompt text.
 function isTrustedPromptFragmentNonce(nonce: unknown): boolean {
   const value = readString(nonce)
+
   if (!value) return false
   pruneExpiredPromptFragmentNonces()
+
   return trustedPromptFragmentNonces.has(value)
 }
 
@@ -285,6 +302,7 @@ function hasUnsafeComposerClipboardFileTokenId(token: Pick<ComposerClipboardSour
   if (token.kind !== 'file') return false
 
   const id = readComposerFileTokenIdSuffix(token.id) ?? token.id
+
   return isComposerFileTokenPathLike(id)
 }
 
@@ -293,6 +311,7 @@ function isUnsafeComposerClipboardFileToken(token: unknown) {
   if (!isRecord(token)) return false
 
   const id = readString(token.id)
+
   return Boolean(id && token.kind === 'file' && hasUnsafeComposerClipboardFileTokenId({ id, kind: 'file' }))
 }
 
@@ -309,6 +328,7 @@ function escapeComposerClipboardHtmlText(value: string): string {
 // Plain text → minimal safe HTML: one paragraph, newlines as <br>.
 function createComposerClipboardTextHtml(text: string): string {
   const inlineHtml = escapeComposerClipboardHtmlText(text).replace(/\r\n?|\n/g, '<br>')
+
   return `<p>${inlineHtml || '<br>'}</p>`
 }
 
@@ -319,11 +339,14 @@ function sanitizeComposerClipboardToken(token: unknown, mode: 'read' | 'write'):
   const id = readString(token.id)
   const kind = token.kind
   const label = readString(token.label)
+
   if (!id || !isComposerClipboardTokenKind(kind) || !label) return null
+
   if (hasUnsafeComposerClipboardFileTokenId({ id, kind })) return null
 
   const description = readString(token.description)
   const promptText = readString(token.promptText)
+
   const payload =
     kind === 'file'
       ? mode === 'write'
@@ -350,15 +373,18 @@ function sanitizeComposerClipboardSegment(
 
   if (segment.type === 'text') {
     const text = readString(segment.text)
+
     return text ? { type: 'text', text } : null
   }
 
   if (segment.type !== 'token') return null
 
   const fallbackText = readString(segment.fallbackText)
+
   if (!fallbackText) return null
 
   const token = sanitizeComposerClipboardToken(segment.token, 'read')
+
   if (!token) {
     return isUnsafeComposerClipboardFileToken(segment.token) ? { type: 'text', text: fallbackText } : null
   }
@@ -377,6 +403,7 @@ export function createComposerClipboardFragment(segments: readonly ComposerClipb
     if (segment.type === 'text') return segment.text ? [{ type: 'text', text: segment.text }] : []
 
     const token = sanitizeComposerClipboardToken(segment.token, 'write')
+
     if (!token) return segment.fallbackText ? [{ type: 'text', text: segment.fallbackText }] : []
 
     return [{ type: 'token', token, fallbackText: segment.fallbackText }]
@@ -398,15 +425,21 @@ function getTokenFallbackText(
   token: Pick<ComposerClipboardSourceToken, 'id' | 'kind' | 'label' | 'description' | 'promptText'>
 ): string {
   if (token.kind === 'quote') return token.promptText ?? token.description ?? token.label
+
   if (token.kind === 'promptVariable') return token.promptText ?? token.description ?? token.label
+
   if (token.kind === 'skill') {
     const marker = token.id.startsWith('skill:') ? token.id.slice('skill:'.length) : token.label
+
     return `/${marker}/`
   }
+
   if (token.kind === 'knowledge') {
     const marker = token.id.startsWith('knowledge:') ? token.id.slice('knowledge:'.length) : token.label
+
     return `#${marker}#`
   }
+
   return token.promptText ?? token.label
 }
 
@@ -418,15 +451,19 @@ function readMessageFilePayload(part: CherryMessagePart): FileClipboardPayload |
     mediaType?: string
     url?: string
   }
+
   const cherry = readCherryMeta(part) as CherryFileMeta | undefined
   const fileTokenSourceId = cherry?.fileTokenSourceId
+
   if (!fileTokenSourceId) return undefined
 
   const path = stripFileUrl(filePart.url)
+
   if (!path) return undefined
 
   const name = filePart.filename || path.split(/[\\/]/).pop() || ''
   const ext = getFileExtensionFromName(name)
+
   return {
     id: cherry.fileEntryId ?? fileTokenSourceId,
     fileTokenSourceId,
@@ -442,6 +479,7 @@ function collectFilePayloadsBySourceId(parts: readonly CherryMessagePart[]): Map
 
   for (const part of parts) {
     const payload = readMessageFilePayload(part)
+
     if (!payload) continue
 
     payloads.set(payload.fileTokenSourceId!, payload)
@@ -478,10 +516,13 @@ function mergeFileTokenPayload(
 function appendTextSegment(segments: ComposerClipboardSourceSegment[], text: string) {
   if (!text) return
   const last = segments[segments.length - 1]
+
   if (last?.type === 'text') {
     last.text += text
+
     return
   }
+
   segments.push({ type: 'text', text })
 }
 
@@ -492,11 +533,14 @@ function appendTokenSegment(
 ): boolean {
   if (!token.id || !token.label || !isComposerClipboardToken(token)) {
     appendTextSegment(segments, fallbackText)
+
     return Boolean(fallbackText)
   }
+
   if (!fallbackText) return false
 
   segments.push({ type: 'token', token, fallbackText })
+
   return true
 }
 
@@ -511,6 +555,7 @@ function projectTokensOverText(
 
   for (const token of tokens) {
     const offset = Math.max(cursor, Math.min(text.length, token.textOffset))
+
     if (offset > cursor) {
       const chunk = text.slice(cursor, offset)
       plainText += chunk
@@ -541,6 +586,7 @@ function projectTextPartToClipboardSegments(
   filePayloadsBySourceId: ReadonlyMap<string, FileClipboardPayload>
 ): ComposerClipboardProjection {
   const composer = readCherryMeta(part)?.composer
+
   if (!composer?.tokens.length) {
     return {
       plainText: part.text,
@@ -559,9 +605,11 @@ function projectTextPartToClipboardSegments(
 
 function projectComposerClipboardPartGroup(parts: readonly CherryMessagePart[]): ComposerClipboardProjection {
   const filePayloadsBySourceId = collectFilePayloadsBySourceId(parts)
+
   const projections = parts.flatMap((part) => {
     if (part.type !== 'text') return []
     const projection = projectTextPartToClipboardSegments(part, filePayloadsBySourceId)
+
     return projection.plainText.trim().length > 0 ? [projection] : []
   })
 
@@ -621,8 +669,10 @@ export function createComposerRichClipboardContentFromPartGroups(
 ): ComposerRichClipboardContent | null {
   const projections = partGroups.flatMap((group) => {
     const projection = projectComposerClipboardPartGroup(group)
+
     return projection.plainText ? [projection] : []
   })
+
   const segments: ComposerClipboardSourceSegment[] = []
 
   projections.forEach((projection, index) => {
@@ -646,9 +696,11 @@ export function createComposerAttachmentFromComposerClipboardToken(
   if (token.kind !== 'file' || !token.payload?.handle) return null
 
   const sourceId = readComposerFileTokenSourceIdFromTokenId(token.id)
+
   if (!sourceId) return null
 
   const file = resolveFileRestorationHandle(token.payload.handle, sourceId)
+
   return file
 }
 
@@ -657,6 +709,7 @@ export function readComposerClipboardFragment(value: string): ComposerClipboardF
 
   try {
     const parsed: unknown = JSON.parse(value)
+
     if (
       !isRecord(parsed) ||
       parsed.version !== COMPOSER_CLIPBOARD_FRAGMENT_VERSION ||
@@ -668,8 +721,10 @@ export function readComposerClipboardFragment(value: string): ComposerClipboardF
     const trustedPromptText = isTrustedPromptFragmentNonce(parsed.nonce)
     const rawSegments: unknown[] = parsed.segments
     const segments: ComposerClipboardSegment[] = []
+
     for (const rawSegment of rawSegments) {
       const segment = sanitizeComposerClipboardSegment(rawSegment, trustedPromptText)
+
       if (!segment) return null
       segments.push(segment)
     }
@@ -699,7 +754,9 @@ function normalizeClipboardLineEndings(text: string) {
 
 export function readComposerClipboardFragmentFromSessionCache(pastedText: string): ComposerClipboardFragment | null {
   const cached = sessionCachedRichClipboardWrite
+
   if (!cached || !pastedText) return null
+
   return normalizeClipboardLineEndings(pastedText) === cached.plainText ? cached.fragment : null
 }
 
@@ -724,10 +781,13 @@ export async function writeComposerRichClipboardContent(content: ComposerRichCli
       'text/plain': new Blob([content.plainText], { type: 'text/plain' }),
       'text/html': new Blob([content.html], { type: 'text/html' })
     }
+
     const customItems = Object.fromEntries(
       Object.entries(content.customFormats ?? {}).flatMap(([type, value]) => {
         const supports = clipboardItemConstructor.supports?.bind(clipboardItemConstructor)
+
         if (supports && !supports(type)) return []
+
         return [[type, new Blob([value], { type })]]
       })
     )
@@ -735,21 +795,26 @@ export async function writeComposerRichClipboardContent(content: ComposerRichCli
     if (Object.keys(customItems).length > 0) {
       try {
         await navigator.clipboard.write([new clipboardItemConstructor({ ...baseItems, ...customItems })])
+
         const fragment = customItems[COMPOSER_CLIPBOARD_FRAGMENT_MIME]
           ? readComposerClipboardFragment(content.customFormats?.[COMPOSER_CLIPBOARD_FRAGMENT_MIME] ?? '')
           : null
+
         if (fragment) {
           sessionCachedRichClipboardWrite = { plainText: normalizeClipboardLineEndings(content.plainText), fragment }
         }
+
         return
       } catch (error) {
         logger.warn('Failed to write composer clipboard custom formats, falling back to text-only data', error as Error)
         await navigator.clipboard.write([new clipboardItemConstructor(baseItems)])
+
         return
       }
     }
 
     await navigator.clipboard.write([new clipboardItemConstructor(baseItems)])
+
     return
   }
 

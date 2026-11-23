@@ -93,6 +93,7 @@ export type SqliteErrorHandlers = {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Caught values and nested Error.cause values may be non-Errors; inspect only verified Error instances up to the depth limit.
 function* walkCauseChain(err: unknown): Generator<Error> {
   let current: unknown = err
+
   for (let depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
     if (!(current instanceof Error)) return
     yield current
@@ -113,7 +114,9 @@ function* walkCauseChain(err: unknown): Generator<Error> {
 function parseConstraintColumns(message: string, prefix: 'UNIQUE' | 'NOT NULL'): string[] {
   const marker = `${prefix} constraint failed: `
   const idx = message.indexOf(marker)
+
   if (idx === -1) return []
+
   return message
     .slice(idx + marker.length)
     .split(',')
@@ -127,6 +130,7 @@ function parseConstraintColumns(message: string, prefix: 'UNIQUE' | 'NOT NULL'):
  */
 function extractCheckName(message: string): string | undefined {
   const match = message.match(/CHECK constraint failed: (\w+)/)
+
   return match?.[1]
 }
 
@@ -164,12 +168,15 @@ export function classifySqliteError(e: unknown): SqliteConstraint | null {
     ) {
       return { kind: 'unique', columns: parseConstraintColumns(message, 'UNIQUE') }
     }
+
     if (code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
       return { kind: 'foreign_key' }
     }
+
     if (code === 'SQLITE_CONSTRAINT_NOTNULL') {
       return { kind: 'not_null', columns: parseConstraintColumns(message, 'NOT NULL') }
     }
+
     if (code === 'SQLITE_CONSTRAINT_CHECK') {
       return { kind: 'check', constraintName: extractCheckName(message) }
     }
@@ -177,21 +184,29 @@ export function classifySqliteError(e: unknown): SqliteConstraint | null {
     // Message-substring fallback for drivers that do not set `.code`.
     if (message.includes('UNIQUE constraint failed')) {
       logger.warn('classifySqliteError fell back to message match for UNIQUE', { message })
+
       return { kind: 'unique', columns: parseConstraintColumns(message, 'UNIQUE') }
     }
+
     if (message.includes('FOREIGN KEY constraint failed')) {
       logger.warn('classifySqliteError fell back to message match for FOREIGN KEY', { message })
+
       return { kind: 'foreign_key' }
     }
+
     if (message.includes('NOT NULL constraint failed')) {
       logger.warn('classifySqliteError fell back to message match for NOT NULL', { message })
+
       return { kind: 'not_null', columns: parseConstraintColumns(message, 'NOT NULL') }
     }
+
     if (message.includes('CHECK constraint failed')) {
       logger.warn('classifySqliteError fell back to message match for CHECK', { message })
+
       return { kind: 'check', constraintName: extractCheckName(message) }
     }
   }
+
   return null
 }
 
@@ -233,6 +248,7 @@ export function classifySqliteError(e: unknown): SqliteConstraint | null {
 export function withSqliteErrors<T>(operation: () => T, handlers: SqliteErrorHandlers): T {
   try {
     const result = operation()
+
     // A thenable result defers its error past this synchronous try/catch — either a genuinely
     // async operation or a not-yet-executed drizzle query builder (`DbService.withWriteTx` runs
     // synchronously, so it is not a source). Adopt it as a promise so the same classification maps its
@@ -241,6 +257,7 @@ export function withSqliteErrors<T>(operation: () => T, handlers: SqliteErrorHan
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Deferred Drizzle/thenable operations may reject with any value; use the same translation and unchanged-rethrow contract.
       return Promise.resolve(result).catch((e: unknown) => mapSqliteError(e, handlers)) as T
     }
+
     return result
   } catch (e) {
     return mapSqliteError(e, handlers)
@@ -254,6 +271,7 @@ export function withSqliteErrors<T>(operation: () => T, handlers: SqliteErrorHan
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Synchronous throws and deferred query rejections must be rethrown by identity unless a matching SQLite constraint handler translates them.
 function mapSqliteError(e: unknown, handlers: SqliteErrorHandlers): never {
   const classification = classifySqliteError(e)
+
   if (classification) {
     switch (classification.kind) {
       case 'unique':
@@ -270,6 +288,7 @@ function mapSqliteError(e: unknown, handlers: SqliteErrorHandlers): never {
         break
     }
   }
+
   throw e
 }
 
@@ -318,6 +337,7 @@ export function defaultHandlersFor(resource: string, identifier: string): Sqlite
       const detail = constraintName
         ? `${resource} '${identifier}' failed CHECK constraint '${constraintName}'`
         : `${resource} '${identifier}' failed a CHECK constraint`
+
       return DataApiErrorFactory.validation({ _root: [detail] }, detail)
     },
     notNull: (columns) => {
@@ -325,10 +345,12 @@ export function defaultHandlersFor(resource: string, identifier: string): Sqlite
         columns.length > 0
           ? Object.fromEntries(columns.map((col) => [col, ['is required']]))
           : { _root: [`${resource} '${identifier}' is missing a required field`] }
+
       const message =
         columns.length > 0
           ? `${resource} '${identifier}' missing required field${columns.length > 1 ? 's' : ''}: ${columns.join(', ')}`
           : `${resource} '${identifier}' is missing a required field`
+
       return DataApiErrorFactory.validation(fieldErrors, message)
     }
   }

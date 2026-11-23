@@ -39,6 +39,7 @@ export function selectActiveComposerOverride(
   if (!overrides?.length) return null
 
   let active: ComposerOverride | null = null
+
   for (const override of overrides) {
     if (!active || (override.priority ?? 0) > (active.priority ?? 0)) {
       active = override

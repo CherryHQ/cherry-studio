@@ -29,11 +29,13 @@ export function SessionHoverPreviewGroup({ children, enabled = true }: { childre
   const contextMenus = useRef(new Set<string>())
   const warm = useRef(false)
   const candidate = useRef<string | null>(null)
+
   const reset = useCallback(() => {
     warm.current = false
     candidate.current = null
     setActiveId(null)
   }, [])
+
   const contextMenuChange = useCallback(
     (id: string, open: boolean) => {
       if (open) contextMenus.current.add(id)
@@ -42,6 +44,7 @@ export function SessionHoverPreviewGroup({ children, enabled = true }: { childre
     },
     [reset]
   )
+
   const remove = useCallback((id: string) => {
     if (candidate.current === id) candidate.current = null
     setActiveId((current) => (current === id ? null : current))
@@ -55,9 +58,11 @@ export function SessionHoverPreviewGroup({ children, enabled = true }: { childre
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') reset()
     }
+
     document.addEventListener('keydown', onKeyDown, true)
     window.addEventListener('blur', reset)
     document.addEventListener('visibilitychange', reset)
+
     return () => {
       document.removeEventListener('keydown', onKeyDown, true)
       window.removeEventListener('blur', reset)
@@ -72,7 +77,9 @@ export function SessionHoverPreviewGroup({ children, enabled = true }: { childre
       enter(id) {
         if (!enabled || contextMenus.current.size > 0) return
         candidate.current = id
+
         if (activeId === id) warm.current = true
+
         if (warm.current) setActiveId(id)
       },
       leave(id) {
@@ -114,6 +121,7 @@ export function SessionHoverPreviewGroup({ children, enabled = true }: { childre
 export function useSessionHoverPreviewContextMenu(id: string) {
   const contextMenuChange = use(PreviewContext)?.contextMenuChange
   useEffect(() => () => contextMenuChange?.(id, false), [contextMenuChange, id])
+
   return useCallback((open: boolean) => contextMenuChange?.(id, open), [contextMenuChange, id])
 }
 
@@ -127,6 +135,7 @@ export function SessionHoverPreview({
   children: ReactElement
 }) {
   const group = use(PreviewContext)
+
   if (!group) throw new Error('SessionHoverPreview requires SessionHoverPreviewGroup')
   const { remove } = group
   useEffect(() => () => remove(id), [id, remove])
@@ -138,15 +147,18 @@ export function SessionHoverPreview({
     if (!open || !triggerRef.current) return
     const trigger = triggerRef.current
     const boundary = trigger.closest('[role="option"]')
+
     if (!boundary) return
 
     const updateOffset = () => {
       setSideOffset(Math.max(0, boundary.getBoundingClientRect().right - trigger.getBoundingClientRect().right) + 12)
     }
+
     updateOffset()
     const observer = new ResizeObserver(updateOffset)
     observer.observe(trigger)
     observer.observe(boundary)
+
     return () => observer.disconnect()
   }, [open])
 

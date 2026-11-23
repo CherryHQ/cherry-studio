@@ -6,7 +6,9 @@ import { MimoLight } from './light'
 
 const Mimo = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MimoLight {...props} className={className} />
+
   if (variant === 'dark') return <MimoDark {...props} className={className} />
+
   return (
     <>
       <MimoLight className={cn('dark:hidden', className)} {...props} />

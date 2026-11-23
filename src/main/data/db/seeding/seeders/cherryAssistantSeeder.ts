@@ -37,9 +37,11 @@ export class CherryAssistantSeeder implements ISeeder {
   run(db: DbType): void {
     db.transaction((tx) => {
       const existing = agentService.findBuiltinAgentByRoleTx(tx, 'assistant', { includeDeleted: true })
+
       if (existing) return
 
       const agentId = uuidv4()
+
       const row = agentService.createAgentTx(tx, agentId, {
         id: agentId,
         type: 'claude-code',
@@ -70,6 +72,7 @@ export class CherryAssistantSeeder implements ISeeder {
   private getNameForPreferredSystemLanguage(): string {
     try {
       const language = app.getPreferredSystemLanguages()[0]
+
       return language?.toLowerCase().startsWith('zh')
         ? CHERRY_ASSISTANT_SEED.name.zh
         : CHERRY_ASSISTANT_SEED.name.default

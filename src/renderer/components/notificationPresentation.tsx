@@ -6,7 +6,9 @@ export const notificationCategoryIcons = { system: Monitor, usage: Gauge, offici
 export function notificationPreview(text: string, title = false): ReactNode {
   const characters = Array.from(text.replace(/\s+/g, ' ').trim())
   const limit = title ? 60 : 120
+
   if (characters.length <= limit) return characters.join('')
+
   return (
     <span className="relative block min-w-0" title={text}>
       <span

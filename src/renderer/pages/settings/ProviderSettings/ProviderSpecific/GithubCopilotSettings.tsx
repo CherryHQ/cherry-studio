@@ -132,6 +132,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       setLoading(true)
 
       const copilotKey = provider?.apiKeys.find((k) => k.label === 'Copilot')
+
       if (copilotKey) {
         await deleteApiKey(copilotKey.id)
       }

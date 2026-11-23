@@ -6,7 +6,9 @@ import { GithubCopilotLight } from './light'
 
 const GithubCopilot = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GithubCopilotLight {...props} className={className} />
+
   if (variant === 'dark') return <GithubCopilotDark {...props} className={className} />
+
   return (
     <>
       <GithubCopilotLight className={cn('dark:hidden', className)} {...props} />

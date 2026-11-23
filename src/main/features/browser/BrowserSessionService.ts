@@ -61,11 +61,13 @@ export class BrowserSessionService extends BaseService {
   protected onInit(): void {
     const guests = new Map<Electron.WebContents, () => void>()
     const ordinary = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+
     const profiles = [
       ordinary,
       session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentDevPreview)),
       session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
     ]
+
     const track = (_event: Electron.Event | undefined, guest: Electron.WebContents) => {
       if (
         guest.isDestroyed() ||
@@ -87,35 +89,43 @@ export class BrowserSessionService extends BaseService {
             logger.warn('Blocked unsupported browser popup', { error })
           }
         }
+
         return { action: 'deny' }
       })
+
       const release =
         guest.session === ordinary
           ? trackBrowserHistory(guest, true, (url, candidates, signal) => {
               if (this.faviconCapture.signal.aborted) return
+
               const task = captureBrowserFavicon(
                 guest,
                 url,
                 candidates,
                 AbortSignal.any([signal, this.shutdown.signal, this.faviconCapture.signal])
               )
+
               this.faviconTasks.add(task)
               void task.finally(() => this.faviconTasks.delete(task))
             })
           : () => {}
+
       const dispose = () => {
         if (!guest.isDestroyed()) guest.setWindowOpenHandler(() => ({ action: 'deny' }))
         release()
         guest.removeListener('destroyed', dispose)
         guests.delete(guest)
       }
+
       guests.set(guest, dispose)
       guest.once('destroyed', dispose)
     }
+
     for (const guest of webContents.getAllWebContents()) track(undefined, guest)
     app.on('web-contents-created', track)
     this.registerDisposable(() => {
       app.removeListener('web-contents-created', track)
+
       for (const dispose of guests.values()) dispose()
     })
     this.registerInterval(() => this.sweep(), 60_000)
@@ -132,12 +142,14 @@ export class BrowserSessionService extends BaseService {
     this.assertServing()
     const server = new BrowserServer(this, () => this.servers.delete(server))
     this.servers.add(server)
+
     return { createServer: () => server.createServer(), close: () => server.close() }
   }
 
   createControl(owner: { kind: 'agent' | 'topic'; sessionId: string; ownerId: string }): BrowserControlSession {
     this.assertServing()
     const context = { sessionId: owner.sessionId, ownerId: owner.ownerId }
+
     const controller =
       owner.kind === 'agent'
         ? new AgentBrowserController(this, this.agentBrowser, { agentId: owner.ownerId, sessionId: owner.sessionId })
@@ -154,12 +166,15 @@ export class BrowserSessionService extends BaseService {
                 pageId: target.pageId
               })
           })
+
     const control = new BrowserControlSession(() => {
       this.servers.delete(control)
       this.agentServers.delete(control)
     }, controller)
+
     this.servers.add(control)
     this.agentServers.add(control)
+
     return control
   }
 
@@ -171,6 +186,7 @@ export class BrowserSessionService extends BaseService {
   private assertTopicAvailable(topicId: string, assistantId: string): void {
     if (this.shutdown.signal.aborted || !application.get('PreferenceService').get('app.browser.agent_control.enabled'))
       throw new BrowserSessionError('not_allowed')
+
     try {
       if (
         topicService.getById(topicId).assistantId !== assistantId ||
@@ -197,14 +213,17 @@ export class BrowserSessionService extends BaseService {
 
   async pickAndImport(options: BrowserImportOptions, window: BrowserWindow) {
     let file: string | undefined
+
     if (!options.sourceId) {
       const picked = await dialog.showOpenDialog(window, {
         properties: ['openFile'],
         filters: [{ name: 'JSON / Netscape cookies', extensions: ['json', 'txt'] }]
       })
+
       if (picked.canceled || !picked.filePaths[0]) return { ...emptyImportResult(), cancelled: true }
       file = picked.filePaths[0]
     }
+
     return this.runImport(options, file)
   }
 
@@ -217,10 +236,13 @@ export class BrowserSessionService extends BaseService {
   clearData(kind: 'site_data' | 'cache' | 'history'): Promise<void> {
     return this.runDataOperation(async () => {
       const profile = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+
       if (kind !== 'site_data') {
         this.faviconCapture.abort()
+
         try {
           await Promise.allSettled(this.faviconTasks)
+
           if (kind === 'cache') await profile.clearCache()
           else browserHistoryService.clear()
           clearBrowserFavicons()
@@ -237,9 +259,11 @@ export class BrowserSessionService extends BaseService {
 
   private async runDataOperation<T>(run: () => Promise<T>): Promise<T> {
     this.shutdown.signal.throwIfAborted()
+
     if (this.dataOperation) throw new BrowserSessionError('not_allowed')
     const operation = run()
     this.dataOperation = operation
+
     try {
       return await operation
     } finally {
@@ -256,23 +280,30 @@ export class BrowserSessionService extends BaseService {
       if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed || guest.isDestroyed())
         throw new BrowserSessionError('debugger_unavailable')
       const cleanup = this.guestCleanup.get(guest.id)
+
       if (!cleanup) break
       await cleanup
     }
+
     const existing = this.sessions.get(guest.id)
+
     if (existing) {
       if (existing.ownership.ownership !== ownership.ownership) throw new BrowserSessionError('not_allowed')
       existing.owners.set(owner, (existing.owners.get(owner) ?? 0) + 1)
       existing.session.lastActive = Date.now()
+
       return existing.session
     }
+
     if (ownership.ownership === 'managed') {
       this.makeRoom(owner)
     }
+
     const session = new GuestSession(guest, ownership.ownership)
     const onDestroyed = () => this.remove(guest.id, false)
     this.sessions.set(guest.id, { session, owners: new Map([[owner, 1]]), creator: owner, ownership, onDestroyed })
     guest.once('destroyed', onDestroyed)
+
     return session
   }
 
@@ -283,15 +314,19 @@ export class BrowserSessionService extends BaseService {
   release(guest: Electron.WebContents, owner: string): void {
     const entry = this.sessions.get(guest.id)
     const count = entry?.owners.get(owner)
+
     if (!entry || !count) return
+
     if (count === 1) entry.owners.delete(owner)
     else entry.owners.set(owner, count - 1)
+
     if (!entry.owners.size && entry.ownership.ownership === 'borrowed') this.remove(guest.id, false)
   }
 
   endTurn(owner: string): void {
     for (const [id, entry] of this.sessions) {
       if (entry.ownership.ownership !== 'managed' || entry.creator !== owner) continue
+
       if (entry.session.retention === 'temporary' && !entry.session.busy) this.remove(id, true)
       else entry.session.retention = 'temporary'
     }
@@ -301,7 +336,9 @@ export class BrowserSessionService extends BaseService {
     const managed = [...this.sessions.values()].filter((entry) => entry.ownership.ownership === 'managed')
     const own = managed.filter((entry) => entry.creator === owner)
     const candidates = own.length >= MAX_GUESTS_PER_OWNER ? own : managed.length >= MAX_GUESTS_GLOBAL ? managed : []
+
     if (!candidates.length) return
+
     const candidate = candidates
       .filter(
         (entry) =>
@@ -314,6 +351,7 @@ export class BrowserSessionService extends BaseService {
           Number(a.session.retention === 'handoff') - Number(b.session.retention === 'handoff') ||
           a.session.lastActive - b.session.lastActive
       )[0]
+
     if (!candidate) throw new BrowserSessionError('budget_exceeded')
     this.remove(candidate.session.guest.id, true)
   }
@@ -332,12 +370,14 @@ export class BrowserSessionService extends BaseService {
 
   private remove(id: number, close: boolean): void {
     const entry = this.sessions.get(id)
+
     if (!entry) return
     this.sessions.delete(id)
     entry.session.guest.removeListener('destroyed', entry.onDestroyed)
     entry.session.dispose()
     const cleanup = entry.session.settleWebTools().finally(() => this.guestCleanup.delete(id))
     this.guestCleanup.set(id, cleanup)
+
     if (close && entry.ownership.ownership === 'managed' && !entry.session.guest.isDestroyed()) {
       try {
         entry.ownership.close()
@@ -355,9 +395,11 @@ export class BrowserSessionService extends BaseService {
     this.agentServers.clear()
     this.agentBrowser.dispose()
     this.topicBrowser.dispose()
+
     for (const id of this.sessions.keys()) this.remove(id, true)
     await Promise.all(this.guestCleanup.values())
     const errors = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+
     if (errors.length) {
       logger.warn('Browser server shutdown failed', { errors })
       throw new AggregateError(errors, 'Failed to stop browser sessions')

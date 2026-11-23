@@ -83,6 +83,7 @@ export interface TokenhubProviderParams {
 // undici abandons response headers after 300s, below a sync image model's submit budget;
 // an injected fetch has no such bound, so this only backs the global-fetch fallback.
 const REQUEST_DISPATCHER_TIMEOUT_MS = 15 * 60 * 1000
+
 const longRunningDispatcher = new Agent({
   headersTimeout: REQUEST_DISPATCHER_TIMEOUT_MS,
   bodyTimeout: REQUEST_DISPATCHER_TIMEOUT_MS
@@ -99,13 +100,16 @@ type BodyFamily = 'hunyuan' | 'seedream' | 'vidu'
 
 function bodyFamilyFor(endpoint: string): BodyFamily {
   if (endpoint.includes('/hunyuan-image/')) return 'hunyuan'
+
   if (endpoint.includes('/si-image/')) return 'seedream'
+
   if (endpoint.includes('/vidu-image/')) return 'vidu'
   throw new Error(`Unsupported TokenHub image endpoint: ${endpoint}`)
 }
 
 function imagesOf(input: ImageGenerationSubmitInput): string[] | undefined {
   if (!input.files?.length) return undefined
+
   return input.files.map((file) => fileToDataUrl(file))
 }
 
@@ -113,6 +117,7 @@ function buildHunyuanBody(input: ImageGenerationSubmitInput, bag: TokenhubProvid
   const model = input.modelId
   const prompt = input.prompt ?? ''
   const images = imagesOf(input)
+
   return {
     model,
     prompt,
@@ -128,6 +133,7 @@ function buildSeedreamBody(input: ImageGenerationSubmitInput, bag: TokenhubProvi
   const prompt = input.prompt ?? ''
   const images = imagesOf(input)
   const size = input.size ?? bag.imageResolution
+
   return {
     model,
     prompt,
@@ -150,6 +156,7 @@ function buildViduBody(input: ImageGenerationSubmitInput, bag: TokenhubProviderP
   const model = input.modelId
   const prompt = input.prompt ?? ''
   const images = imagesOf(input)
+
   return {
     model,
     prompt,
@@ -181,11 +188,13 @@ class TokenhubTransport implements ImageGenerationTransport {
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const descriptor = input.modelDescriptor
+
     if (!descriptor) {
       throw new Error(`Missing modelDescriptor for TokenHub image model: ${input.modelId}`)
     }
 
     const bag = (input.providerParams ?? {}) as TokenhubProviderParams
+
     switch (bodyFamilyFor(descriptor.endpoint)) {
       case 'hunyuan': {
         const data = await this.request<TokenhubSyncImageResponse>(
@@ -197,8 +206,10 @@ class TokenhubTransport implements ImageGenerationTransport {
             signal: input.signal
           }
         )
+
         return { imageUrls: extractSyncUrls(data) }
       }
+
       case 'seedream': {
         const data = await this.request<TokenhubSyncImageResponse>(
           descriptor.endpoint,
@@ -209,8 +220,10 @@ class TokenhubTransport implements ImageGenerationTransport {
             signal: input.signal
           }
         )
+
         return { imageUrls: extractSyncUrls(data) }
       }
+
       case 'vidu': {
         const data = await this.request<TokenhubViduSubmitResponse>(
           descriptor.endpoint,
@@ -221,7 +234,9 @@ class TokenhubTransport implements ImageGenerationTransport {
             signal: input.signal
           }
         )
+
         if (!data.task_id) throw new TokenhubApiError('TokenHub async submit returned no task_id', 0)
+
         return { taskId: data.task_id }
       }
     }
@@ -232,6 +247,7 @@ class TokenhubTransport implements ImageGenerationTransport {
     options: { signal?: AbortSignal; onProgress?: (progress: number) => void }
   ): Promise<string[]> {
     const result = await this.pollTaskResult(taskId, options)
+
     return (result.creations ?? [])
       .map((entry) => entry.url)
       .filter((url): url is string => typeof url === 'string' && url.length > 0)
@@ -257,8 +273,11 @@ class TokenhubTransport implements ImageGenerationTransport {
           undefined,
           { timeout: 10000, signal }
         )
+
         transientRetries = 0
+
         if (result.state === 'success') return result
+
         if (result.state === 'failed') {
           throw new TokenhubTaskFailedError(result.err_msg || result.message || 'TokenHub task failed')
         }
@@ -266,14 +285,17 @@ class TokenhubTransport implements ImageGenerationTransport {
         if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
           throw createAbortError('Task polling aborted')
         }
+
         // `request` already converted terminal 4xx into PaintingGenerateError; a
         // TokenhubApiError is therefore always 5xx / 429 → transient.
         if (error instanceof TokenhubTaskFailedError || error instanceof PaintingGenerateError) throw error
 
         transientRetries++
+
         if (transientRetries >= maxTransientRetries) {
           throw error instanceof Error ? error : new Error(String(error))
         }
+
         await waitWithSignal(interval ?? this.pollDelay(startTime), signal)
         continue
       }
@@ -301,10 +323,12 @@ class TokenhubTransport implements ImageGenerationTransport {
     let externallyAborted = false
 
     const timeoutId = setTimeout(() => controller.abort(), timeout)
+
     const onExternalAbort = () => {
       externallyAborted = true
       controller.abort()
     }
+
     if (externalSignal?.aborted) {
       externallyAborted = true
       controller.abort()
@@ -314,6 +338,7 @@ class TokenhubTransport implements ImageGenerationTransport {
 
     try {
       const doFetch = this.customFetch ?? globalThis.fetch
+
       const requestOptions: NonNullable<Parameters<typeof doFetch>[1]> = {
         method,
         headers: {
@@ -325,23 +350,29 @@ class TokenhubTransport implements ImageGenerationTransport {
         ...(method === 'POST' && body !== undefined && { body: JSON.stringify(body) }),
         signal: controller.signal
       }
+
       if (!this.customFetch) Object.assign(requestOptions, { dispatcher: longRunningDispatcher })
       const response = await doFetch(`${this.baseURL}${path}`, requestOptions)
+
       if (!response.ok) {
         if (response.status === 401) throw createPaintingGenerateError('REQ_ERROR_TOKEN')
+
         if (isTerminalHttpStatus(response.status)) {
           const message = await readErrorMessage(response, t('paintings.generate_failed'))
           throw createPaintingGenerateError('REMOTE_ERROR', { message })
         }
+
         const errorText = (await response.text().catch(() => '')).slice(0, 500)
         throw new TokenhubApiError(`TokenHub API error: ${response.status} - ${errorText}`, response.status)
       }
+
       return (await response.json()) as T
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         if (externallyAborted) throw createAbortError('TokenHub API request aborted')
         throw new Error(`TokenHub API request timeout after ${timeout / 1000}s`)
       }
+
       throw error
     } finally {
       clearTimeout(timeoutId)

@@ -4,6 +4,7 @@ import { CozeLight } from './light'
 
 const Coze = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <CozeLight {...props} className={className} />
+
   return <CozeLight {...props} className={className} />
 }
 

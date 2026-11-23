@@ -120,6 +120,7 @@ export default function ProviderListGroup({
             onDragStateChange={onDragStateChange}
             onReorder={(reordered) => {
               const next = restoreProviderStatusSlots(items, reordered)
+
               if (next !== items) return onReorder(next)
             }}
             onReorderError={onReorderError}

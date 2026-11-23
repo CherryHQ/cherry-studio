@@ -23,10 +23,12 @@ if (totalOverlaps === 0) {
   console.log('\n✅ Check passed!')
   console.log('The `customTextExts` map contains no extensions that are already in `codeLangExts`.')
   console.log('\nCustom extensions checked:')
+
   for (const [category, exts] of customTextExts.entries()) {
     console.log(`  - Category '${category}' (${exts.length}):`)
     console.log(`    ${exts.sort().join(', ')}`)
   }
+
   console.log('\n')
 } else {
   console.error('\n⚠️ Check failed: Overlapping extensions found!')

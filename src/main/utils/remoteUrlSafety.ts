@@ -22,6 +22,7 @@ export type ResolveRemoteFetchUrlOptions = {
 }
 
 const BLOCKED_HOSTNAMES = new Set(['localhost', 'localhost.'])
+
 const BLOCKED_IPV4_RANGES = new Set([
   'broadcast',
   'carrierGradeNat',
@@ -32,6 +33,7 @@ const BLOCKED_IPV4_RANGES = new Set([
   'reserved',
   'unspecified'
 ])
+
 const BLOCKED_IPV6_RANGES = new Set([
   '6to4',
   'benchmarking',
@@ -45,14 +47,17 @@ const BLOCKED_IPV6_RANGES = new Set([
   'uniqueLocal',
   'unspecified'
 ])
+
 const BLOCKED_IPV6_CIDR_RANGES: ReadonlyArray<readonly [ipaddr.IPv6, number]> = [
   [ipaddr.IPv6.parse('64:ff9b:1::'), 48],
   [ipaddr.IPv6.parse('100:0:0:1::'), 64],
   [ipaddr.IPv6.parse('3fff::'), 20],
   [ipaddr.IPv6.parse('5f00::'), 16]
 ]
+
 const PUBLIC_IPV6_RANGE: readonly [ipaddr.IPv6, number] = [ipaddr.IPv6.parse('2000::'), 3]
 const NAT64_WELL_KNOWN_PREFIX: readonly [ipaddr.IPv6, number] = [ipaddr.IPv6.parse('64:ff9b::'), 96]
+
 // Clash/mihomo TUN and Surge Enhanced Mode resolve every domain into this range; the answers are
 // proxy handles routed back out through the tunnel, not intranet hosts.
 const FAKE_IP_IPV4_RANGE: readonly [ipaddr.IPv4, number] = [ipaddr.IPv4.parse('198.18.0.0'), 15]
@@ -110,6 +115,7 @@ function isBlockedIpHostname(hostname: string): boolean {
   }
 
   const nat64EmbeddedIpv4 = getNat64EmbeddedIpv4(address)
+
   if (nat64EmbeddedIpv4) {
     return isBlockedIpv4(nat64EmbeddedIpv4)
   }
@@ -129,6 +135,7 @@ function isLoopbackHostname(hostname: string): boolean {
   }
 
   const address = parseIpHostname(hostname)
+
   return Boolean(address && address.range() === 'loopback')
 }
 
@@ -153,6 +160,7 @@ function isBlockedHostname(hostname: string): boolean {
 
 function hasMatchingConfiguredOrigin(url: URL, configuredApiHost: string): boolean {
   let configuredUrl: URL
+
   try {
     configuredUrl = new URL(configuredApiHost)
   } catch {
@@ -263,6 +271,7 @@ export async function resolveRemoteFetchUrl(
   options: ResolveRemoteFetchUrlOptions = {}
 ): Promise<ResolvedRemoteFetchUrl> {
   const parsedUrl = parseRemoteUrl(rawUrl)
+
   const allowPrivateNetwork =
     options.allowPrivateNetwork === true ||
     (options.configuredApiHost !== undefined && hasMatchingConfiguredOrigin(parsedUrl, options.configuredApiHost))
@@ -285,6 +294,7 @@ async function resolveRemoteFetchAddress(
   throwIfAborted(signal)
 
   const literalAddress = parseIpHostname(parsedUrl.hostname)
+
   if (literalAddress) {
     return toRemoteFetchAddress(literalAddress)
   }
@@ -294,11 +304,13 @@ async function resolveRemoteFetchAddress(
   // The connection is pinned to the address returned here, so a rejected answer only has to be
   // skipped rather than fail the whole hostname.
   const safeAddress = addresses.find((address) => allowPrivateNetwork || !isBlockedIpHostname(address.address))
+
   if (safeAddress) {
     return toRemoteFetchAddress(safeAddress)
   }
 
   const blockedAddress = addresses[0]
+
   if (!blockedAddress) {
     throw new Error(`Unsafe remote url: DNS returned no addresses (${parsedUrl.hostname})`)
   }
@@ -328,6 +340,7 @@ function toRemoteFetchAddress(address: ipaddr.IPv4 | ipaddr.IPv6 | LookupAddress
 
 function parseRemoteUrl(rawUrl: string): URL {
   let parsedUrl: URL
+
   try {
     parsedUrl = new URL(rawUrl)
   } catch {

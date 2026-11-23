@@ -182,14 +182,17 @@ function requireDraftValue(value: string | undefined, label: string): string {
   if (!value) {
     throw new Error(`Cannot update CLI config draft: missing ${label}`)
   }
+
   return value
 }
 
 function providerNameFromKey(providerKey: string | undefined, label: string): string {
   const key = requireDraftValue(providerKey, label)
+
   if (!key.startsWith(CHERRY_PROVIDER_PREFIX)) {
     throw new Error(`Cannot update CLI config draft: ${label} is not managed by Cherry Studio`)
   }
+
   return key.slice(CHERRY_PROVIDER_PREFIX.length)
 }
 
@@ -208,6 +211,7 @@ function writeHermesConfig(
   resolved: { apiKeyEnv: string; apiMode: HermesApiMode; baseUrl: string; model: string }
 ): string {
   const existingModel = document.get('model', true)
+
   // A bare `model:` parses to a null scalar node, not a missing key — an empty
   // section is a valid starting point, not a malformed mapping.
   if (existingModel == null || (isScalar(existingModel) && existingModel.value == null)) {
@@ -215,25 +219,32 @@ function writeHermesConfig(
   } else if (!isMap(existingModel)) {
     throw new Error('invalid Hermes model config: expected an object')
   }
+
   document.setIn(['model', 'provider'], 'custom')
   document.setIn(['model', 'default'], resolved.model)
   document.setIn(['model', 'base_url'], normalizeUrl(resolved.baseUrl))
   document.setIn(['model', 'api_key'], resolved.apiKeyEnv)
   document.setIn(['model', 'api_mode'], resolved.apiMode)
+
   return document.toString()
 }
 
 function clearHermesConfig(content: string): string | null {
   const document = parseYamlDocumentOrThrow(content)
+
   if (document.getIn(['model', 'api_key']) !== HERMES_API_KEY_ENV_REFERENCE) return null
+
   for (const key of HERMES_MANAGED_MODEL_KEYS) document.deleteIn(['model', key])
   const model = document.get('model', true)
+
   if (isMap(model) && model.items.length === 0) document.delete('model')
+
   return document.toString()
 }
 
 function minimaxManagedProviderKey(document: Document): string | undefined {
   const providers = document.getIn(['custom_provider'])
+
   return isMap(providers)
     ? providers.items
         .map((item) => (isScalar(item.key) ? String(item.key.value) : ''))
@@ -243,6 +254,7 @@ function minimaxManagedProviderKey(document: Document): string | undefined {
 
 function minimaxManagedApi(document: Document, providerKey: string): MinimaxApi {
   const api = document.getIn(['custom_provider', providerKey, 'api'])
+
   return api === 'openai-completions' || api === 'openai-responses' ? api : 'anthropic-messages'
 }
 
@@ -250,11 +262,13 @@ function minimaxManagedApi(document: Document, providerKey: string): MinimaxApi 
 function deleteMinimaxManagedProviders(document: Document): string[] {
   const deletedKeys: string[] = []
   let providerKey = minimaxManagedProviderKey(document)
+
   while (providerKey) {
     document.deleteIn(['custom_provider', providerKey])
     deletedKeys.push(providerKey)
     providerKey = minimaxManagedProviderKey(document)
   }
+
   return deletedKeys
 }
 
@@ -276,22 +290,27 @@ function writeMinimaxConfig(
     })
   )
   document.set('defaultModel', `custom_provider:${resolved.providerKey}/${resolved.model}`)
+
   return document.toString()
 }
 
 function clearMinimaxConfig(content: string): string | null {
   const document = parseYamlDocumentOrThrow(content)
   const deletedKeys = deleteMinimaxManagedProviders(document)
+
   if (deletedKeys.length === 0) return null
   const nextProviders = document.getIn(['custom_provider'])
+
   if (isMap(nextProviders) && nextProviders.items.length === 0) document.delete('custom_provider')
   const defaultModel = document.get('defaultModel')
+
   if (
     typeof defaultModel === 'string' &&
     deletedKeys.some((key) => defaultModel.startsWith(`custom_provider:${key}/`))
   ) {
     document.delete('defaultModel')
   }
+
   return document.toString()
 }
 
@@ -304,6 +323,7 @@ const claudeAdapter: CliConfigAdapter = {
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const existing = readAndParseDraftFile('claude-settings', parseJsonOrThrow, args.files, read)
     const baseUrl = resolveClaudeBaseUrl(provider)
+
     return [
       makeDraftFile(
         'claude-settings',
@@ -325,6 +345,7 @@ const claudeAdapter: CliConfigAdapter = {
   async buildOwnLoginDraft(configBlob) {
     const read = await readConfigFiles(['claude-settings'])
     const existing = readAndParseDraftFile('claude-settings', parseJsonOrThrow, undefined, read)
+
     return [
       makeDraftFile(
         'claude-settings',
@@ -337,6 +358,7 @@ const claudeAdapter: CliConfigAdapter = {
   },
   updateDraftConfig(files, connection, configBlob) {
     const settings = parseJsonOrThrow(getDraftFile(files, 'claude-settings')?.content ?? '')
+
     return replaceDraftContent(
       files,
       'claude-settings',
@@ -352,27 +374,36 @@ const claudeAdapter: CliConfigAdapter = {
   async buildClearFiles() {
     const read = await readConfigFiles(this.targets)
     const existing = readValidatedJsonOrNull('claude-settings', read, 'Claude Code settings')
+
     if (!existing) return []
     const next = { ...existing }
+
     for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
+
     if (next.permissions && typeof next.permissions === 'object') {
       // SAFETY: The JSONC parser owns these values and the object container is checked above.
       const permissions = { ...(next.permissions as Record<string, Serializable>) }
+
       for (const key of CLAUDE_MANAGED_PERMISSION_KEYS) delete permissions[key]
+
       if (Object.keys(permissions).length > 0) next.permissions = permissions
       else delete next.permissions
     }
+
     if (next.env && typeof next.env === 'object') {
       // SAFETY: The JSONC parser owns these values and the object container is checked above.
       const env = { ...(next.env as Record<string, Serializable>) }
+
       for (const key of CLAUDE_MANAGED_ENV_KEYS) delete env[key]
       next.env = env
     }
+
     return [{ target: 'claude-settings', content: renderJsonFile(next) }]
   },
   extractConnection(files) {
     const settings = parseJsonOrThrow(getDraftFile(files, 'claude-settings')?.content ?? '')
     const env = asRecord(settings.env)
+
     return {
       baseUrl: stringValue(env.ANTHROPIC_BASE_URL),
       apiKey: stringValue(env.ANTHROPIC_AUTH_TOKEN) ?? stringValue(env.ANTHROPIC_API_KEY),
@@ -382,24 +413,31 @@ const claudeAdapter: CliConfigAdapter = {
   extractConfig(files) {
     const settings = parseJsonOrThrow(getDraftFile(files, 'claude-settings')?.content ?? '')
     const out: NonNullable<CliConfigWriteArgs['configBlob']> = {}
+
     for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) {
       if (key === 'effortLevel') {
         if (isClaudeReasoningEffort(settings[key])) out[key] = settings[key]
       } else if (settings[key] !== undefined) out[key] = settings[key]
     }
+
     const permissions = asRecord(settings.permissions)
+
     for (const key of CLAUDE_MANAGED_PERMISSION_KEYS) {
       if (key === 'defaultMode' && isClaudePermissionMode(permissions[key])) {
         out.permissions = { ...asRecord(out.permissions), [key]: permissions[key] }
       }
     }
+
     const env = { ...asRecord(settings.env) }
+
     for (const key of ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_API_KEY', 'ANTHROPIC_MODEL']) {
       delete env[key]
     }
+
     for (const key of CLAUDE_MANAGED_ENV_KEYS) {
       if (env[key] !== undefined) out.env = { ...asRecord(out.env), [key]: env[key] }
     }
+
     return out
   }
 }
@@ -411,13 +449,16 @@ const codexAdapter: CliConfigAdapter = {
   async buildDraft(args, context) {
     const { provider, apiKey, model, modelRecord, configBlob } = context
     const responsesUrl = resolveCodexBaseUrl(provider)
+
     if (!responsesUrl) {
       throw new Error('Codex requires an OpenAI Responses API endpoint, which this provider does not expose')
     }
+
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const config = readAndParseDraftFile('codex-config', parseTomlOrThrow, args.files, read)
     const auth = readAndParseDraftFile('codex-auth', parseJsonOrThrow, args.files, read)
     const providerName = cliProviderKeyName(provider)
+
     return [
       makeDraftFile(
         'codex-config',
@@ -442,6 +483,7 @@ const codexAdapter: CliConfigAdapter = {
   async buildOwnLoginDraft(configBlob) {
     const read = await readConfigFiles(['codex-config'])
     const config = readAndParseDraftFile('codex-config', parseTomlOrThrow, undefined, read)
+
     return [makeDraftFile('codex-config', stringifyToml(buildCodexOwnLoginConfig(config, configBlob)), read)]
   },
   updateDraftConfig(files, connection, configBlob) {
@@ -449,6 +491,7 @@ const codexAdapter: CliConfigAdapter = {
     const auth = parseJsonOrThrow(getDraftFile(files, 'codex-auth')?.content ?? '')
     const providerKey = stringValue(config.model_provider)
     const providerName = providerNameFromKey(providerKey, 'Codex model_provider')
+
     const nextConfig = buildCodexConfig(
       config,
       {
@@ -458,6 +501,7 @@ const codexAdapter: CliConfigAdapter = {
       },
       configBlob
     )
+
     return replaceDraftContent(
       replaceDraftContent(files, 'codex-config', stringifyToml(nextConfig)),
       'codex-auth',
@@ -469,26 +513,32 @@ const codexAdapter: CliConfigAdapter = {
     const existing = readValidatedTomlOrNull('codex-config', read, 'Codex config')
     const existingAuth = readValidatedJsonOrNull('codex-auth', read, 'Codex auth')
     const files: CliConfigWriteFile[] = []
+
     if (existing) {
       const next: TomlTable = {}
+
       for (const [key, value] of Object.entries(existing)) {
         if (!CODEX_MANAGED_TOP_LEVEL_KEY_SET.has(key) && key !== 'model' && key !== 'model_provider') {
           next[key] = value
         }
       }
+
       if (next.model_providers && typeof next.model_providers === 'object') {
         // SAFETY: This checked container retains native values from the TOML parser.
         next.model_providers = omitKeysByPrefix(next.model_providers as TomlTable, CHERRY_PROVIDER_PREFIX)
       }
+
       dropFeatureGoalsIfEmpty(next)
       files.push({ target: 'codex-config', content: stringifyToml(next) })
     }
+
     if (existingAuth && (existingAuth.OPENAI_API_KEY !== undefined || existingAuth.auth_mode === 'apikey')) {
       const nextAuth = clearCodexApiKeyAuth(existingAuth)
       files.push(
         nextAuth ? { target: 'codex-auth', content: renderJsonFile(nextAuth) } : { target: 'codex-auth', delete: true }
       )
     }
+
     return files
   },
   extractConnection(files) {
@@ -496,6 +546,7 @@ const codexAdapter: CliConfigAdapter = {
     const auth = parseJsonOrThrow(getDraftFile(files, 'codex-auth')?.content ?? '')
     const providerKey = stringValue(config.model_provider)
     const provider = providerKey ? asRecord(asRecord(config.model_providers)[providerKey]) : {}
+
     return {
       baseUrl: stringValue(provider.base_url),
       apiKey: stringValue(auth.OPENAI_API_KEY),
@@ -505,14 +556,20 @@ const codexAdapter: CliConfigAdapter = {
   extractConfig(files) {
     const config = parseTomlOrThrow(getDraftFile(files, 'codex-config')?.content ?? '')
     const out: NonNullable<CliConfigWriteArgs['configBlob']> = {}
+
     if (asRecord(config.features).goals === true) out.goalMode = true
+
     if (config.disable_response_storage === true) out.disableResponseStorage = true
     const permissionMode = codexConfigToPermissionMode(config)
+
     if (permissionMode) out.permissionMode = permissionMode
+
     if (isCodexReasoningEffort(config.model_reasoning_effort)) out.reasoningEffort = config.model_reasoning_effort
     const providerKey = stringValue(config.model_provider)
     const provider = providerKey ? asRecord(asRecord(config.model_providers)[providerKey]) : {}
+
     if (provider.name === 'OpenAI') out.remoteCompaction = true
+
     return out
   }
 }
@@ -522,6 +579,7 @@ const openCodeAdapter: CliConfigAdapter = {
   providerBaseUrls: (provider) =>
     OPEN_CODE_ENDPOINTS.flatMap((endpoint) => {
       const baseUrl = normalizeUrl(formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl))
+
       return baseUrl ? [baseUrl] : []
     }),
   sanitize: sanitizeOpenCodeConfigBlob,
@@ -536,6 +594,7 @@ const openCodeAdapter: CliConfigAdapter = {
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const existing = readAndParseDraftFile('opencode-config', parseJsonOrThrow, args.files, read)
     const env = asRecord(configBlob.env)
+
     return [
       makeDraftFile(
         'opencode-config',
@@ -563,6 +622,7 @@ const openCodeAdapter: CliConfigAdapter = {
   assertCredentials(context) {
     const npmInfo = resolveOpenCodeNpmInfo(context.provider, context.modelRecord?.endpointTypes)
     const baseUrl = formatApiHost(context.provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
+
     if (!context.apiKey || !baseUrl) throw new Error('OpenCode config is missing required fields (apiKey/baseUrl)')
   },
   updateDraftConfig(files, connection, configBlob) {
@@ -576,6 +636,7 @@ const openCodeAdapter: CliConfigAdapter = {
     const providerName = providerNameFromKey(providerKey, 'OpenCode provider')
     const env = asRecord(configBlob.env)
     const model = requireDraftValue(connection.model, 'OpenCode model')
+
     const nextConfig = buildOpenCodeConfig(
       existing,
       { id: providerName, name: providerName },
@@ -598,29 +659,36 @@ const openCodeAdapter: CliConfigAdapter = {
         maxOutputTokens: existingLimit.output
       }
     )
+
     return replaceDraftContent(files, 'opencode-config', renderJsonFile(nextConfig))
   },
   async buildClearFiles() {
     const read = await readConfigFiles(this.targets)
     const existing = readValidatedJsonOrNull('opencode-config', read, 'OpenCode config')
+
     if (!existing) return []
     const next = { ...existing }
+
     for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
     // SAFETY: The container helper retains the JSONC parser's value domain.
     const compaction = { ...(asRecord(next.compaction) as Record<string, Serializable>) }
     delete compaction.auto
+
     if (Object.keys(compaction).length > 0) next.compaction = compaction
     else delete next.compaction
+
     // Only drop the top-level model when it points at a cherry-* provider (about to be
     // removed below — keeping it would leave a dangling reference); a user's own value
     // referencing their own provider stays.
     if (typeof next.model === 'string' && next.model.startsWith(CHERRY_PROVIDER_PREFIX)) {
       delete next.model
     }
+
     if (next.provider && typeof next.provider === 'object') {
       // SAFETY: The JSONC parser owns these values and the object container is checked above.
       next.provider = omitKeysByPrefix(next.provider as Record<string, Serializable>, CHERRY_PROVIDER_PREFIX)
     }
+
     return [{ target: 'opencode-config', content: renderJsonFile(next) }]
   },
   extractConnection(files) {
@@ -632,6 +700,7 @@ const openCodeAdapter: CliConfigAdapter = {
     // The models map KEY is the addressing id (what gateway matching compares against);
     // `name` is only the display label and may differ from it.
     const model = Object.keys(models)[0]
+
     return {
       baseUrl: stringValue(asRecord(provider.options).baseURL),
       apiKey: stringValue(asRecord(provider.options).apiKey),
@@ -641,13 +710,17 @@ const openCodeAdapter: CliConfigAdapter = {
   extractConfig(files) {
     const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
     const out: NonNullable<CliConfigWriteArgs['configBlob']> = {}
+
     if (asRecord(config.compaction).auto === true) out.autoCompact = true
+
     if (isOpenCodePermissionMode(config.permission)) out.permissionMode = config.permission
     const providers = asRecord(config.provider)
     const providerKey = findCherryProviderKey(providers)
     const provider = asRecord(providerKey ? providers[providerKey] : undefined)
     const model = asRecord(Object.entries(asRecord(provider.models))[0]?.[1])
+
     if (model.reasoning === true) out.env = { OPENCODE_REASONING: 'true' }
+
     return out
   }
 }
@@ -667,6 +740,7 @@ const geminiAdapter: CliConfigAdapter = {
     // normalization can't rewrite them (see GEMINI_GATEWAY_MODEL_SUFFIX);
     // extractConnection strips it back off for connection matching.
     const settingsModel = isGateway ? `${model}${GEMINI_GATEWAY_MODEL_SUFFIX}` : model
+
     return [
       makeDraftFile(
         'gemini-env',
@@ -686,6 +760,7 @@ const geminiAdapter: CliConfigAdapter = {
   async buildOwnLoginDraft(configBlob) {
     const read = await readConfigFiles(['gemini-settings'])
     const settings = readAndParseDraftFile('gemini-settings', parseJsonOrThrow, undefined, read)
+
     return [makeDraftFile('gemini-settings', renderJsonFile(buildGeminiOwnLoginSettings(settings, configBlob)), read)]
   },
   updateDraftConfig(files, connection, configBlob) {
@@ -699,6 +774,7 @@ const geminiAdapter: CliConfigAdapter = {
     // back would be re-normalized on a direct terminal launch.
     const isGateway = (stringValue(asRecord(settings.model).name) ?? '').endsWith(GEMINI_GATEWAY_MODEL_SUFFIX)
     const settingsModel = isGateway ? `${model}${GEMINI_GATEWAY_MODEL_SUFFIX}` : model
+
     return replaceDraftContent(
       replaceDraftContent(
         files,
@@ -720,27 +796,35 @@ const geminiAdapter: CliConfigAdapter = {
     const read = await readConfigFiles(this.targets)
     const files: CliConfigWriteFile[] = []
     const envText = requireReadFile('gemini-env', read).content
+
     if (envText !== null) {
       const envMap = parseDotenv(envText)
+
       for (const key of GEMINI_MANAGED_ENV_KEYS) envMap.delete(key)
       files.push({ target: 'gemini-env', content: renderDotenvFile(envMap, envText) })
     }
 
     const settings = readValidatedJsonOrNull('gemini-settings', read, 'Gemini CLI settings')
+
     if (!settings) return files
     applyManagedJsonSettings(settings, {}, GEMINI_MANAGED_SETTINGS_KEYS)
     dropSecurityAuthSelectedTypeIfEmpty(settings)
+
     if (settings.model && typeof settings.model === 'object') {
       if ('name' in settings.model) delete settings.model.name
+
       if (Object.keys(settings.model).length === 0) delete settings.model
     }
+
     files.push({ target: 'gemini-settings', content: renderJsonFile(settings) })
+
     return files
   },
   extractConnection(files) {
     const env = parseDotenv(getDraftFile(files, 'gemini-env')?.content ?? '')
     const settings = parseJsonOrThrow(getDraftFile(files, 'gemini-settings')?.content ?? '')
     const model = stringValue(asRecord(settings.model).name)
+
     return {
       baseUrl: stringValue(env.get('GOOGLE_GEMINI_BASE_URL')),
       apiKey: stringValue(env.get('GEMINI_API_KEY')),
@@ -749,6 +833,7 @@ const geminiAdapter: CliConfigAdapter = {
   },
   extractConfig(files) {
     const settings = parseJsonOrThrow(getDraftFile(files, 'gemini-settings')?.content ?? '')
+
     return sanitizeGeminiConfigBlob(settings)
   }
 }
@@ -762,6 +847,7 @@ const qwenAdapter: CliConfigAdapter = {
     const baseUrl = resolveOpenAIBaseUrl(provider)
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const existing = readAndParseDraftFile('qwen-settings', parseJsonOrThrow, args.files, read)
+
     return [
       makeDraftFile(
         'qwen-settings',
@@ -774,6 +860,7 @@ const qwenAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     if (!context.apiKey) throw new Error('Qwen Code config is missing the API key')
+
     if (!resolveOpenAIBaseUrl(context.provider)) {
       throw new Error('Qwen Code config is missing the OpenAI endpoint base URL')
     }
@@ -781,11 +868,13 @@ const qwenAdapter: CliConfigAdapter = {
   async buildOwnLoginDraft(configBlob) {
     const read = await readConfigFiles(['qwen-settings'])
     const existing = readAndParseDraftFile('qwen-settings', parseJsonOrThrow, undefined, read)
+
     return [makeDraftFile('qwen-settings', renderJsonFile(buildQwenOwnLoginConfig(existing, configBlob)), read)]
   },
   updateDraftConfig(files, connection, configBlob) {
     const existing = parseJsonOrThrow(getDraftFile(files, 'qwen-settings')?.content ?? '')
     const model = requireDraftValue(connection.model, 'Qwen model')
+
     return replaceDraftContent(
       files,
       'qwen-settings',
@@ -806,21 +895,27 @@ const qwenAdapter: CliConfigAdapter = {
   async buildClearFiles() {
     const read = await readConfigFiles(this.targets)
     const existing = readValidatedJsonOrNull('qwen-settings', read, 'Qwen Code config')
+
     if (!existing) return []
     const next = { ...existing }
+
     if (next.env && typeof next.env === 'object') {
       // SAFETY: The JSONC parser owns these values and the object container is checked above.
       next.env = omitKeysByPrefix(next.env as Record<string, Serializable>, 'CHERRY_')
     }
+
     // SAFETY: The container helper retains the JSONC parser's value domain.
     const modelProviders = asRecord(next.modelProviders) as Record<string, Serializable>
+
     if (Array.isArray(modelProviders.openai)) {
       const filtered = modelProviders.openai.filter((model) => !isCherryManagedModel(model))
       next.modelProviders = { ...modelProviders, openai: filtered }
     }
+
     applyManagedJsonSettings(next, {}, QWEN_MANAGED_SETTINGS_KEYS)
     dropSecurityAuthSelectedTypeIfEmpty(next)
     delete next.model
+
     return [{ target: 'qwen-settings', content: renderJsonFile(next) }]
   },
   extractConnection(files) {
@@ -829,6 +924,7 @@ const qwenAdapter: CliConfigAdapter = {
     const models = Array.isArray(providers.openai) ? providers.openai : []
     const modelEntry = models.find((item: any) => isCherryManagedModel(item))
     const envKey = stringValue(modelEntry?.envKey)
+
     return {
       baseUrl: stringValue(modelEntry?.baseUrl),
       apiKey: envKey ? stringValue(asRecord(settings.env)[envKey]) : undefined,
@@ -837,6 +933,7 @@ const qwenAdapter: CliConfigAdapter = {
   },
   extractConfig(files) {
     const settings = parseJsonOrThrow(getDraftFile(files, 'qwen-settings')?.content ?? '')
+
     return sanitizeQwenConfigBlob(settings)
   }
 }
@@ -851,6 +948,7 @@ const kimiAdapter: CliConfigAdapter = {
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const existing = readAndParseDraftFile('kimi-config', parseTomlOrThrow, args.files, read)
     const providerName = cliProviderKeyName(provider)
+
     return [
       makeDraftFile(
         'kimi-config',
@@ -873,6 +971,7 @@ const kimiAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     if (!context.apiKey) throw new Error('Kimi CLI config is missing the API key')
+
     if (!resolveOpenAIBaseUrl(context.provider)) {
       throw new Error('Kimi CLI config is missing the OpenAI endpoint base URL')
     }
@@ -880,12 +979,14 @@ const kimiAdapter: CliConfigAdapter = {
   async buildOwnLoginDraft(configBlob) {
     const read = await readConfigFiles(['kimi-config'])
     const existing = readAndParseDraftFile('kimi-config', parseTomlOrThrow, undefined, read)
+
     return [makeDraftFile('kimi-config', stringifyToml(buildKimiOwnLoginConfig(existing, configBlob)), read)]
   },
   updateDraftConfig(files, connection, configBlob) {
     const existing = parseTomlOrThrow(getDraftFile(files, 'kimi-config')?.content ?? '')
     const modelKey = requireDraftValue(stringValue(existing.default_model), 'Kimi default model')
     const maxContextSize = numberValue(asRecord(asRecord(existing.models)[modelKey]).max_context_size)
+
     return replaceDraftContent(
       files,
       'kimi-config',
@@ -907,16 +1008,20 @@ const kimiAdapter: CliConfigAdapter = {
   async buildClearFiles() {
     const read = await readConfigFiles(this.targets)
     const existing = readValidatedTomlOrNull('kimi-config', read, 'Kimi Code config')
+
     if (!existing) return []
     const next = { ...existing }
+
     for (const table of ['providers', 'models'] as const) {
       if (next[table] && typeof next[table] === 'object') {
         // SAFETY: This checked container retains native values from the TOML parser.
         next[table] = omitKeysByPrefix(next[table] as TomlTable, CHERRY_PROVIDER_PREFIX)
       }
     }
+
     applyManagedTomlSettings(next, {})
     delete next.default_model
+
     return [{ target: 'kimi-config', content: stringifyToml(next) }]
   },
   extractConnection(files) {
@@ -925,6 +1030,7 @@ const kimiAdapter: CliConfigAdapter = {
     const model = modelKey ? asRecord(asRecord(config.models)[modelKey]) : {}
     const providerKey = stringValue(model.provider) ?? modelKey
     const provider = providerKey ? asRecord(asRecord(config.providers)[providerKey]) : {}
+
     return {
       baseUrl: stringValue(provider.base_url),
       apiKey: stringValue(provider.api_key),
@@ -933,6 +1039,7 @@ const kimiAdapter: CliConfigAdapter = {
   },
   extractConfig(files) {
     const config = parseTomlOrThrow(getDraftFile(files, 'kimi-config')?.content ?? '')
+
     return sanitizeKimiConfigBlob(config)
   }
 }
@@ -943,6 +1050,7 @@ const hermesAdapter: CliConfigAdapter = {
     HERMES_ENDPOINTS.flatMap((endpoint) => {
       if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
       const baseUrl = normalizeUrl(resolveHermesProviderInfo(provider, [endpoint]).baseUrl)
+
       return baseUrl ? [baseUrl] : []
     }),
   sanitize: () => ({}),
@@ -952,6 +1060,7 @@ const hermesAdapter: CliConfigAdapter = {
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const document = readAndParseDraftFile('hermes-config', parseYamlDocumentOrThrow, args.files, read)
     const envText = readDraftFileText('hermes-env', args.files, read)
+
     return [
       makeDraftFile(
         'hermes-config',
@@ -968,6 +1077,7 @@ const hermesAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     const { baseUrl } = resolveHermesProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+
     if (!context.apiKey || !baseUrl) throw new Error('Hermes config is missing required fields (apiKey/baseUrl)')
   },
   updateDraftConfig(files, connection) {
@@ -975,6 +1085,7 @@ const hermesAdapter: CliConfigAdapter = {
     const envText = getDraftFile(files, 'hermes-env')?.content ?? ''
     const existingApiMode = document.getIn(['model', 'api_mode'])
     const apiMode = isHermesApiMode(existingApiMode) ? existingApiMode : 'chat_completions'
+
     return replaceDraftContent(
       replaceDraftContent(
         files,
@@ -996,9 +1107,11 @@ const hermesAdapter: CliConfigAdapter = {
     const read = await readConfigFiles(this.targets)
     const files: CliConfigWriteFile[] = []
     const config = requireReadFile('hermes-config', read)
+
     if (config.content !== null) {
       try {
         const content = clearHermesConfig(config.content)
+
         if (content !== null) files.push({ target: 'hermes-config', content })
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
@@ -1007,18 +1120,22 @@ const hermesAdapter: CliConfigAdapter = {
     }
 
     const env = requireReadFile('hermes-env', read)
+
     if (env.content !== null) {
       const envMap = parseDotenv(env.content)
       envMap.delete(HERMES_API_KEY_ENV)
       files.push({ target: 'hermes-env', content: renderDotenvFile(envMap, env.content) })
     }
+
     return files
   },
   extractConnection(files) {
     const config = parseYamlOrThrow(getDraftFile(files, 'hermes-config')?.content ?? '')
     const model = asRecord(config.model)
+
     if (model.api_key !== HERMES_API_KEY_ENV_REFERENCE) return null
     const env = parseDotenv(getDraftFile(files, 'hermes-env')?.content ?? '')
+
     return {
       baseUrl: stringValue(model.base_url),
       apiKey: stringValue(env.get(HERMES_API_KEY_ENV)),
@@ -1036,6 +1153,7 @@ const piAdapter: CliConfigAdapter = {
     PI_ENDPOINTS.flatMap((endpoint) => {
       if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
       const baseUrl = normalizeUrl(resolvePiProviderInfo(provider, [endpoint]).baseUrl)
+
       return baseUrl ? [baseUrl] : []
     }),
   sanitize: () => ({}),
@@ -1046,9 +1164,11 @@ const piAdapter: CliConfigAdapter = {
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const models = readAndParseDraftFile('pi-models', parseJsonOrThrow, args.files, read)
     const settings = readAndParseDraftFile('pi-settings', parseJsonOrThrow, args.files, read)
+
     const input: Array<'image' | 'text'> = modelRecord?.inputModalities?.includes('image')
       ? ['text', 'image']
       : ['text']
+
     return [
       makeDraftFile(
         'pi-models',
@@ -1074,6 +1194,7 @@ const piAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     const { baseUrl } = resolvePiProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+
     if (!context.apiKey || !baseUrl) throw new Error('Pi config is missing required fields (apiKey/baseUrl)')
   },
   updateDraftConfig(files) {
@@ -1083,6 +1204,7 @@ const piAdapter: CliConfigAdapter = {
     const read = await readConfigFiles(this.targets)
     const files: CliConfigWriteFile[] = []
     const models = readValidatedJsonOrNull('pi-models', read, 'Pi models config')
+
     if (models) {
       files.push({
         target: 'pi-models',
@@ -1094,14 +1216,18 @@ const piAdapter: CliConfigAdapter = {
     }
 
     const settings = readValidatedJsonOrNull('pi-settings', read, 'Pi settings config')
+
     if (settings) {
       const next = { ...settings }
+
       if (stringValue(next.defaultProvider)?.startsWith(CHERRY_PROVIDER_PREFIX)) {
         delete next.defaultProvider
         delete next.defaultModel
       }
+
       files.push({ target: 'pi-settings', content: renderJsonFile(next) })
     }
+
     return files
   },
   extractConnection(files) {
@@ -1109,13 +1235,16 @@ const piAdapter: CliConfigAdapter = {
     const settings = parseJsonOrThrow(getDraftFile(files, 'pi-settings')?.content ?? '')
     const providers = asRecord(models.providers)
     const providerKey = findCherryProviderKey(providers)
+
     if (!providerKey) return null
     const provider = asRecord(providers[providerKey])
     const configuredModels = Array.isArray(provider.models) ? provider.models : []
+
     const defaultModel =
       settings.defaultProvider === providerKey
         ? stringValue(settings.defaultModel)
         : stringValue(configuredModels[0]?.id)
+
     return {
       baseUrl: stringValue(provider.baseUrl),
       apiKey: stringValue(provider.apiKey),
@@ -1133,6 +1262,7 @@ const minimaxAdapter: CliConfigAdapter = {
     MINIMAX_ENDPOINTS.flatMap((endpoint) => {
       if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
       const baseUrl = normalizeUrl(resolveMinimaxProviderInfo(provider, [endpoint]).baseUrl)
+
       return baseUrl ? [baseUrl] : []
     }),
   sanitize: () => ({}),
@@ -1142,6 +1272,7 @@ const minimaxAdapter: CliConfigAdapter = {
     const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const document = readAndParseDraftFile('minimax-config', parseYamlDocumentOrThrow, args.files, read)
+
     return [
       makeDraftFile(
         'minimax-config',
@@ -1158,11 +1289,13 @@ const minimaxAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     const { baseUrl } = resolveMinimaxProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+
     if (!context.apiKey || !baseUrl) throw new Error('MiniMax Code config is missing required fields (apiKey/baseUrl)')
   },
   updateDraftConfig(files, connection) {
     const document = parseDraftFileOrThrow('minimax-config', files, parseYamlDocumentOrThrow)
     const providerKey = requireDraftValue(minimaxManagedProviderKey(document), 'MiniMax provider key')
+
     return replaceDraftContent(
       files,
       'minimax-config',
@@ -1178,16 +1311,20 @@ const minimaxAdapter: CliConfigAdapter = {
   async buildClearFiles() {
     const read = await readConfigFiles(this.targets)
     const config = requireReadFile('minimax-config', read)
+
     if (config.content === null) return []
     const content = clearMinimaxConfig(config.content)
+
     return content === null ? [] : [{ target: 'minimax-config', content }]
   },
   extractConnection(files) {
     const config = parseYamlOrThrow(getDraftFile(files, 'minimax-config')?.content ?? '')
     const providerKey = findCherryProviderKey(asRecord(config.custom_provider))
+
     if (!providerKey) return null
     const provider = asRecord(asRecord(config.custom_provider)[providerKey])
     const defaultModel = stringValue(config.defaultModel)
+
     return {
       baseUrl: stringValue(asRecord(provider.options).baseURL),
       apiKey: stringValue(asRecord(provider.options).apiKey),
@@ -1228,5 +1365,6 @@ export function sanitizeCliConfigBlob(
   configBlob: CliConfigWriteArgs['configBlob']
 ): NonNullable<CliConfigWriteArgs['configBlob']> {
   if (cliTool === CodeCli.DEEPSEEK_HARNESS) return normalizeDeepSeekHarnessSettings(configBlob)
+
   return getAdapter(cliTool)?.sanitize(configBlob) ?? asRecord(configBlob)
 }

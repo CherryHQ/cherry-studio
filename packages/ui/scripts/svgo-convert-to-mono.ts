@@ -34,10 +34,12 @@ function computeOpacityMap(colorLuminances: Map<string, number>, whiteIsFg: bool
   const count = colorLuminances.size
 
   if (count === 0) return map
+
   if (count === 1) {
     for (const color of colorLuminances.keys()) {
       map.set(color, 1.0)
     }
+
     return map
   }
 
@@ -55,6 +57,7 @@ function computeOpacityMap(colorLuminances: Map<string, number>, whiteIsFg: bool
     .map(([color, lum]) => {
       const normalizedL = range > 0.01 ? (lum - minL) / effectiveRange : 0
       const opacity = MAX_OPACITY - Math.min(normalizedL, 1.0) * (MAX_OPACITY - MIN_OPACITY)
+
       return { color, opacity }
     })
     .sort((a, b) => b.opacity - a.opacity)
@@ -63,6 +66,7 @@ function computeOpacityMap(colorLuminances: Map<string, number>, whiteIsFg: bool
   for (let i = 1; i < entries.length; i++) {
     const prev = entries[i - 1]
     const curr = entries[i]
+
     if (prev.opacity - curr.opacity < effectiveGap) {
       curr.opacity = Math.max(MIN_OPACITY, prev.opacity - effectiveGap)
     }
@@ -81,12 +85,14 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
     fn: (root: XastRoot) => {
       // Find <svg> element
       let svgNode: XastElement | null = null
+
       for (const child of root.children) {
         if (child.type === 'element' && child.name === 'svg') {
           svgNode = child
           break
         }
       }
+
       if (!svgNode) return {}
       const maskElements = new Map<string, XastElement>()
       const preservedMaskIds = new Set<string>()
@@ -94,9 +100,11 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
       function collectMaskDefs(node: XastElement) {
         for (const child of node.children) {
           if (child.type !== 'element') continue
+
           if (child.name === 'mask' && child.attributes.id) {
             maskElements.set(child.attributes.id, child)
           }
+
           if (child.children.length > 0) collectMaskDefs(child)
         }
       }
@@ -108,15 +116,21 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
       function isCutoutMask(shapePaths: XastElement[]): boolean {
         const hasDarkFill = shapePaths.some((sp) => {
           const fill = sp.attributes.fill || ''
+
           if (/^black$/i.test(fill)) return true
           const lum = colorToLuminance(fill)
+
           return lum >= 0 && lum < 0.3
         })
+
         const hasLightFill = shapePaths.some((sp) => {
           const fill = sp.attributes.fill || ''
+
           if (/^white$/i.test(fill)) return true
+
           return isWhiteFill(fill)
         })
+
         return hasDarkFill && hasLightFill
       }
 
@@ -126,8 +140,10 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
 
           if (child.attributes.mask) {
             const maskMatch = child.attributes.mask.match(/url\(#([^)]+)\)/)
+
             if (maskMatch) {
               const maskEl = maskElements.get(maskMatch[1])
+
               if (maskEl) {
                 const shapePaths = maskEl.children.filter(
                   (c): c is XastElement =>
@@ -137,6 +153,7 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
                 // Cutout masks (white bg + dark shapes) create visual gaps — preserve them.
                 if (isCutoutMask(shapePaths)) {
                   preservedMaskIds.add(maskMatch[1])
+
                   if (child.children.length > 0) replaceMaskedGroups(child, viewBoxArea)
                   continue
                 }
@@ -147,15 +164,20 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
                   if (sp.name === 'rect') {
                     const w = parseFloat(sp.attributes.width || '0')
                     const h = parseFloat(sp.attributes.height || '0')
+
                     return w * h >= viewBoxArea * 0.9
                   }
+
                   if (sp.name === 'path') {
                     const d = sp.attributes.d || ''
                     const bounds = parseSvgPathBounds(d)
+
                     if (!isFinite(bounds.minX)) return false
                     const area = (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY)
+
                     return area >= viewBoxArea * 0.9
                   }
+
                   return false
                 })
 
@@ -164,11 +186,13 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
                   child.children = shapePaths.map((sp): XastElement => {
                     const attrs = { ...sp.attributes }
                     delete attrs.style // Remove mask-type:luminance etc.
+
                     return { type: 'element', name: sp.name, attributes: attrs, children: [] }
                   })
                 }
               }
             }
+
             delete child.attributes.mask
           }
 
@@ -178,20 +202,25 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
 
       function removeMaskElements(node: XastElement) {
         const children = node.children
+
         for (let i = children.length - 1; i >= 0; i--) {
           const child = children[i]
+
           if (child.type !== 'element') continue
+
           if (child.name === 'mask') {
             // Preserve cutout masks that are still referenced
             if (child.attributes.id && preservedMaskIds.has(child.attributes.id)) continue
             detachNodeFromParent(child, node)
             continue
           }
+
           if (child.children.length > 0) removeMaskElements(child)
         }
       }
 
       collectMaskDefs(svgNode)
+
       if (maskElements.size > 0) {
         const vb = parseViewBox(svgNode.attributes)
         const vbArea = vb.w * vb.h
@@ -205,10 +234,12 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
 
       function addColorEntry(color: string) {
         if (!color || color === 'none' || color === 'currentColor' || color.startsWith('url(')) return
+
         if (isWhiteFill(color)) {
           whiteColors.add(color)
         } else {
           const lum = colorToLuminance(color)
+
           if (lum >= 0 && !colorLuminances.has(color)) {
             colorLuminances.set(color, lum)
           }
@@ -217,6 +248,7 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
 
       function collectColors(node: XastElement) {
         const children = node.children
+
         for (const child of children) {
           if (child.type !== 'element') continue
 
@@ -251,31 +283,42 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
         function findFirstPath(node: XastElement): XastElement | null {
           for (const child of node.children) {
             if (child.type !== 'element') continue
+
             if (child.name === 'defs') continue
+
             if (child.name === 'path' && child.attributes.d && child.attributes.fill) {
               return child
             }
+
             const found = findFirstPath(child)
+
             if (found) return found
           }
+
           return null
         }
 
         const firstPath = findFirstPath(svgNode)
+
         if (firstPath) {
           const fill = firstPath.attributes.fill
+
           if (fill && !isWhiteFill(fill) && fill !== 'none' && !fill.startsWith('url(')) {
             const d = firstPath.attributes.d
             const bounds = parseSvgPathBounds(d)
+
             if (isFinite(bounds.minX)) {
               const tx = (firstPath.attributes.transform || '').match(/translate\((-?[\d.]+)[,\s]+(-?[\d.]+)\)/)
+
               if (tx) {
                 bounds.minX += parseFloat(tx[1]) || 0
                 bounds.maxX += parseFloat(tx[1]) || 0
                 bounds.minY += parseFloat(tx[2]) || 0
                 bounds.maxY += parseFloat(tx[2]) || 0
               }
+
               const area = (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY)
+
               if (area >= vbArea * 0.6) {
                 containerLum = colorToLuminance(fill)
               }
@@ -293,9 +336,11 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
       // Phase 2: Walk tree and transform fill attributes
       function transformNode(node: XastElement) {
         const children = node.children
+
         // Iterate backwards for safe detachment
         for (let i = children.length - 1; i >= 0; i--) {
           const child = children[i]
+
           if (child.type !== 'element') continue
 
           // Remove <clipPath> elements
@@ -310,6 +355,7 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
               (c) =>
                 c.type === 'element' && c.name === 'mask' && c.attributes.id && preservedMaskIds.has(c.attributes.id)
             )
+
             if (hasPreservedMask) continue // keep defs and skip color transform inside
             detachNodeFromParent(child, node)
             continue
@@ -318,8 +364,10 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
           // Remove clipPath/filter attributes; preserve mask if it references a preserved mask
           delete child.attributes['clip-path']
           delete child.attributes.filter
+
           if (child.attributes.mask) {
             const ref = child.attributes.mask.match(/url\(#([^)]+)\)/)
+
             if (!ref || !preservedMaskIds.has(ref[1])) {
               delete child.attributes.mask
             }
@@ -330,6 +378,7 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
 
           // Replace fill values
           const fill = child.attributes.fill
+
           if (fill && fill !== 'none' && fill !== 'currentColor') {
             if (fill.startsWith('url(')) {
               child.attributes.fill = 'currentColor'
@@ -337,17 +386,20 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
               child.attributes.fill = whiteIsFg ? 'currentColor' : 'var(--color-background, white)'
             } else {
               const fillLum = colorToLuminance(fill)
+
               // When a container shape exists, lighter overlapping paths become
               // white overlays to create contrast (e.g. Hunyuan detail shapes).
               if (containerLum >= 0 && fillLum >= 0 && fillLum - containerLum >= 0.15) {
                 child.attributes.fill = 'var(--color-background, white)'
                 const whiteOpacity = Math.min(0.9, (fillLum - containerLum) / (1 - containerLum + 0.01))
+
                 if (whiteOpacity < 0.99) {
                   child.attributes['fill-opacity'] = Math.max(MIN_OPACITY, whiteOpacity).toFixed(2)
                 }
               } else {
                 const opacity = opacityMap.get(fill)
                 child.attributes.fill = 'currentColor'
+
                 if (opacity !== undefined && opacity < 0.99) {
                   child.attributes['fill-opacity'] = opacity.toFixed(2)
                 }
@@ -357,6 +409,7 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
 
           // Replace stroke values
           const stroke = child.attributes.stroke
+
           if (stroke && stroke !== 'none' && stroke !== 'currentColor') {
             if (stroke.startsWith('url(')) {
               child.attributes.stroke = 'currentColor'
@@ -365,6 +418,7 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
             } else {
               const opacity = opacityMap.get(stroke)
               child.attributes.stroke = 'currentColor'
+
               if (opacity !== undefined && opacity < 0.99) {
                 child.attributes['stroke-opacity'] = opacity.toFixed(2)
               }
@@ -383,6 +437,7 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
 
         // Handle SVG root element's own fill/stroke (inherited by children)
         const rootFill = svgNode.attributes.fill
+
         if (rootFill && rootFill !== 'none' && rootFill !== 'currentColor' && !rootFill.startsWith('url(')) {
           svgNode.attributes.fill = isWhiteFill(rootFill)
             ? whiteIsFg
@@ -390,7 +445,9 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
               : 'var(--color-background, white)'
             : 'currentColor'
         }
+
         const rootStroke = svgNode.attributes.stroke
+
         if (rootStroke && rootStroke !== 'none' && rootStroke !== 'currentColor' && !rootStroke.startsWith('url(')) {
           svgNode.attributes.stroke = 'currentColor'
         }

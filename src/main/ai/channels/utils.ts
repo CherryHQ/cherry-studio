@@ -17,8 +17,11 @@ export function splitMessage(text: string, maxLength: number): string[] {
     }
 
     let splitIndex = remaining.lastIndexOf('\n\n', maxLength)
+
     if (splitIndex <= 0) splitIndex = remaining.lastIndexOf('\n', maxLength)
+
     if (splitIndex <= 0) splitIndex = remaining.lastIndexOf(' ', maxLength)
+
     // No whitespace boundary within maxLength (e.g. CJK text, which has no
     // spaces): fall back to a hard cut, but never split a surrogate pair.
     if (splitIndex <= 0) splitIndex = clampSurrogateBoundary(remaining, maxLength)

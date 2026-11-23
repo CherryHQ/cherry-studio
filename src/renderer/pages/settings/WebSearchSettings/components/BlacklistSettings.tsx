@@ -31,6 +31,7 @@ const BlacklistSettings: FC<Props> = ({ variant = 'card' }) => {
     if (!blacklistDirty) {
       setBlacklistInput(savedBlacklistInput)
     }
+
     setBlacklistBaseline(savedBlacklistInput)
   }, [blacklistDirty, savedBlacklistInput])
 
@@ -38,9 +39,11 @@ const BlacklistSettings: FC<Props> = ({ variant = 'card' }) => {
     const { validDomains, invalidEntries: parsedInvalidEntries } = parseWebSearchBlacklistInput(blacklist)
 
     setInvalidEntries(parsedInvalidEntries)
+
     if (parsedInvalidEntries.length > 0) return
 
     const saved = await persist(() => setExcludeDomains(validDomains), 'Failed to save web search blacklist')
+
     if (saved.ok) {
       const nextBlacklistInput = validDomains.join('\n')
 
@@ -91,4 +94,5 @@ const BlacklistSettings: FC<Props> = ({ variant = 'card' }) => {
     </SettingGroup>
   )
 }
+
 export default BlacklistSettings

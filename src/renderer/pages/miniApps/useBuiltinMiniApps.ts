@@ -36,9 +36,11 @@ export function useBuiltinMiniApps(
   language: string
 ): BuiltinMiniAppEntry[] {
   const [resourcesPath] = useCache('app.path.resources')
+
   return useMemo(() => {
     if (!resourcesPath) return []
     const taken = new Set(installed.map((app) => app.presetMiniAppId))
+
     return BUILTIN_MINI_APPS.filter((e) => !taken.has(e.appId)).map((e) => ({
       appId: e.appId,
       name: resolveLocalizedText(e.name, language),

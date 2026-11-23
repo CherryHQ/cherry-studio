@@ -35,6 +35,7 @@ export function classNames(...args: ClassValue[]): string {
       classes.push(arg.toString())
     } else if (Array.isArray(arg)) {
       const inner = classNames(...arg)
+
       if (inner) {
         classes.push(inner)
       }
@@ -92,6 +93,7 @@ function getRelativeLuminance(r: number, g: number, b: number): number {
   const gs = g / 255
   const bs = b / 255
   const normalize = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+
   return 0.2126 * normalize(rs) + 0.7152 * normalize(gs) + 0.0722 * normalize(bs)
 }
 

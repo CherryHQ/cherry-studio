@@ -6,7 +6,9 @@ import { NamiAiLight } from './light'
 
 const NamiAi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <NamiAiLight {...props} className={className} />
+
   if (variant === 'dark') return <NamiAiDark {...props} className={className} />
+
   return (
     <>
       <NamiAiLight className={cn('dark:hidden', className)} {...props} />

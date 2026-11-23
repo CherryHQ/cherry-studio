@@ -51,6 +51,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
   const { t } = useTranslation()
   const { theme } = useTheme()
   const cancelButtonRef = useRef<HTMLButtonElement>(null)
+
   const initialConfig = useMemo(
     () => sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {}),
     [cliTool, providerConfig]
@@ -103,6 +104,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
+
     setFiles(nextFiles)
     setMode('raw')
   }, [])
@@ -114,6 +116,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
 
   const handleSubmit = useCallback(async () => {
     if (!canSave || submitting) return
+
     try {
       setSubmitting(true)
       await onSubmit({ config, cliConfigFiles: mode === 'raw' ? files : undefined })

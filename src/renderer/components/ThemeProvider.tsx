@@ -35,6 +35,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [actualTheme, setActualTheme] = useState<ThemeMode>(() =>
     settedTheme === ThemeMode.light || settedTheme === ThemeMode.dark ? settedTheme : getSystemTheme()
   )
+
   const { initUserTheme } = useUserTheme()
 
   // listen for theme updates from main process
@@ -46,12 +47,14 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       [ThemeMode.dark]: ThemeMode.system,
       [ThemeMode.system]: ThemeMode.light
     }[settedTheme]
+
     void setSettedTheme(nextTheme || ThemeMode.system)
   }
 
   useEffect(() => {
     // Set initial theme and OS attributes on body
     document.body.setAttribute('os', isMac ? 'mac' : isWin ? 'windows' : 'linux')
+
     if (actualTheme === ThemeMode.dark) {
       document.body.classList.remove('light')
       document.body.classList.add('dark')
@@ -59,6 +62,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       document.body.classList.remove('dark')
       document.body.classList.add('light')
     }
+
     document.documentElement.lang = language || navigator.language
 
     // if theme is old auto, then set theme to system
@@ -77,6 +81,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   useEffect(() => {
     if (settedTheme === ThemeMode.light || settedTheme === ThemeMode.dark) {
       setActualTheme(settedTheme)
+
       return
     }
 

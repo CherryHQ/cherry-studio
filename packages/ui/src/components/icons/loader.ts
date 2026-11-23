@@ -15,7 +15,9 @@ import type { CompoundIcon } from './types'
  */
 
 type ProviderCatalogModule = typeof providerCatalogNs
+
 type ProviderLoadersModule = typeof providerLoadersNs
+
 type ModelLoadersModule = typeof modelLoadersNs
 
 let providerCatalogModule: ProviderCatalogModule | undefined
@@ -32,15 +34,18 @@ function iconCacheKey(kind: IconRef['kind'], key: string): string {
 
 function loadCachedIcon(cacheKey: string, load: () => Promise<CompoundIcon>): Promise<CompoundIcon> {
   const loaded = loadedIcons.get(cacheKey)
+
   if (loaded) return Promise.resolve(loaded)
 
   const pending = iconPromises.get(cacheKey)
+
   if (pending) return pending
 
   const promise = load().then(
     (icon) => {
       loadedIcons.set(cacheKey, icon)
       iconPromises.delete(cacheKey)
+
       return icon
     },
     (error) => {
@@ -48,7 +53,9 @@ function loadCachedIcon(cacheKey: string, load: () => Promise<CompoundIcon>): Pr
       throw error
     }
   )
+
   iconPromises.set(cacheKey, promise)
+
   return promise
 }
 
@@ -58,26 +65,32 @@ function loadProviderCatalogModule(): Promise<ProviderCatalogModule> {
   const promise = import('./providers/catalog')
     .then((module) => {
       providerCatalogModule = module
+
       for (const [key, icon] of Object.entries(module.PROVIDER_ICON_CATALOG)) {
         loadedIcons.set(iconCacheKey('provider', key), icon)
       }
+
       return module
     })
     .catch((error) => {
       providerCatalogPromise = undefined
       throw error
     })
+
   providerCatalogPromise = promise
+
   return promise
 }
 
 function loadProviderLoadersModule(): Promise<ProviderLoadersModule> {
   providerLoadersPromise ??= import('./providers/loaders')
+
   return providerLoadersPromise
 }
 
 function loadModelLoadersModule(): Promise<ModelLoadersModule> {
   modelLoadersPromise ??= import('./models/loaders')
+
   return modelLoadersPromise
 }
 
@@ -87,19 +100,24 @@ export async function loadProviderIconCatalog(): Promise<Record<ProviderIconKey,
 
 export async function loadProviderIcon(key: ProviderIconKey): Promise<CompoundIcon> {
   const cacheKey = iconCacheKey('provider', key)
+
   return loadCachedIcon(cacheKey, async () => {
     if (providerCatalogModule) {
       return providerCatalogModule.PROVIDER_ICON_CATALOG[key]
     }
+
     const loaders = await loadProviderLoadersModule()
+
     return loaders.PROVIDER_ICON_LOADERS[key]()
   })
 }
 
 export async function loadModelIcon(key: ModelIconKey): Promise<CompoundIcon> {
   const cacheKey = iconCacheKey('model', key)
+
   return loadCachedIcon(cacheKey, async () => {
     const loaders = await loadModelLoadersModule()
+
     return loaders.MODEL_ICON_LOADERS[key]()
   })
 }
@@ -113,5 +131,6 @@ export function getLoadedIcon(ref: IconRef): CompoundIcon | undefined {
   if (ref.kind === 'provider' && providerCatalogModule) {
     return providerCatalogModule.PROVIDER_ICON_CATALOG[ref.key]
   }
+
   return loadedIcons.get(iconCacheKey(ref.kind, ref.key))
 }

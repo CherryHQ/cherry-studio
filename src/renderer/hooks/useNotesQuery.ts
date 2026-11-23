@@ -9,6 +9,7 @@ import type { NotesTreeNode } from '@renderer/types/note'
 export function useActiveNode(notesTree: NotesTreeNode[], activeFilePath?: string) {
   const activeNode = useMemo(() => {
     if (!notesTree || !activeFilePath) return null
+
     return findNodeByPath(notesTree, activeFilePath)
   }, [notesTree, activeFilePath])
 

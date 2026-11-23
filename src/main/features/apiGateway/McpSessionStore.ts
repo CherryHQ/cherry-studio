@@ -13,6 +13,7 @@ const logger = loggerService.withContext('McpSessionStore')
 /** Matches the gateway's other long-lived stream budget (`GATEWAY_STREAM_IDLE_TIMEOUT_MS` in proxyStream.ts). */
 const SESSION_IDLE_TIMEOUT_MS = 30 * 60_000
 const SWEEP_INTERVAL_MS = 60_000
+
 /** A client that never sends DELETE still gets swept, but a runaway one must not grow the map first. */
 const MAX_SESSIONS = 64
 
@@ -67,6 +68,7 @@ export class McpSessionStore {
   async handleModern(server: McpServer, request: Request, parsedBody?: unknown): Promise<Response> {
     if (this.closed) throw new StoreClosedError()
     let proxy = this.modern.get(server.id)
+
     if (!proxy) {
       if (this.sessions.size + this.modern.size + this.pendingAdmissions >= MAX_SESSIONS)
         throw new SessionLimitReachedError(MAX_SESSIONS)
@@ -74,6 +76,7 @@ export class McpSessionStore {
       this.modern.set(server.id, proxy)
       this.ensureSweeping()
     }
+
     return proxy.fetch(request, parsedBody)
   }
 
@@ -88,14 +91,17 @@ export class McpSessionStore {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Elysia parses JSON but does not validate MCP; the SDK transport owns JSON-RPC validation and malformed-request responses.
   async createAndHandle(server: McpServer, request: Request, parsedBody: unknown): Promise<Response> {
     if (this.closed) throw new StoreClosedError()
+
     // Reserve synchronously — nothing may await between the check and the increment.
     if (this.sessions.size + this.modern.size + this.pendingAdmissions >= MAX_SESSIONS) {
       throw new SessionLimitReachedError(MAX_SESSIONS)
     }
+
     this.pendingAdmissions++
 
     let registered = false
     const bridge = createMcpBridgeServer(server.id, server)
+
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       // Responses stream as SSE rather than plain JSON: the SDK only writes
@@ -105,6 +111,7 @@ export class McpSessionStore {
       enableJsonResponse: false,
       onsessioninitialized: (sessionId) => {
         registered = true
+
         const session: McpSession = {
           id: sessionId,
           serverId: server.id,
@@ -112,14 +119,17 @@ export class McpSessionStore {
           bridge,
           lastActivityAt: Date.now()
         }
+
         // Outbound traffic counts as activity too. Without this the timestamp only moves on a
         // new HTTP request, so a client sitting on a GET stream and receiving notifications
         // would be swept as "idle" — a hard lifetime, not the idle timeout we document.
         const send = transport.send.bind(transport)
         transport.send = async (message, options) => {
           session.lastActivityAt = Date.now()
+
           return send(message, options)
         }
+
         this.sessions.set(sessionId, session)
         this.ensureSweeping()
         logger.debug('MCP session opened', { sessionId, serverId: server.id, live: this.sessions.size })
@@ -134,9 +144,11 @@ export class McpSessionStore {
     try {
       await bridge.connect(transport)
       const response = await transport.handleRequest(request, { parsedBody })
+
       // `closeAll()` may have run while we were connecting; that sweep could not have seen
       // this session, so retire it here rather than leaving it behind a closed server.
       if (registered && this.closed) await this.delete(transport.sessionId!)
+
       return response
     } catch (error) {
       // A failed handshake registers nothing — drop the bridge rather than leak it.
@@ -150,12 +162,15 @@ export class McpSessionStore {
   /** Look up a live session, stamping it so the idle sweep leaves it alone. */
   get(sessionId: string): McpSession | undefined {
     const session = this.sessions.get(sessionId)
+
     if (session) session.lastActivityAt = Date.now()
+
     return session
   }
 
   async delete(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId)
+
     if (!session) return
     this.sessions.delete(sessionId)
     await this.closeSession(session)
@@ -170,15 +185,18 @@ export class McpSessionStore {
    */
   async closeAll(): Promise<void> {
     this.closed = true
+
     if (this.sweepTimer) {
       clearInterval(this.sweepTimer)
       this.sweepTimer = null
     }
+
     const live = [...this.sessions.values()]
     const modern = [...this.modern.values()]
     this.modern.clear()
     this.sessions.clear()
     await Promise.all([...live.map((session) => this.closeSession(session)), ...modern.map((proxy) => proxy.close())])
+
     if (live.length > 0) logger.info('Closed MCP sessions', { count: live.length })
   }
 
@@ -202,15 +220,20 @@ export class McpSessionStore {
 
   private async sweepIdle(): Promise<void> {
     const deadline = Date.now() - SESSION_IDLE_TIMEOUT_MS
+
     for (const [id, proxy] of this.modern) {
       if (proxy.lastActivityAt >= deadline) continue
       this.modern.delete(id)
       await proxy.close()
     }
+
     const expired = [...this.sessions.values()].filter((session) => session.lastActivityAt < deadline)
+
     for (const session of expired) this.sessions.delete(session.id)
     await Promise.all(expired.map((session) => this.closeSession(session)))
+
     if (expired.length > 0) logger.info('Swept idle MCP sessions', { count: expired.length, live: this.sessions.size })
+
     if (this.sessions.size === 0 && this.modern.size === 0 && this.sweepTimer) {
       clearInterval(this.sweepTimer)
       this.sweepTimer = null

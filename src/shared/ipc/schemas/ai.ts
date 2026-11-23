@@ -77,8 +77,11 @@ export const HeartbeatDocumentSchema = z.strictObject({
   version: FileVersionSchema,
   contentHash: ContentHashSchema
 })
+
 export type HeartbeatDocument = z.infer<typeof HeartbeatDocumentSchema>
+
 export const HeartbeatRunResultSchema = z.enum(['started', 'empty', 'disabled', 'busy', 'paused'])
+
 export type HeartbeatRunResult = z.infer<typeof HeartbeatRunResultSchema>
 
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
@@ -90,6 +93,7 @@ export const CreateAgentCommandSchema = AgentBaseSchema.extend({
    */
   skillIds: AgentSkillIdSetSchema.optional()
 })
+
 export type CreateAgentCommand = z.infer<typeof CreateAgentCommandSchema>
 
 /**
@@ -112,10 +116,12 @@ const agentTaskFormSchema = z.strictObject({
   reuseSession: z.boolean().optional(),
   channelIds: z.array(z.string()).optional()
 })
+
 export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>
 
 /** Edit-save patch: form fields only — pause/resume are separate commands, so no `enabled` here. */
 const agentTaskPatchSchema = agentTaskFormSchema.partial()
+
 export type AgentTaskPatch = z.infer<typeof agentTaskPatchSchema>
 
 /** Task identity carried by every by-id command; `agentId` doubles as the ownership guard input. */

@@ -19,6 +19,7 @@ type RequestBodyTransform = NonNullable<
  */
 export function isOpenAIReasoningModelId(modelId: string): boolean {
   const id = modelId.toLowerCase()
+
   return (
     id.startsWith('o1') ||
     id.startsWith('o3') ||
@@ -36,9 +37,12 @@ export function applyReasoningModelMaxTokensConversion(
   args: Parameters<RequestBodyTransform>[0]
 ): ReturnType<RequestBodyTransform> {
   if (typeof args.model !== 'string') return args
+
   if (!isOpenAIReasoningModelId(args.model)) return args
+
   if (args.max_tokens == null) return args
   const { max_tokens, ...rest } = args
+
   // An explicit `max_completion_tokens` (custom parameter, delivered through
   // `providerOptions`) outranks the `maxOutputTokens`-derived value, matching
   // `@ai-sdk/openai`.

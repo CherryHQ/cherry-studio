@@ -20,15 +20,18 @@ export function useAgentPreviewUrl(
     () => (enabled && sessionId ? findAgentPreviewUrlCandidates(messages, partsByMessageId) : []),
     [enabled, messages, partsByMessageId, sessionId]
   )
+
   const searchKey = buildSearchKey(
     sessionId,
     candidates.map((candidate) => candidate.key)
   )
+
   const [cursor, setCursor] = useState({ searchKey, index: 0 })
   const index = cursor.searchKey === searchKey ? cursor.index : 0
   const candidate = candidates[index]
   const deferredRef = candidate?.type === 'deferred' ? candidate.ref : undefined
   const { output, isLoading } = useToolResult(deferredRef)
+
   const resolvedUrl =
     candidate?.type === 'url'
       ? candidate.url
@@ -39,8 +42,10 @@ export function useAgentPreviewUrl(
   useEffect(() => {
     if (cursor.searchKey !== searchKey) {
       setCursor({ searchKey, index: 0 })
+
       return
     }
+
     if (candidate?.type !== 'deferred' || isLoading || resolvedUrl) return
     setCursor((current) =>
       current.searchKey === searchKey && current.index === index ? { searchKey, index: index + 1 } : current

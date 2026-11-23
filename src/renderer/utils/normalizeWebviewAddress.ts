@@ -5,6 +5,7 @@ const ALLOWED_PROTOCOLS = new Set(['file:', 'http:', 'https:'])
 
 export function normalizeWebviewAddress(value: string): string | null {
   const trimmedValue = value.trim()
+
   if (!trimmedValue) return null
 
   const candidate = LOCAL_ADDRESS_PATTERN.test(trimmedValue)
@@ -15,6 +16,7 @@ export function normalizeWebviewAddress(value: string): string | null {
 
   try {
     const url = new URL(candidate)
+
     return ALLOWED_PROTOCOLS.has(url.protocol) ? url.toString() : null
   } catch {
     return null

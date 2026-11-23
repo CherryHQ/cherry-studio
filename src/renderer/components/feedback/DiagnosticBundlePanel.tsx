@@ -21,7 +21,9 @@ import {
 
 const SUPPORT_EMAIL = 'support@cherry-ai.com'
 const logger = loggerService.withContext('DiagnosticBundlePanel')
+
 type SavedResult = Extract<OutputFor<'diagnostics.bundle.export'>, { status: 'saved' }>
+
 type ExportState =
   | { readonly status: 'idle' }
   | { readonly status: 'saving' }
@@ -64,9 +66,12 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
     if (isConfirmationOpen) {
       confirmationWasOpenRef.current = true
       confirmationHeadingRef.current?.focus()
+
       return
     }
+
     if (!confirmationWasOpenRef.current) return
+
     if (status === 'idle') {
       exportButtonRef.current?.focus()
       confirmationWasOpenRef.current = false
@@ -77,6 +82,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
 
   const { effectiveIncludeChatRecords, effectiveIncludeLogs, effectiveIncludeTraces, includesSensitiveData, range } =
     sourceSelection
+
   const canExport = sourceSelection.isReady && status !== 'saving'
   const hasSavedWarnings = savedResult?.hasWarnings ?? false
 
@@ -91,8 +97,10 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
 
   const performExport = async () => {
     if (!canExport) return
+
     if (includesSensitiveData) setConsent(false)
     setExportState({ status: 'saving' })
+
     try {
       const result = await ipcApi.request('diagnostics.bundle.export', {
         includeChatRecords: effectiveIncludeChatRecords,
@@ -100,15 +108,20 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
         includeTraces: effectiveIncludeTraces,
         range
       })
+
       if (result.status === 'canceled') {
         setExportState({ status: 'idle' })
+
         return
       }
+
       if (result.status === 'busy') {
         setExportState({ status: 'idle' })
         toast.error(t('settings.about.diagnostics.errors.busy'))
+
         return
       }
+
       setExportState({ result, status: 'saved' })
     } catch (error) {
       logger.error('Failed to export diagnostic bundle', error as Error)
@@ -125,16 +138,20 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
 
   const handleExport = () => {
     if (!canExport) return
+
     if (includesSensitiveData) {
       setConsent(false)
       setIsConfirmationOpen(true)
+
       return
     }
+
     void performExport()
   }
 
   const handleConfirmationOpenChange = (nextOpen: boolean) => {
     setIsConfirmationOpen(nextOpen)
+
     if (!nextOpen) setConsent(false)
   }
 
@@ -146,6 +163,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
 
   const handleReveal = async () => {
     if (!savedResult) return
+
     try {
       await ipcApi.request('file.show_in_folder', createFilePathHandle(savedResult.filePath))
     } catch (error) {
@@ -165,6 +183,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
 
   const handleContactSupport = async () => {
     if (!savedResult) return
+
     const params = new URLSearchParams({
       subject: t('settings.about.diagnostics.mail.subject', { bundleId: savedResult.bundleId }),
       body: t('settings.about.diagnostics.mail.body', {
@@ -175,6 +194,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
         version: appVersion || t('settings.about.diagnostics.unknown')
       })
     })
+
     try {
       const query = params.toString().replaceAll('+', '%20')
       await ipcApi.request('system.shell.open_website', `mailto:${SUPPORT_EMAIL}?${query}`)

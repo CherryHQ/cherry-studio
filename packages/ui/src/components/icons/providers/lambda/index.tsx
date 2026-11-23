@@ -6,7 +6,9 @@ import { LambdaLight } from './light'
 
 const Lambda = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <LambdaLight {...props} className={className} />
+
   if (variant === 'dark') return <LambdaDark {...props} className={className} />
+
   return (
     <>
       <LambdaLight className={cn('dark:hidden', className)} {...props} />

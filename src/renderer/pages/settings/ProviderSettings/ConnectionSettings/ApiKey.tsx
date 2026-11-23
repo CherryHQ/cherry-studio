@@ -26,6 +26,7 @@ interface ApiKeyProps {
 
 function maskStoredApiKey(key: string) {
   const maskedKey = maskApiKey(key)
+
   return maskedKey === key ? '••••••••' : maskedKey
 }
 

@@ -21,8 +21,10 @@ export const SVG_SOURCE_MAP: Record<LogoType, string> = {
 
 export function parseLogoTypeArg(): LogoType {
   const arg = process.argv.find((item) => item.startsWith('--type='))
+
   if (!arg) return 'providers'
   const value = arg.split('=')[1]
+
   if (value === 'providers' || value === 'models') return value
   throw new Error(`Invalid --type value: ${value}. Use "providers" or "models".`)
 }
@@ -36,6 +38,7 @@ export function ensureViewBox(svgCode: string): string {
   if (widthMatch && heightMatch) {
     return svgCode.replace(/<svg\b/, `<svg viewBox="0 0 ${widthMatch[1]} ${heightMatch[1]}"`)
   }
+
   return svgCode
 }
 
@@ -48,12 +51,14 @@ export function buildSvgMap(type: LogoType): Map<string, string> {
   const lightDir = path.join(svgDir, 'light')
   const map = new Map<string, string>()
   const sourceDir = fs.existsSync(lightDir) ? lightDir : svgDir
+
   if (!fs.existsSync(sourceDir)) return map
 
   for (const file of fs.readdirSync(sourceDir)) {
     if (!file.endsWith('.svg')) continue
     map.set(file.replace(/\.svg$/, ''), path.join(sourceDir, file))
   }
+
   return map
 }
 
@@ -77,6 +82,7 @@ export function buildLightDarkSvgMap(type: LogoType): Map<string, LightDarkSvgPa
   const lightDir = path.join(svgDir, 'light')
   const darkDir = path.join(svgDir, 'dark')
   const map = new Map<string, LightDarkSvgPair>()
+
   if (!fs.existsSync(lightDir)) return map
 
   for (const file of fs.readdirSync(lightDir)) {
@@ -88,15 +94,18 @@ export function buildLightDarkSvgMap(type: LogoType): Map<string, LightDarkSvgPa
       dark: hasDark ? darkPath : null
     })
   }
+
   return map
 }
 
 export function getComponentName(baseDir: string, dirName: string): string {
   for (const filename of ['light.tsx', 'color.tsx']) {
     const filePath = path.join(baseDir, dirName, filename)
+
     try {
       const content = fs.readFileSync(filePath, 'utf-8')
       const match = content.match(/export \{ (\w+) \}/)
+
       if (match) {
         return filename === 'light.tsx' ? match[1].replace(/Light$/, '') : match[1]
       }
@@ -104,6 +113,7 @@ export function getComponentName(baseDir: string, dirName: string): string {
       /* try next filename */
     }
   }
+
   return dirName.charAt(0).toUpperCase() + dirName.slice(1)
 }
 
@@ -122,9 +132,11 @@ export function collectIconDirs(baseDir: string): string[] {
 
 export function readColorPrimary(baseDir: string, dirName: string): string {
   const metaPath = path.join(baseDir, dirName, 'meta.ts')
+
   if (!fs.existsSync(metaPath)) return '#000000'
   const content = fs.readFileSync(metaPath, 'utf-8')
   const match = content.match(/colorPrimary:\s*'([^']+)'/)
+
   return match ? match[1] : '#000000'
 }
 
@@ -142,6 +154,7 @@ export interface BBox {
  */
 export function parseSvgPathBounds(d: string): BBox {
   const bounds: BBox = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+
   let cx = 0,
     cy = 0,
     startX = 0,
@@ -168,11 +181,13 @@ export function parseSvgPathBounds(d: string): BBox {
       const token = tokens[i]
       tokens.splice(i, 1, token[0], token.slice(1))
     }
+
     i++ // consume the flag
   }
 
   while (i < tokens.length) {
     const cmd = tokens[i++]
+
     switch (cmd) {
       case 'M':
         cx = num()
@@ -180,11 +195,13 @@ export function parseSvgPathBounds(d: string): BBox {
         startX = cx
         startY = cy
         addPoint(cx, cy)
+
         while (hasNum()) {
           cx = num()
           cy = num()
           addPoint(cx, cy)
         }
+
         break
       case 'm':
         cx += num()
@@ -192,11 +209,13 @@ export function parseSvgPathBounds(d: string): BBox {
         startX = cx
         startY = cy
         addPoint(cx, cy)
+
         while (hasNum()) {
           cx += num()
           cy += num()
           addPoint(cx, cy)
         }
+
         break
       case 'L':
         while (hasNum()) {
@@ -204,6 +223,7 @@ export function parseSvgPathBounds(d: string): BBox {
           cy = num()
           addPoint(cx, cy)
         }
+
         break
       case 'l':
         while (hasNum()) {
@@ -211,30 +231,35 @@ export function parseSvgPathBounds(d: string): BBox {
           cy += num()
           addPoint(cx, cy)
         }
+
         break
       case 'H':
         while (hasNum()) {
           cx = num()
           addPoint(cx, cy)
         }
+
         break
       case 'h':
         while (hasNum()) {
           cx += num()
           addPoint(cx, cy)
         }
+
         break
       case 'V':
         while (hasNum()) {
           cy = num()
           addPoint(cx, cy)
         }
+
         break
       case 'v':
         while (hasNum()) {
           cy += num()
           addPoint(cx, cy)
         }
+
         break
       case 'C':
         while (hasNum()) {
@@ -244,17 +269,20 @@ export function parseSvgPathBounds(d: string): BBox {
           cy = num()
           addPoint(cx, cy)
         }
+
         break
       case 'c':
         while (hasNum()) {
           const ox = cx,
             oy = cy
+
           addPoint(ox + num(), oy + num())
           addPoint(ox + num(), oy + num())
           cx = ox + num()
           cy = oy + num()
           addPoint(cx, cy)
         }
+
         break
       case 'S':
         while (hasNum()) {
@@ -263,16 +291,19 @@ export function parseSvgPathBounds(d: string): BBox {
           cy = num()
           addPoint(cx, cy)
         }
+
         break
       case 's':
         while (hasNum()) {
           const ox = cx,
             oy = cy
+
           addPoint(ox + num(), oy + num())
           cx = ox + num()
           cy = oy + num()
           addPoint(cx, cy)
         }
+
         break
       case 'Q':
         while (hasNum()) {
@@ -281,16 +312,19 @@ export function parseSvgPathBounds(d: string): BBox {
           cy = num()
           addPoint(cx, cy)
         }
+
         break
       case 'q':
         while (hasNum()) {
           const ox = cx,
             oy = cy
+
           addPoint(ox + num(), oy + num())
           cx = ox + num()
           cy = oy + num()
           addPoint(cx, cy)
         }
+
         break
       case 'T':
         while (hasNum()) {
@@ -298,6 +332,7 @@ export function parseSvgPathBounds(d: string): BBox {
           cy = num()
           addPoint(cx, cy)
         }
+
         break
       case 't':
         while (hasNum()) {
@@ -305,6 +340,7 @@ export function parseSvgPathBounds(d: string): BBox {
           cy += num()
           addPoint(cx, cy)
         }
+
         break
       case 'A':
         while (hasNum()) {
@@ -317,6 +353,7 @@ export function parseSvgPathBounds(d: string): BBox {
           cy = num()
           addPoint(cx, cy)
         }
+
         break
       case 'a':
         while (hasNum()) {
@@ -329,6 +366,7 @@ export function parseSvgPathBounds(d: string): BBox {
           cy += num()
           addPoint(cx, cy)
         }
+
         break
       case 'Z':
       case 'z':
@@ -347,12 +385,15 @@ export function parseSvgPathBounds(d: string): BBox {
  */
 function parseHexRgb(hex: string): [number, number, number] | null {
   const h = hex.replace(/^#/, '')
+
   if (h.length === 3) {
     return [parseInt(h[0] + h[0], 16) / 255, parseInt(h[1] + h[1], 16) / 255, parseInt(h[2] + h[2], 16) / 255]
   }
+
   if (h.length === 6) {
     return [parseInt(h.slice(0, 2), 16) / 255, parseInt(h.slice(2, 4), 16) / 255, parseInt(h.slice(4, 6), 16) / 255]
   }
+
   return null
 }
 
@@ -362,9 +403,13 @@ function parseHexRgb(hex: string): [number, number, number] | null {
  */
 export function colorToLuminance(hex: string): number {
   const rgb = parseHexRgb(hex)
+
   if (rgb) return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
+
   if (/^black$/i.test(hex)) return 0
+
   if (/^white$/i.test(hex)) return 1
+
   return -1
 }
 
@@ -375,12 +420,15 @@ export function colorToLuminance(hex: string): number {
 export function isNearWhiteFill(fillValue: string, threshold = 220): boolean {
   if (/^(?:white|#fff(?:fff)?)$/i.test(fillValue)) return true
   const hex = fillValue.match(/^#([0-9a-f]{6})$/i)
+
   if (hex) {
     const r = parseInt(hex[1].slice(0, 2), 16)
     const g = parseInt(hex[1].slice(2, 4), 16)
     const b = parseInt(hex[1].slice(4, 6), 16)
+
     return r >= threshold && g >= threshold && b >= threshold
   }
+
   return false
 }
 
@@ -396,8 +444,10 @@ export function isWhiteFill(fillValue: string): boolean {
  */
 export function isLargeShape(pathD: string, vbW: number, vbH: number, threshold = 0.3): boolean {
   const bounds = parseSvgPathBounds(pathD)
+
   if (!isFinite(bounds.minX)) return false
   const pathArea = (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY)
+
   return pathArea > vbW * vbH * threshold
 }
 
@@ -407,18 +457,23 @@ export function isLargeShape(pathD: string, vbW: number, vbH: number, threshold 
  */
 export function parseViewBox(attrs: Record<string, string>) {
   const vb = attrs.viewBox || attrs.viewbox
+
   if (vb) {
     const parts = vb.split(/[\s,]+/).map(Number)
+
     if (parts.length === 4 && parts.every(isFinite)) {
       return { x: parts[0], y: parts[1], w: parts[2], h: parts[3] }
     }
   }
+
   // Fall back to width/height if present
   const w = parseFloat(attrs.width)
   const h = parseFloat(attrs.height)
+
   if (isFinite(w) && isFinite(h)) {
     return { x: 0, y: 0, w, h }
   }
+
   return { x: 0, y: 0, w: 24, h: 24 }
 }
 
@@ -428,12 +483,16 @@ export function parseViewBox(attrs: Record<string, string>) {
  */
 function colorToSaturation(hex: string): number {
   const rgb = parseHexRgb(hex)
+
   if (!rgb) {
     if (/^(?:black|white)$/i.test(hex)) return 0
+
     return -1
   }
+
   const max = Math.max(...rgb)
   const min = Math.min(...rgb)
+
   return max === 0 ? 0 : (max - min) / max
 }
 
@@ -457,6 +516,7 @@ export function isMonochromeSvg(svgContent: string) {
 
   // If any content element uses gradient fills/strokes, the icon is colorful (not monochrome)
   const hasGradientFill = allColors.some((f) => f.startsWith('url('))
+
   if (hasGradientFill) {
     return { monochrome: false, darkDesigned: false }
   }
@@ -467,6 +527,7 @@ export function isMonochromeSvg(svgContent: string) {
   if (contentFills.length === 0) {
     // No colored fills/strokes remain — all-white/transparent content
     const hasWhite = allColors.some((f) => isWhiteFill(f))
+
     return { monochrome: true, darkDesigned: hasWhite }
   }
 
@@ -476,8 +537,10 @@ export function isMonochromeSvg(svgContent: string) {
   //   - luminance < 0.15 (perceptually black regardless of hue, e.g. #231F20, #1F0909)
   const allAchromatic = contentFills.every((f) => {
     const sat = colorToSaturation(f)
+
     if (sat >= 0 && sat < 0.1) return true
     const lum = colorToLuminance(f)
+
     return lum >= 0 && lum < 0.15
   })
 
@@ -488,8 +551,10 @@ export function isMonochromeSvg(svgContent: string) {
   // All achromatic — check luminance to determine darkDesigned
   let totalLum = 0
   let lumCount = 0
+
   for (const f of contentFills) {
     const lum = colorToLuminance(f)
+
     if (lum >= 0) {
       totalLum += lum
       lumCount++
@@ -497,6 +562,7 @@ export function isMonochromeSvg(svgContent: string) {
   }
 
   const avgLum = lumCount > 0 ? totalLum / lumCount : 0
+
   return { monochrome: true, darkDesigned: avgLum > 0.6 }
 }
 
@@ -508,14 +574,19 @@ export function normalizeColor(color: string): string {
   if (!color || color === 'none' || color === 'currentColor' || color.startsWith('url(')) {
     return color
   }
+
   // Expand 3-char hex to 6-char
   const m3 = color.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i)
+
   if (m3) {
     return `#${m3[1]}${m3[1]}${m3[2]}${m3[2]}${m3[3]}${m3[3]}`.toUpperCase()
   }
+
   const m6 = color.match(/^#[0-9a-f]{6}$/i)
+
   if (m6) {
     return color.toUpperCase()
   }
+
   return color
 }

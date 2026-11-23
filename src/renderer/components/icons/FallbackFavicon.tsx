@@ -34,6 +34,7 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt, fallba
       // 记录图片加载失败的URL，并作废这个 hostname 的缓存
       faviconService.invalidate(hostname, faviconState.src)
     }
+
     setFaviconState({ status: 'failed' })
   }
 

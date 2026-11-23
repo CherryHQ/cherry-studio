@@ -4,6 +4,7 @@ import { DoubaoLight } from './light'
 
 const Doubao = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DoubaoLight {...props} className={className} />
+
   return <DoubaoLight {...props} className={className} />
 }
 

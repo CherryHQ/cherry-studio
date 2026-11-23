@@ -11,7 +11,9 @@ export const skillHandlers: HandlersFor<SkillSchemas> = {
   '/skills': {
     GET: async ({ query }) => {
       const parsed = ListSkillsQuerySchema.safeParse(query ?? {})
+
       if (!parsed.success) throw toDataApiError(parsed.error)
+
       return skillService.list(parsed.data)
     }
   },
@@ -19,14 +21,19 @@ export const skillHandlers: HandlersFor<SkillSchemas> = {
   '/skills/:skillId': {
     GET: async ({ params }) => {
       const skill = skillService.getById(params.skillId)
+
       if (!skill) throw DataApiErrorFactory.notFound('Skill', params.skillId)
+
       return skill
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdateSkillSchema.safeParse(body)
+
       if (!parsed.success) throw toDataApiError(parsed.error)
       const skill = skillService.updateGlobalEnabled(params.skillId, parsed.data.isGlobalEnabled)
+
       if (!skill) throw DataApiErrorFactory.notFound('Skill', params.skillId)
+
       return skill
     }
   }

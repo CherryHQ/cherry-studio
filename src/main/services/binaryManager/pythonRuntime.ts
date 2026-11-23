@@ -29,6 +29,7 @@ const DEFAULT_VERSION = '3.12.13'
 const MIRROR_TIMEOUT_MS = 5 * 60_000
 const OFFICIAL_TIMEOUT_MS = 10 * 60_000
 const FIND_TIMEOUT_MS = 120_000
+
 // uv appends `/{build-tag}/{archive}` and verifies the result against its
 // built-in catalog's checksums, so any host mirroring that layout is safe.
 const CHINA_PYTHON_MIRROR = 'https://registry.npmmirror.com/-/binary/python-build-standalone'
@@ -41,9 +42,11 @@ function installDir(): string {
 
 export async function runUv(args: string[], env: Record<string, string>, timeoutMs: number): Promise<string> {
   const uvBin = application.getPath('cherry.bin', getBinaryName('uv'))
+
   if (!fs.existsSync(uvBin)) throw new Error('Bundled uv is not available')
   const cwd = application.getPath('app.temp')
   const { stdout } = await execFileAsync(uvBin, args, { cwd, env, timeout: timeoutMs })
+
   return stdout
 }
 
@@ -56,26 +59,33 @@ async function findInstalled(
   env: Record<string, string>
 ): Promise<{ kind: 'found'; path: string; error?: string } | { kind: 'missing'; error: string } | null> {
   let pythonPath: string | undefined
+
   try {
     const stdout = await runUv(
       ['python', 'find', version, '--managed-python', '--no-python-downloads', '--no-project', '--resolve-links'],
       env,
       FIND_TIMEOUT_MS
     )
+
     pythonPath = stdout.trim().split(/\r?\n/)[0]
   } catch (error) {
     const message = sanitizedCommandError(error)
+
     if (
       message.includes('No interpreter found for Python') ||
       message.includes('Failed to inspect Python interpreter from managed installations')
     ) {
       return { kind: 'missing', error: message }
     }
+
     throw new Error(`Failed to find managed Python ${version}: ${message}`)
   }
+
   if (!pythonPath) throw new Error(`uv python find returned no path for Python ${version}`)
+
   // Never adopt a system interpreter: only Cherry's own install dir counts.
   if (!path.isAbsolute(pythonPath) || isOutsidePath(path.relative(env.UV_PYTHON_INSTALL_DIR, pythonPath))) return null
+
   try {
     await execFileAsync(pythonPath, ['--version'], {
       cwd: application.getPath('app.temp'),
@@ -88,8 +98,10 @@ async function findInstalled(
       path: pythonPath,
       error: message
     })
+
     return { kind: 'found', path: pythonPath, error: message }
   }
+
   return { kind: 'found', path: pythonPath }
 }
 
@@ -104,6 +116,7 @@ async function findInstalled(
 export async function provideManagedPython(requestedVersion: string, baseEnv: Record<string, string>): Promise<string> {
   const version = semverValid(requestedVersion) ?? (requestedVersion === '3.12' ? DEFAULT_VERSION : requestedVersion)
   const dir = installDir()
+
   const env = {
     ...baseEnv,
     UV_PYTHON_INSTALL_DIR: dir,
@@ -112,9 +125,11 @@ export async function provideManagedPython(requestedVersion: string, baseEnv: Re
   }
 
   const existing = await findInstalled(version, env)
+
   if (existing?.kind === 'found' && existing.error === undefined) return existing.path
 
   await fsp.mkdir(dir, { recursive: true })
+
   const installArgs = [
     'python',
     'install',
@@ -128,6 +143,7 @@ export async function provideManagedPython(requestedVersion: string, baseEnv: Re
     '--managed-python',
     '--no-config'
   ]
+
   const inChina = await regionService.detectIsInChina()
   const failures: string[] = []
 
@@ -149,12 +165,16 @@ export async function provideManagedPython(requestedVersion: string, baseEnv: Re
   }
 
   const installed = await findInstalled(version, env)
+
   if (installed?.kind === 'missing') {
     throw new Error(`Managed Python in ${dir} is not runnable after install: ${installed.error}`)
   }
+
   if (installed?.kind === 'found' && installed.error !== undefined) {
     throw new Error(`Managed Python at ${installed.path} is not runnable after install: ${installed.error}`)
   }
+
   if (!installed) throw new Error(`Managed Python is not runnable after install: ${version}`)
+
   return installed.path
 }

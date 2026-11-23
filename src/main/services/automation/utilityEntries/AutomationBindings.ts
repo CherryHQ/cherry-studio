@@ -36,10 +36,12 @@ export class AutomationBindings {
     const program = parse(code, { ecmaVersion: 'latest', sourceType: 'script', allowAwaitOutsideFunction: true })
     const declarations = new Map<string, LexicalKind>()
     let insertion = code.startsWith('#!') ? (code.includes('\n') ? code.indexOf('\n') + 1 : code.length) : 0
+
     for (const statement of program.body) {
       if (statement.type === 'ExpressionStatement' && 'directive' in statement) insertion = statement.end
       else break
     }
+
     for (const statement of program.body) {
       if (statement.type === 'VariableDeclaration' && (statement.kind === 'let' || statement.kind === 'const')) {
         for (const declaration of statement.declarations) {
@@ -47,6 +49,7 @@ export class AutomationBindings {
         }
       } else if (statement.type === 'ClassDeclaration' && statement.id) declarations.set(statement.id.name, 'class')
     }
+
     return {
       code: `${code.slice(0, insertion)}\n;{let __replEntry = ${enteredName}();}${code.slice(insertion)}`,
       entered: () => {
@@ -60,13 +63,17 @@ export class AutomationBindings {
       ...this.lexical.keys(),
       ...vm.global.getOwnPropertyNames().filter((name) => !this.builtins.has(name))
     ])
+
     const bindings: AutomationBinding[] = []
     let bytes = 0
+
     for (const name of names) {
       const kind = this.lexical.get(name)
       let binding: AutomationBinding
+
       if (kind) {
         binding = { name, kind, declared: true, readable: false, canAssign: false, canRedeclare: false }
+
         try {
           using value = vm.evalCode(name)
           binding = { ...binding, readable: true, canAssign: kind !== 'const', type: value.typeof }
@@ -76,7 +83,9 @@ export class AutomationBindings {
         }
       } else {
         const descriptor = vm.global.getOwnPropertyDescriptor(name)
+
         if (!descriptor) continue
+
         try {
           binding = {
             name,
@@ -87,6 +96,7 @@ export class AutomationBindings {
               descriptor.value !== undefined ? descriptor.writable === true : descriptor.set?.isUndefined === false,
             canRedeclare: true
           }
+
           if (descriptor.value !== undefined) binding.type = descriptor.value.typeof
         } finally {
           descriptor.value?.dispose()
@@ -94,10 +104,13 @@ export class AutomationBindings {
           descriptor.set?.dispose()
         }
       }
+
       bytes += JSON.stringify(binding).length
+
       if (bindings.length >= 100 || bytes > 12_000) return { bindings, truncated: true }
       bindings.push(binding)
     }
+
     return { bindings, truncated: false }
   }
 }

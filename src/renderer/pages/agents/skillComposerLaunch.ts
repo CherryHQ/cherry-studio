@@ -20,6 +20,7 @@ export function createSkillComposerLaunch(
     filename: skill.folderName,
     description: skill.description ?? undefined
   })
+
   return {
     sessionId,
     initialDraft: {

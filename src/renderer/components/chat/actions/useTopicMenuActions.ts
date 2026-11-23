@@ -20,7 +20,9 @@ import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
+
 type TopicDeleteHandler = (topic: Topic) => void | Promise<void>
+
 type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
 
 export interface TopicMenuActionOptions {
@@ -99,10 +101,12 @@ export function createTopicActionContext({
     },
     onExportMarkdown: async (topic) => {
       const { exportTopicAsMarkdown } = await import('@renderer/services/ExportService')
+
       return exportTopicAsMarkdown(topic, false, undefined, chooseImageExportMode)
     },
     onExportMarkdownReason: async (topic) => {
       const { exportTopicAsMarkdown } = await import('@renderer/services/ExportService')
+
       return exportTopicAsMarkdown(topic, true, undefined, chooseImageExportMode)
     },
     onExportNotion: async (topic) => {
@@ -142,6 +146,7 @@ export function createTopicActionContext({
       try {
         const { default: SaveToKnowledgePopup } = await import('@renderer/components/SaveToKnowledgePopup')
         const result = await SaveToKnowledgePopup.showForTopic(topic)
+
         if (result?.success) {
           toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
         }
@@ -151,6 +156,7 @@ export function createTopicActionContext({
     },
     onSaveToNotes: async (topic) => {
       const { exportTopicToNotes } = await import('@renderer/services/ExportService')
+
       return exportTopicToNotes(topic, notesPath)
     },
     onStartRename,
@@ -196,11 +202,13 @@ export function useTopicMenuPreset<TItem>({
     }),
     [getActionContext]
   )
+
   const getActions = useCallback(
     (item: TItem, contextOverride?: TopicMenuActionContextOverride) =>
       getTopicMenuActions(getActionContextWithOverride(item, contextOverride)) as ResolvedAction[],
     [getActionContextWithOverride]
   )
+
   const onAction = useCallback(
     async (item: TItem, action: ResolvedAction, contextOverride?: TopicMenuActionContextOverride) => {
       await runTopicMenuAction(action, getActionContextWithOverride(item, contextOverride))
@@ -239,6 +247,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     topic,
     topicsLength
   } = options
+
   const actionContext = useMemo(
     () =>
       createTopicActionContext({
@@ -296,7 +305,9 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       topicsLength
     ]
   )
+
   const getMenuActions = useCallback(() => getTopicMenuActions(actionContext), [actionContext])
+
   const handleMenuAction = useCallback(
     async (action: ResolvedAction<TopicActionContext>) => {
       await runTopicMenuAction(action, actionContext)

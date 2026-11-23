@@ -67,6 +67,7 @@ export const PlusButtonPlugin = ({
 
     if (!editor.isEditable) {
       hideButton()
+
       return
     }
 
@@ -121,10 +122,12 @@ export const PlusButtonPlugin = ({
         wrapper.style.top = '0'
         wrapper.style.left = '0'
         wrapper.style.pointerEvents = 'none'
+
         return {
           update: (_, prevState) => {
             if (!editor.isEditable) {
               hideButton()
+
               return
             }
 
@@ -132,19 +135,26 @@ export const PlusButtonPlugin = ({
               // 只要鼠标位置没有变化，就不必重新定位
               return
             }
+
             if (currentNodePos === -1) {
               hideButton()
               onNodeChange?.({ editor, node: null, pos: -1 })
+
               return
             }
+
             let domNode = view.nodeDOM(currentNodePos) as HTMLElement
+
             if (!domNode) return
             domNode = getOuterDomNode(view, domNode)
+
             if (domNode === view.dom) {
               hideButton()
               onNodeChange?.({ editor, node: null, pos: -1 })
+
               return
             }
+
             const outerNodePos = getOuterNodePos(editor.state.doc, view.posAtDOM(domNode, 0))
             const outerNode = getOuterNode(editor.state.doc, outerNodePos)
 
@@ -152,6 +162,7 @@ export const PlusButtonPlugin = ({
             if (outerNode === currentNode && outerNodePos === currentNodePos) {
               return
             }
+
             currentNode = outerNode
             currentNodePos = outerNodePos
 
@@ -186,6 +197,7 @@ export const PlusButtonPlugin = ({
               currentNode = null
               currentNodePos = -1
               onNodeChange?.({ editor, node: null, pos: -1 })
+
               return false
             }
 
@@ -195,6 +207,7 @@ export const PlusButtonPlugin = ({
 
             if (domNode === view.dom || domNode?.nodeType !== 1) {
               hideButton()
+
               return false
             }
 
@@ -226,8 +239,10 @@ export const PlusButtonPlugin = ({
               currentNode = null
               currentNodePos = -1
               onNodeChange?.({ editor, node: null, pos: -1 })
+
               return false
             }
+
             return false
           },
 
@@ -237,8 +252,10 @@ export const PlusButtonPlugin = ({
               currentNode = null
               currentNodePos = -1
               onNodeChange?.({ editor, node: null, pos: -1 })
+
               return false
             }
+
             return false
           },
 
@@ -250,6 +267,7 @@ export const PlusButtonPlugin = ({
             currentNode = null
             currentNodePos = -1
             onNodeChange?.({ editor, node: null, pos: -1 })
+
             return false
           }
         }

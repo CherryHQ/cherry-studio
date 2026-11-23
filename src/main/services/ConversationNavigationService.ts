@@ -38,8 +38,11 @@ function conversationTargetKey(target: ConversationNavigationTarget): string {
 
 function compareWindowPriority(left: WindowInfo, right: WindowInfo): number {
   if (left.isFocused !== right.isFocused) return left.isFocused ? -1 : 1
+
   if (left.isVisible !== right.isVisible) return left.isVisible ? -1 : 1
+
   if (left.type !== right.type) return left.type === WindowType.Main ? -1 : 1
+
   return left.createdAt - right.createdAt
 }
 
@@ -77,41 +80,56 @@ export class ConversationNavigationService extends BaseService {
 
     const targetKey = conversationTargetKey(target)
     const existing = this.inFlightTargets.get(targetKey)
+
     if (existing && !draft && existing.messageId === messageId) return existing.promise
 
     const navigate = () => this.focusOrOpenDirect(target, title, requestingWindowId, draft, messageId)
+
     const operation = (existing ? existing.promise.then(navigate, navigate) : navigate()).finally(() => {
       if (this.inFlightTargets.get(targetKey)?.promise === operation) this.inFlightTargets.delete(targetKey)
     })
+
     this.inFlightTargets.set(targetKey, { messageId, promise: operation })
+
     return operation
   }
 
   public reportOwnership(requestId: string, windowId: WindowId, ownsTarget: boolean): void {
     const pending = this.pendingQueries.get(requestId)
+
     if (pending?.expectedWindowIds.delete(windowId)) {
       pending.respondingWindowIds.add(windowId)
+
       if (ownsTarget) pending.ownerWindowIds.add(windowId)
+
       if (pending.expectedWindowIds.size === 0) this.settleOwnershipQuery(requestId)
+
       return
     }
 
     const command = this.pendingCommands.get(requestId)
+
     if (command?.destinationWindowId === windowId) this.settleNavigationCommand(requestId, ownsTarget)
   }
 
   public async isActiveInFocusedWindow(target: ConversationNavigationTarget): Promise<boolean> {
     const focused = getFullChromeWindowInfos().find((window) => window.isFocused)
+
     if (!focused || this.isStopping) return false
     const deadline = Date.now() + NAVIGATION_DISCOVERY_TIMEOUT_MS
+
     while (!this.isStopping && Date.now() < deadline) {
       const snapshot = await this.queryOwners([focused], target, true)
+
       if (!snapshot || !getFullChromeWindowInfos().some((window) => window.id === focused.id && window.isFocused))
         return false
+
       if (snapshot.respondingWindowIds.includes(focused.id)) return snapshot.ownerWindowIds.includes(focused.id)
+
       if (Date.now() >= deadline) return false
       await this.waitBeforeOwnershipRetry(deadline, target)
     }
+
     return false
   }
 
@@ -139,16 +157,19 @@ export class ConversationNavigationService extends BaseService {
 
     while (!this.isStopping) {
       const windows = getFullChromeWindowInfos()
+
       if (windows.length === 0) {
         if (!coldRouteOpened) {
           openRouteInMainWindow(conversationRouteUrl(target))
           coldRouteOpened = true
         }
+
         await this.waitBeforeOwnershipRetry(discoveryDeadline, target)
         continue
       }
 
       const query = await this.queryOwners(windows, target)
+
       if (!query || this.isStopping) return
 
       const liveWindows = getFullChromeWindowInfos()
@@ -172,23 +193,29 @@ export class ConversationNavigationService extends BaseService {
       // that new Main renderer reports the target as committed; sending another force-open command
       // while its init-data route is still mounting could create a duplicate.
       const coldMainOwner = coldRouteOpened ? owners.find((window) => window.type === WindowType.Main) : undefined
+
       if (coldRouteOpened && !coldMainOwner) {
         await this.waitBeforeOwnershipRetry(discoveryDeadline, target)
         continue
       }
+
       if (coldMainOwner && !draft && messageId === undefined) {
         this.focusWindow(coldMainOwner)
+
         return
       }
 
       const owner = owners[0]
+
       const requester =
         requestingWindowId && respondingWindowIds.has(requestingWindowId)
           ? windowById.get(requestingWindowId)
           : undefined
+
       const respondingMainWindow = liveWindows
         .filter((window) => window.type === WindowType.Main && respondingWindowIds.has(window.id))
         .sort(compareWindowPriority)[0]
+
       const destination = coldMainOwner ?? owner ?? requester ?? respondingMainWindow
 
       if (!destination) {
@@ -199,6 +226,7 @@ export class ConversationNavigationService extends BaseService {
       }
 
       await this.commitFocusOrOpen(destination, query.requestId, target, title, draft, messageId)
+
       return
     }
   }
@@ -212,6 +240,7 @@ export class ConversationNavigationService extends BaseService {
     messageId?: string | null
   ): Promise<void> {
     const completed = await this.sendFocusOrOpenCommand(destination, requestId, target, title, draft, messageId)
+
     if (!completed && !this.isStopping) {
       throw new Error(`Conversation navigation was not completed: ${conversationTargetKey(target)}`)
     }
@@ -236,6 +265,7 @@ export class ConversationNavigationService extends BaseService {
         title,
         ...(draft && { draft })
       }
+
       if (messageId !== undefined) payload.messageId = messageId
       application.get('IpcApiService').send(destination.id, 'navigation.conversation_focus_or_open_requested', payload)
       this.focusWindow(destination)
@@ -247,6 +277,7 @@ export class ConversationNavigationService extends BaseService {
     target: ConversationNavigationTarget
   ): Promise<void> {
     const remainingMs = discoveryDeadline - Date.now()
+
     if (remainingMs <= 0) {
       throw new Error(`Timed out waiting for conversation owners: ${conversationTargetKey(target)}`)
     }
@@ -263,6 +294,7 @@ export class ConversationNavigationService extends BaseService {
     activeOnly = false
   ): Promise<({ requestId: string } & OwnershipSnapshot) | null> {
     const requestId = `conversation-navigation:${this.nextRequestId++}`
+
     if (windows.length === 0) {
       return Promise.resolve({ requestId, ownerWindowIds: [], respondingWindowIds: [] })
     }
@@ -283,6 +315,7 @@ export class ConversationNavigationService extends BaseService {
           requestId,
           target
         }
+
         if (activeOnly) payload.activeOnly = true
         application.get('IpcApiService').send(window.id, 'navigation.conversation_ownership_requested', payload)
       }
@@ -291,6 +324,7 @@ export class ConversationNavigationService extends BaseService {
 
   private settleOwnershipQuery(requestId: string): void {
     const pending = this.pendingQueries.get(requestId)
+
     if (!pending) return
 
     clearTimeout(pending.timer)
@@ -303,6 +337,7 @@ export class ConversationNavigationService extends BaseService {
 
   private settleNavigationCommand(requestId: string, completed: boolean): void {
     const pending = this.pendingCommands.get(requestId)
+
     if (!pending) return
 
     clearTimeout(pending.timer)
@@ -329,11 +364,14 @@ export class ConversationNavigationService extends BaseService {
   private focusWindow(windowInfo: WindowInfo): void {
     if (windowInfo.type === WindowType.Main) {
       application.get('MainWindowService').showMainWindow()
+
       return
     }
 
     const window = application.get('WindowManager').getWindow(windowInfo.id)
+
     if (!window || window.isDestroyed()) return
+
     if (window.isMinimized()) window.restore()
     window.show()
     window.focus()

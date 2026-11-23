@@ -15,4 +15,5 @@ export const NoteSchema = z.strictObject({
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
+
 export type Note = z.infer<typeof NoteSchema>

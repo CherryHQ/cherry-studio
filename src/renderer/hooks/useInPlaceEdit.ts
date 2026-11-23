@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 
 const logger = loggerService.withContext('useInPlaceEdit')
+
 export interface UseInPlaceEditOptions {
   onSave: ((value: string) => void) | ((value: string) => Promise<void>)
   onCancel?: () => void
@@ -53,11 +54,13 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
       window.clearTimeout(blurSaveTimerRef.current)
       blurSaveTimerRef.current = null
     }
+
     if (pointerEndListenerRef.current) {
       window.removeEventListener('pointerup', pointerEndListenerRef.current)
       window.removeEventListener('pointercancel', pointerEndListenerRef.current)
       pointerEndListenerRef.current = null
     }
+
     pendingBlurSaveRef.current = null
   }, [])
 
@@ -69,12 +72,15 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
 
   useEffect(() => {
     isMountedRef.current = true
+
     const handlePointerDown = () => {
       pointerDownRef.current = true
     }
+
     const handlePointerEnd = () => {
       pointerDownRef.current = false
     }
+
     const handleWindowBlur = () => {
       pointerDownRef.current = false
       flushPendingBlurSave()
@@ -84,6 +90,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
     window.addEventListener('pointerup', handlePointerEnd, true)
     window.addEventListener('pointercancel', handlePointerEnd, true)
     window.addEventListener('blur', handleWindowBlur)
+
     return () => {
       isMountedRef.current = false
       window.removeEventListener('pointerdown', handlePointerDown, true)
@@ -107,6 +114,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
   useLayoutEffect(() => {
     if (isEditing) {
       inputRef.current?.focus()
+
       if (autoSelectOnStart) {
         inputRef.current?.select()
       }
@@ -118,16 +126,20 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
     clearPendingBlurSave()
 
     const finalValue = trimOnSave ? editValue.trim() : editValue
+
     if (finalValue === originalValueRef.current) {
       if (isMountedRef.current) setIsEditing(false)
+
       return
     }
 
     isSavingRef.current = true
+
     if (isMountedRef.current) setIsSaving(true)
 
     try {
       await onSave(finalValue)
+
       if (isMountedRef.current) {
         setIsEditing(false)
         setEditValue('')
@@ -157,6 +169,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.nativeEvent.isComposing) return
+
       if (e.key === 'Enter') {
         e.preventDefault()
         void saveEdit()
@@ -187,9 +200,11 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
         pointerEndListenerRef.current = null
         blurSaveTimerRef.current = window.setTimeout(flushPendingBlurSave, 0)
       }
+
       pointerEndListenerRef.current = handlePointerEnd
       window.addEventListener('pointerup', handlePointerEnd, { once: true })
       window.addEventListener('pointercancel', handlePointerEnd, { once: true })
+
       return
     }
 

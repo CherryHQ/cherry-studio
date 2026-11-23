@@ -84,4 +84,5 @@ export const userProviderTable = sqliteTable(
 
 // Export table type
 export type UserProviderRow = typeof userProviderTable.$inferSelect
+
 export type InsertUserProviderRow = typeof userProviderTable.$inferInsert

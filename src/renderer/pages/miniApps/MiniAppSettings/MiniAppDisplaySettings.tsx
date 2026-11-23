@@ -41,6 +41,7 @@ const MiniAppDisplaySettings: FC = () => {
   const handleCacheChange = useCallback(
     (value: number) => {
       void setMaxKeepAlive(value)
+
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
       debounceTimerRef.current = setTimeout(() => {
         toast.info(t('settings.miniApps.cache_change_notice'))

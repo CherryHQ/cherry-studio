@@ -39,15 +39,19 @@ function isResponsesCompatibleToolName(name: string): boolean {
 
 function sanitizeDescription(value: string): string {
   let out = ''
+
   for (let i = 0; i < value.length; i++) {
     const code = value.charCodeAt(i)
+
     if (code === 0x09 || code === 0x0a || code === 0x0d) {
       out += value[i]
       continue
     }
+
     if ((code >= 0x00 && code <= 0x1f) || code === 0x7f) continue
     out += value[i]
   }
+
   return out
 }
 
@@ -55,6 +59,7 @@ function buildResponsesToolName(name: string, attempt: number): string {
   const sanitized = Array.from(name, (char) => (RESPONSES_TOOL_NAME_PATTERN.test(char) ? char : '_')).join('') || '_'
   const hash = createHash('sha1').update(`${name}\0${attempt}`).digest('hex').slice(0, TOOL_NAME_HASH_LENGTH)
   const prefixLength = RESPONSES_TOOL_NAME_MAX_LENGTH - hash.length - 1
+
   return `${sanitized.slice(0, prefixLength)}_${hash}`
 }
 
@@ -65,6 +70,7 @@ function toApiModelId(modelAddress: string): string {
 }
 
 let uiMessageSeq = 0
+
 function nextUIMessageId(): string {
   return `gateway-msg-${Date.now()}-${uiMessageSeq++}`
 }
@@ -81,9 +87,11 @@ function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | u
   if (source.type === 'base64') {
     return { type: 'file', mediaType: source.media_type, url: `data:${source.media_type};base64,${source.data}` }
   }
+
   if (source.type === 'url') {
     return { type: 'file', mediaType: 'image/png', url: source.url }
   }
+
   return undefined
 }
 
@@ -122,6 +130,7 @@ function toolResultToOutput(
   const lines: string[] = []
   const relocatedParts: Array<TextUIPart | FileUIPart> = []
   let imageIndex = 0
+
   for (const block of content) {
     if (block.type === 'text') {
       lines.push(block.text)
@@ -129,6 +138,7 @@ function toolResultToOutput(
       lines.push(`Tool available: ${toProviderToolName(block.tool_name)}`)
     } else if (block.type === 'image') {
       const file = imageBlockToFilePart(block.source)
+
       if (file) {
         const anchor = toolResultImageAnchor(toolCallId, ++imageIndex)
         lines.push(`${anchor} (${file.mediaType}): attached in the following user message`)
@@ -136,12 +146,14 @@ function toolResultToOutput(
       }
     }
   }
+
   return { output: lines.join('\n'), relocatedParts }
 }
 
 /** Anthropic text content (`string` or content blocks) flattened to one string. */
 function systemMessages(content: MessageCreateParams['system'] | MessageParam['content']): CherryUIMessage[] {
   const blocks = typeof content === 'string' ? [{ type: 'text' as const, text: content }] : (content ?? [])
+
   return blocks.flatMap((block) =>
     block.type === 'text' && block.text
       ? [
@@ -207,8 +219,10 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
 
     // tool_use id → result conversion.
     const toolResults = new Map<string, ToolResultConversion>()
+
     for (const msg of params.messages) {
       if (!Array.isArray(msg.content)) continue
+
       for (const block of msg.content) {
         if (block.type === 'tool_result') {
           toolResults.set(block.tool_use_id, {
@@ -225,14 +239,17 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
         messages.push(...systemMessages(msg.content))
         continue
       }
+
       const role = msg.role === 'user' ? 'user' : 'assistant'
 
       if (typeof msg.content === 'string') {
         if (msg.content.length > 0) {
           messages.push({ id: nextUIMessageId(), role, parts: [{ type: 'text', text: msg.content }] })
         }
+
         continue
       }
+
       if (!Array.isArray(msg.content)) continue
 
       const parts: CherryUIMessage['parts'] = []
@@ -249,6 +266,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
             text: block.thinking,
             providerMetadata: { anthropic: { signature: block.signature } }
           }
+
           parts.push(part)
         } else if (block.type === 'redacted_thinking') {
           const part: ReasoningUIPart = {
@@ -256,25 +274,32 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
             text: '',
             providerMetadata: { anthropic: { redactedData: block.data } }
           }
+
           parts.push(part)
         } else if (block.type === 'image') {
           const part = imageBlockToFilePart(block.source)
+
           if (part) {
             parts.push({ ...part, providerMetadata: cacheProviderOptions(block) })
           }
         } else if (block.type === 'tool_use') {
           const toolName = this.toProviderToolName(block.name)
+
           const callProviderMetadata = {
             ...this.buildToolCallProviderOptions(params.model, block.id),
             ...cacheProviderOptions(block)
           }
+
           const result = toolResults.get(block.id)
+
           const base: Pick<DynamicToolUIPart, 'type' | 'toolName' | 'toolCallId' | 'callProviderMetadata'> = {
             type: 'dynamic-tool',
             toolName,
             toolCallId: block.id
           }
+
           if (Object.keys(callProviderMetadata).length) base.callProviderMetadata = callProviderMetadata
+
           const part: DynamicToolUIPart = result
             ? result.isError
               ? {
@@ -292,11 +317,13 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
                   resultProviderMetadata: result.providerMetadata
                 }
             : { ...base, state: 'input-available', input: block.input }
+
           parts.push(part)
         } else if (block.type === 'tool_result') {
           // The string output is absorbed into the matching tool_use part above;
           // relocated images surface here with call-id anchors for parallel results.
           const relocatedParts = toolResults.get(block.tool_use_id)?.relocatedParts
+
           if (relocatedParts?.length) {
             parts.push(...relocatedParts)
           }
@@ -318,18 +345,23 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    */
   private buildToolCallProviderOptions(model: string | undefined, toolCallId: string): ProviderOptions | undefined {
     const options: ProviderOptions = {}
+
     if (model && isGemini3ModelId(toApiModelId(model))) {
       // Gemini 3 rejects a replayed functionCall whose signature is missing; the
       // Anthropic wire format has nowhere to carry it, so restore it from the cache.
       const thoughtSignature = this.googleReasoningCache?.get(`google-${toolCallId}`)
+
       if (thoughtSignature !== undefined) {
         options.google = { thoughtSignature }
       }
     }
+
     const reasoningDetails = this.openRouterReasoningCache?.get(`openrouter-${toolCallId}`)
+
     if (reasoningDetails) {
       options.openrouter = { reasoning_details: sanitizeJson(reasoningDetails) || [] }
     }
+
     return Object.keys(options).length > 0 ? options : undefined
   }
 
@@ -341,13 +373,16 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     targetEndpointType?: EndpointType
   ): ToolSet | undefined {
     const tools = params.tools
+
     if (!tools || tools.length === 0) return undefined
     this.prepareToolNames(tools)
 
     const aiSdkTools: ToolSet = {}
+
     for (const anthropicTool of tools) {
       const toolDef = anthropicTool as AnthropicTool
       const rawSchema = toolDef.input_schema
+
       // Client tools always carry `input_schema`; without it this is a server tool
       // (bash/web_search/text_editor/tool_search/…) only Anthropic's own backend executes.
       if (!rawSchema) continue
@@ -358,6 +393,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
         inputSchema: jsonSchema(schema),
         providerOptions: cacheProviderOptions(toolDef)
       }
+
       // Only Responses needs an explicit opt-out; omit elsewhere because CherryIN/Bedrock rejects unknown tool fields (#23378).
       if (typeof toolDef.strict === 'boolean') Object.assign(definition, { strict: toolDef.strict })
       else if (targetEndpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) Object.assign(definition, { strict: false })
@@ -365,6 +401,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       const aiTool = tool(definition)
       aiSdkTools[this.toProviderToolName(toolDef.name)] = aiTool
     }
+
     return Object.keys(aiSdkTools).length > 0 ? aiSdkTools : undefined
   }
 
@@ -392,6 +429,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       this.providerToolNames.set(name, name)
       this.clientToolNames.set(name, name)
     }
+
     for (const name of names.filter((candidate) => !isResponsesCompatibleToolName(candidate)).sort()) {
       this.registerProviderToolName(name)
     }
@@ -406,16 +444,20 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     if (isResponsesCompatibleToolName(toolName) && !this.clientToolNames.has(toolName)) {
       this.providerToolNames.set(toolName, toolName)
       this.clientToolNames.set(toolName, toolName)
+
       return toolName
     }
 
     let attempt = 0
     let providerToolName = buildResponsesToolName(toolName, attempt)
+
     while (this.clientToolNames.has(providerToolName)) {
       providerToolName = buildResponsesToolName(toolName, ++attempt)
     }
+
     this.providerToolNames.set(toolName, providerToolName)
     this.clientToolNames.set(providerToolName, toolName)
+
     return providerToolName
   }
 
@@ -424,6 +466,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    */
   extractStreamOptions(params: MessageCreateParams): StreamTextOptions {
     const choice = params.tool_choice
+
     const options: StreamTextOptions = {
       maxOutputTokens: params.max_tokens,
       temperature: params.temperature,
@@ -431,6 +474,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       topK: params.top_k,
       stopSequences: params.stop_sequences
     }
+
     if (choice) {
       options.toolChoice =
         choice.type === 'tool'
@@ -439,6 +483,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
             ? 'required'
             : choice.type
     }
+
     return options
   }
 
@@ -462,12 +507,16 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           params.output_config?.effort,
           maxOutputTokens
         )
+
     if (model.endpointTypes?.[0] !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return reasoning
     const choice = params.tool_choice
     const anthropic: ProviderOptions['anthropic'] = { ...reasoning?.anthropic }
+
     if (params.cache_control) anthropic.cacheControl = { ...params.cache_control }
+
     if (choice && 'disable_parallel_tool_use' in choice && choice.disable_parallel_tool_use !== undefined)
       anthropic.disableParallelToolUse = choice.disable_parallel_tool_use
+
     return { ...reasoning, anthropic }
   }
 }

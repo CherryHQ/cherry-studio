@@ -35,9 +35,11 @@ export function createToolInspectTool(
     execute: async ({ name }) => {
       if (!allowedNames.has(name)) throw new Error(`Tool not available in this request: ${name}`)
       const entry = registry.getByName(name)
+
       if (!entry) throw new Error(`Tool not found: ${name}`)
       const stub = await buildToolStub(entry)
       inspectedNames.add(name)
+
       return stub
     },
     // The stub is documentation, not data — hand it to the model as plain text instead of a

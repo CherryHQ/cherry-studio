@@ -6,7 +6,9 @@ import { FlowithLight } from './light'
 
 const Flowith = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <FlowithLight {...props} className={className} />
+
   if (variant === 'dark') return <FlowithDark {...props} className={className} />
+
   return (
     <>
       <FlowithLight className={cn('dark:hidden', className)} {...props} />

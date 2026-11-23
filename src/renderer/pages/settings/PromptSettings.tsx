@@ -39,7 +39,9 @@ import type { Prompt, PromptBindingRelation, PromptBindingTarget, PromptVisibili
 import { type PromptTargetOption, PromptTargetPopover } from './PromptTargetPopover'
 
 type PromptDialogState = { prompt: Prompt | null } | null
+
 type PromptFormValue = { title: string; content: string; visibility: PromptVisibility }
+
 type PendingVisibilityChange = { payload: PromptFormValue; bindings: PromptBindingTarget[] }
 
 const PROMPT_BINDINGS_SWR_OPTIONS = { keepPreviousData: false } as const
@@ -58,35 +60,44 @@ export function PromptSettings() {
   const [deletingPrompt, setDeletingPrompt] = useState(false)
   const { data, error, isLoading, refetch } = useQuery('/prompts', {})
   const prompts = useMemo(() => data ?? [], [data])
+
   const {
     data: bindingsData,
     error: bindingsError,
     isLoading: isLoadingAllBindings,
     refetch: refetchAllBindings
   } = useQuery('/prompt-bindings', {})
+
   const bindings = useMemo<PromptBindingRelation[]>(() => bindingsData ?? [], [bindingsData])
+
   const bindingsByPrompt = useMemo(() => {
     const groupedBindings = new Map<string, PromptBindingRelation[]>()
+
     for (const binding of bindings) {
       const promptBindings = groupedBindings.get(binding.promptId) ?? []
       promptBindings.push(binding)
       groupedBindings.set(binding.promptId, promptBindings)
     }
+
     return groupedBindings
   }, [bindings])
+
   const hasRestrictedPrompts = prompts.some((prompt) => prompt.visibility === 'restricted')
+
   const {
     data: assistantData,
     error: assistantsError,
     isLoading: isLoadingAssistants,
     refetch: refetchAssistants
   } = assistantAdapter.useList({ enabled: hasRestrictedPrompts })
+
   const {
     data: agentData,
     error: agentsError,
     isLoading: isLoadingAgents,
     refetch: refetchAgents
   } = agentAdapter.useList({ enabled: hasRestrictedPrompts })
+
   const targetOptions = useMemo<PromptTargetOption[]>(
     () => [
       ...assistantData.map((assistant) => ({
@@ -106,9 +117,12 @@ export function PromptSettings() {
     ],
     [agentData, assistantData, t]
   )
+
   const normalizedSearch = search.trim().toLowerCase()
+
   const visiblePrompts = useMemo(() => {
     if (!normalizedSearch) return prompts
+
     return prompts.filter(
       (prompt) =>
         prompt.title.toLowerCase().includes(normalizedSearch) || prompt.content.toLowerCase().includes(normalizedSearch)
@@ -117,8 +131,10 @@ export function PromptSettings() {
 
   const promptDialogPrompt = promptDialog?.prompt ?? null
   const activePrompt = promptDialogPrompt ?? deleteTarget
+
   const bindingQueryTarget =
     deleteTarget ?? (promptDialogPrompt?.visibility === 'restricted' ? promptDialogPrompt : null)
+
   const {
     data: activeBindings,
     isLoading: isLoadingBindings,
@@ -128,6 +144,7 @@ export function PromptSettings() {
     params: { id: bindingQueryTarget?.id ?? '' },
     swrOptions: PROMPT_BINDINGS_SWR_OPTIONS
   })
+
   const activeBindingCount = activeBindings?.length
   const { createPrompt } = usePromptMutations()
   const { updatePrompt, deletePrompt } = usePromptMutationsById(activePrompt?.id ?? '')
@@ -145,15 +162,20 @@ export function PromptSettings() {
   const handleSavePrompt = useCallback(
     async (payload: PromptFormValue) => {
       setSavingPrompt(true)
+
       try {
         if (promptDialogPrompt) {
           if (promptDialogPrompt.visibility === 'restricted' && payload.visibility === 'global') {
             const refreshedBindings = await refetchActiveBindings()
+
             if (!Array.isArray(refreshedBindings)) throw new Error('Unable to load prompt bindings')
+
             if (refreshedBindings.length > 0) {
               setPendingVisibilityChange({ payload, bindings: refreshedBindings })
+
               return
             }
+
             await updatePrompt({ ...payload, expectedBindings: refreshedBindings })
           } else {
             await updatePrompt(payload)
@@ -161,6 +183,7 @@ export function PromptSettings() {
         } else {
           await createPrompt(payload)
         }
+
         setPromptDialog(null)
       } catch (err) {
         if (
@@ -170,11 +193,14 @@ export function PromptSettings() {
           payload.visibility === 'global'
         ) {
           const refreshedBindings = await refetchActiveBindings()
+
           if (Array.isArray(refreshedBindings)) {
             setPendingVisibilityChange({ payload, bindings: refreshedBindings })
+
             return
           }
         }
+
         toast.error(
           formatErrorMessageWithPrefix(
             err,
@@ -193,6 +219,7 @@ export function PromptSettings() {
     if (!pendingVisibilityChange) return
 
     setSavingPrompt(true)
+
     try {
       await updatePrompt({
         ...pendingVisibilityChange.payload,
@@ -203,10 +230,12 @@ export function PromptSettings() {
     } catch (err) {
       if (err instanceof DataApiError && err.code === ErrorCode.CONCURRENT_MODIFICATION) {
         const refreshedBindings = await refetchActiveBindings()
+
         if (Array.isArray(refreshedBindings)) {
           setPendingVisibilityChange((current) => (current ? { ...current, bindings: refreshedBindings } : current))
         }
       }
+
       toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.updateFailed')))
       throw err
     } finally {
@@ -218,6 +247,7 @@ export function PromptSettings() {
     if (!deleteTarget) return
 
     setDeletingPrompt(true)
+
     try {
       await deletePrompt()
       setDeleteTarget(null)
@@ -236,6 +266,7 @@ export function PromptSettings() {
     },
     [t]
   )
+
   const handleRetryBindingData = useCallback(() => {
     void refetchAllBindings()
     refetchAssistants()

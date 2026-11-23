@@ -8,6 +8,7 @@ import type { ConditionContext, ServiceCondition } from './types'
  */
 export function createConditionContext(): ConditionContext {
   const cpus = os.cpus()
+
   return {
     platform: process.platform,
     arch: process.arch,
@@ -52,6 +53,7 @@ export function onArch(...architectures: NodeJS.Architecture[]): ServiceConditio
  */
 export function onCpuVendor(vendor: string): ServiceCondition {
   const vendorLower = vendor.toLowerCase()
+
   return {
     description: `requires ${vendor} CPU`,
     matches(ctx) {
@@ -70,7 +72,9 @@ export function onEnvVar(name: string, value?: string): ServiceCondition {
     description: value !== undefined ? `requires env ${name}=${value}` : `requires env ${name}`,
     matches(ctx) {
       const envValue = ctx.env[name]
+
       if (envValue === undefined) return false
+
       return value === undefined || envValue === value
     }
   }

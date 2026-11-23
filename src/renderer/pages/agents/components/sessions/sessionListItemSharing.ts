@@ -37,10 +37,12 @@ export function reconcileSessionListItems(
     const entity = sessions[index]
     const pinned = pinIdBySessionId.has(entity.id)
     const previousSnapshot = previous.snapshots.get(entity.id)
+
     const canReuse =
       previousSnapshot !== undefined &&
       previousSnapshot.item.pinned === pinned &&
       (previousSnapshot.entity === entity || isEqual(previousSnapshot.entity, entity))
+
     const snapshot = canReuse
       ? previousSnapshot
       : {

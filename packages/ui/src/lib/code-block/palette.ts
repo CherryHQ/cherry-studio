@@ -25,21 +25,26 @@ const roles = {
 
 export function getCodeBlockPalette(theme: Theme) {
   const variables = typeof theme.cssVariables === 'object' ? theme.cssVariables : undefined
+
   // Palette themes store variable suffixes instead of colors.
   const color = (value: string | undefined) => {
     if (value === undefined || !variables) return value
     const fallback = variables.defaults?.[value]
+
     return `var(${variables.prefix ?? '--hls-'}${value}${fallback ? `, ${fallback}` : ''})`
   }
+
   const foreground = color(theme.style['editor.foreground'] ?? theme.style.text) ?? 'var(--foreground)'
   const background = color(theme.style['editor.background'] ?? theme.style.background) ?? 'var(--background)'
   const player = theme.style.players?.[0]
+
   const palette: [string, string][] = [
     ['--code-foreground', foreground],
     ['--code-background', background],
     ['--code-selection', color(player?.selection) ?? 'var(--accent)'],
     ['--code-caret', color(player?.cursor) ?? foreground]
   ]
+
   for (const [role, scope] of Object.entries(roles)) {
     const syntax = theme.style.syntax?.[scope]
     const settings = typeof syntax === 'string' ? { color: syntax } : syntax
@@ -52,5 +57,6 @@ export function getCodeBlockPalette(theme: Theme) {
       ]
     )
   }
+
   return Object.fromEntries(palette)
 }

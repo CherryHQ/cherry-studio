@@ -42,6 +42,7 @@ const kbReadTool = tool({
   outputSchema: knowledgeReadResultSchema,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
+
     return readOrGrepConcept(input, request.knowledgeBaseIds ?? [])
   },
   toModelOutput: ({ output }) => knowledgeReadModelOutput(output)
@@ -59,4 +60,5 @@ export function createKbReadToolEntry() {
 }
 
 export type KnowledgeReadToolInput = InferToolInput<typeof kbReadTool>
+
 export type KnowledgeReadToolOutput = InferToolOutput<typeof kbReadTool>

@@ -11,6 +11,7 @@ export class ContentProjection {
   readonly responseIds: Record<string, string> = {}
   get legacy() {
     const legacy: Record<string, { messageId: string; parts: number[] }> = {}
+
     for (const message of this.messages) {
       const parts: number[] = []
       message.parts.forEach((part, index) => {
@@ -20,6 +21,7 @@ export class ContentProjection {
       })
       legacy[message.id] = { messageId: message.id, parts }
     }
+
     return legacy
   }
   private readonly calls = new Map<string, { message: RuntimeMessage; index: number }>()
@@ -28,6 +30,7 @@ export class ContentProjection {
     for (const [index, message] of (entry.model ?? []).entries()) {
       this.message(message, entryMessageId(entry, index), 'complete')
       const inputId = (entry.data as { cherryInputId?: string })?.cherryInputId
+
       if (message.role === 'user' && inputId) {
         const value = this.messages.at(-1)!
         value.metadata = { ...value.metadata!, inputId: runtimeId(inputId) }
@@ -37,7 +40,9 @@ export class ContentProjection {
 
   message(message: Message, id: string, completeness: 'partial' | 'complete'): void {
     if (message.role === 'assistant' && message.responseId) this.responseIds[message.responseId] = id
+
     if (message.role === 'system') return
+
     if (message.role === 'toolResult') {
       for (const record of message.nestedCalls?.calls ?? []) this.nested(message.toolCallId, projectNestedTool(record))
       this.result(
@@ -50,10 +55,13 @@ export class ContentProjection {
         },
         message.isError
       )
+
       return
     }
+
     const value: RuntimeMessage = { id, role: message.role, parts: [], metadata: { completeness } }
     const state = completeness === 'complete' ? 'done' : 'streaming'
+
     if (typeof message.content === 'string') value.parts.push({ type: 'text', text: message.content, state })
     else
       for (const part of message.content) {
@@ -64,6 +72,7 @@ export class ContentProjection {
             state,
             ...(part.textSignature && { providerMetadata: { pi: { textSignature: part.textSignature } } })
           })
+
         if (part.type === 'thinking')
           value.parts.push({
             type: 'reasoning',
@@ -71,8 +80,10 @@ export class ContentProjection {
             state,
             ...(part.thinkingSignature && { providerMetadata: { pi: { thinkingSignature: part.thinkingSignature } } })
           })
+
         if (part.type === 'image')
           value.parts.push({ type: 'file', mediaType: part.mimeType, url: `data:${part.mimeType};base64,${part.data}` })
+
         if (part.type === 'toolCall') {
           this.calls.set(part.id, { message: value, index: value.parts.length })
           value.parts.push({
@@ -84,12 +95,14 @@ export class ContentProjection {
           })
         }
       }
+
     this.messages.push(value)
   }
 
   nested(parentCallId: string, part: RuntimeMessage['parts'][number]): void {
     if (part.type !== 'dynamic-tool') return
     const parent = this.calls.get(parentCallId)
+
     if (!parent) return
     const existing = this.calls.get(part.toolCallId)
     const index = existing?.index ?? parent.message.parts.length
@@ -105,9 +118,12 @@ export class ContentProjection {
     preliminary = false
   ): void {
     const owner = this.calls.get(callId)
+
     if (!owner) return
     const part = owner.message.parts[owner.index]
+
     if (part.type !== 'dynamic-tool') return
+
     const base = {
       type: 'dynamic-tool' as const,
       toolName: part.toolName,
@@ -115,6 +131,7 @@ export class ContentProjection {
       input: part.input,
       callProviderMetadata: part.callProviderMetadata
     }
+
     owner.message.parts[owner.index] = error
       ? {
           ...base,

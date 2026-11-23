@@ -15,6 +15,7 @@ const NoteIdentitySchema = NoteSchema.pick({ rootPath: true, path: true }).exten
 export const ListNoteQuerySchema = NoteSchema.pick({ rootPath: true }).extend({
   rootPath: NotePathSchema
 })
+
 export type ListNoteQuery = z.infer<typeof ListNoteQuerySchema>
 
 export const UpsertNoteSchema = z
@@ -26,11 +27,13 @@ export const UpsertNoteSchema = z
   .refine((value) => value.isStarred !== undefined || value.isExpanded !== undefined, {
     message: 'At least one note field is required'
   })
+
 export type UpsertNoteDto = z.infer<typeof UpsertNoteSchema>
 
 export const DeleteNoteQuerySchema = NoteIdentitySchema.extend({
   recursive: z.boolean().optional()
 })
+
 export type DeleteNoteQuery = z.infer<typeof DeleteNoteQuerySchema>
 
 export const RewriteNotePathSchema = z
@@ -48,6 +51,7 @@ export const RewriteNotePathSchema = z
     message: 'Cannot rewrite a folder into its own descendant',
     path: ['toPath']
   })
+
 export type RewriteNotePathDto = z.infer<typeof RewriteNotePathSchema>
 
 export type NoteSchemas = {

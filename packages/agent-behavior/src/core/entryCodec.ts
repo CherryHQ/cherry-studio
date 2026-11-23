@@ -22,6 +22,7 @@ import {
 } from './facts'
 
 export type EncodedEntry = { readonly kind: EntryKind; readonly data: JsonValue }
+
 export type RawEntry = {
   readonly id: ItemId
   readonly kind: string
@@ -30,16 +31,21 @@ export type RawEntry = {
 }
 
 type SummaryUsage = Extract<PolicyRecord, { readonly type: 'summary-usage' }>['value']
+
 type TurnStop = Extract<PolicyRecord, { readonly type: 'turn-stop' }>['value']
+
 type SubagentSteer = Extract<PolicyRecord, { readonly type: 'subagent-steer' }>['value']
+
 type SubagentUserStop = Extract<PolicyRecord, { readonly type: 'subagent-user-stop' }>['value']
 
 /** Every member of a union as a key, so a member added to the union fails to compile until the decoder accepts it. */
 type Members<T extends string> = { readonly [member in T]: true }
+
 const GOAL_PHASES: Members<GoalPhase> = { active: true, paused: true, blocked: true, complete: true }
 const NOTICE_LEVELS: Members<GoalNotice['level']> = { info: true, error: true }
 const RUN_STATUSES: Members<SubagentRunRecord['status']> = { running: true, finished: true }
 const ROUND_KINDS: Members<RoundDetails['kind']> = { work: true, hint: true, 'wrap-up': true }
+
 const OUTCOMES: Members<SubagentOutcome> = {
   completed: true,
   failed: true,
@@ -49,7 +55,9 @@ const OUTCOMES: Members<SubagentOutcome> = {
   stopped: true,
   interrupted: true
 }
+
 const STOPPERS: Members<SubagentStopper> = { model: true, user: true, budget: true }
+
 const STOP_CAUSES: Members<TurnStop['cause']> = {
   user: true,
   'goal-command': true,
@@ -59,10 +67,13 @@ const STOP_CAUSES: Members<TurnStop['cause']> = {
 
 const isMember = <T extends string>(value: JsonValue, members: Members<T>): boolean =>
   typeof value === 'string' && Object.hasOwn(members, value)
+
 const optionalGoalId = (value: JsonValue | undefined): boolean =>
   value === undefined || value === null || typeof value === 'string'
+
 const isOptionalMember = <T extends string>(value: JsonValue | undefined, members: Members<T>): boolean =>
   value === undefined || isMember(value, members)
+
 const withKey = (fields: Fields, key: string | undefined): Fields => (key === undefined ? fields : { ...fields, key })
 
 /** Lays a record or marker out as agent-runtime-pi stores it today; a given `key` travels as one extra `key` field. */
@@ -103,13 +114,17 @@ export function encodeEntry(fact: PolicyRecord | MarkerFact, key?: string): Enco
 export function decodeEntry(entry: RawEntry): HistoryEntry | undefined {
   // Status and message markers may store no data; every other kind then fails its own field checks.
   const data = entry.data ?? {}
+
   if (!isFields(data)) return undefined
   const { key, ...fields } = data
+
   if (key !== undefined && typeof key !== 'string') return undefined
   const keyed = key === undefined ? {} : { key }
   const record = decodeRecord(entry.kind, fields)
+
   if (record) return { kind: 'record', id: entry.id, ...keyed, record }
   const marker = decodeMarker(entry.kind, fields)
+
   return marker ? { kind: 'marker', id: entry.id, ...keyed, marker, text: entry.text ?? '' } : undefined
 }
 
@@ -124,7 +139,9 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
         'totalTokens',
         'costUsd'
       ]
+
       const usage = f.usage
+
       return (f.goalId === null || typeof f.goalId === 'string') &&
         (f.goalRoundId === undefined || typeof f.goalRoundId === 'string') &&
         isFields(usage) &&
@@ -132,14 +149,18 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
         ? { type: 'summary-usage', value: f as SummaryUsage }
         : undefined
     }
+
     case ENTRY_KINDS.goal: {
       if (typeof f.id !== 'string' || typeof f.revision !== 'number') return undefined
+
       const valid =
         'cleared' in f
           ? f.cleared === true && typeof f.at === 'number'
           : isMember(f.phase, GOAL_PHASES) && typeof f.armed === 'boolean'
+
       return valid ? { type: 'goal', value: f as GoalSnapshot | GoalCleared } : undefined
     }
+
     case ENTRY_KINDS.goalNotice:
       return typeof f.text === 'string' && isMember(f.level, NOTICE_LEVELS)
         ? { type: 'goal-notice', value: f as GoalNotice }
@@ -205,8 +226,10 @@ function decodeMarker(kind: string, f: Fields): MarkerFact | undefined {
         : undefined
     case ENTRY_KINDS.subagentNotification: {
       const runs = decodeRuns(f.subagents)
+
       return runs ? { type: 'subagent-notification', runs, quiet: f.quiet === true } : undefined
     }
+
     case ENTRY_KINDS.subagentStatus:
       return { type: 'subagent-status' }
     case ENTRY_KINDS.subagentMessage:
@@ -220,13 +243,17 @@ function decodeMarker(kind: string, f: Fields): MarkerFact | undefined {
 function decodeRuns(list: JsonValue): DeliveredRun[] | undefined {
   if (!Array.isArray(list)) return undefined
   const runs: DeliveredRun[] = []
+
   for (const item of list) {
     if (!isFields(item)) return undefined
     const { sessionId, run, outcome, stoppedBy } = item
+
     if (typeof sessionId !== 'string' || typeof run !== 'number' || !isMember(outcome, OUTCOMES)) return undefined
+
     if (!isOptionalMember(stoppedBy, STOPPERS)) return undefined
     const delivered = { sessionId: sessionId as ThreadId, run, outcome: outcome as SubagentOutcome }
     runs.push(stoppedBy === undefined ? delivered : { ...delivered, stoppedBy: stoppedBy as SubagentStopper })
   }
+
   return runs
 }

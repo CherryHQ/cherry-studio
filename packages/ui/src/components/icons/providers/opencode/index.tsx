@@ -6,7 +6,9 @@ import { OpenCodeGoLight } from './light'
 
 const OpenCodeGo = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <OpenCodeGoLight {...props} className={className} />
+
   if (variant === 'dark') return <OpenCodeGoDark {...props} className={className} />
+
   return (
     <>
       <OpenCodeGoLight className={cn('dark:hidden', className)} {...props} />

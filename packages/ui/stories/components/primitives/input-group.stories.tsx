@@ -63,6 +63,7 @@ const buttonVariantArgType = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Playground - Interactive example with all controls
@@ -163,9 +164,11 @@ export const Playground: StoryObj<PlaygroundArgs> = {
       if (type === 'icon') {
         return <InputGroupText>{isStart ? <User /> : <Search />}</InputGroupText>
       }
+
       if (type === 'text') {
         return <InputGroupText>{isStart ? 'Label' : 'Suffix'}</InputGroupText>
       }
+
       return (
         <InputGroupButton size={args.buttonSize} variant={args.buttonVariant}>
           {isStart ? <Settings /> : <Send />}
@@ -587,27 +590,35 @@ export const ValidationForm: Story = {
       password: '',
       amount: ''
     })
+
     const [errors, setErrors] = useState<Record<string, string>>({})
     const [touched, setTouched] = useState<Record<string, boolean>>({})
 
     const validateEmail = (email: string) => {
       if (!email) return 'Email is required'
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
       if (!emailRegex.test(email)) return 'Please enter a valid email address'
+
       return ''
     }
 
     const validatePassword = (password: string) => {
       if (!password) return 'Password is required'
+
       if (password.length < 8) return 'Password must be at least 8 characters'
+
       return ''
     }
 
     const validateAmount = (amount: string) => {
       if (!amount) return 'Amount is required'
       const num = parseFloat(amount)
+
       if (isNaN(num)) return 'Please enter a valid number'
+
       if (num <= 0) return 'Amount must be positive'
+
       return ''
     }
 
@@ -617,14 +628,17 @@ export const ValidationForm: Story = {
 
       if (field === 'email') {
         const error = validateEmail(formData.email)
+
         if (error) newErrors.email = error
         else delete newErrors.email
       } else if (field === 'password') {
         const error = validatePassword(formData.password)
+
         if (error) newErrors.password = error
         else delete newErrors.password
       } else if (field === 'amount') {
         const error = validateAmount(formData.amount)
+
         if (error) newErrors.amount = error
         else delete newErrors.amount
       }
@@ -641,7 +655,9 @@ export const ValidationForm: Story = {
       const amountError = validateAmount(formData.amount)
 
       if (emailError) newErrors.email = emailError
+
       if (passwordError) newErrors.password = passwordError
+
       if (amountError) newErrors.amount = amountError
 
       setErrors(newErrors)

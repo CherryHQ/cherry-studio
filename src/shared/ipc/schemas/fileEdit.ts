@@ -7,24 +7,31 @@ import { defineRoute } from '../define'
 import { uint8ArraySchema } from './common'
 
 export { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/types/file'
+
 const editIdSchema = z.string().uuid()
 export const fileEditBaselineSchema = z.strictObject({ version: FileVersionSchema, contentHash: ContentHashSchema })
 const resourceSchema = z.strictObject({ editId: editIdSchema })
 const readSchema = z.strictObject({ data: uint8ArraySchema, baseline: fileEditBaselineSchema })
+
 const writeSchema = z.strictObject({
   editId: editIdSchema,
   expected: fileEditBaselineSchema,
   data: uint8ArraySchema
 })
+
 const writeResultSchema = z.strictObject({
   baseline: fileEditBaselineSchema,
   metadataRecoveryPending: z.boolean()
 })
 
 export type FileEditBaseline = z.infer<typeof fileEditBaselineSchema>
+
 export type FileEditResource = z.infer<typeof resourceSchema>
+
 export type FileEditRead = z.infer<typeof readSchema>
+
 export type FileEditWrite = z.infer<typeof writeSchema>
+
 export type FileEditWriteResult = z.infer<typeof writeResultSchema>
 
 export const fileEditRequestSchemas = {

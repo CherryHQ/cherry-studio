@@ -41,7 +41,9 @@ export class AgentGlobalSkillService {
 
   getByIdTx(tx: DbOrTx, id: string): InstalledSkill | null {
     const rows = tx.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, id)).limit(1).all()
+
     if (!rows[0]) return null
+
     return this.rowToInstalledSkill(rows[0])
   }
 
@@ -52,7 +54,9 @@ export class AgentGlobalSkillService {
       .where(eq(agentGlobalSkillTable.folderName, folderName))
       .limit(1)
       .all()
+
     if (!rows[0]) return null
+
     return this.rowToInstalledSkill(rows[0])
   }
 
@@ -69,6 +73,7 @@ export class AgentGlobalSkillService {
 
     if (query.agentId) {
       const agent = agentService.getAgent(query.agentId)
+
       if (!agent) throw DataApiErrorFactory.notFound('Agent', query.agentId)
       conditions.push(eq(agentGlobalSkillTable.isEnabled, true))
     }
@@ -78,6 +83,7 @@ export class AgentGlobalSkillService {
       const nameMatch = sql`${agentGlobalSkillTable.name} LIKE ${pattern} ESCAPE '\\'`
       const descMatch = sql`${agentGlobalSkillTable.description} LIKE ${pattern} ESCAPE '\\'`
       const searchClause = or(nameMatch, descMatch)
+
       if (searchClause) conditions.push(searchClause)
     }
 
@@ -90,10 +96,13 @@ export class AgentGlobalSkillService {
             .orderBy(asc(agentGlobalSkillTable.createdAt))
             .all()
         : this.db.select().from(agentGlobalSkillTable).orderBy(asc(agentGlobalSkillTable.createdAt)).all()
+
     const skills = rows.map((row) => this.rowToInstalledSkill(row))
+
     if (!query.agentId) return skills
 
     const enabledMap = this.loadEnabledMap(query.agentId)
+
     return skills.map((s) => ({
       ...s,
       isEnabled: enabledMap.get(s.id) ?? s.source === 'builtin'
@@ -103,6 +112,7 @@ export class AgentGlobalSkillService {
   /** Every row from `agent_global_skill`, ordered by createdAt. Used to seed new agents with builtins. */
   listAll(): InstalledSkill[] {
     const rows = this.db.select().from(agentGlobalSkillTable).orderBy(asc(agentGlobalSkillTable.createdAt)).all()
+
     return rows.map((row) => this.rowToInstalledSkill(row))
   }
 
@@ -116,7 +126,9 @@ export class AgentGlobalSkillService {
       .values({ isEnabled: true, ...values })
       .returning()
       .all()
+
     if (!inserted) throw new Error(`Failed to insert agent_global_skill row: ${values.folderName}`)
+
     return inserted
   }
 
@@ -131,6 +143,7 @@ export class AgentGlobalSkillService {
       .where(eq(agentGlobalSkillTable.id, id))
       .returning()
       .all()
+
     if (!updated) return null
 
     notifyDataApiDataChange([
@@ -143,6 +156,7 @@ export class AgentGlobalSkillService {
       },
       { endpoint: '/skills/:skillId', entityIds: [id] }
     ])
+
     return this.rowToInstalledSkill(updated)
   }
 
@@ -153,12 +167,14 @@ export class AgentGlobalSkillService {
       .where(eq(agentGlobalSkillTable.id, id))
       .returning()
       .all()
+
     if (!updated) return null
 
     notifyDataApiDataChange([
       { endpoint: '/skills', kind: 'projection', entityIds: [id] },
       { endpoint: '/skills/:skillId', entityIds: [id] }
     ])
+
     return this.rowToInstalledSkill(updated)
   }
 
@@ -185,6 +201,7 @@ export class AgentGlobalSkillService {
       .from(agentSkillTable)
       .where(eq(agentSkillTable.agentId, agentId))
       .all()
+
     return rows
   }
 
@@ -194,6 +211,7 @@ export class AgentGlobalSkillService {
       .from(agentSkillTable)
       .where(eq(agentSkillTable.skillId, skillId))
       .all()
+
     return rows
   }
 
@@ -253,6 +271,7 @@ export class AgentGlobalSkillService {
    */
   assertSkillsExistTx(tx: DbOrTx, skillIds: readonly string[], operation: string): void {
     const uniqueSkillIds = Array.from(new Set(skillIds))
+
     if (uniqueSkillIds.length === 0) return
 
     const rows = tx
@@ -260,6 +279,7 @@ export class AgentGlobalSkillService {
       .from(agentGlobalSkillTable)
       .where(inArray(agentGlobalSkillTable.id, uniqueSkillIds))
       .all()
+
     if (rows.length !== uniqueSkillIds.length) {
       throw DataApiErrorFactory.invalidOperation(operation, 'a selected skill no longer exists')
     }
@@ -267,6 +287,7 @@ export class AgentGlobalSkillService {
 
   applyJoinUpdatesByAgentTx(tx: DbOrTx, agentId: string, skillUpdates: readonly AgentSkillUpdateDto[]): void {
     const bySkillId = new Map<string, AgentSkillUpdateDto>()
+
     for (const update of skillUpdates) bySkillId.set(update.skillId, update)
 
     const uniqueUpdates = Array.from(bySkillId.values())
@@ -288,9 +309,11 @@ export class AgentGlobalSkillService {
 
   upsertJoinForAllAgentsTx(tx: DbOrTx, skillId: string, isEnabled: boolean): string[] {
     const agents = tx.select({ id: agentTable.id }).from(agentTable).all()
+
     for (const agent of agents) {
       this.upsertJoinTx(tx, agent.id, skillId, isEnabled)
     }
+
     return agents.map((a) => a.id)
   }
 
@@ -307,21 +330,27 @@ export class AgentGlobalSkillService {
       .leftJoin(agentWorkspaceTable, eq(agentSessionTable.workspaceId, agentWorkspaceTable.id))
       .where(eq(agentSessionTable.agentId, agentId))
       .all()
+
     const seen = new Set<string>()
     const paths: string[] = []
+
     for (const row of rows) {
       const p = row.workspacePath ?? undefined
+
       if (!p || seen.has(p)) continue
       seen.add(p)
       paths.push(p)
     }
+
     return paths
   }
 
   private loadEnabledMap(agentId: string): Map<string, boolean> {
     const rows = this.listJoinByAgent(agentId)
     const map = new Map<string, boolean>()
+
     for (const row of rows) map.set(row.skillId, row.isEnabled)
+
     return map
   }
 

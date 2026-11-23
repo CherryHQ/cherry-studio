@@ -33,16 +33,21 @@ export interface OkfFrontmatter {
  */
 export function serializeOkfFrontmatter(fields: OkfFrontmatter): string {
   const lines = ['---', `type: ${JSON.stringify(fields.type)}`]
+
   if (fields.title !== undefined) {
     lines.push(`title: ${JSON.stringify(fields.title)}`)
   }
+
   if (fields.resource !== undefined) {
     lines.push(`resource: ${JSON.stringify(fields.resource)}`)
   }
+
   if (fields.timestamp !== undefined) {
     lines.push(`timestamp: ${JSON.stringify(fields.timestamp)}`)
   }
+
   lines.push('---', '')
+
   return lines.join('\n')
 }
 
@@ -55,9 +60,12 @@ export function stripOkfFrontmatter(text: string): string {
   if (!text.startsWith('---\n')) {
     return text
   }
+
   const closeStart = text.indexOf('\n---\n', 3)
+
   if (closeStart === -1) {
     return text
   }
+
   return text.slice(closeStart + 5)
 }

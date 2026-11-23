@@ -10,6 +10,7 @@ export function useRelocationProgress() {
 
   useEffect(() => {
     let receivedProgressEvent = false
+
     const handleProgress = (_event: Electron.IpcRendererEvent, data: RelocationProgress) => {
       receivedProgressEvent = true
       setProgress(data)

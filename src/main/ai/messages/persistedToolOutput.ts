@@ -26,12 +26,16 @@ export async function findPersistedToolOutput(
     const parts = isAgentSessionTopic(topicId)
       ? agentSessionMessageService.getSessionMessage(extractAgentSessionId(topicId), messageId).data.parts
       : messageService.getById(messageId).data.parts
+
     for (const part of parts ?? []) {
       if (!isToolUIPart(part) || part.state !== 'output-available') continue
+
       if (part.toolCallId !== toolCallId) continue
+
       if (isPersistedToolOutput(part.output)) {
         return { found: true, output: await resolvePersistedToolOutput(part.output) }
       }
+
       return { found: true, output: part.output }
     }
   } catch (error) {
@@ -39,27 +43,35 @@ export async function findPersistedToolOutput(
     // degrade to an excerpt when their blob is unavailable.
     logger.warn('persisted tool result lookup failed', { topicId, messageId, toolCallId, error })
   }
+
   return { found: false }
 }
 
 async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<ReconstructedToolOutput> {
   const ref = output.$persistedToolOutput
+
   const readBlob = async (blob: PersistedToolOutputBlobRef): Promise<string> => {
     try {
       const entry = fileEntryService.findById(blob.fileEntryId)
+
       if (!entry || !isToolOutputBlobEntry(entry)) throw new Error('entry is not a persisted tool-output blob')
       const { content } = await application.get('FileManager').read(blob.fileEntryId, { encoding: 'text' })
+
       return content
     } catch (error) {
       logger.warn('persisted tool output unavailable, serving excerpt', { fileEntryId: blob.fileEntryId, error })
+
       return `${blob.head}\n\n[persisted output no longer available — showing excerpt of ${blob.totalChars} chars]\n\n${blob.tail}`
     }
   }
+
   if (ref.shape === 'entities') {
     const texts = Object.fromEntries(
       await Promise.all(ref.blobRefs.map(async (blob) => [blob.key, await readBlob(blob)] as const))
     )
+
     return inflateEntities(ref, texts)
   }
+
   return reconstructOutput(ref, await readBlob(blobRefsOf(ref)[0]))
 }

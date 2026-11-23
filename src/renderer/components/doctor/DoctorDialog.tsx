@@ -18,11 +18,13 @@ import type { DoctorPanel } from '@shared/utils/doctor'
 import { DoctorChecksPanel } from './DoctorChecksPanel'
 
 const DiagnosticBundlePanel = lazy(() => import('@renderer/components/feedback/DiagnosticBundlePanel'))
+
 const PANEL_DESCRIPTION_KEYS = {
   checks: 'settings.doctor.panel_descriptions.checks',
   export: 'settings.doctor.panel_descriptions.export',
   report: 'settings.doctor.panel_descriptions.report'
 } as const satisfies Record<DoctorPanel, string>
+
 const PANEL_TITLE_KEYS = {
   checks: 'settings.doctor.title',
   export: 'settings.doctor.panels.export',
@@ -48,8 +50,10 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
     async (action: () => void) => {
       if (reportPanelRef.current) {
         const canClose = await reportPanelRef.current.requestClose()
+
         if (!canClose) return
       }
+
       resolve({})
       window.setTimeout(action, POPUP_EXIT_MS)
     },
@@ -60,6 +64,7 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
     (target: DoctorNavigateTarget) => void finishHandoff(() => openSettingsTab(target)),
     [finishHandoff]
   )
+
   const controller = useDoctorController({
     subject: { kind: 'global' },
     initialDescription,
@@ -67,25 +72,33 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
     initialRunTier,
     onNavigate: navigate
   })
+
   const { setPanelInteraction } = controller
   const isExportPanel = controller.session.activePanel === 'export'
 
   const close = useCallback(async () => {
     if (controller.isCloseBlocked) return
+
     if (reportPanelRef.current) {
       const canClose = await reportPanelRef.current.requestClose()
+
       if (!canClose) return
     }
+
     resolve({})
   }, [controller.isCloseBlocked, resolve])
 
   const returnToChecks = useCallback(async () => {
     if (!controller.canChangePanel) return
+
     if (controller.session.activePanel === 'report' && reportPanelRef.current) {
       const canClose = await reportPanelRef.current.requestClose()
+
       if (canClose) controller.setPanel('checks')
+
       return
     }
+
     controller.setPanel('checks')
   }, [controller])
 
@@ -93,15 +106,19 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
     (busy: boolean) => setPanelInteraction('bundle-operation', busy),
     [setPanelInteraction]
   )
+
   const setReportBusy = useCallback(
     (busy: boolean) => setPanelInteraction('report-operation', busy),
     [setPanelInteraction]
   )
+
   const finishSecondaryPanel = useCallback(() => {
     if (canReturnToChecks) {
       controller.setPanel('checks')
+
       return
     }
+
     resolve({})
   }, [canReturnToChecks, controller, resolve])
 
@@ -113,6 +130,7 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
   }, [controller.session.activePanel])
 
   const contentProps: Pick<ComponentProps<typeof DialogContent>, 'aria-describedby'> = {}
+
   if (!isExportPanel) contentProps['aria-describedby'] = undefined
 
   return (
@@ -190,6 +208,7 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
 
 function PanelLoading() {
   const { t } = useTranslation()
+
   return (
     <div className="text-muted-foreground flex min-h-0 flex-1 items-center justify-center text-sm" role="status">
       {t('common.loading')}

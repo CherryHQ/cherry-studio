@@ -268,6 +268,7 @@ function sweepConsumedItsWindow(report: FileSweepReport): boolean {
 // Main consumes the schema-derived transport type so validation and the
 // implementation cannot drift into accepting renderer-supplied metadata.
 export type CreateInternalEntryParams = CreateInternalEntryInput
+
 export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 
 // ─── File IPC input schemas ───
@@ -777,9 +778,11 @@ export class FileManager extends BaseService implements IFileManager {
   protected override async onInit(): Promise<void> {
     await this.intakes.load()
     const generation = ensureContentMetadataGeneration()
+
     if (generation.applied) {
       fileManagerLogger.info('content metadata generation applied', { invalidated: generation.invalidated })
     }
+
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
     application.get('JobManager').registerHandler('file.contenthash-backfill', this.contentHashBackfillJobHandler)
@@ -791,16 +794,20 @@ export class FileManager extends BaseService implements IFileManager {
 
   retainTemporaryEntry(id: FileEntryId): Disposable {
     const entry = this.deps.fileEntryService.getById(id)
+
     if (entry.origin !== 'internal' || entry.cleanupPolicy !== 'delete_when_unreferenced') {
       throw new Error('Only automatic internal entries support temporary retention')
     }
+
     const references = this.temporaryReferences.get(id) ?? new Set<symbol>()
     const token = Symbol()
     references.add(token)
     this.temporaryReferences.set(id, references)
+
     return {
       dispose: () => {
         references.delete(token)
+
         if (references.size === 0 && this.temporaryReferences.get(id) === references) {
           this.temporaryReferences.delete(id)
         }
@@ -810,6 +817,7 @@ export class FileManager extends BaseService implements IFileManager {
 
   async deleteRetainedTemporaryEntry(id: FileEntryId): Promise<void> {
     if (!this.temporaryReferences.has(id)) throw new Error('Temporary entry must be retained before verified deletion')
+
     try {
       await internalDeleteInternalTemporaryEntry(this.deps, id)
     } catch (error) {
@@ -820,15 +828,18 @@ export class FileManager extends BaseService implements IFileManager {
       })
       throw error
     }
+
     this.notifyReadModelChange([id])
   }
 
   /** Run one cleanup pass now. Never throws — failures land in the report. */
   async runEntryCleanup(): Promise<EntryCleanupReport> {
     const report = await internalRunEntryCleanup(this.deps, this.intakes, this.temporaryReferences)
+
     if (report.outcome === 'completed') {
       this.lastCleanupCompletedAt = Date.now()
     }
+
     return report
   }
 
@@ -836,6 +847,7 @@ export class FileManager extends BaseService implements IFileManager {
   private async entryCleanupTick(): Promise<void> {
     const idleSeconds = application.get('PowerService').getSystemIdleTime()
     const overdue = Date.now() - this.lastCleanupCompletedAt > FileManager.CLEANUP_MAX_DEFER_MS
+
     if (idleSeconds < FileManager.CLEANUP_IDLE_THRESHOLD_S && !overdue) return
     // Two independent GC mechanisms sharing one idle window, not a pipeline:
     // the entry pass reclaims rows (and their blobs), the file sweep reclaims
@@ -876,13 +888,16 @@ export class FileManager extends BaseService implements IFileManager {
    */
   private async fileSweepTick(): Promise<void> {
     if (this.fileSweepInFlight) return
+
     if (Date.now() - this.lastFileSweepAt < FileManager.FILE_SWEEP_MIN_INTERVAL_MS) return
     this.fileSweepInFlight = true
+
     try {
       const report = await runFileSweep({
         fileEntryService: this.deps.fileEntryService,
         intakeProtection: this.intakes
       })
+
       if (sweepConsumedItsWindow(report)) this.lastFileSweepAt = Date.now()
     } catch (err) {
       // A throw means the scan never returned a verdict, so the window stays
@@ -896,6 +911,7 @@ export class FileManager extends BaseService implements IFileManager {
   protected override onAllReady(): void {
     try {
       const pending = this.deps.fileEntryService.countInternalMissingContentHash()
+
       if (pending === 0) return
       application
         .get('JobManager')
@@ -998,11 +1014,13 @@ export class FileManager extends BaseService implements IFileManager {
   async runSweep(): Promise<OrphanReport> {
     const cleanupReport = await this.runEntryCleanup()
     const startedAt = Date.now()
+
     const fsSweepPromise = runFileSweep({
       fileEntryService: this.deps.fileEntryService,
       intakeProtection: this.intakes
     }).catch((err): FileSweepReport => {
       fileManagerLogger.error('File sweep failed', err)
+
       // Promote a thrown FS sweep into a structured `'failed'` report so
       // the umbrella merge below can degrade `outcome` to `'partial'`
       // (otherwise a permission error would surface as a clean
@@ -1025,6 +1043,7 @@ export class FileManager extends BaseService implements IFileManager {
     })
 
     let dbReport: DbSweepReport
+
     try {
       dbReport = runDbSweep({
         fileEntryService: this.deps.fileEntryService,
@@ -1043,12 +1062,15 @@ export class FileManager extends BaseService implements IFileManager {
 
     const fsReport = await fsSweepPromise
     const lastRunAt = startedAt
+
     const counts = {
       orphanEntriesByOrigin: dbReport.orphanEntriesByOrigin,
       orphanEntriesTotal: dbReport.orphanEntriesTotal,
       entryCleanup: summariseEntryCleanup(cleanupReport)
     }
+
     const fsSweepIssue = summariseFsSweepIssue(fsReport)
+
     switch (dbReport.outcome) {
       case 'completed':
         // DB clean; degrade umbrella to partial iff the FS sweep didn't also
@@ -1057,6 +1079,7 @@ export class FileManager extends BaseService implements IFileManager {
         if (fsSweepIssue === undefined) {
           return { ...counts, outcome: 'completed', lastRunAt }
         }
+
         return { ...counts, outcome: 'partial', errorsByType: {}, fsSweepIssue, lastRunAt }
       case 'partial':
         return {
@@ -1119,7 +1142,9 @@ export class FileManager extends BaseService implements IFileManager {
     return this.deps.contentWriteLock.runExclusive(id, () =>
       runPathMutationExclusive(async () => {
         const path = AbsoluteFilePathSchema.parse(await realpath(this.getPhysicalPath(id)))
+
         if (path !== expectedPath) throw new IpcError(fileErrorCodes.EDIT_TARGET_CHANGED, 'Editing target changed')
+
         return readEditingSnapshot(path)
       })
     )
@@ -1139,9 +1164,11 @@ export class FileManager extends BaseService implements IFileManager {
    */
   async getMetadata(id: FileEntryId): Promise<PhysicalFileMetadata> {
     const entry = this.deps.fileEntryService.getById(id)
+
     try {
       const physicalPath = resolvePhysicalPath(entry)
       const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
+
       return buildPhysicalFileMetadata(physicalPath, s)
     } catch (error) {
       logFailure(
@@ -1160,6 +1187,7 @@ export class FileManager extends BaseService implements IFileManager {
     const entry = this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
+
     return { mtime: s.modifiedAt, size: s.size }
   }
 
@@ -1170,11 +1198,13 @@ export class FileManager extends BaseService implements IFileManager {
   getUrl(id: FileEntryId): FileUrlString {
     const entry = this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
+
     return pathToFileURL(physicalPath).toString() as FileUrlString
   }
 
   getPhysicalPath(id: FileEntryId): AbsoluteFilePath {
     const entry = this.deps.fileEntryService.getById(id)
+
     return resolvePhysicalPath(entry)
   }
 
@@ -1209,11 +1239,14 @@ export class FileManager extends BaseService implements IFileManager {
     const seen = new Map<string, FileEntry>()
     const succeeded: BatchCreateResult['succeeded'] = []
     const failed: BatchCreateResult['failed'] = []
+
     for (const params of items) {
       const sourceRef = params.externalPath
+
       try {
         const cached = seen.get(params.externalPath)
         const entry = cached ?? (await this.ensureExternalEntry(params))
+
         if (!cached) seen.set(params.externalPath, entry)
         succeeded.push({ id: entry.id, sourceRef })
       } catch (err) {
@@ -1223,6 +1256,7 @@ export class FileManager extends BaseService implements IFileManager {
         failed.push({ sourceRef, error: (err as Error).message })
       }
     }
+
     return { succeeded, failed }
   }
 
@@ -1230,6 +1264,7 @@ export class FileManager extends BaseService implements IFileManager {
     const entry = this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     const stream = nodeCreateReadStream(physicalPath)
+
     if (entry.origin === 'external') {
       // observeExternalAccess covers the awaitable read paths (read / hash /
       // getMetadata / getVersion). createReadStream surfaces ENOENT lazily
@@ -1243,11 +1278,13 @@ export class FileManager extends BaseService implements IFileManager {
         // "path proven non-existent" and bucket the commit as 'ops' so
         // diagnostics tell them apart from watcher-driven transitions.
         const code = (err as NodeJS.ErrnoException).code
+
         if (code === 'ENOENT' || code === 'ENOTDIR') {
           this.deps.danglingCache.onFsEvent(physicalPath, 'missing', 'ops')
         }
       })
     }
+
     return stream
   }
 
@@ -1271,6 +1308,7 @@ export class FileManager extends BaseService implements IFileManager {
     const forget = () => this.activeWriteStreams.delete(stream)
     stream.once('finish', forget)
     stream.once('close', forget)
+
     return stream
   }
 
@@ -1287,6 +1325,7 @@ export class FileManager extends BaseService implements IFileManager {
   async restore(id: FileEntryId): Promise<FileEntry> {
     const entry = await internalRestore(this.deps, id)
     this.notifyReadModelChange([id])
+
     return entry
   }
 
@@ -1297,31 +1336,37 @@ export class FileManager extends BaseService implements IFileManager {
 
   async deleteUnreferencedInternalEntry(id: FileEntryId): Promise<boolean> {
     const removed = await internalDeleteUnreferencedInternalEntry(this.deps, id)
+
     if (removed) this.notifyReadModelChange([id])
+
     return removed
   }
 
   async batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
     const result = internalBatchTrash(this.deps, ids)
     this.notifyReadModelChange(result.succeeded)
+
     return result
   }
 
   async batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult> {
     const result = internalBatchRestore(this.deps, ids)
     this.notifyReadModelChange(result.succeeded)
+
     return result
   }
 
   async batchPermanentDeleteFromTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
     const result = await internalBatchPermanentDeleteFromTrash(this.deps, ids)
     this.notifyReadModelChange(result.succeeded)
+
     return result
   }
 
   async batchRemoveFromLibrary(ids: FileEntryId[]): Promise<BatchMutationResult> {
     const result = await internalBatchRemoveFromLibrary(this.deps, ids)
     this.notifyReadModelChange(result.succeeded)
+
     return result
   }
 
@@ -1348,16 +1393,19 @@ export class FileManager extends BaseService implements IFileManager {
 
   async open(id: FileEntryId, context?: DefaultOpenContext): Promise<void> {
     const entry = this.deps.fileEntryService.getById(id)
+
     return safeOpen(resolvePhysicalPath(entry), context)
   }
 
   async showInFolder(id: FileEntryId): Promise<void> {
     const entry = this.deps.fileEntryService.getById(id)
+
     return internalShellShowInFolder(resolvePhysicalPath(entry))
   }
 
   async copyToClipboard(id: FileEntryId): Promise<void> {
     const entry = this.deps.fileEntryService.getById(id)
+
     return copyFileToClipboard(resolvePhysicalPath(entry), entry.origin === 'external')
   }
 
@@ -1370,7 +1418,9 @@ export class FileManager extends BaseService implements IFileManager {
    */
   async getDanglingState(params: { id: FileEntryId }): Promise<DanglingState> {
     const entry = this.deps.fileEntryService.findById(params.id)
+
     if (!entry) return 'unknown'
+
     return this.deps.danglingCache.check(entry)
   }
 
@@ -1394,13 +1444,16 @@ export class FileManager extends BaseService implements IFileManager {
    */
   async batchGetDanglingStates(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, DanglingState>> {
     const entries = params.ids.map((id) => this.deps.fileEntryService.findById(id))
+
     const pairs = await Promise.all(
       entries.map(async (entry, index) => {
         const id = params.ids[index]
         const state: DanglingState = entry ? await this.deps.danglingCache.check(entry) : 'unknown'
+
         return [id, state] as const
       })
     )
+
     return Object.fromEntries(pairs)
   }
 }
@@ -1412,8 +1465,10 @@ async function aggregateCreate<P>(
 ): Promise<BatchCreateResult> {
   const succeeded: BatchCreateResult['succeeded'] = []
   const failed: BatchCreateResult['failed'] = []
+
   for (let i = 0; i < items.length; i++) {
     const sourceRef = resolveSourceRef(items[i], i)
+
     try {
       const entry = await op(items[i])
       succeeded.push({ id: entry.id, sourceRef })
@@ -1425,5 +1480,6 @@ async function aggregateCreate<P>(
       failed.push({ sourceRef, error: (err as Error).message })
     }
   }
+
   return { succeeded, failed }
 }

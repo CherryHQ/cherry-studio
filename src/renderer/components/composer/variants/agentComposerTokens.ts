@@ -14,6 +14,7 @@ export const AGENT_MANAGED_TOKEN_KINDS = [
   'knowledge',
   'skill'
 ] as const satisfies readonly ComposerDraftToken['kind'][]
+
 export const AGENT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
   'file',
   'skill'

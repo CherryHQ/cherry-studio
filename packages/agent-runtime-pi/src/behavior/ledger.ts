@@ -34,6 +34,7 @@ type Applied = {
   /** Jobs the commit made live, for the caller to start. */
   readonly jobs: JobRecord[]
 }
+
 /**
  * One operation, checked: `create` makes the storage a spawn needs, `persist` makes its disk writes, which can throw,
  * and `register` applies what cannot be taken back (the adapter's maps, a session's context).
@@ -43,6 +44,7 @@ type Prepared = {
   readonly persist?: () => void
   readonly register?: (applied: Applied) => void
 }
+
 /** The entry a refused commit appends where it put a branch back; the facts leave it out. */
 const ROLLBACK_KIND = 'cherry.rollback'
 
@@ -51,8 +53,10 @@ export function readFacts(adapter: Adapter, thread: ThreadId): ConversationFacts
   const conv = adapter.conversation(thread)
   const history = historyOf(conv.manager.getBranch(), thread)
   const keysSeen = keysOf(history)
+
   for (const job of adapter.jobs.values()) if (job.state === 'live' && job.thread === thread) keysSeen.add(job.key)
   const children = new Map<ThreadId, ChildFacts>()
+
   for (const child of adapter.conversations.values()) {
     if (child.lineage.kind !== 'subagent' || child.lineage.parent !== thread) continue
     children.set(child.thread, {
@@ -62,7 +66,9 @@ export function readFacts(adapter: Adapter, thread: ThreadId): ConversationFacts
       lastItem: historyOf(child.manager.getBranch(), child.thread).at(-1)!.id
     })
   }
+
   const run = conv.active
+
   return {
     thread,
     lineage: conv.lineage,
@@ -100,6 +106,7 @@ export function commit<R extends JsonValue>(
   const step = decide(readFacts(adapter, thread))
   const prepared = step.ops.map((op) => prepare(adapter, thread, op, owner))
   const created: SessionManager[] = []
+
   try {
     for (const { create } of prepared) if (create) created.push(create())
     persistAll(adapter, prepared)
@@ -108,8 +115,11 @@ export function commit<R extends JsonValue>(
     for (const manager of created) if (manager.isPersisted()) rmSync(manager.getSessionFile()!, { force: true })
     throw error
   }
+
   const applied: Applied = { spawned: [], children: [], jobs: [] }
+
   for (const { register } of prepared) register?.(applied)
+
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- Keep the transaction result readonly so callers cannot replace the committed decision or its registered effects.
   return { step, applied }
 }
@@ -117,6 +127,7 @@ export function commit<R extends JsonValue>(
 /** Runs every operation's disk writes; when one throws, puts back each conversation's branch they moved. */
 function persistAll(adapter: Adapter, prepared: readonly Prepared[]): void {
   const leaves = new Map([...adapter.conversations.values()].map(({ manager }) => [manager, manager.getLeafId()]))
+
   try {
     for (const { persist } of prepared) persist?.()
   } catch (error) {
@@ -124,6 +135,7 @@ function persistAll(adapter: Adapter, prepared: readonly Prepared[]): void {
       if (manager.getLeafId() === leaf) continue
       const restore = () => (leaf === null ? manager.resetLeaf() : manager.branch(leaf))
       restore()
+
       try {
         manager.appendCustomEntry(ROLLBACK_KIND, { error: error instanceof Error ? error.message : String(error) })
       } catch (failure) {
@@ -132,6 +144,7 @@ function persistAll(adapter: Adapter, prepared: readonly Prepared[]): void {
         adapter.report(failure)
       }
     }
+
     throw error
   }
 }
@@ -141,22 +154,27 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
     case 'append-record': {
       const target = adapter.conversation(op.thread)
       const { kind, data } = encodeEntry(op.record, op.key)
+
       return {
         persist: () => {
           target.manager.appendCustomEntry(kind, data)
         }
       }
     }
+
     case 'append-quiet': {
       const target = adapter.conversation(op.thread)
+
       if (!isIdle(target)) throw new Error(`append-quiet refused: ${op.thread} is not idle`)
       const message = markerMessage(op.input, op.key)
+
       // The id only fills the kind check; `op.key` is never empty, and `runtimeId` rejects an empty id.
       if (
         decodeEntry({ id: runtimeId<'item'>(op.key), kind: message.customType, data: message.details })?.kind !==
         'marker'
       )
         throw new Error(`append-quiet needs a marker input, got ${op.input.kind}`)
+
       // Not `sendCustomMessage`: a disk failure there only rejects its promise, after Pi moved the leaf.
       return {
         persist: () => {
@@ -166,16 +184,20 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
         register: () => target.native!.session.refreshContext()
       }
     }
+
     case 'spawn-child': {
       const { spec, key } = op
+
       if (spec.boundary === 'foreground' && !owner)
         throw new Error('A foreground child can only be spawned from a tool call')
       const parent = adapter.conversation(thread)
       const fork = spec.fork && { source: adapter.conversation(spec.fork.from).manager, at: spec.fork.at }
+
       if (spec.fork && !fork?.source.getEntry(spec.fork.at))
         throw new Error(`Fork point ${spec.fork.at} is not in ${spec.fork.from}`)
       const child = runtimeId<'thread'>(randomUUID())
       let manager!: SessionManager
+
       return {
         // forkFrom/create touch the disk and can throw, which must reject the whole commit.
         create: () => (manager = childManager(parent.manager, child, fork)),
@@ -183,6 +205,7 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
           // Parent calls keep running there; calls copied from another child need the interrupted result (H3).
           const copied = manager.getBranch()
           const placeholders = spec.fork?.from === thread ? unansweredCalls(copied, copied.length - 1) : []
+
           for (const call of placeholders) manager.appendMessage(resultFor(call, FORK_PLACEHOLDER_RESULT, false))
           const origin = encodeEntry({ type: 'subagent-origin', value: spec.origin }, key)
           manager.appendCustomEntry(origin.kind, origin.data)
@@ -191,6 +214,7 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
         },
         register: (applied) => {
           const lineage = { kind: 'subagent' as const, parent: thread, origin: spec.origin }
+
           const conv = newConversation(
             child,
             manager,
@@ -198,15 +222,18 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
             spec.boundary === 'foreground' ? owner : undefined,
             false
           )
+
           adapter.conversations.set(child, conv)
           applied.spawned.push({ key, child })
           applied.children.push(conv)
         }
       }
     }
+
     case 'ensure-job': {
       if (!adapter.installation.jobs.has(op.job.kind))
         throw new Error(`No job handler is registered for ${op.job.kind}`)
+
       return {
         register: (applied) => {
           // H4: deduplicated by key, never by kind; a live job keeps its key, an ended one frees it.
@@ -224,10 +251,12 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
 export function modelContext(adapter: Adapter, thread: ThreadId): JsonValue[] {
   const conv = adapter.conversation(thread)
   const model = conv.native?.session.model
+
   if (!model) throw new Error(`Conversation ${thread} has no model`)
   const { messages } = buildSessionContext(conv.manager.getEntries(), conv.manager.getLeafId())
   const omit = adapter.installation.filter?.omit(thread, readFacts(adapter, thread)) ?? []
   const visible = withoutMarkers(messages, omittedMarkers(conv.manager.getBranch(), omit))
+
   return JSON.parse(JSON.stringify(transformMessages(convertToLlm(visible), model))) as JsonValue[]
 }
 
@@ -238,11 +267,14 @@ function childManager(
   fork: { readonly source: SessionManager; readonly at: string } | undefined
 ): SessionManager {
   const options = { id, parentSession: parent.getSessionFile() }
+
   const manager = !parent.isPersisted()
     ? SessionManager.inMemory(parent.getCwd(), options, fork ? fork.source.getBranch(fork.at) : [])
     : fork
       ? SessionManager.forkFrom(fork.source.getSessionFile()!, parent.getCwd(), parent.getSessionDir(), options)
       : SessionManager.create(parent.getCwd(), parent.getSessionDir(), options)
+
   if (fork) manager.branch(fork.at)
+
   return manager
 }

@@ -74,6 +74,7 @@ function getKnowledgeBaseMetaDir(baseId: string): AbsoluteFilePath {
  */
 export function getKnowledgeVectorStoreFilePathSync(baseId: string): AbsoluteFilePath {
   const metaDir = getKnowledgeBaseMetaDir(baseId)
+
   return AbsoluteFilePathSchema.parse(path.join(metaDir, VECTOR_STORE_FILE))
 }
 
@@ -83,6 +84,7 @@ export function getKnowledgeBaseFilePath(baseId: string, relativePath: string): 
   const materialDir = getKnowledgeMaterialDir(baseId)
   const resolved = path.join(materialDir, relativePath)
   assertResolvesBelow(materialDir, resolved, relativePath)
+
   return AbsoluteFilePathSchema.parse(resolved)
 }
 
@@ -94,6 +96,7 @@ export function getKnowledgeBaseFilePath(baseId: string, relativePath: string): 
  */
 function assertResolvesBelow(materialDir: string, resolved: string, relativePath: string): void {
   const rel = path.relative(materialDir, resolved)
+
   // `''` means it landed back on the root — returning that as one item's file would let a
   // single-item delete take the whole tree.
   if (rel === '' || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
@@ -123,6 +126,7 @@ export async function probeKnowledgeSourcePath(absolutePath: string): Promise<Pa
 export function getKnowledgeSourceRelativePath(sourcePath: string): PosixRelativeFilePath {
   const fileName = path.basename(sourcePath)
   assertSafeKnowledgeRelativePath(fileName)
+
   return fileName
 }
 
@@ -135,6 +139,7 @@ export function getProcessedMarkdownRelativePath(relativePath: string): PosixRel
   // guard on its own.
   const processed = normalizeRelativePath(path.join(parsed.dir, `${parsed.name}.md`))
   assertSafeKnowledgeRelativePath(processed)
+
   return processed
 }
 
@@ -156,6 +161,7 @@ export function reserveImportedFileRelativePath(
     if (reservedPaths.has(candidate)) {
       return false
     }
+
     return !reserveProcessedArtifact || !reservedPaths.has(getProcessedMarkdownRelativePath(candidate))
   })
 
@@ -164,9 +170,11 @@ export function reserveImportedFileRelativePath(
   // handing it out as a branded value.
   assertSafeKnowledgeRelativePath(chosen)
   reservedPaths.add(chosen)
+
   if (reserveProcessedArtifact) {
     reservedPaths.add(getProcessedMarkdownRelativePath(chosen))
   }
+
   return chosen
 }
 
@@ -184,6 +192,7 @@ export async function prepareFileCopyIntoKnowledgeBaseAt(
   const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
   await assertTargetAvailable(destPath)
   await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(destPath)))
+
   return await prepareAtomicCopy(AbsoluteFilePathSchema.parse(sourcePath), destPath, signal)
 }
 
@@ -194,14 +203,17 @@ export async function copyFileIntoKnowledgeBaseAt(
   options: { signal?: AbortSignal; overwrite?: boolean } = {}
 ): Promise<PosixRelativeFilePath> {
   const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
+
   // `overwrite` lets directory expansion re-copy over its own orphans from a prior
   // aborted attempt (the prefix is unique per container, so a same-named dest can
   // only be that self-orphan). `copy` commits via tmp+rename, so overwrite is atomic.
   if (!options.overwrite) {
     await assertTargetAvailable(destPath)
   }
+
   await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(destPath)))
   await copy(AbsoluteFilePathSchema.parse(sourcePath), destPath, options.signal)
+
   return relativePath
 }
 
@@ -217,11 +229,14 @@ export async function writeFileIntoKnowledgeBaseAt(
   options: { overwrite?: boolean } = {}
 ): Promise<PosixRelativeFilePath> {
   const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
+
   if (!options.overwrite) {
     await assertTargetAvailable(destPath)
   }
+
   await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(destPath)))
   await write(destPath, content)
+
   return relativePath
 }
 
@@ -236,6 +251,7 @@ export function needsProcessedArtifactReservation(
   if (!fileProcessorId) {
     return false
   }
+
   return KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(getFileExt(relativePath).toLowerCase())
 }
 
@@ -256,16 +272,21 @@ export function collectKnowledgeReservedRelativePaths(
   options: { fileProcessorId?: string | null; excludeItemId?: string } = {}
 ): Set<string> {
   const reserved = new Set<string>()
+
   for (const item of items) {
     if (options.excludeItemId !== undefined && item.id === options.excludeItemId) {
       continue
     }
+
     if (typeof item.data !== 'object' || item.data === null) {
       continue
     }
+
     const data = item.data as { relativePath?: unknown; indexedRelativePath?: unknown }
+
     if (typeof data.relativePath === 'string') {
       reserved.add(data.relativePath)
+
       if (
         item.type === 'file' &&
         typeof data.indexedRelativePath !== 'string' &&
@@ -274,10 +295,12 @@ export function collectKnowledgeReservedRelativePaths(
         reserved.add(getProcessedMarkdownRelativePath(data.relativePath))
       }
     }
+
     if (typeof data.indexedRelativePath === 'string') {
       reserved.add(data.indexedRelativePath)
     }
   }
+
   return reserved
 }
 
@@ -294,8 +317,10 @@ export async function deleteKnowledgeItemFiles(
   const directoryPrefixes = items.flatMap((item) => {
     if (item.type !== 'directory') return []
     const relativePath = (item.data as { relativePath?: unknown }).relativePath
+
     return typeof relativePath === 'string' ? [relativePath] : []
   })
+
   await Promise.all(directoryPrefixes.map((prefix) => removeDir(getKnowledgeBaseFilePath(baseId, prefix))))
 
   // url/note snapshots and file leaves persist a `raw/{relativePath}` file too, so unlink
@@ -322,20 +347,25 @@ export async function deleteKnowledgeItemFiles(
  */
 async function pruneEmptyKnowledgeMaterialDirs(baseId: string, relativePaths: Set<string>): Promise<void> {
   const dirs = new Set<string>()
+
   for (const relativePath of relativePaths) {
     let dir = path.posix.dirname(relativePath)
+
     while (dir && dir !== '.' && dir !== '/') {
       dirs.add(dir)
       dir = path.posix.dirname(dir)
     }
   }
+
   // Deepest-first so a parent is only tested after its children were removed.
   const deepestFirst = [...dirs].sort((a, b) => b.split('/').length - a.split('/').length)
+
   for (const dir of deepestFirst) {
     try {
       await fs.rmdir(getKnowledgeBaseFilePath(baseId, dir))
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code
+
       // ENOTEMPTY (another item still lives here) and ENOENT (already gone) are the
       // expected, benign outcomes. Surface anything else (EACCES/EBUSY/…) as a warning
       // but never throw, so a stray husk can't abort the surrounding best-effort delete.
@@ -398,12 +428,14 @@ export async function deleteKnowledgeBaseDir(baseId: string): Promise<void> {
  */
 export function assertSafeKnowledgeRelativePath(relativePath: string): asserts relativePath is PosixRelativeFilePath {
   const parsed = KnowledgeRelativePathSchema.safeParse(relativePath)
+
   if (!parsed.success) {
     throw new Error(`Invalid knowledge relative path: ${relativePath}`)
   }
 
   // Non-null: the schema above already proved it resolves.
   const segments = resolvePosixRelativeSegments(relativePath) ?? []
+
   if (segments[0] === CHERRY_META_DIR) {
     throw new Error(`Knowledge relative path is reserved: ${relativePath}`)
   }
@@ -430,6 +462,7 @@ async function assertTargetAvailable(destPath: AbsoluteFilePath): Promise<void> 
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return
     }
+
     throw error
   }
 

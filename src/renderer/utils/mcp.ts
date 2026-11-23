@@ -5,6 +5,7 @@ import { McpConfigSampleSchema } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('utils:mcp')
 const npxConfigSampleSchema = McpConfigSampleSchema.extend({ args: McpConfigSampleSchema.shape.args.nullish() })
+
 type NpxConfigSample = JSONObject & ReturnType<typeof npxConfigSampleSchema.parse>
 
 /**
@@ -17,16 +18,21 @@ export function getMcpConfigSampleFromReadme(readme: string): NpxConfigSample | 
 
   // Single-char `[^{}]` inside the repeated groups: `[^{}]*` there backtracks exponentially on unmatched blocks.
   const regex = /"mcpServers"\s*:\s*({(?:[^{}]|{(?:[^{}]|{[^{}]*})*})*})/g
+
   for (const match of readme.matchAll(regex)) {
     // One malformed or empty block must not hide the valid samples after it.
     try {
       const parsed: JSONValue = JSON.parse(match[1])
+
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue
+
       for (const server of Object.values(parsed)) {
         if (server && typeof server === 'object') {
           const sample = npxConfigSampleSchema.safeParse(server)
+
           if (sample.success && sample.data.command === 'npx') {
             const env = (server as JSONObject).env
+
             // Zod records skip __proto__; validate its raw value before retaining the original object.
             if (
               env &&
@@ -36,6 +42,7 @@ export function getMcpConfigSampleFromReadme(readme: string): NpxConfigSample | 
             ) {
               continue
             }
+
             return server as NpxConfigSample
           }
         }
@@ -44,5 +51,6 @@ export function getMcpConfigSampleFromReadme(readme: string): NpxConfigSample | 
       logger.error('getMcpConfigSampleFromReadme', e as Error)
     }
   }
+
   return null
 }

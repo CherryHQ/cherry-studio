@@ -11,6 +11,7 @@ export function getExternalOpenTargetScope(targetPath: string, pathKind: Externa
   const fileName = targetPath.split(/[/\\]/).at(-1) ?? targetPath
   const dotIndex = fileName.lastIndexOf('.')
   const extension = dotIndex > 0 ? normalizeExt(fileName.slice(dotIndex)) : null
+
   return `file:${extension ?? 'no_extension'}`
 }
 

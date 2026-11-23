@@ -71,6 +71,7 @@ export default function AgentChatMain({
   respondToolApproval
 }: AgentChatMainProps) {
   const navigate = useNavigate()
+
   const navigateToForkSource = useCallback<NavigateToForkSource>(
     ({ sourceSessionId, returnSessionId }) =>
       navigate({ to: '/app/agents', search: { sessionId: sourceSessionId, forkReturnSessionId: returnSessionId } }),
@@ -125,6 +126,7 @@ const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<type
     openBrowserUrl,
     openExternalUrl
   } = useAgentRightPaneActions()
+
   return (
     <AgentSessionMessages
       {...props}

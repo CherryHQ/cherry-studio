@@ -57,6 +57,7 @@ function extractDeclarations(source: string, sourceName: string): Declaration[] 
 
   return declarations.map((match) => {
     const name = match[1]
+
     if (!CUSTOM_PROPERTY_NAME_PATTERN.test(name)) {
       throw new Error(`[theme-contract] ${sourceName} declares invalid custom property ${name}`)
     }
@@ -83,9 +84,11 @@ function extractModeDeclarations(source: string, sourceName: string, selector: '
 function extractReferences(value: string, sourceName: string): string[] {
   return [...value.matchAll(/var\(\s*(--[^\s,)]+)/g)].map((match) => {
     const name = match[1]
+
     if (!CUSTOM_PROPERTY_NAME_PATTERN.test(name)) {
       throw new Error(`[theme-contract] ${sourceName} references invalid custom property ${name}`)
     }
+
     return name
   })
 }
@@ -94,9 +97,11 @@ function extractImports(source: string): string[] {
   return [...stripComments(source).matchAll(/@import\s+([^;]+);/g)].map((match) => {
     const importValue = match[1].trim()
     const stringMatch = importValue.match(/^(['"])([^'"]+)\1$/)
+
     if (stringMatch) return stringMatch[2]
 
     const urlMatch = importValue.match(/^url\(\s*(?:(['"])([^'"]+)\1|([^'")\s][^)]*?))\s*\)$/)
+
     if (urlMatch) return (urlMatch[2] ?? urlMatch[3]).trim()
 
     throw new Error(`[theme-contract] unsupported @import syntax: ${importValue}`)
@@ -120,9 +125,11 @@ function assertSurfacePairs(
     if (surface === foreground || surfaces.has(surface)) {
       throw new Error(`[theme-contract] ${label} has an invalid or duplicate surface pair for ${surface}`)
     }
+
     if (!variableNames.has(surface) || !variableNames.has(foreground)) {
       throw new Error(`[theme-contract] ${label} pair ${surface} / ${foreground} is outside its public contract`)
     }
+
     surfaces.add(surface)
   }
 }
@@ -141,11 +148,13 @@ function buildDeclarationMap(entries: SourceEntry[], selector: ':root' | '.dark'
   for (const [sourceName, source] of entries) {
     for (const declaration of extractModeDeclarations(source, sourceName, selector)) {
       const existing = declarations.get(declaration.name)
+
       if (existing) {
         throw new Error(
           `[theme-contract] ${declaration.name} is defined twice in ${selector}: ${existing.source} and ${sourceName}`
         )
       }
+
       declarations.set(declaration.name, declaration)
     }
   }
@@ -161,6 +170,7 @@ function assertRequiredDeclarations(
 ): void {
   const missing = variableNames.flatMap((name) => {
     const mapped = `${prefix}${name}`
+
     return !declarations.has(mapped) ? [mapped] : []
   })
 
@@ -176,8 +186,10 @@ function assertCompatibilityTokensDeclared(
   sourceName: string
 ): void {
   const declarations = new Set(extractDeclarations(source, sourceName).map((declaration) => declaration.name))
+
   const missing = tokenNames.flatMap((token) => {
     const name = `--cs-${token}`
+
     return !declarations.has(name) ? [name] : []
   })
 
@@ -205,6 +217,7 @@ function assertNoCycles(mode: string, declarations: Map<string, Declaration>): v
 
   const visit = (name: string): void => {
     if (visited.has(name)) return
+
     if (visiting.has(name)) {
       const cycleStart = stack.indexOf(name)
       throw new Error(`[theme-contract] ${mode} variable cycle: ${[...stack.slice(cycleStart), name].join(' -> ')}`)
@@ -214,6 +227,7 @@ function assertNoCycles(mode: string, declarations: Map<string, Declaration>): v
     stack.push(name)
 
     const declaration = declarations.get(name)
+
     if (declaration) {
       for (const reference of extractReferences(declaration.value, declaration.source)) {
         if (declarations.has(reference)) visit(reference)
@@ -233,6 +247,7 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
   const runtimeVariables = new Set(RUNTIME_THEME_INPUT_TOKENS.map((token) => `--cs-theme-${token}`))
   const officialVariables = new Set(SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`))
   const productVariables = new Set(CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--${token}`))
+
   const foundationEntries: SourceEntry[] = [
     ['tokens/colors/primitive.css', sources.primitiveColors],
     ['tokens/colors/providers.css', sources.providerColors],
@@ -247,6 +262,7 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
       if (declaration.name.startsWith(runtimeVariablePrefix)) {
         throw new Error(`[theme-contract] foundation cannot declare runtime input ${declaration.name}`)
       }
+
       for (const reference of extractReferences(declaration.value, declaration.source)) {
         if (
           reference.startsWith(runtimeVariablePrefix) ||
@@ -265,10 +281,12 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
     if (!runtimeVariables.has(declaration.name)) {
       throw new Error(`[theme-contract] theme-input.css declares unregistered runtime input ${declaration.name}`)
     }
+
     for (const reference of extractReferences(declaration.value, declaration.source)) {
       if (officialVariables.has(reference) || productVariables.has(reference) || reference.startsWith('--color-')) {
         throw new Error(`[theme-contract] runtime input ${declaration.name} cannot depend on upper-layer ${reference}`)
       }
+
       if (reference.startsWith('--app-')) {
         throw new Error(`[theme-contract] runtime input ${declaration.name} cannot depend on host-local ${reference}`)
       }
@@ -279,6 +297,7 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
     if (declaration.name.startsWith(runtimeVariablePrefix)) {
       throw new Error(`[theme-contract] shadcn.css cannot own runtime input ${declaration.name}`)
     }
+
     for (const reference of extractReferences(declaration.value, declaration.source)) {
       if (productVariables.has(reference) || reference.startsWith('--color-') || reference.startsWith('--app-')) {
         throw new Error(`[theme-contract] Shadcn ${declaration.name} cannot depend on product/adapter ${reference}`)
@@ -290,6 +309,7 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
     for (const reference of extractReferences(declaration.value, declaration.source)) {
       const validNamespace =
         reference.startsWith('--cs-') || officialVariables.has(reference) || productVariables.has(reference)
+
       if (!validNamespace) {
         throw new Error(`[theme-contract] product ${declaration.name} has invalid dependency ${reference}`)
       }
@@ -303,6 +323,7 @@ function assertCatalogCoverage(sources: ThemeContractSources): void {
     ...SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`),
     ...CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--${token}`)
   ]
+
   const missing = requiredNames.filter((name) => !sources.variableCatalog.includes(`\`${name}\``))
 
   if (missing.length > 0) {
@@ -336,11 +357,13 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
       throw new Error(`[theme-contract] Tailwind product color ${token} is missing from the product contract`)
     }
   }
+
   for (const token of COMPATIBILITY_COLOR_TOKENS) {
     if (canonicalColors.has(token)) {
       throw new Error(`[theme-contract] compatibility color ${token} overlaps the canonical color contract`)
     }
   }
+
   assertCompatibilityTokensDeclared(
     'compatibility semantic colors',
     COMPATIBILITY_SEMANTIC_COLOR_TOKENS,
@@ -356,6 +379,7 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
 
   const shadcnRootDeclarations = buildDeclarationMap([['shadcn.css', sources.shadcn]], ':root')
   assertRequiredDeclarations('Shadcn contract in shadcn.css', shadcnRootDeclarations, SHADCN_VARIABLE_TOKENS, '--')
+
   for (const declaration of extractDeclarations(sources.shadcn, 'shadcn.css')) {
     if (!shadcnVariableNames.has(declaration.name)) {
       throw new Error(`[theme-contract] shadcn.css declares unregistered Shadcn variable ${declaration.name}`)
@@ -402,9 +426,11 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
     ['shadcn.css', sources.shadcn],
     ['product.css', sources.product]
   ]
+
   const rootDeclarations = buildDeclarationMap(orderedSources, ':root')
   const darkOverrides = buildDeclarationMap(orderedSources, '.dark')
   const darkDeclarations = new Map(rootDeclarations)
+
   for (const [name, declaration] of darkOverrides) darkDeclarations.set(name, declaration)
 
   assertRequiredDeclarations('runtime theme inputs', rootDeclarations, RUNTIME_THEME_INPUT_TOKENS, '--cs-theme-')
@@ -414,6 +440,7 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
   const productDeclarationNames = new Set(
     extractDeclarations(sources.product, 'product.css').map((declaration) => declaration.name)
   )
+
   for (const name of productDeclarationNames) {
     if (!productVariableNames.has(name)) {
       throw new Error(`[theme-contract] product.css declares unregistered product variable ${name}`)
@@ -428,6 +455,7 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
 
 export async function loadThemeContractSources(stylesDir = DEFAULT_STYLES_DIR): Promise<ThemeContractSources> {
   const tokensDir = path.join(stylesDir, 'tokens')
+
   const [
     variableCatalog,
     contractEntry,

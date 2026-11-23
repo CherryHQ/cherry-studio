@@ -40,6 +40,7 @@ const DEFAULT_TRANSFORM: ImagePreviewTransform = {
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const normalizeRotate = (value: number) => ((value % 360) + 360) % 360
+
 const toFiniteNumber = (value: number | undefined, fallback: number) =>
   typeof value === 'number' && Number.isFinite(value) ? value : fallback
 
@@ -82,6 +83,7 @@ export function useImagePreviewTransform({
     () => normalizeTransform(initialTransform, minZoom, maxZoom),
     [initialTransform, maxZoom, minZoom]
   )
+
   const [transform, setTransform] = React.useState<ImagePreviewTransform>(initialValue)
 
   const update = React.useCallback(
@@ -89,6 +91,7 @@ export function useImagePreviewTransform({
       setTransform((current) => {
         const patch = typeof nextUpdate === 'function' ? nextUpdate(current) : nextUpdate
         const next = normalizeTransform({ ...current, ...patch }, minZoom, maxZoom)
+
         return transformsEqual(current, next) ? current : next
       })
     },

@@ -63,7 +63,9 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
     if (localRegion.trim().length > 0) {
       return true
     }
+
     toast.warning(t('settings.provider.aws-bedrock.region_required'))
+
     return false
   }
 
@@ -71,13 +73,16 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
     if (!ensureRegionProvided()) {
       return
     }
+
     try {
       const region = localRegion.trim()
+
       if (value === 'iam') {
         await updateAuthConfig({ type: 'iam-aws', region })
       } else {
         await updateAuthConfig({ type: 'api-key-aws', region })
       }
+
       isIamDraftDirtyRef.current = false
     } catch (error) {
       logger.error('Failed to update AWS Bedrock auth type', { providerId, error })
@@ -89,6 +94,7 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
     if (!ensureRegionProvided()) {
       return
     }
+
     try {
       await updateAuthConfig({
         type: 'iam-aws' as const,
@@ -121,6 +127,7 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
     if (!ensureRegionProvided()) {
       return
     }
+
     if (isIamMode) {
       await saveIamConfig()
     } else {

@@ -27,7 +27,9 @@ export class AsrInferenceService extends InferenceServiceBase<AsrInferenceContra
       'transcribe',
       () => {
         const model = resolveAsrModelPaths(modelId)
+
         if (model.engine !== AsrEngine.Mlx) throw new Error('Unsupported streaming ASR model')
+
         return { modelDir: model.modelDir, sampleRate }
       },
       {
@@ -48,10 +50,13 @@ export class AsrInferenceService extends InferenceServiceBase<AsrInferenceContra
       'transcribe',
       () => {
         const model = resolveAsrModelPaths(modelId)
+
         if (model.engine === AsrEngine.Mlx) {
           if (source.kind !== 'samples') throw new Error('MLX ASR requires decoded PCM')
+
           return { ...model, source }
         }
+
         return { ...model, source }
       },
       { signal }

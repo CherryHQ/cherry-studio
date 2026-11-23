@@ -4,6 +4,7 @@ import { Flex } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 
 type DivProps = React.ComponentProps<'div'>
+
 type ShadowContainerStyle = React.CSSProperties & Record<string, string>
 
 export const PreviewError = ({ className, ref, ...props }: DivProps) =>

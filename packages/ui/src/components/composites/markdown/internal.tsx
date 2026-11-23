@@ -49,6 +49,7 @@ const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.entries(defaultRemarkPlugins).m
 
   // Keep GFM extensions while treating single tildes as literal chat text.
   const [gfmPlugin, options] = plugin
+
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Streamdown supplies a GFM option object; preserve untyped plugin options while overriding only singleTilde.
   return [gfmPlugin, { ...(options as Record<string, unknown>), singleTilde: false }] as Pluggable
 })
@@ -98,15 +99,20 @@ function resolveDefaultRehypePlugins(): ResolvedDefaultRehypePlugins {
 
 function isSamePluggableList(a?: readonly Pluggable[], b?: readonly Pluggable[]): boolean {
   if (a === b) return true
+
   if (!a || !b || a.length !== b.length) return false
+
   return a.every((plugin, index) => plugin === b[index])
 }
 
 function isSameComponents(a?: Partial<Components>, b?: Partial<Components>): boolean {
   if (a === b) return true
+
   if (!a || !b) return false
   const keys = Object.keys(a)
+
   if (keys.length !== Object.keys(b).length) return false
+
   return keys.every((key) => a[key as keyof Components] === b[key as keyof Components])
 }
 
@@ -114,7 +120,9 @@ function isSameComponents(a?: Partial<Components>, b?: Partial<Components>): boo
 // memoizes blocks on those references, so churn re-parses every block tick.
 function useStableReference<T>(value: T | undefined, isEqual: (a: T | undefined, b: T | undefined) => boolean) {
   const ref = useRef(value)
+
   if (!isEqual(ref.current, value)) ref.current = value
+
   return ref.current
 }
 
@@ -166,10 +174,12 @@ export function MarkdownCore({
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
   const stableComponents = useStableReference(components, isSameComponents)
   const footnotePrefix = `footnote-${id}-`
+
   const renderedComponents = useMemo(
     () => ({ ...stableComponents, 'footnote-link': FootnoteLink, 'footnote-section': FootnoteSection }),
     [stableComponents]
   )
+
   const stableExtraRehypePlugins = useStableReference(extraRehypePlugins, isSamePluggableList)
   const stableExtraRemarkPlugins = useStableReference(extraRemarkPlugins, isSamePluggableList)
 
@@ -180,7 +190,9 @@ export function MarkdownCore({
       remarkMark as Pluggable,
       remarkAlert as Pluggable
     ]
+
     if (stableExtraRemarkPlugins?.length) list.push(...stableExtraRemarkPlugins)
+
     return list
   }, [stableExtraRemarkPlugins])
 
@@ -188,6 +200,7 @@ export function MarkdownCore({
     const { raw, sanitizeFn, sanitizeSchema, hardenFn, hardenOptions } = resolveDefaultRehypePlugins()
     const relativeImages = createRelativeImagePreservation()
     const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema, additionalLinkProtocols)
+
     const effectiveSchema = preserveFileLinkHrefs
       ? {
           ...extendedSchema,
@@ -201,6 +214,7 @@ export function MarkdownCore({
           }
         }
       : extendedSchema
+
     const result: Pluggable[] = [raw, ...(preserveFileLinkHrefs ? ([rehypePrepareFileLinks] as Pluggable[]) : [])]
     result.push(
       // Sanitize compares protocols case-sensitively, but URI schemes are case-insensitive.
@@ -222,7 +236,9 @@ export function MarkdownCore({
         { prefix: footnotePrefix, clobberPrefix: effectiveSchema.clobberPrefix ?? 'user-content-' }
       ] as Pluggable
     )
+
     if (stableExtraRehypePlugins?.length) result.push(...stableExtraRehypePlugins)
+
     return result
   }, [
     hasSvgElement,
@@ -236,6 +252,7 @@ export function MarkdownCore({
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value
+
     return defaultUrlTransform(value, key, node)
   }, [])
 

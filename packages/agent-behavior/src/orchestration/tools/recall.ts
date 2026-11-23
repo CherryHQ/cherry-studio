@@ -13,6 +13,7 @@ const DESCRIPTION = [
   '',
   '#N is the entry number shown in recall results. Only the current session is searchable.'
 ].join('\n')
+
 const SCHEMA = {
   type: 'object',
   properties: {

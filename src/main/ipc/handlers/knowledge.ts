@@ -26,6 +26,7 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
     if (items.some((item) => item.type === 'url' && !isHttpUrl(item.data.url))) {
       throw new IpcError(knowledgeErrorCodes.INVALID_SOURCE_URL, t('knowledge.source.invalid_url'))
     }
+
     return application.get('KnowledgeService').addItems(baseId, items, conflictStrategy)
   },
   'knowledge.delete_items': async ({ baseId, itemIds }) => {
@@ -46,6 +47,7 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
           cause: error.code
         })
       }
+
       throw error
     }
   },

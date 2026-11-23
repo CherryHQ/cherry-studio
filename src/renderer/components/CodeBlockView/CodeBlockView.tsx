@@ -90,13 +90,16 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     showToolbar = true,
     maxHeight
   } = props
+
   const { t } = useTranslation()
+
   const [document, setDocument] = useState(() => ({
     accepted: children,
     language,
     stateRef: { current: null as EditorState | null },
     epoch: 0
   }))
+
   if (document.accepted !== children || document.language !== language) {
     const echoed = document.language === language && document.stateRef.current?.sliceDoc() === children
     setDocument({
@@ -106,6 +109,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       epoch: document.epoch + Number(!echoed)
     })
   }
+
   const source = document.stateRef.current?.sliceDoc() ?? children
   const { codeBlockStyle, isCodeThemeDark } = useCodeStyle()
 
@@ -117,6 +121,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const [codeImageTools] = usePreference('chat.code.image_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [codeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
+
   const [codeEditor] = useMultiplePreferences({
     enabled: 'chat.code.editor.enabled',
     autocompletion: 'chat.code.editor.autocompletion',
@@ -127,6 +132,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const canEdit = codeEditor.enabled && editable && !isStreaming
   const hasSpecialView = SPECIAL_VIEWS.includes(language)
+
   const specialViewDefinition = hasSpecialView
     ? SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
     : undefined
@@ -135,11 +141,14 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     mode: 'special' as ViewMode,
     previousMode: 'special' as ViewMode
   })
+
   const viewMode = useMemo<ViewMode>(() => {
     if (viewState.mode === 'edit' && !canEdit) return 'source'
+
     if (!hasSpecialView && viewState.mode !== 'edit') {
       return 'source'
     }
+
     return viewState.mode
   }, [canEdit, hasSpecialView, viewState.mode])
 
@@ -157,6 +166,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       if (current.mode === 'split') {
         return { ...current, mode: current.previousMode }
       }
+
       return { mode: 'split', previousMode: current.mode }
     })
   }, [])
@@ -180,6 +190,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const isInSpecialView = useMemo(() => {
     return hasSpecialView && viewMode === 'special'
   }, [hasSpecialView, viewMode])
+
   const isEditing = canEdit && (viewMode === 'edit' || (viewMode === 'split' && viewState.previousMode === 'edit'))
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
@@ -200,14 +211,17 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     () => maxHeight === undefined && (!codeCollapsible || expandOverride),
     [codeCollapsible, expandOverride, maxHeight]
   )
+
   const shouldWrap = useMemo(
     () => wrapLines || (codeWrappable && wrapOverride),
     [codeWrappable, wrapLines, wrapOverride]
   )
+
   const sourceMaxHeight =
     typeof maxHeight === 'number' ? `${maxHeight}px` : (maxHeight ?? `${MAX_COLLAPSED_CODE_HEIGHT}px`)
 
   const [sourceScrollHeight, setSourceScrollHeight] = useState(0)
+
   const expandable = useMemo(() => {
     return codeCollapsible && sourceScrollHeight > MAX_COLLAPSED_CODE_HEIGHT
   }, [codeCollapsible, sourceScrollHeight])
@@ -224,22 +238,27 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
         sourceViewRef.current?.getContent?.() ??
         latestActionContextRef.current.stateRef.current?.sliceDoc() ??
         latestActionContextRef.current.source
+
       await navigator.clipboard.writeText(content)
       toast.success(latestActionContextRef.current.t('code_block.copy.success'))
+
       return true
     } catch (error) {
       logger.error('Failed to copy to clipboard:', { error })
       toast.error(latestActionContextRef.current.t('code_block.copy.failed'))
+
       return false
     }
   }, [])
 
   const handleDownloadSource = useCallback(() => {
     const { language: currentLanguage } = latestActionContextRef.current
+
     const currentSource =
       sourceViewRef.current?.getContent?.() ??
       latestActionContextRef.current.stateRef.current?.sliceDoc() ??
       latestActionContextRef.current.source
+
     let fileName = ''
 
     // 尝试提取 HTML 标题
@@ -261,6 +280,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       sourceViewRef.current?.getContent?.() ??
       latestActionContextRef.current.stateRef.current?.sliceDoc() ??
       latestActionContextRef.current.source
+
     setIsRunning(true)
     setExecutionResult(null)
 
@@ -432,8 +452,10 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
         <div className="code-block-header flex h-8 items-center rounded-t-lg bg-transparent px-2.5 text-xs leading-none font-medium text-muted-foreground" />
       )
     }
+
     const ext = getExtensionByLanguage(language)
     const iconName = getFileIconName(`file${ext}`)
+
     return (
       <div className="code-block-header flex h-8 items-center border-b-[0.5px] border-border-subtle bg-background-subtle px-2.5 text-xs leading-none font-medium text-muted-foreground">
         <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
@@ -445,6 +467,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   // 根据视图模式和语言选择组件，优先展示特殊视图，fallback是源代码视图
   const showSpecialView = !!specialView && ['special', 'split'].includes(viewMode)
   const showSourceView = !specialView || viewMode !== 'special'
+
   const renderContent = (
     <div
       className={cn(

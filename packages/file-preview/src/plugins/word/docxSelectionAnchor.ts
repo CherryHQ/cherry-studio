@@ -16,6 +16,7 @@ import type { DocumentAnchor } from '../../documentAnchor'
 export function paragraphExcerpt(paragraph: HTMLElement): string {
   const walker = paragraph.ownerDocument.createTreeWalker(paragraph, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT)
   let excerpt = ''
+
   for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
     if (node.nodeType === Node.TEXT_NODE) {
       excerpt += node.nodeValue ?? ''
@@ -25,6 +26,7 @@ export function paragraphExcerpt(paragraph: HTMLElement): string {
       excerpt += '-'
     }
   }
+
   return excerpt
 }
 
@@ -51,13 +53,16 @@ export function paragraphToDocxAnchor(
   element: Element
 ): { anchor: DocumentAnchor; excerpt: string; element: HTMLElement } | null {
   const paragraphElement = element.closest<HTMLElement>('p')
+
   if (!paragraphElement || paragraphElement.dataset.docxPart !== 'body') return null
 
   const paragraph = Number(paragraphElement.dataset.docxIndex)
+
   if (!Number.isInteger(paragraph) || paragraph < 0) return null
 
   const paraId = paragraphElement.dataset.paraId
   const anchor: Extract<DocumentAnchor, { format: 'docx' }> = { format: 'docx', paragraph }
+
   if (paraId) Object.assign(anchor, { paraId })
 
   return {

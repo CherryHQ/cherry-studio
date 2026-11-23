@@ -56,6 +56,7 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
   const handleCopySource = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(node.textContent)
+
       return true
     } catch {
       // Clipboard may fail (e.g. non-secure context)
@@ -89,6 +90,7 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
       tooltip: t('preview.dialog'),
       onClick: () => void previewRef.current?.dialog()
     })
+
     return () => removeTool(TOOL_SPECS.dialog.id)
   }, [registerTool, removeTool, showImageTools, t])
 

@@ -24,6 +24,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
   const { t } = useTranslation()
 
   const Icon = toggleAction === 'hide' ? ArrowRightToLine : ArrowLeftToLine
+
   const getToggleLabel = (displayName: string) =>
     toggleAction === 'hide'
       ? t('settings.miniApps.hide_app', { name: displayName })

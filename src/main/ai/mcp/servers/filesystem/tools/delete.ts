@@ -29,12 +29,14 @@ export async function handleDeleteTool(
 
   // Check if path exists and get stats
   let stats
+
   try {
     stats = await fs.stat(validPath)
   } catch (error: any) {
     if (error.code === 'ENOENT') {
       throw new Error(`Path not found: ${targetPath}`)
     }
+
     throw error
   }
 
@@ -59,6 +61,7 @@ export async function handleDeleteTool(
     if (error.code === 'ENOTEMPTY') {
       throw new Error(`Directory not empty: ${targetPath}. Use recursive=true to delete non-empty directories.`)
     }
+
     throw new Error(`Failed to delete: ${error.message}`)
   }
 

@@ -4,6 +4,7 @@ import { GptRealtimeWhisperLight } from './light'
 
 const GptRealtimeWhisper = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GptRealtimeWhisperLight {...props} className={className} />
+
   return <GptRealtimeWhisperLight {...props} className={className} />
 }
 

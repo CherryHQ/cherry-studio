@@ -6,7 +6,9 @@ import { FluxLight } from './light'
 
 const Flux = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <FluxLight {...props} className={className} />
+
   if (variant === 'dark') return <FluxDark {...props} className={className} />
+
   return (
     <>
       <FluxLight className={cn('dark:hidden', className)} {...props} />

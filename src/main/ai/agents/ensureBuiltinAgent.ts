@@ -10,8 +10,10 @@ export function loadBuiltinAgentEnsureInput(
   builtinRole: BuiltinAgentRole
 ): Parameters<typeof agentService.ensureBuiltinAgent>[0] {
   const defaults = loadBuiltinAgentDefaults(builtinRole)
+
   const defaultModelId = (application.get('PreferenceService').get('chat.default_model_id') ??
     null) as UniqueModelId | null
+
   return {
     ...defaults,
     builtinRole,

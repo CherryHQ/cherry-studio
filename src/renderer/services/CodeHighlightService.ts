@@ -12,6 +12,7 @@ import type {
 const logger = loggerService.withContext('CodeHighlightService')
 
 class MissingSession extends Error {}
+
 interface Session {
   id: string
   code: string
@@ -23,6 +24,7 @@ interface Session {
   closed: boolean
   tail: Promise<unknown>
 }
+
 class CodeHighlightService {
   private generation = 0
   private nextSessionId = 0
@@ -46,9 +48,11 @@ class CodeHighlightService {
       worker.onmessage = ({ data }: MessageEvent<HighlightResponse>) => {
         if (this.worker !== worker || data.generation !== this.generation) return
         const pending = this.pending.get(data.id)
+
         if ('error' in data) pending?.reject(data.missing ? new MissingSession(data.error) : new Error(data.error))
         else if (pending) {
           const expected = pending.request
+
           if (
             expected.type === 'read' &&
             (data.sessionId !== expected.sessionId ||
@@ -59,23 +63,29 @@ class CodeHighlightService {
           else pending.resolve(data.result)
         }
       }
+
       worker.onerror = () => {
         if (this.worker === worker) this.dispose(new Error('Code highlight worker failed'))
       }
+
       worker.onmessageerror = () => {
         if (this.worker === worker) this.dispose(new Error('Invalid code highlight worker response'))
       }
     }
+
     const worker = this.worker
     const id = this.nextId++
+
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         if (this.worker === worker) this.dispose(new Error('Code highlight worker timed out'))
       }, 30_000)
+
       const finish = () => {
         clearTimeout(timer)
         this.pending.delete(id)
       }
+
       this.pending.set(id, {
         request,
         resolve: (result) => {
@@ -87,6 +97,7 @@ class CodeHighlightService {
           reject(error)
         }
       })
+
       try {
         worker.postMessage({ ...request, id, generation: this.generation })
       } catch (error) {
@@ -103,6 +114,7 @@ class CodeHighlightService {
     range: HighlightRange
   ): Promise<HighlightResult> {
     let session = this.sessions.get(callerId)
+
     if (!session) {
       session = {
         id: `${callerId}:${this.nextSessionId++}`,
@@ -117,9 +129,12 @@ class CodeHighlightService {
       }
       this.sessions.set(callerId, session)
     }
+
     const current = session
+
     const run = async () => {
       if (current.closed) throw new Error('Highlight session closed')
+
       const open = async () => {
         await this.request({
           type: 'open',
@@ -135,8 +150,10 @@ class CodeHighlightService {
         current.theme = theme
         current.generation = this.generation
       }
+
       const read = async () => {
         if (current.closed) throw new Error('Highlight session closed')
+
         const result = await this.request({
           type: 'read',
           sessionId: current.id,
@@ -144,10 +161,13 @@ class CodeHighlightService {
           configurationRevision: current.configurationRevision,
           range
         })
+
         if (current.closed) throw new Error('Highlight session closed')
+
         if (result && typeof result !== 'string' && 'lines' in result) return result
         throw new Error('Expected highlighted lines')
       }
+
       try {
         if (!this.worker || current.generation !== this.generation) await open()
         else {
@@ -166,6 +186,7 @@ class CodeHighlightService {
             current.code = code
             current.revision++
           }
+
           if (language !== current.language) {
             await this.request({
               type: 'configure',
@@ -179,25 +200,31 @@ class CodeHighlightService {
             current.configurationRevision++
           }
         }
+
         return await read()
       } catch (error) {
         if (!(error instanceof MissingSession) || current.closed) throw error
         await open()
+
         return read()
       }
     }
+
     const task = current.tail.then(run)
     current.tail = task.catch(() => {})
+
     try {
       return await task
     } catch (error) {
       logger.warn('Code highlighting unavailable; displaying plain text', error as Error)
+
       return plainCodeBlockTokens(code, range)
     }
   }
 
   highlightSnapshot: SnapshotExecutor = async (request) => {
     const result = await this.request({ type: 'snapshot', request: { ...request, foreground: 'var(--foreground)' } })
+
     if (result && typeof result !== 'string' && 'tokens' in result) return result
     throw new Error('Expected snapshot tokens')
   }
@@ -205,10 +232,12 @@ class CodeHighlightService {
   async highlightCodeToHtml(code: string, language: string, theme: string): Promise<string> {
     try {
       const result = await this.request({ type: 'html', code, language, theme })
+
       if (typeof result === 'string') return result
       throw new Error('Expected highlighted HTML')
     } catch (error) {
       logger.warn('Code highlighting unavailable; displaying plain text', error as Error)
+
       return `<pre class="shiki"><code>${escape(code)}</code></pre>`
     }
   }
@@ -216,19 +245,24 @@ class CodeHighlightService {
   async renderMarkdown(code: string, theme: string): Promise<string> {
     try {
       const result = await this.request({ type: 'markdown', code, theme })
+
       if (typeof result !== 'string') throw new Error('Expected rendered Markdown')
+
       return result
     } catch (error) {
       logger.warn('Markdown rendering unavailable; displaying source text', error as Error)
+
       return `<pre><code>${escape(code)}</code></pre>`
     }
   }
 
   cleanupTokenizers(callerId: string): void {
     const session = this.sessions.get(callerId)
+
     if (!session) return
     session.closed = true
     this.sessions.delete(callerId)
+
     // Queue close immediately: a replacement with the same ID must open after it.
     if (this.worker)
       void this.request({ type: 'close', sessionId: session.id }).catch((error) =>
@@ -239,6 +273,7 @@ class CodeHighlightService {
   dispose(error = new Error('Code highlight worker disposed')): void {
     this.worker?.terminate()
     this.worker = null
+
     for (const pending of this.pending.values()) pending.reject(error)
     this.pending.clear()
   }

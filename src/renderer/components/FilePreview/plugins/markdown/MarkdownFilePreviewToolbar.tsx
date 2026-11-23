@@ -15,6 +15,7 @@ interface MarkdownFilePreviewToolbarProps {
 export function MarkdownFilePreviewToolbar({ disabled, mode, onModeChange }: MarkdownFilePreviewToolbarProps) {
   const { t } = useTranslation()
   const nextMode: MarkdownFilePreviewMode = mode === 'preview' ? 'source' : 'preview'
+
   const nextLabel = t(
     nextMode === 'source' ? 'file_preview.markdown.mode.source' : 'file_preview.markdown.mode.preview'
   )

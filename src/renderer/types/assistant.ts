@@ -5,5 +5,7 @@ import type {
 } from '@shared/data/types/assistant'
 
 export type Assistant = DataApiAssistant
+
 export type AssistantSettings = DataApiAssistantSettings
+
 export type McpMode = DataApiMcpMode

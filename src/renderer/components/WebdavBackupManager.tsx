@@ -72,10 +72,12 @@ export function WebdavBackupManager({
   const fetchBackupFiles = useCallback(async () => {
     if (!webdavHost) {
       toast.error(t('message.error.invalid.webdav'))
+
       return
     }
 
     setLoading(true)
+
     try {
       const files = await window.api.backup.listWebdavFiles({
         webdavHost,
@@ -84,6 +86,7 @@ export function WebdavBackupManager({
         webdavPath,
         allowSelfSignedTls
       })
+
       setBackupFiles(files)
     } catch (error) {
       toast.error(
@@ -113,6 +116,7 @@ export function WebdavBackupManager({
 
   const paginatedBackupFiles = useMemo(() => {
     const start = (safeCurrentPage - 1) * PAGE_SIZE
+
     return backupFiles.slice(start, start + PAGE_SIZE)
   }, [backupFiles, safeCurrentPage])
 
@@ -125,6 +129,7 @@ export function WebdavBackupManager({
     (nextSelectedRowKeys: Key[]) => {
       setSelectedRowKeys((previousKeys) => {
         const preservedKeys = previousKeys.filter((key) => !currentPageKeys.has(key.toString()))
+
         return Array.from(new Set([...preservedKeys, ...nextSelectedRowKeys]))
       })
     },
@@ -134,11 +139,13 @@ export function WebdavBackupManager({
   const handleDeleteSelected = async () => {
     if (selectedRowKeys.length === 0) {
       toast.warning(t('settings.data.webdav.backup.manager.select.files.delete'))
+
       return
     }
 
     if (!webdavHost) {
       toast.error(t('message.error.invalid.webdav'))
+
       return
     }
 
@@ -150,9 +157,11 @@ export function WebdavBackupManager({
       cancelText: t('common.cancel'),
       centered: true
     })
+
     if (!confirmed) return
 
     setDeleting(true)
+
     try {
       // 依次删除选中的文件
       for (const key of selectedRowKeys) {
@@ -164,6 +173,7 @@ export function WebdavBackupManager({
           allowSelfSignedTls
         })
       }
+
       toast.success(t('settings.data.webdav.backup.manager.delete.success.multiple', { count: selectedRowKeys.length }))
       setSelectedRowKeys([])
       await fetchBackupFiles()
@@ -181,6 +191,7 @@ export function WebdavBackupManager({
   const handleDeleteSingle = async (fileName: string) => {
     if (!webdavHost) {
       toast.error(t('message.error.invalid.webdav'))
+
       return
     }
 
@@ -192,9 +203,11 @@ export function WebdavBackupManager({
       cancelText: t('common.cancel'),
       centered: true
     })
+
     if (!confirmed) return
 
     setDeleting(true)
+
     try {
       await window.api.backup.deleteWebdavFile(fileName, {
         webdavHost,
@@ -219,6 +232,7 @@ export function WebdavBackupManager({
   const handleRestore = async (fileName: string) => {
     if (!webdavHost) {
       toast.error(customLabels?.invalidConfigMessage || t('message.error.invalid.webdav'))
+
       return
     }
 
@@ -230,9 +244,11 @@ export function WebdavBackupManager({
       cancelText: t('common.cancel'),
       centered: true
     })
+
     if (!confirmed) return
 
     setRestoring(true)
+
     try {
       await (restoreMethod || restoreFromWebdav)(fileName)
       toast.success(t('settings.data.webdav.backup.manager.restore.success'))
@@ -255,6 +271,7 @@ export function WebdavBackupManager({
       meta: { width: 'calc(100% - 504px)', className: 'min-w-0' },
       cell: ({ getValue }) => {
         const fileName = getValue() as string
+
         return (
           <Tooltip placement="top-start" content={fileName} fullWidthTrigger>
             <span className="block w-full min-w-0 truncate">{fileName}</span>
@@ -280,6 +297,7 @@ export function WebdavBackupManager({
       meta: { width: 160 },
       cell: ({ row }) => {
         const record = row.original
+
         return (
           <div className="flex items-center gap-1">
             <Button variant="ghost" onClick={() => handleRestore(record.fileName)} disabled={restoring || deleting}>

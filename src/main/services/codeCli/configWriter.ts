@@ -23,9 +23,11 @@ interface FileSnapshot {
 /** Resolve a declarative target path against its base: the pinned Hermes home, or sys.home for `~/…` spec paths. */
 async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFilePath> {
   const { pathBase, path: specPath } = CLI_CONFIG_FILE_SPECS[target]
+
   if (pathBase === 'hermes-home') {
     return AbsoluteFilePathSchema.parse(path.join(await getHermesHome(), specPath))
   }
+
   return AbsoluteFilePathSchema.parse(path.join(application.getPath('sys.home'), specPath.replace(/^~[/\\]/, '')))
 }
 
@@ -55,6 +57,7 @@ export async function readCliConfigFiles(targets: readonly CliConfigTarget[]): P
   return Promise.all(
     targets.map(async (target) => {
       const path = await resolveTargetPath(target)
+
       return { target, path, content: await readOrNull(path) }
     })
   )
@@ -74,22 +77,27 @@ export async function readCliConfigFiles(targets: readonly CliConfigTarget[]): P
 export async function writeCliConfigFiles(cliTool: FileConfiguredCli, files: CliConfigWriteFile[]): Promise<void> {
   const allowed = new Set(getCliConfigTargets(cliTool))
   const seen = new Set<CliConfigTarget>()
+
   for (const file of files) {
     if (!allowed.has(file.target)) {
       throw new Error(`${file.target} is not a config file of ${cliTool}`)
     }
+
     if (seen.has(file.target)) {
       throw new Error(`Duplicate config target: ${file.target}`)
     }
+
     seen.add(file.target)
   }
 
   const snapshots: FileSnapshot[] = []
+
   try {
     for (const file of files) {
       const absPath = await resolveTargetPath(file.target)
       const previousContent = await readOrNull(absPath)
       snapshots.push({ absPath, existed: previousContent !== null, previousContent: previousContent ?? '' })
+
       if ('delete' in file) {
         await remove(absPath)
         logger.info(`Deleted ${cliTool} config at ${absPath}`)
@@ -112,6 +120,7 @@ export async function writeCliConfigFiles(cliTool: FileConfiguredCli, files: Cli
         )
       }
     }
+
     throw error
   }
 }

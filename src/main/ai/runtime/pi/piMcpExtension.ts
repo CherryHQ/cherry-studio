@@ -11,8 +11,10 @@ import type { loadPiSdk } from './piSdk'
 /** Match Pi's native MCP identifiers for policy and stored disabled-tool lookups. */
 export function buildPiMcpToolName(serverName: string, toolName: string, collides = false): string {
   const name = `mcp__${serverName}__${toolName}`.replace(/[^A-Za-z0-9_]/g, '_')
+
   if (name.length <= 64 && !collides) return name
   const hash = createHash('sha256').update(`${serverName}\0${toolName}`).digest('hex').slice(0, 8)
+
   return `${name.slice(0, 55)}_${hash}`
 }
 
@@ -24,6 +26,7 @@ export function createPiMcpExtension(
 ): ExtensionFactory {
   // UUID namespaces prevent display-name collisions and keep stored tool policies stable on rename.
   const runtimeServers = new Map(Object.values(servers).map((server) => [server.id ?? server.name, server]))
+
   return pi.createMcpExtension({
     logPath,
     loadConfig: () => ({
@@ -42,6 +45,7 @@ export function createPiMcpExtension(
     createTransport: (entry) => {
       const server = runtimeServers.get(entry.name)!
       const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+
       return {
         async start() {
           await server.connect(serverTransport)
@@ -51,18 +55,21 @@ export function createPiMcpExtension(
         close: () => clientTransport.close(),
         onMessage(listener) {
           clientTransport.onmessage = (message) => listener(message as Parameters<typeof listener>[0])
+
           return () => {
             clientTransport.onmessage = undefined
           }
         },
         onError(listener) {
           clientTransport.onerror = listener
+
           return () => {
             clientTransport.onerror = undefined
           }
         },
         onClose(listener) {
           clientTransport.onclose = listener
+
           return () => {
             clientTransport.onclose = undefined
           }

@@ -63,11 +63,13 @@ const isWindowsDrivePath = (path: string) => /^[A-Za-z]:[/\\]/.test(path)
 export const toPathKey = (path: AbsoluteFilePath): string | null => {
   if (path.startsWith('//')) return null
   let canonical: string
+
   try {
     canonical = canonicalizeFilePath(path)
   } catch {
     return null
   }
+
   return isWindowsDrivePath(canonical) ? canonical.replace(/\\/g, '/') : canonical
 }
 
@@ -77,6 +79,7 @@ const asPrefix = (path: string) => (path.endsWith('/') ? path : `${path}/`)
 /** True iff `a` and `b` denote the same path. Un-canonicalizable input → `false`. */
 export const isSamePath = (a: AbsoluteFilePath, b: AbsoluteFilePath): boolean => {
   const left = toPathKey(a)
+
   return left !== null && left === toPathKey(b)
 }
 
@@ -89,7 +92,9 @@ export const isSamePath = (a: AbsoluteFilePath, b: AbsoluteFilePath): boolean =>
 export const isPathInside = (child: AbsoluteFilePath, parent: AbsoluteFilePath): boolean => {
   const childPath = toPathKey(child)
   const parentPath = toPathKey(parent)
+
   if (childPath === null || parentPath === null || childPath === parentPath) return false
+
   return childPath.startsWith(asPrefix(parentPath))
 }
 
@@ -115,9 +120,12 @@ export const isPathInside = (child: AbsoluteFilePath, parent: AbsoluteFilePath):
 export const getRelativePath = (from: AbsoluteFilePath, to: AbsoluteFilePath): PosixRelativeFilePath | null => {
   const fromPath = toPathKey(from)
   const toPath = toPathKey(to)
+
   if (fromPath === null || toPath === null) return null
+
   if (fromPath === toPath) return '.' as PosixRelativeFilePath
   const prefix = asPrefix(fromPath)
+
   return toPath.startsWith(prefix) ? (toPath.slice(prefix.length) as PosixRelativeFilePath) : null
 }
 
@@ -129,7 +137,9 @@ export const getRelativePath = (from: AbsoluteFilePath, to: AbsoluteFilePath): P
 export const joinPath = (base: string, rel: string): string => {
   const posixAbsolute = base.startsWith('/') && !base.startsWith('//')
   const trimmed = posixAbsolute ? rel.replace(/^\/+/, '') : rel.replace(/^[/\\]+/, '')
+
   if (!base) return trimmed
   const baseHasSeparator = posixAbsolute ? base.endsWith('/') : /[/\\]$/.test(base)
+
   return baseHasSeparator ? `${base}${trimmed}` : `${base}/${trimmed}`
 }

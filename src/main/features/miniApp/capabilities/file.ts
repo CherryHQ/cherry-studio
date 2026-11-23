@@ -45,6 +45,7 @@ const LogicalName = z
   .refine((n) => n !== '.' && n !== '..', 'invalid logical name')
 
 const NameParams = z.object({ name: LogicalName })
+
 /**
  * The base64 string is length-capped BEFORE `Buffer.from` decodes it.
  *
@@ -55,10 +56,12 @@ const NameParams = z.object({ name: LogicalName })
  * the string length that produces it.
  */
 const SaveParams = NameParams.extend({ data: z.base64().max(base64CharCap(MINI_APP_QUOTAS.file.single)) })
+
 /** The dialog's default file name obeys the same rules as a logical name — no separators, no `..`. */
 const ExportParams = NameParams.extend({ suggestedName: LogicalName.optional() })
 
 const limiter = new WriteRateLimiter()
+
 /** A save dialog is a modal the user has to dismiss: one at a time, and ten a minute is already a nuisance. */
 const exportLimiter = new ConcurrentRateLimiter('file.export', 10, 1)
 
@@ -69,12 +72,14 @@ const exportLimiter = new ConcurrentRateLimiter('file.export', 10, 1)
  * sandbox are inherently low-frequency (and rate-limited above).
  */
 const saveChains = new Map<string, Promise<unknown>>()
+
 function serializePerApp<T>(appId: string, fn: () => Promise<T>): Promise<T> {
   const next = (saveChains.get(appId) ?? Promise.resolve()).then(fn, fn)
   saveChains.set(
     appId,
     next.catch(() => undefined)
   )
+
   return next
 }
 
@@ -90,6 +95,7 @@ function readUsage(appId: string): QuotaUsage {
     .innerJoin(fileEntryTable, eq(fileEntryTable.id, miniAppFileRefTable.fileEntryId))
     .where(eq(miniAppFileRefTable.sourceId, appId))
     .all()
+
   return { bytes: Number(row?.bytes ?? 0), count: Number(row?.count ?? 0) }
 }
 
@@ -125,8 +131,10 @@ function reserveDecodeBudget(bytes: number): () => void {
   if (inflightDecodeBytes + bytes > MAX_INFLIGHT_DECODE_BYTES) {
     throw new RateLimitedError(`Too many mini app file reads in flight; retry shortly`)
   }
+
   inflightDecodeBytes += bytes
   let released = false
+
   return () => {
     if (released) return
     released = true
@@ -199,6 +207,7 @@ export const fileCapability = {
     // Lease taken BEFORE the queue wait and checked after it — the whole reason this
     // is not a plain "is quiescing now?" check is that time passes in between.
     const lease = application.get('MiniAppRuntimeService').leaseFor(appId)
+
     return serializePerApp(appId, () => this.saveSerialized(appId, { name, bytes }, lease))
   },
 
@@ -206,6 +215,7 @@ export const fileCapability = {
     const { name, bytes } = params
 
     const previous = findRef(appId, name)
+
     const previousSize = previous
       ? Number(
           application
@@ -238,9 +248,11 @@ export const fileCapability = {
       // the commit is a gap an uninstall fits into. `withWriteTx` runs synchronously.
       application.get('DbService').withWriteTx((tx) => {
         application.get('MiniAppRuntimeService').assertLeaseValid(lease)
+
         if (previous) {
           tx.delete(miniAppFileRefTable).where(eq(miniAppFileRefTable.id, previous.id)).run()
         }
+
         tx.insert(miniAppFileRefTable).values({ fileEntryId: entry.id, sourceId: appId, logicalName: name }).run()
       })
     } catch (error) {
@@ -251,6 +263,7 @@ export const fileCapability = {
     }
 
     if (previous) await reclaim(previous.fileEntryId, 'superseded save')
+
     return { ok: true }
   },
 
@@ -258,6 +271,7 @@ export const fileCapability = {
   async load(appId: string, params: unknown) {
     const { name } = NameParams.parse(params)
     const ref = findRef(appId, name)
+
     if (!ref) return { data: null }
 
     // Reserved BEFORE the read and sized for the base64: one load holds the Buffer,
@@ -269,12 +283,15 @@ export const fileCapability = {
       .from(fileEntryTable)
       .where(eq(fileEntryTable.id, ref.fileEntryId))
       .all()
+
     // `encoding: 'base64'`, NOT 'binary': the binary path copies into a fresh
     // Uint8Array and encoding it here copies again — three resident copies per read.
     const footprint = Math.ceil((Number(entry?.size ?? 0) * 7) / 3)
     const release = reserveDecodeBudget(footprint)
+
     try {
       const result = await application.get('FileManager').read(ref.fileEntryId, { encoding: 'base64' })
+
       return { data: result.content }
     } finally {
       release()
@@ -306,6 +323,7 @@ export const fileCapability = {
     // `createInternalEntry` it can now wait long enough for an update or reinstall to
     // commit, and the name it then resolves belongs to a newer installation.
     const lease = application.get('MiniAppRuntimeService').leaseFor(appId)
+
     // On the SAME chain as `save`, for the reason `saveSerialized` already states about
     // uninstall: its `createInternalEntry` is a real `await` between resolving the ref and
     // inserting one. A delete running beside that gap finds nothing, reports success, and
@@ -317,17 +335,20 @@ export const fileCapability = {
       // dead generation must not be told `{ ok: true }` for a name it never owned.
       application.get('MiniAppRuntimeService').assertLeaseValid(lease)
       const ref = findRef(appId, name)
+
       if (!ref) return { ok: true }
       application
         .get('DbService')
         .withWriteTx((tx) => tx.delete(miniAppFileRefTable).where(eq(miniAppFileRefTable.id, ref.id)).run())
       await reclaim(ref.fileEntryId, 'deleted save')
+
       return { ok: true }
     })
   },
 
   async usage(appId: string): Promise<QuotaUsageWithLimits> {
     const usage = readUsage(appId)
+
     return { ...usage, bytesLimit: MINI_APP_QUOTAS.file.bytes, countLimit: MINI_APP_QUOTAS.file.count }
   },
 
@@ -341,26 +362,33 @@ export const fileCapability = {
     const { name, suggestedName } = ExportParams.parse(params)
     const runtime = application.get('MiniAppRuntimeService')
     const guest = webContents.fromId(senderId)
+
     if (!guest || !runtime.isGuestVisible(senderId)) {
       throw new PermissionDeniedError(appId, 'file.export', 'a save dialog can only be opened while the app is visible')
     }
+
     const release = exportLimiter.acquire(appId)
     // Taken BEFORE the dialog, exactly as `save` takes one before its own await: the user
     // can sit on a native dialog for minutes, and taking an app offline deliberately does
     // not wait for in-flight calls (design §2.1).
     const lease = runtime.leaseFor(appId)
+
     try {
       // Fast refusal, so a name that is already gone costs no dialog. The authoritative
       // resolution is the one after it.
       if (!findRef(appId, name)) throw new InvalidArgumentError(`No file named "${name}"`)
+
       const options = {
         title: t('dialog.mini_app_export', { name: runtime.displayNameOf(appId) }),
         defaultPath: suggestedName ?? name
       }
+
       const parent = BrowserWindow.fromWebContents(guest.hostWebContents ?? guest)
+
       const { canceled, filePath } = parent
         ? await dialog.showSaveDialog(parent, options)
         : await dialog.showSaveDialog(options)
+
       if (canceled || !filePath) return { saved: false }
       // BOTH re-checked, because they answer different questions. The lease catches a
       // clear-data or an uninstall that committed while the dialog was open; the ref is
@@ -369,8 +397,10 @@ export const fileCapability = {
       // and once the blob is reclaimed it fails as an unexplained `Internal` instead.
       runtime.assertLeaseValid(lease)
       const ref = findRef(appId, name)
+
       if (!ref) throw new InvalidArgumentError(`No file named "${name}"`)
       await fs.promises.copyFile(application.get('FileManager').getPhysicalPath(ref.fileEntryId), filePath)
+
       return { saved: true }
     } finally {
       release()

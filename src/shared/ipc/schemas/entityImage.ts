@@ -31,4 +31,5 @@ export const LogoImageIntentSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('key'), key: LogoKeySchema }),
   z.strictObject({ kind: z.literal('default') })
 ])
+
 export type LogoImageIntent = z.infer<typeof LogoImageIntentSchema>

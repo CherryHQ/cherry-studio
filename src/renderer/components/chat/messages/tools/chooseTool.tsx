@@ -26,11 +26,14 @@ import { MessageWebSearchToolTitle } from './webSearch/MessageWebSearch'
 const builtinToolsPrefix = 'builtin_'
 const agentMcpToolsPrefix = 'mcp__'
 const agentTools = new Set<string>(Object.values(AgentToolsType))
+
 const AgentExecutionTimeline = React.lazy(async () => {
   // eslint-disable-next-line barrel/closed -- this boundary is intentionally lazy-loaded.
   const module = await import('./agent/AgentExecutionTimeline')
+
   return { default: module.AgentExecutionTimeline }
 })
+
 /** cherry-tools that carry short wire names rather than the `mcp__` prefix. */
 const CHERRY_AGENT_TOOL_NAMES = new Set([
   'web_fetch',
@@ -44,6 +47,7 @@ const CHERRY_AGENT_TOOL_NAMES = new Set([
   MCP_RESOURCE_READ_TOOL_NAME,
   'memory'
 ])
+
 const CHERRY_RUNTIME_BUILTIN_TOOL_NAMES = new Set(
   Object.values(AGENT_RUNTIME_CAPABILITIES).flatMap((caps) => caps.builtinTools().map((tool) => tool.id))
 )
@@ -52,12 +56,15 @@ const isAgentTool = (toolName: string) => {
   if (agentTools.has(toolName) || toolName.startsWith(agentMcpToolsPrefix)) {
     return true
   }
+
   return false
 }
 
 export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | null {
   const toolName = toolResponse.tool.name
+
   if (getAutomationReplKind(toolResponse.tool)) return <MessageAutomationRepl toolResponse={toolResponse} />
+
   if (isMetaToolName(toolName)) {
     return <MessageMetaTool toolResponse={toolResponse} />
   }
@@ -66,12 +73,15 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
   if (toolName === KB_SEARCH_TOOL_NAME) {
     return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
   }
+
   if (toolName === WEB_SEARCH_TOOL_NAME || toolName === PROVIDER_WEB_SEARCH_TOOL_NAME) {
     return <MessageWebSearchToolTitle toolResponse={toolResponse} />
   }
+
   if (isGenerateImageToolName(toolName)) {
     return <MessageGenerateImageToolTitle toolResponse={toolResponse} />
   }
+
   // Short-name tools without a bespoke card render through the standard agent tool-call card.
   if (CHERRY_AGENT_TOOL_NAMES.has(toolName)) {
     return (
@@ -92,6 +102,7 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
   // Historical `builtin_*` prefix kept for messages already stored in DB.
   if (toolName.startsWith(builtinToolsPrefix)) {
     const suffix = toolName.slice(builtinToolsPrefix.length)
+
     switch (suffix) {
       case 'web_search':
       case 'web_search_preview':
@@ -113,5 +124,6 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
       </Suspense>
     )
   }
+
   return null
 }

@@ -120,6 +120,7 @@ function findOption(options: TreeSelectOption[], value: string): TreeSelectOptio
     }
 
     const child = option.children ? findOption(option.children, value) : undefined
+
     if (child) {
       return child
     }
@@ -146,6 +147,7 @@ function toVisibleTree(options: TreeSelectOption[], search: string, filterOption
 
   return options.reduce<VisibleTreeNode[]>((nodes, option) => {
     const children = option.children ? toVisibleTree(option.children, search, filterOption) : []
+
     const matches = !normalizedSearch
       ? true
       : filterOption
@@ -191,6 +193,7 @@ export function TreeSelect({
   const [internalOpen, setInternalOpen] = React.useState(false)
   const [internalValue, setInternalValue] = React.useState(defaultValue)
   const [search, setSearch] = React.useState('')
+
   const [internalExpandedValues, setInternalExpandedValues] = React.useState<string[]>(() => {
     if (defaultExpandedValues) {
       return defaultExpandedValues
@@ -198,16 +201,19 @@ export function TreeSelect({
 
     return defaultExpandAll ? collectExpandableValues(treeData) : []
   })
+
   const searchInputRef = React.useRef<HTMLInputElement>(null)
 
   const value = controlledValue ?? internalValue
   const selectedOption = value !== undefined ? findOption(treeData, value) : undefined
   const expandedValues = controlledExpandedValues ?? internalExpandedValues
   const expandedSet = React.useMemo(() => new Set(expandedValues), [expandedValues])
+
   const visibleTree = React.useMemo(
     () => toVisibleTree(treeData, search, filterOption),
     [filterOption, search, treeData]
   )
+
   const triggerWidth = width ? (typeof width === 'number' ? `${width}px` : width) : undefined
   const state = disabled ? 'disabled' : error ? 'error' : 'default'
   const hasSearch = search.trim().length > 0
@@ -251,6 +257,7 @@ export function TreeSelect({
       if (option.children?.length) {
         toggleExpanded(option.value)
       }
+
       return
     }
 

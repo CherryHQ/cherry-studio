@@ -39,7 +39,9 @@ export interface SmoothScrollController {
 
 const DEFAULT_FRAMES = 50
 const DEFAULT_EASING = (t: number): number => 1 - 2 ** (-10 * t)
+
 type RafLike = (cb: FrameRequestCallback) => number
+
 type CafLike = (handle: number) => void
 
 interface UseSmoothScrollAnimationOptions {
@@ -70,12 +72,14 @@ export function useSmoothScrollAnimation(
       cancelFrame(rafIdRef.current)
       rafIdRef.current = null
     }
+
     animatingRef.current = false
   }, [cancelFrame])
 
   const scrollTo = useCallback(
     (getTargetOffset: () => number, options: SmoothScrollOptions = {}) => {
       const el = scrollerRef.current
+
       if (!el) return
 
       // Cancel any previous animation; we always animate toward the latest
@@ -92,9 +96,11 @@ export function useSmoothScrollAnimation(
 
       const step = (): void => {
         const node = scrollerRef.current
+
         if (!node) {
           animatingRef.current = false
           rafIdRef.current = null
+
           return
         }
 
@@ -112,6 +118,7 @@ export function useSmoothScrollAnimation(
           animatingRef.current = false
           rafIdRef.current = null
           onComplete?.()
+
           return
         }
 

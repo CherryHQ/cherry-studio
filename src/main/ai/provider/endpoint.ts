@@ -34,6 +34,7 @@ export interface ResolvedEndpoint {
  */
 export function resolveWireModelId(model: Model, endpointType: EndpointType | undefined): string {
   const rawId = getRawModelId(model)
+
   return endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? rawId.replace(/^models\//, '') : rawId
 }
 
@@ -57,16 +58,20 @@ export function resolveEffectiveEndpoint(
   preferredEndpointType?: EndpointType
 ): ResolvedEndpoint {
   const gatewayRoute = resolveGatewayRoute(provider, model)
+
   const preferred =
     preferredEndpointType &&
     model.endpointTypes?.includes(preferredEndpointType) &&
     provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
       ? preferredEndpointType
       : undefined
+
   const endpointType =
     preferred ?? model.endpointTypes?.[0] ?? gatewayRoute?.endpointType ?? provider.defaultChatEndpoint
+
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
+
   return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }
 }
 
@@ -79,11 +84,13 @@ export function resolveProviderVariant(
 
   if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS || endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) {
     const chatVariant = `${baseProviderId}-chat`
+
     if (chatVariant in appProviderIds) return appProviderIds[chatVariant]
   }
 
   if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
     const responsesVariant = `${baseProviderId}-responses`
+
     if (responsesVariant in appProviderIds) return appProviderIds[responsesVariant]
   }
 
@@ -92,12 +99,15 @@ export function resolveProviderVariant(
 
 export function resolveAiSdkProviderId(provider: Provider, endpointType: EndpointType | undefined): AppProviderId {
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
+
   if (adapterFamily && adapterFamily in appProviderIds) {
     return resolveProviderVariant(appProviderIds[adapterFamily], endpointType)
   }
+
   if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
     return appProviderIds['open-responses']
   }
+
   return appProviderIds['openai-compatible']
 }
 
@@ -151,8 +161,11 @@ export function resolveProviderOptionsKey(
     case SystemProviderIds.dmxapi:
     case SystemProviderIds.gateway:
       if (context?.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return 'anthropic'
+
       if (context?.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) return 'google'
+
       if (context?.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) return 'openai'
+
       return providerId
     default:
       return providerId

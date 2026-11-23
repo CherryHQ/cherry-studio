@@ -65,6 +65,7 @@ const serializedErrorSchema: z.ZodType<SerializedError> = z
 export function agentSessionForkFailureReason(e: unknown) {
   if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED) return undefined
   const reason = e.data && typeof e.data === 'object' && 'reason' in e.data ? e.data.reason : undefined
+
   return isAgentSessionForkFailureReason(reason) ? reason : undefined
 }
 
@@ -78,13 +79,16 @@ export function agentSessionForkFailureReason(e: unknown) {
 export function aiErrorDetail(e: unknown): SerializedError | undefined {
   if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_REQUEST_FAILED) return undefined
   const detail = serializedErrorSchema.safeParse(e.data)
+
   return detail.success ? detail.data : undefined
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- IPC calls reject arbitrary values; verify the admission error code and reason vocabulary before returning a category.
 export function aiStreamAdmissionReason(e: unknown): AiStreamAdmissionReason | undefined {
   if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_STREAM_ADMISSION_REJECTED) return undefined
+
   if (!e.data || typeof e.data !== 'object' || !('reason' in e.data)) return undefined
+
   return isAiStreamAdmissionReason(e.data.reason) ? e.data.reason : undefined
 }
 

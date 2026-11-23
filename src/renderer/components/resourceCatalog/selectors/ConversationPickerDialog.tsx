@@ -77,12 +77,14 @@ type ConversationPickerDialogProps<T extends ConversationPickerItem> = {
 }
 
 const CREATE_ACTION_VALUE = '__conversation_picker_create_new__'
+
 // Exactly the keys cmdk moves the highlight with. PageUp/PageDown are deliberately absent: cmdk ignores
 // them, so flagging them as navigation would set an intent that no value change ever clears.
 const NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'Home', 'End'])
 
 function itemMatchesQuery(item: ConversationPickerItem, query: string) {
   const keyword = query.trim().toLowerCase()
+
   if (!keyword) return true
 
   return (
@@ -144,6 +146,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
   const handleNavigationKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
     // An IME sends its own arrow keys while cycling candidates; cmdk skips those, so must we.
     if (event.nativeEvent.isComposing || event.keyCode === 229) return
+
     if (NAVIGATION_KEYS.has(event.key)) userNavigatedRef.current = true
   }, [])
 
@@ -151,6 +154,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
   useLayoutEffect(() => {
     const correction = pendingCorrectionRef.current
     pendingCorrectionRef.current = null
+
     if (correction && correction !== activeValue) setActiveValue(correction)
   }, [activeValue])
 
@@ -165,6 +169,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
       matchedItems.some((item) => item.name.trim().toLowerCase() === trimmedQuery.toLowerCase()),
     [matchedItems, trimmedQuery]
   )
+
   const showCreateRow = hasCreateAction && !hasExactNameMatch
 
   // Reset the paged window whenever the query or source list changes (e.g. switching tabs) or on reopen,
@@ -174,11 +179,13 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
     if (pageSize) setVisibleCount(pageSize)
     const firstMatchId = matchedItems[0]?.id ?? null
     firstMatchIdRef.current = trimmedQuery ? firstMatchId : null
+
     if (trimmedQuery) {
       setActiveValue(firstMatchId ?? (showCreateRow ? CREATE_ACTION_VALUE : ''))
     } else {
       setActiveValue(showCreateRow ? CREATE_ACTION_VALUE : (firstMatchId ?? ''))
     }
+
     // Re-arm the highlight takeover: a key or pointer that cmdk ignored (PageUp, an IME arrow, an arrow at
     // the list's edge) would otherwise leave the flag stuck on, and the next auto-select would go uncorrected.
     userNavigatedRef.current = false
@@ -186,6 +193,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
 
   const visibleItems = useMemo(() => {
     if (pageSize) return matchedItems.slice(0, visibleCount)
+
     return matchedItems
   }, [matchedItems, pageSize, visibleCount])
 
@@ -199,7 +207,9 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
   const handleScroll = useCallback(() => {
     if (!pageSize || !hasMore) return
     const el = scrollRef.current
+
     if (!el) return
+
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) {
       setVisibleCount((count) => count + pageSize)
     }

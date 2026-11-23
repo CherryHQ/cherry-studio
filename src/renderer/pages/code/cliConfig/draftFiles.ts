@@ -28,16 +28,20 @@ export async function readConfigFilesForDraft(
   files: CliConfigFileDraft[] | undefined
 ): Promise<CliConfigReadFiles> {
   const read = await readConfigFiles(targets.filter((target) => !getDraftFile(files, target)))
+
   for (const target of targets) {
     const draft = getDraftFile(files, target)
+
     if (draft && !read.has(target)) read.set(target, { path: draft.path, content: draft.content })
   }
+
   return read
 }
 
 /** Draft entry for freshly-rendered content; the path is the main-resolved one from the batch read. */
 export function makeDraftFile(target: CliConfigTarget, content: string, read: CliConfigReadFiles): CliConfigFileDraft {
   const spec = CLI_CONFIG_FILE_SPECS[target]
+
   return { target, label: spec.label, path: requireReadFile(target, read).path, language: spec.language, content }
 }
 
@@ -48,7 +52,9 @@ export function readDraftFileText(
   read: CliConfigReadFiles
 ): string {
   const draft = getDraftFile(files, target)
+
   if (draft) return draft.content
+
   return requireReadFile(target, read).content ?? ''
 }
 
@@ -60,6 +66,7 @@ export function readAndParseDraftFile<T>(
   read: CliConfigReadFiles
 ): T {
   const content = readDraftFileText(target, files, read)
+
   try {
     return parseFn(content)
   } catch (err) {
@@ -79,6 +86,7 @@ export function parseDraftFileOrThrow<T>(
 ): T {
   const draft = getDraftFile(files, target)
   const spec = CLI_CONFIG_FILE_SPECS[target]
+
   try {
     return parseFn(draft?.content ?? '')
   } catch (err) {

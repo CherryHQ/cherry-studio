@@ -27,11 +27,13 @@ import type { ScheduledTaskResult } from './scheduledTaskResult'
 // Loaded on first edit: the editor pulls in selectors and lists that most cards never open.
 const TaskFormDialog = lazy(async () => {
   const module = await import('@renderer/components/ScheduledTask/TaskFormDialog')
+
   return { default: module.TaskFormDialog }
 })
 
 function formatNextRun(value: string) {
   const date = new Date(value)
+
   const time = date.toLocaleString(undefined, {
     month: 'numeric',
     day: 'numeric',
@@ -39,10 +41,12 @@ function formatNextRun(value: string) {
     minute: '2-digit',
     hour12: false
   })
+
   // Some locales place an inline zone name mid-date ("10/16 GMT+8 21:00"); append it instead.
   const zone = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' })
     .formatToParts(date)
     .find((part) => part.type === 'timeZoneName')?.value
+
   return zone ? `${time} (${zone})` : time
 }
 
@@ -54,6 +58,7 @@ export function ScheduledTaskToolInline({ result }: { result: ScheduledTaskResul
 
   if (task && !isDeleted) return <ScheduledTaskCard task={task} />
   const Icon = isDeleted ? CalendarX2 : CalendarClock
+
   return (
     <div className="my-2 flex w-full max-w-lg items-start gap-2.5 rounded-lg border border-border-subtle bg-card p-3">
       <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
@@ -90,12 +95,15 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskListItem }) {
   const [busy, setBusy] = useState(false)
 
   const agents = useMemo(() => [{ id: task.agentId, name: agent?.name ?? task.agentId }], [agent?.name, task])
+
   const channelNames = (task.channelIds ?? []).map(
     (channelId) => channels.find((channel) => channel.id === channelId)?.name || channelId
   )
+
   const isCompleted = task.status === 'completed'
   const canToggle = task.status === 'active' || task.status === 'paused'
   const isRunning = lastRun?.status === 'running' || lastRun?.status === 'queued'
+
   const statusLabel = isCompleted
     ? t('agent.tasks.card.triggered')
     : task.status === 'active'
@@ -103,17 +111,21 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskListItem }) {
       : task.status === 'paused'
         ? t('agent.tasks.status.paused')
         : t('agent.tasks.status.missed')
+
   const { trigger } = task
   const isOnce = trigger.kind === 'once'
+
   // A one-time run's date is its schedule, so it is shown once instead of repeating as "next run".
   const schedule =
     trigger.kind === 'once'
       ? `${t('agent.tasks.schedule.once')} · ${formatNextRun(new Date(trigger.at).toISOString())}`
       : getTriggerSummary(trigger, t)
+
   const nextRun = !isOnce && task.status === 'active' && task.nextRun ? formatNextRun(task.nextRun) : undefined
 
   const runExclusive = async <TResult,>(operation: () => Promise<TResult>) => {
     setBusy(true)
+
     try {
       await operation()
     } finally {

@@ -13,6 +13,7 @@ import type { OutputFormat } from './adapters'
 const logger = loggerService.withContext('ApiGatewayErrors')
 
 const providerDetails = Symbol('internal provider details')
+
 type ProviderDetails = {
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SDK data fallback may contain native values; authenticated dialect serialization owns its final JSON representation.
   body: Record<string, unknown>
@@ -34,18 +35,22 @@ export function internalGatewayError(error: unknown, fallback: SerializedError):
   const api = APICallError.isInstance(error) ? error : undefined
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Parsed JSON and the SDK data fallback merge here; native fallback values must survive until dialect serialization.
   let body: Record<string, unknown> = {}
+
   try {
     body = record(JSON.parse(api?.responseBody ?? '')) ?? {}
   } catch {
     body = record(api?.data) ?? (api?.responseBody ? { message: api.responseBody } : {})
   }
+
   const cause = error.cause instanceof Error ? error.cause : undefined
   const causeCode = record(cause)?.code
+
   const headers = Object.fromEntries(
     Object.entries(api?.responseHeaders ?? {}).filter(([name]) =>
       /^(retry-after|request-id|x-request-id|(?:x-|anthropic-)?ratelimit-[a-z0-9-]+)$/i.test(name)
     )
   )
+
   const detail = {
     ...(causeCode !== undefined && { code: causeCode }),
     ...(record(body.error) ?? body),
@@ -53,6 +58,7 @@ export function internalGatewayError(error: unknown, fallback: SerializedError):
       cause: { name: cause.name, message: cause.message, ...(typeof causeCode === 'string' && { code: causeCode }) }
     })
   }
+
   return {
     ...fallback,
     message: error.message,
@@ -63,6 +69,7 @@ export function internalGatewayError(error: unknown, fallback: SerializedError):
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw gateway failures may omit the private metadata marker; its value is owned by internalGatewayError in this module.
 function detailsOf(error: unknown): ProviderDetails | undefined {
   if (error === null || typeof error !== 'object' || !(providerDetails in error)) return undefined
+
   // SAFETY: Only internalGatewayError writes this module-private symbol, with a complete ProviderDetails value.
   return error[providerDetails] as ProviderDetails
 }
@@ -76,9 +83,13 @@ const messageOf = (error: unknown, fallback: string): string =>
 /** Map an HTTP status to the provider-dialect error `type`. */
 const typeForStatus = (status: number): string => {
   if (status === 401 || status === 403) return 'authentication_error'
+
   if (status === 404) return 'not_found_error'
+
   if (status === 429) return 'rate_limit_error'
+
   if (status >= 500) return 'server_error'
+
   return 'invalid_request_error'
 }
 
@@ -91,7 +102,9 @@ const openaiEnvelope = (type: string, message: string, code: string) => ({ error
 /** Cherry REST envelope — mirrors the v2 `DataApiError` vocabulary. */
 const restEnvelope = (code: string, message: string, details?: SerializedDataApiError['details']) => {
   const error: Pick<SerializedDataApiError, 'code' | 'message' | 'details'> = { code, message }
+
   if (details) error.details = details
+
   return { error }
 }
 
@@ -149,6 +162,7 @@ function googleStatusName(status: number): string {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown and streamed failures include non-Error values and serialized error objects; normalize only checked fields before writing client envelopes.
 function extractError(error: unknown) {
   if (error === null || typeof error !== 'object') return {}
+
   const e = error as {
     name?: unknown
     code?: unknown
@@ -158,15 +172,19 @@ function extractError(error: unknown) {
     providerErrorCategory?: unknown
     error?: { type?: unknown; message?: unknown }
   }
+
   // Prefer `status` (HTTP libs / OpenAI APIError), then `statusCode` (AI-SDK APICallError / SerializedError).
   const status = typeof e.status === 'number' ? e.status : typeof e.statusCode === 'number' ? e.statusCode : undefined
+
   // Prefer a structured provider message, then the error's own `message`.
   const message =
     typeof e.error?.message === 'string' ? e.error.message : typeof e.message === 'string' ? e.message : undefined
+
   const type = typeof e.error?.type === 'string' ? e.error.type : undefined
   const name = typeof e.name === 'string' ? e.name : undefined
   const code = typeof e.code === 'string' ? e.code : undefined
   const category = typeof e.providerErrorCategory === 'string' ? e.providerErrorCategory : undefined
+
   return { status, message, type, name, code, category }
 }
 
@@ -179,7 +197,9 @@ function extractError(error: unknown) {
  */
 function safeMessage(status: number | undefined, message: string | undefined): string {
   const fallback = 'Internal server error'
+
   if (status !== undefined) return message && message.length > 0 ? message : fallback
+
   return isDev && message && message.length > 0 ? message : fallback
 }
 
@@ -191,13 +211,17 @@ function normalizeProviderError(error: unknown) {
   const message = typeof details?.error.message === 'string' ? details.error.message : extracted.message
   const type = typeof details?.error.type === 'string' ? details.error.type : extracted.type
   let requestId: string | undefined
+
   try {
     const candidate = record(error)?.request_id
+
     if (typeof candidate === 'string') requestId = candidate
   } catch {
     requestId = undefined
   }
+
   const presentation = { type, details, requestId }
+
   if (status !== undefined)
     return {
       ...presentation,
@@ -208,6 +232,7 @@ function normalizeProviderError(error: unknown) {
           : safeMessage(status, message),
       category
     }
+
   if (name === 'AI_InvalidArgumentError') {
     return {
       ...presentation,
@@ -215,6 +240,7 @@ function normalizeProviderError(error: unknown) {
       message: getSafeProviderErrorMessage({ message }) || 'Invalid request parameters'
     }
   }
+
   if (
     name === 'TimeoutError' ||
     message === 'Upstream idle timeout exceeded' ||
@@ -223,18 +249,24 @@ function normalizeProviderError(error: unknown) {
   ) {
     return { ...presentation, statusCode: 504, message: 'Upstream request timed out' }
   }
+
   if (name === 'AbortError' || name === 'ResponseAborted' || code === 'ABORT_ERR') {
     return { ...presentation, statusCode: 504, message: 'Upstream stream aborted' }
   }
+
   return { ...presentation, statusCode: 500, message: details && message ? message : safeMessage(undefined, message) }
 }
 
 /** Anthropic error `type` for a status (the Anthropic vocabulary uses `api_error` for 5xx). */
 const anthropicTypeForStatus = (status: number): string => {
   if (status === 401 || status === 403) return 'authentication_error'
+
   if (status === 404) return 'not_found_error'
+
   if (status === 429) return 'rate_limit_error'
+
   if (status >= 500) return 'api_error'
+
   return 'invalid_request_error'
 }
 
@@ -242,6 +274,7 @@ function transformAnthropicError(error: ReturnType<typeof normalizeProviderError
   const { statusCode, message, type, details, requestId } = error
   const category = 'category' in error ? error.category : undefined
   const errorType = type ?? anthropicTypeForStatus(statusCode)
+
   const clientMessage =
     details &&
     statusCode === 400 &&
@@ -249,6 +282,7 @@ function transformAnthropicError(error: ReturnType<typeof normalizeProviderError
     !message.toLowerCase().includes('prompt is too long')
       ? `Prompt is too long: ${message}`
       : message
+
   return {
     statusCode,
     errorResponse: {
@@ -262,16 +296,22 @@ function transformAnthropicError(error: ReturnType<typeof normalizeProviderError
 /** OpenAI error `{ type, code }` for a status. */
 const openaiTypeAndCodeForStatus = (status: number) => {
   if (status === 401) return { type: 'authentication_error', code: 'invalid_api_key' }
+
   if (status === 403) return { type: 'forbidden_error', code: 'forbidden' }
+
   if (status === 404) return { type: 'not_found_error', code: 'not_found' }
+
   if (status === 429) return { type: 'rate_limit_error', code: 'rate_limit_exceeded' }
+
   if (status >= 500) return { type: 'server_error', code: 'internal_error' }
+
   return { type: 'invalid_request_error', code: 'bad_request' }
 }
 
 function transformOpenAiError(error: ReturnType<typeof normalizeProviderError>) {
   const { statusCode, message, details } = error
   const category = 'category' in error ? error.category : undefined
+
   // OpenAI's own quota code: clients such as Pi treat it as final instead of retrying a rate limit.
   const { type, code } =
     category === 'quota'
@@ -279,6 +319,7 @@ function transformOpenAiError(error: ReturnType<typeof normalizeProviderError>) 
       : statusCode === 400 && category === 'context_length'
         ? { type: 'invalid_request_error', code: 'context_length_exceeded' }
         : openaiTypeAndCodeForStatus(statusCode)
+
   return {
     statusCode,
     errorResponse: {
@@ -295,6 +336,7 @@ function transformOpenAiError(error: ReturnType<typeof normalizeProviderError>) 
 
 function transformGoogleError(error: ReturnType<typeof normalizeProviderError>) {
   const { statusCode, message, details } = error
+
   return {
     statusCode,
     errorResponse: {
@@ -317,24 +359,32 @@ function transformGoogleError(error: ReturnType<typeof normalizeProviderError>) 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown and streamed failures include non-Error values and serialized error objects; normalize only checked fields before writing client envelopes.
 export function buildStreamErrorFrame(outputFormat: OutputFormat, error: unknown): string {
   const normalized = normalizeProviderError(error)
+
   if (outputFormat === 'anthropic') {
     const { errorResponse } = transformAnthropicError(normalized)
+
     return `event: error\ndata: ${JSON.stringify(errorResponse)}\n\n`
   }
+
   if (outputFormat === 'gemini') {
     // Gemini SSE delivers a mid-stream error as a plain `data:` frame carrying the
     // standard error envelope (no named event).
     const { errorResponse } = transformGoogleError(normalized)
+
     return `data: ${JSON.stringify(errorResponse)}\n\n`
   }
+
   const { errorResponse } = transformOpenAiError(normalized)
+
   if (outputFormat === 'openai-responses') {
     // Responses streams use named events; `type: 'error'` is the event discriminator,
     // distinct from the OpenAI error `type` (carried as part of the message envelope).
     const { message, code } = errorResponse.error
     const details = normalized.details
+
     return `event: error\ndata: ${JSON.stringify({ ...details?.body, type: 'error', code, message, ...(details && { error: errorResponse.error }) })}\n\n`
   }
+
   return `data: ${JSON.stringify(errorResponse)}\n\n`
 }
 
@@ -347,20 +397,25 @@ export function anthropicErrorHandler({ code, error, status }: GatewayErrorConte
   if (code === 'VALIDATION') {
     const issue = error instanceof ValidationError ? error.all[0] : undefined
     const message = issue ? `${issue.path}: ${issue.message}` : 'Invalid request parameters'
+
     return status(400, anthropicEnvelope('invalid_request_error', message))
   }
+
   if (code === 'NOT_FOUND') {
     return status(404, anthropicEnvelope('not_found_error', 'Not found'))
   }
+
   if (code === 'PARSE') {
     return status(400, anthropicEnvelope('invalid_request_error', 'Malformed request body'))
   }
+
   if (error instanceof DataApiError) {
     return status(error.status, anthropicEnvelope(typeForStatus(error.status), error.message))
   }
 
   logger.error('API gateway request error', { code, error })
   const { statusCode, errorResponse } = transformAnthropicError(normalizeProviderError(error))
+
   return status(statusCode, errorResponse)
 }
 
@@ -376,18 +431,22 @@ export function openaiErrorHandler({ code, error, status }: GatewayErrorContext)
       openaiEnvelope('invalid_request_error', messageOf(error, 'Invalid request parameters'), 'invalid_parameters')
     )
   }
+
   if (code === 'NOT_FOUND') {
     return status(404, openaiEnvelope('not_found_error', 'Not found', 'not_found'))
   }
+
   if (code === 'PARSE') {
     return status(400, openaiEnvelope('invalid_request_error', 'Malformed request body', 'parse_error'))
   }
+
   if (error instanceof DataApiError) {
     return status(error.status, openaiEnvelope(typeForStatus(error.status), error.message, error.code.toLowerCase()))
   }
 
   logger.error('API gateway request error', { code, error })
   const { statusCode, errorResponse } = transformOpenAiError(normalizeProviderError(error))
+
   return status(statusCode, errorResponse)
 }
 
@@ -400,18 +459,22 @@ export function googleErrorHandler({ code, error, status }: GatewayErrorContext)
   if (code === 'VALIDATION') {
     return status(400, googleEnvelope(400, messageOf(error, 'Invalid request parameters')))
   }
+
   if (code === 'NOT_FOUND') {
     return status(404, googleEnvelope(404, 'Not found'))
   }
+
   if (code === 'PARSE') {
     return status(400, googleEnvelope(400, 'Malformed request body'))
   }
+
   if (error instanceof DataApiError) {
     return status(error.status, googleEnvelope(error.status, error.message))
   }
 
   logger.error('API gateway request error', { code, error })
   const { statusCode, errorResponse } = transformGoogleError(normalizeProviderError(error))
+
   return status(statusCode, errorResponse)
 }
 
@@ -425,20 +488,25 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (error instanceof DataApiError) {
     return status(error.status, restEnvelope(error.code, error.message, error.details))
   }
+
   if (code === 'VALIDATION') {
     return status(422, restEnvelope('VALIDATION_ERROR', messageOf(error, 'Invalid request parameters')))
   }
+
   if (code === 'NOT_FOUND') {
     return status(404, restEnvelope('NOT_FOUND', 'Not found'))
   }
+
   if (code === 'PARSE') {
     return status(400, restEnvelope('BAD_REQUEST', 'Malformed request body'))
   }
 
   // Preserve classified HTTP status from errors that carry it (e.g. idle timeout → 504).
   const explicitStatus = (error as { status?: number })?.status
+
   if (explicitStatus && explicitStatus >= 500 && explicitStatus !== 500) {
     const statusCode = explicitStatus
+
     return status(
       statusCode,
       restEnvelope(
@@ -453,6 +521,7 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   }
 
   logger.error('API gateway request error', { code, error })
+
   // Don't leak raw internal error messages to clients in production.
   return status(
     500,
@@ -473,17 +542,21 @@ function mcpErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (code === 'PARSE') {
     return status(400, jsonRpcEnvelope(ProtocolErrorCode.ParseError, 'Parse error'))
   }
+
   if (code === 'VALIDATION') {
     return status(400, jsonRpcEnvelope(ProtocolErrorCode.InvalidRequest, messageOf(error, 'Invalid Request')))
   }
+
   if (code === 'NOT_FOUND') {
     return status(404, jsonRpcEnvelope(MCP_TRANSPORT_ERROR, 'Not found'))
   }
+
   if (error instanceof DataApiError) {
     return status(error.status, jsonRpcEnvelope(MCP_TRANSPORT_ERROR, error.message))
   }
 
   logger.error('API gateway request error', { code, error })
+
   return status(
     500,
     jsonRpcEnvelope(ProtocolErrorCode.InternalError, isDev ? messageOf(error, 'Internal error') : 'Internal error')
@@ -496,15 +569,21 @@ const MCP_PROXY_PATH = /^\/v1\/mcps\/[^/]+\/mcp$/
 /** Select the response dialect from the request path. */
 function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | 'mcp' | 'rest' {
   let pathname = ''
+
   try {
     pathname = new URL(request.url).pathname
   } catch {
     return 'rest'
   }
+
   if (pathname.startsWith('/v1/messages')) return 'anthropic'
+
   if (pathname.startsWith('/v1/chat') || pathname.startsWith('/v1/responses')) return 'openai'
+
   if (pathname.startsWith('/v1beta')) return 'google'
+
   if (MCP_PROXY_PATH.test(pathname)) return 'mcp'
+
   return 'rest'
 }
 
@@ -519,8 +598,11 @@ export function gatewayErrorHandler(ctx: GatewayErrorContext) {
   if (ctx.code === 'PARSE' && ctx.error.cause instanceof ElysiaCustomStatusResponse) {
     return ctx.error.cause
   }
+
   const details = detailsOf(ctx.error)
+
   if (details && ctx.set) Object.assign(ctx.set.headers, details.headers)
+
   switch (dialectForPath(ctx.request)) {
     case 'anthropic':
       return anthropicErrorHandler(ctx)

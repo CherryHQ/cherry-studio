@@ -1,7 +1,9 @@
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 export type DiagnosticFileSourceKind = 'logs' | 'traces'
+
 export type DiagnosticSourceKind = DiagnosticFileSourceKind | 'chatRecords'
+
 export type DiagnosticWarning =
   | 'malformed_lines'
   | 'scan_failed'

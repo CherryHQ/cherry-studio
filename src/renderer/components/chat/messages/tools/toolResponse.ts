@@ -19,15 +19,19 @@ export const APPROVAL_REQUESTED = 'approval-requested'
 export const APPROVAL_RESPONDED = 'approval-responded'
 export const CLAUDE_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
 export const PI_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
+
 const CHERRY_AGENT_TRANSPORTS = new Set<string>([
   ...Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport),
   'dsh-agent'
 ])
+
 const PI_RUNTIME_BUILTIN_TOOL_NAMES = new Set<string>(
   AGENT_RUNTIME_CAPABILITIES.pi.builtinTools().map((tool) => tool.id)
 )
+
 const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
 const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
+
 const CHERRY_RUNTIME_TOOL_RENDER_NAMES = new Map<string, AgentToolsType>([
   ['bash', AgentToolsType.Bash],
   ['pwsh', AgentToolsType.Bash],
@@ -64,7 +68,9 @@ export function getCanonicalToolName(part: CherryMessagePart): string | undefine
   if (!isToolUIPart(part)) return undefined
   const toolPart = part
   const toolName = getToolName(toolPart).trim()
+
   if (!toolName) return undefined
+
   if (
     toolPart.callProviderMetadata?.cherry?.transport === PI_AGENT_TRANSPORT &&
     toolName === 'edit' &&
@@ -73,6 +79,7 @@ export function getCanonicalToolName(part: CherryMessagePart): string | undefine
   ) {
     return AgentToolsType.MultiEdit
   }
+
   return hasCherryTransport(toolPart.callProviderMetadata)
     ? (CHERRY_RUNTIME_TOOL_RENDER_NAMES.get(toolName) ?? toolName)
     : toolName
@@ -117,7 +124,9 @@ function extractCherryToolMetadataFrom(metadata: unknown): ToolMetadata | undefi
   if (!isRecord(metadata)) return undefined
   const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined
   const tool = cherry && isRecord(cherry.tool) ? cherry.tool : undefined
+
   if (!tool) return undefined
+
   return {
     description: typeof tool.description === 'string' ? tool.description : undefined,
     name: typeof tool.name === 'string' ? tool.name : undefined,
@@ -130,6 +139,7 @@ function extractCherryToolMetadataFrom(metadata: unknown): ToolMetadata | undefi
 function extractCherryToolMetadata(part: ToolResponsePart): ToolMetadata | undefined {
   const resultProviderMetadata = 'resultProviderMetadata' in part ? part.resultProviderMetadata : undefined
   const toolMetadata = 'toolMetadata' in part ? part.toolMetadata : undefined
+
   return (
     extractCherryToolMetadataFrom(toolMetadata) ??
     extractCherryToolMetadataFrom(part.callProviderMetadata) ??
@@ -140,17 +150,21 @@ function extractCherryToolMetadata(part: ToolResponsePart): ToolMetadata | undef
 function extractParentToolCallIdFrom(metadata: ProviderMetadata | undefined): string | undefined {
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- Persisted metadata can predate the SDK contract; check its container before reading parent IDs.
   if (!isRecord(metadata)) return undefined
+
   // claude's own namespace first, then the runtime-neutral one (dsh et al.).
   for (const namespace of ['claude-code', 'cherry'] as const) {
     const entry = isRecord(metadata[namespace]) ? metadata[namespace] : undefined
     const parentToolCallId = entry?.parentToolCallId ?? entry?.parentToolUseId
+
     if (typeof parentToolCallId === 'string' && parentToolCallId) return parentToolCallId
   }
+
   return undefined
 }
 
 function extractParentToolUseId(part: ToolResponsePart): string | undefined {
   const resultProviderMetadata = 'resultProviderMetadata' in part ? part.resultProviderMetadata : undefined
+
   return extractParentToolCallIdFrom(part.callProviderMetadata) ?? extractParentToolCallIdFrom(resultProviderMetadata)
 }
 
@@ -158,22 +172,35 @@ function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- Persisted metadata can predate the SDK contract; check its container before reading runtime identity.
   if (!isRecord(metadata)) return false
   const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined
+
   return typeof cherry?.transport === 'string' && CHERRY_AGENT_TRANSPORTS.has(cherry.transport)
 }
 
 function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: ToolMetadata): ToolType {
   if (isMetaToolName(toolName)) return 'builtin'
+
   if (AGENT_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
+
   if (PI_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
+
   if (metadata?.type) return metadata.type
+
   if (parseFunctionCallToolName(toolName)) return 'mcp'
+
   if (toolName === GENERATE_IMAGE_TOOL_NAME) return 'builtin'
+
   if (toolPartWasProviderExecuted(part)) return 'provider'
+
   if (hasProviderMetadata(part, 'claude-code')) return 'provider'
+
   if (hasCherryTransport(part.callProviderMetadata)) return 'provider'
+
   if (part.type === 'dynamic-tool' && isLegacyAgentToolName(toolName)) return 'provider'
+
   if (part.type === 'dynamic-tool') return 'mcp'
+
   if (toolName.startsWith('builtin_')) return 'builtin'
+
   return 'builtin'
 }
 
@@ -186,6 +213,7 @@ function buildMcpToolDescriptor(toolName: string, metadata?: ToolMetadata): McpT
   const serverId = metadata?.serverId ?? parsed?.serverPart ?? 'unknown'
   const serverName = metadata?.serverName ?? parsed?.serverPart ?? 'MCP'
   const displayName = metadata?.name ?? parsed?.toolPart ?? toolName
+
   return {
     id: `${serverId}__${toolName}`,
     name: displayName,
@@ -203,6 +231,7 @@ function buildBaseToolDescriptor(toolType: Exclude<ToolType, 'mcp'>, toolCallId:
     name: toolName,
     type: toolType
   }
+
   return baseTool
 }
 
@@ -215,6 +244,7 @@ export function normalizeToolErrorResponse(errorText: string): z.infer<typeof Ca
 
 function normalizeErrorOutput(part: ToolResponsePart): z.infer<typeof CallToolResultSchema> | undefined {
   if (part.state !== 'output-error') return undefined
+
   return normalizeToolErrorResponse(part.errorText)
 }
 
@@ -223,6 +253,7 @@ function normalizePiFileInput(
   input: Exclude<NormalToolResponse['arguments'], string | unknown[] | undefined>
 ) {
   if (name !== 'read' && name !== 'write' && name !== 'edit') return input
+
   if (name === 'edit' && Array.isArray(input.edits)) {
     return {
       ...input,
@@ -232,11 +263,14 @@ function normalizePiFileInput(
       )
     }
   }
+
   const normalized = {
     ...input,
     file_path: input.path
   }
+
   if (name === 'edit') Object.assign(normalized, { old_string: input.oldText, new_string: input.newText })
+
   return normalized
 }
 
@@ -245,13 +279,17 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
 
   const toolPart = part
   const toolCallId = toolPart.toolCallId || fallbackId
+
   if (!toolCallId) return null
   const toolName = normalizeToolName(toolPart)
   let approval: ToolResponseLike['approval']
+
   if (typeof toolPart.approval?.approved === 'boolean') {
     approval = { approved: toolPart.approval.approved }
+
     if (typeof toolPart.approval.reason === 'string') approval.reason = toolPart.approval.reason
   }
+
   const status =
     toolPart.state === 'output-available' && toolPart.preliminary
       ? 'invoking'
@@ -266,20 +304,27 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
 
   const partialArguments =
     (status === 'streaming' || status === 'invoking') && typeof toolPart.input === 'string' ? toolPart.input : undefined
+
   const approvalFields: Pick<ToolResponseLike, 'approval'> = {}
+
   if (approval) approvalFields.approval = approval
   const callFields: Pick<NormalToolResponse, 'toolCallId' | 'parentToolUseId' | 'partialArguments'> = { toolCallId }
+
   if (parentToolUseId) callFields.parentToolUseId = parentToolUseId
+
   if (partialArguments) callFields.partialArguments = partialArguments
 
   if (toolType === 'mcp') {
     const piResult = toolPart.state === 'output-error' ? toolPart.resultProviderMetadata?.pi?.result : toolPart.output
+
     const mcpResult = CallToolResultSchema.safeParse(
       toolPart.callProviderMetadata?.cherry?.transport === PI_AGENT_TRANSPORT && isRecord(piResult)
         ? piResult.structuredContent
         : undefined
     )
+
     const tool = buildMcpToolDescriptor(toolName, metadata)
+
     const mcpResponse: McpToolResponse = {
       id: toolCallId,
       tool,
@@ -289,15 +334,18 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
       ...approvalFields,
       ...callFields
     }
+
     return mcpResponse
   }
 
   const tool = buildBaseToolDescriptor(toolType, toolCallId, toolName)
   const input = toolPart.input
+
   const normalizedInput =
     toolPart.callProviderMetadata?.cherry?.transport === PI_AGENT_TRANSPORT && isRecord(input)
       ? normalizePiFileInput(getToolName(toolPart), input)
       : input
+
   const normalResponse: NormalToolResponse = {
     id: toolCallId,
     tool,
@@ -307,12 +355,15 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     ...approvalFields,
     ...callFields
   }
+
   return normalResponse
 }
 
 export function buildToolRenderItemFromPart(part: CherryMessagePart, id: string): ToolRenderItem | null {
   const toolResponse = buildToolResponseFromPart(part, id)
+
   if (!toolResponse) return null
+
   return { id, toolResponse }
 }
 
@@ -336,13 +387,17 @@ export function findToolPartByCallId(
   toolCallId: string | undefined
 ): ToolApprovalMatch | null {
   if (!partsMap || !toolCallId) return null
+
   for (const [messageId, parts] of Object.entries(partsMap)) {
     for (const part of parts) {
       if (!isToolUIPart(part)) continue
       const p = part
+
       if (p.toolCallId !== toolCallId) continue
       const approvalId = p.approval?.id
+
       if (!approvalId) continue
+
       return {
         part,
         state: p.state ?? '',
@@ -353,6 +408,7 @@ export function findToolPartByCallId(
       }
     }
   }
+
   return null
 }
 

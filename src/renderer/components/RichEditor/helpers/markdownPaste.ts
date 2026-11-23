@@ -9,6 +9,7 @@ export function stripImageNodes(doc: JSONContent) {
   const stripNode = (node: JSONContent): JSONContent | null => {
     if (node.type && IMAGE_NODE_TYPES.has(node.type)) {
       removedImages = true
+
       return null
     }
 
@@ -30,12 +31,15 @@ function stripImagesFromFragment(fragment: Fragment) {
   fragment.forEach((node) => {
     if (IMAGE_NODE_TYPES.has(node.type.name)) {
       removedImages = true
+
       return
     }
 
     const child = stripImagesFromFragment(node.content)
+
     if (!child.removedImages) {
       kept.push(node)
+
       return
     }
 
@@ -65,12 +69,15 @@ function stripImagesFromFragment(fragment: Fragment) {
  */
 export function stripImageNodesFromSlice(slice: Slice): Slice {
   const { fragment, removedImages } = stripImagesFromFragment(slice.content)
+
   if (!removedImages) return slice
+
   if (fragment.childCount === 0) return Slice.empty
 
   // `imagePlaceholder` is an atom but not a leaf, so a removed one may have contributed depth to
   // `openStart` / `openEnd`; clamp both to what the rebuilt fragment can actually carry.
   const maxOpen = Slice.maxOpen(fragment)
+
   return new Slice(fragment, Math.min(slice.openStart, maxOpen.openStart), Math.min(slice.openEnd, maxOpen.openEnd))
 }
 
@@ -87,8 +94,10 @@ export function stripImageNodesFromSlice(slice: Slice): Slice {
  */
 export function pickInlinePasteContent(doc: JSONContent | undefined): JSONContent[] | null {
   const blocks = doc?.content
+
   if (blocks?.length === 1 && blocks[0].type === 'paragraph' && blocks[0].content?.length) {
     return blocks[0].content
   }
+
   return null
 }

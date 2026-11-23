@@ -47,6 +47,7 @@ export function MarketplaceSkillDialog({
 }: Props) {
   const { t, i18n } = useTranslation()
   const { mutate: mutateCache } = useSWRConfig()
+
   const {
     data: detail,
     error,
@@ -74,6 +75,7 @@ export function MarketplaceSkillDialog({
       }
     }
   )
+
   if (!skill) return null
   const item = detail ?? skill
   const text = (value: { en: string; zh: string | null }) => localizeMarketplaceText(value, i18n.language)
@@ -81,9 +83,11 @@ export function MarketplaceSkillDialog({
   const source = item.githubRepoUrl || item.sourceUrl
   const validSource = source && /^https?:\/\//i.test(source) ? source : null
   const date = new Date(item.releaseDate)
+
   const published = Number.isNaN(date.getTime())
     ? item.releaseDate
     : new Intl.DateTimeFormat(i18n.resolvedLanguage, { dateStyle: 'medium' }).format(date)
+
   const language = [detail?.longDescription.zh, detail?.longDescription.en]
     .map((description) => description?.match(/^\s*中文适配[：:][ \t]*([^\r\n]*)/m)?.[1].trim())
     .find(Boolean)

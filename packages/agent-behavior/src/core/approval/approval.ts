@@ -17,21 +17,28 @@ export type ApprovalDecision =
 
 const REJECTED_HEADER =
   "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run)."
+
 export const UNATTENDED =
   'This unattended turn cannot request tool approval. Use bypassPermissions or retry interactively.'
+
 const UNATTENDED_REQUIRED = 'This tool always requires user approval and cannot run unattended. Retry interactively.'
+
 /** An `unavailable` answer: the host could reach nobody to decide. */
 export const NOBODY_TO_APPROVE = 'Nobody can approve this tool call now.'
+
 /** The turn stopped while a person was asked; the call never ran. */
 export const ASK_WITHDRAWN = 'The approval request was withdrawn because the turn was stopped.'
+
 export const REPEATED_CALL =
   'The same call has already been executed in this round and its result will not change; change approach or report the concrete blocker.'
+
 export const PLAN_BLOCK =
   'Plan mode is read-only: this call would change something. Finish the plan, then call exit_plan_mode to ask the user to approve it.'
 
 /** D35: the user's own words, set apart so the model never mistakes them for tool output. */
 export const deniedReason = (feedback?: string): string => {
   const said = feedback?.trim()
+
   return said
     ? `${REJECTED_HEADER} To tell you how to proceed, the user said:\n${said}`
     : `${REJECTED_HEADER} Wait for the user's instructions instead of retrying it.`
@@ -40,9 +47,12 @@ export const deniedReason = (feedback?: string): string => {
 /** Plan mode is the host's `plan` permission mode or an active `cherry.plan` record (PR-3d adds the tools that write it). */
 export const planActive = (mode: PermissionMode, plan: PlanState | undefined): boolean =>
   mode === 'plan' || plan?.active === true
+
 export function latestPlan(history: readonly HistoryEntry[]): PlanState | undefined {
   let plan: PlanState | undefined
+
   for (const entry of history) if (entry.kind === 'record' && entry.record.type === 'plan') plan = entry.record.value
+
   return plan
 }
 
@@ -51,24 +61,33 @@ export function repeatBlock(call: GateCall, facts: GateFacts): string | undefine
   if (!facts.goalRound || call.nested) return undefined
   const key = toolCallKey(call.tool, call.args)
   let count = 0
+
   for (let i = facts.callWindow.length - 1; i >= 0; i--) {
     if (toolCallKey(facts.callWindow[i].name, facts.callWindow[i].args) !== key) break
     count++
   }
+
   return count >= BLOCK_REPEAT_AT ? REPEATED_CALL : undefined
 }
 
 /** P7: whether `mode` asks a person for this call; `auto` stops only outside the allowed roots and for destructive shell. */
 function requiresApproval(mode: PermissionMode, tool: string, host: ApprovalHostFacts): boolean {
   if (host.approvalRequired) return true
+
   if (host.category === 'meta') return false
+
   if (mode === 'auto') {
     if (tool === 'bash' || tool === 'powershell') return host.destructive
+
     if (host.category === 'read' || host.category === 'edit') return !host.withinAllowedRoots
+
     return false
   }
+
   if (host.category === 'read') return !host.withinAllowedRoots
+
   if (mode === 'acceptEdits' && host.category === 'edit') return !host.withinAllowedRoots
+
   // `default` and `plan` gate everything else (P13).
   return true
 }
@@ -87,28 +106,40 @@ export function decideApproval(
   plan: PlanState | undefined
 ): ApprovalDecision {
   let mode = permissionMode
+
   if (host.mandatoryBlock) return { kind: 'block', reason: host.mandatoryBlock }
+
   if (host.disabled) return { kind: 'block', reason: `Tool "${call.tool}" is disabled for this agent.` }
+
   if (host.sqliteGuard) return { kind: 'block', reason: host.sqliteGuard }
+
   if (host.delegation === 'unattended')
     return { kind: 'block', reason: 'Cross-Session delegation requires an interactive user turn.' }
+
   if (host.delegation === 'interactive' && mode !== 'auto' && mode !== 'bypassPermissions')
     host = { ...host, approvalRequired: true }
+
   if (host.miseMutation) return { kind: 'block', reason: `Blocked: ${host.miseMutation}.` }
+
   if (host.globalInstall) {
     host = { ...host, approvalRequired: true }
     mode = host.globalInstallPermissionMode ?? mode
   }
+
   const rewritten = host.rewrittenArgs === undefined ? {} : { args: host.rewrittenArgs }
   const autoAllowed = host.autoApproved && !host.approvalRequired
+
   // Plan mode is read-only whatever the permission mode: what would ask in `default` is blocked too.
   if (
     planActive(mode, plan) &&
     (host.category === 'edit' || (!autoAllowed && requiresApproval('default', call.tool, host)))
   )
     return { kind: 'block', reason: PLAN_BLOCK }
+
   if (mode === 'bypassPermissions' && !host.nonBypassable) return { kind: 'allow', ...rewritten }
+
   if (autoAllowed || !requiresApproval(mode, call.tool, host)) return { kind: 'allow', ...rewritten }
+
   if (attendance === 'unavailable') {
     return {
       kind: 'block',
@@ -120,19 +151,24 @@ export function decideApproval(
             : UNATTENDED
     }
   }
+
   const decision: Extract<ApprovalDecision, { kind: 'ask' }> = {
     kind: 'ask',
     presentation: attendance === 'stream' ? 'stream' : 'message',
     ...rewritten
   }
+
   if (host.commandPolicy !== undefined) Object.assign(decision, { details: host.commandPolicy.details })
+
   return decision
 }
 
 /** D35: what the person's answer does to the call; memoized under `cherry.approval:<callKey>`. */
 export function answerVerdict(answer: ApprovalAnswer, args: JsonValue | undefined) {
   if (answer.kind === 'denied') return { block: deniedReason(answer.feedback) } as const
+
   if (answer.kind === 'unavailable') return { block: NOBODY_TO_APPROVE } as const
   const edited = answer.args ?? args
+
   return edited === undefined ? {} : ({ args: edited } as const)
 }

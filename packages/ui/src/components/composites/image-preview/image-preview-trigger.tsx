@@ -23,6 +23,7 @@ export function ImagePreviewTrigger({
 }: ImagePreviewTriggerProps) {
   const [open, setOpen] = React.useState(false)
   const previewItems = React.useMemo(() => items ?? [item], [item, items])
+
   const initialIndex = React.useMemo(
     () =>
       Math.max(
@@ -31,6 +32,7 @@ export function ImagePreviewTrigger({
       ),
     [item.id, previewItems]
   )
+
   const [activeIndex, setActiveIndex] = React.useState(initialIndex)
 
   return (
@@ -40,6 +42,7 @@ export function ImagePreviewTrigger({
         className={cn(preview && 'cursor-zoom-in', className)}
         onClick={(event) => {
           onClick?.(event)
+
           if (!event.defaultPrevented && preview) {
             setActiveIndex(initialIndex)
             setOpen(true)

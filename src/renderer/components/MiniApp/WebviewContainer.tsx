@@ -36,9 +36,11 @@ function useMiniAppPrepared(appid: string, kind: MiniAppKind): PrepareState {
       () => !cancelled && setState('ready'),
       (error) => {
         logger.error('Failed to prepare mini app partition', error)
+
         if (!cancelled) setState('failed')
       }
     )
+
     return () => {
       cancelled = true
     }
@@ -88,11 +90,13 @@ const MiniAppWebview = memo(
 
     const loadedRef = useRef(false)
     const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
     const clearLoadTimer = useCallback(() => {
       if (loadTimerRef.current === null) return
       clearTimeout(loadTimerRef.current)
       loadTimerRef.current = null
     }, [])
+
     useEffect(() => clearLoadTimer, [clearLoadTimer])
 
     const handleLoaded = useCallback(() => {
@@ -103,11 +107,13 @@ const MiniAppWebview = memo(
         onLoadedCallback(appid)
       }, 100)
     }, [appid, onLoadedCallback])
+
     const handleReady = useCallback(() => {
       if (loadedRef.current) return
       loadedRef.current = true
       onLoadedCallback(appid)
     }, [appid, onLoadedCallback])
+
     const handleStartNavigation = useCallback(
       (event: DidStartNavigationEvent) => {
         if (!event.isMainFrame || event.isInPlace) return
@@ -116,6 +122,7 @@ const MiniAppWebview = memo(
       },
       [clearLoadTimer]
     )
+
     const handleFocusChange = useCallback((focused: boolean) => onFocusChange?.(appid, focused), [appid, onFocusChange])
 
     // Print / save-as-HTML for the guest page. Not renderer commands — they act on
@@ -123,18 +130,22 @@ const MiniAppWebview = memo(
     useEffect(() => {
       const handleShortcut = async (event: KeyboardEvent) => {
         if (event.target !== webviewRef.current) return
+
         if (!event.ctrlKey && !event.metaKey) return
 
         const key = event.key.toLowerCase()
+
         if (key !== 'p' && key !== 's') return
 
         const webviewId = webviewRef.current?.getWebContentsId()
+
         if (!webviewId) return
 
         try {
           if (key === 'p') {
             logger.info(`Printing webview ${appid} to PDF`)
             const filePath = await ipcApi.request('webview.print_to_pdf', { webviewId })
+
             if (filePath) {
               toast.success(t('miniApp.shortcut.pdf_saved', { path: filePath }))
               logger.info(`PDF saved to: ${filePath}`)
@@ -142,6 +153,7 @@ const MiniAppWebview = memo(
           } else {
             logger.info(`Saving webview ${appid} as HTML`)
             const filePath = await ipcApi.request('webview.save_as_html', { webviewId })
+
             if (filePath) {
               toast.success(t('miniApp.shortcut.html_saved', { path: filePath }))
               logger.info(`HTML saved to: ${filePath}`)
@@ -154,6 +166,7 @@ const MiniAppWebview = memo(
       }
 
       window.addEventListener('keydown', handleShortcut)
+
       return () => window.removeEventListener('keydown', handleShortcut)
     }, [appid, t])
 
@@ -171,6 +184,7 @@ const MiniAppWebview = memo(
         </div>
       )
     }
+
     if (prepareState === 'preparing') return <div style={WebviewStyle} />
 
     return (

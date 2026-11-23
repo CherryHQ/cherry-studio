@@ -35,6 +35,7 @@ function normalizeArtifactFilePath(file, productName, version, platform, release
   artifactSuffix = artifactSuffix.replace(/^(?:win|windows|mac|linux)-/, '')
 
   const archMatch = /^(aarch64|amd64|arm64|x64|x86_64)(?=[.-])/.exec(artifactSuffix)
+
   if (archMatch) {
     artifactSuffix = `${ARCH_ALIASES[archMatch[1]]}${artifactSuffix.slice(archMatch[1].length)}`
   }
@@ -45,6 +46,7 @@ function normalizeArtifactFilePath(file, productName, version, platform, release
 function artifactBuildCompleted(buildResult) {
   const oldFilePath = buildResult.file
   const edition = buildResult.packager.config.extraMetadata?.cherryEdition ?? 'global'
+
   const newFilePath = normalizeArtifactFilePath(
     oldFilePath,
     buildResult.packager.appInfo.productName,
@@ -57,13 +59,18 @@ function artifactBuildCompleted(buildResult) {
 
   fs.renameSync(oldFilePath, newFilePath)
   buildResult.file = newFilePath
+
   if (buildResult.safeArtifactName != null) {
     buildResult.safeArtifactName = path.basename(newFilePath)
   }
+
   console.log(`[artifact build completed] renamed ${oldFilePath} to ${newFilePath}`)
 }
 
 exports.ARCH_ALIASES = ARCH_ALIASES
+
 exports.PLATFORM_PREFIXES = PLATFORM_PREFIXES
+
 exports.normalizeArtifactFilePath = normalizeArtifactFilePath
+
 exports.default = artifactBuildCompleted

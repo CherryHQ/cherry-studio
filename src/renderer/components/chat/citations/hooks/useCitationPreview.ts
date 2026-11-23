@@ -19,6 +19,7 @@ export const useCitationPreviewSession = (): CitationPreviewSession => {
   const load = React.useCallback(
     (url: string): Promise<void> => {
       const existing = requestsRef.current.get(url)
+
       if (existing) return existing
 
       const request = ipcApi
@@ -31,6 +32,7 @@ export const useCitationPreviewSession = (): CitationPreviewSession => {
         .catch(() => undefined)
 
       requestsRef.current.set(url, request)
+
       return request
     },
     [mutate, requestId]

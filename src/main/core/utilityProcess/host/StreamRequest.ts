@@ -29,6 +29,7 @@ export class StreamRequest implements UtilityProcessStream<
     this.onAbort = () => {
       this.cancelWith(options.signal?.reason)
     }
+
     options.signal?.addEventListener('abort', this.onAbort, { once: true })
   }
 
@@ -44,6 +45,7 @@ export class StreamRequest implements UtilityProcessStream<
 
   cancel(): Promise<void> {
     this.cancelWith(new DOMException('Stream cancelled', 'AbortError'))
+
     return this.closed
   }
 
@@ -58,7 +60,9 @@ export class StreamRequest implements UtilityProcessStream<
   receiveTerminal(outcome: { value: unknown } | { error: unknown }): void {
     if (this.terminal) throw new Error('Duplicate stream terminal')
     this.terminal = true
+
     if (this.failed) return
+
     if ('error' in outcome) this.fail(outcome.error)
     else {
       if (!this.channel.ended) throw new Error('Stream result before output EOF')

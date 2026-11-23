@@ -48,6 +48,7 @@ function isToolGroupItemCompleted(status: ToolResponseLike['status'] | undefined
 // AI-SDK-v6 ToolUIPart state (`approval-requested`) is the sole source of truth.
 function getItemIsWaiting(item: ToolRenderItem, partsMap: Record<string, CherryMessagePart[]> | null): boolean {
   if (item.toolResponse.status !== 'pending') return false
+
   return isToolPartAwaitingApproval(partsMap, item.toolResponse.toolCallId)
 }
 
@@ -57,6 +58,7 @@ function getItemEffectiveStatus(
   partsMap: Record<string, CherryMessagePart[]> | null
 ): ToolStatus {
   const isWaiting = getItemIsWaiting(item, partsMap)
+
   return getEffectiveStatus(item.toolResponse?.status, isWaiting)
 }
 
@@ -105,11 +107,14 @@ const TOOL_GROUP_ICON_BY_NAME: ReadonlyMap<string, LucideIcon> = new Map([
   [AgentToolsType.Workflow, Workflow],
   [AgentToolsType.Write, FileText]
 ])
+
 const TOOL_GROUP_ICON_CLASS_NAME =
   'size-3.5 text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground'
 
 type ToolGroupTool = ToolRenderItem['toolResponse']['tool']
+
 type McpActivityAction = 'analyze' | 'create' | 'delete' | 'execute' | 'modify' | 'search' | 'send' | 'view'
+
 type McpActivityTarget =
   | 'calendar'
   | 'data'
@@ -137,6 +142,7 @@ const MCP_LABEL_KEYS_BY_ACTION: Record<McpActivityAction, [inactive: string, act
   send: ['send', 'sending'],
   view: ['view', 'viewing']
 }
+
 const MCP_ANALYZE_PATTERN = /_(?:analyze|inspect|summarize)_/
 const MCP_CALENDAR_PATTERN = /_(?:calendar|event|schedule)_/
 const MCP_CREATE_PATTERN = /_(?:create|insert|new)_/
@@ -165,14 +171,23 @@ function getMcpRuntimeAction(args: unknown): McpActivityAction | undefined {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
 
   const action = 'action' in args && typeof args.action === 'string' ? normalizeToolSemanticText(args.action) : ''
+
   if (MCP_DELETE_PATTERN.test(action)) return 'delete'
+
   if (MCP_CREATE_PATTERN.test(action) || action === '_add_') return 'create'
+
   if (MCP_MODIFY_PATTERN.test(action)) return 'modify'
+
   if (MCP_SEND_PATTERN.test(action)) return 'send'
+
   if (MCP_ANALYZE_PATTERN.test(action)) return 'analyze'
+
   if (MCP_SEARCH_PATTERN.test(action)) return 'search'
+
   if (MCP_VIEW_PATTERN.test(action)) return 'view'
+
   if (MCP_EXECUTE_PATTERN.test(action)) return 'execute'
+
   return undefined
 }
 
@@ -191,6 +206,7 @@ function getMcpToolGroupPresentation(
 
   let target: McpActivityTarget | undefined
   let icon: LucideIcon = Sparkles
+
   if (MCP_EMAIL_PATTERN.test(targetText)) {
     target = 'email'
     icon = Mail
@@ -215,6 +231,7 @@ function getMcpToolGroupPresentation(
   }
 
   let action = getMcpRuntimeAction(args)
+
   if (!action) {
     if (MCP_DELETE_PATTERN.test(identityText)) action = 'delete'
     else if (MCP_CREATE_PATTERN.test(identityText)) action = 'create'
@@ -244,6 +261,7 @@ export function getToolGroupIcon(tool: ToolGroupTool | undefined, toolArguments?
 
 function ToolGroupContentIcon({ tool, toolArguments }: { tool?: ToolGroupTool; toolArguments?: unknown }) {
   const Icon = getToolGroupIcon(tool, toolArguments)
+
   return <Icon aria-hidden="true" className={TOOL_GROUP_ICON_CLASS_NAME} />
 }
 
@@ -293,6 +311,7 @@ function getMcpToolGroupActivity(
   }
 
   const [inactiveLabelKey, activeLabelKey] = MCP_LABEL_KEYS_BY_ACTION[presentation.action]
+
   return {
     label: t(`message.tools.activity.${isActive ? activeLabelKey : inactiveLabelKey}`),
     description: presentation.target ? t(`message.tools.activity.${presentation.target}`) : undefined
@@ -304,6 +323,7 @@ function getMcpToolGroupActivity(
 function getToolIntent(args: unknown): string | undefined {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
   const intent = 'intent' in args ? args.intent : undefined
+
   return typeof intent === 'string' && intent.trim() ? intent.trim() : undefined
 }
 
@@ -327,14 +347,18 @@ function getToolTitle(
 ) {
   const isActive = status === 'invoking' || status === 'streaming' || status === 'waiting'
   const mcpPresentation = getMcpToolGroupPresentation(toolResponse.tool, toolResponse.arguments)
+
   if (mcpPresentation && status === 'error') return t('message.tools.activity.extensionFailed')
   const intent = withIntent ? getToolIntent(toolResponse.arguments) : undefined
+
   if (intent) return intent
 
   const activity =
     getReadableToolActivity(toolResponse.tool.name, toolResponse.arguments, isActive, t) ??
     (mcpPresentation ? getMcpToolGroupActivity(mcpPresentation, isActive, t) : undefined)
+
   if (!activity) return t(isActive ? 'message.processing' : 'message.tools.processed')
+
   if (!activity.description) return activity.label
 
   return activity.description.toLocaleLowerCase().includes(activity.label.toLocaleLowerCase())
@@ -367,6 +391,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     const partsMap = usePartsMap()
     const allCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
     const fallbackLabel = summary ?? t('message.tools.groupHeader', { count: items.length })
+
     const nextCandidate = React.useMemo<ToolHeaderCandidate>(() => {
       if (preferSummary) {
         return { key: `summary:${String(fallbackLabel)}`, kind: 'summary', label: fallbackLabel }
@@ -385,6 +410,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
 
       // Prioritize showing waiting items that need approval
       const lastWaitingItem = waitingItems[waitingItems.length - 1]
+
       if (lastWaitingItem) {
         return { key: `${lastWaitingItem.id}:waiting`, kind: 'tool', item: lastWaitingItem, status: 'waiting' }
       }
@@ -392,13 +418,16 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
       // Find running items (invoking or streaming)
       const runningItems = items.filter((item) => {
         const status = getItemEffectiveStatus(item, partsMap)
+
         return status === 'invoking' || status === 'streaming'
       })
 
       // Get the last running item (most recent) and render with animation
       const lastRunningItem = runningItems[runningItems.length - 1]
+
       if (lastRunningItem) {
         const lastRunningStatus = getItemEffectiveStatus(lastRunningItem, partsMap)
+
         return {
           key: `${lastRunningItem.id}:${lastRunningStatus}`,
           kind: 'tool',
@@ -408,20 +437,24 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
       }
 
       const latestItem = showLatestWhenComplete ? items.at(-1) : undefined
+
       if (latestItem) {
         const effectiveStatus = getItemEffectiveStatus(latestItem, partsMap)
         const latestStatus = latestItem.toolResponse.response?.isError === true ? 'error' : effectiveStatus
+
         return { key: `${latestItem.id}:${latestStatus}`, kind: 'tool', item: latestItem, status: latestStatus }
       }
 
       return { key: `summary:${String(fallbackLabel)}`, kind: 'summary', label: fallbackLabel }
     }, [activityLabel, allCompleted, fallbackLabel, items, partsMap, preferSummary, showLatestWhenComplete])
+
     const displayCandidate = useMinimumDisplayDuration(nextCandidate, {
       enabled: isLiveProgress,
       getKey: getToolHeaderCandidateKey,
       minimumDurationMs: LIVE_HEADER_MIN_DURATION_MS,
       shouldBypass: shouldBypassHeaderStabilization
     })
+
     const renderWithElapsed = (content: React.ReactNode, icon?: React.ReactNode) => (
       <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]">
         {icon && (
@@ -445,6 +478,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
         )}
       </div>
     )
+
     const renderSemanticTitle = (title: React.ReactNode, icon?: React.ReactNode, key?: React.Key) =>
       renderWithElapsed(
         <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]" key={key}>
@@ -461,6 +495,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
       )
 
     const latestTool = items.at(-1)?.toolResponse
+
     const latestToolIcon = showContentIcon ? (
       <ToolGroupContentIcon tool={latestTool?.tool} toolArguments={latestTool?.arguments} />
     ) : undefined
@@ -490,12 +525,14 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
 
     if (semanticToolTitle) {
       const title = getSemanticToolTitle(displayCandidate, t)
+
       const icon = showContentIcon ? (
         <ToolGroupContentIcon
           tool={displayCandidate.item.toolResponse.tool}
           toolArguments={displayCandidate.item.toolResponse.arguments}
         />
       ) : undefined
+
       return renderSemanticTitle(title, icon, displayCandidate.item.id)
     }
 
@@ -511,10 +548,12 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     )
   }
 )
+
 DynamicToolBlockGroupHeaderContent.displayName = 'DynamicToolBlockGroupHeaderContent'
 
 export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHeaderContentProps) => {
   const { t } = useTranslation()
+
   const {
     activityLabel,
     elapsedText,
@@ -525,6 +564,7 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
     summary,
     summaryIcon
   } = props
+
   const allCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
   const fallbackLabel = summary ?? t('message.tools.groupHeader', { count: items.length })
 
@@ -567,6 +607,7 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
 
   return <DynamicToolBlockGroupHeaderContent {...props} />
 })
+
 ToolBlockGroupHeaderContent.displayName = 'ToolBlockGroupHeaderContent'
 
 // Component for tool list content with auto-scroll
@@ -577,6 +618,7 @@ interface ToolBlockGroupContentProps {
 
 const ToolBlockGroupRow = ({ item }: { item: ToolRenderItem }) => {
   const intent = getToolIntent(item.toolResponse.arguments)
+
   return (
     <div data-block-id={item.id} className="w-full">
       {/* Read like the narration other models write between calls, above the call it explains. */}
@@ -595,17 +637,21 @@ const ToolBlockGroupRow = ({ item }: { item: ToolRenderItem }) => {
 /** Splits a run into folds: adjacent calls with intents that do the same kind of thing share one. */
 function foldSameKindCalls(items: ToolRenderItem[], kindOf: (item: ToolRenderItem) => string): ToolRenderItem[][] {
   const folds: ToolRenderItem[][] = []
+
   for (const item of items) {
     const fold = folds.at(-1)
+
     if (fold && hasToolIntent(fold[0]) && hasToolIntent(item) && kindOf(fold[0]) === kindOf(item)) fold.push(item)
     else folds.push([item])
   }
+
   return folds
 }
 
 export const ToolBlockGroupContent = React.memo(({ items, scrollRef }: ToolBlockGroupContentProps) => {
   const { t } = useTranslation()
   const kindOf = (item: ToolRenderItem) => getToolTitle(item.toolResponse, 'done', t, false)
+
   return (
     <div ref={scrollRef} className="tool-block-group-content flex w-full flex-col gap-2">
       {foldSameKindCalls(items, kindOf).map((fold) =>
@@ -624,6 +670,7 @@ export const ToolBlockGroupContent = React.memo(({ items, scrollRef }: ToolBlock
     </div>
   )
 })
+
 ToolBlockGroupContent.displayName = 'ToolBlockGroupContent'
 
 interface ToolBlockGroupProps {
@@ -639,9 +686,11 @@ interface ToolBlockGroupProps {
 const ToolGroupPartsBoundary = React.memo(
   ({ allItemsCompleted, children }: { allItemsCompleted: boolean; children: React.ReactNode }) => {
     const partsMap = allItemsCompleted ? null : React.use(PartsContext)
+
     return <PartsProvider value={partsMap}>{children}</PartsProvider>
   }
 )
+
 ToolGroupPartsBoundary.displayName = 'ToolGroupPartsBoundary'
 
 /** A nested, independently collapsible group of adjacent tool calls. */
@@ -655,13 +704,16 @@ export const ToolBlockGroup = React.memo(
     title
   }: ToolBlockGroupProps) => {
     const { t } = useTranslation()
+
     // A fold can start at its parent group's first call, so it keeps its own disclosure key.
     const [isExpanded, setIsExpanded] = useMessageDisclosureState(
       items[0] ? `${title ? 'tool-fold' : 'tool-group'}:${items[0].toolResponse.toolCallId ?? items[0].id}` : undefined,
       defaultExpanded
     )
+
     const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
     const allItemsCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
+
     const isLiveProgress =
       isLiveProgressProp ?? items.some((item) => !isToolGroupItemCompleted(item.toolResponse.status))
 
@@ -710,4 +762,5 @@ export const ToolBlockGroup = React.memo(
     return <ToolGroupPartsBoundary allItemsCompleted={allItemsCompleted}>{disclosure}</ToolGroupPartsBoundary>
   }
 )
+
 ToolBlockGroup.displayName = 'ToolBlockGroup'

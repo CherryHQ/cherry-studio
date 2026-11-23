@@ -153,27 +153,34 @@ export interface ChatVirtualizerRuntime<T> {
 }
 
 type ScrollDirection = 'up' | 'down' | 'none'
+
 type PendingUserInput = { at: number; direction: ScrollDirection }
+
 // scrollToKey animates smoothly for nearby targets but jumps instantly once the
 // distance exceeds this many viewports — see the behavior choice in scrollToKey.
 const LONG_JUMP_VIEWPORTS = 3
+
 // A real scroll-intent signal (wheel, pointer drag, scroll key) seeds
 // a gesture when its first scroll event arrives within this window. Once seeded,
 // non-scrollbar gestures stay active until onScrollEnd, so trackpad momentum is
 // not cut off by a timer. Native scrollbar drags use the pointer lifecycle below.
 const USER_SCROLL_INPUT_WINDOW_MS = 250
+
 // Middle-click autoscroll synthesizes scrollTop without wheel/pointer events.
 // A middle press only arms a candidate; real outer-scroller movement must
 // confirm it before freeze logic yields. Both candidate and confirmed states
 // are time-bounded so a swallowed dismissal click cannot latch suppression.
 const AUTOSCROLL_CANDIDATE_MS = 1500
+
 // Must stay above virtua's 150ms scroll-end debounce: onScrollEnd settles the
 // user-scroll gesture first, so this timer only has to release the autoscroll latch.
 const AUTOSCROLL_IDLE_MS = 250
+
 // While the user holds the viewport frozen, snap scrollTop back to the freeze
 // anchor when a layout change drifts it by more than this. Kept above
 // subpixel/rounding noise so an already-stable viewport never churns.
 const FREEZE_REASSERT_TOLERANCE_PX = 2
+
 const FREEZE_SEMANTIC_ANCHOR_SELECTOR =
   'button,[role="button"],a,input,textarea,select,h1,h2,h3,h4,h5,h6,.block-wrapper,[data-message-id],p,pre,li,table'
 
@@ -204,12 +211,15 @@ export function useChatVirtualizerRuntime<T>({
   const vlistHandleRef = useRef<VListHandle | null>(null)
   const smoothScroll = useSmoothScrollAnimation(scrollerRef)
   const bottomScrollAnimatingRef = useRef(false)
+
   const cancelBottomScroll = useCallback(() => {
     if (!bottomScrollAnimatingRef.current) return
     bottomScrollAnimatingRef.current = false
     const scroller = scrollerRef.current
+
     if (scroller) vlistHandleRef.current?.scrollTo(scroller.scrollTop)
   }, [])
+
   const [isScrollToBottomButtonVisible, setIsScrollToBottomButtonVisible] = useState(false)
   const isScrollToBottomButtonVisibleRef = useRef(false)
   const viewportFollow = useViewportFollowState()
@@ -236,49 +246,65 @@ export function useChatVirtualizerRuntime<T>({
   const readNavigationActiveRef = useRef(false)
   const explicitNavigationBaseRef = useRef<ExplicitNavigationBase | null>(null)
   const lastScrollOffsetRef = useRef(0)
+
   const clearAutoscrollSuppressTimer = useCallback(() => {
     if (autoscrollSuppressTimerRef.current) {
       clearTimeout(autoscrollSuppressTimerRef.current)
       autoscrollSuppressTimerRef.current = null
     }
+
     autoscrollSuppressConfirmRef.current = false
   }, [])
+
   const suppressNextAutoscrollConfirm = useCallback(() => {
     autoscrollSuppressConfirmRef.current = true
+
     if (autoscrollSuppressTimerRef.current) {
       clearTimeout(autoscrollSuppressTimerRef.current)
     }
+
     autoscrollSuppressTimerRef.current = setTimeout(() => {
       autoscrollSuppressConfirmRef.current = false
       autoscrollSuppressTimerRef.current = null
     }, 50)
   }, [])
+
   const isUserScrollIntentPending = useCallback((direction: ScrollDirection = 'none') => {
     if (autoscrollActiveRef.current) return true
     const input = pendingUserInputRef.current
+
     if (!input) return false
     const directionMatches = input.direction === 'none' || direction === 'none' || input.direction === direction
+
     return performance.now() - input.at < USER_SCROLL_INPUT_WINDOW_MS && directionMatches
   }, [])
+
   const itemsRef = useRef(items)
   itemsRef.current = items
   const getItemKeyRef = useRef(getItemKey)
   getItemKeyRef.current = getItemKey
   const renderItemRef = useRef(renderItem)
   renderItemRef.current = renderItem
+
   const findDataIndexByKey = useCallback((key: string): number => {
     const list = itemsRef.current
     const get = getItemKeyRef.current
+
     for (let i = 0; i < list.length; i++) {
       if (get(list[i], i) === key) return i
     }
+
     return -1
   }, [])
+
   const getDataKeyAtIndex = useCallback((index: number): string | null => {
     const list = itemsRef.current
+
     if (index < 0 || index >= list.length) return null
+
     return getItemKeyRef.current(list[index], index)
   }, [])
+
   const rememberNavigationBase = useCallback(
     (key: string) => {
       if (!scrollerRef.current || findDataIndexByKey(key) < 0) return
@@ -286,39 +312,53 @@ export function useChatVirtualizerRuntime<T>({
     },
     [findDataIndexByKey, topicId]
   )
+
   const getNavigationBaseKey = useCallback((): string | null => {
     if (viewportFollow.isFollowing()) {
       return getDataKeyAtIndex(itemsRef.current.length - 1)
     }
+
     const base = explicitNavigationBaseRef.current
+
     if (!base) return null
+
     if (base.topicId !== topicId || findDataIndexByKey(base.key) < 0) {
       explicitNavigationBaseRef.current = null
+
       return null
     }
+
     return base.key
   }, [findDataIndexByKey, getDataKeyAtIndex, topicId, viewportFollow])
+
   const bottomFollowInsetRef = useRef(0)
   bottomFollowInsetRef.current = freezeSpacerHeightRef.current
+
   const setFreezeSpacerHeight = useCallback((height: number) => {
     const next = Math.max(0, height)
+
     if (Math.abs(next - freezeSpacerHeightRef.current) <= FREEZE_REASSERT_TOLERANCE_PX) return
     freezeSpacerHeightRef.current = next
     bottomFollowInsetRef.current = next
+
     if (freezeSpacerRef.current) {
       freezeSpacerRef.current.style.height = `${next}px`
     }
   }, [])
+
   const getNaturalScrollHeight = useCallback(() => {
     const el = scrollerRef.current
+
     return el ? Math.max(el.clientHeight, el.scrollHeight - freezeSpacerHeightRef.current) : 0
   }, [])
+
   const maintainFreezeScrollRange = useCallback(() => {
     const naturalHeight = getNaturalScrollHeight()
     const baseline = freezeBaselineScrollHeightRef.current ?? naturalHeight
     freezeBaselineScrollHeightRef.current = baseline
     setFreezeSpacerHeight(Math.max(0, baseline - naturalHeight))
   }, [getNaturalScrollHeight, setFreezeSpacerHeight])
+
   const clearFreeze = useCallback(() => {
     freezeAnchorRef.current = null
     freezeBaselineScrollHeightRef.current = null
@@ -337,21 +377,27 @@ export function useChatVirtualizerRuntime<T>({
     (behavior: ScrollBehavior = 'instant') => {
       const el = scrollerRef.current
       const handle = vlistHandleRef.current
+
       if (!el || !handle || itemsRef.current.length === 0) return
+
       if (bottomScrollAnimatingRef.current && behavior !== 'smooth') return
       smoothScroll.cancel()
       const target = getRealBottom(el, bottomFollowInsetRef.current)
+
       if (Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX) {
         suppressNextAutoscrollConfirm()
       }
+
       // Virtua must own the scroll so pending measurements cannot discard
       // historical rows as though the user had scrolled past them.
       bottomScrollAnimatingRef.current =
         behavior === 'smooth' && Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX
       handle.scrollToIndex(itemsRef.current.length - 1, { align: 'end', smooth: bottomScrollAnimatingRef.current })
+
       if (Math.abs(getDistanceToBottom(el, bottomFollowInsetRef.current)) <= FREEZE_REASSERT_TOLERANCE_PX) {
         bottomScrollAnimatingRef.current = false
       }
+
       lastScrollOffsetRef.current = el.scrollTop
       hideScrollToBottomButton()
     },
@@ -366,6 +412,7 @@ export function useChatVirtualizerRuntime<T>({
   const updateScrollToBottomButtonVisibility = useCallback(() => {
     const el = scrollerRef.current
     const nextVisible = el ? isMoreThanOneViewportFromBottom(el, bottomFollowInsetRef.current) : false
+
     if (isScrollToBottomButtonVisibleRef.current === nextVisible) return
     isScrollToBottomButtonVisibleRef.current = nextVisible
     setIsScrollToBottomButtonVisible(nextVisible)
@@ -375,19 +422,26 @@ export function useChatVirtualizerRuntime<T>({
 
   const resolveSemanticAnchor = useCallback((preferredAnchor?: Element | null) => {
     const scroller = scrollerRef.current
+
     if (!scroller) return null
     let candidate = preferredAnchor
+
     if (!candidate) {
       const rect = scroller.getBoundingClientRect()
       candidate = scroller.ownerDocument.elementFromPoint?.(rect.left + rect.width / 2, rect.top + 1) ?? null
     }
+
     const htmlCandidate = candidate instanceof HTMLElement ? candidate : candidate?.parentElement
+
     if (!htmlCandidate || !scroller.contains(htmlCandidate)) return null
     const itemElement = htmlCandidate.closest<HTMLElement>('[data-message-key]')
     const itemKey = itemElement?.dataset.messageKey
+
     if (!itemElement || !itemKey) return null
     const semanticCandidate = htmlCandidate.closest<HTMLElement>(FREEZE_SEMANTIC_ANCHOR_SELECTOR) ?? htmlCandidate
+
     if (!itemElement.contains(semanticCandidate)) return null
+
     return {
       element: findOutermostVerticalScrollContainer(semanticCandidate, itemElement) ?? semanticCandidate,
       itemKey
@@ -401,6 +455,7 @@ export function useChatVirtualizerRuntime<T>({
     (preferredAnchor?: Element | null) => {
       const el = scrollerRef.current
       const handle = vlistHandleRef.current
+
       if (!el || !handle) return
       const semantic = resolveSemanticAnchor(preferredAnchor)
       const visibleIndex = handle.findItemIndex(el.scrollTop)
@@ -408,10 +463,13 @@ export function useChatVirtualizerRuntime<T>({
       const semanticIndex = semantic ? findDataIndexByKey(semantic.itemKey) : -1
       const itemIndex = semanticIndex >= 0 ? semanticIndex : fallbackIndex
       const itemKey = getDataKeyAtIndex(itemIndex)
+
       if (!itemKey) {
         freezeAnchorRef.current = null
+
         return
       }
+
       const scrollerTop = el.getBoundingClientRect().top
       const element = semantic?.element ?? null
       freezeAnchorRef.current = {
@@ -433,7 +491,9 @@ export function useChatVirtualizerRuntime<T>({
     const el = scrollerRef.current
     const content = contentRef.current
     const handle = vlistHandleRef.current
+
     if (!frozen || !el || !handle) return
+
     if (
       smoothScroll.isAnimating() ||
       userScrollGestureRef.current ||
@@ -443,12 +503,15 @@ export function useChatVirtualizerRuntime<T>({
       return
 
     const itemIndex = findDataIndexByKey(frozen.itemKey)
+
     if (itemIndex < 0) {
       freezeAnchorRef.current = null
+
       return
     }
 
     const elementItemKey = frozen.element?.closest<HTMLElement>('[data-message-key]')?.dataset.messageKey
+
     if (
       frozen.element &&
       frozen.elementViewportTop != null &&
@@ -459,14 +522,17 @@ export function useChatVirtualizerRuntime<T>({
     ) {
       const currentTop = frozen.element.getBoundingClientRect().top - el.getBoundingClientRect().top
       const drift = currentTop - frozen.elementViewportTop
+
       if (Math.abs(drift) > FREEZE_REASSERT_TOLERANCE_PX) {
         suppressNextAutoscrollConfirm()
         el.scrollTop += drift
       }
+
       return
     }
 
     const target = Math.max(0, topPadding) + handle.getItemOffset(itemIndex) + frozen.offsetInItem
+
     if (Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX) {
       suppressNextAutoscrollConfirm()
       el.scrollTop = target
@@ -481,15 +547,18 @@ export function useChatVirtualizerRuntime<T>({
         pendingUserInputRef.current = null
         userScrollGestureRef.current = false
       }
+
       readNavigationActiveRef.current = false
       cancelBottomScroll()
       smoothScroll.cancel()
       const wasFollowing = viewportFollow.isFollowing()
       viewportFollow.enterReading(reason)
+
       if (wasFollowing || freezeBaselineScrollHeightRef.current === null) {
         setFreezeSpacerHeight(0)
         freezeBaselineScrollHeightRef.current = getNaturalScrollHeight()
       }
+
       captureFreezeAnchor(preferredAnchor)
       updateScrollToBottomButtonVisibility()
     },
@@ -530,10 +599,13 @@ export function useChatVirtualizerRuntime<T>({
   const settleUserScrollGesture = useCallback(() => {
     // Native wheel/key input can produce several scroll frames before settling.
     pendingUserInputRef.current = null
+
     if (viewportFollow.isFollowing() || !userScrollGestureRef.current) {
       userScrollGestureRef.current = false
+
       return
     }
+
     // Rebase after virtua has measured the newly visited rows. Carrying the
     // pre-drag estimate forward creates phantom range when the thumb reverses.
     setFreezeSpacerHeight(0)
@@ -574,10 +646,12 @@ export function useChatVirtualizerRuntime<T>({
   const dismissAutoscroll = useCallback(() => {
     const wasCandidate = autoscrollCandidateRef.current
     const wasActive = autoscrollActiveRef.current
+
     if (!wasCandidate && !wasActive) return
     autoscrollCandidateRef.current = false
     clearAutoscrollCandidateTimer()
     clearAutoscrollSuppressTimer()
+
     if (wasActive) {
       endAutoscrollInternal()
     }
@@ -587,15 +661,18 @@ export function useChatVirtualizerRuntime<T>({
     autoscrollCandidateRef.current = false
     clearAutoscrollCandidateTimer()
     clearAutoscrollSuppressTimer()
+
     if (autoscrollActiveRef.current) {
       clearAutoscrollIdleTimer()
     } else {
       autoscrollActiveRef.current = true
     }
+
     markUserInput()
     clearAutoscrollIdleTimer()
     autoscrollIdleTimerRef.current = setTimeout(() => {
       autoscrollIdleTimerRef.current = null
+
       if (!autoscrollActiveRef.current) return
       autoscrollActiveRef.current = false
       autoscrollCandidateRef.current = true
@@ -620,8 +697,10 @@ export function useChatVirtualizerRuntime<T>({
   const armAutoscrollCandidate = useCallback(() => {
     if (autoscrollCandidateRef.current || autoscrollActiveRef.current) {
       dismissAutoscroll()
+
       return
     }
+
     autoscrollCandidateRef.current = true
     clearAutoscrollCandidateTimer()
     autoscrollCandidateTimerRef.current = setTimeout(() => {
@@ -632,6 +711,7 @@ export function useChatVirtualizerRuntime<T>({
 
   const confirmAutoscroll = useCallback(() => {
     if (autoscrollSuppressConfirmRef.current) return
+
     if (!autoscrollCandidateRef.current && !autoscrollActiveRef.current) return
     beginAutoscroll()
   }, [beginAutoscroll])
@@ -678,6 +758,7 @@ export function useChatVirtualizerRuntime<T>({
   const dataKeys = useMemo(() => items.map((value, i) => getItemKey(value, i)), [items, getItemKey])
   useLayoutEffect(() => {
     const base = explicitNavigationBaseRef.current
+
     if (base && (base.topicId !== topicId || !dataKeys.includes(base.key))) {
       explicitNavigationBaseRef.current = null
     }
@@ -685,10 +766,13 @@ export function useChatVirtualizerRuntime<T>({
   const previousDataKeysRef = useRef(dataKeys)
   const previousDataKeys = previousDataKeysRef.current
   const lengthDelta = dataKeys.length - previousDataKeys.length
+
   const addedAtStart =
     previousDataKeys.length > 0 && lengthDelta > 0 && keysMatchAt(dataKeys, previousDataKeys, lengthDelta)
+
   const removedFromStart =
     dataKeys.length > 0 && lengthDelta < 0 && keysMatchAt(previousDataKeys, dataKeys, -lengthDelta)
+
   const shift = addedAtStart || removedFromStart
 
   useEffect(() => {
@@ -710,6 +794,7 @@ export function useChatVirtualizerRuntime<T>({
       // Keep the bottom inset inside the measured live item. Streaming growth
       // then expands the native scroll range before virtua refreshes its cache.
       const isLastItem = item.originalIndex === itemsRef.current.length - 1
+
       return (
         <div
           key={item.key}
@@ -746,23 +831,30 @@ export function useChatVirtualizerRuntime<T>({
   useLayoutEffect(() => {
     const content = contentRef.current
     const scroller = scrollerRef.current
+
     if (!content || typeof ResizeObserver === 'undefined') return
+
     const observer = new ResizeObserver(() => {
       const isReading = !viewportFollow.isFollowing()
+
       const shouldHoldRestingViewport =
         isReading && !userScrollGestureRef.current && !scrollbarDragActiveRef.current && !autoscrollActiveRef.current
+
       if (shouldHoldRestingViewport) {
         // Restore range from the currently committed DOM before re-asserting
         // scrollTop. Disclosure collapse may already have let the browser clamp
         // the frozen viewport.
         maintainFreezeScrollRange()
       }
+
       autoStick.onContentSizeChange()
+
       if (shouldHoldRestingViewport) {
         // The single writer while the user drives: hold the frozen viewport
         // against whatever just resized (streaming growth, block toggles,
         // composer/viewport changes, async renders).
         maintainFreezeScrollRange()
+
         // A fresh keyboard/pointer intent means a native scroll is in flight
         // but the gesture latch is not set yet (onScroll hasn't fired).
         // Suppress the snap-back so the native scroll can land; onScroll will
@@ -771,14 +863,18 @@ export function useChatVirtualizerRuntime<T>({
           reassertFreeze()
         }
       }
+
       updateScrollToBottomButtonVisibility()
     })
+
     observer.observe(content)
+
     // Also observe the scroller — the composer can expand (long paste) and
     // shrink the viewport without changing content height. Without this, the
     // freeze range stays sized for the old viewport and turns into phantom scroll
     // room below the messages.
     if (scroller) observer.observe(scroller)
+
     return () => observer.disconnect()
   }, [
     autoStick,
@@ -791,10 +887,12 @@ export function useChatVirtualizerRuntime<T>({
 
   useLayoutEffect(() => {
     const content = contentRef.current
+
     if (!content || typeof MutationObserver === 'undefined') return
 
     const observer = new MutationObserver(() => autoStick.onContentSizeChange())
     observer.observe(content, { childList: true, characterData: true, subtree: true })
+
     return () => observer.disconnect()
   }, [autoStick])
 
@@ -807,10 +905,13 @@ export function useChatVirtualizerRuntime<T>({
   const notifyWheelIntent = useCallback(
     (deltaY: number) => {
       const dir = getScrollDirection(deltaY)
+
       if (readNavigationActiveRef.current && dir !== 'none') {
         takeUserControl('navigation')
       }
+
       markUserInput(dir)
+
       if (smoothScroll.isAnimating() && dir === 'up') {
         smoothScroll.cancel()
       }
@@ -821,11 +922,13 @@ export function useChatVirtualizerRuntime<T>({
   const scrollByWheel = useCallback(
     (deltaY: number) => {
       const scroller = scrollerRef.current
+
       if (!scroller) return false
 
       const boundedDeltaY = clampForwardedWheelDelta(deltaY)
       notifyWheelIntent(boundedDeltaY)
       scroller.scrollBy({ top: boundedDeltaY })
+
       return true
     },
     [notifyWheelIntent]
@@ -840,8 +943,10 @@ export function useChatVirtualizerRuntime<T>({
     (offset: number) => {
       if (!hasMoreTop) return
       const handle = vlistHandleRef.current
+
       if (!handle) return
       const topmostIdx = handle.findItemIndex(offset)
+
       if (topmostIdx < topReachOverscanItems) {
         onReachTopRef.current?.()
       }
@@ -851,6 +956,7 @@ export function useChatVirtualizerRuntime<T>({
 
   const onScroll = useCallback(() => {
     const el = scrollerRef.current
+
     if (!el) return
     const offset = el.scrollTop
     const delta = offset - lastScrollOffsetRef.current
@@ -860,6 +966,7 @@ export function useChatVirtualizerRuntime<T>({
     const pendingUserInput = pendingUserInputRef.current
     const direction = getScrollDirection(delta)
     const hasRecentUserScrollIntent = isUserScrollIntentPending(direction)
+
     if (
       pendingUserInput &&
       performance.now() - pendingUserInput.at < USER_SCROLL_INPUT_WINDOW_MS &&
@@ -869,14 +976,17 @@ export function useChatVirtualizerRuntime<T>({
     ) {
       pendingUserInputRef.current = null
     }
+
     const isUserInitiated =
       scrollbarDragActiveRef.current ||
       autoscrollActiveRef.current ||
       userScrollGestureRef.current ||
       hasRecentUserScrollIntent
+
     if (hasRecentUserScrollIntent && pendingUserInput?.direction === 'none' && direction !== 'none') {
       pendingUserInput.direction = direction
     }
+
     if (bottomScrollAnimatingRef.current && isUserInitiated && direction !== 'none') cancelBottomScroll()
 
     // Smooth scrolling is reserved for explicit reading navigation. Any real
@@ -888,8 +998,10 @@ export function useChatVirtualizerRuntime<T>({
       if (!isUserInitiated || direction === 'none') {
         lastScrollOffsetRef.current = offset
         updateScrollToBottomButtonVisibility()
+
         return
       }
+
       smoothScroll.cancel()
       readNavigationActiveRef.current = false
       // Fall through: the user's scroll goes through the normal reading/bottom
@@ -897,8 +1009,10 @@ export function useChatVirtualizerRuntime<T>({
     }
 
     const distanceToBottom = getDistanceToBottom(el, bottomFollowInsetRef.current)
+
     const shouldReassertBottomAfterProgrammaticDrift =
       !isUserInitiated && viewportFollow.isFollowing() && Math.abs(distanceToBottom) > FREEZE_REASSERT_TOLERANCE_PX
+
     if (shouldReassertBottomAfterProgrammaticDrift) {
       // Virtua may compensate a just-measured bottom item in the opposite
       // direction of the user's final downward wheel. There is no resize for
@@ -906,13 +1020,16 @@ export function useChatVirtualizerRuntime<T>({
       // itself instead of leaving a persistent gap until the next line wraps.
       lastScrollOffsetRef.current = offset
       stickToEffectiveBottom()
+
       return
     }
 
     lastScrollOffsetRef.current = offset
+
     if (!viewportFollow.isFollowing()) {
       if (isUserInitiated) {
         beginUserScrollGesture()
+
         // A held native thumb remains explicit input after the initial signal is consumed.
         // The generic gesture latch also covers virtua compensation, so it is not sufficient.
         if (
@@ -934,12 +1051,14 @@ export function useChatVirtualizerRuntime<T>({
         updateScrollToBottomButtonVisibility()
         saveScrollPosition()
         maybeNotifyReachTop(offset)
+
         return
       }
     } else if (isUserInitiated && direction === 'up') {
       beginUserScrollGesture()
       takeUserControl('user-scrolled-up')
     }
+
     updateScrollToBottomButtonVisibility()
     saveScrollPosition()
     maybeNotifyReachTop(offset)
@@ -964,20 +1083,24 @@ export function useChatVirtualizerRuntime<T>({
       bottomScrollAnimatingRef.current = false
       stickToEffectiveBottom('smooth')
     }
+
     // virtua synthesizes scroll-end after a short quiet period. A user can
     // still be holding the native thumb while pausing to reverse direction.
     if (!scrollbarDragActiveRef.current) {
       settleUserScrollGesture()
+
       // A settled gesture already captured its resting anchor above. Only fill
       // in a missing anchor here — an existing one is often the semantic target
       // of a finished navigation and must not be replaced by whatever element
       // happens to sit at the viewport top.
       if (!viewportFollow.isFollowing() && !freezeAnchorRef.current) captureFreezeAnchor()
     }
+
     // Scrolling has settled — capture the exact resting position, bypassing the
     // throttle that paces the in-flight `onScroll` saves.
     saveScrollPosition(true)
   }, [captureFreezeAnchor, saveScrollPosition, settleUserScrollGesture, stickToEffectiveBottom, viewportFollow])
+
   const scrollerProps = useMemo(() => ({ onWheel, onScroll, onScrollEnd }), [onScroll, onScrollEnd, onWheel])
 
   // ---- selection-survival keepMounted --------------------------------
@@ -987,37 +1110,52 @@ export function useChatVirtualizerRuntime<T>({
   useEffect(() => {
     const handler = (): void => {
       const sel = typeof document !== 'undefined' ? document.getSelection() : null
+
       if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
         setSelectionIndex(null)
+
         return
       }
+
       const anchorNode = sel.anchorNode
+
       if (!anchorNode) {
         setSelectionIndex(null)
+
         return
       }
+
       const baseEl = anchorNode instanceof Element ? anchorNode : anchorNode.parentElement
       const indexed = baseEl?.closest('[data-message-index]')
       const scroller = scrollerRef.current
       const ownerScroller = indexed?.closest('[data-message-virtual-list-scroller]')
+
       if (!indexed || !scroller || ownerScroller !== scroller) {
         setSelectionIndex(null)
+
         return
       }
+
       const idx = Number(indexed.getAttribute('data-message-index'))
       setSelectionIndex(Number.isInteger(idx) ? idx : null)
     }
+
     document.addEventListener('selectionchange', handler)
+
     return () => document.removeEventListener('selectionchange', handler)
   }, [])
 
   const keepMounted = useMemo<readonly number[]>(() => {
     const indices = new Set<number>()
+
     if (selectionIndex != null) indices.add(selectionIndex)
+
     for (const key of keepMountedKeys) {
       const index = items.findIndex((item, itemIndex) => getItemKey(item, itemIndex) === key)
+
       if (index >= 0) indices.add(index)
     }
+
     return [...indices].filter((index) => Number.isInteger(index) && index >= 0 && index < items.length)
   }, [getItemKey, items, keepMountedKeys, selectionIndex])
 
@@ -1038,6 +1176,7 @@ export function useChatVirtualizerRuntime<T>({
       getPreferredAnchor?: () => Element | null
     ) => {
       const el = scrollerRef.current
+
       if (!el) return
 
       readNavigationActiveRef.current = false
@@ -1046,9 +1185,12 @@ export function useChatVirtualizerRuntime<T>({
 
       const resolveTarget = () => {
         const current = scrollerRef.current
+
         if (!current) return 0
+
         return clampToReachable(current, getTarget(current))
       }
+
       const finish = () => {
         if (!readNavigationActiveRef.current) return
         readNavigationActiveRef.current = false
@@ -1060,9 +1202,11 @@ export function useChatVirtualizerRuntime<T>({
         smoothScroll.scrollTo(resolveTarget, { onComplete: finish })
       } else {
         const target = resolveTarget()
+
         if (Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX) {
           suppressNextAutoscrollConfirm()
         }
+
         el.scrollTop = target
         takeUserControl('navigation', getPreferredAnchor?.() ?? null)
       }
@@ -1079,6 +1223,7 @@ export function useChatVirtualizerRuntime<T>({
   const scrollToTop = useCallback(
     (behavior: ScrollBehavior = 'instant') => {
       const firstKey = getDataKeyAtIndex(0)
+
       if (firstKey) rememberNavigationBase(firstKey)
       navigateForReading(() => 0, behavior)
     },
@@ -1088,6 +1233,7 @@ export function useChatVirtualizerRuntime<T>({
   const scrollToElement = useCallback(
     (element: HTMLElement, align: 'start' | 'center' = 'start') => {
       const itemKey = element.closest<HTMLElement>('[data-message-key]')?.dataset.messageKey
+
       if (itemKey) rememberNavigationBase(itemKey)
       navigateForReading(
         (scroller) => {
@@ -1095,6 +1241,7 @@ export function useChatVirtualizerRuntime<T>({
           const elementRect = element.getBoundingClientRect()
           const scrollerRect = scroller.getBoundingClientRect()
           const start = scroller.scrollTop + elementRect.top - scrollerRect.top
+
           return align === 'center' ? start - (scroller.clientHeight - elementRect.height) / 2 : start
         },
         'smooth',
@@ -1109,11 +1256,15 @@ export function useChatVirtualizerRuntime<T>({
       const getRangeElement = () => {
         const container = range.commonAncestorContainer
         const element = container instanceof Element ? container : container.parentElement
+
         return element?.isConnected ? element : null
       }
+
       const scroller = scrollerRef.current
+
       if (!scroller || !getRangeElement()) return
       const itemKey = getRangeElement()?.closest<HTMLElement>('[data-message-key]')?.dataset.messageKey
+
       if (itemKey) rememberNavigationBase(itemKey)
 
       navigateForReading(
@@ -1122,6 +1273,7 @@ export function useChatVirtualizerRuntime<T>({
 
           const rangeRect = range.getBoundingClientRect()
           const scrollerRect = currentScroller.getBoundingClientRect()
+
           return (
             currentScroller.scrollTop +
             rangeRect.top -
@@ -1144,16 +1296,22 @@ export function useChatVirtualizerRuntime<T>({
       scrollToKey: (key, align = 'start') => {
         if (findDataIndexByKey(key) < 0) return
         rememberNavigationBase(key)
+
         const resolveTarget = (scroller: HTMLElement) => {
           const handle = vlistHandleRef.current
           const idx = findDataIndexByKey(key)
+
           if (!handle || idx < 0) return scroller.scrollTop
           const start = Math.max(0, topPadding) + handle.getItemOffset(idx)
           const size = handle.getItemSize(idx)
+
           if (align === 'center') return start - (scroller.clientHeight - size) / 2
+
           if (align === 'end') return start + size - scroller.clientHeight
+
           return start
         }
+
         // Smooth-scrolling a long jump forces the virtualizer to mount and
         // discard every heavy message the animation flies over, frame by
         // frame — janky over hundreds of turns. Past a few viewports the
@@ -1163,14 +1321,17 @@ export function useChatVirtualizerRuntime<T>({
         // so an out-of-range raw offset cannot inflate a short real movement
         // into an instant jump.
         const scroller = scrollerRef.current
+
         const behavior: ScrollBehavior =
           scroller &&
           Math.abs(clampToReachable(scroller, resolveTarget(scroller)) - scroller.scrollTop) >
             scroller.clientHeight * LONG_JUMP_VIEWPORTS
             ? 'instant'
             : 'smooth'
+
         navigateForReading(resolveTarget, behavior, () => {
           const elements = contentRef.current?.querySelectorAll<HTMLElement>('[data-message-key]') ?? []
+
           return Array.from(elements).find((element) => element.dataset.messageKey === key) ?? null
         })
       },

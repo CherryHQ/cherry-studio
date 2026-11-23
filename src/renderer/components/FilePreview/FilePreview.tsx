@@ -67,6 +67,7 @@ interface FilePreviewStateProps {
 
 function FilePreviewState({ kind, filePath }: FilePreviewStateProps) {
   const { t } = useTranslation()
+
   const Icon =
     kind === 'unsupported'
       ? FileQuestion
@@ -75,11 +76,13 @@ function FilePreviewState({ kind, filePath }: FilePreviewStateProps) {
         : kind === 'invalid_path'
           ? FileX2
           : FileWarning
+
   const keys = FILE_PREVIEW_STATE_KEYS[kind]
   // Only the "unsupported" state can fall back to an external open: the path is
   // already validated (unlike invalid_path) and points at a real file we simply
   // cannot render inline. `safeOpen` enforces the unsafe-extension policy.
   const openablePath = kind === 'unsupported' ? filePath : undefined
+
   const handleOpenWithDefaultApp = () => {
     if (!openablePath) return
     void safeOpen(createFilePathHandle(openablePath)).catch(() => toast.error(t('file_preview.open_error')))
@@ -141,6 +144,7 @@ function preloadFilePreviewPlugin(descriptor: FilePreviewPlugin): PreloadedFileP
   const modulePromise = Promise.resolve().then(() => descriptor.load())
   // Metadata may reject the candidate before its module settles.
   void modulePromise.catch(() => {})
+
   return { descriptor, modulePromise }
 }
 
@@ -223,37 +227,45 @@ export function FilePreview({
   const file = useMemo(() => {
     try {
       const normalizedPath = normalizeFilePreviewPath(filePath)
+
       return { fileName: getFilePreviewFileName(normalizedPath), filePath: normalizedPath }
     } catch {
       return null
     }
   }, [filePath])
+
   const metadataRequest = useMemo(() => {
     if (!file) return null
     let promise: ReturnType<FilePreviewMetadataRequest> | undefined
+
     return {
       key: `${file.filePath}\0${refreshKey}`,
       start() {
         promise = Promise.resolve().then(() => ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath)))
         // The host and retained source attach in passive effects, after this layout effect.
         void promise.catch(() => {})
+
         return promise
       },
       read() {
         if (!promise) throw new Error('Preview metadata request has not started')
+
         return promise
       }
     }
   }, [file, refreshKey])
+
   const requestKey = metadataRequest?.key ?? ''
   const [resolution, setResolution] = useState<FilePreviewResolution>({ requestKey: '', status: 'loading' })
   const selectionRequestRef = useRef<ReturnType<FilePreviewMetadataRequest> | null>(null)
   useLayoutEffect(() => {
     selectionRequestRef.current = metadataRequest?.start() ?? null
+
     return () => {
       selectionRequestRef.current = null
     }
   }, [metadataRequest])
+
   const reportSelection = useCallback<NonNullable<FilePreviewPluginProps['onSelectionReference']>>(
     (reference) => {
       // A retained plugin can finish an old selection while new metadata is pending.
@@ -276,19 +288,23 @@ export function FilePreview({
         const candidateDescriptor = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
         const candidatePlugin = candidateDescriptor ? preloadFilePreviewPlugin(candidateDescriptor) : null
         const metadata = await metadataPromise
+
         if (cancelled) return
 
         if (!metadata) {
           setResolution({ requestKey, status: 'unavailable' })
+
           return
         }
 
         if (metadata.kind === 'directory') {
           setResolution({ requestKey, status: 'directory' })
+
           return
         }
 
         let plugin = candidatePlugin
+
         if (!plugin || TEXT_CONTENT_PLUGIN_IDS.has(plugin.descriptor.id)) {
           const isText = metadata.type === 'text'
 
@@ -307,15 +323,20 @@ export function FilePreview({
                   `Failed to load file preview plugin: ${plugin.descriptor.id}`,
                   error instanceof Error ? error : { error }
                 )
+
                 return null
               }
             )
           : null
+
         if (cancelled) return
+
         if (plugin && !module) {
           setResolution({ requestKey, status: 'load_error' })
+
           return
         }
+
         setResolution({
           file,
           metadata,

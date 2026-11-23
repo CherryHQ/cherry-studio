@@ -43,6 +43,7 @@ type SelectOption<T extends string = string> = {
   value: T
   label: string
 }
+
 type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
 
 type ChatPreferenceSectionsProps = {
@@ -81,25 +82,31 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [messageNavigation, setMessageNavigation] = usePreference('chat.message.navigation_mode')
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
   const [thoughtAutoCollapse, setThoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
+
   const [keepIntermediateAssistantText, setKeepIntermediateAssistantText] = usePreference(
     'chat.message.keep_intermediate_text'
   )
+
   const [userMessageDefaultExpanded, setUserMessageDefaultExpanded] = usePreference(
     'chat.message.user_content.default_expanded'
   )
+
   const [multiModelMessageStyle, setMultiModelMessageStyle] = usePreference('chat.message.multi_model.style')
   const [mathEnableSingleDollar, setMathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showInputEstimatedTokens, setShowInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
   const [pasteLongTextAsFile, setPasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold, setPasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
+
   const [renderInputMessageAsMarkdown, setRenderInputMessageAsMarkdown] = usePreference(
     'chat.message.render_as_markdown'
   )
+
   const [scrollToBottomOnSend, setScrollToBottomOnSend] = usePreference('chat.message.scroll_to_bottom_on_send')
   const [showMessageOutline, setShowMessageOutline] = usePreference('chat.message.show_outline')
   const [codeShowLineNumbers, setCodeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
   const [codeCollapsible, setCodeCollapsible] = usePreference('chat.code.collapsible')
   const [codeWrappable, setCodeWrappable] = usePreference('chat.code.wrappable')
+
   const [codeEditor, setCodeEditor] = useMultiplePreferences({
     enabled: 'chat.code.editor.enabled',
     themeLight: 'chat.code.editor.theme_light',
@@ -109,10 +116,12 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
     autocompletion: 'chat.code.editor.autocompletion',
     keymap: 'chat.code.editor.keymap'
   })
+
   const [codeViewer, setCodeViewer] = useMultiplePreferences({
     themeLight: 'chat.code.viewer.theme_light',
     themeDark: 'chat.code.viewer.theme_dark'
   })
+
   const [codeFancyBlock, setCodeFancyBlock] = usePreference('chat.code.fancy_block')
   const wideMode = !narrowMode
   const setWideMode = (checked: boolean) => setNarrowMode(!checked)
@@ -160,6 +169,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   // Bindings are arrays, so the select trades in their ids and maps back on change.
   const shortcutItemsExcluding = useCallback((...taken: ComposerShortcut[]): SelectOption<string>[] => {
     const takenIds = taken.map(composerShortcutId)
+
     return COMPOSER_SHORTCUTS.filter((shortcut) => !takenIds.includes(composerShortcutId(shortcut))).map(
       (shortcut) => ({ value: composerShortcutId(shortcut), label: getComposerShortcutLabel(shortcut) })
     )
@@ -169,6 +179,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
     <TResult,>(setter: (value: ComposerShortcut) => TResult) =>
       (id: string) => {
         const shortcut = COMPOSER_SHORTCUTS.find((candidate) => composerShortcutId(candidate) === id)
+
         if (shortcut) void setter(shortcut)
       },
     []

@@ -69,6 +69,7 @@ export class AppService extends BaseService {
       app.setLoginItemSettings(settings)
     } else if (isLinux) {
       const autostartDir = AbsoluteFilePathSchema.parse(application.getPath('sys.appdata.autostart'))
+
       const desktopFile = AbsoluteFilePathSchema.parse(
         path.join(autostartDir, isDev ? 'cherry-studio-dev.desktop' : 'cherry-studio.desktop')
       )
@@ -78,6 +79,7 @@ export class AppService extends BaseService {
 
         // Get executable path
         let executablePath = application.getPath('app.exe_file')
+
         if (process.env.APPIMAGE) {
           // For AppImage packaged apps, use APPIMAGE environment variable
           executablePath = process.env.APPIMAGE

@@ -4,6 +4,7 @@ import { AyaLight } from './light'
 
 const Aya = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AyaLight {...props} className={className} />
+
   return <AyaLight {...props} className={className} />
 }
 

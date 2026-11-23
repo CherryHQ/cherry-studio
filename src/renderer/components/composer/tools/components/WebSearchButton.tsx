@@ -65,29 +65,36 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const { provider: modelProvider } = useProviderById(model?.providerId)
+
   const {
     defaultFetchUrlsProvider,
     defaultSearchKeywordsProvider,
     isLoading: isLoadingWebSearchProviders,
     providers
   } = useWebSearchProviders()
+
   const [modelToolsPreferred] = usePreference('chat.web_search.model_tools_preferred')
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
+
   const effectiveSearchProvider = resolveReadyWebSearchProvider(
     providers,
     defaultSearchKeywordsProvider,
     'searchKeywords'
   )
+
   const effectiveFetchProvider = resolveReadyWebSearchProvider(providers, defaultFetchUrlsProvider, 'fetchUrls')
+
   const fallbackSearchProvider = defaultSearchKeywordsProvider
     ? providers.find(
         (provider) =>
           provider.id === getWebSearchFallbackProviderIds(defaultSearchKeywordsProvider.id, 'searchKeywords')[0]
       )
     : undefined
+
   const clientSearchAvailable = Boolean(effectiveSearchProvider)
   const clientFetchAvailable = Boolean(effectiveFetchProvider)
+
   // Same resolver as the main process; MCP mode stands in for the request's
   // eventual function tools, which only exist at build time.
   const { webSearch: webSearchRoute, reasons } =
@@ -102,6 +109,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
           reasoningEffort: assistant.settings.reasoning_effort
         })
       : { webSearch: 'none' as const, reasons: undefined }
+
   const searchUnavailableReason = webSearchRoute === 'none' ? (reasons?.webSearch ?? 'no-backend') : undefined
   const activeProviderId = effectiveSearchProvider?.id
   const activeProviderName = effectiveSearchProvider?.name
@@ -110,6 +118,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
     enableWebSearch && webSearchRoute === 'client' && activeProviderId
       ? getWebSearchProviderIconRef(activeProviderId)
       : undefined
+
   const reasonMessageKey = searchUnavailableReason ? REASON_MESSAGE_KEYS[searchUnavailableReason] : undefined
   const disabledReason = !enableWebSearch && reasonMessageKey ? t(reasonMessageKey) : undefined
   const isDisabled = isLoadingWebSearchProviders || Boolean(disabledReason)
@@ -118,10 +127,13 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
     async (restoreFocus?: () => void) => {
       if (!assistant || !model) {
         toast.error(t('error.model.not_exists'))
+
         return
       }
+
       if (enableWebSearch) {
         void updateAssistant({ settings: { enableWebSearch: false } })
+
         return
       }
 
@@ -143,10 +155,12 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
               }
             : undefined
         })
+
         if (!confirmed) return
 
         navigatedAway = true
         await navigate({ to: '/settings/websearch' })
+
         return
       }
 
@@ -160,6 +174,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   )
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
+
   // Which side will actually serve the request. Both sides look identical on the button, and the
   // preference that picks between them lives in settings — so name it here.
   const routeHint =
@@ -178,6 +193,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
               })
             : t('chat.input.web_search.route.client', { provider: effectiveSearchProvider.name })
         : undefined
+
   const tooltipTitle = disabledReason ?? routeHint ?? ariaLabel
 
   const icon = useMemo(
@@ -210,11 +226,13 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
 
 export const WebSearchToolRuntime: FC<Props> = (props) => {
   useWebSearchToolController(props)
+
   return null
 }
 
 const WebSearchButton: FC<Props> = (props) => {
   const { ariaLabel, enableWebSearch, icon, isDisabled, onClick, tooltipTitle } = useWebSearchToolController(props)
+
   const handleClick = useCallback<MouseEventHandler<HTMLButtonElement>>(
     (event) => {
       const trigger = event.currentTarget

@@ -12,6 +12,7 @@ export function FootnoteSection({ children, node, ...props }: ComponentPropsWith
 
 export function FootnoteLink({ children, node, ...props }: ComponentPropsWithoutRef<'a'> & ExtraProps) {
   void node
+
   return (
     <a
       {...props}
@@ -19,10 +20,13 @@ export function FootnoteLink({ children, node, ...props }: ComponentPropsWithout
       onClick={(event) => {
         event.preventDefault()
         const href = event.currentTarget.getAttribute('href')
+
         if (!href) return
         const target = event.currentTarget.ownerDocument.getElementById(decodeURIComponent(href.slice(1)))
+
         if (!target) return
         target.scrollIntoView({ block: 'nearest' })
+
         if (target.tagName !== 'A') target.tabIndex = -1
         target.focus({ preventScroll: true })
       }}>

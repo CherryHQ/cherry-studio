@@ -4,6 +4,7 @@ import { UpstageLight } from './light'
 
 const Upstage = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <UpstageLight {...props} className={className} />
+
   return <UpstageLight {...props} className={className} />
 }
 

@@ -11,6 +11,7 @@ export function ComputerUseAppIcon({ app }: { app: Pick<ComputerUseApp, 'name' |
     ([, identity]) => ipcApi.request('computer_use.get_app_icon', { identity }),
     { shouldRetryOnError: false }
   )
+
   return (
     <Avatar className="size-4 shrink-0 rounded-none" title={app.name}>
       {data?.status === 'available' && (

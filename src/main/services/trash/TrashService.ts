@@ -43,6 +43,7 @@ export class TrashService extends BaseService {
 
   protected onReady(): void {
     const jobManager = application.get('JobManager')
+
     // Idempotent boot registration: registerJobSchedule persists a row per
     // call, so only register when no 'trash.purge' schedule exists yet.
     if (!jobManager.getJobSchedule('trash.purge')) {
@@ -79,14 +80,17 @@ export class TrashService extends BaseService {
   }> {
     const handle = application.get('JobManager').enqueue('trash.purge', { emptyAll: true })
     const snapshot = await handle.finished
+
     // `finished` resolves only at a terminal state; the guard narrows the type
     // and defends against a contract regression rather than widening the output.
     if (!isTerminalStatus(snapshot.status)) {
       throw new Error(`Trash purge resolved with non-terminal status: ${snapshot.status}`)
     }
+
     const output = snapshot.output as
       | { reclaimed?: boolean; retainedReferencedFileCount?: number; purged?: Record<string, number> }
       | undefined
+
     return {
       status: snapshot.status,
       reclaimed: output?.reclaimed === true,
@@ -97,16 +101,20 @@ export class TrashService extends BaseService {
 
   async archiveTopics(topicIds: string[]): Promise<DeleteTopicsResult> {
     const ids = [...new Set(topicIds)].sort()
+
     return this.withTopicLocks(ids, async () => {
       this.assertTopicsSettled(ids)
+
       return topicService.deleteByIds(ids)
     })
   }
 
   async deleteActiveTopicsPermanently(topicIds: string[]): Promise<DeleteTopicsResult> {
     const ids = [...new Set(topicIds)].sort()
+
     return this.withTopicLocks(ids, () => {
       this.assertTopicsSettled(ids)
+
       return topicService.deleteByIds(ids, { permanent: true, targetState: 'active' })
     })
   }
@@ -132,30 +140,39 @@ export class TrashService extends BaseService {
   private async withStableAssistantTopics<T>(assistantId: string, archive: () => T): Promise<T> {
     for (;;) {
       const topicIds = topicService.listActiveIdsByAssistant(assistantId)
+
       const result = await this.withTopicLocks(topicIds, async () => {
         const currentTopicIds = topicService.listActiveIdsByAssistant(assistantId)
+
         if (!this.sameIds(topicIds, currentTopicIds)) return RETRY_ASSISTANT_ARCHIVE
 
         this.assertTopicsSettled(topicIds)
+
         return archive()
       })
+
       if (result !== RETRY_ASSISTANT_ARCHIVE) return result
     }
   }
 
   private withTopicLocks<T>(topicIds: string[], operation: () => T | Promise<T>): Promise<T> {
     const streamManager = application.get('AiStreamManager')
+
     const acquire = (index: number): Promise<T> => {
       const topicId = topicIds[index]
+
       if (!topicId) return Promise.resolve(operation())
+
       return streamManager.withDispatchLock(topicId, () => acquire(index + 1))
     }
+
     return acquire(0)
   }
 
   private assertTopicsSettled(topicIds: string[]): void {
     const streamManager = application.get('AiStreamManager')
     const busyTopicIds = topicIds.filter((topicId) => streamManager.hasUnsettledTopicWork(topicId))
+
     if (busyTopicIds.length > 0) throw new TopicArchiveBusyError(busyTopicIds)
   }
 

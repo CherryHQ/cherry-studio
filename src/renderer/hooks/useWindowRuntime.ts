@@ -89,6 +89,7 @@ export function useWindowRuntime(): void {
   useIpcOn('window.fullscreen_changed', (isFullscreen) => {
     fullscreenRevision.current++
     setIsFullscreen(isFullscreen)
+
     if (isWin && isFullscreen) {
       toast.info({
         title: t('common.fullscreen'),
@@ -106,6 +107,7 @@ export function useWindowRuntime(): void {
         if (active && fullscreenRevision.current === revision) setIsFullscreen(value)
       })
       .catch((error) => logger.error('Failed to query fullscreen state', error as Error))
+
     return () => {
       active = false
     }

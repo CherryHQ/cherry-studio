@@ -22,12 +22,15 @@ export function readAppliedChain(sqlite: Database.Database): AppliedMigration[] 
   const table = sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = '__drizzle_migrations'")
     .get()
+
   if (!table) {
     throw new Error('readAppliedChain: no __drizzle_migrations table — an unmigrated database cannot be journaled')
   }
+
   const rows = sqlite.prepare('SELECT hash, created_at FROM __drizzle_migrations ORDER BY created_at').all() as Array<{
     hash: string
     created_at: number | string
   }>
+
   return rows.map((row) => ({ folderMillis: Number(row.created_at), hash: row.hash }))
 }

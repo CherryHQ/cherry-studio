@@ -9,6 +9,7 @@ export async function handleScreenshot(controller: BrowserController, args: unkn
   try {
     const { privateMode, tabId, ...options } = ScreenshotSchema.parse(args)
     const { images, ...metadata } = await controller.screenshot(options, privateMode ?? false, tabId, signal)
+
     return {
       content: [
         {
@@ -26,6 +27,7 @@ export async function handleScreenshot(controller: BrowserController, args: unkn
     }
   } catch (error) {
     logger.error('Screenshot failed', { error })
+
     return errorResponse(error instanceof Error ? error : String(error))
   }
 }

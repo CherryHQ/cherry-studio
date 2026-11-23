@@ -23,6 +23,7 @@ const ENDPOINT_FALLBACK_ORDER: readonly EndpointType[] = [
  */
 export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType | null): string {
   const configs = provider.endpointConfigs
+
   if (!configs) return ''
 
   if (preferredEndpoint && configs[preferredEndpoint]?.baseUrl) {
@@ -30,6 +31,7 @@ export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType 
   }
 
   const ep = provider.defaultChatEndpoint
+
   if (ep && configs[ep]?.baseUrl) {
     return configs[ep].baseUrl
   }
@@ -43,6 +45,7 @@ export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType 
   for (const config of Object.values(configs)) {
     if (config?.baseUrl) return config.baseUrl
   }
+
   return ''
 }
 
@@ -55,10 +58,12 @@ export function getExtraHeaders(provider: Provider) {
 
   for (const name of Object.keys(headers)) {
     const normalizedName = name.toLowerCase()
+
     if ((isTokenDance && normalizedName === 'x-app-url') || (isRadeonCloud && normalizedName === 'x-source')) {
       delete headers[name]
     }
   }
+
   return {
     ...(isPerplexity && !hasPerplexityIntegration && { 'X-Pplx-Integration': 'cherry-studio' }),
     ...headers,
@@ -79,11 +84,13 @@ export function getProviderAppHeaders(provider: Provider): Record<string, string
 
   const isCanonicalProvider =
     provider.id === provider.presetProviderId || providerRegistryService.isRegistryProvider(provider.id)
+
   return isCanonicalProvider ? defaultAppHeaders() : {}
 }
 
 export function defaultHeaders(provider: Provider): Record<string, string> {
   const apiKey = providerService.getRotatedApiKey(provider.id)
+
   return mergeHeaders(
     getProviderAppHeaders(provider),
     apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : undefined,
@@ -102,10 +109,13 @@ export function headersWithoutCredentials(provider: Provider): Record<string, st
 
 export function routeToEndpoint(apiHost: string) {
   const trimmedHost = (apiHost || '').trim()
+
   if (!trimmedHost.endsWith('#')) {
     return { baseURL: trimmedHost.replace(/\/+$/, ''), endpoint: '' }
   }
+
   const host = trimmedHost.slice(0, -1)
+
   const SUPPORTED_ENDPOINTS = [
     'chat/completions',
     'responses',
@@ -116,11 +126,15 @@ export function routeToEndpoint(apiHost: string) {
     'images/edits',
     'predict'
   ]
+
   const endpointMatch = SUPPORTED_ENDPOINTS.find((ep) => host.endsWith(ep))
+
   if (!endpointMatch) {
     return { baseURL: host.replace(/\/+$/, ''), endpoint: '' }
   }
+
   const baseSegment = host.slice(0, host.length - endpointMatch.length)
   const baseURL = baseSegment.replace(/\/+$/, '').replace(/:$/, '')
+
   return { baseURL, endpoint: endpointMatch }
 }

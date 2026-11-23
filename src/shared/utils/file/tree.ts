@@ -143,19 +143,25 @@ export type TreeRootPath = AbsoluteFilePath | string
 
 function joinTreePath(parent: string, basename: string): string {
   if (!parent) return basename
+
   if (parent === '/') return `/${basename}`
+
   return `${parent}/${basename}`
 }
 
 function basenameOf(p: string): string {
   const i = p.lastIndexOf('/')
+
   return i < 0 ? p : p.slice(i + 1)
 }
 
 function dirnameOf(p: string): string {
   const i = p.lastIndexOf('/')
+
   if (i < 0) return ''
+
   if (i === 0) return '/'
+
   return p.slice(0, i)
 }
 
@@ -192,12 +198,14 @@ export abstract class TreeNode {
   }
   set path(value: string) {
     const normalized = value.replace(/\\/g, '/')
+
     if (normalized === this._path) return
     const newBasename = basenameOf(normalized)
     const oldBasename = this._basename
     this._path = normalized
     this._basename = newBasename
     this._dirname = dirnameOf(normalized)
+
     // If the basename changed, repoint our entry in the parent's
     // _children map: the old key still points at us, the new key is
     // absent. Skipping this leaves parent.hasChild() / nodeFromPath()
@@ -205,6 +213,7 @@ export abstract class TreeNode {
     if (newBasename !== oldBasename) {
       TreeNode.parentMap.get(this)?.repointChild(oldBasename, this)
     }
+
     this.adjustChildrenPaths()
   }
 
@@ -246,9 +255,12 @@ export abstract class TreeNode {
   /** Detach from parent's `children` record. Idempotent. */
   remove(): boolean {
     const parent = this.parent
+
     if (!parent) return false
+
     if (parent.detach(this._basename) !== this) return false
     TreeNode.parentMap.delete(this)
+
     return true
   }
 
@@ -282,7 +294,9 @@ export class TreeFile extends TreeNode {
       path: this._path,
       basename: this._basename
     }
+
     if (this._stats) Object.assign(out, { stats: this._stats })
+
     return out
   }
 }
@@ -311,11 +325,14 @@ export class TreeDir extends TreeNode {
   /** Insert (or replace) a child by its current basename. */
   attachChild(child: TreeNode): TreeNode {
     const existing = this._children[child.basename]
+
     if (existing && existing !== child) {
       TreeNode.setParent(existing, null)
     }
+
     this._children[child.basename] = child
     TreeNode.setParent(child, this)
+
     return child
   }
 
@@ -335,9 +352,11 @@ export class TreeDir extends TreeNode {
   /** Remove a child by basename. */
   detach(basename: string): TreeNode | null {
     const child = this._children[basename]
+
     if (!child) return null
     delete this._children[basename]
     TreeNode.setParent(child, null)
+
     return child
   }
 
@@ -347,8 +366,10 @@ export class TreeDir extends TreeNode {
    */
   nodeFromPath(target: string): TreeNode | null {
     const normalized = target.replace(/\\/g, '/')
+
     if (normalized === this._path) return this
     let rel: string
+
     if (normalized.startsWith(`${this._path}/`)) {
       rel = normalized.slice(this._path.length + 1)
     } else if (normalized.startsWith('/')) {
@@ -358,13 +379,16 @@ export class TreeDir extends TreeNode {
     }
 
     const segments = rel.split('/').filter(Boolean)
+
     if (segments.length === 0) return this
 
     let current: TreeNode | undefined = this._children[segments[0]]
+
     for (let i = 1; i < segments.length && current; i++) {
       if (!current.isTreeDir()) return null
       current = current._children[segments[i]]
     }
+
     return current ?? null
   }
 
@@ -372,13 +396,16 @@ export class TreeDir extends TreeNode {
   walk(cb: (node: TreeNode, depth: number) => boolean | void): void {
     const visit = (node: TreeNode, depth: number): boolean => {
       if (cb(node, depth) === false) return false
+
       if (node.isTreeDir()) {
         for (const child of Object.values(node._children)) {
           if (!visit(child, depth + 1)) return false
         }
       }
+
       return true
     }
+
     visit(this, 0)
   }
 
@@ -387,9 +414,12 @@ export class TreeDir extends TreeNode {
     const entries = Object.entries(this._children)
     entries.sort(([, a], [, b]) => {
       if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1
+
       return a.basename.localeCompare(b.basename, undefined, { numeric: true, sensitivity: 'accent' })
     })
+
     for (const key of Object.keys(this._children)) delete this._children[key]
+
     for (const [key, node] of entries) this._children[key] = node
   }
 
@@ -403,16 +433,20 @@ export class TreeDir extends TreeNode {
     // A plain `{}` would route a child named `__proto__` through the prototype
     // setter, so the node would vanish from the snapshot.
     const children: Record<string, SerializedTreeNode> = Object.create(null)
+
     for (const [name, child] of Object.entries(this._children)) {
       children[name] = child.toJSON()
     }
+
     const out: SerializedTreeNode = {
       kind: 'directory',
       path: this._path,
       basename: this._basename,
       children
     }
+
     if (this._stats) Object.assign(out, { stats: this._stats })
+
     return out
   }
 }
@@ -429,12 +463,15 @@ export function fromSerialized(json: SerializedTreeNode): TreeNode {
   if (json.kind === 'file') {
     return new TreeFile({ path: json.path, stats: json.stats })
   }
+
   const dir = new TreeDir({ path: json.path, stats: json.stats })
+
   if (json.children) {
     for (const child of Object.values(json.children)) {
       dir.attachChild(fromSerialized(child))
     }
   }
+
   return dir
 }
 
@@ -442,12 +479,16 @@ export function rootFromSerialized(json: SerializedTreeNode): TreeDirRoot {
   if (json.kind !== 'directory') {
     throw new Error('rootFromSerialized: expected directory at the top level')
   }
+
   const root = new TreeDirRoot(json.path)
+
   if (json.stats) root.stats = json.stats
+
   if (json.children) {
     for (const child of Object.values(json.children)) {
       root.attachChild(fromSerialized(child))
     }
   }
+
   return root
 }

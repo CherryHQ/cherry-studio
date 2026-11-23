@@ -4,6 +4,7 @@ import { ArceeLight } from './light'
 
 const Arcee = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ArceeLight {...props} className={className} />
+
   return <ArceeLight {...props} className={className} />
 }
 

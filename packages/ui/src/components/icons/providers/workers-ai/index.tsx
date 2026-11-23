@@ -4,6 +4,7 @@ import { WorkersAiLight } from './light'
 
 const WorkersAi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <WorkersAiLight {...props} className={className} />
+
   return <WorkersAiLight {...props} className={className} />
 }
 

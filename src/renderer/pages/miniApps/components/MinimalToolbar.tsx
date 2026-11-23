@@ -82,6 +82,7 @@ const MinimalToolbar: FC<Props> = ({
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const [detailOpen, setDetailOpen] = useState(false)
   const detailDialog = useExitPresence(detailOpen ? true : null)
+
   const {
     canGoBack,
     canGoForward,
@@ -93,6 +94,7 @@ const MinimalToolbar: FC<Props> = ({
     goBack: handleGoBack,
     goForward: handleGoForward
   } = useWebviewNavigation({ webview, revision: webviewRevision, targetId: app.appId, url: currentUrl || app.url })
+
   // While split, the primary pane's control closes the split rather than being
   // a dead "open it again" button.
   const splitLabelKey = splitMode === 'close' || splitActive ? 'miniApp.split.close' : 'miniApp.split.open'
@@ -116,6 +118,7 @@ const MinimalToolbar: FC<Props> = ({
     const fallbackKey = isPinned ? 'miniApp.unpin_failed' : 'miniApp.pin_failed'
     updateAppStatus(app.appId, isPinned ? 'enabled' : 'pinned').catch((err) => {
       const e = toDataApiError(err)
+
       if (isDataApiError(e)) {
         logger.error('togglePin failed', { code: e.code, message: e.message })
         toast.error(e.message || t(fallbackKey))
@@ -138,15 +141,18 @@ const MinimalToolbar: FC<Props> = ({
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
       const normalizedAddress = normalizeWebviewAddress(addressValue)
+
       if (!normalizedAddress) {
         toast.error(t('settings.miniApps.custom.url_invalid'))
         restoreCurrentPageUrl()
+
         return
       }
 
       if (!webview) {
         toast.error(t('miniApp.error.load_failed'))
         restoreCurrentPageUrl()
+
         return
       }
 
@@ -156,9 +162,11 @@ const MinimalToolbar: FC<Props> = ({
 
       const loadGeneration = ++addressLoadGenerationRef.current
       const loadOwner = { appId: app.appId, webview, webviewRevision }
+
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Webview navigation can reject arbitrary values; retain owner/generation checks before classifying or reporting failure.
       const handleLoadFailure = (error: unknown) => {
         const currentOwner = addressLoadOwnerRef.current
+
         if (
           addressLoadGenerationRef.current !== loadGeneration ||
           webviewRef.current !== webview ||
@@ -168,7 +176,9 @@ const MinimalToolbar: FC<Props> = ({
         ) {
           return
         }
+
         restoreCurrentPageUrl()
+
         if (error instanceof Error && /ERR_ABORTED/.test(readErrorMessage(error))) return
         logger.error('Failed to navigate WebView from address bar', error instanceof Error ? error : { error })
         toast.error(t('miniApp.error.load_failed'))

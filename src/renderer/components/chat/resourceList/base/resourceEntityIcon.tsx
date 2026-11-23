@@ -26,6 +26,7 @@ function buildModelAvatarModel(uniqueModelId: string | null | undefined, modelNa
   if (!isUniqueModelId(uniqueModelId)) return undefined
 
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+
   return {
     id: modelId,
     name: modelName || modelId,
@@ -61,6 +62,7 @@ export function renderAssistantEntityIcon(
   if (iconType === 'none') return undefined
 
   const modelAvatarModel = buildModelAvatarModel(assistant.modelId ?? fallbackModelId, assistant.modelName)
+
   if (iconType === 'model' && modelAvatarModel) {
     return <ModelAvatar model={modelAvatarModel} size={size} className="border border-border-subtle" />
   }
@@ -90,6 +92,7 @@ export function renderAgentEntityIcon(
   if (iconType === 'none') return undefined
 
   const modelAvatarModel = buildModelAvatarModel(agent?.model ?? fallbackModelId, agent?.modelName)
+
   if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={size} />
 
   return (

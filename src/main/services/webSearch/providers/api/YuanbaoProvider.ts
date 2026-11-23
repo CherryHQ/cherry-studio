@@ -21,7 +21,9 @@ export class YuanbaoProvider extends RemoteWebSearchProvider {
       ...config,
       excludeDomains: toExcludedSiteDomains(config.excludeDomains)
     }
+
     const credentials = this.credentials()
+
     try {
       return await this.executeRemote('searchKeywords', input, requestConfig, httpOptions, { credentials })
     } catch (error) {
@@ -34,6 +36,7 @@ export class YuanbaoProvider extends RemoteWebSearchProvider {
         )
       )
         throw error
+
       return this.executeRemote('searchKeywords', input, requestConfig, httpOptions, {
         credentials,
         useDefaultResultCount: true

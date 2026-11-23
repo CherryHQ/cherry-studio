@@ -38,6 +38,7 @@ export function extractOutputMetadata(output: unknown) {
   if (!isRecord(output)) return { response: output }
 
   const metadata = isRecord(output.metadata) ? output.metadata : undefined
+
   if ('content' in output || metadata) {
     const normalizedMeta: ToolMetadata | undefined = metadata
       ? {
@@ -48,10 +49,12 @@ export function extractOutputMetadata(output: unknown) {
           type: isToolType(metadata.type) ? metadata.type : undefined
         }
       : undefined
+
     const response =
       (normalizedMeta?.type === 'mcp' || typeof output.isError === 'boolean') && isMcpContentArray(output.content)
         ? output
         : output.content
+
     return { response, metadata: normalizedMeta }
   }
 

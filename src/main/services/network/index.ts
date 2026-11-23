@@ -1,4 +1,5 @@
 export { NetworkService } from './NetworkService'
+
 export type {
   EndpointDiagnosis,
   NetworkEndpoint,

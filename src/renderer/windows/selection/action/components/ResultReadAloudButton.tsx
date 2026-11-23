@@ -19,6 +19,7 @@ export function ResultReadAloudButton({ text, sourceEntityId }: { text: string; 
   const mountedRef = useRef(true)
   useEffect(() => {
     mountedRef.current = true
+
     return () => {
       mountedRef.current = false
     }

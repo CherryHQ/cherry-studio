@@ -27,6 +27,7 @@ const logger = loggerService.withContext('miniApp:httpSource')
 
 /** Whole exchange for the small, bounded fetches (manifest, icon). */
 export const MINI_APP_SOURCE_TIMEOUT_MS = 30_000
+
 /** Silence, not duration, ends a package download: a slow link stays alive by sending. */
 export const MINI_APP_DOWNLOAD_IDLE_MS = 60_000
 
@@ -34,6 +35,7 @@ export const MINI_APP_DOWNLOAD_IDLE_MS = 60_000
 function deadline(ms: number) {
   const abort = new AbortController()
   let timer = setTimeout(() => abort.abort(), ms)
+
   return {
     signal: abort.signal,
     bump: () => {
@@ -48,6 +50,7 @@ function deadline(ms: number) {
 function loggable(url: string): string {
   try {
     const parsed = new URL(url)
+
     return `${parsed.origin}${parsed.pathname}`
   } catch {
     return 'invalid url'
@@ -56,7 +59,9 @@ function loggable(url: string): string {
 
 export function assertHttps(url: string): URL {
   const parsed = new URL(url)
+
   if (parsed.protocol !== 'https:') throw new Error(`Mini app source must be https: ${loggable(url)}`)
+
   return parsed
 }
 
@@ -71,6 +76,7 @@ export function assertHttps(url: string): URL {
  */
 export async function mirrorOrder(url: string, urlCn: string | undefined): Promise<string[]> {
   if (!urlCn) return [url]
+
   // `.catch(() => false)`: region detection is a network call of its own, and failing
   // it must degrade to the global default rather than fail the download.
   return (await regionService.isInChina().catch(() => false)) ? [urlCn, url] : [url, urlCn]
@@ -86,6 +92,7 @@ export async function mirrorOrder(url: string, urlCn: string | undefined): Promi
  */
 async function tryMirrors<T>(urls: readonly string[], attempt: (url: string) => Promise<T>): Promise<T> {
   let lastError: unknown
+
   for (const url of urls) {
     try {
       return await attempt(url)
@@ -94,6 +101,7 @@ async function tryMirrors<T>(urls: readonly string[], attempt: (url: string) => 
       logger.warn('Mini app download mirror failed', { url: loggable(url), error })
     }
   }
+
   throw lastError
 }
 
@@ -119,20 +127,27 @@ async function fetchManifestFrom(url: string): Promise<MiniAppDistributionManife
   // `credentials: 'omit'` is as mandatory here as in `cherry.network.fetch` (design §8) —
   // a third-party URL, and Electron sends session auth when unset (`electron.d.ts:20240`).
   const { signal, clear } = deadline(MINI_APP_SOURCE_TIMEOUT_MS)
+
   try {
     const res = await net.fetch(url, { credentials: 'omit', redirect: 'error', signal })
+
     if (!res.ok) throw new Error(`Failed to fetch mini app manifest: ${res.status}`)
+
     if (!res.body) throw new Error('Failed to fetch mini app manifest: empty response body')
 
     const chunks: Uint8Array[] = []
     let received = 0
+
     for await (const chunk of res.body) {
       received += chunk.byteLength
+
       if (received > MINI_APP_MAX_MANIFEST_BYTES) {
         throw new Error(`Manifest exceeds the ${MINI_APP_MAX_MANIFEST_BYTES} byte limit`)
       }
+
       chunks.push(chunk)
     }
+
     return MiniAppDistributionManifestSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
   } finally {
     clear()
@@ -176,16 +191,19 @@ async function fetchPackageFrom(
   onProgress?: (received: number, total: number) => void
 ): Promise<DownloadedPackage> {
   const parsed = assertHttps(url)
+
   // Pinning covers the PAYLOAD, not only the pointer: validating just `update.url`
   // leaves `package.url` free. Required parameter so no call site can forget it.
   if (!expected.origins.includes(parsed.origin)) {
     throw new Error(`Package origin ${parsed.origin} is not one of the pinned ${expected.origins.join(', ')}`)
   }
+
   if (expected.size > MINI_APP_MAX_PACKAGE_BYTES) {
     throw new Error(`Package declares ${expected.size} bytes, over the ${MINI_APP_MAX_PACKAGE_BYTES} limit`)
   }
 
   const idle = deadline(MINI_APP_DOWNLOAD_IDLE_MS)
+
   try {
     return await downloadPackage(url, expected, idle, onProgress)
   } finally {
@@ -200,11 +218,14 @@ async function downloadPackage(
   onProgress?: (received: number, total: number) => void
 ): Promise<DownloadedPackage> {
   const res = await net.fetch(url, { credentials: 'omit', redirect: 'error', signal: idle.signal })
+
   if (!res.ok) throw new Error(`Failed to download mini app package: ${res.status}`)
   const advertised = Number(res.headers.get('content-length') ?? NaN)
+
   if (Number.isFinite(advertised) && advertised > expected.size) {
     throw new Error(`Package advertises ${advertised} bytes, more than the declared ${expected.size}`)
   }
+
   if (!res.body) throw new Error('Failed to download mini app package: empty response body')
 
   const dir = await fs.promises.mkdtemp(path.join(application.getPath('app.temp'), 'miniapp-dl-'))
@@ -215,13 +236,16 @@ async function downloadPackage(
     const hash = createHash('sha256')
     const handle = await fs.promises.open(dest, 'w')
     let received = 0
+
     try {
       for await (const chunk of res.body) {
         idle.bump()
         received += chunk.byteLength
+
         if (received > expected.size) {
           throw new Error(`Package exceeds the declared ${expected.size} bytes`)
         }
+
         hash.update(chunk)
         await handle.write(chunk)
         onProgress?.(received, expected.size)
@@ -233,10 +257,13 @@ async function downloadPackage(
     if (received !== expected.size) {
       throw new Error(`Package size mismatch: expected ${expected.size}, got ${received}`)
     }
+
     const actual = hash.digest('hex')
+
     if (actual !== expected.sha256) {
       throw new Error(`Package hash mismatch: expected ${expected.sha256}, got ${actual}`)
     }
+
     return { path: dest, cleanup }
   } catch (error) {
     // Best-effort: the ORIGINAL download error is the result, not a follow-on rm error.
@@ -256,27 +283,37 @@ export async function fetchIcon(
   expected: { sha256: string; origins: readonly string[] }
 ): Promise<Buffer> {
   const parsed = assertHttps(url)
+
   if (!expected.origins.includes(parsed.origin)) {
     throw new Error(`Icon origin ${parsed.origin} is not one of the pinned ${expected.origins.join(', ')}`)
   }
+
   const { signal, clear } = deadline(MINI_APP_SOURCE_TIMEOUT_MS)
   const chunks: Uint8Array[] = []
+
   try {
     const res = await net.fetch(url, { credentials: 'omit', redirect: 'error', signal })
+
     if (!res.ok) throw new Error(`Failed to fetch mini app icon: ${res.status}`)
+
     if (!res.body) throw new Error('Failed to fetch mini app icon: empty response body')
 
     let received = 0
+
     for await (const chunk of res.body) {
       received += chunk.byteLength
+
       if (received > MINI_APP_MAX_ICON_BYTES) throw new Error(`Icon exceeds the ${MINI_APP_MAX_ICON_BYTES} byte limit`)
       chunks.push(chunk)
     }
   } finally {
     clear()
   }
+
   const bytes = Buffer.concat(chunks)
   const actual = createHash('sha256').update(bytes).digest('hex')
+
   if (actual !== expected.sha256) throw new Error(`Icon hash mismatch: expected ${expected.sha256}, got ${actual}`)
+
   return bytes
 }

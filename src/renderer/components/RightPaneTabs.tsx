@@ -46,12 +46,16 @@ const OVERFLOW_BUTTON_PX = 32
 export function fitPaneTabs<T extends { key: string }>(tabs: T[], activeKey: string | null, width: number) {
   if (width <= 0 || tabs.length * TAB_SLOT_PX <= width) {
     const hidden: T[] = []
+
     return { visible: tabs, hidden }
   }
+
   const capacity = Math.max(1, Math.floor((width - OVERFLOW_BUTTON_PX) / TAB_SLOT_PX))
   let visible = tabs.slice(0, capacity)
   const active = tabs.find((tab) => tab.key === activeKey)
+
   if (active && !visible.includes(active)) visible = [...visible.slice(0, capacity - 1), active]
+
   return { visible, hidden: tabs.filter((tab) => !visible.includes(tab)) }
 }
 
@@ -74,10 +78,12 @@ export function RightPaneTabs({
   const [width, setWidth] = useState(0)
   useLayoutEffect(() => {
     const root = rootRef.current
+
     if (!root) return
     setWidth(root.getBoundingClientRect().width)
     const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width))
     observer.observe(root)
+
     return () => observer.disconnect()
   }, [])
   const { visible, hidden } = fitPaneTabs(tabs, activeKey, width)
@@ -92,6 +98,7 @@ export function RightPaneTabs({
       <TabsList aria-label={label} className="min-w-0 flex-1 gap-1">
         {visible.map((tab) => {
           const active = tab.key === activeKey
+
           const row = (
             // The close button cannot nest inside the trigger button, so the row carries the tab surface.
             <div
@@ -135,6 +142,7 @@ export function RightPaneTabs({
               </button>
             </div>
           )
+
           return getMenuItems ? (
             <CommandContextMenu
               key={tab.key}
@@ -168,6 +176,7 @@ export function RightPaneTabs({
                   {tab.status}
                 </DropdownMenuItem>
               )
+
               return getMenuItems ? (
                 <CommandContextMenu
                   key={tab.key}

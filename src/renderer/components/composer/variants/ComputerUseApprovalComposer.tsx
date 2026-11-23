@@ -17,9 +17,12 @@ export function useComputerUseApproval(topicId?: string): ComposerOverride | und
   const { data, mutate } = useSWR(topicId ? ['computer-use-approvals', topicId] : null, () =>
     ipcApi.request('computer_use.get_approvals')
   )
+
   useIpcOn('computer_use.approvals_changed', () => void mutate())
   const request = data?.find((request) => request.topicId === topicId)
+
   if (!request) return undefined
+
   return {
     id: `computer-use:${request.approvalId}`,
     priority: 95,
@@ -46,12 +49,15 @@ export function ComputerUseApprovalComposer({
   const { t } = useTranslation()
   const [submitting, setSubmitting] = useState(false)
   const [failed, setFailed] = useState(false)
+
   const respond = async (scope: ComputerUseApprovalScope) => {
     if (submitting) return
     setSubmitting(true)
     setFailed(false)
+
     try {
       const accepted = await ipcApi.request('computer_use.respond_approval', { approvalId: request.approvalId, scope })
+
       if (!accepted) throw new Error('Application approval is no longer pending')
       onResponded()
     } catch (error) {
@@ -61,6 +67,7 @@ export function ComputerUseApprovalComposer({
       onResponded()
     }
   }
+
   return (
     <div
       data-composer-viewport-inset-target=""

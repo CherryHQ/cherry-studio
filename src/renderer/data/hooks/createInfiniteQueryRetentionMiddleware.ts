@@ -29,6 +29,7 @@ export function createInfiniteQueryRetentionMiddleware(options: InfiniteQueryRet
       if (getKey) {
         try {
           enabled = Boolean(getKey(0, null))
+
           if (enabled) infiniteKey = serializeInfiniteKey(getKey)
         } catch {
           enabled = false
@@ -39,10 +40,12 @@ export function createInfiniteQueryRetentionMiddleware(options: InfiniteQueryRet
         enabled && fetcher
           ? (...args: unknown[]) => {
               const finishRequest = manager.beginRequest(cache, infiniteKey, unstable_serialize(args[0] as Key))
+
               try {
                 return Promise.resolve(fetcher(...args)).then(
                   (result) => {
                     finishRequest()
+
                     return result
                   },
                   (error) => {
@@ -56,26 +59,32 @@ export function createInfiniteQueryRetentionMiddleware(options: InfiniteQueryRet
               }
             }
           : fetcher
+
       const result = useSWRNext(key, managedFetcher, config)
       const pages = result.data as CursorPaginationResponse<unknown>[] | undefined
       const isParallel = (config as SWRInfiniteConfiguration).parallel === true
 
       useLayoutEffect(() => {
         if (!enabled) return
+
         return manager.acquire(cache, infiniteKey)
       }, [cache, enabled, infiniteKey])
 
       useLayoutEffect(() => {
         const currentGetKey = getKeyRef.current
+
         if (!enabled || !currentGetKey || !pages?.length) return
 
         const pageKeys: string[] = []
         let previousPage: CursorPaginationResponse<unknown> | null = null
+
         for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
           const pageKey = currentGetKey(pageIndex, isParallel ? null : previousPage)
+
           if (!pageKey) break
 
           const serializedPageKey = unstable_serialize(pageKey)
+
           if (cache.get(serializedPageKey) === undefined) return
 
           pageKeys.push(serializedPageKey)

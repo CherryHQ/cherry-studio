@@ -107,6 +107,7 @@ const AvatarGrid = ({ icons, size }: { icons: IconEntry[]; size: number }) => (
   <div className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-6">
     {icons.map(({ Component, name }) => {
       const AvatarComponent = Component.Avatar
+
       return (
         <div key={name} className="flex min-w-0 flex-col items-center gap-1">
           <div className="grid grid-cols-2 gap-2">
@@ -170,6 +171,7 @@ const meta: Meta<typeof AllIconsShowcase> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof AllIconsShowcase>
 
 /**

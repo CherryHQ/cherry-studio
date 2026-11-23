@@ -27,6 +27,7 @@ import type { PermissionRequestComposerRequest } from './permissionRequestCompos
 import { getPermissionRiskEffects, type PermissionRiskEffect } from './permissionRisk'
 
 export type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
+
 export { findNextPendingPermissionRequest } from './permissionRequestComposerRequest'
 
 const logger = loggerService.withContext('PermissionRequestComposer')
@@ -62,7 +63,9 @@ function normalizeArgs(
   args: ToolResponseLike['arguments']
 ): Exclude<Parameters<typeof ToolArgsTable>[0]['args'], undefined> {
   if (args === undefined || args === null) return null
+
   if (typeof args === 'object') return args
+
   return { value: args }
 }
 
@@ -108,6 +111,7 @@ export function createPermissionRequestComposerOverride({
 function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const toolName = toolResponse.tool.name
   const input = toolResponse.arguments
+
   const renderedItem =
     isValidAgentToolsType(toolName) && !Array.isArray(input)
       ? renderTool(toolName, input)
@@ -157,8 +161,10 @@ function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse 
 function PermissionPreview({ toolResponse }: { toolResponse: ToolResponseLike }) {
   const { t } = useTranslation()
   const args = toolResponse.arguments
+
   const command =
     args && typeof args === 'object' && 'command' in args && typeof args.command === 'string' ? args.command : undefined
+
   if (
     !isMcpToolResponse(toolResponse) &&
     ['Bash', 'bash', 'pwsh', 'powershell'].includes(toolResponse.tool.name) &&
@@ -174,6 +180,7 @@ function PermissionPreview({ toolResponse }: { toolResponse: ToolResponseLike })
       </div>
     )
   }
+
   if (isMcpToolResponse(toolResponse)) {
     return <McpPermissionPreview toolResponse={toolResponse} />
   }
@@ -186,6 +193,7 @@ function getPermissionRequestSubtitle(request: PermissionRequestComposerRequest)
   const toolName = request.toolResponse.tool.name.trim()
 
   if (!title || title === toolName) return null
+
   return title
 }
 
@@ -209,7 +217,9 @@ const RISK_EFFECT_TONE: Record<PermissionRiskEffect, string> = {
 function PermissionRiskSummary({ toolName, args }: { toolName: string; args: unknown }) {
   const { t } = useTranslation()
   const effects = getPermissionRiskEffects(toolName, args)
+
   if (effects.length === 0) return null
+
   const effectLabels: Record<PermissionRiskEffect, string> = {
     destructive: t('agent.toolPermission.risk.destructive'),
     irreversible: t('agent.toolPermission.risk.irreversible'),
@@ -255,6 +265,7 @@ export default function PermissionRequestComposer({
     async (input: MessageToolApprovalInput, action: 'approve' | 'deny') => {
       const approvalId = request.approvalId
       setSubmittingApprovalId(approvalId)
+
       try {
         await onRespond(input)
       } catch (error) {

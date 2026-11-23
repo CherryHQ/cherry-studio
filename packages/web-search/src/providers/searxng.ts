@@ -20,12 +20,14 @@ const searchSchema = z.object({
     )
     .default([])
 })
+
 const configSchema = z.object({
   engines: z.array(z.object({ enabled: z.boolean(), categories: z.array(z.string()), name: z.string() }))
 })
 
 function basicAuth(credentials?: WebSearchCredentials): Record<string, string> {
   const auth = credentials?.basicAuth
+
   return auth?.username ? { Authorization: `Basic ${encode(`${auth.username}:${auth.password}`)}` } : {}
 }
 
@@ -45,6 +47,7 @@ export async function discoverSearxngEngines(input: {
     signal: input.signal,
     timeoutMs: input.timeoutMs
   }
+
   return runProtocol(call, input.transport, async (context) => {
     const payload = await requestJson(
       context,
@@ -55,16 +58,19 @@ export async function discoverSearxngEngines(input: {
       },
       configSchema
     )
+
     const engines = payload.engines
       .filter((engine) => engine.enabled && engine.categories.includes('general'))
       .sort((a, b) => Number(b.categories.includes('web')) - Number(a.categories.includes('web')))
       .map((engine) => engine.name)
+
     if (!engines.length)
       throw protocolError(
         context,
         'no_engines_available',
         'No enabled general web search engines found in Searxng configuration'
       )
+
     return engines
   })
 }
@@ -73,15 +79,19 @@ export const searxng: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG.searxng,
   async execute(context) {
     const { call } = context
+
     if (call.capability !== 'searchKeywords') throw new TypeError('Expected keyword search')
     const params = new URLSearchParams({ q: call.input, language: 'auto', format: 'json' })
     const engines = call.config.engines?.map((engine) => engine.trim()).filter(Boolean)
+
     if (engines?.length) params.set('engines', engines.join(','))
+
     const payload = await requestJson(
       context,
       { method: 'GET', headers: basicAuth(call.credentials), url: `${apiUrl(context.apiHost, '/search')}?${params}` },
       searchSchema
     )
+
     return payload.results
       .filter((item) => isHttpUrl(item.url || ''))
       .slice(0, call.config.maxResults)

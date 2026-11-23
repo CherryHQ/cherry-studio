@@ -28,6 +28,7 @@ export const tagHandlers: HandlersFor<TagSchemas> = {
 
     POST: async ({ body }) => {
       const parsed = CreateTagSchema.parse(body)
+
       return tagService.create(parsed)
     }
   },
@@ -35,18 +36,21 @@ export const tagHandlers: HandlersFor<TagSchemas> = {
   '/tags/:id': {
     GET: async ({ params }) => {
       const id = TagIdSchema.parse(params.id)
+
       return tagService.getById(id)
     },
 
     PATCH: async ({ params, body }) => {
       const id = TagIdSchema.parse(params.id)
       const parsed = UpdateTagSchema.parse(body)
+
       return tagService.update(id, parsed)
     },
 
     DELETE: async ({ params }) => {
       const id = TagIdSchema.parse(params.id)
       tagService.delete(id)
+
       return undefined
     }
   },
@@ -56,6 +60,7 @@ export const tagHandlers: HandlersFor<TagSchemas> = {
       const id = TagIdSchema.parse(params.id)
       const parsed = SetTagEntitiesSchema.parse(body)
       tagService.setEntities(id, parsed)
+
       return undefined
     }
   },
@@ -64,6 +69,7 @@ export const tagHandlers: HandlersFor<TagSchemas> = {
     GET: async ({ params }) => {
       const entityType = EntityTypeSchema.parse(params.entityType)
       const entityId = EntityIdSchema.parse(params.entityId)
+
       return tagService.getTagsByEntity(entityType, entityId)
     },
 
@@ -72,6 +78,7 @@ export const tagHandlers: HandlersFor<TagSchemas> = {
       const entityId = EntityIdSchema.parse(params.entityId)
       const parsed = SyncEntityTagsSchema.parse(body)
       tagService.syncEntityTags(entityType, entityId, parsed)
+
       return undefined
     }
   }

@@ -30,6 +30,7 @@ export class RemotePairing {
       invitationSecret: randomBytes(32).toString('base64url'),
       expiresAt: Date.now() + remoteLimits.invitationMs
     }
+
     return { ...this.invitation, expiresAt: new Date(this.invitation.expiresAt).toISOString() }
   }
 
@@ -46,6 +47,7 @@ export class RemotePairing {
     const invitation = this.invitation
     const secret = Buffer.from(input.invitationSecret)
     const expected = Buffer.from(invitation?.invitationSecret ?? '')
+
     if (
       !invitation ||
       invitation.expiresAt <= Date.now() ||
@@ -54,8 +56,10 @@ export class RemotePairing {
       !timingSafeEqual(secret, expected)
     )
       throw new RemoteRpcError('FORBIDDEN', 'Invitation is invalid or expired')
+
     if (this.claim) {
       const claim = this.claim
+
       if (
         claim.status !== 'pending' ||
         claim.peerIdentity !== peerIdentity ||
@@ -65,8 +69,10 @@ export class RemotePairing {
         claim.capabilities.some((capability) => !input.capabilities.includes(capability))
       )
         throw new RemoteRpcError('CONFLICT', 'Invitation already claimed')
+
       return { claimId: claim.claimId, verificationCode: claim.verificationCode, expiresAt: claim.expiresAt }
     }
+
     this.claim = {
       claimId: randomUUID(),
       peerIdentity,
@@ -77,6 +83,7 @@ export class RemotePairing {
       expiresAt: new Date(invitation.expiresAt).toISOString(),
       status: 'pending'
     }
+
     return {
       claimId: this.claim.claimId,
       verificationCode: this.claim.verificationCode,
@@ -86,7 +93,9 @@ export class RemotePairing {
 
   pending(): RemotePairingClaim[] {
     const claim = this.claim
+
     if (!claim || claim.status !== 'pending' || Date.parse(claim.expiresAt) <= Date.now()) return []
+
     return [
       {
         claimId: claim.claimId,
@@ -101,20 +110,26 @@ export class RemotePairing {
 
   decide(claimId: string, capabilities: RemoteCapability[] | null): void {
     const claim = this.claim
+
     if (!claim || claim.claimId !== claimId || claim.status !== 'pending' || Date.parse(claim.expiresAt) <= Date.now())
       throw new RemoteRpcError('NOT_FOUND', 'Pairing request expired')
+
     if (capabilities === null) {
       claim.status = 'rejected'
+
       return
     }
+
     if (!capabilities.length || capabilities.some((value) => !claim.capabilities.includes(value)))
       throw new RemoteRpcError('FORBIDDEN', 'Capability was not requested')
+
     const result = apiGatewayPairedDeviceService.approveRemote({
       name: claim.deviceName,
       platform: claim.platform,
       peerIdentity: claim.peerIdentity,
       capabilities
     })
+
     claim.deviceId = result.device.id
     claim.status = 'approved'
   }
@@ -124,6 +139,7 @@ export class RemotePairing {
     peerIdentity: string
   ): { status: 'pending' | 'rejected' | 'expired' } | { status: 'approved'; deviceId: string } {
     const claim = this.claim
+
     if (
       !claim ||
       claim.claimId !== claimId ||
@@ -131,7 +147,9 @@ export class RemotePairing {
       Date.parse(claim.expiresAt) <= Date.now()
     )
       return { status: 'expired' }
+
     if (claim.status === 'approved' && claim.deviceId) return { status: 'approved', deviceId: claim.deviceId }
+
     return { status: claim.status === 'rejected' ? 'rejected' : 'pending' }
   }
 

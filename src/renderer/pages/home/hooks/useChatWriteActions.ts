@@ -42,11 +42,13 @@ function getDirectAssistantModelIds(messages: CherryUIMessage[], userMessageId: 
 
   for (const message of messages) {
     if (message.role !== 'assistant') continue
+
     if (message.metadata?.parentId !== userMessageId) continue
 
     const snapshot = message.metadata?.messageSnapshot
     const model = snapshot?.model
     const modelId = resolveUniqueModelId(message.metadata?.modelId, model)
+
     if (modelId) modelIds.add(modelId)
   }
 
@@ -58,12 +60,15 @@ function getInheritedTurnOptions(
   target: CherryUIMessage | undefined
 ): AssistantTurnOptions | undefined {
   if (!target) return undefined
+
   if (target.role === 'assistant') return target.metadata?.turnOptions
 
   const directAssistants = messages.filter(
     (message) => message.role === 'assistant' && message.metadata?.parentId === target.id
   )
+
   const source = directAssistants.find((message) => message.metadata?.isActiveBranch) ?? directAssistants.at(-1)
+
   return source?.metadata?.turnOptions
 }
 
@@ -115,6 +120,7 @@ export function useChatWriteActions(params: Params): Result {
     assistant,
     composerModelId
   } = params
+
   const {
     branchWithoutIds,
     seedOptimisticBranch,
@@ -127,6 +133,7 @@ export function useChatWriteActions(params: Params): Result {
     createMessageTrigger,
     setActiveNodeTrigger
   } = cache
+
   const { t } = useTranslation()
   const startNewContextPromiseRef = useRef<Promise<void> | null>(null)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
@@ -135,15 +142,19 @@ export function useChatWriteActions(params: Params): Result {
     if (startNewContextPromiseRef.current) {
       return startNewContextPromiseRef.current
     }
+
     if (!activeNodeId || startNewContextBlocked) {
       return Promise.resolve()
     }
 
     setIsStartingNewContext(true)
+
     const operation = (async () => {
       const activeMessage = uiMessages.find((message) => message.id === activeNodeId)
+
       if (hasClearContextPart(activeMessage?.parts)) {
         await seedOptimisticBranch((items) => branchWithoutIds(items, new Set([activeNodeId])))
+
         try {
           await deleteMessageTrigger({ params: { id: activeNodeId }, query: { cascade: false } })
           logger.info('Removed context boundary', { messageId: activeNodeId, topicId: topic.id })
@@ -162,6 +173,7 @@ export function useChatWriteActions(params: Params): Result {
               data: { parts: [createClearContextPart()] }
             }
           })
+
           await seedMessagesCache([sharedMessageToUIMessage(message)])
           logger.info('Created context boundary', { messageId: message.id, topicId: topic.id })
         } catch (error) {
@@ -179,7 +191,9 @@ export function useChatWriteActions(params: Params): Result {
         setIsStartingNewContext(false)
       }
     })
+
     startNewContextPromiseRef.current = trackedOperation
+
     return trackedOperation
   }, [
     activeNodeId,
@@ -194,15 +208,19 @@ export function useChatWriteActions(params: Params): Result {
     topic.id,
     uiMessages
   ])
+
   const canStartNewContext = Boolean(activeNodeId) && !startNewContextBlocked && !isStartingNewContext
 
   const getMessageDeleteAvailability = useCallback<ChatWriteActions['getMessageDeleteAvailability']>(
     (id: string) => {
       const message = uiMessages.find((item) => item.id === id)
+
       if (!message) return { enabled: false, reason: 'not-loaded' }
+
       if (message.role === 'assistant' && message.metadata?.status === 'pending') {
         return { enabled: false, reason: 'generating' }
       }
+
       return { enabled: true }
     },
     [uiMessages]
@@ -216,6 +234,7 @@ export function useChatWriteActions(params: Params): Result {
       const selectionContainsUnavailableMessage = options?.selectedMessageIds?.some((messageId) => {
         return !getMessageDeleteAvailability(messageId).enabled
       })
+
       if (!getMessageDeleteAvailability(id).enabled || selectionContainsUnavailableMessage) {
         throw new Error('Message deletion is unavailable')
       }
@@ -229,6 +248,7 @@ export function useChatWriteActions(params: Params): Result {
         await rollbackBranch()
         throw err
       }
+
       logger.info('Deleted message', { id })
     },
     [deleteMessageTrigger, getMessageDeleteAvailability, rollbackBranch]
@@ -237,15 +257,18 @@ export function useChatWriteActions(params: Params): Result {
   const handleDeleteMessageGroup = useCallback<ChatWriteActions['deleteMessageGroup']>(
     async (messageIds) => {
       const uniqueMessageIds = Array.from(new Set(messageIds))
+
       if (
         uniqueMessageIds.length === 0 ||
         uniqueMessageIds.some((messageId) => !getMessageDeleteAvailability(messageId).enabled)
       ) {
         throw new Error('Message group deletion is unavailable')
       }
+
       // Optimistically remove only the rendered representatives. The service resolves the
       // complete sibling group inside its transaction and returns the authoritative ids.
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(uniqueMessageIds)))
+
       try {
         const result = await deleteMessageGroupTrigger({ params: { id: uniqueMessageIds[0] } })
         await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(result.deletedIds)))
@@ -264,12 +287,14 @@ export function useChatWriteActions(params: Params): Result {
       await seedOptimisticBranch((items) => {
         const patch = (msg: BranchMessagesResponse['items'][number]['message']) =>
           msg.id === messageId ? { ...msg, data: { ...msg.data, parts: editedParts } } : msg
+
         return items.map((item) => ({
           ...item,
           message: patch(item.message),
           siblingsGroup: item.siblingsGroup?.map(patch)
         }))
       })
+
       try {
         await patchMessageTrigger({ params: { id: messageId }, body: { data: { parts: editedParts } } })
         setMessages((messages) => messages.map((msg) => (msg.id === messageId ? { ...msg, parts: editedParts } : msg)))
@@ -296,26 +321,34 @@ export function useChatWriteActions(params: Params): Result {
       options?: { modelId?: UniqueModelId; turnOptions?: AssistantTurnOptions; sourceMessage?: CherryUIMessage }
     ) => {
       const target = options?.sourceMessage ?? (messageId ? uiMessages.find((m) => m.id === messageId) : undefined)
+
       const parentAnchorId = target
         ? target.role === 'user'
           ? target.id
           : (target.metadata?.parentId ?? undefined)
         : undefined
+
       const targetStatus = target?.metadata?.status
+
       const isFailedAssistant =
         target?.role === 'assistant' &&
         targetStatus !== 'pending' &&
         (targetStatus === 'error' || targetStatus === 'paused' || (target.parts?.length ?? 0) === 0)
+
       // Pending replies are not a regeneration target; otherwise use the current composer selection.
       const regenerateModelId = options?.modelId ?? (targetStatus === 'pending' ? undefined : composerModelId)
+
       const retryModelId =
         target?.role === 'assistant'
           ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
           : regenerateModelId
+
       // Only a persisted explicit selection pins the model; sibling history cannot establish intent.
       const effectiveRegenerateModelId =
         target?.metadata?.modelSelection === 'explicit' ? retryModelId : regenerateModelId
+
       const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
+
       const canRetryInPlace =
         isFailedAssistant &&
         parentAnchorId !== undefined &&
@@ -331,11 +364,13 @@ export function useChatWriteActions(params: Params): Result {
           mentionedModelIds: [retryModelId],
           ...turnOptionsRequestFields(turnOptions)
         })
+
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
         await seedReservedMessages(ack.reservedMessages ?? [], {
           activeExecutions: ack.activeExecutions,
           preserveActiveNode: ack.preserveActiveNode
         })
+
         return
       }
 
@@ -349,11 +384,13 @@ export function useChatWriteActions(params: Params): Result {
           mentionedModelIds: [effectiveRegenerateModelId],
           ...turnOptionsRequestFields(turnOptions)
         })
+
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
         await seedReservedMessages(ack.reservedMessages ?? [], {
           activeExecutions: ack.activeExecutions,
           preserveActiveNode: ack.preserveActiveNode
         })
+
         return
       }
 
@@ -374,6 +411,7 @@ export function useChatWriteActions(params: Params): Result {
           ...turnOptionsRequestFields(turnOptions)
         }
       })
+
       await regeneratePromise
     },
     [regenerate, capabilityBody, uiMessages, setMessages, seedReservedMessages, topic.id, composerModelId]
@@ -384,10 +422,12 @@ export function useChatWriteActions(params: Params): Result {
       const inheritedModelIds = getDirectAssistantModelIds(uiMessages, messageId)
       const sourceMessage = uiMessages.find((message) => message.id === messageId)
       const effectiveTurnOptions = turnOptions ?? getInheritedTurnOptions(uiMessages, sourceMessage)
+
       const newMessage = await createSiblingTrigger({
         params: { id: messageId },
         body: { parts: editedParts }
       })
+
       await seedReservedMessages([
         {
           id: newMessage.id,
@@ -406,6 +446,7 @@ export function useChatWriteActions(params: Params): Result {
       const refreshed = await refresh()
       setMessages(refreshed)
       logger.info('Forked user message', { sourceId: messageId, newId: newMessage.id })
+
       const shouldPreserveInheritedModelIds =
         inheritedModelIds.length > 1 || (!topic.assistantId && inheritedModelIds.length === 1)
 
@@ -447,6 +488,7 @@ export function useChatWriteActions(params: Params): Result {
   const handleResend = useCallback<ChatWriteActions['resend']>(
     async (messageId) => {
       const target = messageId ? uiMessages.find((m) => m.id === messageId) : undefined
+
       const parentAnchorId = target
         ? target.role === 'user'
           ? target.id
@@ -455,11 +497,13 @@ export function useChatWriteActions(params: Params): Result {
 
       if (!parentAnchorId) {
         await regenerateWithCapabilities(messageId)
+
         return
       }
 
       const modelId = target?.role === 'assistant' ? (target.metadata?.modelId as UniqueModelId | undefined) : undefined
       const turnOptions = getInheritedTurnOptions(uiMessages, target)
+
       const ack = await ipcApi.request('ai.stream.open', {
         trigger: 'regenerate-message',
         topicId: topic.id,
@@ -492,8 +536,10 @@ export function useChatWriteActions(params: Params): Result {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveNode on unpersisted message', { messageId, topicId: topic.id })
           toast.warning(t('message.error.still_syncing'))
+
           return
         }
+
         throw err
       }
     },
@@ -503,10 +549,12 @@ export function useChatWriteActions(params: Params): Result {
   const handleSetActiveBranch = useCallback<ChatWriteActions['setActiveBranch']>(
     async (throughNodeId) => {
       let leafId = throughNodeId
+
       try {
         const path = await dataApiService.get(`/topics/${topic.id}/path`, {
           query: { nodeId: throughNodeId }
         })
+
         if (path.length > 0) {
           leafId = path[path.length - 1].id
         }
@@ -514,17 +562,22 @@ export function useChatWriteActions(params: Params): Result {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch on unpersisted message', { throughNodeId, topicId: topic.id })
           toast.warning(t('message.error.still_syncing'))
+
           return
         }
+
         throw err
       }
+
       try {
         await setActiveNodeTrigger({ params: { id: topic.id }, body: { nodeId: leafId } })
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch leaf vanished mid-flight', { leafId, topicId: topic.id })
+
           return
         }
+
         throw err
       }
     },

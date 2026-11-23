@@ -44,9 +44,11 @@ const logger = loggerService.withContext('Lifecycle')
  */
 async function raceWithTimeout(run: Promise<TeardownOutcome>, timeoutMs: number): Promise<TeardownOutcome> {
   let timer: ReturnType<typeof setTimeout> | undefined
+
   const timeout = new Promise<TeardownOutcome>((resolve) => {
     timer = setTimeout(() => resolve('timed_out'), timeoutMs)
   })
+
   try {
     return await Promise.race([run, timeout])
   } finally {
@@ -64,10 +66,13 @@ async function raceWithTimeout(run: Promise<TeardownOutcome>, timeoutMs: number)
  */
 function logTeardownSummary(pass: 'stop' | 'destroy', summary: TeardownSummary, durationMs: number): void {
   const elapsed = `${durationMs.toFixed(3)}ms`
+
   if (summary.timedOut.length === 0 && summary.failed.length === 0) {
     logger.info(`All services ${pass === 'stop' ? 'stopped' : 'destroyed'} (${elapsed})`)
+
     return
   }
+
   logger.warn(
     `Service ${pass} pass finished with ${summary.timedOut.length} timeout(s), ${summary.failed.length} failure(s) (${elapsed})`,
     { timedOut: summary.timedOut, failed: summary.failed }
@@ -119,6 +124,7 @@ export class LifecycleManager extends EventEmitter {
     if (!LifecycleManager.instance) {
       LifecycleManager.instance = new LifecycleManager()
     }
+
     return LifecycleManager.instance
   }
 
@@ -158,8 +164,10 @@ export class LifecycleManager extends EventEmitter {
     this.validateAndAdjustPhases()
 
     const graph = this.container.buildDependencyGraph(phase)
+
     if (graph.length === 0) {
       logger.debug(`No services registered for phase: ${phase}`)
+
       return
     }
 
@@ -182,7 +190,9 @@ export class LifecycleManager extends EventEmitter {
       for (const serviceName of layer) {
         this.servicePhase.set(serviceName, phase)
       }
+
       const results = await Promise.allSettled(layer.map((serviceName) => this.initializeService(serviceName)))
+
       for (const result of results) {
         if (result.status === 'rejected') {
           // Re-throw to preserve fail-fast semantics.
@@ -206,6 +216,7 @@ export class LifecycleManager extends EventEmitter {
       const spans = [...this.serviceSpans.values()].filter((s) => this.servicePhase.get(s.name) === phase)
       logger.info(`\n${formatPhaseProfile(phase, spans, lagSummary, lagSampler.thresholdMs)}`)
     }
+
     if (cpuProfiler) {
       // Write next to app.log (always writable, predictable) — not process.cwd(),
       // which is unwritable/surprising for a packaged app. A failed write must
@@ -248,6 +259,7 @@ export class LifecycleManager extends EventEmitter {
 
     if (!this.initialized) {
       logger.warn('Services not initialized')
+
       return summary
     }
 
@@ -259,11 +271,13 @@ export class LifecycleManager extends EventEmitter {
 
     for (const serviceName of stopOrder) {
       const outcome = await this.stopSingle(serviceName, SERVICE_STOP_TIMEOUT_MS)
+
       if (outcome === 'timed_out') summary.timedOut.push(serviceName)
       else if (outcome === 'failed') summary.failed.push(serviceName)
     }
 
     logTeardownSummary('stop', summary, performance.now() - start)
+
     return summary
   }
 
@@ -283,6 +297,7 @@ export class LifecycleManager extends EventEmitter {
 
     for (const serviceName of destroyOrder) {
       const outcome = await this.destroyService(serviceName, SERVICE_STOP_TIMEOUT_MS)
+
       if (outcome === 'timed_out') summary.timedOut.push(serviceName)
       else if (outcome === 'failed') summary.failed.push(serviceName)
     }
@@ -292,6 +307,7 @@ export class LifecycleManager extends EventEmitter {
     this.pausedByCascade.clear()
     this.stoppedByCascade.clear()
     logTeardownSummary('destroy', summary, performance.now() - start)
+
     return summary
   }
 
@@ -300,6 +316,7 @@ export class LifecycleManager extends EventEmitter {
    */
   private async initializeService(serviceName: string): Promise<void> {
     const metadata = this.container.getMetadata(serviceName)
+
     if (!metadata) return
 
     try {
@@ -317,6 +334,7 @@ export class LifecycleManager extends EventEmitter {
       await instance._doInit()
       const duration = performance.now() - start
       this.serviceTiming.set(serviceName, duration)
+
       if (DIAGNOSTICS_ENABLED) {
         this.serviceSpans.set(serviceName, {
           name: serviceName,
@@ -325,6 +343,7 @@ export class LifecycleManager extends EventEmitter {
           duration
         })
       }
+
       logger.debug(`Service '${serviceName}' initialized (${duration.toFixed(3)}ms)`)
 
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, serviceName, LifecycleState.Ready)
@@ -350,6 +369,7 @@ export class LifecycleManager extends EventEmitter {
    */
   private async stopSingle(serviceName: string, timeoutMs?: number): Promise<TeardownOutcome> {
     const instance = this.container.getInstance(serviceName)
+
     if (!instance || instance.state === LifecycleState.Stopped) return 'completed'
 
     // Defensive: a service left mid-stop must not get a second concurrent
@@ -357,6 +377,7 @@ export class LifecycleManager extends EventEmitter {
     // nothing lingers in Stopping — but cheap insurance if that ever changes.
     if (instance.state === LifecycleState.Stopping) {
       logger.warn(`Service '${serviceName}' is already stopping — skipping duplicate stop`)
+
       return 'timed_out'
     }
 
@@ -371,6 +392,7 @@ export class LifecycleManager extends EventEmitter {
       (): TeardownOutcome => 'completed',
       (error): TeardownOutcome => {
         logger.error(`Error stopping service '${serviceName}':`, error as Error)
+
         return 'failed'
       }
     )
@@ -379,12 +401,15 @@ export class LifecycleManager extends EventEmitter {
 
     if (outcome === 'timed_out') {
       logger.warn(`Service '${serviceName}' stop timed out — proceeding`, { timeoutMs })
+
       return outcome
     }
+
     if (outcome === 'failed') return outcome
 
     this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPED, serviceName, LifecycleState.Stopped)
     logger.debug(`Service '${serviceName}' stopped (${(performance.now() - start).toFixed(3)}ms)`)
+
     return outcome
   }
 
@@ -398,12 +423,14 @@ export class LifecycleManager extends EventEmitter {
    */
   private async destroyService(serviceName: string, timeoutMs?: number): Promise<TeardownOutcome> {
     const instance = this.container.getInstance(serviceName)
+
     if (!instance || instance.isDestroyed) return 'completed'
 
     const run = instance._doDestroy().then(
       (): TeardownOutcome => 'completed',
       (error): TeardownOutcome => {
         logger.error(`Error destroying service '${serviceName}':`, error as Error)
+
         return 'failed'
       }
     )
@@ -431,9 +458,11 @@ export class LifecycleManager extends EventEmitter {
     // Clean cascade tracking maps
     this.pausedByCascade.delete(serviceName)
     this.stoppedByCascade.delete(serviceName)
+
     for (const [, set] of this.pausedByCascade) {
       set.delete(serviceName)
     }
+
     for (const [, set] of this.stoppedByCascade) {
       set.delete(serviceName)
     }
@@ -503,10 +532,13 @@ export class LifecycleManager extends EventEmitter {
     // Name column auto-sizes to the longest service name (min 32) so the timing
     // column stays aligned even for long names (e.g. FileProcessingService).
     let nameCol = 32
+
     for (const [name] of this.serviceTiming) nameCol = Math.max(nameCol, name.length)
+
     for (const names of excludedByPhase.values()) {
       for (const name of names) nameCol = Math.max(nameCol, name.length)
     }
+
     const W = nameCol + 22
 
     // ASCII-only borders: Unicode box-drawing characters render as mojibake when
@@ -522,14 +554,18 @@ export class LifecycleManager extends EventEmitter {
     // Service list grouped by phase, sorted by duration within each group
     const phaseOrder = [Phase.BeforeReady, Phase.WhenReady, Phase.Background]
     const servicesByPhase = new Map<Phase, [string, number][]>()
+
     for (const [name, ms] of this.serviceTiming) {
       const phase = this.servicePhase.get(name)
+
       if (!phase) continue
       let list = servicesByPhase.get(phase)
+
       if (!list) {
         list = []
         servicesByPhase.set(phase, list)
       }
+
       list.push([name, ms])
     }
 
@@ -541,10 +577,12 @@ export class LifecycleManager extends EventEmitter {
       if ((!timing || !services || services.length === 0) && !excludedServices?.length) continue
 
       lines.push(row(''))
+
       if (timing && services && services.length > 0) {
         services.sort((a, b) => b[1] - a[1])
         const title = `[${phase}] ${timing.serviceCount} services`
         lines.push(row(`  ${title.padEnd(nameCol + 4)} ${fmt(timing.duration).padStart(12)}`))
+
         for (const [name, ms] of services) {
           const tags = this.getServiceTags(name)
           lines.push(row(`    ${name.padEnd(nameCol)} ${tags}  ${fmt(ms).padStart(10)}`))
@@ -563,9 +601,12 @@ export class LifecycleManager extends EventEmitter {
     // Count tags: initialized services + excluded (which are always Conditional)
     let conditionalCount = excludedCount
     let activatableCount = 0
+
     for (const name of this.initializationOrder) {
       const tags = this.getServiceTags(name)
+
       if (tags[0] === 'C') conditionalCount++
+
       if (tags[1] === 'A') activatableCount++
     }
 
@@ -573,6 +614,7 @@ export class LifecycleManager extends EventEmitter {
     lines.push(row(`  (C)onditional: ${conditionalCount}  |  (A)ctivatable: ${activatableCount}`))
     lines.push(row(`  Adjustments: ${this.phaseAdjustments.length}  |  Excluded: ${excludedCount}`))
     lines.push(sep())
+
     return lines.join('\n')
   }
 
@@ -599,12 +641,14 @@ export class LifecycleManager extends EventEmitter {
   public allReady(): void {
     for (const serviceName of this.initializationOrder) {
       const instance = this.container.getInstance(serviceName)
+
       if (!instance) continue
       void instance._doAllReady().catch((error: Error) => {
         logger.error(`Service '${serviceName}' onAllReady failed:`, error)
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, LifecycleState.Ready, error)
       })
     }
+
     this.emit(LifecycleEvents.ALL_SERVICES_READY)
   }
 
@@ -620,14 +664,17 @@ export class LifecycleManager extends EventEmitter {
    */
   public async pause(name: string): Promise<void> {
     const instance = this.container.getInstance(name)
+
     if (!instance) {
       logger.warn(`Cannot pause: service '${name}' not found`)
+
       return
     }
 
     // Check if service is in a valid state for pausing
     if (instance.state !== LifecycleState.Ready) {
       logger.warn(`Cannot pause: service '${name}' is not in Ready state (current: ${instance.state})`)
+
       return
     }
 
@@ -639,6 +686,7 @@ export class LifecycleManager extends EventEmitter {
     // Validation phase: check all services in cascade support pause
     for (const serviceName of allServices) {
       const svc = this.container.getInstance(serviceName)
+
       if (!svc) continue
 
       // Skip services that are already paused or stopped
@@ -651,6 +699,7 @@ export class LifecycleManager extends EventEmitter {
           `Cannot pause '${name}': dependent service '${serviceName}' does not implement Pausable. ` +
             `This is a design error - ensure all services in the dependency chain support pause/resume.`
         )
+
         return
       }
     }
@@ -661,6 +710,7 @@ export class LifecycleManager extends EventEmitter {
     // Execution phase: pause dependents first (reverse order)
     for (const depName of dependents.reverse()) {
       const depInstance = this.container.getInstance(depName)
+
       if (!depInstance) continue
 
       // Skip if already paused or stopped
@@ -683,14 +733,17 @@ export class LifecycleManager extends EventEmitter {
    */
   public async resume(name: string): Promise<void> {
     const instance = this.container.getInstance(name)
+
     if (!instance) {
       logger.warn(`Cannot resume: service '${name}' not found`)
+
       return
     }
 
     // Check if service is in a valid state for resuming
     if (instance.state !== LifecycleState.Paused) {
       logger.warn(`Cannot resume: service '${name}' is not in Paused state (current: ${instance.state})`)
+
       return
     }
 
@@ -700,6 +753,7 @@ export class LifecycleManager extends EventEmitter {
     // Validation phase: check all services support resume
     for (const serviceName of allServices) {
       const svc = this.container.getInstance(serviceName)
+
       if (!svc) continue
 
       // Only check services that are paused
@@ -709,6 +763,7 @@ export class LifecycleManager extends EventEmitter {
 
       if (!isPausable(svc)) {
         logger.error(`Cannot resume '${serviceName}': service does not implement Pausable.`)
+
         return
       }
     }
@@ -719,6 +774,7 @@ export class LifecycleManager extends EventEmitter {
     // Then resume cascaded services in reverse order
     for (const depName of [...cascadedServices].reverse()) {
       const depInstance = this.container.getInstance(depName)
+
       if (!depInstance || depInstance.state !== LifecycleState.Paused) continue
 
       await this.resumeSingle(depName)
@@ -735,14 +791,17 @@ export class LifecycleManager extends EventEmitter {
    */
   public async stop(name: string): Promise<void> {
     const instance = this.container.getInstance(name)
+
     if (!instance) {
       logger.warn(`Cannot stop: service '${name}' not found`)
+
       return
     }
 
     // Check if service is in a valid state for stopping
     if (instance.state !== LifecycleState.Ready && instance.state !== LifecycleState.Paused) {
       logger.warn(`Cannot stop: service '${name}' is not in Ready or Paused state (current: ${instance.state})`)
+
       return
     }
 
@@ -756,6 +815,7 @@ export class LifecycleManager extends EventEmitter {
     // Stop dependents first (reverse order)
     for (const depName of dependents.reverse()) {
       const depInstance = this.container.getInstance(depName)
+
       if (!depInstance) continue
 
       // Skip if already stopped
@@ -779,14 +839,17 @@ export class LifecycleManager extends EventEmitter {
    */
   public async start(name: string): Promise<void> {
     const instance = this.container.getInstance(name)
+
     if (!instance) {
       logger.warn(`Cannot start: service '${name}' not found`)
+
       return
     }
 
     // Check if service is in Stopped state
     if (instance.state !== LifecycleState.Stopped) {
       logger.warn(`Cannot start: service '${name}' is not in Stopped state (current: ${instance.state})`)
+
       return
     }
 
@@ -796,6 +859,7 @@ export class LifecycleManager extends EventEmitter {
 
     for (const depName of dependencies) {
       const depInstance = this.container.getInstance(depName)
+
       if (!depInstance) continue
 
       // If dependency is stopped, start it first
@@ -815,16 +879,20 @@ export class LifecycleManager extends EventEmitter {
     } catch (error) {
       const metadata = this.container.getMetadata(name)
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Stopped, error as Error)
+
       if (metadata) {
         this.handleError(name, error as Error, metadata.errorStrategy)
       }
+
       return
     }
 
     // Now start any services that were cascade-stopped
     const cascadedServices = this.stoppedByCascade.get(name) ?? new Set()
+
     for (const depName of [...cascadedServices].reverse()) {
       const depInstance = this.container.getInstance(depName)
+
       if (!depInstance || depInstance.state !== LifecycleState.Stopped) continue
 
       try {
@@ -837,6 +905,7 @@ export class LifecycleManager extends EventEmitter {
       } catch (error) {
         const metadata = this.container.getMetadata(depName)
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, depName, LifecycleState.Stopped, error as Error)
+
         if (metadata) {
           this.handleError(depName, error as Error, metadata.errorStrategy)
         }
@@ -853,20 +922,24 @@ export class LifecycleManager extends EventEmitter {
    */
   public async restart(name: string): Promise<void> {
     const instance = this.container.getInstance(name)
+
     if (!instance) {
       logger.warn(`Cannot restart: service '${name}' not found`)
+
       return
     }
 
     // If already stopped, just start
     if (instance.state === LifecycleState.Stopped) {
       await this.start(name)
+
       return
     }
 
     // Check if in a restartable state
     if (instance.state !== LifecycleState.Ready && instance.state !== LifecycleState.Paused) {
       logger.warn(`Cannot restart: service '${name}' is not in Ready or Paused state (current: ${instance.state})`)
+
       return
     }
 
@@ -883,6 +956,7 @@ export class LifecycleManager extends EventEmitter {
    */
   private async pauseSingle(serviceName: string): Promise<void> {
     const instance = this.container.getInstance(serviceName)
+
     if (!instance || instance.state === LifecycleState.Paused) return
 
     try {
@@ -890,6 +964,7 @@ export class LifecycleManager extends EventEmitter {
       const start = performance.now()
       const success = await instance._doPause()
       const duration = performance.now() - start
+
       if (success) {
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_PAUSED, serviceName, LifecycleState.Paused)
         logger.info(`Service '${serviceName}' paused (${duration.toFixed(3)}ms)`)
@@ -907,6 +982,7 @@ export class LifecycleManager extends EventEmitter {
    */
   private async resumeSingle(serviceName: string): Promise<void> {
     const instance = this.container.getInstance(serviceName)
+
     if (!instance || instance.state !== LifecycleState.Paused) return
 
     try {
@@ -914,6 +990,7 @@ export class LifecycleManager extends EventEmitter {
       const start = performance.now()
       const success = await instance._doResume()
       const duration = performance.now() - start
+
       if (success) {
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_RESUMED, serviceName, LifecycleState.Ready)
         logger.info(`Service '${serviceName}' resumed (${duration.toFixed(3)}ms)`)
@@ -933,6 +1010,7 @@ export class LifecycleManager extends EventEmitter {
     const instance = this.container.getInstance(name)
     const c = metadata?.conditions?.length ? 'C' : ' '
     const a = instance && isActivatable(instance) ? 'A' : ' '
+
     return c + a
   }
 
@@ -948,18 +1026,25 @@ export class LifecycleManager extends EventEmitter {
    */
   public async activate(name: string): Promise<void> {
     const instance = this.container.getInstance(name)
+
     if (!instance) {
       logger.warn(`Cannot activate: service '${name}' not found`)
+
       return
     }
+
     if (instance.state !== LifecycleState.Ready) {
       logger.warn(`Cannot activate: '${name}' not Ready (${instance.state})`)
+
       return
     }
+
     if (!isActivatable(instance)) {
       logger.error(`Cannot activate: '${name}' does not implement Activatable`)
+
       return
     }
+
     if (instance.isActivated) return
 
     try {
@@ -979,17 +1064,24 @@ export class LifecycleManager extends EventEmitter {
    */
   public async deactivate(name: string): Promise<void> {
     const instance = this.container.getInstance(name)
+
     if (!instance) {
       logger.warn(`Cannot deactivate: service '${name}' not found`)
+
       return
     }
+
     if (!isActivatable(instance)) {
       logger.error(`Cannot deactivate: '${name}' does not implement Activatable`)
+
       return
     }
+
     if (!instance.isActivated) return
+
     if (instance.state !== LifecycleState.Ready) {
       logger.warn(`Cannot deactivate: '${name}' not Ready (${instance.state})`)
+
       return
     }
 

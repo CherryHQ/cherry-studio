@@ -29,15 +29,20 @@ export function getAgentNavigateResult(
   if (!isAgentNavigateResponse(response) || response.status !== 'done' || response.approval?.approved === false) {
     return undefined
   }
+
   const input = response.arguments
+
   if (!isRecord(input) || typeof input.path !== 'string' || input.path.length === 0) return undefined
+
   if (
     'query' in input &&
     (!isRecord(input.query) || !Object.values(input.query).every((value) => typeof value === 'string'))
   ) {
     return undefined
   }
+
   const prefix = 'Navigate link created: '
+
   if (
     typeof response.response !== 'string' ||
     !response.response.startsWith(prefix) ||
@@ -45,8 +50,11 @@ export function getAgentNavigateResult(
   ) {
     return undefined
   }
+
   const target: AgentNavigateResult['input'] = { path: input.path }
+
   if ('query' in input) target.query = input.query as Record<string, string>
+
   return {
     input: target,
     output: response.response
@@ -56,5 +64,6 @@ export function getAgentNavigateResult(
 export function isAgentNavigateResultPart(part: CherryMessagePart): boolean {
   if (!isToolUIPart(part) || part.state !== 'output-available') return false
   const response = buildToolResponseFromPart(part)
+
   return response !== null && getAgentNavigateResult(response) !== undefined
 }

@@ -35,9 +35,13 @@ interface Props {
 }
 
 type ImportTab = 'file' | 'clipboard' | 'url'
+
 type ImportStatus = { kind: 'idle' } | { kind: 'success'; message: string } | { kind: 'error'; message: string }
+
 type CompletedImportStatus = Exclude<ImportStatus, { kind: 'idle' }>
+
 type DraftOutcome = { kind: 'ok' } | { kind: 'failed'; name: string; error: string }
+
 const IMPORT_ERROR_I18N_KEYS = {
   invalid_format: 'assistants.presets.import.error.invalid_format'
 } as const
@@ -52,17 +56,22 @@ type ImportUrlValidation =
 export function validateAssistantImportUrl(raw: string): ImportUrlValidation {
   try {
     const rawUrl = new URL(raw)
+
     if (!ALLOWED_FETCH_PROTOCOLS.has(rawUrl.protocol)) {
       return { ok: false, errorKey: 'library.import_dialog.error.unsupported_protocol' }
     }
+
     const safeUrl = sanitizeUrl(raw)
     const parsed = new URL(safeUrl)
+
     if (!ALLOWED_FETCH_PROTOCOLS.has(parsed.protocol)) {
       return { ok: false, errorKey: 'library.import_dialog.error.unsupported_protocol' }
     }
+
     if (!ALLOWED_FETCH_HOSTS.has(parsed.hostname)) {
       return { ok: false, errorKey: 'library.import_dialog.error.invalid_url' }
     }
+
     return { ok: true, url: safeUrl }
   } catch {
     return { ok: false, errorKey: 'library.import_dialog.error.invalid_url' }
@@ -71,6 +80,7 @@ export function validateAssistantImportUrl(raw: string): ImportUrlValidation {
 
 export function isAssistantImportResponseTooLarge(headers: Pick<Headers, 'get'>): boolean {
   const declaredLength = Number(headers.get('content-length') ?? '')
+
   return Number.isFinite(declaredLength) && declaredLength > MAX_IMPORT_BYTES
 }
 
@@ -103,6 +113,7 @@ export function summarizeAssistantImportOutcomes(
   }
 
   const first = failures[0]
+
   if (successes > 0) {
     return {
       kind: 'error',
@@ -173,6 +184,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
 
     // Parse error short-circuits the whole operation — no partial import possible.
     let drafts: ReturnType<typeof parseAssistantImportContent>
+
     try {
       drafts = parseAssistantImportContent(content)
     } catch (error) {
@@ -182,16 +194,20 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
           : error instanceof Error
             ? error.message
             : t('message.agents.import.error')
+
       setStatus({ kind: 'error', message })
       setLoading(false)
+
       return
     }
 
     const outcomes: DraftOutcome[] = []
+
     for (const draft of drafts) {
       try {
         const groupName = draft.groupName?.trim()
         const input: Parameters<typeof importAssistant>[0] = { ...draft.dto }
+
         if (groupName) input.groupName = groupName
         await importAssistant(input)
         outcomes.push({ kind: 'ok' })
@@ -211,6 +227,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
 
     if (nextStatus.kind === 'success') {
       toast.success(nextStatus.message)
+
       // File-mode banner stays so the filename echo is visible;
       // clipboard / URL auto-close after a short delay.
       if (source !== 'file') {
@@ -231,15 +248,19 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
   const readFileOrBail = async (file: File): Promise<string | null> => {
     if (file.size > MAX_IMPORT_BYTES) {
       setStatus({ kind: 'error', message: t('library.import_dialog.error.file_too_large') })
+
       return null
     }
+
     return file.text()
   }
 
   const handleFileDrop = async (file?: File) => {
     if (loading) return
+
     if (!file) return
     const content = await readFileOrBail(file)
+
     if (content === null) return
     await runImport(content, 'file', file.name)
   }
@@ -247,10 +268,13 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
   // ---- Clipboard tab ----
   const handleClipboardImport = () => {
     if (!clipboardText.trim()) return
+
     if (clipboardText.length > MAX_IMPORT_BYTES) {
       setStatus({ kind: 'error', message: t('library.import_dialog.error.content_too_large') })
+
       return
     }
+
     void runImport(clipboardText, 'clipboard')
   }
 
@@ -265,38 +289,49 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
    */
   const handleUrlImport = async () => {
     const raw = urlText.trim()
+
     if (!raw) return
 
     const validation = validateAssistantImportUrl(raw)
+
     if (!validation.ok) {
       setStatus({ kind: 'error', message: t(validation.errorKey) })
+
       return
     }
 
     setLoading(true)
     setStatus({ kind: 'idle' })
+
     try {
       const response = await fetch(validation.url, createAssistantImportFetchInit())
+
       if (!response.ok) {
         throw new Error(t('assistants.presets.import.error.fetch_failed'))
       }
+
       if (isAssistantImportResponseTooLarge(response.headers)) {
         throw new Error(t('library.import_dialog.error.response_too_large'))
       }
+
       const content = await response.text()
+
       if (isAssistantImportContentTooLarge(content)) {
         throw new Error(t('library.import_dialog.error.response_too_large'))
       }
+
       setLoading(false)
       await runImport(content, 'url')
     } catch (error) {
       setLoading(false)
+
       const message =
         error instanceof DOMException && error.name === 'TimeoutError'
           ? t('library.import_dialog.error.timeout')
           : error instanceof Error
             ? error.message
             : t('message.agents.import.error')
+
       setStatus({ kind: 'error', message })
     }
   }
@@ -332,6 +367,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
           <TabsList className="h-auto w-auto justify-start gap-1 bg-transparent p-0">
             {tabs.map((tabDef) => {
               const Icon = tabDef.icon
+
               return (
                 <TabsTrigger
                   key={tabDef.id}

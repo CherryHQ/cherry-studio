@@ -48,6 +48,7 @@ export function buildModelscopeTransport(settings: ModelscopeProviderSettings): 
  */
 export function createModelscopeProvider(settings: ModelscopeProviderSettings = {}): ModelscopeProvider {
   const { baseURL, fetch: customFetch } = settings
+
   if (!baseURL) {
     throw new Error('ModelScope provider requires a non-empty `baseURL`.')
   }

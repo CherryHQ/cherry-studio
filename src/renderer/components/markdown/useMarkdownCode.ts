@@ -9,13 +9,16 @@ export const INLINE_CODE_CLASS =
 export function useMarkdownCode(children: ReactNode, className?: string, sourceFormat: 'hast' | 'raw' = 'hast') {
   const text = getNodeText(children)
   const detectedLanguage = /language-([\w-+]+)/.exec(className || '')?.[1] ?? (text.includes('\n') ? 'text' : null)
+
   const language = useMemo(
     () =>
       detectedLanguage === 'xml' && /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg[\s>]/i.test(text) ? 'svg' : detectedLanguage,
     [text, detectedLanguage]
   )
+
   const isIncomplete = useIsCodeFenceIncomplete()
   // mdast-util-to-hast appends one structural LF to non-empty fenced code.
   const source = sourceFormat === 'hast' && language !== null && text.endsWith('\n') ? text.slice(0, -1) : text
+
   return { text: source, language, isIncomplete }
 }

@@ -7,10 +7,13 @@ export function classifyFileFailure(error: unknown, externalPath = false): Failu
   if (isCancellation(error)) {
     return { source: 'application', kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }
   }
+
   const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+
   if (code === fileErrorCodes.COMMITTED_METADATA_PENDING) {
     return { source: 'application', kind: 'reliability', reason: 'file_metadata_pending', outcome: 'failed' }
   }
+
   if (
     typeof code === 'string' &&
     (
@@ -29,6 +32,7 @@ export function classifyFileFailure(error: unknown, externalPath = false): Failu
   ) {
     return { source: 'application', kind: 'expected', reason: code.toLowerCase(), outcome: 'failed' }
   }
+
   if (
     typeof code === 'string' &&
     [
@@ -55,6 +59,7 @@ export function classifyFileFailure(error: unknown, externalPath = false): Failu
       outcome: 'failed'
     }
   }
+
   return {
     source: 'application',
     kind:

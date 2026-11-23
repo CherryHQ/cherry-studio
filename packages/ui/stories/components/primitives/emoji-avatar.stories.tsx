@@ -32,6 +32,7 @@ const meta: Meta<typeof EmojiAvatar> = {
 } satisfies Meta<typeof EmojiAvatar>
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // 基础用法

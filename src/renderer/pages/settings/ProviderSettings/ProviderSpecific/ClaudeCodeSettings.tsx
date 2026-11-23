@@ -31,6 +31,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
 
   const checkLogin = useCallback(async () => {
     setChecking(true)
+
     try {
       setLoggedIn(await ipcApi.request('oauth.check_external_login', { providerId }))
     } catch (error) {
@@ -47,13 +48,16 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
 
   const handleOpenTerminal = useCallback(async () => {
     setLaunching(true)
+
     try {
       const { homePath } = await ipcApi.request('app.get_info')
+
       const result = await ipcApi.request('code_cli.run', {
         mode: 'login-flow',
         cliTool: CodeCli.CLAUDE_CODE,
         directory: homePath
       })
+
       if (!result.success) {
         logger.error('Failed to launch Claude login terminal', { message: result.message })
         toast.error(t('settings.provider.claude_code.launch_failed'))

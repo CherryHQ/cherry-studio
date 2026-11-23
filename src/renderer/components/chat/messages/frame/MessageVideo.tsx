@@ -31,6 +31,7 @@ const MessageVideo: FC<Props> = ({ url, filePath, videoPath, startTime }) => {
   const renderLocalVideo = () => {
     if (!filePath) {
       logger.warn('Local video was requested but filePath is missing.')
+
       return <div>{t('message.video.error.local_file_missing')}</div>
     }
 
@@ -38,6 +39,7 @@ const MessageVideo: FC<Props> = ({ url, filePath, videoPath, startTime }) => {
 
     const handleReady = () => {
       const start = Math.floor(startTime ?? 0)
+
       if (playerRef.current) {
         playerRef.current.currentTime = start
       }
@@ -76,6 +78,7 @@ const MessageVideo: FC<Props> = ({ url, filePath, videoPath, startTime }) => {
     }
 
     logger.warn(`Unsupported video or missing necessary data.`)
+
     return <div>{t('message.video.error.unsupported_type')}</div>
   }
 

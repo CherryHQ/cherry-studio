@@ -51,6 +51,7 @@ function getPresetSummary(preset: AssistantCatalogPreset) {
 
 function matchesSearch(preset: AssistantCatalogPreset, keyword: string) {
   if (!keyword) return true
+
   return (
     [preset.name, preset.description, preset.prompt]
       .filter(Boolean)
@@ -89,6 +90,7 @@ export function AssistantLibraryDialog({
     const categoryTabs = buildAssistantCatalogTabs(rawPresets, 0, '').filter(
       (tab) => tab.id !== ASSISTANT_CATALOG_MY_TAB
     )
+
     return [{ id: LIBRARY_ALL_TAB, label: t('common.all'), count: rawPresets.length }, ...categoryTabs]
   }, [rawPresets, t])
 
@@ -110,8 +112,10 @@ export function AssistantLibraryDialog({
   const visiblePresets = useMemo(() => {
     if (activeTab === LIBRARY_ALL_TAB) {
       const keyword = search.trim().toLowerCase()
+
       return rawPresets.filter((preset) => matchesSearch(preset, keyword))
     }
+
     return filterAssistantCatalogPresets(rawPresets, activeTab, search)
   }, [activeTab, rawPresets, search])
 
@@ -124,6 +128,7 @@ export function AssistantLibraryDialog({
       }))
       onAssistantAdded?.()
       toast.success(t('common.add_success'))
+
       return assistant
     },
     [createAssistant, onAssistantAdded, t]
@@ -132,9 +137,11 @@ export function AssistantLibraryDialog({
   const handleAddPreset = useCallback(
     async (preset: AssistantCatalogPreset) => {
       const presetKey = getAssistantPresetCatalogKey(preset)
+
       if (addingPresetKeys.has(presetKey)) return
 
       setAddingPresetKeys((prev) => new Set(prev).add(presetKey))
+
       try {
         await addPreset(preset)
       } catch (error) {
@@ -143,6 +150,7 @@ export function AssistantLibraryDialog({
         setAddingPresetKeys((prev) => {
           const next = new Set(prev)
           next.delete(presetKey)
+
           return next
         })
       }
@@ -154,6 +162,7 @@ export function AssistantLibraryDialog({
     if (!previewPreset || previewAdding) return
 
     setPreviewAdding(true)
+
     try {
       await addPreset(previewPreset)
     } catch (error) {
@@ -198,6 +207,7 @@ export function AssistantLibraryDialog({
               <div className="flex items-center gap-1">
                 {tabs.map((tab) => {
                   const isActive = tab.id === activeTab
+
                   return (
                     <button
                       key={tab.id}
@@ -336,9 +346,11 @@ function VirtualizedAssistantLibraryPresetList({
     <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
       {rowVirtualizer.getVirtualItems().map((virtualRow) => {
         const preset = presets[virtualRow.index]
+
         if (!preset) return null
 
         const presetKey = getAssistantPresetCatalogKey(preset)
+
         return (
           <div
             key={virtualRow.key}
@@ -387,9 +399,11 @@ const AssistantLibraryPresetRow = memo(function AssistantLibraryPresetRow({
   const { t } = useTranslation()
   const summary = getPresetSummary(preset)
   const isAdded = Boolean(addedAssistantId)
+
   const handleAdd = useCallback(() => {
     onAddPreset(preset)
   }, [onAddPreset, preset])
+
   const handlePreview = useCallback(() => {
     onPreviewPreset(preset)
   }, [onPreviewPreset, preset])
@@ -397,6 +411,7 @@ const AssistantLibraryPresetRow = memo(function AssistantLibraryPresetRow({
   const activateOnKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
       if (event.target !== event.currentTarget) return
+
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
         handlePreview()

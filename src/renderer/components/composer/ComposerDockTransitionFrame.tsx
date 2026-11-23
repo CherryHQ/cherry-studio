@@ -67,11 +67,13 @@ export default function ComposerDockTransitionFrame({
   useLayoutEffect(() => {
     if (!setQuickPanelFill) return
     setQuickPanelFill(placement === 'home')
+
     return () => setQuickPanelFill(false)
   }, [placement, setQuickPanelFill])
 
   useLayoutEffect(() => {
     const node = composerRef.current
+
     if (!node) return
     let observer: ResizeObserver | null = null
     let observedInsetTarget: HTMLElement | null = null
@@ -82,23 +84,32 @@ export default function ComposerDockTransitionFrame({
         setComposerInlineInsets((current) =>
           current.left === 0 && current.right === 0 ? current : ZERO_COMPOSER_INLINE_INSETS
         )
+
         return
       }
+
       const insetTarget = findComposerViewportInsetTarget(node)
+
       if (observer && insetTarget !== observedInsetTarget) {
         if (observedInsetTarget) observer.unobserve(observedInsetTarget)
+
         if (insetTarget) observer.observe(insetTarget)
         observedInsetTarget = insetTarget
       }
+
       const root = rootRef.current
+
       if (!insetTarget || !root) {
         setBottomOverlayInsets(null)
         setComposerInlineInsets((current) =>
           current.left === 0 && current.right === 0 ? current : ZERO_COMPOSER_INLINE_INSETS
         )
+
         return
       }
+
       const insetTargetRect = insetTarget.getBoundingClientRect()
+
       // A composer mid-swap (e.g. its lazy chunk still loading behind Suspense)
       // measures as a zero rect. Deriving insets from it would push the message
       // list's bottom margin to the full stage height and collapse the list to
@@ -109,14 +120,17 @@ export default function ComposerDockTransitionFrame({
       const scroller = root.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
       const scrollerRect = scroller?.getBoundingClientRect()
       const scrollerClientWidth = scroller?.clientWidth ?? 0
+
       const nextBottomOverlayInsets = {
         contentBottomPadding: Math.max(0, insetTargetRect.bottom - composerRect.top + COMPOSER_MESSAGE_GAP_PX),
         scrollerBottomMargin: Math.max(0, rootRect.bottom - insetTargetRect.bottom)
       }
+
       const nextComposerInlineInsets = {
         left: scrollerRect ? Math.max(0, scrollerRect.left - rootRect.left) : 0,
         right: scrollerRect ? Math.max(0, rootRect.right - scrollerRect.left - scrollerClientWidth) : 0
       }
+
       setBottomOverlayInsets((current) =>
         current?.contentBottomPadding === nextBottomOverlayInsets.contentBottomPadding &&
         current.scrollerBottomMargin === nextBottomOverlayInsets.scrollerBottomMargin
@@ -129,14 +143,17 @@ export default function ComposerDockTransitionFrame({
           : nextComposerInlineInsets
       )
     }
+
     updateInset()
 
     if (typeof ResizeObserver === 'undefined') return
 
     observer = new ResizeObserver(updateInset)
+
     if (rootRef.current) observer.observe(rootRef.current)
     observer.observe(node)
     const scroller = rootRef.current?.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
+
     if (scroller) observer.observe(scroller)
     updateInset()
 

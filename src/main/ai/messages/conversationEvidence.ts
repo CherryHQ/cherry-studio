@@ -20,6 +20,7 @@ export function conversationPartEvidence(part: CherryMessagePart) {
       errorText: part.state === 'output-error' ? part.errorText : undefined
     }
   }
+
   switch (part.type) {
     case 'text':
       return { type: part.type, text: part.text }
@@ -69,6 +70,7 @@ export function conversationEvidence(conversation: ReadConversationResult) {
   if ('message' in conversation) {
     return { ...conversation, message: messageEvidence(conversation.message) }
   }
+
   if (conversation.source === 'topic') {
     return {
       ...conversation,
@@ -78,5 +80,6 @@ export function conversationEvidence(conversation: ReadConversationResult) {
       }))
     }
   }
+
   return { ...conversation, messages: conversation.messages.map(messageEvidence) }
 }

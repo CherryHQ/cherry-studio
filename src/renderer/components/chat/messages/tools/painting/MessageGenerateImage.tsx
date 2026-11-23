@@ -33,21 +33,26 @@ function useGeneratedImageUrls(items: Array<{ id: string; name: string }>): {
   failed: boolean
 } {
   const key = items.map((item) => item.id).join(',')
+
   const [state, setState] = useState<{ images: ResolvedGeneratedImage[]; failed: boolean }>({
     images: [],
     failed: false
   })
+
   // Key of the last completed resolution: an <Activity> re-show re-runs the
   // effect with an unchanged key, and re-resolving would blank the tiles and
   // re-pay one getPhysicalPath IPC per image.
   const resolvedKeyRef = useRef<string | null>(null)
   useEffect(() => {
     const list = key ? key.split(',') : []
+
     if (list.length === 0) {
       resolvedKeyRef.current = null
       setState((current) => (current.images.length === 0 && !current.failed ? current : { images: [], failed: false }))
+
       return
     }
+
     if (resolvedKeyRef.current === key) return
     let cancelled = false
     // Back to "resolving" for this id set (drops any stale failed flag from a previous set).
@@ -69,10 +74,12 @@ function useGeneratedImageUrls(items: Array<{ id: string; name: string }>): {
       resolvedKeyRef.current = key
       setState({ images, failed: images.length === 0 })
     })
+
     return () => {
       cancelled = true
     }
   }, [items, key])
+
   return state
 }
 
@@ -89,12 +96,16 @@ export const MessageGenerateImageToolTitle = ({
   const { addGeneratedImageToComposer } = useOptionalMessageListActions() ?? {}
   const { inlineUrls, items } = useMemo(() => parseGeneratedImageOutput(toolResponse.response), [toolResponse.response])
   const { images: resolvedImages, failed: resolveFailed } = useGeneratedImageUrls(items)
+
   const images =
     inlineUrls.length > 0 ? inlineUrls.map((url, index) => ({ url, name: items[index]?.name ?? '' })) : resolvedImages
+
   const urls = images.map((image) => image.url)
+
   const useAsReference = addGeneratedImageToComposer
     ? (index: number) => {
         const image = images[index]
+
         if (image) return addGeneratedImageToComposer({ url: image.url, name: image.name })
       }
     : undefined
@@ -119,6 +130,7 @@ export const MessageGenerateImageToolTitle = ({
   // No card chrome — just a caption and the image(s) laid out like any other image group
   // (single = bare, multiple = flex-wrap grid; mirrors MessagePartsRenderer).
   const isSingle = Math.max(items.length, urls.length) === 1
+
   return (
     <div className="group/tool my-px flex flex-col gap-1 first:mt-0 first:pt-0">
       <NoteText>{t('chat.input.tools.generate_image.title')}</NoteText>

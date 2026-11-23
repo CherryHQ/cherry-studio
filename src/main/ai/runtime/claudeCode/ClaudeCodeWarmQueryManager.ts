@@ -72,16 +72,21 @@ export function stripWarmQueryOptions(options: Options): Options {
     abortController: _abortController,
     ...rest
   } = options
+
   return rest
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK options include callbacks, symbols and cyclic live objects; this serializer defines their stable signature representation.
 function normalizeForSignature(value: unknown, seen = new WeakSet<object>()): Serializable | undefined {
   if (value === undefined || typeof value === 'symbol') return undefined
+
   if (typeof value === 'function') return '[function]'
+
   if (typeof value === 'bigint') throw new TypeError('Do not know how to serialize a BigInt')
+
   if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
     return value
+
   if (seen.has(value)) return '[circular]'
   seen.add(value)
 
@@ -96,6 +101,7 @@ function normalizeForSignature(value: unknown, seen = new WeakSet<object>()): Se
   return Object.fromEntries(
     entries.flatMap(([key, item]): [string, Serializable][] => {
       const normalized = normalizeForSignature(item, seen)
+
       return normalized === undefined ? [] : [[key, normalized]]
     })
   )
@@ -110,6 +116,7 @@ function sanitizeMcpServersForSignature(mcpServers: NonNullable<Options['mcpServ
   return Object.fromEntries(
     Object.entries(mcpServers).map(([key, config]): [string, McpServerConfigForProcessTransport] => {
       if (config.type !== 'sdk') return [key, config]
+
       return [key, { type: config.type, name: config.name, timeout: config.timeout, tools: config.tools }]
     })
   )
@@ -125,19 +132,25 @@ const HASHED_CREDENTIAL_ENV_KEYS = ['ANTHROPIC_CUSTOM_HEADERS'] as const
  */
 function sanitizeSensitiveEnvForSignature(options: Options): Options {
   const env = options.env
+
   const hasSensitiveEnv =
     env &&
     (ROTATING_CREDENTIAL_ENV_KEYS.some((key) => key in env) || HASHED_CREDENTIAL_ENV_KEYS.some((key) => key in env))
+
   if (!env || !hasSensitiveEnv) return options
 
   const cleanedEnv = { ...env }
+
   for (const key of ROTATING_CREDENTIAL_ENV_KEYS) delete cleanedEnv[key]
+
   for (const key of HASHED_CREDENTIAL_ENV_KEYS) {
     const value = cleanedEnv[key]
+
     if (value !== undefined) {
       cleanedEnv[key] = createHash('sha256').update(value).digest('hex')
     }
   }
+
   return { ...options, env: cleanedEnv }
 }
 
@@ -149,9 +162,11 @@ export function createClaudeCodeWarmQuerySignature(
   connectionRebuildSignature?: string
 ): string {
   const stripped = sanitizeSensitiveEnvForSignature(stripWarmQueryOptions(options))
+
   const signatureSource = stripped.mcpServers
     ? { ...stripped, mcpServers: sanitizeMcpServersForSignature(stripped.mcpServers) }
     : stripped
+
   return JSON.stringify({
     options: normalizeForSignature(signatureSource),
     credentials: credentialsFingerprint ?? null,
@@ -180,10 +195,12 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     const preparations = this.preparingSessions.get(sessionId) ?? new Set<Promise<void>>()
     this.preparingSessions.set(sessionId, preparations)
     preparations.add(preparing)
+
     try {
       await preparing
     } finally {
       preparations.delete(preparing)
+
       if (preparations.size === 0) this.preparingSessions.delete(sessionId)
     }
   }
@@ -192,12 +209,15 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     try {
       const { buildClaudeCodeWarmQueryRequestForAgentSession } = await import('./agentSessionWarmup')
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
+
       if (!warmRequest) return
+
       const context = prepareClaudeBranch(
         sessionId,
         resolveClaudeConfigDirectory(warmRequest.options.env),
         warmRequest.options.resume
       )
+
       warmRequest.options = {
         ...warmRequest.options,
         ...(warmRequest.options.resume || context.bindingState === 'bound'
@@ -221,9 +241,11 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
    */
   private async withTraceEnv(sessionId: string, request: WarmQueryRequest): Promise<WarmQueryRequest> {
     const traceBridge = application.get('ClaudeCodeTraceBridgeService')
+
     if (!traceBridge.isTraceModeEnabled()) return request
 
     const traceId = agentSessionService.ensureTraceId(sessionId)
+
     const traceEnv = await traceBridge.prepareTrace({
       topicId: buildAgentSessionTopicId(sessionId),
       traceId,
@@ -231,6 +253,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       sessionId,
       turnId: ''
     })
+
     if (!traceEnv) return request
 
     return { ...request, options: { ...request.options, env: { ...request.options.env, ...traceEnv } } }
@@ -247,6 +270,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     // single await sits before any `entries` access, so the body below still runs without gaps.
     const { startup } = await import('@anthropic-ai/claude-agent-sdk')
     const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
+
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
@@ -254,10 +278,12 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       request.notificationContext,
       request.connectionRebuildSignature
     )
+
     const existing = this.entries.get(request.key)
 
     if (existing?.signature === signature) {
       this.refreshIdleTimer(request.key, existing)
+
       return
     }
 
@@ -266,6 +292,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     }
 
     const processDiagnostics = createClaudeCodeProcessDiagnostics()
+
     const promise = startup({
       options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics) },
       initializeTimeoutMs: request.initializeTimeoutMs
@@ -273,7 +300,9 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       if (this.entries.get(request.key)?.promise === promise) {
         this.entries.delete(request.key)
       }
+
       logger.warn('Claude warm query startup failed', { key: request.key, error })
+
       return undefined
     })
 
@@ -284,6 +313,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
   async consume(request: WarmQueryRequest): Promise<ConsumedWarmQuery | undefined> {
     const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
+
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
@@ -291,19 +321,25 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       request.notificationContext,
       request.connectionRebuildSignature
     )
+
     const entry = this.entries.get(request.key)
+
     if (!entry) return undefined
 
     this.entries.delete(request.key)
+
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
 
     if (entry.signature !== signature) {
       this.closeDetached(request.key, entry)
+
       return undefined
     }
 
     const warmQuery = await entry.promise
+
     if (!warmQuery) return undefined
+
     return { warmQuery, usageCapture: entry.usageCapture, processDiagnostics: entry.processDiagnostics }
   }
 
@@ -311,10 +347,12 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     while (this.preparingSessions.has(key)) {
       await Promise.allSettled([...this.preparingSessions.get(key)!])
     }
+
     const entry = this.entries.get(key)
     this.entries.delete(key)
     const retries = [...(this.failedClosures.get(key) ?? [])]
     const closures = retries.map((failed) => this.closeEntry(key, failed))
+
     if (entry) closures.push(this.closeEntry(key, entry))
     closures.push(...(this.closingQueries.get(key) ?? []))
     await Promise.all(closures)
@@ -327,6 +365,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       ...this.closingQueries.keys(),
       ...this.failedClosures.keys()
     ])
+
     return Promise.allSettled([...keys].map((key) => this.close(key))).then(() => undefined)
   }
 
@@ -356,14 +395,17 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
   private closeEntry(key: string, entry: WarmQueryEntry): Promise<void> {
     if (entry.closePromise) return entry.closePromise
+
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
     const closures = this.closingQueries.get(key) ?? new Set<Promise<void>>()
     this.closingQueries.set(key, closures)
+
     const closing = entry.promise
       .then(async (warmQuery) => {
         await warmQuery?.[Symbol.asyncDispose]()
         const failed = this.failedClosures.get(key)
         failed?.delete(entry)
+
         if (failed?.size === 0) this.failedClosures.delete(key)
       })
       .catch((error) => {
@@ -375,10 +417,13 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       })
       .finally(() => {
         closures.delete(closing)
+
         if (closures.size === 0) this.closingQueries.delete(key)
       })
+
     closures.add(closing)
     entry.closePromise = closing
+
     return closing
   }
 }

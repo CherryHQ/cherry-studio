@@ -20,6 +20,7 @@ export class JinaProvider extends RemoteWebSearchProvider {
   private async preferredHost(capability: WebSearchCapability): Promise<string> {
     const configured = resolveProviderApiHost(this.provider, capability)
     const inChina = JINA_MIRROR_HOSTS[configured] && (await regionService.isInChina().catch(() => false))
+
     return getJinaHostCandidates(configured, inChina ? 'mainland-china' : 'global')[0]
   }
 
@@ -42,6 +43,7 @@ export class JinaProvider extends RemoteWebSearchProvider {
     const credentials = this.credentials()
     const mirror = JINA_MIRROR_HOSTS[GLOBAL_READER_HOST]
     const alternate = apiHost === GLOBAL_READER_HOST ? mirror : apiHost === mirror ? GLOBAL_READER_HOST : undefined
+
     try {
       return await this.executeRemote('fetchUrls', query, config, httpOptions, { apiHost, credentials })
     } catch (error) {
@@ -50,6 +52,7 @@ export class JinaProvider extends RemoteWebSearchProvider {
         providerId: this.provider.id,
         error: error instanceof Error ? error.message : String(error)
       })
+
       return this.executeRemote('fetchUrls', query, config, httpOptions, { apiHost: alternate, credentials })
     }
   }

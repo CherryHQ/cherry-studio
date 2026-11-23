@@ -43,10 +43,13 @@ export function classifyUpdateFailure(error: unknown): FailureFacts {
   if (error instanceof CancellationError || isCancellation(error)) {
     return { source: 'environment', kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }
   }
+
   const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+
   if (error instanceof HttpError && ![401, 403, 408, 429].includes(error.statusCode) && !error.isServerError()) {
     return { source: 'application', kind: 'reliability', reason: 'update_feed_invalid', outcome: 'failed' }
   }
+
   if (
     error instanceof HttpError ||
     (typeof code === 'string' &&
@@ -65,9 +68,11 @@ export function classifyUpdateFailure(error: unknown): FailureFacts {
   ) {
     return { source: 'environment', kind: 'expected', reason: 'update_unavailable', outcome: 'failed' }
   }
+
   if (typeof code === 'string' && (code.startsWith('ERR_UPDATER_') || code === 'ERR_CHECKSUM_MISMATCH')) {
     return { source: 'application', kind: 'reliability', reason: 'update_package_invalid', outcome: 'failed' }
   }
+
   return {
     source: 'application',
     kind:
@@ -120,13 +125,17 @@ class ReleaseNotesUpdater extends AppUpdater {
 // service), not the renderer, so it survives window close and runs exactly
 // once regardless of how many windows are open.
 const AUTO_UPDATE_SCHEDULE_ID = 'app-updater:auto-check'
+
 // Base interval between automatic checks.
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
+
 // ± ratio of random jitter applied per cycle, so clients that launched around
 // the same time don't all hit the update server on the same beat.
 const CHECK_JITTER_RATIO = 0.15
+
 // Short delay before the first check after startup, letting boot I/O settle.
 const INITIAL_CHECK_DELAY_MS = 5_000
+
 // Backoff for consecutive check failures: 5/10/20/40min, capped at 60min — always
 // shorter than the normal cadence so a transient failure recovers sooner. Note
 // `computeBackoff` ignores `maxAttempts`; auto-check never gives up, so it is a
@@ -192,15 +201,18 @@ export class AppUpdaterService extends BaseService {
     if (!app.isPackaged || this.isPortable()) {
       return
     }
+
     this.scheduleNextUpdateCheck(INITIAL_CHECK_DELAY_MS)
   }
 
   private async publishReleaseNotification(releaseInfo: UpdateInfo): Promise<void> {
     if (this.pendingReleaseNotifications.has(releaseInfo.version)) return
     this.pendingReleaseNotifications.add(releaseInfo.version)
+
     try {
       const db = application.get('DbService').getDb()
       const key = `appUpdater:notification:${releaseInfo.version}`
+
       if (db.select().from(appStateTable).where(eq(appStateTable.key, key)).get()) return
 
       const releaseNotes =
@@ -210,13 +222,16 @@ export class AppUpdaterService extends BaseService {
               ?.map(({ note }) => note)
               .filter(Boolean)
               .join('\n\n') ?? '')
+
       const title = t('notification.center.version_available', { version: releaseInfo.version })
+
       const summary = releaseNotes
         .split('\n')
         .find((line) => line.trim() && !/^\s*#/.test(line))
         ?.replace(/^\s*[-*>]\s*/, '')
         .trim()
         .slice(0, 240)
+
       const recorded = await application.get('NotificationService').publish(
         {
           eventKey: `release:${releaseInfo.version}`,
@@ -229,6 +244,7 @@ export class AppUpdaterService extends BaseService {
         },
         { source: 'update' }
       )
+
       if (recorded) db.insert(appStateTable).values({ key, value: true }).onConflictDoNothing().run()
     } catch (error) {
       logger.warn('Failed to publish release notification', error as Error)
@@ -242,6 +258,7 @@ export class AppUpdaterService extends BaseService {
       logFailure(logger, 'update error', error, 'update.run', classifyUpdateFailure(error))
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.error', error)
     }
+
     autoUpdater.on('error', onError)
     this.registerDisposable(() => autoUpdater.removeListener('error', onError))
 
@@ -251,25 +268,30 @@ export class AppUpdaterService extends BaseService {
       void this.publishReleaseNotification(processedReleaseInfo)
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.available', processedReleaseInfo)
     }
+
     autoUpdater.on('update-available', onUpdateAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-available', onUpdateAvailable))
 
     const onUpdateNotAvailable = (updateInfo: UpdateInfo) => {
       const result = this.resolveNotAvailableResult(updateInfo)
+
       if (!result.isCurrent) {
         logger.warn(
           `managed feed target ${result.feedVersion} differs from installed ${result.currentVersion} (channel: ${autoUpdater.channel}) — treating as withheld, not current`
         )
       }
+
       const payload: AppUpdaterNotAvailablePayload = { isCurrent: result.isCurrent }
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', payload)
     }
+
     autoUpdater.on('update-not-available', onUpdateNotAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-not-available', onUpdateNotAvailable))
 
     const onDownloadProgress = (progress: ProgressInfo) => {
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.download_progress', progress)
     }
+
     autoUpdater.on('download-progress', onDownloadProgress)
     this.registerDisposable(() => autoUpdater.removeListener('download-progress', onDownloadProgress))
 
@@ -278,6 +300,7 @@ export class AppUpdaterService extends BaseService {
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.downloaded', processedReleaseInfo)
       logger.info('update downloaded', processedReleaseInfo)
     }
+
     autoUpdater.on('update-downloaded', onUpdateDownloaded)
     this.registerDisposable(() => autoUpdater.removeListener('update-downloaded', onUpdateDownloaded))
   }
@@ -285,6 +308,7 @@ export class AppUpdaterService extends BaseService {
   private async getUpdateRequest() {
     const currentVersion = app.getVersion()
     const testPlan = application.get('PreferenceService').get('app.dist.test_plan.enabled')
+
     const requestedChannel = testPlan
       ? application.get('PreferenceService').get('app.dist.test_plan.channel') || UpgradeChannel.RC
       : UpgradeChannel.LATEST
@@ -322,6 +346,7 @@ export class AppUpdaterService extends BaseService {
   private async fetchReleaseHistory(): Promise<ReleaseNotesEntry[] | null> {
     try {
       const { updateHeaders } = await this.getUpdateRequest()
+
       const response = await net.fetch(RELEASE_HISTORY_URL, {
         headers: updateHeaders,
         redirect: 'follow',
@@ -333,11 +358,13 @@ export class AppUpdaterService extends BaseService {
       }
 
       const contentLength = Number(response.headers.get('content-length'))
+
       if (Number.isFinite(contentLength) && contentLength > RELEASE_HISTORY_MAX_BYTES) {
         throw new Error('Release history response exceeds the size limit')
       }
 
       const source = await response.text()
+
       if (Buffer.byteLength(source, 'utf8') > RELEASE_HISTORY_MAX_BYTES) {
         throw new Error('Release history response exceeds the size limit')
       }
@@ -345,6 +372,7 @@ export class AppUpdaterService extends BaseService {
       return parseReleaseHistory(source)
     } catch (error) {
       logger.warn('Failed to fetch release history', error as Error)
+
       return null
     }
   }
@@ -365,7 +393,9 @@ export class AppUpdaterService extends BaseService {
     updater.channel = updateChannel
     updater.allowDowngrade = false
     const result = await updater.checkForUpdates()
+
     if (!result) throw new Error('Update query did not produce a result')
+
     return result.isUpdateAvailable
       ? { status: 'available', currentVersion, version: result.updateInfo.version }
       : { status: 'current', currentVersion }
@@ -384,11 +414,13 @@ export class AppUpdaterService extends BaseService {
       updater.allowDowngrade = false
 
       const result = await updater.checkForUpdates()
+
       if (!result?.isUpdateAvailable) {
         return null
       }
 
       const releaseNotes = result.updateInfo.releaseNotes
+
       if (typeof releaseNotes !== 'string' || !releaseNotes.trim()) {
         return null
       }
@@ -396,6 +428,7 @@ export class AppUpdaterService extends BaseService {
       return { releaseNotes, version: result.updateInfo.version }
     } catch (error) {
       logger.warn('Failed to fetch latest release notes', error as Error)
+
       return null
     }
   }
@@ -412,6 +445,7 @@ export class AppUpdaterService extends BaseService {
 
   public async getUpgradeReleaseNotes(targetVersion: string): Promise<OutputFor<'app.updater.upgrade_notes.get'>> {
     const fromVersion = app.getVersion()
+
     if (
       !isStableReleaseVersion(fromVersion) ||
       !isStableReleaseVersion(targetVersion) ||
@@ -419,7 +453,9 @@ export class AppUpdaterService extends BaseService {
     ) {
       throw new IpcError(IpcErrorCode.VALIDATION_FAILED, 'Expected a stable upgrade range')
     }
+
     const history = await this.fetchReleaseHistory()
+
     return {
       fromVersion,
       toVersion: targetVersion,
@@ -433,6 +469,7 @@ export class AppUpdaterService extends BaseService {
   public cancelDownload() {
     this.cancellationToken.cancel()
     this.cancellationToken = new CancellationToken()
+
     if (autoUpdater.autoDownload) {
       this.updateCheckResult?.cancellationToken?.cancel()
     }
@@ -485,6 +522,7 @@ export class AppUpdaterService extends BaseService {
       return await this.performUpdateCheck()
     } catch (error) {
       logFailure(logger, 'Failed to check for update:', error, 'update.check', classifyUpdateFailure(error))
+
       return {
         currentVersion: app.getVersion(),
         updateInfo: null
@@ -517,6 +555,7 @@ export class AppUpdaterService extends BaseService {
       if (application.get('PreferenceService').get('app.dist.auto_update.enabled')) {
         await this.performUpdateCheck()
       }
+
       this.updateCheckFailures = 0
       this.scheduleNextUpdateCheck(this.nextUpdateCheckDelayMs())
     } catch {
@@ -545,6 +584,7 @@ export class AppUpdaterService extends BaseService {
     const currentVersion = app.getVersion()
     const feedVersion = updateInfo?.version || null
     let isCurrent = true
+
     if (feedVersion) {
       try {
         isCurrent =
@@ -554,6 +594,7 @@ export class AppUpdaterService extends BaseService {
         // Unparseable versions fail closed to current.
       }
     }
+
     return { currentVersion, feedVersion, isCurrent }
   }
 

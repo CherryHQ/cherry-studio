@@ -4,6 +4,7 @@ import { createCodeBlockSnapshotExecutor } from '../../../../code-block'
 import { CODE_LANGUAGES, plainTokens, supportsCodeLanguage, type SnapshotExecutor } from '../../../../code-highlight'
 
 const executeLocal = createCodeBlockSnapshotExecutor()
+
 const STREAMDOWN_LANGUAGES = Object.keys(CODE_LANGUAGES).filter(
   (name): name is BundledLanguage => !['text', 'c3', 'cuda', 'tsrx'].includes(name)
 )
@@ -25,6 +26,7 @@ export function createCodeHighlightPlugin({
     highlight({ code, language, themes: selected }, callback) {
       const names = selected.map((theme, index) => (typeof theme === 'string' ? theme : theme.name) ?? themes[index])
       void execute({ code, language, themes: [names[0], names[1]] }).then(callback, () => callback?.(plainTokens(code)))
+
       return null
     }
   }

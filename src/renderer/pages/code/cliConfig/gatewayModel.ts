@@ -14,6 +14,7 @@ export function gatewayExpectedModel(
 ): string | undefined {
   if (!uniqueModelId || !isUniqueModelId(uniqueModelId)) return undefined
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+
   try {
     return formatGatewayModelId(providerId, apiModelId ?? modelId)
   } catch {
@@ -33,10 +34,12 @@ export function gatewayModelIdFromAddress(
   models: Map<UniqueModelId, Model> | undefined
 ): UniqueModelId | undefined {
   if (!gatewayAddress || !models) return undefined
+
   for (const [uniqueModelId, model] of models) {
     if (gatewayExpectedModel(uniqueModelId, model.apiModelId) === gatewayAddress) {
       return uniqueModelId
     }
   }
+
   return undefined
 }

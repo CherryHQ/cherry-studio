@@ -18,6 +18,7 @@ export function ComposerDictationButton({ inputAdapter }: { inputAdapter?: Quick
   const label = launcher?.label ?? t('chat.input.dictation.action.start')
   const snapshot = useSyncExternalStore(dictationService.subscribe, dictationService.getSnapshot)
   const capturing = ['starting', 'recording', 'stopping', 'transcribing'].includes(snapshot.phase)
+
   const discardLauncher =
     snapshot.phase === 'recorded' || snapshot.retryAvailable || snapshot.recoveryAvailable
       ? launcher?.submenu?.find((item) => item.id === 'dictation:discard')

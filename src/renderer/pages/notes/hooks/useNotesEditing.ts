@@ -23,11 +23,13 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
     onSave: async (newName: string) => {
       if (editingNodeId && newName) {
         const result = await onRenameNode(editingNodeId, newName)
+
         if (result.ok) {
           toast.success(t('common.saved'))
           logger.debug(`Renamed node ${editingNodeId} to "${result.name}"`)
         }
       }
+
       setEditingNodeId(null)
     },
     onCancel: () => {
@@ -49,16 +51,21 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
 
       setRenamingNodeIds((prev) => new Set(prev).add(note.id))
       let renamed = false
+
       try {
         const content = await window.api.file.readExternal(note.externalPath)
+
         if (!content || content.trim().length === 0) {
           toast.warning(t('notes.auto_rename.empty_note'))
+
           return
         }
 
         const summaryText = await fetchNoteSummary({ content })
+
         if (summaryText) {
           const result = await onRenameNode(note.id, summaryText)
+
           if (result.ok) {
             toast.success(t('notes.auto_rename.success'))
             renamed = result.name !== note.name
@@ -73,6 +80,7 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
         setRenamingNodeIds((prev) => {
           const next = new Set(prev)
           next.delete(note.id)
+
           return next
         })
 
@@ -84,6 +92,7 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
             setNewlyRenamedNodeIds((prev) => {
               const next = new Set(prev)
               next.delete(note.id)
+
               return next
             })
           }, 700)

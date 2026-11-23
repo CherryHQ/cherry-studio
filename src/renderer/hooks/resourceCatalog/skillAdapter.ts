@@ -31,6 +31,7 @@ function unwrapSkillResult<T>(
   fallbackMessage: string
 ): T {
   if (result.success) return result.data
+
   if (result.error instanceof Error) throw result.error
   throw new Error(typeof result.error === 'string' ? result.error : fallbackMessage)
 }
@@ -42,6 +43,7 @@ function unwrapSkillResult<T>(
 export function useSkillMutationsById(id: string) {
   const invalidate = useInvalidateSkills()
   const path = `/skills/${id}` as const
+
   const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', path, {
     refresh: ['/skills', path]
   })
@@ -54,6 +56,7 @@ export function useSkillMutationsById(id: string) {
   const uninstallSkill = useCallback(async (): Promise<void> => {
     const result = await ipcApi.request('skill.uninstall', { skillId: id })
     unwrapSkillResult(result, 'Failed to uninstall skill')
+
     try {
       await invalidate()
     } catch (error) {
@@ -65,11 +68,13 @@ export function useSkillMutationsById(id: string) {
   const setMirrorEnabled = useCallback(
     async (mirrorEnabled: boolean): Promise<InstalledSkill> => {
       const updated = await ipcApi.request('skill.set_mirror_enabled', { skillId: id, mirrorEnabled })
+
       try {
         await invalidate()
       } catch (error) {
         logger.warn('Failed to refresh skills cache after IPC mutation', { error })
       }
+
       return updated
     },
     [id, invalidate]

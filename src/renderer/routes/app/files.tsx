@@ -12,9 +12,11 @@ export const Route = createFileRoute('/app/files')({
 function FilesRoute() {
   const { entryId } = Route.useSearch()
   const navigate = Route.useNavigate()
+
   const handleEntryIdChange = useCallback(
     (nextEntryId?: string) => void navigate({ search: nextEntryId ? { entryId: nextEntryId } : {}, replace: true }),
     [navigate]
   )
+
   return <FilesPage entryId={entryId} onEntryIdChange={handleEntryIdChange} />
 }

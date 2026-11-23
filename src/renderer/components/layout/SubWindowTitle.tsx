@@ -10,6 +10,7 @@ import { TabIcon } from './TabIcon'
 export const SubWindowTitle = ({ className }: { className?: string }) => {
   const { tabs, activeTabId } = useTabs()
   const tab = tabs.find((tabItem) => tabItem.id === activeTabId) ?? tabs[0]
+
   if (!tab) return null
 
   return (

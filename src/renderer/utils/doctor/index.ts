@@ -5,5 +5,7 @@ export {
   doctorCheckDetailParams,
   resolveDoctorFixLabel
 } from './doctorContent'
+
 export { buildDoctorViewModel, canCancelDoctorRun } from './doctorViewModel'
+
 export { formatDoctorReportForCopy } from './formatDoctorCopy'

@@ -43,7 +43,9 @@ function serveAgentMcpServer(createServer: () => McpServer | Server): AgentMcpSe
 }
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServerEntity | undefined>
+
 export type NotifyChannel = Pick<AgentChannelEntity, 'id' | 'type'>
+
 export type LinkedChannelSnapshot = NotifyChannel | null
 
 export interface AgentNotificationContext {
@@ -70,30 +72,37 @@ export function buildAgentMcpServers(
   effectiveModelId?: UniqueModelId | null
 ) {
   const modelId = effectiveModelId ?? session.model ?? agent.model ?? undefined
+
   const interactionContext = {
     sessionId: session.id,
     topicId: `agent-session:${session.id}`,
     model: modelId,
     roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
   }
+
   const servers: Record<string, AgentMcpServer> = {}
+
   const channelLinked =
     linkedChannelSnapshot === undefined ? notificationContext.sourceChannel !== null : linkedChannelSnapshot !== null
+
   const hostTools = resolveHostTools(agent, { channelLinked })
 
   for (const mcpId of agent.mcps ?? []) {
     try {
       const serverSnapshot = mcpServerSnapshots?.get(mcpId)
       const legacyServer = mcpServerSnapshots ? serverSnapshot : mcpServerService.findByIdOrName(mcpId)
+
       if (
         legacyServer &&
         isInMemoryBuiltinMcpServer(legacyServer) &&
         legacyServer.name === BuiltinMcpServerNames.browser
       )
         continue
+
       if (mcpServerSnapshots && !serverSnapshot) {
         throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
       }
+
       if (!legacyServer) throw new Error(`MCP server not found: ${mcpId}`)
       servers[mcpId] = {
         id: legacyServer.id,
@@ -126,6 +135,7 @@ export function buildAgentMcpServers(
         allowAnyOwnedNotifyChannel: notificationContext.allowAnyOwnedChannel,
         getKnowledgeAccess: () => {
           const liveAgent = agentService.getAgent(agent.id)
+
           return {
             allKnowledgeBases: resolveAgentCapabilities(liveAgent).allKnowledgeBases,
             baseIds: liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
@@ -134,18 +144,21 @@ export function buildAgentMcpServers(
       })
     )
   }
+
   if (mountedServers.has(CHERRY_MCP_SERVER.AGENT_MEMORY)) {
     servers['agent-memory'] = {
       name: CHERRY_MCP_SERVER.AGENT_MEMORY,
       connect: serveAgentMcpServer(() => createAgentMemoryServer({ agentId: agent.id, agentDataPath }))
     }
   }
+
   if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
     servers.skills = {
       name: CHERRY_MCP_SERVER.SKILLS,
       connect: serveAgentMcpServer(() => createSkillsServer(agent.id))
     }
   }
+
   if (mountedServers.has(CHERRY_MCP_SERVER.MCP_MANAGER)) {
     servers['mcp-manager'] = {
       name: CHERRY_MCP_SERVER.MCP_MANAGER,
@@ -159,6 +172,7 @@ export function buildAgentMcpServers(
       connect: serveAgentMcpServer(() => createAssistantServer(modelId, hostTools?.tools))
     }
   }
+
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {
     servers['assistant-files'] = {
       name: CHERRY_MCP_SERVER.ASSISTANT_FILES,
@@ -171,6 +185,7 @@ export function buildAgentMcpServers(
       )
     }
   }
+
   if (mountedServers.has(CHERRY_MCP_SERVER.DOCTOR)) {
     servers.doctor = {
       name: CHERRY_MCP_SERVER.DOCTOR,
@@ -201,7 +216,9 @@ export function resolveAgentNotificationContext(
 ): AgentNotificationContext {
   const sourceChannel =
     linkedChannelSnapshot === undefined ? resolveSourceChannelSafely(sessionId, agentId) : linkedChannelSnapshot
+
   const turnChannels = application.get('AgentSessionRuntimeService').getTurnTrustedNotifyChannels(sessionId)
+
   const channels = [...(turnChannels ?? (sourceChannel ? [sourceChannel] : []))].sort(
     (left, right) => left.id.localeCompare(right.id) || left.type.localeCompare(right.type)
   )
@@ -219,6 +236,7 @@ export function resolveAgentNotificationContext(
  */
 export function resolveLinkedNotifyChannel(sessionId: string, agentId: string): LinkedChannelSnapshot {
   const channel = channelService.findBySessionId(sessionId)
+
   return channel?.agentId === agentId ? { id: channel.id, type: channel.type } : null
 }
 
@@ -239,7 +257,9 @@ export async function warmAgentMcpToolCatalogs(mcpIds: readonly string[]): Promi
   await Promise.allSettled(
     mcpIds.flatMap((idOrName) => {
       const server = mcpServerService.findByIdOrName(idOrName)
+
       if (!server) logger.warn('Skipping unresolvable MCP server referenced by agent', { idOrName })
+
       return server ? [catalog.warmToolsCache(server.id)] : []
     })
   )

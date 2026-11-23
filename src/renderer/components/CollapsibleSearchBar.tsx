@@ -46,6 +46,7 @@ const CollapsibleSearchBar = ({
       if (value === undefined) {
         setInternalSearchText(text)
       }
+
       onSearch(text)
     },
     [onSearch, value]
@@ -108,6 +109,7 @@ const CollapsibleSearchBar = ({
               if (e.key === 'Escape') {
                 e.stopPropagation()
                 handleTextChange('')
+
                 if (!searchText) {
                   focusTriggerAfterCollapseRef.current = true
                   setSearchVisible(false)

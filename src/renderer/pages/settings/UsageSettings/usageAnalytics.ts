@@ -19,13 +19,19 @@ export const ROLLUP_KEYS = ['total', 'daily', 'weekly', 'monthly'] as const
 export const TOP_COUNT_KEYS = [5, 10, 20] as const
 
 export type WindowKey = (typeof WINDOW_KEYS)[number]
+
 export type GroupByKey = (typeof GROUP_BY_KEYS)[number]
+
 export type UsageMetricKey = (typeof METRIC_KEYS)[number]
+
 export type UsageChartType = (typeof CHART_TYPE_KEYS)[number]
+
 export type UsageRollupKey = (typeof ROLLUP_KEYS)[number]
+
 export type UsageTopCount = (typeof TOP_COUNT_KEYS)[number]
 
 export const EMPTY_TIMELINE_BUCKETS: AiUsageRecordTimelineBucket[] = []
+
 export const EMPTY_STATS_METRICS: AiUsageRecordStatsMetrics = {
   costCurrency: null,
   totalCost: 0,
@@ -132,6 +138,7 @@ export function getPreviousWindowRange(windowKey: WindowKey): BoundedTimeRange {
 export function displayModelId(modelId: string | null | undefined): string {
   if (!modelId) return ''
   const separatorIndex = modelId.indexOf('::')
+
   return separatorIndex >= 0 ? modelId.slice(separatorIndex + 2) : modelId
 }
 
@@ -143,6 +150,7 @@ export function applyTimelineCurrency(
   const costs = new Map(
     dailyCosts.flatMap((item) => (item.currency === currency ? [[item.date, item.total] as const] : []))
   )
+
   return buckets.map((bucket) => ({
     ...bucket,
     costCurrency: currency ?? null,
@@ -174,6 +182,7 @@ export function getCacheUsageMetrics(
 export function getBucketKey(bucket: AiUsageRecordGroupIdentity & { isOther?: true }): string {
   if (bucket.isOther) return 'other'
   const apiKeyIdentity = [bucket.apiKeyId ?? '', bucket.apiKeyAttribution ?? '', bucket.authMethod ?? ''].join(':')
+
   return `${bucket.providerId ?? ''}-${bucket.sourceType ?? ''}-${bucket.sourceId ?? ''}-${apiKeyIdentity}-${bucket.modelId ?? ''}`
 }
 
@@ -182,7 +191,9 @@ export function getMetricValue(
   metric: UsageMetricKey
 ): number {
   if (metric === 'requests') return bucket.requestCount
+
   if (metric === 'cost') return bucket.totalCost
+
   return bucket.totalTokens
 }
 
@@ -193,8 +204,10 @@ export function getGenerationTokensPerSecond(entry: {
 }): number | undefined {
   if (!entry.outputTokens || !entry.timeCompletionMs) return undefined
   const ttftMs = entry.timeFirstTokenMs
+
   const generationMs =
     ttftMs !== null && ttftMs < entry.timeCompletionMs ? entry.timeCompletionMs - ttftMs : entry.timeCompletionMs
+
   return generationMs > 0 ? entry.outputTokens / (generationMs / 1000) : undefined
 }
 
@@ -206,11 +219,13 @@ export function getLongestStreak(dateKeys: string[]): number {
 
   for (const key of sorted) {
     let isConsecutive = false
+
     if (previousDate !== undefined) {
       const next = new Date(previousDate)
       next.setDate(next.getDate() + 1)
       isConsecutive = toDateKey(next) === key
     }
+
     current = isConsecutive ? current + 1 : 1
     longest = Math.max(longest, current)
     previousDate = startOfLocalDay(parseDateKey(key))
@@ -232,27 +247,33 @@ export function getTimelinePoints(
   const last = buckets[buckets.length - 1]
   const from = range.from ?? (first ? startOfLocalDay(parseDateKey(first.date)).getTime() : undefined)
   const to = range.to ?? (last ? endOfLocalDay(parseDateKey(last.date)).getTime() : undefined)
+
   if (from === undefined || to === undefined) return []
 
   const byDate = new Map(buckets.map((bucket) => [bucket.date, getValue(bucket)]))
   const points: Array<{ date: string; value: number }> = []
   const cursor = startOfLocalDay(new Date(from))
   const end = endOfLocalDay(new Date(to))
+
   while (cursor.getTime() <= end.getTime()) {
     const date = toDateKey(cursor)
     points.push({ date, value: byDate.get(date) ?? 0 })
     cursor.setDate(cursor.getDate() + 1)
   }
+
   return points
 }
 
 export function toPeriodKey(dateKey: string, rollup: UsageRollupKey, firstDayOfWeek: number): string {
   if (rollup === 'monthly') return `${dateKey.slice(0, 7)}-01`
+
   if (rollup === 'weekly') {
     const date = startOfLocalDay(parseDateKey(dateKey))
     date.setDate(date.getDate() - ((date.getDay() - firstDayOfWeek + 7) % 7))
+
     return toDateKey(date)
   }
+
   return dateKey
 }
 
@@ -283,7 +304,9 @@ export function buildChartSeries(
 
   for (const bucket of buckets) {
     const position = positions.get(toPeriodKey(bucket.date, options.rollup, options.firstDayOfWeek))
+
     if (position === undefined) continue
+
     const value = getMetricValue(
       {
         totalTokens: bucket.totalTokens,
@@ -292,12 +315,15 @@ export function buildChartSeries(
       },
       options.metric
     )
+
     if (value <= 0) continue
 
     const key = getBucketKey(bucket)
     let series = groups.get(key)
+
     if (!series) {
       const identity: Pick<UsageChartSeries, 'key' | 'identity'> = { key }
+
       if (!bucket.isOther) identity.identity = { ...bucket }
       series = {
         ...identity,
@@ -306,19 +332,24 @@ export function buildChartSeries(
       }
       groups.set(key, series)
     }
+
     series.values[position] += value
     series.total += value
   }
 
   const serverOther = groups.get('other')
+
   const ranked = Array.from(groups.values())
     .filter((series) => series.key !== 'other')
     .sort((a, b) => b.total - a.total)
+
   const other: UsageChartSeries = serverOther ?? { key: 'other', values: periodKeys.map(() => 0), total: 0 }
+
   for (const series of ranked.slice(options.topCount)) {
     for (const [index, value] of series.values.entries()) other.values[index] += value
     other.total += series.total
   }
+
   return other.total > 0 ? [...ranked.slice(0, options.topCount), other] : ranked.slice(0, options.topCount)
 }
 
@@ -328,11 +359,13 @@ export function getTimelineSeries(
   getValue: (bucket: AiUsageRecordTimelineBucket) => number
 ): number[] {
   const points = getTimelinePoints(buckets, range, getValue)
+
   return (range.from !== undefined && range.to !== undefined ? points : points.slice(-64)).map((point) => point.value)
 }
 
 export function getRatioChange(current: number | undefined, previous: number | undefined): number | undefined {
   if (current === undefined || previous === undefined || previous <= 0) return undefined
+
   return (current - previous) / previous
 }
 
@@ -342,8 +375,11 @@ export function buildTotalChartSeries(
 ): UsageChartSeries[] {
   const series = stats.buckets.map((bucket) => {
     const total = getMetricValue(bucket, metric)
+
     return { key: getBucketKey(bucket), identity: bucket, values: [total], total }
   })
+
   const otherTotal = getMetricValue(stats.other, metric)
+
   return [...series, { key: 'other', values: [otherTotal], total: otherTotal }].filter((item) => item.total > 0)
 }

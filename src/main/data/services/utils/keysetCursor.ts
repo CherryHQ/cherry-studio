@@ -44,17 +44,22 @@ export function parseCursor<K extends string | number>(
 ): { key: K; id: string } | null {
   if (!raw) return null
   const sep = raw.indexOf(':')
+
   if (sep < 0) return null
   const keyStr = raw.slice(0, sep)
   const id = raw.slice(sep + 1)
+
   if (!keyStr || !id) return null
   let decodedKey: string
+
   try {
     decodedKey = decodeURIComponent(keyStr)
   } catch {
     return null
   }
+
   const key = parseKey(decodedKey)
+
   return key === null ? null : { key, id }
 }
 
@@ -69,6 +74,7 @@ export const encodeCursor = (key: string | number, id: string): string => `${enc
 export const asNumericKey = (s: string): number | null => {
   if (s === '') return null
   const n = Number(s)
+
   return Number.isFinite(n) ? n : null
 }
 
@@ -89,9 +95,11 @@ export function decodeListCursor<K extends string | number>(
 ): { key: K; id: string } | null {
   if (!raw) return null
   const parsed = parseCursor(raw, parseKey)
+
   if (!parsed) {
     logger.warn('decodeCursor: cursor unparseable, falling back to first page', { cursor: raw, context })
   }
+
   return parsed
 }
 
@@ -116,7 +124,9 @@ export function keysetOrdering(
 ) {
   const after = (col: SQLWrapper, d: 'asc' | 'desc', value: string | number) =>
     d === 'asc' ? gt(col, value) : lt(col, value)
+
   const direction = (d: 'asc' | 'desc') => (d === 'asc' ? asc : desc)
+
   return {
     where: (cursor: NonNullable<ReturnType<typeof parseCursor<string | number>>>) =>
       or(after(keyCol, dir.major, cursor.key), and(eq(keyCol, cursor.key), after(idCol, dir.tie, cursor.id)))!,

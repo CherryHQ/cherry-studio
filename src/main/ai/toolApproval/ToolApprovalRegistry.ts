@@ -33,6 +33,7 @@ type PendingApproval = {
 }
 
 type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'toolCallId' | 'presentation'>
+
 type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'presentation'> & {
   presentation?: PendingApproval['presentation']
 }
@@ -69,18 +70,22 @@ class ToolApprovalRegistry {
    */
   register(entry: PendingApprovalRegistration): boolean {
     const { approvalId, signal } = entry
+
     if (this.pending.has(approvalId)) {
       logger.warn('Duplicate approval registration — rejecting', { approvalId })
       entry.resolve({ approved: false, reason: 'Duplicate approval registration' })
+
       return false
     }
 
     if (signal?.aborted) {
       entry.resolve({ approved: false, reason: 'Tool request was cancelled before approval' })
+
       return false
     }
 
     const stored: PendingApproval = { ...entry, presentation: entry.presentation ?? 'stream' }
+
     if (signal) {
       const abortListener = () => this.cancel([approvalId], 'aborted')
       stored.abortListener = abortListener
@@ -88,13 +93,16 @@ class ToolApprovalRegistry {
     }
 
     this.pending.set(approvalId, stored)
+
     return true
   }
 
   /** Returns `undefined` for unknown ids (already dispatched / session expired). */
   peek(approvalId: string): ApprovalRegistration | undefined {
     const entry = this.pending.get(approvalId)
+
     if (!entry) return undefined
+
     return {
       sessionId: entry.sessionId,
       toolCallId: entry.toolCallId,
@@ -105,10 +113,12 @@ class ToolApprovalRegistry {
   /** Returns `undefined` for unknown ids (already dispatched / session expired). */
   dispatch(approvalId: string, decision: DispatchDecision): ApprovalRegistration | undefined {
     const entry = this.pending.get(approvalId)
+
     if (!entry) return undefined
     this.pending.delete(approvalId)
     this.detachAbort(entry)
     entry.resolve(decision)
+
     return {
       sessionId: entry.sessionId,
       toolCallId: entry.toolCallId,
@@ -120,8 +130,11 @@ class ToolApprovalRegistry {
     const approvalIds = [...this.pending.values()].flatMap((entry) =>
       entry.sessionId === sessionId ? [entry.approvalId] : []
     )
+
     const count = this.cancel(approvalIds, reason)
+
     if (count > 0) logger.info('Aborted pending approvals', { sessionId, count, reason })
+
     return count
   }
 
@@ -132,7 +145,9 @@ class ToolApprovalRegistry {
    */
   clear(reason = 'service-shutdown'): number {
     const count = this.cancel([...this.pending.keys()], reason)
+
     if (count > 0) logger.info('Cleared all pending approvals', { count, reason })
+
     return count
   }
 
@@ -146,12 +161,16 @@ class ToolApprovalRegistry {
 
   private cancel(approvalIds: readonly string[], reason: string): number {
     const aborted: AbortedApproval[] = []
+
     for (const approvalId of approvalIds) {
       const registration = this.dispatch(approvalId, { approved: false, reason })
+
       if (registration) aborted.push({ ...registration, approvalId, reason })
     }
+
     // Notify after the sweep so listeners can register new approvals.
     for (const entry of aborted) this._onAborted.fire(entry)
+
     return aborted.length
   }
 

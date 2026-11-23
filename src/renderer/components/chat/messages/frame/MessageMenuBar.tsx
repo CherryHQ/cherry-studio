@@ -57,6 +57,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     onSelectContext,
     variant = 'footer'
   } = props
+
   const { t } = useTranslation()
   const actions = useMessageListActions()
   const selection = useMessageListSelection()
@@ -72,6 +73,7 @@ const MessageMenuBar: FC<Props> = (props) => {
 
   const messageParts = useMessageParts(message.id)
   const priorCitationParts = useMessagePriorCitationParts(message.id)
+
   const messageForExport = useMemo(
     () => createMessageExportView(message, messageParts, priorCitationParts),
     [message, messageParts, priorCitationParts]

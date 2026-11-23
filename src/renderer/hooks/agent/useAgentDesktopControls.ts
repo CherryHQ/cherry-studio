@@ -14,10 +14,12 @@ export function useAgentDesktopControls() {
   const resumePending = useRef(false)
 
   const publishPending = useCallback(() => setPending(new Set(pendingRef.current.keys())), [])
+
   const reconcilePending = useCallback(
     (snapshot: ComputerUseControl[]) => {
       const resumed = resumePending.current
       resumePending.current = false
+
       for (const [key, state] of pendingRef.current) {
         if (
           (resumed && state === 'settled') ||
@@ -29,6 +31,7 @@ export function useAgentDesktopControls() {
           pendingRef.current.delete(key)
         }
       }
+
       publishPending()
     },
     [publishPending]
@@ -61,6 +64,7 @@ export function useAgentDesktopControls() {
         setLoading(false)
       }
     )
+
     return () => {
       alive = false
       mounted.current = false
@@ -71,16 +75,22 @@ export function useAgentDesktopControls() {
   const stopApp = useCallback(
     async (control: ComputerUseControl) => {
       const { ownerId, appId } = control
+
       if (!appId) return
       const key = JSON.stringify([ownerId, appId])
+
       if (pendingRef.current.has(key)) return
       pendingRef.current.set(key, 'inflight')
+
       if (mounted.current) publishPending()
+
       try {
         await ipcApi.request('computer_use.stop_app', { ownerId, appId })
+
         if (pendingRef.current.has(key)) pendingRef.current.set(key, 'settled')
       } catch (error) {
         pendingRef.current.delete(key)
+
         if (mounted.current) publishPending()
         throw error
       }

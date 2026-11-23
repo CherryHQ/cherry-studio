@@ -40,6 +40,7 @@ function toSourceCursorError<TError>(sourceType: ContentSearchSourceType, error:
 
   const details = error.details as { fieldErrors?: Record<string, string[]> } | undefined
   const cursorErrors = details?.fieldErrors?.cursor
+
   if (!cursorErrors) return error
 
   return DataApiErrorFactory.validation({ [`cursors.${sourceType}`]: cursorErrors }, error.message)
@@ -48,11 +49,13 @@ function toSourceCursorError<TError>(sourceType: ContentSearchSourceType, error:
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Search adapters can reject arbitrary values; normalize at this boundary while retaining validated cursor details and DataApi request context.
 function withSourceContext(sourceType: ContentSearchSourceType, error: unknown) {
   const sourcedError = toSourceCursorError(sourceType, error)
+
   if (!isDataApiError(sourcedError)) {
     return toDataApiError(sourcedError, `content search source ${sourceType}`)
   }
 
   const details = sourcedError.details as { fieldErrors?: Record<string, string[]> } | undefined
+
   if (sourcedError.code === ErrorCode.VALIDATION_ERROR && details?.fieldErrors?.[`cursors.${sourceType}`]) {
     return sourcedError
   }
@@ -69,7 +72,9 @@ export const CONTENT_SEARCH_SOURCE_ADAPTERS = {
   'topic-message': {
     search(input) {
       const query: Pick<Parameters<typeof messageService.search>[0], 'q' | 'topicId'> = { q: input.q }
+
       if (input.filter?.topicId) query.topicId = input.filter.topicId
+
       const result = messageService.search({
         ...query,
         cursor: input.cursor,
@@ -87,7 +92,9 @@ export const CONTENT_SEARCH_SOURCE_ADAPTERS = {
   'session-message': {
     search(input) {
       const query: Pick<Parameters<typeof agentSessionMessageService.search>[0], 'q' | 'sessionId'> = { q: input.q }
+
       if (input.filter?.sessionId) query.sessionId = input.filter.sessionId
+
       const result = agentSessionMessageService.search({
         ...query,
         cursor: input.cursor,
@@ -143,6 +150,7 @@ export class ContentSearchService {
   search(query: ContentSearchQuery): ContentSearchResponse {
     const requestedSources = new Set(query.sources ?? contentSearchSourceTypes)
     const sources = contentSearchSourceTypes.filter((sourceType) => requestedSources.has(sourceType))
+
     const limit = Math.min(
       query.limitPerSource ?? CONTENT_SEARCH_DEFAULT_LIMIT_PER_SOURCE,
       CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE

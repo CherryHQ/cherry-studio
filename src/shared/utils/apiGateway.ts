@@ -14,6 +14,7 @@ export const ANTIGRAVITY_MODEL_PATH_SEPARATOR = '/models/'
  */
 export function gatewayClientOrigin(host: string, port: number): string {
   const reachable = host === '0.0.0.0' ? '127.0.0.1' : host === '::' ? '::1' : host
+
   return `http://${reachable.includes(':') ? `[${reachable}]` : reachable}:${port}`
 }
 
@@ -32,9 +33,11 @@ export function formatGatewayModelId(providerId: string, apiModelId: string): st
   if (providerId.includes(':')) {
     throw new Error(`Provider id "${providerId}" contains ":" and cannot be addressed through the API gateway`)
   }
+
   if (isManagedCherryAiDefaultModel(providerId, apiModelId)) {
     throw new Error('CherryAI managed default model is not available through the API gateway')
   }
+
   return `${providerId}:${apiModelId}`
 }
 

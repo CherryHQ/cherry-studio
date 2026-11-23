@@ -115,24 +115,30 @@ export interface McpWarmResult {
 
 export async function warmAgentMcpToolCaches(agent: AgentEntity): Promise<McpWarmResult> {
   const mcpIds = agent.mcps
+
   if (!mcpIds?.length) return { completedInTime: true, warm: Promise.resolve() }
 
   const mcpService = application.get('McpCatalogService')
+
   const warm = Promise.allSettled(
     mcpIds.flatMap((mcpId) => {
       const server = mcpServerService.findByIdOrName(mcpId)
+
       return server ? [mcpService.warmToolsCache(server.id)] : []
     })
   )
 
   let timer: ReturnType<typeof setTimeout> | undefined
+
   const timeout = new Promise<boolean>((resolve) => {
     timer = setTimeout(() => resolve(false), MCP_WARM_TIMEOUT_MS)
     timer.unref?.()
   })
 
   const completedInTime = await Promise.race([warm.then(() => true), timeout])
+
   if (timer) clearTimeout(timer)
+
   return { completedInTime, warm }
 }
 
@@ -140,6 +146,7 @@ export async function buildMcpToolMetadata(
   agent: AgentEntity
 ): Promise<Record<string, McpToolDisplayMetadata> | undefined> {
   const mcpIds = agent.mcps
+
   if (!mcpIds?.length) return undefined
 
   const metadataByName: Record<string, McpToolDisplayMetadata> = {}
@@ -148,9 +155,11 @@ export async function buildMcpToolMetadata(
   for (const mcpId of mcpIds) {
     try {
       const server = mcpServerService.findByIdOrName(mcpId)
+
       if (!server) continue
 
       const tools = mcpService.listTools(server.id)
+
       for (const tool of tools) {
         addMcpToolMetadataAliases(metadataByName, server, tool)
       }

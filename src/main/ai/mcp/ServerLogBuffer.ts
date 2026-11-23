@@ -20,9 +20,11 @@ export class ServerLogBuffer {
   append(serverKey: string, entry: McpServerLogEntry) {
     const list = this.logs.get(serverKey) ?? []
     list.push(entry)
+
     if (list.length > this.maxEntries) {
       list.splice(0, list.length - this.maxEntries)
     }
+
     this.logs.set(serverKey, list)
   }
 

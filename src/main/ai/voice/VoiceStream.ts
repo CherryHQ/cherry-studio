@@ -61,6 +61,7 @@ export class VoiceStream {
   acknowledge(frames: number): void {
     if (!this.attached || !Number.isSafeInteger(frames) || frames < 0 || frames > this.sent)
       throw new VoiceRuntimeError('invalid_request')
+
     if (frames <= this.consumed) return
     this.consumed = frames
     this.wake?.()
@@ -72,15 +73,19 @@ export class VoiceStream {
 
   async relay(chunks: AsyncIterable<SpeechPcmChunk>, completed: Promise<void>): Promise<void> {
     const iterator = chunks[Symbol.asyncIterator]()
+
     try {
       await this.waitUntil(() => this.attached)
+
       while (true) {
         // Do not count deliberate downstream backpressure as a producer stall.
         await this.waitUntil(() => this.sent - this.consumed < this.capacityFrames)
         const item = await this.next(iterator)
+
         if (item.done) break
         const { samples, startFrame } = item.value
         const frames = samples.length / this.format.channels
+
         if (
           startFrame !== this.sent ||
           !Number.isSafeInteger(frames) ||
@@ -93,8 +98,10 @@ export class VoiceStream {
         this.sent += frames
         this.send({ ...this.identity, type: 'pcm', chunk: item.value })
       }
+
       await completed
       this.lifetime.throwIfAborted()
+
       if (!this.sent) throw new VoiceRuntimeError('invalid_audio')
       this.ended = true
       this.send({ ...this.identity, type: 'end', frames: this.sent })
@@ -132,6 +139,7 @@ export class VoiceStream {
         this.wake = resolve
       })
     }
+
     this.wake = undefined
     this.lifetime.throwIfAborted()
   }
@@ -140,6 +148,7 @@ export class VoiceStream {
     this.lifetime.throwIfAborted()
     let timer: ReturnType<typeof setTimeout> | undefined
     let aborted: () => void = () => undefined
+
     try {
       return await Promise.race([
         iterator.next(),

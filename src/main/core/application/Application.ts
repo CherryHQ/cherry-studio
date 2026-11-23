@@ -78,6 +78,7 @@ export class Application {
     if (!Application.instance) {
       Application.instance = new Application()
     }
+
     return Application.instance
   }
 
@@ -101,6 +102,7 @@ export class Application {
    */
   public register<T>(service: ServiceConstructor<T>): this {
     this.container.register(service)
+
     return this
   }
 
@@ -112,7 +114,9 @@ export class Application {
     for (const service of services) {
       this.container.register(service)
     }
+
     this.container.excludeDependentsOfExcluded()
+
     return this
   }
 
@@ -144,6 +148,7 @@ export class Application {
     if (this.pathMap !== null) {
       throw new Error('initPathRegistry() called twice — path registry is already initialized')
     }
+
     this.pathMap = buildPathRegistry()
     logger.debug(`Path registry initialized with ${Object.keys(this.pathMap).length} entries`)
   }
@@ -165,6 +170,7 @@ export class Application {
   public async bootstrap(): Promise<void> {
     if (this.isBootstrapped) {
       logger.warn('Already bootstrapped')
+
       return
     }
 
@@ -224,14 +230,17 @@ export class Application {
         if (err instanceof ServiceInitError) {
           throw err
         }
+
         logger.error('Background phase failed:', err)
       })
       this.lifecycleManager.allReady()
     } catch (error) {
       if (error instanceof ServiceInitError) {
         await this.handleFatalServiceError(error)
+
         return
       }
+
       throw error
     }
 
@@ -253,6 +262,7 @@ export class Application {
   public async shutdown(): Promise<void> {
     if (this.isShuttingDown) {
       logger.warn('Already shutting down')
+
       return
     }
 
@@ -280,6 +290,7 @@ export class Application {
     // no way to tell which pass each entry came from.
     const elapsed = `${(performance.now() - start).toFixed(3)}ms`
     const unclean = [stopSummary, destroySummary].some((s) => s.timedOut.length > 0 || s.failed.length > 0)
+
     if (unclean) {
       logger.warn(`Shutdown complete, but not cleanly (${elapsed})`, { stop: stopSummary, destroy: destroySummary })
     } else {
@@ -314,6 +325,7 @@ export class Application {
     if (result.response === 0) {
       logger.info(`User chose to exit due to ${error.serviceName} initialization failure`)
       this.forceExit(1)
+
       return
     }
 
@@ -345,11 +357,13 @@ export class Application {
       : isValidationError
         ? 'The configuration file (boot-config.json) contains invalid values.'
         : 'The configuration file (boot-config.json) contains invalid data.'
+
     const continueHint = isValidationError
       ? 'The application can continue — valid settings are kept and the invalid entries fall back to defaults — or you can repair the file and restart.'
       : isParseError
         ? 'The application can continue with default settings, or you can reset the file and restart.'
         : 'The application can continue with default settings, or you can restart to try again.'
+
     const fileHint = isValidationError
       ? `"Repair and Restart" rewrites the file, keeping the valid entries and resetting the invalid ones. Other options preserve it for manual inspection at:\n${loadError.filePath}`
       : isParseError
@@ -380,15 +394,18 @@ export class Application {
       } else if (isParseError) {
         bootConfigService.reset()
       }
+
       const action = isValidationError ? 'repair and restart' : isParseError ? 'reset and restart' : 'restart'
       logger.info(`User chose to ${action} after boot config error`)
       this.relaunch()
+
       return
     }
 
     if (result.response === 2) {
       logger.info('User chose to exit after boot config error')
       this.forceExit(1)
+
       return
     }
 
@@ -402,6 +419,7 @@ export class Application {
   public relaunch(options?: Electron.RelaunchOptions): void {
     if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
+
       if (app.isReady()) {
         dialog.showMessageBoxSync({
           type: 'info',
@@ -411,7 +429,9 @@ export class Application {
           buttons: ['OK']
         })
       }
+
       app.exit(0)
+
       return
     }
 
@@ -452,6 +472,7 @@ export class Application {
 
     process.on('SIGINT', async () => {
       const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
+
       try {
         await this.shutdown()
       } catch (error) {
@@ -464,6 +485,7 @@ export class Application {
 
     process.on('SIGTERM', async () => {
       const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
+
       try {
         await this.shutdown()
       } catch (error) {
@@ -489,33 +511,45 @@ export class Application {
         this.quitGuardsPassed = false
         const reasons = [...this.quitPreventionHolds.values()].join(', ')
         logger.info(`Quit prevented: ${reasons}`)
+
         return
       }
+
       if (!this._isQuitting && !this.quitGuardsPassed) {
         if (this.quitGuardsPending) {
           event.preventDefault()
+
           return
         }
+
         this.quitGuardsPending = true
+
         try {
           const allowed = this.checkQuitGuards()
+
           if (typeof allowed !== 'boolean') {
             event.preventDefault()
             void this.finishQuitGuards(allowed)
+
             return
           }
+
           this.quitGuardsPending = false
+
           if (!allowed) {
             event.preventDefault()
+
             return
           }
         } catch (error) {
           this.quitGuardsPending = false
           event.preventDefault()
           logger.error('Failed to evaluate quit guards', error as Error)
+
           return
         }
       }
+
       this.quitGuardsPassed = false
       this._isQuitting = true
     })
@@ -544,6 +578,7 @@ export class Application {
   private checkQuitGuards(guards = this.quitGuards.values()): boolean | Promise<boolean> {
     for (const guard of guards) {
       const allowed = guard()
+
       if (typeof allowed !== 'boolean') {
         return allowed.then(
           (approved) =>
@@ -554,13 +589,16 @@ export class Application {
             this.checkQuitGuards(guards)
         )
       }
+
       if (!allowed) return false
     }
+
     return true
   }
 
   private async finishQuitGuards(decision: Promise<boolean>): Promise<void> {
     let allowed = false
+
     try {
       allowed = await decision
     } catch (error) {
@@ -568,6 +606,7 @@ export class Application {
     } finally {
       this.quitGuardsPending = false
     }
+
     if (allowed && !this._isQuitting && !this.isShuttingDown) {
       this.quitGuardsPassed = true
       this.quit()
@@ -646,6 +685,7 @@ export class Application {
     const id = uuidv4()
     this.quitPreventionHolds.set(id, reason)
     logger.info(`Quit prevention hold added: "${reason}" (id: ${id})`)
+
     return {
       id,
       dispose: () => {
@@ -663,6 +703,7 @@ export class Application {
   public registerQuitGuard(guard: QuitGuard): Disposable {
     const registeredGuard = () => guard()
     this.quitGuards.add(registeredGuard)
+
     return { dispose: () => this.quitGuards.delete(registeredGuard) }
   }
 
@@ -676,14 +717,17 @@ export class Application {
    */
   public quit(reason: 'user' | 'system-shutdown' = 'user'): void {
     if (reason === 'system-shutdown') this.quitGuardsPassed = true
+
     if (this._isQuitting) {
       // Re-kick app.quit(): if a prior quit stalled (e.g. a BrowserWindow close
       // handler preventDefault'd and broke the chain), this gives the user a
       // second chance to exit via the menu without resorting to `kill -9`.
       logger.warn('Already quitting — re-triggering app.quit() in case a previous attempt stalled')
       app.quit()
+
       return
     }
+
     logger.info('Quitting application...')
     app.quit()
   }
@@ -815,6 +859,7 @@ export class Application {
     // so each key's directory is created at most once per process.
     if (!this.ensuredKeys.has(key) && shouldAutoEnsure(key)) {
       const dirToEnsure = key.endsWith('file') ? path.dirname(base) : base
+
       try {
         fs.mkdirSync(dirToEnsure, { recursive: true })
       } catch (err) {
@@ -826,6 +871,7 @@ export class Application {
             `Returning path anyway. Error: ${(err as Error).message}`
         )
       }
+
       // Cache regardless of success — retrying on every call would be
       // a perf trap. Failed-once is treated the same as succeeded-once.
       this.ensuredKeys.add(key)
@@ -865,6 +911,7 @@ export class Application {
     if (process.env.NODE_ENV !== 'test') {
       throw new Error('__setPathMapForTesting may only be called in tests')
     }
+
     this.pathMap = map
     // Clear the auto-ensure cache so each test starts from a clean state.
     // Without this, a key that was already mkdir'd in a previous test
@@ -882,9 +929,11 @@ export const application: Application = new Proxy({} as Application, {
   get(_target, prop: keyof Application) {
     const instance = Application.getInstance()
     const value = instance[prop]
+
     if (typeof value === 'function') {
       return value.bind(instance)
     }
+
     return value
   }
 })

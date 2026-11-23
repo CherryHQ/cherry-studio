@@ -33,6 +33,7 @@ export const isAllowedRoute = (path: string): boolean => {
   // Match on the pathname only: routes may carry search params (e.g. the
   // feedback agent route `/app/agents?intent=feedback&sessionId=…`).
   const pathname = path.split('?')[0].split('#')[0]
+
   return ALLOWED_ROUTE_PREFIXES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
 }
 
@@ -42,6 +43,7 @@ let nextNavigationRequestId = 0
 function resolveLiveMainWindowId(): string | undefined {
   const windowManager = application.get('WindowManager')
   const mainWindow = windowManager.getWindowsByType(WindowType.Main)[0]
+
   return mainWindow && !mainWindow.isDestroyed() ? windowManager.getWindowId(mainWindow) : undefined
 }
 
@@ -67,6 +69,7 @@ export function markMainRendererReadyForTabAttach(senderId: string): void {
   if (application.get('WindowManager').getWindowType(senderId) !== WindowType.Main) return
   isMainRendererReadyForTabAttach = true
   flushPendingTabAttaches()
+
   if (pendingNotificationId) {
     const id = pendingNotificationId
     pendingNotificationId = undefined
@@ -77,11 +80,13 @@ export function markMainRendererReadyForTabAttach(senderId: string): void {
 /** Release details must wait for the bell listener when the main renderer is cold or reloading. */
 export function openNotificationInMainWindow(id: string): void {
   const windowId = resolveLiveMainWindowId()
+
   if (windowId && isTabDeliveryReady(windowId)) {
     application.get('IpcApiService').send(windowId, 'notification.open', { id })
   } else {
     pendingNotificationId = id
   }
+
   application.get('MainWindowService').showMainWindow()
 }
 
@@ -97,9 +102,11 @@ export function resetMainRendererTabAttachDelivery(): void {
 function flushPendingTabAttaches(): void {
   if (!isMainRendererReadyForTabAttach || pendingTabAttachQueue.length === 0) return
   const mainWindowId = resolveLiveMainWindowId()
+
   if (!mainWindowId) return
   // splice clears in place, so a duplicate ready signal cannot replay the queue.
   const queued = pendingTabAttachQueue.splice(0)
+
   for (const tab of queued) {
     application.get('IpcApiService').send(mainWindowId, 'tab.attached', tab)
   }
@@ -114,11 +121,15 @@ function flushPendingTabAttaches(): void {
 function isTabDeliveryReady(windowId: string): boolean {
   if (!isMainRendererReadyForTabAttach) return false
   const win = application.get('WindowManager').getWindow(windowId)
+
   if (!win || win.isDestroyed()) return false
+
   if (win.webContents.isLoadingMainFrame() || win.webContents.isCrashed()) {
     isMainRendererReadyForTabAttach = false
+
     return false
   }
+
   return true
 }
 
@@ -168,6 +179,7 @@ export function openRouteInMainWindow(path: string): void {
   if (mainWindowId) {
     application.get('IpcApiService').send(mainWindowId, 'navigation.open_route_requested', { to: path })
     mainWindowService.showMainWindow()
+
     return
   }
 
@@ -202,7 +214,9 @@ export function openTabInMainWindow(tab: Tab): void {
       // dropping the event; flush happens when it reports ready.
       pendingTabAttachQueue.push(tab)
     }
+
     mainWindowService.showMainWindow()
+
     return
   }
 

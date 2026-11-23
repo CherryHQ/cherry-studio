@@ -31,6 +31,7 @@ const AddKnowledgeItemDialogFooter = ({
     activeSource === 'note'
       ? t('knowledge.data_source.add_dialog.footer.selected_notes', { count: selectedNoteCount })
       : ''
+
   return (
     <div className="flex w-full min-w-0 shrink-0 flex-col gap-3 overflow-hidden">
       {errorMessage ? (

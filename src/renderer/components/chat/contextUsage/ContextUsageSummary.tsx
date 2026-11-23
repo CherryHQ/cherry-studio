@@ -48,9 +48,11 @@ export function ContextUsageSummary({
 
   const exact = (tokens: number) => tokens.toLocaleString(i18n.resolvedLanguage)
   const compact = (tokens: number) => tokens.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })
+
   const details = [data?.estimated && t('chat.message.token_details.cost_estimated'), description]
     .filter(Boolean)
     .join(' · ')
+
   const content =
     data && percentage !== null ? (
       <div className="space-y-2">

@@ -47,6 +47,7 @@ const S3Settings: FC = () => {
 
   const onSyncIntervalChange = async (value: number) => {
     await setS3SyncInterval(value)
+
     if (value === 0) {
       await setS3AutoSync(false)
     } else {

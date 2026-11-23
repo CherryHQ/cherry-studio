@@ -12,6 +12,7 @@ import { SpeechTextInput } from './SpeechTextInput'
 import { VoiceDomainError, voiceService } from './VoiceService'
 
 const MAX_COMPLETION_KEYS = 256
+
 type AutoReadFailure = VoiceErrorReason | 'text_limit'
 
 type AutoReadPlayback = Pick<typeof speechPlaybackService, 'start' | 'stopAutoRead'>
@@ -77,7 +78,9 @@ async function supportsTextStreaming(): Promise<boolean> {
     voiceService.readSpeechPreferenceInput(),
     voiceService.listModels()
   ])
+
   const model = catalog.models.find((model) => model.id === (preferences.modelId ?? catalog.defaultSpeechModelId))
+
   return (
     model?.voiceCapabilities.speech?.some(
       (operation) => operation.input === SpeechInputKind.TextStream && operation.output === SpeechOutputKind.PcmStream
@@ -102,8 +105,10 @@ export class AutoReadService {
   async setEnabled(enabled: boolean): Promise<void> {
     const wasEnabled = this.#enabled
     this.#enabled = enabled
+
     if (wasEnabled === true && !enabled) {
       for (const record of this.#streams.values()) this.#cancel(record)
+
       try {
         await this.#playback.stopAutoRead()
       } catch {
@@ -114,19 +119,28 @@ export class AutoReadService {
 
   update(input: Omit<AutoReadCompletion, 'isAbort' | 'isError'>): void {
     const key = `auto-read:${input.message.id}:${input.attemptId}`
+
     if (this.#completionKeys.has(key)) return
+
     if (!input.enabled || this.#enabled === false || input.eligible === false || input.message.role !== 'assistant') {
       const record = this.#streams.get(key)
+
       if (record) this.#cancel(record)
+
       if (!input.enabled || this.#enabled === false || record) this.#claim(key)
+
       return
     }
+
     let record = this.#streams.get(key)
+
     if (!record) {
       if (this.#streams.size >= 8) {
         this.#claim(key)
+
         return
       }
+
       record = {
         key,
         scope: input.scope,
@@ -150,13 +164,17 @@ export class AutoReadService {
         }
       })
     }
+
     if (record.final || record.fallback) return
     record.text = getTextFromParts(input.message.parts ?? [])
+
     if (record.text.length > 20_000) {
       this.#cancel(record)
       this.#reportError('text_limit')
+
       return
     }
+
     record.version++
     this.#drain(record)
   }
@@ -178,13 +196,17 @@ export class AutoReadService {
       if (!record.checked) {
         record.fallback = !(await this.#supportsStreaming())
         record.checked = true
+
         if (record.fallback) return
       }
+
       while (!record.controller.signal.aborted) {
         const version = record.version
         const text = record.parser.update(record.text, record.final)
+
         if (text && !record.started) {
           record.started = true
+
           const result = await this.#playback.start({
             text,
             textInput: record.input,
@@ -194,34 +216,43 @@ export class AutoReadService {
             sourceLabel: 'message',
             sourceEntityId: record.messageId
           })
+
           if (result.status !== 'started') {
             record.outcome = { status: 'skipped', key: record.key, reason: 'too_long' }
             this.#cancel(record)
+
             return
           }
         } else if (text) record.input.push(text)
+
         if (version !== record.version) continue
+
         if (record.final) {
           this.#claim(record.key)
+
           if (record.started) record.input.finish()
           else this.#cancel(record)
         }
+
         return
       }
     })()
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Automatic reading can fail in parsing, backlog limits or speech IPC; this handler classifies RangeError and VoiceDomainError before recording the outcome.
       .catch((error: unknown) => {
         this.#cancel(record)
+
         const reason =
           error instanceof RangeError
             ? 'text_limit'
             : error instanceof VoiceDomainError
               ? error.reason
               : 'operation_failed'
+
         record.outcome =
           reason === 'text_limit' || reason === 'aborted' || reason === 'busy'
             ? { status: 'skipped', key: record.key, reason: reason === 'text_limit' ? 'too_long' : reason }
             : { status: 'failed', key: record.key, reason }
+
         if (reason !== 'aborted' && reason !== 'busy') this.#reportError(reason)
       })
       .finally(() => {
@@ -232,37 +263,50 @@ export class AutoReadService {
   async consume(input: AutoReadCompletion): Promise<AutoReadResult> {
     const key = `auto-read:${input.message.id}:${input.attemptId}`
     const record = this.#streams.get(key)
+
     if (record && !record.final) {
       if (input.isAbort || input.isError || !input.enabled || input.eligible === false) {
         this.#cancel(record)
+
         return { status: 'skipped', key, reason: input.isAbort ? 'aborted' : input.isError ? 'error' : 'disabled' }
       }
+
       record.text = getTextFromParts(input.message.parts ?? [])
       record.final = true
       record.version++
+
       if (record.draining) await record.draining
+
       if (!record.fallback && !record.controller.signal.aborted) {
         this.#drain(record)
         await record.draining
       }
+
       if (record.outcome) return record.outcome
+
       if (record.controller.signal.aborted) return { status: 'skipped', key, reason: 'aborted' }
+
       if (!record.fallback)
         return record.started ? { status: 'started', key } : { status: 'skipped', key, reason: 'empty' }
       this.#streams.delete(key)
       record.input.cancel()
     }
+
     if (this.#completionKeys.has(key)) return { status: 'skipped', key, reason: 'duplicate' }
     this.#claim(key)
 
     if (!input.enabled || this.#enabled === false) return { status: 'skipped', key, reason: 'disabled' }
+
     if (input.eligible === false || input.message.role !== 'assistant') {
       return { status: 'skipped', key, reason: 'ineligible' }
     }
+
     if (input.isAbort) return { status: 'skipped', key, reason: 'aborted' }
+
     if (input.isError) return { status: 'skipped', key, reason: 'error' }
 
     const text = getTextFromParts(input.message.parts ?? [])
+
     try {
       if (!normalizeReadableText(text)) return { status: 'skipped', key, reason: 'empty' }
 
@@ -274,20 +318,26 @@ export class AutoReadService {
         sourceLabel: 'message',
         sourceEntityId: input.message.id
       })
+
       if (result.status === 'started') return { status: 'started', key }
+
       return { status: 'skipped', key, reason: 'too_long' }
     } catch (error) {
       const reason = error instanceof VoiceDomainError ? error.reason : 'operation_failed'
+
       if (reason === 'busy' || reason === 'aborted') return { status: 'skipped', key, reason }
       this.#reportError(reason)
+
       return { status: 'failed', key, reason }
     }
   }
 
   #claim(key: string): void {
     this.#completionKeys.add(key)
+
     if (this.#completionKeys.size <= MAX_COMPLETION_KEYS) return
     const oldest = this.#completionKeys.values().next().value
+
     if (oldest) this.#completionKeys.delete(oldest)
   }
 }

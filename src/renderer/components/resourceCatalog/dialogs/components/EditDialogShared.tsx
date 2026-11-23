@@ -57,14 +57,19 @@ const logger = loggerService.withContext('EditDialogShared')
 
 export const editDialogFormRowClassName =
   'grid min-w-0 grid-cols-[7.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1 py-2.5'
+
 export const editDialogFormRowLabelClassName = 'justify-self-end font-normal text-muted-foreground text-[13px]'
+
 export const resourceDialogCloseButtonClassName =
   '[&_[data-slot=dialog-close]]:top-[9px] [&_[data-slot=dialog-close]]:right-3 [&_[data-slot=dialog-close]]:flex [&_[data-slot=dialog-close]]:size-[30px] [&_[data-slot=dialog-close]]:items-center [&_[data-slot=dialog-close]]:justify-center [&_[data-slot=dialog-close]]:rounded-lg [&_[data-slot=dialog-close]]:hover:bg-foreground/[0.08] [&_[data-slot=dialog-close]]:focus-visible:bg-foreground/[0.08] [&_[data-slot=dialog-close]]:focus-visible:ring-1 [&_[data-slot=dialog-close]]:focus-visible:ring-foreground/20 [&_[data-slot=dialog-close]]:focus-visible:ring-offset-0'
+
 export const resourceDialogHeaderClassName =
   'flex shrink-0 items-center gap-3 border-border-subtle border-b px-6 py-3.5 pr-12'
+
 export const resourceDialogTitleClassName = 'truncate text-sm'
 
 export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId' | 'contextCompressModelId'
+
 export type ModelLabels = Record<ModelLabelKey, string | null>
 
 export type EditDialogBaseProps = {
@@ -83,10 +88,12 @@ export type EditDialogTab = {
 }
 
 export type EditDialogGroupExpansion = 'collapsed' | 'all'
+
 export type EditDialogGroupPresentation = 'grouped' | 'inline'
 
 function resolveTabValue(tabs: EditDialogTab[], value: string) {
   const matched = tabs.find((tab) => tab.id === value)
+
   return matched?.children?.[0]?.id ?? value
 }
 
@@ -94,6 +101,7 @@ function getDefaultExpandedGroupIds(tabs: EditDialogTab[], groupExpansion: EditD
   if (groupExpansion === 'all') {
     return new Set(tabs.flatMap((tab) => (tab.children?.length ? [tab.id] : [])))
   }
+
   return new Set<string>()
 }
 
@@ -113,13 +121,17 @@ export const EDIT_DIALOG_PROMPT_MAX_HEIGHT = '50vh'
 
 export function getSelectedModelId(selection: UniqueModelId | Model | undefined): UniqueModelId | null {
   if (!selection) return null
+
   if (typeof selection === 'string') return selection
+
   return selection.id
 }
 
 export function getSelectedModelLabel(selection: UniqueModelId | Model | undefined): string | null {
   if (!selection) return null
+
   if (typeof selection === 'string') return selection
+
   return selection.name
 }
 
@@ -166,9 +178,12 @@ export function useDebouncedAutoSave({
 
   const flush = useCallback((): Promise<void> => {
     const task = saveTaskRef.current
+
     if (task.promise && changeKeyRef.current === savedKeyRef.current) return task.promise
+
     return task.run(() => {
       savedKeyRef.current = changeKeyRef.current
+
       return onSaveRef.current()
     })
   }, [])
@@ -176,6 +191,7 @@ export function useDebouncedAutoSave({
   useEffect(() => {
     if (!enabled || changeKey === null) return
     const handle = setTimeout(() => void flush(), delay)
+
     return () => clearTimeout(handle)
   }, [enabled, changeKey, delay, flush])
 
@@ -206,6 +222,7 @@ const HelpIconButton = ({
     </Button>
   )
 }
+
 HelpIconButton.displayName = 'HelpIconButton'
 
 export function FieldLabelWithHelp({
@@ -224,6 +241,7 @@ export function FieldLabelWithHelp({
   formLabel?: boolean
 }) {
   const { t } = useTranslation()
+
   const labelContent = formLabel ? (
     <FormLabel className={cn('font-normal', labelClassName)}>{label}</FormLabel>
   ) : (
@@ -282,6 +300,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
 
   const { catalog, linkedItems } = useMemo(() => {
     const byId = new Map(bases.map((base) => [base.id, base]))
+
     const linked = value.map(
       (id) =>
         byId.get(id) ?? {
@@ -290,17 +309,20 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
           itemCount: 0
         }
     )
+
     const items: CatalogItem[] = bases.map((base) => ({
       id: base.id,
       name: base.name,
       description: t('library.config.knowledge.doc_count', { count: base.itemCount ?? 0 }),
       icon: <KnowledgeBaseAvatar />
     }))
+
     return { catalog: items, linkedItems: linked }
   }, [bases, t, value])
 
   const setKnowledgeBaseIds = (nextValue: string[]) =>
     form.setValue(fieldName, nextValue as never, { shouldDirty: true })
+
   const remove = (id: string) => setKnowledgeBaseIds(value.filter((itemId) => itemId !== id))
   const add = (id: string) => setKnowledgeBaseIds([...value, id])
 
@@ -412,6 +434,7 @@ export function EditDialogShell<TValues extends FieldValues>({
   title: string
 }) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() =>
     getDefaultExpandedGroupIds(tabs, groupExpansion)
   )
@@ -428,9 +451,11 @@ export function EditDialogShell<TValues extends FieldValues>({
 
   useEffect(() => {
     const activeGroup = tabs.find((tab) => tab.children?.some((child) => child.id === activeTab))
+
     if (!activeGroup) return
     setExpandedGroupIds((current) => {
       if (current.has(activeGroup.id)) return current
+
       return new Set(current).add(activeGroup.id)
     })
   }, [activeTab, tabs])
@@ -442,11 +467,13 @@ export function EditDialogShell<TValues extends FieldValues>({
   const toggleTabGroup = (tabId: string) => {
     setExpandedGroupIds((current) => {
       const next = new Set(current)
+
       if (next.has(tabId)) {
         next.delete(tabId)
       } else {
         next.add(tabId)
       }
+
       return next
     })
   }
@@ -481,6 +508,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                   <MenuList>
                     {tabs.map((tab) => {
                       const hasChildren = Boolean(tab.children?.length)
+
                       if (hasChildren && groupPresentation === 'inline') {
                         return tab.children?.map((child) => (
                           <TabsTrigger key={child.id} value={child.id} asChild>
@@ -720,11 +748,13 @@ export function CompactModelField({
   const { model: resolvedModel } = useModelById(selectorValue)
   const selectedModel = resolvedModel?.id === selectorValue ? resolvedModel : undefined
   const labelFromState = modelLabels[name]
+
   const displayLabel =
     selectedModel?.name ??
     (labelFromState && labelFromState !== selectorValue ? labelFromState : parsedModelId?.modelId) ??
     emptyLabel ??
     t('library.config.basic.model_pick')
+
   const triggerModel =
     selectedModel ??
     (selectorValue && parsedModelId
@@ -768,11 +798,13 @@ export function CompactModelField({
                 onSettingsNavigate={onSettingsNavigate}
                 onSelect={(selection: UniqueModelId | Model | undefined) => {
                   const selectedModelId = getSelectedModelId(selection)
+
                   if (onModelChange) {
                     onModelChange(selectedModelId, typeof selection === 'string' ? undefined : selection)
                   } else {
                     field.onChange(selectedModelId ?? (name === 'modelId' ? null : ''))
                   }
+
                   const selectedLabel = getSelectedModelLabel(selection)
                   setModelLabels({ ...modelLabels, [name]: selectedLabel })
                 }}
@@ -801,11 +833,13 @@ export function CompactModelField({
                   aria-label={`${label} ${t('library.config.basic.model_clear')}`}
                   onClick={(event) => {
                     event.stopPropagation()
+
                     if (onModelChange) {
                       onModelChange(null)
                     } else {
                       field.onChange('')
                     }
+
                     setModelLabels({ ...modelLabels, [name]: null })
                   }}
                   className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:text-foreground focus-visible:opacity-100 active:bg-muted group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100">
@@ -833,6 +867,7 @@ export function CompactModelField({
 
 export function PromptVariablesPopover({ portalContainer }: { portalContainer: HTMLElement | null }) {
   const { t } = useTranslation()
+
   const copyVariable = (variable: string) => {
     navigator.clipboard
       .writeText(variable)
@@ -841,6 +876,7 @@ export function PromptVariablesPopover({ portalContainer }: { portalContainer: H
         logger.warn('Failed to copy prompt variable to clipboard', error as Error)
       })
   }
+
   return (
     <Popover>
       <PopoverTrigger asChild>

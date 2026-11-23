@@ -5,7 +5,9 @@
 
 // 主要的运行时执行器
 export { RuntimeExecutor } from './executor'
+
 export { generateSpeech, transcribe } from './voice'
+
 export type { SpeechOptions, SpeechResult, TranscriptionOptions, TranscriptionResult } from './voice'
 
 // 导出类型
@@ -60,6 +62,7 @@ export async function resolveLanguageModel<
   T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
 >(providerId: T, options: TSettingsMap[T], modelId: string, plugins?: AiPlugin[]) {
   const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
+
   return executor.resolveLanguageModel(modelId)
 }
 
@@ -76,6 +79,7 @@ export async function streamText<
   plugins?: AiPlugin[]
 ): Promise<ReturnType<RuntimeExecutor<TSettingsMap, T>['streamText']>> {
   const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
+
   return executor.streamText(params)
 }
 
@@ -92,6 +96,7 @@ export async function generateText<
   plugins?: AiPlugin[]
 ): Promise<ReturnType<RuntimeExecutor<TSettingsMap, T>['generateText']>> {
   const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
+
   return executor.generateText(params)
 }
 
@@ -108,6 +113,7 @@ export async function generateImage<
   plugins?: AiPlugin[]
 ): Promise<ReturnType<RuntimeExecutor<TSettingsMap, T>['generateImage']>> {
   const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
+
   return executor.generateImage(params)
 }
 
@@ -125,6 +131,7 @@ export async function embedMany<
   plugins?: AiPlugin[]
 ): Promise<ReturnType<RuntimeExecutor<TSettingsMap, T>['embedMany']>> {
   const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
+
   return executor.embedMany(params)
 }
 
@@ -138,6 +145,7 @@ export async function rerank<
   plugins?: AiPlugin[]
 ): Promise<ReturnType<RuntimeExecutor<TSettingsMap, T>['rerank']>> {
   const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
+
   return executor.rerank(params)
 }
 

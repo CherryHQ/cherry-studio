@@ -25,6 +25,7 @@ export function coerceCodexRequestJson(json: JSONObject): JSONObject {
   const include = new Set(Array.isArray(json.include) ? json.include : [])
   include.add(CODEX_REASONING_INCLUDE)
   json.include = [...include]
+
   return json
 }
 
@@ -34,6 +35,7 @@ export function coerceCodexRequestJson(json: JSONObject): JSONObject {
  */
 export function coerceCodexRequestBody(body: BodyInit | null | undefined): BodyInit | null | undefined {
   if (typeof body !== 'string') return body
+
   try {
     return JSON.stringify(coerceCodexRequestJson(JSON.parse(body)))
   } catch {
@@ -49,8 +51,10 @@ export function coerceCodexRequestBody(body: BodyInit | null | undefined): BodyI
 export function buildCodexRequestHeaders(base: HeadersInit | undefined, creds: CodexCredentials): Headers {
   const headers = new Headers(base)
   headers.set('Authorization', `Bearer ${creds.accessToken}`)
+
   if (creds.accountId) headers.set('chatgpt-account-id', creds.accountId)
   headers.set('OpenAI-Beta', 'responses=experimental')
   headers.set('originator', 'cherry-studio')
+
   return headers
 }

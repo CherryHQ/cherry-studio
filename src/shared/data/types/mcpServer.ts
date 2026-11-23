@@ -17,14 +17,17 @@ export const McpConfigSampleSchema = z.object({
   args: z.array(z.string()),
   env: z.record(z.string(), z.string()).optional()
 })
+
 export type McpConfigSample = z.infer<typeof McpConfigSampleSchema>
 
 /** MCP Server communication protocol */
 export const McpServerTypeSchema = z.enum(['stdio', 'sse', 'streamableHttp', 'inMemory'])
+
 export type McpServerType = z.infer<typeof McpServerTypeSchema>
 
 /** MCP Server install source */
 export const McpServerInstallSourceSchema = z.enum(['builtin', 'manual', 'ai_assisted', 'protocol', 'unknown'])
+
 export type McpServerInstallSource = z.infer<typeof McpServerInstallSourceSchema>
 
 // ============================================================================

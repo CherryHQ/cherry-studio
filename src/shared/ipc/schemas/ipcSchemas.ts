@@ -113,6 +113,7 @@ export const ipcRequestSchemas = {
 } satisfies Record<string, RouteDef>
 
 export type IpcRequestSchemas = typeof ipcRequestSchemas
+
 /** Union of all declared request routes. */
 export type IpcRoute = keyof IpcRequestSchemas
 
@@ -146,5 +147,6 @@ export type IpcEventSchemas = AiEventSchemas &
   WebSearchEventSchemas &
   WebviewEventSchemas &
   WindowEventSchemas
+
 /** Union of all declared event names. */
 export type IpcEventName = keyof IpcEventSchemas

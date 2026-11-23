@@ -4,6 +4,7 @@ import { Ph8Light } from './light'
 
 const Ph8 = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Ph8Light {...props} className={className} />
+
   return <Ph8Light {...props} className={className} />
 }
 

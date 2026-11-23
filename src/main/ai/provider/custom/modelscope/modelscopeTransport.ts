@@ -35,6 +35,7 @@ import { createAbortError, isTerminalHttpStatus, uint8ToBase64, waitWithSignal }
 // undici abandons response headers after 300s, below a sync image model's submit budget;
 // an injected fetch has no such bound, so this only backs the global-fetch fallback.
 const REQUEST_DISPATCHER_TIMEOUT_MS = 15 * 60 * 1000
+
 const longRunningDispatcher = new Agent({
   headersTimeout: REQUEST_DISPATCHER_TIMEOUT_MS,
   bodyTimeout: REQUEST_DISPATCHER_TIMEOUT_MS
@@ -102,6 +103,7 @@ class ModelscopeTransport implements ImageGenerationTransport {
     // normalizes attached input images into `input.files` (post `prompt: { text,
     // images }`). Pass the first one — ModelScope accepts http(s) or data URLs.
     const firstFile = input.files?.[0]
+
     if (firstFile) {
       if (firstFile.type === 'url') {
         body.image_url = firstFile.url
@@ -116,7 +118,9 @@ class ModelscopeTransport implements ImageGenerationTransport {
     // The bag is canonical camelCase (schema-coerced); ModelScope's wire names
     // are `steps` / `guidance` (not `num_inference_steps` / `guidance_scale`).
     if (typeof bag.numInferenceSteps === 'number') body.steps = bag.numInferenceSteps
+
     if (typeof bag.guidanceScale === 'number') body.guidance = bag.guidanceScale
+
     if (typeof bag.negativePrompt === 'string' && bag.negativePrompt) body.negative_prompt = bag.negativePrompt
 
     if (input.seed !== undefined) body.seed = input.seed
@@ -135,6 +139,7 @@ class ModelscopeTransport implements ImageGenerationTransport {
     options: { signal?: AbortSignal; onProgress?: (progress: number) => void }
   ): Promise<string[]> {
     const result = await this.pollTaskResult(taskId, options)
+
     return result.output_images ?? []
   }
 
@@ -169,9 +174,11 @@ class ModelscopeTransport implements ImageGenerationTransport {
             extraHeaders: { 'X-ModelScope-Task-Type': 'image_generation' }
           }
         )
+
         transientRetries = 0
 
         if (result.task_status === 'SUCCEED') return result
+
         if (result.task_status === 'FAILED') {
           throw new ModelscopeTaskFailedError(result.message || 'Task failed')
         }
@@ -179,19 +186,23 @@ class ModelscopeTransport implements ImageGenerationTransport {
         if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
           throw createAbortError('Task polling aborted')
         }
+
         // Terminal failure or a 4xx (bar 429) poll response ends the loop;
         // 5xx / 429 fall through to transient retry.
         if (error instanceof ModelscopeTaskFailedError) {
           throw error
         }
+
         if (error instanceof ModelscopeApiError && isTerminalHttpStatus(error.statusCode)) {
           throw error
         }
 
         transientRetries++
+
         if (transientRetries >= maxTransientRetries) {
           throw error instanceof Error ? error : new Error(String(error))
         }
+
         const elapsedTime = Date.now() - startTime
         const pollDelay = interval ?? (elapsedTime < 60000 ? 3000 : 10000)
         await waitWithSignal(pollDelay, signal)
@@ -219,10 +230,12 @@ class ModelscopeTransport implements ImageGenerationTransport {
     let externallyAborted = false
 
     const timeoutId = setTimeout(() => controller.abort(), timeout)
+
     const onExternalAbort = () => {
       externallyAborted = true
       controller.abort()
     }
+
     if (externalSignal?.aborted) {
       externallyAborted = true
       controller.abort()
@@ -239,23 +252,28 @@ class ModelscopeTransport implements ImageGenerationTransport {
       },
       signal: controller.signal
     }
+
     if (method === 'POST' && body !== undefined) {
       fetchOptions.body = JSON.stringify(body)
     }
+
     if (!this.fetch) fetchOptions.dispatcher = longRunningDispatcher
 
     try {
       const response = await (this.fetch ?? fetch)(`${this.baseURL}${path}`, fetchOptions)
+
       if (!response.ok) {
         const errorText = (await response.text().catch(() => '')).slice(0, 500)
         throw new ModelscopeApiError(`ModelScope API error: ${response.status} - ${errorText}`, response.status)
       }
+
       return (await response.json()) as T
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         if (externallyAborted) throw createAbortError('ModelScope API request aborted')
         throw new Error(`ModelScope API request timeout after ${timeout / 1000}s`)
       }
+
       throw error
     } finally {
       clearTimeout(timeoutId)

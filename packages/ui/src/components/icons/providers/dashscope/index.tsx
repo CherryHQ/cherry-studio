@@ -6,7 +6,9 @@ import { DashscopeLight } from './light'
 
 const Dashscope = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DashscopeLight {...props} className={className} />
+
   if (variant === 'dark') return <DashscopeDark {...props} className={className} />
+
   return (
     <>
       <DashscopeLight className={cn('dark:hidden', className)} {...props} />

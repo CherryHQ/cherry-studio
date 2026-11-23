@@ -4,6 +4,7 @@ import { GptAudio15Light } from './light'
 
 const GptAudio15 = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GptAudio15Light {...props} className={className} />
+
   return <GptAudio15Light {...props} className={className} />
 }
 

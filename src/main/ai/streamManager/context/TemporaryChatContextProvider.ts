@@ -33,6 +33,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
   canHandle(topicId: string): boolean {
     // Defensive — agent-session prefix is never temporary regardless of `hasTopic`.
     if (isAgentSessionTopic(topicId)) return false
+
     return temporaryChatService.hasTopic(topicId)
   }
 
@@ -42,16 +43,20 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     ctx: DispatchContext
   ): Promise<PreparedDispatch> {
     if (req.trigger === 'edit-agent-message') throw new Error('Agent editing requires an Agent session')
+
     if (req.trigger === 'regenerate-message') {
       throw new Error('regenerate-message is not supported for temporary chats (immutable append-only)')
     }
+
     if (req.trigger === 'continue-conversation') {
       throw new Error('continue-conversation is not supported for temporary chats (immutable append-only)')
     }
+
     if (req.trigger === 'steer-continuation') {
       // Never reached: steers are only enqueued for persistent topics (provider-gated in dispatch).
       throw new Error('steer-continuation is not supported for temporary chats')
     }
+
     // Temporary chats have no steer queue, so a busy submit can't be absorbed. Refuse it here rather
     // than letting `send()` take the inject branch and silently discard the models (the message would
     // be persisted to the in-memory history, acked as success, and never answered). The renderer
@@ -61,15 +66,18 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     }
 
     const topic = temporaryChatService.getTopic(req.topicId)
+
     if (!topic) throw new Error(`Temporary topic not found: ${req.topicId}`)
 
     const selectedModelId = req.mentionedModelIds?.[0]
+
     const { assistantId, defaultModelId } =
       !topic.assistantId && selectedModelId
         ? { assistantId: undefined, defaultModelId: selectedModelId }
         : resolveAssistantModelId(topic.assistantId)
 
     let resolveWith: UniqueModelId[] | undefined
+
     if (req.mentionedModelIds?.length) {
       if (req.mentionedModelIds.length > 1) {
         logger.warn('Temporary chat received multiple mentionedModelIds — only the first is used', {
@@ -77,8 +85,10 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
           mentioned: req.mentionedModelIds
         })
       }
+
       resolveWith = [req.mentionedModelIds[0]]
     }
+
     const models = resolveModels(resolveWith, defaultModelId)
     const model = models[0]
     const { modelId: rawModelId, providerId } = parseUniqueModelId(model.id)
@@ -86,12 +96,14 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     // The assistant owns the model — snapshot it (model nested) onto the assistant reply.
     const assistant = assistantId ? assistantDataService.getById(assistantId) : undefined
     let messageSnapshot: MessageSnapshot | undefined
+
     if (assistant) {
       const identity: Omit<MessageSnapshot, 'model'> = {
         id: assistant.id,
         name: assistant.name,
         emoji: assistant.emoji
       }
+
       if (assistant.avatarFileId) identity.avatarFileId = assistant.avatarFileId
       messageSnapshot = { ...identity, model: modelSnap }
     }
@@ -110,6 +122,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       globals: resolveGlobalContextSettings(),
       assistant: assistant?.settings?.contextSettings
     })
+
     const history: CherryUIMessage[] = temporaryChatService
       .listMessages(req.topicId, contextSettings.maxMessages)
       .map((m) => ({
@@ -119,6 +132,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       }))
 
     const messageId = uuidv7()
+
     const listeners: StreamListener[] = [
       subscriber,
       new PersistenceListener({
@@ -141,9 +155,11 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
       serviceTier: req.trigger === 'submit-message' ? req.serviceTier : undefined
     }
+
     if (req.trigger === 'submit-message' && req.fastMode) streamRequest.fastMode = true
 
     temporaryChatService.retainAvatar(req.topicId, messageSnapshot?.avatarFileId)
+
     return {
       topicId: req.topicId,
       models: [{ modelId: model.id, request: streamRequest }],

@@ -78,8 +78,10 @@ class NonVisionImageOcrError extends Error {
   constructor(detail?: NonVisionImageOcrDetail) {
     super(NON_VISION_IMAGE_OCR_ERROR_MESSAGE)
     this.name = 'NonVisionImageOcrError'
+
     if (detail) {
       this.detailI18nKey = NON_VISION_IMAGE_OCR_DETAIL_KEYS[detail.kind]
+
       if (detail.kind === 'failed') {
         this.detailI18nValues = { reason: detail.reason.slice(0, MAX_OCR_FAILURE_REASON_LENGTH) }
       }
@@ -91,8 +93,10 @@ class NonVisionImageOcrError extends Error {
  *  *final* alias is free — so a generated suffix can't collide with a real name. */
 function uniqueHandle(base: string, used: Set<string>): string {
   let candidate = base
+
   for (let n = 2; used.has(candidate); n++) candidate = `${base} (${n})`
   used.add(candidate)
+
   return candidate
 }
 
@@ -104,18 +108,23 @@ function uniqueHandle(base: string, used: Set<string>): string {
 export function collectFileAttachments(messages: UIMessage[] | undefined): FileAttachmentRef[] {
   const refs: FileAttachmentRef[] = []
   const used = new Set<string>()
+
   for (const message of messages ?? []) {
     const composerFileTokenIds = collectComposerFileTokenIds(message)
+
     for (const part of message.parts ?? []) {
       if (part.type !== 'file') continue
       const fileEntryId = readCherryMeta(part)?.fileEntryId
+
       if (!fileEntryId) continue
+
       if (!isActiveManagedFilePart(part, composerFileTokenIds)) continue
       const displayName = part.filename ?? 'file'
       const handle = uniqueHandle(displayName.trim() || 'file', used)
       refs.push({ fileEntryId, handle, displayName })
     }
   }
+
   return refs
 }
 
@@ -140,9 +149,13 @@ export interface PrepareChatContext {
 
 function isNative(ext: string, fileType: FileType, ns: NativeFileSupport): boolean {
   if (fileType === FILE_TYPE.IMAGE) return ns.image
+
   if (fileType === FILE_TYPE.AUDIO) return ns.audio
+
   if (fileType === FILE_TYPE.VIDEO) return ns.video
+
   if (ext === 'pdf') return ns.pdf
+
   return false
 }
 
@@ -158,10 +171,12 @@ async function ocrNonVisionImage(
 ): Promise<NonVisionImageOcrDetail | { kind: 'text'; text: string }> {
   try {
     const text = (await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)).trim()
+
     return text ? { kind: 'text', text } : { kind: 'empty' }
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) throw error
     logger.warn('OCR unavailable or failed for a non-vision model', { error })
+
     return { kind: 'failed', reason: error instanceof Error ? error.message : String(error) }
   }
 }
@@ -177,14 +192,19 @@ async function extractNonNativeText(
   if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
     return `This model can't process the attached ${fileType} file "${handle}".`
   }
+
   if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || fileType === FILE_TYPE.OTHER) {
     const extracted = await extractDocumentText(entryId, { signal })
+
     if (extracted === null) {
       return `Cannot read the attached file "${handle}" as text (unsupported file type).`
     }
+
     const text = extracted.trim()
+
     return text || noExtractableTextNote(handle)
   }
+
   // Unknown extensions decode only when the conservative decoder accepts text;
   // rejected decodes keep the unsupported note.
   return `Cannot read the attached file "${handle}" as text (unsupported file type).`
@@ -193,9 +213,11 @@ async function extractNonNativeText(
 function capInlineText(handle: string, text: string, isToolCapable: boolean, cap: number): string {
   if (text.length <= cap) return text
   const head = text.slice(0, surrogateSafeEnd(text, cap))
+
   const more = isToolCapable
     ? `\n\n[Truncated ${head.length}/${text.length} chars — call read_file("${handle}", offset=${head.length}) for the rest.]`
     : `\n\n[Truncated ${head.length}/${text.length} chars.]`
+
   return head + more
 }
 
@@ -205,8 +227,11 @@ function noteOf(handle: string): TextUIPart {
 
 function rejectedMediaKind(mediaType: string, ns: NativeFileSupport): 'image' | 'audio' | 'video' | undefined {
   if (!ns.image && mediaType.startsWith('image/')) return 'image'
+
   if (!ns.audio && mediaType.startsWith('audio/')) return 'audio'
+
   if (!ns.video && mediaType.startsWith('video/')) return 'video'
+
   return undefined
 }
 
@@ -219,10 +244,13 @@ async function prepareChatMessage<T extends UIMessage>(
 
   const kept: UIMessage['parts'] = []
   const composerFileTokenIds = collectComposerFileTokenIds(message)
+
   const inlineNative = async (part: FileUIPart): Promise<boolean> => {
     const inlined = await materializeNativeFilePart(part)
+
     if (!inlined) return false
     kept.push(inlined)
+
     return true
   }
 
@@ -233,16 +261,19 @@ async function prepareChatMessage<T extends UIMessage>(
     }
 
     const fileEntryId = readCherryMeta(part)?.fileEntryId
+
     if (!fileEntryId) {
       // Legacy / gateway part — eager materialization, but do not let media
       // bypass the native-support gate applied to first-party attachments.
       const name = part.filename ?? 'file'
       const inlined = await materializeNativeFilePart(part)
+
       if (!inlined) {
         logger.warn('Dropped unresolved legacy file part; degrading to note', { messageId: message.id })
         kept.push(noteOf(name))
       } else {
         const rejectedKind = rejectedMediaKind(inlined.mediaType, ctx.nativeSupport)
+
         if (rejectedKind) {
           kept.push({
             type: 'text',
@@ -252,6 +283,7 @@ async function prepareChatMessage<T extends UIMessage>(
           kept.push(inlined)
         }
       }
+
       continue
     }
 
@@ -272,6 +304,7 @@ async function prepareChatMessage<T extends UIMessage>(
     const ref = ctx.attachments.find((a) => a.fileEntryId === fileEntryId)
     const handle = ref?.handle ?? part.filename ?? 'file'
     const displayName = ref?.displayName ?? handle
+
     try {
       const bareExt = ((await application.get('FileManager').getById(fileEntryId)).ext ?? '').toLowerCase()
       const fileType = getFileTypeByExt(bareExt)
@@ -281,6 +314,7 @@ async function prepareChatMessage<T extends UIMessage>(
           logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
           kept.push(noteOf(handle))
         }
+
         continue
       }
 
@@ -289,12 +323,15 @@ async function prepareChatMessage<T extends UIMessage>(
       // backed models can explicitly enable Vision.
       if (fileType === FILE_TYPE.IMAGE) {
         const outcome = await ocrNonVisionImage(fileEntryId, ctx.signal)
+
         if (outcome.kind !== 'text') {
           const context = { messageId: message.id, displayName, fileEntryId, outcome: outcome.kind }
+
           if (outcome.kind === 'failed') Object.assign(context, { reason: outcome.reason })
           logger.warn('Non-vision image OCR produced no readable text', context)
           throw new NonVisionImageOcrError(outcome)
         }
+
         defer(kept, pending, handle, outcome.text)
         continue
       }
@@ -311,6 +348,7 @@ async function prepareChatMessage<T extends UIMessage>(
       defer(kept, pending, handle, body)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
+
       if (error instanceof NonVisionImageOcrError) throw error
       logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
       kept.push(noteOf(handle))
@@ -332,6 +370,7 @@ export async function prepareChatMessages<T extends UIMessage = UIMessage>(
   const pending: PendingInline[] = []
   const prepared = await Promise.all(messages.map((message) => prepareChatMessage(message, ctx, pending)))
   await applyInlineCaps(pending, ctx)
+
   return prepared
 }
 
@@ -353,6 +392,7 @@ function defer(parts: UIMessage['parts'], pending: PendingInline[], handle: stri
 
 async function applyInlineCaps(pending: PendingInline[], ctx: PrepareChatContext): Promise<void> {
   if (pending.length === 0) return
+
   const caps = ctx.budget
     ? await runAttachmentWorker(
         'allocate',

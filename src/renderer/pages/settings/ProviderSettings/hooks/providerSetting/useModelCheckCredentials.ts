@@ -60,12 +60,14 @@ export function useModelCheckCredentials(providerId: string): ModelCheckCredenti
   const prepareCredentials = useCallback(
     async (selection: ModelCheckKeySelection, signal: AbortSignal) => {
       preparingCredentialsRef.current = true
+
       try {
         try {
           await commitInputApiKeyNow()
         } catch (error) {
           throw new ModelCheckCredentialsSaveError(error)
         }
+
         signal.throwIfAborted()
 
         const refetched = await refetchApiKeys()
@@ -73,6 +75,7 @@ export function useModelCheckCredentials(providerId: string): ModelCheckCredenti
 
         const latestEntries = getRefetchedApiKeyEntries(refetched, apiKeyEntries)
         acceptedCredentialFingerprintRef.current = createCredentialFingerprint(latestEntries)
+
         return resolveModelCheckCredentials(latestEntries, selection, { canSelectApiKey, requiresApiKey })
       } finally {
         preparingCredentialsRef.current = false
@@ -92,10 +95,13 @@ export function useModelCheckCredentials(providerId: string): ModelCheckCredenti
 
     if (preparingCredentialsRef.current) {
       acceptedCredentialFingerprintRef.current = credentialFingerprint
+
       return
     }
+
     if (acceptedCredentialFingerprintRef.current === credentialFingerprint) {
       acceptedCredentialFingerprintRef.current = null
+
       return
     }
 

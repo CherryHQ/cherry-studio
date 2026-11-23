@@ -11,6 +11,7 @@ export const agentUploadLimits = Object.freeze({
   deviceBytes: 4 * 1024 ** 3,
   stagingBytes: 8 * 1024 ** 3
 })
+
 export const uploadMetadataSchema = z.strictObject({
   uploadId: opaqueId,
   filename: unicodeText
@@ -32,15 +33,19 @@ export const uploadMetadataSchema = z.strictObject({
   checksumAlgorithm: z.literal('sha256').optional(),
   byteLength: z.number().int().min(0).max(agentUploadLimits.fileBytes)
 })
+
 export const uploadReferenceSchema = z.strictObject({ uploadId: opaqueId })
 export const uploadWriterSchema = uploadReferenceSchema.extend({ writerEpoch: decimal })
+
 export const uploadCompleteSchema = uploadWriterSchema.extend({
   expectedSha256: z
     .string()
     .regex(/^[a-f0-9]{64}$/)
     .optional()
 })
+
 export type AgentUploadComplete = z.infer<typeof uploadCompleteSchema>
+
 export const uploadStateSchema = z.looseObject({
   uploadId: opaqueId,
   state: z.enum(['receiving', 'verifying', 'ready', 'failed']),
@@ -54,13 +59,19 @@ export const uploadStateSchema = z.looseObject({
   failureCode: z.enum(['CHECKSUM_MISMATCH', 'VERIFICATION_FAILED']).optional(),
   expiresAt: timestamp
 })
+
 export const uploadResumeSchema = uploadReferenceSchema.extend({ resumeId: opaqueId, expectedWriterEpoch: decimal })
+
 export const uploadReferencesSchema = z
   .array(uploadReferenceSchema)
   .min(1)
   .max(agentUploadLimits.files)
   .refine((files) => new Set(files.map((file) => file.uploadId)).size === files.length)
+
 export type AgentUploadMetadata = z.infer<typeof uploadMetadataSchema>
+
 export type AgentUploadReference = z.infer<typeof uploadReferenceSchema>
+
 export type AgentUploadState = z.infer<typeof uploadStateSchema>
+
 export type AgentUploadResume = z.infer<typeof uploadResumeSchema>

@@ -13,8 +13,10 @@ import { foldPathSegment } from '@main/utils/file'
  */
 export function assertZipEntriesWithin(entryNames: string[], baseDir: string): void {
   const root = path.resolve(baseDir)
+
   for (const name of entryNames) {
     const dest = path.resolve(baseDir, name)
+
     if (dest !== root && !dest.startsWith(root + path.sep)) {
       throw new Error(`Unsafe zip entry path (zip-slip): ${name}`)
     }
@@ -33,6 +35,7 @@ export function assertZipEntriesWithin(entryNames: string[], baseDir: string): v
  */
 export function assertNoFoldedPathCollisions(paths: readonly string[], subject = 'Archive'): void {
   type PathNode = { part: string; children: Map<string, PathNode> }
+
   const root = new Map<string, PathNode>()
 
   // One node per directory level: an entry name can nest tens of thousands of levels deep, so
@@ -40,9 +43,11 @@ export function assertNoFoldedPathCollisions(paths: readonly string[], subject =
   for (const entryPath of paths) {
     const parts = entryPath.split('/').filter(Boolean)
     let level = root
+
     for (const [index, part] of parts.entries()) {
       const key = foldPathSegment(part)
       let node = level.get(key)
+
       if (!node) {
         node = { part, children: new Map() }
         level.set(key, node)
@@ -53,6 +58,7 @@ export function assertNoFoldedPathCollisions(paths: readonly string[], subject =
           `${subject} contains paths that collide once case and Unicode are normalized (${previous}, ${current}).`
         )
       }
+
       level = node.children
     }
   }

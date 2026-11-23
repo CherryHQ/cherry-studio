@@ -94,6 +94,7 @@ const MINI_APP_ICON_REFS: ReadonlyMap<string, IconRef> = new Map([
 
 export function getMiniAppsLogoRef(logoId: string | undefined): IconRef | undefined {
   if (!logoId) return undefined
+
   return MINI_APP_ICON_REFS.get(logoId.toLowerCase())
 }
 

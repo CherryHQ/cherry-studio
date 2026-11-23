@@ -34,6 +34,7 @@ export const AgentSessionMessagesListQuerySchema = z.strictObject({
   limit: z.coerce.number().int().positive().max(AGENT_SESSION_MESSAGES_MAX_LIMIT).optional(),
   deferToolOutputs: z.boolean().optional()
 })
+
 export type AgentSessionMessagesListQuery = z.infer<typeof AgentSessionMessagesListQuerySchema>
 
 // ============================================================================
@@ -56,6 +57,7 @@ const AgentSessionHistoryActionsSchema = z.strictObject({
   fork: z.enum(AGENT_SESSION_FORK_FAILURE_REASONS).nullable(),
   edit: z.enum(agentSessionEditFailureReasons).nullable()
 })
+
 export type AgentSessionHistoryActions = z.infer<typeof AgentSessionHistoryActionsSchema>
 
 export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.extend({
@@ -70,6 +72,7 @@ export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.ext
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
+
 export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntitySchema>
 
 export const CreateAgentSessionMessageSchema = AgentSessionMessageBaseSchema.pick({
@@ -83,6 +86,7 @@ export const CreateAgentSessionMessageSchema = AgentSessionMessageBaseSchema.pic
     data: MessageDataSchema,
     status: MessageStatusSchema.optional()
   })
+
 export type CreateAgentSessionMessageDto = z.infer<typeof CreateAgentSessionMessageSchema>
 
 export const CreateAgentSessionMessagesSchema = z.strictObject({
@@ -90,9 +94,11 @@ export const CreateAgentSessionMessagesSchema = z.strictObject({
   runtimeResumeToken: z.string().optional(),
   messages: z.array(CreateAgentSessionMessageSchema)
 })
+
 export type CreateAgentSessionMessagesDto = z.infer<typeof CreateAgentSessionMessagesSchema>
 
 export const UpdateAgentSessionMessageSchema = AgentSessionMessageBaseSchema.pick({ data: true })
+
 export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMessageSchema>
 
 // ============================================================================

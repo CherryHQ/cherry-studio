@@ -80,35 +80,43 @@ export function ChatConversationControls({
   const modelTriggerClassName = cn(triggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const modelLabelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const isMentionedModelSelectorLocked = lockedMentionedModels.length > 1
+
   const selectedMentionedModels = isMentionedModelSelectorLocked
     ? lockedMentionedModels
     : useMentionedModelSelector
       ? mentionedModelSelectorValue
       : mentionedModels
+
   const mentionedModelTriggerClassName = cn(
     triggerClassName,
     iconOnly && selectedMentionedModels.length > 0 && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
   )
+
   const modelProvider = model ? providers.find((provider) => provider.id === model.providerId) : undefined
+
   const modelProviderName = model
     ? modelProvider
       ? getProviderDisplayName(modelProvider)
       : getProviderDisplayNameById(model.providerId)
     : undefined
+
   const modelLabel = model ? `${model.name} | ${modelProviderName}` : selectModelLabel
   const [mentionedModelSelectorOpen, setMentionedModelSelectorOpen] = useState(false)
+
   const handleMentionedModelSelect = useCallback(
     (nextModels: Model[]) => {
       onMentionedModelsSelect(nextModels)
     },
     [onMentionedModelsSelect]
   )
+
   const handleMentionedModelMultiSelectModeChange = useCallback(
     (nextEnabled: boolean) => {
       onMentionedModelMultiSelectModeChange(nextEnabled)
     },
     [onMentionedModelMultiSelectModeChange]
   )
+
   const handleAssistantEdit = useCallback(() => {
     if (!assistantId) return
     openResourceEditDialog({ kind: 'assistant', id: assistantId })

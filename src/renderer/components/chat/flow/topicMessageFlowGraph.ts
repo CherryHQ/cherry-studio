@@ -71,13 +71,16 @@ function flattenTreeNodes(tree: TreeResponse): GraphInputNode[] {
 
       return group.nodes.map((node) => {
         const entry: Omit<GraphInputNode, 'isSiblingBranch'> = { ...node, parentId: group.parentId }
+
         if (shouldKeepSiblingsGroupId) entry.siblingsGroupId = group.siblingsGroupId
+
         return Object.assign(entry, { isSiblingBranch: false })
       })
     })
   ]
 
   const uniqueNodes = new Map<string, GraphInputNode>()
+
   for (const node of flattened) {
     uniqueNodes.set(node.id, node)
   }
@@ -105,6 +108,7 @@ function getAssistantBranchGroupCounts(nodes: GraphInputNode[]): Map<string, num
 
   for (const node of nodes) {
     const key = getAssistantBranchGroupKey(node)
+
     if (!key) continue
     counts.set(key, (counts.get(key) ?? 0) + 1)
   }
@@ -125,11 +129,13 @@ function getAssistantBranchGroupKeys(nodes: GraphInputNode[]): Set<string> {
 
 function getAssistantBranchGroupKey(node: Pick<GraphInputNode, 'parentId' | 'role'>): string | null {
   if (node.role !== 'assistant' || !node.parentId) return null
+
   return `assistant:${node.parentId}`
 }
 
 function isAssistantBranchNode(node: GraphInputNode, assistantBranchGroupKeys: Set<string>): boolean {
   const key = getAssistantBranchGroupKey(node)
+
   return key ? assistantBranchGroupKeys.has(key) : false
 }
 
@@ -168,6 +174,7 @@ function toNodeData(
     isOnActivePath: activePath.has(node.id),
     isInactiveBranch: hasActivePath && !activePath.has(node.id)
   }
+
   if (node.isAwaitingInput) data.isAwaitingInput = true
 
   if (node.siblingsGroupId !== undefined) {

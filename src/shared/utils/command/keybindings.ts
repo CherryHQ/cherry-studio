@@ -67,6 +67,7 @@ export const isPlatformSupported = (
   if (!rule.supportedPlatforms?.length || !platform) {
     return true
   }
+
   return rule.supportedPlatforms.includes(platform)
 }
 
@@ -74,6 +75,7 @@ const isScopeSupported = (rule: RegisteredKeybindingRule, scope?: CommandScope):
   if (!scope) {
     return true
   }
+
   return rule.scope === scope || rule.scope === 'both'
 }
 
@@ -85,6 +87,7 @@ const platformsOverlap = (
   if (platform) {
     const leftSupportsPlatform = !left?.length || left.includes(platform)
     const rightSupportsPlatform = !right?.length || right.includes(platform)
+
     return leftSupportsPlatform && rightSupportsPlatform
   }
 
@@ -103,6 +106,7 @@ const shortcutBindingMatches = (left: ShortcutBinding, right: ShortcutBinding): 
   }
 
   const leftTokens = new Set(left.map(canonicalTriggerToken))
+
   if (leftTokens.size !== right.length) {
     return false
   }
@@ -122,6 +126,7 @@ export const getCommandAccelerator = (binding: ShortcutBinding): string | undefi
   if (!binding.length) {
     return undefined
   }
+
   // Electron has no keypad-Enter accelerator; register the canonical spelling.
   return binding.map(canonicalTriggerToken).join('+')
 }
@@ -143,12 +148,14 @@ const getRulePlatformBinding = (
   }
 
   const binding = defaultBinding[platform]
+
   return binding ? normalizeShortcutBinding(binding) : undefined
 }
 
 /** The platform-agnostic default: schema value first, rule base binding otherwise. */
 const getSharedDefaultBinding = (rule: RegisteredKeybindingRule): ShortcutBinding => {
   const fallback = DefaultPreferences.default[rule.preferenceKey]
+
   return fallback?.binding?.length
     ? normalizeShortcutBinding(fallback.binding)
     : getRuleBaseBinding(rule.defaultBinding)
@@ -180,15 +187,18 @@ const resolvePreferredBinding = (
   if (preference == null) {
     return undefined
   }
+
   if (!preference.binding?.length) {
     return []
   }
 
   const binding = normalizeShortcutBinding(preference.binding)
   const platformBinding = getRulePlatformBinding(rule.defaultBinding, platform)
+
   if (platformBinding && shortcutBindingMatches(binding, getSharedDefaultBinding(rule))) {
     return platformBinding
   }
+
   return binding
 }
 
@@ -197,9 +207,11 @@ export const getCommandDefaultShortcutPreference = (
   platform?: SupportedPlatform
 ): ResolvedCommandShortcutPreference | undefined => {
   const rule = findKeybindingRule(command)
+
   if (!rule) {
     return undefined
   }
+
   return getDefaultShortcutPreferenceForRule(rule, platform)
 }
 
@@ -209,6 +221,7 @@ export const resolveCommandShortcutPreference = (
   platform?: SupportedPlatform
 ): ResolvedCommandShortcutPreference | undefined => {
   const rule = findKeybindingRule(command)
+
   if (!rule) {
     return undefined
   }
@@ -228,11 +241,13 @@ export const resolveCommandKeybinding = ({
   platform
 }: ResolveCommandKeybindingOptions): ResolvedCommandKeybinding | undefined => {
   const rule = findKeybindingRule(command)
+
   if (!rule || !isPlatformSupported(rule, platform) || !evaluateContextExpr(rule.when, context)) {
     return undefined
   }
 
   const shortcutPreference = resolveCommandShortcutPreference(command, preference, platform)
+
   if (!shortcutPreference) {
     return undefined
   }
@@ -262,9 +277,11 @@ export const resolveCommandByKeybinding = ({
     if (!isScopeSupported(rule, scope)) {
       continue
     }
+
     if (!isPlatformSupported(rule, platform) || !evaluateContextExpr(rule.when, context)) {
       continue
     }
+
     if (canExecuteCommand && !canExecuteCommand(rule.command)) {
       continue
     }
@@ -275,11 +292,13 @@ export const resolveCommandByKeybinding = ({
       context,
       platform
     })
+
     if (!resolved?.enabled || !resolved.binding.length) {
       continue
     }
 
     const triggerBindings = [resolved.binding, ...resolved.additionalBindings]
+
     if (triggerBindings.some((triggerBinding) => shortcutBindingMatches(binding, triggerBinding))) {
       return rule.command
     }
@@ -296,6 +315,7 @@ export const findKeybindingConflicts = ({
   rules = REGISTERED_KEYBINDINGS
 }: FindKeybindingConflictsOptions): KeybindingConflict[] => {
   const commandRule = rules.find((rule) => rule.command === command)
+
   if (
     !commandRule ||
     !preference.enabled ||
@@ -307,6 +327,7 @@ export const findKeybindingConflicts = ({
 
   const candidateBinding = normalizeShortcutBinding(preference.binding)
   const candidateTriggers = getTriggerBindings(candidateBinding, commandRule.additionalBindings)
+
   const preferenceLookup = {
     ...preferences,
     [command]: {
@@ -314,17 +335,20 @@ export const findKeybindingConflicts = ({
       binding: candidateBinding
     }
   }
+
   const conflicts: KeybindingConflict[] = []
 
   for (const rule of rules) {
     if (rule.command === command) {
       continue
     }
+
     // Scope never separates bindings: main-scope shortcuts consume the keys before the renderer
     // sees them (window-local `before-input-event` or OS-level `globalShortcut`), shadowing renderer commands.
     if (!platformsOverlap(commandRule.supportedPlatforms, rule.supportedPlatforms, platform)) {
       continue
     }
+
     if (!canContextExprsOverlap(commandRule.when, rule.when)) {
       continue
     }
@@ -334,6 +358,7 @@ export const findKeybindingConflicts = ({
       preferenceLookup[rule.command],
       platform
     )
+
     if (!conflictingPreference?.enabled || !conflictingPreference.binding.length) {
       continue
     }

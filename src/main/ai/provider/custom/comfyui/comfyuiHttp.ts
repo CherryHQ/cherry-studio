@@ -48,6 +48,7 @@ export async function withDeadline<T>(
 ): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), Math.max(0, timeoutMs))
+
   try {
     return await run(signal ? AbortSignal.any([signal, controller.signal]) : controller.signal)
   } catch (error) {
@@ -56,6 +57,7 @@ export async function withDeadline<T>(
     if (controller.signal.aborted && !signal?.aborted) {
       throw createPaintingGenerateError('REMOTE_ERROR', { message: timeoutMessage })
     }
+
     throw error
   } finally {
     clearTimeout(timer)
@@ -78,12 +80,14 @@ export async function requestJson<T>(
   timeoutMs: number
 ): Promise<T> {
   const doFetch = options.fetch ?? fetch
+
   return withDeadline(
     signal,
     timeoutMs,
     t('paintings.comfyui.request_timeout', { seconds: timeoutMs / 1000 }),
     async (deadlineSignal) => {
       const response = await doFetch(url, { signal: deadlineSignal, headers: options.headers })
+
       if (!response.ok) {
         // Inside the deadline: the error body is a read like any other. A read cut
         // short by the caller's own cancellation must not surface as the server's
@@ -91,11 +95,14 @@ export async function requestJson<T>(
         // a read cut short by this request's deadline leaves a structured
         // `REMOTE_ERROR` behind, which `withDeadline` replaces with the timeout.
         const message = await readErrorMessage(response, fallback)
+
         if (signal?.aborted) {
           throw createAbortError('Request aborted')
         }
+
         throw createPaintingGenerateError('REMOTE_ERROR', { message })
       }
+
       return (await response.json()) as T
     }
   )

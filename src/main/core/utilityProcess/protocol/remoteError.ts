@@ -11,10 +11,14 @@ export function toRemoteError(error: unknown): RemoteErrorShape {
     if (error instanceof Error) {
       const code = (error as { code?: unknown }).code
       const shape: RemoteErrorShape = { name: String(error.name || 'Error'), message: String(error.message) }
+
       if (typeof error.stack === 'string') shape.stack = error.stack
+
       if (typeof code === 'string' || typeof code === 'number') shape.code = code
+
       return shape
     }
+
     return { name: 'Error', message: typeof error === 'string' ? error : safeStringify(error) }
   } catch {
     // Throwing getters and null prototypes are rare, but this also runs inside the child's
@@ -36,7 +40,10 @@ function safeStringify(value: unknown): string {
 export function fromRemoteError(remote: RemoteErrorShape): Error & { code?: string | number } {
   const error = new Error(remote.message) as Error & { code?: string | number }
   error.name = remote.name
+
   if (remote.stack !== undefined) error.stack = remote.stack
+
   if (remote.code !== undefined) error.code = remote.code
+
   return error
 }

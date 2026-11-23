@@ -23,12 +23,15 @@ function getLocalPipeline(modelDir: EmbeddingModelDir, dtype: string, logger: { 
   return cacheResource(`${modelDir}|${dtype}`, async () => {
     const { pipeline } = getTransformers()
     const profile = currentRuntimeProfile()
+
     const extractor = await pipeline('feature-extraction', modelDir, {
       dtype,
       device: profile.transformersDevice,
       session_options: profile.embeddingSessionOptions || profile.sessionOptions
     })
+
     if (profile.id !== 'cpu') logger.info(`hardware provider active provider=${profile.id} runtime=embedding`)
+
     return extractor
   })
 }
@@ -39,6 +42,7 @@ export const embeddingHandlers: UtilityProcessHandlers<EmbeddingInferenceContrac
       async () => {
         const extractor = await getLocalPipeline(modelDir, dtype, logger)
         const vectors: number[][] = []
+
         for (const text of texts) {
           // pooling:'none' -> tensor of shape [batch=1, sequence, hidden].
           const output = await extractor(text, { pooling: 'none', normalize: false })
@@ -46,6 +50,7 @@ export const embeddingHandlers: UtilityProcessHandlers<EmbeddingInferenceContrac
           const tokens = output.tolist()[0]
           vectors.push(l2normalize(tokens[sequenceLength - 1]))
         }
+
         return vectors
       },
       { logger, describeRequest: () => `request=embedding.embed modelDir=${JSON.stringify(modelDir)}` }
@@ -55,6 +60,7 @@ export const embeddingHandlers: UtilityProcessHandlers<EmbeddingInferenceContrac
     withHardwareFallback(
       async () => {
         const extractor = await getLocalPipeline(modelDir, dtype, logger)
+
         return texts.map((text) => extractor.tokenizer.encode(text, { add_special_tokens: true }).length)
       },
       { logger, describeRequest: () => `request=embedding.countTokens modelDir=${JSON.stringify(modelDir)}` }

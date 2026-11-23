@@ -17,7 +17,10 @@ export function isMcpToolbarActive(options: {
   }
 
   const mode = options.assistant?.settings?.mcpMode ?? DEFAULT_MCP_MODE
+
   if (mode === 'disabled') return false
+
   if (mode === 'auto') return true
+
   return (options.assistant?.mcpServerIds?.length ?? 0) > 0
 }

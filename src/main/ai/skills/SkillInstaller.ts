@@ -32,6 +32,7 @@ export class SkillInstaller {
    */
   async install(sourceDir: string, destPath: string): Promise<void> {
     const prepared = await this.prepareInstall(sourceDir, destPath)
+
     try {
       await prepared.commit()
     } catch (error) {
@@ -40,6 +41,7 @@ export class SkillInstaller {
       } catch (rollbackError) {
         throw new AggregateError([error, rollbackError], `Failed to commit and restore Skill folder: ${destPath}`)
       }
+
       throw error
     }
   }
@@ -48,6 +50,7 @@ export class SkillInstaller {
   async prepareInstall(sourceDir: string, destPath: string): Promise<PreparedSkillInstall> {
     if (path.resolve(sourceDir) === path.resolve(destPath)) {
       logger.debug('Source equals destination, skipping copy', { destPath })
+
       return { commit: async () => undefined, rollback: async () => undefined }
     }
 
@@ -73,32 +76,40 @@ export class SkillInstaller {
       // source. The shared copy helper deliberately skips a source file that disappears mid-copy;
       // the tree hash turns that partial copy into a failed publish instead of silently committing it.
       const installedHash = await this.computeDirectoryHash(destPath)
+
       if (installedHash !== sourceHash) {
         throw new Error(`Installed skill content did not match the source: ${destPath}`)
       }
+
       logger.debug('Skill folder copied to destination', { destPath })
     } catch (error) {
       if (!publishStarted) throw error
+
       try {
         await this.rollbackPublishedInstall(destPath, backupPath, hasBackup)
       } catch (rollbackError) {
         throw new AggregateError([error, rollbackError], `Failed to publish and restore Skill folder: ${destPath}`)
       }
+
       throw error
     }
 
     let state: 'pending' | 'committed' | 'rolled_back' = 'pending'
+
     return {
       commit: async () => {
         if (state !== 'pending') return
+
         if (hasBackup) {
           const cleanupPath = this.getCleanupPath(destPath)
           await fs.promises.rename(backupPath, cleanupPath)
           hasBackup = false
           state = 'committed'
           await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+
           return
         }
+
         state = 'committed'
       },
       rollback: async () => {
@@ -117,14 +128,17 @@ export class SkillInstaller {
   async recoverInterruptedInstall(destPath: string): Promise<void> {
     const backupPath = this.getBackupPath(destPath)
     let backupStats: fs.Stats
+
     try {
       backupStats = await fs.promises.lstat(backupPath)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
       throw error
     }
+
     if (!backupStats.isDirectory()) {
       logger.warn('Ignoring non-directory skill backup marker', { backupPath })
+
       return
     }
 
@@ -139,6 +153,7 @@ export class SkillInstaller {
   /** Restore every interrupted publish before reconcile considers pruning. */
   async recoverInterruptedInstalls(storageRoot: string): Promise<void> {
     let entries: fs.Dirent[]
+
     try {
       entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
     } catch (error) {
@@ -149,12 +164,14 @@ export class SkillInstaller {
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
       const backupMatch = entry.name.match(/^\.(.+)\.bak$/)
+
       if (backupMatch?.[1]) {
         await this.recoverInterruptedInstall(path.join(storageRoot, backupMatch[1]))
         continue
       }
 
       const cleanupMatch = entry.name.match(/^\.(.+)\.cleanup$/)
+
       if (cleanupMatch?.[1]) {
         await this.safeRemoveDirectory(path.join(storageRoot, entry.name), 'committed skill backup')
       }
@@ -170,9 +187,11 @@ export class SkillInstaller {
       logger.info('Skill folder deleted', { skillPath })
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException
+
       if (nodeError.code !== 'ENOENT') {
         throw error
       }
+
       logger.warn('Skill folder already deleted', { skillPath })
     }
   }
@@ -195,6 +214,7 @@ export class SkillInstaller {
     options: { ignoredRelativePaths?: readonly string[] } = {}
   ): Promise<string> {
     const skillMdPath = await findSkillMdPath(skillDir)
+
     if (!skillMdPath) {
       throw new SkillImportError('SKILL_DIRECTORY_NOT_FOUND', `SKILL.md not found in ${skillDir}`)
     }
@@ -202,6 +222,7 @@ export class SkillInstaller {
     const hash = createHash('sha256')
     const ignored = new Set(options.ignoredRelativePaths ?? [])
     await this.updateDirectoryHash(hash, skillDir, '', ignored)
+
     return hash.digest('hex')
   }
 
@@ -216,10 +237,12 @@ export class SkillInstaller {
 
     for (const entry of entries) {
       const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name
+
       if (ignored.has(relativePath)) continue
 
       const fullPath = path.join(directory, entry.name)
       const stats = await fs.promises.lstat(fullPath)
+
       if (stats.isSymbolicLink()) continue
 
       if (stats.isDirectory()) {
@@ -246,8 +269,10 @@ export class SkillInstaller {
 
   private async removeCommittedCleanup(destPath: string): Promise<void> {
     const cleanupPath = this.getCleanupPath(destPath)
+
     try {
       const cleanupStats = await fs.promises.lstat(cleanupPath)
+
       if (!cleanupStats.isDirectory()) {
         throw new Error(`Committed skill cleanup marker is not a directory: ${cleanupPath}`)
       }
@@ -265,6 +290,7 @@ export class SkillInstaller {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
+
     if (!hasBackup) return
     await fs.promises.rename(backupPath, destPath)
     logger.debug('Restored skill folder backup', { backupPath, destPath })

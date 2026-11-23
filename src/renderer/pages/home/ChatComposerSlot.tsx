@@ -56,6 +56,7 @@ function ChatComposerSlot({
   onConversationControlsChange
 }: ChatComposerSlotProps) {
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
+
   const fallback =
     placement === 'home' ? (
       <ChatPlacementComposer

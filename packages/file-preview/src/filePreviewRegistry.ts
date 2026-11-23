@@ -24,6 +24,7 @@ export const previewFormats = plugins.map(({ id, extensions, supportsSelectionRe
 export function resolvePreviewPlugin(name: string, mediaType?: string) {
   const normalizedMediaType = mediaType?.split(';', 1)[0].trim().toLowerCase()
   const mediaTypePlugin = plugins.find((plugin) => plugin.mediaTypes.includes(normalizedMediaType ?? ''))
+
   if (mediaTypePlugin) return mediaTypePlugin
 
   const extension = name
@@ -31,6 +32,7 @@ export function resolvePreviewPlugin(name: string, mediaType?: string) {
     .at(-1)
     ?.match(/\.([^.]+)$/)?.[1]
     .toLowerCase()
+
   return plugins.find((plugin) => plugin.extensions.includes(extension ?? '')) ?? null
 }
 

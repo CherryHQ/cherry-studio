@@ -33,8 +33,10 @@ const MarkdownTable: React.FC<Props> = ({ children, node }) => {
 
   const handleCopyTable = useCallback(async () => {
     const tableMarkdown = extractTableMarkdown(node?.position, mdCtx?.content)
+
     if (!tableMarkdown) {
       actions?.notifyError?.(t('message.error.table.invalid'))
+
       return
     }
 
@@ -57,6 +59,7 @@ const MarkdownTable: React.FC<Props> = ({ children, node }) => {
   const handleExportExcel = useCallback(async () => {
     if (!tableRef.current) {
       actions?.notifyError?.(t('message.error.table.invalid'))
+
       return
     }
 
@@ -65,11 +68,13 @@ const MarkdownTable: React.FC<Props> = ({ children, node }) => {
 
     if (data.length === 0) {
       actions?.notifyError?.(t('message.error.table.invalid'))
+
       return
     }
 
     try {
       const result = await actions?.exportTableAsExcel?.(data)
+
       if (result) {
         actions?.notifySuccess?.(t('message.success.excel.export'))
       }
@@ -140,6 +145,7 @@ export function extractTableMarkdown(position: Position | null | undefined, mark
 
   // 提取表格对应的行（行号从1开始，数组索引从0开始）
   const tableLines = lines.slice(start.line - 1, end.line)
+
   return tableLines.join('\n').trim()
 }
 

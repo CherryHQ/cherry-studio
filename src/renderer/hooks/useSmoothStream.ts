@@ -22,6 +22,7 @@ const languages = [
   'pt-PT',
   'ro-RO'
 ]
+
 const segmenter = new Intl.Segmenter(languages)
 
 /**
@@ -63,6 +64,7 @@ const segmenter = new Intl.Segmenter(languages)
 /** Denominator floor for the sustained-rate estimate — bounds the cold-start
  *  spike (first burst ÷ ~0). */
 const SUSTAINED_MIN_MS = 1000
+
 /**
  * Cushion depth (≈ display latency, seconds) is adaptive per stream: a
  * decaying peak of observed stall lengths, clamped to [FLOOR, CAP].
@@ -83,10 +85,12 @@ const STALL_ARM_ABS_MIN_SEC = 0.25
 const STALL_ARM_FACTOR = 6
 const STALL_RELEASE_SEC = 6
 const GAP_SAMPLES = 32
+
 /** Time constant of the proportional pull of the queue toward `target`.
  *  ≫ frame `dt` so the controller is well-damped (no oscillation). */
 const RELAX_SEC = 0.3
 const MAX_BACKLOG = 400
+
 /** rAF doesn't fire in background tabs; on return `dt` would be huge and
  *  drain the whole queue. Clamp so a hidden→visible tab resumes smoothly. */
 const MAX_FRAME_DT_MS = 100
@@ -133,9 +137,11 @@ export const useSmoothStream = ({
 
   const addChunk = useCallback((chunk: string) => {
     const chars = Array.from(segmenter.segment(chunk)).map((s) => s.segment)
+
     if (chars.length === 0) return
     const now = performance.now()
     chunkQueueRef.current = [...chunkQueueRef.current, ...chars]
+
     if (firstChunkTRef.current < 0) firstChunkTRef.current = now
     totalCharsRef.current += chars.length
 
@@ -143,26 +149,33 @@ export const useSmoothStream = ({
     // own recent cadence (relative ARM) — protects slow-but-steady providers.
     const prev = lastArrivalTRef.current
     lastArrivalTRef.current = now
+
     if (prev > 0) {
       const gap = now - prev
       const gaps = gapsRef.current
+
       // Startup/TTFT gap arms the cushion but is excluded from the cadence
       // median (median over GAP_SAMPLES is already robust to the ~few-percent
       // recurring stalls, but a single huge TTFT in a near-empty ring would
       // poison it). All later gaps feed the median.
       if (sawFirstChunkRef.current) {
         gaps.push(gap)
+
         if (gaps.length > GAP_SAMPLES) gaps.shift()
       }
+
       const sorted = [...gaps].sort((a, b) => a - b)
       const medGap = sorted[sorted.length >> 1] ?? 0
       const armMs = Math.max(STALL_ARM_ABS_MIN_SEC * 1000, STALL_ARM_FACTOR * medGap)
+
       if (gap > armMs) {
         // Fast attack: one stall arms the cushion (clamped to CAP).
         stallEstRef.current = Math.max(stallEstRef.current, Math.min(gap / 1000, TARGET_DELAY_CAP_SEC))
       }
+
       sawFirstChunkRef.current = true
     }
+
     ensureLoopRef.current()
   }, [])
 
@@ -172,6 +185,7 @@ export const useSmoothStream = ({
         cancelAnimationFrame(animationFrameRef.current)
         animationFrameRef.current = null
       }
+
       chunkQueueRef.current = []
       totalCharsRef.current = 0
       firstChunkTRef.current = -1
@@ -183,6 +197,7 @@ export const useSmoothStream = ({
       lastFrameTimeRef.current = 0
       displayedTextRef.current = newText
       lastAccumulatedRef.current = newText
+
       if (externalStreamDone === undefined) setInternalStreamDone(false)
       onUpdateRef.current(newText)
       // Revive the loop: it was just cancelled, and a same-value
@@ -203,6 +218,7 @@ export const useSmoothStream = ({
       if (accumulated.startsWith(lastAccumulatedRef.current)) {
         const delta = accumulated.slice(lastAccumulatedRef.current.length)
         lastAccumulatedRef.current = accumulated
+
         if (delta) addChunk(delta)
       } else {
         // Non-monotonic update (e.g. the caller trims on completion): the
@@ -210,6 +226,7 @@ export const useSmoothStream = ({
         // text equals `accumulated` exactly (UI ⇄ resolved/saved parity).
         lastAccumulatedRef.current = accumulated
         const shown = displayedTextRef.current
+
         if (accumulated.startsWith(shown)) {
           chunkQueueRef.current = Array.from(segmenter.segment(accumulated.slice(shown.length))).map((s) => s.segment)
         } else {
@@ -217,8 +234,10 @@ export const useSmoothStream = ({
           displayedTextRef.current = accumulated
           onUpdateRef.current(accumulated)
         }
+
         ensureLoopRef.current()
       }
+
       if (isComplete && externalStreamDone === undefined) setInternalStreamDone(true)
     },
     [addChunk, externalStreamDone]
@@ -232,14 +251,17 @@ export const useSmoothStream = ({
       if (streamDone) {
         onUpdateRef.current(displayedTextRef.current)
         animationFrameRef.current = null
+
         return
       }
+
       // Stamp stream-start while idling pre-first-token, so the first
       // arrival's gap = startup/TTFT latency and arms the cushion like the
       // (largest) stall it effectively is — covering even the first
       // mid-stream stall. Fast-start providers (TTFT < ARM) stay at FLOOR.
       if (lastArrivalTRef.current === 0) lastArrivalTRef.current = performance.now()
       animationFrameRef.current = requestAnimationFrame(renderLoop)
+
       return
     }
 
@@ -248,6 +270,7 @@ export const useSmoothStream = ({
       chunkQueueRef.current = []
       onUpdateRef.current(displayedTextRef.current)
       animationFrameRef.current = null
+
       return
     }
 
@@ -263,11 +286,13 @@ export const useSmoothStream = ({
       displayedTextRef.current += queue.slice(0, n).join('')
       chunkQueueRef.current = queue.slice(n)
       onUpdateRef.current(displayedTextRef.current)
+
       if (chunkQueueRef.current.length > 0 || !streamDone) {
         animationFrameRef.current = requestAnimationFrame(renderLoop)
       } else {
         animationFrameRef.current = null
       }
+
       return
     }
 
@@ -275,10 +300,13 @@ export const useSmoothStream = ({
     // works; clamp only the dt that drives the playout math (so a
     // backgrounded-then-resumed tab doesn't dump the queue).
     const elapsed = now - last
+
     if (elapsed < minDelay) {
       animationFrameRef.current = requestAnimationFrame(renderLoop)
+
       return
     }
+
     lastFrameTimeRef.current = now
     const dt = Math.min(elapsed, MAX_FRAME_DT_MS)
 
@@ -314,6 +342,7 @@ export const useSmoothStream = ({
       count = MIN_STEP
       creditRef.current = 0
     }
+
     if (queue.length - count > MAX_BACKLOG) {
       // Hard latency ceiling vs the live model.
       count = queue.length - MAX_BACKLOG
@@ -343,6 +372,7 @@ export const useSmoothStream = ({
       animationFrameRef.current = requestAnimationFrame(renderLoop)
     }
   }, [renderLoop])
+
   const ensureLoopRef = useRef(ensureLoop)
   useEffect(() => {
     ensureLoopRef.current = ensureLoop
@@ -350,6 +380,7 @@ export const useSmoothStream = ({
 
   useEffect(() => {
     ensureLoop()
+
     return () => {
       if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current)

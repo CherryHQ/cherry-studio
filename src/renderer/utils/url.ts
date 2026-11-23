@@ -17,6 +17,7 @@ const PROXY_PROTOCOLS = new Set(['http:', 'https:', 'socks:', 'socks4:', 'socks5
 export const isValidProxyUrl = (url: string): boolean => {
   try {
     const parsed = new URL(url)
+
     return PROXY_PROTOCOLS.has(parsed.protocol) && Boolean(parsed.hostname)
   } catch {
     return false

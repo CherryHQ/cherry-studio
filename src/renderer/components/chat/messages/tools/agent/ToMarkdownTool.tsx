@@ -13,6 +13,7 @@ import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 function readSourcePath(input: unknown): string | undefined {
   if (!input || typeof input !== 'object' || Array.isArray(input) || !('path' in input)) return undefined
   const value = input.path
+
   return typeof value === 'string' && value.trim() ? value : undefined
 }
 
@@ -20,12 +21,16 @@ function readSourcePath(input: unknown): string | undefined {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime and stored results first need MCP envelope validation; validate the JSON text against the tool-owned receipt schema before rendering statistics.
 function parseReceipt(output: unknown): ToMarkdownOutput | null {
   const result = CallToolResultSchema.safeParse(output)
+
   if (!result.success || result.data.isError) return null
 
   const text = result.data.content.find((item) => item.type === 'text')?.text
+
   if (typeof text !== 'string') return null
+
   try {
     const parsed = toMarkdownOutputSchema.safeParse(JSON.parse(text))
+
     return parsed.success ? parsed.data : null
   } catch {
     return null

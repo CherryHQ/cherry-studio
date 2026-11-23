@@ -51,9 +51,11 @@ export async function readPreviewRange(
   signal?.throwIfAborted()
   const bytes = await document.readRange(offset, length, signal)
   signal?.throwIfAborted()
+
   if (bytes.byteLength !== length) {
     throw new PreviewError('short_read', `Short preview read: expected ${length} bytes, received ${bytes.byteLength}`)
   }
+
   return bytes
 }
 
@@ -63,10 +65,13 @@ export async function readPreviewDocument(
   signal?: AbortSignal
 ): Promise<Uint8Array<ArrayBuffer>> {
   assertPreviewRange(document.size, 0, document.size)
+
   if (document.size > maxBytes) {
     throw new PreviewError('too_large', `Preview source exceeds ${maxBytes} bytes`)
   }
+
   const bytes = await readPreviewRange(document, 0, document.size, signal)
+
   // Copy only a shared-memory view; whole documents can be tens of MiB.
   return bytes.buffer instanceof ArrayBuffer ? (bytes as Uint8Array<ArrayBuffer>) : new Uint8Array(bytes)
 }

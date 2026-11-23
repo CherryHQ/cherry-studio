@@ -14,6 +14,7 @@ export type FileIntakeMetadata = {
   byteLength: number
   checksumAlgorithm?: 'sha256'
 }
+
 export type FileIntakeSnapshot = {
   uploadId: string
   state: 'receiving' | 'verifying' | 'ready' | 'failed'
@@ -24,10 +25,12 @@ export type FileIntakeSnapshot = {
   sha256?: string
   failureCode?: 'CHECKSUM_MISMATCH' | 'VERIFICATION_FAILED'
 }
+
 export type FileIntakeWrite = {
   uploadId: string
   writerEpoch: string
   offset: string
   bytes: Uint8Array
 }
+
 export type FileIntakeResume = { uploadId: string; resumeId: string; expectedWriterEpoch: string }

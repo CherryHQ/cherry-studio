@@ -27,6 +27,8 @@ export function useManagedToolStatus(tool: ManagedTool, enabled: boolean): Manag
   }, [enabled, tool])
 
   if (!enabled) return STOPPED
+
   if (tool === 'deepseek-harness') return deepSeek ?? STOPPED
+
   return { status: openClaw ?? 'stopped' }
 }

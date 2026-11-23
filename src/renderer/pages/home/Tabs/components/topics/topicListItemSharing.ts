@@ -38,10 +38,12 @@ export function reconcileTopicListItems(
     const entity = topics[index]
     const pinned = isPinned(entity.id)
     const previousSnapshot = previous.snapshots.get(entity.id)
+
     const canReuse =
       previousSnapshot !== undefined &&
       previousSnapshot.item.pinned === pinned &&
       (previousSnapshot.entity === entity || isEqual(previousSnapshot.entity, entity))
+
     const snapshot = canReuse
       ? previousSnapshot
       : {

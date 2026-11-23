@@ -27,6 +27,7 @@ export function createSelectedMessageExportViews(
   partsByMessageId: Record<string, CherryMessagePart[]>
 ): MessageExportView[] {
   const messageById = new Map(orderedMessages.map((message) => [message.id, message]))
+
   // Earlier messages count as citation sources whether or not they are selected.
   const citationRegistry = buildCitationPartsRegistry(
     orderedMessages.map((message) => message.id),
@@ -36,7 +37,9 @@ export function createSelectedMessageExportViews(
   return getOrderedSelectedMessageIds(messageIds, orderedMessages)
     .map((messageId) => {
       const message = messageById.get(messageId)
+
       if (!message) return null
+
       return createMessageExportView(
         message,
         partsByMessageId[messageId] ?? [],

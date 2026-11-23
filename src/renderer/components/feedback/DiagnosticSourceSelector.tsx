@@ -9,11 +9,13 @@ import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('DiagnosticSourceSelector')
+
 const RANGE_OPTIONS = [
   { translationKey: 'settings.about.diagnostics.ranges.24h', value: '24h' },
   { translationKey: 'settings.about.diagnostics.ranges.3d', value: '3d' },
   { translationKey: 'settings.about.diagnostics.ranges.7d', value: '7d' }
 ] as const
+
 const RANGE_TRANSLATION_KEYS = Object.fromEntries(
   RANGE_OPTIONS.map(({ translationKey, value }) => [value, translationKey])
 ) as Record<DiagnosticRange, (typeof RANGE_OPTIONS)[number]['translationKey']>
@@ -51,6 +53,7 @@ export function useDiagnosticSourceSelection(onSelectionChange: () => void) {
       .finally(() => {
         if (active) setIsInspecting(false)
       })
+
     return () => {
       active = false
     }

@@ -11,6 +11,7 @@ export const SVG_ELEMENT_REGEX = /<svg[\s>]/i
 export const DISALLOWED_ELEMENTS = ['iframe', 'script']
 
 const SAFE_COLOR_VALUE = String.raw`(?:#[\da-f]{3,8}|(?:rgb|hsl)a?\([\d.%+,\s-]+\)|[a-z]+)`
+
 const SAFE_INLINE_COLOR_STYLE = new RegExp(
   String.raw`^\s*(?:(?:color|background-color)\s*:\s*${SAFE_COLOR_VALUE}\s*;?\s*){1,2}$`,
   'i'
@@ -210,6 +211,7 @@ export function createMarkdownSanitizeSchema(
   const svgAttributes = Object.fromEntries(
     SVG_ELEMENTS.map((tagName) => [tagName, mergeUnique(schema.attributes?.[tagName], SVG_ATTRIBUTES)])
   )
+
   const safeLinkProtocols = mergeUnique(schema.protocols?.href, ['http', 'https'], additionalLinkProtocols)
 
   return {
