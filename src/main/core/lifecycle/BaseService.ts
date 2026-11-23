@@ -5,7 +5,7 @@ import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 
 import { getServiceName } from './decorators'
 import { type Disposable, toDisposable } from './event'
-import { type ErrorStrategy, isActivatable, isPausable, LifecycleState, type ServiceConstructor } from './types'
+import { type ErrorStrategy, isActivatable, isPausable, LifecycleState } from './types'
 
 const logger = loggerService.withContext('Lifecycle')
 
@@ -53,7 +53,7 @@ export abstract class BaseService {
     const ctor = this.constructor
 
     if (BaseService.instances.has(ctor)) {
-      const name = getServiceName(ctor as ServiceConstructor)
+      const name = getServiceName(ctor)
       throw new Error(
         `Service '${name}' has already been instantiated. ` +
           `Use ServiceContainer.get(${name}) to access the existing instance.`
@@ -177,7 +177,7 @@ export abstract class BaseService {
       try {
         await callback()
       } catch (err) {
-        const name = getServiceName(this.constructor as ServiceConstructor)
+        const name = getServiceName(this.constructor)
         logger.error(`[${name}] registerInterval callback failed`, err)
       }
     }, intervalMs)
@@ -283,7 +283,7 @@ export abstract class BaseService {
    */
   public async _doInit(): Promise<void> {
     if (DIAGNOSTICS_ENABLED) {
-      const name = getServiceName(this.constructor as ServiceConstructor)
+      const name = getServiceName(this.constructor)
       const t0 = performance.now()
       this._state = LifecycleState.Initializing
       await this.onInit()
@@ -355,7 +355,7 @@ export abstract class BaseService {
     // via that finally. Nothing is running underneath it, so it keeps the
     // pre-existing behaviour of getting its onDestroy().
     if (this._stopInFlight) {
-      const name = getServiceName(this.constructor as ServiceConstructor)
+      const name = getServiceName(this.constructor)
       logger.warn(`Skipping destroy for '${name}' — stop still in flight`)
 
       return
@@ -397,9 +397,7 @@ export abstract class BaseService {
       await this.onActivate()
       const duration = performance.now() - start
       this._activated = true
-      logger.info(
-        `Service '${getServiceName(this.constructor as ServiceConstructor)}' activated (${duration.toFixed(3)}ms)`
-      )
+      logger.info(`Service '${getServiceName(this.constructor)}' activated (${duration.toFixed(3)}ms)`)
 
       return true
     } finally {
@@ -425,9 +423,7 @@ export abstract class BaseService {
       await this.onDeactivate()
       const duration = performance.now() - start
       this._activated = false
-      logger.info(
-        `Service '${getServiceName(this.constructor as ServiceConstructor)}' deactivated (${duration.toFixed(3)}ms)`
-      )
+      logger.info(`Service '${getServiceName(this.constructor)}' deactivated (${duration.toFixed(3)}ms)`)
 
       return true
     } finally {

@@ -133,16 +133,12 @@ export class ServiceContainer {
       throw new Error(`[ServiceContainer] Service '${name}' is conditional — use getOptional('${name}').`)
     }
 
-    // Return existing instance if available
-    if (entry.instance) {
-      return entry.instance as T
+    if (!entry.instance) {
+      entry.instance = this.createInstance(entry)
     }
 
-    // Create and store instance
-    const instance = this.createInstance<T>(entry)
-    entry.instance = instance
-
-    return instance
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy name tokens retain a caller-selected T that this heterogeneous container does not verify.
+    return entry.instance as T
   }
 
   /**
@@ -170,16 +166,12 @@ export class ServiceContainer {
       throw new Error(`[ServiceContainer] Service '${name}' is not conditional — use get('${name}').`)
     }
 
-    // Return existing instance if available
-    if (entry.instance) {
-      return entry.instance as T
+    if (!entry.instance) {
+      entry.instance = this.createInstance(entry)
     }
 
-    // Create and store instance
-    const instance = this.createInstance<T>(entry)
-    entry.instance = instance
-
-    return instance
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Conditional registration does not verify the legacy caller-selected T associated only with a service name.
+    return entry.instance as T
   }
 
   /**
@@ -261,6 +253,7 @@ export class ServiceContainer {
   public getInstance<T = BaseService>(token: ServiceToken<T>): T | undefined {
     const name = typeof token === 'string' ? token : getServiceName(token)
 
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Existing instances share the legacy name-token API; no runtime proof connects this stored value to the caller-selected T.
     return this.services.get(name)?.instance as T | undefined
   }
 
@@ -350,7 +343,8 @@ export class ServiceContainer {
   /**
    * Create a service instance with dependency injection
    */
-  private createInstance<T>(entry: ServiceEntry): T {
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- Registered constructors own different instance shapes; keep their results opaque until the public legacy token boundary.
+  private createInstance(entry: ServiceEntry): unknown {
     const { metadata, useClass } = entry.provider
     const deps: unknown[] = []
 
@@ -364,6 +358,6 @@ export class ServiceContainer {
     }
 
     // Create instance with dependencies
-    return new useClass(...deps) as T
+    return new useClass(...deps)
   }
 }

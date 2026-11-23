@@ -28,7 +28,6 @@ import { AiStreamManager } from '@main/ai/streamManager'
 import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
 import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
 import { JobManager } from '@main/core/job/JobManager'
-import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
@@ -223,4 +222,4 @@ export type ServiceRegistry = {
 }
 
 /** Service list for Application.registerAll() */
-export const serviceList = Object.values(services) as ServiceConstructor[]
+export const serviceList = Object.values(services)

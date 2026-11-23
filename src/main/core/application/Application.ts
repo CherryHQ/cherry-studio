@@ -651,7 +651,7 @@ export class Application {
    * @param name - Service name from ServiceRegistry
    */
   public getExisting<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
-    return this.container.getInstance(name) as ServiceRegistry[K] | undefined
+    return this.container.getInstance<ServiceRegistry[K]>(name)
   }
 
   /**
@@ -925,6 +925,7 @@ export class Application {
  * Lazily-initialized Application singleton.
  * Safe to import before bootstrap - the instance is created on first access.
  */
+// SAFETY: Public API reads delegate to the actual singleton below; methods are bound to that instance, while the empty target preserves lazy initialization.
 export const application: Application = new Proxy({} as Application, {
   get(_target, prop: keyof Application) {
     const instance = Application.getInstance()

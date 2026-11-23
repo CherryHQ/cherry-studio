@@ -253,8 +253,8 @@ export function isPausable(service: unknown): service is Pausable {
     service !== null &&
     'onPause' in service &&
     'onResume' in service &&
-    typeof (service as Pausable).onPause === 'function' &&
-    typeof (service as Pausable).onResume === 'function'
+    typeof service.onPause === 'function' &&
+    typeof service.onResume === 'function'
   )
 }
 
@@ -295,7 +295,7 @@ export function isActivatable(service: unknown): service is Activatable {
     service !== null &&
     'onActivate' in service &&
     'onDeactivate' in service &&
-    typeof (service as Activatable).onActivate === 'function' &&
-    typeof (service as Activatable).onDeactivate === 'function'
+    typeof service.onActivate === 'function' &&
+    typeof service.onDeactivate === 'function'
   )
 }

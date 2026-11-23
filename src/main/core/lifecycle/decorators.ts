@@ -69,9 +69,9 @@ export function ServicePhase(phase: Phase): ClassDecorator {
 
 /**
  * Get service name from metadata
- * @param target - Class constructor
+ * @param target - Named service metadata target
  */
-export function getServiceName(target: ServiceConstructor): string {
+export function getServiceName(target: { readonly name: string }): string {
   return Reflect.getMetadata(METADATA_KEYS.SERVICE_NAME, target) || target.name
 }
 

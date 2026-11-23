@@ -111,6 +111,11 @@ export const services = {
 
 This gives you type-safe access via `application.get('NewService')`.
 
+This mapping is static: the `@Injectable` name must match its service registry key.
+Low-level `ServiceContainer` access resolves tokens by name and does not verify the caller-selected instance type,
+including when a constructor token is supplied or `setInstance` replaces a stored value.
+The Application facade relies on the registration convention and adds no runtime instance validation.
+
 ## Service Access Rules
 
 Services managed by the lifecycle system must **not** export singleton instances. The service CLASS is exported for type references only (e.g., `ServiceRegistry`, `@DependsOn`). Normal runtime access goes through `application.get()` (unconditional services) or `application.getOptional()` (conditional services with `@Conditional`).
