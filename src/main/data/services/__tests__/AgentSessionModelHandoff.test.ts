@@ -241,7 +241,7 @@ describe('model-switch handoff persistence and generation', () => {
   it('registers cancellation before CLI environment setup and never launches an aborted query', async () => {
     vi.spyOn(providerService, 'getByProviderId').mockReturnValue({ authMethods: ['external-cli'] } as never)
     const entered = Promise.withResolvers<void>()
-    const ready = Promise.withResolvers<Record<string, string>>()
+    const ready = Promise.withResolvers<{ CLAUDE_CONFIG_DIR: string }>()
     native.buildEnvironment.mockImplementationOnce(async () => {
       entered.resolve()
       return ready.promise
