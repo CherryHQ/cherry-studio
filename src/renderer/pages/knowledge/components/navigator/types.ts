@@ -7,6 +7,10 @@ import type { ReorderKnowledgeBaseDto } from '@shared/data/api/schemas/knowledge
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
+export type NavigatorDragData =
+  | { type: 'group'; groupId: string | null }
+  | { type: 'base'; base: KnowledgeBaseListItem; groupId: string | null }
+
 export interface BaseNavigatorContentProps {
   onReorderBase?: (id: string, request: ReorderKnowledgeBaseDto) => Promise<void>
   onReorderGroup?: (id: string, anchor: OrderRequest) => Promise<void>
@@ -29,7 +33,7 @@ export interface BaseNavigatorContentProps {
 
 export interface BaseNavigatorGroupSectionProps {
   dragDisabled?: boolean
-  indicator?: { id: string; position: 'before' | 'after' } | null
+  index: number
   section: KnowledgePageBaseGroupSection
   group?: Group
   groupLabel: string
