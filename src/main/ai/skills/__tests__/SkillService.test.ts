@@ -2824,6 +2824,78 @@ describe('SkillService', () => {
       await expect(fs.promises.access(path.join(mirrorRoot, 'pdf'))).rejects.toThrow()
     })
 
+    it.each(['direct path', 'junction'])('reimports an adopted library skill using its %s', async (location) => {
+      const descriptor = '---\nname: gsap-core\ndescription: Animation notes\n---\n# GSAP'
+      const library = await writeLibrarySkill('gsap-core', descriptor)
+      const parser = await vi.importActual<typeof MarkdownParserModule>('@main/utils/markdownParser')
+      vi.mocked(parseSkillMetadata).mockImplementation(parser.parseSkillMetadata)
+      await seedAgent()
+      await skillService.reconcileSkills()
+      const [adopted] = await skillService.list()
+      expect(adopted).toMatchObject({ folderName: 'gsap-core', source: 'local', sourceUrl: null })
+      skillService.toggle({ agentId: AGENT_ID, skillId: adopted.id, isEnabled: true })
+      if (location === 'junction') {
+        const alias = path.join(path.dirname(dataSkillsRoot), 'SkillsAlias')
+        await fs.promises.symlink(dataSkillsRoot, alias, 'junction')
+        dataSkillsRoot = alias
+      }
+
+      await expect(
+        skillService.installFromDirectory({ directoryPath: path.join(dataSkillsRoot, 'gsap-core') })
+      ).resolves.toMatchObject({ id: adopted.id, sourceUrl: null })
+      const incoming = path.join(await createTempDir('different-skill-origin-'), 'gsap-core')
+      await fs.promises.mkdir(incoming)
+      await fs.promises.writeFile(path.join(incoming, 'SKILL.md'), descriptor.replace('# GSAP', '# Different skill'))
+      await expect(skillService.installFromDirectory({ directoryPath: incoming })).rejects.toThrow(
+        /refusing to overwrite/
+      )
+      await expect(fs.promises.readFile(path.join(library, 'SKILL.md'), 'utf8')).resolves.toBe(descriptor)
+      await expect(skillService.list({ agentId: AGENT_ID })).resolves.toEqual([
+        expect.objectContaining({ id: adopted.id, isEnabled: true })
+      ])
+    })
+
+    it('rejects in-place reimport when only the folded catalog folder name matches', async () => {
+      const library = await writeLibrarySkill('.cafe\u0301')
+      const folderName = path.basename(await fs.promises.realpath(library))
+      const registeredName =
+        folderName === folderName.normalize('NFC') ? folderName.normalize('NFD') : folderName.normalize('NFC')
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta(folderName))
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Registered skill',
+        folderName: registeredName,
+        source: 'local',
+        contentHash: 'original'
+      })
+
+      await expect(skillService.installFromDirectory({ directoryPath: library })).rejects.toThrow(
+        /refusing to overwrite/
+      )
+      expect(await skillService.getById(SKILL_ID_1)).toMatchObject({
+        name: 'Registered skill',
+        contentHash: 'original'
+      })
+    })
+
+    it('resolves an installed folder beginning with two dots and rejects paths outside the library', async () => {
+      const descriptor = '---\nname: archive\ndescription: Archive notes\n---\n# Archive'
+      const library = await writeLibrarySkill('..archive', descriptor)
+      const parser = await vi.importActual<typeof MarkdownParserModule>('@main/utils/markdownParser')
+      vi.mocked(parseSkillMetadata).mockImplementation(parser.parseSkillMetadata)
+
+      const installed = await skillService.installFromDirectory({ directoryPath: library })
+      expect(installed.folderName).toBe('..archive')
+      const resolved = skillService.getInstalledSkillDirectory(installed)
+      await expect(fs.promises.readFile(path.join(resolved, 'SKILL.md'), 'utf8')).resolves.toBe(descriptor)
+
+      for (const folderName of ['', '..', '../outside']) {
+        expect(() => skillService.getInstalledSkillDirectory({ ...installed, folderName })).toThrow(
+          'Invalid managed Skill folder'
+        )
+      }
+    })
+
     it.each([
       { source: 'builtin', globalEnabled: false, agentEnabled: true },
       { source: 'builtin', globalEnabled: true, agentEnabled: false },

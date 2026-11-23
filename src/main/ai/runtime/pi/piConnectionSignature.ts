@@ -148,7 +148,7 @@ export async function capturePiConnectionSnapshot(
     effectiveLanguage,
     mcpInstructions,
     additionalSkillPaths: [
-      ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
+      ...enabledSkills.map((skill) => skillService.getInstalledSkillDirectory(skill)),
       ...workspaceSkillPaths
     ],
     mcpServerSnapshots,

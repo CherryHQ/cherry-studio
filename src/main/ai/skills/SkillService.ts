@@ -10,7 +10,7 @@ import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { runPathMutationExclusive } from '@main/services/file'
-import { isPathInside } from '@main/utils/file'
+import { isOutsidePath, isPathInside } from '@main/utils/file'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -150,20 +150,12 @@ export class SkillService {
     return agentGlobalSkillService.getByFolderName(folderName)
   }
 
-  /**
-   * Resolve the absolute path a skill with the given name would live at under
-   * the global Skills storage root.
-   */
-  getSkillDirectory(name: string): string {
-    return this.getSkillStoragePath(sanitizeFolderName(name))
-  }
-
   /** Resolve the app-owned directory for an installed skill. */
   getInstalledSkillDirectory(skill: Pick<InstalledSkill, 'folderName' | 'source' | 'sourceUrl'>): string {
     const rootPath = path.resolve(application.getPath('feature.agents.skills'))
     const skillPath = path.resolve(rootPath, skill.folderName)
     const relativePath = path.relative(rootPath, skillPath)
-    if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    if (!relativePath || isOutsidePath(relativePath)) {
       throw new Error(`Invalid managed Skill folder: ${skill.folderName}`)
     }
     return skillPath
@@ -618,10 +610,20 @@ export class SkillService {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
     const skillsRoot = path.resolve(application.getPath('feature.agents.skills'))
-    const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
+    const sourceParent = path.resolve(path.dirname(skillDir))
+    const resolvedSkillsRoot =
+      source === 'local' && sourceParent !== skillsRoot
+        ? await fs.promises.realpath(skillsRoot).catch((error: NodeJS.ErrnoException) => {
+            if (error.code === 'ENOENT') return skillsRoot
+            throw error
+          })
+        : skillsRoot
+    const isInPlace = sourceParent === resolvedSkillsRoot
     const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(metadata.filename)
 
     const existing = this.findCatalogSkillCaseInsensitive(folderName)
+    const reimportingLocal =
+      source === 'local' && isInPlace && existing?.source === 'local' && existing.folderName === folderName
     if (existing) {
       // Only the same source + exact origin may replace a folder. The narrow legacy skills.sh path
       // upgrades a prior repo-root URL after an explicit reinstall resolves the same folder.
@@ -629,7 +631,7 @@ export class SkillService {
         existing.source === source &&
         ((existing.sourceUrl ?? null) === (sourceUrl ?? null) ||
           this.isLegacySkillsShReinstall(existing, sourceUrl, folderName))
-      if (!sameOrigin) {
+      if (!sameOrigin && !reimportingLocal) {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
             `refusing to overwrite it with a ${source} install.`
@@ -653,7 +655,7 @@ export class SkillService {
 
     const contentHash = await this.installer.computeContentHash(skillDir)
     const destFolderName = existing?.folderName ?? folderName
-    const destPath = this.getSkillStoragePath(destFolderName)
+    const destPath = reimportingLocal ? skillDir : this.getSkillStoragePath(destFolderName)
 
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
     await this.installer.install(skillDir, destPath)
