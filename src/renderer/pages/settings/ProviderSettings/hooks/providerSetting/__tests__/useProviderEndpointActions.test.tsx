@@ -446,10 +446,11 @@ describe('useProviderEndpointActions', () => {
   })
 
   it('rejects an approved reset when the current provider cannot be read', async () => {
-    const previousLanguage = i18next.language
-    i18next.language = 'en-US'
+    // Error text follows the language actually displayed, so set both fields the app reads.
+    const previous = { language: i18next.language, resolvedLanguage: i18next.resolvedLanguage }
+    Object.assign(i18next, { language: 'en-US', resolvedLanguage: 'en-US' })
     onTestFinished(() => {
-      i18next.language = previousLanguage
+      Object.assign(i18next, previous)
     })
     getProviderMock.mockRejectedValueOnce(new Error('boom'))
     const dialog = holdConfirmation()
