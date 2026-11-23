@@ -71,7 +71,11 @@ export function useAppUpdateHandler() {
     const wasManual = manual()
     appUpdateCheckService.endManualUpdateCheck()
     updateAppUpdateState({ checking: false, lastErrorKey: null })
-    if (!wasManual) return
+    if (!wasManual) {
+      // A later background result supersedes an earlier manual notice, but stays silent.
+      appUpdateCheckService.setUpdateNotice(null)
+      return
+    }
     // A withheld feed is not "up to date"; the failure notice offers the official download.
     if (!(payload?.isCurrent ?? true)) {
       appUpdateCheckService.setUpdateNotice('settings.about.updateNotPublished')

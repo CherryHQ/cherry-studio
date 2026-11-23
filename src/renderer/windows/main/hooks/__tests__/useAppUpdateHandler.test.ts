@@ -229,6 +229,19 @@ describe('useAppUpdateHandler', () => {
     expect(mocks.updateAppUpdateState).toHaveBeenCalledWith({ checking: false, lastErrorKey: null })
   })
 
+  it('drops an earlier up-to-date notice when a later background check finds the feed withheld', async () => {
+    renderHook(() => useAppUpdateHandler())
+    await startManualCheck()
+    emit('app.updater.not_available', currentPayload)
+    expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateNotAvailable')
+
+    emit('app.updater.check_started', { manual: false })
+    emit('app.updater.not_available', withheldPayload)
+
+    expect(appUpdateCheckService.readUpdateNotice()).toBeNull()
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
   it('falls back to the up-to-date result on a version-skewed void payload', async () => {
     renderHook(() => useAppUpdateHandler())
     await startManualCheck()
