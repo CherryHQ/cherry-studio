@@ -9,6 +9,8 @@ import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
+import { McpConfigurationError } from '../failureFacts'
+
 const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
   refreshTools: vi.fn().mockResolvedValue(undefined)
@@ -44,8 +46,13 @@ vi.mock('@data/services/McpServerService', () => ({
   }
 }))
 
-const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } =
-  await import('../McpRuntimeService')
+const {
+  McpRuntimeService,
+  connectRetryDelayMs,
+  redactSensitive,
+  McpCallToolPayloadSchema,
+  McpGetResourcePayloadSchema
+} = await import('../McpRuntimeService')
 
 /** Build the JSON server key shape the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
@@ -78,6 +85,24 @@ function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void
   })
   return { promise, resolve, reject }
 }
+
+describe('connectRetryDelayMs', () => {
+  it('finds a non-retryable SDK failure through arbitrary cause wrappers', () => {
+    const failure = new SseError(403, 'denied')
+    expect(connectRetryDelayMs({ cause: { cause: failure } }, 1)).toBe(Infinity)
+  })
+
+  it.each([null, 'offline', 42])('retries the unclassified failure %s within the attempt budget', (failure) => {
+    expect(connectRetryDelayMs(failure, 1)).toBe(10_000)
+    expect(connectRetryDelayMs(failure, 5)).toBe(Infinity)
+  })
+
+  it('bounds cycles in cause chains', () => {
+    const failure: { cause?: object } = {}
+    failure.cause = failure
+    expect(connectRetryDelayMs(failure, 2)).toBe(20_000)
+  })
+})
 
 describe('McpRuntimeService embedded interaction authorization', () => {
   beforeEach(() => {
@@ -712,6 +737,18 @@ describe('McpRuntimeService.closeConnectionsForServer', () => {
   })
 })
 
+describe('McpRuntimeService tool argument decoding', () => {
+  it('classifies malformed JSON arguments as a configuration failure', async () => {
+    BaseService.resetInstances()
+    getByIdMock.mockReturnValue({ id: 'server-1', name: 'srv' } as McpServer)
+    const service = new McpRuntimeService()
+
+    await expect(service.callTool({ serverId: 'server-1', name: 'tool', args: '{' })).rejects.toBeInstanceOf(
+      McpConfigurationError
+    )
+  })
+})
+
 describe('MCP IPC payload validation (mcp-services-5)', () => {
   it('rejects a malformed callTool payload (missing serverId/name)', () => {
     expect(McpCallToolPayloadSchema.safeParse({}).success).toBe(false)
@@ -736,6 +773,25 @@ describe('McpRuntimeService.getServerLogs (mcp-env)', () => {
     getByIdMock.mockReset()
     interactionMocks.broadcastToType.mockClear()
     connectionFactoryMocks.createExternal.mockReset()
+  })
+
+  it.each([
+    ['warning', 'warn'],
+    ['critical', 'error'],
+    ['alert', 'error'],
+    ['emergency', 'error'],
+    ['notice', 'info'],
+    ['stderr', 'stderr']
+  ])('maps SDK log level %s into the application log contract %s', async (native, expected) => {
+    const service = new McpRuntimeService()
+    const server = { id: 'server-1', name: 'srv' } as McpServer
+    getByIdMock.mockReturnValue(server)
+    ;(service as any).connectionEvents(server).log(native, 'server', { message: 'diagnostic' })
+
+    const logs = await service.getServerLogs(server.id)
+    expect(logs).toHaveLength(1)
+    expect(logs[0]).toMatchObject({ level: expected, message: expect.stringContaining('diagnostic') })
+    expect(interactionMocks.broadcastToType.mock.calls[0][2].level).toBe(expected)
   })
 
   it('redacts server notification credentials before buffering and broadcasting the log', async () => {

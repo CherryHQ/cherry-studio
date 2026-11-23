@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 
 import {
+  isCallToolResult,
   isInputRequiredResult,
   SdkHttpError,
   SseError,
@@ -38,7 +39,6 @@ import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { clampImageForModel } from '@main/utils/image'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
@@ -130,7 +130,7 @@ export const McpGetResourcePayloadSchema = z.object({
 })
 
 const logger = loggerService.withContext('McpRuntimeService')
-const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}`
+const mcpStatusCacheKey = (serverId: string): `mcp.status.${string}` => `mcp.status.${serverId}`
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 const MCP_CONNECT_RETRY_BASE_MS = 10_000
 const MCP_CONNECT_MAX_ATTEMPTS = 5
@@ -151,14 +151,36 @@ function canAuthorizeInteractively(requestContext?: McpInteractionContext | null
 export function connectRetryDelayMs(error: unknown, attempts: number): number {
   if (attempts >= MCP_CONNECT_MAX_ATTEMPTS) return Infinity
 
-  for (let cause = error, depth = 0; cause && depth < 5; cause = (cause as Error).cause, depth++) {
+  for (let cause = error, depth = 0; cause && depth < 5; depth++) {
     if (UnauthorizedError.isInstance(cause)) return Infinity
     const status = SseError.isInstance(cause) ? cause.code : SdkHttpError.isInstance(cause) ? cause.status : undefined
 
     if (status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429) return Infinity
+    cause = (typeof cause === 'object' || typeof cause === 'function') && 'cause' in cause ? cause.cause : undefined
   }
 
   return MCP_CONNECT_RETRY_BASE_MS * 2 ** (attempts - 1)
+}
+
+function normalizeMcpLogLevel(level: string): McpServerLogEntry['level'] {
+  switch (level) {
+    case 'debug':
+    case 'info':
+    case 'warn':
+    case 'error':
+    case 'stderr':
+    case 'stdout':
+      return level
+    case 'warning':
+      return 'warn'
+    case 'critical':
+    case 'alert':
+    case 'emergency':
+      return 'error'
+    case 'notice':
+    default:
+      return 'info'
+  }
 }
 
 interface PendingInteraction {
@@ -329,7 +351,7 @@ export class McpRuntimeService extends BaseService {
 
     const cacheService = application.get('CacheService')
     const key = mcpStatusCacheKey(serverId)
-    const current = cacheService.getShared(key) as McpRuntimeStatus | undefined
+    const current = cacheService.getShared(key)
 
     if (current && current.state === state && current.lastError === lastError && current.authorizing === authorizing)
       return
@@ -368,7 +390,9 @@ export class McpRuntimeService extends BaseService {
 
   private isServerKeyForId(serverKey: string, serverId: string): boolean {
     try {
-      return (JSON.parse(serverKey) as { id?: unknown }).id === serverId
+      const parsed: unknown = JSON.parse(serverKey)
+
+      return parsed !== null && typeof parsed === 'object' && 'id' in parsed && parsed.id === serverId
     } catch {
       return false
     }
@@ -420,7 +444,7 @@ export class McpRuntimeService extends BaseService {
         const redacted = redactSensitive(data)
         this.emitServerLog(server, {
           timestamp: Date.now(),
-          level: level as McpServerLogEntry['level'],
+          level: normalizeMcpLogLevel(level),
           message: safeSerialize(redacted) ?? 'No data',
           data: redacted,
           source: source || 'server'
@@ -443,6 +467,7 @@ export class McpRuntimeService extends BaseService {
       return createInProcessMcpConnection({
         appVersion: app.getVersion(),
         endpoint: await createBuiltinMcpEndpoint(
+          // SAFETY: mcpTransportKind selects inMemory only for names recognized by the builtin implementation catalog.
           server.name as BuiltinMcpServerName,
           [...(server.args || [])],
           server.env || {}
@@ -886,7 +911,8 @@ export class McpRuntimeService extends BaseService {
             try {
               normalizedArgs = JSON.parse(normalizedArgs)
             } catch (error) {
-              throw new McpConfigurationError(`Invalid JSON tool arguments for ${name}: ${(error as Error).message}`)
+              if (!(error instanceof SyntaxError)) throw error
+              throw new McpConfigurationError(`Invalid JSON tool arguments for ${name}: ${error.message}`)
             }
           }
         }
@@ -1000,8 +1026,8 @@ export class McpRuntimeService extends BaseService {
       options.signal
     )
 
-    if (method === 'tools/call' && !isInputRequiredResult(result) && 'content' in result) {
-      return clampToolResultImages(result as CallToolResult, getServerLogger(server))
+    if (method === 'tools/call' && !isInputRequiredResult(result) && isCallToolResult(result)) {
+      return clampToolResultImages(result, getServerLogger(server))
     }
 
     return result
