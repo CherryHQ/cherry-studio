@@ -40,4 +40,11 @@ describe('dismissScreenshotFault', () => {
     await expect(dismissScreenshotFault(new Error('overlay boom'))).resolves.toBeUndefined()
     expect(channels()).toEqual(['app.error.handoff', 'screenshot.cancel', 'app.error.degraded'])
   })
+
+  it('still releases the overlay for a thrown null-prototype object', async () => {
+    const thrown = Object.assign(Object.create(null), { message: 'no prototype' })
+
+    await expect(dismissScreenshotFault(thrown)).resolves.toBeUndefined()
+    expect(channels()).toEqual(['app.error.handoff', 'screenshot.cancel'])
+  })
 })
