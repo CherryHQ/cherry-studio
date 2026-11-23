@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-23-wavespeed-image-transport.md
-2026-11-23-wavespeed-image-transport.md: 1c26bf7f78ae7427aba107e187f5f3b7e6f71990
-2026-11-23-wavespeed-image-transport.zh.md: df70a37e84eb07f5438850b68d5c7ba2e38ade3d
+2026-11-23-wavespeed-image-transport.md: ad74df6b78989258bfbbf7263331e3a8b88928ec
+2026-11-23-wavespeed-image-transport.zh.md: 4895e9fba33f0d48e0c8781892d73f2b561e19cb
