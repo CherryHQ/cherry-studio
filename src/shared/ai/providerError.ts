@@ -5,6 +5,10 @@ import type { Serializable } from '../types/serializable'
 import { classifyErrorCategory } from '../utils/errorCategory'
 import { redactSecretText } from '../utils/redaction'
 
+type SerializedProviderError = Pick<SerializedError, 'name' | 'message' | 'stack'> & {
+  [key: string]: Serializable
+}
+
 const MAX_PROVIDER_ERROR_MESSAGE_LENGTH = 500
 const MAX_PROVIDER_ERROR_INPUT_LENGTH = 16_384
 const MAX_PROVIDER_ERROR_DECODE_DEPTH = 3
@@ -285,18 +289,18 @@ function apiResponseDiagnostic(error: APICallError, depth: number): string | und
   return UNPROCESSABLE_RESPONSE_MESSAGE
 }
 
-function serializeNestedAiSdkError(error: AISDKError, depth: number): SerializedError {
+function serializeNestedAiSdkError(error: AISDKError, depth: number): SerializedProviderError {
   const diagnostic = sdkResponseDiagnostic(error)
 
-  const identity: Pick<SerializedError, 'name' | 'message'> & Partial<Pick<SerializedError, 'providerErrorCategory'>> =
-    {
-      name: getSafeProviderErrorMessage({ message: error.name }),
-      message: diagnostic ?? getSafeProviderErrorMessage({ message: error.message })
-    }
+  const identity: Pick<SerializedProviderError, 'name' | 'message'> &
+    Partial<Pick<SerializedProviderError, 'providerErrorCategory'>> = {
+    name: getSafeProviderErrorMessage({ message: error.name }),
+    message: diagnostic ?? getSafeProviderErrorMessage({ message: error.message })
+  }
 
   if (diagnostic) identity.providerErrorCategory = 'parse'
 
-  const serialized: SerializedError = {
+  const serialized: SerializedProviderError = {
     ...identity,
     stack: null,
     cause: null,
@@ -366,6 +370,9 @@ function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Ser
   return null
 }
 
+export function serializeNestedProviderError(value: AISDKError): SerializedProviderError
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw retry failures may be arbitrary; only the SDK overload guarantees a structured error.
+export function serializeNestedProviderError(value: unknown): Serializable
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Main and renderer error serializers pass SDK failures or raw retry.lastError values; the bounded serializer validates and redacts them.
 export function serializeNestedProviderError(value: unknown): Serializable {
   return serializeNestedProviderErrorAtDepth(value, 0)

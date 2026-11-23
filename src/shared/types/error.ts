@@ -1,7 +1,6 @@
-import type { Serializable } from './serializable'
-
 /**
  * Serialized error for storage and rendering.
+ * Extension values remain unvalidated; consumers must narrow them before use.
  *
  * Known dynamic properties (accessed via index signature):
  * - `i18nKey?: string` — When present, `ErrorBlock` uses `error.${i18nKey}` for
@@ -21,5 +20,6 @@ export interface SerializedError {
   name: string | null
   message: string | null
   stack: string | null
-  [key: string]: Serializable
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native errors retain opaque extension values; only the named identity fields have a shared contract.
+  [key: string]: unknown
 }
