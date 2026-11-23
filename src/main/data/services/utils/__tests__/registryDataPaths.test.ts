@@ -109,6 +109,30 @@ describe('registryDataPaths.resolveRegistryPaths', () => {
     expect(resolveRegistryPaths()).toEqual(bundledPaths)
   })
 
+  it('keeps bundled model data when the snapshot predates a bundled provider', () => {
+    existsSyncMock.mockImplementation(completeOverride)
+    readFileSyncMock.mockImplementation((pathname: string) =>
+      pathname === resolve(BUNDLED, 'provider-models.json')
+        ? JSON.stringify({ version: 'b', overrides: [{ providerId: 'openai' }, { providerId: 'new-provider' }] })
+        : basename(pathname) === 'provider-models.json'
+          ? JSON.stringify({ version: 'c', overrides: [{ providerId: 'openai' }] })
+          : readCompleteOverride(pathname)
+    )
+    expect(resolveRegistryPaths()).toEqual(bundledPaths)
+  })
+
+  it('adopts a snapshot that covers every bundled provider', () => {
+    existsSyncMock.mockImplementation(completeOverride)
+    readFileSyncMock.mockImplementation((pathname: string) =>
+      pathname === resolve(BUNDLED, 'provider-models.json')
+        ? JSON.stringify({ version: 'b', overrides: [{ providerId: 'openai' }] })
+        : basename(pathname) === 'provider-models.json'
+          ? JSON.stringify({ version: 'c', overrides: [{ providerId: 'openai' }, { providerId: 'other' }] })
+          : readCompleteOverride(pathname)
+    )
+    expect(resolveRegistryPaths()).toEqual(activePaths)
+  })
+
   it('ignores model data whose content version does not match the manifest', () => {
     existsSyncMock.mockImplementation(completeOverride)
     readFileSyncMock.mockImplementation((pathname: string) =>

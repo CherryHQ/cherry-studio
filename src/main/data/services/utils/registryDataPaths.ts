@@ -43,6 +43,27 @@ export function readActiveOverrideManifest(): CatalogManifest | null {
   }
 }
 
+function readProviderModelIds(path: string): Set<string> {
+  const data = JSON.parse(readFileSync(path, 'utf-8')) as { overrides?: Array<{ providerId?: unknown }> }
+  return new Set((data.overrides ?? []).map((row) => String(row.providerId)))
+}
+
+/**
+ * A snapshot published before a bundled provider landed has no model rows for
+ * it; adopting it would leave that preset's models untyped until the next publish.
+ */
+function overrideCoversBundledProviders(): boolean {
+  try {
+    const remote = readProviderModelIds(
+      application.getPath('feature.provider_registry.override', 'provider-models.json')
+    )
+    const local = readProviderModelIds(application.getPath('feature.provider_registry.data', 'provider-models.json'))
+    return [...local].every((providerId) => remote.has(providerId))
+  } catch {
+    return true
+  }
+}
+
 /**
  * Resolve registry files while keeping provider routing bundled. Models and
  * provider-model metadata switch together only after a complete compatible
@@ -50,7 +71,8 @@ export function readActiveOverrideManifest(): CatalogManifest | null {
  */
 export function resolveRegistryPaths(): RegistryPaths {
   const bundled = 'feature.provider_registry.data' as const
-  const modelData = readActiveOverrideManifest() ? 'feature.provider_registry.override' : bundled
+  const modelData =
+    readActiveOverrideManifest() && overrideCoversBundledProviders() ? 'feature.provider_registry.override' : bundled
   return {
     models: application.getPath(modelData, 'models.json'),
     providers: application.getPath(bundled, 'providers.json'),
