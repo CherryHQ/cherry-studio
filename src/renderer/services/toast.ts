@@ -1,7 +1,7 @@
 import { getToastUtilities, type ToastLabels } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErrorPresentation'
-import { isAbortError, localizedErrorDetail, providerErrorText } from '@renderer/utils/error'
+import { isAbortError, LocalizedError, localizedErrorDetail, providerErrorText } from '@renderer/utils/error'
 import { classifyError, type ErrorCategory } from '@renderer/utils/errorClassifier'
 import {
   type ErrorToastAction,
@@ -72,7 +72,9 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
   // An unknown cause titles the toast only when it reads in the UI language; otherwise it moves into details.
-  const unknownTitle = category === 'unknown' ? localizedErrorDetail(details) : undefined
+  const localized = error instanceof LocalizedError
+  const unknownTitle = category === 'unknown' ? localizedErrorDetail(localized ? error : details) : undefined
+  const causeDetails = localized && error.cause ? providerErrorText(serializeToastError(error.cause)) : ''
   let running = false
   const key = notifications[presentation.type]({
     key: context.key,
@@ -91,7 +93,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
       ]
         .filter(Boolean)
         .join(' · ') || undefined,
-    details: unknownTitle ? undefined : details || undefined,
+    details: (unknownTitle ? causeDetails : details) || undefined,
     action:
       run && actionKind
         ? {

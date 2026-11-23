@@ -1,6 +1,8 @@
+import i18next from 'i18next'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import { LocalizedError } from '@renderer/utils/error'
 
 vi.mock('@renderer/services/toast', (importOriginal) => importOriginal())
 vi.mock('@cherrystudio/ui', async () => import('@cherrystudio/ui/components/primitives/toast'))
@@ -66,4 +68,22 @@ it('keeps Cloud rate limits retryable even when their text mentions quota', asyn
   expect(shown.action?.label).toBe(enUS['toast.error.retry'])
   await shown.action!.onClick()
   expect(retry).toHaveBeenCalledOnce()
+})
+
+it('titles an unknown failure with its LocalizedError message and keeps the raw cause in details', () => {
+  const { language, resolvedLanguage } = i18next
+  Object.assign(i18next, { language: 'de-DE', resolvedLanguage: 'de-DE' })
+  try {
+    const key = toast.errorFromException(
+      new LocalizedError('Verbindung erfolgreich, Aktivierung fehlgeschlagen', {
+        cause: new Error('SQLITE_BUSY: database is locked')
+      })
+    )
+    expect(toast.getToastQueue().toasts.find((item) => item.key === key)).toMatchObject({
+      title: 'Verbindung erfolgreich, Aktivierung fehlgeschlagen',
+      details: expect.stringContaining('SQLITE_BUSY')
+    })
+  } finally {
+    Object.assign(i18next, { language, resolvedLanguage })
+  }
 })
