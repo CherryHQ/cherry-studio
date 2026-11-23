@@ -355,6 +355,29 @@ describe('runAppUpdateCheck', () => {
     expect(openExternal).not.toHaveBeenCalled()
   })
 
+  it('clears a subwindow handoff failure once a retry reaches main', async () => {
+    setWindowSource('screenshotWindow')
+    request.mockRejectedValueOnce(new Error('main unavailable')).mockResolvedValueOnce(undefined)
+
+    await appUpdateCheckService.runAppUpdateCheck(idle, vi.fn())
+    await appUpdateCheckService.runAppUpdateCheck(idle, vi.fn())
+
+    expect(callsTo('app.updater.present_check')).toHaveLength(2)
+    expect(appUpdateCheckService.readUpdateNotice()).toBeNull()
+  })
+
+  it('clears a portable download-page failure once a retry opens the page', async () => {
+    request.mockResolvedValue({ isPortable: true })
+    openExternal.mockRejectedValueOnce(new Error('no browser')).mockResolvedValueOnce(undefined)
+
+    await appUpdateCheckService.runAppUpdateCheck(idle, vi.fn())
+    expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateError')
+    await appUpdateCheckService.runAppUpdateCheck(idle, vi.fn())
+
+    expect(openExternal).toHaveBeenCalledTimes(2)
+    expect(appUpdateCheckService.readUpdateNotice()).toBeNull()
+  })
+
   it('checks the latest acknowledged channel once when a later invalidation lets another click wait', async () => {
     const channelA = appUpdateCheckService.invalidateSharedUpdateCheck()
     request.mockResolvedValue({ isPortable: false })
