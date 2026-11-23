@@ -6135,7 +6135,7 @@
   "settings.tool.file_processing.processors.tesseract.description": "Google 開源的光學字元辨識引擎，完全本機執行。",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
   "settings.tool.file_processing.reset_options": "重設為預設",
-  "settings.tool.file_processing.reset_options_confirm": "將此處理器的識別選項重設為預設值？已儲存的 API 金鑰會保留。",
+  "settings.tool.file_processing.reset_options_confirm": "將辨識選項重設為預設值？已儲存的 API 金鑰及其設定的 API 位址將保留。",
   "settings.tool.websearch.blacklist": "黑名單",
   "settings.tool.websearch.blacklist_invalid_entries": "以下黑名單項目無效：{{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "請使用以下格式（以換行分隔）\n模式比對：*://*.example.com/*\n規則運算式：/example\\.(net|org)/",

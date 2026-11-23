@@ -6136,7 +6136,7 @@
   "settings.tool.file_processing.processors.tesseract.description": "Open source engine OCR od Google, který běží zcela lokálně.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
   "settings.tool.file_processing.reset_options": "Reset to defaults",
-  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
+  "settings.tool.file_processing.reset_options_confirm": "Obnovit výchozí možnosti rozpoznávání? Uložené klíče API a jejich nastavení hostitelé API zůstanou zachovány.",
   "settings.tool.websearch.blacklist": "Černá listina",
   "settings.tool.websearch.blacklist_invalid_entries": "Následující položky černé listiny jsou neplatné: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Použijte prosím následující formát (oddělený novým řádkem)\nVzor shody: *://*.example.com/*\nRegulární výraz: /example\\.(net|org)/",

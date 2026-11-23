@@ -120,9 +120,15 @@ export function ProcessorPanel({
 
   useEffect(() => {
     setApiKeysInput(joinApiKeyString(processor.apiKeys ?? []))
+  }, [entry.key, processor.apiKeys])
+
+  useEffect(() => {
     setApiHostInput(entry.capability.apiHost ?? '')
+  }, [entry.key, entry.capability.apiHost])
+
+  useEffect(() => {
     setModelIdInput(entry.capability.modelId ?? '')
-  }, [entry.key])
+  }, [entry.key, entry.capability.modelId])
 
   const languageOptions = useMemo(() => {
     if (!languages) {
@@ -277,10 +283,10 @@ export function ProcessorPanel({
       cancelText: t('common.cancel'),
       danger: true,
       action: async () => {
-        await persist(() => onResetOptions(processorId), 'reset processor options')
+        await onResetOptions(processorId)
       }
     })
-  }, [onResetOptions, persist, processor.id, t])
+  }, [onResetOptions, processor.id, t])
 
   return (
     <SettingGroup className="flex w-full flex-col gap-2">

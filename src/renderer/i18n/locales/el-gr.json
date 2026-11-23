@@ -6135,7 +6135,7 @@
   "settings.tool.file_processing.processors.tesseract.description": "Η μηχανή OCR ανοιχτού κώδικα της Google που λειτουργεί πλήρως τοπικά.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
   "settings.tool.file_processing.reset_options": "Reset to defaults",
-  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
+  "settings.tool.file_processing.reset_options_confirm": "Επαναφορά των επιλογών αναγνώρισης; Τα αποθηκευμένα κλειδιά API και οι ρυθμισμένοι διακομιστές API διατηρούνται.",
   "settings.tool.websearch.blacklist": "Μαύρη Λίστα",
   "settings.tool.websearch.blacklist_invalid_entries": "Μη έγκυρες καταχωρήσεις μαύρης λίστας: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Παρακαλώ χρησιμοποιήστε την ακόλουθη μορφή (διαχωρισμός με αλλαγή γραμμής)\nΜοτίβο αντιστοίχισης: *://*.example.com/*\nΚανονική έκφραση: /example\\.(net|org)/",

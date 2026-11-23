@@ -6135,7 +6135,7 @@
   "settings.tool.file_processing.processors.tesseract.description": "Tamamen yerel olarak çalışan Google'ın açık kaynaklı OCR motoru.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
   "settings.tool.file_processing.reset_options": "Reset to defaults",
-  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
+  "settings.tool.file_processing.reset_options_confirm": "Tanıma seçenekleri varsayılana sıfırlansın mı? Kayıtlı API anahtarları ve yapılandırılmış API sunucuları korunur.",
   "settings.tool.websearch.blacklist": "Kara Liste",
   "settings.tool.websearch.blacklist_invalid_entries": "Geçersiz kara liste girdileri: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Lütfen aşağıdaki biçimi kullanın (satır sonlarıyla ayrılmış)\nDesen eşleştirme: *://*.example.com/*\nDüzenli ifade: /example\\.(net|org)/",

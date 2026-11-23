@@ -6136,7 +6136,7 @@
   "settings.tool.file_processing.processors.tesseract.description": "Motorul OCR open-source de la Google care rulează complet local.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
   "settings.tool.file_processing.reset_options": "Reset to defaults",
-  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
+  "settings.tool.file_processing.reset_options_confirm": "Resetați opțiunile de recunoaștere? Cheile API salvate și gazdele API configurate pentru acestea sunt păstrate.",
   "settings.tool.websearch.blacklist": "Listă neagră",
   "settings.tool.websearch.blacklist_invalid_entries": "Intrări nevalide pe lista neagră: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Te rugăm să folosești următorul format (separate prin linie nouă)\nPotrivire model: *://*.exemplu.com/*\nExpresie regulată: /exemplu\\.(net|org)/",

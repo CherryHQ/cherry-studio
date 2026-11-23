@@ -6135,7 +6135,7 @@
   "settings.tool.file_processing.processors.tesseract.description": "O motor OCR de código aberto da Google que funciona totalmente localmente.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
   "settings.tool.file_processing.reset_options": "Reset to defaults",
-  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
+  "settings.tool.file_processing.reset_options_confirm": "Repor as opções de reconhecimento? As chaves API guardadas e os respetivos servidores API configurados são mantidos.",
   "settings.tool.websearch.blacklist": "Lista Negra",
   "settings.tool.websearch.blacklist_invalid_entries": "Entradas inválidas na lista negra: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Por favor, utilize o seguinte formato (separado por quebras de linha)\nPadrão de correspondência: *://*.exemplo.com/*\nExpressão regular: /exemplo\\.(net|org)/",

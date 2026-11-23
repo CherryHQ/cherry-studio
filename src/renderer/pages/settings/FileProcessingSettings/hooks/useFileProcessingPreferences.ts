@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { preferenceService } from '@data/PreferenceService'
 import type {
   FileProcessorFeature,
   FileProcessorId,
@@ -19,6 +21,7 @@ const DEFAULT_KEY_BY_FEATURE = {
 } as const satisfies Record<FileProcessorFeature, keyof typeof FILE_PROCESSING_KEYS>
 
 export function useFileProcessingPreferences() {
+  const { t } = useTranslation()
   const [preferences, setPreferences] = useMultiplePreferences(FILE_PROCESSING_KEYS)
   const [overrides, setOverrides] = usePreference('feature.file_processing.overrides')
 
@@ -106,20 +109,29 @@ export function useFileProcessingPreferences() {
 
   /**
    * Reset a processor's recognition options (capability fields and language
-   * options) to the preset defaults. API keys are credentials, not options,
-   * and are kept.
+   * options) to the preset defaults. Saved credentials and their configured
+   * API destinations stay together until the user explicitly edits them.
    */
   const resetProcessorOptions = useCallback(
     async (processorId: FileProcessorId) => {
-      const override = overrides[processorId]
+      const current = await preferenceService.getAuthoritative('feature.file_processing.overrides')
+      if (!current) throw new Error(t('settings.tool.file_processing.errors.save_failed'))
+      const override = current[processorId]
       if (!override) {
         return
       }
 
-      const next = { ...overrides }
+      const next = { ...current }
       const kept: FileProcessorOverride = {}
       if (override.apiKeys && override.apiKeys.length > 0) {
         kept.apiKeys = override.apiKeys
+        for (const feature of ['image_to_text', 'document_to_markdown'] as const) {
+          const apiHost = override.capabilities?.[feature]?.apiHost
+          if (apiHost) {
+            kept.capabilities ??= {}
+            kept.capabilities[feature] = { apiHost }
+          }
+        }
       }
       if (Object.keys(kept).length > 0) {
         next[processorId] = kept
@@ -128,7 +140,7 @@ export function useFileProcessingPreferences() {
       }
       await setOverrides(next)
     },
-    [overrides, setOverrides]
+    [setOverrides, t]
   )
 
   return {

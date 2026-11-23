@@ -1,6 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { preferenceService } from '@data/PreferenceService'
 import type { FileProcessorOverrides } from '@shared/data/preference/preferenceTypes'
 
 import { useFileProcessingPreferences } from '../hooks/useFileProcessingPreferences'
@@ -17,6 +18,10 @@ vi.mock('@data/hooks/usePreference', () => ({
   useMultiplePreferences: () => [preferencesMock, setPreferencesMock],
   usePreference: () => [overridesMock.value, setOverridesMock]
 }))
+
+beforeEach(() => {
+  vi.mocked(preferenceService.getAuthoritative).mockImplementation(async () => overridesMock.value as never)
+})
 
 describe('useFileProcessingPreferences', () => {
   beforeEach(() => {
@@ -133,11 +138,58 @@ describe('resetProcessorOptions (#20286)', () => {
     await result.current.resetProcessorOptions('paddleocr')
 
     expect(setOverridesMock).toHaveBeenCalledWith({
-      paddleocr: { apiKeys: ['paddle-key'] },
+      paddleocr: { apiKeys: ['paddle-key'], capabilities: { image_to_text: { apiHost: 'https://ocr.example.com' } } },
       tesseract: {
         options: { langs: ['eng', 'chi_sim'] }
       }
     })
+  })
+
+  it('uses the confirmed current map rather than a captured reset callback', async () => {
+    overridesMock.value = {
+      doc2x: { apiKeys: ['old'], capabilities: { document_to_markdown: { modelId: 'old-model' } } }
+    }
+    const { result } = renderHook(() => useFileProcessingPreferences())
+    const confirm = result.current.resetProcessorOptions
+    overridesMock.value = {
+      doc2x: { apiKeys: ['new'], capabilities: { document_to_markdown: { modelId: 'new-model' } } },
+      mistral: { apiKeys: ['other-new'] }
+    }
+    await confirm('doc2x')
+    expect(setOverridesMock).toHaveBeenLastCalledWith({
+      doc2x: { apiKeys: ['new'] },
+      mistral: { apiKeys: ['other-new'] }
+    })
+  })
+
+  it('keeps a custom credential destination while resetting recognition options', async () => {
+    overridesMock.value = {
+      doc2x: {
+        apiKeys: ['gateway-only'],
+        capabilities: {
+          document_to_markdown: { apiHost: 'https://private.example', modelId: 'custom', formulaLevel: 2 }
+        }
+      }
+    }
+    const { result } = renderHook(() => useFileProcessingPreferences())
+    await result.current.resetProcessorOptions('doc2x')
+    expect(setOverridesMock).toHaveBeenLastCalledWith({
+      doc2x: {
+        apiKeys: ['gateway-only'],
+        capabilities: { document_to_markdown: { apiHost: 'https://private.example' } }
+      }
+    })
+  })
+
+  it('does not write a stale map when the current value cannot be read', async () => {
+    overridesMock.value = {
+      doc2x: { apiKeys: ['saved'], capabilities: { document_to_markdown: { modelId: 'custom' } } }
+    }
+    vi.mocked(preferenceService.getAuthoritative).mockResolvedValueOnce(undefined)
+    const { result } = renderHook(() => useFileProcessingPreferences())
+    const before = setOverridesMock.mock.calls.length
+    await expect(result.current.resetProcessorOptions('doc2x')).rejects.toThrow()
+    expect(setOverridesMock.mock.calls).toHaveLength(before)
   })
 
   it('removes the override entry entirely when only options were set', async () => {

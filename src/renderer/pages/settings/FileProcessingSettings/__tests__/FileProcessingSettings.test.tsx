@@ -7,7 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
+import { preferenceService } from '@data/PreferenceService'
 import { PopupHost } from '@renderer/components/PopupHost'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type * as RendererConstantModule from '@renderer/utils/platform'
@@ -268,6 +270,7 @@ describe('processing settings pages', () => {
 
   beforeEach(() => {
     MockCacheUtils.resetMocks()
+    vi.mocked(preferenceService.getAuthoritative).mockImplementation(async () => overridesMock.value as never)
     preferencesMock.defaultDocumentProcessor = null
     preferencesMock.defaultImageProcessor = null
     overridesMock.value = {}
@@ -300,6 +303,40 @@ describe('processing settings pages', () => {
     }
     vi.advanceTimersByTime(POPUP_EXIT_MS)
     vi.useRealTimers()
+  })
+
+  it('refreshes the host field after reset and does not restore it on unchanged blur', async () => {
+    preferencesMock.defaultImageProcessor = 'mistral'
+    overridesMock.value = { mistral: { capabilities: { image_to_text: { apiHost: 'https://old.example' } } } }
+    const user = userEvent.setup()
+    const { rerender } = render(<OcrSettings />)
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+    const host = await screen.findByPlaceholderText('settings.provider.api_host')
+    expect(host).toHaveValue('https://old.example')
+    overridesMock.value = {}
+    rerender(<OcrSettings />)
+    await waitFor(() => expect(host).not.toHaveValue('https://old.example'))
+    await user.click(host)
+    await user.tab()
+    expect(JSON.stringify(setOverridesMock.mock.calls.at(-1))).not.toContain('old.example')
+  })
+
+  it('rejects a failed reset action so the confirmation can offer retry', async () => {
+    overridesMock.value = { mistral: { capabilities: { image_to_text: { modelId: 'custom' } } } }
+    const show = vi.spyOn(ConfirmActionPopup, 'show').mockResolvedValueOnce(false)
+    const user = userEvent.setup()
+    render(<OcrSettings />)
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+    await user.click(await screen.findByRole('button', { name: 'settings.tool.file_processing.reset_options' }))
+    const params = show.mock.calls.at(-1)?.[0]
+    expect(params).toBeDefined()
+    setOverridesMock.mockRejectedValueOnce(new Error('reset write failed'))
+    await expect(params!.action()).rejects.toThrow('reset write failed')
+    show.mockRestore()
   })
 
   it('selects an image processor and makes it the image-to-text default', async () => {

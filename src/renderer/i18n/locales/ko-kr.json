@@ -6135,7 +6135,7 @@
   "settings.tool.file_processing.processors.tesseract.description": "완전히 로컬에서 실행되는 Google의 오픈 소스 OCR 엔진입니다.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
   "settings.tool.file_processing.reset_options": "Reset to defaults",
-  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
+  "settings.tool.file_processing.reset_options_confirm": "인식 옵션을 기본값으로 재설정할까요? 저장된 API 키와 설정된 API 호스트는 유지됩니다.",
   "settings.tool.websearch.blacklist": "차단 목록",
   "settings.tool.websearch.blacklist_invalid_entries": "잘못된 차단 목록 항목: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "다음 형식을 사용하세요(줄바꿈으로 구분)\n패턴 일치: *://*.example.com/*\n정규식: /example\\.(net|org)/",

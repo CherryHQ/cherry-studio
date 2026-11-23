@@ -6137,7 +6137,7 @@
   "settings.tool.file_processing.processors.tesseract.description": "Открытый OCR-движок от Google, работающий полностью локально.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
   "settings.tool.file_processing.reset_options": "Reset to defaults",
-  "settings.tool.file_processing.reset_options_confirm": "Reset this processor's recognition options to their defaults? Saved API keys are kept.",
+  "settings.tool.file_processing.reset_options_confirm": "Сбросить параметры распознавания? Сохранённые API-ключи и настроенные для них API-серверы будут сохранены.",
   "settings.tool.websearch.blacklist": "Черный список",
   "settings.tool.websearch.blacklist_invalid_entries": "Недяверныя запісы ў чорным спісе: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Используйте следующий формат (каждое правило с новой строки)\nШаблон: *://*.example.com/*\nРегулярное выражение: /example\\.(net|org)/",
