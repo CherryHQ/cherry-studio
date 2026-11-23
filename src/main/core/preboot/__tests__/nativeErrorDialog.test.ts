@@ -181,6 +181,25 @@ describe('showSupportedMessageBox', () => {
     expect(showMessageBox.mock.calls[0][0].buttons[0]).not.toBe('dialog.support.ok')
   })
 
+  it('treats Escape as the caller cancel button instead of a support action', async () => {
+    // Electron's rule when cancelId is omitted: defaultId 0 with several buttons cancels to index 1.
+    showMessageBox
+      .mockImplementationOnce(async (options: Electron.MessageBoxOptions) => ({
+        response: options.cancelId ?? (options.defaultId === 0 && (options.buttons?.length ?? 0) > 1 ? 1 : 0)
+      }))
+      .mockResolvedValue({ response: 0 })
+
+    await expect(
+      showSupportedMessageBox({
+        box: { type: 'error', title: 'Screenshot failed', message: 'Capture failed.', buttons: ['OK'], defaultId: 0 },
+        technicalDetail: 'capture error'
+      })
+    ).resolves.toBe(0)
+    expect(writeText).not.toHaveBeenCalled()
+    expect(openExternal).not.toHaveBeenCalled()
+    expect(showMessageBox).toHaveBeenCalledTimes(1)
+  })
+
   it('returns the original cancel button when the response is outside the dialog', async () => {
     showMessageBox.mockResolvedValue({ response: 99 })
 
