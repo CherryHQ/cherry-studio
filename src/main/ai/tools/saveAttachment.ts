@@ -134,7 +134,7 @@ export async function saveAttachmentToWorkspace(
       throw new Error(`Attachment output already exists: ${validatedInput.output_path}`)
     }
 
-    logger.error('Failed to save attached file into the workspace', error as Error, {
+    logger.error('Failed to save attached file into the workspace', error, {
       filename: validatedInput.filename,
       outputPath: validatedInput.output_path
     })

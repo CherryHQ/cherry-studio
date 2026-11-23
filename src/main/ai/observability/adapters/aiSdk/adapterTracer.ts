@@ -38,7 +38,7 @@ export class AdapterTracer {
 
         observabilitySinks.writeSpanEntity(spanEntity)
       } catch (error) {
-        logger.warn(`Failed to persist span ${name}`, error as Error)
+        logger.warn(`Failed to persist span ${name}`, error)
       }
     }
 

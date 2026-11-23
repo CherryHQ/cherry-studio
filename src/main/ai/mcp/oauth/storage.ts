@@ -125,7 +125,7 @@ export class JsonFileStorage implements IOAuthStorage {
         return initial
       }
 
-      logger.error('Error reading OAuth storage:', error as Error)
+      logger.error('Error reading OAuth storage:', error)
       throw new Error(`Failed to read OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
@@ -147,7 +147,7 @@ export class JsonFileStorage implements IOAuthStorage {
 
         return this.secretCache
       } catch (error) {
-        logger.error('Failed to decrypt OAuth credentials; reauthorization is required', error as Error)
+        logger.error('Failed to decrypt OAuth credentials; reauthorization is required', error)
       }
     }
 
@@ -181,7 +181,7 @@ export class JsonFileStorage implements IOAuthStorage {
       await fs.rename(tempPath, this.filePath)
       this.cache = nextData
     } catch (error) {
-      logger.error('Error writing OAuth storage:', error as Error)
+      logger.error('Error writing OAuth storage:', error)
       throw new Error(`Failed to write OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
     }
   }

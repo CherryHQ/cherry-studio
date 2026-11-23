@@ -77,7 +77,7 @@ class KnowledgeGraphManager {
         await fs.writeFile(this.memoryPath, JSON.stringify({ entities: [], relations: [] }, null, 2))
       }
     } catch (error) {
-      logger.error('Failed to ensure memory path exists:', error as Error)
+      logger.error('Failed to ensure memory path exists:', error)
       throw error
     }
   }
@@ -115,7 +115,7 @@ class KnowledgeGraphManager {
         this.relations = new Set()
         await this._persistGraph()
       } else {
-        logger.error('Failed to load knowledge graph from disk:', error as Error)
+        logger.error('Failed to load knowledge graph from disk:', error)
         throw error
       }
     }
@@ -133,7 +133,7 @@ class KnowledgeGraphManager {
 
       await fs.writeFile(this.memoryPath, JSON.stringify(graphData, null, 2))
     } catch (error) {
-      logger.error('Failed to save knowledge graph:', error as Error)
+      logger.error('Failed to save knowledge graph:', error)
       throw error
     } finally {
       release()

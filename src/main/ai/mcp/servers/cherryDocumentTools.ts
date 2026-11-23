@@ -120,7 +120,7 @@ export function registerDocumentTools(server: McpServer, context: CherryDocument
       const outputDirectory = path.join(context.agentDataPath, 'tmp', 'to-markdown')
       await mkdir(outputDirectory, { recursive: true })
       await cleanupStaleOutputs(outputDirectory).catch((error) => {
-        logger.warn('Failed to clean stale document conversion outputs', error as Error)
+        logger.warn('Failed to clean stale document conversion outputs', error)
       })
 
       const outputPath = path.join(outputDirectory, `${randomUUID()}.md`)

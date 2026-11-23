@@ -93,7 +93,7 @@ async function performListKnowledges(difyKey: string, apiHost: string): Promise<
       content: [{ type: 'text', text: formattedText }]
     }
   } catch (error) {
-    logger.error('Error fetching knowledge list:', error as Error)
+    logger.error('Error fetching knowledge list:', error)
     throw error
   }
 }
@@ -170,7 +170,7 @@ async function performSearchKnowledge(
       content: [{ type: 'text', text: formattedText }]
     }
   } catch (error) {
-    logger.error('Error searching knowledge:', error as Error)
+    logger.error('Error searching knowledge:', error)
     throw error
   }
 }

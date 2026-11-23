@@ -64,11 +64,11 @@ class ObservabilitySinkRegistry {
 
       if (result && typeof result.catch === 'function') {
         void result.catch((error) => {
-          logger.warn(`Observability sink ${sink.id} failed ${operation}`, error as Error)
+          logger.warn(`Observability sink ${sink.id} failed ${operation}`, error)
         })
       }
     } catch (error) {
-      logger.warn(`Observability sink ${sink.id} failed ${operation}`, error as Error)
+      logger.warn(`Observability sink ${sink.id} failed ${operation}`, error)
     }
   }
 }

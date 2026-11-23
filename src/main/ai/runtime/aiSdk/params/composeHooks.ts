@@ -56,7 +56,7 @@ function chainVoid<TArgs extends unknown[]>(
       try {
         await fn(...args)
       } catch (err) {
-        logger.warn(`composed ${key} hook threw; continuing chain`, err as Error)
+        logger.warn(`composed ${key} hook threw; continuing chain`, err)
       }
     }
   }
@@ -84,7 +84,7 @@ function chainOnError(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopH
       } catch (err) {
         // A throwing handler contributes no decision; isolate it and continue
         // the chain so every handler is still invoked (mirrors chainVoid).
-        logger.warn('composed onError hook threw; continuing chain', err as Error)
+        logger.warn('composed onError hook threw; continuing chain', err)
       }
     }
 

@@ -101,7 +101,7 @@ export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToo
         try {
           await worker.terminate()
         } catch (err) {
-          logger.warn('failed to terminate exec worker', err as Error)
+          logger.warn('failed to terminate exec worker', err)
         }
       }
 
@@ -120,7 +120,7 @@ export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToo
       try {
         await worker.terminate()
       } catch (err) {
-        logger.warn('failed to terminate exec worker', err as Error)
+        logger.warn('failed to terminate exec worker', err)
       }
 
       await finalize(

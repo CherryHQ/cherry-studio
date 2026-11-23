@@ -160,7 +160,7 @@ export async function trimOversizedToolOutputs(
       trimmed ??= [...parts]
       trimmed[index] = { ...part, output }
     } catch (error) {
-      logger.error('tool-output trim failed; keeping the full output in message data', error as Error, {
+      logger.error('tool-output trim failed; keeping the full output in message data', error, {
         toolCallId: part.toolCallId
       })
     }

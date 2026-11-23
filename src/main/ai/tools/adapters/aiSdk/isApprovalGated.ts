@@ -39,7 +39,7 @@ export async function isApprovalGated(tool: Tool, opts: ApprovalGateOptions = {}
       experimental_context: opts.experimental_context
     })
   } catch (err) {
-    logger.warn('needsApproval threw; treating tool as approval-gated', err as Error)
+    logger.warn('needsApproval threw; treating tool as approval-gated', err)
 
     return true
   }

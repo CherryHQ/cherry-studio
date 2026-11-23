@@ -55,7 +55,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
         const validator = createMcpJsonSchemaValidator(schemaJson)
         validate = async (value) => validator(value)
       } catch (err) {
-        logger.warn('AI repair cannot validate the tool JSON Schema', err as Error, {
+        logger.warn('AI repair cannot validate the tool JSON Schema', err, {
           toolName: toolCall.toolName,
           toolCallId: toolCall.toolCallId
         })
@@ -135,7 +135,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
 
       repaired = result.output
     } catch (err) {
-      logger.warn('AI repair generateText failed', err as Error, {
+      logger.warn('AI repair generateText failed', err, {
         toolName: toolCall.toolName,
         toolCallId: toolCall.toolCallId
       })

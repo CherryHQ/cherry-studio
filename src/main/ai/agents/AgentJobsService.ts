@@ -455,7 +455,7 @@ export class AgentJobsService extends BaseService {
       try {
         if (jobScheduleService.getById(taskId)?.enabled) agentTaskService.notifyReadModelChange([taskId])
       } catch (classificationError) {
-        logger.warn('Failed to classify resume failure for read-model notification', classificationError as Error)
+        logger.warn('Failed to classify resume failure for read-model notification', classificationError)
       }
 
       throw error

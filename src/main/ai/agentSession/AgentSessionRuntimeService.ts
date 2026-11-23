@@ -1546,7 +1546,7 @@ export class AgentSessionRuntimeService extends BaseService {
       application.get('CacheService').setShared(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId), closing)
     } catch (error) {
       // Cache broadcast failures must not interrupt session teardown.
-      logger.warn('Failed to publish agent session closing state', error as Error, { sessionId })
+      logger.warn('Failed to publish agent session closing state', error, { sessionId })
     }
   }
 

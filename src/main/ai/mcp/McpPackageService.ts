@@ -445,7 +445,7 @@ export class McpPackageService extends BaseService {
         try {
           fs.rmSync(backupDir, { recursive: true, force: true })
         } catch (error) {
-          logger.warn(`Failed to remove old MCP package backup: ${backupDir}`, error as Error)
+          logger.warn(`Failed to remove old MCP package backup: ${backupDir}`, error)
         }
       }
     } catch (error) {
@@ -457,7 +457,7 @@ export class McpPackageService extends BaseService {
         try {
           fs.rmSync(stagedDir, { recursive: true, force: true })
         } catch (cleanupError) {
-          logger.warn(`Failed to remove staged MCP package directory: ${stagedDir}`, cleanupError as Error)
+          logger.warn(`Failed to remove staged MCP package directory: ${stagedDir}`, cleanupError)
         }
       }
 
@@ -498,7 +498,7 @@ export class McpPackageService extends BaseService {
 
       return await this.uploadPackage(tempPath, packageFormat)
     } catch (error) {
-      logger.error(`${packageLabel} upload error:`, error as Error)
+      logger.error(`${packageLabel} upload error:`, error)
 
       return {
         success: false,
@@ -614,7 +614,7 @@ export class McpPackageService extends BaseService {
       }
 
       const errorMessage = error instanceof Error ? error.message : `Failed to process ${packageLabel} file`
-      logger.error(`${packageLabel} upload error:`, error as Error)
+      logger.error(`${packageLabel} upload error:`, error)
 
       return {
         success: false,
@@ -660,7 +660,7 @@ export class McpPackageService extends BaseService {
 
       return resolvedConfig
     } catch (error) {
-      logger.error('Failed to resolve MCP config:', error as Error)
+      logger.error('Failed to resolve MCP config:', error)
 
       return null
     }
@@ -682,7 +682,7 @@ export class McpPackageService extends BaseService {
 
       return false
     } catch (error) {
-      logger.error('Failed to cleanup package server:', error as Error)
+      logger.error('Failed to cleanup package server:', error)
 
       return false
     }
@@ -695,7 +695,7 @@ export class McpPackageService extends BaseService {
         fs.rmSync(this.tempDir, { recursive: true, force: true })
       }
     } catch (error) {
-      logger.error('Cleanup error:', error as Error)
+      logger.error('Cleanup error:', error)
     }
   }
 }

@@ -128,7 +128,7 @@ export async function readFile(
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) throw error
     // Log the detail; return a sanitized, filename-level message (no entry ids / paths).
-    logger.error('read_file failed', error as Error, { filename: input.filename })
+    logger.error('read_file failed', error, { filename: input.filename })
 
     return { error: `Failed to read attached file "${input.filename}".` }
   }

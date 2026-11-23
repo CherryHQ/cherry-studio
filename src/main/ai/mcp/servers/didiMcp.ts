@@ -33,7 +33,7 @@ export function createDiDiMcpServer(apiKey = process.env.DIDI_API_KEY || ''): Mc
 
       return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] }
     } catch (error) {
-      logger.error(`Error calling tool ${name}:`, error as Error)
+      logger.error(`Error calling tool ${name}:`, error)
       throw error
     }
   }

@@ -227,7 +227,7 @@ export async function generateImageFromPrompt(
     // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
     // retryable error that keeps the tool loop running after the request was already aborted.
     if (signal?.aborted || isAbortError(error)) throw error
-    logger.error('AiService.generateImage failed', error as Error, { uniqueModelId })
+    logger.error('AiService.generateImage failed', error, { uniqueModelId })
 
     return { error: PAINTING_ERROR_NOTE }
   }

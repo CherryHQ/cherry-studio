@@ -19,7 +19,7 @@ export async function safeCall<TArgs extends unknown[], TResult>(
   try {
     return await cb(...args)
   } catch (err) {
-    logger.warn(`hook ${name} threw`, err as Error)
+    logger.warn(`hook ${name} threw`, err)
 
     return undefined
   }

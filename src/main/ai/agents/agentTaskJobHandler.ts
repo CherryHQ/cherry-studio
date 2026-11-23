@@ -121,7 +121,7 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
       })
       application.get('JobManager').syncJobScheduleTimerById(scheduleId)
     } catch (err) {
-      logger.error('Failed to pause schedule after consecutive failures', err as Error, {
+      logger.error('Failed to pause schedule after consecutive failures', err, {
         scheduleId
       })
     }

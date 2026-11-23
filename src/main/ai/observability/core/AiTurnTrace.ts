@@ -151,7 +151,7 @@ export function startTraceRootSpan(
         attributes
       })
     } catch (error) {
-      logger.warn(`Failed to persist root span ${name}`, error as Error)
+      logger.warn(`Failed to persist root span ${name}`, error)
     }
   }
 

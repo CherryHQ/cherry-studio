@@ -381,7 +381,7 @@ export async function evaluateCommandPolicy(
   try {
     await initializeCommandParser()
   } catch (error) {
-    logger.error('Command parser assets could not be loaded', error as Error)
+    logger.error('Command parser assets could not be loaded', error)
 
     return { effect: 'deny', revision, hits: [], reason: t('command_approval.configuration_error') }
   }
@@ -478,7 +478,7 @@ export async function evaluateCommandPolicy(
     return decision
   } catch (error) {
     // A failure on one input is unsupported analysis, not a broken policy.
-    logger.error('Command policy could not analyze an invocation', error as Error)
+    logger.error('Command policy could not analyze an invocation', error)
 
     return { effect: 'ask', revision, hits: [], reason: t('command_approval.incomplete') }
   }

@@ -57,7 +57,7 @@ function shouldRun(feature: RequestFeature, scope: RequestScope): boolean {
   try {
     return feature.applies(scope)
   } catch (error) {
-    logger.warn(`feature ${feature.name}.applies threw; treating as not applicable`, error as Error)
+    logger.warn(`feature ${feature.name}.applies threw; treating as not applicable`, error)
 
     return false
   }
@@ -77,7 +77,7 @@ function invokeContribution<M extends ContributionMethod>(
   try {
     return fn.call(feature, scope)
   } catch (error) {
-    logger.warn(`feature ${feature.name}.${method} threw; skipping contribution`, error as Error)
+    logger.warn(`feature ${feature.name}.${method} threw; skipping contribution`, error)
 
     return undefined
   }

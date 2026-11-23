@@ -428,7 +428,7 @@ export class AgentSessionDeliveryService extends BaseService {
           // throw after ownership has crossed into a live stream; do not label that turn pre-start
           // failure or make it eligible for replay.
           if (!manager.hasLiveStream(prepared.topicId)) throw error
-          logger.warn('Delivery send threw after runtime ownership handoff; keeping it delivering', error as Error, {
+          logger.warn('Delivery send threw after runtime ownership handoff; keeping it delivering', error, {
             requestId: current.id,
             sessionId: current.sessionId,
             assistantMessageId: persisted.assistantMessageId

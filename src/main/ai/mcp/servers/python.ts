@@ -47,7 +47,7 @@ export function createPythonServer(): McpServer {
 
         return { content: [{ type: 'text', text: result }] }
       } catch (error) {
-        logger.error('Python execution error', error as Error)
+        logger.error('Python execution error', error)
         throw error
       }
     }

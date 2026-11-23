@@ -350,7 +350,7 @@ async function prepareChatMessage<T extends UIMessage>(
       if (ctx.signal?.aborted || isAbortError(error)) throw error
 
       if (error instanceof NonVisionImageOcrError) throw error
-      logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
+      logger.error('Failed to prepare attached file', error, { messageId: message.id, displayName })
       kept.push(noteOf(handle))
     }
   }

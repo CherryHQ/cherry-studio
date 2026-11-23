@@ -80,7 +80,7 @@ export function resolveGrokClientVersion(): string {
     raw = fs.readFileSync(filePath, 'utf8')
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      logger.warn(`Failed to read ${filePath}; using floor ${GROK_VERSION_FLOOR}.`, err as Error)
+      logger.warn(`Failed to read ${filePath}; using floor ${GROK_VERSION_FLOOR}.`, err)
     }
 
     return GROK_VERSION_FLOOR

@@ -153,7 +153,7 @@ function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error',
 
     span.end()
   } catch (err) {
-    logger.warn('Failed to end root span', err as Error)
+    logger.warn('Failed to end root span', err)
   }
 }
 

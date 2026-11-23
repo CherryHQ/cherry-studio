@@ -81,7 +81,7 @@ export class ToolRegistry {
         if (entry.applies && !entry.applies(scope)) continue
         out.push(entry.buildTool ? { ...entry, tool: entry.buildTool(scope) } : entry)
       } catch (err) {
-        logger.warn(`tool ${entry.name} request materialization threw; treating as inactive`, err as Error)
+        logger.warn(`tool ${entry.name} request materialization threw; treating as inactive`, err)
       }
     }
 

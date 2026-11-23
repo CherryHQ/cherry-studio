@@ -93,7 +93,7 @@ export async function readHeartbeat(workspacePath: string): Promise<string | und
       return undefined
     }
 
-    logger.error(`Failed to read heartbeat file: ${resolved}`, error as Error)
+    logger.error(`Failed to read heartbeat file: ${resolved}`, error)
 
     return undefined
   }

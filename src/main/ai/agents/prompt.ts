@@ -379,7 +379,7 @@ ${sections}`
 
       return trimmed
     } catch (error) {
-      logger.error(`Failed to read ${filePath}`, error as Error)
+      logger.error(`Failed to read ${filePath}`, error)
 
       return fail(error)
     } finally {

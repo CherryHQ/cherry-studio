@@ -1422,7 +1422,7 @@ async function extractAttachmentPaths(
 
       files.push({ filename: part.filename, path: resolved })
     } catch (error) {
-      logger.warn('Failed to resolve an attachment path', error as Error, { fileEntryId })
+      logger.warn('Failed to resolve an attachment path', error, { fileEntryId })
       unavailable.push(part)
     }
   }

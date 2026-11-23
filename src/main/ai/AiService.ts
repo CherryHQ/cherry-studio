@@ -477,7 +477,7 @@ export class AiService extends BaseService {
     // neither blocks init.
     void installBuiltinSkills()
       .catch((error) => {
-        logger.error('Failed to install built-in skills', error as Error)
+        logger.error('Failed to install built-in skills', error)
       })
       .then(() =>
         skillService.reconcileSkills().catch((error) => {

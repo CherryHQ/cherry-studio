@@ -1482,10 +1482,7 @@ export class McpRuntimeService extends BaseService {
     try {
       return mcpServerService.list({ id: serverId }).items.length > 0
     } catch (error) {
-      logger.warn(
-        `Row-existence check failed for server ${serverId}; treating the row as still present`,
-        error as Error
-      )
+      logger.warn(`Row-existence check failed for server ${serverId}; treating the row as still present`, error)
 
       return true
     }

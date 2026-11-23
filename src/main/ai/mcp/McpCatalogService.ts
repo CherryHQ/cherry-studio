@@ -151,7 +151,7 @@ export class McpCatalogService extends BaseService {
 
       return this.projectTools(server, tools)
     } catch (error: unknown) {
-      logger.error('Failed to list tools', error as Error, { serverId: server.id, serverName: server.name })
+      logger.error('Failed to list tools', error, { serverId: server.id, serverName: server.name })
       throw error
     }
   }

@@ -85,7 +85,7 @@ export class CallBackServer {
             res.end('Missing OAuth callback parameters')
           }
         } catch (error) {
-          logger.error('Error processing OAuth callback:', error as Error)
+          logger.error('Error processing OAuth callback:', error)
           res.writeHead(500, { 'Content-Type': 'text/plain' })
           res.end('Internal Server Error')
         }

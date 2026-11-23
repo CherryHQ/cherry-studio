@@ -234,7 +234,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     } catch (err) {
       // Surface the failure: the settings "clear data" caller must not report success while
       // plaintext trace files (which may contain captured request/response bodies) remain on disk.
-      logger.error('Error cleaning local data:', err as Error)
+      logger.error('Error cleaning local data:', err)
       throw err
     }
   }
@@ -721,7 +721,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       })
     } catch (err) {
       // Only the stream read reaches here (forEachSpanLine tolerates per-line JSON errors itself).
-      logger.error('Failed to read trace history file', err as Error, { filePath })
+      logger.error('Failed to read trace history file', err, { filePath })
       throw err
     }
 
@@ -760,7 +760,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     try {
       return JSON.parse(trimmed) as SpanEntity
     } catch (error) {
-      logger.error('Failed to parse trace history line', error as Error, { lineLength: trimmed.length })
+      logger.error('Failed to parse trace history line', error, { lineLength: trimmed.length })
 
       return undefined
     }
