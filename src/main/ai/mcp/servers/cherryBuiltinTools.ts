@@ -59,6 +59,7 @@ import {
 import { type AutonomyToolsContext, registerAutonomyTools } from './cherryAutonomyTools'
 import { registerCliTools } from './cherryCliTools'
 import { type KnowledgeToolsContext, registerKnowledgeTools } from './cherryKnowledgeTools'
+import { registerOfficeTools } from './cherryOfficeTools'
 
 export type CherryToolsOptions = AutonomyToolsContext & KnowledgeToolsContext & CherryDocumentContext
 
@@ -127,5 +128,6 @@ export function createCherryToolsServer(options: CherryToolsOptions): McpServer 
   registerAutonomyTools(server, options)
   registerCliTools(server)
   registerDocumentTools(server, options)
+  registerOfficeTools(server, options)
   return server
 }

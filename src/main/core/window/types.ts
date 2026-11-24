@@ -15,7 +15,8 @@ export enum WindowType {
   SelectionAgent = 'selectionAgent',
   SelectionCapsule = 'selectionCapsule',
   McpBrowser = 'mcpBrowser',
-  Screenshot = 'screenshot'
+  Screenshot = 'screenshot',
+  OfficeRender = 'officeRender'
 }
 
 /** Window lifecycle mode — determines how WindowManager handles creation, reuse, and destruction */
