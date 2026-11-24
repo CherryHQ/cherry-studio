@@ -88,10 +88,7 @@ const loadUserRegion = async (): Promise<MiniAppRegion> => {
   } catch (err) {
     // Default to CN so mainland China users — the primary audience — never
     // silently lose access to region-restricted apps they expect.
-    const error = err as Error
-    loggerService.withContext('detectUserRegion').error('Region detection failed, falling back to CN', {
-      error: error.message,
-      stack: error.stack,
+    loggerService.withContext('detectUserRegion').error('Region detection failed, falling back to CN', err, {
       fallback: 'CN'
     })
 
@@ -207,10 +204,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
         if (!cancelled) setDetectedRegion(region)
       })
       .catch((err) => {
-        const error = err as Error
-        loggerService.withContext('useMiniApps').error('Region detection failed in effect, falling back to CN', {
-          error: error.message,
-          stack: error.stack,
+        loggerService.withContext('useMiniApps').error('Region detection failed in effect, falling back to CN', err, {
           fallback: 'CN'
         })
 
@@ -342,8 +336,8 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
    * reconciles with the DB on the next render.
    */
   const setAppStatusBulk = useCallback(
-    async (updates: ReadonlyArray<{ appId: string; status: MiniApp['status'] }>) => {
-      if (updates.length === 0) return Promise.resolve([] as MiniApp[])
+    async (updates: ReadonlyArray<{ appId: string; status: MiniApp['status'] }>): Promise<MiniApp[]> => {
+      if (updates.length === 0) return []
 
       return Promise.allSettled(updates.map((u) => patchApp(u.appId, { status: u.status }))).then((results) =>
         settleAndInvalidate(results, invalidate, 'setAppStatusBulk')

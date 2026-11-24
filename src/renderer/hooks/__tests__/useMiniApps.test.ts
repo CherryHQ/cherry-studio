@@ -588,12 +588,24 @@ describe('useMiniApps', () => {
       expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('Global')
     })
 
-    it('caches the CN fallback after IP detection rejects', async () => {
+    it.each([
+      ['network error', new Error('Network error')],
+      [
+        'unreadable error',
+        {
+          get message() {
+            throw null
+          }
+        }
+      ]
+    ])('caches the CN fallback after IP detection rejects with %s', async (_kind, failure) => {
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
 
-      mockIpCountry(new Error('Network error'))
+      mocks.request.mockImplementation((route: string) =>
+        route === 'system.get_ip_country' ? Promise.reject(failure) : Promise.resolve(undefined)
+      )
 
       const first = renderHook(() => useMiniApps())
 
