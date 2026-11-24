@@ -1,5 +1,5 @@
 import { ipcApi } from '@renderer/ipc'
-import type { FileMetadata } from '@renderer/types/file'
+import type { FileMetadata, KnowledgeFileReference } from '@renderer/types/file'
 import { readErrorMessage } from '@renderer/utils/errorDetails'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -97,8 +97,9 @@ export const resolveKnowledgeFileData = async (
   }
 }
 
-export const resolveKnowledgeFileMetadataEntryData = async (file: FileMetadata): Promise<KnowledgeFileItemData> =>
-  resolveKnowledgeFileData(file.path, file.origin_name || file.name)
+export const resolveKnowledgeFileMetadataEntryData = async (
+  file: FileMetadata | KnowledgeFileReference
+): Promise<KnowledgeFileItemData> => resolveKnowledgeFileData(file.path, file.origin_name || file.name)
 
 export const resolveFileEntryDataFromFile = (file: File): Promise<KnowledgeFileItemData> => {
   const filePath = window.api.file.getPathForFile(file)

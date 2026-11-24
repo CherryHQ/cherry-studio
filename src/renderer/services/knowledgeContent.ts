@@ -1,6 +1,6 @@
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n/resolver'
-import type { FileMetadata } from '@renderer/types/file'
+import type { KnowledgeFileReference } from '@renderer/types/file'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import {
@@ -62,7 +62,7 @@ export function processMessagesContent(
   selectedTypes: ContentType[]
 ): TopicPreprocessResult {
   const textParts: string[] = []
-  const files: FileMetadata[] = []
+  const files: KnowledgeFileReference[] = []
 
   const selectedTypeSet = new Set(selectedTypes)
 
