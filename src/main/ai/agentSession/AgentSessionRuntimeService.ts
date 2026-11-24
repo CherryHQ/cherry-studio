@@ -3266,14 +3266,15 @@ export class AgentSessionRuntimeService extends BaseService {
 
     cache.setShared(key, { ...events, [data.taskId]: merged })
     const projections = [...(entry.rootProjections?.values() ?? [])]
-    let retired: RootMessageProjection | undefined
+    const toolUseId = merged.toolUseId
+    let retired: { projection: RootMessageProjection; toolCallId: string } | undefined
 
     if (
-      typeof merged.toolUseId === 'string' &&
+      typeof toolUseId === 'string' &&
       (merged.status === 'completed' || merged.status === 'stopped' || merged.status === 'error')
     ) {
       const owners = projections.flatMap((projection) => {
-        const messageId = projection.toolCallMessageId(merged.toolUseId as string)
+        const messageId = projection.toolCallMessageId(toolUseId)
 
         return messageId ? [{ projection, messageId }] : []
       })
@@ -3281,14 +3282,15 @@ export class AgentSessionRuntimeService extends BaseService {
       if (new Set(owners.map((owner) => owner.messageId)).size === 1) {
         const owner = owners[0]
 
-        if (owner.projection.retireToolApproval(merged.toolUseId)) retired = owner.projection
-        application.get('AiStreamManager').retireToolApproval(entry.topicId, merged.toolUseId, {
+        if (owner.projection.retireToolApproval(toolUseId))
+          retired = { projection: owner.projection, toolCallId: toolUseId }
+        application.get('AiStreamManager').retireToolApproval(entry.topicId, toolUseId, {
           anchorMessageId: owner.messageId
         })
       } else {
         logger.warn('Cannot uniquely assign terminal task approval', {
           sessionId: entry.sessionId,
-          toolCallId: merged.toolUseId,
+          toolCallId: toolUseId,
           messageIds: owners.map((owner) => owner.messageId)
         })
       }
@@ -3299,7 +3301,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
       const messageId =
         update?.messageId ??
-        (projection === retired ? projection.toolCallMessageId(merged.toolUseId as string) : undefined)
+        (retired && projection === retired.projection ? projection.toolCallMessageId(retired.toolCallId) : undefined)
 
       if (messageId) this.publishRootMessage(entry, projection, messageId, projection.parts(messageId)!)
     }
@@ -4252,7 +4254,7 @@ function createRuntimeSeedMessages(
       role: 'assistant',
       parts: []
     }
-  ] as CherryUIMessage[]
+  ]
 }
 
 function createSyntheticUserMessage(sessionId: string): AgentSessionMessageEntity {
