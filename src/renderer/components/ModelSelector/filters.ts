@@ -8,6 +8,7 @@ export const MODEL_SELECTOR_TAGS = MODEL_DISPLAY_TAGS
 
 export type ModelSelectorTag = ModelDisplayTag
 
+// SAFETY: ModelSelectorTag derives from this complete tuple; mapping every tag creates every required key.
 const initialTagSelection = Object.fromEntries(MODEL_SELECTOR_TAGS.map((tag) => [tag, false])) as Record<
   ModelSelectorTag,
   boolean
