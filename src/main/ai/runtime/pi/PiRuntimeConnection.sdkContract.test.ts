@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, copyFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, copyFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -60,6 +60,36 @@ async function createSession(excludeTools?: string[]) {
 }
 
 describe('Pi managed Bash SDK contract', () => {
+  it('preserves a staging directory failure after reading valid source history', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'cherry-pi-fork-staging-failure-'))
+    directories.push(directory)
+    const sessions = path.join(directory, 'sessions')
+    await mkdir(sessions)
+    const originalPath = application.getPath.bind(application)
+    vi.spyOn(application, 'getPath').mockImplementation((key, ...args) =>
+      key === 'feature.agents.pi.sessions' ? sessions : originalPath(key, ...args)
+    )
+    const manager = SessionManager.create(directory, sessions)
+    const leafId = manager.appendMessage({ role: 'user', content: 'RETAINED_SOURCE', timestamp: 1 })
+    manager.flush()
+    const file = manager.getSessionFile()!
+    const source = await readFile(file)
+    const checkpoint = { runtime: 'pi' as const, runtimeSessionId: manager.getSessionId(), leafId }
+
+    await expect(
+      forkPiSession({
+        sourceSessionId: 'source',
+        checkpoint,
+        checkpoints: [checkpoint],
+        targetSessionId: 'child',
+        targetCwd: directory,
+        artifactDirectory: path.join(directory, 'missing-parent', 'operation'),
+        signal: new AbortController().signal
+      })
+    ).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await readFile(file)).toEqual(source)
+  })
+
   it.each([
     { duplicate: false, compacted: false },
     { duplicate: true, compacted: false },

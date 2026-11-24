@@ -10,24 +10,24 @@ import { loadPiSdk } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 
 export async function forkPiSession(input: RuntimeForkInput): Promise<RuntimeForkResult> {
-  return readNativeForkHistory(() => preparePiFork(input))
-}
-
-async function preparePiFork(input: RuntimeForkInput): Promise<RuntimeForkResult> {
   const checkpoint = parsePiForkCheckpoint(input.checkpoint)
 
   if (!/^[a-zA-Z0-9-]+$/.test(checkpoint.runtimeSessionId)) throw new AgentSessionForkError('history_corrupt')
   const sessions = application.getPath('feature.agents.pi.sessions')
-  const sourceFile = resolveResumeTokenSessionFile(checkpoint.runtimeSessionId, sessions)
+  const source = await readNativeForkHistory(async () => {
+    const sourceFile = resolveResumeTokenSessionFile(checkpoint.runtimeSessionId, sessions)
 
-  if (!sourceFile) throw new AgentSessionForkError('history_missing')
-  const source = await readForkPrefix(sourceFile)
+    if (!sourceFile) throw new AgentSessionForkError('history_missing')
+    const prefix = await readForkPrefix(sourceFile)
 
-  // The SDK tolerates malformed trailing lines; a fork must not silently omit history.
-  for (const line of source.toString('utf8').trimEnd().split('\n')) JSON.parse(line)
+    // The SDK tolerates malformed trailing lines; a fork must not silently omit history.
+    for (const line of prefix.toString('utf8').trimEnd().split('\n')) JSON.parse(line)
 
-  if (!source.equals(await readForkPrefix(sourceFile, source.length)))
-    throw new AgentSessionForkError('history_changed')
+    if (!prefix.equals(await readForkPrefix(sourceFile, prefix.length)))
+      throw new AgentSessionForkError('history_changed')
+
+    return prefix
+  })
   const directory = path.join(input.artifactDirectory, 'pi')
   await mkdir(directory, { recursive: false })
   const snapshotFile = path.join(directory, 'source.jsonl')
