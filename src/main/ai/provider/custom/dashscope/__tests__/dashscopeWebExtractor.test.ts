@@ -3,6 +3,26 @@ import { describe, expect, it } from 'vitest'
 import { appendDashScopeWebExtractor } from '../dashscopeWebExtractor'
 
 describe('appendDashScopeWebExtractor', () => {
+  it.each(['null', 'true', '17', '"request"', '[]', '{"tools":null}'])(
+    'passes through unsupported JSON bodies: %s',
+    (body) => {
+      expect(appendDashScopeWebExtractor(body)).toBe(body)
+    }
+  )
+
+  it('preserves unknown tool slots and request fields while appending the extractor', () => {
+    const body =
+      '{"tools":[null,"extension",7,{"type":"web_search","custom":true}],"reasoning":17,"__proto__":{"opaque":true},"extension":{"value":0}}'
+    const out = JSON.parse(appendDashScopeWebExtractor(body) as string)
+
+    expect(out).toEqual(
+      JSON.parse(
+        '{"tools":[null,"extension",7,{"type":"web_search","custom":true},{"type":"web_extractor"}],"reasoning":17,"__proto__":{"opaque":true},"extension":{"value":0}}'
+      )
+    )
+    expect(Object.hasOwn(out, '__proto__')).toBe(true)
+  })
+
   it('appends web_extractor alongside web_search when thinking is enabled', () => {
     const body = JSON.stringify({ model: 'qwen3.7-max', tools: [{ type: 'web_search' }] })
     const out = JSON.parse(appendDashScopeWebExtractor(body) as string)

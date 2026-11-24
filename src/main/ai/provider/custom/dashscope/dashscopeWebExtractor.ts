@@ -1,5 +1,3 @@
-import type { JSONObject } from '@ai-sdk/provider'
-
 /**
  * DashScope's `web_extractor` server tool (help.aliyun.com/zh/model-studio/web-extractor) is a
  * Responses tool that fetches full page content. Two constraints shape delivery:
@@ -22,16 +20,23 @@ export function appendDashScopeWebExtractor(body: BodyInit | null | undefined): 
   if (typeof body !== 'string') return body
 
   try {
-    const json = JSON.parse(body) as JSONObject
+    const json: unknown = JSON.parse(body)
 
-    if (!Array.isArray(json.tools)) return body
-    const tools = json.tools as Array<{ type?: string }>
-    const hasTool = (type: string) => tools.some((tool) => tool?.type === type)
+    if (typeof json !== 'object' || json === null || !('tools' in json) || !Array.isArray(json.tools)) return body
+    const tools: unknown[] = json.tools
+    const hasTool = (type: string) =>
+      tools.some((tool) => typeof tool === 'object' && tool !== null && 'type' in tool && tool.type === type)
 
     if (!hasTool('web_search') || hasTool('web_extractor')) return body
 
     // web_extractor requires thinking; a request that disabled it must keep web_search only.
-    if (isThinkingDisabled(json)) return body
+    const reasoning = 'reasoning' in json ? json.reasoning : undefined
+
+    if (
+      ('enable_thinking' in json && json.enable_thinking === false) ||
+      (typeof reasoning === 'object' && reasoning !== null && 'effort' in reasoning && reasoning.effort === 'none')
+    )
+      return body
 
     return JSON.stringify({
       ...json,
@@ -40,11 +45,4 @@ export function appendDashScopeWebExtractor(body: BodyInit | null | undefined): 
   } catch {
     return body
   }
-}
-
-/** Whether the request explicitly turned thinking off (responses `reasoning.effort` / chat `enable_thinking`). */
-function isThinkingDisabled(body: JSONObject): boolean {
-  if (body.enable_thinking === false) return true
-
-  return (body.reasoning as { effort?: unknown } | undefined)?.effort === 'none'
 }
