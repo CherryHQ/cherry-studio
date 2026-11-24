@@ -209,13 +209,13 @@ async function validateImage(normalized: FileUIPart): Promise<FileUIPart | null>
         if (!resizedOversized) return normalized
         return { ...normalized, url: `data:${normalized.mediaType};base64,${workingBytes.toString('base64')}` }
       }
-      if (padW * padH * (metadata.pages ?? 1) > MAX_ATTACHMENT_IMAGE_PIXELS) {
-        throw new Error('Padded image exceeds the pixel budget')
-      }
       const horizontal = padW - workingWidth
       const vertical = padH - workingHeight
       let padded: Buffer
       try {
+        if (padW * padH * (metadata.pages ?? 1) > MAX_ATTACHMENT_IMAGE_PIXELS) {
+          throw new Error('Padded image exceeds the pixel budget')
+        }
         padded = await sharp(workingBytes, {
           failOn: 'error',
           limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS,
@@ -232,13 +232,19 @@ async function validateImage(normalized: FileUIPart): Promise<FileUIPart | null>
           .toBuffer()
       } catch (error) {
         // A padding failure after a successful downscale must not re-expose the
-        // original oversized pixels; send the resized image instead.
+        // original oversized pixels, and the unpadded downscale still violates
+        // the minimum edge, so use the existing file failure note.
         if (resizedOversized) {
-          logger.warn('Could not pad a downscaled image attachment; sending the resized image', {
-            filename: normalized.filename,
-            reason: error instanceof Error ? error.message : String(error)
-          })
-          return { ...normalized, url: `data:${normalized.mediaType};base64,${workingBytes.toString('base64')}` }
+          logger.warn(
+            'Could not pad a downscaled image attachment within both provider bounds; using the existing file failure note',
+            {
+              filename: normalized.filename,
+              mediaType: normalized.mediaType,
+              limit: MAX_ATTACHMENT_IMAGE_EDGE,
+              reason: error instanceof Error ? error.message : String(error)
+            }
+          )
+          return null
         }
         throw error
       }

@@ -237,6 +237,55 @@ describe('attachment image padding', () => {
     }
   })
 
+  // Distinct background colors keep each fixture's bytes unique so the
+  // per-image decision cache cannot replay another test's outcome.
+  const uniqueInput = async (red: number) =>
+    sharp({ create: { width: 4, height: 4, channels: 4, background: { r: red, g: 34, b: 56, alpha: 0.5 } } })
+      .png()
+      .toBuffer()
+
+  it('emits the failure note when a thin many-frame animation cannot be padded within the pixel budget after downscale', async () => {
+    const part = partFor(await uniqueInput(201))
+    // 8400x8 with 820 frames: the 8192x7 downscale fits the pixel budget, but
+    // padding to 8192x15 would exceed it, and 8192x7 violates the minimum
+    // edge, so neither bound can be met and the named failure note must win
+    // over returning the oversized original.
+    const metadata = vi.spyOn(sharp.prototype, 'metadata').mockResolvedValueOnce({
+      format: 'png',
+      width: 8400,
+      height: 8,
+      pageHeight: 8,
+      pages: 820
+    })
+    try {
+      expect(await materializeNativeFilePart(part)).toBeNull()
+    } finally {
+      metadata.mockRestore()
+    }
+  })
+
+  it('emits the failure note when encoding fails after a downscale that left a sub-minimum edge', async () => {
+    const part = partFor(await uniqueInput(202))
+    const metadata = vi.spyOn(sharp.prototype, 'metadata').mockResolvedValueOnce({
+      format: 'png',
+      width: 9000,
+      height: 10,
+      pageHeight: 10,
+      pages: 1
+    })
+    const extend = vi.spyOn(sharp.prototype, 'extend').mockImplementationOnce(() => {
+      throw new Error('encoder failed')
+    })
+    try {
+      // The 8192x9 downscale violates the minimum edge; the original violates
+      // the maximum, so the named failure note wins over both fallbacks.
+      expect(await materializeNativeFilePart(part)).toBeNull()
+    } finally {
+      extend.mockRestore()
+      metadata.mockRestore()
+    }
+  })
+
   it('preserves both animation frames and their timing', async () => {
     const raw = Buffer.concat([Buffer.alloc(4 * 4 * 3, 40), Buffer.alloc(4 * 4 * 3, 200)])
     const bytes = await sharp(raw, { raw: { width: 4, height: 8, channels: 3, pageHeight: 4 } })
