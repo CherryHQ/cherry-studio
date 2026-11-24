@@ -207,7 +207,7 @@ describe('MediaAnalysisService', () => {
         output: TranscriptionOutputKind.Final,
         options: { language: 'en-US' }
       },
-      undefined
+      expect.any(AbortSignal)
     )
     expect(await readdir(runtime.tempRoot)).toEqual([])
   })
@@ -1263,6 +1263,81 @@ describe('MediaAnalysisService', () => {
       expect(runtime.generateText).toHaveBeenCalledTimes(4)
       expect(third.visuals).toHaveLength(7)
       expect(third.visuals?.every((frame) => frame.summary === 'kept')).toBe(true)
+    })
+  })
+
+  describe('concurrent sends of one attachment', () => {
+    let answerVision!: () => void
+
+    beforeEach(() => {
+      runtime.config = { ...runtime.config, asr: null, vision: visionExecution() }
+      runtime.probe.mockResolvedValue({
+        durationMs: 60_000,
+        hasAudio: false,
+        hasVideo: true,
+        mime: 'video/mp4',
+        kind: 'video'
+      })
+      runtime.extractFrames.mockImplementation(async ({ outputDir, timestampsMs }) => ({
+        frames: await Promise.all(
+          timestampsMs.map(async (timestampMs: number) => {
+            const path = join(outputDir, `frame-${timestampMs}.jpg`)
+            await writeFile(path, Buffer.from(`jpeg-${timestampMs}`))
+            return { path, timestampMs }
+          })
+        )
+      }))
+      const answered = new Promise<void>((resolve) => (answerVision = resolve))
+      runtime.generateText.mockImplementation(
+        async (
+          _providerId: string,
+          _settings: unknown,
+          request: { abortSignal?: AbortSignal; messages: Array<{ content: Array<{ type: string; text?: string }> }> }
+        ) => {
+          await new Promise<void>((resolve, reject) => {
+            void answered.then(resolve)
+            request.abortSignal?.addEventListener('abort', () => reject(request.abortSignal?.reason), { once: true })
+          })
+          const lines = request.messages[0].content.flatMap((part) =>
+            part.type === 'text' && part.text?.startsWith('FRAME_') ? [`${part.text}: slide`] : []
+          )
+          return { text: lines.join('\n') }
+        }
+      )
+    })
+
+    it('sends the frames to the vision model once for every model of a multi-model turn', async () => {
+      const stages: string[][] = [[], []]
+      const first = service.analyze(file, undefined, { onProgress: (progress) => stages[0].push(progress.stage) })
+      const second = service.analyze(file, undefined, { onProgress: (progress) => stages[1].push(progress.stage) })
+      await vi.waitFor(() => expect(runtime.generateText).toHaveBeenCalledTimes(1))
+      answerVision()
+
+      const analyses = await Promise.all([first, second])
+
+      expect(runtime.generateText).toHaveBeenCalledTimes(1)
+      for (const analysis of analyses) {
+        expect(analysis.visuals?.length).toBeGreaterThan(0)
+        expect(analysis.visuals?.every((frame) => frame.summary === 'slide')).toBe(true)
+      }
+      expect(stages[0]).toContain('describing_frames')
+      expect(stages[1]).toContain('describing_frames')
+    })
+
+    it('keeps the shared analysis running for the other model when one send is cancelled', async () => {
+      const controller = new AbortController()
+      const cancelled = service.analyze(file, controller.signal)
+      const kept = service.analyze(file)
+      await vi.waitFor(() => expect(runtime.generateText).toHaveBeenCalledTimes(1))
+
+      controller.abort()
+      await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+      answerVision()
+      const analysis = await kept
+
+      expect(runtime.generateText).toHaveBeenCalledTimes(1)
+      expect(analysis.visuals?.length).toBeGreaterThan(0)
+      expect(analysis.visuals?.every((frame) => frame.summary === 'slide')).toBe(true)
     })
   })
 

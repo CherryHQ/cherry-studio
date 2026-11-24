@@ -80,26 +80,17 @@ export class MediaAnalysisService extends BaseService {
   }
 
   /** In-flight `prepare` passes by file, so a send waits for one instead of repeating its local work. */
-  private readonly localPasses = new Map<string, LocalPass>()
+  private readonly localPasses = new Map<string, InFlightPass<void>>()
+  /** In-flight sends by full-analysis key, so concurrent sends (one per model of a turn) pay for vision once. */
+  private readonly sharedAnalyses = new Map<string, SharedAnalysis>()
 
   async analyze(file: FileHandle, signal?: AbortSignal, options: MediaAnalysisOptions = {}): Promise<MediaAnalysis> {
     signal?.throwIfAborted()
     const fileInfo = await resolveFileProcessingFileInfo(file)
     const contentKey = await contentKeyOf(file, fileInfo, signal)
     const pending = this.localPasses.get(contentKey)
-    if (pending) {
-      // The waiting send shows the running pass's progress instead of a silent wait.
-      const { onProgress } = options
-      if (onProgress) {
-        if (pending.last) onProgress(pending.last)
-        pending.listeners.add(onProgress)
-      }
-      try {
-        await settledUnlessAborted(pending.done, signal)
-      } finally {
-        if (onProgress) pending.listeners.delete(onProgress)
-      }
-    }
+    // The waiting send shows the running pass's progress instead of a silent wait.
+    if (pending) await follow(pending, signal, options.onProgress)
     return this.analyzeFile(file, fileInfo, contentKey, signal, options, false)
   }
 
@@ -118,7 +109,7 @@ export class MediaAnalysisService extends BaseService {
       pass.last = progress
       for (const listener of listeners) listener(progress)
     }
-    const pass: LocalPass = {
+    const pass: InFlightPass<void> = {
       listeners,
       done: this.analyzeFile(file, fileInfo, contentKey, signal, { onProgress }, true).then(
         () => undefined,
@@ -157,6 +148,60 @@ export class MediaAnalysisService extends BaseService {
     const cached = cache.get<unknown>(cacheKey)
     if (isMediaAnalysis(cached)) return cached
 
+    const run = (runSignal: AbortSignal | undefined, onProgress?: (progress: MediaAnalysisProgress) => void) =>
+      this.analyzeUncached(file, fileInfo, contentKey, execution, cacheKey, localOnly, runSignal, onProgress)
+    if (localOnly) return run(signal, options.onProgress)
+    return this.shareAnalysis(cacheKey, run, signal, options.onProgress)
+  }
+
+  /** Runs `run` once for every concurrent caller of `cacheKey`; the work is cancelled only when all have aborted. */
+  private async shareAnalysis(
+    cacheKey: string,
+    run: (signal: AbortSignal, onProgress: (progress: MediaAnalysisProgress) => void) => Promise<MediaAnalysis>,
+    signal: AbortSignal | undefined,
+    onProgress: ((progress: MediaAnalysisProgress) => void) | undefined
+  ): Promise<MediaAnalysis> {
+    let shared = this.sharedAnalyses.get(cacheKey)
+    if (!shared || shared.controller.signal.aborted) {
+      const controller = new AbortController()
+      const listeners = new Set<(progress: MediaAnalysisProgress) => void>()
+      const entry: SharedAnalysis = {
+        controller,
+        listeners,
+        callers: 0,
+        done: run(controller.signal, (progress) => {
+          entry.last = progress
+          for (const listener of listeners) listener(progress)
+        }).finally(() => {
+          if (this.sharedAnalyses.get(cacheKey) === entry) this.sharedAnalyses.delete(cacheKey)
+        })
+      }
+      this.sharedAnalyses.set(cacheKey, entry)
+      shared = entry
+    }
+    shared.callers += 1
+    try {
+      return await follow(shared, signal, onProgress)
+    } finally {
+      // The last caller to give up cancels the work and waits for its cleanup, as an unshared run would.
+      if (--shared.callers === 0 && signal?.aborted) {
+        shared.controller.abort(signal.reason)
+        await shared.done.catch(() => undefined)
+      }
+    }
+  }
+
+  private async analyzeUncached(
+    file: FileHandle,
+    fileInfo: FileInfo,
+    contentKey: string,
+    execution: MediaExecutionConfig,
+    cacheKey: string,
+    localOnly: boolean,
+    signal: AbortSignal | undefined,
+    onProgress: ((progress: MediaAnalysisProgress) => void) | undefined
+  ): Promise<MediaAnalysis> {
+    const cache = application.get('CacheService')
     // Stages key by content: a pre-analysis runs on the picked file, the send on its stored copy.
     const stageKey = (stage: string, identity: unknown) =>
       `media-analysis:${stage}:${contentKey}:${hashIdentity({ identity, pipelineVersion: execution.pipelineVersion })}`
@@ -170,15 +215,7 @@ export class MediaAnalysisService extends BaseService {
     const jobDir = application.getPath('app.temp', `media-analysis-${randomUUID()}`)
     await mkdir(jobDir, { recursive: true })
     try {
-      const analysis = await this.runAnalysis(
-        fileInfo.path,
-        fileInfo.ext,
-        jobDir,
-        execution,
-        keys,
-        signal,
-        options.onProgress
-      )
+      const analysis = await this.runAnalysis(fileInfo.path, fileInfo.ext, jobDir, execution, keys, signal, onProgress)
       logger.info('Media analysis finished', {
         localOnly,
         durationMs: Date.now() - startedAt,
@@ -569,10 +606,15 @@ function assignSummaries(
   for (const frame of batch) answered.set(frame.timestampMs, parsed.get(frame.timestampMs) ?? null)
 }
 
-interface LocalPass {
-  done: Promise<void>
+interface InFlightPass<T> {
+  done: Promise<T>
   listeners: Set<(progress: MediaAnalysisProgress) => void>
   last?: MediaAnalysisProgress
+}
+
+interface SharedAnalysis extends InFlightPass<MediaAnalysis> {
+  controller: AbortController
+  callers: number
 }
 
 interface StageCacheKeys {
@@ -631,16 +673,30 @@ function hashIdentity(identity: unknown): string {
   return createHash('sha256').update(JSON.stringify(identity)).digest('hex').slice(0, 24)
 }
 
-async function settledUnlessAborted(pending: Promise<void>, signal?: AbortSignal): Promise<void> {
+/** Waits for an in-flight pass, replaying its latest stage and forwarding later ones to `onProgress`. */
+async function follow<T>(
+  pass: InFlightPass<T>,
+  signal: AbortSignal | undefined,
+  onProgress: ((progress: MediaAnalysisProgress) => void) | undefined
+): Promise<T> {
+  if (onProgress) {
+    if (pass.last) onProgress(pass.last)
+    pass.listeners.add(onProgress)
+  }
+  try {
+    return await settledUnlessAborted(pass.done, signal)
+  } finally {
+    if (onProgress) pass.listeners.delete(onProgress)
+  }
+}
+
+async function settledUnlessAborted<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return pending
   signal.throwIfAborted()
-  await new Promise<void>((resolve, reject) => {
+  return new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(signal.reason)
     signal.addEventListener('abort', onAbort, { once: true })
-    void pending.finally(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    })
+    void pending.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort))
   })
 }
 
