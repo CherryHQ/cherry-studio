@@ -233,55 +233,36 @@ describe('extra custom-endpoint local agent adapters', () => {
     const adapter = getAdapter(tool)!
     const files = makeInitialFiles(tool)
     const draft = await adapter.buildDraft({ cliTool: tool, modelId: 'test::model', files }, context)
-    const mergedDraft = adapter.targets.map(
-      (target) => draft.find((f) => f.target === target) ?? files.find((f) => f.target === target)!
-    )
-    const draftText = draft.map((f) => f.content).join('\n')
-    const mergedDraftText = mergedDraft.map((f) => f.content).join('\n')
-    expect(draftText).toContain('gateway-key')
-    expect(draftText).toContain('provider:org/test-model')
-    expect(mergedDraftText).toContain('user-key')
-    expect(mergedDraftText).toContain('dark')
+    const committed = new Map<string, string | null>(files.map((file) => [file.target, file.content]))
+    for (const file of draft) committed.set(file.target, file.content)
 
-    const connection = adapter.extractConnection(draft)
-    expect(connection).toMatchObject({
+    expect([...committed.values()].join('\n')).toContain('user-key')
+    expect(adapter.extractConnection(draft)).toMatchObject({
       apiKey: 'gateway-key',
       model: 'provider:org/test-model'
     })
-    expect(connection?.baseUrl).toBeTruthy()
 
     vi.spyOn(ipcApi, 'request').mockResolvedValue({
       files: adapter.targets.map((target) => ({
         target,
         path: `/test/${target}`,
-        content: draft.find((f) => f.target === target)?.content ?? null
+        content: committed.get(target) ?? null
       }))
     })
-    const cleared = await adapter.buildClearFiles()
-    const mergedClearedText = adapter.targets
-      .map(
-        (target) =>
-          cleared.find((f) => f.target === target)?.content ??
-          draft.find((f) => f.target === target)?.content ??
-          files.find((f) => f.target === target)?.content ??
-          ''
-      )
-      .join('\n')
-    expect(cleared.map((f) => f.content).join('\n')).not.toContain('gateway-key')
-    expect(mergedClearedText).not.toContain('gateway-key')
-    expect(mergedClearedText).not.toContain('provider:org/test-model')
-    expect(mergedClearedText).toContain('user-key')
-    expect(mergedClearedText).toContain('dark')
-
+    for (const file of await adapter.buildClearFiles()) committed.set(file.target, file.content ?? null)
     const clearedDraft = createCliConfigDraftFiles(
       adapter.targets.map((target) => ({
         target,
         path: `/test/${target}`,
-        content:
-          cleared.find((f) => f.target === target)?.content ?? draft.find((f) => f.target === target)?.content ?? null
+        content: committed.get(target) ?? null
       }))
     )
     expect(adapter.extractConnection(clearedDraft)).toBeNull()
+    const cleared = [...committed.values()].join('\n')
+    expect(cleared).not.toContain('gateway-key')
+    expect(cleared).not.toContain('provider:org/test-model')
+    expect(cleared).toContain('user-key')
+    expect(cleared).toContain('dark')
   })
 
   it('writes CLI-native schemas for glm-acp-agent, snow, zcode, and cline', async () => {

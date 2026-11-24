@@ -27,6 +27,15 @@ beforeEach(() => {
   vi.stubGlobal('crypto', webcrypto)
 })
 
+async function replaceCredentials() {
+  const view = renderHook(({ config }) => useLocalAgentModelCatalog('agent-one', config, true), {
+    initialProps: { config }
+  })
+  await waitFor(() => expect(view.result.current.loading).toBe(true))
+  view.rerender({ config: { ...config, env: { API_KEY: 'another-secret' } } })
+  return view.result
+}
+
 describe('local agent model catalog cache', () => {
   it('loads on demand even before hashing completes, and remembers an empty result', async () => {
     vi.mocked(ipcApi.request).mockResolvedValueOnce({ models: [] })
@@ -79,41 +88,26 @@ describe('local agent model catalog cache', () => {
   })
 
   it('isolates configuration changes and does not let an old request replace the new catalog', async () => {
-    let resolveOld!: (value: LocalAgentModelCatalog) => void
-    vi.mocked(ipcApi.request)
-      .mockImplementationOnce(() => new Promise((done) => (resolveOld = done)))
-      .mockResolvedValueOnce(second)
-    const { result, rerender } = renderHook(({ config }) => useLocalAgentModelCatalog('agent-one', config, true), {
-      initialProps: { config }
-    })
-    await waitFor(() => expect(result.current.loading).toBe(true))
-    rerender({ config: { ...config, env: { API_KEY: 'another-secret' } } })
+    const old = Promise.withResolvers<LocalAgentModelCatalog>()
+    vi.mocked(ipcApi.request).mockReturnValueOnce(old.promise).mockResolvedValueOnce(second)
+    const result = await replaceCredentials()
     await waitFor(() => expect(result.current.catalog).toEqual(second))
-    await act(async () => resolveOld(first))
+    await act(async () => old.resolve(first))
     expect(result.current.catalog).toEqual(second)
     expect(result.current.freshCatalog).toEqual(second)
     expect(JSON.stringify(cacheService.getPersist('local_agent.model_catalogs'))).not.toContain('another-secret')
   })
 
   it('does not replace the current connection error with a late failure from old credentials', async () => {
-    let rejectOld!: (error: Error) => void
+    const old = Promise.withResolvers<LocalAgentModelCatalog>()
     vi.mocked(ipcApi.request)
-      .mockImplementationOnce(
-        () =>
-          new Promise((_resolve, reject) => {
-            rejectOld = reject
-          })
-      )
+      .mockReturnValueOnce(old.promise)
       .mockRejectedValueOnce(new Error('Authentication required'))
-    const { result, rerender } = renderHook(({ config }) => useLocalAgentModelCatalog('one', config, true), {
-      initialProps: { config }
-    })
-    await waitFor(() => expect(result.current.loading).toBe(true))
-    rerender({ config: { ...config, env: { API_KEY: 'new' } } })
+    const result = await replaceCredentials()
     await waitFor(() => expect(result.current.error).toContain('Authentication required'))
     expect(result.current.catalog).toBeUndefined()
     expect(result.current.loading).toBe(false)
-    await act(async () => rejectOld(new Error('Old connection timed out')))
+    await act(async () => old.reject(new Error('Old connection timed out')))
     expect(result.current.error).toContain('Authentication required')
   })
 

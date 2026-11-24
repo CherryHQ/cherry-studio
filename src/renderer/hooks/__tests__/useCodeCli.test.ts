@@ -100,11 +100,11 @@ describe('useCodeCli', () => {
       expect(result.current.currentProviderConfig?.modelId).toBe('openai::gpt-5')
 
       await act(async () => {
-        await result.current.setTerminal('terminal')
+        await result.current.setCurrentProvider(null)
       })
       expect(lastWrite(mockSetter)).toEqual({
         'claude-code': claudeState,
-        'openai-codex': { ...codexState, terminal: 'terminal' }
+        'openai-codex': { ...codexState, current: null }
       })
     })
   })
@@ -126,38 +126,6 @@ describe('useCodeCli', () => {
       const { result } = renderHook(() => useCodeCli())
       expect(result.current.currentProviderId).toBeNull()
       expect(result.current.currentProviderConfig).toBeNull()
-    })
-  })
-
-  describe('reorderProviders', () => {
-    it('should write sortIndex to each provider entry', async () => {
-      const mockSetter = setupUpdaterMock({
-        'claude-code': state({ anthropic: cfg(), openrouter: cfg({ modelId: 'openrouter::x' }) }, 'anthropic')
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.reorderProviders(['openrouter', 'anthropic'])
-      })
-
-      const toolState = lastToolState(mockSetter)
-      expect(toolState.providers['openrouter']?.sortIndex).toBe(0)
-      expect(toolState.providers['anthropic']?.sortIndex).toBe(1)
-    })
-
-    it('should not fabricate missing provider configs while reordering', async () => {
-      const mockSetter = setupUpdaterMock({
-        'claude-code': state({ anthropic: cfg() }, 'anthropic')
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.reorderProviders(['openrouter', 'anthropic'])
-      })
-
-      const toolState = lastToolState(mockSetter)
-      expect(toolState.providers['openrouter']).toBeUndefined()
-      expect(toolState.providers['anthropic']?.sortIndex).toBe(1)
     })
   })
 
@@ -281,15 +249,15 @@ describe('useCodeCli', () => {
       const { result } = renderHook(() => useCodeCli())
       const failure = new Error('Preference write failed')
 
-      const failed = result.current.setDirectory('/project')
-      const next = result.current.setTerminal('zsh')
+      const failed = result.current.upsertProviderConfig('anthropic', { modelId: 'anthropic::claude-4' })
+      const next = result.current.setCurrentProvider('anthropic')
       const rejection = expect(failed).rejects.toBe(failure)
       await act(async () => {
         firstWrite.reject(failure)
         await Promise.all([rejection, next])
       })
 
-      expect(lastToolState(mockSetter).terminal).toBe('zsh')
+      expect(lastToolState(mockSetter).current).toBe('anthropic')
     })
   })
 
@@ -373,21 +341,6 @@ describe('useCodeCli', () => {
       })
 
       expect(lastToolState(mockSetter).providers['anthropic']?.modelId).toBeNull()
-    })
-  })
-
-  describe('setDirectory', () => {
-    it('should set the tool-level directory', async () => {
-      const mockSetter = setupUpdaterMock({
-        'claude-code': state({ anthropic: cfg() }, 'anthropic')
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.setDirectory('/new/project')
-      })
-
-      expect(lastToolState(mockSetter).directory).toBe('/new/project')
     })
   })
 })

@@ -23,13 +23,8 @@ export interface ResolveLaunchModelIdArgs {
 }
 
 /**
- * Resolve the configured model id for a managed-tool launch (DeepSeek Harness /
- * OpenClaw). Returns null when no usable selection exists — after handling the
- * failure itself: a missing provider/modelId only toasts; an unparseable
- * modelId is treated as corrupt state and additionally clears the modelId and
- * the provider selection. (`useLaunchDialogController` keeps its own variant:
- * it validates the apply context, not the modelId, and preserves gateway
- * selections for retry.)
+ * Resolve the managed tool's launch model. An invalid stored ID clears the saved
+ * model and provider selection so the user can configure them again.
  */
 export async function resolveLaunchModelId({
   enabledProvider,

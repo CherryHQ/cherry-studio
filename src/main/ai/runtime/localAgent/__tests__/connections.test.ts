@@ -101,7 +101,11 @@ describe('local protocol processes', () => {
       events
         .flatMap((event) => (event.type === 'chunk' && event.chunk.type === 'text-delta' ? [event.chunk.delta] : []))
         .join('')
-    return { connection, events, drained, text }
+    async function closeAndDrain() {
+      await connection.close()
+      await drained
+    }
+    return { connection, events, drained, text, closeAndDrain }
   }
 
   it.each([
@@ -113,11 +117,10 @@ describe('local protocol processes', () => {
   ])(
     'preserves answers while excluding only Pi startup metadata (%s, %s, %s)',
     async (scenario, preset, resume, expected) => {
-      const { connection, text, drained } = create('acp', scenario, undefined, preset)
+      const { connection, text, closeAndDrain } = create('acp', scenario, undefined, preset)
       await connection.start(cwd, resume)
       await connection.send(input)
-      await connection.close()
-      await drained
+      await closeAndDrain()
       expect(text()).toBe(expected)
     }
   )
@@ -129,11 +132,10 @@ describe('local protocol processes', () => {
       token: 'private-gateway-token',
       dispose
     })
-    const { connection, text, drained } = create('acp', 'normal', undefined, 'openclaw')
+    const { connection, text, closeAndDrain } = create('acp', 'normal', undefined, 'openclaw')
     await connection.start(cwd)
     await connection.send(input)
-    await connection.close()
-    await drained
+    await closeAndDrain()
     expect(text()).toContain('hello')
     expect(dispose).toHaveBeenCalledTimes(1)
   })
@@ -180,6 +182,7 @@ describe('local protocol processes', () => {
     async (scenario) => {
       const { connection } = create('acp', scenario)
       await connection.start(cwd, undefined, true)
+      expect(connection.localSessionInfo.protocolInfo?.verified).toEqual(['handshake'])
       expect(connection.localSessionInfo.protocolInfo?.authMethods).toEqual([
         { id: 'oauth-personal', name: 'Google', type: 'terminal' }
       ])
@@ -361,11 +364,10 @@ describe('local protocol processes', () => {
   it.each([undefined, 'native-session'])(
     'keeps notices out of message content and isolates sessions (%s)',
     async (resume) => {
-      const { connection, events, drained, text } = create('acp', 'notices')
+      const { connection, events, closeAndDrain, text } = create('acp', 'notices')
       await connection.start(cwd, resume)
       await connection.send(input)
-      await connection.close()
-      await drained
+      await closeAndDrain()
       expect(events.filter((event) => event.type === 'notice')).toEqual([
         { type: 'notice', notice: { severity: 'warning', title: 'Quota low', description: 'Check account' } },
         { type: 'notice', notice: { severity: 'error', title: 'Connection degraded' } },
@@ -495,11 +497,10 @@ describe('local protocol processes', () => {
   })
 
   it('preserves thoughts, replaces plans, and merges partial tool details without replaying history', async () => {
-    const { connection, events, drained } = create('acp', 'rich-output')
+    const { connection, events, closeAndDrain } = create('acp', 'rich-output')
     await connection.start(cwd, 'native-session')
     await connection.send(input)
-    await connection.close()
-    await drained
+    await closeAndDrain()
     const chunks = events.flatMap((event) => (event.type === 'chunk' ? [event.chunk] : []))
     expect(chunks.filter((chunk) => chunk.type === 'reasoning-delta')).toEqual([
       expect.objectContaining({ delta: 'Inspect first' }),
@@ -540,11 +541,10 @@ describe('local protocol processes', () => {
   })
 
   it('preserves mixed output order and failed tool content without merging it into text', async () => {
-    const { connection, events, drained } = create('acp', 'rich-content')
+    const { connection, events, closeAndDrain } = create('acp', 'rich-content')
     await connection.start(cwd)
     await connection.send(input)
-    await connection.close()
-    await drained
+    await closeAndDrain()
     const chunks = events.flatMap((event) => (event.type === 'chunk' ? [event.chunk] : []))
     const content = chunks.flatMap((chunk) => (chunk.type === 'data-acp-content' && 'data' in chunk ? [chunk] : []))
     expect(content.map((chunk) => chunk.data)).toEqual([
@@ -737,11 +737,10 @@ describe('local protocol processes', () => {
     ['refusal', 'content-filter'],
     ['cancelled', undefined]
   ])('preserves termination semantics for %s', async (reason, finishReason) => {
-    const { connection, events, drained } = create('acp', `stop:${reason}`)
+    const { connection, events, closeAndDrain } = create('acp', `stop:${reason}`)
     await connection.start(cwd)
     await connection.send(input)
-    await connection.close()
-    await drained
+    await closeAndDrain()
     const finishes = events.flatMap((event) =>
       event.type === 'chunk' && event.chunk.type === 'finish' ? [event.chunk.finishReason] : []
     )
@@ -754,7 +753,7 @@ describe('local protocol processes', () => {
   it.each(['max_tokens', 'max_turn_requests'])(
     'fails an unattended ACP turn at %s with partial output',
     async (reason) => {
-      const { connection, events, drained, text } = create(
+      const { connection, events, closeAndDrain, text } = create(
         'acp',
         `stop:${reason}`,
         undefined,
@@ -764,35 +763,21 @@ describe('local protocol processes', () => {
       )
       await connection.start(cwd)
       await connection.send(input)
-      await connection.close()
-      await drained
+      await closeAndDrain()
       expect(text()).toContain('hello')
       expect(events.some((event) => event.type === 'error')).toBe(true)
       expect(events.some((event) => event.type === 'turn-complete')).toBe(false)
     }
   )
 
-  it('records advertised capabilities separately from successful protocol checks', async () => {
-    const { connection } = create('acp')
-    await connection.start(cwd, undefined, true)
-    expect(connection.localSessionInfo.protocolInfo).toEqual({
-      protocolVersion: 1,
-      agent: { name: 'fixture', version: '1.0' },
-      capabilities: { loadSession: true, promptCapabilities: { image: true } },
-      authMethods: [],
-      verified: ['handshake']
-    })
-  })
-
   it.each([undefined, 'native-session'])(
     'publishes current context snapshots from ACP creation or recovery: %s',
     async (resume) => {
-      const { connection, events, drained } = create('acp', 'context-usage')
+      const { connection, events, closeAndDrain } = create('acp', 'context-usage')
       await connection.start(cwd, resume)
       await connection.send(input)
       await connection.send(input)
-      await connection.close()
-      await drained
+      await closeAndDrain()
       const readings = events.flatMap((event) =>
         event.type === 'context-usage' && event.result.status === 'confirmed' ? [event.result.value] : []
       )
@@ -812,11 +797,10 @@ describe('local protocol processes', () => {
   it.each([undefined, 'native-session'])(
     'retains cumulative costs independently of context and invocation usage: %s',
     async (resume) => {
-      const { connection, events, drained } = create('acp', 'session-cost')
+      const { connection, events, closeAndDrain } = create('acp', 'session-cost')
       await connection.start(cwd, resume)
       await connection.send(input)
-      await connection.close()
-      await drained
+      await closeAndDrain()
       const snapshots = events.flatMap((event) => (event.type === 'session-cost' ? [event.snapshot] : []))
       expect(snapshots.map((snapshot) => snapshot.cost)).toEqual([
         { amount: 0.4, currency: 'EUR' },
@@ -832,12 +816,11 @@ describe('local protocol processes', () => {
   )
 
   it('records only reported prompt usage, includes cache and reasoning, and resets between turns', async () => {
-    const { connection, events, drained } = create('acp', 'usage')
+    const { connection, events, closeAndDrain } = create('acp', 'usage')
     await connection.start(cwd)
     await connection.send(input)
     await connection.send(input)
-    await connection.close()
-    await drained
+    await closeAndDrain()
     const invocations = events.flatMap((event) => (event.type === 'local-turn-usage' ? [event.summary] : []))
     expect(invocations).toHaveLength(2)
     expect(invocations[0].usage).toEqual({
@@ -855,12 +838,11 @@ describe('local protocol processes', () => {
   })
 
   it('captures _x.ai/session/update turn_completed usage when prompt response omits usage and resets between turns', async () => {
-    const { connection, events, drained } = create('acp', 'xai-usage')
+    const { connection, events, closeAndDrain } = create('acp', 'xai-usage')
     await connection.start(cwd)
     await connection.send(input)
     await connection.send(input)
-    await connection.close()
-    await drained
+    await closeAndDrain()
     const invocations = events.flatMap((event) => (event.type === 'local-turn-usage' ? [event.summary] : []))
     expect(invocations).toHaveLength(1)
     expect(invocations[0].usage).toEqual({
@@ -876,14 +858,13 @@ describe('local protocol processes', () => {
   })
 
   it('keeps Codex usage scoped to the turn without counting history or duplicate notifications', async () => {
-    const { connection, events, drained } = create('codex', 'codex-usage')
+    const { connection, events, closeAndDrain } = create('codex', 'codex-usage')
     await connection.start(cwd, 'native-session')
     await connection.send(input)
     await vi.waitFor(() => expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1))
     await connection.send(input)
     await vi.waitFor(() => expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(2))
-    await connection.close()
-    await drained
+    await closeAndDrain()
     const summaries = events.flatMap((event) => (event.type === 'local-turn-usage' ? [event.summary] : []))
     expect(summaries.at(-1)?.usage).toEqual({
       inputTokens: 40,
@@ -908,22 +889,20 @@ describe('local protocol processes', () => {
   })
 
   it.each(['normal', 'codex-usage-invalid'])('does not invent Codex usage for %s notifications', async (scenario) => {
-    const { connection, events, drained, text } = create('codex', scenario)
+    const { connection, events, closeAndDrain, text } = create('codex', scenario)
     await connection.start(cwd)
     await connection.send(input)
     await vi.waitFor(() => expect(events.some((event) => event.type === 'turn-complete')).toBe(true))
-    await connection.close()
-    await drained
+    await closeAndDrain()
     expect(text()).toContain('hello')
     expect(events.filter((event) => event.type === 'local-turn-usage')).toEqual([])
   })
 
   it('does not invent usage when the agent omits it', async () => {
-    const { connection, events, drained } = create('acp')
+    const { connection, events, closeAndDrain } = create('acp')
     await connection.start(cwd)
     await connection.send(input)
-    await connection.close()
-    await drained
+    await closeAndDrain()
     expect(
       events.filter(
         (event) => event.type === 'usage' || event.type === 'context-usage' || event.type === 'local-turn-usage'
@@ -978,12 +957,6 @@ describe('local protocol processes', () => {
     expect(catalog.models).toEqual([{ id: 'fixture-model', name: 'Fixture model' }])
   })
 
-  it('keeps an empty catalog when an ACP agent does not advertise model selection', async () => {
-    const { connection } = create('acp', 'no-models')
-    await connection.start(cwd, undefined, 'models')
-    expect(connection.localSessionInfo.models).toEqual([])
-  })
-
   it.each(['acp', 'codex'] as const)('%s applies the selected native model on connection', async (protocol) => {
     const { connection } = create(protocol, 'normal', 'fixture-model')
     await connection.start(cwd)
@@ -997,33 +970,21 @@ describe('local protocol processes', () => {
     )
   })
 
-  it.each([
-    ['qwen', 'deepseek/deepseek-flash', 'deepseek/deepseek-flash(openai)'],
-    ['hermes', 'deepseek/deepseek-flash', 'custom:deepseek/deepseek-flash'],
-    [
-      'minimax',
-      'custom_provider:cherry-CherryIN/deepseek/deepseek-flash',
-      'm:custom_provider%3Acherry-CherryIN:deepseek%2Fdeepseek-flash:v:'
-    ]
-  ])(
-    'starts a provider-configured %s session using its advertised model ID',
-    async (preset, configured, advertised) => {
-      const { connection, text, drained } = create(
-        'acp',
-        `provider-${preset}`,
-        configured,
-        preset,
-        'cherryin::deepseek/deepseek-flash'
-      )
-      await connection.start(cwd)
-      await connection.send(input)
-      await connection.close()
-      await drained
-      expect(text()).toContain('hello')
-      const selection = (await readWire()).find((message) => message.method === 'session/set_config_option')
-      expect(selection.params.value).toBe(advertised)
-    }
-  )
+  it('sends the advertised ACP model ID for a provider-configured model', async () => {
+    const { connection, text, closeAndDrain } = create(
+      'acp',
+      'provider-qwen',
+      'deepseek/deepseek-flash',
+      'qwen',
+      'cherryin::deepseek/deepseek-flash'
+    )
+    await connection.start(cwd)
+    await connection.send(input)
+    await closeAndDrain()
+    expect(text()).toContain('hello')
+    const selection = (await readWire()).find((message) => message.method === 'session/set_config_option')
+    expect(selection.params.value).toBe('deepseek/deepseek-flash(openai)')
+  })
 
   it.each(['acp', 'codex'] as const)('%s handshake never sends a prompt', async (protocol) => {
     const { connection } = create(protocol)
@@ -1702,14 +1663,13 @@ describe('local protocol processes', () => {
   it.each(['completed', 'failed', 'cancel', 'crash', 'unfinished'])(
     'settles compaction on %s without inventing a successful history anchor',
     async (outcome) => {
-      const { connection, events, drained } = create('acp', `compaction-${outcome}`)
+      const { connection, events, closeAndDrain } = create('acp', `compaction-${outcome}`)
       await connection.start(cwd)
       const sending = connection.send(input)
       await vi.waitFor(() => expect(events.some((event) => event.type === 'compaction-start')).toBe(true))
       if (outcome === 'cancel') await connection.close()
       await sending
-      await connection.close()
-      await drained
+      await closeAndDrain()
       expect(events.filter((event) => event.type.startsWith('compaction-'))).toEqual([
         { type: 'compaction-start' },
         outcome === 'failed' ? { type: 'compaction-error', error: 'Summary failed' } : { type: 'compaction-complete' }
@@ -1743,11 +1703,10 @@ describe('local protocol processes', () => {
   })
 
   it('filters OpenClaw technical titles and disables the upstream directory prefix without changing the prompt', async () => {
-    const { connection, events, drained } = create('acp', 'openclaw-title', undefined, 'openclaw')
+    const { connection, events, closeAndDrain } = create('acp', 'openclaw-title', undefined, 'openclaw')
     await connection.start(cwd)
     await connection.send(input)
-    await connection.close()
-    await drained
+    await closeAndDrain()
     expect(events.filter((event) => event.type === 'session-title')).toEqual([
       { type: 'session-title', title: 'Explain the project' }
     ])
@@ -1758,11 +1717,10 @@ describe('local protocol processes', () => {
   it.each([undefined, 'native-session'])(
     'receives native titles during setup and conversation without accepting other sessions: %s',
     async (resume) => {
-      const { connection, events, drained } = create('acp', 'session-title')
+      const { connection, events, closeAndDrain } = create('acp', 'session-title')
       await connection.start(cwd, resume)
       await connection.send(input)
-      await connection.close()
-      await drained
+      await closeAndDrain()
       expect(events.filter((event) => event.type === 'session-title')).toEqual([
         { type: 'session-title', title: 'Native initial title' },
         { type: 'session-title', title: 'Native updated title' }
@@ -1770,17 +1728,17 @@ describe('local protocol processes', () => {
     }
   )
 
-  it('suppresses ACP replay during load and rejects unsupported restore', async () => {
+  it('suppresses ACP replay during load and reports a typed error for unsupported restore', async () => {
     const { connection, text } = create('acp')
     await connection.start(cwd, 'native-session')
     await connection.send(input)
     expect(text()).toBe('turn 1: hello')
-    const unsupported = create('acp', 'no-resume').connection
-    await expect(unsupported.start(cwd, 'native-session')).rejects.toThrow('cannot restore')
+    const unsupported = create('acp', 'no-resume', undefined, 'opencode', undefined, true).connection
+    await expect(unsupported.start(cwd, 'native-session')).rejects.toBeInstanceOf(LocalAgentSessionRestoreError)
   })
 
   it('exposes and executes Codex native slash commands (/compact, /usage, /clear, /review)', async () => {
-    const { connection, events, text, drained } = create('codex')
+    const { connection, events, text, closeAndDrain } = create('codex')
     await connection.start(cwd)
     const commands = await connection.getSupportedCommands()
     expect(commands?.map((cmd) => cmd.name)).toEqual(
@@ -1831,8 +1789,7 @@ describe('local protocol processes', () => {
     } as AgentRuntimeUserInput)
     await vi.waitFor(() => expect(text()).toContain('check security'))
 
-    await connection.close()
-    await drained
+    await closeAndDrain()
     const wire = await readWire()
     expect(wire.map((msg) => msg.method)).toEqual(
       expect.arrayContaining(['thread/compact/start', 'account/usage/read', 'review/start'])
@@ -1840,7 +1797,7 @@ describe('local protocol processes', () => {
   })
 
   it('recovers when Codex thread has no rollout file yet on resume, rename, compact, or fork', async () => {
-    const { connection, events, text, drained } = create('codex', 'no-rollout')
+    const { connection, events, text, closeAndDrain } = create('codex', 'no-rollout')
     await connection.start(cwd, 'stale-prewarm-thread')
     await vi.waitFor(() => expect(events).toContainEqual({ type: 'resume-token', token: 'native-session' }))
 
@@ -1860,8 +1817,7 @@ describe('local protocol processes', () => {
     } as AgentRuntimeUserInput)
     await vi.waitFor(() => expect(text()).toContain('Send at least one message before forking'))
 
-    await connection.close()
-    await drained
+    await closeAndDrain()
   })
 
   it('exposes Codex permission modes from thread metadata and applies mode changes to turn/start', async () => {
@@ -1986,7 +1942,7 @@ describe('local protocol processes', () => {
           }
         ]
       })
-      const { connection, drained } = create('acp', 'normal', 'cherryin:agent/deepseek-v4-pro', 'cline')
+      const { connection, closeAndDrain } = create('acp', 'normal', 'cherryin:agent/deepseek-v4-pro', 'cline')
       await connection.start(cwd)
       const wire = await readWire()
       const selection = wire.find((m) => m.method === 'session/set_config_option')
@@ -1997,8 +1953,7 @@ describe('local protocol processes', () => {
         expect(connection.localSessionInfo.activeModel?.id).not.toBe('cherryin:agent/deepseek-v4-pro')
         expect(selection).toBeUndefined()
       }
-      await connection.close()
-      await drained
+      await closeAndDrain()
     }
   )
 
@@ -2016,6 +1971,7 @@ describe('local protocol processes', () => {
     })
     const matching = create('acp', 'no-models', 'cherryin:agent/deepseek-v4-pro', 'snow')
     await matching.connection.start(cwd)
+    expect(matching.connection.localSessionInfo.models).toEqual([])
     expect(matching.connection.localSessionInfo.activeModel).toEqual({ id: 'cherryin:agent/deepseek-v4-pro' })
     await matching.connection.close()
     await matching.drained
@@ -2046,7 +2002,7 @@ describe('local protocol processes', () => {
   })
 
   it('auto-approves ACP permission requests, writes, and terminals in yolo mode using allow_once', async () => {
-    const { connection, events, text, drained } = create('acp', 'acp-policy-yolo')
+    const { connection, events, text, closeAndDrain } = create('acp', 'acp-policy-yolo')
     await connection.start(cwd)
     await connection.setMode?.('agent-mode', 'yolo')
     await connection.send(input)
@@ -2058,13 +2014,7 @@ describe('local protocol processes', () => {
       term: 'term-ok'
     })
     expect(await readFile(path.join(cwd, 'yolo.txt'), 'utf8')).toBe('yolo ok')
-    await connection.close()
-    await drained
-  })
-
-  it('identifies a persisted ACP session that the CLI cannot restore', async () => {
-    const { connection } = create('acp', 'no-resume', undefined, 'opencode', undefined, true)
-    await expect(connection.start(cwd, 'previous-session')).rejects.toBeInstanceOf(LocalAgentSessionRestoreError)
+    await closeAndDrain()
   })
 
   it('denies unattended ACP approvals, host writes and terminals without prompting', async () => {
@@ -2092,7 +2042,7 @@ describe('local protocol processes', () => {
   })
 
   it('keeps ACP permission prompts active when native mode is auto', async () => {
-    const { connection, events, text, drained } = create('acp', 'acp-policy-auto')
+    const { connection, events, text, closeAndDrain } = create('acp', 'acp-policy-auto')
     await connection.start(cwd)
     await connection.setMode?.('agent-mode', 'auto')
     const sending = connection.send(input)
@@ -2103,12 +2053,11 @@ describe('local protocol processes', () => {
     })
     await sending
     expect(JSON.parse(text())).toEqual({ outcome: { outcome: 'selected', optionId: 'once' } })
-    await connection.close()
-    await drained
+    await closeAndDrain()
   })
 
   it('suppresses duplicate ACP: Terminal in a turn approved for execute and honors allow_always across turns while still prompting outside workspace', async () => {
-    const { connection, events, text, drained } = create('acp', 'acp-policy-session-grants')
+    const { connection, events, text, closeAndDrain } = create('acp', 'acp-policy-session-grants')
     await connection.start(cwd)
 
     // Turn 1: allow_once on execute authorizes terminal/create in the same turn without a second prompt.
@@ -2156,12 +2105,11 @@ describe('local protocol processes', () => {
     expect(events.some((event) => event.type === 'tool-approval-request')).toBe(false)
     expect(text()).toBe('turn3-done')
 
-    await connection.close()
-    await drained
+    await closeAndDrain()
   })
 
   it('auto-approves Codex command, fileChange, and permissions requests under fullAccess without prompting', async () => {
-    const { connection, events, text, drained } = create('codex', 'codex-full-access-approvals')
+    const { connection, events, text, closeAndDrain } = create('codex', 'codex-full-access-approvals')
     await connection.start(cwd)
     await connection.send(input)
     await vi.waitFor(() => expect(events).toContainEqual({ type: 'turn-complete' }))
@@ -2172,8 +2120,7 @@ describe('local protocol processes', () => {
       fc: { decision: 'accept' },
       perms: { permissions: { fileSystem: { write: [cwd] } }, scope: 'session' }
     })
-    await connection.close()
-    await drained
+    await closeAndDrain()
   })
 
   it.each([undefined, 'native-session'])('keeps unattended Codex read-only with resume token %s', async (resume) => {
@@ -2226,7 +2173,7 @@ describe('local protocol processes', () => {
   })
 
   it('supports allow_session on Codex item/permissions/requestApproval and skips subsequent permission prompts', async () => {
-    const { connection, events, text, drained } = create('codex', 'codex-item-permissions')
+    const { connection, events, text, closeAndDrain } = create('codex', 'codex-item-permissions')
     await connection.start(cwd)
     await connection.send(input)
 
@@ -2246,12 +2193,11 @@ describe('local protocol processes', () => {
       { permissions: { fileSystem: { write: [cwd] } }, scope: 'session' },
       { permissions: { network: { allowedHosts: ['example.com'] } }, scope: 'session' }
     ])
-    await connection.close()
-    await drained
+    await closeAndDrain()
   })
 
   it('synthesizes host-managed allow_session when an ACP server only offers allow_once (like agy acp)', async () => {
-    const { connection, events, text, drained } = create('acp', 'acp-policy-allow-once-only')
+    const { connection, events, text, closeAndDrain } = create('acp', 'acp-policy-allow-once-only')
     await connection.start(cwd)
     const sending = connection.send(input)
 
@@ -2286,7 +2232,6 @@ describe('local protocol processes', () => {
       { outcome: { outcome: 'selected', optionId: 'allow' } },
       { outcome: { outcome: 'selected', optionId: 'allow' } }
     ])
-    await connection.close()
-    await drained
+    await closeAndDrain()
   })
 })

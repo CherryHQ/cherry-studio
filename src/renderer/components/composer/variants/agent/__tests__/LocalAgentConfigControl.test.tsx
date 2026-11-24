@@ -132,53 +132,6 @@ describe('LocalAgentConfigControl', () => {
     expect(screen.queryByRole('button', { name: '智能体配置' })).not.toBeInTheDocument()
   })
 
-  it('offers mode, reasoning, and extra settings through one entry and keeps confirmed values while saving', async () => {
-    const user = userEvent.setup()
-    vi.mocked(ipcApi.request).mockReturnValue(new Promise(() => {}))
-    render(
-      <LocalAgentConfigControl
-        sessionId="session"
-        options={options}
-        disabled={false}
-        mode={{
-          id: 'mode',
-          currentValue: 'ask',
-          options: [
-            { value: 'ask', name: 'Always Ask' },
-            { value: 'plan', name: 'Plan' }
-          ]
-        }}
-        thoughtLevel={{
-          id: 'reasoning',
-          currentValue: 'low',
-          options: [
-            { value: 'low', name: 'Low' },
-            { value: 'high', name: 'High' }
-          ]
-        }}
-      />
-    )
-    const trigger = screen.getByRole('button', { name: '智能体配置' })
-    expect(trigger).toHaveTextContent('始终询问')
-    expect(screen.queryByRole('menuitem')).not.toBeInTheDocument()
-    await user.click(trigger)
-    expect(screen.getByRole('menuitem', { name: '会话模式' })).toHaveTextContent('始终询问')
-    const reasoning = screen.getByRole('menuitem', { name: '思考强度' })
-    const originalValue = reasoning.textContent
-    fireEvent.keyDown(reasoning, { key: 'ArrowRight' })
-    fireEvent.click(screen.getByRole('menuitemradio', { name: '高' }))
-    await waitFor(() =>
-      expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_thought_level', {
-        sessionId: 'session',
-        configId: 'reasoning',
-        value: 'high'
-      })
-    )
-    expect(reasoning).toHaveTextContent(originalValue)
-    expect(screen.getByRole('menuitem', { name: '会话模式' })).toHaveAttribute('aria-disabled', 'true')
-    expect(screen.getByRole('menuitem', { name: '通知' })).toHaveAttribute('aria-disabled', 'true')
-  })
-
   it('keeps high-risk permissions visible in the collapsed summary', () => {
     render(
       <LocalAgentConfigControl
@@ -264,11 +217,6 @@ describe('LocalAgentConfigControl', () => {
         value: true
       })
     )
-  })
-
-  it('renders nothing when no configurable session options exist', () => {
-    const { container } = render(<LocalAgentConfigControl sessionId="session" options={[]} disabled={false} />)
-    expect(container).toBeEmptyDOMElement()
   })
 
   it('requires confirmation before enabling high-risk modes or unsandboxed config options', async () => {

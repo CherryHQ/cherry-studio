@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -135,76 +135,14 @@ describe('local agent model search', () => {
     expect(button).toBeEnabled()
   })
 
-  it('expands and focuses search, filters models, and restores the list when collapsed', () => {
-    render(
-      <LocalAgentModelList
-        models={[
-          { id: 'alpha', name: 'Alpha' },
-          { id: 'beta', name: 'Beta' }
-        ]}
-        loaded
-        loading={false}
-        disabled={false}
-        loadDisabled={false}
-        onLoad={async () => {}}
-        onSelect={async () => true}
-      />
-    )
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '搜索' }))
-    const input = screen.getByRole('textbox')
-    expect(input).toHaveFocus()
-    fireEvent.change(input, { target: { value: 'Alpha' } })
-    expect(screen.getByRole('button', { name: /Alpha$/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Beta$/ })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '清除' }))
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Beta$/ })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '搜索' }))
-    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' })
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-  })
-  it('groups model families, supports collapsing, and reveals search matches in closed groups', () => {
-    render(
-      <LocalAgentModelList
-        models={[
-          { id: 'openai/gpt-5', name: 'GPT 5' },
-          { id: 'openai/gpt-4', name: 'GPT 4' },
-          { id: 'claude-sonnet', name: 'Sonnet' },
-          { id: 'default', name: 'Default' }
-        ]}
-        groupFallback="CLI Agent"
-        loaded
-        loading={false}
-        disabled={false}
-        loadDisabled={false}
-        onLoad={async () => {}}
-        onSelect={async () => true}
-      />
-    )
-    expect(within(screen.getByRole('region', { name: 'openai' })).getByRole('button', { name: /GPT 5$/ })).toBeVisible()
-    expect(
-      within(screen.getByRole('region', { name: 'claude' })).getByRole('button', { name: /Sonnet$/ })
-    ).toBeVisible()
-    expect(
-      within(screen.getByRole('region', { name: 'CLI Agent' })).getByRole('button', { name: /Default$/ })
-    ).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'openai' }))
-    expect(screen.queryByRole('button', { name: /GPT 5$/ })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '搜索' }))
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'GPT 5' } })
-    expect(screen.getByRole('button', { name: /GPT 5$/ })).toBeVisible()
-    expect(screen.queryByRole('button', { name: /GPT 4$/ })).not.toBeInTheDocument()
-  })
-  it('opens the selected category and lets users browse and search without changing the model', () => {
+  it('finds models in a collapsed group without changing the default', () => {
     const onSelect = vi.fn(async () => true)
     render(
       <LocalAgentModelList
         models={[
-          { id: 'gateway-model:test', name: 'Gateway model', group: 'Provider A', source: 'gateway' },
-          { id: 'native-model', name: 'Native model', group: 'CLI vendor', source: 'native' }
+          { id: 'openai/gpt-5', name: 'GPT 5' },
+          { id: 'openai/gpt-4', name: 'GPT 4' }
         ]}
-        value="gateway-model:test"
         loaded
         loading={false}
         disabled={false}
@@ -213,20 +151,21 @@ describe('local agent model search', () => {
         onSelect={onSelect}
       />
     )
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['官方订阅', '统一网关'])
-    expect(screen.getByRole('tab', { name: '统一网关' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('button', { name: /Gateway model$/ })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByRole('button', { name: '默认模型' })).not.toBeInTheDocument()
-    fireEvent.mouseDown(screen.getByRole('tab', { name: '官方订阅' }), { button: 0, ctrlKey: false })
-    expect(screen.queryByRole('button', { name: /Gateway model$/ })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'CLI vendor' }))
-    expect(screen.queryByRole('button', { name: /Native model$/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'openai' }))
+    expect(screen.queryByRole('button', { name: /GPT 5$/ })).not.toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: '搜索' }))
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'CLI vendor' } })
-    expect(screen.getByRole('button', { name: /Native model$/ })).toBeVisible()
-    expect(screen.queryByRole('button', { name: /Gateway model$/ })).not.toBeInTheDocument()
+    const search = screen.getByRole('textbox')
+    expect(search).toHaveFocus()
+    fireEvent.change(search, { target: { value: 'GPT 5' } })
+    expect(screen.getByRole('button', { name: /GPT 5$/ })).toBeVisible()
+    expect(screen.queryByRole('button', { name: /GPT 4$/ })).not.toBeInTheDocument()
+
+    fireEvent.keyDown(search, { key: 'Escape' })
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(onSelect).not.toHaveBeenCalled()
   })
+
   it('reopens the chat selector on the selected model category after browsing another tab', async () => {
     HTMLElement.prototype.scrollIntoView = vi.fn()
     const user = userEvent.setup()

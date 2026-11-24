@@ -521,11 +521,7 @@ export class ClaudeCodeStreamAdapter {
     this.ctx = this.createTurnContext()
   }
 
-  /**
-   * The single construction site for per-turn state. Annotating the return type makes TypeScript's
-   * missing-property check the guarantee that a turn starts clean — resetting fields individually
-   * would silently leak whichever one a later change forgets.
-   */
+  // Rebuild the whole context to prevent state leaking across turns.
   private createTurnContext(sink = this.sink): StreamContext {
     const systemReminderBodies = new Set<string>()
     return {
@@ -1033,9 +1029,7 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleAssistantMessage(message: SDKAssistantMessage, ctx: StreamContext): void {
-    // The SDK's own interrupt signal: set when the message was truncated before `stop_reason`
-    // arrived. `isClaudeCodeTruncationError` can only infer this from a mid-token JSON parse
-    // failure, so a clean truncation would otherwise go unnoticed.
+    // The SDK can report a clean truncation even when JSON parsing succeeds.
     if (message.aborted) {
       ctx.sawAbortedMessage = true
       logger.warn('Assistant message was truncated by an interrupt')
@@ -1271,9 +1265,7 @@ export class ClaudeCodeStreamAdapter {
     const resultError = createClaudeCodeResultError(message)
     if (resultError) {
       this.finalizeOpenTextParts()
-      // Error results still carry token totals useful to the live message. The driver only calls
-      // `emitUsageMetadata` when `handleMessage` returns normally, so emit the final UI snapshot
-      // BEFORE throwing. Per-invocation records are captured independently by the driver.
+      // Publish reported totals before throwing because the normal usage path is skipped.
       ctx.sink.enqueue({
         type: 'message-metadata',
         messageMetadata: this.buildMessageMetadata(ctx.usage)
@@ -1340,9 +1332,7 @@ export class ClaudeCodeStreamAdapter {
         this.handlePermissionDeniedSystemMessage(message, ctx)
         return
       case 'background_tasks_changed':
-        // Membership feeds presentation immediately, but an empty snapshot may precede the terminal
-        // task bookend and an autonomous wake. Keep the connection alive until session idle, which
-        // the SDK defines as occurring after held-back results and the background-agent loop drain.
+        // An empty task list can precede a final result or autonomous wake. Wait for SDK idle.
         this.backgroundTasks = message.tasks.map((task) => ({
           id: task.task_id,
           type: task.task_type,
@@ -1391,16 +1381,10 @@ export class ClaudeCodeStreamAdapter {
       case 'control_request_progress':
       case 'informational':
       case 'worker_shutting_down':
-        // TODO: Implement handling for these system message subtypes as needed. For now, they are
-        // acknowledged at debug level in the logger to avoid being silently ignored. The two
-        // `model_refusal_*` ones are the most worth surfacing to the user: the model declined and the
-        // CLI either fell back or gave up, which today reads as the answer simply going strange.
         logger.debug(`Received system message subtype: ${message.subtype}`, { message })
         return
       default: {
-        // A subtype the SDK added since this switch was last reviewed. Failing the build is the
-        // point — it is how a new signal gets a decision instead of vanishing. Deliberately not
-        // thrown: the CLI may ship subtypes ahead of us, and a crashed stream is worse than a log.
+        // Check SDK exhaustiveness at build time. A newer CLI can still send unknown subtypes.
         const _exhaustive: never = message
         void _exhaustive
         logger.debug('Received an unknown system message subtype', { message })
@@ -1413,10 +1397,8 @@ export class ClaudeCodeStreamAdapter {
     message: Extract<SDKMessage, { subtype: 'permission_denied' }>,
     ctx: StreamContext
   ): void {
-    // Auto-denials (deny rule, classifier, dontAsk) never reach `canUseTool`, and the tool_result
-    // that follows only carries `is_error: true` — indistinguishable from a real tool failure.
-    // Record the id so `handleToolResult` reports it as denied, and log the reason here since the
-    // `tool-output-denied` chunk has no field to carry it.
+    // Auto-denials bypass canUseTool. Remember the ID to distinguish them from execution errors.
+    // The denial chunk has no reason field, so keep the reason in logs.
     ctx.deniedToolUseIds.add(message.tool_use_id)
     logger.info(`Tool call auto-denied: ${message.tool_name}`, {
       toolUseId: message.tool_use_id,
@@ -1454,19 +1436,11 @@ export class ClaudeCodeStreamAdapter {
     if (this.modelId) ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: this.modelId } })
   }
 
-  /**
-   * Task lifecycle describes work the run spawned, which routinely outlives the turn that spawned
-   * it. Inside a turn it stays a hidden message part, so the transcript keeps the full history;
-   * afterwards there is no message to attach to, and the host keeps the latest event per task as
-   * session status instead — otherwise a background task's completion never lands anywhere and its
-   * row stays running forever.
-   */
+  // Session status lets a task settle after its originating turn has closed.
   private handleTaskSystemMessage(message: SdkTaskSystemMessage, ctx: StreamContext): void {
     const eventData = this.toTaskEventPartData(message)
 
-    // Membership and liveness remain owned exclusively by `background_tasks_changed`. A native
-    // subagent edge may enrich an already-authoritative row with its explicit root tool-use id for
-    // navigation only; missing/reordered edges therefore delay the button but never add/hide a chip.
+    // Task events can add navigation. Membership and liveness come from background_tasks_changed.
     if (
       eventData.toolUseId &&
       (eventData.taskType === 'subagent' ||
@@ -1491,12 +1465,7 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  /**
-   * A failed API request is backing off. Turn-scoped by design: it renders inside the active turn's
-   * message stream, and only a turn gives it a clear end (a chunk, turn-complete or error all clear
-   * it). A turn-less connection's retry would have nothing to attach to and no such boundary, so it
-   * must not enter the retry state at all.
-   */
+  // Retry badges need an active turn so a chunk or terminal event can clear them.
   private handleApiRetrySystemMessage(message: SDKAPIRetryMessage): void {
     if (!this.turnActive) return
     this.statusSink.emit({
@@ -1539,9 +1508,7 @@ export class ClaudeCodeStreamAdapter {
       return
     }
     if (message.compact_result === 'success') {
-      // A successful compaction may report `success` WITHOUT a following `compact_boundary` (the SDK
-      // does not guarantee one). Settle idempotently with a no-anchor completion so the session does
-      // not stay `compacting` until the idle TTL; a real boundary below still wins with the anchor.
+      // The SDK can report success without a boundary. Clear the busy state without an anchor.
       this.statusSink.emit({ type: 'compaction-complete' })
     }
   }
@@ -1552,9 +1519,7 @@ export class ClaudeCodeStreamAdapter {
 
   private handleSessionStateChangedSystemMessage(message: SDKSessionStateChangedMessage): void {
     if (message.state !== 'idle') return
-    // Idle means held-back results and the background-agent loop have drained, so no detached flow
-    // can still stream. Drop the per-flow state instead of retaining it for the connection lifetime;
-    // a late straggler simply gets a fresh context via `getOrCreateFlowContext`.
+    // SDK idle means detached flows have drained. A late flow gets a fresh context.
     if (!this.turnActive) this.flowContexts.length = 0
     if (this.awaitingBackgroundReply && !this.hasBackgroundAgents()) {
       this.awaitingBackgroundReply = false
@@ -1992,11 +1957,7 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private buildMessageMetadata(usage: LanguageModelV3Usage): CherryUIMessageMetadata {
-    // Full cumulative snapshot (Claude Code reports final usage once). Provider
-    // cost (`total_cost_usd`) is deliberately NOT used here — it is unreliable
-    // (session-cumulative / subscription-equivalent). Direct Agent SDK
-    // invocations are priced from their frozen model snapshot when their
-    // immutable usage record is captured.
+    // SDK cost can be cumulative or subscription-equivalent. Invocation records price each call.
     return {
       ...(this.modelId ? { modelId: this.modelId } : {}),
       stats: v3UsageToStats(usage)

@@ -560,7 +560,7 @@ export class CodexConnection extends LocalConnection {
       if (!parsed.success || !this.threadId) return
       const { total, last } = parsed.data
       this.lastTokenUsage = total
-      // Codex totals span the thread; last covers only the latest model request.
+      // Subtract the pre-turn baseline to exclude usage from earlier turns.
       this.usageBaseline ??= Object.fromEntries(
         Object.entries(total).map(([key, value]) => [key, value - (last[key as keyof typeof last] ?? 0)])
       ) as z.infer<typeof TokenUsageSchema>

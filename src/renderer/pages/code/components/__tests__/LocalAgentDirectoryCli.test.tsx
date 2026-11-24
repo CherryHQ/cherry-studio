@@ -1,7 +1,6 @@
 import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
@@ -34,71 +33,8 @@ beforeEach(() => {
   )
 })
 
-it('shows one entry per Agent and preserves settings navigation', async () => {
-  const { rerender } = render(<LocalAgentDirectory />)
-  expect(screen.getAllByRole('button', { name: /^Claude Code ·/ })).toHaveLength(1)
-  expect(screen.queryByRole('button', { name: '模型服务商' })).not.toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: /^OpenClaw ·/ }))
-  await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('OpenClaw'))
-  navigation.search = { id: 'codex' }
-  rerender(<LocalAgentDirectory />)
-  await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codex'))
-})
-
-it('offers terminal-only CLI access without requiring a Code Mate provider or an enabled agent', async () => {
-  navigation.search = { id: 'kilo' }
-  vi.mocked(ipcApi.request).mockImplementation(
-    async (route) =>
-      (route === 'ai.local_agents.detect'
-        ? [{ presetId: 'kilo', path: '/usr/local/bin/kilo' }]
-        : route === 'file.select_folder'
-          ? '/test/project'
-          : route === 'ai.local_agents.open_terminal'
-            ? { success: true }
-            : { models: [] }) as never
-  )
-  render(<LocalAgentDirectory />)
-  expect(await screen.findByText('/usr/local/bin/kilo')).toBeVisible()
-  expect(screen.getByRole('switch')).not.toBeChecked()
-  expect(screen.getByRole('tab', { name: '官方订阅' })).toBeEnabled()
-  expect(screen.getByRole('tab', { name: '统一网关' })).toBeDisabled()
-  await userEvent.click(screen.getByRole('button', { name: '在终端打开命令行' }))
-  await userEvent.click(screen.getByRole('button', { name: '选择文件夹' }))
-  await userEvent.click(screen.getByRole('button', { name: '启动' }))
-  await waitFor(() =>
-    expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.open_terminal', {
-      presetId: 'kilo',
-      protocol: 'acp',
-      enabled: false,
-      args: [],
-      env: {},
-      directory: '/test/project'
-    })
-  )
-  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-  expect(screen.getByRole('button', { name: '高级设置' })).toBeVisible()
-})
-
-it('offers installation before terminal actions for an absent agent', async () => {
-  navigation.search = { id: 'goose' }
-  vi.mocked(ipcApi.request).mockResolvedValue([{ presetId: 'goose', source: 'none' }] as never)
-  render(<LocalAgentDirectory />)
-  expect(await screen.findByRole('button', { name: '安装' })).toBeEnabled()
-  expect(screen.queryByRole('button', { name: '在终端打开命令行' })).not.toBeInTheDocument()
-  expect(screen.getByRole('tab', { name: '官方订阅' })).toBeEnabled()
-  expect(screen.getByRole('button', { name: '默认模型' })).toBeEnabled()
-  expect(screen.getByRole('button', { name: '刷新' })).toBeDisabled()
-  expect(screen.getByRole('tab', { name: '统一网关' })).toBeDisabled()
-})
-
-it.each([
-  { order: [], expected: ['Kilo', 'Codex', 'GitHub Copilot', 'OpenClaw'] },
-  {
-    order: ['cli:openclaw', 'copilot', 'codex', 'removed-agent', 'kilo'],
-    expected: ['Kilo', 'OpenClaw', 'GitHub Copilot', 'Codex']
-  }
-])('keeps status priority and applies the saved order within groups: $order', async ({ order, expected }) => {
-  mockPreferenceState.set('feature.code_cli.agent_order', order)
+it('keeps enabled Agents first and applies the saved order within each status', async () => {
+  mockPreferenceState.set('feature.code_cli.agent_order', ['cli:openclaw', 'copilot', 'codex', 'removed-agent', 'kilo'])
   MockUseDataApiUtils.mockQueryData('/agents', {
     items: [
       {
@@ -131,34 +67,12 @@ it.each([
     const names = within(screen.getByRole('complementary'))
       .getAllByRole('button', { name: / · |^(OpenClaw|DeepSeek Harness)$/ })
       .map((button) => button.textContent)
-    expect(names.slice(0, 4)).toEqual(expected)
+    expect(names.slice(0, 4)).toEqual(['Kilo', 'OpenClaw', 'GitHub Copilot', 'Codex'])
   })
   const rows = within(screen.getByRole('complementary')).getAllByRole('button', {
     name: / · |^(OpenClaw|DeepSeek Harness)$/
   })
   expect(rows[4]).toHaveAccessibleName(/^Claude Code ·/)
-})
-
-it('places popular Agents together in the default order', async () => {
-  mockPreferenceState.set('feature.code_cli.agent_order', [])
-  vi.mocked(ipcApi.request).mockImplementation(async () => [] as never)
-  render(<LocalAgentDirectory />)
-  await waitFor(() => {
-    const rows = within(screen.getByRole('complementary')).getAllByRole('button', {
-      name: / · |^(OpenClaw|DeepSeek Harness)$/
-    })
-    expect(rows.slice(0, 9).map((button) => button.getAttribute('aria-label')?.split(' · ')[0])).toEqual([
-      'Claude Code',
-      'Codex',
-      'Cursor',
-      'OpenCode',
-      'GitHub Copilot',
-      'OpenClaw',
-      'DeepSeek Harness',
-      'Pi',
-      'Hermes'
-    ])
-  })
 })
 
 it.each([

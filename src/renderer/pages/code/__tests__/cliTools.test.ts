@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
+import { CLI_TOOLS } from '@renderer/components/icons/CliIcon'
+import { CLI_TOOL_PROVIDER_MAP } from '@renderer/services/codeCliConfig'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, GATEWAY_CAPABLE_CLI_TOOLS, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
-
-import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 
 describe('CLI_TOOLS', () => {
   it('exposes every CodeCli enum value with a renderable icon component', () => {
@@ -19,7 +19,7 @@ describe('CLI_TOOLS', () => {
 })
 
 describe('LOGIN_CAPABLE_CLI_TOOLS', () => {
-  it('covers exactly the tools that offer the virtual own-login option', () => {
+  it('covers the tools that support launching with existing CLI credentials', () => {
     expect([...LOGIN_CAPABLE_CLI_TOOLS].sort()).toEqual(
       [
         CodeCli.CLAUDE_CODE,
@@ -31,12 +31,6 @@ describe('LOGIN_CAPABLE_CLI_TOOLS', () => {
         CodeCli.MINIMAX_CODE
       ].sort()
     )
-  })
-
-  it('never overlaps the fully providerless tools', () => {
-    for (const tool of PROVIDERLESS_CLI_TOOLS) {
-      expect(LOGIN_CAPABLE_CLI_TOOLS.has(tool)).toBe(false)
-    }
   })
 })
 

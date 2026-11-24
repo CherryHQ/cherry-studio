@@ -135,7 +135,7 @@ export class AcpConnection extends LocalConnection {
     return resolveEffectiveLocalPermissionMode(this.localSessionInfo, this.config.presetId)
   }
 
-  /** A non-resumable ACP session cannot be restored after reaping, so the process outlives the idle TTL. */
+  // Reaping a non-resumable process would lose access to its native session.
   get retainWhileIdle(): boolean {
     return this.localSessionInfo.resume !== true
   }
@@ -348,7 +348,7 @@ export class AcpConnection extends LocalConnection {
           selected = autoSelected
         } else {
           const allowOnceOption = options.find((o) => o.kind === 'allow_once')
-          // Agents such as `agy acp` v1.5.13 omit `allow_always` in default mode; synthesize a host-enforced grant.
+          // The host can retain a session grant even when the agent only offers allow_once.
           const promptOptions: LocalPermissionOption[] =
             !options.some((o) => o.kind === 'allow_always') && allowOnceOption
               ? options.flatMap((o) =>
@@ -618,7 +618,7 @@ export class AcpConnection extends LocalConnection {
       protocolVersion: 1,
       clientInfo: { name: 'cherry-studio', version: electronApp.getVersion() },
       clientCapabilities: {
-        // Advertising client writes/terminals to Antigravity downgrades native diff edits into whole-file fs/write_text_file calls.
+        // Keep Antigravity's native diff edits by withholding client writes and terminals.
         fs: { readTextFile: true, writeTextFile: !this.headless && !isAntigravity },
         terminal: !this.headless && !isAntigravity,
         elicitation: { form: {} },
@@ -727,7 +727,7 @@ export class AcpConnection extends LocalConnection {
           this.defaultModel === this.launchNativeModel &&
           !this.localSessionInfo.models?.length
         ) {
-          // Config-file-only ACP CLIs (e.g. Snow) read their model directly from disk without exposing ACP model options.
+          // Snow follows its native config without advertising a model selector.
           this.localSessionInfo.activeModel = { id: this.defaultModel }
         } else throw new Error('This agent does not support model selection')
       }
@@ -1061,8 +1061,7 @@ export class AcpConnection extends LocalConnection {
       const usage = response.usage ?? this.turnUsage
       this.turnUsage = undefined
       if (usage) {
-        // ACP reports the inclusive totals and the cache detail separately (glm-acp-agent@1.17.0
-        // forwards provider prompt/completion tokens verbatim), so details must not be added again.
+        // ACP totals already include cached tokens.
         const cachedRead = usage.cachedReadTokens ?? 0
         const cachedWrite = usage.cachedWriteTokens ?? 0
         const summary = LocalAgentTurnUsageSchema.safeParse({

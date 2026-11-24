@@ -255,8 +255,10 @@ export function LocalAgentDirectory({
     if (pendingSelection && entry?.id.startsWith('cli:')) navigateToSelection()
   }, [pendingSelection, entry?.id, navigateToSelection])
   return (
-    <div className="flex h-full min-h-0 w-full">
-      <aside className="flex h-full w-[248px] shrink-0 basis-[248px] flex-col border-r-[0.5px] border-border">
+    <div data-ui="code.view" className="flex h-full min-h-0 w-full">
+      <aside
+        data-ui="code.navigation"
+        className="flex h-full w-[248px] shrink-0 basis-[248px] flex-col border-r-[0.5px] border-border">
         <div className="px-2.5 pt-2.5">
           <InputGroup className="h-8 rounded-[10px] bg-background shadow-none">
             <InputGroupAddon className="pl-2.5">
@@ -462,7 +464,7 @@ export function LocalAgentDirectory({
           </Button>
         </div>
       </aside>
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <main data-ui="code.content" className="flex min-h-0 min-w-0 flex-1 flex-col">
         {entry || selected === 'custom-new'
           ? renderDetails({
               installing: installingAgents.has(entry?.preset?.id ?? ''),

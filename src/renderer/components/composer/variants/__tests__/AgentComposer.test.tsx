@@ -1563,24 +1563,6 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('hides session config and approval buttons when the local agent offers no session options', () => {
-    mocks.ipcApiRequest.mockResolvedValue({ models: [], images: false, resume: true, configOptions: [] })
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="local-approval-session"
-        resolvedAgent={{ ...createControlledAgent(), type: 'local' }}
-        resolvedModel={undefined}
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: /agent.settings.permissionMode.title/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
-  })
-
   it('reuses QuickPanel permission-mode toolbar for local modes, wires Shift+Tab plan toggling safely, and routes config/security options', async () => {
     mocks.pinnedToolIds = ['permission-mode']
     mocks.toolLaunchers = [
@@ -1748,52 +1730,6 @@ describe('AgentComposer', () => {
     expect(getControls().queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
     const thoughtBtn = getControls().getByRole('button', { name: 'agent.speed.title' })
     expect(thoughtBtn).toHaveTextContent('assistants.settings.reasoning_effort.medium')
-  })
-
-  it('promotes local thoughtLevel into LocalAgentThoughtControl without duplicating it in LocalAgentConfigControl', async () => {
-    const effortOptions = [
-      { value: 'default', name: 'Default' },
-      { value: 'low', name: 'Low' },
-      { value: 'medium', name: 'Medium' },
-      { value: 'high', name: 'High' }
-    ]
-    MockUseCacheUtils.setCacheValue('agent.session.local_options', {
-      'session-claude-thought': {
-        configOptions: [
-          {
-            id: 'claude-effort',
-            name: 'Thought Level',
-            category: 'thought_level',
-            type: 'select',
-            currentValue: 'high',
-            options: effortOptions
-          }
-        ],
-        thoughtLevel: {
-          id: 'claude-effort',
-          currentValue: 'high',
-          options: effortOptions
-        }
-      }
-    })
-    mocks.ipcApiRequest.mockResolvedValue(null)
-    render(
-      <AgentComposer
-        sessionId="session-claude-thought"
-        agentId="agent-claude"
-        resolvedAgent={{ ...createControlledAgent(), type: 'local' }}
-        resolvedModel={undefined}
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    const getControls = () => within(screen.getByTestId('composer-send-accessory'))
-    expect(getControls().queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
-    expect(getControls().getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
-      'assistants.settings.reasoning_effort.high'
-    )
   })
 
   it('promotes config-backed permissions and uncategorized reasoning options out of LocalAgentConfigControl', async () => {

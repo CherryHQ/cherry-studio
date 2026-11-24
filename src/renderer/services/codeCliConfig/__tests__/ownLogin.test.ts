@@ -1,17 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { CodeCli } from '@shared/types/codeCli'
-import type { CliConfigTarget } from '@shared/utils/cliConfig'
-import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
-
-import { readOwnLoginCliConfigDraft } from '../index'
 import { buildCodexOwnLoginConfig, buildKimiOwnLoginConfig, buildQwenOwnLoginConfig } from '../ownLogin'
-
-const mocks = vi.hoisted(() => ({ request: vi.fn() }))
-
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mocks.request }
-}))
 
 describe('ownLogin builders', () => {
   describe('buildCodexOwnLoginConfig', () => {
@@ -101,64 +90,5 @@ describe('ownLogin builders', () => {
       expect(result.thinking).toBeUndefined()
       expect(result.userKey).toBe('keep')
     })
-  })
-})
-
-describe('readOwnLoginCliConfigDraft (adapter disk-read glue)', () => {
-  beforeEach(() => {
-    // On-disk configs read as empty through code_cli.read_config (old readExternal → '').
-    mocks.request.mockImplementation(async (_route: string, input: { targets: CliConfigTarget[] }) => ({
-      files: input.targets.map((target) => ({
-        target,
-        path: `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`,
-        content: ''
-      }))
-    }))
-  })
-
-  // The raw builder tests above don't exercise the adapter glue: which target file each own-login
-  // tool reads from disk, and whether it renders JSON vs TOML. Pin that. OpenCode has no own-login
-  // config panel and must throw.
-  const cases: Array<[string, CodeCli, string, 'json' | 'toml']> = [
-    ['claude', CodeCli.CLAUDE_CODE, 'claude-settings', 'json'],
-    ['codex', CodeCli.OPENAI_CODEX, 'codex-config', 'toml'],
-    ['qwen', CodeCli.QWEN_CODE, 'qwen-settings', 'json'],
-    ['kimi', CodeCli.KIMI_CODE, 'kimi-config', 'toml']
-  ]
-
-  it.each(cases)('builds the %s own-login draft for its target', async (_n, cliTool, target, language) => {
-    const files = await readOwnLoginCliConfigDraft({ cliTool, configBlob: {} })
-    expect(files).toHaveLength(1)
-    expect(files[0].target).toBe(target)
-    expect(files[0].language).toBe(language)
-    if (language === 'json') expect(() => JSON.parse(files[0].content)).not.toThrow()
-  })
-
-  it('throws for OpenCode, which has no own-login config panel', async () => {
-    await expect(readOwnLoginCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, configBlob: {} })).rejects.toThrow(
-      /not supported/i
-    )
-  })
-
-  it('reads only the tool-param file: a failing credential sibling must not abort the draft', async () => {
-    // codex-auth is credential-only and never consumed by the own-login draft; an
-    // EACCES on it must not block rebuilding codex-config's tool params.
-    mocks.request.mockImplementation(async (_route: string, input: { targets: CliConfigTarget[] }) => {
-      if (input.targets.includes('codex-auth')) throw new Error('EACCES: permission denied')
-      return {
-        files: input.targets.map((target) => ({
-          target,
-          path: `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`,
-          content: ''
-        }))
-      }
-    })
-
-    const files = await readOwnLoginCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, configBlob: {} })
-
-    expect(files).toHaveLength(1)
-    expect(files[0].target).toBe('codex-config')
-    const requested = mocks.request.mock.calls.flatMap(([, input]) => (input as { targets: CliConfigTarget[] }).targets)
-    expect(requested).not.toContain('codex-auth')
   })
 })

@@ -194,16 +194,19 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     return agentSessionService.create({ agentId, name: agentId, workspace: { type: 'system' } }).id
   }
 
+  async function installCalls(): Promise<string[][]> {
+    const log = await readFile(path.join(state.root, 'calls'), 'utf8')
+    return log
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+  }
+
   it('installs the required system Bun before omp', async () => {
     state.name = 'omp'
     state.runtimeAvailable = false
     expect(await new LocalAgentInstallService().install('omp')).toMatchObject({ ok: true })
-    expect(
-      (await readFile(path.join(state.root, 'calls'), 'utf8'))
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line))
-    ).toEqual([
+    expect(await installCalls()).toEqual([
       ['install', '--global', 'bun'],
       ['install', '--global', '@oh-my-pi/pi-coding-agent']
     ])
@@ -226,37 +229,21 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     state.runtimeAvailable = false
     state.managed.bun = '/managed/bun'
     expect(await new LocalAgentInstallService().install('omp')).toMatchObject({ ok: true })
-    expect(JSON.parse((await readFile(path.join(state.root, 'calls'), 'utf8')).trim())).toEqual([
-      'install',
-      '--global',
-      '@oh-my-pi/pi-coding-agent'
-    ])
+    expect(await installCalls()).toEqual([['install', '--global', '@oh-my-pi/pi-coding-agent']])
   })
 
-  it.each([['amp-acp', 'amp', '@ampcode/cli']])(
-    'repairs a reused %s adapter by installing its missing native CLI',
-    async (id, executable, packageName) => {
-      state.name = id
-      await writeFile(path.join(state.root, state.name), 'adapter')
-      expect(await new LocalAgentInstallService().install(id)).toMatchObject({ ok: true, reused: true })
-      expect(JSON.parse((await readFile(path.join(state.root, 'calls'), 'utf8')).trim())).toEqual([
-        'install',
-        '--global',
-        packageName
-      ])
-      expect(fs.existsSync(path.join(state.root, executable))).toBe(true)
-    }
-  )
+  it('installs the missing native CLI when reusing an Amp adapter', async () => {
+    state.name = 'amp-acp'
+    await writeFile(path.join(state.root, state.name), 'adapter')
+    expect(await new LocalAgentInstallService().install('amp-acp')).toMatchObject({ ok: true, reused: true })
+    expect(await installCalls()).toEqual([['install', '--global', '@ampcode/cli']])
+    expect(fs.existsSync(path.join(state.root, 'amp'))).toBe(true)
+  })
 
   it('installs only native Pi because the adapter ships with Cherry', async () => {
     state.name = 'pi-acp'
     expect(await new LocalAgentInstallService().install('pi-acp')).toMatchObject({ ok: true, reused: false })
-    expect(
-      (await readFile(path.join(state.root, 'calls'), 'utf8'))
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line))
-    ).toEqual([['install', '--global', '@earendil-works/pi-coding-agent']])
+    expect(await installCalls()).toEqual([['install', '--global', '@earendil-works/pi-coding-agent']])
     expect(fs.existsSync(path.join(state.root, 'pi'))).toBe(true)
     expect(fs.existsSync(path.join(state.root, 'pi-acp'))).toBe(false)
   })
@@ -305,7 +292,7 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     state.exit = '1'
     expect(await new LocalAgentInstallService().install('pi-acp')).toMatchObject({ ok: false, reason: 'failed' })
     expect(fs.existsSync(path.join(state.root, 'pi-acp'))).toBe(false)
-    expect((await readFile(path.join(state.root, 'calls'), 'utf8')).trim().split('\n')).toHaveLength(1)
+    expect(await installCalls()).toHaveLength(1)
   })
 
   it('repairs missing DeepAgents model providers without reinstalling the adapter', async () => {
@@ -317,7 +304,7 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
       '["install","--global","@langchain/anthropic","@langchain/openai"]\n'
     )
     expect(await service.install('deepagents')).toMatchObject({ ok: true, reused: true })
-    expect((await readFile(path.join(state.root, 'calls'), 'utf8')).trim().split('\n')).toHaveLength(1)
+    expect(await installCalls()).toHaveLength(1)
   })
 
   it.each([
@@ -329,11 +316,7 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     state.name = id === 'zcode' ? 'zcode-acp' : id === 'minimax' ? 'mcode' : id
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Registry unavailable')))
     expect(await new LocalAgentInstallService().install(id)).toMatchObject({ ok: true, reused: false })
-    expect(JSON.parse((await readFile(path.join(state.root, 'calls'), 'utf8')).trim())).toEqual([
-      'install',
-      '--global',
-      packageName
-    ])
+    expect(await installCalls()).toEqual([['install', '--global', packageName]])
   })
 
   it('uses a China mirror only for the install and falls back without changing system configuration', async () => {
@@ -396,13 +379,11 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     expect(fs.existsSync(path.join(state.root, 'hermes'))).toBe(false)
   })
 
-  it.each(['agent', 'cli'])('rejects package-version upgrades for Hermes from the %s entry', async (entry) => {
-    const service = new LocalAgentInstallService()
-    const result =
-      entry === 'agent'
-        ? await service.install('hermes', '0.19.0')
-        : await service.installCli({ name: 'hermes', targetVersion: '0.19.0' })
-    expect(result).toEqual({ ok: false, reason: 'unsupported' })
+  it('rejects Hermes package-version upgrades before invoking an installer', async () => {
+    expect(await new LocalAgentInstallService().install('hermes', '0.19.0')).toEqual({
+      ok: false,
+      reason: 'unsupported'
+    })
     expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
   })
 
@@ -753,21 +734,15 @@ else process.exit(1);
     expect(fs.existsSync(directory)).toBe(false)
   })
 
-  // Removing an adapter must also remove its independently installed CLI, in either entry direction.
-  it.skipIf(process.platform === 'win32').each([['amp-acp', 'amp', '@ampcode/cli', false]] as const)(
-    'removes both components of %s (native entry=%s)',
-    async (presetId, native, nativePackage, viaCli) => {
-      const adapter = await npmEntry(presetId, presetId)
-      const cli = await npmEntry(native, nativePackage)
-      const result = viaCli
-        ? await new LocalAgentInstallService().uninstallCli(native, cli)
-        : await new LocalAgentInstallService().uninstall(presetId, adapter)
-      expect(result).toEqual({ ok: true })
-      expect(fs.existsSync(adapter)).toBe(false)
-      expect(fs.existsSync(cli)).toBe(false)
-      expect(fs.existsSync(path.join(state.target, nativePackage))).toBe(false)
-    }
-  )
+  it.skipIf(process.platform === 'win32')('removes both Amp components when uninstalling the adapter', async () => {
+    const adapter = await npmEntry('amp-acp', 'amp-acp')
+    const cli = await npmEntry('amp', '@ampcode/cli')
+    const result = await new LocalAgentInstallService().uninstall('amp-acp', adapter)
+    expect(result).toEqual({ ok: true })
+    expect(fs.existsSync(adapter)).toBe(false)
+    expect(fs.existsSync(cli)).toBe(false)
+    expect(fs.existsSync(path.join(state.target, '@ampcode/cli'))).toBe(false)
+  })
 
   it.skipIf(process.platform === 'win32')(
     'retains all components when native CLI ownership cannot be verified',

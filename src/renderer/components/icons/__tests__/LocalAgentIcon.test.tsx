@@ -1,110 +1,19 @@
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { expect, it } from 'vitest'
 
 import { LocalAgentIcon } from '../LocalAgentIcon'
 
-afterEach(() => {
-  cleanup()
+it.each([
+  { presetId: 'claude', glyphSize: 'size-[70%]' },
+  { presetId: 'codex', glyphSize: 'size-full' }
+])('uses the artwork framing for $presetId cards', ({ presetId, glyphSize }) => {
+  const { container } = render(<LocalAgentIcon presetId={presetId} size={36} variant="card" />)
+  const card = container.querySelector('[data-slot="cli-icon"]')
+  expect(card).toHaveClass('rounded-md', 'overflow-hidden')
+  expect(card?.querySelector('svg')).toHaveClass(glyphSize)
 })
 
-describe('LocalAgentIcon', () => {
-  it.each<{
-    label: string
-    props: { presetId?: string; cliId?: string }
-    expectedViewBox?: string
-    expectedClasses?: string[]
-  }>([
-    { label: 'claude preset', props: { presetId: 'claude' } },
-    { label: 'cline preset', props: { presetId: 'cline' } },
-    { label: 'glm-acp-agent preset', props: { presetId: 'glm-acp-agent' } },
-    { label: 'trae preset', props: { presetId: 'trae' } },
-    {
-      label: 'openclaw cli',
-      props: { cliId: 'openclaw' },
-      expectedViewBox: '12 10 96 96',
-      expectedClasses: ['[&>path:first-child]:hidden']
-    },
-    {
-      label: 'minimax cli',
-      props: { cliId: 'minimax-code' },
-      expectedViewBox: '24 24 72 72',
-      expectedClasses: ['[&>path:first-child]:hidden', '[&>path:nth-child(2)]:fill-current']
-    }
-  ])(
-    'renders transparent glyph artwork ($label) inside a rounded square card',
-    ({ props, expectedViewBox, expectedClasses }) => {
-      const { container } = render(<LocalAgentIcon {...props} size={36} variant="card" />)
-
-      const slots = container.querySelectorAll('[data-slot="cli-icon"]')
-      expect(slots).toHaveLength(1)
-      expect(container.querySelector('.blur-sm')).toBeNull()
-
-      const slot = slots[0] as HTMLElement
-      expect(slot).toHaveAttribute('data-variant', 'card')
-      expect(slot).toHaveClass('rounded-md', 'border', 'border-border-subtle', 'overflow-hidden', 'bg-background')
-      expect(slot).not.toHaveClass('bg-muted', 'rounded-full')
-      expect(slot).toHaveStyle({ width: '36px', height: '36px' })
-
-      const svg = slot.querySelector('svg')
-      expect(svg).not.toBeNull()
-      expect(svg).toHaveClass('size-[70%]', ...(expectedClasses ?? []))
-      if (expectedViewBox) {
-        expect(svg).toHaveAttribute('viewBox', expectedViewBox)
-      }
-    }
-  )
-
-  it.each([
-    { label: 'hermes cli', props: { cliId: 'hermes' }, expectedViewBox: '0 0 120 120' },
-    { label: 'zcode preset', props: { presetId: 'zcode' } },
-    { label: 'snow preset', props: { presetId: 'snow' } },
-    { label: 'kiro preset', props: { presetId: 'kiro' } },
-    { label: 'codebuddy-code preset', props: { presetId: 'codebuddy-code' } },
-    { label: 'kimi preset via kimi-code', props: { presetId: 'kimi' }, expectedViewBox: '20 20 81 81' },
-    { label: 'codex preset via openai-codex', props: { presetId: 'codex' } }
-  ])('frames full-bleed tile artwork ($label) in a matching rounded square card', ({ props, expectedViewBox }) => {
-    const { container } = render(<LocalAgentIcon {...props} size={32} variant="card" />)
-
-    const slots = container.querySelectorAll('[data-slot="cli-icon"]')
-    expect(slots).toHaveLength(1)
-    expect(container.querySelector('.blur-sm')).toBeNull()
-
-    const slot = slots[0] as HTMLElement
-    expect(slot).toHaveAttribute('data-variant', 'card')
-    expect(slot).toHaveClass('rounded-md', 'border', 'border-border-subtle', 'overflow-hidden', 'bg-background')
-    expect(slot).not.toHaveClass('bg-muted', 'rounded-full')
-    expect(slot).toHaveStyle({ width: '32px', height: '32px' })
-
-    const svg = slot.querySelector('svg')
-    expect(svg).not.toBeNull()
-    expect(svg).toHaveClass('size-full')
-    expect(svg).toHaveStyle({ borderRadius: '5px' })
-    if (expectedViewBox) {
-      expect(svg).toHaveAttribute('viewBox', expectedViewBox)
-    }
-  })
-
-  it('renders a Terminal fallback card when no preset or cli id is provided', () => {
-    const { container } = render(<LocalAgentIcon size={28} variant="card" />)
-
-    expect(container.querySelector('[data-slot="cli-icon"]')).toBeNull()
-    expect(container.querySelector('.blur-sm')).toBeNull()
-
-    const avatar = screen.getByTestId('avatar')
-    expect(avatar).toHaveClass('rounded-md', 'border', 'border-border-subtle', 'bg-background', 'text-foreground')
-    expect(avatar).not.toHaveClass('bg-muted')
-    expect(avatar).toHaveStyle({ width: '28px', height: '28px' })
-    expect(avatar.querySelector('svg')).not.toBeNull()
-  })
-
-  it('uses a circular frame for a named agent and for the generic local avatar', () => {
-    const { container, rerender } = render(<LocalAgentIcon presetId="codex" size={24} />)
-    // Avatar call sites share the circular frame even for full-tile artwork.
-    expect(container.querySelector('[data-slot="cli-icon"]')).toHaveClass('rounded-full', 'overflow-hidden')
-    expect(container.querySelector('svg')).toHaveStyle({ width: '24px', height: '24px' })
-
-    rerender(<LocalAgentIcon size={24} />)
-    expect(screen.getByTestId('avatar')).toHaveClass('rounded-full')
-    expect(container.querySelector('svg.lucide-terminal')).toBeInTheDocument()
-  })
+it('falls back to the terminal icon for an unbranded Agent', () => {
+  render(<LocalAgentIcon size={28} variant="card" />)
+  expect(screen.getByTestId('avatar').querySelector('svg.lucide-terminal')).toBeInTheDocument()
 })

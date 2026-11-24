@@ -52,8 +52,6 @@ export const TerminalConfigPanel: FC<TerminalConfigPanelProps> = ({
   const directoryId = useId()
   const terminalId = useId()
   const showTerminals = (isMac || isWin) && terminals.length > 0
-  // The caller already resolves `selectedTerminal` to the same fallback used for
-  // launching (see useLaunchDialogController), so display and launch stay in sync.
   const effectiveTerminal = selectedTerminal ?? ''
 
   return (

@@ -14,7 +14,6 @@ import { getCliConfigTargets } from '@shared/utils/cliConfig'
 import { LocalAgentCliConfig } from '../components/LocalAgentCliConfig'
 import { ManagedLocalAgentDetails } from '../components/ManagedLocalAgentDetails'
 
-const binaries = vi.hoisted(() => ({ remove: vi.fn(), upgrade: vi.fn() }))
 vi.mock('@renderer/components/LazyCodeEditor', () => ({
   LazyCodeEditor: ({ value }: { value: string }) => <textarea aria-label="config" value={value} readOnly />
 }))
@@ -28,26 +27,6 @@ vi.mock('@renderer/hooks/useApiGateway', () => ({
     startApiGateway: vi.fn()
   })
 }))
-vi.mock('../hooks/useAvailableTerminals', () => ({ useAvailableTerminals: () => [] }))
-vi.mock('../hooks/useBinaryActions', () => ({
-  useBinaryActions: () => ({
-    install: vi.fn(),
-    upgrade: binaries.upgrade,
-    remove: binaries.remove,
-    installingTools: new Set(),
-    upgradingTools: new Set()
-  })
-}))
-vi.mock('../hooks/useCliVersionStatuses', () => ({
-  useCliVersionStatuses: () => ({
-    statuses: {
-      [CodeCli.DEEPSEEK_HARNESS]: { installed: true, source: 'system', applicationStatus: 'applied', canUpgrade: true },
-      [CodeCli.OPENCLAW]: { installed: true, source: 'system', applicationStatus: 'applied', canUpgrade: true }
-    },
-    resolved: true
-  })
-}))
-
 const modelId = 'deepseek::deepseek-chat' as const
 const model = {
   id: modelId,
@@ -98,7 +77,6 @@ beforeEach(() => {
     refetch: vi.fn().mockResolvedValue(undefined),
     mutate: vi.fn()
   }))
-  binaries.remove.mockResolvedValue(true)
   vi.mocked(ipcApi.request).mockImplementation(
     async (route) =>
       (route === 'deepseek_harness.start'

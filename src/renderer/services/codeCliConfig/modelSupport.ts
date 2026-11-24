@@ -16,7 +16,6 @@ import {
  * device code) rather than a Cherry provider + model. They launch with a
  * working directory only — no provider config or model selection is offered.
  */
-export const PROVIDERLESS_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([CodeCli.QODER_CLI])
 
 /** Aggregators fronting Gemini behind a non-Gemini provider type, surfaced
  * here so Gemini-compatible CLIs can select them despite lacking a Gemini endpoint. */

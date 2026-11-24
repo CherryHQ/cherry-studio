@@ -82,9 +82,7 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 
 1. **Driver** (`AgentSessionRuntimeDriver`) — required members:
    - `type` (the `AgentType` literal)
-   - Optional `contentSource: 'chunks'` selects the existing Main SDK chunk reader;
-     omission selects authoritative messages. The host selects the source by this
-     capability, not by runtime type. Local CLI drivers declare `chunks`.
+   - `contentSource` selects how Main reads content (see step 4).
    - `validateSession(session)` — throw if the session can't be served
      (missing workspace, agent, model, unusable provider). Must be
      **side-effect free**: it runs on every dispatch, so it must not consume
@@ -204,12 +202,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    files), add `feature.agents.<name>.*` keys to the path registry
    (`src/main/core/paths/`) instead of building paths ad hoc.
 
-Native CLI runtimes are an explicit exception to Cherry-owned prompt, model and skill
-injection: the CLI owns its settings, credentials, prompts, MCP and Skills. They may
-provide `getExecutionId(agent)` for a provider-free execution identity; returning
-`undefined` marks an unroutable Agent. Native connections declare
-`sessionCostScope: 'native-session'` when cumulative cost follows their resume token.
-See [Local Agent Runtime](./local-agent-runtime.md#ownership-and-routing).
+[Local CLI runtimes](./local-agent-runtime.md#ownership-and-routing) use native
+configuration. Their drivers may supply a provider-free `getExecutionId(agent)`
+(`undefined` makes the Agent unroutable). Set `sessionCostScope: 'native-session'`
+when cumulative cost follows the connection's resume token.
 
 ## Step 3 — renderer
 

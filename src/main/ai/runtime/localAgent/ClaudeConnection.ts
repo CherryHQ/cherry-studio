@@ -91,7 +91,7 @@ export class ClaudeConnection extends LocalConnection {
         const commands = filterClaudeSlashCommands(await stream.supportedCommands())
         if (commands.length > 0) this.supportedCommands = commands
       } catch {
-        // Fall back to default built-in commands if the probe query fails.
+        // Older or unavailable CLIs can still use the built-in commands.
       } finally {
         input.close()
         stream.close()
@@ -324,7 +324,7 @@ export class ClaudeConnection extends LocalConnection {
       },
       statusSink: {
         emit: (event) => {
-          // This connection owns one query per turn, so it cannot retain background work after its result.
+          // Closing the query at turn end also ends its background work.
           if (event.type !== 'background-work-state' && event.type !== 'autonomous-turn-state') this.events.push(event)
         }
       },

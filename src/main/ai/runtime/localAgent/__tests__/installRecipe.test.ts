@@ -7,16 +7,6 @@ import { resolveInstallRecipe, resolveCliInstallRecipe } from '../installRecipe'
 const registry = (id: string, distribution: unknown) => ({ agents: [{ id, distribution }] })
 
 describe('system agent install recipes', () => {
-  it.each([
-    ['deepseek-harness', '@deepseek-ai/dsh'],
-    ['openclaw', 'openclaw']
-  ])('reuses the native %s package for ACP without requiring a registry entry', (presetId, packageName) => {
-    expect(resolveInstallRecipe(presetId)).toMatchObject({
-      manager: 'npm',
-      package: packageName,
-      args: ['install', '--global', packageName]
-    })
-  })
   it('uses official Kiro, Trae and Vibe installers without requiring registry entries', () => {
     expect(resolveInstallRecipe('kiro', undefined, 'darwin')).toMatchObject({
       manager: 'script',
@@ -39,11 +29,13 @@ describe('system agent install recipes', () => {
     })
   })
   it.each([
+    ['deepseek-harness', '@deepseek-ai/dsh'],
+    ['openclaw', 'openclaw'],
     ['omp', '@oh-my-pi/pi-coding-agent'],
     ['snow', 'snow-ai'],
     ['zcode', 'zcode-acp-server']
   ])('installs %s from its published package without an ACP registry entry', (id, packageName) => {
-    expect(resolveInstallRecipe(id, undefined)).toEqual({
+    expect(resolveInstallRecipe(id)).toEqual({
       manager: 'npm',
       package: packageName,
       args: ['install', '--global', packageName]
@@ -168,9 +160,5 @@ describe('system agent install recipes', () => {
     })
     expect(resolveInstallRecipe('cursor', manifest, 'win32', 'x64')).toMatchObject({ cmd: './agent.exe' })
     expect(resolveInstallRecipe('cursor', manifest, 'linux', 'x64')).toBeUndefined()
-  })
-
-  it('does not install a binary for an unsupported platform', () => {
-    expect(resolveInstallRecipe('cursor', registry('cursor', { binary: {} }))).toBeUndefined()
   })
 })

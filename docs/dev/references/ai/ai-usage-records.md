@@ -64,50 +64,33 @@ invoices remain authoritative.
 
 ## Local Agent observations
 
-`GET /ai-usage-records/local` reads date-bounded, cursor-paginated observations
-from existing message JSON and historical synthetic local records. It does not
-create invocation records or change the SQLite schema.
+`GET /ai-usage-records/local` paginates local observations by report date using
+message JSON and legacy `local-agent:*` records.
 
-- Native turn usage is Main-authored `MessageData.localTurnUsage`: a native session
-  ID, optional actual model identity, report time, attribution status and reported
-  token counters. It is a turn summary, not a provider request count. Missing
-  summaries remain unknown; explicit reported zero remains zero. Cache and reasoning
-  counters are details within input and output totals.
-- Provider list, statistics and timeline exclude historical `local-agent:*`
-  synthetic records. Those records remain immutable and appear separately as
-  legacy turn summaries. Existing message projections are not rewritten.
-- Native session costs use the latest reported snapshot per Agent/native session
-  within the selected report window. They retain their original currency, may
-  include activity before that window and are not period spending or invocation
-  cost deltas. Updates replace the amount, including downward corrections and
-  explicit zero. No mixed-currency total is produced.
-- Settings > Usage and message details present the separate observation scopes.
-  Native summaries are never added to provider-token or billing totals. Message
-  details hide unknown costs and keep tiny positive costs distinguishable from zero.
+| Scope | Source and interpretation |
+| --- | --- |
+| Native turn usage | Main writes `MessageData.localTurnUsage` with native session ID, reported model and tokens when available, report time and attribution. Cache and reasoning tokens are details of the totals. |
+| Native session cost | Main writes `MessageData.localSessionCost`. Usage shows the last snapshot per Agent and native session within the window, in its reported currency. A cumulative amount can include earlier activity. Updates replace the amount, including decreases and zero. |
+| Legacy turn summary | Historical synthetic records appear separately from provider lists, timelines and statistics. |
 
-Main stores cost snapshots in `MessageData.localSessionCost`. Shared cache supplies
-live updates, and `GET /agent-sessions/:sessionId/cost` reads the last persisted
-snapshot without starting the CLI. Costs reported before a message row exists
-are initially live-only. A new native session clears the previous amount with an
-unknown-cost marker. Renderer message writes cannot replace either observation,
-and forks do not inherit the source turn usage or session cost.
+Usage keeps native summaries out of provider billing and token totals. Missing
+values stay unknown. Explicit zeros and small positive costs remain distinguishable.
+The shared cache carries live costs before a message exists.
+`GET /agent-sessions/:sessionId/cost` reads persisted cost without starting a CLI.
+A new native session resets the display to unknown. Renderer writes and forks
+cannot copy or replace these observations.
 
-Gateway-configured Local Agents bind a session credential lease on connection
-start while the saved native default matches Cherry's gateway configuration;
-connection disposal revokes it. DeepSeek Harness, OpenCode, Kilo, and Poolside
-isolate that lease through a process-local credential overlay. Only CLIs that
-use the shared gateway key can participate in public-key correlation, which
-requires a unique active session turn matching the bound model.
-Modified endpoints/credentials, concurrent active turns sharing one public-key
-model, unsupported SDK routes, and other Agents retain unknown request
-attribution. A connected gateway does not imply that every native request is
-observable.
+Gateway correlation uses a connection-scoped credential lease while the configured
+endpoint, credentials and native model match. Disposal revokes the lease. DeepSeek
+Harness, OpenCode, Kilo and Poolside can use a process-only overlay. A public-key
+request must match one active turn for the bound model. Ambiguous or unsupported
+requests retain unknown attribution.
 
 ## Invariants and ownership
 
-- Usage and cost have one fact source: `ai_usage_record`.
-  ACP cumulative session costs are separate diagnostic snapshots, never billing
-  records or message cost projections; see [Local Agent Runtime](./local-agent-runtime.md#protocol-behavior).
+- Provider invocation usage and cost come from `ai_usage_record`. ACP cumulative
+  costs are local diagnostic snapshots. See
+  [Local Agent Runtime](./local-agent-runtime.md#protocol-behavior).
 - Invocation amounts and request-time snapshots are insert-only. A duplicate
   `requestId` is ignored; a different payload logs an integrity warning.
 - Native response correlation can fill an initially unknown message link, including

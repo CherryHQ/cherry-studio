@@ -14,6 +14,7 @@ import { t } from '@main/i18n'
 import { codeCliHandlers } from '@main/ipc/handlers/codeCli'
 import { CodeCliService } from '@main/services/codeCli/CodeCliService'
 import { getRawShellEnv } from '@main/utils/shellEnv'
+import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
@@ -46,14 +47,22 @@ describe('global local agent model selection', () => {
     await rm(home, { recursive: true, force: true })
   })
 
-  it('stores and clears the Antigravity ACP model without changing CLI defaults', async () => {
-    const config = { presetId: 'antigravity-acp', protocol: 'acp' as const, enabled: true, args: [], env: {} }
-    const agent = agentService.createAgentWithId('local-antigravity', {
-      name: 'Antigravity',
+  function createLocalAgent(
+    id: string,
+    name: string,
+    config: Pick<LocalAgentConfiguration, 'protocol'> & Partial<LocalAgentConfiguration>
+  ) {
+    return agentService.createAgentWithId(id, {
+      name,
       type: 'local',
       model: null,
-      configuration: { localRuntime: config }
+      configuration: { localRuntime: { enabled: true, args: [], env: {}, ...config } }
     })
+  }
+
+  it('stores and clears the Antigravity ACP model without changing CLI defaults', async () => {
+    const config = { presetId: 'antigravity-acp', protocol: 'acp' as const, enabled: true, args: [], env: {} }
+    const agent = createLocalAgent('local-antigravity', 'Antigravity', config)
     await selectLocalAgentModel(agent.id, 'gemini')
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('gemini')
     await selectLocalAgentModel(agent.id)
@@ -62,32 +71,17 @@ describe('global local agent model selection', () => {
 
   it('saves the same default to native config and the Agent, including concurrent selections', async () => {
     const config = { presetId: 'codex', protocol: 'codex' as const, enabled: true, args: [], env: {} }
-    const agent = agentService.createAgentWithId('local-codex', {
-      name: 'Codex',
-      type: 'local',
-      model: null,
-      configuration: { localRuntime: config }
-    })
+    const agent = createLocalAgent('local-codex', 'Codex', config)
     await Promise.all([selectLocalAgentModel(agent.id, 'first'), selectLocalAgentModel(agent.id, 'second')])
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime).toEqual({ ...config, nativeModel: 'second' })
     expect(await readFile(path.join(home, '.codex/config.toml'), 'utf8')).toContain('model = "second"')
   })
 
   it('applies Code Mate provider changes to the existing chat Agent', () => {
-    const agent = agentService.createAgentWithId('provider-agent', {
-      name: 'Pi',
-      type: 'local',
-      model: null,
-      configuration: {
-        localRuntime: {
-          presetId: 'pi-acp',
-          protocol: 'acp',
-          enabled: true,
-          args: [],
-          env: {},
-          nativeModel: 'old/model'
-        }
-      }
+    const agent = createLocalAgent('provider-agent', 'Pi', {
+      presetId: 'pi-acp',
+      protocol: 'acp',
+      nativeModel: 'old/model'
     })
     syncLocalAgentConfigModel(CodeCli.PI, [
       { target: 'pi-settings', content: '{"defaultProvider":"custom","defaultModel":"new"}' }
@@ -96,20 +90,11 @@ describe('global local agent model selection', () => {
   })
 
   it('does not project global config edits onto an Agent with a separate config root', () => {
-    const agent = agentService.createAgentWithId('independent-claude', {
-      name: 'Separate Claude',
-      type: 'local',
-      model: null,
-      configuration: {
-        localRuntime: {
-          presetId: 'claude',
-          protocol: 'claude',
-          enabled: true,
-          args: [],
-          env: { CLAUDE_CONFIG_DIR: '/independent' },
-          nativeModel: 'private-model'
-        }
-      }
+    const agent = createLocalAgent('independent-claude', 'Separate Claude', {
+      presetId: 'claude',
+      protocol: 'claude',
+      env: { CLAUDE_CONFIG_DIR: '/independent' },
+      nativeModel: 'private-model'
     })
     expect(
       syncLocalAgentConfigModel(
@@ -123,12 +108,7 @@ describe('global local agent model selection', () => {
   })
 
   it('keeps Poolside native and gateway defaults consistent with the saved Agent', async () => {
-    const agent = agentService.createAgentWithId('local-poolside', {
-      name: 'Poolside',
-      type: 'local',
-      model: null,
-      configuration: { localRuntime: { presetId: 'poolside', protocol: 'acp', enabled: true, args: [], env: {} } }
-    })
+    const agent = createLocalAgent('local-poolside', 'Poolside', { presetId: 'poolside', protocol: 'acp' })
     await selectLocalAgentModel(agent.id, 'poolside/laguna-xs-2.1')
     expect((await service.readConfigFiles(['poolside-settings']))[0].content).toContain('model: poolside/laguna-xs-2.1')
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('poolside/laguna-xs-2.1')
@@ -162,12 +142,7 @@ describe('global local agent model selection', () => {
     ],
     ['mistral-vibe', 'vibe-config', 'active_model="cherry-gateway"', 'cherry-gateway']
   ] as const)('synchronizes %s global config and chat model identity', async (presetId, target, content, expected) => {
-    const agent = agentService.createAgentWithId(`new-${presetId}`, {
-      name: presetId,
-      type: 'local',
-      model: null,
-      configuration: { localRuntime: { presetId, protocol: 'acp', enabled: true, args: [], env: {} } }
-    })
+    const agent = createLocalAgent(`new-${presetId}`, presetId, { presetId, protocol: 'acp' })
     const selected = await selectLocalAgentModel(agent.id, undefined, {
       sourceModelId: createUniqueModelId('provider', 'model'),
       sourceModelViaGateway: true,
@@ -184,24 +159,14 @@ describe('global local agent model selection', () => {
   })
 
   it('does not change the saved model when native persistence is unsupported', async () => {
-    const agent = agentService.createAgentWithId('custom-local', {
-      name: 'Custom',
-      type: 'local',
-      model: null,
-      configuration: { localRuntime: { protocol: 'acp', enabled: true, args: [], env: {}, nativeModel: 'previous' } }
-    })
+    const agent = createLocalAgent('custom-local', 'Custom', { protocol: 'acp', nativeModel: 'previous' })
     await expect(selectLocalAgentModel(agent.id, 'next')).rejects.toThrow(t('code_cli.model.unsupported'))
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('previous')
   })
   it.each([false, true])(
     'commits model source (gateway: %s) and restores native selection without leftovers',
     async (viaGateway) => {
-      const agent = agentService.createAgentWithId('unified-pi', {
-        name: 'Pi',
-        type: 'local',
-        model: null,
-        configuration: { localRuntime: { presetId: 'pi-acp', protocol: 'acp', enabled: true, args: [], env: {} } }
-      })
+      const agent = createLocalAgent('unified-pi', 'Pi', { presetId: 'pi-acp', protocol: 'acp' })
       const sourceModelId = createUniqueModelId('custom', 'model-a')
       const selected = await selectLocalAgentModel(agent.id, undefined, {
         sourceModelId,
@@ -247,12 +212,7 @@ describe('global local agent model selection', () => {
   )
 
   it('rejects stale drafts without overwriting disk or the saved selection', async () => {
-    const agent = agentService.createAgentWithId('stale-pi', {
-      name: 'Pi',
-      type: 'local',
-      model: null,
-      configuration: { localRuntime: { presetId: 'pi-acp', protocol: 'acp', enabled: true, args: [], env: {} } }
-    })
+    const agent = createLocalAgent('stale-pi', 'Pi', { presetId: 'pi-acp', protocol: 'acp' })
     await selectLocalAgentModel(agent.id, 'anthropic/first')
     await expect(
       selectLocalAgentModel(agent.id, 'anthropic/second', {
@@ -264,19 +224,10 @@ describe('global local agent model selection', () => {
   })
 
   it('rejects a mixed-case Windows home override before writing a model to the wrong directory', async () => {
-    const agent = agentService.createAgentWithId('windows-env-model', {
-      name: 'Codex',
-      type: 'local',
-      model: null,
-      configuration: {
-        localRuntime: {
-          presetId: 'codex',
-          protocol: 'codex',
-          enabled: true,
-          args: [],
-          env: { Codex_Home: '/different/home' }
-        }
-      }
+    const agent = createLocalAgent('windows-env-model', 'Codex', {
+      presetId: 'codex',
+      protocol: 'codex',
+      env: { Codex_Home: '/different/home' }
     })
     platform.isWin = true
     vi.mocked(getRawShellEnv).mockResolvedValue({ codex_home: '/terminal/home' })
@@ -289,12 +240,7 @@ describe('global local agent model selection', () => {
     }
   })
   it('checks editor drafts inside the queue so concurrent writes cannot share a stale snapshot', async () => {
-    const agent = agentService.createAgentWithId('queued-pi', {
-      name: 'Pi',
-      type: 'local',
-      model: null,
-      configuration: { localRuntime: { presetId: 'pi-acp', protocol: 'acp', enabled: true, args: [], env: {} } }
-    })
+    const agent = createLocalAgent('queued-pi', 'Pi', { presetId: 'pi-acp', protocol: 'acp' })
     const original = '{"defaultProvider":"native","defaultModel":"original"}'
     await service.writeConfigFiles({
       cliTool: CodeCli.PI,
@@ -320,22 +266,12 @@ describe('global local agent model selection', () => {
 
   it('publishes committed editor state and restores files when the Agent projection rejects it', async () => {
     const sourceModelId = createUniqueModelId('custom', 'example')
-    const agent = agentService.createAgentWithId('editor-rollback', {
-      name: 'Claude',
-      type: 'local',
-      model: null,
-      configuration: {
-        localRuntime: {
-          presetId: 'claude',
-          protocol: 'claude',
-          enabled: true,
-          args: [],
-          env: {},
-          nativeModel: 'example',
-          sourceModelId,
-          sourceModelViaGateway: true
-        }
-      }
+    const agent = createLocalAgent('editor-rollback', 'Claude', {
+      presetId: 'claude',
+      protocol: 'claude',
+      nativeModel: 'example',
+      sourceModelId,
+      sourceModelViaGateway: true
     })
     const original = '{"model":"example","effortLevel":"medium"}'
     const content = original.replace('medium', 'high')
@@ -377,21 +313,11 @@ describe('global local agent model selection', () => {
 
   it('retains model source for parameter edits and rejects an editor draft after an external edit', async () => {
     const sourceModelId = createUniqueModelId('custom', 'example')
-    const agent = agentService.createAgentWithId('editor-claude', {
-      name: 'Claude',
-      type: 'local',
-      model: null,
-      configuration: {
-        localRuntime: {
-          presetId: 'claude',
-          protocol: 'claude',
-          enabled: true,
-          args: [],
-          env: {},
-          nativeModel: 'example',
-          sourceModelId
-        }
-      }
+    const agent = createLocalAgent('editor-claude', 'Claude', {
+      presetId: 'claude',
+      protocol: 'claude',
+      nativeModel: 'example',
+      sourceModelId
     })
     const original = '{"env":{"ANTHROPIC_MODEL":"example"},"effortLevel":"medium"}'
     await service.writeConfigFiles({

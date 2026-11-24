@@ -468,7 +468,7 @@ export async function resolveLocalAgentLaunch(
     if (settings?.content) nativeModel = readNativeModelConfig('claude-settings', settings.content)
   }
   if (preset?.id === 'antigravity-acp' && !terminal && !nativeAntigravity && !config.executableOverride) {
-    // The adapter's WebSocket client prefers macOS SOCKS settings over HTTPS_PROXY, but ships without python-socks.
+    // Set WebSocket proxies explicitly because the adapter lacks python-socks.
     const agentProxy = Object.keys(config.env).some((key) => /^(https?|all|socks)_proxy$/i.test(key))
     const appliedProxy = getProxyEnvironment()
     const useAppliedProxy = !agentProxy && !!appliedProxy[CHERRY_NODE_PROXY_RULES_ENV]

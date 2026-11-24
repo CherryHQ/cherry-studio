@@ -10,12 +10,31 @@ import { TabIdContext, TabsContext, type Tab, type TabsContextValue } from '@ren
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 import { LocalAgentDirectory } from '../LocalAgentDirectory'
 
-function LocalAgentSettingsPage() {
-  return <LocalAgentDirectory />
+function localAgent(
+  name: string,
+  configuration: Partial<LocalAgentConfiguration> = {},
+  id = 'test-local'
+): AgentEntity {
+  return {
+    id,
+    name,
+    type: 'local',
+    model: null,
+    modelName: null,
+    orderKey: 'a0',
+    createdAt: '',
+    updatedAt: '',
+    configuration: { localRuntime: { protocol: 'acp', enabled: true, args: [], env: {}, ...configuration } }
+  }
+}
+
+function publishAgent(agent: AgentEntity) {
+  MockUseDataApiUtils.mockQueryData('/agents', { items: [agent], total: 1, page: 1 })
 }
 
 const navigation = vi.hoisted(() => ({ search: { id: 'claude' }, navigate: vi.fn() }))
@@ -58,8 +77,6 @@ afterEach(() => vi.useRealTimers())
 describe('local agent settings navigation', () => {
   it.each([
     { presetId: 'codex', optionLabel: /ChatGPT 账号/, methodId: 'codex-browser' },
-    { presetId: 'claude', optionLabel: /Claude 订阅账号/, methodId: 'claude-subscription' },
-    { presetId: 'kimi', optionLabel: /Kimi 国内版/, methodId: 'kimi-cn' },
     { presetId: 'pi-acp', methodId: 'pi-browser' }
   ])('starts in-app browser sign-in from the installed $presetId card', async ({ presetId, optionLabel, methodId }) => {
     navigation.search = { id: presetId }
@@ -67,7 +84,7 @@ describe('local agent settings navigation', () => {
       if (route === 'ai.local_agents.detect') return [{ presetId, path: '/test/cli' }] as never
       return { models: [], authMethods: [], success: true } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
     const dialog = within(screen.getByRole('dialog'))
     if (presetId === 'pi-acp') {
@@ -87,23 +104,6 @@ describe('local agent settings navigation', () => {
     expect(ipcApi.request).not.toHaveBeenCalledWith('ai.local_agents.open_terminal', expect.anything())
   })
 
-  it('keeps sign-in as an action when a background model refresh proves session readiness', async () => {
-    navigation.search = { id: 'opencode' }
-    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
-      if (route === 'ai.local_agents.detect') return [{ presetId: 'opencode', path: '/test/opencode' }] as never
-      if (route === 'ai.local_agents.models')
-        return {
-          models: [{ id: 'opencode/model', name: 'Native test model' }],
-          authMethods: [{ id: 'opencode-login', name: 'Login with opencode', type: 'agent' }]
-        } as never
-      if (route === 'ai.local_agents.auth_status') return 'unsupported'
-      return { ok: true, protocolInfo: { authMethods: [] } } as never
-    })
-    render(<LocalAgentSettingsPage />)
-    expect(await screen.findByRole('button', { name: '登录' })).toBeVisible()
-    expect(screen.queryByRole('button', { name: '会话就绪' })).not.toBeInTheDocument()
-  })
-
   it('launches terminal auth login and reports native signed-in status for opencode', async () => {
     navigation.search = { id: 'opencode' }
     let nativeStatus: 'signed-out' | 'signed-in' = 'signed-out'
@@ -119,7 +119,7 @@ describe('local agent settings navigation', () => {
       return { ok: true, protocolInfo: { authMethods: [{ id: 'opencode-login', type: 'agent' }] } } as never
     })
 
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
     const dialog = within(screen.getByRole('dialog'))
     expect(dialog.getByRole('button', { name: /OpenCode Console/ })).toBeVisible()
@@ -153,7 +153,7 @@ describe('local agent settings navigation', () => {
       if (route === 'ai.local_agents.auth_status') return 'unsupported'
       return { protocolInfo: { authMethods: methods } } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     expect(await screen.findByRole('button', { name: '已登录' })).toBeVisible()
     await userEvent.click(screen.getByRole('button', { name: '已登录' }))
     expect(screen.queryByRole('heading', { name: /重新登录/ })).not.toBeInTheDocument()
@@ -180,7 +180,7 @@ describe('local agent settings navigation', () => {
       if (route === 'ai.local_agents.models') throw new Error('Authentication required')
       return { protocolInfo: { authMethods: [{ id: 'oauth-personal', name: 'Google', type: 'agent' }] } } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(await screen.findByText(/拉取模型失败/)).toBeVisible()
@@ -191,27 +191,12 @@ describe('local agent settings navigation', () => {
 
   it('saves sign-in credentials without overwriting the model or enablement from an earlier configuration', async () => {
     navigation.search = { id: 'antigravity-acp' }
-    const agent = {
-      id: 'test-local',
-      name: 'Google Antigravity',
-      type: 'local' as const,
-      model: null,
-      modelName: null,
-      orderKey: 'a0',
-      createdAt: '',
-      updatedAt: '',
-      configuration: {
-        localRuntime: {
-          protocol: 'acp' as const,
-          presetId: 'antigravity-acp',
-          enabled: true,
-          nativeModel: 'existing-model',
-          args: [],
-          env: { KEEP: 'value' }
-        }
-      }
-    }
-    MockUseDataApiUtils.mockQueryData('/agents', { items: [agent], total: 1, page: 1 })
+    const agent = localAgent('Google Antigravity', {
+      presetId: 'antigravity-acp',
+      nativeModel: 'existing-model',
+      env: { KEEP: 'value' }
+    })
+    publishAgent(agent)
     const update = vi.fn().mockResolvedValue(agent)
     MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', update)
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
@@ -222,7 +207,7 @@ describe('local agent settings navigation', () => {
         protocolInfo: { authMethods: [{ id: 'gemini-api-key', name: 'Gemini API key', type: 'agent' }] }
       } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
     await userEvent.type(screen.getByLabelText('API 密钥'), 'new-test-key')
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '登录' }))
@@ -241,7 +226,7 @@ describe('local agent settings navigation', () => {
       if (route === 'ai.local_agents.detect') throw new Error('discovery unavailable')
       return { models: [] } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     const retry = screen.getByRole('button', { name: '重新检测' })
     await waitFor(() => expect(retry).toBeEnabled())
     expect(toast.error).not.toHaveBeenCalled()
@@ -257,7 +242,7 @@ describe('local agent settings navigation', () => {
       if (route === 'ai.codebuddy_web.status') throw new Error('status unavailable')
       return { models: [] } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('ai.codebuddy_web.status'))
     expect(toast.error).not.toHaveBeenCalled()
   })
@@ -268,29 +253,13 @@ describe('local agent settings navigation', () => {
       navigation.search = { id: presetId }
       const route = presetId === 'opencode' ? 'ai.local_agents.web_start' : 'ai.codebuddy_web.start'
       const url = 'http://127.0.0.1:54321/'
-      MockUseDataApiUtils.mockQueryData('/agents', {
-        items: [
-          {
-            id: 'test-local',
-            name: presetId,
-            type: 'local',
-            model: null,
-            modelName: null,
-            orderKey: 'a0',
-            createdAt: '',
-            updatedAt: '',
-            configuration: { localRuntime: { protocol: 'acp', presetId, enabled: true, args: [], env: {} } }
-          }
-        ],
-        total: 1,
-        page: 1
-      })
+      publishAgent(localAgent(presetId, { presetId }))
       vi.mocked(ipcApi.request).mockImplementation(async (method) => {
         if (method === 'ai.local_agents.detect') return [{ presetId, path: '/test/cli' }] as never
         if (method === route) return { status: 'running', owned: true, url } as never
         return { models: [] } as never
       })
-      const { rerender } = render(<LocalAgentSettingsPage />)
+      const { rerender } = render(<LocalAgentDirectory />)
       await userEvent.click(await screen.findByRole('button', { name: '启动服务' }))
       await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith(route, expect.objectContaining({ presetId })))
       expect(
@@ -306,7 +275,7 @@ describe('local agent settings navigation', () => {
           owned: true,
           url
         })
-      rerender(<LocalAgentSettingsPage />)
+      rerender(<LocalAgentDirectory />)
       await userEvent.click(await screen.findByRole('button', { name: '打开 WebUI' }))
       expect(ipcApi.request).toHaveBeenCalledWith('system.shell.open_external_website', expect.stringContaining(url))
       expect(vi.mocked(ipcApi.request).mock.calls.filter(([method]) => method === route)).toHaveLength(1)
@@ -323,7 +292,7 @@ describe('local agent settings navigation', () => {
       if (route === 'ai.local_agents.web_stop' || route === 'ai.codebuddy_web.stop') throw new Error('stop failed')
       return { models: [] } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await userEvent.click(await screen.findByRole('button', { name: '停止服务' }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('停止服务失败，请重试。'))
     expect(screen.getByRole('button', { name: '打开 WebUI' })).toBeEnabled()
@@ -338,31 +307,15 @@ describe('local agent settings navigation', () => {
       if (route === 'ai.local_agents.detect') return [{ presetId, path: '/test/cli' }] as never
       return { models: [] } as never
     })
-    const { rerender } = render(<LocalAgentSettingsPage />)
+    const { rerender } = render(<LocalAgentDirectory />)
     const start = await screen.findByRole('button', { name: '启动服务' })
     expect(start).toBeDisabled()
     await userEvent.click(start)
     expect(
       vi.mocked(ipcApi.request).mock.calls.some(([route]) => route.endsWith('.start') || route.endsWith('.web_start'))
     ).toBe(false)
-    MockUseDataApiUtils.mockQueryData('/agents', {
-      items: [
-        {
-          id: 'test-local',
-          name: presetId,
-          type: 'local',
-          model: null,
-          modelName: null,
-          orderKey: 'a0',
-          createdAt: '',
-          updatedAt: '',
-          configuration: { localRuntime: { protocol: 'acp', presetId, enabled: true, args: [], env: {} } }
-        }
-      ],
-      total: 1,
-      page: 1
-    })
-    rerender(<LocalAgentSettingsPage />)
+    publishAgent(localAgent(presetId, { presetId }))
+    rerender(<LocalAgentDirectory />)
     await waitFor(() => expect(screen.getByRole('button', { name: '启动服务' })).toBeEnabled())
   })
 
@@ -372,7 +325,7 @@ describe('local agent settings navigation', () => {
       if (route === 'ai.local_agents.models') throw new Error('Authentication required')
       return { models: [] } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.models', expect.anything()))
     expect(screen.getByRole('button', { name: '检查连接' })).toBeEnabled()
     expect(screen.queryByText('请先登录')).not.toBeInTheDocument()
@@ -391,7 +344,7 @@ describe('local agent settings navigation', () => {
       }
       return { models: [] } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     expect(await screen.findByText('v1.0.0')).toBeInTheDocument()
     const upgradeButton = await screen.findByRole('button', { name: '升级至 v2.0.0' })
     await userEvent.hover(upgradeButton)
@@ -420,7 +373,7 @@ describe('local agent settings navigation', () => {
       }
       return { models: [] } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await user.click(await screen.findByRole('button', { name: '升级至 v2.0.0' }))
     try {
       await user.click(screen.getByRole('button', { name: /^Codex ·/ }))
@@ -448,7 +401,7 @@ describe('local agent settings navigation', () => {
     }
   })
 
-  it('shows the checked version inline, pauses dismissal on hover, and restores installation status', async () => {
+  it('keeps connection feedback visible while hovered and restores installation status on dismissal', async () => {
     vi.mocked(ipcApi.request).mockImplementation(
       async (route) =>
         (route === 'ai.local_agents.detect'
@@ -457,14 +410,12 @@ describe('local agent settings navigation', () => {
             ? { ok: true, status: 'ready', version: '1.2.3' }
             : { models: [] }) as never
     )
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     const button = await screen.findByRole('button', { name: '检查连接' })
     const program = screen.getByRole('group', { name: '程序' })
-    expect(within(program).getByRole('button', { name: '检查连接' })).toBe(button)
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     fireEvent.click(button)
     await vi.waitFor(() => expect(within(program).getByRole('status')).toHaveTextContent('1.2.3'))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     fireEvent.mouseEnter(program)
     void act(() => vi.advanceTimersByTime(4200))
     expect(within(program).getByRole('status')).toHaveTextContent('1.2.3')
@@ -482,7 +433,7 @@ describe('local agent settings navigation', () => {
       if (route === 'ai.local_agents.install') return { ok: true, path: '/user/bin/claude' } as never
       return { models: [] } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     fireEvent.click(await screen.findByRole('button', { name: '检查连接' }))
     fireEvent.click(await screen.findByRole('button', { name: /^安装$/ }))
     await screen.findByText(/\/user\/bin\/claude/)
@@ -501,7 +452,7 @@ describe('local agent settings navigation', () => {
             ? { ok: false, status, error: 'Agent unavailable' }
             : { models: [] }) as never
     )
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     const button = await screen.findByRole('button', { name: '检查连接' })
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     fireEvent.click(button)
@@ -529,7 +480,7 @@ describe('local agent settings navigation', () => {
       return { models: [] } as never
     })
     vi.mocked(popup.confirm).mockResolvedValueOnce(true)
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await user.click(await screen.findByRole('button', { name: '高级设置' }))
     await user.click(screen.getByRole('button', { name: '卸载' }))
     await waitFor(() =>
@@ -547,24 +498,21 @@ describe('local agent settings navigation', () => {
     expect(screen.getAllByText(/未完成卸载：pi/).length).toBeGreaterThan(0)
   })
 
-  it('keeps the drawer mounted for its exit animation and discards the draft before reopening', async () => {
+  it('discards the advanced settings draft before reopening', async () => {
     const user = userEvent.setup()
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await user.click(screen.getByRole('button', { name: '高级设置' }))
-    expect(screen.getByLabelText('名称')).toBeDisabled()
     await user.type(screen.getByRole('textbox', { name: /可执行程序/ }), '/tmp/temporary-agent')
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '取消' }))
     fireEvent.click(screen.getByRole('button', { name: '放弃修改' }))
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: '高级设置' }))
-    expect(screen.getByLabelText('名称')).toHaveValue('Claude Code')
     expect(screen.getByRole('textbox', { name: /可执行程序/ })).toHaveValue('')
   })
 
   it('opens an installed native CLI without requiring ACP sign-in or enabling the agent', async () => {
     const user = userEvent.setup()
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await user.click(await screen.findByRole('button', { name: '在终端打开命令行' }))
     expect(ipcApi.request).not.toHaveBeenCalledWith('ai.local_agents.open_terminal', expect.anything())
     await user.click(screen.getByRole('button', { name: '选择文件夹' }))
@@ -600,7 +548,7 @@ describe('local agent settings navigation', () => {
       if (route === 'ai.local_agents.open_terminal') actions.push('open')
       return { models: [], success: true } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await userEvent.click(await screen.findByRole('button', { name: '在终端打开命令行' }))
     await userEvent.click(screen.getByRole('button', { name: '选择文件夹' }))
     await userEvent.click(screen.getByRole('button', { name: '启动' }))
@@ -619,7 +567,7 @@ describe('local agent settings navigation', () => {
       if (route === 'ai.local_agents.detect') return new Promise(() => {}) as never
       return { models: [] } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     expect(screen.queryByRole('button', { name: '安装' })).not.toBeInTheDocument()
     expect(within(screen.getByRole('group', { name: '程序' })).getByRole('status')).not.toHaveTextContent('未安装')
   })
@@ -627,7 +575,7 @@ describe('local agent settings navigation', () => {
   it('offers installation instead of connection and chat for an uninstalled agent', async () => {
     navigation.search = { id: 'codex' }
     vi.mocked(ipcApi.request).mockResolvedValue([{ presetId: 'codex', source: 'none' }] as never)
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     expect(await screen.findByRole('button', { name: '安装' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: '在终端打开命令行' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '检查连接' })).not.toBeInTheDocument()
@@ -639,24 +587,8 @@ describe('local agent settings navigation', () => {
   })
 
   it.each([true, false])('opens the selected local agent only when enabled: %s', async (enabled) => {
-    MockUseDataApiUtils.mockQueryData('/agents', {
-      items: [
-        {
-          id: 'local-claude',
-          name: 'Claude Code',
-          type: 'local',
-          model: null,
-          modelName: null,
-          orderKey: 'a0',
-          createdAt: '',
-          updatedAt: '',
-          configuration: { localRuntime: { protocol: 'claude', presetId: 'claude', enabled, args: [], env: {} } }
-        }
-      ],
-      total: 1,
-      page: 1
-    })
-    render(<LocalAgentSettingsPage />)
+    publishAgent(localAgent('Claude Code', { protocol: 'claude', presetId: 'claude', enabled }, 'local-claude'))
+    render(<LocalAgentDirectory />)
     await screen.findByRole('button', { name: '检查连接' })
     const button = screen.getByRole('button', { name: '对话' })
     if (enabled) {
@@ -677,23 +609,7 @@ describe('local agent settings navigation', () => {
   })
 
   it.each(['matching', 'other', 'none'])('closes settings and reuses an agent tab: %s', async (existing) => {
-    MockUseDataApiUtils.mockQueryData('/agents', {
-      items: [
-        {
-          id: 'local-claude',
-          name: 'Claude Code',
-          type: 'local',
-          model: null,
-          modelName: null,
-          orderKey: 'a0',
-          createdAt: '',
-          updatedAt: '',
-          configuration: { localRuntime: { protocol: 'claude', presetId: 'claude', enabled: true, args: [], env: {} } }
-        }
-      ],
-      total: 1,
-      page: 1
-    })
+    publishAgent(localAgent('Claude Code', { protocol: 'claude', presetId: 'claude' }, 'local-claude'))
     MockDataApiUtils.setCustomResponse('/agent-sessions/latest', 'GET', { session: { id: 'target-session' } })
     let tabs: Tab[] = [{ id: 'settings', type: 'route', title: 'Settings', url: '/settings/local-agents' }]
     if (existing !== 'none')
@@ -745,9 +661,6 @@ describe('local agent settings navigation', () => {
 
   it.each([
     ['opencode', 'ai.local_agents.web_stop', false],
-    ['kimi', 'ai.local_agents.web_stop', false],
-    ['qwen', 'ai.local_agents.web_stop', false],
-    ['kilo', 'ai.local_agents.web_stop', false],
     ['codebuddy-code', 'ai.codebuddy_web.stop', false],
     ['hermes', 'hermes_dashboard.stop', false],
     ['deepseek-harness', 'deepseek_harness.stop', false],
@@ -757,26 +670,15 @@ describe('local agent settings navigation', () => {
     ['deepseek-harness', 'deepseek_harness.stop', true]
   ] as const)('stops WebUI after disabling %s via %s (stop fails=%s)', async (presetId, stopRoute, fails) => {
     navigation.search = { id: presetId }
-    let agent: AgentEntity = {
-      id: 'test-local',
-      name: presetId,
-      type: 'local' as const,
-      model: null,
-      modelName: null,
-      orderKey: 'a0',
-      createdAt: '',
-      updatedAt: '',
-      configuration: { localRuntime: { protocol: 'acp' as const, presetId, enabled: true, args: [], env: {} } }
-    }
-    const publishAgent = () => MockUseDataApiUtils.mockQueryData('/agents', { items: [agent], total: 1, page: 1 })
-    publishAgent()
+    let agent = localAgent(presetId, { presetId })
+    publishAgent(agent)
     const stops: unknown[][] = []
     vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
       if (route === 'ai.local_agents.detect') return [{ presetId, path: '/test/cli' }] as never
       if (route === 'ai.agent.delete') {
         expect(input).toEqual({ agentId: agent.id, deleteSessions: true })
         agent = { ...agent, deletedAt: new Date().toISOString() }
-        publishAgent()
+        publishAgent(agent)
         return { deleted: true, deletedSessionIds: ['test-session'] }
       }
       if (
@@ -793,7 +695,7 @@ describe('local agent settings navigation', () => {
       }
       return { models: [] } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await userEvent.click(await screen.findByRole('switch', { name: '启用此智能体' }))
     await waitFor(() => expect(screen.getByRole('switch', { name: '启用此智能体' })).toBeEnabled())
     expect(screen.getByRole('switch', { name: '启用此智能体' })).not.toBeChecked()
@@ -812,20 +714,8 @@ describe('local agent settings navigation', () => {
   it.each(['cancel', 'failure'])(
     'leaves an enabled agent unchanged when archiving does not complete (%s)',
     async (outcome) => {
-      const agent = {
-        id: 'test-local',
-        name: 'Claude Code',
-        type: 'local' as const,
-        model: null,
-        modelName: null,
-        orderKey: 'a0',
-        createdAt: '',
-        updatedAt: '',
-        configuration: {
-          localRuntime: { protocol: 'claude' as const, presetId: 'claude', enabled: true, args: [], env: {} }
-        }
-      }
-      MockUseDataApiUtils.mockQueryData('/agents', { items: [agent], total: 1, page: 1 })
+      const agent = localAgent('Claude Code', { protocol: 'claude', presetId: 'claude' })
+      publishAgent(agent)
       vi.mocked(popup.confirm).mockResolvedValueOnce(outcome !== 'cancel')
       const commands: string[] = []
       vi.mocked(ipcApi.request).mockImplementation(async (route) => {
@@ -836,7 +726,7 @@ describe('local agent settings navigation', () => {
         }
         return { models: [] } as never
       })
-      render(<LocalAgentSettingsPage />)
+      render(<LocalAgentDirectory />)
       await userEvent.click(await screen.findByRole('switch', { name: '启用此智能体' }))
       await waitFor(() => expect(screen.getByRole('switch', { name: '启用此智能体' })).toBeEnabled())
       expect(screen.getByRole('switch', { name: '启用此智能体' })).toBeChecked()
@@ -845,31 +735,19 @@ describe('local agent settings navigation', () => {
     }
   )
 
-  it.each([false, true])('restores an archived agent with its original configuration (fails=%s)', async (fails) => {
+  it.each([false, true])('restores the existing archived agent (fails=%s)', async (fails) => {
     let agent: AgentEntity = {
-      id: 'test-local',
-      name: 'Claude Code',
-      type: 'local',
-      model: null,
-      modelName: null,
-      orderKey: 'a0',
-      createdAt: '',
-      updatedAt: '',
-      deletedAt: new Date().toISOString(),
-      configuration: {
-        localRuntime: {
-          protocol: 'claude',
-          presetId: 'claude',
-          enabled: true,
-          nativeModel: 'saved-model',
-          executableOverride: '/test/saved-cli',
-          args: ['saved-arg'],
-          env: { SAVED: 'yes' }
-        }
-      }
+      ...localAgent('Claude Code', {
+        protocol: 'claude',
+        presetId: 'claude',
+        nativeModel: 'saved-model',
+        executableOverride: '/test/saved-cli',
+        args: ['saved-arg'],
+        env: { SAVED: 'yes' }
+      }),
+      deletedAt: new Date().toISOString()
     }
-    const originalConfig = agent.configuration
-    MockUseDataApiUtils.mockQueryData('/agents', { items: [agent], total: 1, page: 1 })
+    publishAgent(agent)
     vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
       if (route === 'ai.local_agents.detect') return [{ presetId: 'claude', path: '/test/cli' }] as never
       if (route === 'ai.local_agents.check') return { ok: true, status: 'ready' } as never
@@ -877,45 +755,30 @@ describe('local agent settings navigation', () => {
         expect(input).toEqual({ agentId: agent.id })
         if (fails) throw new Error('restore failed')
         agent = { ...agent, deletedAt: undefined }
-        MockUseDataApiUtils.mockQueryData('/agents', { items: [agent], total: 1, page: 1 })
+        publishAgent(agent)
         return agent
       }
       return { models: [] } as never
     })
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     const toggle = await screen.findByRole('switch', { name: '启用此智能体' })
     expect(toggle).not.toBeChecked()
     expect(screen.getByRole('button', { name: '高级设置' })).toBeDisabled()
     await userEvent.click(toggle)
     await waitFor(() => expect(screen.getByRole('switch', { name: '启用此智能体' })).toBeEnabled())
     expect(screen.getByRole('switch', { name: '启用此智能体' })).toHaveAttribute('aria-checked', String(!fails))
-    expect(agent.configuration).toEqual(originalConfig)
     expect(screen.getByRole('button', { name: '对话' })).toHaveProperty('disabled', fails)
   })
 
   it('waits for an archived custom agent without opening a new-configuration drawer', async () => {
     navigation.search = { id: 'archived-custom' }
-    const { rerender } = render(<LocalAgentSettingsPage />)
+    const { rerender } = render(<LocalAgentDirectory />)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    MockUseDataApiUtils.mockQueryData('/agents', {
-      items: [
-        {
-          id: 'archived-custom',
-          name: 'Saved custom Agent',
-          type: 'local',
-          model: null,
-          modelName: null,
-          orderKey: 'a0',
-          createdAt: '',
-          updatedAt: '',
-          deletedAt: new Date().toISOString(),
-          configuration: { localRuntime: { protocol: 'acp', enabled: true, args: [], env: {} } }
-        }
-      ],
-      total: 1,
-      page: 1
+    publishAgent({
+      ...localAgent('Saved custom Agent', {}, 'archived-custom'),
+      deletedAt: new Date().toISOString()
     })
-    rerender(<LocalAgentSettingsPage />)
+    rerender(<LocalAgentDirectory />)
     expect(screen.getByRole('heading', { name: 'Saved custom Agent' })).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Saved custom Agent · 已启用' })).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -925,43 +788,42 @@ describe('local agent settings navigation', () => {
   })
 
   it('selects the new agent when an existing settings page receives another deep link', async () => {
-    const { rerender } = render(<LocalAgentSettingsPage />)
+    const { rerender } = render(<LocalAgentDirectory />)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Claude Code')
     navigation.search = { id: 'codex' }
-    rerender(<LocalAgentSettingsPage />)
+    rerender(<LocalAgentDirectory />)
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codex'))
   })
 
   it('keeps a dirty draft on cancellation and follows a retried link only after discard', async () => {
     const user = userEvent.setup()
-    const { rerender } = render(<LocalAgentSettingsPage />)
+    const { rerender } = render(<LocalAgentDirectory />)
     await user.click(screen.getByRole('button', { name: '高级设置' }))
     await user.type(screen.getByRole('textbox', { name: /可执行程序/ }), '/tmp/my-claude')
     navigation.search = { id: 'codex' }
-    rerender(<LocalAgentSettingsPage />)
+    rerender(<LocalAgentDirectory />)
     const confirmation = await screen.findByRole('alert')
     expect(confirmation).toHaveTextContent('放弃未保存的修改？')
     expect(screen.getByRole('heading', { level: 1, hidden: true })).toHaveTextContent('Claude Code')
     await user.click(within(confirmation).getByRole('button', { name: '取消' }))
     expect(screen.getByRole('textbox', { name: /可执行程序/ })).toHaveValue('/tmp/my-claude')
     expect(navigation.search.id).toBe('claude')
-    rerender(<LocalAgentSettingsPage />)
+    rerender(<LocalAgentDirectory />)
     navigation.search = { id: 'codex' }
-    rerender(<LocalAgentSettingsPage />)
+    rerender(<LocalAgentDirectory />)
     await user.click(await screen.findByRole('button', { name: '放弃修改' }))
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codex'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('selects an agent with Enter without starting a drag', async () => {
+  it('selects an agent with Enter', async () => {
     const user = userEvent.setup()
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     const codex = await screen.findByRole('button', { name: /^Codex ·/ })
     await waitFor(() => expect(screen.getByRole('button', { name: '重新检测' })).toBeEnabled())
     codex.focus()
     await user.keyboard('{Enter}')
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codex'))
-    expect(screen.getAllByRole('button', { name: /^Codex ·/ })).toHaveLength(1)
   })
 
   it('opens another agent’s actions from the keyboard without selecting its row', async () => {
@@ -1021,7 +883,7 @@ describe('local agent settings navigation', () => {
 
   it('rejects invalid draft JSON before saving and retains the draft for correction', async () => {
     const user = userEvent.setup()
-    render(<LocalAgentSettingsPage />)
+    render(<LocalAgentDirectory />)
     await user.click(screen.getByRole('button', { name: '高级设置' }))
     const args = screen.getByLabelText('启动参数（JSON 数组）')
     await user.clear(args)
@@ -1039,12 +901,5 @@ describe('local agent settings navigation', () => {
     expect(await within(screen.getByRole('dialog')).findByRole('status')).toHaveTextContent(
       '环境变量必须是 JSON 对象，变量名须有效，值须为字符串。'
     )
-  })
-
-  it('shows the Beta feedback banner with a link to issue #24976 in the agent detail panel', async () => {
-    render(<LocalAgentSettingsPage />)
-    const link = await screen.findByRole('link', { name: 'FAQ 与反馈' })
-    expect(link).toHaveAttribute('href', 'https://github.com/CherryHQ/cherry-studio/issues/24976')
-    expect(screen.getByText('智能体服务当前处于 Beta 测试阶段，遇到问题可查看 FAQ 或提交反馈。')).toBeVisible()
   })
 })

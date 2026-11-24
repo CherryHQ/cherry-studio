@@ -208,10 +208,7 @@ Claude Code uses its bundled `agents-md@builtin` plugin to load workspace instru
 
 Do not add Cherry policy directly to one driver. Extend the common materializer, pass any runtime-derived capability fact into it, and add integration assertions for every Cherry-managed prompt runtime. This module is main-process orchestration, not a cross-process contract, so it does not belong in `@shared`.
 
-Native CLI runtimes retain their own prompt, model, MCP and Skills configuration;
-they do not consume this materializer. Their credentials and optional native model
-identifier are CLI-owned, and no Cherry provider/model row is required. See
-[Local Agent Runtime](./local-agent-runtime.md#ownership-and-routing).
+[Local CLI runtimes](./local-agent-runtime.md#ownership-and-routing) own their configuration and use a provider-free execution identity.
 
 ## Fresh turn
 
@@ -426,20 +423,18 @@ cross-Agent Session continues the target Agent's most recent workspace, falling 
 sender's workspace when that Agent has no Session. The model is not a tool argument because
 Sessions use their owning Agent's model.
 
-`agent_delegate` requires an enabled local target and reuses its Agent Services configuration.
-It never inherits the target's previous project. Without a caller user workspace it creates a fresh
-managed workspace; a missing or non-user explicit workspace is rejected atomically. The receipt
-contains the request ID, target Session ID and resolved workspace. Its persisted request carries
-`delegation: true`; ordinary cross-Session messages do not. Target execution and result delivery
-reuse the existing delivery service. `AgentDelegationService` owns request-scoped inspection, cancellation and the ten-minute
-deadline. The parent task card reads live target approvals and reuses the existing permission
-and question controls, with task-local buttons instead of global permission hotkeys. Responses
-are checked against the owning request and dispatched with the target's original approval ID.
-Stopping the parent reply leaves work running; explicit cancellation, parent deletion or target
-disablement stops owned work. Cancellation checks the recorded assistant turn under the dispatch
-lock so a stale request cannot stop a later turn. Timeout results are failures and retain partial
-output; existing recovery reconciles interrupted turns without replay.
-See [Local Agent Runtime](./local-agent-runtime.md) for the retired Code Mate wrappers.
+`agent_delegate` uses an enabled local target's Agent Services configuration. It
+uses the caller's user project or an explicitly selected existing user workspace.
+With neither, it creates a managed workspace. Invalid explicit workspaces fail
+before creation. The receipt includes the request, target session and workspace
+IDs. The delivery service persists the request with `delegation: true`.
+
+`AgentDelegationService` owns inspection, cancellation and the ten-minute deadline.
+Task-card approval actions use the target's original approval ID and are scoped to
+the request. Stopping the parent reply leaves delegated work running. Explicit
+cancellation, parent deletion and target disablement stop only the turn still owned
+by that request. A timeout returns failure with any partial output. Recovery
+settles interrupted work without replay.
 
 ### Deliberate security ceiling
 

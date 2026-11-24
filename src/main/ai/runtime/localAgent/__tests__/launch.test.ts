@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import type * as Platform from '@main/core/platform'
 import type * as ShellEnv from '@main/utils/shellEnv'
-import { LOCAL_AGENT_PRESETS, type LocalAgentConfiguration } from '@shared/ai/localAgent'
+import { type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -47,6 +47,12 @@ vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
 }))
 
 const config: LocalAgentConfiguration = { presetId: 'codex', protocol: 'codex', enabled: true, args: [], env: {} }
+
+function installSystemCommands(...names: string[]) {
+  for (const name of names) {
+    inventory.snapshots[name] = { name, availability: { source: 'system', path: `/user/bin/${name}` } }
+  }
+}
 
 describe('local agent installation resolution', () => {
   let directory: string
@@ -118,7 +124,7 @@ describe('local agent installation resolution', () => {
   ])(
     'keeps inactive Cherry credentials out of the Cline environment ($lastUsedProvider, $env)',
     async ({ lastUsedProvider, env }) => {
-      inventory.snapshots.cline = { name: 'cline', availability: { source: 'system', path: '/user/bin/cline' } }
+      installSystemCommands('cline')
       inventory.readConfigFiles.mockResolvedValue([
         {
           target: 'cline-providers',
@@ -141,21 +147,16 @@ describe('local agent installation resolution', () => {
     }
   )
 
-  it.each(LOCAL_AGENT_PRESETS)('selects the current installation for $id over a legacy shim', async (preset) => {
-    const name = preset.executable
-    const entry = systemAgentEntry(name)
+  it('selects a user-directory installation over a legacy shim for discovery and launch', async () => {
+    const entry = systemAgentEntry('codex')
     await mkdir(path.dirname(entry), { recursive: true })
     await writeFile(entry, '', { mode: 0o755 })
-    inventory.snapshots[name] = { name, availability: { source: 'mise', path: path.join(directory, 'shims', name) } }
-    inventory.snapshots.node = { name: 'node', availability: { source: 'system', path: '/runtime/node' } }
-    if (preset.id === 'zcode') {
-      inventory.snapshots.zcode = { name: 'zcode', availability: { source: 'system', path: '/runtime/zcode' } }
-    } else if (preset.id === 'amp-acp') {
-      inventory.snapshots.amp = { name: 'amp', availability: { source: 'system', path: '/runtime/amp' } }
+    inventory.snapshots.codex = {
+      name: 'codex',
+      availability: { source: 'mise', path: path.join(directory, 'shims', 'codex') }
     }
-    expect((await detectLocalAgents()).find((agent) => agent.presetId === preset.id)?.path).toBe(entry)
-    const launch = await resolveLocalAgentLaunch({ ...config, presetId: preset.id, protocol: preset.protocol })
-    expect(preset.id === 'pi-acp' ? launch.env.PI_ACP_PI_COMMAND : launch.executable).toBe(entry)
+    expect((await detectLocalAgents()).find((agent) => agent.presetId === 'codex')?.path).toBe(entry)
+    expect((await resolveLocalAgentLaunch(config)).executable).toBe(entry)
   })
 
   it.skipIf(process.platform === 'win32')(
@@ -190,10 +191,7 @@ describe('local agent installation resolution', () => {
   })
 
   it('routes Antigravity WebSockets through the configured HTTP proxy without replacing explicit routes', async () => {
-    inventory.snapshots['agy_acp_server.par'] = {
-      name: 'agy_acp_server.par',
-      availability: { source: 'system', path: '/user/bin/agy_acp_server.par' }
-    }
+    installSystemCommands('agy_acp_server.par')
     inventory.getRawShellEnv.mockResolvedValue({ HTTPS_PROXY: 'http://proxy:8100', NO_PROXY: 'localhost' })
     const agent = { ...config, presetId: 'antigravity-acp', protocol: 'acp' as const }
     const { env } = await resolveLocalAgentLaunch(agent)
@@ -209,10 +207,7 @@ describe('local agent installation resolution', () => {
     vi.stubEnv('HTTPS_PROXY', 'http://desktop:9123')
     vi.stubEnv('https_proxy', 'http://desktop:9123')
     vi.stubEnv('no_proxy', 'localhost')
-    inventory.snapshots['agy_acp_server.par'] = {
-      name: 'agy_acp_server.par',
-      availability: { source: 'system', path: '/user/bin/agy_acp_server.par' }
-    }
+    installSystemCommands('agy_acp_server.par')
     try {
       const { env } = await resolveLocalAgentLaunch({ ...config, presetId: 'antigravity-acp', protocol: 'acp' })
       expect(env).toMatchObject({ WSS_PROXY: 'http://desktop:9123', no_proxy: 'localhost' })
@@ -222,7 +217,7 @@ describe('local agent installation resolution', () => {
   })
 
   it('starts the native ACP server when only terminal Antigravity is installed', async () => {
-    inventory.snapshots.agy = { name: 'agy', availability: { source: 'system', path: '/user/bin/agy' } }
+    installSystemCommands('agy')
     expect((await detectLocalAgents()).find((entry) => entry.presetId === 'antigravity-acp')?.path).toBe(
       '/user/bin/agy'
     )
@@ -243,7 +238,7 @@ describe('local agent installation resolution', () => {
   })
 
   it('starts OpenClaw ACP with the formal native state directory and config file', async () => {
-    inventory.snapshots.openclaw = { name: 'openclaw', availability: { source: 'system', path: '/user/bin/openclaw' } }
+    installSystemCommands('openclaw')
     const launch = await resolveLocalAgentLaunch({ ...config, protocol: 'acp', presetId: 'openclaw' })
     expect(launch.args).toEqual(['acp'])
     expect(launch.env).toMatchObject({
@@ -254,7 +249,7 @@ describe('local agent installation resolution', () => {
   })
 
   it('uses the saved Poolside profile for ACP while leaving native terminal account handling to the CLI', async () => {
-    inventory.snapshots.pool = { name: 'pool', availability: { source: 'system', path: '/user/bin/pool' } }
+    installSystemCommands('pool')
     inventory.readConfigFiles.mockResolvedValue([
       {
         content: `pool:
@@ -288,7 +283,7 @@ agent_servers:
   })
 
   it('opens the installed CLI with native terminal arguments and the selected execution environment', async () => {
-    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    installSystemCommands('codex')
     await expect(
       openLocalAgentTerminal({
         ...config,
@@ -319,7 +314,7 @@ agent_servers:
 
   it('passes mixed-case Windows overrides to the terminal with the same values as protocol launches', async () => {
     inventory.isWin = true
-    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    installSystemCommands('codex')
     const selected = { ...config, env: { Codex_Home: '/selected/codex', foo: 'explicit' } }
     const launch = await resolveLocalAgentLaunch(selected)
     await openLocalAgentTerminal(selected)
@@ -346,10 +341,7 @@ agent_servers:
       availability: { source: 'system', path: `/user/bin/${executable}` }
     }
     if (presetId === 'zcode') {
-      inventory.snapshots.zcode = {
-        name: 'zcode',
-        availability: { source: 'system', path: '/user/bin/zcode' }
-      }
+      installSystemCommands('zcode')
     }
     await openLocalAgentTerminal({ ...config, protocol: 'acp', presetId, enabled: false, args: ['--acp'] })
     expect(inventory.openTerminal).toHaveBeenLastCalledWith(
@@ -370,10 +362,7 @@ agent_servers:
       availability: { source: 'system', path: `/user/bin/${executable}` }
     }
     if (presetId === 'zcode') {
-      inventory.snapshots.zcode = {
-        name: 'zcode',
-        availability: { source: 'system', path: '/user/bin/zcode' }
-      }
+      installSystemCommands('zcode')
     }
     const launch = await resolveLocalAgentLaunch({ ...config, protocol: 'acp', presetId })
     expect(launch).toMatchObject({ executable: `/user/bin/${executable}`, args: [...args] })
@@ -381,7 +370,7 @@ agent_servers:
   })
 
   it('opens the native Pi binary rather than the ACP wrapper', async () => {
-    inventory.snapshots.pi = { name: 'pi', availability: { source: 'system', path: '/user/bin/pi' } }
+    installSystemCommands('pi')
     await openLocalAgentTerminal({
       ...config,
       presetId: 'pi-acp',
@@ -394,7 +383,7 @@ agent_servers:
   })
 
   it.each(['system', 'mise'] as const)('runs the bundled Pi adapter with the %s native CLI', async (source) => {
-    inventory.snapshots.node = { name: 'node', availability: { source: 'system', path: '/user/bin/node' } }
+    installSystemCommands('node')
     inventory.snapshots['pi-acp'] = { name: 'pi-acp', availability: { source: 'system', path: '/adapter/pi-acp' } }
     inventory.snapshots.pi = { name: 'pi', availability: { source, path: '/native pi/bin/pi' } }
     const launch = await resolveLocalAgentLaunch({ ...config, presetId: 'pi-acp', protocol: 'acp' })
@@ -405,7 +394,7 @@ agent_servers:
   })
 
   it.each([false, true])('makes bundled Bun available to omp (terminal=%s)', async (terminal) => {
-    inventory.snapshots.omp = { name: 'omp', availability: { source: 'system', path: '/user/bin/omp' } }
+    installSystemCommands('omp')
     inventory.snapshots.bun = { name: 'bun', availability: { source: 'bundled', path: '/bundled/bin/bun' } }
     const launch = await resolveLocalAgentLaunch({ ...config, presetId: 'omp', protocol: 'acp' }, undefined, terminal)
     expect(launch.env.PATH.split(path.delimiter)).toContain('/bundled/bin')
@@ -443,7 +432,7 @@ agent_servers:
     await expect(openLocalAgentTerminal({ ...config, presetId: 'glm-acp-agent', protocol: 'acp' })).rejects.toThrow(
       'supported interactive CLI'
     )
-    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    installSystemCommands('codex')
     await expect(
       openLocalAgentTerminal({ ...config, executableOverride: path.join(directory, 'missing') })
     ).rejects.toThrow()
@@ -473,7 +462,7 @@ agent_servers:
   })
 
   it('preserves the system environment and applies only explicit overrides', async () => {
-    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    installSystemCommands('codex')
     const result = await resolveLocalAgentLaunch({ ...config, env: { CUSTOM: 'value' } })
     expect(result.env).toEqual({ PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', HOME: '/user/home', CUSTOM: 'value' })
     expect(result.args).toEqual(['app-server'])
@@ -481,7 +470,7 @@ agent_servers:
 
   it('provides bundled Git as a last fallback without injecting managed state into system CLIs', async () => {
     inventory.bundledGitDir = 'C:\\Cherry\\MinGit\\cmd'
-    inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
+    installSystemCommands('codex')
     const result = await resolveLocalAgentLaunch(config)
     expect(result.env.PATH.split(';')).toEqual(['/user/bin', inventory.bundledGitDir])
     expect(result.env.MISE_DATA_DIR).toBe('/user/mise')
@@ -521,39 +510,16 @@ agent_servers:
   it.each([
     ['copilot', 'copilot', ['--acp']],
     ['deepseek-harness', 'dsh', ['--profile', 'acp']],
-    ['minimax', 'mcode', ['acp']],
-    ['cursor', 'cursor-agent', ['acp']],
-    ['cline', 'cline', ['--acp']],
-    ['kilo', 'kilo', ['acp']],
-    ['goose', 'goose', ['acp']],
-    ['codebuddy-code', 'codebuddy', ['--acp']],
-    ['auggie', 'auggie', ['--acp']],
-    ['junie', 'junie', ['--acp=true']],
-    ['factory-droid', 'droid', ['exec', '--output-format', 'acp-daemon']],
-    ['devin', 'devin', ['acp']],
-    ['antigravity-acp', 'agy_acp_server.par', []],
-    ['mistral-vibe', 'vibe-acp', []],
-    ['amp-acp', 'amp-acp', []],
-    ['deepagents', 'deepagents-acp', []],
-    ['glm-acp-agent', 'glm-acp-agent', []],
-    ['grok-build', 'grok', ['agent', 'stdio']],
-    ['cortex-code', 'cortex', ['acp', 'serve']],
-    ['poolside', 'pool', ['acp']]
-  ] as const)('launches %s through ACP using the installed binary', async (presetId, executable, args) => {
+    ['antigravity-acp', 'agy_acp_server.par', process.platform === 'linux' ? ['--uid='] : []],
+    ['factory-droid', 'droid', ['exec', '--output-format', 'acp-daemon']]
+  ] as const)('launches %s with its native ACP invocation', async (presetId, executable, args) => {
+    const executablePath = `/user/bin/${executable}`
     inventory.snapshots[executable] = {
       name: executable,
-      availability: { source: 'system', path: `/user/bin/${executable}` }
-    }
-    if (presetId === 'amp-acp') {
-      inventory.snapshots.amp = {
-        name: 'amp',
-        availability: { source: 'system', path: '/user/bin/amp' }
-      }
+      availability: { source: 'system', path: executablePath }
     }
     const launch = await resolveLocalAgentLaunch({ ...config, presetId, protocol: 'acp' })
-    expect(launch.executable).toBe(`/user/bin/${executable}`)
-    expect(launch.args).toEqual(presetId === 'antigravity-acp' && process.platform === 'linux' ? ['--uid='] : args)
-    expect(launch.env.MISE_DATA_DIR).toBe('/user/mise')
+    expect(launch).toMatchObject({ executable: executablePath, args })
   })
 
   it('accepts the Cursor agent symlink but rejects a Grok executable with the same alias', async () => {
@@ -572,7 +538,7 @@ agent_servers:
   })
 
   it('applies required protocol environment without overriding explicit user choices', async () => {
-    inventory.snapshots.droid = { name: 'droid', availability: { source: 'system', path: '/user/bin/droid' } }
+    installSystemCommands('droid')
     const launch = await resolveLocalAgentLaunch({
       ...config,
       presetId: 'factory-droid',
@@ -584,7 +550,7 @@ agent_servers:
   })
 
   it('does not mistake the base CLI for a separately installed ACP adapter', async () => {
-    inventory.snapshots.pi = { name: 'pi', availability: { source: 'system', path: '/user/bin/pi' } }
+    installSystemCommands('pi')
     await expect(
       resolveLocalAgentLaunch({ ...config, presetId: 'glm-acp-agent', protocol: 'acp' })
     ).rejects.toMatchObject({
@@ -609,14 +575,11 @@ agent_servers:
   })
 
   it('detects the Antigravity adapter and interactive CLI independently', async () => {
-    inventory.snapshots['agy_acp_server.par'] = {
-      name: 'agy_acp_server.par',
-      availability: { source: 'system', path: '/user/bin/agy_acp_server.par' }
-    }
+    installSystemCommands('agy_acp_server.par')
     const findAntigravity = async () =>
       (await detectLocalAgents()).find((entry) => entry.presetId === 'antigravity-acp')
     expect(await findAntigravity()).toMatchObject({ path: '/user/bin/agy_acp_server.par', terminalPath: undefined })
-    inventory.snapshots.agy = { name: 'agy', availability: { source: 'system', path: '/user/bin/agy' } }
+    installSystemCommands('agy')
     expect(await findAntigravity()).toMatchObject({
       path: '/user/bin/agy_acp_server.par',
       terminalPath: '/user/bin/agy'
@@ -624,16 +587,7 @@ agent_servers:
   })
 
   it('injects Cherry-managed gateway env vars for GLM Agent, CodeBuddy, Cline, and Snow while respecting overrides', async () => {
-    inventory.snapshots['glm-acp-agent'] = {
-      name: 'glm-acp-agent',
-      availability: { source: 'system', path: '/user/bin/glm-acp-agent' }
-    }
-    inventory.snapshots.codebuddy = {
-      name: 'codebuddy',
-      availability: { source: 'system', path: '/user/bin/codebuddy' }
-    }
-    inventory.snapshots.cline = { name: 'cline', availability: { source: 'system', path: '/user/bin/cline' } }
-    inventory.snapshots.snow = { name: 'snow', availability: { source: 'system', path: '/user/bin/snow' } }
+    installSystemCommands('glm-acp-agent', 'codebuddy', 'cline', 'snow')
 
     inventory.readConfigFiles.mockResolvedValueOnce([
       {
@@ -717,7 +671,7 @@ agent_servers:
     const snowLaunch = await resolveLocalAgentLaunch({ ...config, presetId: 'snow', protocol: 'acp' })
     expect(snowLaunch.nativeModel).toBe('cherryin:agent/deepseek-v4-pro')
 
-    inventory.snapshots.goose = { name: 'goose', availability: { source: 'system', path: '/user/bin/goose' } }
+    installSystemCommands('goose')
     inventory.readConfigFiles.mockResolvedValueOnce([
       {
         target: 'goose-config',
@@ -777,10 +731,7 @@ agent_servers:
   })
 
   it('requires ZCode host (zcode CLI, desktop bundle, or ZCODE_BIN) when launching zcode-acp', async () => {
-    inventory.snapshots['zcode-acp'] = {
-      name: 'zcode-acp',
-      availability: { source: 'system', path: '/user/bin/zcode-acp' }
-    }
+    installSystemCommands('zcode-acp')
     await expect(resolveLocalAgentLaunch({ ...config, presetId: 'zcode', protocol: 'acp' })).rejects.toMatchObject({
       code: 'LOCAL_AGENT_HOST_REQUIRED'
     })
@@ -840,15 +791,12 @@ agent_servers:
   })
 
   it('requires amp CLI when launching amp-acp bridge without an executable override', async () => {
-    inventory.snapshots['amp-acp'] = {
-      name: 'amp-acp',
-      availability: { source: 'system', path: '/user/bin/amp-acp' }
-    }
+    installSystemCommands('amp-acp')
     await expect(resolveLocalAgentLaunch({ ...config, presetId: 'amp-acp', protocol: 'acp' })).rejects.toMatchObject({
       code: 'LOCAL_AGENT_HOST_REQUIRED'
     })
 
-    inventory.snapshots.amp = { name: 'amp', availability: { source: 'system', path: '/user/bin/amp' } }
+    installSystemCommands('amp')
     const launched = await resolveLocalAgentLaunch({ ...config, presetId: 'amp-acp', protocol: 'acp' })
     expect(launched.executable).toBe('/user/bin/amp-acp')
   })

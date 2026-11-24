@@ -4265,8 +4265,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const agent = session?.agentId ? agentService.getAgent(session.agentId) : undefined
     const isLocalAgent = agent?.type === 'local'
     const localConfig = isLocalAgent ? agent.configuration?.localRuntime : undefined
-    // DeepSeek Harness applies DSH_PERMISSION_MODE via launch env (no ACP session/set_mode),
-    // so changing it rebuilds any idle connection with the persisted override cleanly.
+    // DeepSeek Harness reads DSH_PERMISSION_MODE at launch, so idle sessions reconnect.
     if (
       localConfig?.presetId === 'deepseek-harness' &&
       configId === DSH_LOCAL_MODE_ID &&
@@ -4571,12 +4570,6 @@ function isAbortError(error: unknown): boolean {
   return !!error && typeof error === 'object' && 'name' in error && error.name === 'AbortError'
 }
 
-/**
- * A queued/steered follow-up freezes its author snapshot at submit time, but the runtime drains it on the
- * LATEST agent model (`entry.modelId`). Reconcile the snapshot's nested model to the model that actually
- * runs so `messageSnapshot.model` never disagrees with the row's `modelId`; the author (id/name/emoji)
- * stays frozen. No-op when the frozen model already is the running model.
- */
 /** Trace label for a model id; local-CLI `runtime:` ids carry no provider split. */
 function traceModelName(modelId: ExecutionId): string {
   const providerModelId = getProviderModelId(modelId)
@@ -4584,6 +4577,7 @@ function traceModelName(modelId: ExecutionId): string {
   return parseUniqueModelId(providerModelId).modelId
 }
 
+// Queued turns keep their submit-time author and record the model that actually runs.
 function reconcileSnapshotModel(
   snapshot: MessageSnapshot | undefined,
   modelId: ExecutionId,

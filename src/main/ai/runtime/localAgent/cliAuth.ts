@@ -22,10 +22,6 @@ const LABELED_DEVICE_CODE_PATTERN =
   /(?:verification\s+code|one-time\s+code|enter(?:\s+the)?\s+code|code)\s*[:：]\s*([A-Z0-9]{4,}(?:-[A-Z0-9]{3,})+|[A-Z0-9]{6,10})/i
 const HYPHENATED_DEVICE_CODE_PATTERN = /\b([A-Z0-9]{4}-[A-Z0-9]{4})\b/
 
-/**
- * Resolves background CLI authentication invocations for local agents that support
- * direct OAuth/device/API-key flows without launching an external terminal window.
- */
 export function resolveCliAuthCommand(
   presetId: string | undefined,
   methodId: string,
@@ -73,9 +69,6 @@ export function resolveCliAuthCommand(
   }
 }
 
-/**
- * Extracts a sign-in verification URL and/or one-time device code from noisy CLI stdout/stderr.
- */
 export function extractAuthPrompt(rawText: string): CliAuthPrompt {
   const clean = stripVTControlCharacters(rawText)
   const urlMatch = clean.match(URL_PATTERN)
