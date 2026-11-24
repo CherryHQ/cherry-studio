@@ -80,6 +80,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
   const PARTIAL = 'partial answer so far'
 
   beforeEach(async () => {
+    vi.mocked(resolveAssistantModelId).mockReturnValue({ assistantId: undefined, defaultModelId: MODEL_ID })
     const [providerKey, modelKey] = generateOrderKeySequence(2)
     await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: providerKey })
     await dbh.db.insert(userModelTable).values({
@@ -121,6 +122,187 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         }
       ])
     )
+  })
+
+  it('routes two model prompts independently and persists the frozen pair map for history and regeneration', async () => {
+    const second = {
+      id: createUniqueModelId('openai', 'gpt-4.1'),
+      providerId: 'openai',
+      name: 'GPT-4.1',
+      apiModelId: 'gpt-4.1'
+    }
+    const first = { id: MODEL_ID, providerId: 'openai', name: 'GPT-4o', apiModelId: 'gpt-4o' }
+    await dbh.db.insert(userModelTable).values({
+      id: second.id,
+      providerId: 'openai',
+      modelId: 'gpt-4.1',
+      presetModelId: 'gpt-4.1',
+      name: 'GPT-4.1',
+      orderKey: 'z1'
+    })
+    vi.mocked(resolveModels).mockReturnValueOnce([first, second] as any)
+    const pairs = [
+      { modelId: MODEL_ID, systemPrompt: 'Explain briefly' },
+      { modelId: second.id, systemPrompt: 'Explain with proofs' }
+    ]
+    const result = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        mentionedModelIds: [MODEL_ID, second.id],
+        modelPrompts: pairs,
+        userMessageParts: [{ type: 'text', text: 'compare' }]
+      },
+      { hasLiveStream: false }
+    )
+    expect(result.models.map((entry) => entry.request.systemPromptOverride)).toEqual([
+      'Explain briefly',
+      'Explain with proofs'
+    ])
+    const replies = result.reservedMessages!.filter((message) => message.role === 'assistant')
+    expect(replies).toHaveLength(2)
+    for (const reply of replies) {
+      expect(reply.metadata?.turnOptions?.modelPrompts).toEqual(pairs)
+      expect(messageService.getById(reply.id).data.turnOptions?.modelPrompts).toEqual(pairs)
+    }
+    const user = result.reservedMessages!.find((message) => message.role === 'user')!
+    const again = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: user.id,
+        mentionedModelIds: [MODEL_ID]
+      },
+      { hasLiveStream: false }
+    )
+    expect(again.models[0].request.systemPromptOverride).toBe('Explain briefly')
+  })
+
+  it('snapshots the fallback prompt only for the unoverridden model, including intentional empty overrides', async () => {
+    const second = {
+      id: createUniqueModelId('openai', 'gpt-4.1'),
+      providerId: 'openai',
+      name: 'GPT-4.1',
+      apiModelId: 'gpt-4.1'
+    }
+    await dbh.db.insert(userModelTable).values({
+      id: second.id,
+      providerId: 'openai',
+      modelId: 'gpt-4.1',
+      presetModelId: 'gpt-4.1',
+      name: 'GPT-4.1',
+      orderKey: 'z1'
+    })
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      { id: MODEL_ID, providerId: 'openai', name: 'GPT-4o' },
+      second
+    ] as any)
+    const result = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        mentionedModelIds: [MODEL_ID, second.id],
+        modelPrompts: [{ modelId: MODEL_ID, systemPrompt: 'Only for the first' }],
+        userMessageParts: [{ type: 'text', text: 'compare' }]
+      },
+      { hasLiveStream: false }
+    )
+    expect(result.models[0].request.systemPromptOverride).toBe('Only for the first')
+    expect(result.models[1].request.systemPromptOverride).toBe('')
+    expect(result.models[1].request.systemPromptOverride).not.toBe(result.models[0].request.systemPromptOverride)
+  })
+
+  it('captures the current assistant fallback at submit time and does not read it again for regeneration', async () => {
+    const assistant = assistantDataService.create({
+      name: 'Prompt owner',
+      modelId: MODEL_ID,
+      prompt: 'Original assistant prompt'
+    })
+    topicService.update('topic-1', { assistantId: assistant.id })
+    vi.mocked(resolveAssistantModelId).mockReturnValue({ assistantId: assistant.id, defaultModelId: MODEL_ID })
+    const second = { id: createUniqueModelId('openai', 'gpt-4.1'), providerId: 'openai', name: 'GPT-4.1' }
+    await dbh.db.insert(userModelTable).values({
+      id: second.id,
+      providerId: 'openai',
+      modelId: 'gpt-4.1',
+      presetModelId: 'gpt-4.1',
+      name: 'GPT-4.1',
+      orderKey: 'z1'
+    })
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      { id: MODEL_ID, providerId: 'openai', name: 'GPT-4o' },
+      second
+    ] as any)
+    const result = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        mentionedModelIds: [MODEL_ID, second.id],
+        modelPrompts: [{ modelId: second.id, systemPrompt: 'Second override' }],
+        userMessageParts: [{ type: 'text', text: 'compare' }]
+      },
+      { hasLiveStream: false }
+    )
+    expect(result.models[0].request.systemPromptOverride).toBe('Original assistant prompt')
+    assistantDataService.update(assistant.id, { prompt: 'Changed assistant prompt' })
+    const user = result.reservedMessages!.find((message) => message.role === 'user')!
+    const again = await provider.prepareDispatch(
+      makeSubscriber(),
+      { trigger: 'regenerate-message', topicId: 'topic-1', parentAnchorId: user.id, mentionedModelIds: [MODEL_ID] },
+      { hasLiveStream: false }
+    )
+    expect(again.models[0].request.systemPromptOverride).toBe('Original assistant prompt')
+    vi.mocked(resolveAssistantModelId).mockReturnValue({ assistantId: undefined, defaultModelId: MODEL_ID })
+  })
+
+  it('rejects prompts for unselected models and duplicate pairs before writing user messages', async () => {
+    const count = messageService.getChildrenByParentId('a1').length
+    for (const modelPrompts of [
+      [{ modelId: createUniqueModelId('wrong', 'model'), systemPrompt: 'bad' }],
+      [
+        { modelId: MODEL_ID, systemPrompt: 'one' },
+        { modelId: MODEL_ID, systemPrompt: 'two' }
+      ]
+    ]) {
+      await expect(
+        provider.prepareDispatch(
+          makeSubscriber(),
+          {
+            trigger: 'submit-message',
+            topicId: 'topic-1',
+            parentAnchorId: 'a1',
+            modelPrompts,
+            userMessageParts: [{ type: 'text', text: 'must not write' }]
+          },
+          { hasLiveStream: false }
+        )
+      ).rejects.toThrow()
+    }
+    expect(messageService.getChildrenByParentId('a1')).toHaveLength(count)
+  })
+
+  it('does not leak an earlier comparison override into a fresh subsequent user turn', async () => {
+    messageService.update('a1', {
+      data: { turnOptions: { modelPrompts: [{ modelId: MODEL_ID, systemPrompt: 'old' }] } }
+    })
+    const result = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        userMessageParts: [{ type: 'text', text: 'new' }]
+      },
+      { hasLiveStream: false }
+    )
+    expect(result.models[0].request.systemPromptOverride).toBeUndefined()
   })
 
   it('rebuilds a prompt that carries the paused partial when the new turn anchors on the paused row', async () => {

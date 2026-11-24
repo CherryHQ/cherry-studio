@@ -23,6 +23,7 @@ interface ChatComposerSlotBaseProps {
   onSend: (
     text: string,
     options?: {
+      modelPrompts?: import('@shared/data/types/message').ModelPromptPair[]
       mentionedModels?: UniqueModelId[]
       userMessageParts?: CherryMessagePart[]
       chatTarget?: ComposerChatTarget

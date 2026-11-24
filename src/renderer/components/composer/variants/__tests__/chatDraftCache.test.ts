@@ -46,6 +46,17 @@ const quoteToken: ComposerSerializedToken = {
 const file = { fileTokenSourceId: 'source-1', name: 'doc.pdf', path: '/tmp/doc.pdf' } as any
 
 describe('chatDraftCache', () => {
+  it('restores valid model/prompt pairs and rejects malformed cache entries', () => {
+    vi.mocked(cacheService.get).mockReturnValueOnce({
+      modelPrompts: [
+        { modelId: 'p::a', systemPrompt: 'Saved A' },
+        { modelId: 'invalid', systemPrompt: 'bad' },
+        { modelId: 'p::b', systemPrompt: 42 }
+      ]
+    })
+    expect(readChatDraftCache('topic').modelPrompts).toEqual([{ modelId: 'p::a', systemPrompt: 'Saved A' }])
+  })
+
   beforeEach(() => {
     vi.mocked(cacheService.get).mockReset()
     vi.mocked(cacheService.set).mockReset()

@@ -373,6 +373,12 @@ export const anthropicCacheFeature: RequestFeature = {
   applies: (scope) =>
     scope.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && resolveAnthropicCacheSettings(scope.provider).enabled,
   contributeModelAdapters: (scope) => [
-    createAnthropicCachePlugin(scope.provider, scope.assistant, scope.request.contextOwner === 'caller')
+    createAnthropicCachePlugin(
+      scope.provider,
+      scope.assistant && scope.request.systemPromptOverride !== undefined
+        ? { ...scope.assistant, prompt: scope.request.systemPromptOverride }
+        : scope.assistant,
+      scope.request.contextOwner === 'caller'
+    )
   ]
 }

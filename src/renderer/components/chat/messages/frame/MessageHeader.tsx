@@ -39,7 +39,7 @@ const GoalRoundBadge: FC<{ round: number }> = ({ round }) => {
   const label = t('agent.session_turn_origin.goal_round', { round })
   return (
     <Tooltip content={label}>
-      <span className="text-foreground-tertiary flex h-5 max-w-[min(18rem,45vw)] min-w-0 items-center gap-1 text-xs">
+      <span className="flex h-5 max-w-[min(18rem,45vw)] min-w-0 items-center gap-1 text-xs text-foreground-tertiary">
         <Target aria-hidden="true" className="size-3.5 shrink-0" />
         <span className="min-w-0 truncate">{label}</span>
       </span>
@@ -77,12 +77,12 @@ export const AgentSessionDeliveryBadge: FC<{
         <button
           type="button"
           aria-label={senderLabel}
-          className="text-foreground-tertiary hover:text-link focus-visible:text-link flex h-5 max-w-[min(18rem,45vw)] cursor-pointer items-center gap-1 text-xs hover:underline focus-visible:underline focus-visible:outline-none"
+          className="flex h-5 max-w-[min(18rem,45vw)] cursor-pointer items-center gap-1 text-xs text-foreground-tertiary hover:text-link hover:underline focus-visible:text-link focus-visible:underline focus-visible:outline-none"
           onClick={openSenderSession}>
           {content}
         </button>
       ) : (
-        <span className="text-foreground-tertiary flex h-5 max-w-[min(18rem,45vw)] items-center gap-1 text-xs">
+        <span className="flex h-5 max-w-[min(18rem,45vw)] items-center gap-1 text-xs text-foreground-tertiary">
           {content}
         </span>
       )}
@@ -194,12 +194,23 @@ const MessageHeader: FC<Props> = memo(
               <GoalRoundBadge round={message.turnOrigin.round} />
             )}
             {isAssistantMessage && showModelIdentity && displayModelName && (
-              <span className="text-foreground-tertiary flex min-w-0 shrink items-center gap-1 text-xs leading-5">
+              <span className="flex min-w-0 shrink items-center gap-1 text-xs leading-5 text-foreground-tertiary">
                 <span aria-hidden="true" className="shrink-0">
                   <ModelAvatar className="rounded-full" model={displayModel} size={16} />
                 </span>
                 <span className="truncate">{displayModelName}</span>
               </span>
+            )}
+            {isAssistantMessage && message.modelPrompts?.some((pair) => pair.modelId === message.modelId) && (
+              <details className="relative min-w-0 text-xs">
+                <summary className="cursor-pointer truncate text-muted-foreground">
+                  {displayModelName}: {t('chat.model_prompt.used')}
+                </summary>
+                <pre className="absolute top-6 left-0 z-20 max-h-64 w-72 max-w-[70vw] overflow-auto rounded-md border border-border bg-card p-3 break-words whitespace-pre-wrap text-card-foreground shadow-md">
+                  {message.modelPrompts.find((pair) => pair.modelId === message.modelId)?.systemPrompt ||
+                    t('chat.model_prompt.empty')}
+                </pre>
+              </details>
             )}
             {isGroupContextMessage && (
               <Tooltip content={t('chat.message.useful.tip')}>
@@ -207,7 +218,7 @@ const MessageHeader: FC<Props> = memo(
               </Tooltip>
             )}
             <div
-              className={`message-header-info-wrap text-foreground-tertiary flex shrink-0 items-center gap-1 text-[10px] leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 no-hover:opacity-100 ${hiddenContentHoverClass}`}>
+              className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] leading-none text-foreground-tertiary opacity-0 transition-opacity duration-150 focus-within:opacity-100 no-hover:opacity-100 ${hiddenContentHoverClass}`}>
               <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
               {renderConfig.showEstimatedTokens &&
                 isBubbleStyle &&

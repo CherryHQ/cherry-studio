@@ -14,6 +14,7 @@ import { CITATIONS_SYSTEM_PROMPT } from '../prompts/citations'
 import { getDeferredToolsSystemPrompt } from '../prompts/deferredTools'
 
 export interface AssembleSystemPromptInput {
+  systemPromptOverride?: string
   assistant?: Assistant
   model: Model
   /** Final tool set going to the model — checked for `tool_search` membership. */
@@ -35,8 +36,9 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
   const sections: string[] = []
 
   // `anthropic-cache` checks the original assistant prompt for volatile time variables before caching.
-  if (assistant?.prompt) {
-    const resolved = await replacePromptVariables(assistant.prompt, model.name)
+  const prompt = input.systemPromptOverride ?? assistant?.prompt
+  if (prompt) {
+    const resolved = await replacePromptVariables(prompt, model.name)
     if (resolved) sections.push(resolved)
   }
 

@@ -103,6 +103,7 @@ export interface ComposerQueuedMessagePayload {
   attachments?: Array<Record<string, unknown>>
   /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
+  modelPrompts?: import('../../data/types/message').ModelPromptPair[]
   /** Canonical reasoning selection captured with this queued draft. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier captured with this queued draft. */
@@ -193,6 +194,7 @@ export interface StreamErrorPayload {
 export type AiStreamOpenRequest = {
   topicId: string
   /** Composer-selected request models; one id overrides the fallback, while persistent non-live sends may fan out. */
+  modelPrompts?: import('../../data/types/message').ModelPromptPair[]
   mentionedModelIds?: UniqueModelId[]
 } & (
   | {

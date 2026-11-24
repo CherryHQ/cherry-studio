@@ -52,6 +52,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     status: message.role === 'assistant' ? (metadata.status ?? 'pending') : 'success',
     modelId,
     model,
+    modelPrompts: metadata.turnOptions?.modelPrompts,
     messageSnapshot,
     siblingsGroupId: metadata.siblingsGroupId,
     isActiveBranch: metadata.isActiveBranch,

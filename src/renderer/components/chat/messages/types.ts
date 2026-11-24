@@ -229,6 +229,7 @@ export interface MessageListItem {
   /** Resolved model identity (from the author snapshot or the topic fallback). */
   model?: ModelSnapshot
   /** Producing-author snapshot (assistant|agent, model nested) frozen at creation. */
+  modelPrompts?: import('@shared/data/types/message').ModelPromptPair[]
   messageSnapshot?: MessageSnapshot
   siblingsGroupId?: number
   isActiveBranch?: boolean

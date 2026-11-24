@@ -319,6 +319,10 @@ export const aiRequestSchemas = {
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
+        modelPrompts: z
+          .array(z.strictObject({ modelId: UniqueModelIdSchema, systemPrompt: z.string().max(100_000) }))
+          .max(100)
+          .optional(),
         mentionedModelIds: mentionedModelIdsSchema
       }),
       z.union([

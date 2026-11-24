@@ -87,6 +87,8 @@ export interface AiRequest {
 
 /** Text generation (streaming or not): a conversation plus everything that shapes a turn. */
 export interface AiChatRequest extends AiRequest {
+  /** User-authored per-model prompt, still assembled with tool and citation instructions. */
+  systemPromptOverride?: string
   conversation: ConversationRef
   mcpToolIds?: string[]
   /** Canonical per-turn reasoning selection captured when the message was submitted. */

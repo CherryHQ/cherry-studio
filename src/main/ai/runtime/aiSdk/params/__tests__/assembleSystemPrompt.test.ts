@@ -40,6 +40,20 @@ describe('assembleSystemPrompt', () => {
     vi.clearAllMocks()
   })
 
+  it('resolves variables in a branch override without replacing tool instructions or mutating the assistant', async () => {
+    const assistant = makeAssistant({ prompt: 'original' })
+    const result = await assembleSystemPrompt({
+      assistant,
+      model,
+      systemPromptOverride: 'Branch {{date}}',
+      mcpInstructions: 'Tool instructions'
+    })
+    expect(result).toBe('Branch 2026-04-20\n\nTool instructions')
+    expect(assistant.prompt).toBe('original')
+    expect(await assembleSystemPrompt({ assistant, model, systemPromptOverride: '' })).toBeUndefined()
+    expect(await assembleSystemPrompt({ assistant, model })).toBe('original')
+  })
+
   it('resolves template variables in assistant.prompt', async () => {
     const out = await assembleSystemPrompt({
       assistant: makeAssistant({ prompt: 'Today is {{date}}' }),

@@ -71,6 +71,33 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it('passes per-model prompt overrides through production parameter building while retaining runtime guidance', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const assistant = makeAssistant({ prompt: 'Assistant fallback' })
+    const first = await buildAgentParams({
+      request: { conversation: CONVERSATION, systemPromptOverride: 'Prompt A' },
+      assistant,
+      signal: undefined,
+      provider: makeProvider(),
+      model: makeModel()
+    })
+    const second = await buildAgentParams({
+      request: { conversation: CONVERSATION, systemPromptOverride: 'Prompt B' },
+      assistant,
+      signal: undefined,
+      provider: makeProvider(),
+      model: makeModel()
+    })
+    expect(first.system).toContain('Prompt A')
+    expect(first.system).not.toContain('Prompt B')
+    expect(first.system).not.toContain('Assistant fallback')
+    expect(second.system).toContain('Prompt B')
+    expect(assistant.prompt).toBe('Assistant fallback')
+  })
+
   it('sends only selected MCP guidance to the provider and suppresses it for tool-disabled requests', async () => {
     const server = { id: 'docs', name: 'Documents', isActive: true, disabledTools: [], disabledAutoApproveTools: [] }
     const toolId = 'mcp__docs__read'

@@ -74,6 +74,7 @@ function getInheritedTurnOptions(
 
 function turnOptionsRequestFields(turnOptions: AssistantTurnOptions | undefined): AssistantTurnOptions {
   return {
+    ...(turnOptions?.modelPrompts !== undefined && { modelPrompts: turnOptions.modelPrompts }),
     ...(turnOptions?.reasoningEffort !== undefined && { reasoningEffort: turnOptions.reasoningEffort }),
     ...(turnOptions?.serviceTier !== undefined && { serviceTier: turnOptions.serviceTier }),
     ...(turnOptions?.fastMode !== undefined && { fastMode: turnOptions.fastMode })
@@ -388,7 +389,8 @@ export function useChatWriteActions(params: Params): Result {
     async (messageId, editedParts, turnOptions) => {
       const inheritedModelIds = getDirectAssistantModelIds(uiMessages, messageId)
       const sourceMessage = uiMessages.find((message) => message.id === messageId)
-      const effectiveTurnOptions = turnOptions ?? getInheritedTurnOptions(uiMessages, sourceMessage)
+      const inheritedOptions = getInheritedTurnOptions(uiMessages, sourceMessage)
+      const effectiveTurnOptions = { ...inheritedOptions, ...turnOptions, modelPrompts: inheritedOptions?.modelPrompts }
       const newMessage = await createSiblingTrigger({
         params: { id: messageId },
         body: { parts: editedParts }

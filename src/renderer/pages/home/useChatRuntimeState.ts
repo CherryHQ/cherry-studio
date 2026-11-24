@@ -49,6 +49,7 @@ const logger = loggerService.withContext('useChatRuntimeState')
 export interface ChatTurnInput {
   text: string
   options?: {
+    modelPrompts?: import('@shared/data/types/message').ModelPromptPair[]
     mentionedModels?: UniqueModelId[]
     userMessageParts?: CherryMessagePart[]
     reasoningEffort?: ReasoningEffortOption
@@ -322,6 +323,7 @@ export function useChatRuntimeState({
     ({ text, options }: ChatTurnInput, conversation: { topicId: string; parentAnchorId: string | null }) => {
       const requestOptions = {
         topicId: conversation.topicId,
+        modelPrompts: options?.modelPrompts,
         mentionedModelIds: options?.mentionedModels,
         reasoningEffort: options?.reasoningEffort,
         serviceTier: options?.serviceTier,

@@ -356,6 +356,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       : request.system !== undefined
         ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')
         : await assembleSystemPrompt({
+            systemPromptOverride: request.systemPromptOverride,
             assistant,
             model,
             tools,

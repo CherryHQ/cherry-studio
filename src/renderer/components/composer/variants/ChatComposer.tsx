@@ -97,6 +97,7 @@ import {
   getEditableKnowledgeBases,
   replaceEditedMessageParts
 } from './chat/messageEditingDraft'
+import { ModelPromptOverrides } from './chat/ModelPromptOverrides'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
 import { useNoteReferenceMentionItems } from './chat/useNoteReferenceMentionItems'
 import {
@@ -172,6 +173,7 @@ export interface ChatComposerProps {
   onSend: (
     text: string,
     options?: {
+      modelPrompts?: import('@shared/data/types/message').ModelPromptPair[]
       mentionedModels?: UniqueModelId[]
       userMessageParts?: CherryMessagePart[]
       reasoningEffort?: ReasoningEffortOption
@@ -196,6 +198,7 @@ interface SavedComposerDraft {
   mentionedModels: Model[]
   mentionedModelSelectorValue: Model[]
   mentionedModelMultiSelectMode: boolean
+  modelPrompts?: import('@shared/data/types/message').ModelPromptPair[]
   mentionedModelSelectionWasPending: boolean
   selectedKnowledgeBases: KnowledgeBase[]
   knowledgeBaseIds: string[]
@@ -490,6 +493,8 @@ const ChatComposerInner = ({
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
     enabled: knowledgeBasesDataEnabled
   })
+  const [modelPrompts, setModelPrompts] = useState(initialDraft.modelPrompts ?? [])
+  const modelPromptsRef = useLatest(modelPrompts)
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const mentionedModelsRef = useLatest(mentionedModels)
@@ -733,9 +738,10 @@ const ChatComposerInner = ({
       tokens: visibleDraft.tokens,
       files: filesRef.current,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
+      modelPrompts: modelPromptsRef.current,
       ...mentionedModelDraftRef.current
     })
-  }, [actionsRef, draftCacheScopeKey, exitInputHistoryPreview, filesRef, knowledgeBaseIdsRef])
+  }, [actionsRef, draftCacheScopeKey, exitInputHistoryPreview, filesRef, knowledgeBaseIdsRef, modelPromptsRef])
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {
       exitInputHistoryPreviewForModelChange()
@@ -955,6 +961,7 @@ const ChatComposerInner = ({
       text: draft.text,
       tokens: draft.tokens,
       files,
+      modelPrompts,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       ...mentionedModelDraftRef.current
     })
@@ -970,6 +977,7 @@ const ChatComposerInner = ({
     knowledgeBaseIdsRef,
     mentionedModelMultiSelectMode,
     mentionedModels,
+    modelPrompts,
     syncKnowledgeBaseIds,
     text
   ])
@@ -982,6 +990,7 @@ const ChatComposerInner = ({
     writeChatDraftCache(draftCacheScopeKey, {
       text: draft.text,
       tokens: draft.tokens,
+      modelPrompts: savedDraft?.modelPrompts ?? modelPromptsRef.current,
       files: savedDraft?.files ?? filesRef.current,
       knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current,
       mentionedModelIds:
@@ -1002,6 +1011,7 @@ const ChatComposerInner = ({
     exitInputHistoryPreview()
     actionsRef.current.replaceDraft({ text: savedDraft.text, tokens: savedDraft.draftTokens })
     setText(savedDraft.text)
+    setModelPrompts(savedDraft.modelPrompts ?? [])
     setDraftTokens(savedDraft.draftTokens)
     setFiles(savedDraft.files)
     const restoredSelectorModels =
@@ -1068,6 +1078,7 @@ const ChatComposerInner = ({
       const currentDraft = historyPreview.draft ?? actionsRef.current.getDraft()
       const currentTools = historyPreview.tools
       savedDraftBeforeEditingRef.current = {
+        modelPrompts: modelPromptsRef.current,
         text: currentDraft.text,
         draftTokens: currentDraft.tokens,
         files: currentTools?.files ?? filesRef.current,
@@ -1394,6 +1405,11 @@ const ChatComposerInner = ({
         // Allow attachment-only sends (matches v1 Inputbar + the send-enabled condition above).
         requireText: false,
         extra: () => ({
+          modelPrompts: modelPrompts.filter((pair) =>
+            (submittedMentionedModels.length ? submittedMentionedModels : runtimeModel ? [runtimeModel] : []).some(
+              (model) => model.id === pair.modelId
+            )
+          ),
           mentionedModels: submittedMentionedModels.length
             ? submittedMentionedModels.map((currentModel) => currentModel.id)
             : undefined,
@@ -1433,7 +1449,9 @@ const ChatComposerInner = ({
       serviceTier,
       selectedKnowledgeBasesInScope,
       speedControlModel,
-      submittedMentionedModels
+      submittedMentionedModels,
+      runtimeModel,
+      modelPrompts
     ]
   )
 
@@ -1445,6 +1463,7 @@ const ChatComposerInner = ({
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildFilePartsForAttachments(attachments)
         const sent = await onSend(payload.text, {
+          modelPrompts: payload.modelPrompts,
           mentionedModels: payload.mentionedModels,
           userMessageParts: [...payload.userMessageParts, ...fileParts],
           reasoningEffort: payload.reasoningEffort,
@@ -1469,6 +1488,7 @@ const ChatComposerInner = ({
   const clearCurrentDraft = useCallback(() => {
     releaseFollowupEditRef.current()
     setText('')
+    setModelPrompts([])
     setDraftTokens(undefined)
     setFiles([])
     // Knowledge base selection belongs to the conversation scope, not the individual draft.
@@ -1518,6 +1538,7 @@ const ChatComposerInner = ({
       inputHistoryToolsRef.current = null
       skipDraftCacheWriteForHistoryPreviewRef.current = false
       actionsRef.current.replaceDraft(item.draft)
+      setModelPrompts(item.payload.modelPrompts ?? [])
       setText(item.draft.text)
       setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
@@ -1888,6 +1909,14 @@ const ChatComposerInner = ({
       selectableKnowledgeBases={selectableKnowledgeBases}>
       <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
       <ResourceEditDialogEventHost />
+      {!editingMessageForCurrentTopic && effectiveSubmittedModels.length > 1 ? (
+        <ModelPromptOverrides
+          models={effectiveSubmittedModels}
+          value={modelPrompts}
+          onChange={setModelPrompts}
+          disabled={isSending}
+        />
+      ) : null}
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
           focusOnTabActivation

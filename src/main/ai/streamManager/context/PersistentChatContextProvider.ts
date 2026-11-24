@@ -285,6 +285,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // Stamp the row with the model the user selected for this steer so the continuation answers
       // with it — `prepareSteerContinuation` reads `userMessage.modelId`. Steer is single-model: if
       // multiple models were @-mentioned, only the first is used (multi-model steer is unsupported).
+      if (req.modelPrompts?.length) throw new Error('Prompt comparisons must wait until the topic is idle')
       const steerModelId = req.mentionedModelIds?.[0] ?? defaultModelId
       const userMessage = messageService.create(req.topicId, {
         role: 'user',
@@ -317,6 +318,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const liveGroupAppendMessageId = isRegenerate && ctx.hasLiveStream ? req.appendToLiveGroupMessageId : undefined
     let liveGroupSourceAnchorMessageId: string | undefined
     const turnOptions: AssistantTurnOptions = {
+      modelPrompts: this.resolveModelPrompts(req, models, assistantId),
       reasoningEffort: req.reasoningEffort,
       serviceTier: req.serviceTier,
       fastMode: req.fastMode === true
@@ -492,7 +494,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           turnOptions.reasoningEffort,
           turnOptions.serviceTier,
           turnOptions.fastMode === true,
-          retainedContext
+          retainedContext,
+          turnOptions.modelPrompts
         ),
         rootSpan
       }))
@@ -554,6 +557,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       compatibleSiblingsGroupId
     )
     const turnOptions: AssistantTurnOptions = {
+      modelPrompts: target.data.turnOptions?.modelPrompts,
       reasoningEffort: req.reasoningEffort ?? target.data.turnOptions?.reasoningEffort,
       serviceTier: req.serviceTier ?? target.data.turnOptions?.serviceTier,
       fastMode: req.fastMode ?? target.data.turnOptions?.fastMode ?? false
@@ -582,7 +586,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         turnOptions.reasoningEffort,
         turnOptions.serviceTier,
         turnOptions.fastMode === true,
-        retainedContext
+        retainedContext,
+        turnOptions.modelPrompts
       )
       applyTurnInputAttributes(rootSpan, {
         modelId: model.id,
@@ -734,7 +739,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               anchor.data.turnOptions?.reasoningEffort,
               anchor.data.turnOptions?.serviceTier,
               anchor.data.turnOptions?.fastMode === true,
-              retainedContext
+              retainedContext,
+              anchor.data.turnOptions?.modelPrompts
             ),
             rootSpan
           }
@@ -1084,6 +1090,34 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
   }
 
+  private resolveModelPrompts(
+    req: Extract<MainDispatchRequest, { trigger: 'submit-message' | 'regenerate-message' }>,
+    models: Array<{ id: import('@shared/data/types/model').UniqueModelId }>,
+    assistantId: string | undefined
+  ): AssistantTurnOptions['modelPrompts'] {
+    let pairs = req.modelPrompts
+    // Old callers regenerate from the reply's stored association, not today's assistant settings.
+    if (!pairs && req.trigger === 'regenerate-message' && req.parentAnchorId) {
+      const children = messageService.getChildrenByParentId(req.parentAnchorId)
+      pairs = children.find((row) => row.data.turnOptions?.modelPrompts)?.data.turnOptions?.modelPrompts
+    }
+    if (!pairs?.length) return undefined
+    const selected = new Set(models.map((model) => model.id))
+    const seen = new Set<string>()
+    // Stored maps may include sibling models; explicit new-submit maps must match the selected set.
+    for (const pair of pairs) {
+      if (seen.has(pair.modelId)) throw new Error('Duplicate model prompt')
+      seen.add(pair.modelId)
+      if (req.trigger === 'submit-message' && req.modelPrompts && !selected.has(pair.modelId))
+        throw new Error('Prompt belongs to an unselected model')
+    }
+    const fallback = assistantId ? (assistantDataService.getById(assistantId).prompt ?? '') : ''
+    return models.map((model) => ({
+      modelId: model.id,
+      systemPrompt: pairs.find((pair) => pair.modelId === model.id)?.systemPrompt ?? fallback
+    }))
+  }
+
   private buildStreamRequest(
     topicId: string,
     assistantId: string | undefined,
@@ -1094,13 +1128,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     reasoningEffort: AiStreamRequest['reasoningEffort'],
     serviceTier: AiStreamRequest['serviceTier'],
     fastMode: boolean,
-    retainedContext?: RetainedContext
+    retainedContext?: RetainedContext,
+    modelPrompts?: AssistantTurnOptions['modelPrompts']
   ): AiStreamRequest {
     return {
       conversation: { id: topicId, topicId },
       trigger: 'submit-message',
       assistantId,
       uniqueModelId,
+      ...(modelPrompts?.some((pair) => pair.modelId === uniqueModelId)
+        ? { systemPromptOverride: modelPrompts.find((pair) => pair.modelId === uniqueModelId)!.systemPrompt }
+        : {}),
       messages: history,
       messageId,
       knowledgeBaseIds,

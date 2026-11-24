@@ -170,6 +170,7 @@ export interface CacheComposerDraftBase {
 }
 
 export interface CacheChatComposerDraft extends CacheComposerDraftBase {
+  modelPrompts?: import('../types/message').ModelPromptPair[]
   /** Explicit per-topic model selection; runtime model records are resolved when restoring. */
   mentionedModelIds: UniqueModelId[]
   /** Selection behavior cannot be inferred when zero or one models remain selected. */

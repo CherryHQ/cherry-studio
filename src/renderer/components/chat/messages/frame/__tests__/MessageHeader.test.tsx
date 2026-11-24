@@ -104,6 +104,20 @@ describe('MessageHeader', () => {
     providerState.meta = {}
   })
 
+  it('shows the producing model and only its own stored prompt on history readback', () => {
+    const message = createMessage('assistant', {
+      modelId: 'p::a',
+      model: { id: 'a', name: 'Model A', provider: 'p' },
+      modelPrompts: [
+        { modelId: 'p::a' as any, systemPrompt: 'Frozen A prompt' },
+        { modelId: 'p::b' as any, systemPrompt: 'B must stay hidden' }
+      ]
+    })
+    render(<MessageHeader message={message} />)
+    expect(screen.getByText('Frozen A prompt')).toBeDefined()
+    expect(screen.queryByText('B must stay hidden')).toBeNull()
+  })
+
   it('updates historical author avatars and restores the snapshot after deletion', () => {
     const message = createMessage('assistant', {
       messageSnapshot: { id: 'agent-1', name: 'Original name', emoji: '🎓' }
