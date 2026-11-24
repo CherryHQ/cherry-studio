@@ -25,10 +25,15 @@ export const HANDOFF_HEADINGS = [
 ] as const
 
 export function validateHandoff(text: string): string {
-  const headings = [...text.matchAll(/^## (.+)$/gm)].map((match) => match[1].trim())
+  const trimmed = text.trim()
+  // Models sometimes wrap the whole document in one Markdown code fence; unwrap
+  // a single outer fence so the required headings are validated, not the fence.
+  const fenced = trimmed.match(/^```[^\n]*\n([\s\S]*?)\n```$/)
+  const candidate = (fenced ? fenced[1] : trimmed).trim()
+  const headings = [...candidate.matchAll(/^## (.+)$/gm)].map((match) => match[1].trim())
   if (JSON.stringify(headings) !== JSON.stringify(HANDOFF_HEADINGS))
     throw new Error('The handoff is missing its required sections. Please retry.')
-  return text.trim()
+  return candidate
 }
 
 /** UTF-8 bytes bound tokens conservatively, including languages without spaces. */
@@ -61,6 +66,7 @@ export async function buildHandoff(
   signal: AbortSignal
 ): Promise<string> {
   let chunks = splitHandoffSource(source, contextWindow)
+  let previousBytes = Buffer.byteLength(source, 'utf8')
   // Preserve chronological order. Each extraction identifies settled and pending work.
   for (let round = 0; round < 8; round += 1) {
     const notes: string[] = []
@@ -77,10 +83,14 @@ export async function buildHandoff(
     }
     if (notes.length === 1) return notes[0]
     const combined = notes.map((note, index) => `Chronological segment ${index + 1}:\n${note}`).join('\n\n')
+    const combinedBytes = Buffer.byteLength(combined, 'utf8')
     const next = splitHandoffSource(combined, contextWindow)
-    if (next.length >= chunks.length)
+    // A round that shrinks the source still progresses even when it keeps the
+    // same chunk count; only a round with no reduction at all is stuck.
+    if (next.length >= chunks.length && combinedBytes >= previousBytes)
       throw new Error('The handoff could not be reduced to fit this model. Try a larger-context model.')
     chunks = next
+    previousBytes = combinedBytes
   }
   throw new Error('The handoff needs a larger-context model')
 }

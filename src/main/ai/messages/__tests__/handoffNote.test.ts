@@ -44,6 +44,23 @@ describe('portable handoff', () => {
       )
     ).toThrow()
   })
+  it('unwraps a single outer code fence before validating the sections', () => {
+    expect(validateHandoff(`\`\`\`markdown\n${note}\n\`\`\``)).toBe(note)
+    expect(validateHandoff(`\`\`\`\n${note}\n\`\`\``)).toBe(note)
+    expect(() => validateHandoff(`\`\`\`markdown\n## Goals\nIncomplete\n\`\`\``)).toThrow('required sections')
+  })
+  it('lets a shrinking round proceed at the same chunk count until it converges', async () => {
+    const largeNote = HANDOFF_HEADINGS.map((heading) => `## ${heading}\n${'y'.repeat(430)}`).join('\n')
+    // Round 1 combines to fewer bytes than the source but still three chunks;
+    // rounds 2-3 then reduce below one chunk and return.
+    let call = 0
+    const generate = vi.fn<(prompt: string) => Promise<string>>(async () => {
+      call += 1
+      return call <= 3 ? largeNote : note
+    })
+    expect(await buildHandoff('x'.repeat(11_400), 12_000, generate, new AbortController().signal)).toBe(note)
+    expect(generate).toHaveBeenCalledTimes(7)
+  })
   it('splits UTF-8 without losing any source or splitting surrogate pairs', () => {
     const source = '早期🙂'.repeat(3000)
     const chunks = splitHandoffSource(source, 10_000)
