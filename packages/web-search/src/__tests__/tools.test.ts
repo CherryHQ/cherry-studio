@@ -6,6 +6,28 @@ import { sliceContent } from '../tools/content'
 import { filterResultsByUrlRules } from '../tools/urlFilter'
 
 describe('optional host-composed utilities', () => {
+  it('limits all_urls matching to HTTP(S) without changing retained result data', () => {
+    const ftp = { url: 'ftp://files.example.com/download', title: 'Archive', metadata: { opaque: true } }
+    const result = filterResultsByUrlRules(
+      [{ url: 'http://example.com/page' }, { url: 'https://example.com/page' }, ftp],
+      ['<all_urls>']
+    )
+
+    expect(result.diagnostics).toEqual([])
+    expect(result.results).toEqual([ftp])
+    expect(result.results[0]).toBe(ftp)
+  })
+
+  it('reports unsupported match-pattern schemes without filtering their results', () => {
+    const results = [{ url: 'ftp://files.example.com/download' }, { url: 'https://example.com/page' }]
+    const result = filterResultsByUrlRules(results, ['ftp://*.example.com/*'])
+
+    expect(result.results).toEqual(results)
+    expect(result.diagnostics).toEqual([
+      { kind: 'pattern', value: 'ftp://*.example.com/*', error: 'Unsupported scheme: ftp' }
+    ])
+  })
+
   it('keeps explicit empty endpoint overrides and does not mutate shared metadata', () => {
     const result = mergeProviderEndpoints(WEB_SEARCH_PROVIDER_CATALOG.jina, { fetchUrls: { apiHost: '' } })
     expect(result.capabilities.find((item) => item.capability === 'fetchUrls')?.defaultApiHost).toBe('')

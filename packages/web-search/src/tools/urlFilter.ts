@@ -26,15 +26,11 @@ const matchPatternRegExp = (() => {
 })()
 
 function parseMatchPattern(pattern: string): ParsedMatchPattern | null {
-  const execResult = matchPatternRegExp.exec(pattern)
+  const groups = matchPatternRegExp.exec(pattern)?.groups
 
-  if (!execResult) {
+  if (!groups) {
     return null
   }
-
-  const groups = execResult.groups as
-    | { allURLs: string }
-    | { allURLs?: never; scheme: string; host: string; path: string }
 
   return groups.allURLs != null
     ? { allURLs: true }
@@ -46,7 +42,7 @@ function parseMatchPattern(pattern: string): ParsedMatchPattern | null {
       }
 }
 
-const supportedSchemes = ['http', 'https'] as const
+const supportedSchemes = new Set(['http', 'https'])
 
 function testScheme(schemePattern: string, scheme: string): boolean {
   return schemePattern === '*' ? scheme === 'http' || scheme === 'https' : scheme === schemePattern
@@ -98,7 +94,7 @@ function testPath(pathPattern: string, path: string): boolean {
 
 function matchesPattern(pattern: ParsedMatchPattern, url: URL): boolean {
   if (pattern.allURLs) {
-    return supportedSchemes.includes(url.protocol.slice(0, -1) as (typeof supportedSchemes)[number])
+    return supportedSchemes.has(url.protocol.slice(0, -1))
   }
 
   const scheme = url.protocol.slice(0, -1)
@@ -141,11 +137,7 @@ function compileBlacklistPatterns(patterns: readonly string[]) {
         throw new Error(`Invalid match pattern: ${pattern}`)
       }
 
-      if (
-        !parseResult.allURLs &&
-        parseResult.scheme !== '*' &&
-        !supportedSchemes.includes(parseResult.scheme as (typeof supportedSchemes)[number])
-      ) {
+      if (!parseResult.allURLs && parseResult.scheme !== '*' && !supportedSchemes.has(parseResult.scheme)) {
         throw new Error(`Unsupported scheme: ${parseResult.scheme}`)
       }
 
