@@ -4,6 +4,7 @@ import { copyFile, link, lstat, mkdir, open, readdir, realpath } from 'node:fs/p
 import path from 'node:path'
 
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
+import { getErrorCode } from '@main/utils/error'
 
 function identity(stat: BigIntStats) {
   return [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].join(':')
@@ -25,14 +26,19 @@ export async function publishForkArtifact(
   created: (identity: string) => void | Promise<void>
 ): Promise<void> {
   signal.throwIfAborted()
+  let linked = false
 
   try {
     await link(source, target)
+    linked = true
+  } catch (error) {
+    if (getErrorCode(error) !== 'EXDEV') throw error
+  }
+
+  if (linked) {
     await created(await forkFileIdentity(target))
 
     return
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error
   }
 
   const output = await open(target, 'wx', 0o600)

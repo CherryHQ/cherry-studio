@@ -1,6 +1,8 @@
 import { lstatSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
 
+import { getErrorCode } from '@main/utils/error'
+
 function contains(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate)
 
@@ -11,7 +13,7 @@ function resolveWorkspace(candidate: string): string {
   try {
     return realpathSync(candidate)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    if (getErrorCode(error) !== 'ENOENT') throw error
     const entry = lstatSync(candidate, { throwIfNoEntry: false })
 
     if (entry) throw new Error('Workspace alias cannot be resolved; retaining fork files')

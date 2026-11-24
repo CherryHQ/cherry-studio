@@ -18,6 +18,7 @@ import { loggerService } from '@logger'
 import { type RuntimeForkCheckpoint, type RuntimeForkResult, RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { t } from '@main/i18n'
+import { getErrorCode } from '@main/utils/error'
 import { isOutsidePath } from '@main/utils/file'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { Sequencer } from '@shared/utils/async'
@@ -31,11 +32,6 @@ import { type AgentSessionForkResources, readForkResources, writeForkResources, 
 import { workspaceHasReferences } from './workspaceCleanup'
 
 const logger = loggerService.withContext('AgentSessionForkOperations')
-
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Filesystem operation failures reach this catch classifier as arbitrary thrown values; only a verified ENOENT may be ignored.
-function isMissing(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException)?.code === 'ENOENT'
-}
 
 function assertArtifactSource(directory: string, source: string): void {
   const relative = path.relative(directory, source)
@@ -454,7 +450,7 @@ export class AgentSessionForkOperations {
       assertArtifactSource(resources.artifactDirectory, artifact.source)
       await forkFileIdentity(artifact.source)
       await mkdir(path.dirname(artifact.target), { recursive: true })
-      const owned = { ...artifact, identity: undefined as string | undefined }
+      const owned: AgentSessionForkResources['published'][number] = { ...artifact, identity: undefined }
       resources.published.push(owned)
       await writeForkResources(resources)
       await publishForkArtifact(artifact.source, artifact.target, signal, async (identity) => {
@@ -482,7 +478,7 @@ export class AgentSessionForkOperations {
           throw new Error('Fork file ownership changed')
         await rm(artifact.target)
       } catch (error) {
-        if (!isMissing(error)) throw error
+        if (getErrorCode(error) !== 'ENOENT') throw error
       }
     }
 
@@ -542,7 +538,7 @@ export class AgentSessionForkOperations {
 
       await rm(resources.artifactDirectory, { recursive: true, force: true })
     } catch (error) {
-      if (!isMissing(error)) throw error
+      if (getErrorCode(error) !== 'ENOENT') throw error
     }
   }
 }
