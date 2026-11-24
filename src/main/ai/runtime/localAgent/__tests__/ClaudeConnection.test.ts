@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
 
 import type { SDKMessage, SDKPartialAssistantMessage } from '@anthropic-ai/claude-agent-sdk'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
@@ -91,11 +93,16 @@ async function run(headless = false) {
 }
 
 beforeEach(() => {
+  MockMainPreferenceServiceUtils.resetMocks()
   sdk.openQueries = 0
   sdk.messages = []
   sdk.returning = false
   sdk.returnGate = undefined
   sdk.queryOptions = []
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe('native Claude protocol mapping', () => {
@@ -548,5 +555,110 @@ describe('native Claude protocol mapping', () => {
         })
       })
     )
+  })
+
+  it('injects session-scoped browser MCP into query(), honors browser toggle, maps plan mode to read-only, and disposes on close', async () => {
+    const dispose = vi.fn().mockResolvedValue(undefined)
+    let issuedInput: { isReadOnly?: () => boolean } | undefined
+    const issueBrowserLease = vi.fn(async (inputArg: { isReadOnly?: () => boolean }) => {
+      issuedInput = inputArg
+      return {
+        url: 'http://127.0.0.1:43123/mcp/lease-1',
+        token: 'tok-claude',
+        headers: { Authorization: 'Bearer tok-claude' },
+        dispose
+      }
+    })
+    vi.spyOn(application, 'getExisting').mockImplementation(((name: string) => {
+      if (name === 'LocalAgentMcpBridgeService') return { issueBrowserLease }
+      if (name === 'PreferenceService') {
+        return {
+          get: (key: Parameters<typeof MockMainPreferenceServiceUtils.getPreferenceValue>[0]) =>
+            MockMainPreferenceServiceUtils.getPreferenceValue(key)
+        }
+      }
+      return undefined
+    }) as typeof application.getExisting)
+
+    sdk.messages = [result()]
+    const connection = new ClaudeConnection('session-c', 'agent-c', {
+      protocol: 'claude',
+      presetId: 'claude',
+      enabled: true,
+      args: [],
+      env: {}
+    })
+    const events: AgentRuntimeEvent[] = []
+    const drained = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+
+    try {
+      await connection.start('/tmp')
+      expect(issueBrowserLease).toHaveBeenCalledTimes(1)
+      expect(issuedInput?.isReadOnly?.()).toBe(false)
+      await connection.setMode('claude-mode', 'plan')
+      expect(issuedInput?.isReadOnly?.()).toBe(true)
+
+      await connection.send(input)
+      const options = sdk.queryOptions.at(-1) as {
+        mcpServers?: Record<string, unknown>
+        canUseTool?: (
+          name: string,
+          args: Record<string, unknown>,
+          opts: { toolUseID: string; signal: AbortSignal }
+        ) => Promise<unknown>
+      }
+      expect(options.mcpServers).toEqual({
+        automation: {
+          type: 'http',
+          url: 'http://127.0.0.1:43123/mcp/lease-1',
+          headers: { Authorization: 'Bearer tok-claude' }
+        }
+      })
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
+      await expect(
+        options.canUseTool?.(
+          'mcp__automation__js',
+          { code: '1' },
+          { toolUseID: 'call-1', signal: new AbortController().signal }
+        )
+      ).resolves.toEqual({ behavior: 'allow', updatedInput: { code: '1' } })
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+      await expect(
+        options.canUseTool?.(
+          'mcp__automation__reset',
+          {},
+          { toolUseID: 'call-2', signal: new AbortController().signal }
+        )
+      ).resolves.toEqual({ behavior: 'deny', message: 'Built-in browser control is disabled' })
+    } finally {
+      await connection.close()
+      await drained
+    }
+    expect(dispose).toHaveBeenCalledTimes(1)
+
+    issueBrowserLease.mockClear()
+    const headlessConn = new ClaudeConnection(
+      'session-h',
+      'agent-c',
+      { protocol: 'claude', presetId: 'claude', enabled: true, args: [], env: {} },
+      true
+    )
+    const disabledConn = new ClaudeConnection('session-d', 'agent-c', {
+      protocol: 'claude',
+      presetId: 'claude',
+      enabled: true,
+      browserControl: 'disabled',
+      args: [],
+      env: {}
+    })
+    await headlessConn.start('/tmp')
+    await disabledConn.start('/tmp')
+    expect(issueBrowserLease).not.toHaveBeenCalled()
+    await headlessConn.close()
+    await disabledConn.close()
   })
 })

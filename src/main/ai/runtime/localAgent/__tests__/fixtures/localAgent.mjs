@@ -9,7 +9,10 @@ const configuredModel = {
   'provider-hermes': 'custom:deepseek/deepseek-flash',
   'provider-minimax': 'm:custom_provider%3Acherry-CherryIN:deepseek%2Fdeepseek-flash:v:'
 }[scenario]
-if (process.env.FIXTURE_LOG) writeFileSync(`${process.env.FIXTURE_LOG}.pid`, String(process.pid))
+if (process.env.FIXTURE_LOG) {
+  writeFileSync(`${process.env.FIXTURE_LOG}.pid`, String(process.pid))
+  writeFileSync(`${process.env.FIXTURE_LOG}.argv.json`, JSON.stringify(process.argv))
+}
 const emit = (message) => process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', ...message })}\n`)
 const reply = (id, result) => emit({ id, result })
 const update = (value) => emit({ method: 'session/update', params: { sessionId: 'native-session', update: value } })
@@ -203,6 +206,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
             agentInfo: { name: 'fixture', version: '1.0' },
             agentCapabilities: {
               loadSession: scenario !== 'no-resume' && scenario !== 'resume-only',
+              ...(scenario === 'acp-http-mcp' ? { mcpCapabilities: { http: true } } : {}),
               ...(scenario.startsWith('resume') || scenario.startsWith('close')
                 ? {
                     sessionCapabilities: {
@@ -847,6 +851,89 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         text(JSON.stringify([w1.result, w2.result, e1.result, e2.result]))
         finish()
       })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
+    }
+    if (scenario === 'acp-browser-permission') {
+      void (async () => {
+        const perm = await requestClient('session/request_permission', {
+          sessionId: 'native-session',
+          toolCall: { toolCallId: 'auto-1', title: 'mcp__automation__js', kind: 'other', status: 'pending' },
+          options: [
+            { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+            { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+          ]
+        })
+        text(JSON.stringify(perm.result))
+        finish()
+      })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
+    }
+    if (scenario === 'acp-copilot-browser-permission') {
+      void (async () => {
+        emit({
+          method: 'session/update',
+          params: {
+            sessionId: 'native-session',
+            update: {
+              sessionUpdate: 'tool_call',
+              toolCallId: 'auto-copilot-1',
+              title: 'automation-js',
+              kind: 'other',
+              status: 'pending'
+            }
+          }
+        })
+        const perm = await requestClient('session/request_permission', {
+          sessionId: 'native-session',
+          toolCall: { toolCallId: 'auto-copilot-1', title: 'js', kind: 'other', status: 'pending' },
+          options: [
+            { optionId: 'allow', name: 'Allow once', kind: 'allow_once' },
+            { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+          ]
+        })
+        text(JSON.stringify(perm.result))
+        finish()
+      })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
+    }
+    if (scenario === 'codex-browser-mcp') {
+      emit({
+        method: 'item/started',
+        params: {
+          threadId: 'native-session',
+          turnId: 'turn',
+          item: {
+            id: 'mcp-1',
+            type: 'mcpToolCall',
+            server: 'automation',
+            tool: 'js',
+            arguments: { title: 'Inspect tab', code: 'await browser.getTab()' }
+          }
+        }
+      })
+      emit({
+        method: 'item/completed',
+        params: {
+          threadId: 'native-session',
+          turnId: 'turn',
+          item: {
+            id: 'mcp-1',
+            type: 'mcpToolCall',
+            server: 'automation',
+            tool: 'js',
+            status: 'completed',
+            arguments: { title: 'Inspect tab', code: 'await browser.getTab()' },
+            result: {
+              content: [
+                { type: 'text', text: 'Tab ready' },
+                { type: 'text', text: 'REPL_CONTEXT {"cell":"12345678-1234-4234-8234-123456789abc"}' }
+              ]
+            }
+          }
+        }
+      })
+      text(process.env.CHERRY_BROWSER_MCP_TOKEN ?? 'missing')
+      finish()
       return
     }
     if (scenario === 'codex-full-access-approvals') {

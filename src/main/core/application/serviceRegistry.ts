@@ -28,6 +28,7 @@ import {
 } from '@main/ai/runtime/claudeCode'
 import { LocalAgentAuthService } from '@main/ai/runtime/localAgent/LocalAgentAuthService'
 import { LocalAgentInstallService } from '@main/ai/runtime/localAgent/LocalAgentInstallService'
+import { LocalAgentMcpBridgeService } from '@main/ai/runtime/localAgent/LocalAgentMcpBridgeService'
 import { SkillSubscriptionService } from '@main/ai/skills/SkillSubscriptionService'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
@@ -160,6 +161,7 @@ export const services = {
   LocalAgentWebUiService,
   LocalAgentInstallService,
   LocalAgentAuthService,
+  LocalAgentMcpBridgeService,
   FileManager,
   FileEditService,
   AttachmentPresenceService,

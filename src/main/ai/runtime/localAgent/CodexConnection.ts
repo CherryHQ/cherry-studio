@@ -14,10 +14,14 @@ import {
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 
 import type { AgentRuntimeUserInput } from '../types'
+import { acquireLocalAgentBrowserLease, LOCAL_AGENT_AUTOMATION_SERVER_NAME } from './browserBridge'
 import { bindLocalGatewayUsage } from './gatewayUsage'
 import { resolveLocalAgentLaunch } from './launch'
+import type { LocalAgentBrowserLease } from './LocalAgentMcpBridgeService'
 import { LocalConnection } from './LocalConnection'
 import { localContent } from './localContent'
+
+const CODEX_BROWSER_MCP_TOKEN_ENV = 'CHERRY_BROWSER_MCP_TOKEN'
 
 const CODEX_SUPPORTED_COMMANDS: AgentSessionSlashCommand[] = [
   { name: 'clear', description: 'Start a new conversation with empty context', argumentHint: '', builtin: true },
@@ -157,6 +161,7 @@ export class CodexConnection extends LocalConnection {
   private turnId?: string
   private compacting = false
   private gatewayLease?: { dispose: () => void }
+  private browserLease?: LocalAgentBrowserLease
   private modeOverride?: CodexModeValue
   private thoughtLevelOverride?: string
   private sessionPermissionsGranted = false
@@ -207,8 +212,22 @@ export class CodexConnection extends LocalConnection {
   async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
     this.cwd = cwd
     const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal)
-    if (!probe) this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
+    if (!probe) {
+      this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
+      this.browserLease = await acquireLocalAgentBrowserLease({
+        sessionId: this.sessionId,
+        agentId: this.agentId,
+        config: this.config,
+        headless: this.headless,
+        signal: this.abort.signal,
+        isReadOnly: () => (this.modeOverride ?? this.localSessionInfo.mode?.currentValue) === 'readOnly'
+      })
+      if (this.browserLease) {
+        launch.env[CODEX_BROWSER_MCP_TOKEN_ENV] = this.browserLease.token
+      }
+    }
     this.abort.signal.throwIfAborted()
+    const browserCliArgs = this.browserMcpCliArgs()
     const args = this.headless
       ? [
           ...launch.args,
@@ -221,7 +240,7 @@ export class CodexConnection extends LocalConnection {
           '--disable',
           'hooks'
         ]
-      : launch.args
+      : [...launch.args, ...browserCliArgs]
     const child = crossPlatformSpawn(launch.executable, args, {
       cwd,
       env: launch.env,
@@ -281,6 +300,7 @@ export class CodexConnection extends LocalConnection {
     const mcpServers = this.headless
       ? CodexEffectiveConfigSchema.parse(await this.request('config/read', { cwd })).config.mcp_servers
       : undefined
+    const browserConfig = this.browserMcpConfig()
     const threadParams = {
       cwd,
       ...(this.headless
@@ -291,7 +311,9 @@ export class CodexConnection extends LocalConnection {
               Object.keys(mcpServers ?? {}).map((name) => [`mcp_servers.${name}.enabled`, false])
             )
           }
-        : {}),
+        : browserConfig
+          ? { config: browserConfig }
+          : {}),
       ...(this.config.nativeModel ? { model: this.config.nativeModel } : {})
     }
     const response = resume
@@ -377,6 +399,31 @@ export class CodexConnection extends LocalConnection {
   }
   private isFullAccess(): boolean {
     return (this.modeOverride ?? this.localSessionInfo.mode?.currentValue) === 'fullAccess'
+  }
+  private browserMcpCliArgs(): string[] {
+    if (this.headless || !this.browserLease) return []
+    const prefix = `mcp_servers.${LOCAL_AGENT_AUTOMATION_SERVER_NAME}`
+    return [
+      '-c',
+      `${prefix}.url=${JSON.stringify(this.browserLease.url)}`,
+      '-c',
+      `${prefix}.bearer_token_env_var=${JSON.stringify(CODEX_BROWSER_MCP_TOKEN_ENV)}`,
+      '-c',
+      `${prefix}.enabled=true`,
+      '-c',
+      `${prefix}.tools.js.approval_mode="approve"`,
+      '-c',
+      `${prefix}.tools.reset.approval_mode="approve"`
+    ]
+  }
+  private browserMcpConfig(): Record<string, unknown> | undefined {
+    if (this.headless || !this.browserLease) return undefined
+    const prefix = `mcp_servers.${LOCAL_AGENT_AUTOMATION_SERVER_NAME}`
+    return {
+      [`${prefix}.url`]: this.browserLease.url,
+      [`${prefix}.bearer_token_env_var`]: CODEX_BROWSER_MCP_TOKEN_ENV,
+      [`${prefix}.enabled`]: true
+    }
   }
   private write(message: unknown) {
     if (!this.process?.stdin?.writable) throw new Error('Codex connection is closed')
@@ -604,6 +651,18 @@ export class CodexConnection extends LocalConnection {
       if (message.method === 'item/completed') this.approvalItems.delete(item.id)
       else if (item.type === 'commandExecution' || item.type === 'fileChange') this.approvalItems.set(item.id, item)
       if (
+        item.type === 'mcpToolCall' &&
+        item.server === LOCAL_AGENT_AUTOMATION_SERVER_NAME &&
+        (item.tool === 'js' || item.tool === 'reset')
+      ) {
+        const args =
+          item.arguments && typeof item.arguments === 'object' && !Array.isArray(item.arguments) ? item.arguments : {}
+        this.tool(item.id, `mcp__${LOCAL_AGENT_AUTOMATION_SERVER_NAME}__${item.tool}`, args)
+        if (message.method === 'item/completed') {
+          const failed = item.status === 'failed' || item.status === 'declined'
+          this.result(item.id, (failed ? (item.error ?? item.result) : item.result) ?? item, failed)
+        }
+      } else if (
         item.type === 'commandExecution' ||
         item.type === 'fileChange' ||
         item.type === 'mcpToolCall' ||
@@ -652,8 +711,10 @@ export class CodexConnection extends LocalConnection {
     this.begin()
     try {
       if (textOnly === '/clear' || textOnly === '/new') {
+        const browserConfig = this.browserMcpConfig()
         const response = await this.request('thread/start', {
           cwd: this.cwd,
+          ...(browserConfig ? { config: browserConfig } : {}),
           ...(this.config.nativeModel ? { model: this.config.nativeModel } : {})
         })
         this.threadId = ThreadSchema.parse(response).thread.id
@@ -866,6 +927,8 @@ export class CodexConnection extends LocalConnection {
     await this.stopProcess(this.process)
   }
   protected override dispose() {
+    void this.browserLease?.dispose().catch(() => {})
+    this.browserLease = undefined
     this.gatewayLease?.dispose()
     this.gatewayLease = undefined
     super.dispose()

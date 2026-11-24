@@ -54,6 +54,15 @@ are preserved.
   Persisted messages retain author and native model attribution when available.
 - The CLI owns authentication, project settings, MCP and Skills. Local turns use
   native resources and controls. Main rejects Cherry knowledge scopes for these turns.
+- When host browser control is enabled, interactive sessions expose Cherry Studio's
+  session-scoped built-in browser `automation` MCP (`LocalAgentMcpBridgeService`) over
+  loopback Streamable HTTP with a per-session bearer token (or `stdioHttpMcpShim` when
+  an ACP agent lacks HTTP MCP capability). Per-agent `browserControl` (`inherit`,
+  `readonly`, or `disabled`, defaulting to `disabled` for custom ACP) and session mode
+  (`plan` / `readOnly`) enforce read-only or disabled isolation; headless scheduled tasks
+  and OpenClaw's ACP bridge (which rejects per-session `mcpServers`) omit browser
+  injection, and injected `automation` tool calls auto-approve across Claude, Codex, and
+  ACP when host control is allowed.
 
 ### Models and configuration
 

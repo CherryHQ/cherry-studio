@@ -15,6 +15,7 @@ import { type LocalAgentConfiguration, LocalPermissionOptionsSchema } from '@sha
 
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
 import { AcpConnection } from '../AcpConnection'
+import { isInjectedAcpAutomationTool } from '../browserBridge'
 import { CodexConnection } from '../CodexConnection'
 import { LocalAgentAuthService } from '../LocalAgentAuthService'
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
@@ -2236,5 +2237,215 @@ describe('local protocol processes', () => {
       { outcome: { outcome: 'selected', optionId: 'allow' } }
     ])
     await closeAndDrain()
+  })
+
+  it('injects browser MCP into Codex thread config and child env, maps readOnly, normalizes mcpToolCall, and disposes lease', async () => {
+    const dispose = vi.fn().mockResolvedValue(undefined)
+    let capturedIsReadOnly: (() => boolean) | undefined
+    const issueBrowserLease = vi.fn(async (inputArg: { isReadOnly?: () => boolean }) => {
+      capturedIsReadOnly = inputArg.isReadOnly
+      return {
+        url: 'http://127.0.0.1:45555/mcp/codex-lease',
+        token: 'codex-secret-token',
+        headers: { Authorization: 'Bearer codex-secret-token' },
+        dispose
+      }
+    })
+    const existingSpy = vi.spyOn(application, 'getExisting').mockImplementation(((name: string) => {
+      if (name === 'LocalAgentMcpBridgeService') return { issueBrowserLease }
+      return undefined
+    }) as typeof application.getExisting)
+
+    try {
+      const { connection, events, text, closeAndDrain } = create('codex', 'codex-browser-mcp', undefined, 'codex')
+      await connection.start(cwd)
+      expect(capturedIsReadOnly?.()).toBe(false)
+      await connection.setMode?.('codex-mode', 'readOnly')
+      expect(capturedIsReadOnly?.()).toBe(true)
+
+      await connection.send(input)
+      await closeAndDrain()
+
+      expect(text()).toBe('codex-secret-token')
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: 'chunk',
+          chunk: expect.objectContaining({
+            type: 'tool-input-available',
+            toolCallId: 'mcp-1',
+            toolName: 'mcp__automation__js',
+            input: { title: 'Inspect tab', code: 'await browser.getTab()' }
+          })
+        })
+      )
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: 'chunk',
+          chunk: expect.objectContaining({
+            type: 'tool-output-available',
+            toolCallId: 'mcp-1',
+            output: expect.objectContaining({
+              content: expect.arrayContaining([expect.objectContaining({ text: 'Tab ready' })])
+            })
+          })
+        })
+      )
+      const wire = await readWire()
+      expect(wire.find((m) => m.method === 'thread/start')?.params).toMatchObject({
+        config: {
+          'mcp_servers.automation.url': 'http://127.0.0.1:45555/mcp/codex-lease',
+          'mcp_servers.automation.bearer_token_env_var': 'CHERRY_BROWSER_MCP_TOKEN',
+          'mcp_servers.automation.enabled': true
+        }
+      })
+      const spawnedArgv = JSON.parse(await readFile(path.join(cwd, 'wire.jsonl.argv.json'), 'utf8')) as string[]
+      expect(spawnedArgv).toEqual(
+        expect.arrayContaining([
+          '-c',
+          'mcp_servers.automation.url="http://127.0.0.1:45555/mcp/codex-lease"',
+          'mcp_servers.automation.bearer_token_env_var="CHERRY_BROWSER_MCP_TOKEN"',
+          'mcp_servers.automation.enabled=true',
+          'mcp_servers.automation.tools.js.approval_mode="approve"',
+          'mcp_servers.automation.tools.reset.approval_mode="approve"'
+        ])
+      )
+      expect(dispose).toHaveBeenCalledTimes(1)
+
+      // Headless Codex sessions must never receive browser MCP CLI flags or acquire a lease
+      await rm(path.join(cwd, 'wire.jsonl'), { force: true })
+      const headlessRun = create('codex', 'codex-browser-mcp', undefined, 'codex', undefined, true)
+      await headlessRun.connection.start(cwd)
+      await headlessRun.closeAndDrain()
+      expect(issueBrowserLease).toHaveBeenCalledTimes(1)
+      const headlessArgv = JSON.parse(await readFile(path.join(cwd, 'wire.jsonl.argv.json'), 'utf8')) as string[]
+      expect(headlessArgv.join(' ')).not.toContain('mcp_servers.automation')
+    } finally {
+      existingSpy.mockRestore()
+    }
+  })
+
+  it('injects HTTP or stdio shim MCP for ACP presets, skips custom ACP by default, auto-allows injected automation prompts, and disposes lease', async () => {
+    const disposals: Array<ReturnType<typeof vi.fn>> = []
+    const issueBrowserLease = vi.fn(async () => {
+      const dispose = vi.fn().mockResolvedValue(undefined)
+      disposals.push(dispose)
+      return {
+        url: 'http://127.0.0.1:46666/mcp/acp-lease',
+        token: 'acp-secret-token',
+        headers: { Authorization: 'Bearer acp-secret-token' },
+        dispose
+      }
+    })
+    const existingSpy = vi.spyOn(application, 'getExisting').mockImplementation(((name: string) => {
+      if (name === 'LocalAgentMcpBridgeService') return { issueBrowserLease }
+      if (name === 'PreferenceService') {
+        return { get: (key: string) => key === 'app.browser.agent_control.enabled' }
+      }
+      return undefined
+    }) as typeof application.getExisting)
+
+    try {
+      // HTTP-capable official preset
+      const httpRun = create('acp', 'acp-http-mcp', undefined, 'copilot')
+      await httpRun.connection.start(cwd)
+      await httpRun.closeAndDrain()
+      let wire = await readWire()
+      expect(wire.find((m) => m.method === 'session/new')?.params?.mcpServers).toEqual([
+        {
+          type: 'http',
+          name: 'automation',
+          url: 'http://127.0.0.1:46666/mcp/acp-lease',
+          headers: [{ name: 'Authorization', value: 'Bearer acp-secret-token' }]
+        }
+      ])
+
+      // Stdio shim fallback + permission auto-allow when HTTP capability is absent
+      await rm(path.join(cwd, 'wire.jsonl'), { force: true })
+      const stdioRun = create('acp', 'acp-browser-permission', undefined, 'copilot')
+      await stdioRun.connection.start(cwd)
+      await stdioRun.connection.send(input)
+      await stdioRun.closeAndDrain()
+      expect(JSON.parse(stdioRun.text())).toEqual({ outcome: { outcome: 'selected', optionId: 'allow' } })
+      wire = await readWire()
+      const stdioServers = wire.find((m) => m.method === 'session/new')?.params?.mcpServers as Array<{
+        name: string
+        command: string
+        args: string[]
+        env: Array<{ name: string; value: string }>
+      }>
+      expect(stdioServers).toHaveLength(1)
+      expect(stdioServers[0]).toMatchObject({
+        name: 'automation',
+        command: process.execPath
+      })
+      expect(stdioServers[0].args.join(' ')).not.toContain('acp-secret-token')
+      expect(stdioServers[0].env).toContainEqual({ name: 'CHERRY_MCP_TOKEN', value: 'acp-secret-token' })
+
+      // Copilot emits tool_call('automation-js') before request_permission('js') on the same toolCallId
+      await rm(path.join(cwd, 'wire.jsonl'), { force: true })
+      const copilotRun = create('acp', 'acp-copilot-browser-permission', undefined, 'copilot')
+      await copilotRun.connection.start(cwd)
+      await copilotRun.connection.send(input)
+      await copilotRun.closeAndDrain()
+      expect(JSON.parse(copilotRun.text())).toEqual({ outcome: { outcome: 'selected', optionId: 'allow' } })
+
+      // OpenClaw ACP bridge rejects per-session mcpServers, so it must not acquire a lease or pass mcpServers
+      await rm(path.join(cwd, 'wire.jsonl'), { force: true })
+      issueBrowserLease.mockClear()
+      const openclawRun = create('acp', 'normal', undefined, 'openclaw')
+      await openclawRun.connection.start(cwd)
+      await openclawRun.closeAndDrain()
+      expect(issueBrowserLease).not.toHaveBeenCalled()
+      wire = await readWire()
+      expect(wire.find((m) => m.method === 'session/new')?.params?.mcpServers).toEqual([])
+
+      // Custom ACP without browserControl opt-in must NOT receive a browser lease
+      await rm(path.join(cwd, 'wire.jsonl'), { force: true })
+      issueBrowserLease.mockClear()
+      const customRun = create('acp', 'normal', undefined, undefined)
+      await customRun.connection.start(cwd)
+      await customRun.closeAndDrain()
+      expect(issueBrowserLease).not.toHaveBeenCalled()
+      wire = await readWire()
+      expect(wire.find((m) => m.method === 'session/new')?.params?.mcpServers).toEqual([])
+      expect(disposals).toHaveLength(3)
+      expect(disposals.every((fn) => fn.mock.calls.length === 1)).toBe(true)
+    } finally {
+      existingSpy.mockRestore()
+    }
+  })
+
+  it('recognizes observed ACP client automation tool naming variants while rejecting non-automation tools', () => {
+    for (const title of [
+      'mcp__automation__js',
+      'mcp__automation__reset',
+      'automation-js',
+      'automation_js',
+      'automation: js',
+      'automation/reset',
+      'mcp_automation.js',
+      'mcp:poolside__agent__automation:js',
+      'poolside__agent__automation__js'
+    ]) {
+      expect(isInjectedAcpAutomationTool({ title, kind: 'other' })).toBe(true)
+    }
+    expect(
+      isInjectedAcpAutomationTool({
+        title: 'DeferExecuteTool',
+        kind: 'other',
+        rawInput: { toolName: 'mcp__automation__js', params: { code: '1' } }
+      })
+    ).toBe(true)
+
+    expect(isInjectedAcpAutomationTool({ title: 'js', kind: 'other' })).toBe(false)
+    expect(
+      isInjectedAcpAutomationTool({
+        title: 'DeferExecuteTool',
+        kind: 'other',
+        rawInput: { toolName: 'Bash', params: { command: 'rm -rf /' } }
+      })
+    ).toBe(false)
+    expect(isInjectedAcpAutomationTool({ title: 'mcp__automation__js', kind: 'execute' })).toBe(false)
+    expect(isInjectedAcpAutomationTool({ title: 'mcp__automation__js', kind: 'edit' })).toBe(false)
   })
 })

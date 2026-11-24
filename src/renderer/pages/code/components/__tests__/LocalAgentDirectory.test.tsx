@@ -904,4 +904,57 @@ describe('local agent settings navigation', () => {
       '环境变量必须是 JSON 对象，变量名须有效，值须为字符串。'
     )
   })
+
+  it('defaults built-in browser control to Disabled for custom ACP and persists opt-in changes', async () => {
+    for (const method of [
+      'hasPointerCapture',
+      'setPointerCapture',
+      'releasePointerCapture',
+      'scrollIntoView'
+    ] as const) {
+      if (!(method in HTMLElement.prototype)) {
+        Object.defineProperty(HTMLElement.prototype, method, {
+          configurable: true,
+          value: method === 'hasPointerCapture' ? () => false : () => {}
+        })
+      }
+    }
+    const user = userEvent.setup()
+    navigation.search = { id: 'custom-agent' }
+    const agent = localAgent('Custom Agent', { executableOverride: '/test/custom-acp' }, 'custom-agent')
+    publishAgent(agent)
+    const update = vi.fn().mockResolvedValue(agent)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', update)
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [] as never
+      if (route === 'ai.local_agents.check') return { ok: true, status: 'ready' } as never
+      return { models: [] } as never
+    })
+
+    render(<LocalAgentDirectory />)
+    await user.click(await screen.findByRole('button', { name: '高级设置' }))
+    const combobox = within(screen.getByRole('dialog')).getByRole('combobox', { name: '内置浏览器控制' })
+    expect(combobox).toHaveTextContent('禁用')
+
+    await user.click(combobox)
+    await user.click(await screen.findByRole('option', { name: '仅只读' }))
+    const saveButton = within(screen.getByRole('dialog')).getByRole('button', { name: '保存' })
+    expect(saveButton).toBeEnabled()
+    await user.click(saveButton)
+
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          params: { agentId: agent.id },
+          body: expect.objectContaining({
+            configuration: {
+              localRuntime: expect.objectContaining({
+                browserControl: 'readonly'
+              })
+            }
+          })
+        })
+      )
+    )
+  })
 })

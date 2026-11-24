@@ -130,7 +130,10 @@ export async function prepareGatewayMessage(config: MessageConfig) {
 
   const adapterOptions = {
     model: `${provider.id}:${modelId}`,
-    ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
+    ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {}),
+    ...(converter.resolveClientToolCall
+      ? { resolveClientToolCall: converter.resolveClientToolCall.bind(converter) }
+      : {})
   }
   return {
     ...request,

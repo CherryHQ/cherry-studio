@@ -11,6 +11,8 @@ import {
   RequestError,
   type ClientConnection,
   type PromptResponse,
+  type McpCapabilities,
+  type McpServer,
   type NewSessionResponse,
   type LoadSessionResponse,
   type ResumeSessionResponse,
@@ -57,13 +59,21 @@ import {
   recordAcpAlwaysAllowGrant,
   selectAutoAllowPermissionOption
 } from './acpPermissionPolicy'
+import {
+  acquireLocalAgentBrowserLease,
+  isHostBrowserControlAllowed,
+  isInjectedAcpAutomationTool,
+  LOCAL_AGENT_AUTOMATION_SERVER_NAME
+} from './browserBridge'
 import { registerCursorExtension } from './cursorExtension'
 import { bindLocalGatewayUsage } from './gatewayUsage'
 import { resolveLocalAgentLaunch } from './launch'
+import type { LocalAgentBrowserLease } from './LocalAgentMcpBridgeService'
 import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
 import { LocalConnection } from './LocalConnection'
 import { acpContent } from './localContent'
 import { resolveConfiguredAcpModel } from './nativeModelConfig'
+import { buildStdioHttpMcpShimConfig } from './stdioHttpMcpShim'
 
 const logger = loggerService.withContext('AcpConnection')
 const HOST_ALLOW_SESSION_OPTION_ID = '__cherry_allow_session__'
@@ -103,6 +113,7 @@ type Terminal = {
 
 export class AcpConnection extends LocalConnection {
   private gatewayLease?: { dispose: () => void | Promise<void> }
+  private browserLease?: LocalAgentBrowserLease
   private openClawLease?: { dispose: () => Promise<void> }
   private releasingOpenClaw?: Promise<void>
   private defaultModel?: string
@@ -335,13 +346,22 @@ export class AcpConnection extends LocalConnection {
         const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
         const knownTool = this.tools.has(id)
         const options = params.options
-        const tool = { ...this.toolInputs.get(id), ...params.toolCall }
-        const policyDecision = evaluateAcpPermissionRequest({
-          mode: this.effectivePermissionMode(),
-          tool,
-          cwd,
-          grants: this.permissionGrants
-        })
+        const previousTool = this.toolInputs.get(id)
+        const tool = { ...previousTool, ...params.toolCall }
+        const policyDecision =
+          this.browserLease &&
+          isHostBrowserControlAllowed(this.config) &&
+          (isInjectedAcpAutomationTool(tool) ||
+            (previousTool != null &&
+              classifyAcpToolKind(tool) === 'other' &&
+              isInjectedAcpAutomationTool(previousTool)))
+            ? 'allow'
+            : evaluateAcpPermissionRequest({
+                mode: this.effectivePermissionMode(),
+                tool,
+                cwd,
+                grants: this.permissionGrants
+              })
         const autoSelected = policyDecision === 'allow' ? selectAutoAllowPermissionOption(options) : undefined
         let selected: (typeof options)[number] | undefined
         let grantedSession = false
@@ -659,6 +679,17 @@ export class AcpConnection extends LocalConnection {
     this.localSessionInfo.images = this.promptCapabilities.image === true
     this.localSessionInfo.audio = this.promptCapabilities.audio === true
     if (probe === true) return this
+    this.browserLease = probe
+      ? undefined
+      : await acquireLocalAgentBrowserLease({
+          sessionId: this.sessionId,
+          agentId: this.agentId,
+          config: this.config,
+          headless: this.headless,
+          signal: this.abort.signal,
+          isReadOnly: () => this.effectivePermissionMode() === 'plan'
+        })
+    const mcpServers = this.buildBrowserMcpServers(response.agentCapabilities?.mcpCapabilities)
     this.loading = true
     try {
       if (resume) {
@@ -671,7 +702,7 @@ export class AcpConnection extends LocalConnection {
           {
             cwd,
             sessionId: resume,
-            mcpServers: []
+            mcpServers
           }
         )
         this.readSessionModels(session)
@@ -679,7 +710,7 @@ export class AcpConnection extends LocalConnection {
       } else {
         const session = await this.connection.agent.request<NewSessionResponse & { models?: unknown }>('session/new', {
           cwd,
-          mcpServers: []
+          mcpServers
         })
         if (this.config.presetId === 'pi-acp') {
           const metadata = z.object({ piAcp: z.object({ startupInfo: z.string() }) }).safeParse(session._meta)
@@ -748,6 +779,25 @@ export class AcpConnection extends LocalConnection {
       }
     }
     return this
+  }
+  private buildBrowserMcpServers(capabilities?: McpCapabilities): McpServer[] {
+    if (!this.browserLease) return []
+    if (capabilities?.http) {
+      return [
+        {
+          type: 'http',
+          name: LOCAL_AGENT_AUTOMATION_SERVER_NAME,
+          url: this.browserLease.url,
+          headers: [{ name: 'Authorization', value: `Bearer ${this.browserLease.token}` }]
+        }
+      ]
+    }
+    return [
+      {
+        name: LOCAL_AGENT_AUTOMATION_SERVER_NAME,
+        ...buildStdioHttpMcpShimConfig(this.browserLease.url, this.browserLease.token)
+      }
+    ]
   }
   private readSessionModels(session: SessionResponse) {
     this.legacyMode = session.modes ?? undefined
@@ -1129,6 +1179,8 @@ export class AcpConnection extends LocalConnection {
   }
   protected override dispose() {
     this.clearCompaction()
+    void this.browserLease?.dispose().catch(() => {})
+    this.browserLease = undefined
     void this.gatewayLease?.dispose()
     this.gatewayLease = undefined
     void this.releaseOpenClaw()?.catch((error) => logger.warn('Failed to release OpenClaw Gateway', { error }))

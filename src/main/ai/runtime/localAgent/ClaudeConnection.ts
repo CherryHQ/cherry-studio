@@ -15,8 +15,14 @@ import { AsyncEventQueue } from '@shared/utils/async'
 
 import { ClaudeCodeStreamAdapter } from '../claudeCode'
 import type { AgentRuntimeUserInput } from '../types'
+import {
+  acquireLocalAgentBrowserLease,
+  isHostBrowserControlAllowed,
+  LOCAL_AGENT_AUTOMATION_SERVER_NAME
+} from './browserBridge'
 import { bindLocalGatewayUsage } from './gatewayUsage'
 import { resolveLocalAgentLaunch } from './launch'
+import type { LocalAgentBrowserLease } from './LocalAgentMcpBridgeService'
 import { LocalConnection } from './LocalConnection'
 import { localContent } from './localContent'
 
@@ -77,6 +83,7 @@ export class ClaudeConnection extends LocalConnection {
   private cwd = ''
   private launch?: Awaited<ReturnType<typeof resolveLocalAgentLaunch>>
   private gatewayLease?: { dispose: () => void }
+  private browserLease?: LocalAgentBrowserLease
   private dynamicCommandsLoaded = false
   private permissionModeOverride?: ClaudePermissionModeValue
   private thoughtLevelOverride?: ClaudeThoughtLevelValue
@@ -104,7 +111,17 @@ export class ClaudeConnection extends LocalConnection {
     this.cwd = cwd
     this.resume = resume
     this.launch = await resolveLocalAgentLaunch(this.config, this.abort.signal, false, this.headless)
-    if (!probe) this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, this.launch.env)
+    if (!probe) {
+      this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, this.launch.env)
+      this.browserLease = await acquireLocalAgentBrowserLease({
+        sessionId: this.sessionId,
+        agentId: this.agentId,
+        config: this.config,
+        headless: this.headless,
+        signal: this.abort.signal,
+        isReadOnly: () => (this.permissionModeOverride ?? this.localSessionInfo.mode?.currentValue) === 'plan'
+      })
+    }
     this.abort.signal.throwIfAborted()
     if (probe) {
       const input = new AsyncEventQueue<SDKUserMessage>()
@@ -188,6 +205,17 @@ export class ClaudeConnection extends LocalConnection {
         },
         settingSources: this.headless ? [] : ['user', 'project', 'local'],
         model: this.config.nativeModel ?? (this.headless ? this.launch.nativeModel : undefined),
+        ...(!this.headless && this.browserLease
+          ? {
+              mcpServers: {
+                [LOCAL_AGENT_AUTOMATION_SERVER_NAME]: {
+                  type: 'http' as const,
+                  url: this.browserLease.url,
+                  headers: { ...this.browserLease.headers }
+                }
+              }
+            }
+          : {}),
         ...(this.thoughtLevelOverride && this.thoughtLevelOverride !== 'default'
           ? { effort: this.thoughtLevelOverride }
           : {}),
@@ -210,6 +238,15 @@ export class ClaudeConnection extends LocalConnection {
         canUseTool: async (name, input, options) => {
           if (this.headless) {
             return { behavior: 'deny' as const, message: this.denyUnattendedRequest().reason }
+          }
+          if (
+            this.browserLease &&
+            (name === `mcp__${LOCAL_AGENT_AUTOMATION_SERVER_NAME}__js` ||
+              name === `mcp__${LOCAL_AGENT_AUTOMATION_SERVER_NAME}__reset`)
+          ) {
+            return isHostBrowserControlAllowed(this.config)
+              ? { behavior: 'allow' as const, updatedInput: input }
+              : { behavior: 'deny' as const, message: 'Built-in browser control is disabled' }
           }
           if (name === 'AskUserQuestion') {
             const answer = await this.approve(options.toolUseID, name, input, options.signal)
@@ -417,6 +454,8 @@ export class ClaudeConnection extends LocalConnection {
     await Promise.all([...this.processes].map((child) => this.stopProcess(child)))
   }
   protected override dispose() {
+    void this.browserLease?.dispose().catch(() => {})
+    this.browserLease = undefined
     this.gatewayLease?.dispose()
     this.gatewayLease = undefined
     super.dispose()

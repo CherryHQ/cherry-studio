@@ -2,9 +2,22 @@ import { Loader2, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useEffectEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input, Label, PageSidePanel, Textarea } from '@cherrystudio/ui'
+import {
+  Button,
+  Input,
+  Label,
+  PageSidePanel,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Textarea
+} from '@cherrystudio/ui'
 import {
   LocalAgentConfigurationSchema,
+  resolveLocalAgentBrowserControl,
+  type LocalAgentBrowserControlMode,
   type LocalAgentConfiguration,
   type LocalAgentDetection,
   type LocalAgentPreset
@@ -49,6 +62,9 @@ export function LocalAgentAdvancedSettings({
   const [name, setName] = useState(savedName)
   const [args, setArgs] = useState(JSON.stringify(config.args.length ? config.args : (preset?.args ?? [])))
   const [env, setEnv] = useState(JSON.stringify(config.env, null, 2))
+  const [browserControl, setBrowserControl] = useState<LocalAgentBrowserControlMode>(() =>
+    resolveLocalAgentBrowserControl(config)
+  )
   const [dirty, setDirty] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
   const busy = busyAction !== undefined
@@ -92,7 +108,19 @@ export function LocalAgentAdvancedSettings({
       )
       return
     }
-    if (await onSave({ executableOverride, ...parsed.data }, name.trim())) setOpen(false)
+    if (
+      await onSave(
+        {
+          executableOverride,
+          ...parsed.data,
+          ...(config.browserControl !== undefined || browserControl !== resolveLocalAgentBrowserControl(config)
+            ? { browserControl }
+            : {})
+        },
+        name.trim()
+      )
+    )
+      setOpen(false)
   }
   return (
     <PageSidePanel
@@ -193,6 +221,38 @@ export function LocalAgentAdvancedSettings({
             onChange={(e) => setEnv(e.target.value)}
             spellCheck={false}
           />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="local-agent-browser-control">{t('local_agents.browser_control')}</Label>
+          <Select
+            disabled={busy}
+            value={browserControl}
+            onValueChange={(next) => {
+              setBrowserControl(next as LocalAgentBrowserControlMode)
+              setDirty(true)
+              setConfirmClose(false)
+              onChange()
+            }}>
+            <SelectTrigger
+              id="local-agent-browser-control"
+              size="sm"
+              className="h-8 w-full"
+              aria-label={t('local_agents.browser_control')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="inherit">{t('local_agents.browser_control_inherit')}</SelectItem>
+              <SelectItem value="readonly">{t('local_agents.browser_control_readonly')}</SelectItem>
+              <SelectItem value="disabled">{t('local_agents.browser_control_disabled')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {t(
+              !config.presetId || config.presetId === 'custom'
+                ? 'local_agents.browser_control_custom_hint'
+                : 'local_agents.browser_control_hint'
+            )}
+          </p>
         </div>
       </fieldset>
       {feedback}

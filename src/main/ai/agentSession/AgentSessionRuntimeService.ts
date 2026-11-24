@@ -436,6 +436,7 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
   'ClaudeCodeProcessManager',
   'ClaudeCodeWarmQueryManager',
   'AutomationReplService',
+  'LocalAgentMcpBridgeService',
   'RuntimeActivityService'
 ])
 export class AgentSessionRuntimeService extends BaseService {

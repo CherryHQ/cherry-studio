@@ -2,6 +2,9 @@ import * as z from 'zod'
 
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 
+export const LocalAgentBrowserControlModeSchema = z.enum(['inherit', 'readonly', 'disabled'])
+export type LocalAgentBrowserControlMode = z.infer<typeof LocalAgentBrowserControlModeSchema>
+
 export const LocalAgentConfigurationSchema = z.strictObject({
   presetId: z.string().min(1).optional(),
   protocol: z.enum(['acp', 'claude', 'codex']),
@@ -11,9 +14,18 @@ export const LocalAgentConfigurationSchema = z.strictObject({
   env: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string()).default({}),
   nativeModel: z.string().min(1).optional(),
   sourceModelId: UniqueModelIdSchema.optional(),
-  sourceModelViaGateway: z.boolean().optional()
+  sourceModelViaGateway: z.boolean().optional(),
+  browserControl: LocalAgentBrowserControlModeSchema.optional()
 })
 export type LocalAgentConfiguration = z.infer<typeof LocalAgentConfigurationSchema>
+
+/** Custom third-party executables default to opt-in (`disabled`); built-in presets inherit Browser settings. */
+export function resolveLocalAgentBrowserControl(
+  config: Pick<LocalAgentConfiguration, 'presetId' | 'browserControl'>
+): LocalAgentBrowserControlMode {
+  if (config.browserControl) return config.browserControl
+  return !config.presetId || config.presetId === 'custom' ? 'disabled' : 'inherit'
+}
 
 export const LocalAgentLaunchSettingsSchema = LocalAgentConfigurationSchema.pick({
   executableOverride: true,
