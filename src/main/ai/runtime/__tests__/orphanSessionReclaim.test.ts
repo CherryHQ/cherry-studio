@@ -9,6 +9,7 @@
  */
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -16,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vite
 
 import { application } from '@application'
 
+import { reclaimStale } from '../orphanSessionReclaim'
 import { PiRuntimeDriver } from '../pi/PiRuntimeDriver'
 import { registerRuntimeDrivers } from '../registerDrivers'
 import { runtimeDriverRegistry } from '../registry'
@@ -95,6 +97,27 @@ describe('PiRuntimeDriver.reclaimOrphanSessions', () => {
 
   it('no-ops when the runtime was never used', async () => {
     await expect(driver.reclaimOrphanSessions(new Set(), OPTIONS)).resolves.toEqual({ removed: [] })
+  })
+})
+
+describe('reclaimStale', () => {
+  it('retains the directory when a descendant freshness probe fails', async () => {
+    const fresh = seedFile('unclaimed/nested.jsonl', NOW / 1000)
+    const target = path.dirname(fresh)
+    utimesSync(target, STALE_SECONDS, STALE_SECONDS)
+    const failure = Object.assign(new Error('Cannot inspect transcript'), { code: 'EACCES' })
+    const originalLstat = fs.lstat
+    const probe = vi.spyOn(fs, 'lstat').mockImplementation(async (file, options) => {
+      if (file === fresh) throw failure
+      return originalLstat(file, options)
+    })
+
+    try {
+      await expect(reclaimStale(target, OPTIONS)).rejects.toBe(failure)
+      expect(existsSync(fresh)).toBe(true)
+    } finally {
+      probe.mockRestore()
+    }
   })
 })
 

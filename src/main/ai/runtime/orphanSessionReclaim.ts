@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 
 import type { OrphanSessionReclaimOptions } from './types'
 
@@ -13,7 +14,7 @@ export async function listEntries(dir: string): Promise<Dirent[]> {
   try {
     return await fs.readdir(dir, { withFileTypes: true })
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+    if (getErrorCode(error) === 'ENOENT') return []
     throw error
   }
 }
@@ -22,10 +23,15 @@ export async function listEntries(dir: string): Promise<Dirent[]> {
  * Newest mtime anywhere under `target`. Recursive because a runtime's log can
  * sit below the directory being reclaimed (delegated sessions can own nested transcripts),
  * and a directory's own mtime does not move when a child file is appended to.
- * Symlinks are never followed — `Dirent.isDirectory()` is lstat-based.
+ * Symlinks are never followed. Missing targets return null; other probe failures
+ * propagate so callers cannot authorize reclamation with unknown freshness.
  */
 export async function newestMtimeMs(target: string): Promise<number | null> {
-  const stats = await fs.lstat(target).catch(() => null)
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- lstat may reject any value; only a readable ENOENT establishes absence.
+  const stats = await fs.lstat(target).catch((error: unknown) => {
+    if (getErrorCode(error) === 'ENOENT') return null
+    throw error
+  })
 
   if (!stats) return null
 
