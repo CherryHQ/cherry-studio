@@ -34,12 +34,9 @@ export function createImageActionBus<TTarget, TTargetKey extends string, TReques
     target: TTarget,
     options?: TRequestOptions
   ): ImageActionRequest<TTarget, TTargetKey> {
-    let settlement: ImageActionSettlement | undefined
+    const { promise, resolve, reject } = Promise.withResolvers<void>()
 
-    const promise = new Promise<void>((resolve, reject) => {
-      settlement = { resolve, reject }
-    })
-
+    // SAFETY: The two bus owners use single, nonreserved literal keys: topic and session; this object writes that target field.
     const request = {
       id: nextRequestId++,
       promise,
@@ -47,7 +44,7 @@ export function createImageActionBus<TTarget, TTargetKey extends string, TReques
       [targetKey]: target
     } as ImageActionRequest<TTarget, TTargetKey>
 
-    settlements.set(request.id, settlement as ImageActionSettlement)
+    settlements.set(request.id, { resolve, reject })
     pendingRequests.push(request)
     onRequest?.(type, target, options)
 
