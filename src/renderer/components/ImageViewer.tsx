@@ -120,8 +120,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         await copyImageToClipboard(item.src)
         toast.success(t('message.copy.success'))
       } catch (error) {
-        const err = error as Error
-        logger.error(`Failed to copy image: ${err.message}`, { stack: err.stack })
+        logger.error('Failed to copy image', error)
         toast.error(t('message.copy.failed'))
       }
     },
@@ -134,8 +133,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         await navigator.clipboard.writeText(item.src)
         toast.success(t('message.copy.success'))
       } catch (error) {
-        const err = error as Error
-        logger.error(`Failed to copy image source: ${err.message}`, { stack: err.stack })
+        logger.error('Failed to copy image source', error)
         toast.error(t('message.copy.failed'))
       }
     },
@@ -168,8 +166,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
           toast.success(t('common.saved'))
         }
       } catch (error) {
-        const err = error as Error
-        logger.error(`Failed to save image: ${err.message}`, { stack: err.stack })
+        logger.error('Failed to save image', error)
         toast.error(t('common.save_failed'))
       }
     },

@@ -79,6 +79,24 @@ describe('ImageViewer', () => {
     expect(screen.getByTestId('image-preview-dialog')).toBeInTheDocument()
   })
 
+  it.each([en['preview.copy.image'], en['preview.copy.src'], en['preview.save_as']])(
+    'shows a failure notification when %s rejects with null',
+    async (action) => {
+      if (action === en['preview.copy.src']) mocks.clipboard.writeText.mockRejectedValueOnce(null)
+      else mocks.fetch.mockRejectedValueOnce(null)
+      renderWithI18n(<ImageViewer src="https://example.com/image.png" alt="Example image" />)
+
+      fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
+      await user.click(screen.getByRole('button', { name: action }))
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          en[action === en['preview.save_as'] ? 'common.save_failed' : 'message.copy.failed']
+        )
+      )
+    }
+  )
+
   it('respects preview=false', async () => {
     renderWithI18n(<ImageViewer src="https://example.com/image.png" alt="Example image" preview={false} />)
 
