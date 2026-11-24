@@ -37,6 +37,8 @@ share one behavior instance. `host` implements the existing `HostPorts`: applica
 services such as approval UI, model selection, settings and output storage.
 The adapter owns native execution; behavior owns the product rules. Tests use `createScriptedHost`.
 
+Within one harness process, a recorded admission key identifies one submission kind per conversation. Replaying it through the same port returns its recorded admission; reusing it between `turns.start` and `helpers.message` rejects without replacing or dispatching the first submission. Memory keys must retain the same result type and meaning across producers; the in-session cache stores the first successful value and does not store rejections.
+
 `configureChild({ thread, modelKey })` supplies only the native model and optional model runtime
 once per child context. The selected model must match `modelKey` (`provider/id`). Unspecified
 model bindings and extension factories inherit from the root; `onEvent` receives root events only. The adapter installs the behavior extension on every child, filters parent-only tools, and disables native retries and cache warming

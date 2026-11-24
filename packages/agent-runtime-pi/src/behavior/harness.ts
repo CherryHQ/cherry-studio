@@ -162,6 +162,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       if (!memo.has(name)) memo.set(name, value)
     }
 
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Remember keys must retain one result type and meaning; this heterogeneous first-success cache preserves values without validating arbitrary caller-selected T.
     return memo.get(name) as T
   }
 
@@ -213,8 +214,8 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
 
             if (!scope.opening && !closing) for (const job of applied.jobs) startJob(job, scope.input)
 
-            const failures = launched.flatMap((result) =>
-              result.status === 'rejected' ? [result.reason as unknown] : []
+            const failures = launched.flatMap<unknown>((result) =>
+              result.status === 'rejected' ? [result.reason] : []
             )
 
             if (failures.length) throw failures.length === 1 ? failures[0] : new AggregateError(failures)
@@ -646,8 +647,8 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       const aborts = await Promise.allSettled(all.flatMap((conv) => conv.native?.session.abort() ?? []))
       await Promise.all(all.map((conv) => waitFor(conv, () => conv.hostPrompts === 0)))
 
-      const failures = [...stops, ...aborts].flatMap((settled) =>
-        settled.status === 'rejected' ? [settled.reason as unknown] : []
+      const failures = [...stops, ...aborts].flatMap<unknown>((settled) =>
+        settled.status === 'rejected' ? [settled.reason] : []
       )
 
       // A session that fails to abort or dispose does not keep the others open.

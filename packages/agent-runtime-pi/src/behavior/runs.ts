@@ -37,7 +37,11 @@ import {
 export function startTurn(adapter: Adapter, conv: Conversation, input: TurnInput, key: string): StartResult {
   const existing = conv.submissions.get(key)
 
-  if (existing) return existing.admission as StartResult
+  if (existing) {
+    if (typeof existing.admission !== 'string') throw new Error('Submission key already used for a child message')
+
+    return existing.admission
+  }
 
   // H2 coding-agent: admissions live in this process; a key on the branch was started before it.
   if (keysOf(historyOf(conv.manager.getBranch(), conv.thread)).has(key)) return 'started'
@@ -361,7 +365,11 @@ export function messageChild(
 ): MessageResult {
   const existing = conv.submissions.get(key)
 
-  if (existing) return existing.admission as MessageResult
+  if (existing) {
+    if (typeof existing.admission === 'string') throw new Error('Submission key already used for a turn')
+
+    return existing.admission
+  }
   const active = conv.active
   const run = active?.run ?? Math.max(conv.runs + 1, reservedRun ?? 0)
   const starts = !active
@@ -420,6 +428,7 @@ export function offerSteer(conv: Conversation, reply: TurnEndEvent['message']): 
 
   if (key === undefined) return
   conv.steered.add(key)
+  // SAFETY: Only messageChild holds keys with TurnInput; core-minted keys are disjoint from native user: keys, and admission replay preserves their records.
   void conv.native!.session.sendCustomMessage(markerMessage(conv.submissions.get(key)!.input as TurnInput, key), {
     triggerTurn: true,
     inputId: conv.submissions.get(key)!.inputId

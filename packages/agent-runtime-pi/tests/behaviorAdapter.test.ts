@@ -167,6 +167,54 @@ const quiet = (thread: ThreadId, text: string): TxOp => ({
 })
 
 describe('coding-agent behavior adapter', () => {
+  it('rejects a child-message replay of a turn admission without replacing or dispatching it', async () => {
+    const pi = await openPiHarness(() => {})
+    const parent = await pi.harness.createThread()
+    const child = await spawn(pi, parent)
+    const submissionKey = key('shared-turn-admission')
+    pi.harness.script(child, [{ text: 'original reply' }])
+    const admission = await pi.harness.withCall(parent, (ports) =>
+      ports.turns.start(child, input('original turn'), submissionKey)
+    )
+    await pi.harness.settle()
+
+    await expect(
+      pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('wrong message'), submissionKey))
+    ).rejects.toThrow('Submission key already used for a turn')
+    expect(await pi.harness.withCall(parent, (ports) => ports.turns.start(child, input('replay'), submissionKey))).toBe(
+      admission
+    )
+    const facts = await read(pi, child)
+    expect(markerKeys(facts)).toEqual([submissionKey])
+    expect(facts.history.filter((entry) => entry.kind === 'assistant').map((entry) => entry.text)).toEqual([
+      'original reply'
+    ])
+  })
+
+  it('rejects a turn replay of a child-message admission while retaining same-port replay', async () => {
+    const pi = await openPiHarness(() => {})
+    const parent = await pi.harness.createThread()
+    const child = await spawn(pi, parent)
+    const submissionKey = key('shared-message-admission')
+    pi.harness.script(child, [{ text: 'original reply' }])
+    const admission = await pi.harness.withCall(parent, (ports) =>
+      ports.helpers.message(child, input('original message'), submissionKey)
+    )
+    await pi.harness.settle()
+
+    await expect(
+      pi.harness.withCall(parent, (ports) => ports.turns.start(child, input('wrong turn'), submissionKey))
+    ).rejects.toThrow('Submission key already used for a child message')
+    expect(
+      await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('replay'), submissionKey))
+    ).toEqual(admission)
+    const facts = await read(pi, child)
+    expect(markerKeys(facts)).toEqual([submissionKey])
+    expect(facts.history.filter((entry) => entry.kind === 'assistant').map((entry) => entry.text)).toEqual([
+      'original reply'
+    ])
+  })
+
   // Catches a stop made while Pi still prepares a person's prompt (its input handlers run): Pi clears that abort when
   // it starts the run, so unless the adapter repeats it at agent_start the run goes on and asks the model.
   it('stops a run that Pi is still preparing', async () => {
