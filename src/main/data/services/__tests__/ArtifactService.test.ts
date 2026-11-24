@@ -528,14 +528,16 @@ describe('ArtifactService', () => {
   })
 })
 
-describe('0042 migrate-forward', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0042_wise_luckman' })
+// 0042 shipped with #22382; earlier builds of this stack made `artifact` in other shapes, before or inside 0042.
+describe('artifact migrate-forward from the shipped 0042', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0043_artifact' })
 
-  it('adds the artifact index and MCP skill permissions to a populated database', () => {
+  // Catches a rewritten 0042 that runs again on a database that applied it and fails on its duplicate column.
+  it('adds the artifact table without running 0042 again', () => {
     dbh.db.insert(topicTable).values({ id: 'existing', name: 'Existing topic', orderKey: 'a0' }).run()
     dbh.sqlite
-      .prepare('INSERT INTO mcp_server (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
-      .run('existing-server', 'Existing MCP server', NOW, NOW)
+      .prepare('INSERT INTO mcp_server (id, name, skill_permissions, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .run('existing-server', 'Existing MCP server', null, NOW, NOW)
 
     applyMigrations(dbh.db, 'migrations/sqlite-drizzle')
 
@@ -546,5 +548,36 @@ describe('0042 migrate-forward', () => {
       skillPermissions: null
     })
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+})
+
+// Catches `table artifact already exists` on a profile that ran an earlier build of this stack.
+describe.each([
+  ['an earlier build with assistant_id', 'assistant_id text,'],
+  ['a build that created the current shape', '']
+])('artifact migrate-forward after %s', (_case, extraColumn) => {
+  const dbh = setupTestDatabase({ beforeMigration: '0043_artifact' })
+
+  it('keeps the existing rows and rebuilds the table in the current shape', () => {
+    dbh.db.insert(topicTable).values({ id: 'topic-1', name: 'Topic', orderKey: 'a0' }).run()
+    dbh.sqlite.exec(
+      `CREATE TABLE artifact (id text PRIMARY KEY NOT NULL, agent_id text, session_id text, ${extraColumn} topic_id text, path text, file_entry_id text, title text NOT NULL, size integer, reported_at integer NOT NULL)`
+    )
+    dbh.sqlite
+      .prepare('INSERT INTO artifact (id, topic_id, file_entry_id, title, size, reported_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run('artifact-1', 'topic-1', 'file-1', 'Report', 10, NOW)
+
+    applyMigrations(dbh.db, 'migrations/sqlite-drizzle')
+
+    const columns = (dbh.sqlite.pragma('table_info(artifact)') as { name: string }[]).map((column) => column.name)
+    expect(columns).not.toContain('assistant_id')
+    expect(dbh.db.select().from(artifactTable).all()).toEqual([
+      expect.objectContaining({ id: 'artifact-1', topicId: 'topic-1', fileEntryId: 'file-1', title: 'Report' })
+    ])
+    expect(() =>
+      dbh.sqlite
+        .prepare('INSERT INTO artifact (id, topic_id, path, title, reported_at) VALUES (?, ?, ?, ?, ?)')
+        .run('invalid', 'topic-1', 'a.md', 'Invalid', NOW)
+    ).toThrow(/CHECK constraint failed/)
   })
 })
