@@ -9,6 +9,8 @@
 import type { CSSProperties, Dispatch, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { memo, useCallback, useRef } from 'react'
 
+import { getEventTargetNode, isElementNode } from '@renderer/utils/dom'
+
 import { ACCENT_COLOR, Z_INDEX } from '../constants'
 import type { OverlayAction, ResizeHandle, SelectionRect } from '../types'
 
@@ -89,7 +91,10 @@ export const SelectionHandles = memo(function SelectionHandles({
       e.stopPropagation()
       // Captured on the event target rather than a stable ref, so moves keep arriving
       // at this same element once the pointer leaves the 12 px dot.
-      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+      const target = getEventTargetNode(e.target)
+
+      if (!isElementNode(target)) return
+      target.setPointerCapture(e.pointerId)
       isDraggingRef.current = true
       dispatch({
         type: 'POINTER_DOWN_HANDLE',
@@ -126,8 +131,10 @@ export const SelectionHandles = memo(function SelectionHandles({
     (e: ReactPointerEvent) => {
       if (!isDraggingRef.current) return
 
-      if ((e.target as HTMLElement).hasPointerCapture(e.pointerId)) {
-        ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      const target = getEventTargetNode(e.target)
+
+      if (isElementNode(target) && target.hasPointerCapture(e.pointerId)) {
+        target.releasePointerCapture(e.pointerId)
       }
 
       finishResize()
