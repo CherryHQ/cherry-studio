@@ -136,17 +136,14 @@ export interface BuiltAgentParams {
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
   const { request, signal, provider, model, assistant, extraFeatures, compactionSink } = input
 
-  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
-  const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
-    provider,
-    model,
-    resolvedEndpoint,
-    request.apiKeyOverride
-  )
-  applyHttpTrace(sdkConfig.providerSettings, {
-    topicId: input.traceContext?.topicId ?? request.conversation.topicId,
-    modelName: model.name ?? model.id
-  })
+  const defaultEndpoint = resolveEffectiveEndpoint(provider, model)
+  // Native search on these Qwen offers is Responses-only; ordinary chat keeps its configured default.
+  const searchEndpoint =
+    assistant?.settings.enableWebSearch === true &&
+    (provider.presetProviderId ?? provider.id) === 'qwencloud' &&
+    model.endpointTypes?.[0] === ENDPOINT_TYPE.OPENAI_RESPONSES
+      ? resolveEffectiveEndpoint(provider, model, ENDPOINT_TYPE.OPENAI_RESPONSES)
+      : defaultEndpoint
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool
   // outputs folded away by durable compaction stay readable via read_file /
@@ -179,7 +176,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     request.contextOwner === 'caller'
       ? NO_WEB_TOOL_ROUTES
       : await resolveRequestWebToolRoutes(model, provider, assistant, {
-          endpointType: resolvedEndpoint.endpointType,
+          endpointType: searchEndpoint.endpointType,
           hasFunctionToolSignals: toolSignals
             ? toolSignals.browserEnabled === true ||
               toolSignals.computerUseEnabled === true ||
@@ -197,6 +194,17 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
             : false,
           reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
         })
+  const resolvedEndpoint = webToolRoutes.webSearch === 'server' ? searchEndpoint : defaultEndpoint
+  const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
+    provider,
+    model,
+    resolvedEndpoint,
+    request.apiKeyOverride
+  )
+  applyHttpTrace(sdkConfig.providerSettings, {
+    topicId: input.traceContext?.topicId ?? request.conversation.topicId,
+    modelName: model.name ?? model.id
+  })
   const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds, mcpServerIds } = toolSignals
     ? await resolveTools(
         request,

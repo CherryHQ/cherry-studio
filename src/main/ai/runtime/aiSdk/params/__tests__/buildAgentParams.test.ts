@@ -14,6 +14,7 @@ import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
+import { bundledCatalog } from '../../../../../../../packages/provider-registry/src/bundled-catalog'
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import { createDashScopeProvider } from '../../../../provider/custom/dashscope/dashscopeProvider'
 
@@ -71,6 +72,40 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it.each([false, true])('uses the stock Qwen route at request construction (native search: %s)', async (search) => {
+    const preset = bundledCatalog.providers.providers.find((p) => p.id === 'qwencloud')!
+    const offer = bundledCatalog.providerModels.overrides.find(
+      (m) => m.providerId === preset.id && m.modelId === 'deepseek-v4-pro'
+    )!
+    const provider = makeProvider({ ...preset, defaultChatEndpoint: preset.defaultChatEndpoint ?? undefined })
+    const model = makeModel({
+      apiModelId: 'deepseek-v4-pro',
+      endpointTypes: offer.endpointTypes,
+      capabilities: ['function-call', 'web-search']
+    })
+    preferenceGetMock.mockImplementation((key) => (key === 'chat.web_search.model_tools_preferred' ? true : null))
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: search ? 'openai' : 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant: makeAssistant({ settings: { enableWebSearch: search } })
+    })
+    expect(resolveProviderAiSdkConfigMock).toHaveBeenLastCalledWith(
+      provider,
+      model,
+      expect.objectContaining({
+        resolvedEndpoint: expect.objectContaining({
+          endpointType: search ? ENDPOINT_TYPE.OPENAI_RESPONSES : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+        })
+      })
+    )
+  })
+
   it.each([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined])(
     'uses the existing New API default in the production request builder (%s)',
     async (defaultChatEndpoint) => {

@@ -360,7 +360,7 @@ describe('resolveEffectiveEndpoint', () => {
   })
 
   it.each(['kimi-k3', 'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4.1-flash', 'glm-5.2'])(
-    'preserves the Responses-first native search route for Qwen Cloud %s',
+    'honors the configured chat default for stock Qwen Cloud %s',
     (apiModelId) => {
       const preset = bundledCatalog.providers.providers.find((provider) => provider.id === 'qwencloud')!
       const offer = bundledCatalog.providerModels.overrides.find(
@@ -373,7 +373,7 @@ describe('resolveEffectiveEndpoint', () => {
         endpointConfigs: preset.endpointConfigs
       })
       const model = makeModel({ apiModelId, endpointTypes: offer.endpointTypes })
-      expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+      expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     }
   )
 
