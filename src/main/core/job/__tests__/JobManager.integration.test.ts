@@ -951,7 +951,7 @@ describe('JobManager integration', () => {
   })
 
   describe('graceful shutdown', () => {
-    it('aborts in-flight handlers and resolves the finished promise quickly', async () => {
+    it('aborts in-flight handlers and re-queues the interrupted retryable attempt for replay', async () => {
       const { scheduler, jobManager } = await bootstrapManager({
         handlers: [['shutdown.slow', makeSlowHandler('retry') as JobHandler]]
       })
@@ -974,11 +974,41 @@ describe('JobManager integration', () => {
       await entered
       onSlowHandlerEntered = null
 
-      const stopPromise = jobManager._doStop()
-      const settled = await handle.finished
-      expect(settled.status).toBe('cancelled')
+      // A shutdown interruption is not a user cancellation: the attempt
+      // re-queues with its retry budget intact so startup recovery replays it,
+      // instead of settling terminal-cancelled (issue #21645). handle.finished
+      // stays unsettled by design (onStop discards the resolvers).
+      await jobManager._doStop()
+      const row = jobService.getById(handle.id)
+      expect(row === null || row === undefined ? 'missing' : (row as { status: string }).status).not.toBe('cancelled')
+      expect(row?.status === 'delayed' || row?.status === 'pending').toBe(true)
+      expect(row?.attempt).toBe(1)
 
-      await stopPromise
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('does not claim queued work after shutdown begins', async () => {
+      let executeCount = 0
+      const countingHandler: JobHandler<SlowInput> = {
+        recovery: 'retry',
+        defaultConcurrency: 1,
+        async execute() {
+          executeCount++
+          return { echoed: 'echo: queued' } satisfies SlowOutput
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['shutdown.gated', countingHandler]]
+      })
+
+      // A settlement tick landing after the drain snapshot must not claim the
+      // queued job: the claim gate is closed for the shutdown window (issue
+      // #21645).
+      ;(jobManager as unknown as { _isShuttingDown: boolean })._isShuttingDown = true
+      jobManager.enqueue('shutdown.gated' as never, { message: 'queued', sleepMs: 1 } as never)
+      await drainAllQueues(jobManager)
+      expect(executeCount).toBe(0)
+
       await teardownManager(scheduler, jobManager)
     })
   })

@@ -91,6 +91,19 @@ class JobHandlerTimeoutError extends Error {
   }
 }
 
+/**
+ * Sentinel for `onStop`'s abort of in-flight handlers. A shutdown interruption
+ * is not a user cancellation: the attempt must stay retryable so recovery can
+ * replay it on the next start instead of settling the row terminal-cancelled
+ * (issue #21645).
+ */
+class JobManagerShutdownError extends Error {
+  constructor() {
+    super('JobManager shutdown')
+    this.name = 'JobManagerShutdownError'
+  }
+}
+
 interface FinishedResolver {
   resolve: (snapshot: JobSnapshot) => void
   promise: Promise<JobSnapshot>
@@ -541,7 +554,7 @@ export class JobManager extends BaseService {
     const inFlight = Array.from(this.inFlightExecuted.keys())
     const executedSignals = Array.from(this.inFlightExecuted.values())
     for (const controller of this.abortControllers.values()) {
-      controller.abort(new Error('JobManager shutdown'))
+      controller.abort(new JobManagerShutdownError())
     }
     for (const disposable of this.scheduleDisposables.values()) {
       disposable.dispose()
@@ -1686,9 +1699,10 @@ export class JobManager extends BaseService {
    * @param queueName - Queue identifier (from `jobTable.queue`); no-op if the queue is unknown
    */
   async dispatch(queueName: string): Promise<void> {
-    // Autonomy gate (pause hold or post-release barrier): claiming is the
-    // only path that starts an execution.
-    if (this.isAutonomySuspended) return
+    // Autonomy gate (pause hold or post-release barrier) and shutdown gate:
+    // claiming is the only path that starts an execution, and a claim after
+    // the drain snapshot would start work the shutdown cannot await.
+    if (this.isAutonomySuspended || this._isShuttingDown) return
     const queue = this.queues.get(queueName)
     if (!queue) return
 
@@ -1705,8 +1719,9 @@ export class JobManager extends BaseService {
       // then blocked here is not in `inFlightExecuted`, so drainInFlight can
       // return before it wakes — an entry-only gate would let it claim AFTER
       // the drain verdict. No await sits between this check and the claim tx,
-      // so nothing can interleave on the single thread.
-      if (this.isAutonomySuspended) return
+      // so nothing can interleave on the single thread. The shutdown gate is
+      // re-checked for the same reason (issue #21645).
+      if (this.isAutonomySuspended || this._isShuttingDown) return
       const dbService = application.get('DbService')
       claimed = dbService.withWriteTx((tx) => {
         const queueRunning = jobService.countRunningByQueueTx(tx, queueName)
@@ -1842,13 +1857,14 @@ export class JobManager extends BaseService {
         const isAbort = controller.signal.aborted
         const abortReason = controller.signal.reason
         const isTimeout = isAbort && abortReason instanceof JobHandlerTimeoutError
+        const isShutdown = isAbort && abortReason instanceof JobManagerShutdownError
         // For user-initiated cancellation the abort reason (built by `cancel()`
         // / `cancelMany()`) holds the human message — prefer it over whatever
         // string the handler chose to throw, so renderers see e.g.
         // "Job cancelled: user requested" instead of a generic "AbortError".
         const cancelMessage = abortReason instanceof Error ? abortReason.message : null
         const error: JobError =
-          isAbort && !isTimeout
+          isAbort && !isTimeout && !isShutdown
             ? {
                 code: JOB_ERROR_CODES.CANCELLED,
                 message: cancelMessage || (err as Error).message || 'Cancelled',
@@ -1861,7 +1877,9 @@ export class JobManager extends BaseService {
               }
 
         const retryPolicy = handler.defaultRetryPolicy ?? DEFAULT_RETRY_POLICY
-        const userCancel = isAbort && !isTimeout
+        // A shutdown-aborted attempt is retryable: the row re-queues so startup
+        // recovery replays it, never terminal-cancelled mid-retry-budget.
+        const userCancel = isAbort && !isTimeout && !isShutdown
         const canRetry = !userCancel && error.retryable && row.attempt + 1 < row.maxAttempts
 
         if (canRetry) {
