@@ -249,4 +249,29 @@ describe('handleBridgeRequest', () => {
 
     expect(info).toMatchObject({ appId: 'com.example.manifest', version: '2.3.4' })
   })
+
+  it('reports a declared but withheld preview grant as false, not absent', async () => {
+    const { application } = await import('@application')
+    const runtimeId = 'preview-44444444-4444-4444-4444-444444444444'
+    vi.mocked(application.getExisting).mockImplementation((name: string) =>
+      name === 'MiniAppPreviewService'
+        ? ({
+            getPreviewByRuntimeId: (id: string) =>
+              id === runtimeId
+                ? {
+                    runtimeId,
+                    appId: 'com.example.clip',
+                    grants: ['clipboard.write'],
+                    declaredGrants: ['clipboard.read', 'clipboard.write']
+                  }
+                : undefined
+          } as unknown as MiniAppPreviewService)
+        : undefined
+    )
+    resolveAppIdBySender.mockReturnValue(runtimeId)
+
+    const permissions = expectOk(await handleBridgeRequest(1, { method: 'app.getPermissions' }, noopEmit))
+
+    expect(permissions).toEqual({ 'clipboard.read': false, 'clipboard.write': true })
+  })
 })

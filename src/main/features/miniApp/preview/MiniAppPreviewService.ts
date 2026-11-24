@@ -91,6 +91,12 @@ export interface MiniAppPreview {
    * the USER'S (not the app's) never reach it — see PREVIEW_WITHHELD_GRANTS.
    */
   readonly grants: string[]
+  /**
+   * The manifest's DECLARED grant keys, before withholding. getPermissions reports a
+   * declared-but-denied leaf as `false` (the documented contract), so the declaration
+   * set must survive separately from the effective grants.
+   */
+  readonly declaredGrants: string[]
   /** The manifest's `network` allowlist — the bridge's host gate has no DB row to read. */
   readonly networkHosts: string[]
   readonly packageSha256: string
@@ -245,6 +251,7 @@ export class MiniAppPreviewService extends BaseService {
         version: manifest.version,
         entry: manifest.entry,
         grants: previewGrantKeys(manifest),
+        declaredGrants: declaredGrantKeys(manifest),
         networkHosts: [...manifest.network],
         dir,
         packageSha256: record.sha256,
