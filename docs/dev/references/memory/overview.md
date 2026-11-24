@@ -63,7 +63,7 @@ Open **Settings → Tools → Shared memory**, alongside MCP and Skills.
 
 - **Generate memory in chats** and **Automatically organize memory** are independent global switches, both enabled by default. They use the configured default model and can consume its quota.
 - Disabling generation stops automatic conversation extraction and invalidates its pending output. Existing-file organization remains available.
-- Disabling automatic organization leaves generation and **Organize now** available.
+- Disabling automatic organization leaves generation available.
 - The page shows the last completed, failed or cancelled result. **Restore backup** and **Clear global memory** require confirmation.
 - Agent and Assistant **Basic** forms label their access switch **Shared memory**. The Agent switch precedes Heartbeat and defaults on; the Assistant switch defaults off. Presets carry this switch setting.
 
@@ -161,11 +161,11 @@ Results carry roles, message/conversation IDs, message dates, match ranks where 
 
 Organization reads the existing entry and topics in one scope, then reorganizes their facts and links. It preserves correction blocks byte-for-byte in their original file and retains source-date anchors. Topics with correction records are retained rather than deleted or transferred.
 
-Automatic triggers are ten successful controlled content edits, seven days since the first pending change, or changed content reaching a capacity warning. A manual request also triggers a check. No-op, failed, metadata-only, Dreaming and recovery writes do not increase the edit count. External edits are detected by hash; their historical edit count is not reconstructed.
+Automatic triggers are ten successful controlled content edits, seven days since the first pending change, or changed content reaching a capacity warning. No-op, failed, metadata-only, Dreaming and recovery writes do not increase the edit count. External edits are detected by hash; their historical edit count is not reconstructed.
 
 A shared schedule wakes every minute while the app runs. Missed intervals are not replayed. Each scan considers the entry and up to nine topics, prioritizing eligible changed files and rotating through remaining work. A model batch contains at most ten complete files and 50,000 UTF-8 bytes, reduced to fit the selected model. A topic that cannot fit even with only the entry is marked blocked so smaller topics can proceed.
 
-Each batch makes one model call with tools disabled and no automatic call retry. Unchanged input has at most two attempts, ten minutes apart. New input, a manual request or a changed default model can provide another opportunity. Foreground preemption consumes no organization attempt and retains manual requests; retry after about one minute when idle. Counter restoration checks file versions and task generation so concurrent changes are preserved. Processed hashes and pending state live in module-owned `app_state`, independently of removable job history.
+Each batch makes one model call with tools disabled and no automatic call retry. Unchanged input has at most two attempts, ten minutes apart. New input or a changed default model can provide another opportunity. Foreground preemption consumes no organization attempt; retry after about one minute when idle. Counter restoration checks file versions and task generation so concurrent changes are preserved. Processed hashes and pending state live in module-owned `app_state`, independently of removable job history.
 
 Inference runs outside the write lock. Commit rechecks all input receipts, versions, authorization and cancellation. Topic deletion requires the complete active file set, distinct source/destination topics, verbatim source preservation and updated Markdown/wiki links. Transfers for deletion operate between topics, leaving `MEMORY.md` as the entry. Targets and links save before sources are removed. Partial outcomes remain recoverable.
 

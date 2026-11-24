@@ -44,7 +44,7 @@ Open **Settings → Tools → Shared memory**, alongside MCP and Skills.
 * **Generate memory in chats** extracts information from newly completed, authorized conversations.
 * **Automatically organize memory** organizes existing files, including duplicates and topic structure.
 
-Both global switches default to on. They use the application's default model and may consume its quota. Generation and organization can be switched independently, and **Organize now** runs organization manually.
+Both global switches default to on. They use the application's default model and may consume its quota. Generation and organization can be switched independently.
 
 Also check **Shared memory** in each Agent or Assistant's **Basic** settings. Agents default to on, with the switch above **Heartbeat**; Assistants default to off. Shared conversation extraction applies to authorized desktop main sessions and persistent Assistant conversations.
 

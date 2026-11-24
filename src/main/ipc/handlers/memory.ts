@@ -42,11 +42,6 @@ export const memoryHandlers: IpcHandlersFor<typeof memoryRequestSchemas> = {
       editorMemoryAuthority(senderId, scope).assertAuthorized()
       return application.get('MemoryDreamingService').status(scope)
     }),
-  'memory.dreaming.request': (scope, { senderId }) =>
-    operation(() => {
-      editorMemoryAuthority(senderId, scope).assertAuthorized()
-      application.get('MemoryDreamingService').request(scope)
-    }),
   'memory.dreaming.cancel': (scope, { senderId }) =>
     operation(() => {
       editorMemoryAuthority(senderId, scope).assertAuthorized()
