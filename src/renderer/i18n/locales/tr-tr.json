@@ -1656,6 +1656,7 @@
   "error.diagnosis.bad_request": "Sağlayıcıya yapılan istek başarısız oldu (HTTP 400)",
   "error.diagnosis.content": "İçerik güvenlik sistemi tarafından engellendi; içeriği değiştirip yeniden deneyin",
   "error.diagnosis.context_length": "Konuşma çok uzun; geçmişi temizleyin veya yeni bir sohbet başlatın",
+  "error.diagnosis.default_model_unavailable": "Yapay zekâ tanılaması varsayılan modelinizle çalıştırılamadı. Ayarlardan modeli kontrol edip yeniden deneyin.",
   "error.diagnosis.deprecated": "Bu model kullanımdan kaldırıldı; başka bir modele geçin",
   "error.diagnosis.free_model_unavailable": "Yapay zekâ tanılaması geçici olarak kullanılamıyor",
   "error.diagnosis.go_to_settings": "Ayarlara Git",
