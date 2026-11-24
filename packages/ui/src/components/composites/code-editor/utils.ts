@@ -91,6 +91,8 @@ export async function getCmThemeByName(name: string): Promise<CodeMirrorTheme> {
     !/^defaultSettings/i.test(name) &&
     !/(Style)$/.test(name)
   ) {
+    // SAFETY: themes-all exports extensions plus init functions, defaultSettings* and *Style metadata;
+    // those non-extension exports are excluded above.
     return candidate as Extension
   }
 
