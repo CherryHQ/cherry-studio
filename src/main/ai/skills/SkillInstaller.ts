@@ -223,6 +223,60 @@ export class SkillInstaller {
   }
 
   /**
+   * Check whether the destination covers every file present in an obsolete marker.
+   * A descriptor-only check treats `SKILL.md`-present-but-helper-missing as complete
+   * and would delete the only complete tree; requiring file-set coverage keeps the
+   * backup when the replacement may still be partial. Any listing failure preserves
+   * (returns false) so an unreadable tree never justifies deletion.
+   */
+  private async isDestCoveringMarker(destPath: string, markerPath: string): Promise<boolean> {
+    try {
+      const [destFiles, markerFiles] = await Promise.all([
+        this.collectRelativeFiles(destPath),
+        this.collectRelativeFiles(markerPath)
+      ])
+      for (const file of markerFiles) {
+        if (!destFiles.has(file)) return false
+      }
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private async collectRelativeFiles(root: string): Promise<Set<string>> {
+    const files = new Set<string>()
+    const walk = async (dir: string, relativeDir: string): Promise<void> => {
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true })
+      for (const entry of entries) {
+        const relativePath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name
+        const fullPath = path.join(dir, entry.name)
+        const stats = await fs.promises.lstat(fullPath)
+        if (stats.isSymbolicLink()) continue
+        if (stats.isDirectory()) {
+          await walk(fullPath, relativePath)
+        } else if (stats.isFile()) {
+          files.add(this.canonicalRelativePath(relativePath))
+        }
+      }
+    }
+    await walk(root, '')
+    return files
+  }
+
+  /**
+   * Canonicalize the top-level descriptor for coverage comparison so a casing-only
+   * difference (`skill.md` vs `SKILL.md`) does not look like a missing file. This
+   * matches the hash canonicalization in `updateDirectoryHash`.
+   */
+  private canonicalRelativePath(relativePath: string): string {
+    const slash = relativePath.indexOf('/')
+    const top = slash === -1 ? relativePath : relativePath.slice(0, slash)
+    if (slash === -1 && top.toLowerCase() === 'skill.md') return 'SKILL.md'
+    return relativePath
+  }
+
+  /**
    * Recover an interrupted publish by keeping whichever complete tree matches the
    * persisted install baseline. A crash after SQLite commits the new hash but before
    * `prepared.commit()` leaves new files with a `.bak` holding the old tree; the
@@ -327,29 +381,44 @@ export class SkillInstaller {
     // earlier, then the user edited the replacement before the next sweep). Preserve an
     // existing destination instead of restoring an obsolete `.bak` over it: the generic
     // restore would erase the intervening edit. Only restore when the destination is
-    // missing entirely, to avoid pruning the catalog row and its per-agent enablement.
+    // missing entirely or definitively incomplete (no descriptor in either casing),
+    // to avoid pruning the catalog row and its per-agent enablement.
     // A crash before SQLite commits can also land here when the backup holds managed
     // edits or the baseline is legacy (neither tree matches): the replacement may be
-    // partial while `.bak` is the only complete tree. Never delete a complete backup
-    // while the replacement is partial — restore the backup instead so the complete
-    // old tree and its edits survive. Obsolete markers that don't match the baseline
-    // are best-effort cleaned up only when the destination is verified complete; a
-    // partial cleanup leaves a `.bak` that future baseline-aware sweeps will again
-    // preserve (not restore) since it still won't match, and catalogued folders are
-    // skipped by the generic sweep.
+    // partial while `.bak` is the only complete tree. A descriptor-only check cannot
+    // prove completeness — an interrupted copy can leave `SKILL.md` present while a
+    // helper is still missing — so obsolete markers are deleted only when the
+    // destination covers their file set. Otherwise both trees are preserved.
+    // A transient descriptor read failure (EACCES/EIO) preserves both trees as well:
+    // restoring an obsolete backup over an edited replacement would erase the edit.
     if (!(await pathExists(destPath))) {
       await this.recoverInterruptedInstall(destPath)
     } else {
       const destState = await this.getBackupDescriptorState(destPath).catch(() => 'error' as const)
-      if (destState !== 'found') {
+      if (destState === 'missing') {
         // Partial or unreadable replacement with no baseline match: the backup may be
         // the only complete copy (interrupted copy before the database commit). Restore
         // it via the generic path instead of keeping the partial tree and deleting the
         // backup below.
         await this.recoverInterruptedInstall(destPath)
+      } else if (destState === 'error') {
+        logger.warn('Skill destination descriptor unreadable; preserving both trees for retry', {
+          destPath,
+          backupPath
+        })
+        return
       }
+      // 'found' keeps the existing destination to preserve any intervening edit.
     }
-    const destComplete = (await this.getBackupDescriptorState(destPath).catch(() => 'error' as const)) === 'found'
+    const destStateAfter = await this.getBackupDescriptorState(destPath).catch(() => 'error' as const)
+    if (destStateAfter === 'error') {
+      logger.warn('Skill destination descriptor unreadable; preserving both trees for retry', {
+        destPath,
+        backupPath
+      })
+      return
+    }
+    const destComplete = destStateAfter === 'found'
     // The generic restore above may have renamed `.bak` → dest (backup no longer exists);
     // re-check before best-effort cleanup so a successful restore isn't logged as a removal failure.
     const [backupStillExists, cleanupStillExists] = await Promise.all([
@@ -357,7 +426,11 @@ export class SkillInstaller {
       cleanupExists ? pathExists(cleanupPath) : Promise.resolve(false)
     ])
     if (backupStillExists && backupHash !== baselineHash) {
-      if (destComplete) {
+      // A descriptor alone cannot prove the replacement is complete: an interrupted copy
+      // can leave `SKILL.md` present while a helper is still missing. Deleting the only
+      // complete tree would lose managed edits, so require the destination to cover the
+      // marker's file set before treating it as obsolete.
+      if (destComplete && (await this.isDestCoveringMarker(destPath, backupPath))) {
         await this.safeRemoveDirectory(backupPath, 'obsolete skill backup')
       } else {
         logger.warn('Preserving skill backup: replacement incomplete and no tree matches baseline', {
@@ -367,7 +440,7 @@ export class SkillInstaller {
       }
     }
     if (cleanupStillExists && cleanupHash !== baselineHash) {
-      if (destComplete) {
+      if (destComplete && (await this.isDestCoveringMarker(destPath, cleanupPath))) {
         try {
           await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
         } catch {

@@ -1242,4 +1242,70 @@ describe('SkillService authoring and remote updates', () => {
     await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo good\n')
     await expect(fs.promises.access(path.join(backupPath, 'SKILL.md'))).resolves.toBeUndefined()
   })
+
+  it('preserves the only complete backup when the replacement has a descriptor but is missing a helper', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const oldDir = path.join(root, 'old-partial')
+    const newDir = path.join(root, 'new-partial')
+    await writeSkill(oldDir, { supportingContent: 'echo old\n' })
+    await writeSkill(newDir, { supportingContent: 'echo new\n' })
+    await fs.promises.writeFile(path.join(oldDir, 'scripts', 'run.sh'), 'echo old-edited\n', 'utf-8')
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    // Simulate a crash mid-copy after `SKILL.md` copied but before helpers finished:
+    // the replacement has a descriptor yet is missing a helper, while `.bak` is the
+    // only complete tree (with managed edits). Neither matches the pre-commit baseline.
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.rm(path.join(destPath, 'scripts', 'run.sh'))
+    await fs.promises.cp(oldDir, backupPath, { recursive: true })
+    const cleanOldDir = path.join(root, 'clean-old-partial')
+    await writeSkill(cleanOldDir, { supportingContent: 'echo old\n' })
+    const cleanOldHash = await installer.computeContentHash(cleanOldDir)
+
+    await installer.recoverInterruptedInstallWithBaseline(destPath, cleanOldHash)
+
+    // The descriptor-only check must not treat the partial replacement as complete:
+    // the only complete backup (with edits) survives instead of being deleted.
+    await expect(fs.promises.access(path.join(destPath, 'SKILL.md'))).resolves.toBeUndefined()
+    await expect(fs.promises.readFile(path.join(backupPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo old-edited\n'
+    )
+  })
+
+  it('preserves both trees when the destination descriptor stat fails transiently during baseline recovery', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const oldDir = path.join(root, 'old-eio')
+    const newDir = path.join(root, 'new-eio')
+    await writeSkill(oldDir, { supportingContent: 'echo old\n' })
+    await writeSkill(newDir, { supportingContent: 'echo new\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.cp(oldDir, backupPath, { recursive: true })
+    const newHash = await installer.computeContentHash(newDir)
+    // User edits before the next sweep so neither tree matches the baseline; the
+    // leftover `.bak` is obsolete but must not be restored over the edit.
+    await fs.promises.writeFile(path.join(destPath, 'scripts', 'run.sh'), 'echo edited\n', 'utf-8')
+
+    const originalStat = fs.promises.stat
+    const statSpy = vi.spyOn(fs.promises, 'stat').mockImplementation(async (...args: unknown[]) => {
+      const [target] = args as [string]
+      if (target.startsWith(destPath) && (target.endsWith('SKILL.md') || target.endsWith('skill.md'))) {
+        throw Object.assign(new Error('transient destination stat failure'), { code: 'EIO' })
+      }
+      return (originalStat as (...a: unknown[]) => Promise<unknown>)(...args) as never
+    })
+    try {
+      await installer.recoverInterruptedInstallWithBaseline(destPath, newHash)
+    } finally {
+      statSpy.mockRestore()
+    }
+
+    // The intervening edit survives and the obsolete backup is preserved for retry
+    // instead of being restored over the edited replacement.
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo edited\n')
+    await expect(fs.promises.access(path.join(backupPath, 'SKILL.md'))).resolves.toBeUndefined()
+  })
 })
