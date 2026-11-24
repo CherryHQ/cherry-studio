@@ -25,9 +25,11 @@ function Catalog({
   const [providerKey, setProviderKey] = useState<McpProviderKey>()
   const catalog: ReturnType<typeof useBuiltinMcpCatalog> = {
     presets,
+    featured: [],
     mcpServers: [],
     findInstalled: () => undefined,
     add: vi.fn(),
+    installFeatured: vi.fn(),
     adding: new Set(),
     isLoading: false,
     error: undefined,

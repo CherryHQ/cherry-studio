@@ -16,7 +16,7 @@ import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/
 import { ZONEFOUNDRY_MCP_BASE_URL } from './zonefoundryMcp'
 
 /** A builtin server as declared in code; the `id` is assigned by the database on install. */
-export type McpServerPreset = Omit<McpServer, 'id' | 'name'> & {
+export type McpServerPreset = Omit<McpServer, 'id' | 'name' | 'createdAt' | 'updatedAt'> & {
   name: BuiltinMcpServerName
 }
 
@@ -184,3 +184,11 @@ export const PRESET_MCP_SERVERS = freezePresets([
     isTrusted: true
   }
 ])
+
+/** Presets that can run without user setup or a separately installed application. */
+export const FEATURED_MCP_PRESETS = PRESET_MCP_SERVERS.filter(
+  ({ name }) =>
+    name === BuiltinMcpServerNames.sequentialThinking ||
+    name === BuiltinMcpServerNames.fetch ||
+    name === BuiltinMcpServerNames.python
+)

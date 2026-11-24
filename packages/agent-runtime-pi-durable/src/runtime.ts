@@ -720,6 +720,7 @@ export async function createPiDurableRuntime(
           const task = await native.getTask(Number(call.key) as never, context)
           if (task?.kind !== ToolTask.definition.name || task.conversationId !== entry.conversation.id) return undefined
           const input = task.input as ToolTaskInput
+          // A nested (codemode) call is shown, and approved, under its own `parent/key` call ID.
           return input.kind === 'model' ? input.callId : input.call.id
         },
         async configure(change) {
