@@ -1451,9 +1451,31 @@ describe('MediaAnalysisService local stages', () => {
     expect(runtime.ocrImage).toHaveBeenCalled()
   })
 
+  /** Holds the next probe so a test can act while a pre-analysis is running, before it reports any stage. */
+  function holdNextProbe() {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => (release = resolve))
+    const probe = { durationMs: 10_000, hasAudio: true, hasVideo: true, mime: 'video/mp4', kind: 'video' }
+    runtime.probe.mockImplementationOnce(async () => {
+      await held
+      return probe
+    })
+    return release
+  }
+
+  const sendsWaitingForProgress = () =>
+    [...(service as unknown as { localPasses: Map<string, { listeners: Set<unknown> }> }).localPasses.values()].reduce(
+      (count, pass) => count + pass.listeners.size,
+      0
+    )
+
   it('waits for a running pre-analysis instead of transcribing the file twice', async () => {
+    const release = holdNextProbe()
     const preparing = service.prepare(file)
-    const analysis = await service.analyze(file)
+    await vi.waitFor(() => expect(runtime.probe).toHaveBeenCalledTimes(1))
+    const analyzing = service.analyze(file)
+    release()
+    const analysis = await analyzing
     await preparing
 
     expect(runtime.transcribe).toHaveBeenCalledTimes(1)
@@ -1462,8 +1484,13 @@ describe('MediaAnalysisService local stages', () => {
 
   it('shows the running pre-analysis stages to a send that waits for it', async () => {
     const stages: string[] = []
+    const release = holdNextProbe()
     const preparing = service.prepare(file)
-    await service.analyze(file, undefined, { onProgress: (progress) => stages.push(progress.stage) })
+    await vi.waitFor(() => expect(runtime.probe).toHaveBeenCalledTimes(1))
+    const analyzing = service.analyze(file, undefined, { onProgress: (progress) => stages.push(progress.stage) })
+    await vi.waitFor(() => expect(sendsWaitingForProgress()).toBe(1))
+    release()
+    await analyzing
     await preparing
 
     expect(runtime.transcribe).toHaveBeenCalledTimes(1)
