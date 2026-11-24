@@ -202,12 +202,9 @@ export class AgentBrowserRuntimeService {
     const existing = this.get(sessionId, pageId)
     const session = this.sessions.get(sessionId)
 
-    if (
-      !existing ||
-      !session ||
-      Object.entries(patch).every(([key, value]) => existing[key as keyof AgentBrowserResource] === value)
-    )
-      return
+    if (!existing || !session) return
+    // SAFETY: RuntimeHost constructs patches from AgentBrowserResource fields; each key compares the resource before merging.
+    if (Object.entries(patch).every(([key, value]) => existing[key as keyof AgentBrowserResource] === value)) return
 
     if (
       patch.url !== undefined &&
