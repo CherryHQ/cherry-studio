@@ -8,9 +8,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
   ScrollArea,
   Tabs,
@@ -24,17 +21,16 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { StaticMarkdown } from '@renderer/components/markdown'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import type { AgentMemoryFile, AgentMemorySnapshot } from '@shared/ipc/schemas/agent'
+import type { AgentMemoryFile, AgentMemoryFileKey, AgentMemorySnapshot } from '@shared/ipc/schemas/agent'
 
-import { PrivateMemoryView, usePrivateMemoryIndex } from './PrivateMemoryView'
+const FILE_ORDER: AgentMemoryFileKey[] = ['soul', 'user', 'fact', 'journal']
 
-type PanelKey = 'soul' | 'user' | 'private'
-const FILE_ORDER = ['soul', 'user', 'private'] as const
-const FILE_LABEL_KEYS = {
+const FILE_LABEL_KEYS: Record<AgentMemoryFileKey, string> = {
   soul: 'agent.memory.file.soul',
   user: 'agent.memory.file.user',
-  private: 'agent.memory.private.title'
-} as const
+  fact: 'agent.memory.file.fact',
+  journal: 'agent.memory.file.journal'
+}
 
 /** Mirrors AGENT_MEMORY_MAX_WRITE_CHARS in the main-side schema (kept local so zod stays out of the renderer bundle). */
 const MAX_WRITE_CHARS = 1_000_000
@@ -50,7 +46,7 @@ function useMemorySnapshot(agentId: string) {
     setLoading(true)
     setError(false)
     try {
-      const next = await ipcApi.request('agent.memory.read', { agentId, identityOnly: true })
+      const next = await ipcApi.request('agent.memory.read', { agentId })
       if (id === requestId.current) setSnapshot(next)
     } catch {
       if (id === requestId.current) setError(true)
@@ -72,7 +68,7 @@ function useMemorySnapshot(agentId: string) {
   return { snapshot, loading, error, reload, replaceFile }
 }
 
-type DiscardRequest = { kind: 'switch'; key: PanelKey } | { kind: 'leave' }
+type DiscardRequest = { kind: 'switch'; key: AgentMemoryFileKey } | { kind: 'leave' }
 
 export type AgentMemoryPanelHandle = {
   confirmLeave: () => Promise<boolean>
@@ -87,7 +83,7 @@ export function AgentMemoryPanel({
 }) {
   const { t, i18n } = useTranslation()
   const { snapshot, loading, error, reload, replaceFile } = useMemorySnapshot(agent.id)
-  const [selectedKey, setSelectedKey] = useState<PanelKey>('soul')
+  const [selectedKey, setSelectedKey] = useState<AgentMemoryFileKey>('soul')
   const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [draft, setDraft] = useState('')
   const [draftVersion, setDraftVersion] = useState<string | null>(null)
@@ -96,13 +92,21 @@ export function AgentMemoryPanel({
 
   const leaveRequest = useRef<{ promise: Promise<boolean>; resolve: (leave: boolean) => void } | null>(null)
 
-  const [revision, setRevision] = useState(0)
-  const [privatePath, setPrivatePath] = useState('MEMORY.md')
-  const privateIndex = usePrivateMemoryIndex(agent.id, selectedKey === 'private', revision)
   const files = snapshot?.files ?? []
-  const selected = files.find((file) => file.key === selectedKey)
+  const selected = files.find((file) => file.key === selectedKey) ?? files[0]
   const isDirty = mode === 'edit' && !!selected && draft !== selected.content
-  const readOnlyReason = selected?.truncated ? 'agent.memory.truncated_readonly' : null
+  const isMarkdown = selected?.key !== 'journal'
+  // JOURNAL is append-only and written by the running agent; truncated files only
+  // contain a slice, so replacing either from the editor would destroy data.
+  const readOnlyReason = !selected
+    ? null
+    : selected.key === 'journal'
+      ? 'agent.memory.journal_readonly'
+      : selected.key === 'fact' && snapshot?.factMigrated
+        ? 'agent.memory.fact_migrated'
+        : selected.truncated
+          ? 'agent.memory.truncated_readonly'
+          : null
   const canEdit = !!selected && readOnlyReason === null
 
   useEffect(() => {
@@ -120,15 +124,14 @@ export function AgentMemoryPanel({
         )
       : ''
 
-  const applySelect = (key: PanelKey) => {
-    setPrivatePath('MEMORY.md')
+  const applySelect = (key: AgentMemoryFileKey) => {
     setSelectedKey(key)
     setMode('view')
     setDraft('')
     setDraftVersion(null)
   }
 
-  const selectFile = (key: PanelKey) => {
+  const selectFile = (key: AgentMemoryFileKey) => {
     if (saving || key === selectedKey) return
     if (isDirty) {
       setDiscardRequest({ kind: 'switch', key })
@@ -189,6 +192,10 @@ export function AgentMemoryPanel({
         await reload()
       } else if (message.includes('AGENT_MEMORY_TOO_LARGE')) {
         toast.error(t('agent.memory.truncated_readonly'))
+      } else if (message.includes('AGENT_MEMORY_READ_ONLY')) {
+        toast.error(t(selected.key === 'fact' ? 'agent.memory.fact_migrated' : 'agent.memory.journal_readonly'))
+        cancelEdit()
+        await reload()
       } else {
         toast.error(t('agent.memory.save_failed'))
       }
@@ -244,8 +251,6 @@ export function AgentMemoryPanel({
   }
 
   const renderContent = () => {
-    if (selectedKey === 'private')
-      return <PrivateMemoryView agentId={agent.id} index={privateIndex} path={privatePath} select={setPrivatePath} />
     if (error) {
       return (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
@@ -318,9 +323,15 @@ export function AgentMemoryPanel({
 
     return (
       <ScrollArea className="min-h-0 flex-1">
-        <div className="markdown py-4 text-sm">
-          <StaticMarkdown id={`agent-memory-${selected.key}`}>{selected.content}</StaticMarkdown>
-        </div>
+        {isMarkdown ? (
+          <div className="markdown py-4 text-sm">
+            <StaticMarkdown id={`agent-memory-${selected.key}`}>{selected.content}</StaticMarkdown>
+          </div>
+        ) : (
+          <pre className="whitespace-pre-wrap break-words py-4 font-mono text-xs leading-relaxed">
+            {selected.content}
+          </pre>
+        )}
       </ScrollArea>
     )
   }
@@ -331,8 +342,8 @@ export function AgentMemoryPanel({
         <Tabs
           value={selectedKey}
           onValueChange={(key) => {
-            const next = FILE_ORDER.find((item) => item === key)
-            if (next) selectFile(next)
+            const file = files.find((item) => item.key === key)
+            if (file) selectFile(file.key)
           }}
           variant="underline"
           className="min-h-0 flex-1 gap-0">
@@ -342,9 +353,13 @@ export function AgentMemoryPanel({
                 ? FILE_ORDER.map((key) => (
                     <div key={key} className="h-8 w-16 animate-pulse rounded-md bg-muted" aria-hidden="true" />
                   ))
-                : FILE_ORDER.map((key) => (
-                    <TabsTrigger key={key} value={key} disabled={saving} className="px-0 text-xs transition-colors">
-                      {t(FILE_LABEL_KEYS[key])}
+                : files.map((file) => (
+                    <TabsTrigger
+                      key={file.key}
+                      value={file.key}
+                      disabled={saving}
+                      className="px-0 text-xs transition-colors">
+                      {file.key === 'fact' && snapshot?.factMigrated ? file.name : t(FILE_LABEL_KEYS[file.key])}
                     </TabsTrigger>
                   ))}
             </TabsList>
@@ -365,11 +380,9 @@ export function AgentMemoryPanel({
                 </>
               ) : (
                 <>
-                  {selectedKey !== 'private' && (
-                    <Button type="button" variant="ghost" size="sm" disabled={!canEdit || loading} onClick={startEdit}>
-                      {t('agent.memory.edit')}
-                    </Button>
-                  )}
+                  <Button type="button" variant="ghost" size="sm" disabled={!canEdit || loading} onClick={startEdit}>
+                    {t('agent.memory.edit')}
+                  </Button>
                   <DropdownMenu>
                     <Tooltip content={t('common.more')}>
                       <DropdownMenuTrigger asChild>
@@ -379,34 +392,13 @@ export function AgentMemoryPanel({
                       </DropdownMenuTrigger>
                     </Tooltip>
                     <DropdownMenuContent align="end">
-                      {selectedKey === 'private' && privateIndex?.files.some((file) => file !== 'MEMORY.md') && (
-                        <>
-                          <DropdownMenuRadioGroup
-                            value={privatePath}
-                            onValueChange={setPrivatePath}
-                            className="max-h-56 overflow-y-auto">
-                            {['MEMORY.md', ...privateIndex.files.filter((file) => file !== 'MEMORY.md')].map((file) => (
-                              <DropdownMenuRadioItem key={file} value={file}>
-                                <span className="max-w-64 truncate">{file}</span>
-                              </DropdownMenuRadioItem>
-                            ))}
-                          </DropdownMenuRadioGroup>
-                          <DropdownMenuSeparator />
-                        </>
-                      )}
-                      {selectedKey !== 'private' && (
-                        <DropdownMenuItem
-                          disabled={!selected?.exists || !selected.content}
-                          onSelect={() => void copyContent()}>
-                          <Copy className="size-4" aria-hidden="true" />
-                          {t('agent.memory.copy')}
-                        </DropdownMenuItem>
-                      )}
                       <DropdownMenuItem
-                        disabled={loading}
-                        onSelect={() =>
-                          selectedKey === 'private' ? setRevision((value) => value + 1) : void reload()
-                        }>
+                        disabled={!selected?.exists || !selected.content}
+                        onSelect={() => void copyContent()}>
+                        <Copy className="size-4" aria-hidden="true" />
+                        {t('agent.memory.copy')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled={loading} onSelect={() => void reload()}>
                         <RefreshCw className={cn('size-4', loading && 'motion-safe:animate-spin')} aria-hidden="true" />
                         {t('agent.memory.refresh')}
                       </DropdownMenuItem>
@@ -428,7 +420,7 @@ export function AgentMemoryPanel({
             {selected?.truncated ? (
               <p>
                 {t('agent.memory.truncated', {
-                  part: t('agent.memory.truncated_head')
+                  part: t(selected.key === 'journal' ? 'agent.memory.truncated_tail' : 'agent.memory.truncated_head')
                 })}
               </p>
             ) : null}

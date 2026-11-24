@@ -67,9 +67,11 @@ Open **Settings → Tools → Shared memory**, alongside MCP and Skills.
 - The page shows the last completed, failed or cancelled result. **Restore backup** and **Clear global memory** require confirmation.
 - Agent and Assistant **Basic** forms label their access switch **Shared memory**. The Agent switch precedes Heartbeat and defaults on; the Assistant switch defaults off. Presets carry this switch setting.
 
-The agent editor's **Memory** tab has three views. **Persona** and **User profile** edit `SOUL.md` and `USER.md` with explicit Save/Cancel, version checks, and confirmation before discarding drafts. Truncated identity files are read-only.
+The Agent configuration dialog also has a **Memory** tab for identity and legacy files. It displays `SOUL.md`, `USER.md`, `memory/FACT.md` and `memory/JOURNAL.jsonl` through `agent.memory.*` IPC.
 
-**Private memory** opens the selected agent's migrated `MEMORY.md`. Users can select a topic from the More menu or follow a link in the entry. The main process authorizes each read for that agent. Browsing does not start a migration and remains available with shared memory disabled.
+Its three Markdown files have explicit Save/Cancel, version-conflict checks, and a 1 MiB read/write limit. Truncated files and JOURNAL are read-only. Leaving an unsaved draft requires confirmation. These operations use the legacy editor's own protection.
+
+After successful migration, FACT becomes retained history; later edits in this tab affect only that legacy file. `SOUL.md` and `USER.md` retain their separate identity roles.
 
 ## Entry snapshots in model requests
 
@@ -205,7 +207,7 @@ Evidence-bound correction records allow automatic extraction, native projected e
 
 Private migration backs up FACT and preserves its content, conditions and references before enabling the Agent's private `MEMORY.md` and topics. Unsafe splitting, ambiguous links or partial results leave the original recoverable and the new private scope inactive. Read-only legacy FACT remains available until migration succeeds. Runtime safety checks inspect the inactive private scope without requiring successful migration; protected or invalid state still blocks unsafe history.
 
-After migration, FACT and JOURNAL are retained history. Active memory changes use `MEMORY.md` and topics. The agent editor shows editable SOUL and USER files. Its read-only Private memory tab opens the migrated entry and topics for the selected agent.
+After migration, FACT and JOURNAL are retained history. Active memory changes use `MEMORY.md` and topics. The identity/legacy editor operates on its original files independently.
 
 ## Choosing a mechanism
 
