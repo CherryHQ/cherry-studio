@@ -1,3 +1,4 @@
+import { cacheKeySegment } from '../data/cache/cacheKey'
 import type { SettingsPath } from '../data/types/settingsPath'
 import {
   DOCTOR_CHECK_CATALOG,
@@ -34,13 +35,8 @@ export function doctorScopeKey(ref: DoctorSubjectRef): DoctorScopeKey {
     : `agent:${ref.agentId}`
 }
 
-/** Encodes a semantic key as one collision-safe cache-template segment (`[\w-]+`). */
-function cacheSegment(key: string): string {
-  return Array.from(new TextEncoder().encode(key), (byte) => byte.toString(16).padStart(2, '0')).join('')
-}
-
 export function doctorStateCacheKey(scope: DoctorScopeKey): `doctor.state.${string}` {
-  return `doctor.state.${cacheSegment(scope)}`
+  return `doctor.state.${cacheKeySegment(scope)}`
 }
 
 export function doctorAgentKey(scope: DoctorScopeKey, incident?: DoctorAgentIncident): DoctorAgentKey {
@@ -53,7 +49,7 @@ export function isDoctorAgentKey(value: unknown): value is DoctorAgentKey {
 
 /** Sibling of `doctorStateCacheKey`: one AI analysis, of a scope's report or of one failed message. */
 export function doctorAgentStateCacheKey(key: DoctorAgentKey): `doctor.agent.${string}` {
-  return `doctor.agent.${cacheSegment(key)}`
+  return `doctor.agent.${cacheKeySegment(key)}`
 }
 
 export function isDoctorScopeKey(value: unknown): value is DoctorScopeKey {

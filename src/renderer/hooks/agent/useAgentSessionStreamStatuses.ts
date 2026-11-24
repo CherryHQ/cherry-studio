@@ -3,6 +3,7 @@ import { useCallback, useMemo } from 'react'
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
+import { topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 
 export type AgentSessionStreamState = {
   isPending: boolean
@@ -10,7 +11,7 @@ export type AgentSessionStreamState = {
 }
 
 const getAgentSessionStreamStatusCacheKey = (sessionId: string) =>
-  `topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const
+  topicStreamStatusCacheKey(buildAgentSessionTopicId(sessionId))
 
 const SESSION_ID_SEPARATOR = '\u0000'
 const EMPTY_AGENT_SESSION_STREAM_STATUSES = new Map<string, AgentSessionStreamState>()

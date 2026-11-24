@@ -22,6 +22,7 @@ import { toast } from '@renderer/services/toast'
 import type { TopicStreamStatus } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+import { topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -3169,7 +3170,7 @@ describe('Sessions', () => {
 
     setupSessions()
     rerender(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
-    cacheService.setShared('topic.stream.statuses.agent-session:session-b', {
+    cacheService.setShared(topicStreamStatusCacheKey('agent-session:session-b'), {
       status: 'streaming',
       activeExecutions: [],
       awaitingApprovalAnchors: []
@@ -4376,14 +4377,14 @@ describe('Sessions', () => {
     render(<SessionsForTest activeSessionId="session-a" />)
 
     await clickAgentMenuItem('Alpha agent', /Delete Permanently/)
-    cacheService.setShared('topic.stream.statuses.agent-session:session-a', {
+    cacheService.setShared(topicStreamStatusCacheKey('agent-session:session-a'), {
       status: 'streaming',
       activeExecutions: [],
       awaitingApprovalAnchors: []
     })
     await expect(confirm?.(true)).rejects.toThrow('recycle_bin.delete.busy')
     expect(deleteAgentPermanentlyMock).not.toHaveBeenCalled()
-    cacheService.setShared('topic.stream.statuses.agent-session:session-a', {
+    cacheService.setShared(topicStreamStatusCacheKey('agent-session:session-a'), {
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: []

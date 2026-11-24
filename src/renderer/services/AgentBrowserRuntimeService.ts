@@ -4,6 +4,7 @@ import { cacheService } from '@renderer/data/CacheService'
 import { getBrowserStartPageUrl, rememberBrowserPageUrl } from '@renderer/services/browserStartPage'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { classifyTurn } from '@shared/ai/transport'
+import { topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 import { normalizeBrowserEntryUrl } from '@shared/utils/browserUrl'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
@@ -230,7 +231,7 @@ export class AgentBrowserRuntimeService {
     if (this.owners.get(sessionId)?.size) return
 
     if (this.scope === 'agent') {
-      const key = `topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const
+      const key = topicStreamStatusCacheKey(buildAgentSessionTopicId(sessionId))
 
       if (classifyTurn(cacheService.getShared(key)?.status).isTurnActive) {
         if (!this.turnSubscriptions.has(sessionId)) {

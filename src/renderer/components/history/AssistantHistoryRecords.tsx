@@ -47,6 +47,7 @@ import { readErrorMessage } from '@renderer/utils/errorDetails'
 import { matchesSearchText } from '@renderer/utils/pinyin'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { classifyTurn } from '@shared/ai/transport'
+import { topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
@@ -71,10 +72,8 @@ import { useHistoryRecordsController } from './useHistoryRecordsController'
 
 const logger = loggerService.withContext('AssistantHistoryRecords')
 
-const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as const
-
 function isHistoryTopicPermanentDeleteBusy(topicId: string): boolean {
-  const entry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
+  const entry = cacheService.getShared(topicStreamStatusCacheKey(topicId))
   const flags = classifyTurn(entry?.status)
 
   return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors.length ?? 0) > 0
@@ -124,7 +123,7 @@ function AssistantHistoryRowState({
   children: (state: HistoryRowState) => ReactElement
 }) {
   const { isRenaming } = useTopicRenameState(topicId)
-  useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
+  useSharedCacheValue(topicStreamStatusCacheKey(topicId))
 
   return children({ isRenaming })
 }

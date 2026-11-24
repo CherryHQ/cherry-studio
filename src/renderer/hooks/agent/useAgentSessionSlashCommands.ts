@@ -1,12 +1,10 @@
 import { useMemo } from 'react'
 
-import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { SlashCommand } from '@shared/ai/slashCommands'
 
 type NormalizedSessionCommand = SlashCommand & { builtin?: boolean }
-
-const EMPTY_SESSION_ID = '__none__'
 
 /**
  * The live slash command catalog for an agent session, captured from the Claude Code SDK
@@ -16,12 +14,15 @@ const EMPTY_SESSION_ID = '__none__'
  * builtin list. The cached SDK shape (`name` without a leading slash) is normalised to the
  * composer's `{ command, description }` form here.
  *
- * Main owns this key, so this window must only ever read it — `useSharedCacheValue` never seeds
+ * Main owns this key, so this window must only ever read it — `useSharedCacheSelector` never seeds
  * the schema default back (which would clobber Main's already-published catalog during the mount
  * race before the initial sync lands) and never pins the key.
  */
 export function useAgentSessionSlashCommands(sessionId: string | undefined): NormalizedSessionCommand[] | undefined {
-  const cached = useSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
+  const cached = useSharedCacheSelector(
+    sessionId ? [AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId)] : [],
+    ([value]) => value
+  )
 
   return useMemo(() => {
     if (!sessionId || !cached || cached.length === 0) return undefined

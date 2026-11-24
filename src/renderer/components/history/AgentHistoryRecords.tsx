@@ -38,6 +38,7 @@ import { matchesSearchText } from '@renderer/utils/pinyin'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
@@ -68,13 +69,13 @@ function AgentHistoryRowState({
   sessionId: string
   children: (state: HistoryRowState) => ReactElement
 }) {
-  useSharedCacheValue(`topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const)
+  useSharedCacheValue(topicStreamStatusCacheKey(buildAgentSessionTopicId(sessionId)))
 
   return children({ isRenaming: false })
 }
 
 function isAgentHistorySessionBusy(sessionId: string): boolean {
-  const entry = cacheService.getShared(`topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const)
+  const entry = cacheService.getShared(topicStreamStatusCacheKey(buildAgentSessionTopicId(sessionId)))
   const flags = classifyTurn(entry?.status)
 
   return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors?.length ?? 0) > 0

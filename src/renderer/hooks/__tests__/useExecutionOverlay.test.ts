@@ -6,6 +6,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { createOverlayRefreshHandoff } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { MessageProjectionView } from '@shared/ai/messageProjection'
+import { topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { useExecutionOverlay } from '../useExecutionOverlay'
@@ -54,7 +55,7 @@ it.each([
   const ipc = projectionIpc()
   const topic = `terminal-baseline-${statusFirst}-${deleted}`
   const setDone = () =>
-    MockUseCacheUtils.setSharedCacheValue(`topic.stream.statuses.${topic}`, {
+    MockUseCacheUtils.setSharedCacheValue(topicStreamStatusCacheKey(topic), {
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
@@ -99,7 +100,7 @@ it.each(['active', 'unresolved'] as const)(
   async (status) => {
     const ipc = projectionIpc()
     const topic = `keep-${status}`
-    MockUseCacheUtils.setSharedCacheValue(`topic.stream.statuses.${topic}`, {
+    MockUseCacheUtils.setSharedCacheValue(topicStreamStatusCacheKey(topic), {
       status: 'error',
       activeExecutions: [],
       awaitingApprovalAnchors: [],

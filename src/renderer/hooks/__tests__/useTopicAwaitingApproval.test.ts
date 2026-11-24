@@ -1,37 +1,15 @@
-import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, renderHook } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
+import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { TopicStreamStatus } from '@shared/ai/transport'
+import { topicLastSeenCompletionCacheKey, topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 
-const mockEntry = vi.fn<
-  () =>
-    | {
-        status: TopicStreamStatus | undefined
-        lastCompletedAt?: number
-        activeExecutions: []
-        awaitingApprovalAnchors: []
-      }
-    | undefined
->()
-
-let lastSeenCompletion: number | null = null
-const setLastSeenCompletion = vi.fn((next: number | null) => {
-  lastSeenCompletion = next
-})
-
-// Mock at the cache layer rather than at useTopicStreamStatus — intra-module
-// vi.mock can't intercept calls between functions in the same source file.
-// The main-owned status entry is observed read-only (useSharedCacheValue);
-// the window-owned lastSeenCompletion marker keeps the writable hook.
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useSharedCache: (key: string) => {
-    if (key.startsWith('topic.stream.last_seen_completion.')) {
-      return [lastSeenCompletion, setLastSeenCompletion]
-    }
-    return [mockEntry()]
-  },
-  useSharedCacheValue: () => mockEntry()
-}))
+vi.unmock('@data/CacheService')
+vi.unmock('@data/hooks/useCache')
 
 import {
   useTopicAwaitingApproval,
@@ -39,17 +17,20 @@ import {
   useTopicStreamStatus
 } from '../useTopicStreamStatus'
 
-const setEntry = (status: TopicStreamStatus | undefined, lastCompletedAt?: number) => {
-  mockEntry.mockReturnValue({ status, lastCompletedAt, activeExecutions: [], awaitingApprovalAnchors: [] })
+const setEntry = (status: TopicStreamStatus | undefined, lastCompletedAt?: number, topicId = 't') => {
+  act(() => {
+    const key = topicStreamStatusCacheKey(topicId)
+    if (status === undefined) cacheService.deleteShared(key)
+    else cacheService.setShared(key, { status, lastCompletedAt, activeExecutions: [], awaitingApprovalAnchors: [] })
+  })
 }
 
-describe('useTopicAwaitingApproval', () => {
-  beforeEach(() => {
-    mockEntry.mockReset()
-    setLastSeenCompletion.mockClear()
-    lastSeenCompletion = null
-  })
+afterEach(() => {
+  cleanup()
+  cacheService.cleanup()
+})
 
+describe('useTopicAwaitingApproval', () => {
   it('is true iff the cross-window shared-cache status is awaiting-approval', () => {
     setEntry('awaiting-approval')
     expect(renderHook(() => useTopicAwaitingApproval('t')).result.current).toBe(true)
@@ -124,18 +105,59 @@ describe('useTopicAwaitingApproval', () => {
 
   it('does not carry a live edge across topic identities', async () => {
     const refresh = vi.fn(async () => {})
-    setEntry('streaming')
+    setEntry('streaming', undefined, 'topic-1')
     const { rerender } = renderHook(
       ({ topicId }: { topicId: string }) => useTopicDbRefreshOnAwaitingApproval(topicId, refresh),
       { initialProps: { topicId: 'topic-1' } }
     )
 
-    setEntry('awaiting-approval')
+    setEntry('awaiting-approval', undefined, 'topic-2')
     await act(async () => {
       rerender({ topicId: 'topic-2' })
       await Promise.resolve()
     })
 
     expect(refresh).not.toHaveBeenCalled()
+  })
+})
+
+describe('topic and session cache boundaries', () => {
+  it('observes an Agent topic after an empty selection without creating placeholder entries', () => {
+    const { result, rerender } = renderHook(({ topicId }) => useTopicStreamStatus(topicId), {
+      initialProps: { topicId: '' }
+    })
+    expect(result.current.status).toBeUndefined()
+    expect(result.current.isFulfilled).toBe(false)
+    act(() => result.current.markSeen())
+    expect(cacheService.getStats().summary.shared.totalCount).toBe(0)
+
+    const topicId = buildAgentSessionTopicId('session-1')
+    setEntry('streaming', undefined, topicId)
+    rerender({ topicId })
+    expect(result.current.isPending).toBe(true)
+    setEntry('done', 123, topicId)
+    expect(result.current.isFulfilled).toBe(true)
+    act(() => result.current.markSeen())
+    expect(result.current.isFulfilled).toBe(false)
+    expect(cacheService.getShared(topicLastSeenCompletionCacheKey(topicId))).toBe(123)
+
+    rerender({ topicId: '' })
+    expect(result.current.status).toBeUndefined()
+    expect(result.current.isPending).toBe(false)
+  })
+
+  it('waits for a real session before observing slash commands', () => {
+    const { result, rerender } = renderHook(({ sessionId }) => useAgentSessionSlashCommands(sessionId), {
+      initialProps: { sessionId: '' }
+    })
+    expect(result.current).toBeUndefined()
+    expect(cacheService.getStats().summary.shared.totalCount).toBe(0)
+    act(() =>
+      cacheService.setShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-1'), [
+        { name: 'deploy', description: 'Deploy', argumentHint: '' }
+      ])
+    )
+    rerender({ sessionId: 'session-1' })
+    expect(result.current).toEqual([{ command: '/deploy', description: 'Deploy', builtin: undefined }])
   })
 })

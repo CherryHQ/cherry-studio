@@ -79,18 +79,20 @@ volume × audience width**.
 | `PersistenceListener` | terminal | built by the provider and added in `send()` |
 | `TraceFlushListener` | terminal | built by chat / agent-session turn owners and added in `send()` |
 | `ChannelAdapterListener` / `SseListener` | chunk + terminal | caller injects into `send()`'s `listeners` |
-| UI indirect consumers (sidebar indicators, …) | topic status | `useSharedCacheValue('topic.stream.statuses.${topicId}')` |
+| UI indirect consumers (sidebar indicators, …) | topic status | `useSharedCacheValue(topicStreamStatusCacheKey(topicId))` |
 
 ### Two channels: targeted listener dispatch vs SharedCache mirror
 
 | | Targeted listener dispatch | SharedCache mirror |
 |---|---|---|
-| Transport | Desktop: `ai.projection.changed`; raw consumers: stream-specific events | `cacheService.setShared('topic.stream.statuses.${topicId}', …)` → built-in `Cache_Sync` broadcast |
+| Transport | Desktop: `ai.projection.changed`; raw consumers: stream-specific events | `cacheService.setShared(topicStreamStatusCacheKey(topicId), …)` → built-in `Cache_Sync` broadcast |
 | Main-side registry | `ProjectionSubscriptions` for desktop views; `ActiveStream.listeners` for raw consumers | none — uses the generic `CacheService` infra |
-| Subscriber API | `ai.projection.attach/detach` for desktop views | `useSharedCacheValue('topic.stream.statuses.${topicId}')` by topicId |
+| Subscriber API | `ai.projection.attach/detach` for desktop views | `useSharedCacheValue(topicStreamStatusCacheKey(topicId))` by topicId |
 | Per-event size | tens of bytes to KBs (10s/s) | tens of bytes (≤ 5 transitions per stream) |
 | Audience | narrow (one window per listener typically) | wide (every sidebar / indicator across all windows) |
 | Cost of irrelevant pushes | high (bandwidth + deserialization) | negligible |
+
+Both processes use `topicStreamStatusCacheKey(topicId)` and `topicLastSeenCompletionCacheKey(topicId)` from `src/shared/data/cache/cacheKey.ts`. The physical key contains an encoded segment, allowing the semantic Agent topic ID to retain its `agent-session:` namespace; see [Cache Schema Guide](../data/cache-schema-guide.md#naming-convention). Loading views with no selected topic observe an empty key set instead of constructing an empty key.
 
 ### Channel selection rule
 
@@ -108,7 +110,7 @@ Choose by **consumer / producer fanout**:
 - **Raw replay retains source cutoffs.** `ai.stream.attach` returns attempt-scoped `replayFrom` and `replayThrough` with compact replay, and flushes the old window listener before replacement. This remains a bounded raw-stream contract, not the desktop message-projection protocol.
 - **Bootstrap needs no extra IPC.** A new window pulls all shared cache
   entries via `Cache_GetAllShared` on mount; every
-  `topic.stream.statuses.${topicId}` entry comes through without a
+  `topic.stream.statuses.${encodedTopicId}` entry comes through without a
   bespoke snapshot IPC.
 - **Snapshot vs delta race.** Handled by the shared cache sync layer
   itself — initial pull and `Cache_Sync` delta share the Main-side
@@ -118,7 +120,7 @@ Choose by **consumer / producer fanout**:
   (`useTopicDbRefreshOnTerminal`, `useChatWithHistory`, awaiting-approval
   indicators, sidebar badges) can observe them. The fulfilled-badge gate
   is a read-receipt: the entry's `lastCompletedAt` (bumped only on
-  `done`) compared against `topic.stream.last_seen_completion.${topicId}`
+  `done`) compared against `topic.stream.last_seen_completion.${encodedTopicId}`
   (cross-window shared cache, written when the user acknowledges).
   Memory tier — both reset on app restart.
 - **`PersistenceListener` placement.** Terminal-only consumer — doesn't
@@ -695,7 +697,7 @@ interface StreamLifecycle {
 
 | | `ChatStreamLifecycle` | `PromptStreamLifecycle` |
 |---|---|---|
-| Status broadcast | writes `topic.stream.statuses.<topicId>` on `pending → streaming → terminal` (with `awaitingApprovalAnchors` derived from `exec.pendingApprovalToolCallIds`) | none |
+| Status broadcast | writes `topic.stream.statuses.<encodedTopicId>` on `pending → streaming → terminal` (with `awaitingApprovalAnchors` derived from `exec.pendingApprovalToolCallIds`) | none |
 | `canAttach` | `true` | `false` |
 | `cleanup` | sets a `setTimeout(evict, gracePeriodMs)`; chat reconnects within 30 s | calls `evict()` immediately |
 
@@ -785,7 +787,7 @@ duplicated; the rest are stream-manager-specific.
 **Topic status needs no `attach`.** Observers that only care "is this topic
 live?" (sidebar loading indicators, topic-list status dots) don't register a
 projection subscription. Every status transition writes the SharedCache key
-`topic.stream.statuses.${topicId}`; observers read it via `useSharedCacheValue`
+`topic.stream.statuses.${encodedTopicId}`; observers read it via `useSharedCacheValue`
 directly. Desktop message views use `ai.projection.attach`; only raw-stream
 consumers use `ai.stream.attach`.
 
@@ -822,7 +824,7 @@ chunks-only prompt stream with no message target. See
 | `ai.stream.abort` | `{ topicId }` | void | Stop current generation; resolves after terminal persistence and Agent runtime close settle |
 
 > Topic status snapshots need no dedicated IPC: a new window pulls every
-> `topic.stream.statuses.${topicId}` entry via `Cache_GetAllShared` on
+> `topic.stream.statuses.${encodedTopicId}` entry via `Cache_GetAllShared` on
 > mount, and `useSharedCacheValue` subscribes by topicId.
 
 ### Push channels (Main → Renderer)
@@ -841,7 +843,7 @@ of these observation subscriptions; a closed window or headless turn cannot
 provide an interaction host.
 
 Topic-level status transitions are NOT a bespoke IPC — they live in the
-SharedCache key `topic.stream.statuses.${topicId}` (Main `setShared` →
+SharedCache key `topic.stream.statuses.${encodedTopicId}` (Main `setShared` →
 built-in `Cache_Sync` broadcast). The entry shape is
 `TopicStatusSnapshotEntry`:
 
@@ -860,7 +862,7 @@ entry — terminal values (`done` / `aborted` / `error`) stay so renderer
 consumers (DB-refresh trigger, awaiting-approval indicators, sidebar
 badges) can observe them. The badge "should I show this?" gate is a
 read-receipt: `entry.lastCompletedAt` (authoritative, bumped only on
-`done`) compared against `topic.stream.last_seen_completion.${topicId}`
+`done`) compared against `topic.stream.last_seen_completion.${encodedTopicId}`
 (cross-window shared cache, written by the renderer when the user
 acknowledges).
 
@@ -869,7 +871,7 @@ demux chunks per model.
 
 **Topic status vs message status.** Don't conflate:
 
-- **Topic stream status** (SharedCache `topic.stream.statuses.${topicId}`):
+- **Topic stream status** (SharedCache `topic.stream.statuses.${encodedTopicId}`):
   one entry per topic, source of truth is `ActiveStream.status`, valid
   only while the `ActiveStream` exists (+ grace period).
 - **Assistant message status** (`AssistantMessageStatus`: `PENDING` /

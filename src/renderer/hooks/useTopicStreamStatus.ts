@@ -5,8 +5,10 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { loggerService } from '@logger'
-import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { cacheService } from '@renderer/data/CacheService'
+import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
+import { topicLastSeenCompletionCacheKey, topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 const logger = loggerService.withContext('useTopicStreamStatus')
@@ -32,14 +34,9 @@ interface TopicStreamStatusView {
 }
 
 export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
-  // Main-owned status entry: read-only observation (consumers below all accept
-  // `undefined` via optional chaining, so no local fallback is needed).
-  // `lastSeenCompletion` stays on the writable hook — this window OWNS the
-  // read-receipt marker and writes it via markSeen.
-  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
-
-  const [lastSeenCompletion, setLastSeenCompletion] = useSharedCache(
-    `topic.stream.last_seen_completion.${topicId}` as const
+  const [entry, lastSeenCompletion] = useSharedCacheSelector(
+    topicId ? ([topicStreamStatusCacheKey(topicId), topicLastSeenCompletionCacheKey(topicId)] as const) : ([] as const),
+    ([status, seen]) => [status, seen ?? null] as const
   )
 
   const status = entry?.status
@@ -52,16 +49,20 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   const isFulfilled = status === 'done' && lastCompletedAt !== lastSeenCompletion
 
   const markSeen = useCallback(() => {
-    if (lastCompletedAt != null && lastCompletedAt !== lastSeenCompletion) {
-      setLastSeenCompletion(lastCompletedAt)
+    if (topicId && lastCompletedAt != null && lastCompletedAt !== lastSeenCompletion) {
+      cacheService.setShared(topicLastSeenCompletionCacheKey(topicId), lastCompletedAt)
     }
-  }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
+  }, [lastCompletedAt, lastSeenCompletion, topicId])
 
   return { status, activeExecutions, awaitingApprovalAnchors, isPending, lastCompletedAt, isFulfilled, markSeen }
 }
 
+function useTopicStatusEntry(topicId: string) {
+  return useSharedCacheSelector(topicId ? [topicStreamStatusCacheKey(topicId)] : [], ([entry]) => entry)
+}
+
 export function useTopicAwaitingApproval(topicId: string): boolean {
-  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
+  const entry = useTopicStatusEntry(topicId)
 
   return classifyTurn(entry?.status).isAwaitingApproval
 }
@@ -70,7 +71,7 @@ export function useTopicAwaitingApproval(topicId: string): boolean {
 // done/error/aborted handoff is owned by the page-level overlay handoff so it
 // can refresh before dropping live overlay parts.
 export function useTopicDbRefreshOnAwaitingApproval<TResult>(topicId: string, refresh: () => Promise<TResult>): void {
-  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
+  const entry = useTopicStatusEntry(topicId)
   const status = entry?.status
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
@@ -97,7 +98,7 @@ export function useTopicOverlayHandoffOnTerminal(
   onHandoff: () => Promise<void> | void,
   liveAssistants: readonly CherryUIMessage[] = []
 ): void {
-  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
+  const entry = useTopicStatusEntry(topicId)
   const status = entry?.status
   const onHandoffRef = useRef(onHandoff)
   onHandoffRef.current = onHandoff

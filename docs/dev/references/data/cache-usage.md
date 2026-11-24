@@ -10,6 +10,8 @@ sources:
 
 Concept and invariants: [cache-overview.md](./cache-overview.md). Adding keys: [cache-schema-guide.md](./cache-schema-guide.md).
 
+For an absent topic/session, read-only observers pass an empty key list to `useSharedCacheSelector`. This performs no cache read or subscription and creates no placeholder entry. Topic completion receipts observe the status and receipt together and write only when the user acknowledges a real completion.
+
 ## React Hooks
 
 Import from `@data/hooks/useCache`.

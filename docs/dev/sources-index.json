@@ -251,7 +251,7 @@
     },
     {
       "path": "docs/dev/references/data/cache-schema-guide.md",
-      "sources": ["src/main/data/persistCacheSchemas.ts","src/shared/data/cache/cacheSchemas.ts","src/shared/data/cache/cacheValueTypes.ts","src/shared/data/cache/templateKey.ts"]
+      "sources": ["src/main/data/persistCacheSchemas.ts","src/shared/data/cache/cacheKey.ts","src/shared/data/cache/cacheSchemas.ts","src/shared/data/cache/cacheValueTypes.ts","src/shared/data/cache/templateKey.ts"]
     },
     {
       "path": "docs/dev/references/data/cache-usage.md",

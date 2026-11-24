@@ -10,6 +10,7 @@ import { diagnose } from '@main/services/diagnostics/scan/engine'
 import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
 import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
@@ -1825,7 +1826,7 @@ describe('AiStreamManager', () => {
         listeners: [a, b],
         isPersistentConversation: true
       })
-      const previousTurnId = (sharedCacheStore.get('topic.stream.statuses.a') as { turnId: string }).turnId
+      const previousTurnId = (sharedCacheStore.get(topicStreamStatusCacheKey('a')) as { turnId: string }).turnId
 
       const terminal = mgr.onExecutionDone('a', 'provider-a::model-a')
       await aDone
@@ -1869,7 +1870,7 @@ describe('AiStreamManager', () => {
         listeners: [a, b],
         isPersistentConversation: true
       })
-      const previousTurnId = (sharedCacheStore.get('topic.stream.statuses.a') as { turnId: string }).turnId
+      const previousTurnId = (sharedCacheStore.get(topicStreamStatusCacheKey('a')) as { turnId: string }).turnId
 
       const terminal = mgr.onExecutionDone('a', 'provider-a::model-a')
       await aDone
@@ -2983,12 +2984,12 @@ describe('AiStreamManager', () => {
         approvalId: 'approval-1',
         toolCallId: 'tc-1'
       })
-      const paused = sharedCacheStore.get('topic.stream.statuses.a') as any
+      const paused = sharedCacheStore.get(topicStreamStatusCacheKey('a')) as any
       expect(paused?.status).toBe('streaming')
       expect(paused?.awaitingApprovalAnchors).toHaveLength(1)
 
       expect(mgr.resolveToolApproval('a', 'tc-1', true)).toBe(true)
-      const approved = sharedCacheStore.get('topic.stream.statuses.a') as any
+      const approved = sharedCacheStore.get(topicStreamStatusCacheKey('a')) as any
       expect(approved?.status).toBe('streaming')
       expect(approved?.awaitingApprovalAnchors).toHaveLength(0)
       expect(mgr.resolveToolApproval('a', 'tc-1', true)).toBe(false)
@@ -2998,7 +2999,7 @@ describe('AiStreamManager', () => {
         toolCallId: 'tc-1',
         output: { ok: true }
       })
-      const resumed = sharedCacheStore.get('topic.stream.statuses.a') as any
+      const resumed = sharedCacheStore.get(topicStreamStatusCacheKey('a')) as any
       expect(resumed?.status).toBe('streaming')
       expect(resumed?.awaitingApprovalAnchors).toHaveLength(0)
     })
@@ -3026,7 +3027,7 @@ describe('AiStreamManager', () => {
       expect(mgr.retireToolApproval('a', 'A', owner)).toBe(true)
       expect(listener.chunks).toEqual(chunks)
       expect(exec.pendingApprovalToolCallIds).toEqual(new Set(['B']))
-      expect((sharedCacheStore.get('topic.stream.statuses.a') as any).awaitingApprovalAnchors).toHaveLength(1)
+      expect((sharedCacheStore.get(topicStreamStatusCacheKey('a')) as any).awaitingApprovalAnchors).toHaveLength(1)
       mgr.onChunk('a', 'p::m', { type: 'tool-approval-request', toolCallId: 'B', approvalId: 'B-second' })
       const beforeRetirement = [...listener.chunks]
       expect(mgr.retireToolApproval('a', 'B', owner)).toBe(true)
@@ -3054,7 +3055,7 @@ describe('AiStreamManager', () => {
       expect(mgr.retireToolApproval('a', 'B', owner)).toBe(true)
       expect(mgr.inspect('a')!.status).toBe('awaiting-approval')
       expect(exec.pendingApprovalToolCallIds.size).toBe(0)
-      expect((sharedCacheStore.get('topic.stream.statuses.a') as any).awaitingApprovalAnchors).toEqual([])
+      expect((sharedCacheStore.get(topicStreamStatusCacheKey('a')) as any).awaitingApprovalAnchors).toEqual([])
       expect(exec.resolvedToolApprovals?.size ?? 0).toBe(0)
       expect(listener.chunks.slice(0, chunks.length)).toEqual(chunks)
       const writes = fakeCacheService.setShared.mock.calls.length
@@ -3102,7 +3103,7 @@ describe('AiStreamManager', () => {
       ).toBe(true)
       expect(a.pendingApprovalToolCallIds.size).toBe(0)
       expect(b.pendingApprovalToolCallIds).toEqual(new Set(['shared-id']))
-      expect((sharedCacheStore.get('topic.stream.statuses.a') as any).awaitingApprovalAnchors).toEqual([
+      expect((sharedCacheStore.get(topicStreamStatusCacheKey('a')) as any).awaitingApprovalAnchors).toEqual([
         expect.objectContaining({ anchorMessageId: b.anchorMessageId, attemptId: b.attemptId })
       ])
     })
@@ -3218,7 +3219,7 @@ describe('AiStreamManager', () => {
       // terminal `done` is broadcast to the status cache.
       expect(listener.doneResults).toHaveLength(1)
       expect(listener.doneResults[0].isTopicDone).toBe(false)
-      expect((sharedCacheStore.get('topic.stream.statuses.a') as any)?.status).not.toBe('done')
+      expect((sharedCacheStore.get(topicStreamStatusCacheKey('a')) as any)?.status).not.toBe('done')
 
       await flush()
       expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u2'))
@@ -3417,7 +3418,7 @@ describe('AiStreamManager', () => {
       await flush()
 
       // Status cache dropped out of the live state (not stuck `streaming`/`pending`).
-      expect((sharedCacheStore.get('topic.stream.statuses.a') as any)?.status).toBe('error')
+      expect((sharedCacheStore.get(topicStreamStatusCacheKey('a')) as any)?.status).toBe('error')
       // The carried renderer window was told the turn errored.
       expect(wc.errorResults).toHaveLength(1)
       // Queue cleared, not stranded; no live stream left behind.
@@ -3523,7 +3524,7 @@ describe('AiStreamManager', () => {
       // terminal `done` is broadcast to the status cache.
       expect(listener.doneResults).toHaveLength(1)
       expect(listener.doneResults[0].isTopicDone).toBe(false)
-      expect((sharedCacheStore.get('topic.stream.statuses.a') as any)?.status).not.toBe('done')
+      expect((sharedCacheStore.get(topicStreamStatusCacheKey('a')) as any)?.status).not.toBe('done')
 
       await flush()
       expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u2'))
@@ -3570,7 +3571,7 @@ describe('AiStreamManager', () => {
       // flicker), so the stream object survives for the runtime's follow-up turn to carry listeners.
       expect(listener.doneResults).toHaveLength(1)
       expect(listener.doneResults[0].isTopicDone).toBe(false)
-      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('done')
+      expect((sharedCacheStore.get(topicStreamStatusCacheKey(topicId)) as any)?.status).not.toBe('done')
     })
 
     it('tears down an agent-session stream when the runtime will not continue', async () => {
@@ -3599,14 +3600,14 @@ describe('AiStreamManager', () => {
       // so the status cache is NOT yet settled to a terminal state and the stream stays in activeStreams.
       await mgr.onExecutionDone(topicId, 'provider-a::model-a')
       expect(mgr.inspect(topicId)).toBeDefined()
-      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('error')
+      expect((sharedCacheStore.get(topicStreamStatusCacheKey(topicId)) as any)?.status).not.toBe('error')
 
       mgr.terminateHeldTopicStream(topicId, 'provider-a::model-a', error('no model configured'))
 
       // Subscribers learn the topic errored, the cross-window status cache settles to 'error'…
       expect(listener.errorResults).toHaveLength(1)
       expect(listener.errorResults[0].isTopicDone).toBe(true)
-      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).toBe('error')
+      expect((sharedCacheStore.get(topicStreamStatusCacheKey(topicId)) as any)?.status).toBe('error')
 
       // …and the terminal lifecycle's cleanup evicts the held stream so it's no longer attachable.
       await vi.runAllTimersAsync()
@@ -4560,7 +4561,7 @@ describe('AiStreamManager', () => {
 
   // ── Topic status broadcast ──────────────────────────────────────
   //
-  // These tests cover the `topic.stream.statuses.${topicId}` SharedCache
+  // These tests cover the topicStreamStatusCacheKey(topicId) SharedCache
   // entries — Main's `AiStreamManager.broadcastTopicStatus` writes every
   // state transition under the per-topic template key, and the renderer's
   // `useTopicStreamStatus` hook reacts via `useSharedCache`. The
@@ -4568,10 +4569,10 @@ describe('AiStreamManager', () => {
   // verify both status transitions and `activeExecutions` updates.
 
   describe('topic status broadcast', () => {
-    /** Every value written under `topic.stream.statuses.${topicId}` for the given topic. */
+    /** Every value written under topicStreamStatusCacheKey(topicId) for the given topic. */
     const statusWritesFor = (topicId: string) =>
       fakeCacheService.setShared.mock.calls
-        .filter(([key]) => key === `topic.stream.statuses.${topicId}`)
+        .filter(([key]) => key === topicStreamStatusCacheKey(topicId))
         .map(
           ([, value]) =>
             value as {
@@ -5119,7 +5120,7 @@ describe('AiStreamManager', () => {
     }
 
     const anchorsOf = (topicId: string) =>
-      (sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as { awaitingApprovalAnchors?: unknown[] } | undefined)
+      (sharedCacheStore.get(topicStreamStatusCacheKey(topicId)) as { awaitingApprovalAnchors?: unknown[] } | undefined)
         ?.awaitingApprovalAnchors ?? []
 
     it('onExecutionPaused while awaiting approval clears the flag → status aborted, anchor dropped, no minted chunk', async () => {

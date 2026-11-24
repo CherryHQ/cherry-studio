@@ -4,6 +4,7 @@ import type { VListHandle } from 'virtua'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
+import { topicScrollAnchorCacheKey } from '@shared/data/cache/cacheKey'
 
 import {
   computeScrollAnchor,
@@ -160,7 +161,7 @@ describe('useScrollPositionMemory', () => {
   })
 
   it('restores a saved anchor via scrollToIndex on mount', () => {
-    cacheService.set('chat.scroll_anchor.t1', { key: 'g2', offset: 80 })
+    cacheService.set(topicScrollAnchorCacheKey('t1'), { key: 'g2', offset: 80 })
 
     renderHook(() => useScrollPositionMemory(buildInputs()))
     flushRaf()
@@ -206,7 +207,7 @@ describe('useScrollPositionMemory', () => {
     handle.getItemOffset.mockReturnValue(100)
     act(() => result.current.save())
 
-    expect(cacheService.set).toHaveBeenCalledWith('chat.scroll_anchor.t1', { key: 'g2', offset: 150 })
+    expect(cacheService.set).toHaveBeenCalledWith(topicScrollAnchorCacheKey('t1'), { key: 'g2', offset: 150 })
   })
 
   it('throttles in-flight saves but lets an immediate (scroll-end) save through', () => {
@@ -237,7 +238,7 @@ describe('useScrollPositionMemory', () => {
     following = true
     act(() => result.current.save())
 
-    expect(cacheService.set).toHaveBeenCalledWith('chat.scroll_anchor.t1', null)
+    expect(cacheService.set).toHaveBeenCalledWith(topicScrollAnchorCacheKey('t1'), null)
   })
 
   it('does not save when no topic id is provided', () => {

@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cacheService } from '@data/CacheService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { TopicStatusSnapshotEntry, TopicStreamStatus } from '@shared/ai/transport'
+import { topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 
 import { useAgentSessionStreamStatuses } from '../useAgentSessionStreamStatuses'
 
@@ -19,7 +20,7 @@ vi.unmock('@data/CacheService')
 vi.unmock('@data/hooks/useCache')
 
 const SESSION_ID = 'session-stream-test'
-const KEY = `topic.stream.statuses.${buildAgentSessionTopicId(SESSION_ID)}` as const
+const KEY = topicStreamStatusCacheKey(buildAgentSessionTopicId(SESSION_ID))
 
 const makeEntry = (status: TopicStreamStatus, lastCompletedAt: number): TopicStatusSnapshotEntry => ({
   status,

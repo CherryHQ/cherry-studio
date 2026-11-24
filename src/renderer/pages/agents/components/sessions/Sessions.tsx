@@ -96,6 +96,7 @@ import { classifyTurn } from '@shared/ai/transport'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+import { topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import {
   isAgentNotFoundError,
@@ -158,7 +159,7 @@ type SessionsProps = ControlledSessionsProps
 const logger = loggerService.withContext('AgentSessions')
 
 function isAgentSessionBusy(sessionId: string): boolean {
-  const entry = cacheService.getShared(`topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const)
+  const entry = cacheService.getShared(topicStreamStatusCacheKey(buildAgentSessionTopicId(sessionId)))
   const flags = classifyTurn(entry?.status)
 
   return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors?.length ?? 0) > 0

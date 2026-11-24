@@ -13,6 +13,7 @@ import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import type * as PlatformModule from '@renderer/utils/platform'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -1986,7 +1987,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
   it('disables history permanent deletion while the row is already generating', () => {
     cacheService.setShared(
-      'topic.stream.statuses.topic-alpha' as never,
+      topicStreamStatusCacheKey('topic-alpha') as never,
       {
         status: 'pending',
         awaitingApprovalAnchors: []
@@ -2018,7 +2019,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     act(() => {
       cacheService.setShared(
-        'topic.stream.statuses.topic-alpha' as never,
+        topicStreamStatusCacheKey('topic-alpha') as never,
         {
           status: 'pending',
           awaitingApprovalAnchors: []
@@ -2051,7 +2052,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(confirm).toEqual(expect.any(Function))
 
     cacheService.setShared(
-      'topic.stream.statuses.topic-alpha' as never,
+      topicStreamStatusCacheKey('topic-alpha') as never,
       {
         status: 'pending',
         awaitingApprovalAnchors: []
@@ -2062,7 +2063,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
 
-    cacheService.deleteShared('topic.stream.statuses.topic-alpha' as never)
+    cacheService.deleteShared(topicStreamStatusCacheKey('topic-alpha') as never)
     hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-alpha'], togglePin: hookMocks.togglePin })
     view.rerender(
       <HistoryRecordsView

@@ -5,6 +5,7 @@ sources:
   - src/shared/data/cache/cacheSchemas.ts
   - src/shared/data/cache/cacheValueTypes.ts
   - src/shared/data/cache/templateKey.ts
+  - src/shared/data/cache/cacheKey.ts
 ---
 
 # Cache Schema Guide
@@ -36,6 +37,8 @@ Enforced by ESLint rule `data-schema-key/valid-key`. Pattern: `/^[a-z][a-z0-9_]*
 Template placeholders `${xxx}` are treated as literal segments for the naming check. At runtime, the placeholder **name** is ignored — `${providerId}` and `${foo}` produce identical regex; each placeholder expands to `[\w\-]+` (no dots, no colons, no non-ASCII).
 
 Typed memory/shared cache entries and hooks reject keys that do not match a registered fixed key or a concrete template instance. A template segment must be non-empty ASCII word characters or hyphens; dots, colons, whitespace, non-ASCII characters, and unresolved `${...}` placeholders are invalid. TypeScript's `${string}` expansion is broader than this runtime contract. Use the memory-only casual API for unrelated dynamic keys.
+
+Semantic identifiers are not literal cache segments. Topic status, completion receipts and scroll anchors use `topicStreamStatusCacheKey`, `topicLastSeenCompletionCacheKey` and `topicScrollAnchorCacheKey` from `src/shared/data/cache/cacheKey.ts`. These builders encode the ID's UTF-8 bytes as hexadecimal, so valid Agent topic IDs such as `agent-session:…` remain distinct while satisfying the key grammar. Main publishers and renderer readers use the same builders; the business ID itself is unchanged. Doctor keys reuse the same encoder and retain their existing representation.
 
 Renderer-origin shared messages and initial snapshots drop invalid keys before storing or relaying them. This is key validation; values still follow the existing schema-typed API contract.
 

@@ -72,7 +72,7 @@ Model requests: existing provider registry / gateway / AI SDK paths remain uncha
 9. On terminal (`done` / `error` / `aborted` / `awaiting-approval`):
    - `PersistenceListener` writes the final assistant message.
    - `TopicMessageProjection` publishes the final message and terminal state to subscribed windows.
-   - Shared-cache `topic.stream.statuses.<topicId>` flips to the terminal status.
+   - Shared-cache `topic.stream.statuses.<encodedTopicId>` (via `topicStreamStatusCacheKey`) flips to the terminal status.
 10. Renderer's `useQuery('/topics/:topicId/messages')` revalidates; the
     optimistic overlay is disposed.
 

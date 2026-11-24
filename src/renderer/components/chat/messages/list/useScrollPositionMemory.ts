@@ -25,6 +25,7 @@ import { type RefObject, useCallback, useEffect, useRef } from 'react'
 import type { VListHandle } from 'virtua'
 
 import { cacheService } from '@data/CacheService'
+import { topicScrollAnchorCacheKey } from '@shared/data/cache/cacheKey'
 import type { ChatScrollAnchor } from '@shared/data/cache/cacheValueTypes'
 
 export type { ChatScrollAnchor }
@@ -130,7 +131,6 @@ export interface ScrollPositionMemory {
   save: (immediate?: boolean) => void
 }
 
-const cacheKeyFor = (topicId: string) => `chat.scroll_anchor.${topicId}` as const
 const SAVE_THROTTLE_MS = 200
 
 export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): ScrollPositionMemory {
@@ -164,7 +164,7 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
       getOffsetAtIndex: (index) => handle.getItemOffset(index)
     })
 
-    cacheService.set(cacheKeyFor(i.topicId), anchor)
+    cacheService.set(topicScrollAnchorCacheKey(i.topicId), anchor)
   }, [])
 
   // Restore once, as soon as the (remounted) list has items.
@@ -174,7 +174,7 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
     didRestoreRef.current = true
 
     const i = inputsRef.current
-    const saved = i.topicId ? cacheService.get(cacheKeyFor(i.topicId)) : null
+    const saved = i.topicId ? cacheService.get(topicScrollAnchorCacheKey(i.topicId)) : null
     const target = resolveRestoreTarget(saved, i.findDataIndexByKey, i.itemCount - 1, i.bottomPadding)
 
     let settleRaf = 0

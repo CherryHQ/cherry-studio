@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
+import { topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 
 import type { ActiveStream, ConversationCompletedEvent } from '../types'
 import type { StreamLifecycle } from './StreamLifecycle'
@@ -8,7 +9,7 @@ import type { StreamLifecycle } from './StreamLifecycle'
 const logger = loggerService.withContext('ChatStreamLifecycle')
 
 /**
- * Chat strategy: cross-window status broadcast (`topic.stream.statuses.<topicId>`),
+ * Chat strategy: cross-window status broadcast (`topic.stream.statuses.<encodedTopicId>`),
  * main-only persistent-conversation completion event, attach re-enabled, and a
  * 30 s grace-period before eviction.
  */
@@ -40,7 +41,7 @@ export function createChatStreamLifecycle(
       }
 
       const cacheService = application.get('CacheService')
-      const key = `topic.stream.statuses.${stream.topicId}` as const
+      const key = topicStreamStatusCacheKey(stream.topicId)
       const prev = cacheService.getShared(key)
       const lastCompletedAt = completedAt ?? prev?.lastCompletedAt
       cacheService.setShared(key, {

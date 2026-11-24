@@ -12,6 +12,7 @@ import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -648,7 +649,7 @@ describe('HistoryRecordsView agent mode', () => {
 
   it('restores the agent status selector and filters by existing stream status', () => {
     MockCacheUtils.setInitialState({
-      shared: [['topic.stream.statuses.agent-session:session-beta', { status: 'streaming', activeExecutions: [] }]]
+      shared: [[topicStreamStatusCacheKey('agent-session:session-beta'), { status: 'streaming', activeExecutions: [] }]]
     })
 
     setupAgentHistory()
@@ -666,7 +667,7 @@ describe('HistoryRecordsView agent mode', () => {
 
   it('filters completed and failed sessions by stream status', () => {
     MockCacheUtils.setInitialState({
-      shared: [['topic.stream.statuses.agent-session:session-beta', { status: 'error', activeExecutions: [] }]]
+      shared: [[topicStreamStatusCacheKey('agent-session:session-beta'), { status: 'error', activeExecutions: [] }]]
     })
 
     setupAgentHistory()
@@ -1632,14 +1633,14 @@ describe('HistoryRecordsView agent mode', () => {
   it('disables permanent delete while the session is generating and rechecks the latest stream on confirm', async () => {
     const user = userEvent.setup()
     cacheService.setShared(
-      'topic.stream.statuses.agent-session:session-alpha' as never,
+      topicStreamStatusCacheKey('agent-session:session-alpha') as never,
       { status: 'pending', awaitingApprovalAnchors: [] } as never
     )
     setupAgentHistory()
     expect(permanentDeleteButton('Alpha session')).toBeDisabled()
     cleanup()
 
-    cacheService.deleteShared('topic.stream.statuses.agent-session:session-alpha' as never)
+    cacheService.deleteShared(topicStreamStatusCacheKey('agent-session:session-alpha') as never)
     let confirm: (() => Promise<void>) | undefined
     permanentDeletePopupMocks.show.mockImplementation((params: { action: () => Promise<void> }) => {
       confirm = params.action
@@ -1651,7 +1652,7 @@ describe('HistoryRecordsView agent mode', () => {
       await flushCommandMenuAction()
     })
     cacheService.setShared(
-      'topic.stream.statuses.agent-session:session-alpha' as never,
+      topicStreamStatusCacheKey('agent-session:session-alpha') as never,
       { status: 'streaming', awaitingApprovalAnchors: [] } as never
     )
     await expect(confirm?.()).rejects.toThrow('Stop generation before permanently deleting this conversation.')

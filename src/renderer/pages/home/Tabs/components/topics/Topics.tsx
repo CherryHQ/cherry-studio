@@ -93,6 +93,7 @@ import {
   SIDEBAR_SHORTCUT_PROVIDER_IDS
 } from '@renderer/utils/sidebar'
 import { classifyTurn } from '@shared/ai/transport'
+import { topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
 
@@ -115,7 +116,7 @@ import { EMPTY_TOPIC_LIST_ITEM_RECONCILIATION, reconcileTopicListItems } from '.
 const logger = loggerService.withContext('Topics')
 
 function isTopicPermanentDeleteBusy(topicId: string): boolean {
-  const entry = cacheService.getShared(`topic.stream.statuses.${topicId}` as const)
+  const entry = cacheService.getShared(topicStreamStatusCacheKey(topicId))
   const flags = classifyTurn(entry?.status)
 
   return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors.length ?? 0) > 0

@@ -19,6 +19,7 @@ import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { ListPinsQuerySchema } from '@shared/data/api/schemas/pins'
+import { topicLastSeenCompletionCacheKey, topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
@@ -891,10 +892,6 @@ function droppableData(id: string) {
   return { current: data }
 }
 
-const topicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as never
-const topicStreamLastSeenCompletionCacheKey = (topicId: string) =>
-  `topic.stream.last_seen_completion.${topicId}` as never
-
 function setTopicDraft(topicId: string, text: string) {
   writeChatDraftCache(topicId, {
     text,
@@ -921,13 +918,13 @@ function setTopicStreamCacheStatus(
     status,
     awaitingApprovalAnchors: hasAwaitingApprovalAnchor ? [{ executionId: 'exec-1' }] : []
   } as never)
-  cacheService.deleteShared(topicStreamLastSeenCompletionCacheKey(topicId))
+  cacheService.deleteShared(topicLastSeenCompletionCacheKey(topicId))
 }
 
 function clearTopicStreamCache(...topicIds: string[]) {
   for (const topicId of topicIds) {
     cacheService.deleteShared(topicStreamStatusCacheKey(topicId))
-    cacheService.deleteShared(topicStreamLastSeenCompletionCacheKey(topicId))
+    cacheService.deleteShared(topicLastSeenCompletionCacheKey(topicId))
   }
 }
 

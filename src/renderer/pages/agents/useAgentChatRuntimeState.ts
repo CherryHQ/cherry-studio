@@ -22,7 +22,7 @@ import { useToolApprovalComposerOverrides } from '@renderer/components/composer/
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
 import type { PermissionRequestComposerProps } from '@renderer/components/composer/variants/PermissionRequestComposer'
 import { cacheService } from '@renderer/data/CacheService'
-import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
@@ -571,7 +571,10 @@ export function useAgentChatRuntimeState({
   })
 
   const { isPending } = useTopicStreamStatus(sessionTopicId)
-  const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true
+  const sessionClosing = useSharedCacheSelector(
+    sessionId ? [AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)] : [],
+    ([value]) => value === true
+  )
   const editBusy = isPending || sessionClosing || editPending || toolApprovalComposerOverrides.length > 0
 
   const cancelEditing = useCallback(() => {

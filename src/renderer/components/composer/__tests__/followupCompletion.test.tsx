@@ -6,6 +6,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { cacheService } from '@data/CacheService'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { TopicStreamStatus } from '@shared/ai/transport'
+import { topicLastSeenCompletionCacheKey, topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 
 import { useFollowupQueue } from '../useFollowupQueue'
 
@@ -17,7 +18,7 @@ it.each<TopicStreamStatus>(['pending', 'streaming', 'awaiting-approval', 'error'
   'does not send queued drafts while the stream is %s',
   async (status) => {
     const delivered: string[] = []
-    cacheService.setShared('topic.stream.statuses.topic', {
+    cacheService.setShared(topicStreamStatusCacheKey('topic'), {
       status,
       lastCompletedAt: 100,
       activeExecutions: [],
@@ -56,7 +57,7 @@ it('keeps an in-flight send exclusive across remounts and removes it from the re
   const first = renderHook(useQueue)
   act(() => first.result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] }))
   await act(async () =>
-    cacheService.setShared('topic.stream.statuses.topic', {
+    cacheService.setShared(topicStreamStatusCacheKey('topic'), {
       status: 'done',
       lastCompletedAt: 100,
       activeExecutions: [],
@@ -71,7 +72,7 @@ it('keeps an in-flight send exclusive across remounts and removes it from the re
 })
 
 it('sends a queued follow-up when completion has already been marked read', async () => {
-  cacheService.setShared('topic.stream.statuses.topic', {
+  cacheService.setShared(topicStreamStatusCacheKey('topic'), {
     status: 'streaming',
     activeExecutions: [],
     awaitingApprovalAnchors: []
@@ -87,13 +88,13 @@ it('sends a queued follow-up when completion has already been marked read', asyn
   })
   act(() => result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] }))
   await act(async () => {
-    cacheService.setShared('topic.stream.statuses.topic', {
+    cacheService.setShared(topicStreamStatusCacheKey('topic'), {
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
       lastCompletedAt: 100
     })
-    cacheService.setShared('topic.stream.last_seen_completion.topic', 100)
+    cacheService.setShared(topicLastSeenCompletionCacheKey('topic'), 100)
   })
   expect(delivered).toEqual(['next'])
   expect(result.current.items).toEqual([])
@@ -116,7 +117,7 @@ it('keeps an accepted input out of the draft queue and stops advancing after exe
     first.result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] })
   })
   await act(async () => {
-    cacheService.setShared('topic.stream.statuses.topic', {
+    cacheService.setShared(topicStreamStatusCacheKey('topic'), {
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
@@ -126,7 +127,7 @@ it('keeps an accepted input out of the draft queue and stops advancing after exe
   expect(delivered).toEqual(['accepted'])
   expect(first.result.current.items.map(({ payload }) => payload.text)).toEqual(['next'])
   await act(async () => {
-    cacheService.setShared('topic.stream.statuses.topic', {
+    cacheService.setShared(topicStreamStatusCacheKey('topic'), {
       status: 'error',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
@@ -160,13 +161,13 @@ it('resumes a paused queue after the current conversation was marked read', asyn
     result.current.setPaused(true)
   })
   await act(async () => {
-    cacheService.setShared('topic.stream.statuses.topic', {
+    cacheService.setShared(topicStreamStatusCacheKey('topic'), {
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
       lastCompletedAt: 100
     })
-    cacheService.setShared('topic.stream.last_seen_completion.topic', 100)
+    cacheService.setShared(topicLastSeenCompletionCacheKey('topic'), 100)
   })
   expect(delivered).toEqual([])
   await act(async () => result.current.setPaused(false))
@@ -190,7 +191,7 @@ it('preserves a failed draft and lets resume retry without another model complet
   )
   act(() => result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] }))
   await act(async () =>
-    cacheService.setShared('topic.stream.statuses.topic', {
+    cacheService.setShared(topicStreamStatusCacheKey('topic'), {
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
@@ -222,7 +223,7 @@ it('sends once per completion even across remounts, then sends the next FIFO ite
     first.result.current.enqueue({ text: 'two', tokens: [] }, { text: 'two', userMessageParts: [] })
   })
   await act(async () =>
-    cacheService.setShared('topic.stream.statuses.topic', {
+    cacheService.setShared(topicStreamStatusCacheKey('topic'), {
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
@@ -234,7 +235,7 @@ it('sends once per completion even across remounts, then sends the next FIFO ite
   expect(delivered).toEqual(['one'])
   expect(second.result.current.items.map(({ payload }) => payload.text)).toEqual(['two'])
   await act(async () =>
-    cacheService.setShared('topic.stream.statuses.topic', {
+    cacheService.setShared(topicStreamStatusCacheKey('topic'), {
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
@@ -265,7 +266,7 @@ it('settles a pending send in its original queue after switching conversations',
   )
   act(() => result.current.enqueue({ text: 'first', tokens: [] }, { text: 'first', userMessageParts: [] }))
   await act(async () =>
-    cacheService.setShared('topic.stream.statuses.one', {
+    cacheService.setShared(topicStreamStatusCacheKey('one'), {
       status: 'done',
       activeExecutions: [],
       awaitingApprovalAnchors: [],
@@ -306,7 +307,7 @@ it.each(['automatic', 'manual'] as const)(
       })
     }
     await act(async () => {
-      cacheService.setShared('topic.stream.statuses.topic', {
+      cacheService.setShared(topicStreamStatusCacheKey('topic'), {
         status: 'done',
         lastCompletedAt: 100,
         activeExecutions: [],
@@ -369,7 +370,7 @@ it.each<TopicStreamStatus>(['streaming', 'done'])(
     let finish!: (sent: boolean) => void
     const delivered: string[] = []
     const setStatus = (status: TopicStreamStatus, lastCompletedAt: number) =>
-      cacheService.setShared('topic.stream.statuses.topic', {
+      cacheService.setShared(topicStreamStatusCacheKey('topic'), {
         status,
         lastCompletedAt,
         activeExecutions: [],

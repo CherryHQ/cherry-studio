@@ -33,6 +33,7 @@ import type { Topic } from '@renderer/types/topic'
 import type { TopicDisplayMode } from '@renderer/utils/chat/topicsHelpers'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
+import { topicLastSeenCompletionCacheKey, topicStreamStatusCacheKey } from '@shared/data/cache/cacheKey'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
 import type { TopicImageActionType } from '../../../messages/topicImageActionBus'
@@ -52,11 +53,6 @@ const EMPTY_TOPIC_STREAM_STATE: TopicStreamState = Object.freeze({
   isFulfilled: false,
   isPending: false
 })
-
-const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as const
-
-const getTopicStreamLastSeenCompletionCacheKey = (topicId: string) =>
-  `topic.stream.last_seen_completion.${topicId}` as const
 
 const selectTopicStreamState = (
   values: readonly [TopicStatusSnapshotEntry | null | undefined, number | null | undefined]
@@ -82,7 +78,7 @@ const selectTopicStreamState = (
 
 const useTopicListStreamStatus = (topicId: string): TopicStreamState =>
   useSharedCacheSelector(
-    [getTopicStreamStatusCacheKey(topicId), getTopicStreamLastSeenCompletionCacheKey(topicId)],
+    [topicStreamStatusCacheKey(topicId), topicLastSeenCompletionCacheKey(topicId)],
     selectTopicStreamState
   )
 
