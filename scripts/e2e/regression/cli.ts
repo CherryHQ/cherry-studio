@@ -126,7 +126,7 @@ async function preflightCommand(): Promise<void> {
   const task = parseTaskSelection(argument('task', false) ?? 'all')
   const directory = argument('run-dir', false)
   if (!directory) {
-    if (selectCases(task).every(({ id }) => id === 'C-03' || id === 'MP-86')) return
+    if (selectCases(task).every(({ id }) => id === 'C-03' || id === 'C-04' || id === 'MP-86')) return
     throw new Error('--run-dir is required for mock preflight')
   }
   await verifyMockProvider(getRunPaths(directory))

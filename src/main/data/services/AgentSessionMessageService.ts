@@ -58,6 +58,7 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -1093,11 +1094,13 @@ export class AgentSessionMessageService {
   listLiveCreatedInRangeMetadataPage({
     fromMs,
     toMs,
+    sessionId,
     cursor: rawCursor,
     limit
   }: {
     fromMs: number
     toMs: number
+    sessionId?: string
     cursor?: string
     limit: number
   }): CursorPaginationResponse<AgentSessionMessageRangeMetadata> {
@@ -1123,6 +1126,7 @@ export class AgentSessionMessageService {
           gte(sessionMessagesTable.createdAt, fromMs),
           lte(sessionMessagesTable.createdAt, toMs),
           isNull(sessionTable.deletedAt),
+          sessionId === undefined ? undefined : eq(sessionMessagesTable.sessionId, sessionId),
           cursor ? ordering.where(cursor) : undefined
         )
       )
@@ -1291,7 +1295,7 @@ export class AgentSessionMessageService {
     if (deferToolOutputs && item.role === 'assistant' && item.data.parts) {
       item.data = {
         ...item.data,
-        parts: projectMessagePartsForRenderer(item.data.parts, `agent-session:${item.sessionId}`, item.id)
+        parts: projectMessagePartsForRenderer(item.data.parts, buildAgentSessionTopicId(item.sessionId), item.id)
       }
     }
     return item

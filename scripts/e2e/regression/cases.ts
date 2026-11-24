@@ -65,6 +65,13 @@ export const REGRESSION_CASES = [
     tasks: ['error-recovery', 'chat-stream-failure']
   },
   {
+    id: 'C-04',
+    capabilities: [],
+    phase: 'modelsAndAssistants',
+    title: 'Preserve a partial Claude Messages response after disconnect and restart',
+    tasks: ['error-recovery', 'chat-stream-failure', 'claude-stream-failure']
+  },
+  {
     id: 'MP-42',
     capabilities: [],
     phase: 'modelsAndAssistants',
