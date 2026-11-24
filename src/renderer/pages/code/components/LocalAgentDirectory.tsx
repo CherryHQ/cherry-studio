@@ -949,9 +949,9 @@ export function LocalAgentDetails({
                 href={LOCAL_AGENTS_FEEDBACK_ISSUE_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex shrink-0 items-center gap-1 font-medium text-foreground underline-offset-2 hover:underline">
+                className="inline-flex shrink-0 items-center gap-1 font-normal text-link underline-offset-2 hover:underline focus-visible:underline">
                 {t('local_agents.beta_banner_link')}
-                <ExternalLink className="lucide-custom size-3 text-muted-foreground" aria-hidden />
+                <ExternalLink className="lucide-custom size-3" aria-hidden />
               </a>
             </div>
             <AgentServiceCard
