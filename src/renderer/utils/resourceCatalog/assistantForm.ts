@@ -72,7 +72,7 @@ export interface AssistantFormState {
 }
 
 export function initialAssistantFormState(assistant: Assistant): AssistantFormState {
-  const settings = assistant.settings ?? ({} as AssistantSettings)
+  const settings: Partial<AssistantSettings> = assistant.settings ?? {}
   const mcpMode = McpModeSchema.safeParse(settings.mcpMode)
   const maxTokens = AssistantSettingsSchema.shape.maxTokens.safeParse(settings.maxTokens)
   const ctx = settings.contextSettings
