@@ -2825,6 +2825,18 @@ describe('Agent configuration memory', () => {
     expect(screen.getByText('{"event":"remembered"}')).toBeVisible()
   })
 
+  it('dismisses only the memory menu when clicking inside the agent editor', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('tab', { name: 'Memory' }))
+    const persona = await screen.findByRole('tab', { name: 'Persona' })
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    expect(screen.getByRole('menu')).toBeVisible()
+    await user.click(persona)
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(persona).toBeVisible()
+  })
+
   it('keeps copy and folder actions available through the memory menu', async () => {
     const user = userEvent.setup()
     const writeClipboard = vi.spyOn(navigator.clipboard, 'writeText')

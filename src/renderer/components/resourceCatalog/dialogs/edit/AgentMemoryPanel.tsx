@@ -380,7 +380,7 @@ export function AgentMemoryPanel({
                   <Button type="button" variant="ghost" size="sm" disabled={!canEdit || loading} onClick={startEdit}>
                     {t('agent.memory.edit')}
                   </Button>
-                  <DropdownMenu>
+                  <DropdownMenu modal={false}>
                     <Tooltip content={t('common.more')}>
                       <DropdownMenuTrigger asChild>
                         <Button type="button" variant="ghost" size="icon-sm" aria-label={t('common.more')}>
