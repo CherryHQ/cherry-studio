@@ -185,6 +185,7 @@ async function resolveFallback(
     getRepairUsagePlugins: () => repairUsagePlugins ?? []
   })
 
+  // SAFETY: production callers use resolveRequiredNativeFileSupport, which constructs only the declared native modality flags.
   const unsupportedNativeType = (Object.keys(required) as Array<keyof NativeFileSupport>).find(
     (type) => required[type] && !nativeFileSupport[type]
   )
