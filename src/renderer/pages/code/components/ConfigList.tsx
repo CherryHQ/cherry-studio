@@ -63,13 +63,7 @@ export const ConfigList: FC<ConfigListProps> = ({
   }
 
   if (providers.length === 0) {
-    return (
-      <EmptyState
-        preset="no-code-tool"
-        title={t('code.no_providers_title')}
-        description={t('code.no_providers_description')}
-      />
-    )
+    return <EmptyState title={t('code.no_providers_title')} description={t('code.no_providers_description')} />
   }
 
   if (displayedProviders.length === 0) {

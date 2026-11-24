@@ -14,7 +14,18 @@ import type { IconMeta } from './types'
  * Order matters: more specific patterns must come before general ones.
  */
 const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
+  [/gpt-6[.-]1-sol/i, 'gpt-6-1-sol'],
+  [/gpt-6[.-]1-terra/i, 'gpt-6-1-terra'],
   [/gpt-6-astra/i, 'gpt-6-astra'],
+  [/gpt-6-sol/i, 'gpt-6-sol'],
+  [/gpt-6-luna/i, 'gpt-6-luna'],
+  [/gpt-6-cyber/i, 'gpt-6-cyber'],
+  [/gpt-5[.-]6-cyber/i, 'gpt-5-6-cyber'],
+  [/gpt-rosalind-research/i, 'gpt-rosalind-research'],
+  [/gpt-daybreak-red/i, 'gpt-daybreak-red-latest'],
+  [/gpt-daybreak-blue/i, 'gpt-daybreak-blue-latest'],
+  [/chatgpt-image-latest/i, 'chatgpt-image-latest'],
+  [/(?:^|[-_/])chat-latest(?:[-_]|$)/i, 'chat-latest'],
   // GPT 5.6 series (most specific first; APIs use both `5.6` and `5-6`)
   [/gpt-5[.-]6-luna/i, 'gpt-5-6-luna'],
   [/gpt-5[.-]6-sol/i, 'gpt-5-6-sol'],
@@ -75,10 +86,17 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   [/gpt-oss-120b/i, 'gpt-oss-120b'],
   [/gpt-oss-20b/i, 'gpt-oss-20b'],
   // GPT image
+  [/gpt-image-2[.-]6-sunburst/i, 'gpt-image-2-6-sunburst'],
+  [/gpt-image-2[.-]6-flare/i, 'gpt-image-2-6-flare'],
+  [/gpt-image-2[.-]5-sunburst/i, 'gpt-image-2-5-sunburst'],
+  [/gpt-image-2[.-]5-flare/i, 'gpt-image-2-5-flare'],
   [/gpt-image-2/i, 'gpt-image-2'],
   [/gpt-image-1-mini/i, 'gpt-image-1-mini'],
   [/gpt-image-1[.-]5/i, 'gpt-image-1-5'],
   [/gpt-image/i, 'gpt-image-1'],
+  [/gpt-live-transcribe/i, 'gpt-live-transcribe'],
+  [/gpt-live-1/i, 'gpt-live-1'],
+  [/gpt-transcribe/i, 'gpt-transcribe'],
   // GPT audio and realtime
   [/gpt-audio-1[.-]5/i, 'gpt-audio-1-5'],
   [/gpt-audio-mini/i, 'gpt-audio-mini'],

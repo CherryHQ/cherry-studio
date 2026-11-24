@@ -63,7 +63,7 @@ const {
     ),
     onWindowCreatedByType: vi.fn(() => vi.fn()),
     onWindowDestroyedByType: vi.fn(() => vi.fn()),
-    open: vi.fn(() => 'mock-window-id'),
+    open: vi.fn<(type: WindowType, args?: OpenWindowArgs) => string>(() => 'mock-window-id'),
     pushInitDataToType: vi.fn(),
     // Bounds are restored declaratively by WindowManager; setupMainWindow reads
     // the saved maximized flag back through this to re-apply maximize itself.
@@ -171,7 +171,8 @@ vi.mock('electron', () => ({
   nativeImage: { createFromPath: vi.fn(() => ({})) },
   nativeTheme: { shouldUseDarkColors: false },
   session: { fromPartition: sessionFromPartitionMock, defaultSession: defaultSessionMock },
-  shell: { openExternal: vi.fn(), openPath: vi.fn() }
+  shell: { openExternal: vi.fn(), openPath: vi.fn() },
+  screen: { getDisplayMatching: vi.fn() }
 }))
 
 vi.mock('@electron-toolkit/utils', () => ({ optimizer: { watchWindowShortcuts: vi.fn() } }))
@@ -190,7 +191,7 @@ vi.mock('../../../../build/icon.png?asset', () => ({ default: '/mock/icon.png' }
 
 // BaseService.ipcHandle/ipcOn/registerDisposable rely on real ipc internals; bypass them here.
 vi.mock('@main/core/lifecycle', async () => {
-  const actual = (await vi.importActual('@main/core/lifecycle')) as Record<string, unknown>
+  const actual = await vi.importActual<Record<string, unknown>>('@main/core/lifecycle')
   class StubBase {
     ipcHandle = vi.fn()
     ipcOn = vi.fn()
@@ -201,8 +202,9 @@ vi.mock('@main/core/lifecycle', async () => {
 
 import { app, dialog, session } from 'electron'
 import { shell } from 'electron'
+import { screen } from 'electron'
 
-import { WindowType } from '@main/core/window/types'
+import { type OpenWindowArgs, WindowType, type WindowOptions } from '@main/core/window/types'
 import { getAppEdition } from '@main/utils/appEdition'
 import type * as ExternalUrlSafety from '@main/utils/externalUrlSafety'
 import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
@@ -353,6 +355,64 @@ describe('MainWindowService', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.clearAllMocks()
+  })
+
+  describe('main window minimum size', () => {
+    let bounds: { x: number; y: number; width: number; height: number }
+    let minimum: [number, number]
+    let nativeWindow: MockBrowserWindow & Record<string, any>
+
+    beforeEach(() => {
+      bounds = { x: 100, y: 100, width: 1440, height: 900 }
+      minimum = [960, 600]
+      nativeWindow = Object.assign(win, {
+        isMaximized: vi.fn(() => false),
+        getBounds: () => ({ ...bounds }),
+        setMinimumSize: (width: number, height: number) => {
+          minimum = [width, height]
+        },
+        setBounds: (next: typeof bounds) => {
+          bounds = next
+        }
+      })
+      ;(svc as any).mainWindow = nativeWindow
+      vi.mocked(screen.getDisplayMatching).mockReturnValue({
+        workArea: { x: 0, y: 25, width: 800, height: 540 }
+      } as any)
+    })
+
+    it('fits both dimensions to a small work area when resetting the minimum', () => {
+      svc.resetMainWindowMinimumSize()
+      expect(bounds).toEqual({ x: 0, y: 25, width: 800, height: 540 })
+      expect(minimum).toEqual([800, 540])
+    })
+
+    it('grows compact geometry to the normal floor without placing it off-screen', () => {
+      bounds = { x: 1700, y: 900, width: 520, height: 300 }
+      vi.mocked(screen.getDisplayMatching).mockReturnValue({
+        workArea: { x: 0, y: 0, width: 1920, height: 1040 }
+      } as any)
+      svc.resetMainWindowMinimumSize()
+      expect(bounds).toEqual({ x: 960, y: 440, width: 960, height: 600 })
+      expect(minimum).toEqual([960, 600])
+    })
+
+    it('preserves user geometry when lowering the minimum for a compact page', () => {
+      bounds = { x: 0, y: 25, width: 600, height: 400 }
+      svc.setMainWindowMinimumSize(520, 300)
+      expect(bounds).toEqual({ x: 0, y: 25, width: 600, height: 400 })
+      expect(minimum).toEqual([520, 300])
+    })
+
+    it.each(['isMaximized', 'isFullScreen', 'isMinimized'])(
+      'updates the minimum without resizing while %s',
+      (state) => {
+        nativeWindow[state].mockReturnValue(true)
+        svc.setMainWindowMinimumSize(520, 300)
+        expect(bounds).toEqual({ x: 100, y: 100, width: 1440, height: 900 })
+        expect(minimum).toEqual([520, 300])
+      }
+    )
   })
 
   describe('Apple Silicon architecture warning', () => {
@@ -1461,6 +1521,19 @@ describe('MainWindowService', () => {
       }
     )
 
+    it('provides screen fitting for fresh main window construction', () => {
+      vi.mocked(screen.getDisplayMatching).mockReturnValue({
+        workArea: { x: -800, y: 25, width: 800, height: 540 }
+      } as any)
+      svc.showMainWindow()
+      const args = windowManagerMock.open.mock.calls.at(-1)?.[1]
+      const config: WindowOptions = { x: -700, y: 100, width: 1200, height: 760 }
+
+      args?.configureOptions?.(config)
+
+      expect(config).toEqual({ x: -800, y: 25, width: 800, height: 540, minWidth: 800, minHeight: 540 })
+    })
+
     it.each(['missing', 'destroyed'])('passes init data into WindowManager when the main window is %s', (state) => {
       const initData = { kind: 'navigation' as const, to: '/settings/provider' as const, requestId: 1 }
       platformState.isWin = true
@@ -1606,7 +1679,13 @@ describe('MainWindowService', () => {
       expect(win.webContents.reload).not.toHaveBeenCalled()
       expect(applicationMock.forceExit).not.toHaveBeenCalled()
       // The crash is still reported — only the recovery attempt is skipped.
-      expect(loggerMock.error).toHaveBeenCalledWith('Renderer process crashed with: {"reason":"crashed"}')
+      expect(loggerMock.error).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          operation: 'window.renderer.exit',
+          failure: { source: 'application', kind: 'reliability', reason: 'crashed', outcome: 'failed' }
+        })
+      )
     })
 
     it('neither reloads nor forceExits when only the webContents is destroyed', () => {

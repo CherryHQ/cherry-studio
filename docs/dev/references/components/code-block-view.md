@@ -20,7 +20,7 @@ sources:
 
 Code block rendering has two separate responsibilities:
 
-- `CodeBlock` classifies Markdown content and routes inline code, file paths, HTML artifacts, and ordinary fenced code.
+- `CodeBlock` classifies Markdown content and routes inline code, file paths, HTML artifacts, and ordinary fenced code. File references preserve source coordinates through the [file preview navigation contract](../../../../src/renderer/components/FilePreview/README.md#source-locations).
 - `CodeBlockView` owns the workbench for ordinary fenced code and special-language previews.
 
 HTML artifacts keep their own preview, security, and consent pipeline. They are not modes of `CodeBlockView`.

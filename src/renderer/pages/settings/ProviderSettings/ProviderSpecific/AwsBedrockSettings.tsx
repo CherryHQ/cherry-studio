@@ -3,7 +3,7 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Input, Label, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
+import { Input, Label, RadioGroup, RadioGroupItem, RowFlex, HelpTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
@@ -11,7 +11,6 @@ import { toast } from '@renderer/services/toast'
 import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticationApiKey'
 import {
   ProviderHelpLink,
-  ProviderHelpText,
   ProviderHelpTextRow,
   ProviderSettingsSubtitle
 } from '../primitives/ProviderSettingsPrimitives'
@@ -140,9 +139,9 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
         <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <span>{t('settings.provider.aws-bedrock.description')}</span>
       </div>
-
-      <ProviderSettingsSubtitle className="mt-4">
+      <ProviderSettingsSubtitle className="mt-4 flex items-center gap-1.5">
         {t('settings.provider.aws-bedrock.auth_type')}
+        <HelpTooltip content={t('settings.provider.aws-bedrock.auth_type_help')} />
       </ProviderSettingsSubtitle>
       <RadioGroup
         className="mt-1.5 flex flex-col gap-2"
@@ -163,14 +162,11 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
           </Label>
         </div>
       </RadioGroup>
-      <ProviderHelpTextRow>
-        <ProviderHelpText>{t('settings.provider.aws-bedrock.auth_type_help')}</ProviderHelpText>
-      </ProviderHelpTextRow>
-
       {isIamMode && (
         <>
-          <ProviderSettingsSubtitle className="mt-4">
+          <ProviderSettingsSubtitle className="mt-4 flex items-center gap-1.5">
             {t('settings.provider.aws-bedrock.access_key_id')}
+            <HelpTooltip content={t('settings.provider.aws-bedrock.access_key_id_help')} />
           </ProviderSettingsSubtitle>
           <Input
             className="mt-1.5 w-full"
@@ -182,12 +178,9 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
             }}
             onBlur={saveIamConfig}
           />
-          <ProviderHelpTextRow>
-            <ProviderHelpText>{t('settings.provider.aws-bedrock.access_key_id_help')}</ProviderHelpText>
-          </ProviderHelpTextRow>
-
-          <ProviderSettingsSubtitle className="mt-4">
+          <ProviderSettingsSubtitle className="mt-4 flex items-center gap-1.5">
             {t('settings.provider.aws-bedrock.secret_access_key')}
+            <HelpTooltip content={t('settings.provider.aws-bedrock.secret_access_key_help')} />
           </ProviderSettingsSubtitle>
           <Input
             className="mt-1.5 w-full"
@@ -208,7 +201,6 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
                   {t('settings.provider.get_api_key')}
                 </ProviderHelpLink>
               </RowFlex>
-              <ProviderHelpText>{t('settings.provider.aws-bedrock.secret_access_key_help')}</ProviderHelpText>
             </ProviderHelpTextRow>
           )}
         </>
@@ -216,8 +208,9 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
 
       {!isIamMode && (
         <>
-          <ProviderSettingsSubtitle className="mt-4">
+          <ProviderSettingsSubtitle className="mt-4 flex items-center gap-1.5">
             {t('settings.provider.aws-bedrock.api_key')}
+            <HelpTooltip content={t('settings.provider.aws-bedrock.api_key_help')} />
           </ProviderSettingsSubtitle>
           <Input
             className="mt-1.5 w-full"
@@ -228,13 +221,13 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
             onBlur={() => void commitInputApiKeyNow()}
             spellCheck={false}
           />
-          <ProviderHelpTextRow>
-            <ProviderHelpText>{t('settings.provider.aws-bedrock.api_key_help')}</ProviderHelpText>
-          </ProviderHelpTextRow>
         </>
       )}
 
-      <ProviderSettingsSubtitle className="mt-4">{t('settings.provider.aws-bedrock.region')}</ProviderSettingsSubtitle>
+      <ProviderSettingsSubtitle className="mt-4 flex items-center gap-1.5">
+        {t('settings.provider.aws-bedrock.region')}{' '}
+        <HelpTooltip content={t('settings.provider.aws-bedrock.region_help')} />
+      </ProviderSettingsSubtitle>
       <Input
         className="mt-1.5 w-full"
         value={localRegion}
@@ -245,9 +238,6 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
         }}
         onBlur={saveRegion}
       />
-      <ProviderHelpTextRow>
-        <ProviderHelpText>{t('settings.provider.aws-bedrock.region_help')}</ProviderHelpText>
-      </ProviderHelpTextRow>
     </>
   )
 }

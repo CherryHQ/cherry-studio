@@ -4,6 +4,7 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import type { UtilityProcessRequestOptions } from '@main/core/utilityProcess/types'
 
+import { ComputerUseApproval } from '../../ComputerUseApproval'
 import { AutomationReplService } from '../AutomationReplService'
 
 const owner = { kind: 'topic' as const, sessionId: 'topic', ownerId: 'assistant', label: 'Conversation' }
@@ -62,6 +63,7 @@ beforeEach(async () => {
     }
   }
   vi.spyOn(application, 'get').mockImplementation(((name: string) => {
+    if (name === 'ComputerUseService') return { approvals: new ComputerUseApproval(() => {}) }
     if (name === 'UtilityProcessManager') return manager
     if (name === 'BrowserSessionService') return browser
     return get(name as Parameters<typeof get>[0])

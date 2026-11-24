@@ -2,9 +2,9 @@ import type { HighlightStyle } from '@codemirror/language'
 import type { EditorState } from '@codemirror/state'
 import type { BasicSetupOptions, Extension } from '@uiw/react-codemirror'
 
-export type CodeMirrorTheme = 'light' | 'dark' | 'none' | Extension
-
 import type { LanguageConfig } from '../../../code-block'
+
+export type CodeMirrorTheme = 'light' | 'dark' | 'none' | Extension
 
 export type { LanguageConfig, LanguageData } from '../../../code-block'
 

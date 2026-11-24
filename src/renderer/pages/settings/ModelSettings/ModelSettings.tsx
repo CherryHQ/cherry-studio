@@ -3,13 +3,12 @@ import type { FC, ReactNode, Ref } from 'react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
+import { Button, PageSidePanel, Tooltip, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import {
   SettingContainer,
-  SettingDescription,
   SettingDivider,
   SettingGroup,
   SettingRow,
@@ -21,6 +20,7 @@ import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import { toast } from '@renderer/services/toast'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
@@ -85,19 +85,19 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
           ? inlineWhenCompact
             ? 'items-center gap-3 py-1'
             : 'flex-col items-stretch gap-3 py-1'
-          : 'items-start gap-6 py-1.5'
+          : 'items-center gap-6 py-1.5'
       )}>
       <div className="min-w-0 flex-1">
         <SettingRowTitle className="gap-2">
           {icon}
           {title}
+          {description && <HelpTooltip content={description} />}
         </SettingRowTitle>
-        {description && <SettingDescription className="mt-1.5 leading-5">{description}</SettingDescription>}
       </div>
       <div
         className={cn(
           'relative flex items-center gap-2',
-          compact ? (inlineWhenCompact ? 'shrink-0' : 'w-full') : 'w-[340px] shrink-0'
+          compact ? (inlineWhenCompact ? 'shrink-0' : 'w-full') : settingsControlClasses.model
         )}>
         {showFocusGuide && (
           <span
@@ -268,13 +268,13 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             compact={compact}
             id={compact ? undefined : 'setting-model-quick-model'}
             icon={<Rocket size={16} className="lucide-custom shrink-0 text-foreground" />}
-            title={
-              <>
-                {t('settings.models.quick_model.label')}
-                <InfoTooltip content={t('settings.models.quick_model.tooltip')} />
-              </>
-            }
-            description={showDescription ? t('settings.models.quick_model.description') : undefined}>
+            title={t('settings.models.quick_model.label')}
+            description={
+              <div className="space-y-2">
+                {showDescription && <p>{t('settings.models.quick_model.description')}</p>}
+                <p>{t('settings.models.quick_model.tooltip')}</p>
+              </div>
+            }>
             <DefaultModelSelector
               model={selectableQuickModel}
               providers={providers}

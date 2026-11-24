@@ -9,7 +9,7 @@ const EssentialAi = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const EssentialAiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(EssentialAi, {
   Avatar: EssentialAiAvatar,
-  colorPrimary: '#35058E'
+  colorPrimary: '#ede9f5'
 })
 
 export default EssentialAiIcon

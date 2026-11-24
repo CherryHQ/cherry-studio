@@ -58,15 +58,28 @@ function ConfirmDialog({
   contentClassName,
   overlayClassName
 }: ConfirmDialogProps) {
+  const confirming = React.useRef(false)
+  const [isConfirming, setIsConfirming] = React.useState(false)
+  const busy = confirmLoading || isConfirming
   const handleConfirm = React.useCallback(async () => {
-    if (open === false) return
-    const result = await onConfirm?.()
-    if (result !== false) onOpenChange?.(false)
-  }, [onConfirm, onOpenChange, open])
+    if (open === false || confirmLoading || confirming.current) return
+    confirming.current = true
+    setIsConfirming(true)
+    try {
+      const result = await onConfirm?.()
+      if (result !== false) onOpenChange?.(false)
+    } finally {
+      confirming.current = false
+      setIsConfirming(false)
+    }
+  }, [confirmLoading, onConfirm, onOpenChange, open])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => (next || (!confirmLoading && !confirming.current)) && onOpenChange?.(next)}>
       <DialogContent
+        guardDismiss={busy}
         motion="fade-scale"
         showCloseButton={false}
         className={contentClassName}
@@ -78,15 +91,15 @@ function ConfirmDialog({
         {content}
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline" disabled={cancelDisabled}>
+            <Button variant="outline" disabled={cancelDisabled || busy}>
               {cancelText}
             </Button>
           </DialogClose>
           <Button
             variant={destructive ? 'destructive' : 'default'}
             onClick={handleConfirm}
-            loading={confirmLoading}
-            disabled={confirmDisabled}>
+            loading={busy}
+            disabled={confirmDisabled || busy}>
             {confirmText}
           </Button>
         </DialogFooter>

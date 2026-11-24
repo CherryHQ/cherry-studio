@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
 import { executionStreamOverlayService } from '@renderer/services/aiTransport'
+import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 export type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
-import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 
 export interface UseExecutionOverlayOptions {
   onUpdate?: (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void

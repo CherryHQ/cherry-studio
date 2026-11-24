@@ -9,7 +9,7 @@ const Jina = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const JinaIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Jina, {
   Avatar: JinaAvatar,
-  colorPrimary: '#EB6161'
+  colorPrimary: '#fdf1f1'
 })
 
 export default JinaIcon

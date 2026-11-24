@@ -10,7 +10,6 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
-import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { t } from '@main/i18n'
 import { atomicWriteFile, remove } from '@main/utils/file'
 import { crossPlatformSpawn, removeEnvProxy, terminateProcessTree } from '@main/utils/processRunner'
@@ -31,6 +30,7 @@ import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/util
 import { isNonChatModel } from '@shared/utils/model'
 import { redactSecretText } from '@shared/utils/redaction'
 
+import type { Model, Provider, ProviderType, VertexProvider } from './openClawProviderTypes'
 import { vertexAiService } from './VertexAiService'
 
 const logger = loggerService.withContext('OpenClawService')
