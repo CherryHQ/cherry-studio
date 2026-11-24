@@ -55,6 +55,7 @@ export async function saveDurableRequest(runtime: PiDurableRuntime, thread: stri
   const token = await requestDocument()
   const request = requestSchema.parse(copyJson(requestSchema.parse(input), { omitUndefinedProperties: true }))
   await runtime.durable.commit(async (tx) => {
+    // SAFETY: the production caller supplies the confirmed native handle's thread ID, serialized from its numeric conversation ID.
     const doc = await tx.doc(token, Number(thread) as ConversationId)
     doc.request = request
   }, BACKGROUND_CONTEXT)
