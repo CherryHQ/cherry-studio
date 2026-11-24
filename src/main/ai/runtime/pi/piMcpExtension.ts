@@ -5,6 +5,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/client'
 
 import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
+import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 
 import type { loadPiSdk } from './piSdk'
 
@@ -14,6 +15,19 @@ export function buildPiMcpToolName(serverName: string, toolName: string, collide
   if (name.length <= 64 && !collides) return name
   const hash = createHash('sha256').update(`${serverName}\0${toolName}`).digest('hex').slice(0, 8)
   return `${name.slice(0, 55)}_${hash}`
+}
+
+export function isPiToolDisabled(
+  disabledTools: ReadonlySet<string>,
+  runtimeName: string,
+  tool?: { serverName: string; name: string; serverId?: string }
+): boolean {
+  if (disabledTools.has(runtimeName)) return true
+  return (
+    tool !== undefined &&
+    (disabledTools.has(buildFunctionCallToolName(tool.serverName, tool.name)) ||
+      disabledTools.has(`mcp__${tool.serverId ?? tool.serverName}__${tool.name}`))
+  )
 }
 
 /** Cherry owns server configuration; Pi owns MCP discovery, tool execution, results and teardown. */
