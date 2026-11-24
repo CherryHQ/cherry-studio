@@ -30,7 +30,7 @@ const provider = {
 const model = {
   id: createUniqueModelId('custom', 'claude-test'),
   name: 'Claude Test',
-  capabilities: [],
+  capabilities: ['reasoning', 'function-call'],
   providerId: 'custom',
   endpointTypes: ['anthropic-messages']
 }
@@ -100,7 +100,9 @@ it('offers only native models and Cherry models through the gateway', () => {
   const { result } = renderHook(() =>
     useLocalAgentModelSelection(agent.configuration!.localRuntime, [{ id: 'anthropic/native', name: 'Native' }])
   )
-  expect(result.current.models.find((option) => option.source === 'gateway')?.group).toBe('claude')
+  const gatewayOption = result.current.models.find((option) => option.source === 'gateway')
+  expect(gatewayOption?.group).toBe('Custom Provider')
+  expect(gatewayOption?.tags).toEqual(['reasoning', 'function-call'])
   expect(result.current.models.map(({ id, source }) => ({ id, source }))).toEqual([
     { id: 'anthropic/native', source: 'native' },
     { id: `gateway-model:${model.id}`, source: 'gateway' }

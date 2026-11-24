@@ -332,7 +332,7 @@ function ModelRow({
   )
 }
 
-function ModelSelectorFilterTags({
+export function ModelSelectorFilterTags({
   tags,
   tagSelection,
   onToggleTag

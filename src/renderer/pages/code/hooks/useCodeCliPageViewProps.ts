@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getModelDisplayTags } from '@renderer/components/tags/Model'
 import { useHermesDashboardController } from '@renderer/hooks/agent/useHermesDashboardController'
 import { useLocalAgentVersion } from '@renderer/hooks/agent/useLocalAgentVersion'
 import { useApiGatewayProvider } from '@renderer/hooks/useApiGatewayProvider'
@@ -10,6 +11,7 @@ import { ipcApi } from '@renderer/ipc'
 import { clearCliConfig, getGatewayModelGroup, resolveCliConfigApplyContext } from '@renderer/services/codeCliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { getProviderDisplayName } from '@renderer/utils/naming'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import {
   CLI_OWN_LOGIN_PROVIDER_ID,
@@ -241,17 +243,25 @@ export function useCodeCliPageViewProps(initialTool: CodeCli): CodeCliPageViewPr
   )
   const removeDialog = useRemoveCliToolDialog({ toolName, remove: handleRemove })
 
+  const providerById = new Map(providers.map((p) => [p.id, p]))
   const modelOptions = supportedProviders
     .filter((provider) => isApiGatewayProviderId(provider.id))
     .flatMap((provider) =>
-      [...modelById.values()].filter(makeModelFilter(provider.id)).map((model) => ({
-        id: JSON.stringify([provider.id, model.id]),
-        name: model.name || model.id,
-        group: getGatewayModelGroup(model) ?? t('models.group.ungrouped'),
-        source: 'gateway' as const,
-        provider,
-        model
-      }))
+      [...modelById.values()].filter(makeModelFilter(provider.id)).map((model) => {
+        const sourceProvider = providerById.get(model.providerId)
+        return {
+          id: JSON.stringify([provider.id, model.id]),
+          name: model.name || model.id,
+          group:
+            (sourceProvider ? getProviderDisplayName(sourceProvider) || undefined : undefined) ??
+            getGatewayModelGroup(model) ??
+            t('models.group.ungrouped'),
+          source: 'gateway' as const,
+          tags: getModelDisplayTags(model, undefined, sourceProvider),
+          provider,
+          model
+        }
+      })
     )
 
   return {

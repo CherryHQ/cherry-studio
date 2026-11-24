@@ -18,6 +18,8 @@ import {
   stripClaudeDetailedModels,
   prepareCliModelConfig
 } from '@renderer/services/codeCliConfig'
+import { getModelDisplayTags, type ModelDisplayTag } from '@renderer/utils/model'
+import { getProviderDisplayName } from '@renderer/utils/naming'
 import type { LocalAgentConfiguration, LocalAgentModelCatalog } from '@shared/ai/localAgent'
 import { LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -29,6 +31,7 @@ export interface LocalAgentModelOption {
   name: string
   group?: string
   source?: 'native' | 'gateway'
+  tags?: readonly ModelDisplayTag[]
 }
 
 export const LOCAL_AGENT_MODEL_SOURCE_LABELS = {
@@ -73,6 +76,7 @@ export function useLocalAgentModelSelection(
   const { providers, isLoading: providersLoading } = useProviders(undefined, {
     enabled: !!native || managedDeepSeekHarness
   })
+  const providerById = new Map(providers.map((provider) => [provider.id, provider]))
   const gatewayProviders = getGatewayProviderIds(providers)
   const gatewayModels =
     gateway && (managedDeepSeekHarness || (native && CLI_TOOL_PROVIDER_MAP[native.tool]([gateway.provider]).length))
@@ -100,12 +104,19 @@ export function useLocalAgentModelSelection(
     ...(isDeepSeekHarness ? [] : nativeModels)
       .filter((model) => !gatewayModelId || model.id !== nativeModel)
       .map((model) => ({ ...model, source: 'native' as const })),
-    ...gatewayModels.map((model) => ({
-      id: `${GATEWAY_MODEL_PREFIX}${model.id}`,
-      name: model.name,
-      group: getGatewayModelGroup(model) ?? t('models.group.ungrouped'),
-      source: 'gateway' as const
-    }))
+    ...gatewayModels.map((model) => {
+      const sourceProvider = providerById.get(model.providerId)
+      return {
+        id: `${GATEWAY_MODEL_PREFIX}${model.id}`,
+        name: model.name,
+        group:
+          (sourceProvider ? getProviderDisplayName(sourceProvider) || undefined : undefined) ??
+          getGatewayModelGroup(model) ??
+          t('models.group.ungrouped'),
+        source: 'gateway' as const,
+        tags: getModelDisplayTags(model, undefined, sourceProvider)
+      }
+    })
   ]
   const value = gatewayModelId ? `${GATEWAY_MODEL_PREFIX}${gatewayModelId}` : nativeModel
   const dshModelName = activeDshModelId
