@@ -172,7 +172,9 @@ describe('diffAgentUpdate', () => {
     expect(baseline.streamOutput).toBe(true)
     const update = diffAgentUpdate(baseline, applyAgentFormPatch(baseline, { streamOutput: false }))
     expect(update?.dto).toEqual({ configuration: { stream_output: false } })
-    const saved = buildInitialAgentFormState(createAgent({ configuration: update?.dto.configuration }))
+    const saved = buildInitialAgentFormState(
+      createAgent({ configuration: AgentConfigurationSchema.parse(update?.dto.configuration) })
+    )
     expect(saved.streamOutput).toBe(false)
   })
 
