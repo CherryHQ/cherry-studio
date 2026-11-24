@@ -57,6 +57,7 @@ import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { normalizeComfyuiBaseUrl } from './custom/comfyui/comfyuiHttp'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
+import type { ImageTransportConfig, NativeImageTransportSettings } from './custom/imageTransportRegistry'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { transformLmStudioRequestBody } from './lmstudio'
@@ -91,6 +92,7 @@ interface ProviderToAiSdkConfigOptions {
 export interface ResolvedProviderAiSdkConfig {
   config: ProviderConfig
   credentialReceipt: ServingCredentialReceipt
+  imageTransportConfig?: ImageTransportConfig
 }
 
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
@@ -162,10 +164,12 @@ function deriveImageBaseURL(provider: Provider): string {
 // ── SDK Config Building ──
 
 type ProviderConfigBuilder = (ctx: BuilderContext) => ProviderConfig | Promise<ProviderConfig>
+type NativeImageProviderConfig = ProviderConfig & { providerSettings: NativeImageTransportSettings }
 
 interface ResolvedProviderConfigBuild {
   config: ProviderConfig
   credentialReceipt: ServingCredentialReceipt
+  imageTransportConfig?: ImageTransportConfig
 }
 
 type ConfigBuilderEntry = {
@@ -183,13 +187,20 @@ function selectApiKey(ctx: BuilderContext): ApiKeyBuilderContext {
   }
 }
 
-function withSelectedApiKey(build: ProviderConfigBuilder): ConfigBuilderEntry['build'] {
+function withSelectedApiKey<Config extends ProviderConfig>(
+  build: (ctx: BuilderContext) => Config | Promise<Config>,
+  imageSettings?: (config: Config) => NativeImageTransportSettings
+): ConfigBuilderEntry['build'] {
   return async (ctx) => {
     const selected = selectApiKey(ctx)
+    const config = await build(selected)
 
     return {
-      config: await build(selected),
-      credentialReceipt: selected.apiKeySelection
+      config,
+      credentialReceipt: selected.apiKeySelection,
+      imageTransportConfig: imageSettings
+        ? { providerId: config.providerId, providerSettings: imageSettings(config) }
+        : undefined
     }
   }
 }
@@ -249,7 +260,7 @@ export async function resolveProviderAiSdkConfig(
     { match: (p) => p.id === SystemProviderIds.copilot, build: withProviderAuth('oauth', buildCopilotConfig) },
     {
       match: (p) => matchesPreset(p, SystemProviderIds.opencode),
-      build: withSelectedApiKey(buildOpenCodeGoConfig)
+      build: withSelectedApiKey(buildOpenCodeGoConfig, (config) => config.providerSettings)
     },
     { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: withProviderAuth('oauth', buildCodexConfig) },
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: withProviderAuth('oauth', buildGrokCliConfig) },
@@ -273,13 +284,16 @@ export async function resolveProviderAiSdkConfig(
     },
     { match: (p) => isOllamaProvider(p), build: withSelectedApiKey(buildOllamaConfig) },
     // ComfyUI has no OpenAI fallback; its key is for partner nodes, not the server.
-    { match: (p) => matchesPreset(p, SystemProviderIds.comfyui), build: withSelectedApiKey(buildComfyuiConfig) },
+    {
+      match: (p) => matchesPreset(p, SystemProviderIds.comfyui),
+      build: withSelectedApiKey(buildComfyuiConfig, (config) => config.providerSettings)
+    },
     { match: (p) => isAzureOpenAIProvider(p), build: withSelectedApiKey(buildAzureConfig) },
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
     // Only replace the OpenAI-compatible branch so other DashScope endpoint families stay routed normally.
     {
       match: (p, id) => matchesPreset(p, SystemProviderIds.dashscope) && id === 'openai-compatible',
-      build: withSelectedApiKey(buildDashScopeConfig)
+      build: withSelectedApiKey(buildDashScopeConfig, (config) => config.providerSettings)
     },
     // Zhipu chat is OpenAI-compatible, but BigModel's built-in web search rides the
     // tools array, which providerOptions cannot reach — the body transform moves the
@@ -329,10 +343,7 @@ export async function resolveProviderAiSdkConfig(
       build: withSelectedApiKey((ctx) => {
         const config = buildGenericProviderConfig(ctx)
 
-        const settings = config.providerSettings as {
-          headers?: Record<string, string>
-          fetch?: typeof globalThis.fetch
-        }
+        const settings = config.providerSettings
 
         if (application.get('PreferenceService').get('app.developer_mode.enabled')) {
           settings.headers = { ...settings.headers, 'X-Fornax-Trace': 'true' }
@@ -376,20 +387,23 @@ export async function resolveProviderAiSdkConfig(
         isGenerateImageModel(model) &&
         imageExtensionPreset !== undefined &&
         (imageExtensionPreset !== SystemProviderIds.dmxapi || dmxapiUsesCustomTransport(model.apiModelId ?? model.id)),
-      build: withSelectedApiKey((ctx) => ({
-        // Non-null by the match above.
-        providerId: imageExtensionPreset!,
-        endpoint: ctx.endpoint,
-        providerSettings: {
-          ...ctx.baseConfig,
-          // QwenCloud's AIGC transport hangs off the chat host; the other presets
-          // pin their origin inside their transport defaults.
-          ...(imageExtensionPreset === SystemProviderIds.qwencloud && {
-            imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
-          }),
-          headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
-        }
-      }))
+      build: withSelectedApiKey(
+        (ctx) => ({
+          // Non-null by the match above.
+          providerId: imageExtensionPreset!,
+          endpoint: ctx.endpoint,
+          providerSettings: {
+            ...ctx.baseConfig,
+            // QwenCloud's AIGC transport hangs off the chat host; the other presets
+            // pin their origin inside their transport defaults.
+            ...(imageExtensionPreset === SystemProviderIds.qwencloud && {
+              imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
+            }),
+            headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+          }
+        }),
+        (config) => config.providerSettings
+      )
     },
     // Native image transports take precedence over the selected text adapter.
     { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
@@ -414,11 +428,14 @@ export async function resolveProviderAiSdkConfig(
     },
     {
       match: (p) => matchesPreset(p, SystemProviderIds.cherryin),
-      build: withSelectedApiKey(buildCherryinConfig)
+      build: withSelectedApiKey(buildCherryinConfig, (config) => config.providerSettings)
     },
     { match: (_, id) => id === 'newapi', build: withSelectedApiKey(buildNewApiConfig) },
     { match: (_, id) => id === 'aihubmix', build: withSelectedApiKey(buildAiHubMixConfig) },
-    { match: (_, id) => id === 'dmxapi', build: withSelectedApiKey(buildDmxapiConfig) }
+    {
+      match: (_, id) => id === 'dmxapi',
+      build: withSelectedApiKey(buildDmxapiConfig, (config) => config.providerSettings)
+    }
   ]
 
   const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
@@ -427,7 +444,7 @@ export async function resolveProviderAiSdkConfig(
   if (builder) {
     resolved = await builder.build(ctx)
   } else if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
-    resolved = await withSelectedApiKey(buildGenericProviderConfig)(ctx)
+    resolved = await withSelectedApiKey(buildGenericProviderConfig, (config) => config.providerSettings)(ctx)
   } else {
     resolved = await withSelectedApiKey(buildOpenAICompatibleConfig)(ctx)
   }
@@ -441,7 +458,8 @@ export async function resolveProviderAiSdkConfig(
 
   return {
     config,
-    credentialReceipt: resolved.credentialReceipt
+    credentialReceipt: resolved.credentialReceipt,
+    imageTransportConfig: resolved.imageTransportConfig
   }
 }
 
@@ -468,11 +486,11 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
  * OpenCode Go/Zen requires `x-opencode-session` on every request. The builder only
  * declares that; the chat pipeline fills it from the request's conversation.
  */
-function buildOpenCodeGoConfig(ctx: BuilderContext): ProviderConfig {
+function buildOpenCodeGoConfig(ctx: BuilderContext): NativeImageProviderConfig {
   const config =
     ctx.aiSdkProviderId === 'openai-compatible' ? buildOpenAICompatibleConfig(ctx) : buildGenericProviderConfig(ctx)
 
-  const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
+  const headers = config.providerSettings.headers
   const hasExplicitSession = Object.keys(headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
 
   return hasExplicitSession ? config : { ...config, conversationHeader: 'x-opencode-session' }
@@ -791,7 +809,7 @@ function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSe
   }
 }
 
-function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
+function buildCherryinConfig(ctx: BuilderContext): NativeImageProviderConfig {
   const provider = ctx.actualProvider
   const anthropicBaseURL = formatApiHost(provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
   const geminiBaseURL = formatApiHost(getBaseUrl(provider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
@@ -908,7 +926,7 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
   }
 }
 
-function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
+function buildGenericProviderConfig(ctx: BuilderContext): NativeImageProviderConfig {
   const commonOptions = buildCommonOptions(ctx)
 
   return {

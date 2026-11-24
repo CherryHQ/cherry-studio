@@ -101,6 +101,50 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+describe('resolved native image transport settings', () => {
+  it.each(['custom-tokenhub', 'opencode', 'cherryin'])(
+    'keeps the serving key, proxy fetch and headers through the %s builder',
+    async (id) => {
+      const provider = makeProvider({
+        id,
+        settings: { extraHeaders: { 'X-Image-Route': 'custom' } },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://image-proxy.example/v1',
+            adapterFamily: 'tokenhub'
+          }
+        }
+      })
+      const model = makeModel({ providerId: id, apiModelId: 'hy-image-v3' })
+      const resolved = await resolveProviderAiSdkConfig(provider, model, { apiKeyOverride: 'selected-image-key' })
+      vi.mocked(net.fetch).mockResolvedValue(
+        new Response(JSON.stringify({ data: [{ url: 'https://image.example/result.png' }] }))
+      )
+      const transport = resolveImageTransport(resolved.imageTransportConfig, 'hy-image-v3')
+      if (!transport) throw new Error('Native image transport was lost by config dispatch')
+
+      expect(
+        await transport.submit({
+          modelId: 'hy-image-v3',
+          modelDescriptor: { id: 'hy-image-v3', endpoint: '/v1/wand/hunyuan-image/v3-generation', isSync: true },
+          prompt: 'a red circle',
+          n: 1,
+          size: undefined,
+          seed: undefined,
+          providerParams: {}
+        })
+      ).toEqual({ imageUrls: ['https://image.example/result.png'] })
+      const [url, request] = vi.mocked(net.fetch).mock.calls[0]
+      expect(String(url)).toBe('https://image-proxy.example/v1/wand/hunyuan-image/v3-generation')
+      expect(new Headers(request?.headers).get('Authorization')).toBe('Bearer selected-image-key')
+      expect(new Headers(request?.headers).get('X-Image-Route')).toBe('custom')
+      expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
+      expect(resolveApiKeyMock).toHaveBeenCalledExactlyOnceWith(id, 'selected-image-key')
+    }
+  )
+})
+
 describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   it.each([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])(
     'passes managed Cherry Cloud %s models to its credential-free transport',
@@ -1085,7 +1129,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
         })
 
-        const config = await providerToAiSdkConfig(provider, model)
+        const { config, imageTransportConfig } = await resolveProviderAiSdkConfig(provider, model)
         const settings = settingsFor(config, 'qwencloud')
 
         expect(config.providerId).toBe('qwencloud')
@@ -1097,7 +1141,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
             })
           )
         )
-        const transport = resolveImageTransport(config.providerId, 'qwen-image-3.0', settings)
+        const transport = resolveImageTransport(imageTransportConfig, 'qwen-image-3.0')
         expect(transport).not.toBeNull()
         const result = await transport!.submit({
           modelId: 'qwen-image-3.0',
@@ -1204,10 +1248,10 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
 
     async function expectNativeSubmit(
-      config: Awaited<ReturnType<typeof providerToAiSdkConfig>>,
+      resolved: Awaited<ReturnType<typeof resolveProviderAiSdkConfig>>,
       expectedBaseURL: string
     ) {
-      const settings = config.providerSettings
+      const { config, imageTransportConfig } = resolved
       const wireModelId = resolveWireModelId(imageModel, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
       expect(config.providerId).toBe('dashscope')
       vi.mocked(net.fetch).mockResolvedValue(
@@ -1217,7 +1261,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           })
         )
       )
-      const transport = resolveImageTransport(config.providerId, wireModelId, settings)
+      const transport = resolveImageTransport(imageTransportConfig, wireModelId)
       expect(transport).not.toBeNull()
       const result = await transport!.submit({
         modelId: wireModelId,
@@ -1249,10 +1293,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         }
       })
 
-      const config = await providerToAiSdkConfig(provider, imageModel)
+      const resolved = await resolveProviderAiSdkConfig(provider, imageModel)
+      const { config } = resolved
 
       expect(config.providerSettings).toHaveProperty('imageBaseURL', expectedBaseURL)
-      await expectNativeSubmit(config, expectedBaseURL)
+      await expectNativeSubmit(resolved, expectedBaseURL)
     })
 
     it('preserves the native image proxy path for a preset-derived instance', async () => {
@@ -1263,10 +1308,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
       const model = makeModel({ ...imageModel, id: 'dashscope-proxy::qwen-image-3-0-pro', providerId: provider.id })
 
-      const config = await providerToAiSdkConfig(provider, model)
+      const resolved = await resolveProviderAiSdkConfig(provider, model)
+      const { config } = resolved
 
       expect(config.providerSettings).toHaveProperty('imageBaseURL', 'https://proxy.example.com/ds')
-      await expectNativeSubmit(config, 'https://proxy.example.com/ds')
+      await expectNativeSubmit(resolved, 'https://proxy.example.com/ds')
     })
 
     it.each([
@@ -1282,7 +1328,8 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         }
       })
 
-      const config = await providerToAiSdkConfig(provider, imageModel)
+      const resolved = await resolveProviderAiSdkConfig(provider, imageModel)
+      const { config } = resolved
 
       expect(config.providerSettings).toHaveProperty('imageBaseURL', expectedBaseURL)
     })
@@ -1298,9 +1345,10 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         }
       })
 
-      const config = await providerToAiSdkConfig(provider, imageModel)
+      const resolved = await resolveProviderAiSdkConfig(provider, imageModel)
+      const { config } = resolved
 
-      await expectNativeSubmit(config, 'https://token-plan.maas.qianwenaiapi.com')
+      await expectNativeSubmit(resolved, 'https://token-plan.maas.qianwenaiapi.com')
     })
 
     it('propagates the explicitly configured legacy image host', async () => {
@@ -1314,26 +1362,29 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         }
       })
 
-      const config = await providerToAiSdkConfig(provider, imageModel)
+      const resolved = await resolveProviderAiSdkConfig(provider, imageModel)
+      const { config } = resolved
 
       // The submit URL already matched before the fix; the field assertion detects the regression.
       expect(config.providerSettings).toHaveProperty('imageBaseURL', 'https://dashscope.aliyuncs.com')
-      await expectNativeSubmit(config, 'https://dashscope.aliyuncs.com')
+      await expectNativeSubmit(resolved, 'https://dashscope.aliyuncs.com')
     })
 
     it('uses the transport fallback when no endpoint base URL is configured', async () => {
       const provider = makeProvider({ ...dashscopeProvider, endpointConfigs: {} })
 
-      const config = await providerToAiSdkConfig(provider, imageModel)
+      const resolved = await resolveProviderAiSdkConfig(provider, imageModel)
+      const { config } = resolved
 
       expect(config.providerSettings).toHaveProperty('imageBaseURL', '')
-      await expectNativeSubmit(config, 'https://maas.qianwenaiapi.com')
+      await expectNativeSubmit(resolved, 'https://maas.qianwenaiapi.com')
     })
 
     it('propagates the chat-derived image base URL to Responses settings', async () => {
       const provider = makeProvider({ ...dashscopeProvider, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES })
 
-      const config = await providerToAiSdkConfig(provider, imageModel)
+      const resolved = await resolveProviderAiSdkConfig(provider, imageModel)
+      const { config } = resolved
 
       expect(config.providerId).toBe('openai')
       expect(config.providerSettings).toHaveProperty('imageBaseURL', 'https://proxy.example.com/ds')
@@ -1343,10 +1394,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({ ...dashscopeProvider, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES })
       const model = makeModel({ ...imageModel, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
 
-      const config = await providerToAiSdkConfig(provider, model)
+      const resolved = await resolveProviderAiSdkConfig(provider, model)
+      const { config } = resolved
 
       expect(config.providerSettings).toHaveProperty('imageBaseURL', 'https://proxy.example.com/ds')
-      await expectNativeSubmit(config, 'https://proxy.example.com/ds')
+      await expectNativeSubmit(resolved, 'https://proxy.example.com/ds')
     })
 
     describe.each([

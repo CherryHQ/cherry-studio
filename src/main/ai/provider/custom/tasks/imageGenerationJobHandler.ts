@@ -67,14 +67,14 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
 
     if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-    const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
+    const { config, credentialReceipt, imageTransportConfig } = await resolveProviderAiSdkConfig(provider, model)
 
     const sdkConfig = {
       ...config,
       modelId: resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
     }
 
-    const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
+    const transport = resolveImageTransport(imageTransportConfig, sdkConfig.modelId)
 
     if (!transport) {
       throw new Error(

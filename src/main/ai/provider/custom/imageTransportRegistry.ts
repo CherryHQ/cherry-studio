@@ -1,17 +1,29 @@
-import type { ProviderConfig } from '../../types'
+import type { DashScopeProviderSettings } from './dashscope/dashscopeProvider'
 import { dmxapiUsesCustomTransport } from './dmxapi/dmxapiImageRouting'
+import type { DmxapiProviderSettings } from './dmxapi/dmxapiProvider'
 import type { ImageGenerationTransport } from './imageGenerationModel'
+
+export type NativeImageTransportSettings = Pick<
+  DashScopeProviderSettings,
+  'apiKey' | 'baseURL' | 'imageBaseURL' | 'headers' | 'fetch'
+> &
+  Pick<DmxapiProviderSettings, 'endpointBaseURLs'>
+
+export interface ImageTransportConfig {
+  providerId: string
+  providerSettings: NativeImageTransportSettings
+}
 
 interface TransportRegistration {
   supports: (modelId: string) => boolean
-  load: (providerSettings: ProviderConfig['providerSettings']) => Promise<ImageGenerationTransport>
+  load: (providerSettings: NativeImageTransportSettings) => Promise<ImageGenerationTransport>
   poll?: boolean
   cancel?: boolean
 }
 
 function createLazyTransport(
   registration: TransportRegistration,
-  providerSettings: ProviderConfig['providerSettings']
+  providerSettings: NativeImageTransportSettings
 ): ImageGenerationTransport {
   let transportPromise: Promise<ImageGenerationTransport> | undefined
   const load = () => (transportPromise ??= registration.load(providerSettings))
@@ -43,7 +55,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       load: async (settings) => {
         const { buildPpioTransport } = await import('./ppio/ppioProvider')
 
-        return buildPpioTransport(settings as Parameters<typeof buildPpioTransport>[0])
+        return buildPpioTransport(settings)
       }
     },
     dashscope: {
@@ -53,7 +65,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       load: async (settings) => {
         const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
 
-        return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
+        return buildDashScopeTransport(settings)
       }
     },
     // QwenCloud (international) serves the same DashScope AIGC endpoints under
@@ -66,7 +78,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       load: async (settings) => {
         const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
 
-        return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
+        return buildDashScopeTransport(settings)
       }
     },
     modelscope: {
@@ -75,7 +87,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       load: async (settings) => {
         const { buildModelscopeTransport } = await import('./modelscope/modelscopeProvider')
 
-        return buildModelscopeTransport(settings as Parameters<typeof buildModelscopeTransport>[0])
+        return buildModelscopeTransport(settings)
       }
     },
     dmxapi: {
@@ -83,7 +95,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       load: async (settings) => {
         const { buildDmxapiTransport } = await import('./dmxapi/dmxapiProvider')
 
-        return buildDmxapiTransport(settings as Parameters<typeof buildDmxapiTransport>[0])
+        return buildDmxapiTransport(settings)
       }
     },
     // ComfyUI owns the whole generation lifecycle: `/prompt` returns a task id, the job
@@ -96,7 +108,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       load: async (settings) => {
         const { createComfyuiTransport } = await import('./comfyui/comfyuiTransport')
 
-        return createComfyuiTransport(settings as Parameters<typeof createComfyuiTransport>[0])
+        return createComfyuiTransport(settings)
       }
     },
     tokenhub: {
@@ -105,7 +117,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       load: async (settings) => {
         const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')
 
-        return buildTokenhubTransport(settings as Parameters<typeof buildTokenhubTransport>[0])
+        return buildTokenhubTransport(settings)
       }
     }
   })
@@ -116,11 +128,11 @@ export function hasImageTransport(providerId: string, modelId: string): boolean 
 }
 
 export function resolveImageTransport(
-  aiSdkProviderId: string,
-  modelId: string,
-  providerSettings: ProviderConfig['providerSettings']
+  config: ImageTransportConfig | undefined,
+  modelId: string
 ): ImageGenerationTransport | null {
-  const registration = TRANSPORTS.get(aiSdkProviderId)
+  if (!config) return null
+  const registration = TRANSPORTS.get(config.providerId)
 
-  return registration?.supports(modelId) ? createLazyTransport(registration, providerSettings) : null
+  return registration?.supports(modelId) ? createLazyTransport(registration, config.providerSettings) : null
 }

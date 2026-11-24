@@ -5,6 +5,7 @@ sources:
   - src/renderer/pages/paintings
   - src/main/ai/provider/custom/wire/wireProfile.ts
   - src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts
+  - src/main/ai/provider/custom/imageTransportRegistry.ts
 ---
 
 # Image-Generation Parameterized Architecture
@@ -254,7 +255,7 @@ The native OpenAI SDK reads camelCase image options. Its profile therefore maps
 
 ### 4. Transport delivery (async / bespoke wire shape)
 
-When `resolveImageTransport(provider, model, settings)` ([`.../custom/imageTransportRegistry.ts`](../../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / OVMS / DMXAPI-custom families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`), which owns the submit/poll loop, queueing and cancellation.
+When `resolveImageTransport(imageTransportConfig, modelId)` ([`.../custom/imageTransportRegistry.ts`](../../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / OVMS / DMXAPI-custom families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`), which owns the submit/poll loop, queueing and cancellation. The descriptor comes from `resolveProviderAiSdkConfig` and retains the exact settings object used by the selected builder; see [Provider config](./provider-resolution.md#provider-config).
 
 The job is deliberately **not** restart-durable (`recovery: 'abandon'`): its only consumer is the in-process awaiter in `generateImageViaJob`, and the payload records no consumer identity, so a job resumed after a restart would have nobody to hand its result to. Non-terminal jobs are cancelled at startup instead of resumed.
 

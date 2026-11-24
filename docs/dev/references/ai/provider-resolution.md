@@ -104,6 +104,8 @@ ordered `{ match, build }` table to build the provider-specific settings
 object (apiKey, baseURL, organization, headers, ...). Direct callers may omit
 the option and let the function resolve the endpoint itself.
 
+`resolveProviderAiSdkConfig` also returns the serving-credential receipt and an optional `imageTransportConfig`. Native-image builders capture this capability while their settings still have the builder's checked type, before the general SDK settings union erases it. The capability references the same settings object, so final proxy-fetch initialization, provider headers and the selected credential reach the lazy image transport without copying or selecting a second key. Generic, OpenCode and CherryIN builders retain this capability when they resolve a native-image adapter.
+
 `resolveSdkConfig` (`src/main/ai/provider/sdkConfig.ts`) wraps it with the wire
 model id and the `providerOptions` namespace. It is the modality-agnostic
 transport core: `AiService`'s embedding, rerank and image verbs call it

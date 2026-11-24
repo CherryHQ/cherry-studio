@@ -2250,7 +2250,10 @@ describe('AiService tool approval', () => {
     })
 
     expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ppio', 'sk-selected')
-    expect(mockResolveImageTransport).toHaveBeenCalledWith('ppio', 'qwen-image-edit', expect.anything())
+    expect(mockResolveImageTransport).toHaveBeenCalledWith(
+      { providerId: 'ppio', providerSettings: expect.objectContaining({ apiKey: 'sk-selected' }) },
+      'qwen-image-edit'
+    )
     expect(submit).toHaveBeenCalledTimes(1)
     expect(submit).toHaveBeenCalledWith(
       expect.objectContaining({

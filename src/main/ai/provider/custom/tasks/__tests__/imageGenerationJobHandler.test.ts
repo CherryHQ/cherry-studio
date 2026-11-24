@@ -121,6 +121,7 @@ beforeEach(() => {
     pricing: { perImage: { price: 0.02 } }
   })
   resolveProviderAiSdkConfigMock.mockResolvedValue({
+    imageTransportConfig: { providerId: 'ppio', providerSettings: { apiKey: 'k' } },
     config: { providerId: 'ppio', providerSettings: { apiKey: 'k' } }
   })
   recordRequestMock.mockReturnValue(undefined)
@@ -141,6 +142,7 @@ describe('imageGenerationJobHandler.execute', () => {
     } as const
     const source = { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' } as const
     resolveProviderAiSdkConfigMock.mockResolvedValue({
+      imageTransportConfig: { providerId: 'ppio', providerSettings: { apiKey: 'k' } },
       config: { providerId: 'ppio', providerSettings: { apiKey: 'k' } },
       credentialReceipt
     })
