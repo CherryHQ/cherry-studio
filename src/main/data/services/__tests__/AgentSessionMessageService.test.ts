@@ -163,6 +163,7 @@ describe('AgentSessionMessageService', () => {
       await dbh.db.insert(agentSessionMessageTable).values({
         id,
         sessionId: SESSION_ID,
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         role,
         status: 'success',
         data: { parts: [{ type: 'text', text }] },
