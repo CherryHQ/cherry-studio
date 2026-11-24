@@ -2,10 +2,10 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-import type { ListItem, Paragraph, Root, RootContent } from 'mdast'
+import type { ListItem, Nodes, Paragraph, Root, RootContent } from 'mdast'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
-import type { Node, Parent } from 'unist'
+import type { Node } from 'unist'
 
 const ROOT = path.resolve(__dirname, '../..')
 const CLASSES = new Set(['feature', 'bug-fix', 'simplification', 'architecture', 'process', 'testing'])
@@ -38,14 +38,14 @@ const nodeSource = (content: string, node: Node): string => {
   return start === undefined || end === undefined ? '' : content.slice(start, end)
 }
 
-const visibleText = (node: Node): string => {
+const visibleText = (node: Nodes): string => {
   if (node.type === 'text' || node.type === 'inlineCode') {
     return 'value' in node && typeof node.value === 'string' ? node.value : ''
   }
 
   if (!('children' in node)) return ''
 
-  return (node as Parent).children.map(visibleText).join('')
+  return node.children.map(visibleText).join('')
 }
 
 const parseSections = (content: string, root: Root) => {
@@ -76,10 +76,10 @@ const parseSections = (content: string, root: Root) => {
 const collectListItems = (nodes: RootContent[]): ListItem[] => {
   const items: ListItem[] = []
 
-  const walk = (node: Node): void => {
-    if (node.type === 'listItem') items.push(node as ListItem)
+  const walk = (node: Nodes): void => {
+    if (node.type === 'listItem') items.push(node)
 
-    if ('children' in node) for (const child of (node as Parent).children) walk(child)
+    if ('children' in node) for (const child of node.children) walk(child)
   }
 
   for (const node of nodes) walk(node)
