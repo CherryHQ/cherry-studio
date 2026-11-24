@@ -25,20 +25,13 @@ export function LocalAgentIcon({
       ? (CODE_CLI_TOOL_PRESETS.find((tool) => tool.executable === preset.executable)?.id ?? preset.id)
       : undefined)
   if (iconId) {
-    return (
-      <CliIcon
-        id={iconId}
-        size={size}
-        shape="circle"
-        className={cn('ring-1 ring-inset ring-foreground/10', className)}
-      />
-    )
+    return <CliIcon id={iconId} size={size} variant="card" className={className} />
   }
 
   return (
     <Avatar
       className={cn(
-        'items-center justify-center bg-muted text-foreground ring-1 ring-inset ring-foreground/10',
+        'items-center justify-center rounded-[22%] bg-background text-foreground ring-1 ring-inset ring-foreground/10 dark:bg-card',
         className
       )}
       style={{ width: size, height: size }}>

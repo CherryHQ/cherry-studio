@@ -85,33 +85,87 @@ const CLI_ICONS: Record<string, IconComponent | undefined> = {
 // Crop transparent source-canvas padding so the artwork shares a consistent optical size.
 const OPTICAL_VIEWBOXES: Partial<Record<CodeCli, string>> = {
   [CodeCli.OPEN_CODE]: '16 16 88 88',
-  [CodeCli.HERMES]: '26 26 68 68',
-  [CodeCli.OPENCLAW]: '26 26 68 68',
-  [CodeCli.MINIMAX_CODE]: '26 26 68 68'
+  [CodeCli.KIMI_CODE]: '20 23 77 77',
+  [CodeCli.OPENCLAW]: '12 10 96 96',
+  [CodeCli.MINIMAX_CODE]: '24 24 72 72'
 }
 
-const TILE_ARTWORK_IDS = new Set<string>([CodeCli.OPENAI_CODEX, CodeCli.KIMI_CODE, 'kiro', 'zcode', 'snow'])
+// Strip baked full-bleed provider tile fills in card mode so glyphs sit cleanly on the neutral card.
+const CARD_ARTWORK_CLASSES: Partial<Record<CodeCli, string>> = {
+  [CodeCli.OPENCLAW]: '[&>path:first-child]:hidden',
+  [CodeCli.MINIMAX_CODE]: '[&>path:first-child]:hidden [&>path:nth-child(2)]:fill-current'
+}
+
+const TILE_ARTWORK_IDS = new Set<string>([
+  CodeCli.OPENAI_CODEX,
+  CodeCli.HERMES,
+  CodeCli.KIMI_CODE,
+  'codebuddy-code',
+  'kiro',
+  'zcode',
+  'snow'
+])
 
 interface CliIconProps {
   id: string
   size?: number
   glyphSize?: number
   shape?: 'circle' | 'rounded'
+  variant?: 'tile' | 'card'
   className?: string
 }
 
-export const CliIcon: FC<CliIconProps> = ({ id, size = 28, glyphSize, shape = 'rounded', className }) => {
+export const CliIcon: FC<CliIconProps> = ({
+  id,
+  size = 28,
+  glyphSize,
+  shape = 'rounded',
+  variant = 'tile',
+  className
+}) => {
   const Icon = CLI_ICONS[id]
-  const hasTileArtwork = Boolean(Icon && ('Avatar' in Icon || TILE_ARTWORK_IDS.has(id)))
-  const artworkSize = hasTileArtwork ? 'size-full' : 'size-[68%]'
-
+  const hasTileArtwork = Boolean(Icon && TILE_ARTWORK_IDS.has(id))
   const croppedViewBox = OPTICAL_VIEWBOXES[id as CodeCli]
   const opticalViewBox = croppedViewBox ? { viewBox: croppedViewBox } : {}
+
+  if (variant === 'card') {
+    return (
+      <span
+        aria-hidden="true"
+        data-slot="cli-icon"
+        data-variant="card"
+        className={cn(
+          'relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[22%] text-foreground after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-1 after:ring-inset after:ring-foreground/10',
+          !hasTileArtwork && 'bg-background dark:bg-card [--icon-neutral-background:transparent]',
+          className
+        )}
+        style={{ width: size, height: size }}>
+        {Icon ? (
+          hasTileArtwork ? (
+            <Icon {...opticalViewBox} className="size-full" />
+          ) : (
+            <Icon
+              {...opticalViewBox}
+              className={cn('size-[70%]', CARD_ARTWORK_CLASSES[id as CodeCli])}
+              style={glyphSize === undefined ? undefined : { width: glyphSize, height: glyphSize }}
+            />
+          )
+        ) : (
+          <span className="font-medium text-muted-foreground" style={{ fontSize: size * 0.4 }}>
+            {id.charAt(0).toUpperCase()}
+          </span>
+        )}
+      </span>
+    )
+  }
+
+  const artworkSize = hasTileArtwork ? 'size-full' : 'size-[72%]'
 
   return (
     <span
       aria-hidden="true"
       data-slot="cli-icon"
+      data-variant="tile"
       className={cn(
         'inline-flex shrink-0 items-center justify-center overflow-hidden text-foreground [--icon-neutral-background:var(--muted)] dark:[--icon-neutral-background:initial]',
         shape === 'circle' ? 'rounded-full' : 'rounded-[32%]',
