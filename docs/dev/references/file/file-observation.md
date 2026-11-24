@@ -1,6 +1,10 @@
 ---
 description: Native file observation ownership, invalidation subscriptions, directory leases, and renderer recovery
 sources:
+  - src/main/services/file/watcher.ts
+  - src/main/services/file/nativeWatcher.ts
+  - src/main/services/file/watcherWorker.ts
+  - src/main/services/file/watcherProtocol.ts
   - src/main/services/file/observation
   - src/main/ipc/handlers/fileObservation.ts
   - src/shared/ipc/schemas/fileObservation.ts
@@ -14,11 +18,13 @@ English | [中文](file-observation.zh.md)
 
 ## Ownership
 
-Main `FileObservationService` is a `WhenReady` lifecycle service depending on `WindowManager` and `PowerService`. It owns native scopes and file subscriptions. Its private `WatchScope` wraps the existing chokidar adapter and readiness promise. Directory builders receive the service explicitly and consume leases; disposing a projection releases only its lease.
+Main `FileObservationService` is a `WhenReady` lifecycle service depending on `WindowManager` and `PowerService`. It owns native scopes and file subscriptions. Its private `WatchScope` wraps the observation adapter and readiness promise. One lazy `DirectoryWatcherHost` owns a Node Worker shared by all scopes; `NativeWatcher` creates, recovers and closes chokidar handles on that thread. Main retains lease ownership, path validation and dangling-cache updates. Directory builders receive the service explicitly and consume leases; disposing a projection releases only its lease.
+
+Chokidar 6 selects native recursive observation for unlimited-depth trees on macOS and Windows. Finite-depth scopes use per-directory observation; other platforms retain their supported backend. Logical exclusions still filter published events, although recursive native subscriptions can receive raw notifications from excluded descendants. Fewer native handles reduce shutdown work; closure still waits for the worker's native acknowledgement.
 
 Equivalent scope keys share native resources. Tree keys include the root, depth and filtering policy; projection-only extension and stats options do not require separate native scopes. Explicit-file keys include the requested file and existing parent used for watching. File scopes prune unrelated paths and observe parent relationships so replacement, deletion and recreation remain visible. Resolved targets and symlink bindings have separate scopes; binding changes invalidate coverage and require rebinding. Bindings are resolved again after native readiness so a retarget during setup cannot certify obsolete coverage. Initial binding discovery does not itself imply retargeting. New directory scans include already-created target entries, covering directory/file creation in one burst. They do not inherit the tree's hidden-file or gitignore exclusions. Sharing does not widen observation to an entire unused workspace.
 
-Scopes close when their final lease is released. Window destruction releases that window's file subscriptions; directory consumers have their own cleanup. Service shutdown stops admission and awaits native closure. Observation owns no file bytes, drafts, persistent records or write leases.
+Scopes close when their final lease is released. Window destruction releases that window's file subscriptions; directory consumers have their own cleanup. Each scope close stops Main event delivery immediately and waits for the worker to acknowledge native closure, including retired handles from polling fallback. Service shutdown stops admission, closes all scopes and awaits worker exit. A worker crash marks its scopes unavailable; a later acquisition starts a replacement. Tree filters transfer the same loaded gitignore rules, hidden policy and missing-root boundary used by the scan. Explicit-file filters retain only the target and its ancestors. Observation owns no file bytes, drafts, persistent records or write leases.
 
 ## File protocol
 

@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { FILE_TYPE, type FileType } from '@renderer/types/file'
 import {
   type ComposerClipboardTokenKind,
   isComposerClipboardPromptTokenKind,
@@ -7,7 +6,7 @@ import {
 } from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type CherryFileMeta, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
-import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
+import { AbsoluteFilePathSchema, FILE_TYPE, type FileType, type FileUrlString } from '@shared/types/file'
 import { fileUrlToPath, getFileTypeByExt } from '@shared/utils/file'
 
 import type { ComposerAttachment } from './composerAttachment'

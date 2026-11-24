@@ -1,8 +1,8 @@
+import { installDndDomStubs } from '@test-mocks/dndDomStubs'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { installDndDomStubs } from '@cherrystudio/ui/components/composites/sortable/__tests__/dnd-dom-stubs'
 import i18n from '@renderer/i18n/resolver'
 
 vi.unmock('@cherrystudio/ui')

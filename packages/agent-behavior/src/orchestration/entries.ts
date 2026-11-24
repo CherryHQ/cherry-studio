@@ -45,13 +45,13 @@ export function entries(host: HostPorts): Entries {
     async goalCommand(ports, thread, text, requestKey) {
       const context = { ports, host }
       const current = await host.models.current(thread)
-      const inputs = await gatherInputs(context, thread, { models: { candidates: [], ...current } })
+      const inputs = gatherInputs(context, thread, { models: { candidates: [], ...current } })
       const decided = await step(context, thread, (facts) => decideGoalCommand(facts, inputs, text, requestKey))
       return decided.result
     },
     async userStop(ports, thread, requestKey) {
       const context = { ports, host }
-      const inputs = await gatherInputs(context, thread)
+      const inputs = gatherInputs(context, thread)
       await step(context, thread, (facts) => decideUserStop(facts, inputs, requestKey))
     },
     async permissionModeChanged(ports, thread) {
@@ -61,7 +61,7 @@ export function entries(host: HostPorts): Entries {
       const context = { ports, host }
       const { lineage } = await ports.ledger.read(child)
       if (lineage.kind !== 'subagent') return 'not-running'
-      const inputs = await gatherInputs(context, lineage.parent)
+      const inputs = gatherInputs(context, lineage.parent)
       const executed = await step(context, lineage.parent, (facts) =>
         decideStopSubagent(facts, inputs, child, requestKey)
       )
