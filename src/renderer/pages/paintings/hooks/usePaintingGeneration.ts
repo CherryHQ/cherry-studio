@@ -143,13 +143,15 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         }
         cacheService.set(cacheKey, paintingGenerationStateToCache(failedState))
         applyIfVisible({ ...targetPainting, ...failedState })
+        // Delete aborts the run before trashing the row, so a canceled run's late output-save failure stays silent.
+        if (isCanceled) return
         if (generated) {
           presentPaintingGenerateError(error, {
             operation: 'painting.persist',
             providerId: targetPainting.providerId,
             recordId: targetPainting.id
           })
-        } else if (!isCanceled) {
+        } else {
           const doctorModel = paintingDoctorModel(models, targetPainting.model)
           presentPaintingGenerateError(error, {
             operation: 'painting.generate',

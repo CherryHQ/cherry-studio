@@ -120,4 +120,26 @@ describe('usePaintingGeneration error details', () => {
     expect(context?.imageOnly).toBeUndefined()
     expect(context?.params).toBeUndefined()
   })
+
+  // Deleting a running painting aborts it and trashes the row; the late output PATCH then 404s.
+  it('stays silent when the output save fails after the run was canceled', async () => {
+    let finishGeneration: (files: Array<{ id: string }>) => void = () => {}
+    mocks.paintingGenerate.mockImplementationOnce(
+      () => new Promise((resolve) => (finishGeneration = resolve as typeof finishGeneration))
+    )
+    mocks.updatePainting
+      .mockResolvedValueOnce({ createdAt: painting.persistedAt })
+      .mockRejectedValueOnce(new Error('Painting not found'))
+    const { result } = renderHook(() => usePaintingGeneration({ painting, onPaintingChange: vi.fn() }))
+
+    await act(async () => {
+      const run = result.current.generate([], vi.fn())
+      await vi.waitFor(() => expect(mocks.paintingGenerate).toHaveBeenCalled())
+      result.current.cancel(painting.id)
+      finishGeneration([{ id: 'file-1' }])
+      await run
+    })
+
+    expect(popup.error).not.toHaveBeenCalled()
+  })
 })
