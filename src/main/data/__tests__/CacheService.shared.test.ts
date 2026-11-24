@@ -110,6 +110,26 @@ describe('CacheService shared-tier TTL sync', () => {
   // fix A1 — setShared TTL metadata sync
   // ---------------------------------------------------------------------------
 
+  describe('shared key validation', () => {
+    it.each(['', 'a:b', 'a.b', '中文', 'valid\n'])('rejects malformed keys in typed entries: %j', (segment) => {
+      const key = `jobs.progress.${segment}` as const
+      for (const operation of [
+        () => service.getShared(key),
+        () => service.setShared(key, { progress: 0 }),
+        () => service.hasShared(key),
+        () => service.deleteShared(key)
+      ])
+        expect(operation).toThrow('Invalid shared cache key')
+    })
+
+    it('does not store or relay an invalid renderer-origin shared key', () => {
+      const key = 'jobs.progress.invalid:key'
+      ipcListeners.get(IpcChannel.Cache_Sync)!(trustedEvent, { type: 'shared', key, value: { progress: 0 } })
+      expect(Object.keys(service.getAllShared())).not.toContain(key)
+      expect(send).not.toHaveBeenCalled()
+    })
+  })
+
   describe('setShared with an equal value (fix A1)', () => {
     it.each([
       ['adds a TTL', undefined, TTL],

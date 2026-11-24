@@ -38,6 +38,11 @@ import type {
   CacheSyncMessage,
   CacheTierSummary
 } from '@shared/data/cache/cacheTypes'
+import {
+  findMatchingSharedCacheSchemaKey,
+  getSharedCacheDefaultValue,
+  getUseCacheDefaultValue
+} from '@shared/data/cache/templateKey'
 
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
 
@@ -168,6 +173,7 @@ export class CacheService {
    * ```
    */
   get<K extends UseCacheKey>(key: K): InferUseCacheValue<K> | undefined {
+    getUseCacheDefaultValue(key)
     return this.getInternal(key)
   }
 
@@ -247,6 +253,7 @@ export class CacheService {
    * ```
    */
   set<K extends UseCacheKey>(key: K, value: InferUseCacheValue<K>, ttl?: number): void {
+    getUseCacheDefaultValue(key)
     this.setInternal(key, value, ttl)
   }
 
@@ -346,6 +353,7 @@ export class CacheService {
    * @returns True if key exists and is valid, false otherwise
    */
   has<K extends UseCacheKey>(key: K): boolean {
+    getUseCacheDefaultValue(key)
     return this.hasInternal(key)
   }
 
@@ -396,6 +404,7 @@ export class CacheService {
    * @returns True if deletion succeeded, false if key is protected by active hooks
    */
   delete<K extends UseCacheKey>(key: K): boolean {
+    getUseCacheDefaultValue(key)
     return this.deleteInternal(key)
   }
 
@@ -449,6 +458,7 @@ export class CacheService {
    * @returns True if key has TTL configured
    */
   hasTTL<K extends UseCacheKey>(key: K): boolean {
+    getUseCacheDefaultValue(key)
     const entry = this.memoryCache.get(key)
 
     return entry?.expireAt !== undefined
@@ -482,6 +492,7 @@ export class CacheService {
    * @returns True if key has TTL configured
    */
   hasSharedTTL<K extends SharedCacheKey>(key: K): boolean {
+    getSharedCacheDefaultValue(key)
     const entry = this.sharedCache.get(key)
 
     return entry?.expireAt !== undefined
@@ -495,6 +506,7 @@ export class CacheService {
    * @returns Cached value or undefined if not found or expired
    */
   getShared<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
+    getSharedCacheDefaultValue(key)
     return this.getSharedInternal(key)
   }
 
@@ -524,7 +536,8 @@ export class CacheService {
    * @returns Physically stored value, or undefined if absent
    */
   getSharedSnapshot<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
-    return this.sharedCache.get(key)?.value as InferSharedCacheValue<K> | undefined
+    getSharedCacheDefaultValue(key)
+    return this.sharedCache.get(key)?.value
   }
 
   /**
@@ -553,6 +566,7 @@ export class CacheService {
    * @param ttl - Time to live in milliseconds (optional)
    */
   setShared<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void {
+    getSharedCacheDefaultValue(key)
     this.setSharedInternal(key, value, ttl)
   }
 
@@ -610,6 +624,7 @@ export class CacheService {
    * @returns True if key exists and is valid, false otherwise
    */
   hasShared<K extends SharedCacheKey>(key: K): boolean {
+    getSharedCacheDefaultValue(key)
     return this.hasSharedInternal(key)
   }
 
@@ -638,6 +653,7 @@ export class CacheService {
    * @returns True if deletion succeeded, false if key is protected by active hooks
    */
   deleteShared<K extends SharedCacheKey>(key: K): boolean {
+    getSharedCacheDefaultValue(key)
     return this.deleteSharedInternal(key)
   }
 
@@ -1023,6 +1039,11 @@ export class CacheService {
       let syncedCount = 0
 
       for (const [key, entry] of Object.entries(allShared)) {
+        if (findMatchingSharedCacheSchemaKey(key) === undefined) {
+          logger.warn('Rejected invalid shared cache key', { key })
+          continue
+        }
+
         if (this.sharedKeysUpdatedDuringInitialSync.has(key)) continue
 
         // Skip expired entries
@@ -1211,6 +1232,10 @@ export class CacheService {
     // Listen for cache sync messages from other windows
     window.api.cache.onSync((message: CacheSyncMessage) => {
       if (message.type === 'shared') {
+        if (findMatchingSharedCacheSchemaKey(message.key) === undefined) {
+          logger.warn('Rejected invalid shared cache key', { key: message.key })
+          return
+        }
         if (!this.sharedCacheReady) this.sharedKeysUpdatedDuringInitialSync.add(message.key)
 
         if (message.value === undefined) {

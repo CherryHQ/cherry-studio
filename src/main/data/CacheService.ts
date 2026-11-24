@@ -36,7 +36,12 @@ import type {
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultMainPersistCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
-import { isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
+import {
+  findMatchingSharedCacheSchemaKey,
+  getSharedCacheDefaultValue,
+  isTemplateKey,
+  templateToRegex
+} from '@shared/data/cache/templateKey'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { mainPersistCacheSchema } from './persistCacheSchemas'
@@ -421,6 +426,7 @@ export class CacheService extends BaseService {
    * @returns Cached value or undefined if not found or expired
    */
   getShared<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
+    getSharedCacheDefaultValue(key)
     const entry = this.sharedCache.get(key)
 
     if (!entry) return undefined
@@ -442,6 +448,7 @@ export class CacheService extends BaseService {
    * @param ttl - Time to live in milliseconds (optional)
    */
   setShared<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void {
+    getSharedCacheDefaultValue(key)
     // Pre-write entry state, TTL-aware: an expired entry counts as absent, so
     // re-setting it with the same value is an absent → value transition (full
     // broadcast + notify), never mistaken for a TTL-only refresh.
@@ -487,6 +494,7 @@ export class CacheService extends BaseService {
    * @returns True if key exists and is valid, false otherwise
    */
   hasShared<K extends SharedCacheKey>(key: K): boolean {
+    getSharedCacheDefaultValue(key)
     const entry = this.sharedCache.get(key)
 
     if (!entry) return false
@@ -507,6 +515,7 @@ export class CacheService extends BaseService {
    * @returns True if deletion succeeded
    */
   deleteShared<K extends SharedCacheKey>(key: K): boolean {
+    getSharedCacheDefaultValue(key)
     const oldValue = this.peekSharedEntry(key)?.value
 
     if (oldValue === undefined) {
@@ -868,6 +877,10 @@ export class CacheService extends BaseService {
 
       // Update Main's sharedCache when receiving shared type sync
       if (message.type === 'shared') {
+        if (findMatchingSharedCacheSchemaKey(message.key) === undefined) {
+          logger.warn('Rejected invalid shared cache key', { key: message.key })
+          return
+        }
         // Capture pre-change value (TTL-aware) so subscribers see a consistent oldValue.
         // This path bypasses setShared/deleteShared and must notify independently.
         const oldValue = this.peekSharedEntry(message.key)?.value

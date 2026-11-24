@@ -1,5 +1,12 @@
-import type { SharedCacheSchema } from './cacheSchemas'
-import { DefaultSharedCache } from './cacheSchemas'
+import type {
+  InferSharedCacheValue,
+  InferUseCacheValue,
+  SharedCacheKey,
+  SharedCacheSchema,
+  UseCacheKey,
+  UseCacheSchema
+} from './cacheSchemas'
+import { DefaultSharedCache, DefaultUseCache } from './cacheSchemas'
 
 /**
  * Checks if a schema key is a template key (contains `${...}` placeholder).
@@ -43,7 +50,8 @@ export function templateToRegex(template: string): RegExp {
 
   const pattern = escaped.replace(/\$\{[^}]+\}/g, '([\\w\\-]+)')
 
-  return new RegExp(`^${pattern}$`)
+  // `$` also matches before a trailing newline; require the absolute end of the key.
+  return new RegExp(`^${pattern}(?![\\s\\S])`)
 }
 
 /**
@@ -53,7 +61,7 @@ export function templateToRegex(template: string): RegExp {
  * instance — callers use it to look up the template's default value.
  */
 export function findMatchingSharedCacheSchemaKey(key: string): keyof SharedCacheSchema | undefined {
-  if (Object.hasOwn(DefaultSharedCache, key)) {
+  if (Object.hasOwn(DefaultSharedCache, key) && !isTemplateKey(key)) {
     // SAFETY: The own-property check restricts this string to the registered default schema keys.
     return key as keyof SharedCacheSchema
   }
@@ -72,4 +80,36 @@ export function findMatchingSharedCacheSchemaKey(key: string): keyof SharedCache
   }
 
   return undefined
+}
+
+function findMatchingUseCacheSchemaKey(key: string): keyof UseCacheSchema | undefined {
+  if (Object.hasOwn(DefaultUseCache, key) && !isTemplateKey(key)) {
+    // SAFETY: This own-property check selects a fixed key from the complete memory default schema.
+    return key as keyof UseCacheSchema
+  }
+
+  // SAFETY: DefaultUseCache is declared as UseCacheSchema; its own enumerable keys are schema keys.
+  const schemaKeys = Object.keys(DefaultUseCache) as Array<keyof UseCacheSchema>
+  for (const schemaKey of schemaKeys) {
+    if (isTemplateKey(schemaKey) && templateToRegex(schemaKey).test(key)) return schemaKey
+  }
+  return undefined
+}
+
+/** Resolve a schema default, rejecting unregistered keys and malformed template instances. */
+export function getUseCacheDefaultValue<K extends UseCacheKey>(key: K): InferUseCacheValue<K> {
+  const schemaKey = findMatchingUseCacheSchemaKey(key)
+  if (schemaKey === undefined) throw new Error(`Invalid memory cache key "${key}"`)
+
+  // SAFETY: Exact/template matching selects a registered schema entry whose value type is included in InferUseCacheValue<K>.
+  return DefaultUseCache[schemaKey] as InferUseCacheValue<K>
+}
+
+/** Resolve a schema default, rejecting unregistered keys and malformed template instances. */
+export function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> {
+  const schemaKey = findMatchingSharedCacheSchemaKey(key)
+  if (schemaKey === undefined) throw new Error(`Invalid shared cache key "${key}"`)
+
+  // SAFETY: Exact/template matching selects a registered schema entry whose value type is included in InferSharedCacheValue<K>.
+  return DefaultSharedCache[schemaKey] as InferSharedCacheValue<K>
 }

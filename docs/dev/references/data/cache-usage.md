@@ -14,6 +14,8 @@ Concept and invariants: [cache-overview.md](./cache-overview.md). Adding keys: [
 
 Import from `@data/hooks/useCache`.
 
+Typed memory/shared cache operations and hooks reject malformed or unregistered keys even when an initializer or an existing value is present. See [Cache Naming Convention](./cache-schema-guide.md#naming-convention). For valid keys, writable hooks prefer a stored value, then an explicitly provided initializer, then the schema default. Only `undefined` means absent: a stored `null` stays `null` and is passed unchanged to functional updaters. A schema that explicitly includes `undefined`, such as `notes.active_file_path`, retains that return type.
+
 | Hook                     | Tier    | Signature                                                                            |
 | ------------------------ | ------- | ------------------------------------------------------------------------------------ |
 | `useCache`               | Memory  | `(key: UseCacheKey, initValue?: V) => [V, (next: V \| ((prev) => V)) => void]`        |

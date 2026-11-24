@@ -4,6 +4,7 @@ sources:
   - src/main/data/persistCacheSchemas.ts
   - src/shared/data/cache/cacheSchemas.ts
   - src/shared/data/cache/cacheValueTypes.ts
+  - src/shared/data/cache/templateKey.ts
 ---
 
 # Cache Schema Guide
@@ -33,6 +34,10 @@ Enforced by ESLint rule `data-schema-key/valid-key`. Pattern: `/^[a-z][a-z0-9_]*
 | `entity.cache.${type}_${id}`          | `App.user`                       | No uppercase                |
 
 Template placeholders `${xxx}` are treated as literal segments for the naming check. At runtime, the placeholder **name** is ignored — `${providerId}` and `${foo}` produce identical regex; each placeholder expands to `[\w\-]+` (no dots, no colons, no non-ASCII).
+
+Typed memory/shared cache entries and hooks reject keys that do not match a registered fixed key or a concrete template instance. A template segment must be non-empty ASCII word characters or hyphens; dots, colons, whitespace, non-ASCII characters, and unresolved `${...}` placeholders are invalid. TypeScript's `${string}` expansion is broader than this runtime contract. Use the memory-only casual API for unrelated dynamic keys.
+
+Renderer-origin shared messages and initial snapshots drop invalid keys before storing or relaying them. This is key validation; values still follow the existing schema-typed API contract.
 
 ## Choosing Fixed / Template / Casual
 

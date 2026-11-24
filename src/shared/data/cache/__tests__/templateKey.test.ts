@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { findMatchingSharedCacheSchemaKey, isTemplateKey, templateToRegex } from '../templateKey'
+import {
+  findMatchingSharedCacheSchemaKey,
+  getSharedCacheDefaultValue,
+  getUseCacheDefaultValue,
+  isTemplateKey,
+  templateToRegex
+} from '../templateKey'
 
 describe('isTemplateKey', () => {
   it('returns true when key contains ${...} placeholder', () => {
@@ -95,5 +101,22 @@ describe('findMatchingSharedCacheSchemaKey', () => {
 
   it.each(['toString', 'constructor', '__proto__'])('rejects the inherited property %s', (key) => {
     expect(findMatchingSharedCacheSchemaKey(key)).toBeUndefined()
+  })
+})
+
+describe('cache entry key validation', () => {
+  it.each(['', 'a.b', 'a:b', '中文', 'valid\n', '${id}', '${topicId}', '${jobId}'])(
+    'rejects the malformed template segment %j even though its TypeScript template accepts it',
+    (segment) => {
+      expect(() => getUseCacheDefaultValue(`scroll.position.${segment}`)).toThrow('Invalid memory cache key')
+      expect(() => getSharedCacheDefaultValue(`jobs.progress.${segment}`)).toThrow('Invalid shared cache key')
+      expect(templateToRegex('scroll.position.${id}').test(`scroll.position.${segment}`)).toBe(false)
+    }
+  )
+
+  it('resolves concrete template defaults and preserves schema-owned undefined', () => {
+    expect(getUseCacheDefaultValue('scroll.position.topic-1')).toBe(0)
+    expect(getSharedCacheDefaultValue('web_search.provider.last_used_key.google')).toBe('')
+    expect(getUseCacheDefaultValue('notes.active_file_path')).toBeUndefined()
   })
 })

@@ -11,107 +11,11 @@ import type {
   RendererPersistCacheKey,
   RendererPersistCacheSchema,
   SharedCacheKey,
-  UseCacheKey,
-  UseCacheSchema
+  UseCacheKey
 } from '@shared/data/cache/cacheSchemas'
-import { DefaultSharedCache, DefaultUseCache } from '@shared/data/cache/cacheSchemas'
-import { findMatchingSharedCacheSchemaKey, isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
+import { getSharedCacheDefaultValue, getUseCacheDefaultValue } from '@shared/data/cache/templateKey'
 
 const logger = loggerService.withContext('useCache')
-
-// ============================================================================
-// Template Matching Utilities
-// ============================================================================
-
-/**
- * Finds the schema key that matches a given concrete key.
- *
- * First checks for exact match (fixed keys), then checks template patterns.
- * This is used to look up default values for template keys.
- *
- * @param key - The concrete key to find a match for
- * @returns The matching schema key, or undefined if no match found
- *
- * @example
- * ```typescript
- * // Given schema has 'app.path.resources' and 'scroll.position.${id}'
- *
- * findMatchingUseCacheSchemaKey('app.path.resources')    // 'app.path.resources'
- * findMatchingUseCacheSchemaKey('scroll.position.123')   // 'scroll.position.${id}'
- * findMatchingUseCacheSchemaKey('unknown.key')           // undefined
- * ```
- */
-function findMatchingUseCacheSchemaKey(key: string): keyof UseCacheSchema | undefined {
-  // First, check for exact match (fixed keys)
-  if (key in DefaultUseCache) {
-    return key as keyof UseCacheSchema
-  }
-
-  // Then, check template patterns
-  const schemaKeys = Object.keys(DefaultUseCache) as Array<keyof UseCacheSchema>
-
-  for (const schemaKey of schemaKeys) {
-    if (isTemplateKey(schemaKey)) {
-      const regex = templateToRegex(schemaKey)
-
-      if (regex.test(key)) {
-        return schemaKey
-      }
-    }
-  }
-
-  return undefined
-}
-
-/**
- * Gets the default value for a cache key from the schema.
- *
- * Works with both fixed keys (direct lookup) and concrete keys that
- * match template patterns (finds template, returns its default).
- *
- * @param key - The cache key (fixed or concrete template instance)
- * @returns The default value from schema, or undefined if not found
- *
- * @example
- * ```typescript
- * // Given schema:
- * // 'app.path.resources': '' (default)
- * // 'scroll.position.${id}': 0 (default)
- *
- * getUseCacheDefaultValue('app.path.resources')    // ''
- * getUseCacheDefaultValue('scroll.position.123')   // 0
- * getUseCacheDefaultValue('unknown.key')           // undefined
- * ```
- */
-function getUseCacheDefaultValue<K extends UseCacheKey>(key: K): InferUseCacheValue<K> | undefined {
-  const schemaKey = findMatchingUseCacheSchemaKey(key)
-
-  if (schemaKey) {
-    return DefaultUseCache[schemaKey] as InferUseCacheValue<K>
-  }
-
-  return undefined
-}
-
-/**
- * Gets the default value for a shared cache key from the schema.
- *
- * Works with both fixed keys (direct lookup) and concrete keys that
- * match template patterns (finds template, returns its default).
- *
- * Note: template default values are shared across all instances — e.g., all
- * `web_search.provider.last_used_key.*` keys fall back to the single default
- * `''`. This mirrors getUseCacheDefaultValue semantics.
- */
-function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
-  const schemaKey = findMatchingSharedCacheSchemaKey(key)
-
-  if (schemaKey) {
-    return DefaultSharedCache[schemaKey] as InferSharedCacheValue<K>
-  }
-
-  return undefined
-}
 
 /**
  * React hook for component-level memory cache
@@ -166,7 +70,7 @@ export function useCache<K extends UseCacheKey>(
 ): [InferUseCacheValue<K>, (value: CacheSetStateAction<InferUseCacheValue<K>>) => void] {
   // Get the default value for this key (works with both fixed and template keys)
   const defaultValue = getUseCacheDefaultValue(key)
-  const fallbackValue = initValue !== undefined ? initValue : defaultValue!
+  const fallbackValue = initValue !== undefined ? initValue : defaultValue
 
   /**
    * Subscribe to cache changes using React's useSyncExternalStore
@@ -228,6 +132,7 @@ export function useCache<K extends UseCacheKey>(
     (newValue: CacheSetStateAction<InferUseCacheValue<K>>) => {
       if (typeof newValue === 'function') {
         const storedValue = cacheService.get(key)
+        // SAFETY: Both branches contain this key's value; the cast only exposes a shallow readonly updater view.
         const prev = (storedValue !== undefined ? storedValue : fallbackValue) as ReadonlyValue<InferUseCacheValue<K>>
         cacheService.set(key, newValue(prev))
       } else {
@@ -284,6 +189,9 @@ export function useSharedCache<K extends SharedCacheKey>(
   key: K,
   initValue?: InferSharedCacheValue<K>
 ): [InferSharedCacheValue<K>, (value: CacheSetStateAction<InferSharedCacheValue<K>>) => void] {
+  const defaultValue = getSharedCacheDefaultValue(key)
+  const fallbackValue = initValue !== undefined ? initValue : defaultValue
+
   /**
    * Subscribe to shared cache changes using React's useSyncExternalStore.
    * This ensures the component re-renders when the shared cache value changes.
@@ -312,16 +220,8 @@ export function useSharedCache<K extends SharedCacheKey>(
       return
     }
 
-    if (initValue === undefined) {
-      const defaultValue = getSharedCacheDefaultValue(key)
-
-      if (defaultValue !== undefined) {
-        cacheService.setShared(key, defaultValue)
-      }
-    } else {
-      cacheService.setShared(key, initValue)
-    }
-  }, [key, initValue])
+    cacheService.setShared(key, fallbackValue)
+  }, [key, fallbackValue])
 
   /**
    * Register this hook as actively using the shared cache key
@@ -355,7 +255,9 @@ export function useSharedCache<K extends SharedCacheKey>(
   const setValue = useCallback(
     (newValue: CacheSetStateAction<InferSharedCacheValue<K>>) => {
       if (typeof newValue === 'function') {
-        const prev = (cacheService.getShared(key) ?? initValue ?? getSharedCacheDefaultValue(key)) as ReadonlyValue<
+        const storedValue = cacheService.getShared(key)
+        // SAFETY: Both branches contain this key's value; the cast only exposes a shallow readonly updater view.
+        const prev = (storedValue !== undefined ? storedValue : fallbackValue) as ReadonlyValue<
           InferSharedCacheValue<K>
         >
 
@@ -364,10 +266,10 @@ export function useSharedCache<K extends SharedCacheKey>(
         cacheService.setShared(key, newValue)
       }
     },
-    [key, initValue]
+    [key, fallbackValue]
   )
 
-  return [value ?? initValue ?? (getSharedCacheDefaultValue(key) as InferSharedCacheValue<K>), setValue]
+  return [value !== undefined ? value : fallbackValue, setValue]
 }
 
 /**
@@ -460,6 +362,7 @@ function shallowEqual(a: unknown, b: unknown): boolean {
 
   if (keysA.length !== keysB.length) return false
 
+  // SAFETY: Both operands are plain objects; the own-key checks index only opaque values for identity comparison.
   return keysA.every(
     (key) =>
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Both containers are verified plain objects; selector-owned field values remain opaque for identity comparison.
@@ -486,7 +389,7 @@ const CACHE_KEYS_DEP_SEPARATOR = '\u0000'
  * today. If a memory/persist-tier aggregation need appears, add another thin
  * shell here — do not export this core ahead of that consumer.
  */
-function useCacheKeysSelector<Key extends string, Value, Values, Selection>(
+function useCacheKeysSelector<Key extends string, Value, Values extends readonly Value[], Selection>(
   keys: readonly Key[],
   subscribeKey: (key: Key, onStoreChange: () => void) => () => void,
   readKey: (key: Key) => Value,
@@ -514,10 +417,8 @@ function useCacheKeysSelector<Key extends string, Value, Values, Selection>(
     [stableKeys, subscribeKey]
   )
 
-  // Idempotent base snapshot: reuse the same tuple while every entry is
-  // Object.is-unchanged, create a new tuple as soon as any entry changed.
-  // This satisfies getSnapshot's caching contract (no "getSnapshot should be
-  // cached" warnings) without a store-level version counter.
+  // Keep tuple identity until an entry changes, as required by useSyncExternalStore.
+  // SAFETY: The sole caller derives Values from these same keys/reader; map preserves tuple order, length and misses.
   const getSnapshot = useMemo(() => {
     let cachedValues: readonly Value[] | undefined
 

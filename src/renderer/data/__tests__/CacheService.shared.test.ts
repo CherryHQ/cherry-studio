@@ -108,6 +108,24 @@ describe('getSharedSnapshot (pure physical read)', () => {
 })
 
 describe('inbound sync gating (fix A3)', () => {
+  it('does not store an invalid inbound shared key', async () => {
+    const { service, inbound } = await createService()
+    const key = 'jobs.progress.invalid:key'
+    inbound({ type: 'shared', key, value: { progress: 50 } })
+    expect(service.getStats(true).details.shared.map((entry) => entry.key)).not.toContain(key)
+  })
+
+  it('ignores invalid initial snapshot keys and keeps valid entries', async () => {
+    getAllShared.mockResolvedValueOnce({
+      'jobs.progress.invalid:key': { value: { progress: 1 } },
+      [KEY]: { value: { progress: 75 } }
+    })
+    const { service } = await createService()
+    await vi.waitFor(() => expect(service.isSharedCacheReady()).toBe(true))
+    expect(service.getSharedSnapshot(KEY)).toEqual({ progress: 75 })
+    expect(service.getStats(true).details.shared.map((entry) => entry.key)).not.toContain('jobs.progress.invalid:key')
+  })
+
   it('keeps a live update that arrives while the initial snapshot is in flight', async () => {
     let resolveInitialSync!: (entries: Record<string, CacheEntry>) => void
     getAllShared.mockImplementationOnce(
