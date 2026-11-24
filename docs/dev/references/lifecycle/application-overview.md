@@ -38,6 +38,8 @@ await application.bootstrap()
 const dbService = application.get('DbService')
 ```
 
+`register()` and `registerAll()` accept service classes or synchronous factory registrations. The class-valued `services` map remains the type source; `serviceList` applies factory overrides for parameterized constructors. See [Class and Factory Registration](./lifecycle-usage.md#class-and-factory-registration) for injection, lookup, and initialization contracts.
+
 ## Bootstrap Flow
 
 `application.bootstrap()` orchestrates the full startup sequence:

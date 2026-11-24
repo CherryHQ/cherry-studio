@@ -58,6 +58,25 @@ const dbService = application.get('DbService')
 
 **Note:** All services are singletons. Attempting to instantiate a service class directly (via `new`) after it has been created will throw an error. Use `application.get('ServiceName')` to access service instances (see [Application Overview](./application-overview.md)).
 
+## Class and Factory Registration
+
+Ordinary class registrations retain constructor injection: the container resolves `@DependsOn` services and passes their instances to the constructor in declaration order. Metadata readers and class lookup tokens use class identity without requiring a callable constructor signature.
+
+For a constructor whose parameters are configuration or explicit overrides, register a synchronous factory instead of allowing dependency instances to occupy those parameters:
+
+```typescript
+import { defineServiceFactory } from '@main/core/lifecycle'
+
+defineServiceFactory(AiStreamManager, () => new AiStreamManager())
+defineServiceFactory(UtilityProcessManager, () => new UtilityProcessManager())
+```
+
+The target class determines the result type; an incompatible instance or a promise is rejected by typecheck. Registration reads the target's decorators without running the factory. On first lookup, the container resolves declared dependencies before calling the factory without arguments. Both paths retain singleton lookup by class or name, condition checks, transitive exclusion, and lifecycle ordering. Dependency or factory construction errors propagate to the caller.
+
+`services` in `serviceRegistry.ts` remains the class-valued source of `ServiceRegistry` types. Factory overrides replace only the two entries in `serviceList`, preserving registration order. AiStreamManager retains its optional config-first constructor and existing `application.get('RuntimeActivityService')` lookup; UtilityProcessManager retains its optional dependency overrides.
+
+Direct early `get()` constructs services synchronously. It does not run initialization hooks or guarantee readiness; normal bootstrap still controls initialization and shutdown.
+
 ## Error Handling Strategies
 
 | Strategy             | Behavior                                               |

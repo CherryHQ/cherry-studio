@@ -7,9 +7,9 @@ import type {
   ConditionContext,
   DependencyNode,
   Phase,
-  ServiceConstructor,
   ServiceEntry,
   ServiceMetadata,
+  ServiceRegistration,
   ServiceToken
 } from './types'
 
@@ -57,9 +57,10 @@ export class ServiceContainer {
 
   /**
    * Register a service
-   * @param target - Service class constructor
+   * @param registration - Service class constructor or synchronous factory
    */
-  public register<T>(target: ServiceConstructor<T>): void {
+  public register<T>(registration: ServiceRegistration<T>): void {
+    const target = typeof registration === 'function' ? registration : registration.target
     const name = getServiceName(target)
 
     if (this.services.has(name)) {
@@ -102,10 +103,10 @@ export class ServiceContainer {
 
     const entry: ServiceEntry<T> = {
       token: name,
-      provider: {
-        useClass: target,
-        metadata
-      }
+      provider:
+        typeof registration === 'function'
+          ? { kind: 'class', useClass: registration, metadata }
+          : { ...registration, metadata }
     }
 
     this.services.set(name, entry)
@@ -344,7 +345,8 @@ export class ServiceContainer {
    * Create a service instance with dependency injection
    */
   private createInstance<T>(entry: ServiceEntry<T>): T {
-    const { metadata, useClass } = entry.provider
+    const { provider } = entry
+    const { metadata } = provider
     const deps: unknown[] = []
 
     // Resolve dependencies
@@ -357,6 +359,6 @@ export class ServiceContainer {
     }
 
     // Create instance with dependencies
-    return new useClass(...deps)
+    return provider.kind === 'factory' ? provider.create() : new provider.useClass(...deps)
   }
 }

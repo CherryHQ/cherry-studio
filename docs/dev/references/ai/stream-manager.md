@@ -429,7 +429,7 @@ persistence path creates or repairs a usage record. See
 
 ```typescript
 class AiStreamManager {
-  // Lifecycle container invokes with no args (DEFAULT_CONFIG); tests can
+  // The registered factory invokes with no args (DEFAULT_CONFIG); tests can
   // override `gracePeriodMs`, `backgroundMode`, `maxBufferChunks`.
   constructor(config?: Partial<AiStreamManagerConfig>)
 

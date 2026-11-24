@@ -18,6 +18,7 @@ export {
   type Activatable,
   type ConditionContext,
   type DependencyNode,
+  defineServiceFactory,
   type ErrorStrategy,
   type LifecycleEvent,
   type LifecycleEventPayload,
@@ -26,11 +27,14 @@ export {
   type Pausable,
   Phase,
   PhasePriority,
+  type ServiceClassIdentity,
   type ServiceCondition,
   type ServiceConstructor,
   type ServiceEntry,
+  type ServiceFactoryRegistration,
   ServiceInitError,
   type ServiceMetadata,
   type ServiceProvider,
+  type ServiceRegistration,
   type ServiceToken
 } from './types'

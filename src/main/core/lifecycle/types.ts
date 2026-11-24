@@ -145,6 +145,28 @@ export interface ServiceMetadata {
   conditions?: ServiceCondition[]
 }
 
+/** Class identity used for metadata and instance lookup, without invoking its constructor. */
+export interface ServiceClassIdentity<T = unknown> {
+  readonly name: string
+  readonly prototype: T
+}
+
+export interface ServiceFactoryRegistration<T = unknown> {
+  readonly kind: 'factory'
+  readonly target: ServiceClassIdentity<T>
+  readonly create: () => T
+}
+
+export type ServiceRegistration<T = unknown> = ServiceConstructor<T> | ServiceFactoryRegistration<T>
+
+/** Define a synchronous factory whose result is checked against the target class. */
+export function defineServiceFactory<T>(
+  target: ServiceClassIdentity<T>,
+  create: () => NoInfer<T>
+): ServiceFactoryRegistration<T> {
+  return { kind: 'factory', target, create }
+}
+
 /**
  * Service constructor type
  */
@@ -192,17 +214,14 @@ export interface LifecycleEventPayload {
  * Service token for container registration
  * Can be a string identifier or a class constructor
  */
-export type ServiceToken<T = unknown> = string | ServiceConstructor<T>
+export type ServiceToken<T = unknown> = string | ServiceClassIdentity<T>
 
 /**
  * Service provider configuration
  */
-export interface ServiceProvider<T = unknown> {
-  /** Service constructor */
-  useClass: ServiceConstructor<T>
-  /** Service metadata */
+export type ServiceProvider<T = unknown> = {
   metadata: ServiceMetadata
-}
+} & ({ kind: 'class'; useClass: ServiceConstructor<T> } | ServiceFactoryRegistration<T>)
 
 /**
  * Registered service entry in container

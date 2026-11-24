@@ -9,7 +9,7 @@ import {
   type Disposable,
   LifecycleManager,
   Phase,
-  type ServiceConstructor,
+  type ServiceRegistration,
   ServiceContainer,
   ServiceInitError,
   SHUTDOWN_TIMEOUT_MS
@@ -98,9 +98,9 @@ export class Application {
 
   /**
    * Register a service with the container
-   * @param service - Service class constructor
+   * @param service - Service class constructor or synchronous factory
    */
-  public register<T>(service: ServiceConstructor<T>): this {
+  public register<T>(service: ServiceRegistration<T>): this {
     this.container.register(service)
 
     return this
@@ -108,9 +108,9 @@ export class Application {
 
   /**
    * Register multiple services
-   * @param services - Array of service class constructors
+   * @param services - Array of service classes or synchronous factories
    */
-  public registerAll(services: ServiceConstructor[]): this {
+  public registerAll(services: ServiceRegistration[]): this {
     for (const service of services) {
       this.container.register(service)
     }

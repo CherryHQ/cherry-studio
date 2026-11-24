@@ -28,6 +28,7 @@ import { AiStreamManager } from '@main/ai/streamManager'
 import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
 import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
 import { JobManager } from '@main/core/job/JobManager'
+import { defineServiceFactory } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
@@ -221,5 +222,10 @@ export type ServiceRegistry = {
   [K in keyof typeof services]: InstanceType<(typeof services)[K]>
 }
 
-/** Service list for Application.registerAll() */
-export const serviceList = Object.values(services)
+const factoryOverrides = {
+  AiStreamManager: defineServiceFactory(AiStreamManager, () => new AiStreamManager()),
+  UtilityProcessManager: defineServiceFactory(UtilityProcessManager, () => new UtilityProcessManager())
+}
+
+/** Service list for Application.registerAll(), retaining class declaration order. */
+export const serviceList = Object.values({ ...services, ...factoryOverrides })

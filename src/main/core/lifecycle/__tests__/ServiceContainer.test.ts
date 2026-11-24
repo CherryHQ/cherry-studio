@@ -100,13 +100,23 @@ describe('ServiceContainer', () => {
       container.register(DependencyA)
       container.register(DependencyB)
 
-      // DependencyB depends on DependencyA, so A must be resolved first
-      const b = container.get<DependencyB>('DependencyB')
-      expect(b).toBeInstanceOf(DependencyB)
+      @Injectable('InjectedService')
+      @DependsOn(['DependencyB', 'DependencyA'])
+      class InjectedService extends BaseService {
+        constructor(
+          readonly first: unknown,
+          readonly second: unknown
+        ) {
+          super()
+        }
+      }
 
-      // A should also be instantiated as a side effect
-      const a = container.getInstance<DependencyA>('DependencyA')
-      expect(a).toBeInstanceOf(DependencyA)
+      container.register(InjectedService)
+      expect(container.getInstance(DependencyA)).toBeUndefined()
+      const service = container.get(InjectedService)
+      expect(service.first).toBe(container.get(DependencyB))
+      expect(service.second).toBe(container.get(DependencyA))
+      expect(container.get(InjectedService)).toBe(service)
     })
 
     it('should throw when dependency is not registered', () => {

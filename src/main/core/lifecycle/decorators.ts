@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import { type ErrorStrategy, Phase, type ServiceCondition, type ServiceConstructor } from './types'
+import { type ErrorStrategy, Phase, type ServiceClassIdentity, type ServiceCondition } from './types'
 
 /** Metadata keys for decorator storage */
 const METADATA_KEYS = {
@@ -79,7 +79,7 @@ export function getServiceName(target: { readonly name: string }): string {
  * Get service dependencies
  * @param target - Class constructor
  */
-export function getDependencies(target: ServiceConstructor): string[] {
+export function getDependencies(target: ServiceClassIdentity): string[] {
   return Reflect.getMetadata(METADATA_KEYS.DEPENDENCIES, target) || []
 }
 
@@ -87,7 +87,7 @@ export function getDependencies(target: ServiceConstructor): string[] {
  * Get service priority
  * @param target - Class constructor
  */
-export function getPriority(target: ServiceConstructor): number {
+export function getPriority(target: ServiceClassIdentity): number {
   return Reflect.getMetadata(METADATA_KEYS.PRIORITY, target) ?? 100
 }
 
@@ -95,7 +95,7 @@ export function getPriority(target: ServiceConstructor): number {
  * Get service error strategy
  * @param target - Class constructor
  */
-export function getErrorStrategy(target: ServiceConstructor): ErrorStrategy {
+export function getErrorStrategy(target: ServiceClassIdentity): ErrorStrategy {
   return Reflect.getMetadata(METADATA_KEYS.ERROR_STRATEGY, target) || 'graceful'
 }
 
@@ -103,7 +103,7 @@ export function getErrorStrategy(target: ServiceConstructor): ErrorStrategy {
  * Get service bootstrap phase
  * @param target - Class constructor
  */
-export function getPhase(target: ServiceConstructor): Phase {
+export function getPhase(target: ServiceClassIdentity): Phase {
   return Reflect.getMetadata(METADATA_KEYS.PHASE, target) || Phase.WhenReady
 }
 
@@ -123,6 +123,6 @@ export function Conditional(...conditions: ServiceCondition[]): ClassDecorator {
  * Get activation conditions from metadata
  * @param target - Class constructor
  */
-export function getConditions(target: ServiceConstructor): ServiceCondition[] | undefined {
+export function getConditions(target: ServiceClassIdentity): ServiceCondition[] | undefined {
   return Reflect.getMetadata(METADATA_KEYS.CONDITIONS, target)
 }
