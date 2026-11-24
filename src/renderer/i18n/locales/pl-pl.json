@@ -4880,6 +4880,8 @@
   "settings.dependencies.localModels.download": "Pobierz",
   "settings.dependencies.localModels.embedding.name": "Lokalne embeddingi",
   "settings.dependencies.localModels.embedding.subtitle": "Qwen3 Embedding 0.6B · ~614 MB",
+  "settings.dependencies.localModels.harrier.name": "Harrier 270M",
+  "settings.dependencies.localModels.harrier.subtitle": "Harrier 270M · ~370 MB",
   "settings.dependencies.localModels.notice.downloadFailed": "Pobieranie nie powiodło się. Sprawdź połączenie i spróbuj ponownie.",
   "settings.dependencies.localModels.notice.inUse": "Nadal używane przez bazę wiedzy; wagi zostały zachowane.",
   "settings.dependencies.localModels.notice.incompleteCache": "Pliki modelu są niekompletne. Ponów pobieranie, aby je naprawić.",
