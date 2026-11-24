@@ -58,6 +58,7 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -1236,7 +1237,7 @@ export class AgentSessionMessageService {
       if (options.deferToolOutputs && item.role === 'assistant' && item.data.parts) {
         item.data = {
           ...item.data,
-          parts: projectMessagePartsForRenderer(item.data.parts, `agent-session:${sessionId}`, id)
+          parts: projectMessagePartsForRenderer(item.data.parts, buildAgentSessionTopicId(sessionId), id)
         }
       }
       return { ...item, siblings: siblingsByParent.get(parentId) ?? [] }

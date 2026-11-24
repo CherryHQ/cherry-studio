@@ -40,6 +40,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { t } from '@main/i18n'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64, downloadPublicImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import type { CompactionSink } from '@shared/ai/compaction'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import {
@@ -67,7 +68,6 @@ import {
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
-import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
