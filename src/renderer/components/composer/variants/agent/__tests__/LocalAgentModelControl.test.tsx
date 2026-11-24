@@ -158,7 +158,7 @@ describe('local agent model persistence', () => {
       />
     )
     await user.click(screen.getByRole('button', { name: '选择模型' }))
-    const native = screen.getByRole('tab', { name: '官方模型' })
+    const native = screen.getByRole('tab', { name: '官方订阅' })
     const gateway = screen.getByRole('tab', { name: '统一网关' })
     expect(native).toBeEnabled()
     expect(native).toHaveAttribute('aria-selected', 'true')
@@ -218,7 +218,7 @@ describe('local agent model persistence', () => {
 
   it.each([
     ['Second', 'second'],
-    ['官方订阅', undefined]
+    ['默认模型', undefined]
   ] as const)('retains the selection on failure and allows retry: %s', async (label, nativeModel) => {
     const user = userEvent.setup()
     updateNativeModel.mockResolvedValueOnce(undefined).mockResolvedValueOnce(agent)

@@ -29,10 +29,10 @@ describe('local agent model search', () => {
         onSelect={onSelect}
       />
     )
-    const native = screen.getByRole('tab', { name: '官方模型' })
+    const native = screen.getByRole('tab', { name: '官方订阅' })
     expect(native).toBeEnabled()
     expect(native).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('button', { name: '官方订阅' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '默认模型' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: /Native model$/ })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: /Native model$/ }))
     await user.click(screen.getByRole('button', { name: '刷新' }))
@@ -58,7 +58,7 @@ describe('local agent model search', () => {
       onSelect
     }
     const { rerender } = render(<LocalAgentModelList {...props} />)
-    const native = screen.getByRole('tab', { name: '官方模型' })
+    const native = screen.getByRole('tab', { name: '官方订阅' })
     const gateway = screen.getByRole('tab', { name: '统一网关' })
     expect(native).toHaveAttribute('aria-selected', 'true')
     expect(gateway).toBeDisabled()
@@ -93,7 +93,7 @@ describe('local agent model search', () => {
       onSelect: async () => true
     }
     const { rerender } = render(<LocalAgentModelList {...props} models={[]} />)
-    const native = screen.getByRole('tab', { name: '官方模型' })
+    const native = screen.getByRole('tab', { name: '官方订阅' })
     expect(native).toBeDisabled()
     expect(screen.getByRole('tab', { name: '统一网关' })).toBeDisabled()
     expect(screen.getByText('此 CLI 未返回可选模型，请沿用其原生配置。')).toBeVisible()
@@ -213,11 +213,11 @@ describe('local agent model search', () => {
         onSelect={onSelect}
       />
     )
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['官方模型', '统一网关'])
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['官方订阅', '统一网关'])
     expect(screen.getByRole('tab', { name: '统一网关' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('button', { name: /Gateway model$/ })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByRole('button', { name: '官方订阅' })).not.toBeInTheDocument()
-    fireEvent.mouseDown(screen.getByRole('tab', { name: '官方模型' }), { button: 0, ctrlKey: false })
+    expect(screen.queryByRole('button', { name: '默认模型' })).not.toBeInTheDocument()
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '官方订阅' }), { button: 0, ctrlKey: false })
     expect(screen.queryByRole('button', { name: /Gateway model$/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'CLI vendor' }))
     expect(screen.queryByRole('button', { name: /Native model$/ })).not.toBeInTheDocument()
@@ -246,7 +246,7 @@ describe('local agent model search', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Models' }))
     expect(screen.getByRole('tab', { name: '统一网关' })).toHaveAttribute('aria-selected', 'true')
-    await user.click(screen.getByRole('tab', { name: '官方模型' }))
+    await user.click(screen.getByRole('tab', { name: '官方订阅' }))
     expect(screen.getByRole('option', { name: /Native model/ })).toBeVisible()
     expect(screen.queryByRole('option', { name: /Gateway model/ })).not.toBeInTheDocument()
     await user.keyboard('{Escape}')
