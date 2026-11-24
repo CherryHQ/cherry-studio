@@ -1,5 +1,5 @@
 import { Globe } from 'lucide-react'
-import type { FC } from 'react'
+import { type FC, useState } from 'react'
 
 import { Avatar, AvatarFallback, AvatarImage, EmojiIcon } from '@cherrystudio/ui'
 import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
@@ -19,6 +19,9 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
   // Branching is decided synchronously from the ref; only the icon component
   // itself loads async (a size-stable placeholder covers that brief window).
   const Logo = useMiniAppLogo(tab.icon)
+  const [failedIcon, setFailedIcon] = useState<string>()
+  // A broken uploaded avatar falls back to the saved emoji, like the chat header.
+  const icon = tab.icon && tab.icon === failedIcon ? tab.iconFallback : tab.icon
   const isMiniApp = tab.url.startsWith(MINI_APP_ROUTE_PREFIX)
   if (tab.url === '/app/browser' || tab.url.startsWith('/app/browser?')) {
     return (
@@ -30,12 +33,12 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
       </Avatar>
     )
   }
-  if (tab.icon) {
+  if (icon) {
     // Per-entity emoji (chat assistant / agent avatar), stored as `emoji:<glyph>`.
-    if (tab.icon.startsWith(TAB_ICON_EMOJI_PREFIX)) {
-      return <EmojiIcon emoji={tab.icon.slice(TAB_ICON_EMOJI_PREFIX.length)} size={size} className={className} />
+    if (icon.startsWith(TAB_ICON_EMOJI_PREFIX)) {
+      return <EmojiIcon emoji={icon.slice(TAB_ICON_EMOJI_PREFIX.length)} size={size} className={className} />
     }
-    if (getMiniAppsLogoRef(tab.icon)) {
+    if (getMiniAppsLogoRef(icon)) {
       return Logo ? (
         <Logo.Avatar size={size} shape={isMiniApp ? 'circle' : 'rounded'} className={cn('select-none', className)} />
       ) : (
@@ -45,7 +48,7 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
     if (isMiniApp) {
       return (
         <img
-          src={tab.icon}
+          src={icon}
           alt=""
           draggable={false}
           className={cn('shrink-0 select-none rounded-full object-cover', className)}
@@ -55,11 +58,12 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
     }
     return (
       <img
-        src={tab.icon}
+        src={icon}
         alt=""
         draggable={false}
         className={cn('rounded-[3px] object-cover select-none', className)}
         style={{ width: size, height: size }}
+        onError={() => setFailedIcon(icon)}
       />
     )
   }
