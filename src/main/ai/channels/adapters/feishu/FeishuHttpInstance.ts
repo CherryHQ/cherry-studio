@@ -35,8 +35,9 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
         // SDK's Content-Type so fetch can set one with a boundary.
         const form = new FormData()
 
-        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SDK upload endpoints own dynamic form fields and native Buffer values; this transport checks each entry before byte-preserving upload or string coercion.
-        for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+        const entries: [string, unknown][] = Object.entries(data)
+
+        for (const [key, value] of entries) {
           if (value === undefined || value === null) continue
 
           if (Buffer.isBuffer(value)) {
@@ -82,7 +83,8 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
 
     const isStream = opts?.responseType === 'stream'
 
-    const responseData = isStream
+    // SAFETY: Native Node fetch returns a node:stream/web stream; DOM and Node typings describe its readers differently.
+    const responseData: unknown = isStream
       ? res.body
         ? Readable.fromWeb(res.body as NodeReadableStream)
         : Readable.from([])
@@ -101,21 +103,27 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
     const responseHeaders = Object.fromEntries(res.headers.entries())
 
     if (!res.ok) {
-      const detail =
-        typeof responseData === 'string'
-          ? responseData
-          : (responseData as { msg?: string; message?: string } | null)?.msg ||
-            (responseData as { msg?: string; message?: string } | null)?.message ||
+      let detail: unknown = responseData
+
+      if (typeof responseData !== 'string') {
+        detail = res.statusText
+
+        if (responseData !== null && typeof responseData === 'object') {
+          detail =
+            ('msg' in responseData && responseData.msg) ||
+            ('message' in responseData && responseData.message) ||
             res.statusText
-
-      const error = new Error(`Feishu HTTP ${res.status}: ${detail}`)
-
-      ;(error as Error & { response?: unknown }).response = {
-        data: responseData,
-        headers: responseHeaders,
-        status: res.status,
-        statusText: res.statusText
+        }
       }
+
+      const error = Object.assign(new Error(`Feishu HTTP ${res.status}: ${detail}`), {
+        response: {
+          data: responseData,
+          headers: responseHeaders,
+          status: res.status,
+          statusText: res.statusText
+        }
+      })
       throw error
     }
 

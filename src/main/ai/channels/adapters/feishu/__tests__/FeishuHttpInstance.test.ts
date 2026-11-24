@@ -1,3 +1,6 @@
+import { Readable } from 'node:stream'
+
+import { AxiosHeaders } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createFeishuHttpInstance } from '../FeishuHttpInstance'
@@ -72,5 +75,67 @@ describe('createFeishuHttpInstance', () => {
     const http = createFeishuHttpInstance()
 
     await expect(http.post('https://example.com', { a: 1 })).rejects.toThrow('Feishu HTTP 400: invalid file')
+  })
+
+  it.each([
+    { payload: { msg: 123, message: 'secondary', extension: { trace: 'keep' } }, detail: '123' },
+    { payload: { msg: 0, message: 'secondary' }, detail: 'secondary' },
+    { payload: { msg: { reason: 'opaque' }, message: 'secondary' }, detail: '[object Object]' },
+    { payload: null, detail: 'Bad Request' },
+    { payload: false, detail: 'Bad Request' }
+  ])('preserves SDK error response data and truthy detail precedence: $detail', async ({ payload, detail }) => {
+    fetchMock.mockResolvedValue(
+      Response.json(payload, { status: 400, statusText: 'Bad Request', headers: { 'x-request-id': 'request-1' } })
+    )
+
+    await expect(createFeishuHttpInstance().post('https://example.com', {})).rejects.toMatchObject({
+      message: `Feishu HTTP 400: ${detail}`,
+      response: {
+        data: payload,
+        status: 400,
+        statusText: 'Bad Request',
+        headers: { 'x-request-id': 'request-1' }
+      }
+    })
+  })
+
+  it('keeps an empty text error body instead of substituting the status text', async () => {
+    fetchMock.mockResolvedValue(new Response('', { status: 400, statusText: 'Bad Request' }))
+
+    await expect(createFeishuHttpInstance().get('https://example.com')).rejects.toMatchObject({
+      message: 'Feishu HTTP 400: '
+    })
+  })
+
+  it('returns Node download bytes and response headers when requested', async () => {
+    fetchMock.mockResolvedValue(new Response(new Uint8Array([0, 255, 17]), { headers: { 'x-file': 'binary' } }))
+
+    const response = await createFeishuHttpInstance().get<unknown, { data: Readable; headers: Record<string, string> }>(
+      'https://example.com/file',
+      { responseType: 'stream', $return_headers: true }
+    )
+    expect(response.data).toBeInstanceOf(Readable)
+    const chunks: Buffer[] = []
+    for await (const chunk of response.data) chunks.push(Buffer.from(chunk))
+    expect(Buffer.concat(chunks)).toEqual(Buffer.from([0, 255, 17]))
+    expect(response.headers).toMatchObject({ 'x-file': 'binary' })
+  })
+
+  it('forwards iterable Axios headers without losing array or numeric values', async () => {
+    const headers = new AxiosHeaders({ 'x-values': ['first', 'second'], 'x-count': 7, 'x-disabled': false })
+
+    await createFeishuHttpInstance().get('https://example.com', { headers })
+
+    const forwarded = new Headers(fetchMock.mock.calls[0][1].headers)
+    expect(forwarded.get('x-values')).toBe('first,second')
+    expect(forwarded.get('x-count')).toBe('7')
+    expect(forwarded.has('x-disabled')).toBe(false)
+  })
+
+  it('propagates the original network failure', async () => {
+    const error = new Error('network unavailable')
+    fetchMock.mockRejectedValue(error)
+
+    await expect(createFeishuHttpInstance().get('https://example.com')).rejects.toBe(error)
   })
 })
