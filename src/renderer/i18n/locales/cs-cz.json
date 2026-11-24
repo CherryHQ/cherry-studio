@@ -1130,6 +1130,7 @@
   "chat.topics.export.obsidian_title_required": "Název nesmí být prázdný",
   "chat.topics.export.obsidian_vault": "Trezor",
   "chat.topics.export.obsidian_vault_placeholder": "Vyberte název trezoru",
+  "chat.topics.export.share_image": "Exportovat obrázek ke sdílení",
   "chat.topics.export.siyuan": "Exportovat do Siyuan Note",
   "chat.topics.export.title": "Exportovat",
   "chat.topics.export.title_naming_failed": "Generování názvu se nezdařilo, použije se výchozí název",
