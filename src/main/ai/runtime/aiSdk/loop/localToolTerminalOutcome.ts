@@ -23,10 +23,14 @@ type TerminalFailureOutput = {
 function isTerminalFailureOutput(output: unknown): output is TerminalFailureOutput {
   if (typeof output !== 'object' || output === null || Array.isArray(output)) return false
 
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This boundary accepts arbitrary tool results; the selected field checks establish the failure shape before provenance is checked.
-  const candidate = output as Record<string, unknown>
-
-  return candidate.terminal === true && candidate.retryable === false && typeof candidate.error === 'string'
+  return (
+    'terminal' in output &&
+    output.terminal === true &&
+    'retryable' in output &&
+    output.retryable === false &&
+    'error' in output &&
+    typeof output.error === 'string'
+  )
 }
 
 /** Preserve output identity and brand it only when it has the terminal failure shape. */
