@@ -56,7 +56,17 @@ vi.mock('@application', async () => {
       closeSessionForArchive: mocks.closeSessionForArchive
     },
     AgentSessionDeliveryService: {
-      pause: () => ({ dispose: mocks.pauseDispose }),
+      // The real disposable is idempotent — repeated dispose() is a no-op.
+      pause: () => {
+        let disposed = false
+        return {
+          dispose: () => {
+            if (disposed) return
+            disposed = true
+            mocks.pauseDispose()
+          }
+        }
+      },
       drainSessionQueues: async () => {},
       kick: () => {}
     },
@@ -356,10 +366,13 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   })
 
   it('releases the storage reservation when strict runtime shutdown fails', async () => {
-    mocks.closeSessionForArchive.mockRejectedValueOnce(new Error('shutdown failed'))
+    // The archive acknowledgement runs the strict close first (issue #21645);
+    // the background pack closes again at the worker barrier. A failure of the
+    // WORKER's close fails the task (retained for retry) and must release the
+    // storage reservation.
+    mocks.closeSessionForArchive.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('shutdown failed'))
     await lifecycle.archiveSessions(['system'])
-    // The background task runs the strict shutdown; its failure fails the task
-    // (retained for retry) and must release the storage reservation.
+    expect(mocks.closeSessionForArchive).toHaveBeenCalledTimes(1)
     await expect(flushArchiveJobs()).rejects.toThrow('shutdown failed')
     const nested = path.join(workspacePath(root, 'system'), 'project')
     expect((await registerWorkspace(nested)).path).toBe(nested)
@@ -369,12 +382,12 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     const nested = path.join(parent, 'project')
     const entered = Promise.withResolvers<void>()
     const resume = Promise.withResolvers<void>()
-    mocks.closeSessionForArchive.mockImplementationOnce(async () => {
+    // The acknowledgement-time strict close succeeds; the reservation the
+    // assertions exercise is the WORKER's, so gate its close (the second call).
+    mocks.closeSessionForArchive.mockResolvedValueOnce(undefined).mockImplementationOnce(async () => {
       entered.resolve()
       await resume.promise
     })
-    // The archive request resolves up front; the storage reservation is held by
-    // the background archive task while it quiesces the runtime.
     await lifecycle.archiveSessions(['system'])
     const archiving = flushArchiveJobs()
     await entered.promise
