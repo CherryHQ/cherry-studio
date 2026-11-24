@@ -14,15 +14,14 @@ import {
 } from '@cherrystudio/ui'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
-import { EmojiAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/DialogFormFields'
 import {
   CompactModelField,
   type ModelLabels
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import { getPermissionModeCards } from '@renderer/utils/agent'
 
-import { DraftAgentAvatarPicker } from '../DraftAgentAvatarPicker'
 import type { ResourceCreateWizardFormValues } from '../types'
+import { CreateAvatarPicker } from './CreateAvatarPicker'
 
 const EMPTY_MODEL_LABELS: ModelLabels = {
   modelId: null,
@@ -71,7 +70,6 @@ export function CreateModelField({
 }
 
 type BasicInfoStepProps = {
-  active: boolean
   disabled: boolean
   onImagePendingChange: (pending: boolean) => void
   form: UseFormReturn<ResourceCreateWizardFormValues>
@@ -128,30 +126,26 @@ function AgentRuntimeModelFields({
   )
 }
 
-/** Draft image state an Agent's avatar picker reports while it prepares a chosen image. */
-type AgentImageDraft = { active: boolean; disabled: boolean; onPendingChange: (pending: boolean) => void }
-
 /** Avatar + name input. The auto-create entry leaves the name optional (it is generated). */
 function AvatarNameField({
   form,
   portalContainer,
   fallbackAvatar,
-  agentImage,
+  disabled,
+  onImagePendingChange,
   required = false,
   placeholder
 }: {
   form: UseFormReturn<ResourceCreateWizardFormValues>
   portalContainer: HTMLElement | null
   fallbackAvatar: string
-  /** Set for an Agent: its avatar may also be an image, kept in the draft until create. */
-  agentImage?: AgentImageDraft
+  disabled?: boolean
+  /** Reports while a chosen image is being prepared, so create waits for it. */
+  onImagePendingChange?: (pending: boolean) => void
   required?: boolean
   placeholder?: string
 }) {
   const { t } = useTranslation()
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
-  const avatar = useWatch({ control: form.control, name: 'avatar' })
-  const avatarImage = useWatch({ control: form.control, name: 'avatarImage' })
 
   return (
     <FormField
@@ -163,33 +157,15 @@ function AvatarNameField({
           <FormLabel className="font-medium">{t('library.config.dialogs.create.avatar_name_label')}</FormLabel>
           <InputGroup>
             <InputGroupAddon className="py-0">
-              {agentImage ? (
-                <DraftAgentAvatarPicker
-                  emoji={avatar || fallbackAvatar}
-                  fallback={fallbackAvatar}
-                  image={avatarImage}
-                  active={agentImage.active}
-                  disabled={agentImage.disabled}
-                  portalContainer={portalContainer}
-                  onPendingChange={agentImage.onPendingChange}
-                  onChange={(emoji, image) => {
-                    form.setValue('avatar', emoji, { shouldDirty: true })
-                    form.setValue('avatarImage', image, { shouldDirty: true })
-                  }}
-                />
-              ) : (
-                <EmojiAvatarPicker
-                  value={avatar}
-                  fallback={fallbackAvatar}
-                  open={emojiPickerOpen}
-                  onOpenChange={setEmojiPickerOpen}
-                  onChange={(value) => form.setValue('avatar', value, { shouldDirty: true })}
-                  ariaLabel={t('library.config.dialogs.create.avatar_aria')}
-                  portalContainer={portalContainer}
-                  avatarClassName="border-0"
-                  avatarFontSize={18}
-                />
-              )}
+              <CreateAvatarPicker
+                form={form}
+                fallbackAvatar={fallbackAvatar}
+                portalContainer={portalContainer}
+                disabled={disabled}
+                onPendingChange={onImagePendingChange}
+                avatarClassName="border-0"
+                avatarFontSize={18}
+              />
             </InputGroupAddon>
             <FormControl>
               <InputGroupInput
@@ -213,7 +189,6 @@ function AvatarNameField({
  * only this step, never the dialog shell (keeps DialogContent's ref stable).
  */
 export function BasicInfoStep({
-  active,
   disabled,
   onImagePendingChange,
   form,
@@ -234,7 +209,8 @@ export function BasicInfoStep({
         form={form}
         portalContainer={portalContainer}
         fallbackAvatar={fallbackAvatar}
-        agentImage={showAgentFields ? { active, disabled, onPendingChange: onImagePendingChange } : undefined}
+        disabled={disabled}
+        onImagePendingChange={onImagePendingChange}
         required
       />
 

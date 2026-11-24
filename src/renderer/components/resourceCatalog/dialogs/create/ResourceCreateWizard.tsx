@@ -7,11 +7,14 @@ import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, ScrollArea 
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { toAgentChannelDraft } from '@renderer/components/channel/channelDraft'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useIsCherryCloudModelSelectable } from '@renderer/hooks/cherryCloud/useIsCherryCloudModelSelectable'
 import { useResourceAutoConfigure } from '@renderer/hooks/resourceCatalog'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import type { AutoConfigDraft } from '@renderer/utils/resourceCatalog'
@@ -84,6 +87,7 @@ function getDefaultValues(
   const agentType = kind === 'agent' ? 'pi-durable' : 'claude-code'
   return {
     avatar: getResourceCreateDefaultAvatar(kind),
+    avatarImage: null,
     name: initialName,
     description: '',
     agentType,
@@ -140,19 +144,21 @@ function EntryFooter({
   kind,
   form,
   isSubmitting,
+  imagePending,
   onManual,
   onAuto
 }: {
   kind: ResourceCreateWizardKind
   form: UseFormReturn<ResourceCreateWizardFormValues>
   isSubmitting: boolean
+  imagePending: boolean
   onManual: () => void
   onAuto: (autoConfigure: AutoConfigure) => void
 }) {
   const { t } = useTranslation()
   const { ready: catalogsReady, generate, installFeaturedMcpServers } = useResourceAutoConfigure(kind)
   const [purpose, modelId] = useWatch({ control: form.control, name: ['description', 'modelId'] })
-  const busy = isSubmitting || form.formState.isSubmitting
+  const busy = isSubmitting || form.formState.isSubmitting || imagePending
   const rootError = form.formState.errors.root?.message
   const canAuto = (purpose?.trim().length ?? 0) > 0 && Boolean(modelId) && catalogsReady
 
@@ -274,6 +280,7 @@ export function ResourceCreateWizard({
   initialValues
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
+  const invalidate = useInvalidateCache()
   const form = useForm<ResourceCreateWizardFormValues>({
     defaultValues: getDefaultValues(kind, initialName, initialValues)
   })
@@ -442,6 +449,19 @@ export function ResourceCreateWizard({
     return () => window.cancelAnimationFrame(frameId)
   }, [open, runPendingCloseAction])
 
+  /** Saves an uploaded Assistant avatar onto the new Assistant; resolves whether it was saved. */
+  const saveAssistantAvatar = async (id: string, data: Uint8Array<ArrayBuffer>): Promise<boolean> => {
+    try {
+      await ipcApi.request('assistant.set_avatar', { assistantId: id, avatar: { kind: 'image', data } })
+      await invalidate([`/assistants/${id}`, '/assistants'])
+      return true
+    } catch (error) {
+      // The resource already exists with its emoji, so this is reported without failing the create.
+      toast.error(formatErrorMessageWithPrefix(error, t('library.config.dialogs.create.avatar_save_failed')))
+      return false
+    }
+  }
+
   /** Resolves whether the resource was created; on success the dialog moves to the result page. */
   const submitValues = async (values: ResourceCreateWizardFormValues, generated = false): Promise<boolean> => {
     if (!values.modelId) return false
@@ -453,7 +473,8 @@ export function ResourceCreateWizard({
     }
     const payload: ResourceCreateWizardValues = {
       avatar: values.avatar,
-      ...(kind === 'agent' && values.avatarImage ? { avatarImage: values.avatarImage } : {}),
+      // An Agent's image is created with it in one transaction; an Assistant's is saved after.
+      ...(kind === 'agent' && values.avatarImage ? { avatarImage: values.avatarImage.data } : {}),
       agentType: values.agentType,
       permissionMode: values.permissionMode,
       name: values.name.trim(),
@@ -477,7 +498,10 @@ export function ResourceCreateWizard({
     }
     try {
       const id = await onSubmit(payload)
-      setCreated({ id, values: payload, generated })
+      const image = values.avatarImage
+      const saved = image && (kind === 'agent' || (await saveAssistantAvatar(id, image.data)))
+      const avatarSrc = saved ? image.previewUrl : undefined
+      setCreated({ id, values: payload, generated, avatarSrc })
       setView('result')
       return true
     } catch (error) {
@@ -618,6 +642,7 @@ export function ResourceCreateWizard({
                       modelFilter={activeModelFilter}
                       includeAgentOnlyModels={kind === 'agent'}
                       disabled={submitting}
+                      onImagePendingChange={setImagePending}
                       onSettingsNavigate={closeBeforeAction}
                     />
                   </div>
@@ -625,6 +650,7 @@ export function ResourceCreateWizard({
                     kind={kind}
                     form={form}
                     isSubmitting={isSubmitting}
+                    imagePending={imagePending}
                     onManual={() => {
                       form.clearErrors('root')
                       const { description, prompt } = form.getValues()
@@ -688,7 +714,6 @@ export function ResourceCreateWizard({
                       className="min-w-0 flex-1">
                       {currentStep.id === 'basic' ? (
                         <BasicInfoStep
-                          active={open}
                           disabled={submitting}
                           onImagePendingChange={setImagePending}
                           form={form}
