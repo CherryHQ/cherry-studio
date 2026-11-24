@@ -3,8 +3,8 @@ import { useEffect, useRef } from 'react'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { FILE_TYPE } from '@shared/types/file'
 
 const logger = loggerService.withContext('useMediaPreAnalysis')
 

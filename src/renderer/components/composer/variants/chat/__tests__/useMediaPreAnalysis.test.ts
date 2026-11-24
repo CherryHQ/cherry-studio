@@ -3,9 +3,8 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
-import { FILE_TYPE, type FileType } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema, FILE_TYPE, type FileType } from '@shared/types/file'
 
 import { useMediaPreAnalysis } from '../useMediaPreAnalysis'
 
