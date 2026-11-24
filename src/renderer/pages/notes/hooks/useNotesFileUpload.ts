@@ -49,6 +49,7 @@ export const useNotesFileUpload = ({ onUploadFiles, setIsDragOverSidebar }: UseN
 
       const processEntry = async (entry: FileSystemEntry, path: string = '') => {
         if (entry.isFile) {
+          // SAFETY: Native Entries API objects use isFile to identify FileSystemFileEntry.
           const fileEntry = entry as FileSystemFileEntry
 
           return new Promise<void>((resolve) => {
@@ -71,6 +72,7 @@ export const useNotesFileUpload = ({ onUploadFiles, setIsDragOverSidebar }: UseN
             )
           })
         } else if (entry.isDirectory) {
+          // SAFETY: Native Entries API objects use isDirectory to identify FileSystemDirectoryEntry.
           const dirEntry = entry as FileSystemDirectoryEntry
           const entries = await readAllEntries(dirEntry.createReader())
           await Promise.all(entries.map((subEntry) => processEntry(subEntry, path + entry.name + '/')))
@@ -110,11 +112,9 @@ export const useNotesFileUpload = ({ onUploadFiles, setIsDragOverSidebar }: UseN
     fileInput.accept = '.md,.markdown'
     fileInput.webkitdirectory = false
 
-    fileInput.onchange = (e) => {
-      const target = e.target as HTMLInputElement
-
-      if (target.files && target.files.length > 0) {
-        const selectedFiles = Array.from(target.files)
+    fileInput.onchange = () => {
+      if (fileInput.files && fileInput.files.length > 0) {
+        const selectedFiles = Array.from(fileInput.files)
         onUploadFiles(selectedFiles)
       }
 
@@ -133,11 +133,9 @@ export const useNotesFileUpload = ({ onUploadFiles, setIsDragOverSidebar }: UseN
     folderInput.directory = true
     folderInput.multiple = true
 
-    folderInput.onchange = (e) => {
-      const target = e.target as HTMLInputElement
-
-      if (target.files && target.files.length > 0) {
-        const selectedFiles = Array.from(target.files)
+    folderInput.onchange = () => {
+      if (folderInput.files && folderInput.files.length > 0) {
+        const selectedFiles = Array.from(folderInput.files)
         onUploadFiles(selectedFiles)
       }
 
