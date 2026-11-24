@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import { BABELDOC_MINIMUM_VERSION } from '@shared/data/presets/binaryTools'
 import type { BinaryToolInstalledSizes, BinaryToolSnapshot } from '@shared/types/binary'
 
@@ -27,6 +28,7 @@ const ipcMocks = vi.hoisted(() => ({
   searchRegistry: vi.fn()
 }))
 const toastMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
+const openErrorDetail = vi.hoisted(() => vi.fn().mockResolvedValue('opened'))
 const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
 const translationMock = vi.hoisted(() => ({
   t: (key: string, options?: { details?: string; dependents?: string }) => {
@@ -83,6 +85,10 @@ vi.mock('@renderer/ipc', () => ({
 
 vi.mock('@renderer/ipc/useIpcOn', () => ({ useIpcOn: vi.fn() }))
 vi.mock('@renderer/services/toast', () => ({ toast: toastMock }))
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: openErrorDetail }
+}))
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => translationMock
@@ -844,6 +850,63 @@ describe('EnvironmentDependencies', () => {
     expect(dialogs[0]).not.toHaveTextContent('EACCES')
     expect(dialogs[0]).not.toHaveTextContent('settings.dependencies.installErrorHint')
     expect(within(dialogs[0]).getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
+  })
+
+  it('attributes a late add rejection to the submitted tool, not the one selected since', async () => {
+    let rejectAdd!: (error: Error) => void
+    ipcMocks.addCustomTool.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectAdd = reject
+        })
+    )
+    ipcMocks.searchRegistry.mockImplementation(async (query: string) => [{ name: query, tool: query }])
+    render(<EnvironmentDependencies />)
+    const search = (name: string) =>
+      fireEvent.change(screen.getByPlaceholderText('settings.dependencies.searchRegistry'), {
+        target: { value: name }
+      })
+
+    fireEvent.click(screen.getByText('settings.dependencies.addTool'))
+    search('jq')
+    fireEvent.click(await screen.findByRole('button', { name: /jq/ }))
+    fireEvent.click(screen.getByText('common.add'))
+    await waitFor(() => expect(ipcMocks.addCustomTool).toHaveBeenCalled())
+    search('yq')
+    fireEvent.click(await screen.findByRole('button', { name: /yq/ }))
+    await act(async () => rejectAdd(new Error('registry refused')))
+
+    fireEvent.click(await screen.findByRole('button', { name: /common\.detail/ }))
+    await waitFor(() => expect(openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(openErrorDetail.mock.calls[0][0].context).toMatchObject({
+      operation: 'binary.add_custom_tool',
+      recordId: 'jq'
+    })
+  })
+
+  it('drops an add rejection that settles after the dialog was dismissed', async () => {
+    let rejectAdd!: (error: Error) => void
+    ipcMocks.addCustomTool.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectAdd = reject
+        })
+    )
+    ipcMocks.searchRegistry.mockResolvedValue([{ name: 'jq', tool: 'jq' }])
+    render(<EnvironmentDependencies />)
+
+    fireEvent.click(screen.getByText('settings.dependencies.addTool'))
+    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.searchRegistry'), {
+      target: { value: 'jq' }
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /jq/ }))
+    fireEvent.click(screen.getByText('common.add'))
+    await waitFor(() => expect(ipcMocks.addCustomTool).toHaveBeenCalled())
+    fireEvent.click(screen.getByTestId('dialog-close'))
+    await act(async () => rejectAdd(new Error('registry refused')))
+
+    fireEvent.click(screen.getByText('settings.dependencies.addTool'))
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('settings.dependencies.addFailed')
   })
 
   it('warns before removing a managed runtime', async () => {

@@ -936,11 +936,17 @@ function AddToolDialog({
   const [selectedTool, setSelectedTool] = useState('')
   const [version, setVersion] = useState('')
   const [adding, setAdding] = useState(false)
-  const [addError, setAddError] = useState<unknown>(null)
+  // The name travels with the cause: the user may pick another result while the add is pending.
+  const [addError, setAddError] = useState<{ cause: unknown; name: string } | null>(null)
   const searchIdRef = useRef(0)
+  // Bumped on close so an add that settles after dismissal cannot touch the next session.
+  const sessionRef = useRef(0)
 
   useEffect(() => {
-    if (!open) setAddError(null)
+    if (open) return
+    sessionRef.current++
+    setAddError(null)
+    setAdding(false)
   }, [open])
 
   const reset = () => {
@@ -997,21 +1003,23 @@ function AddToolDialog({
 
   const handleSubmit = async () => {
     if (!selectedName.trim() || !selectedTool.trim()) return
+    const session = sessionRef.current
+    const name = selectedName.trim()
     setAdding(true)
     setAddError(null)
     try {
       const added = await onAdd({
-        name: selectedName.trim(),
+        name,
         tool: selectedTool.trim(),
         requestedVersion: version.trim() || undefined
       })
-      if (!added) return
+      if (!added || session !== sessionRef.current) return
       reset()
       onOpenChange(false)
     } catch (error) {
-      setAddError(error)
+      if (session === sessionRef.current) setAddError({ cause: error, name })
     } finally {
-      setAdding(false)
+      if (session === sessionRef.current) setAdding(false)
     }
   }
 
@@ -1081,16 +1089,16 @@ function AddToolDialog({
             value={version}
             onChange={(e) => setVersion(e.target.value)}
           />
-          {addError != null && (
+          {addError && (
             <ErrorNotice
               variant="inline"
               title={t('settings.dependencies.addFailed')}
               detail={
                 <ErrorDetailAction
-                  error={addError}
+                  error={addError.cause}
                   message={t('settings.dependencies.addFailed')}
                   operation="binary.add_custom_tool"
-                  recordId={selectedName}
+                  recordId={addError.name}
                   source="settings.dependencies"
                 />
               }
