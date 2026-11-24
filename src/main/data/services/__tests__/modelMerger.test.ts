@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
 
-import { describe, expect, it } from 'vitest'
+import { assert, describe, expect, it } from 'vitest'
 
 import type { ProtoProviderModelOverride } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
@@ -11,6 +11,7 @@ import {
   mergePresetModel,
   resolveReasoningProfileFromRegistry
 } from '@data/services/ProviderRegistryService'
+import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 
 // Use string literals matching the actual enum values to avoid
 // importing @cherrystudio/provider-registry just for the constants.
@@ -99,6 +100,37 @@ describe('mergePresetModel', () => {
     contextWindow: 128_000,
     maxOutputTokens: 4096
   } as any
+
+  it('resolves CherryIN Fable 5.2 with its limits and sends xhigh through Messages', () => {
+    const apiModelId = 'anthropic/claude-fable-5.2'
+    const override = registryLoader.findOverride('cherryin', apiModelId)
+    assert(override)
+    const preset = registryLoader.findModel(override.modelId)
+    assert(preset)
+    const { wire } = resolveReasoningProfileFromRegistry({
+      endpointType: 'anthropic-messages',
+      wireDialect: preset.reasoning?.wireDialect
+    })
+    const model = mergePresetModel(preset, override, 'cherryin', wire)
+
+    expect(model).toMatchObject({
+      apiModelId,
+      endpointTypes: ['anthropic-messages', 'openai-chat-completions'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      parameterSupport: { temperature: { supported: false }, topP: { supported: false }, topK: { supported: false } },
+      reasoning: {
+        defaultEffort: 'high',
+        selectableEfforts: ['low', 'medium', 'high', 'xhigh', 'max']
+      }
+    })
+    expect(encodeReasoningInvocation(resolveReasoningInvocation({ model, selection: 'xhigh', profile: wire }))).toEqual(
+      {
+        thinking: { type: 'adaptive', display: 'summarized' },
+        effort: 'xhigh'
+      }
+    )
+  })
 
   it('merges from preset when no override', () => {
     const model = mergePresetModel(presetModel, null, 'openai')
