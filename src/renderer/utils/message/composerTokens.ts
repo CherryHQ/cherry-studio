@@ -11,9 +11,9 @@ function isTextPart(part: CherryMessagePart): part is Extract<CherryMessagePart,
 }
 
 function getMessageParts(message: ExportableMessage): CherryMessagePart[] {
-  const parts = (message as { parts?: unknown }).parts
+  const parts = message.parts
 
-  return Array.isArray(parts) ? (parts as CherryMessagePart[]) : []
+  return Array.isArray(parts) ? parts : []
 }
 
 function getSortedComposerTokens(
