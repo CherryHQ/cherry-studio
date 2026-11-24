@@ -224,7 +224,7 @@ function createFlowTextMessage(
   return {
     id,
     role,
-    parts: [{ type: 'text', text }] as CherryMessagePart[],
+    parts: [{ type: 'text', text }],
     metadata: {
       createdAt,
       status: role === 'assistant' ? 'success' : undefined
@@ -248,7 +248,7 @@ function getOrderedMessageParts(
 ): Array<{ message: CherryUIMessage; parts: CherryMessagePart[] }> {
   const entries = messages.map((message) => ({
     message,
-    parts: partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    parts: partsByMessageId[message.id] ?? message.parts ?? []
   }))
 
   const seenMessageIds = new Set(messages.map((message) => message.id))
@@ -625,7 +625,7 @@ export function buildAgentToolFlowProjection(
     )
 
     if (assistantParts.length || isFlowActive) {
-      const assistantMessage = {
+      const assistantMessage: CherryUIMessage = {
         id: `${selectedToolCallId}:agent-flow-assistant`,
         role: 'assistant',
         parts: assistantParts,
@@ -633,7 +633,7 @@ export function buildAgentToolFlowProjection(
           createdAt: selectedCreatedAt,
           status: isFlowActive ? 'pending' : 'success'
         }
-      } as CherryUIMessage
+      }
 
       flowMessages.push(assistantMessage)
       flowPartsByMessageId[assistantMessage.id] = assistantParts
