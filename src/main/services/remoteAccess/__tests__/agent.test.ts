@@ -1230,6 +1230,57 @@ describe('remote agent access', () => {
     ).toEqual({ text: '{"path":"0.txt"}' })
   })
 
+  it('reads complete persisted approval input after its live request has expired', async () => {
+    const messageId = randomUUID()
+    const input = { path: 'long-path/'.repeat(600), options: { recursive: false } }
+    const text = JSON.stringify(input)
+    agentSessionMessageService.saveMessage({
+      sessionId,
+      message: {
+        id: messageId,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'tool-read',
+              toolCallId: 'persisted-call',
+              state: 'approval-requested',
+              input,
+              approval: { id: 'persisted-approval' }
+            }
+          ]
+        }
+      }
+    })
+    expect(
+      agentSessionMessageService.retireAbandonedApproval(sessionId, 'persisted-approval', 'connection closed')
+    ).toBe(true)
+
+    const { interaction } = await call('agent.interactions.get', {
+      sessionId,
+      interactionId: 'persisted-approval'
+    })
+    expect(interaction).toMatchObject({
+      status: 'expired',
+      executionId: messageId,
+      input: {
+        ref: { contentId: `${messageId}:approval:persisted-approval`, byteLength: String(Buffer.byteLength(text)) }
+      }
+    })
+    if (!('ref' in interaction.input)) throw new Error('Expected persisted input to use a content reference')
+    const { ref } = interaction.input
+    const read = await call('agent.content.read', {
+      sessionId,
+      contentId: ref.contentId,
+      revision: ref.revision,
+      offset: '0',
+      maxBytes: 24_576
+    })
+    expect(Buffer.from(read.dataBase64, 'base64').toString('utf8')).toBe(text)
+    expect(read).toMatchObject({ eof: true, nextOffset: ref.byteLength, sha256: ref.sha256 })
+  })
+
   it('filters workspaces before both pinned and unpinned session pagination', async () => {
     const other = application
       .get('DbService')

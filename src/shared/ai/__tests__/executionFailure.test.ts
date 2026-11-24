@@ -5,6 +5,23 @@ import { executionFailureSchema } from '@cherrystudio/remote-protocol/failure'
 import { toExecutionFailure } from '../executionFailure'
 
 describe('execution failure projection', () => {
+  it('classifies error parts without requiring serialized name or stack fields', () => {
+    expect(
+      toExecutionFailure(
+        { message: 'Access denied', statusCode: 401, providerErrorCategory: 'auth', isRetryable: true },
+        'provider::model'
+      )
+    ).toMatchObject({
+      message: 'Access denied',
+      retryable: false,
+      failure: {
+        reasonCode: 'auth',
+        source: { layer: 'provider' },
+        context: { statusCode: 401, providerId: 'provider', modelId: 'provider::model' }
+      }
+    })
+  })
+
   it('keeps a fresh Groq entitlement failure non-retryable with its HTTP status', () => {
     expect(
       toExecutionFailure(

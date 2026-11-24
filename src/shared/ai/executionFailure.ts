@@ -37,7 +37,7 @@ function safeText(value: SerializedError[string] | undefined, limit: number): st
 }
 
 export function toExecutionFailure(
-  error: SerializedError,
+  error: Partial<SerializedError>,
   modelId?: string,
   layer?: ExecutionFailure['failure']['source']['layer']
 ): ExecutionFailure {

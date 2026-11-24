@@ -29,7 +29,6 @@ import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import type { SerializedError } from '@shared/types/error'
 
 import { DEFAULT_PAGE, pageOf, queryPage } from './agentPagination'
 import { toMessageUsage } from './agentUsage'
@@ -165,7 +164,7 @@ export function projectMessageParts(
         })
       }
     } else if (part.type === 'data-error') {
-      const failure = toExecutionFailure(part.data as SerializedError, message.modelId ?? undefined)
+      const failure = toExecutionFailure(part.data, message.modelId ?? undefined)
       projected.push(
         dataPart(
           partId,
@@ -204,7 +203,7 @@ export function projectMessageParts(
           )
         )
     } else if (part.type !== 'step-start') {
-      const { type, ...rest } = part as { type: string }
+      const { type, ...rest } = part
       projected.push(dataPart(partId, revision, type, JSON.stringify(rest)))
     }
   })
@@ -256,7 +255,7 @@ function toMessageMetadata(message: AgentSessionMessageEntity) {
   if (message.status === 'error')
     Object.assign(state, {
       failure: toExecutionFailure(
-        (error?.data as SerializedError) ?? { name: null, message: null, stack: null },
+        error?.data ?? { name: null, message: null, stack: null },
         message.modelId ?? undefined
       )
     })
@@ -321,10 +320,7 @@ export function readPersistedContent(sessionId: string, contentId: string, revis
     throw new RemoteRpcError('REVISION_EXPIRED', 'Content revision expired')
 
   const approval = (message.data.parts ?? []).find(
-    (part) =>
-      isToolUIPart(part) &&
-      'approval' in part &&
-      `${message.id}:approval:${(part.approval as { id?: string })?.id}` === contentId
+    (part) => isToolUIPart(part) && 'approval' in part && `${message.id}:approval:${part.approval?.id}` === contentId
   )
 
   if (approval && isToolUIPart(approval)) return utf8(JSON.stringify(approval.input ?? null))
@@ -345,7 +341,7 @@ export function listPersistedInteractions(sessionId: string): AgentInteraction[]
   for (const message of messages) {
     for (const part of message.data.parts ?? []) {
       if (!isToolUIPart(part)) continue
-      const approval = (part as { approval?: { id?: string; approved?: boolean } }).approval
+      const approval = part.approval
 
       if (!approval?.id) continue
       const input = JSON.stringify(part.input ?? null)
