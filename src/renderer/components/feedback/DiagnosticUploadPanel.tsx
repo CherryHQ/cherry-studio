@@ -92,6 +92,8 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     diagnosticDescriptionByteLength(normalizedDescription) <= DIAGNOSTIC_DESCRIPTION_MAX_BYTES
   const showDescriptionError = hasAttemptedSubmit && !descriptionValid
   const isBusy = operationStatus !== 'idle'
+  // A failed-message analysis may quote the conversation, so it follows the chat-history opt-in.
+  const sentDiagnosis = attachedDiagnosis?.topicId === undefined || includeChatRecords ? attachedDiagnosis : undefined
   const canAttemptUpload = operationStatus === 'idle' && acknowledged
 
   useEffect(() => onBusyChange?.(isBusy), [isBusy, onBusyChange])
@@ -197,7 +199,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
         includeTraces: true,
         range: '24h',
         ...(errorContext ? { errorContext } : {}),
-        ...(attachedDiagnosis ? { aiDiagnosis: attachedDiagnosis } : {})
+        ...(sentDiagnosis ? { aiDiagnosis: sentDiagnosis } : {})
       })
       acceptSubmissionResult(uploadResult)
     } catch (error) {
@@ -256,7 +258,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
       <ScrollArea contentProps={{ className: 'px-6 py-2' }} className="min-h-0">
-        {attachedDiagnosis ? (
+        {sentDiagnosis ? (
           <p className="text-muted-foreground mb-4 text-sm">
             {t('settings.about.diagnostics.report.ai_diagnosis_included')}
           </p>

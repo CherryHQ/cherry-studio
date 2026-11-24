@@ -4,6 +4,13 @@ import { isSensitiveKey, REDACTED, redactDiagnosticText } from './redaction'
 const MESSAGE_LIMIT = 4_000
 const PARAM_LIMIT = 200
 const RESPONSE_LIMIT = 1_000
+// Machine codes like `FILE_EDIT_NO_SPACE` are safe to keep; free-form values (paths, text) are not.
+const SAFE_ERROR_CODE = /^[A-Z][A-Z0-9_]{1,63}$/
+
+/** True for an allowlist-shaped machine code such as `FILE_EDIT_NO_SPACE`. */
+export function isSafeErrorCode(value: unknown): value is string {
+  return typeof value === 'string' && SAFE_ERROR_CODE.test(value)
+}
 
 function createAppErrorId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -33,6 +40,7 @@ export function createAppErrorContext(
     message: input.message,
     ...(input.name ? { name: input.name } : {}),
     ...(input.stack ? { stack: input.stack } : {}),
+    ...(isSafeErrorCode(input.code) ? { code: input.code } : {}),
     ...(statusCode !== undefined ? { statusCode } : {}),
     ...(responseBody ? { responseBody } : {}),
     ...(input.providerId ? { providerId: input.providerId } : {}),
@@ -101,6 +109,7 @@ export function projectAppErrorContext(context: AppErrorContext, view: 'export' 
     message: redactText(context.message, MESSAGE_LIMIT),
     ...(context.name ? { name: redactText(context.name, 200) } : {}),
     ...(stack ? { stack } : {}),
+    ...(isSafeErrorCode(context.code) ? { code: context.code } : {}),
     ...(context.statusCode !== undefined ? { statusCode: context.statusCode } : {}),
     ...(responseBody ? { responseBody } : {}),
     ...(context.providerId ? { providerId: context.providerId } : {}),

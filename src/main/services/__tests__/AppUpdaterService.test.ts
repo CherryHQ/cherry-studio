@@ -225,6 +225,40 @@ describe('AppUpdaterService', () => {
       expect(trackAppUpdateMock).not.toHaveBeenCalled()
     })
 
+    it('does not add a feed request while a scheduled check or its download is still running', async () => {
+      let finishLookup: (value: unknown) => void = () => undefined
+      let finishDownload: () => void = () => undefined
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishLookup = resolve
+          }) as never
+      )
+      const lookup = (
+        appUpdater as unknown as { performUpdateCheck: (manual: boolean) => Promise<unknown> }
+      ).performUpdateCheck(false)
+      await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledOnce())
+
+      await expect(appUpdater.queryAvailabilityUnlessBusy()).resolves.toEqual({ status: 'busy' })
+      finishLookup({
+        isUpdateAvailable: true,
+        updateInfo: { version: '2.0.0' },
+        cancellationToken: { cancel: vi.fn() },
+        downloadPromise: new Promise<void>((resolve) => {
+          finishDownload = resolve
+        })
+      })
+      await lookup
+      await expect(appUpdater.queryAvailabilityUnlessBusy()).resolves.toEqual({ status: 'busy' })
+      expect(releaseNotesCheckMock).not.toHaveBeenCalled()
+
+      finishDownload()
+      await vi.waitFor(async () => {
+        releaseNotesCheckMock.mockResolvedValue({ isUpdateAvailable: false, updateInfo: { version: '1.0.0' } })
+        await expect(appUpdater.queryAvailabilityUnlessBusy()).resolves.toMatchObject({ status: 'current' })
+      })
+    })
+
     it('does not turn a failed or unsupported updater query into an up-to-date result', async () => {
       releaseNotesCheckMock.mockRejectedValueOnce(new Error('HTTP 503'))
       await expect(appUpdater.queryUpdateAvailability()).rejects.toThrow('HTTP 503')
@@ -783,23 +817,105 @@ describe('AppUpdaterService', () => {
       listeners.get('update-downloaded')?.(release('1.3.0-beta.1'))
 
       appUpdater.cancelDownload()
-      expect(() => appUpdater.quitAndInstall('1.3.0-beta.1')).toThrow(
-        expect.objectContaining({ code: 'VALIDATION_FAILED' })
-      )
+      await expect(appUpdater.quitAndInstall('1.3.0-beta.1')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
 
       MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.RC)
       vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce(checked('1.3.0-rc.1') as never)
       await appUpdater.checkForUpdates()
       listeners.get('update-downloaded')?.(release('1.3.0-rc.1'))
 
-      expect(() => appUpdater.quitAndInstall('1.3.0-beta.1')).toThrow(
-        expect.objectContaining({ code: 'VALIDATION_FAILED' })
-      )
+      await expect(appUpdater.quitAndInstall('1.3.0-beta.1')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
       expect(application.markQuitting).not.toHaveBeenCalled()
 
-      appUpdater.quitAndInstall('1.3.0-rc.1')
-      await new Promise((resolve) => setImmediate(resolve))
+      await appUpdater.quitAndInstall('1.3.0-rc.1')
       expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce()
+    })
+
+    describe('a confirmed installation while the updater moves on', () => {
+      const release = (version: string) => ({
+        version,
+        files: [],
+        path: 'app.exe',
+        sha512: 'x',
+        releaseDate: '2026-01-01'
+      })
+      const checked = (version: string) => ({
+        isUpdateAvailable: true,
+        updateInfo: release(version),
+        cancellationToken: { cancel: vi.fn() }
+      })
+      let listeners: Map<string, (...args: unknown[]) => void>
+
+      beforeEach(async () => {
+        listeners = new Map()
+        vi.mocked(autoUpdater.on).mockImplementation(((event: string, handler: (...args: unknown[]) => void) => {
+          listeners.set(event, handler)
+          return autoUpdater
+        }) as typeof autoUpdater.on)
+        const updater = appUpdater as unknown as {
+          registerDisposable: () => void
+          registerAutoUpdaterListeners: () => void
+        }
+        updater.registerDisposable = () => undefined
+        updater.registerAutoUpdaterListeners()
+        vi.mocked(autoUpdater.downloadUpdate).mockResolvedValue([])
+        vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce(checked('1.3.0') as never)
+        await appUpdater.checkForUpdates()
+        listeners.get('update-downloaded')?.(release('1.3.0'))
+      })
+
+      it('rejects the confirmed release once a same-channel download of another one starts', async () => {
+        // electron-updater points its installer at the new file before it emits update-downloaded.
+        vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(async () => {
+          listeners.get('update-available')?.(release('1.3.1'))
+          return checked('1.3.1') as never
+        })
+        await appUpdater.checkForUpdates()
+
+        await expect(appUpdater.quitAndInstall('1.3.0')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+        expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled()
+
+        listeners.get('update-downloaded')?.(release('1.3.1'))
+        await appUpdater.quitAndInstall('1.3.1')
+        expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce()
+      })
+
+      it('fails only the install attempt when the native installer fails during a pending lookup', async () => {
+        const ipc = application.get('IpcApiService')
+        let finishLookup: (value: unknown) => void = () => undefined
+        vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishLookup = resolve
+            }) as never
+        )
+        const lookup = (
+          appUpdater as unknown as { performUpdateCheck: (manual: boolean) => Promise<unknown> }
+        ).performUpdateCheck(false)
+        await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2))
+        // The Debian installer and its recovery command both fail synchronously inside quitAndInstall.
+        vi.mocked(autoUpdater.quitAndInstall).mockImplementationOnce(() => {
+          listeners.get('error')?.(new Error('dpkg failed'))
+        })
+        vi.mocked(ipc.broadcastToType).mockClear()
+
+        await expect(appUpdater.quitAndInstall('1.3.0')).rejects.toBeTruthy()
+        expect(ipc.broadcastToType).not.toHaveBeenCalledWith('main', 'app.updater.error', expect.anything())
+
+        listeners.get('update-available')?.(release('1.3.1'))
+        finishLookup(checked('1.3.1'))
+        await lookup
+        listeners.get('update-downloaded')?.(release('1.3.1'))
+
+        expect(ipc.broadcastToType).toHaveBeenCalledWith(
+          'main',
+          'app.updater.downloaded',
+          expect.objectContaining({ version: '1.3.1' })
+        )
+        await expect(appUpdater.quitAndInstall('1.3.0')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+        await appUpdater.quitAndInstall('1.3.1')
+        expect(autoUpdater.quitAndInstall).toHaveBeenCalledTimes(2)
+      })
     })
 
     it('fetches and validates release history through the managed release service', async () => {

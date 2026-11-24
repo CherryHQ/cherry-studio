@@ -58,6 +58,11 @@ export const screenshotHandlers: IpcHandlersFor<typeof screenshotRequestSchemas>
     if (!ctx.senderId || !service.isSessionOverlay(ctx.senderId)) return
     service.dismiss()
   },
+  // Only a session overlay ends the session (checked in the service); any sender may report, as with `app.error.handoff`.
+  'screenshot.fail': async (context, ctx) => {
+    if (!ctx.senderId) return
+    await application.get('ScreenshotOverlayService').failFromOverlay(ctx.senderId, context)
+  },
   'screenshot.overlay_active': async (_input, ctx) => {
     const service = application.get('ScreenshotOverlayService')
     if (!ctx.senderId || !service.isSessionOverlay(ctx.senderId)) return

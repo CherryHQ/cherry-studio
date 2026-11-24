@@ -5,6 +5,7 @@ import { ipcApi } from '@renderer/ipc'
 import { messageProjectionService, streamDispatchService } from '@renderer/services/aiTransport'
 import type { AiChatRequestBody, AiStreamOpenRequest } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 
@@ -12,8 +13,11 @@ const EMPTY_MESSAGES: CherryUIMessage[] = []
 export function useStreamCommands(
   topicId: string,
   initialMessages: CherryUIMessage[] = EMPTY_MESSAGES,
-  /** `cause` is the stored error part data when available, so provider status and body survive. */
-  onError?: (error: Error, cause: unknown) => void
+  /**
+   * `cause` is the stored error part data when available, so provider status and body survive.
+   * `executionId` is the failed execution's model; absent when dispatch itself fails.
+   */
+  onError?: (error: Error, cause: unknown, executionId?: UniqueModelId) => void
 ) {
   const [local, setLocal] = useState({ topicId, messages: initialMessages })
   const [error, setError] = useState<Error>()
@@ -54,7 +58,7 @@ export function useStreamCommands(
       if (part?.type !== 'data-error') continue
       const failure = new Error(part.data.message ?? 'Stream error')
       setError(failure)
-      errorHandler.current?.(failure, part.data)
+      errorHandler.current?.(failure, part.data, execution.executionId)
     }
   }, [projection])
 

@@ -20,6 +20,7 @@ type TestModel = {
 
 const state = vi.hoisted(() => ({
   quickAssistantId: '',
+  assistant: undefined as { id: string; name: string } | undefined,
   defaultModel: {
     id: 'cherryai::qwen',
     modelId: 'qwen',
@@ -41,7 +42,7 @@ const state = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
   setMessages: vi.fn(),
-  streamError: undefined as ((error: Error, cause: unknown) => void) | undefined,
+  streamError: undefined as ((error: Error, cause: unknown, executionId?: string) => void) | undefined,
   openDetail: vi.fn(),
   resetExecutionMessages: vi.fn(),
   clearExecutionMessages: vi.fn(),
@@ -71,7 +72,11 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/hooks/useStreamCommands', () => ({
-  useStreamCommands: (_topicId: string, _initial: unknown, onError?: (error: Error, cause: unknown) => void) => {
+  useStreamCommands: (
+    _topicId: string,
+    _initial: unknown,
+    onError?: (error: Error, cause: unknown, executionId?: string) => void
+  ) => {
     state.streamError = onError
     return {
       messages: state.messages,
@@ -111,7 +116,7 @@ vi.mock('@renderer/utils/platform', () => ({
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => ({ assistant: undefined, model: undefined })
+  useAssistant: () => ({ assistant: state.assistant, model: undefined })
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
@@ -309,6 +314,7 @@ describe('finalizeLiveMessages', () => {
 describe('HomeWindow', () => {
   beforeEach(() => {
     state.quickAssistantId = ''
+    state.assistant = undefined
     state.quickModel = {
       id: 'anthropic::claude-sonnet',
       modelId: 'claude-sonnet',
@@ -457,6 +463,29 @@ describe('HomeWindow', () => {
       providerId: 'anthropic',
       modelId: 'claude-sonnet'
     })
+  })
+
+  // Main resolves the assistant's model, so Details cannot rely on the renderer lookup having finished.
+  it('attributes an assistant-mode stream failure to the dispatched model while the renderer model is unresolved', async () => {
+    state.quickAssistantId = 'helper'
+    state.assistant = { id: 'helper', name: 'Helper' }
+    state.openDetail.mockClear()
+    state.sendMessage.mockImplementation(() => undefined)
+    render(<HomeWindow draggable={false} />)
+    fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
+    fireEvent.keyDown(screen.getByTestId('quick-input'), { code: 'Enter', key: 'Enter' })
+
+    act(() => {
+      state.streamError?.(
+        new Error('Service Unavailable'),
+        { message: 'Service Unavailable', statusCode: 503 },
+        'openai::gpt-a'
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(state.openDetail).toHaveBeenCalled())
+    expect(state.openDetail.mock.calls.at(-1)?.[0].context).toMatchObject({ providerId: 'openai', modelId: 'gpt-a' })
   })
 
   it('keeps typed input out of the clipboard preview', () => {

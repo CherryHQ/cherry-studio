@@ -37,6 +37,8 @@ class AppUpdateCheckService {
   private latestInfo: UpdateInfo | null = null
   private missingEventTimer: ReturnType<typeof setTimeout> | undefined
   private noticeKey: string | null = null
+  /** A failed preference write keeps its notice; no lookup result supersedes that write. */
+  private noticeFromFailedWrite = false
   private session = 0
   private activeSession = 0
   /** Session whose events stay inactive until the cancelling preference write settles. */
@@ -89,6 +91,7 @@ class AppUpdateCheckService {
   }
 
   setUpdateNotice(key: string | null): void {
+    this.noticeFromFailedWrite = false
     if (this.noticeKey === key) return
     this.noticeKey = key
     for (const listener of this.noticeListeners) listener()
@@ -105,7 +108,17 @@ class AppUpdateCheckService {
 
   private noteSuccessfulUpdateEvent(): void {
     this.noteUpdateCheckEvent()
-    this.setUpdateNotice(null)
+    this.clearLookupNotice()
+  }
+
+  /** A later lookup result supersedes an earlier lookup's notice, not a failed preference write. */
+  clearLookupNotice(): void {
+    if (!this.noticeFromFailedWrite) this.setUpdateNotice(null)
+  }
+
+  /** Another check's download replaced the artifact a later click must confirm. */
+  noteOtherCheckDownloaded(info: UpdateInfo): void {
+    this.latestInfo = info
   }
 
   markUpdateDownloading(info: UpdateInfo): void {
@@ -173,7 +186,10 @@ class AppUpdateCheckService {
     if (epoch !== this.session || this.heldEpoch !== epoch) return
     this.heldEpoch = null
     this.activeSession = this.session
-    if (outcome === 'failed') this.setUpdateNotice('settings.about.updateError')
+    if (outcome === 'failed') {
+      this.setUpdateNotice('settings.about.updateError')
+      this.noticeFromFailedWrite = true
+    }
     this.settleChannelAck(outcome)
   }
 
@@ -248,7 +264,11 @@ class AppUpdateCheckService {
       channel,
       at: Date.now(),
       result: ipcApi.request('app.updater.query_availability').then(
-        (availability) => (availability.status === 'available' ? availability.version : null),
+        (availability) => {
+          // A running check answers through shared update state; ask again after it ends.
+          if (availability.status === 'busy' && this.availabilityQuery === entry) this.availabilityQuery = null
+          return availability.status === 'available' ? availability.version : null
+        },
         (error: unknown) => {
           logger.warn('Automatic update availability query failed', error as Error)
           if (this.availabilityQuery === entry) this.availabilityQuery = null

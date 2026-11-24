@@ -77,16 +77,16 @@ function rejectionMessage(reason: unknown): string {
   return 'Unhandled promise rejection'
 }
 
-/** A digest of the whole reason, so long or non-Error reasons do not collide. */
+/** A digest of the whole reason, typed so a string never collides with an Error or object of the same text. */
 function rejectionSignature(reason: unknown): string {
   let text: string
-  if (reason instanceof Error) text = `${reason.name}:${reason.message}`
-  else if (typeof reason === 'string') text = reason
+  if (reason instanceof Error) text = `error:${reason.name}:${reason.message}`
+  else if (typeof reason === 'string') text = `string:${reason}`
   else {
     try {
-      text = JSON.stringify(reason) ?? String(reason)
+      text = `${typeof reason}:${JSON.stringify(reason) ?? String(reason)}`
     } catch {
-      text = rejectionMessage(reason)
+      text = `${typeof reason}:${rejectionMessage(reason)}`
     }
   }
   return createHash('sha256').update(text).digest('hex')

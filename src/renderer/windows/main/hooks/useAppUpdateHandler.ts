@@ -73,7 +73,7 @@ export function useAppUpdateHandler() {
     updateAppUpdateState({ checking: false, lastErrorKey: null })
     if (!wasManual) {
       // A later background result supersedes an earlier manual notice, but stays silent.
-      appUpdateCheckService.setUpdateNotice(null)
+      appUpdateCheckService.clearLookupNotice()
       return
     }
     // A withheld feed is not "up to date"; the failure notice offers the official download.
@@ -114,7 +114,8 @@ export function useAppUpdateHandler() {
     if (!appUpdateCheckService.isActiveUpdateSession()) return
     const fromOtherCheck = otherCheck()
     const wasManual = !fromOtherCheck && manual()
-    if (!fromOtherCheck) appUpdateCheckService.markUpdateDownloaded(releaseInfo)
+    if (fromOtherCheck) appUpdateCheckService.noteOtherCheckDownloaded(releaseInfo)
+    else appUpdateCheckService.markUpdateDownloaded(releaseInfo)
     updateAppUpdateState({
       downloading: false,
       info: releaseInfo,
