@@ -42,6 +42,14 @@ describe('knowledge file admission', () => {
     await writeFile(path, 'not a PDF')
     expect((await preflightKnowledgeFile(path)).reason).toBe('unsupported_format')
   })
+  it('admits a POSIX basename with a literal backslash like the runtime', async () => {
+    // On macOS/Linux `report\\.md` is one basename: path.extname returns `.md`,
+    // so reader selection admits it; review must not split on the backslash and
+    // reject it as unsupported_format.
+    const path = join(directory, 'report\\.md')
+    await writeFile(path, '# notes')
+    expect(await preflightKnowledgeFile(path)).toMatchObject({ reason: 'ok', processor: 'text' })
+  })
   it('rejects unsupported and inaccessible files before import', async () => {
     expect((await preflightKnowledgeFile(join(directory, 'script.exe'))).reason).toBe('unsupported_format')
     expect((await preflightKnowledgeFile(join(directory, 'missing.pdf'))).reason).toBe('unreadable_file')

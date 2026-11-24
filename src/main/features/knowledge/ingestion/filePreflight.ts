@@ -18,7 +18,13 @@ export async function preflightKnowledgeFile(
 ): Promise<KnowledgeFilePreflight> {
   const extension = getFileExt(path).toLowerCase()
   const format = KNOWLEDGE_FORMATS.find((item) => item.extensions.some((ext) => ext === extension))
-  let input: Parameters<typeof evaluateKnowledgeFilePreflight>[0] = { path, processor: format?.reader ?? '' }
+  let input: Parameters<typeof evaluateKnowledgeFilePreflight>[0] = {
+    path,
+    processor: format?.reader ?? '',
+    // Host-native (path.extname) so admission agrees with reader selection even
+    // for POSIX basenames containing a literal backslash.
+    extension
+  }
   const initial = evaluateKnowledgeFilePreflight(input)
   if (initial.reason === 'unsupported_format') return initial
   try {

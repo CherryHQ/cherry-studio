@@ -36,15 +36,16 @@ export type KnowledgeFilePreflight = z.infer<typeof KnowledgeFilePreflightSchema
 
 export function evaluateKnowledgeFilePreflight(
   input: Omit<KnowledgeFilePreflight, 'reason'> & {
+    // Host-native extension (node:path.extname semantics), lowercased. Reader
+    // selection and admission must agree, and on POSIX a literal backslash is
+    // part of the basename, not a separator, so `report\.md` has extension `.md`.
+    extension: string
     hasTextlessPages?: boolean
     processorConfigured?: boolean
     parserAvailable?: boolean
   }
 ): KnowledgeFilePreflight {
-  const { hasTextlessPages, processorConfigured, parserAvailable, ...result } = input
-  const basename = input.path.split(/[/\\]/).pop() ?? ''
-  const dot = basename.lastIndexOf('.')
-  const extension = dot > 0 ? basename.slice(dot).toLowerCase() : ''
+  const { hasTextlessPages, processorConfigured, parserAvailable, extension, ...result } = input
   let reason: KnowledgeFilePreflight['reason'] = 'ok'
   if (!KNOWLEDGE_FORMAT_EXTENSIONS.some((ext) => ext === extension)) reason = 'unsupported_format'
   else if (input.size === undefined) reason = 'unreadable_file'
