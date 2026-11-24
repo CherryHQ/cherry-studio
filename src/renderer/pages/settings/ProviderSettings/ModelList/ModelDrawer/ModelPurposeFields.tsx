@@ -72,7 +72,11 @@ export function ModelPurposeFields({
       <RadioGroup
         value={purpose}
         aria-describedby={descriptionId}
-        onValueChange={(value) => onPurposeChange(value as ModelPurpose)}>
+        onValueChange={(value) => {
+          const selectedPurpose = PURPOSES.find((option) => option === value)
+
+          if (selectedPurpose) onPurposeChange(selectedPurpose)
+        }}>
         {PURPOSES.map((option) => {
           const optionId = `${uid}-${option}`
           const label = PURPOSE_LABEL_KEYS[option]
@@ -105,7 +109,11 @@ export function ModelPurposeFields({
           </Label>
           <Select
             value={chatEndpointType}
-            onValueChange={(value) => onChatEndpointTypeChange(value as ModelChatEndpointType)}>
+            onValueChange={(value) => {
+              const selectedEndpointType = chatEndpointTypes.find((endpointType) => endpointType === value)
+
+              if (selectedEndpointType) onChatEndpointTypeChange(selectedEndpointType)
+            }}>
             <SelectTrigger id={`${uid}-chat-protocol`} className="min-h-10 w-full">
               <SelectValue />
             </SelectTrigger>

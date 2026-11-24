@@ -80,6 +80,7 @@ export function replaceEndpointConfigDomain(
 
   for (const [key, config] of Object.entries(endpointConfigs)) {
     if (!config) continue
+    // SAFETY: endpointConfigs is typed by EndpointType; this own entry preserves its endpoint key.
     const ep = key as EndpointType
     const baseUrl = config.baseUrl
 

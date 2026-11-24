@@ -137,7 +137,7 @@ export function clearModelPricingDraftError(
 }
 
 export function isModelPricingCurrencySymbol(value: string): value is ModelPricingCurrencySymbol {
-  return MODEL_PRICING_CURRENCY_SYMBOLS.includes(value as ModelPricingCurrencySymbol)
+  return MODEL_PRICING_CURRENCY_SYMBOLS.some((symbol) => symbol === value)
 }
 
 export function getModelPricingCurrencySymbol(pricing: Model['pricing']): ModelPricingCurrencySymbol {

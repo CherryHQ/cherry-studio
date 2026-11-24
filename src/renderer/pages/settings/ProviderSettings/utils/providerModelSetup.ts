@@ -74,6 +74,7 @@ export async function persistProviderModels({
     onPersisted?.(createdModels)
   }
 
+  // SAFETY: Existing IDs start in the map; each restore/create batch checks every requested ID before inserting its results.
   return uniqueSelectedModels.map((model) => persistedModels.get(model.id) as Model)
 }
 

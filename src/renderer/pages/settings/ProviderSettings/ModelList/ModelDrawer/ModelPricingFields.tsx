@@ -259,12 +259,12 @@ function getPricingErrorMessage(error: ModelPricingDraftError | undefined, t: TF
   }
 }
 
-function translateErrors(errors: ModelPricingDraftErrors, t: TFunction) {
-  return errors.map(
-    (tierErrors) =>
-      Object.fromEntries(
-        Object.entries(tierErrors).map(([field, error]) => [field, getPricingErrorMessage(error, t)])
-      ) as Partial<Record<ModelPricingDraftField, string>>
+function translateErrors(
+  errors: ModelPricingDraftErrors,
+  t: TFunction
+): Partial<Record<ModelPricingDraftField, string>>[] {
+  return errors.map((tierErrors) =>
+    Object.fromEntries(Object.entries(tierErrors).map(([field, error]) => [field, getPricingErrorMessage(error, t)]))
   )
 }
 

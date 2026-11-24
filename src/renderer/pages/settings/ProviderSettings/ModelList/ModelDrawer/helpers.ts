@@ -22,7 +22,8 @@ const TOGGLE_TO_CAPABILITY: Record<ModelCapabilityToggle, ModelCapability> = {
   [MODEL_CAPABILITY.FUNCTION_CALL]: MODEL_CAPABILITY.FUNCTION_CALL
 }
 
-const CAPABILITY_TO_TOGGLE: Record<string, ModelCapabilityToggle> = Object.fromEntries(
+const CAPABILITY_TO_TOGGLE: Partial<Record<ModelCapability, ModelCapabilityToggle>> = Object.fromEntries(
+  // SAFETY: TOGGLE_TO_CAPABILITY is a closed source table keyed by ModelCapabilityToggle; inversion preserves those keys as values.
   Object.entries(TOGGLE_TO_CAPABILITY).map(([key, value]) => [value, key as ModelCapabilityToggle])
 )
 
