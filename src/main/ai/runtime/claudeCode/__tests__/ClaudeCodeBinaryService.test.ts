@@ -156,6 +156,20 @@ describe('Claude runtime acquisition', () => {
     expect(service.getStatus().phase).toBe('ready')
   })
 
+  it.each([
+    { rejection: null, category: 'network' },
+    { rejection: undefined, category: 'network' },
+    { rejection: { code: 'EACCES' }, category: 'storage' }
+  ])(
+    'settles a failed download as $category for a non-Error rejection: $rejection',
+    async ({ rejection, category }) => {
+      vi.mocked(net.fetch).mockRejectedValue(rejection)
+
+      await expect(service.ensureExecutable()).rejects.toThrow()
+      expect(service.getStatus()).toMatchObject({ phase: 'error', error: category })
+    }
+  )
+
   it('rejects background preparation on failure and joins an explicit retry', async () => {
     vi.mocked(net.fetch).mockRejectedValue(new Error('offline'))
     await expect(service.ensureExecutable()).rejects.toThrow()

@@ -15,6 +15,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { regionService } from '@main/services/RegionService'
+import { getErrorCode } from '@main/utils/error'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 
 import { claudeCodeBinaryManifest as manifest } from './binaryManifest'
@@ -29,6 +30,7 @@ export function claudeBinaryTarget(platform: string, arch: string, glibc?: strin
 @Injectable('ClaudeCodeBinaryService')
 @ServicePhase(Phase.WhenReady)
 export class ClaudeCodeBinaryService extends BaseService {
+  // SAFETY: Node diagnostic reports contain header; glibcVersionRuntime is present when the runtime exposes glibc.
   private readonly target = claudeBinaryTarget(
     process.platform,
     process.arch,
@@ -111,15 +113,15 @@ export class ClaudeCodeBinaryService extends BaseService {
     this.pending = this.install(this.controller.signal)
       .catch((error) => {
         logger.warn('Claude Code binary installation failed', { error })
-        const code = (error as NodeJS.ErrnoException).code
+        const code = getErrorCode(error)
         this.publish({
           phase: 'error',
           receivedBytes: this.status.receivedBytes,
           error:
-            error instanceof BinaryStorageError ||
+            (Error.isError(error) && error instanceof BinaryStorageError) ||
             ['ENOSPC', 'EACCES', 'EPERM', 'EROFS', 'EIO', 'ENOTDIR'].includes(code ?? '')
               ? 'storage'
-              : error instanceof BinaryIntegrityError
+              : Error.isError(error) && error instanceof BinaryIntegrityError
                 ? 'integrity'
                 : this.status.phase === 'installing'
                   ? 'installation'
@@ -263,6 +265,7 @@ export class ClaudeCodeBinaryService extends BaseService {
         }
       })
 
+      // SAFETY: Electron net.fetch builds Response.body from Readable.toWeb; DOM and Node declarations describe that same byte stream.
       await pipeline(
         Readable.fromWeb(response.body as NodeWebReadableStream<Uint8Array>),
         meter,
