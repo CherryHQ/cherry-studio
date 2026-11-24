@@ -265,9 +265,8 @@ const ModelRushModelItemSchema = z.unknown().transform((model) => {
 })
 
 export const ModelRushModelsResponseSchema = z
-  .object({
-    data: z.array(ModelRushModelItemSchema),
-    object: z.string().optional()
+  .looseObject({
+    data: z.array(ModelRushModelItemSchema)
   })
   .transform((response) => {
     const data = response.data.filter((model): model is z.output<typeof ModelRushModelSchema> => model !== undefined)

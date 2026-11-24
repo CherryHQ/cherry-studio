@@ -472,6 +472,16 @@ describe('listModels — ModelRush chat-completions filtering (#20010)', () => {
     expect(parsed.data.map((m) => m.id)).toEqual(['modelrush/live-chat'])
     expect(parsed.skippedModelCount).toBe(1)
   })
+
+  it('ignores a non-string top-level object and keeps valid rows (REGRESSION)', () => {
+    const parsed = ModelRushModelsResponseSchema.parse({
+      data: [{ id: 'modelrush/live-chat', api_types: ['chat-completions'], gateway_status: 'live' }],
+      object: null
+    })
+
+    expect(parsed.data.map((m) => m.id)).toEqual(['modelrush/live-chat'])
+    expect(parsed.skippedModelCount).toBe(0)
+  })
 })
 
 describe('listModels — LM Studio', () => {
