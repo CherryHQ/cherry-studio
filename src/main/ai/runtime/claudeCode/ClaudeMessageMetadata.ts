@@ -240,7 +240,7 @@ export class ClaudeMessageMetadata {
         : isRecord(structuredContent)
           ? normalizeClaudeToolResult(content)
           : result,
-      ...(isRecord(structuredContent) ? { structuredContent } : {}),
+      ...(isRecord(structuredContent) ? { structuredContent: normalizeClaudeToolResult(structuredContent) } : {}),
       metadata: {
         type: 'mcp',
         name: state.displayName ?? state.name,
