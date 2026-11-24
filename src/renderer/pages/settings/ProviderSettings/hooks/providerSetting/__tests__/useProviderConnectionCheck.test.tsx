@@ -379,6 +379,45 @@ describe('useProviderConnectionCheck', () => {
     expect(JSON.stringify(stored)).not.toContain(headerToken)
   })
 
+  // A gateway may echo the token from a configured `Authorization: Bearer …` header without its scheme.
+  it('keeps the bare credential of a configured authorization header out of the toast Details and the stored result', async () => {
+    const bareToken = 'gw-Qz81mNc4TbVx'
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'cherryin',
+        name: 'CherryIN',
+        isEnabled: false,
+        settings: { extraHeaders: { Authorization: `Bearer ${bareToken}` } }
+      },
+      enableProvider: enableProviderMock
+    })
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
+      credentials.map((credential) => ({
+        ...failedResult(credential),
+        error: {
+          name: 'AI_APICallError',
+          message: `Unauthorized: invalid token ${bareToken}`,
+          stack: null,
+          statusCode: 401,
+          responseBody: `{"error":"token ${bareToken} rejected"}`
+        }
+      }))
+    )
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+
+    await act(async () => {
+      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+
+    const shown = toast.getToastQueue().toasts[0]
+    expect(shown).toBeDefined()
+    expect(JSON.stringify({ cause: shown.cause, data: shown.data, title: shown.title })).not.toContain(bareToken)
+    const stored = result.current.singleModelResult
+    expect(stored?.kind).toBe('failed')
+    expect(JSON.stringify(stored)).not.toContain(bareToken)
+    expect(JSON.stringify(stored)).toContain('Unauthorized: invalid token')
+  })
+
   it('uses the first failed credential for mixed-error feedback while retaining every result', async () => {
     apiKeyEntries.push({ id: 'key-3', key: 'sk-third', label: 'Third', isEnabled: true })
     const firstFailure = {
