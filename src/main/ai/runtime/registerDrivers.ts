@@ -4,6 +4,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '@main/ai/runtime/fork'
+import { getErrorCode } from '@main/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import {
@@ -139,7 +140,7 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
         await fs.rmdir(projectDir)
         removed.push(projectDir)
       } catch (error) {
-        if (!['ENOTEMPTY', 'ENOENT'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+        if (!['ENOTEMPTY', 'ENOENT'].includes(getErrorCode(error) ?? '')) {
           logger.warn('Failed to remove empty Claude project directory', { projectDir, error })
         }
       }
