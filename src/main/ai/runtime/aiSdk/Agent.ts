@@ -70,7 +70,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
 
   /** Internal observer — composes ahead of caller hookParts via `composeHooks`. */
   on<K extends keyof AgentLoopHooks>(key: K, fn: NonNullable<AgentLoopHooks[K]>): () => void {
-    const list = (this.observers[key] ??= []) as Array<NonNullable<AgentLoopHooks[K]>>
+    const list = (this.observers[key] ??= [])
     list.push(fn)
 
     return () => {
@@ -90,6 +90,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   private composedHooks(): AgentLoopHooks {
     const parts: Array<Partial<AgentLoopHooks>> = []
 
+    // SAFETY: on() is the only writer and indexes this private map with keyof AgentLoopHooks.
     for (const key of Object.keys(this.observers) as Array<keyof AgentLoopHooks>) {
       const list = this.observers[key]
 
