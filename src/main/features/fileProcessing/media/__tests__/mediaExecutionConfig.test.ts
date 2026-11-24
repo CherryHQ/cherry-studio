@@ -319,6 +319,12 @@ describe('resolveMediaExecutionConfig vision fallback', () => {
     expect(config.vision?.uniqueModelId).toBe('openai::gpt-4o')
   })
 
+  it('falls back to the chat model when the saved Vision Model was deleted', async () => {
+    state.preferences.set('feature.file_processing.default_video_vision_model', 'openai::gpt-deleted')
+    const config = await resolveMediaExecutionConfig({ fallbackVisionModelId: 'openai::gpt-4.1-mini' })
+    expect(config.vision?.uniqueModelId).toBe('openai::gpt-4.1-mini')
+  })
+
   it('does not use a chat model that cannot see images', async () => {
     const config = await resolveMediaExecutionConfig({ fallbackVisionModelId: 'deepseek::deepseek-chat' })
     expect(config.vision).toBeNull()

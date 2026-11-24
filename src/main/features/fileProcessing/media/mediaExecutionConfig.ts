@@ -115,9 +115,22 @@ function resolveOcrExecutionConfig(): MediaOcrExecutionConfig | null {
   }
 }
 
+function modelExists(uniqueModelId: string): boolean {
+  const parsed = UniqueModelIdSchema.safeParse(uniqueModelId)
+  if (!parsed.success) return false
+  try {
+    const { providerId, modelId } = parseUniqueModelId(parsed.data)
+    modelService.getByKey(providerId, modelId)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function resolveVisionExecutionConfig(fallbackModelId: UniqueModelId | undefined): MediaVisionExecutionConfig | null {
-  const raw =
-    application.get('PreferenceService').get('feature.file_processing.default_video_vision_model') || fallbackModelId
+  const saved = application.get('PreferenceService').get('feature.file_processing.default_video_vision_model')
+  // Settings show a deleted Vision Model as None, so its saved id falls back to the chat model like an unset one.
+  const raw = (saved && modelExists(saved) ? saved : null) || fallbackModelId
   if (!raw) return null
   const parsed = UniqueModelIdSchema.safeParse(raw)
   if (!parsed.success) return null
