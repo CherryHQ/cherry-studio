@@ -1,15 +1,15 @@
 /**
- * Returns the keys of an object in a type-safe way.
+ * Returns the object's own enumerable string keys.
  * @param obj - the object to read keys from
- * @returns an array of the object's keys, typed as the union of its key names
+ * @returns an array of string keys; symbol keys are omitted
  * @example
  * ```ts
  * const obj = { foo: 1, bar: 'hello' }
  * const keys = objectKeys(obj) // ['foo', 'bar']
  * ```
  */
-export function objectKeys<T extends object>(obj: T): (keyof T)[] {
-  return Object.keys(obj) as (keyof T)[]
+export function objectKeys(obj: object): string[] {
+  return Object.keys(obj)
 }
 
 /**
@@ -21,7 +21,7 @@ export function objectKeys<T extends object>(obj: T): (keyof T)[] {
  * const values = objectValues(obj) // (1 | 2)[]
  */
 export function objectValues<T extends Record<string, unknown>>(obj: T): T[keyof T][] {
-  return Object.values(obj) as T[keyof T][]
+  return Object.values<T[keyof T]>(obj)
 }
 
 /**
@@ -39,7 +39,7 @@ export function strip<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
   const result = { ...obj }
 
   for (const key of keys) {
-    delete (result as any)[key] // Omit already guarantees type safety
+    delete result[key]
   }
 
   return result
