@@ -1,5 +1,5 @@
 import { Sparkles, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -78,7 +78,7 @@ import {
 import { GroupSelector } from '../components/GroupSelector'
 import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
 import { McpCapabilityList } from '../components/McpCapabilityList'
-import { PromptPolishActions } from '../components/PromptPolishActions'
+import { usePromptPolish } from '../components/PromptPolishActions'
 import { countSummary, type EditPage, type EditSubPage, parentEditPage, resolveInitialEditPage } from './editPages'
 
 export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
@@ -234,6 +234,7 @@ function AssistantEditDialogContent({
   const [formBaseline, setFormBaseline] = useState(() => initialAssistantFormState(resource))
   const formBaselineRef = useRef(formBaseline)
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
+  const contextInitializedRef = useRef(defaultValues.contextOverrideEnabled)
   // Validate as the user types so an emptied name shows its required message.
   const form = useForm<AssistantEditFormValues>({ defaultValues, mode: 'onChange' })
   const values = form.watch()
@@ -259,6 +260,7 @@ function AssistantEditDialogContent({
     if (!justOpened) return
 
     form.reset(defaultValues)
+    contextInitializedRef.current = defaultValues.contextOverrideEnabled
     formBaselineRef.current = initialAssistantFormState(resource)
     setFormBaseline(formBaselineRef.current)
     form.clearErrors()
@@ -456,8 +458,9 @@ function AssistantEditDialogContent({
           onOpen={setPage}
         />
       ) : null}
-      {page === 'prompt' ? (
+      {open ? (
         <AssistantPromptField
+          visible={page === 'prompt'}
           form={form}
           resource={resource}
           modelName={modelLabels.modelId}
@@ -481,6 +484,7 @@ function AssistantEditDialogContent({
       ) : null}
       {page === 'context' ? (
         <AssistantContextPage
+          contextInitializedRef={contextInitializedRef}
           form={form}
           modelFilter={modelFilter}
           isModelDisabled={isModelDisabled}
@@ -512,11 +516,13 @@ function AssistantEditDialogContent({
 }
 
 function AssistantPromptField({
+  visible,
   form,
   resource,
   modelName,
   portalContainer
 }: {
+  visible: boolean
   form: UseFormReturn<AssistantEditFormValues>
   resource: AssistantEditDialogResource
   modelName: string | null
@@ -524,7 +530,6 @@ function AssistantPromptField({
 }) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
-  const [polishing, setPolishing] = useState(false)
   const prompt = form.watch('prompt')
   const name = form.watch('name')
   const processedPrompt = usePromptProcessor({
@@ -541,16 +546,15 @@ function AssistantPromptField({
     setResetPreviewKey((key) => key + 1)
   }
 
-  const promptActions = (
-    <PromptPolishActions
-      value={prompt}
-      fallbackSource={name}
-      emptyValueSystemPrompt={AGENT_PROMPT}
-      existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
-      onChange={handlePromptActionChange}
-      onRunningChange={setPolishing}
-    />
-  )
+  const { actions: promptActions, running: polishing } = usePromptPolish({
+    value: prompt,
+    fallbackSource: name,
+    emptyValueSystemPrompt: AGENT_PROMPT,
+    existingValueSystemPrompt: RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT,
+    onChange: handlePromptActionChange
+  })
+
+  if (!visible) return null
 
   return (
     <FormField
@@ -830,6 +834,7 @@ function AssistantMoreSettings({
 
 /** Message count plus the context override (compression and truncation), seeded from the globals. */
 function AssistantContextPage({
+  contextInitializedRef,
   form,
   modelFilter,
   isModelDisabled,
@@ -837,6 +842,7 @@ function AssistantContextPage({
   modelLabels,
   setModelLabels
 }: {
+  contextInitializedRef: RefObject<boolean>
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter: EditDialogBaseProps['modelFilter']
   isModelDisabled: EditDialogBaseProps['isModelDisabled']
@@ -854,6 +860,7 @@ function AssistantContextPage({
   return (
     <div className="grid gap-4">
       <ContextManagementFields
+        contextInitializedRef={contextInitializedRef}
         form={form}
         modelFilter={modelFilter}
         isModelDisabled={isModelDisabled}
@@ -874,6 +881,7 @@ function AssistantContextPage({
 }
 
 function ContextManagementFields({
+  contextInitializedRef,
   form,
   modelFilter,
   isModelDisabled,
@@ -882,6 +890,7 @@ function ContextManagementFields({
   setModelLabels,
   globalDefaults
 }: {
+  contextInitializedRef: RefObject<boolean>
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter: EditDialogBaseProps['modelFilter']
   isModelDisabled: EditDialogBaseProps['isModelDisabled']
@@ -899,16 +908,12 @@ function ContextManagementFields({
 }) {
   const { t } = useTranslation()
   const values = form.watch()
-  // Only re-seed from globals the first time an assistant WITHOUT a stored
-  // override is customized — an ON→OFF→ON round trip on a stored override must
-  // preserve the saved values.
-  const hadStoredOverride = useRef(values.contextOverrideEnabled)
-
   const onOverrideToggle = (checked: boolean) => {
-    if (checked && !hadStoredOverride.current) {
+    if (checked && !contextInitializedRef.current) {
       form.setValue('contextCompressEnabled', globalDefaults.compressEnabled, { shouldDirty: true })
       form.setValue('contextTruncateThreshold', globalDefaults.truncateThreshold, { shouldDirty: true })
       form.setValue('contextCompressModelId', globalDefaults.compressModelId, { shouldDirty: true })
+      contextInitializedRef.current = true
     }
     form.setValue('contextOverrideEnabled', checked, { shouldDirty: true })
   }

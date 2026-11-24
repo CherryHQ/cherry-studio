@@ -68,14 +68,15 @@ export const useAllTasks = (status?: ListTasksQuery['status']) => {
   }
 }
 
-/** One Agent's scheduled tasks (first page), refreshed by the task commands' invalidation. */
-export const useAgentTasks = (agentId: string) => {
+/** One page of an Agent's tasks with counts for the full list. */
+export const useAgentTasks = (agentId: string, page = 1) => {
   const { data, error, isLoading, refetch } = useQuery('/agents/:agentId/tasks', {
     params: { agentId },
-    query: { limit: TASKS_PAGE_LIMIT }
+    query: { page, limit: TASKS_PAGE_LIMIT },
+    swrOptions: { keepPreviousData: false }
   })
   useDataChange('/agent-tasks', () => void refetch())
-  return { tasks: data?.items ?? [], error, isLoading }
+  return { tasks: data?.items ?? [], total: data?.total, activeTotal: data?.activeTotal, error, isLoading }
 }
 
 export const useTask = (taskId: string | null) => {

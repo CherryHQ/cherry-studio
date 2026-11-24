@@ -63,7 +63,7 @@ import { HeartbeatCard } from '../components/HeartbeatCard'
 import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
 import { McpCapabilityList } from '../components/McpCapabilityList'
 import { PiPromptField } from '../components/PiPromptField'
-import { PromptPolishActions } from '../components/PromptPolishActions'
+import { usePromptPolish } from '../components/PromptPolishActions'
 import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
 import { AgentChannelsPage } from './AgentChannelsPage'
 import { AgentMemoryPanel, type AgentMemoryPanelHandle } from './AgentMemoryPanel'
@@ -283,8 +283,14 @@ function AgentEditDialogContent({
   }, [])
   const patchAgentForm = useCallback(
     (patch: Partial<AgentFormState>) => {
-      const current = buildAgentFormState(formBaselineRef.current, form.getValues())
-      syncAgentFormState(form, applyAgentFormPatch(current, patch))
+      const baseline = formBaselineRef.current
+      const current = buildAgentFormState(baseline, form.getValues())
+      const next = applyAgentFormPatch(current, patch)
+      if (patch.model === baseline.model) {
+        next.planModel = baseline.planModel
+        next.smallModel = baseline.smallModel
+      }
+      syncAgentFormState(form, next)
     },
     [form]
   )
@@ -594,8 +600,9 @@ function AgentEditDialogContent({
           }}
         />
       ) : null}
-      {page === 'prompt' && resource.type !== 'pi-durable' ? (
+      {open && resource.type !== 'pi-durable' ? (
         <AgentSystemPromptField
+          visible={page === 'prompt'}
           form={form}
           modelName={promptModelName ?? null}
           portalContainer={dialogContentElement}
@@ -679,7 +686,7 @@ function AgentMoreSettings({
   const { bases } = useKnowledgeBases()
   const { mcpServers } = useMcpServers()
   const { channels } = useChannels({ agentId: agent.id })
-  const { tasks } = useAgentTasks(agent.id)
+  const { total: taskTotal = 0, activeTotal: activeTaskTotal = 0 } = useAgentTasks(agent.id)
 
   const tools = getAgentBuiltinTools(agent.type, knowledgeBaseIds.length > 0)
   const availableSkills = skills.filter((skill) => skill.isGlobalEnabled)
@@ -697,7 +704,7 @@ function AgentMoreSettings({
       summary: countSummary(
         t,
         'enabled',
-        availableSkills.filter((skill) => skill.source === 'builtin' || skillIds.includes(skill.id)).length,
+        availableSkills.filter((skill) => skillIds.includes(skill.id)).length,
         availableSkills.length
       )
     },
@@ -726,7 +733,7 @@ function AgentMoreSettings({
       page: 'tasks',
       label: t('settings.scheduledTasks.title'),
       // Paused, completed, and missed tasks are not running, so only active ones count.
-      summary: countSummary(t, 'enabled', tasks.filter((task) => task.status === 'active').length, tasks.length)
+      summary: countSummary(t, 'enabled', activeTaskTotal, taskTotal)
     }
   ]
   const promptLabel = t('library.config.prompt.label')
@@ -964,17 +971,18 @@ function EnvVarsRow({ form }: { form: UseFormReturn<AgentEditFormValues> }) {
 
 /** The Agent's System Prompt sub-page for runtimes other than Pi Durable, which show the full prompt instead. */
 function AgentSystemPromptField({
+  visible,
   form,
   modelName,
   portalContainer
 }: {
+  visible: boolean
   form: UseFormReturn<AgentEditFormValues>
   modelName: string | null
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
-  const [polishing, setPolishing] = useState(false)
   const instructions = form.watch('instructions')
   const name = form.watch('name')
   const processedInstructions = usePromptProcessor({
@@ -990,6 +998,15 @@ function AgentSystemPromptField({
     handlePromptChange(nextInstructions)
     setResetPreviewKey((key) => key + 1)
   }
+
+  const { actions, running: polishing } = usePromptPolish({
+    value: instructions,
+    fallbackSource: name,
+    emptyValueSystemPrompt: AGENT_PROMPT,
+    existingValueSystemPrompt: RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT,
+    onChange: handlePromptActionChange
+  })
+  if (!visible) return null
 
   return (
     <FormField
@@ -1010,16 +1027,7 @@ function AgentSystemPromptField({
           previewValue={processedInstructions || instructions}
           resetPreviewKey={resetPreviewKey}
           fill
-          actions={
-            <PromptPolishActions
-              value={instructions}
-              fallbackSource={name}
-              emptyValueSystemPrompt={AGENT_PROMPT}
-              existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
-              onChange={handlePromptActionChange}
-              onRunningChange={setPolishing}
-            />
-          }
+          actions={actions}
           minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
           maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
           disabled={polishing}

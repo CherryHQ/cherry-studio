@@ -44,7 +44,12 @@ function preservesProtectedPromptTokens(original: string, polished: string): boo
   )
 }
 
-export function PromptPolishActions({
+export function PromptPolishActions(props: PromptPolishActionsProps) {
+  return usePromptPolish(props).actions
+}
+
+/** Owns the request and undo at the editing session, which can outlive its prompt page. */
+export function usePromptPolish({
   value,
   fallbackSource,
   emptyValueSystemPrompt,
@@ -92,6 +97,9 @@ export function PromptPolishActions({
       abortControllerRef.current?.abort(new DOMException('Prompt polish cancelled', 'AbortError'))
       // The owner of the running state can outlive this button, e.g. a dialog whose content unmounts on close.
       if (inFlightRef.current) onRunningChangeRef.current?.(false)
+      inFlightRef.current = false
+      abortControllerRef.current = null
+      timeoutRef.current = null
     }
   }, [])
 
@@ -239,7 +247,7 @@ export function PromptPolishActions({
     setRestoreState(null)
   }
 
-  return (
+  const actions = (
     <>
       {canUndo ? (
         <Tooltip content={t('common.undo')}>
@@ -293,4 +301,5 @@ export function PromptPolishActions({
       )}
     </>
   )
+  return { actions, running }
 }
