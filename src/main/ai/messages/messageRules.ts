@@ -81,16 +81,15 @@ export function coalesceConsecutiveSameRole(messages: ModelMessage[]): ModelMess
     }
 
     if (prev.role === 'system') {
+      // SAFETY: The same-role guard guarantees message is also a system message.
       out[out.length - 1] = { ...prev, content: `${prev.content}\n\n${(message as typeof prev).content}` }
       continue
     }
 
+    // SAFETY: Both typed messages have the same non-system role, so concatenation preserves that role's content union.
     out[out.length - 1] = {
       ...prev,
-      content: [
-        ...contentToParts((prev as { content: unknown }).content),
-        ...contentToParts((message as { content: unknown }).content)
-      ]
+      content: [...contentToParts(prev.content), ...contentToParts(message.content)]
     } as ModelMessage
   }
 
@@ -309,15 +308,15 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
   messages.forEach((message, messageIndex) => {
     let parts: T['parts'] | undefined
     message.parts.forEach((part, partIndex) => {
-      if (!isToolUIPart(part)) return
-      const approval = (part as { approval?: { approved?: boolean; reason?: string } }).approval
+      if (!isToolUIPart(part) || (part.state !== 'approval-responded' && part.state !== 'output-denied')) return
+      const approval = part.approval
 
       if (approval?.approved !== false) return
       const reason = withUserDenialFeedback(approval.reason)
 
       if (reason === approval.reason) return
       parts ??= [...message.parts]
-      parts[partIndex] = { ...part, approval: { ...approval, reason } } as T['parts'][number]
+      parts[partIndex] = { ...part, approval: { ...approval, reason } }
     })
 
     if (parts) {
@@ -345,8 +344,7 @@ export function renderEditedReasoningAsThinkText<T extends UIMessage>(messages: 
     message.parts.forEach((part, partIndex) => {
       if (part.type !== 'reasoning') return
 
-      const marker = (part as { providerMetadata?: { cherry?: { editedReasoningReplay?: unknown } } }).providerMetadata
-        ?.cherry?.editedReasoningReplay
+      const marker = part.providerMetadata?.cherry?.editedReasoningReplay
 
       if (marker !== 'think') return
       parts ??= [...message.parts]
