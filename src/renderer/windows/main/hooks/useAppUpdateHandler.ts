@@ -114,7 +114,8 @@ export function useAppUpdateHandler() {
     if (!appUpdateCheckService.isActiveUpdateSession()) return
     const fromOtherCheck = otherCheck()
     const wasManual = !fromOtherCheck && manual()
-    if (!fromOtherCheck) appUpdateCheckService.markUpdateDownloaded(releaseInfo)
+    if (fromOtherCheck) appUpdateCheckService.noteOtherCheckDownloaded(releaseInfo)
+    else appUpdateCheckService.markUpdateDownloaded(releaseInfo)
     updateAppUpdateState({
       downloading: false,
       info: releaseInfo,

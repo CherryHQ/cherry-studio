@@ -116,6 +116,11 @@ class AppUpdateCheckService {
     if (!this.noticeFromFailedWrite) this.setUpdateNotice(null)
   }
 
+  /** Another check's download replaced the artifact a later click must confirm. */
+  noteOtherCheckDownloaded(info: UpdateInfo): void {
+    this.latestInfo = info
+  }
+
   markUpdateDownloading(info: UpdateInfo): void {
     this.phase = 'downloading'
     this.latestInfo = info
