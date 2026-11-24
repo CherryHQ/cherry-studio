@@ -29,11 +29,10 @@ describe('Ace Data Cloud brand asset', () => {
     }
   })
 
-  it('keeps the original canvas within compact provider icon containers', () => {
+  it('registers the transparent logo as a provider mark', () => {
     const ref = resolveProviderIconRef('acedatacloud')
     expect(ref?.kind).toBe('provider')
     expect(ref?.key).toBe('acedatacloud')
-    expect(ref?.meta.artworkKind).toBe('tile')
-    expect(getProviderIconAssetMetrics({ kind: 'provider', iconId: ref!.key }).canvasScale).toBe(1)
+    expect(getProviderIconAssetMetrics({ kind: 'provider', iconId: ref!.key }).kind).toBe('mark')
   })
 })
