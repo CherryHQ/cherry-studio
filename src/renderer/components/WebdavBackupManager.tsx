@@ -269,8 +269,8 @@ export function WebdavBackupManager({
       accessorKey: 'fileName',
       header: t('settings.data.webdav.backup.manager.columns.fileName'),
       meta: { width: 'calc(100% - 504px)', className: 'min-w-0' },
-      cell: ({ getValue }) => {
-        const fileName = getValue() as string
+      cell: ({ row }) => {
+        const fileName = row.original.fileName
 
         return (
           <Tooltip placement="top-start" content={fileName} fullWidthTrigger>
@@ -283,13 +283,13 @@ export function WebdavBackupManager({
       accessorKey: 'modifiedTime',
       header: t('settings.data.webdav.backup.manager.columns.modifiedTime'),
       meta: { width: 180 },
-      cell: ({ getValue }) => dayjs(getValue() as string).format('YYYY-MM-DD HH:mm:ss')
+      cell: ({ row }) => dayjs(row.original.modifiedTime).format('YYYY-MM-DD HH:mm:ss')
     },
     {
       accessorKey: 'size',
       header: t('settings.data.webdav.backup.manager.columns.size'),
       meta: { width: 120 },
-      cell: ({ getValue }) => formatFileSize(getValue() as number)
+      cell: ({ row }) => formatFileSize(row.original.size)
     },
     {
       id: 'action',
