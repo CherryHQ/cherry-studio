@@ -1,10 +1,10 @@
 /* eslint-disable @eslint-react/naming-convention/context-name */
-import type { ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
-import type { generateImage, LanguageModel } from 'ai'
+import type { LanguageModelV3 } from '@ai-sdk/provider'
+import type { generateImage, ImageModel, LanguageModel } from 'ai'
 import { wrapLanguageModel } from 'ai'
 
 import { ModelResolutionError, RecursiveDepthError } from '../errors'
-import { isImageModelV3, isV2Model, isV3Model } from '../models/utils'
+import { isImageModel, isV2Model, isV3Model } from '../models/utils'
 import {
   type AiPlugin,
   type AiRequestContext,
@@ -257,17 +257,17 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
    * 提供给AiExecutor使用
    */
   async executeImageWithPlugins<
-    TParams extends Omit<Parameters<typeof generateImage>[0], 'model'> & { model: string | ImageModelV3 },
+    TParams extends Parameters<typeof generateImage>[0],
     TResult extends ReturnType<typeof generateImage>
   >(
     methodName: string,
     params: TParams,
-    executor: (model: ImageModelV3, transformedParams: TParams) => TResult,
+    executor: (model: Exclude<ImageModel, string>, transformedParams: TParams) => TResult,
     _context?: AiRequestContext<TParams, TResult>,
     requestPlugins: AiPlugin<any, any>[] = []
   ): Promise<TResult> {
     // 统一处理模型解析
-    let resolvedModel: ImageModelV3 | undefined
+    let resolvedModel: Exclude<ImageModel, string> | undefined
     let modelId: string
     const { model } = params
 
@@ -322,7 +322,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
       if (typeof model === 'string') {
         const resolved = await manager.executeFirst('resolveModel', modelId, context)
 
-        if (!resolved || !isImageModelV3(resolved)) {
+        if (!resolved || !isImageModel(resolved)) {
           throw new ModelResolutionError(modelId, this.providerId)
         }
 

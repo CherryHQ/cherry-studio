@@ -237,6 +237,8 @@ const executor = AiCore.create('openai', { apiKey: 'your-key' }, [
 
 `PluginManager.executeFirst` 根据钩子名推导返回类型，不再接受任意结果类型参数。`resolveModel` 可以返回不同模态的 SDK 模型，但必须匹配调用方请求的模态；语言模型不能由图像模型替代。独立的 `resolveModel` 与语言 middleware 路径要求 V3 语言模型；没有 middleware 的文本及流式执行继续支持 SDK 的 V2 语言模型。
 
+图像执行保留 SDK 对 V2、V3 模型的支持，包括插件解析返回的 V2 图像模型。Provider 调用观察器沿用 SDK 既有的 V2 图像兼容行为，并保留动态批量上限与模型接收者；这不为 V2 模型增加图像编辑或无 prompt 生成能力。
+
 `TypedProviderOptions` 的自定义命名空间遵循 AI SDK 的共享 JSON 选项契约，已知 Provider 保留其 SDK 类型。`mergeProviderOptions` 递归合并对象，后传入的标量和数组覆盖先前值；保留 `__proto__` 等字面名称为普通对象的自有数据属性，不合并继承字段，也不修改输入。合并不对 SDK 允许的不透明扩展值进行递归 JSON 验证。
 
 创建自定义插件非常简单：

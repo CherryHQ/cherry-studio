@@ -2,7 +2,7 @@ import type { LanguageModelV2 } from '@ai-sdk/provider'
 import { createMockImageModel, createMockLanguageModel } from '@test-utils'
 import { describe, expect, it } from 'vitest'
 
-import { hasModelId, isImageModelV3, isV2Model, isV3Model } from '../utils'
+import { hasModelId, isImageModel, isV2Model, isV3Model } from '../utils'
 
 describe('Model Type Guards', () => {
   it('distinguishes complete V2 and V3 language models', () => {
@@ -32,14 +32,14 @@ describe('Model Type Guards', () => {
 
     expect(isV3Model(image)).toBe(false)
     expect(isV2Model(image)).toBe(false)
-    expect(isImageModelV3(image)).toBe(true)
-    expect(isImageModelV3(language)).toBe(false)
+    expect(isImageModel(image)).toBe(true)
+    expect(isImageModel(language)).toBe(false)
   })
 
   it('does not classify unresolved model IDs as SDK model objects', () => {
     expect(isV2Model('model-id')).toBe(false)
     expect(isV3Model('model-id')).toBe(false)
-    expect(isImageModelV3('model-id')).toBe(false)
+    expect(isImageModel('model-id')).toBe(false)
   })
 
   describe('hasModelId', () => {

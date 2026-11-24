@@ -1,7 +1,7 @@
 /**
  * Runtime 层类型定义
  */
-import type { EmbeddingModelV3, ImageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import type { EmbeddingModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { JSONObject } from '@ai-sdk/provider'
 import type { embedMany, Experimental_DownloadFunction, generateImage, generateText, rerank, streamText } from 'ai'
 
@@ -61,8 +61,7 @@ export interface RuntimeConfig<
   modelResolver?: (modelId: string) => any
 }
 
-export type generateImageParams = Omit<Parameters<typeof generateImage>[0], 'model'> & {
-  model: string | ImageModelV3
+export type generateImageParams = Parameters<typeof generateImage>[0] & {
   experimental_download?: Experimental_DownloadFunction
   onProviderCall?: RuntimeProviderCallHandler
   onProviderCallStart?: () => RuntimeProviderCallHandler

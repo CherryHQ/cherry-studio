@@ -3,7 +3,7 @@
  * 专注于插件化的AI调用处理
  */
 import type { ImageModelV3, JSONObject, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
-import type { LanguageModel } from 'ai'
+import type { ImageModel, LanguageModel } from 'ai'
 import {
   createProviderRegistry,
   embedMany as _embedMany,
@@ -152,7 +152,9 @@ export class RuntimeExecutor<
           const observedModel =
             onProviderCall || onProviderCallStart
               ? wrapImageModel({
-                  model: resolvedModel,
+                  // SAFETY: The SDK adapts V2 images by changing only the version; this wrapper supplies v3 and preserves receiver calls.
+                  // This observer reads shared modelId/images and optional usage, without claiming support for V3-only image features.
+                  model: resolvedModel as ImageModelV3,
                   middleware: {
                     specificationVersion: 'v3',
                     wrapGenerate: async ({ doGenerate, model: activeModel }) => {
@@ -347,7 +349,7 @@ export class RuntimeExecutor<
   /**
    * 解析图像模型：如果是字符串则创建图像模型，如果是模型则直接返回
    */
-  private async resolveImageModel(modelOrId: ImageModelV3 | string): Promise<ImageModelV3> {
+  private async resolveImageModel(modelOrId: ImageModel): Promise<Exclude<ImageModel, string>> {
     try {
       if (typeof modelOrId === 'string') {
         return this.registry.imageModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
