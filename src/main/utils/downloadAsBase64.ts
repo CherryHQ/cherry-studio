@@ -2,6 +2,7 @@ import { net } from 'electron'
 import { fileTypeFromBuffer } from 'file-type'
 
 import { loggerService } from '@logger'
+import { fetchRemoteBytesWithUrl } from '@main/utils/remoteFetch'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { MB } from '@shared/utils/constants'
 
@@ -88,17 +89,45 @@ function trustedImageMimeFromUrl(url: string): string | null {
   }
 }
 
-async function resolveTrustedImageMime(buffer: Buffer, response: Response, url: string): Promise<string | null> {
+async function resolveTrustedImageMime(
+  buffer: Buffer,
+  url: string,
+  contentType: string | null,
+  contentDisposition: string | null
+): Promise<string | null> {
   const fileType = await fileTypeFromBuffer(buffer)
   if (fileType) return fileType.mime.startsWith('image/') ? fileType.mime : null
 
   return (
-    normalizeImageContentType(response.headers.get('content-type')) ??
+    normalizeImageContentType(contentType) ??
     trustedImageMimeFromUrl(url) ??
-    trustedImageMimeFromExt(
-      extFromFilename(filenameFromContentDisposition(response.headers.get('content-disposition')))
-    )
+    trustedImageMimeFromExt(extFromFilename(filenameFromContentDisposition(contentDisposition)))
   )
+}
+
+/** Download a provider-supplied image with public DNS and redirect validation. */
+export async function downloadPublicImageAsBase64(url: string, signal?: AbortSignal): Promise<ImageAttachment | null> {
+  try {
+    const {
+      body,
+      headers,
+      url: finalUrl
+    } = await fetchRemoteBytesWithUrl(url, {
+      allowPrivateNetwork: false,
+      maxBytes: MAX_FILE_SIZE_BYTES,
+      maxRedirects: 3,
+      signal
+    })
+    const mediaType = await resolveTrustedImageMime(
+      body,
+      finalUrl,
+      headers['content-type'] ?? null,
+      headers['content-disposition'] ?? null
+    )
+    return mediaType ? { data: body.toString('base64'), media_type: mediaType } : null
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -127,7 +156,12 @@ export async function downloadImageAsBase64(url: string): Promise<ImageAttachmen
       return null
     }
 
-    const mediaType = await resolveTrustedImageMime(buffer, response, safeUrl)
+    const mediaType = await resolveTrustedImageMime(
+      buffer,
+      safeUrl,
+      response.headers.get('content-type'),
+      response.headers.get('content-disposition')
+    )
     if (!mediaType) {
       logger.warn('Downloaded image response has no trustworthy image format', { url })
       return null

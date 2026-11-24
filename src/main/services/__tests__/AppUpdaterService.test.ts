@@ -10,7 +10,7 @@ const {
   releaseNotesUpdaterInstances,
   trackAppUpdateMock
 } = vi.hoisted(() => ({
-  appEditionState: { current: 'global' },
+  appEditionState: { current: 'global', bridge: false },
   loggerErrorMock: vi.fn(),
   netFetchMock: vi.fn(),
   releaseNotesCheckMock: vi.fn(),
@@ -63,6 +63,10 @@ vi.mock('@main/core/platform', () => ({
 
 vi.mock('@main/utils/appEdition', () => ({
   getAppEdition: () => appEditionState.current
+}))
+
+vi.mock('@main/core/macElectronBridge', () => ({
+  isMacElectronBridgePackage: () => appEditionState.bridge
 }))
 
 vi.mock('@main/services/RegionService', () => ({
@@ -269,6 +273,27 @@ describe('AppUpdaterService', () => {
         'X-Edition': 'cn',
         'X-Region': 'global'
       })
+      expect(autoUpdater.requestHeaders).not.toHaveProperty('X-Desktop-Update-Bridge')
+    })
+
+    it('checks the marked CN stable feed and preserves the preview preference', async () => {
+      appEditionState.current = 'cn'
+      appEditionState.bridge = true
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+      try {
+        await appUpdater.checkForUpdates()
+        expect(autoUpdater.checkForUpdates).toHaveBeenCalledOnce()
+        expect(autoUpdater.channel).toBe('latest-cn')
+        expect(autoUpdater.requestHeaders).toMatchObject({
+          'X-Edition': 'cn',
+          'X-Desktop-Update-Bridge': 'cn-macos'
+        })
+      } finally {
+        appEditionState.bridge = false
+      }
+      await (appUpdater as any).configureUpdaterForCheck()
+      expect(autoUpdater.channel).toBe('beta-cn')
     })
 
     it('keeps existing updater request headers', async () => {

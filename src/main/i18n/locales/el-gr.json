@@ -295,6 +295,7 @@
   "paintings.comfyui.workflow_failed": "Αποτυχία ροής εργασίας ComfyUI:",
   "paintings.comfyui.workflow_rejected": "Το ComfyUI απέρριψε τη ροή εργασίας (HTTP {{status}})",
   "paintings.generate_failed": "Αποτυχία δημιουργίας εικόνας",
+  "paintings.image_download_failed": "Η εικόνα δημιουργήθηκε, αλλά δεν ήταν δυνατή η λήψη της.",
   "paintings.image_mix_failed": "Αποτυχία ανάμειξης εικόνων",
   "selection.name": "Βοηθός Επιλογής Λέξεων",
   "settings.mcp.oauth.callback.listen_error": "Δεν ήταν δυνατή η ακρόαση για την επιστροφή κλήσης OAuth στη διεύθυνση 127.0.0.1:{{port}} ({{reason}}). Ελέγξτε ότι η θύρα είναι διαθέσιμη και δοκιμάστε ξανά.",

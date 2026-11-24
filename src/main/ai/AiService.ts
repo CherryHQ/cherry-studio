@@ -7,7 +7,8 @@ import {
   type FinishReason,
   isToolUIPart,
   type LanguageModelUsage,
-  type ModelMessage
+  type ModelMessage,
+  NoImageGeneratedError
 } from 'ai'
 
 import { application } from '@application'
@@ -36,8 +37,9 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { t } from '@main/i18n'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
-import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { downloadImageAsBase64, downloadPublicImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import {
@@ -1156,6 +1158,7 @@ export class AiService extends BaseService {
     // are NOT typed SDK options — they reach the wire via `providerOptions[id]`
     // (the WireProfile engine), which the image models read; passing them here is
     // dropped by `generateImage`, so they're omitted.
+    let imageDownloadFailed = false
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
@@ -1170,9 +1173,15 @@ export class AiService extends BaseService {
         return Promise.all(
           downloads.map(async ({ url }) => {
             if (signal?.aborted) return null
-            const downloaded = await downloadImageAsBase64(url.toString())
+            const downloaded =
+              sdkConfig.providerId === 'google'
+                ? await downloadPublicImageAsBase64(url.href, signal)
+                : await downloadImageAsBase64(url.href)
             if (signal?.aborted) return null
-            if (!downloaded) return null
+            if (!downloaded) {
+              imageDownloadFailed = true
+              return null
+            }
             return {
               data: Buffer.from(downloaded.data, 'base64'),
               mediaType: downloaded.media_type
@@ -1198,7 +1207,12 @@ export class AiService extends BaseService {
           ...imageParams,
           onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
         }
-      )
+      ).catch((error: unknown) => {
+        if (sdkConfig.providerId === 'google' && imageDownloadFailed && NoImageGeneratedError.isInstance(error)) {
+          throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.image_download_failed') })
+        }
+        throw error
+      })
 
       const dataUrls: Base64String[] = []
       let filteredCount = 0
