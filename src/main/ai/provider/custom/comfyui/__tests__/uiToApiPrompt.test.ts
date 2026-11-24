@@ -960,6 +960,103 @@ describe('convertUiWorkflowToPrompt', () => {
   })
 })
 
+describe('partial object_info declarations', () => {
+  const workflow = (values: UiNode['widgets_values']) => ({
+    nodes: [{ id: 1, type: 'Example', widgets_values: values }],
+    links: []
+  })
+
+  it.each([null, [], 42, 'invalid config'])(
+    'keeps widget values aligned when a declaration config is invalid',
+    (config) => {
+      const { prompt } = convertUiWorkflowToPrompt(workflow(['caption text', 17]), {
+        Example: { input: { required: { caption: ['STRING', config], steps: ['INT', {}] } } }
+      })
+
+      expect(prompt['1'].inputs).toEqual({ caption: 'caption text', steps: 17 })
+    }
+  )
+
+  it('does not spend a widget slot on a numeric override of a non-widget input', () => {
+    const { prompt } = convertUiWorkflowToPrompt(workflow([17]), {
+      Example: { input: { required: { model: ['MODEL', { widgetType: 42 }], steps: ['INT', {}] } } }
+    })
+
+    expect(prompt['1'].inputs).toEqual({ steps: 17 })
+  })
+
+  it.each([null, 42, 'not an options array'])(
+    'keeps later widgets aligned without valid DynamicCombo options',
+    (options) => {
+      const { prompt } = convertUiWorkflowToPrompt(workflow(['png', 17]), {
+        Example: { input: { required: { format: ['COMFY_DYNAMICCOMBO_V3', { options }], steps: ['INT', {}] } } }
+      })
+
+      expect(prompt['1'].inputs).toEqual({ format: 'png', steps: 17 })
+    }
+  )
+
+  it('selects a valid DynamicCombo option among unrelated JSON values', () => {
+    const { prompt } = convertUiWorkflowToPrompt(workflow(['png', '16-bit', 17]), {
+      Example: {
+        input: {
+          required: {
+            format: [
+              'COMFY_DYNAMICCOMBO_V3',
+              {
+                options: [
+                  null,
+                  42,
+                  'unrelated',
+                  {
+                    key: 'png',
+                    inputs: { required: { depth: [['8-bit', '16-bit'], {}] } }
+                  }
+                ]
+              }
+            ],
+            steps: ['INT', {}]
+          }
+        }
+      }
+    })
+
+    expect(prompt['1'].inputs).toEqual({ format: 'png', 'format.depth': '16-bit', steps: 17 })
+  })
+
+  it.each([null, [], 42])('ignores a selected DynamicCombo option with invalid nested inputs', (inputs) => {
+    const { prompt } = convertUiWorkflowToPrompt(workflow(['png', 17]), {
+      Example: {
+        input: {
+          required: {
+            format: ['COMFY_DYNAMICCOMBO_V3', { options: [{ key: 'png', inputs }] }],
+            steps: ['INT', {}]
+          }
+        }
+      }
+    })
+
+    expect(prompt['1'].inputs).toEqual({ format: 'png', steps: 17 })
+  })
+
+  it('retains valid optional widgets without turning an array section into input names', () => {
+    const info = JSON.parse(
+      JSON.stringify({
+        Example: {
+          input: {
+            required: [['STRING', { default: 'must not become input 0', control_after_generate: true }]],
+            optional: { caption: ['STRING', {}] }
+          }
+        }
+      })
+    )
+
+    const { prompt } = convertUiWorkflowToPrompt(workflow(['caption text']), info)
+
+    expect(prompt['1'].inputs).toEqual({ caption: 'caption text' })
+  })
+})
+
 describe('findPromptTarget', () => {
   it('picks the positive conditioning, not the negative one', () => {
     const target = findPromptTarget({

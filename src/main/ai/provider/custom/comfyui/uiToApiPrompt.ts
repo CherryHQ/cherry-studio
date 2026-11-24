@@ -22,6 +22,9 @@ type WorkflowValue = string | number | boolean | null | undefined | WorkflowValu
 
 type JsonObject = { [key: string]: WorkflowValue }
 
+const isJsonObject = (value: WorkflowValue): value is JsonObject =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+
 export interface UiNode {
   id: number
   type: string
@@ -162,15 +165,17 @@ interface WidgetNames {
 
 /** The declaration config of a top-level widget, `{}` when it has none. */
 function widgetConfig(info: ObjectInfo[string], name: string): JsonObject {
-  const entry = (info.input?.required?.[name] ?? info.input?.optional?.[name]) as WorkflowValue[] | undefined
+  const entry = info.input?.required?.[name] ?? info.input?.optional?.[name]
 
-  return Array.isArray(entry) && entry.length > 1 && typeof entry[1] === 'object' ? (entry[1] as JsonObject) : {}
+  return Array.isArray(entry) && isJsonObject(entry[1]) ? entry[1] : {}
 }
 
 /** The top-level widget the server declares control_after_generate on, if any. */
 function controlledWidget(info: ObjectInfo[string]): string | undefined {
   for (const section of [info.input?.required, info.input?.optional]) {
-    for (const name of Object.keys(section ?? {})) {
+    if (!isJsonObject(section)) continue
+
+    for (const name of Object.keys(section)) {
       if (widgetConfig(info, name)[CONTROL_AFTER_GENERATE]) return name
     }
   }
@@ -184,18 +189,24 @@ const widgetNames = (acc: WidgetNames): string[] => acc.positions.filter((name):
 /** The widget implementation a declaration asks for: an explicit `widgetType`
  * (`"PAINTER"`, `"hidden"`, …) wins, otherwise the input type — `litegraph
  * Service.addInputSocket` looks the constructor up under exactly that key. */
-const widgetTypeOf = (type: WorkflowValue, config: JsonObject): string =>
-  (config.widgetType as string | undefined) ?? (Array.isArray(type) ? 'COMBO' : (type as string))
+const widgetTypeOf = (type: WorkflowValue, config: JsonObject): string | undefined => {
+  if (typeof config.widgetType === 'string') return config.widgetType
+
+  if (Array.isArray(type)) return 'COMBO'
+
+  return typeof type === 'string' ? type : undefined
+}
 
 /** A declaration spends a positional slot when the frontend renders a widget
  * for it: a declared `widgetType` names the implementation to instantiate, so
  * an input whose own type is not a widget type still spends one. */
-const spendsWidgetSlot = (widgetType: string, config: JsonObject, values?: WorkflowValue[]): boolean =>
-  config.widgetType !== undefined ||
-  WIDGET_TYPES.has(widgetType) ||
-  NON_SCALAR_WIDGET_TYPES.has(widgetType) ||
-  widgetType === 'CURVE' ||
-  (widgetType === 'COMFY_DYNAMICCOMBO_V3' && values !== undefined)
+const spendsWidgetSlot = (widgetType: string | undefined, config: JsonObject, values?: WorkflowValue[]): boolean =>
+  typeof config.widgetType === 'string' ||
+  (widgetType !== undefined &&
+    (WIDGET_TYPES.has(widgetType) ||
+      NON_SCALAR_WIDGET_TYPES.has(widgetType) ||
+      widgetType === 'CURVE' ||
+      (widgetType === 'COMFY_DYNAMICCOMBO_V3' && values !== undefined)))
 
 /** Backend widget inputs for a node class, in declaration order. DynamicCombo
  * (v3) inputs expand into the combo value plus the selected option's child
@@ -210,9 +221,9 @@ function widgetInputNames(
   order: { required?: string[]; optional?: string[] } = info.input_order ?? {}
 ): WidgetNames {
   for (const section of ['required', 'optional'] as const) {
-    const sectionSpec = spec[section] as JsonObject | undefined
+    const sectionSpec = spec[section]
 
-    if (!sectionSpec) continue
+    if (!isJsonObject(sectionSpec)) continue
     // The backend's declaration order is `input_order` when the server sends
     // it; iterating the object instead would move integer-like keys to the
     // front and shift every saved value after them onto the wrong input.
@@ -222,11 +233,11 @@ function widgetInputNames(
     for (const name of sectionNames) {
       const raw = sectionSpec[name]
       const fullName = prefix ? `${prefix}.${name}` : name
-      const entry = raw as WorkflowValue[]
+      const entry = raw
 
       if (!Array.isArray(entry) || entry.length === 0) continue
       const type = entry[0]
-      const config = (entry.length > 1 && typeof entry[1] === 'object' ? entry[1] : {}) as JsonObject
+      const config = isJsonObject(entry[1]) ? entry[1] : {}
 
       if (config.advanced && !includeAdvanced) continue
       const widgetType = widgetTypeOf(type, config)
@@ -252,10 +263,14 @@ function widgetInputNames(
 
       if (widgetType === 'COMFY_DYNAMICCOMBO_V3') {
         const selected = values![acc.positions.length - 1]
-        const option = (config.options as JsonObject[] | undefined)?.find((candidate) => candidate.key === selected)
+        const options = config.options
+        const option = Array.isArray(options)
+          ? options.find((candidate: WorkflowValue) => isJsonObject(candidate) && candidate.key === selected)
+          : undefined
+        const inputs = isJsonObject(option) && isJsonObject(option.inputs) ? option.inputs : {}
         // A dynamic option's own inputs carry no order of their own, and the
         // node's `input_order` describes its top-level sections only.
-        widgetInputNames(info, includeAdvanced, (option?.inputs ?? {}) as JsonObject, fullName, values, acc, {})
+        widgetInputNames(info, includeAdvanced, inputs, fullName, values, acc, {})
       }
     }
   }
@@ -309,16 +324,16 @@ const isPlainTextNode = (node: ApiPromptNode): boolean =>
 function requiredInputFallbacks(info: ObjectInfo[string], values?: WorkflowValue[]): Array<[string, WorkflowValue]> {
   const spec = info.input?.required
 
-  if (!spec) return []
+  if (!isJsonObject(spec)) return []
   const declared = info.input_order?.required ?? []
   const names = declared.length > 0 ? declared.filter((name) => name in spec) : Object.keys(spec)
   const out: Array<[string, WorkflowValue]> = []
 
   for (const name of names) {
-    const entry = spec[name] as WorkflowValue[]
+    const entry = spec[name]
 
     if (!Array.isArray(entry) || entry.length === 0) continue
-    const config = (entry.length > 1 && typeof entry[1] === 'object' ? entry[1] : {}) as JsonObject
+    const config = isJsonObject(entry[1]) ? entry[1] : {}
     // A socket is satisfied by a link, never by a value, so only a declaration
     // the frontend renders as a widget (or marks `socketless`) can carry one:
     // `MODEL`, `LATENT`, `IMAGE` … cannot.
@@ -474,7 +489,7 @@ export function convertUiWorkflowToPrompt(
   /** The declared type of a prompt node's input, for bypass slot selection. */
   function consumerInputType(node: ApiPromptNode, name: string): string | undefined {
     const spec = objectInfo[node.class_type]?.input
-    const entry = (spec?.required?.[name] ?? spec?.optional?.[name]) as WorkflowValue[] | undefined
+    const entry = spec?.required?.[name] ?? spec?.optional?.[name]
     const type = Array.isArray(entry) ? entry[0] : undefined
 
     return Array.isArray(type) ? type.join(',') : typeof type === 'string' ? type : undefined
@@ -1048,10 +1063,7 @@ function declaredInputType(objectInfo: ObjectInfo, classType: string, name: stri
   const spec = objectInfo[classType]?.input
   const leaf = name.slice(name.lastIndexOf('.') + 1)
 
-  const entry = (spec?.required?.[name] ??
-    spec?.optional?.[name] ??
-    spec?.required?.[leaf] ??
-    spec?.optional?.[leaf]) as WorkflowValue[] | undefined
+  const entry = spec?.required?.[name] ?? spec?.optional?.[name] ?? spec?.required?.[leaf] ?? spec?.optional?.[leaf]
 
   const type = Array.isArray(entry) ? entry[0] : undefined
 
