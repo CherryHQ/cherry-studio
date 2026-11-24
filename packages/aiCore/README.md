@@ -292,6 +292,10 @@ const executor = AiCore.create('openai', { apiKey: 'your-key' }, [customPlugin])
 
 除了使用内建的 provider 管理，你还可以使用 AI SDK 原生的 `createProviderRegistry` 来构建自己的 provider 注册表。
 
+`ProviderCreatorFunction<TSettings, TProvider>` 和 typed `create` 保留基础 provider 的实际 SDK 类型。`createProvider(settings)` 与 `getBaseProvider(settings)` 返回该基础类型；带动态变体后缀的创建调用和 `getCachedProvider()` 返回通用 `ProviderV3`，因为变体可能切换到另一个 SDK。`getVariant()` 保留声明中的变体配置元素类型。Azure 的基础 chat wrapper 只承诺通用 SDK 接口和 Azure tools，不包含完整 Azure provider 的专用方法。
+
+动态导入注册继续支持 `import` 与 `creatorFunctionName`，只从模块自有导出中选择 creator。它依赖注册者提供正确的 SDK creator 契约，可调用性检查不验证 provider 子类型。默认配置与可省略输入可能仍缺少必填项，配置补全或拒绝由所选 SDK creator 负责。实例缓存继续共用一个 LRU；创建记录同时持有基础与最终 provider，这会让基础对象存活到相关记录被淘汰。
+
 #### 基本用法示例
 
 ```typescript

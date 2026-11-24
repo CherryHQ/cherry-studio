@@ -4,7 +4,14 @@ import QuickLRU from 'quick-lru'
 import { deepMergeObjects } from '../../utils'
 import type { ProviderVariant, ToolFactoryMap } from '../types'
 
-export type ProviderCreatorFunction<TSettings = any> = (settings?: TSettings) => ProviderV3 | Promise<ProviderV3>
+export type ProviderCreatorFunction<TSettings = any, TProvider extends ProviderV3 = ProviderV3> = (
+  settings?: TSettings
+) => TProvider | Promise<TProvider>
+
+interface ProviderCreation<TProvider extends ProviderV3> {
+  baseProvider: TProvider
+  provider: ProviderV3
+}
 
 /**
  * Imported module namespace; the configured creator export is checked at runtime.
@@ -61,7 +68,7 @@ interface ProviderExtensionConfigWithCreate<
   TProvider extends ProviderV3 = ProviderV3,
   TName extends string = string
 > extends ProviderExtensionConfigBase<TSettings, TProvider, TName> {
-  create: ProviderCreatorFunction<TSettings>
+  create: ProviderCreatorFunction<TSettings, TProvider>
 
   import?: never
 
@@ -116,10 +123,10 @@ export class ProviderExtension<
   >
 > {
   /** Provider 实例缓存 - 按 settings hash 存储，LRU 自动清理 */
-  private instances: QuickLRU<string, TProvider>
+  private instances: QuickLRU<string, ProviderCreation<TProvider>>
 
   /** In-flight promise map - 防止并发创建相同 settings 的 provider */
-  private pendingCreations: Map<string, Promise<TProvider>> = new Map()
+  private pendingCreations: Map<string, Promise<ProviderCreation<TProvider>>> = new Map()
 
   /** Function identity is behaviorally significant for request-scoped fetch wrappers. */
   private functionIds = new WeakMap<object, number>()
@@ -131,7 +138,7 @@ export class ProviderExtension<
       throw new Error('ProviderExtension: name is required')
     }
 
-    this.instances = new QuickLRU<string, TProvider>({
+    this.instances = new QuickLRU<string, ProviderCreation<TProvider>>({
       maxSize: 10
     })
   }
@@ -205,7 +212,19 @@ export class ProviderExtension<
    * 创建 Provider 实例
    * 相同 settings 会复用实例，不同 settings 会创建新实例
    */
-  async createProvider(settings?: TSettings, variantSuffix?: string): Promise<TProvider> {
+  createProvider(settings?: TSettings): Promise<TProvider>
+  createProvider(settings: TSettings | undefined, variantSuffix: undefined): Promise<TProvider>
+  createProvider(settings: TSettings | undefined, variantSuffix: string | undefined): Promise<ProviderV3>
+  async createProvider(settings?: TSettings, variantSuffix?: string): Promise<ProviderV3> {
+    const creation = await this.getOrCreateProvider(settings, variantSuffix)
+
+    return variantSuffix ? creation.provider : creation.baseProvider
+  }
+
+  private async getOrCreateProvider(
+    settings?: TSettings,
+    variantSuffix?: string
+  ): Promise<ProviderCreation<TProvider>> {
     if (variantSuffix) {
       const variant = this.getVariant(variantSuffix)
 
@@ -217,6 +236,7 @@ export class ProviderExtension<
       }
     }
 
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- The optional-settings API delegates missing required configuration to the SDK creator; partial defaults and input do not prove completeness.
     const mergedSettings = deepMergeObjects(this.config.defaultOptions || {}, settings || {}) as TSettings
 
     const hash = this.computeHash(mergedSettings, variantSuffix)
@@ -255,14 +275,16 @@ export class ProviderExtension<
     mergedSettings: TSettings,
     variantSuffix: string | undefined,
     hash: string
-  ): Promise<TProvider> {
-    let baseProvider: ProviderV3
+  ): Promise<ProviderCreation<TProvider>> {
+    let baseProvider: TProvider
 
     if (this.config.create) {
       baseProvider = await Promise.resolve(this.config.create(mergedSettings))
     } else if (this.config.import && this.config.creatorFunctionName) {
       const module = await this.config.import()
-      const creatorFn = module[this.config.creatorFunctionName]
+      const creatorFn = Object.hasOwn(module, this.config.creatorFunctionName)
+        ? module[this.config.creatorFunctionName]
+        : undefined
 
       if (!creatorFn || typeof creatorFn !== 'function') {
         throw new Error(
@@ -270,14 +292,16 @@ export class ProviderExtension<
         )
       }
 
-      baseProvider = await Promise.resolve(creatorFn(mergedSettings))
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy dynamic imports trust the registered creator contract; the callable check does not verify settings or the provider subtype.
+      const createProvider = creatorFn as ProviderCreatorFunction<TSettings, TProvider>
+      baseProvider = await Promise.resolve(createProvider(mergedSettings))
     } else {
       throw new Error(`ProviderExtension "${this.config.name}": cannot create provider, invalid configuration`)
     }
 
-    this.attachRerankingModel(baseProvider as TProvider, mergedSettings)
+    this.attachRerankingModel(baseProvider, mergedSettings)
 
-    let finalProvider: TProvider
+    let finalProvider: ProviderV3
 
     if (variantSuffix) {
       const variant = this.getVariant(variantSuffix)!
@@ -286,25 +310,26 @@ export class ProviderExtension<
         const baseHash = this.computeHash(mergedSettings)
 
         if (!this.instances.has(baseHash)) {
-          this.instances.set(baseHash, baseProvider as TProvider)
+          this.instances.set(baseHash, { baseProvider, provider: baseProvider })
         }
 
-        finalProvider = await Promise.resolve(variant.transform(baseProvider as TProvider, mergedSettings))
+        finalProvider = await Promise.resolve(variant.transform(baseProvider, mergedSettings))
       } else {
-        finalProvider = baseProvider as TProvider
+        finalProvider = baseProvider
       }
     } else {
-      finalProvider = baseProvider as TProvider
+      finalProvider = baseProvider
     }
 
     // Variant transforms can return a new provider object, so attach to the final instance too.
     this.attachRerankingModel(finalProvider, mergedSettings)
-    this.instances.set(hash, finalProvider)
+    const creation = { baseProvider, provider: finalProvider }
+    this.instances.set(hash, creation)
 
-    return finalProvider
+    return creation
   }
 
-  private attachRerankingModel(provider: TProvider, settings: TSettings): void {
+  private attachRerankingModel(provider: ProviderV3, settings: TSettings): void {
     const { createRerankingModel } = this.config
 
     if (!createRerankingModel || provider.rerankingModel) {
@@ -321,7 +346,7 @@ export class ProviderExtension<
   configure(settings: Partial<TSettings>): ProviderExtension<TSettings, TProvider> {
     return new ProviderExtension({
       ...this.config,
-      defaultOptions: deepMergeObjects(this.config.defaultOptions || ({} as any), settings)
+      defaultOptions: deepMergeObjects(this.config.defaultOptions || {}, settings)
     })
   }
 
@@ -350,8 +375,11 @@ export class ProviderExtension<
   /**
    * 获取变体配置
    */
-  getVariant(suffix: string): ProviderVariant<TSettings, TProvider> | undefined {
-    return this.config.variants?.find((v) => v.suffix === suffix)
+  getVariant(suffix: string): NonNullable<TConfig['variants']>[number] | undefined {
+    // Typed-array membership supplies the element contract; this predicate only selects by suffix.
+    return this.config.variants?.find(
+      (variant): variant is NonNullable<TConfig['variants']>[number] => variant.suffix === suffix
+    )
   }
 
   /**
@@ -365,13 +393,13 @@ export class ProviderExtension<
   /**
    * 获取已缓存的 provider 实例（如果存在）
    */
-  getCachedProvider(): TProvider | undefined {
+  getCachedProvider(): ProviderV3 | undefined {
     for (const [key, value] of this.instances) {
-      if (!key.includes(':')) return value
+      if (!key.includes(':')) return value.provider
     }
 
     for (const [, value] of this.instances) {
-      return value
+      return value.provider
     }
 
     return undefined

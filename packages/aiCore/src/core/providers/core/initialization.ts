@@ -73,11 +73,13 @@ const AnthropicExtension = ProviderExtension.create({
 /**
  * Azure Extension
  */
+type AzureChatProvider = ProviderV3 & Pick<AzureOpenAIProvider, 'tools'>
+
 const AzureExtension = ProviderExtension.create({
   name: 'azure',
   aliases: ['azure-openai'] as const,
   supportsImageGeneration: true,
-  create: async (settings): Promise<ProviderV3> => {
+  create: async (settings) => {
     const provider = (await import('@ai-sdk/azure')).createAzure(settings)
 
     // Default to chat mode (AI SDK defaults to responses API)
@@ -93,7 +95,7 @@ const AzureExtension = ProviderExtension.create({
   },
   toolFactories: {
     webSearch:
-      (provider: AzureOpenAIProvider) =>
+      (provider: AzureChatProvider) =>
       (config: NonNullable<Parameters<AzureOpenAIProvider['tools']['webSearchPreview']>[0]>) => ({
         tools: { webSearch: provider.tools.webSearchPreview(config) }
       })
@@ -112,7 +114,7 @@ const AzureExtension = ProviderExtension.create({
             tools: { webSearch: provider.tools.webSearchPreview(config) }
           })
       }
-    },
+    } satisfies ProviderVariant<AzureOpenAIProviderSettings, AzureChatProvider, AzureOpenAIProvider>,
     // Azure 上的 Claude 模型走 Anthropic SDK
     // https://platform.claude.com/docs/en/build-with-claude/claude-in-microsoft-foundry
     {
@@ -138,9 +140,9 @@ const AzureExtension = ProviderExtension.create({
             tools: { urlContext: provider.tools.webFetch_20260209(config) }
           })
       }
-    } satisfies ProviderVariant<AzureOpenAIProviderSettings, AzureOpenAIProvider, AnthropicProvider>
+    } satisfies ProviderVariant<AzureOpenAIProviderSettings, AzureChatProvider, AnthropicProvider>
   ] as const
-} as const satisfies ProviderExtensionConfig<AzureOpenAIProviderSettings, AzureOpenAIProvider, 'azure'>)
+} as const satisfies ProviderExtensionConfig<AzureOpenAIProviderSettings, AzureChatProvider, 'azure'>)
 
 const CherryInExtension = ProviderExtension.create({
   name: 'cherryin',
