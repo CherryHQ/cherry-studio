@@ -14,20 +14,21 @@ import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
 import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver } from '../types'
 import { acpError } from './acpError'
 import { resolveLocalAgentLaunch } from './launch'
+import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
 
-async function connection(sessionId: string, agentId: string, config: LocalAgentConfiguration) {
+async function connection(sessionId: string, agentId: string, config: LocalAgentConfiguration, headless = false) {
   switch (config.protocol) {
     case 'acp': {
       const { AcpConnection } = await import('./AcpConnection')
-      return new AcpConnection(sessionId, agentId, config)
+      return new AcpConnection(sessionId, agentId, config, headless)
     }
     case 'claude': {
       const { ClaudeConnection } = await import('./ClaudeConnection')
-      return new ClaudeConnection(sessionId, agentId, config)
+      return new ClaudeConnection(sessionId, agentId, config, headless)
     }
     case 'codex': {
       const { CodexConnection } = await import('./CodexConnection')
-      return new CodexConnection(sessionId, agentId, config)
+      return new CodexConnection(sessionId, agentId, config, headless)
     }
   }
 }
@@ -54,13 +55,23 @@ export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
       !input.resumeToken &&
       agentSessionMessageService.listSessionMessages(input.sessionId, { limit: 3 }).items.length > 2
     ) {
-      throw new Error('The native conversation cannot be restored; create a new session to continue')
+      throw new LocalAgentSessionRestoreError(
+        'The native conversation cannot be restored; create a new session to continue'
+      )
     }
     await prepareAgentSessionWorkspaceDirectory(session)
     const config = LocalAgentConfigurationSchema.parse(
       agentService.getAgent(input.agentId)?.configuration?.localRuntime
     )
-    return startLocalSession(input.sessionId, input.agentId, config, session.workspace.path, input.resumeToken)
+    return startLocalSession(
+      input.sessionId,
+      input.agentId,
+      config,
+      session.workspace.path,
+      input.resumeToken,
+      false,
+      input.headless
+    )
   }
 }
 
@@ -70,9 +81,10 @@ async function startLocalSession(
   config: LocalAgentConfiguration,
   cwd: string,
   resume?: string,
-  probe: false | 'models' = false
+  probe: false | 'models' = false,
+  headless = false
 ) {
-  const live = await connection(sessionId, agentId, config)
+  const live = await connection(sessionId, agentId, config, headless)
   try {
     return await startWithTimeout(live, cwd, resume, probe)
   } catch (error) {
@@ -88,11 +100,12 @@ async function startLocalSession(
     // The standalone adapter and terminal CLI own separate sign-ins.
     const terminal = await resolveLocalAgentLaunch(config, undefined, true).catch(() => undefined)
     if (!terminal) throw error
-    const native = await connection(sessionId, agentId, {
-      ...config,
-      executableOverride: terminal.executable,
-      args: ['acp']
-    })
+    const native = await connection(
+      sessionId,
+      agentId,
+      { ...config, executableOverride: terminal.executable, args: ['acp'] },
+      headless
+    )
     try {
       return await startWithTimeout(native, cwd, resume, probe)
     } catch (nativeError) {

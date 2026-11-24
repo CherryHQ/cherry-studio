@@ -25,6 +25,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   protected supportedCommands: AgentSessionSlashCommand[] | null = null
   protected readonly abort = new AbortController()
   protected turnAbort = new AbortController()
+  private unattendedDenial?: string
   private contentPart?: { type: 'text' | 'reasoning'; id: string }
   protected active = false
   protected closed = false
@@ -36,7 +37,8 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   constructor(
     protected readonly sessionId: string,
     protected readonly agentId: string,
-    protected readonly config: LocalAgentConfiguration
+    protected readonly config: LocalAgentConfiguration,
+    protected readonly headless = false
   ) {}
 
   abstract send(input: AgentRuntimeUserInput): Promise<void>
@@ -80,7 +82,8 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     if (!(await waitForProcessExit(child, 1000))) throw new Error('Local agent process did not exit')
   }
 
-  async reconcile(): Promise<AgentRuntimeReconcileResult> {
+  async reconcile({ headless = false }: { headless?: boolean } = {}): Promise<AgentRuntimeReconcileResult> {
+    if (headless !== this.headless) return 'rebuild'
     const current = agentService.getAgent(this.agentId)?.configuration?.localRuntime
     if (!current?.enabled) return this.active ? 'rebuild' : 'invalid'
     if (this.closed) return 'rebuild'
@@ -93,6 +96,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   protected begin() {
     if (this.closed || this.active) throw new Error('Local agent connection is unavailable')
     this.active = true
+    this.unattendedDenial = undefined
     this.turnAbort = new AbortController()
     this.turnDone = new Promise((resolve) => {
       this.completeTurn = resolve
@@ -119,6 +123,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     this.turnAbort.abort()
     this.completeTurn?.()
     this.endContent()
+    if (!error && finishReason !== 'cancelled' && this.unattendedDenial) error = new Error(this.unattendedDenial)
     if (error) this.events.push({ type: 'error', error })
     else {
       if (finishReason !== 'cancelled') this.chunk({ type: 'finish', finishReason })
@@ -142,6 +147,12 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     }
     this.chunk({ type: 'tool-output-available', toolCallId: id, output, dynamic: true })
   }
+  protected denyUnattendedRequest(): { approved: false; reason: string } {
+    const reason = 'The local agent requested approval or user input during a scheduled task'
+    if (this.active) this.unattendedDenial = reason
+    return { approved: false, reason }
+  }
+
   protected approve(
     id: string,
     name: string,
@@ -149,6 +160,11 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     signal?: AbortSignal
   ): Promise<DispatchDecision> {
     this.tool(id, name, input, true)
+    if (this.headless) {
+      const denial = this.denyUnattendedRequest()
+      this.result(id, denial.reason, true)
+      return Promise.resolve(denial)
+    }
     const approvalId = randomUUID()
     return new Promise((resolve) => {
       if (

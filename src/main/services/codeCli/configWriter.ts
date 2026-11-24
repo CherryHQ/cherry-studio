@@ -24,7 +24,10 @@ interface FileSnapshot {
 }
 
 /** Resolve a declarative target path against its base: the pinned Hermes home, or sys.home for `~/…` spec paths. */
-async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFilePath> {
+async function resolveTargetPath(
+  target: CliConfigTarget,
+  overrides?: Record<string, string>
+): Promise<AbsoluteFilePath> {
   if (target === 'openclaw-config')
     return AbsoluteFilePathSchema.parse(application.getPath('external.openclaw.config', 'openclaw.json'))
   const { pathBase, path: specPath } = CLI_CONFIG_FILE_SPECS[target]
@@ -33,7 +36,7 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
   if (pathBase === 'hermes-home') {
     return AbsoluteFilePathSchema.parse(path.join(await getHermesHome(), specPath))
   }
-  const env = mergeEnvironment(await getRawShellEnv())
+  const env = mergeEnvironment(await getRawShellEnv(), overrides)
   const directories: Partial<Record<CliConfigTarget, string | undefined>> = {
     'claude-settings': env.CLAUDE_CONFIG_DIR,
     'codex-config': env.CODEX_HOME,
@@ -173,10 +176,13 @@ export interface CliConfigReadFile {
  * ENOENT maps to `content: null`; any other read error aborts and rethrows.
  * Duplicate targets are deduplicated by the route schema, not here.
  */
-export async function readCliConfigFiles(targets: readonly CliConfigTarget[]): Promise<CliConfigReadFile[]> {
+export async function readCliConfigFiles(
+  targets: readonly CliConfigTarget[],
+  overrides?: Record<string, string>
+): Promise<CliConfigReadFile[]> {
   return Promise.all(
     targets.map(async (target) => {
-      const path = await resolveTargetPath(target)
+      const path = await resolveTargetPath(target, overrides)
       return { target, path, content: await readOrNull(path) }
     })
   )

@@ -31,7 +31,6 @@ export type AgentSelectorItem = ResourceSelectorShellItem
 type SharedProps = {
   trigger: ReactElement
   additionalItems?: readonly AgentSelectorItem[]
-  excludeLocalAgents?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onDialogCloseAutoFocus?: () => void
@@ -60,7 +59,6 @@ export function AgentSelector(props: AgentSelectorProps) {
   const {
     trigger,
     additionalItems,
-    excludeLocalAgents,
     open,
     onOpenChange,
     onDialogCloseAutoFocus,
@@ -105,9 +103,7 @@ export function AgentSelector(props: AgentSelectorProps) {
   const items: AgentSelectorItem[] = useMemo(
     () => [
       ...(data?.items ?? [])
-        .filter(
-          (agent) => agent.type !== 'local' || (!excludeLocalAgents && agent.configuration?.localRuntime?.enabled)
-        )
+        .filter((agent) => agent.type !== 'local' || agent.configuration?.localRuntime?.enabled)
         .map((agent) => ({
           id: agent.id,
           name: agent.name,
@@ -120,7 +116,7 @@ export function AgentSelector(props: AgentSelectorProps) {
         })),
       ...(additionalItems ?? [])
     ],
-    [additionalItems, data, excludeLocalAgents, t]
+    [additionalItems, data, t]
   )
 
   const handleTogglePin = useCallback(

@@ -17,6 +17,7 @@ import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
 import { AcpConnection } from '../AcpConnection'
 import { CodexConnection } from '../CodexConnection'
 import { LocalAgentAuthService } from '../LocalAgentAuthService'
+import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { listLocalAgentModels } from '../LocalRuntimeDriver'
 
 const gateway = vi.hoisted(() => ({ acquireGateway: vi.fn() }))
@@ -74,7 +75,8 @@ describe('local protocol processes', () => {
     scenario = 'normal',
     nativeModel?: string,
     presetId?: string,
-    sourceModelId?: LocalAgentConfiguration['sourceModelId']
+    sourceModelId?: LocalAgentConfiguration['sourceModelId'],
+    headless = false
   ) {
     const config: LocalAgentConfiguration = {
       protocol,
@@ -88,8 +90,8 @@ describe('local protocol processes', () => {
     }
     const connection =
       protocol === 'acp'
-        ? new AcpConnection('session', 'agent', config)
-        : new CodexConnection('session', 'agent', config)
+        ? new AcpConnection('session', 'agent', config, headless)
+        : new CodexConnection('session', 'agent', config, headless)
     connections.push(connection)
     const events: AgentRuntimeEvent[] = []
     const drained = (async () => {
@@ -2039,6 +2041,35 @@ describe('local protocol processes', () => {
     await drained
   })
 
+  it('identifies a persisted ACP session that the CLI cannot restore', async () => {
+    const { connection } = create('acp', 'no-resume', undefined, 'opencode', undefined, true)
+    await expect(connection.start(cwd, 'previous-session')).rejects.toBeInstanceOf(LocalAgentSessionRestoreError)
+  })
+
+  it('denies unattended ACP approvals, host writes and terminals without prompting', async () => {
+    const { connection, events, text } = create('acp', 'acp-policy-yolo', undefined, 'opencode', undefined, true)
+    await connection.start(cwd)
+    await expect(connection.setMode?.('agent-mode', 'yolo')).rejects.toThrow(
+      'Scheduled tasks use the agent configuration'
+    )
+    await connection.send(input)
+    await vi.waitFor(() =>
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: 'error',
+          error: expect.objectContaining({ message: expect.stringContaining('scheduled task') })
+        })
+      )
+    )
+    expect(JSON.parse(text())).toEqual({
+      perm: { outcome: { outcome: 'selected', optionId: 'deny' } },
+      wrote: false,
+      terminalDenied: true
+    })
+    await expect(readFile(path.join(cwd, 'yolo.txt'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(events.some((event) => event.type === 'tool-approval-request')).toBe(false)
+  })
+
   it('keeps ACP permission prompts active when native mode is auto', async () => {
     const { connection, events, text, drained } = create('acp', 'acp-policy-auto')
     await connection.start(cwd)
@@ -2122,6 +2153,55 @@ describe('local protocol processes', () => {
     })
     await connection.close()
     await drained
+  })
+
+  it.each([undefined, 'native-session'])('keeps unattended Codex read-only with resume token %s', async (resume) => {
+    const { connection, events, text } = create(
+      'codex',
+      'codex-full-access-approvals',
+      undefined,
+      'codex',
+      undefined,
+      true
+    )
+    if (!(connection instanceof CodexConnection)) throw new Error('Expected Codex protocol')
+    await connection.start(cwd, resume)
+    await expect(connection.setMode('codex-mode', 'fullAccess')).rejects.toThrow('no longer available')
+    await connection.send(input)
+
+    await vi.waitFor(() =>
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: 'error',
+          error: expect.objectContaining({ message: expect.stringContaining('scheduled task') })
+        })
+      )
+    )
+    expect(events.some((event) => event.type === 'tool-approval-request')).toBe(false)
+    expect(JSON.parse(text())).toEqual({
+      cmd: { decision: 'decline' },
+      fc: { decision: 'decline' },
+      perms: { permissions: {}, scope: 'turn' }
+    })
+    const wire = await readWire()
+    expect(
+      wire.find((message) => message.method === (resume ? 'thread/resume' : 'thread/start'))?.params
+    ).toMatchObject({
+      approvalPolicy: 'never',
+      sandbox: 'read-only',
+      config: { 'mcp_servers.fixture.enabled': false }
+    })
+    expect(wire.find((message) => message.method === 'turn/start')?.params).toMatchObject({
+      approvalPolicy: 'never',
+      sandboxPolicy: { type: 'readOnly', networkAccess: false }
+    })
+    expect(await connection.reconcile({ headless: false })).toBe('rebuild')
+  })
+
+  it('fails unattended startup if Codex does not confirm the requested sandbox', async () => {
+    const { connection } = create('codex', 'codex-ignores-readonly', undefined, 'codex', undefined, true)
+    await expect(connection.start(cwd)).rejects.toThrow('could not establish a read-only scheduled task session')
+    expect(await readWire()).not.toContainEqual(expect.objectContaining({ method: 'turn/start' }))
   })
 
   it('supports allow_session on Codex item/permissions/requestApproval and skips subsequent permission prompts', async () => {

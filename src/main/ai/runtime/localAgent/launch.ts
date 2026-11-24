@@ -26,8 +26,23 @@ import type { BinaryAvailability, BinaryToolSnapshot } from '@shared/types/binar
 import { POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
 
 import { readInstalledPackageVersion, resolveInstalledExecutable } from './installedVersion'
-import { resolveClineProvider, usesGlobalClineProfile } from './nativeModelConfig'
+import { readNativeModelConfig, resolveClineProvider, usesGlobalClineProfile } from './nativeModelConfig'
 import { resolveRequiredRuntime } from './runtimeDependency'
+
+const CLAUDE_CREDENTIAL_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_CUSTOM_HEADERS'] as const
+const CLAUDE_PROVIDER_ENV_KEYS = ['ANTHROPIC_BASE_URL', ...CLAUDE_CREDENTIAL_ENV_KEYS, 'ANTHROPIC_MODEL'] as const
+
+function mergeClaudeProviderEnv(base: Record<string, string>, overrides: Record<string, string>) {
+  const endpoint = getEnvironmentValue(overrides, 'ANTHROPIC_BASE_URL')
+  const replacesCredentials =
+    (endpoint !== undefined && endpoint !== getEnvironmentValue(base, 'ANTHROPIC_BASE_URL')) ||
+    CLAUDE_CREDENTIAL_ENV_KEYS.some((key) => getEnvironmentValue(overrides, key) !== undefined)
+  const inherited = { ...base }
+  if (replacesCredentials) {
+    for (const key of CLAUDE_CREDENTIAL_ENV_KEYS) delete inherited[key]
+  }
+  return mergeEnvironment(inherited, overrides)
+}
 
 type AgentCommand = Pick<LocalAgentPreset, 'executable' | 'aliases'> & Partial<Pick<LocalAgentPreset, 'protocol'>>
 
@@ -336,7 +351,8 @@ async function resolveZcodeHostBinary(
 export async function resolveLocalAgentLaunch(
   config: LocalAgentConfiguration,
   signal?: AbortSignal,
-  mode: boolean | 'models' = false
+  mode: boolean | 'models' = false,
+  headless = false
 ) {
   const terminal = mode === true
   const definition = LOCAL_AGENT_PRESETS.find((p) => p.id === config.presetId)
@@ -414,7 +430,7 @@ export async function resolveLocalAgentLaunch(
     env.OPENCLAW_CONFIG_PATH = application.getPath('external.openclaw.config', 'openclaw.json')
     env.OPENCLAW_NO_AUTO_UPDATE = '1'
   }
-  const nativeModel =
+  let nativeModel =
     !terminal && (config.presetId !== 'cline' || usesGlobalClineProfile(lookupEnv, shellEnv))
       ? await injectPresetConfigEnv(config.presetId, env, mode, lookupEnv)
       : undefined
@@ -436,6 +452,21 @@ export async function resolveLocalAgentLaunch(
     }
   }
   let childEnv = mergeEnvironment(env, preset?.env, config.env)
+  if (headless && config.protocol === 'claude') {
+    const [settings] = await application.get('CodeCliService').readConfigFiles(['claude-settings'], childEnv)
+    const savedEnv = parseJsonRecord(settings?.content)?.env as Record<string, unknown> | undefined
+    const providerEnv = Object.fromEntries(
+      CLAUDE_PROVIDER_ENV_KEYS.flatMap((key) => {
+        const value = savedEnv?.[key]
+        return typeof value === 'string' ? [[key, value]] : []
+      })
+    )
+    childEnv = mergeClaudeProviderEnv(
+      mergeClaudeProviderEnv(mergeEnvironment(env, preset?.env), providerEnv),
+      config.env
+    )
+    if (settings?.content) nativeModel = readNativeModelConfig('claude-settings', settings.content)
+  }
   if (preset?.id === 'antigravity-acp' && !terminal && !nativeAntigravity && !config.executableOverride) {
     // The adapter's WebSocket client prefers macOS SOCKS settings over HTTPS_PROXY, but ships without python-socks.
     const agentProxy = Object.keys(config.env).some((key) => /^(https?|all|socks)_proxy$/i.test(key))

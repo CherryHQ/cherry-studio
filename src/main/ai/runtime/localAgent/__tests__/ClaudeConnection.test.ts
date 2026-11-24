@@ -60,13 +60,18 @@ function stream(event: SDKPartialAssistantMessage['event'], parent: string | nul
   return { type: 'stream_event', parent_tool_use_id: parent, event, session_id: 'native-session', uuid: randomUUID() }
 }
 
-async function run() {
-  const connection = new ClaudeConnection('session', 'agent', {
-    protocol: 'claude',
-    enabled: true,
-    args: [],
-    env: {}
-  })
+async function run(headless = false) {
+  const connection = new ClaudeConnection(
+    'session',
+    'agent',
+    {
+      protocol: 'claude',
+      enabled: true,
+      args: [],
+      env: {}
+    },
+    headless
+  )
   const events: AgentRuntimeEvent[] = []
   const drained = (async () => {
     for await (const event of connection.events) events.push(event)
@@ -94,6 +99,28 @@ beforeEach(() => {
 })
 
 describe('native Claude protocol mapping', () => {
+  it('uses only read tools and no ambient settings or approval UI for scheduled turns', async () => {
+    sdk.messages = [result()]
+    await run(true)
+    expect(sdk.queryOptions.at(-1)).toMatchObject({
+      permissionMode: 'dontAsk',
+      tools: ['Read', 'Glob', 'Grep'],
+      settingSources: [],
+      strictMcpConfig: true
+    })
+  })
+
+  it('reports native permission denials in a successful SDK result as a scheduled execution failure', async () => {
+    sdk.messages = [result({ permission_denials: [{ tool_name: 'Glob', tool_use_id: 'blocked', tool_input: {} }] })]
+    const { events } = await run(true)
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'error',
+        error: expect.objectContaining({ providerErrorCategory: 'permission' })
+      })
+    )
+  })
+
   it('does not allocate an SDK query after the connection closes during content preparation', async () => {
     const connection = new ClaudeConnection('session', 'agent', {
       protocol: 'claude',

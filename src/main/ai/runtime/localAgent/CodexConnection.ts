@@ -100,6 +100,14 @@ const CODEX_TURN_MODE_PARAMS = {
   }
 }
 
+const UNATTENDED_TURN_MODE = {
+  approvalPolicy: 'never' as const,
+  sandboxPolicy: CODEX_TURN_MODE_PARAMS.readOnly.sandboxPolicy
+}
+const CodexEffectiveConfigSchema = z.object({
+  config: z.object({ mcp_servers: z.record(z.string().regex(/^[\w-]+$/), z.unknown()).nullish() })
+})
+
 const tokenCount = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const TokenUsageSchema = z.object({
   inputTokens: tokenCount,
@@ -201,7 +209,20 @@ export class CodexConnection extends LocalConnection {
     const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal)
     if (!probe) this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
     this.abort.signal.throwIfAborted()
-    const child = crossPlatformSpawn(launch.executable, launch.args, {
+    const args = this.headless
+      ? [
+          ...launch.args,
+          '-c',
+          'web_search="disabled"',
+          '--disable',
+          'plugins',
+          '--disable',
+          'apps',
+          '--disable',
+          'hooks'
+        ]
+      : launch.args
+    const child = crossPlatformSpawn(launch.executable, args, {
       cwd,
       env: launch.env,
       detached: process.platform !== 'win32'
@@ -257,8 +278,20 @@ export class CodexConnection extends LocalConnection {
     } while (cursor)
     this.localSessionInfo.models = models.map((model) => ({ id: model.model ?? model.id, name: model.displayName }))
     if (probe === 'models') return this
+    const mcpServers = this.headless
+      ? CodexEffectiveConfigSchema.parse(await this.request('config/read', { cwd })).config.mcp_servers
+      : undefined
     const threadParams = {
       cwd,
+      ...(this.headless
+        ? {
+            approvalPolicy: 'never',
+            sandbox: 'read-only',
+            config: Object.fromEntries(
+              Object.keys(mcpServers ?? {}).map((name) => [`mcp_servers.${name}.enabled`, false])
+            )
+          }
+        : {}),
       ...(this.config.nativeModel ? { model: this.config.nativeModel } : {})
     }
     const response = resume
@@ -277,21 +310,27 @@ export class CodexConnection extends LocalConnection {
         reasoningEffort: z.string().nullish()
       })
       .parse(response)
+    if (this.headless && (threadMeta.approvalPolicy !== 'never' || threadMeta.sandbox?.type !== 'readOnly')) {
+      throw new Error('Codex could not establish a read-only scheduled task session')
+    }
     const nativeModel = threadMeta.model
     if (nativeModel) this.localSessionInfo.activeModel = { id: nativeModel }
     const selected = models.find((model) => (model.model ?? model.id) === nativeModel)
     this.localSessionInfo.images = (selected?.inputModalities ?? ['text', 'image']).includes('image')
-    const initialMode: CodexModeValue =
-      this.modeOverride ??
-      (threadMeta.sandbox?.type === 'dangerFullAccess' && threadMeta.approvalPolicy === 'never'
-        ? 'fullAccess'
-        : threadMeta.sandbox?.type === 'readOnly'
-          ? 'readOnly'
-          : 'workspace')
+    const initialMode: CodexModeValue = this.headless
+      ? 'readOnly'
+      : (this.modeOverride ??
+        (threadMeta.sandbox?.type === 'dangerFullAccess' && threadMeta.approvalPolicy === 'never'
+          ? 'fullAccess'
+          : threadMeta.sandbox?.type === 'readOnly'
+            ? 'readOnly'
+            : 'workspace'))
     this.localSessionInfo.mode = {
       id: CODEX_LOCAL_MODE_ID,
       currentValue: initialMode,
-      options: CODEX_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
+      options: CODEX_LOCAL_MODE_OPTIONS.filter((option) => !this.headless || option.value === 'readOnly').map(
+        (option) => ({ ...option })
+      )
     }
     const thoughtOptions = buildCodexThoughtLevelOptions(selected?.supportedReasoningEfforts)
     const preferredThoughtLevel = this.thoughtLevelOverride ?? threadMeta.reasoningEffort ?? undefined
@@ -311,7 +350,9 @@ export class CodexConnection extends LocalConnection {
 
   async setMode(configId: string, value: string) {
     if (this.closed || this.active) throw new Error('Codex session is unavailable or busy')
-    const option = CODEX_LOCAL_MODE_OPTIONS.find((item) => item.value === value)
+    const option = CODEX_LOCAL_MODE_OPTIONS.find(
+      (item) => item.value === value && (!this.headless || value === 'readOnly')
+    )
     if (configId !== CODEX_LOCAL_MODE_ID || !option || !this.localSessionInfo.mode) {
       throw new Error('This session option is no longer available')
     }
@@ -373,6 +414,22 @@ export class CodexConnection extends LocalConnection {
     if (message.id !== undefined && message.method) {
       if (params.threadId && params.threadId !== this.threadId) {
         this.write({ id: message.id, error: { code: -32602, message: 'Unknown thread' } })
+        return
+      }
+      if (this.headless) {
+        const { reason } = this.denyUnattendedRequest()
+        if (
+          message.method === 'item/commandExecution/requestApproval' ||
+          message.method === 'item/fileChange/requestApproval'
+        ) {
+          this.write({ id: message.id, result: { decision: 'decline' } })
+        } else if (message.method === 'item/permissions/requestApproval') {
+          this.write({ id: message.id, result: { permissions: {}, scope: 'turn' } })
+        } else if (message.method === 'mcpServer/elicitation/request') {
+          this.write({ id: message.id, result: { action: 'decline' } })
+        } else {
+          this.write({ id: message.id, error: { code: -32601, message: reason } })
+        }
         return
       }
       if (
@@ -588,7 +645,8 @@ export class CodexConnection extends LocalConnection {
   }
   async send(input: AgentRuntimeUserInput) {
     const content = await localContent(input, this.localSessionInfo.images)
-    const textOnly = content.length === 1 && content[0]?.type === 'text' ? content[0].text.trim() : undefined
+    const textOnly =
+      !this.headless && content.length === 1 && content[0]?.type === 'text' ? content[0].text.trim() : undefined
     this.approvalItems.clear()
     this.usageBaseline = undefined
     this.begin()
@@ -766,7 +824,7 @@ export class CodexConnection extends LocalConnection {
 
       await this.request('turn/start', {
         threadId: this.threadId,
-        ...(this.modeOverride ? CODEX_TURN_MODE_PARAMS[this.modeOverride] : {}),
+        ...(this.headless ? UNATTENDED_TURN_MODE : this.modeOverride ? CODEX_TURN_MODE_PARAMS[this.modeOverride] : {}),
         ...(this.thoughtLevelOverride && this.thoughtLevelOverride !== 'default'
           ? { effort: this.thoughtLevelOverride }
           : {}),

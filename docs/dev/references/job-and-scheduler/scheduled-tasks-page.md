@@ -21,6 +21,8 @@ Open Scheduled tasks from the global sidebar. Select a task in Active, Paused, o
 
 Add scheduled task opens the shared creation form in the current window. Successful creation selects the returned task without an extra run command. An active or ordinary paused task with no execution shows a waiting state. A completed or missed task without an available conversation shows the unavailable-conversation feedback. Pausing affects future scheduling; it does not cancel an execution already in progress.
 
+Any enabled local Agent can own a scheduled task. Keep Cherry Studio running on the machine that has the installed and authenticated CLI. Scheduled Codex runs use a read-only shell sandbox with shell network access and native integrations disabled. Local Claude Code uses the configured model connection and exposes read tools only. For ACP, Cherry Studio restricts delegated reads to the workspace and denies delegated writes, terminal calls, and requests that need interactive approval or user input. Tools the ACP CLI runs directly follow its native permission settings.
+
 Each group can collapse independently without changing the open conversation. The three-dot menu offers actions for the task’s state: active tasks can pause, ordinary paused tasks can continue, and both support Run now, Edit, and Delete. Completed tasks retain history selection, conversation continuation, and Delete. Missed tasks also support Run now and Edit, without a pause/resume control. Completed means the one-shot schedule fired, not that its output succeeded. Stored records and shared APIs remain unchanged. Delete uses destructive styling and requires confirmation. The dialog shows a short title and a separate description warning that all associated conversations move to the Recycle Bin. Deletion stops pending runs and archives both reused and per-run conversations. Task deletion and conversation archival commit together; a failed transaction preserves both. Editing opens the shared form with the current task values. Deleting the selected task clears its route selection; deleting another task leaves the current conversation unchanged.
 
 ## Sidebar and conversation header
@@ -42,7 +44,7 @@ Task conversations stay out of desktop ordinary Agent topic lists and recent-top
 - A new execution offers an explicit switch; it does not replace the conversation being read or edited. Switching tasks invalidates the previous lookup.
 - Conversation messages, tools, approvals, and busy-state protection use the existing Agent chat runtime. Leaving the page does not stop scheduling.
 
-A task that reuses a session reads the General Settings compression threshold when it runs. Native compaction keeps the same session. If a reused run ends with a context-limit error, the next fire can start fresh. Earlier run records still open their original sessions.
+A task that reuses a session reads the General Settings compression threshold when it runs. Native compaction keeps the same session. If a reused run ends with a context-limit error or the local Agent cannot restore the conversation, the next fire can start fresh. Earlier run records still open their original sessions. A scheduled Claude tool permission denial is recorded as a failed run, with any reply preserved in the conversation.
 
 ## Read and command boundaries
 

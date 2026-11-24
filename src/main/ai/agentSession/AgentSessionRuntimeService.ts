@@ -2590,7 +2590,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.usageCapture = connection.usageCapture
     this.resetConnectionRuntimeState(entry, connection)
     if (entry.agentType === 'local') {
-      const savedOverrides = this.getLocalSessionOverrides(entry.sessionId)
+      const savedOverrides = target.headless ? undefined : this.getLocalSessionOverrides(entry.sessionId)
       if (
         savedOverrides?.mode ||
         savedOverrides?.thoughtLevel ||

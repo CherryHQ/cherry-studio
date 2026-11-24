@@ -346,6 +346,40 @@ describe('AgentJobsService', () => {
   })
 
   describe('createTask', () => {
+    it.each([
+      ['codex', 'codex', true, true],
+      ['codex', 'codex', false, false],
+      ['opencode', 'acp', true, true],
+      ['claude', 'claude', true, true],
+      ['custom', 'acp', false, false]
+    ] as const)(
+      'allows scheduling the %s preset only when supported and enabled',
+      (presetId, protocol, enabled, supported) => {
+        dbh.db
+          .insert(agentTable)
+          .values({
+            id: OTHER_AGENT_ID,
+            type: 'local',
+            name: presetId,
+            instructions: '',
+            orderKey: OTHER_AGENT_ID,
+            configuration: { localRuntime: { presetId, protocol, enabled, args: [], env: {} } }
+          })
+          .run()
+
+        if (supported) {
+          const task = service.createTask(OTHER_AGENT_ID, form)
+          expect(task.agentId).toBe(OTHER_AGENT_ID)
+          expect(scheduler.has(`schedule:${task.id}`)).toBe(true)
+        } else {
+          expect(() => service.createTask(OTHER_AGENT_ID, form)).toThrow(
+            'Scheduled tasks require an enabled local agent'
+          )
+          expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+        }
+      }
+    )
+
     it('stores an explicitly empty timeout as unlimited', () => {
       const task = service.createTask(AGENT_ID, { ...form, timeoutMinutes: null })
 
@@ -793,10 +827,10 @@ describe('AgentJobsService', () => {
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
 
       const binding = { scheduleId: task.id, reuseRevision: 0 }
-      service.releaseOverflowedTaskSession({ ...binding, reuseRevision: 1 }, session.id)
-      service.releaseOverflowedTaskSession(binding, 'stale-session')
+      service.releaseTaskSessionReuse({ ...binding, reuseRevision: 1 }, session.id)
+      service.releaseTaskSessionReuse(binding, 'stale-session')
       expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(session.id)
-      service.releaseOverflowedTaskSession(binding, session.id)
+      service.releaseTaskSessionReuse(binding, session.id)
       expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
       expect(agentSessionService.listTaskSessionIds(task.id)).toContain(session.id)
     })

@@ -461,16 +461,21 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     })
   } else if (method === 'model/list') {
     reply(id, { data: [{ id: 'fixture-model', displayName: 'Fixture model' }], nextCursor: null })
+  } else if (method === 'config/read') {
+    reply(id, { config: { mcp_servers: { fixture: { enabled: true } } } })
   } else if (method === 'thread/start' || method === 'thread/resume') {
     if (method === 'thread/resume' && scenario === 'no-rollout') {
       return emit({ id, error: { code: -32600, message: `no rollout found for thread id ${message.params.threadId}` } })
     }
     cwd = message.params.cwd
-    const threadMode = scenario.startsWith('codex-full-access')
-      ? { approvalPolicy: 'never', sandbox: { type: 'dangerFullAccess' } }
-      : scenario === 'codex-readonly'
-        ? { approvalPolicy: 'on-request', sandbox: { type: 'readOnly', networkAccess: false } }
-        : {}
+    const threadMode =
+      message.params.sandbox === 'read-only' && scenario !== 'codex-ignores-readonly'
+        ? { approvalPolicy: 'never', sandbox: { type: 'readOnly', networkAccess: false } }
+        : scenario.startsWith('codex-full-access')
+          ? { approvalPolicy: 'never', sandbox: { type: 'dangerFullAccess' } }
+          : scenario === 'codex-readonly'
+            ? { approvalPolicy: 'on-request', sandbox: { type: 'readOnly', networkAccess: false } }
+            : {}
     reply(id, { thread: { id: 'native-session' }, model: 'fixture-model', ...threadMode })
   } else if (method === 'thread/name/set' || method === 'thread/fork') {
     if (scenario === 'no-rollout' && turn === 0) {
@@ -702,6 +707,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
           command: process.execPath,
           args: ['-e', 'process.stdout.write("term-ok")']
         })
+        if (created.error) {
+          text(JSON.stringify({ perm: perm.result, wrote: !writeRes.error, terminalDenied: true }))
+          finish()
+          return
+        }
         const termId = created.result.terminalId
         await requestClient('terminal/wait_for_exit', { sessionId: 'native-session', terminalId: termId })
         const out = await requestClient('terminal/output', { sessionId: 'native-session', terminalId: termId })

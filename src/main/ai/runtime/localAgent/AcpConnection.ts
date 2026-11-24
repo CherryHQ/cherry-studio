@@ -53,12 +53,14 @@ import {
   evaluateAcpClientTerminal,
   evaluateAcpClientWrite,
   evaluateAcpPermissionRequest,
+  isPathWithinWorkspace,
   recordAcpAlwaysAllowGrant,
   selectAutoAllowPermissionOption
 } from './acpPermissionPolicy'
 import { registerCursorExtension } from './cursorExtension'
 import { bindLocalGatewayUsage } from './gatewayUsage'
 import { resolveLocalAgentLaunch } from './launch'
+import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
 import { LocalConnection } from './LocalConnection'
 import { acpContent } from './localContent'
 import { resolveConfiguredAcpModel } from './nativeModelConfig'
@@ -319,6 +321,15 @@ export class AcpConnection extends LocalConnection {
       .onRequest('session/request_permission', async ({ params, signal: requestSignal }) => {
         if (!this.active || params.sessionId !== this.nativeId || this.abort.signal.aborted)
           return { outcome: { outcome: 'cancelled' } }
+        if (this.headless) {
+          this.denyUnattendedRequest()
+          const rejection = params.options.find((option) => option.kind === 'reject_once')
+          return {
+            outcome: rejection
+              ? { outcome: 'selected' as const, optionId: rejection.optionId }
+              : { outcome: 'cancelled' as const }
+          }
+        }
         const id = params.toolCall.toolCallId
         const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
         const knownTool = this.tools.has(id)
@@ -396,7 +407,11 @@ export class AcpConnection extends LocalConnection {
       })
       .onRequest('fs/read_text_file', async ({ params, signal }) => {
         this.requireSession(params.sessionId)
-        const content = await fs.readFile(params.path, { encoding: 'utf8', signal }).catch((error) => {
+        const readPath = this.headless ? path.resolve(cwd, params.path) : params.path
+        if (this.headless && !isPathWithinWorkspace(readPath, cwd)) {
+          throw RequestError.invalidParams(this.denyUnattendedRequest().reason)
+        }
+        const content = await fs.readFile(readPath, { encoding: 'utf8', signal }).catch((error) => {
           if (signal.aborted) throw RequestError.requestCancelled()
           throw error
         })
@@ -412,6 +427,7 @@ export class AcpConnection extends LocalConnection {
       })
       .onRequest('fs/write_text_file', async ({ params, signal: requestSignal }) => {
         this.requireSession(params.sessionId)
+        if (this.headless) throw RequestError.invalidParams(this.denyUnattendedRequest().reason)
         if (!this.active) throw RequestError.invalidParams('Inactive ACP session')
         const id = randomUUID()
         const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
@@ -465,6 +481,7 @@ export class AcpConnection extends LocalConnection {
       })
       .onRequest('terminal/create', async ({ params, signal: requestSignal }) => {
         this.requireSession(params.sessionId)
+        if (this.headless) throw RequestError.invalidParams(this.denyUnattendedRequest().reason)
         const id = randomUUID()
         const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
         const decision = evaluateAcpClientTerminal({
@@ -602,8 +619,8 @@ export class AcpConnection extends LocalConnection {
       clientInfo: { name: 'cherry-studio', version: electronApp.getVersion() },
       clientCapabilities: {
         // Advertising client writes/terminals to Antigravity downgrades native diff edits into whole-file fs/write_text_file calls.
-        fs: { readTextFile: true, writeTextFile: !isAntigravity },
-        terminal: !isAntigravity,
+        fs: { readTextFile: true, writeTextFile: !this.headless && !isAntigravity },
+        terminal: !this.headless && !isAntigravity,
         elicitation: { form: {} },
         session: { configOptions: { boolean: {} }, notices: {}, compaction: {} }
       }
@@ -645,7 +662,9 @@ export class AcpConnection extends LocalConnection {
     try {
       if (resume) {
         if (!this.localSessionInfo.resume)
-          throw new Error('This agent cannot restore the previous conversation; create a new session')
+          throw new LocalAgentSessionRestoreError(
+            'This agent cannot restore the previous conversation; create a new session'
+          )
         const session = await this.connection.agent.request<SessionResponse>(
           supportsResume ? 'session/resume' : 'session/load',
           {
@@ -752,6 +771,7 @@ export class AcpConnection extends LocalConnection {
     return this.setSelection('thoughtLevel', configId, value)
   }
   private async setSelection(category: 'mode' | 'thoughtLevel' | 'config', configId: string, value: string | boolean) {
+    if (this.headless) throw new Error('Scheduled tasks use the agent configuration')
     if (!this.connection || !this.nativeId || this.closed || this.active || this.configChange)
       throw new Error('ACP session is unavailable or busy')
     const selection =

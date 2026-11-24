@@ -103,7 +103,7 @@ export class ClaudeConnection extends LocalConnection {
   async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
     this.cwd = cwd
     this.resume = resume
-    this.launch = await resolveLocalAgentLaunch(this.config, this.abort.signal)
+    this.launch = await resolveLocalAgentLaunch(this.config, this.abort.signal, false, this.headless)
     if (!probe) this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, this.launch.env)
     this.abort.signal.throwIfAborted()
     if (probe) {
@@ -139,6 +139,7 @@ export class ClaudeConnection extends LocalConnection {
   }
 
   async setMode(configId: string, value: string) {
+    if (this.headless) throw new Error('Scheduled tasks use the agent configuration')
     if (this.closed || this.active) throw new Error('Claude session is unavailable or busy')
     const option = CLAUDE_LOCAL_MODE_OPTIONS.find((item) => item.value === value)
     if (configId !== CLAUDE_LOCAL_MODE_ID || !option || !this.localSessionInfo.mode) {
@@ -185,20 +186,31 @@ export class ClaudeConnection extends LocalConnection {
           child.once('exit', () => this.processes.delete(child))
           return Object.assign(child, { stdin: child.stdin, stdout: child.stdout })
         },
-        settingSources: ['user', 'project', 'local'],
-        model: this.config.nativeModel,
+        settingSources: this.headless ? [] : ['user', 'project', 'local'],
+        model: this.config.nativeModel ?? (this.headless ? this.launch.nativeModel : undefined),
         ...(this.thoughtLevelOverride && this.thoughtLevelOverride !== 'default'
           ? { effort: this.thoughtLevelOverride }
           : {}),
-        ...(this.permissionModeOverride
+        ...(this.headless
           ? {
-              permissionMode: this.permissionModeOverride,
-              ...(this.permissionModeOverride === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {})
+              permissionMode: 'dontAsk' as const,
+              tools: ['Read', 'Glob', 'Grep'],
+              strictMcpConfig: true
             }
-          : {}),
+          : this.permissionModeOverride
+            ? {
+                permissionMode: this.permissionModeOverride,
+                ...(this.permissionModeOverride === 'bypassPermissions'
+                  ? { allowDangerouslySkipPermissions: true }
+                  : {})
+              }
+            : {}),
         resume: this.resume,
         includePartialMessages: true,
         canUseTool: async (name, input, options) => {
+          if (this.headless) {
+            return { behavior: 'deny' as const, message: this.denyUnattendedRequest().reason }
+          }
           if (name === 'AskUserQuestion') {
             const answer = await this.approve(options.toolUseID, name, input, options.signal)
             return answer.approved
@@ -370,6 +382,17 @@ export class ClaudeConnection extends LocalConnection {
           this.content('Started a new conversation with empty context.')
         }
         if (adapter.handleMessage(message).type === 'result') {
+          if (
+            this.headless &&
+            message.type === 'result' &&
+            !message.is_error &&
+            message.permission_denials?.length &&
+            !this.abort.signal.aborted
+          ) {
+            failure ??= Object.assign(new Error('Claude denied a tool request during this scheduled task'), {
+              providerErrorCategory: 'permission'
+            })
+          }
           completed = true
           break
         }

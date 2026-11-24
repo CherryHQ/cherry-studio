@@ -552,8 +552,11 @@ export class CodeCliService extends BaseService {
   }
 
   /** Batch read of CLI config files (code_cli.read_config); content === null ⇔ file missing. */
-  public async readConfigFiles(targets: readonly CliConfigTarget[]): Promise<CliConfigReadFile[]> {
-    return readCliConfigFiles(targets)
+  public async readConfigFiles(
+    targets: readonly CliConfigTarget[],
+    overrides?: Record<string, string>
+  ): Promise<CliConfigReadFile[]> {
+    return readCliConfigFiles(targets, overrides)
   }
 
   async run(input: CodeCliRunInput): Promise<OperationResult> {

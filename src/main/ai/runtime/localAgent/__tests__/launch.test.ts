@@ -50,6 +50,48 @@ const config: LocalAgentConfiguration = { presetId: 'codex', protocol: 'codex', 
 
 describe('local agent installation resolution', () => {
   let directory: string
+  it.each([
+    [{}, 'http://saved.invalid', undefined, 'saved-token'],
+    [{ ANTHROPIC_BASE_URL: 'http://custom.invalid' }, 'http://custom.invalid', undefined, undefined],
+    [{ ANTHROPIC_API_KEY: 'agent-key' }, 'http://saved.invalid', 'agent-key', undefined]
+  ] as const)(
+    'keeps scheduled Claude credentials associated with their endpoint (%j)',
+    async (env, endpoint, key, token) => {
+      inventory.getRawShellEnv.mockResolvedValue({
+        PATH: '/user/bin',
+        ANTHROPIC_API_KEY: 'stale-shell-key'
+      })
+      inventory.readConfigFiles.mockResolvedValue([
+        {
+          content: JSON.stringify({
+            model: 'gateway-model',
+            env: {
+              ANTHROPIC_BASE_URL: 'http://saved.invalid',
+              ANTHROPIC_AUTH_TOKEN: 'saved-token',
+              ENABLE_TOOL_SEARCH: 'true'
+            }
+          })
+        }
+      ])
+      const launch = await resolveLocalAgentLaunch(
+        {
+          ...config,
+          presetId: 'claude',
+          protocol: 'claude',
+          executableOverride: process.execPath,
+          env
+        },
+        undefined,
+        false,
+        true
+      )
+      expect(launch.nativeModel).toBe('gateway-model')
+      expect(launch.env.ANTHROPIC_BASE_URL).toBe(endpoint)
+      expect(launch.env.ANTHROPIC_API_KEY).toBe(key)
+      expect(launch.env.ANTHROPIC_AUTH_TOKEN).toBe(token)
+      expect(launch.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+    }
+  )
   beforeEach(async () => {
     directory = await mkdtemp(path.join(tmpdir(), 'local launch '))
     vi.mocked(application.getPath).mockImplementation((key, filename) =>
