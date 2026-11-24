@@ -311,7 +311,7 @@ async function generateFlatIcon(
  * is emitted. The public CompoundIcon API remains uniform through the component
  * `variant` prop; missing dark assets fall back to the light SVG internally.
  */
-export async function generateLogoDirDual(
+async function generateLogoDirDual(
   pair: LightDarkSvgPair,
   outputDir: string,
   dirName: string,
@@ -340,11 +340,7 @@ export async function generateLogoDirDual(
     dirName,
     colorPrimary,
     colorScheme: 'color',
-    artworkKind: /<svg\b[^>]*\bdata-artwork-kind="full-canvas"/.test(lightSvg)
-      ? 'full-canvas'
-      : detectHasBackground(pair.light)
-        ? 'tile'
-        : undefined
+    artworkKind: detectHasBackground(pair.light) ? 'tile' : undefined
   })
 }
 

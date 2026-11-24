@@ -29,8 +29,7 @@ export default defineProvider({
       capabilities: [],
       inputModalities: ['text'],
       outputModalities: ['text'],
-      endpointTypes: ['openai-chat-completions'],
-      parameterSupport: { tools: { supported: null } },
+      endpointTypes: [],
       supportsStreaming: true
     }
   }

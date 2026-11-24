@@ -8,7 +8,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
-import { canAttemptFunctionCallingModel, isFunctionCallingModel, isVisionModel } from '@shared/utils/model'
+import { isFunctionCallingModel, isVisionModel } from '@shared/utils/model'
 
 describe('ProviderRegistryService provider-owned model metadata', () => {
   const dbh = setupTestDatabase()
@@ -104,61 +104,30 @@ describe('ProviderRegistryService provider-owned model metadata', () => {
     })
   })
 
-  it('persists imported capability uncertainty without losing vision, reasoning or user overrides', () => {
+  it('does not assign a bundled endpoint to an untyped Ace model', () => {
     dbh.db
       .insert(userProviderTable)
       .values({ providerId: 'ace', presetProviderId: 'acedatacloud', name: 'Ace', orderKey: 'b0' })
       .run()
-    const dto = {
-      providerId: 'ace',
-      modelId: 'claude-sonnet-5-5',
-      name: 'claude-sonnet-5-5',
-      capabilities: ['reasoning', 'image-recognition'] as const,
-      inputModalities: ['text', 'image'] as const,
-      endpointTypes: ['anthropic-messages'] as const,
-      parameterSupport: { tools: { supported: null } }
-    }
+    const modelId = 'custom-alias'
+    const [resolved] = providerRegistryService.resolveModels('ace', [modelId])
+    expect(resolved.endpointTypes ?? []).toEqual([])
     modelService.create([
       {
-        dto: {
-          ...dto,
-          capabilities: [...dto.capabilities],
-          inputModalities: [...dto.inputModalities],
-          endpointTypes: [...dto.endpointTypes]
-        },
-        registryData: providerRegistryService.lookupModel('ace', dto.modelId)
+        dto: { providerId: 'ace', modelId },
+        registryData: providerRegistryService.lookupModel('ace', modelId)
       }
     ])
-    const row = dbh.db
-      .select()
-      .from(userModelTable)
-      .all()
-      .find((item) => item.providerId === 'ace')!
-    expect(row.parameters?.tools).toEqual({ supported: null })
-    expect(row.capabilities).toEqual(['reasoning', 'image-recognition'])
     providerRegistryService.clearCache()
-    const model = modelService.getByKey('ace', dto.modelId)
-    expect(model.endpointTypes).toEqual(['anthropic-messages'])
-    expect(model.capabilities).toEqual(['reasoning', 'image-recognition'])
-    expect(isVisionModel(model)).toBe(true)
+    const model = modelService.getByKey('ace', modelId)
+    expect(model.endpointTypes ?? []).toEqual([])
     expect(isFunctionCallingModel(model)).toBe(false)
-    expect(canAttemptFunctionCallingModel(model)).toBe(true)
     expect(model.contextWindow).toBeUndefined()
     expect(model.pricing).toBeUndefined()
-    const disabled = modelService.update('ace', dto.modelId, { capabilities: [] })
-    expect(disabled.parameterSupport?.tools?.supported).toBe(false)
-    expect(canAttemptFunctionCallingModel(disabled)).toBe(false)
-    expect(modelService.getByKey('ace', dto.modelId)?.parameterSupport?.tools?.supported).toBe(false)
-    const enabled = modelService.update('ace', dto.modelId, { capabilities: ['function-call'] })
-    expect(enabled.parameterSupport?.tools?.supported).toBe(true)
-    expect(canAttemptFunctionCallingModel(enabled)).toBe(true)
-    modelService.create([
-      {
-        dto: { providerId: 'ace', modelId: 'manual-off', capabilities: [] },
-        registryData: providerRegistryService.lookupModel('ace', 'manual-off')
-      }
-    ])
-    expect(canAttemptFunctionCallingModel(modelService.getByKey('ace', 'manual-off'))).toBe(false)
+    modelService.update('ace', modelId, { capabilities: ['image-recognition'] })
+    const visionModel = modelService.getByKey('ace', modelId)
+    expect(isVisionModel(visionModel)).toBe(true)
+    expect(isFunctionCallingModel(visionModel)).toBe(false)
   })
 
   it('keeps catalog matching for ordinary providers', () => {

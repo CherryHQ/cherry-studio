@@ -234,10 +234,7 @@ export const ProviderConfigSchema = z
             imageGeneration: true
           })
             .required({ capabilities: true, inputModalities: true, outputModalities: true, endpointTypes: true })
-            .extend({
-              supportsStreaming: z.boolean(),
-              parameterSupport: z.object({ tools: z.object({ supported: z.boolean().nullable() }) }).optional()
-            })
+            .extend({ supportsStreaming: z.boolean() })
         })
       ])
       .optional(),

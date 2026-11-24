@@ -2226,9 +2226,9 @@ describe('Ace Data Cloud typed model discovery', () => {
     expect(models[1]).toMatchObject({
       endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
       inputModalities: ['text', 'image'],
-      capabilities: ['reasoning', 'image-recognition'],
-      parameterSupport: { tools: { supported: null } }
+      capabilities: ['reasoning', 'image-recognition']
     })
+    expect(models[1].capabilities).not.toContain('function-call')
     expect(models[1].pricing).toBeUndefined()
     expect(models[1].contextWindow).toBeUndefined()
   })
@@ -2237,10 +2237,19 @@ describe('Ace Data Cloud typed model discovery', () => {
     aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'custom-alias' }] } })
     const custom = {
       ...provider,
-      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://custom.example/v1' } }
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        ...provider.endpointConfigs,
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://custom.example/v1' }
+      }
     }
     const { models } = await listModels(custom)
     expect(models[0].apiModelId).toBe('custom-alias')
+    expect(models[0].endpointTypes).toBeUndefined()
     expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual(['https://custom.example/v1/models'])
+    expect(resolveEffectiveEndpoint(custom, makeModel(models[0]))).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      baseUrl: 'https://custom.example/v1'
+    })
   })
 })

@@ -33,7 +33,7 @@ describe('Ace Data Cloud brand asset', () => {
     const ref = resolveProviderIconRef('acedatacloud')
     expect(ref?.kind).toBe('provider')
     expect(ref?.key).toBe('acedatacloud')
-    expect(ref?.meta.artworkKind).toBe('full-canvas')
+    expect(ref?.meta.artworkKind).toBe('tile')
     expect(getProviderIconAssetMetrics({ kind: 'provider', iconId: ref!.key }).canvasScale).toBe(1)
   })
 })

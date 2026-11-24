@@ -106,7 +106,7 @@ same-name vendor's prices or limits.
 
 Ace Data Cloud intersects authenticated IDs with its public chat catalog. A model's declared endpoint types select Chat Completions, Responses or native Messages; an image-capable chat model stays in the chat list. Custom hosts retain their configured discovery behavior. Public metadata requests never receive the user's API token.
 
-The existing `parameterSupport` metadata has an optional `tools.supported` boolean or `null`. Explicit `null` preserves unknown support through model import and the existing parameters JSON without losing known vision or reasoning capabilities. Tool attempts are allowed for unknown support; a verified tool badge is not. User capability edits record a boolean, including explicit disable. This metadata is not an outgoing `tools` request parameter.
+Ace Data Cloud's fallback metadata leaves untyped models on the provider's configured chat endpoint. The public catalog does not declare tool support, so discovery does not assign the function-calling capability. Users can configure capabilities through the normal model settings.
 
 ### 4. CherryIN Endpoint Refresh
 

@@ -2998,14 +2998,9 @@
       "modelResolution": {
         "defaults": {
           "capabilities": [],
-          "endpointTypes": ["openai-chat-completions"],
+          "endpointTypes": [],
           "inputModalities": ["text"],
           "outputModalities": ["text"],
-          "parameterSupport": {
-            "tools": {
-              "supported": null
-            }
-          },
           "supportsStreaming": true
         },
         "source": "provider"
@@ -3013,5 +3008,5 @@
       "name": "Ace Data Cloud"
     }
   ],
-  "version": "72ab7623786c5a3e"
+  "version": "045ed6d049172fdf"
 }

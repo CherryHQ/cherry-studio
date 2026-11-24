@@ -6,9 +6,10 @@ const AcedatacloudLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     xmlns="http://www.w3.org/2000/svg"
     width="1em"
     height="1em"
-    data-artwork-kind="full-canvas"
+    data-artwork-kind="tile"
     viewBox="0 0 512 512"
-    {...props}>
+    {...props}
+  >
     <image
       width={512}
       height={512}

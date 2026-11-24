@@ -2454,8 +2454,7 @@ it('uses native Ace Messages with the selected Bearer key and an actual caller t
     providerId: 'acedatacloud',
     apiModelId: 'claude-sonnet-5-5',
     endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
-    capabilities: [MODEL_CAPABILITY.REASONING],
-    parameterSupport: { tools: { supported: null } }
+    capabilities: [MODEL_CAPABILITY.REASONING]
   })
   vi.mocked(net.fetch).mockResolvedValue(
     Response.json({

@@ -1097,7 +1097,6 @@ const aceDataCloudFetcher: ModelFetcher = {
         return [
           toModel(model.id, provider, {
             endpointTypes,
-            parameterSupport: { tools: { supported: null } },
             inputModalities: model.capabilities.includes('vision') ? [MODALITY.TEXT, MODALITY.IMAGE] : [MODALITY.TEXT],
             capabilities: [
               ...(model.capabilities.includes('reasoning') ? [MODEL_CAPABILITY.REASONING] : []),

@@ -13,13 +13,7 @@ import { CHERRYAI_PROVIDER_ID, isManagedCherryProviderId } from '@shared/data/pr
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { EndpointDialect, Provider } from '@shared/data/types/provider'
 
-import {
-  getLowerBaseModelName,
-  getRawModelId,
-  canAttemptFunctionCallingModel,
-  isGeminiModel,
-  isNonChatModel
-} from './model'
+import { getLowerBaseModelName, getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
 import { getProviderHostTopology } from './providerTopology'
 
 // Azure/Vertex/Bedrock reuse other vendors' endpoint protocols, so authType
@@ -371,7 +365,7 @@ export function resolveWebToolRoutes(
     endpointType?: EndpointType
   }
 ): WebToolRoutes {
-  const supportsClientTools = canAttemptFunctionCallingModel(model)
+  const supportsClientTools = isFunctionCallingModel(model)
   const clientSearchAvailable = options.webSearchEnabled && supportsClientTools && options.clientSearchAvailable
   const clientFetchAvailable = options.webSearchEnabled && supportsClientTools && options.clientFetchAvailable
   const serverSearchEligible =

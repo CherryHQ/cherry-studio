@@ -31,7 +31,7 @@ import {
 } from '@shared/data/types/assistant'
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { canAttemptFunctionCallingModel } from '@shared/utils/model'
+import { isFunctionCallingModel } from '@shared/utils/model'
 import {
   finalizeWebToolRoutes,
   isSupportFastMode,
@@ -440,7 +440,7 @@ export function applyResponsesInstructions(
  * provider's tool API).
  */
 function canModelConsumeTools(model: Model): boolean {
-  return canAttemptFunctionCallingModel(model)
+  return isFunctionCallingModel(model)
 }
 
 /**

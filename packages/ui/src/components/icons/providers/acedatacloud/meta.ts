@@ -1,8 +1,7 @@
-import { type IconMeta } from '../../types'
+import { type IconMeta } from '../../types';
 
 export const meta: IconMeta = {
-  id: 'acedatacloud',
-  colorPrimary: '#000000',
-  colorScheme: 'color',
-  artworkKind: 'full-canvas'
-}
+    id: 'acedatacloud',
+    colorPrimary: '#000000',
+    colorScheme: 'color',
+  };
