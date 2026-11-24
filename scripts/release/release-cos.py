@@ -73,13 +73,16 @@ def merge_mac_manifests(client, prefix, edition, files):
     files[relative] = {"key": key, "size": len(contents)}
 
 
-def assemble(client, base, prefix, platform):
+def assemble(client, base, prefix, platform, download="all"):
+    distribution = {}
     sha = os.environ["RELEASE_SHA"]
     selected = PLATFORMS if platform == "all" else (platform,)
+    mac_bridge = os.environ.get("MAC_CN_REGION_BRIDGE") == "true"
+    distribution["macCnRegionBridge"] = mac_bridge
     files = {}
     if platform != "all":
         baseline = read_json(client, f"{base}/baselines/{sha}.json", optional=True)
-        if baseline is None:
+        if baseline is None or baseline.get("macCnRegionBridge", False) != mac_bridge:
             raise ValueError("No complete COS inventory for this commit. Run an all-platform build.")
         files = {
             relative: entry for relative, entry in baseline["files"].items()
@@ -97,9 +100,12 @@ def assemble(client, base, prefix, platform):
                 files.update(incoming)
         if "mac" in selected:
             merge_mac_manifests(client, prefix, edition, files)
-    download_assets(client, files, Path("github-release-artifacts"), editions=("global",))
+    downloads = files if download == "all" else {
+        name: entry for name, entry in files.items() if PurePosixPath(name).suffix in (".yml", ".yaml", ".json")
+    }
+    download_assets(client, downloads, Path("github-release-artifacts"), editions=("global",))
     body = Path("release_body.txt").read_text(encoding="utf-8")
-    inventory = {"sha": sha, "platform": platform, "files": files, "body": body}
+    inventory = {"sha": sha, "platform": platform, "files": files, "body": body, **distribution}
     Path("cos-release.json").write_text(json.dumps(inventory), encoding="utf-8")
 
 
@@ -162,19 +168,36 @@ def main():
     )
     client = CosS3Client(CosConfig(
         Region="ap-shanghai", Domain=domain,
-        SecretId=os.environ["COS_SECRET_ID"], SecretKey=os.environ["COS_SECRET_KEY"],
+        SecretId=os.environ["TENCENT_CLOUD_SECRET_ID"], SecretKey=os.environ["TENCENT_CLOUD_SECRET_KEY"],
     ))
     if command == "upload":
         stage_build(client, prefix, *args)
     elif command == "assemble":
         assemble(client, base, prefix, *args)
     elif command == "begin-draft":
-        write_json(client, f"{base}/draft.json", {"runId": None})
+        write_json(client, f"{base}/draft.json", {
+            "runId": None, "buildRunId": run_id, "sha": os.environ["RELEASE_SHA"],
+        })
+    elif command == "check-build":
+        current = read_json(client, f"{base}/draft.json")
+        if current.get("buildRunId") != run_id or current.get("sha") != os.environ["RELEASE_SHA"]:
+            raise ValueError("The draft belongs to a different build")
+    elif command == "download-target":
+        platform, arch = args
+        group = platform if arch == "all" else f"{platform}/{arch}"
+        inventory = read_json(client, f"{prefix}/global/{group}.json")
+        packages = {
+            name: entry for name, entry in inventory.items()
+            if PurePosixPath(name).suffix not in (".yml", ".yaml", ".json")
+        }
+        download_assets(client, packages, Path("github-release-artifacts"), editions=("global",))
     elif command == "record":
         inventory = json.loads(Path("cos-release.json").read_text(encoding="utf-8"))
         write_json(client, f"{prefix}/release.json", inventory)
         write_json(client, f"{base}/baselines/{inventory['sha']}.json", inventory)
-        write_json(client, f"{base}/draft.json", {"runId": run_id})
+        write_json(client, f"{base}/draft.json", {
+            "runId": run_id, "buildRunId": run_id, "sha": os.environ["RELEASE_SHA"],
+        })
     elif command == "check-draft":
         current = read_json(client, f"{base}/draft.json")
         if current["runId"] != run_id:

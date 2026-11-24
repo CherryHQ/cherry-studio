@@ -3,17 +3,16 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog, DialogContent, DialogDescription, FieldError, Input, Label } from '@cherrystudio/ui'
+import CreateKnowledgeBaseDialog from '@renderer/components/knowledge/CreateKnowledgeBaseDialog'
+import { KnowledgeDialogBody, KnowledgeDialogField } from '@renderer/components/knowledge/KnowledgeDialogLayout'
+import { KnowledgeEmbeddingModelSelect } from '@renderer/components/knowledge/KnowledgeEmbeddingModelSelect'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
+import { useEmbeddingDimensions } from '@renderer/hooks/useEmbeddingDimensions'
 import type { RestoreKnowledgeBaseInput } from '@renderer/hooks/useKnowledgeBase'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getKnowledgeBaseFailureReason } from '@renderer/utils/knowledgeError'
 import type { KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
-
-import { useEmbeddingDimensions } from '../hooks/useEmbeddingDimensions'
-import { getKnowledgeBaseFailureReason } from '../utils/error'
-import CreateKnowledgeBaseDialog from './CreateKnowledgeBaseDialog'
-import { KnowledgeDialogBody, KnowledgeDialogField } from './KnowledgeDialogLayout'
-import { KnowledgeEmbeddingModelSelect } from './KnowledgeEmbeddingModelSelect'
 
 interface RestoreKnowledgeBaseDialogProps {
   open: boolean

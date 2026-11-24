@@ -4,7 +4,7 @@ import type { formatFromExtension, toMarkdownBytes } from '@firecrawl/anydoc'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { createPdfParser } from '@main/utils/pdf'
+import { inspectPdfText, isScannedPdfError } from '@main/utils/pdfText'
 
 import type { FileProcessingCapabilityHandler } from '../../types'
 import { ocrPdfPagesToMarkdown } from '../pdfPageOcr'
@@ -52,7 +52,7 @@ export const localDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'do
     const pdfBytes = await readFile(file.path)
     signal?.throwIfAborted()
 
-    const { pageCount, hasTextlessPages } = await inspectPdf(pdfBytes)
+    const { pageCount, hasTextlessPages } = await inspectPdfText(pdfBytes)
     if (pageCount > MAX_PDF_PAGES) {
       throw new Error(`PDF has ${pageCount} pages, which exceeds the ${MAX_PDF_PAGES}-page local processing limit`)
     }
@@ -94,23 +94,5 @@ async function convertWithAnydoc(pdfBytes: Uint8Array): Promise<string | null> {
     // Encrypted and malformed PDFs are equally unreadable to the rasterizer, so
     // there is nothing to gain from spending minutes on OCR before failing.
     throw error
-  }
-}
-
-/** Whether an anydoc rejection means "no text layer, hand this to OCR". */
-export function isScannedPdfError(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'needsOcr'
-}
-
-async function inspectPdf(pdfBytes: Uint8Array): Promise<{ pageCount: number; hasTextlessPages: boolean }> {
-  const parser = await createPdfParser({ data: pdfBytes })
-  try {
-    const result = await parser.getText()
-    return {
-      pageCount: result.total,
-      hasTextlessPages: result.pages.some((page) => page.text.trim().length === 0)
-    }
-  } finally {
-    await parser.destroy()
   }
 }

@@ -137,6 +137,18 @@ const miniAppThemeAssetPlugin = (): Plugin => ({
   }
 })
 
+const commandParserAssetsPlugin = (): Plugin => ({
+  name: 'cherry-command-parser-assets',
+  apply: 'build',
+  buildStart() {
+    const require = createRequire(import.meta.url)
+    for (const filename of ['tree-sitter.wasm', 'tree-sitter-bash.wasm', 'tree-sitter-powershell.wasm']) {
+      const source = readFileSync(require.resolve(`@vscode/tree-sitter-wasm/wasm/${filename}`))
+      this.emitFile({ type: 'asset', fileName: `assets/command-parsers/${filename}`, source })
+    }
+  }
+})
+
 /** Shared with the utility-process entries build, which must resolve identically. */
 export const mainResolveAlias = {
   '@main': resolve('src/main'),
@@ -201,6 +213,7 @@ export default defineConfig({
       },
       chunkExportGuardPlugin(),
       miniAppThemeAssetPlugin(),
+      commandParserAssetsPlugin(),
       ...visualizerPlugin('main'),
       ...sentrySourceMapPlugins('main')
     ],
@@ -356,7 +369,7 @@ export default defineConfig({
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
           selectionAgent: resolve(__dirname, 'src/renderer/windows/selection/agent/index.html'),
           selectionCapsule: resolve(__dirname, 'src/renderer/windows/selection/capsule/index.html'),
-          migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
+          legacyUpgrade: resolve(__dirname, 'src/renderer/windows/legacyUpgrade/index.html'),
           userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html'),
           screenshot: resolve(__dirname, 'src/renderer/windows/screenshot/index.html')

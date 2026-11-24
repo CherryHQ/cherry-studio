@@ -1,7 +1,7 @@
-import type * as DndKitUtilities from '@dnd-kit/utilities'
-import { act, render, screen, within } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { installDndDomStubs } from '@test-mocks/dndDomStubs'
+import { cancelRowDrag, dragRow, dropRow, hoverRow, startRowDrag } from '@test-mocks/dndDriver'
+import { act, render, screen } from '@testing-library/react'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 const virtualMocks = vi.hoisted(() => ({
   useVirtualizer: vi.fn((options: { count: number; estimateSize: (index: number) => number }) => ({
@@ -23,22 +23,6 @@ const virtualMocks = vi.hoisted(() => ({
   }))
 }))
 
-const dndMocks = vi.hoisted(() => ({
-  activeSortableId: null as null | string,
-  droppableData: new Map<string, unknown>(),
-  droppableDisabled: new Map<string, boolean | undefined>(),
-  onDragCancel: undefined as undefined | ((event: any) => void),
-  onDragEnd: undefined as undefined | ((event: any) => void),
-  onDragMove: undefined as undefined | ((event: any) => void),
-  onDragOver: undefined as undefined | ((event: any) => void),
-  onDragStart: undefined as undefined | ((event: any) => void),
-  sortableData: new Map<string, unknown>(),
-  sortableDisabled: new Map<string, boolean | { draggable?: boolean; droppable?: boolean } | undefined>(),
-  sortableStrategy: undefined as undefined | ((args: any) => unknown),
-  useSensor: vi.fn((sensor, options) => ({ sensor, options })),
-  verticalListSortingStrategy: vi.fn(() => ({ scaleX: 1, scaleY: 1, x: 0, y: 12 }))
-}))
-
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: virtualMocks.useVirtualizer,
   defaultRangeExtractor: vi.fn((range) =>
@@ -46,89 +30,7 @@ vi.mock('@tanstack/react-virtual', () => ({
   )
 }))
 
-vi.mock('@dnd-kit/core', () => {
-  const React = require('react')
-  return {
-    DndContext: ({
-      children,
-      onDragCancel,
-      onDragEnd,
-      onDragOver,
-      onDragMove,
-      onDragStart
-    }: {
-      children: ReactNode
-      onDragCancel?: any
-      onDragEnd?: any
-      onDragOver?: any
-      onDragMove?: any
-      onDragStart?: any
-    }) => {
-      dndMocks.onDragCancel = onDragCancel
-      dndMocks.onDragEnd = onDragEnd
-      dndMocks.onDragMove = onDragMove
-      dndMocks.onDragOver = onDragOver
-      dndMocks.onDragStart = onDragStart
-      return React.createElement('div', { 'data-testid': 'dnd-context' }, children)
-    },
-    DragOverlay: ({ children }: { children: ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'drag-overlay' }, children),
-    KeyboardSensor: vi.fn(),
-    PointerSensor: vi.fn(),
-    useDroppable: ({ data, disabled, id }: { data: unknown; disabled?: boolean; id: string }) => {
-      dndMocks.droppableData.set(id, data)
-      dndMocks.droppableDisabled.set(id, disabled)
-      return { isOver: false, setNodeRef: vi.fn() }
-    },
-    useSensor: dndMocks.useSensor,
-    useSensors: vi.fn((...sensors) => sensors)
-  }
-})
-
-vi.mock('@dnd-kit/sortable', () => {
-  const React = require('react')
-  return {
-    SortableContext: ({ children, strategy }: { children: ReactNode; strategy?: (args: any) => unknown }) => {
-      dndMocks.sortableStrategy = strategy
-      return React.createElement('div', { 'data-testid': 'sortable-context' }, children)
-    },
-    useSortable: ({
-      data,
-      disabled,
-      id
-    }: {
-      data: unknown
-      disabled?: boolean | { draggable?: boolean; droppable?: boolean }
-      id: string
-    }) => {
-      dndMocks.sortableData.set(id, data)
-      dndMocks.sortableDisabled.set(id, disabled)
-      return {
-        attributes: {},
-        isDragging: dndMocks.activeSortableId === id,
-        listeners: {},
-        setActivatorNodeRef: vi.fn(),
-        setNodeRef: vi.fn(),
-        transform: { scaleX: 1, scaleY: 1, x: 0, y: 12 },
-        transition: 'transform 200ms ease'
-      }
-    },
-    verticalListSortingStrategy: dndMocks.verticalListSortingStrategy
-  }
-})
-
-vi.mock('@dnd-kit/utilities', async (importOriginal) => ({
-  ...(await importOriginal<typeof DndKitUtilities>()),
-  CSS: {
-    Transform: {
-      toString: (transform: unknown) => (transform ? 'translate3d(0px, 12px, 0px)' : undefined)
-    }
-  }
-}))
-
 import { GroupedSortableVirtualList } from '..'
-
-type SortableDisabledState = boolean | { draggable?: boolean; droppable?: boolean } | undefined
 
 type TestGroup = {
   id: string
@@ -159,15 +61,6 @@ const groups = [
 ]
 
 function renderList(onDragEnd = vi.fn(), extraProps = {}) {
-  dndMocks.activeSortableId = null
-  dndMocks.droppableData.clear()
-  dndMocks.droppableDisabled.clear()
-  dndMocks.sortableData.clear()
-  dndMocks.sortableDisabled.clear()
-  dndMocks.sortableStrategy = undefined
-  dndMocks.useSensor.mockClear()
-  dndMocks.verticalListSortingStrategy.mockClear()
-
   render(
     <GroupedSortableVirtualList<TestGroup, TestItem, string>
       groups={groups}
@@ -183,42 +76,6 @@ function renderList(onDragEnd = vi.fn(), extraProps = {}) {
   )
 
   return onDragEnd
-}
-
-function dataFor(kind: 'droppable' | 'sortable', id: string) {
-  const data = kind === 'droppable' ? dndMocks.droppableData.get(id) : dndMocks.sortableData.get(id)
-  if (!data) {
-    throw new Error(`Expected ${kind} data for ${id}`)
-  }
-  return { current: data }
-}
-
-function expectSortableDisabled(id: string, expected: SortableDisabledState) {
-  expect(dndMocks.sortableDisabled.get(id)).toEqual(expected)
-}
-
-function dragEvent(activeId: string, overId: string, overKind: 'droppable' | 'sortable' = 'sortable') {
-  return {
-    active: { data: dataFor('sortable', activeId), id: activeId },
-    over: { data: dataFor(overKind, overId), id: overId }
-  }
-}
-
-function dragStartEvent(activeId: string) {
-  return {
-    active: {
-      data: dataFor('sortable', activeId),
-      id: activeId,
-      rect: { current: { initial: { height: 32, width: 180 }, translated: null } }
-    }
-  }
-}
-
-function startDragging(activeId: string) {
-  dndMocks.activeSortableId = activeId
-  act(() => {
-    dndMocks.onDragStart?.(dragStartEvent(activeId))
-  })
 }
 
 function getGroupRows(groupLabel: string, itemLabel: string, footerLabel: string) {
@@ -238,59 +95,53 @@ function expectRowsBlocked(rows: Array<HTMLElement | null>) {
   }
 }
 
-function getPointerSensorActivator() {
-  renderList()
-  const sensor = dndMocks.useSensor.mock.calls[0]?.[0]
-  const activator = sensor?.activators?.find(
-    (candidate: { eventName: string }) => candidate.eventName === 'onPointerDown'
-  )
-  if (!activator) {
-    throw new Error('Expected pointer sensor activator')
-  }
-  return activator.handler as (
-    event: { nativeEvent: Partial<PointerEvent> },
-    options: { onActivation?: (args: unknown) => void }
-  ) => boolean
+const tick = () => act(() => new Promise((resolve) => setTimeout(resolve, 10)))
+
+function pointer(target: Element | Document, type: string, init: PointerEventInit) {
+  act(() => {
+    target.dispatchEvent(
+      new PointerEvent(type, { bubbles: true, cancelable: true, isPrimary: true, pointerType: 'mouse', ...init })
+    )
+  })
+}
+
+async function pressAndMove(row: Element, init: PointerEventInit) {
+  pointer(row, 'pointerdown', { clientX: 10, clientY: 10, ...init })
+  pointer(document, 'pointermove', { clientX: 10, clientY: 40, ...init })
+  await tick()
+  pointer(document, 'pointerup', { clientX: 10, clientY: 40, ...init })
+  await tick()
 }
 
 describe('GroupedSortableVirtualList', () => {
-  it('does not activate pointer dragging for secondary-button context menu gestures', () => {
-    const activate = vi.fn()
-    const handler = getPointerSensorActivator()
+  beforeAll(installDndDomStubs)
 
-    expect(handler({ nativeEvent: { button: 2, isPrimary: true } }, { onActivation: activate })).toBe(false)
-    expect(activate).not.toHaveBeenCalled()
+  it.each([
+    ['a secondary-button press', { button: 2 }],
+    ['a macOS Control-click', { button: 0, ctrlKey: true }]
+  ])('starts no pointer drag from %s, which opens a context menu', async (_, init) => {
+    const onDragStart = vi.fn()
+    renderList(vi.fn(), { onDragStart })
+
+    await pressAndMove(screen.getByText('Item Alpha'), init)
+
+    expect(onDragStart).not.toHaveBeenCalled()
   })
 
-  it('does not activate pointer dragging for macOS ctrl-click context menu gestures', () => {
-    const activate = vi.fn()
-    const handler = getPointerSensorActivator()
+  it('starts a pointer drag from an unmodified primary-button press', async () => {
+    const onDragStart = vi.fn()
+    renderList(vi.fn(), { onDragStart })
 
-    expect(handler({ nativeEvent: { button: 0, ctrlKey: true, isPrimary: true } }, { onActivation: activate })).toBe(
-      false
-    )
-    expect(activate).not.toHaveBeenCalled()
+    await pressAndMove(screen.getByText('Item Alpha'), { button: 0 })
+
+    expect(onDragStart).toHaveBeenCalledWith(expect.objectContaining({ type: 'item', activeId: 'a' }))
   })
 
-  it('activates pointer dragging for unmodified primary-button drags', () => {
-    const activate = vi.fn()
-    const handler = getPointerSensorActivator()
-
-    expect(handler({ nativeEvent: { button: 0, ctrlKey: false, isPrimary: true } }, { onActivation: activate })).toBe(
-      true
-    )
-    expect(activate).toHaveBeenCalledTimes(1)
-  })
-
-  it('emits same-group item drag payloads', () => {
+  it('emits same-group item drag payloads', async () => {
     const onDragEnd = renderList()
 
-    dndMocks.onDragEnd?.({
-      active: { data: dataFor('sortable', 'item:a'), id: 'item:a' },
-      over: { data: dataFor('sortable', 'item:b'), id: 'item:b' }
-    })
+    await dragRow({ source: 'item:a', target: 'item:b', side: 'after' })
 
-    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
     expect(onDragEnd).toHaveBeenCalledWith(
       expect.objectContaining({
         activeId: 'a',
@@ -306,19 +157,25 @@ describe('GroupedSortableVirtualList', () => {
     )
   })
 
-  it('emits cross-group item drops against a group header', () => {
+  it('uses the dragged row center to resolve before or after item drops', async () => {
     const onDragEnd = renderList()
 
-    dndMocks.onDragEnd?.({
-      active: { data: dataFor('sortable', 'item:a'), id: 'item:a' },
-      over: { data: dataFor('droppable', 'group:second'), id: 'group:second' }
-    })
+    await dragRow({ source: 'item:a', target: 'item:b', side: 'before' })
+
+    expect(onDragEnd).toHaveBeenCalledWith(expect.objectContaining({ overId: 'b', position: 'before' }))
+  })
+
+  it('appends an item dropped on another group header after that group last item', async () => {
+    const onDragEnd = renderList()
+
+    await dragRow({ source: 'item:a', target: 'group:second', side: 'before' })
 
     expect(onDragEnd).toHaveBeenCalledWith(
       expect.objectContaining({
         activeId: 'a',
-        overId: 'second',
-        overType: 'group',
+        overId: 'c',
+        overType: 'item',
+        position: 'after',
         sourceGroupId: 'first',
         targetGroupId: 'second',
         targetIndex: 0,
@@ -327,44 +184,28 @@ describe('GroupedSortableVirtualList', () => {
     )
   })
 
-  it('uses cached active data after virtualization clears the drag event data', () => {
-    const onDragEnd = renderList()
-
-    startDragging('item:a')
-
-    const dragAfterSourceUnmount = {
-      active: { data: { current: {} }, id: 'item:a' },
-      over: { data: dataFor('sortable', 'item:c'), id: 'item:c' }
+  it('keeps the dragged row mounted while auto-scroll carries it out of view', async () => {
+    renderList()
+    const keptRows = () => {
+      const { rangeExtractor } = virtualMocks.useVirtualizer.mock.lastCall![0] as {
+        rangeExtractor?: (range: { startIndex: number; endIndex: number; overscan: number; count: number }) => number[]
+      }
+      return rangeExtractor?.({ startIndex: 5, endIndex: 6, overscan: 0, count: 7 }) ?? []
     }
 
-    act(() => {
-      dndMocks.onDragOver?.(dragAfterSourceUnmount)
-    })
+    // Rows: header First, Alpha, Beta, footer, header Second, Gamma, footer.
+    expect(keptRows()).not.toContain(1)
+    await startRowDrag('item:a')
+    expect(keptRows()).toContain(1)
 
-    expect(screen.getByText('Item Gamma').parentElement?.querySelector('[data-drop-indicator]')).toBeInTheDocument()
-
-    act(() => {
-      dndMocks.onDragEnd?.(dragAfterSourceUnmount)
-    })
-
-    expect(onDragEnd).toHaveBeenCalledWith(
-      expect.objectContaining({
-        activeId: 'a',
-        overId: 'c',
-        sourceGroupId: 'first',
-        targetGroupId: 'second',
-        type: 'item'
-      })
-    )
+    await cancelRowDrag()
+    expect(keptRows()).not.toContain(1)
   })
 
-  it('can emit group drag payloads when group dragging is enabled', () => {
+  it('can emit group drag payloads when group dragging is enabled', async () => {
     const onDragEnd = renderList(vi.fn(), { dragCapabilities: { groups: true }, canDragGroup: () => true })
 
-    dndMocks.onDragEnd?.({
-      active: { data: dataFor('sortable', 'group:first'), id: 'group:first' },
-      over: { data: dataFor('sortable', 'group:second'), id: 'group:second' }
-    })
+    await dragRow({ source: 'group:first', target: 'group:second', side: 'after' })
 
     expect(onDragEnd).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -378,16 +219,14 @@ describe('GroupedSortableVirtualList', () => {
     )
   })
 
-  it('does not mark the active group as blocked during group dragging', () => {
+  it('does not mark the active group as blocked during group dragging', async () => {
     renderList(vi.fn(), {
       dragCapabilities: { groups: true },
       canDragGroup: () => true,
       renderGroupFooter: (footer: unknown) => <div>Footer {String(footer)}</div>
     })
 
-    act(() => {
-      dndMocks.onDragStart?.(dragStartEvent('group:first'))
-    })
+    await startRowDrag('group:first')
 
     const activeHeader = screen.getAllByText('Header First')[0].parentElement
     const activeItem = screen.getByText('Item Alpha').parentElement
@@ -397,39 +236,35 @@ describe('GroupedSortableVirtualList', () => {
       expect(row).not.toHaveAttribute('data-drop-blocked')
       expect(row).not.toHaveAttribute('data-drop-invalid')
     }
-    expect(dndMocks.sortableDisabled.get('group:first')).toBe(false)
+    await cancelRowDrag()
   })
 
-  it('does not emit group drag payloads when group dragging is disabled', () => {
+  it('does not let a group header drag when group dragging is disabled', async () => {
     const onDragEnd = renderList(vi.fn(), { canDragGroup: () => true })
 
-    expect(() => dataFor('sortable', 'group:first')).toThrow('Expected sortable data for group:first')
+    await expect(startRowDrag('group:first')).rejects.toThrow('cannot be dragged')
     expect(onDragEnd).not.toHaveBeenCalled()
   })
 
-  it('blocks cross-group item drops when the capability is disabled', () => {
+  it('blocks cross-group item drops when the capability is disabled', async () => {
     const onDragEnd = renderList(vi.fn(), { dragCapabilities: { itemCrossGroup: false } })
 
-    dndMocks.onDragEnd?.(dragEvent('item:a', 'item:c'))
+    await dragRow({ source: 'item:a', target: 'item:c', side: 'after' })
 
     expect(onDragEnd).not.toHaveBeenCalled()
   })
 
-  it('marks blocked groups as invalid when dragging starts', () => {
+  it('marks blocked groups as invalid while dragging and clears them after the drop', async () => {
     const onDragEnd = renderList(vi.fn(), {
       dragCapabilities: { itemCrossGroup: false },
       renderGroupFooter: (footer: unknown) => <div>Footer {String(footer)}</div>
     })
 
-    act(() => {
-      dndMocks.onDragStart?.(dragStartEvent('item:a'))
-    })
-
+    await startRowDrag('item:a')
     expectRowsBlocked(getGroupRows('Header Second', 'Item Gamma', 'Footer Second'))
 
-    act(() => {
-      dndMocks.onDragEnd?.(dragEvent('item:a', 'item:c'))
-    })
+    await hoverRow('item:c', 'after')
+    await dropRow()
 
     expect(onDragEnd).not.toHaveBeenCalled()
     for (const row of getGroupRows('Header Second', 'Item Gamma', 'Footer Second')) {
@@ -438,135 +273,97 @@ describe('GroupedSortableVirtualList', () => {
     }
   })
 
-  it('renders a drag overlay for the active row while dragging', () => {
+  it('renders a drag overlay for the active row while dragging', async () => {
     renderList(vi.fn(), { dragCapabilities: { itemCrossGroup: false } })
 
-    startDragging('item:a')
+    await startRowDrag('item:a')
 
-    const overlay = screen.getByTestId('drag-overlay')
-    expect(within(overlay).getByText('Item Alpha')).toBeInTheDocument()
+    expect(document.querySelector('[data-dnd-overlay]')).toHaveTextContent('Item Alpha')
 
-    act(() => {
-      dndMocks.onDragCancel?.({})
-    })
+    await cancelRowDrag()
 
-    expect(screen.getByTestId('drag-overlay')).toBeEmptyDOMElement()
+    expect(document.querySelector('[data-dnd-overlay]')?.textContent ?? '').toBe('')
   })
 
-  it('updates the insertion side while moving within the same target row', () => {
+  it('updates the insertion side while moving within the same target row', async () => {
     const onDragEnd = renderList()
-    startDragging('item:b')
-    const event = (top: number) => ({
-      active: {
-        data: dataFor('sortable', 'item:b'),
-        id: 'item:b',
-        rect: { current: { initial: null, translated: { top, height: 20 } } }
-      },
-      over: { data: dataFor('sortable', 'item:a'), id: 'item:a', rect: { top: 100, height: 40 } }
-    })
-    act(() => dndMocks.onDragOver?.(event(125)))
-    const targetRow = screen.getByText('Item Alpha').parentElement
-    expect(targetRow?.querySelector('[data-drop-indicator="after"]')).toBeInTheDocument()
+    const indicator = (side: 'before' | 'after') =>
+      screen.getByText('Item Alpha').parentElement?.querySelector(`[data-drop-indicator="${side}"]`)
 
-    act(() => dndMocks.onDragMove?.(event(100)))
-    expect(targetRow?.querySelector('[data-drop-indicator="before"]')).toBeInTheDocument()
-    expect(targetRow?.querySelector('[data-drop-indicator="after"]')).not.toBeInTheDocument()
-    act(() => dndMocks.onDragEnd?.(event(100)))
+    await startRowDrag('item:b')
+    await hoverRow('item:a', 'after')
+    expect(indicator('after')).toBeInTheDocument()
+
+    await hoverRow('item:a', 'before')
+    expect(indicator('before')).toBeInTheDocument()
+    expect(indicator('after')).not.toBeInTheDocument()
+
+    await dropRow()
     expect(onDragEnd).toHaveBeenCalledWith(expect.objectContaining({ activeId: 'b', overId: 'a', position: 'before' }))
-  })
-
-  it('uses the latest insertion line position when the drop rect disagrees', () => {
-    const onDragEnd = renderList()
-
-    startDragging('item:a')
-
-    act(() => {
-      dndMocks.onDragOver?.(dragEvent('item:a', 'item:b'))
-    })
-
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: dataFor('sortable', 'item:a'),
-          id: 'item:a',
-          rect: { current: { initial: null, translated: { top: 0, height: 20 } } }
-        },
-        over: { data: dataFor('sortable', 'item:b'), id: 'item:b', rect: { top: 100, height: 20 } }
-      })
-    })
-
-    expect(onDragEnd).toHaveBeenCalledWith(expect.objectContaining({ overId: 'b', position: 'after' }))
   })
 
   it.each([
     { shape: 'footer', collision: false, endpoint: 'Footer B' },
     { shape: 'header-only', collision: false, endpoint: 'Header B' },
     { shape: 'footer', collision: true, endpoint: 'Footer B' }
-  ])('uses the inner group extent for $shape with boundary collision=$collision', ({ shape, collision, endpoint }) => {
-    const sectionGroups = [
-      { group: { id: 'section:x', label: 'X' }, header: 'X', items: [] },
-      { group: { id: 'inner:a', label: 'A' }, header: 'A', items: [{ id: 'a1', label: 'A1' }] },
-      {
-        group: { id: 'inner:b', label: 'B' },
-        header: 'B',
-        items: shape === 'header-only' ? [] : [{ id: 'b1', label: 'B1' }],
-        footer: shape === 'footer' ? 'B' : undefined
-      },
-      { group: { id: 'inner:c', label: 'C' }, header: 'C', items: [{ id: 'c1', label: 'C1' }] },
-      { group: { id: 'section:y', label: 'Y' }, header: 'Y', items: [] },
-      { group: { id: 'inner:d', label: 'D' }, header: 'D', items: [{ id: 'd1', label: 'D1' }] }
-    ]
-    renderList(vi.fn(), {
-      groups: sectionGroups,
-      getGroupBoundaryId: (group: TestGroup) => {
-        if (group.id === 'inner:d') return collision ? 'inner:b' : 'section:y'
-        return group.id.startsWith('inner:') ? 'section:x' : group.id
-      },
-      dragCapabilities: { groups: true, items: false },
-      canDragGroup: () => true,
-      renderGroupFooter: (footer: unknown) => <div>Footer {String(footer)}</div>
-    })
-    startDragging('group:inner:a')
-    act(() => dndMocks.onDragOver?.(dragEvent('group:inner:a', 'group:inner:b')))
+  ])(
+    'uses the inner group extent for $shape with boundary collision=$collision',
+    async ({ shape, collision, endpoint }) => {
+      const sectionGroups = [
+        { group: { id: 'section:x', label: 'X' }, header: 'X', items: [] },
+        { group: { id: 'inner:a', label: 'A' }, header: 'A', items: [{ id: 'a1', label: 'A1' }] },
+        {
+          group: { id: 'inner:b', label: 'B' },
+          header: 'B',
+          items: shape === 'header-only' ? [] : [{ id: 'b1', label: 'B1' }],
+          footer: shape === 'footer' ? 'B' : undefined
+        },
+        { group: { id: 'inner:c', label: 'C' }, header: 'C', items: [{ id: 'c1', label: 'C1' }] },
+        { group: { id: 'section:y', label: 'Y' }, header: 'Y', items: [] },
+        { group: { id: 'inner:d', label: 'D' }, header: 'D', items: [{ id: 'd1', label: 'D1' }] }
+      ]
+      renderList(vi.fn(), {
+        groups: sectionGroups,
+        getGroupBoundaryId: (group: TestGroup) => {
+          if (group.id === 'inner:d') return collision ? 'inner:b' : 'section:y'
+          return group.id.startsWith('inner:') ? 'section:x' : group.id
+        },
+        dragCapabilities: { groups: true, items: false },
+        canDragGroup: () => true,
+        renderGroupFooter: (footer: unknown) => <div>Footer {String(footer)}</div>
+      })
+      await startRowDrag('group:inner:a')
+      await hoverRow('group:inner:b', 'after')
 
-    const indicators = document.querySelectorAll('[data-drop-indicator]')
-    expect(indicators).toHaveLength(1)
-    expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'after')
-    expect(indicators[0].parentElement).toBe(screen.getByText(endpoint).parentElement)
-  })
+      const indicators = document.querySelectorAll('[data-drop-indicator]')
+      expect(indicators).toHaveLength(1)
+      expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'after')
+      expect(indicators[0].parentElement).toBe(screen.getByText(endpoint).parentElement)
+      await cancelRowDrag()
+    }
+  )
 
-  it('keeps same-group item drops enabled independently from cross-group drops', () => {
+  it('keeps same-group item drops enabled independently from cross-group drops', async () => {
     const onDragEnd = renderList(vi.fn(), { dragCapabilities: { itemCrossGroup: false, itemSameGroup: true } })
 
-    dndMocks.onDragEnd?.({
-      active: { data: dataFor('sortable', 'item:a'), id: 'item:a' },
-      over: { data: dataFor('sortable', 'item:b'), id: 'item:b' }
-    })
+    await dragRow({ source: 'item:a', target: 'item:b', side: 'after' })
 
     expect(onDragEnd).toHaveBeenCalledWith(expect.objectContaining({ sourceGroupId: 'first', targetGroupId: 'first' }))
   })
 
-  it('keeps blocked groups stable while moving back to an allowed target', () => {
+  it('keeps blocked groups stable while moving back to an allowed target', async () => {
     const onDragEnd = renderList(vi.fn(), {
       dragCapabilities: { itemCrossGroup: false, itemSameGroup: true },
       renderGroupFooter: (footer: unknown) => <div>Footer {String(footer)}</div>
     })
 
-    act(() => {
-      dndMocks.onDragStart?.(dragStartEvent('item:a'))
-    })
-
+    await startRowDrag('item:a')
     expectRowsBlocked(getGroupRows('Header Second', 'Item Gamma', 'Footer Second'))
 
-    act(() => {
-      dndMocks.onDragOver?.(dragEvent('item:a', 'item:c'))
-    })
-
+    await hoverRow('item:c', 'after')
     expectRowsBlocked(getGroupRows('Header Second', 'Item Gamma', 'Footer Second'))
 
-    act(() => {
-      dndMocks.onDragOver?.(dragEvent('item:a', 'item:b'))
-    })
+    await hoverRow('item:b', 'after')
 
     const targetHeader = screen.getByText('Header First').parentElement
     const targetItem = screen.getByText('Item Beta').parentElement
@@ -579,9 +376,7 @@ describe('GroupedSortableVirtualList', () => {
     expect(targetFooter).not.toHaveAttribute('data-drop-allowed')
     expectRowsBlocked(getGroupRows('Header Second', 'Item Gamma', 'Footer Second'))
 
-    act(() => {
-      dndMocks.onDragEnd?.(dragEvent('item:a', 'item:b'))
-    })
+    await dropRow()
 
     expect(onDragEnd).toHaveBeenCalledWith(expect.objectContaining({ sourceGroupId: 'first', targetGroupId: 'first' }))
     for (const targetRow of [targetHeader, targetItem, targetFooter]) {
@@ -592,90 +387,57 @@ describe('GroupedSortableVirtualList', () => {
     }
   })
 
-  it('keeps blocked group state when drag over leaves a target and clears it on cancel', () => {
-    renderList(vi.fn(), {
+  it('keeps blocked group state over a blocked target and clears it on cancel', async () => {
+    const onDragEnd = renderList(vi.fn(), {
       dragCapabilities: { itemCrossGroup: false },
       renderGroupFooter: (footer: unknown) => <div>Footer {String(footer)}</div>
     })
 
-    act(() => {
-      dndMocks.onDragStart?.(dragStartEvent('item:a'))
-    })
-
+    await startRowDrag('item:a')
     const blockedRows = getGroupRows('Header Second', 'Item Gamma', 'Footer Second')
     expectRowsBlocked(blockedRows)
-    expect(dndMocks.droppableDisabled.get('group:second')).toBe(true)
-    expect(dndMocks.droppableDisabled.get('group-footer:second')).toBe(true)
-    expect(dndMocks.droppableDisabled.get('group:first')).toBe(false)
-    expect(dndMocks.droppableDisabled.get('group-footer:first')).toBe(false)
-    expectSortableDisabled('item:c', { draggable: false, droppable: true })
-    expectSortableDisabled('item:b', { draggable: false, droppable: false })
 
-    act(() => {
-      dndMocks.onDragOver?.({
-        active: { data: dataFor('sortable', 'item:a'), id: 'item:a' },
-        over: null
-      })
-    })
-
-    expectRowsBlocked(blockedRows)
-
-    act(() => {
-      dndMocks.onDragOver?.(dragEvent('item:a', 'group:second', 'droppable'))
-    })
+    await hoverRow('group:second', 'before')
 
     for (const row of blockedRows) {
       expect(row).not.toHaveAttribute('data-drop-target')
       expect(row).not.toHaveAttribute('data-drop-allowed')
     }
-    expect(dndMocks.droppableDisabled.get('group:second')).toBe(true)
-    expect(dndMocks.droppableDisabled.get('group-footer:second')).toBe(true)
-    expectSortableDisabled('item:c', { draggable: false, droppable: true })
+    expectRowsBlocked(blockedRows)
 
-    act(() => {
-      dndMocks.onDragCancel?.({})
-    })
+    await cancelRowDrag()
 
+    expect(onDragEnd).not.toHaveBeenCalled()
     for (const targetRow of blockedRows) {
       expect(targetRow).not.toHaveAttribute('data-drop-blocked')
       expect(targetRow).not.toHaveAttribute('data-drop-invalid')
     }
-    expect(dndMocks.droppableDisabled.get('group:second')).toBe(false)
-    expect(dndMocks.droppableDisabled.get('group-footer:second')).toBe(false)
-    expectSortableDisabled('item:c', { draggable: false, droppable: false })
   })
 
-  it('keeps non-draggable items available as drop targets', () => {
-    renderList(vi.fn(), {
+  it('emits nothing when Escape cancels a drag over an allowed target', async () => {
+    const onDragEnd = renderList()
+
+    await startRowDrag('item:a')
+    await hoverRow('item:b', 'after')
+    await cancelRowDrag()
+
+    expect(onDragEnd).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-drop-indicator]')).toBeNull()
+  })
+
+  it('keeps non-draggable items available as drop targets', async () => {
+    const onDragEnd = renderList(vi.fn(), {
       canDragItem: (item: TestItem) => item.id !== 'b',
       canDropItem: ({ overId }: { overId: unknown }) => overId === 'b'
     })
 
-    expectSortableDisabled('item:b', { draggable: true, droppable: false })
-
-    startDragging('item:a')
-
-    act(() => {
-      dndMocks.onDragOver?.(dragEvent('item:a', 'item:b'))
-    })
+    await startRowDrag('item:a')
+    await hoverRow('item:b', 'after')
 
     expect(
       screen.getByText('Item Beta').parentElement?.querySelector('[data-drop-indicator="after"]')
     ).toBeInTheDocument()
-  })
-
-  it('uses the dragged row center to resolve before or after item drops', () => {
-    const onDragEnd = renderList()
-
-    dndMocks.onDragEnd?.({
-      active: {
-        data: dataFor('sortable', 'item:a'),
-        id: 'item:a',
-        rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
-      },
-      over: { data: dataFor('sortable', 'item:b'), id: 'item:b', rect: { top: 80, height: 20 } }
-    })
-
-    expect(onDragEnd).toHaveBeenCalledWith(expect.objectContaining({ position: 'before' }))
+    await dropRow()
+    expect(onDragEnd).toHaveBeenCalledWith(expect.objectContaining({ activeId: 'a', overId: 'b' }))
   })
 })

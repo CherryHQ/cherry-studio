@@ -87,7 +87,7 @@ function spawnedChild(spawned: TransactResult<JsonValue>['spawned'], key: Key): 
 async function spawn(context: Context, call: ToolCall): Promise<ToolOutcome> {
   const named = stringField(fieldsOf(call.args), 'model')?.trim() || undefined
   const models = await modelFacts(context.host, call.thread, named)
-  const inputs = await gatherInputs(context, call.thread, { args: call.args, models })
+  const inputs = gatherInputs(context, call.thread, { args: call.args, models })
   // A turn stopped while the host answered has taken its children already; a child spawned now would run on.
   if (call.signal.aborted) return { text: TURN_STOPPED, isError: true }
   const executed = await step(context, call.thread, (facts) => decideSpawn(facts, inputs, call.key))
@@ -112,7 +112,7 @@ export type SubagentMessageReceipt =
 
 export async function messageSubagent(context: Context, call: ToolCall): Promise<SubagentMessageReceipt> {
   for (;;) {
-    const inputs = await gatherInputs(context, call.thread, { args: call.args })
+    const inputs = gatherInputs(context, call.thread, { args: call.args })
     const executed = await step(context, call.thread, (facts) =>
       decideMessage(facts, inputs, call.key, call.signal.aborted)
     )
@@ -143,7 +143,7 @@ export async function messageSubagent(context: Context, call: ToolCall): Promise
 
 /** D18: the model gets the partial output; no notification follows. */
 async function stop(context: Context, call: ToolCall): Promise<ToolOutcome> {
-  const inputs = await gatherInputs(context, call.thread, { args: call.args })
+  const inputs = gatherInputs(context, call.thread, { args: call.args })
   const decision = (await step(context, call.thread, (facts) => decideStop(facts, inputs))).result
   if (decision.kind === 'refused') return { text: decision.text, isError: true }
   if (decision.kind === 'not-running' || decision.kind === 'ended') return decision.result

@@ -9,7 +9,7 @@ const Groq = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const GroqIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Groq, {
   Avatar: GroqAvatar,
-  colorPrimary: '#F54F35'
+  colorPrimary: '#f54f35'
 })
 
 export default GroqIcon

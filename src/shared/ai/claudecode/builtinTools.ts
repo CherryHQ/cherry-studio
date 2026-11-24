@@ -1,5 +1,4 @@
 import type { Tool } from '../tool'
-import type { ClaudeToolDescriptor } from './toolRules'
 
 function builtinTool(name: string, description: string, defaultPrompt: boolean): Tool {
   return {
@@ -27,12 +26,3 @@ export const claudeCodeBuiltinTools: Tool[] = [
   builtinTool('WebSearch', 'Performs web searches with domain filtering', true),
   builtinTool('Write', 'Creates or overwrites files', true)
 ]
-
-export function claudeCodeBuiltinToolDescriptors(): ClaudeToolDescriptor[] {
-  return claudeCodeBuiltinTools.map((tool) => ({
-    id: tool.id,
-    name: tool.name,
-    description: tool.description,
-    origin: 'builtin'
-  }))
-}

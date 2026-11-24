@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 
+import { preferenceService } from '@renderer/data/PreferenceService'
 import { QWEN3_ASR_MODEL_ID } from '@shared/ai/localVoice'
 import type { TranscriptRevision } from '@shared/ai/voice'
 
@@ -15,6 +16,10 @@ function deferred<T>() {
   })
   return { promise, resolve, reject }
 }
+beforeEach(async () => {
+  await preferenceService.set('feature.voice.recognition.model_id', '')
+})
+
 const services: DictationService[] = []
 afterEach(async () => {
   await Promise.all(services.splice(0).map((service) => service.teardown()))
@@ -94,6 +99,19 @@ function harness() {
 }
 
 describe('streaming dictation lifecycle', () => {
+  it('cancels PCM on Off without waiting for a final transcript', async () => {
+    const h = harness()
+    await h.service.start()
+    await preferenceService.set('feature.voice.recognition.model_id', 'off')
+    await vi.waitFor(() => expect(h.service.getSnapshot().phase).toBe('idle'))
+    expect(h.capture.cancel).toHaveBeenCalled()
+    expect(h.operation.finish).not.toHaveBeenCalled()
+    h.revise({ revision: 10, text: 'late', provisionalStart: 4, final: true })
+    expect(h.service.insertRecovery()).toBe('unavailable')
+    expect(h.inserted).toEqual([])
+    await preferenceService.set('feature.voice.recognition.model_id', '')
+  })
+
   it('replaces hypotheses but submits only the completed result after tail drain', async () => {
     const h = harness()
     const run = h.service.startScoped()

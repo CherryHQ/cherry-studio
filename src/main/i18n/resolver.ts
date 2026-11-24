@@ -4,6 +4,7 @@ import { application } from '@application'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
 
+import csCZ from './locales/cs-cz.json'
 import deDE from './locales/de-de.json'
 import elGR from './locales/el-gr.json'
 import EnUs from './locales/en-us.json'
@@ -11,6 +12,7 @@ import esES from './locales/es-es.json'
 import frFR from './locales/fr-fr.json'
 import itIT from './locales/it-it.json'
 import JaJP from './locales/ja-jp.json'
+import koKR from './locales/ko-kr.json'
 import plPL from './locales/pl-pl.json'
 import ptPT from './locales/pt-pt.json'
 import roRO from './locales/ro-ro.json'
@@ -27,7 +29,9 @@ const locales = Object.fromEntries(
     ['zh-CN', ZhCn],
     ['zh-TW', ZhTw],
     ['ja-JP', JaJP],
+    ['ko-KR', koKR],
     ['ru-RU', RuRu],
+    ['cs-CZ', csCZ],
     ['de-DE', deDE],
     ['el-GR', elGR],
     ['es-ES', esES],

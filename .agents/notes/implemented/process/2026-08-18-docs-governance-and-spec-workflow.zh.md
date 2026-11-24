@@ -94,12 +94,12 @@ sources: # code paths this document describes; directories preferred
 
 决策记录住在 `.agents/notes/{lifecycle}/{class}/yyyy-mm-dd-topic.md`:
 
-- **生命周期**:`proposed/`(已批准但实现未完成的目标)→ `implemented/`(已发布,与现实保持同步)或 `rejected/`(由人类明确否决;理由还能防住诱人错误时保留)。dsh 的 `archived/` 层缓行,等数量需要时再引入。
+- **生命周期**:`proposed/`(实现或验证尚未完成的目标)→ `implemented/`(已发布,与现实保持同步)或 `rejected/`(由人类明确否决;理由还能防住诱人错误时保留)。dsh 的 `archived/` 层缓行,等数量需要时再引入。
 - **类别**:`feature`、`bug-fix`、`simplification`、`architecture`、`process`、`testing`。刻意不设 `refactor` 类——`simplification` 已覆盖它,判据是"可观察行为是否变化?"。
 - **格式**:header block、`Problem`、生命周期专属决策小节、强制 `Alternatives considered`,以及 implemented note 的实际 `Verification`。Proposed acceptance criteria 使用连续 AC ID 和可观察结果,而不是实现任务。
 - 决策永不被原地改写成另一个决策:用新 note 取代并互相链接。
 - **门槛**:每个人工创建的 PR 声明 Agent Note 或明确 `N/A`;自动化创建的 PR(仓库 workflow 与 Dependabot)免除此元数据要求,但不免除常规验证。只有维护者可能合理重新质疑的决策必须写 note。恢复已有契约的简单 bugfix 使用 `N/A`;具有持久失败、兼容、并发、所有权或替代方案理由的修复在同一 PR 写 implemented `bug-fix` note。
-- **Spec-first stack**:重大 feature、architecture、process 和 simplification 从底层 Spec PR 开始。当前 head 得到人类明确 Approval 后才能在上面堆叠 implementation branch;Spec 实质修改需要重新批准。Agent 检查 stack 拓扑与 downstack 的实际证据;中间层保持 note 为 proposed,只有累计覆盖全部 AC 的最终层才把它重写为 implemented。
+- **Spec-first stack**:重大 feature、architecture、process 和 simplification 从底层 Spec PR 开始。可使用 `gh-stack` 在上面堆叠 implementation branch,无需等待 Approval 或合并;Spec 实质修改需要同步 stack 并重新运行受影响的验证。Spec 与实现可以一起评审,现有合并要求仍然适用。Agent 检查 stack 拓扑与 downstack 的实际证据;中间层保持 note 为 proposed,只有累计覆盖全部 AC 的最终层才把它重写为 implemented。
 - **否决**:讨论与 `CHANGES_REQUESTED` 不触发 rejection。只有明确人类决策能把 Spec 移到 `rejected/`;无持久价值的废弃探索直接关闭,不向仓库加入噪音。
 
 完整规则位于 `.agents/notes/README.md`;subtree `AGENTS.md` 自动加载生命周期指令,`verify-agent-note-format` 对机器可检查骨架做门禁,`agent-notes:check-transition` 则根据显式 Spec ref 校验三件套移动和完整 AC 映射。

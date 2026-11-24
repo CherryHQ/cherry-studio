@@ -38,6 +38,7 @@ describe('normalizeAnthropicToolHistory', () => {
     const messages: MessageParam[] = [
       { role: 'user', content: 'Run the server tool' },
       { role: 'assistant', content: [serverTool] },
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       { role: 'assistant', content: [structuredClone(serverTool)] }
     ]
 
@@ -51,10 +52,13 @@ describe('normalizeAnthropicToolHistory', () => {
     const output = toolResult('c1', 'A')
     const unchangedMessage: MessageParam = { role: 'user', content: 'Keep this message' }
     const messages: MessageParam[] = [
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       { role: 'assistant', content: [call, structuredClone(call)] },
       unchangedMessage,
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       { role: 'user', content: [output, structuredClone(output)] }
     ]
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(messages)
 
     const result = normalizeAnthropicToolHistory(messages)
@@ -119,6 +123,7 @@ describe('normalizeAnthropicToolHistory', () => {
     const messages: MessageParam[] = [
       { role: 'assistant', content: [call] },
       { role: 'user', content: [toolResult('c1', 'A')] },
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       { role: 'assistant', content: [structuredClone(call)] }
     ]
 

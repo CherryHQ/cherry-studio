@@ -1,15 +1,15 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button, DialogClose } from '@cherrystudio/ui'
+import { KnowledgeDialogFooter } from '@renderer/components/knowledge/KnowledgeDialogLayout'
 import type { KnowledgeItemType } from '@shared/data/types/knowledge'
-
-import { KnowledgeDialogFooter } from '../KnowledgeDialogLayout'
 
 interface AddKnowledgeItemDialogFooterProps {
   activeSource: KnowledgeItemType
   canSubmit: boolean
   errorMessage: string
   isSubmitting: boolean
+  validUrlCount: number
   selectedNoteCount: number
   onSubmit: () => void | Promise<void>
 }
@@ -20,17 +20,15 @@ const AddKnowledgeItemDialogFooter = ({
   errorMessage,
   isSubmitting,
   selectedNoteCount,
+  validUrlCount,
   onSubmit
 }: AddKnowledgeItemDialogFooterProps) => {
   const { t } = useTranslation()
 
-  // Only `note` shows a running selection count; `url` has a single inline input.
-  const selectionCount = activeSource === 'note' ? selectedNoteCount : 0
-
   const selectionText =
     activeSource === 'note'
       ? t('knowledge.data_source.add_dialog.footer.selected_notes', { count: selectedNoteCount })
-      : ''
+      : t('knowledge.data_source.add_dialog.footer.selected_urls', { count: validUrlCount })
   return (
     <div className="flex w-full min-w-0 shrink-0 flex-col gap-3 overflow-hidden">
       {errorMessage ? (
@@ -43,7 +41,9 @@ const AddKnowledgeItemDialogFooter = ({
       ) : null}
 
       <KnowledgeDialogFooter className="items-center sm:justify-between">
-        <span className="text-xs leading-4 text-foreground-tertiary">{selectionCount > 0 ? selectionText : ''}</span>
+        <span className="text-xs leading-4 text-foreground-tertiary">
+          {activeSource === 'url' || selectedNoteCount > 0 ? selectionText : ''}
+        </span>
 
         <div className="flex gap-2">
           <DialogClose asChild>

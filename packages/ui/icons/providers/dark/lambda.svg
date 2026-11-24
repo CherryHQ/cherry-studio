@@ -1,9 +1,12 @@
-<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-<mask id="mask0_10_4783" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="28" y="27" width="65" height="65">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<rect width="120" height="120" fill="#171717"/>
+<g fill="none" transform="translate(18 18) scale(1.27918782) translate(-27.6667 -26.6667)">
+<mask id="mask0_1_5706" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="28" y="27" width="65" height="65">
 <path d="M93 27H28V92H93V27Z" fill="white"/>
 </mask>
-<g mask="url(#mask0_10_4783)">
-<path d="M44.8735 38.3226L56.1835 58.1412L43.5995 81.0927L51.6984 81.0862L60.0835 65.4277L69.0144 81.0927H77.2695L53.1284 38.3162L44.8735 38.3226Z" fill="white"/>
-<path d="M28 27V92H93V27H28ZM87.2605 86.2777H33.7395V32.7223H87.2605V86.2777Z" fill="white"/>
+<g mask="url(#mask0_1_5706)">
+<path d="M44.8735 38.3227L56.1835 58.1413L43.5995 81.0928L51.6984 81.0862L60.0835 65.4278L69.0144 81.0928H77.2695L53.1284 38.3163L44.8735 38.3227Z" fill="#FFFFFF"/>
+<path d="M28 27V92H93V27H28ZM87.2605 86.2777H33.7395V32.7223H87.2605V86.2777Z" fill="#FFFFFF"/>
+</g>
 </g>
 </svg>

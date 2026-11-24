@@ -1,5 +1,4 @@
 import i18next from 'i18next'
-import { nanoid } from 'nanoid'
 
 import { loggerService } from '@logger'
 import { getMcpServerType } from '@renderer/types/mcp'
@@ -21,10 +20,6 @@ export const getModelScopeToken = (): string | null => {
 
 export const clearModelScopeToken = (): void => {
   localStorage.removeItem(TOKEN_STORAGE_KEY)
-}
-
-export const hasModelScopeToken = (): boolean => {
-  return !!getModelScopeToken()
 }
 
 interface ModelScopeServer {
@@ -99,7 +94,7 @@ export const syncModelScopeServers = async (token: string): Promise<ModelScopeSy
         const url = server.operational_urls[0].url
         const mcpServer: McpServer = {
           id: `@modelscope/${server.id}`,
-          name: server.chinese_name || server.name || `ModelScope Server ${nanoid()}`,
+          name: server.chinese_name || server.name || `ModelScope Server ${crypto.randomUUID()}`,
           description: server.description || '',
           type: getMcpServerType(url),
           baseUrl: url,

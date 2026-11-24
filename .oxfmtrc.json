@@ -28,8 +28,6 @@
     "packages/ui/src/styles/theme.css",
     "src/main/integration/**",
     "src/main/services/nutstore/sso/lib/**",
-    "src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts",
-    "src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts",
     "src/preload/globals.d.ts",
     "src/renderer/routeTree.gen.ts",
     "src/shared/data/bootConfig/bootConfigSchemas.ts",

@@ -1,9 +1,11 @@
+import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import { JSONRPC_VERSION, ProtocolErrorCode } from '@modelcontextprotocol/server'
 import { APICallError } from 'ai'
 import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from 'elysia'
 
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { DataApiError } from '@shared/data/api/errors'
 import type { SerializedError } from '@shared/types/error'
 
@@ -56,6 +58,24 @@ export function internalGatewayError(error: unknown, fallback: SerializedError):
 
 function detailsOf(error: unknown): ProviderDetails | undefined {
   return error !== null && typeof error === 'object' ? (error as InternalError)[providerDetails] : undefined
+}
+
+/** Preserve the HTTP dialect's error semantics without encoding a response body. */
+export function objectGatewayError(error: unknown, fallback: SerializedError, format: OutputFormat): Error {
+  if (UnsupportedFunctionalityError.isInstance(error)) return error
+  const status = extractError(error).status
+  const retained = { ...internalGatewayError(error, fallback), ...(status !== undefined && { statusCode: status }) }
+  const { statusCode, errorResponse } =
+    format === 'anthropic'
+      ? transformAnthropicError(retained)
+      : format === 'gemini'
+        ? transformGoogleError(retained)
+        : transformOpenAiError(retained)
+  return Object.assign(new Error(errorResponse.error.message), {
+    status: statusCode,
+    error: errorResponse,
+    headers: new Headers(detailsOf(retained)?.headers)
+  })
 }
 
 type GatewayErrorContext = Parameters<ErrorHandler<{ DATA_API: DataApiError }>>[0]
@@ -198,6 +218,9 @@ function normalizeProviderError(error: unknown): {
       type,
       category
     }
+  if (name === 'AI_InvalidArgumentError') {
+    return { statusCode: 400, message: getSafeProviderErrorMessage({ message }) || 'Invalid request parameters', type }
+  }
   if (
     name === 'TimeoutError' ||
     message === 'Upstream idle timeout exceeded' ||
@@ -216,9 +239,25 @@ function normalizeProviderError(error: unknown): {
 const anthropicTypeForStatus = (status: number): string => {
   if (status === 401 || status === 403) return 'authentication_error'
   if (status === 404) return 'not_found_error'
+  if (status === 413) return 'request_too_large'
   if (status === 429) return 'rate_limit_error'
   if (status >= 500) return 'api_error'
   return 'invalid_request_error'
+}
+
+// vLLM: https://github.com/vllm-project/vllm/blob/b5b9f7982cc82a2925e6f83cbe2e9b39aaf7fb47/vllm/renderers/params.py#L544-L548
+// llama.cpp: https://github.com/ggml-org/llama.cpp/blob/65758d01f5eee145e71e3e903d930574cb5d523e/tools/server/server-context.cpp#L4041-L4043
+const overflowLimit = /(?:maximum context length is|available context size \()\s*([\d,]+) tokens/i
+const overflowRequest =
+  /(?:resulted in|you requested|request has|contains(?: at least)?|request \()\s*([\d,]+) (?:input )?tokens/i
+
+// Claude Code sizes an overflow (and its reactive compaction) only from Anthropic's `N tokens > M` wording.
+function anthropicOverflowMessage(message: string): string {
+  const limit = Number(overflowLimit.exec(message)?.[1].replaceAll(',', ''))
+  const requested = Number(overflowRequest.exec(message)?.[1].replaceAll(',', ''))
+  return requested > limit
+    ? `Prompt is too long: ${requested} tokens > ${limit} maximum. ${message}`
+    : `Prompt is too long: ${message}`
 }
 
 /**
@@ -239,7 +278,7 @@ function transformAnthropicError(error: unknown): {
     statusCode === 400 &&
     category === 'context_length' &&
     !message.toLowerCase().includes('prompt is too long')
-      ? `Prompt is too long: ${message}`
+      ? anthropicOverflowMessage(message)
       : message
   const requestId =
     error !== null && typeof error === 'object' && typeof (error as { request_id?: unknown }).request_id === 'string'

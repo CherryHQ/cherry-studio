@@ -3,6 +3,7 @@ import type { SVGProps } from 'react'
 import type { IconComponent } from '../../types'
 const NeteaseYoudaoLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+    <path fill="#e01e00" d="M0 0H120V120H0z" />
     <path fill="#E01E00" d="M0 0H120V120H0z" />
     <path
       fill="#fff"

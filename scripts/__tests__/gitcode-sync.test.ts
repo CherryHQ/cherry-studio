@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -66,12 +66,28 @@ describe('GitCode sync recovery', () => {
           process.stdout.write(JSON.stringify({assets: ['CN.exe', 'Global.exe', 'latest.yml'].map(name => ({name}))}))
         }
       } else if (url.includes('/upload_url?')) {
-        process.stdout.write(JSON.stringify({url: 'https://upload.test/' + url.split('file_name=')[1], headers: {'Content-Type': 'application/octet-stream'}}))
-      } else if (method === 'PUT' && process.env.FAIL_UPLOAD === 'true') {
+        process.stdout.write(JSON.stringify({url: 'https://upload.test/' + url.split('file_name=')[1], headers: {'Content-Type': 'application/octet-stream', 'X-Asset': url.split('file_name=')[1]}}))
+      } else if (method === 'PUT' && process.env.FAIL_UPLOAD === 'true' && url.endsWith('CN.exe')) {
         process.exit(22)
-      } else if (method === 'PUT' && process.env.RETRY_UPLOAD === 'true' && !fs.existsSync('failed-once')) {
+      } else if (method === 'PUT' && url.endsWith('CN.exe') && process.env.RETRY_UPLOAD === 'true' && !fs.existsSync('failed-once')) {
         fs.writeFileSync('failed-once', '1')
         process.exit(22)
+      } else if (method === 'PUT') {
+        const headers = fs.readFileSync(args[args.indexOf('-K') + 1], 'utf8')
+        const name = url.split('/').at(-1)
+        if (!headers.includes('X-Asset: ' + name)) process.exit(23)
+        if (process.env.PARALLEL_BARRIER === 'true' && name.endsWith('.exe')) {
+          fs.writeFileSync('started-' + name, '')
+          const deadline = Date.now() + 4000
+          while (fs.readdirSync('.').filter(file => file.startsWith('started-')).length < 4) {
+            if (Date.now() > deadline) process.exit(24)
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10)
+          }
+          fs.writeFileSync('finished-' + name, '')
+        }
+        if (process.env.PARALLEL_BARRIER === 'true' && name.endsWith('.yml') &&
+            fs.readdirSync('.').filter(file => file.startsWith('finished-')).length !== 4) process.exit(25)
+        process.stdout.write('{}')
       } else process.stdout.write('{}')
     `
     )
@@ -121,7 +137,8 @@ describe('GitCode sync recovery', () => {
       expect(mutation.method).toBe(status === '404' ? 'POST' : 'PATCH')
       expect(mutation.payload.release_status).toBe('latest')
       const uploads = calls.filter((call) => call.method === 'PUT').map((call) => path.basename(call.data))
-      expect(uploads).toEqual(['CN.exe', 'CN.exe', 'Global.exe', 'latest-cn.yml', 'latest.yml', 'release-history.json'])
+      expect(uploads.slice(0, 3).sort()).toEqual(['CN.exe', 'CN.exe', 'Global.exe'])
+      expect(uploads.slice(3)).toEqual(['latest-cn.yml', 'latest.yml', 'release-history.json'])
     }
   )
 
@@ -157,7 +174,7 @@ describe('GitCode sync recovery', () => {
   it('fetches each COS attachment once and uploads installers before update manifests', () => {
     const result = run({ RELEASE_FROM_COS: 'true', RETRY_UPLOAD: 'true' })
     expect(result.status, result.stderr).toBe(0)
-    expect(readFileSync(path.join(root, 'cos-requests.txt'), 'utf8').trim().split('\n')).toEqual([
+    expect(readFileSync(path.join(root, 'cos-requests.txt'), 'utf8').trim().split('\n').sort()).toEqual([
       'cn/windows/CN.exe',
       'global/windows/Global.exe',
       'global/windows/latest.yml'
@@ -166,7 +183,27 @@ describe('GitCode sync recovery', () => {
       requests()
         .filter((call) => call.method === 'PUT')
         .map((call) => path.basename(call.data))
-    ).toEqual(['CN.exe', 'CN.exe', 'Global.exe', 'latest.yml'])
+        .slice(0, -1)
+        .sort()
+    ).toEqual(['CN.exe', 'CN.exe', 'Global.exe'])
+    expect(
+      requests()
+        .filter((call) => call.method === 'PUT')
+        .at(-1).data
+    ).toMatch(/latest\.yml$/)
+  })
+
+  it('uploads four packages concurrently before publishing any update pointer', () => {
+    for (const name of ['Third.exe', 'Fourth.exe']) writeFileSync(path.join(root, 'release-assets', name), name)
+    const result = run({ PARALLEL_BARRIER: 'true' })
+    expect(result.status, result.stderr).toBe(0)
+    expect(readdirSync(root).filter((name) => name.startsWith('finished-'))).toHaveLength(4)
+    expect(
+      requests()
+        .filter((call) => call.method === 'PUT')
+        .slice(0, 4)
+        .every((call) => call.data.endsWith('.exe'))
+    ).toBe(true)
   })
 
   it('keeps prereleases from becoming latest', () => {
@@ -180,11 +217,13 @@ describe('GitCode sync recovery', () => {
     expect(result.status, result.stderr).toBe(0)
     expect(existsSync(path.join(root, 'cos-requests.txt'))).toBe(false)
     expect(requests().some((call) => call.method === 'PUT')).toBe(false)
-    expect(readFileSync(path.join(root, 'scf-requests.txt'), 'utf8').trim().split('\n')).toEqual([
+    expect(readFileSync(path.join(root, 'scf-requests.txt'), 'utf8').trim().split('\n').slice(0, -1).sort()).toEqual([
       'cn/windows/CN.exe',
-      'global/windows/Global.exe',
-      'global/windows/latest.yml'
+      'global/windows/Global.exe'
     ])
+    expect(readFileSync(path.join(root, 'scf-requests.txt'), 'utf8').trim().split('\n').at(-1)).toBe(
+      'global/windows/latest.yml'
+    )
     expect(result.stdout).toContain('Verified 3 GitCode attachments.')
   })
 
@@ -196,7 +235,8 @@ describe('GitCode sync recovery', () => {
   it('stops after three upload failures without uploading update pointers', () => {
     expect(run({ FAIL_UPLOAD: 'true' }).status).not.toBe(0)
     const uploads = requests().filter((call) => call.method === 'PUT')
-    expect(uploads).toHaveLength(3)
+    expect(uploads.filter((call) => call.url.endsWith('CN.exe'))).toHaveLength(3)
+    expect(uploads.some((call) => call.url.endsWith('Global.exe'))).toBe(true)
     expect(uploads.every((call) => call.data.endsWith('.exe'))).toBe(true)
   })
 
@@ -213,8 +253,11 @@ it('gates mirroring on publication and keeps CN files out of the GitHub upload d
   expect(sync.if).toContain("needs.publish.result == 'success'")
   expect(sync.if).toContain("inputs.mode == 'sync-only'")
   expect(workflow.jobs.notify.if).toContain("!(inputs.mode == 'sync-only' && inputs.dry_run)")
-  expect(workflow.jobs.release['runs-on']).toContain('windows-signing')
-  const windows = workflow.jobs.release.steps.find((step: { name: string }) => step.name === 'Build Windows')
+  const target = parse(
+    readFileSync(path.resolve(import.meta.dirname, '../../.github/workflows/release-target.yml'), 'utf8')
+  )
+  expect(target.jobs.package['runs-on']).toContain('windows-signing')
+  const windows = target.jobs.package.steps.find((step: { name: string }) => step.name === 'Build Windows')
   expect(windows.env.WIN_SIGN).toBe(true)
   const finalize = workflow.jobs['finalize-build']
   const upload = finalize.steps.find((step: { name: string }) => step.name === 'Create or update draft release')
@@ -226,7 +269,7 @@ it('gates mirroring on publication and keeps CN files out of the GitHub upload d
 describe('release failure notifications', () => {
   const workflow = parse(readFileSync(path.resolve(import.meta.dirname, '../../.github/workflows/release.yml'), 'utf8'))
   const notify = workflow.jobs.notify
-  const stages = ['prepare', 'release', 'finalize-build', 'approve', 'publish', 'sync-to-gitcode']
+  const stages = ['prepare', 'release', 'release-cn', 'finalize-build', 'approve', 'publish', 'sync-to-gitcode']
 
   it.each(stages)('reports %s failure even when downstream jobs are skipped', (stage) => {
     expect(notify.needs).toContain(stage)

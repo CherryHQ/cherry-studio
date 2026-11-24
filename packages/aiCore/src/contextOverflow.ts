@@ -9,6 +9,7 @@ export function isContextOverflowMessage(message: string): boolean {
     (msg.includes('context window') && /exceed|too (?:long|large)|requested/.test(msg)) ||
     /prompt (?:is )?too long/.test(msg) ||
     msg.includes('input exceeds the context limit') ||
+    msg.includes('exceeds the available context size') ||
     (msg.includes('input is too long') && /model|context|token/.test(msg)) ||
     /input.{0,80}(?:longer than|exceeds).{0,80}context length/.test(msg) ||
     /input token count.*exceeds the maximum/.test(msg) ||

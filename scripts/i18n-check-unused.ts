@@ -397,6 +397,7 @@ export function assertNoUnusedI18nKeys(result: UnusedI18nResult, catalogName?: s
 }
 
 export function removeI18nKeys(locale: I18N, keys: string[]): I18N {
+  // oxlint-disable-next-line no-restricted-globals -- Offline cleanup copies one locale before deleting keys; no application runtime cost.
   const next = structuredClone(locale)
   for (const key of keys) {
     delete next[key]

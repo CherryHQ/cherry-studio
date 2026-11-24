@@ -51,9 +51,14 @@ describe('isolated profile environment', () => {
 })
 
 describe('owned application lifecycle', () => {
-  it.each(['exited', 'timed-out'] as const)(
-    'only permits a complete Windows profile backup after normal shutdown: %s',
-    async (outcome) => {
+  it.each([
+    ['windows', 'exited'],
+    ['macos', 'exited'],
+    ['windows', 'timed-out'],
+    ['macos', 'timed-out']
+  ] as const)(
+    'permits a complete %s profile backup only after the owned application finishes normal shutdown: %s',
+    async (platform, outcome) => {
       vi.useFakeTimers()
       const directory = mkdtempSync(join(tmpdir(), 'cherry-stopped-profile-'))
       const paths = getRunPaths(directory)
@@ -74,7 +79,7 @@ describe('owned application lifecycle', () => {
         ownership: 'regression-driver',
         policy: 'ephemeral',
         mode: 'tag',
-        platform: 'windows',
+        platform,
         profile: 'authenticated',
         runKey: 'stopped-profile',
         targetRoot: directory,
@@ -98,6 +103,8 @@ describe('owned application lifecycle', () => {
       })
       execFileSyncMock.mockImplementation((file: string, args: string[]) => {
         const script = args.at(-1) ?? ''
+        if (file === 'ps') return args.includes('command=') ? record.executablePath! : ''
+        if (file === 'lsof') return alive.has(record.electronPid) ? String(record.electronPid) : ''
         if (file === 'taskkill.exe') {
           alive.clear()
           return ''
@@ -569,7 +576,7 @@ describe('owned application lifecycle', () => {
     const runnerPid = 42_000
     const electronPid = 42_001
     const alive = new Set([runnerPid, electronPid])
-    let cdpChecks = 0
+    let cdpReleased = false
     const targetRoot = 'D:\\target-app'
     const record: AppRecord = {
       schemaVersion: 1,
@@ -600,13 +607,14 @@ describe('owned application lifecycle', () => {
     execFileSyncMock.mockImplementation((file: string, args: string[]) => {
       const script = String(args.at(-1))
       if (file === 'taskkill.exe') {
-        if (Number(args[1]) === runnerPid) alive.clear()
-        else alive.delete(Number(args[1]))
+        if (Number(args[1]) === runnerPid) {
+          alive.clear()
+          setTimeout(() => (cdpReleased = true), 40_000)
+        } else alive.delete(Number(args[1]))
         return ''
       }
       if (script.includes('Get-NetTCPConnection')) {
-        cdpChecks += 1
-        return alive.has(electronPid) || cdpChecks === 2 ? String(electronPid) : ''
+        return script.includes('9222') && !cdpReleased ? String(electronPid) : ''
       }
       if (script.includes('CommandLine')) {
         return script.includes(String(electronPid))
@@ -617,8 +625,11 @@ describe('owned application lifecycle', () => {
       throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
     })
 
+    vi.useFakeTimers()
     try {
-      await stopOwnedApp(paths)
+      const stopped = expect(stopOwnedApp(paths)).resolves.toBeUndefined()
+      await vi.runAllTimersAsync()
+      await stopped
       expect(execFileSyncMock).not.toHaveBeenCalledWith(
         'taskkill.exe',
         ['/PID', String(electronPid), '/T', '/F'],
@@ -630,7 +641,6 @@ describe('owned application lifecycle', () => {
         expect.anything()
       )
       expect([...alive]).toEqual([])
-      expect(cdpChecks).toBeGreaterThan(2)
     } finally {
       rmSync(directory, { force: true, recursive: true })
     }

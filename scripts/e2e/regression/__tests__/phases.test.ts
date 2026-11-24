@@ -9,6 +9,7 @@ import { vi } from 'vitest'
 
 import { createFixtures } from '../fixtureFiles'
 import * as lifecycle from '../lifecycle'
+import { startMockProvider, stopMockProvider } from '../mockProvider'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 import { runPhase } from '../phases'
 import { completeE2eCase, createRun, getRunVerdict, readRun, updatePhase, writeRun } from '../state'
@@ -35,6 +36,20 @@ it('keeps the shared application available across selected phases', async () => 
       { phase: 'basicFeatures', id: 'N-01' }
     ] as const
     let invocation = 0
+    writeRun(
+      paths.runState,
+      createRun({
+        appVersion: 'test',
+        mockVersion: '1.46.0',
+        commitSha: 'sha',
+        mode: 'branch',
+        platform: 'macos',
+        ref: 'main',
+        runner: 'local',
+        task: 'startup-smoke,notes-smoke'
+      })
+    )
+    await startMockProvider(paths)
     spawn.mockImplementation(() => {
       const child = new EventEmitter()
       const { phase, id } = phases[invocation++]
@@ -53,24 +68,13 @@ it('keeps the shared application available across selected phases', async () => 
       })
       return child as childProcess.ChildProcess
     })
-    writeRun(
-      paths.runState,
-      createRun({
-        appVersion: 'test',
-        commitSha: 'sha',
-        mode: 'branch',
-        platform: 'macos',
-        ref: 'main',
-        runner: 'local',
-        task: 'startup-smoke,notes-smoke'
-      })
-    )
     await runPhase(paths, 'startup')
     await runPhase(paths, 'basicFeatures')
-    expect(getRunVerdict(readRun(paths.runState))).toBe('development_pass')
+    expect(getRunVerdict(readRun(paths.runState))).toBe('mock_pass')
     expect(await (await fetch(`http://127.0.0.1:${port}/`)).text()).toBe('owned application')
   } finally {
     spawn.mockImplementation(originalSpawn)
+    await stopMockProvider(paths)
     vi.restoreAllMocks()
     await close()
     process.exitCode = exitCode
@@ -89,6 +93,7 @@ it('fails the platform gate when the real Playwright subprocess cannot acquire i
       paths.runState,
       createRun({
         appVersion: 'development',
+        mockVersion: '1.46.0',
         commitSha: 'sha',
         mode: 'branch',
         platform: 'macos',
@@ -97,13 +102,15 @@ it('fails the platform gate when the real Playwright subprocess cannot acquire i
         task: 'startup-smoke'
       })
     )
+    await startMockProvider(paths)
     await runPhase(paths, 'startup')
     const run = readRun(paths.runState)
     expect(run.cases['S-01'].status).toBe('failed')
     expect(run.phases['startup'].status).toBe('failed')
-    expect(getRunVerdict(run)).toBe('development_failed')
+    expect(getRunVerdict(run)).toBe('mock_failed')
     expect(process.exitCode).toBe(1)
   } finally {
+    await stopMockProvider(paths)
     process.exitCode = exitCode
     rmSync(directory, { recursive: true, force: true })
   }

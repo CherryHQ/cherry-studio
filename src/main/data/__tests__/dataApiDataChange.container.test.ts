@@ -1,5 +1,3 @@
-import { afterAll, describe, expect, it, vi } from 'vitest'
-
 /**
  * Real-ServiceContainer smoke test for notifyDataApiDataChange.
  *
@@ -13,6 +11,8 @@ import { afterAll, describe, expect, it, vi } from 'vitest'
  *   resolution, and
  * - a future refactor to getOptional() fails loudly.
  */
+import { afterAll, describe, expect, it, vi } from 'vitest'
+
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'
 

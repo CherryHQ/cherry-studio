@@ -9,7 +9,7 @@ const Deepcogito = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const DeepcogitoIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Deepcogito, {
   Avatar: DeepcogitoAvatar,
-  colorPrimary: '#4E81EE'
+  colorPrimary: '#eff4fd'
 })
 
 export default DeepcogitoIcon

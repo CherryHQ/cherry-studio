@@ -1,13 +1,8 @@
 export { agentAdapter, useAgentMutations, useAgentMutationsById } from './agentAdapter'
 export { assistantAdapter, useAssistantMutationsById, useImportAssistantMutation } from './assistantAdapter'
-export {
-  promptAdapter,
-  usePromptBindingMutations,
-  usePromptMutations,
-  usePromptMutationsById,
-  usePromptTargetMutations
-} from './promptAdapter'
+export { promptAdapter, usePromptMutations, usePromptMutationsById, usePromptTargetMutations } from './promptAdapter'
 export { skillAdapter, useSkillMutationsById } from './skillAdapter'
 export type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
+export { type AutoConfigProgressView, useResourceAutoConfigure } from './useResourceAutoConfigure'
 export { useResourceCatalogController } from './useResourceCatalogController'
 export { useResourceLibrary, type UseResourceLibraryOptions, type UseResourceLibraryResult } from './useResourceLibrary'

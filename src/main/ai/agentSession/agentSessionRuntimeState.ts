@@ -34,6 +34,8 @@ export interface AgentSessionRuntimeConnectionOccupancy {
   background?: { responder: 'interactive' | 'headless' }
   /** A context rewrite is in flight; it holds the session busy and the topic stream alive. */
   compaction?: true
+  /** A user Stop awaits native confirmation; later input queues behind it. */
+  stopping?: true
 }
 
 export type AgentSessionRuntimeConnectionState =
@@ -109,7 +111,7 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn> =
   | { type: 'launch-resumed' }
   | {
       type: 'connection-occupancy'
-      occupancy: 'background' | 'compaction'
+      occupancy: 'background' | 'compaction' | 'stopping'
       active: boolean
       responder?: 'interactive' | 'headless'
     }
@@ -230,7 +232,8 @@ function advance<TTurn, TPendingTurn>(
   if (state.launch.kind !== 'idle') return { state, effects }
   execution = state.execution
   let target: AgentSessionRuntimeLaunchTarget<TTurn> | undefined
-  if (execution.kind === 'idle' && state.queue.length) target = { kind: 'queued-turn' }
+  if (execution.kind === 'idle' && state.queue.length && !isAgentSessionRuntimeStopping(state))
+    target = { kind: 'queued-turn' }
   if (
     execution.kind === 'turn' ||
     (execution.kind === 'autonomous-turn' &&
@@ -283,8 +286,17 @@ function reduce<TTurn, TPendingTurn>(
         ? { state: { ...state, execution: { kind: 'turn', reply: execution.reply } }, effects: [] }
         : { state, effects: [] }
     case 'steer-boundary': {
-      if (execution.kind !== 'turn' && execution.kind !== 'idle') return invalid(state, event)
-      const successor = reply(event.turn)
+      if (execution.kind === 'steer-transition') return invalid(state, event)
+      // Native work answers queued input after its own: the deferred user turn resumes, or a placed input starts.
+      if (
+        execution.kind === 'autonomous-turn' &&
+        ((execution.deferred && execution.deferred.turn !== event.turn) ||
+          // An unopened source has no stream to settle, so rolling away from it would never persist it.
+          !['open', 'awaiting-persistence', 'settled'].includes(execution.reply.delivery.kind))
+      )
+        return invalid(state, event)
+      const successor =
+        execution.kind === 'autonomous-turn' && execution.deferred ? execution.deferred : reply(event.turn)
       if (execution.kind === 'idle')
         return { state: { ...state, execution: { kind: 'turn', reply: successor } }, effects: [] }
       const source = execution.reply
@@ -515,11 +527,12 @@ function reduce<TTurn, TPendingTurn>(
         // without a connection is a protocol violation worth logging.
         return event.active ? invalid(state, event) : { state, effects: [] }
       }
-      if (event.occupancy === 'compaction') {
-        if (event.active === (connection.occupancy.compaction === true)) return { state, effects: [] }
+      if (event.occupancy !== 'background') {
+        const key = event.occupancy
+        if (event.active === (connection.occupancy[key] === true)) return { state, effects: [] }
         const occupancy = { ...connection.occupancy }
-        if (event.active) occupancy.compaction = true
-        else delete occupancy.compaction
+        if (event.active) occupancy[key] = true
+        else delete occupancy[key]
         return { state: { ...state, connection: { ...connection, occupancy } }, effects: [] }
       }
       if (event.active) {
@@ -677,6 +690,12 @@ export function isAgentSessionRuntimeCompacting<TTurn, TPendingTurn>(
   return getAgentSessionRuntimeOccupancy(state)?.compaction === true
 }
 
+export function isAgentSessionRuntimeStopping<TTurn, TPendingTurn>(
+  state: AgentSessionRuntimeState<TTurn, TPendingTurn>
+): boolean {
+  return getAgentSessionRuntimeOccupancy(state)?.stopping === true
+}
+
 export function isAgentSessionRuntimeTransitioning<TTurn, TPendingTurn>(
   state: AgentSessionRuntimeState<TTurn, TPendingTurn>
 ): boolean {
@@ -712,6 +731,7 @@ export function isAgentSessionRuntimeBusy<TTurn, TPendingTurn>(
 ): boolean {
   return (
     isAgentSessionRuntimeCompacting(state) ||
+    isAgentSessionRuntimeStopping(state) ||
     state.launch.kind !== 'idle' ||
     state.queue.length > 0 ||
     state.execution.kind !== 'idle'
