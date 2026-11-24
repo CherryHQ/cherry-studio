@@ -296,6 +296,51 @@ export class JobManager extends BaseService {
     return this.pauseHolds.size > 0 || this.releaseBarrierHeld
   }
 
+  /**
+   * Per-queue claim holds (see {@link suspendQueue}): nested hold count per
+   * queue name. A suspended queue claims nothing; running executions are
+   * untouched. Unlike the global autonomy pause, request-driven surfaces keep
+   * working and other queues keep dispatching.
+   */
+  private readonly queueSuspensions = new Map<string, number>()
+
+  /**
+   * Holds dispatch of one queue: restores use this to wait out in-flight
+   * archive packs while keeping queued packs replayable until activation
+   * commits (issue #21645). Holds nest; when the last hold disposes the queue
+   * gets one dispatch kick, mirroring the pause-release compensation.
+   */
+  suspendQueue(queueName: string): Disposable {
+    this.queueSuspensions.set(queueName, (this.queueSuspensions.get(queueName) ?? 0) + 1)
+    let disposed = false
+    return {
+      dispose: () => {
+        if (disposed) return
+        disposed = true
+        const remaining = (this.queueSuspensions.get(queueName) ?? 1) - 1
+        if (remaining <= 0) {
+          this.queueSuspensions.delete(queueName)
+          void this.dispatch(queueName)
+        } else {
+          this.queueSuspensions.set(queueName, remaining)
+        }
+      }
+    }
+  }
+
+  private isQueueSuspended(queueName: string): boolean {
+    return (this.queueSuspensions.get(queueName) ?? 0) > 0
+  }
+
+  /**
+   * True when this process's executor owns the job's current running attempt.
+   * A `running` row without local ownership is a prior-process leftover whose
+   * pack is not actually running here (issue #21645).
+   */
+  isExecutingLocally(jobId: string): boolean {
+    return this.inFlightExecuted.has(jobId)
+  }
+
   // ---------------- Lifecycle ----------------
 
   protected override onInit(): void {
@@ -1699,10 +1744,11 @@ export class JobManager extends BaseService {
    * @param queueName - Queue identifier (from `jobTable.queue`); no-op if the queue is unknown
    */
   async dispatch(queueName: string): Promise<void> {
-    // Autonomy gate (pause hold or post-release barrier) and shutdown gate:
-    // claiming is the only path that starts an execution, and a claim after
-    // the drain snapshot would start work the shutdown cannot await.
-    if (this.isAutonomySuspended || this._isShuttingDown) return
+    // Autonomy gate (pause hold or post-release barrier), shutdown gate and
+    // the per-queue suspension: claiming is the only path that starts an
+    // execution, and a claim after the drain snapshot would start work the
+    // shutdown cannot await.
+    if (this.isAutonomySuspended || this._isShuttingDown || this.isQueueSuspended(queueName)) return
     const queue = this.queues.get(queueName)
     if (!queue) return
 
@@ -1719,9 +1765,10 @@ export class JobManager extends BaseService {
       // then blocked here is not in `inFlightExecuted`, so drainInFlight can
       // return before it wakes — an entry-only gate would let it claim AFTER
       // the drain verdict. No await sits between this check and the claim tx,
-      // so nothing can interleave on the single thread. The shutdown gate is
-      // re-checked for the same reason (issue #21645).
-      if (this.isAutonomySuspended || this._isShuttingDown) return
+      // so nothing can interleave on the single thread. The shutdown and
+      // per-queue suspension gates are re-checked for the same reason (issue
+      // #21645).
+      if (this.isAutonomySuspended || this._isShuttingDown || this.isQueueSuspended(queueName)) return
       const dbService = application.get('DbService')
       claimed = dbService.withWriteTx((tx) => {
         const queueRunning = jobService.countRunningByQueueTx(tx, queueName)

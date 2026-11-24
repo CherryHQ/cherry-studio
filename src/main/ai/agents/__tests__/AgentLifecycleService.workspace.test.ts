@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => ({
   closeSessionForArchive: vi.fn().mockResolvedValue(undefined),
   enqueueTx: vi.fn(),
   cancelJob: vi.fn().mockResolvedValue({ outcome: 'cancelled' }),
+  suspendQueue: vi.fn(() => ({ dispose: vi.fn() })),
+  isExecutingLocally: vi.fn().mockReturnValue(true),
   pauseDispose: vi.fn()
 }))
 
@@ -63,7 +65,9 @@ vi.mock('@application', async () => {
       syncJobScheduleTimerById: () => {},
       enqueue: (type: string, input: unknown, opts: unknown) => mocks.enqueueTx(undefined, type, input, opts),
       enqueueTx: mocks.enqueueTx,
-      cancel: mocks.cancelJob
+      cancel: mocks.cancelJob,
+      suspendQueue: mocks.suspendQueue,
+      isExecutingLocally: mocks.isExecutingLocally
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -117,6 +121,13 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
 
   beforeEach(() => {
     mocks.enqueueTx.mockReset()
+    mocks.suspendQueue.mockClear().mockReturnValue({ dispose: vi.fn() })
+    // Mirror the real JobManager contract: a row 'running' in the table has a
+    // live local executor only while it is actually running here.
+    mocks.isExecutingLocally.mockReset().mockImplementation((id: string) => {
+      const row = dbh.db.select().from(jobTable).where(eq(jobTable.id, id)).get()
+      return row?.status === 'running'
+    })
     mocks.cancelJob.mockClear()
     mocks.pauseDispose.mockClear()
   })
@@ -1051,6 +1062,38 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     }
     expect(Date.now() - started).toBeLessThan(2_000)
     expect(mocks.cancelJob).toHaveBeenCalledTimes(1)
+    expect(sessionDeletedAt()).toBeNull()
+  })
+
+  it('keeps a queued archive task replayable when the restore activation rolls back', async () => {
+    // The queued pack is cancelled only after activation commits: a rollback
+    // leaves the session archived, and the task must survive to pack it later.
+    await lifecycle.archiveSessions(['system'])
+    seedArchiveJob('pending')
+    await writeFile(`${workspacePath(root, 'system')}.tar.gz`, 'corrupt')
+    await expect(lifecycle.restoreSession('system')).rejects.toThrow()
+    expect(mocks.cancelJob).not.toHaveBeenCalled()
+    const row = dbh.db
+      .select()
+      .from(jobTable)
+      .where(eq(jobTable.idempotencyKey, 'archive-system-workspace:system'))
+      .get()
+    expect(row?.status).toBe('pending')
+    expect(
+      dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+    ).not.toBeNull()
+  })
+
+  it('does not wait behind a stale running archive row left by a prior process', async () => {
+    // A 'running' row whose pack died with a previous process holds no storage
+    // reservation here; startup recovery re-queues it shortly, so undo must not
+    // stall on the recovery poll.
+    await lifecycle.archiveSessions(['system'])
+    seedArchiveJob('running')
+    mocks.isExecutingLocally.mockReturnValue(false)
+    const started = Date.now()
+    await lifecycle.restoreSession('system')
+    expect(Date.now() - started).toBeLessThan(2_000)
     expect(sessionDeletedAt()).toBeNull()
   })
 

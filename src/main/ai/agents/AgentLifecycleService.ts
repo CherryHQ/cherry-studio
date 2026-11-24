@@ -97,24 +97,32 @@ export class AgentLifecycleService extends BaseService {
           const workspaces = agentSessionService
             .listSystemWorkspaceSessions(agentSessionService.listIdsByAgent(agentId))
             .filter((workspace) => workspace.deletedAt !== null && workspace.deletedAt === workspace.agentDeletedAt)
-          await this.settlePendingWorkspaceArchives(workspaces)
-          const { agent, scheduleIds, restoredSessionIds } = await agentWorkspaceStorageService.restoreWorkspaces(
-            workspaces,
-            () =>
-              application.get('DbService').withWriteTx((tx) => {
-                const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId)
-                return {
-                  agent,
-                  restoredSessionIds,
-                  scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, 'active', Date.now()).scheduleIds
-                }
-              })
-          )
-          this.syncSchedules(scheduleIds)
-          application.get('ChannelManager').reconcileAgent(agentId)
-          agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
-          agentService.notifyReadModelChange([agentId], 'membership')
-          return agent
+          const archiveHold = this.acquireWorkspaceArchiveHold(workspaces)
+          try {
+            await this.settlePendingWorkspaceArchives(workspaces)
+            const { agent, scheduleIds, restoredSessionIds } = await agentWorkspaceStorageService.restoreWorkspaces(
+              workspaces,
+              () =>
+                application.get('DbService').withWriteTx((tx) => {
+                  const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId)
+                  return {
+                    agent,
+                    restoredSessionIds,
+                    scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, 'active', Date.now()).scheduleIds
+                  }
+                })
+            )
+            // Cancel the queued packs only after activation committed (see
+            // restoreSession; issue #21645).
+            await this.cancelQueuedWorkspaceArchives(workspaces, 'Workspace restored before its archive ran')
+            this.syncSchedules(scheduleIds)
+            application.get('ChannelManager').reconcileAgent(agentId)
+            agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
+            agentService.notifyReadModelChange([agentId], 'membership')
+            return agent
+          } finally {
+            archiveHold?.dispose()
+          }
         })
       )
     )
@@ -172,8 +180,20 @@ export class AgentLifecycleService extends BaseService {
         const workspaces = agentSessionService
           .listSystemWorkspaceSessions([id])
           .filter((workspace) => workspace.deletedAt !== null)
-        await this.settlePendingWorkspaceArchives(workspaces)
-        return agentWorkspaceStorageService.restoreWorkspaces(workspaces, () => agentSessionService.restore(id))
+        const archiveHold = this.acquireWorkspaceArchiveHold(workspaces)
+        try {
+          await this.settlePendingWorkspaceArchives(workspaces)
+          const restored = await agentWorkspaceStorageService.restoreWorkspaces(workspaces, () =>
+            agentSessionService.restore(id)
+          )
+          // Cancel the queued packs only after activation committed: a rollback
+          // leaves them replayable so the still-archived session packs later
+          // (issue #21645).
+          await this.cancelQueuedWorkspaceArchives(workspaces, 'Workspace restored before its archive ran')
+          return restored
+        } finally {
+          archiveHold?.dispose()
+        }
       })
     )
   }
@@ -566,32 +586,36 @@ export class AgentLifecycleService extends BaseService {
   }
 
   /**
-   * Undo side of the background workspace archive (issue #21645): before a
-   * restore reactivates archived workspaces, cancel each workspace's queued
-   * `agent.archive-system-workspace` task, or — when the compression is already
-   * running — wait for the task to finish. The restore then proceeds only after
-   * the storage operation has ended, so a stale task can never archive a
-   * restored workspace (the handler's business-state re-read is the backstop).
+   * Undo side of the background workspace archive (issue #21645): while a
+   * restore reactivates archived workspaces, hold the archive queue
+   * ({@link acquireWorkspaceArchiveHold}) so queued packs cannot be claimed,
+   * wait out any pack running in this process (an in-flight compression is
+   * never aborted mid-pack), then let the caller cancel the still-queued tasks
+   * after activation commits ({@link cancelQueuedWorkspaceArchives}). A queued
+   * task is cancelled only after the restore commits: on rollback it stays
+   * replayable so the still-archived workspace is packed later (the handler's
+   * business-state re-read is the backstop).
+   *
+   * One deadline covers the whole settle batch: workspaces archived together
+   * pack together, so each one getting a fresh deadline would let a restore
+   * outlive the documented wait bound by a multiple of the workspace count.
    */
-  private async settlePendingWorkspaceArchives(
-    workspaces: Array<{ id: string; path: string }>,
-    cancelReason = 'Workspace restored before its archive ran'
-  ): Promise<void> {
+  private async settlePendingWorkspaceArchives(workspaces: Array<{ id: string; path: string }>): Promise<void> {
+    const deadline = Date.now() + AgentLifecycleService.ARCHIVE_RESTORE_WAIT_TIMEOUT_MS
     for (const workspace of workspaces) {
       let active = jobService.findActiveByIdempotencyKey(ARCHIVE_SYSTEM_WORKSPACE_JOB_KEY_PREFIX + workspace.id)
       if (!active) continue
       // Resolved lazily: a restore with no queued archive never touches the job runtime.
       const jobManager = application.get('JobManager')
-      // An archive in flight is not aborted mid-pack: wait for the running task
-      // (and with it the per-workspace storage reservation) to settle. A task
-      // that is only waiting (pending/delayed, including a failed run re-queued
-      // for retry) holds no storage operation, so it is cancelled instead.
-      const deadline = Date.now() + AgentLifecycleService.ARCHIVE_RESTORE_WAIT_TIMEOUT_MS
       for (;;) {
-        if (active.status !== 'running') {
-          await jobManager.cancel(active.id, cancelReason)
-          break
-        }
+        // Wait only for a pack running in this process: it holds the
+        // per-workspace storage reservation. A 'running' row from a prior
+        // process has no live pack here (the reservation died with it) and
+        // startup recovery re-queues it shortly, so waiting behind it would
+        // stall the restore on the recovery poll instead. Queued/delayed rows
+        // hold no storage operation and stay held (never cancelled) until the
+        // restore commits.
+        if (active.status !== 'running' || !jobManager.isExecutingLocally(active.id)) break
         if (Date.now() >= deadline) {
           throw DataApiErrorFactory.conflict(
             'Workspace archive is still in progress; retry the restore shortly',
@@ -602,6 +626,42 @@ export class AgentLifecycleService extends BaseService {
         const current = jobService.getById(active.id)
         if (!current || !['running', 'pending', 'delayed'].includes(current.status)) break
         active = current
+      }
+    }
+  }
+
+  /**
+   * Suspends claims on the archive queue while a restore (or purge) settles
+   * and reactivates workspaces, so a queued pack cannot start against a
+   * workspace mid-restore. Returns undefined when no workspace has an active
+   * archive row: a restore with no queued archive never touches the job
+   * runtime. Dispose the hold once the operation finishes (commit or
+   * rollback); disposing kicks dispatch, so tasks kept for rollback replay
+   * are claimed normally afterwards.
+   */
+  private acquireWorkspaceArchiveHold(workspaces: Array<{ id: string; path: string }>): Disposable | undefined {
+    const hasActiveArchive = workspaces.some((workspace) =>
+      jobService.findActiveByIdempotencyKey(ARCHIVE_SYSTEM_WORKSPACE_JOB_KEY_PREFIX + workspace.id)
+    )
+    return hasActiveArchive ? application.get('JobManager').suspendQueue('agent.workspace-archive') : undefined
+  }
+
+  /**
+   * Cancels each workspace's queued `agent.archive-system-workspace` task
+   * after the caller's operation (restore or purge) committed. Rows running
+   * in this process are left to settle on their own (an in-flight pack is
+   * never aborted mid-pack); the handler's business-state re-read skips a
+   * pack whose workspace is no longer archived.
+   */
+  private async cancelQueuedWorkspaceArchives(
+    workspaces: Array<{ id: string; path: string }>,
+    cancelReason: string
+  ): Promise<void> {
+    const jobManager = application.get('JobManager')
+    for (const workspace of workspaces) {
+      const active = jobService.findActiveByIdempotencyKey(ARCHIVE_SYSTEM_WORKSPACE_JOB_KEY_PREFIX + workspace.id)
+      if (active && !jobManager.isExecutingLocally(active.id)) {
+        await jobManager.cancel(active.id, cancelReason)
       }
     }
   }
@@ -620,13 +680,17 @@ export class AgentLifecycleService extends BaseService {
     // one — so the purge below actually reclaims the directory. A settle that
     // times out keeps the old fallback: purge skips and the orphan sweep
     // reclaims the directory later.
+    const archiveHold = this.acquireWorkspaceArchiveHold(workspaces)
     try {
-      await this.settlePendingWorkspaceArchives(workspaces, 'Workspace permanently deleted before its archive ran')
+      await this.settlePendingWorkspaceArchives(workspaces)
+      await this.cancelQueuedWorkspaceArchives(workspaces, 'Workspace permanently deleted before its archive ran')
     } catch (error) {
       logger.warn('Workspace archive still in progress during permanent delete; purge may defer to orphan sweep', {
         workspacePaths: workspaces.map(({ path }) => path),
         error
       })
+    } finally {
+      archiveHold?.dispose()
     }
     const deferred: string[] = []
     for (const workspace of workspaces) {

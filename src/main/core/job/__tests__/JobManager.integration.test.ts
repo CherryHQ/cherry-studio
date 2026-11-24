@@ -1013,6 +1013,64 @@ describe('JobManager integration', () => {
     })
   })
 
+  describe('queue suspension and local execution probe', () => {
+    it('suspendQueue holds claims until the last nested hold disposes', async () => {
+      let ran = 0
+      const handler: JobHandler = {
+        recovery: 'abandon',
+        defaultQueue: () => 'suspend.me',
+        async execute() {
+          ran++
+          return { ok: true }
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({ handlers: [['suspend.target', handler]] })
+
+      const holdA = jobManager.suspendQueue('suspend.me')
+      const holdB = jobManager.suspendQueue('suspend.me')
+      jobManager.enqueue('suspend.target' as never, {} as never)
+      await drainAllQueues(jobManager)
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(ran).toBe(0)
+
+      holdA.dispose()
+      await drainAllQueues(jobManager)
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      // Nested hold still active: no claim.
+      expect(ran).toBe(0)
+
+      holdB.dispose()
+      // Disposing the last hold kicks dispatch.
+      await vi.waitFor(() => expect(ran).toBe(1))
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('isExecutingLocally tracks the in-flight executor set', async () => {
+      const release = Promise.withResolvers<void>()
+      const handler: JobHandler = {
+        recovery: 'abandon',
+        async execute() {
+          await release.promise
+          return { ok: true }
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({ handlers: [['executing.probe', handler]] })
+
+      expect(jobManager.isExecutingLocally('missing-job')).toBe(false)
+      const handle = jobManager.enqueue('executing.probe' as never, {} as never)
+      await vi.waitFor(() => expect(jobManager.isExecutingLocally(handle.id)).toBe(true))
+      release.resolve()
+      await handle.finished
+      // The executor set entry is dropped as the run unwinds after settle.
+      await vi.waitFor(() => expect(jobManager.isExecutingLocally(handle.id)).toBe(false))
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
   describe('Layer 0 + Layer 1 mutex serialization', () => {
     it('handles 20 queues firing in parallel without SQLITE_BUSY', async () => {
       const { scheduler, jobManager } = await bootstrapManager({
