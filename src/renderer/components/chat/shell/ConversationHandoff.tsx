@@ -83,7 +83,9 @@ export function ConversationHandoff({ sessionId, modelId, hasMessages, percentag
     setBusy(true)
     try {
       await onNewTopic({
-        assistantId,
+        // Explicit null keeps a handoff from an unlinked topic unlinked;
+        // undefined would let the new-topic resolver pick an assistant.
+        assistantId: assistantId ?? null,
         handoffDraft: {
           text: '',
           tokens: [

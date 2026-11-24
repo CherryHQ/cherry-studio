@@ -66,6 +66,18 @@ describe('ConversationHandoff', () => {
     expect(payload?.handoffDraft?.tokens[0]?.id).toBe(`file:${payload?.handoffDraft?.files[0]?.fileTokenSourceId}`)
     expect(save).not.toHaveBeenCalled()
   })
+  it('keeps a handoff from an unlinked topic unlinked in the new-topic payload', async () => {
+    const onNewTopic = vi.fn<(payload?: AddNewTopicPayload) => Promise<void>>(async () => undefined)
+    render(<ConversationHandoff sessionId="old" modelId={modelId} hasMessages onNewTopic={onNewTopic} />)
+    fireEvent.click(screen.getByText('handoff.create'))
+    fireEvent.click(screen.getByText('handoff.generate'))
+    fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'Edited handoff' } })
+    fireEvent.click(screen.getByText('handoff.new'))
+    await waitFor(() => expect(onNewTopic).toHaveBeenCalledTimes(1))
+    // Explicit null, never undefined: the resolver must not link a route,
+    // last-used or first assistant to an unlinked source topic.
+    expect(onNewTopic.mock.calls[0][0]?.assistantId).toBeNull()
+  })
   it('ignores late generation after cancel and aborts the request', async () => {
     let resolve!: (value: string) => void
     vi.mocked(ipcApi.request).mockImplementationOnce(
