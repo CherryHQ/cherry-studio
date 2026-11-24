@@ -180,7 +180,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   const confirmModelsDeleted = useCallback(
     async (modelIds: readonly UniqueModelId[]) => {
       try {
-        const refreshedModels = (await refetchModels()) as readonly Model[] | undefined
+        const refreshedModels = await refetchModels()
 
         if (!refreshedModels) return false
 
