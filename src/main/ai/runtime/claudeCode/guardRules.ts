@@ -46,14 +46,14 @@ export const GLOBAL_INSTALL_PLAN_DENIAL =
 export const GLOBAL_INSTALL_UNATTENDED_DENIAL =
   'Global package installation requires approval and cannot run without a responder. Retry interactively or use Full Access.'
 
-export const WORKSPACE_PATH_FIELDS = {
-  Edit: 'file_path',
-  Glob: 'path',
-  Grep: 'path',
-  NotebookEdit: 'notebook_path',
-  Read: 'file_path',
-  Write: 'file_path'
-} as const
+export const WORKSPACE_PATH_FIELDS: ReadonlyMap<string, string> = new Map([
+  ['Edit', 'file_path'],
+  ['Glob', 'path'],
+  ['Grep', 'path'],
+  ['NotebookEdit', 'notebook_path'],
+  ['Read', 'file_path'],
+  ['Write', 'file_path']
+])
 
 /**
  * Runtime boundary format for the snapshot's auto-allow exceptions. The maintained source is the
@@ -112,7 +112,7 @@ const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
 }
 
 const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
-  const pathField = WORKSPACE_PATH_FIELDS[ctx.toolName as keyof typeof WORKSPACE_PATH_FIELDS]
+  const pathField = WORKSPACE_PATH_FIELDS.get(ctx.toolName)
 
   if (!pathField) return null
   const requestedPath = ctx.input?.[pathField]

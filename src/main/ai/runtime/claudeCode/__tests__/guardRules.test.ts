@@ -549,6 +549,12 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       await rm(root, { recursive: true, force: true })
     })
 
+    it.each(['constructor', 'toString', '__proto__'])('does not treat %s as a native file tool', async (toolName) => {
+      const input = { [String(Reflect.get(Object.prototype, toolName))]: path.join(root, 'outside.txt') }
+
+      await expect(evaluate(makeCtx({ toolName, cwd, agentDataPath, input }))).resolves.toBeUndefined()
+    })
+
     it('asks (soft) for a file-tool path outside the allowed roots', async () => {
       const decision = await evaluate(
         makeCtx({ toolName: 'Read', cwd, agentDataPath, input: { file_path: path.join(root, 'outside.txt') } })
