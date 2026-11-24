@@ -17,8 +17,7 @@ import {
   type ArtifactList
 } from '@shared/data/api/schemas/artifacts'
 import { type FileHandle, FileEntryIdSchema } from '@shared/data/types/file'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { createFileEntryHandle, createFilePathHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
+import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
 
 import { ProfilePaneSection } from './ProfilePaneParts'
 
@@ -72,6 +71,7 @@ export function AssistantOutputs({ assistantId }: { assistantId: string }) {
     swrOptions: { keepPreviousData: true }
   })
   useDataChange('/assistants/:id/artifacts', () => void refetch(), { routeParams: { id: assistantId } })
+  useDataChange('/files/entries', () => void refetch())
 
   return (
     <OutputsList
@@ -237,13 +237,11 @@ function OutputThumb({ kind, extension }: { kind: ArtifactKind; extension: strin
   )
 }
 
-/** Outputs whose file is gone; checked once per listed set, so a deleted file shows as unavailable. */
+/** Managed files may be checked without visiting model-supplied paths. */
 function useMissingOutputs(items: readonly ArtifactEntity[]): ReadonlySet<string> {
   const handles = items.flatMap((item): { key: string; handle: FileHandle }[] => {
     const entryId = FileEntryIdSchema.safeParse(item.fileEntryId)
-    if (entryId.success) return [{ key: item.id, handle: createFileEntryHandle(entryId.data) }]
-    const path = AbsoluteFilePathSchema.safeParse(item.path)
-    return path.success ? [{ key: item.id, handle: createFilePathHandle(path.data) }] : []
+    return entryId.success ? [{ key: item.id, handle: createFileEntryHandle(entryId.data) }] : []
   })
   const { data } = useSWR(
     handles.length ? ['profile-outputs-metadata', handles.map((item) => item.key).join(',')] : null,
