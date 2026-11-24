@@ -1,0 +1,4 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# Reviewed English and Simplified Chinese together; fingerprints are Git blob hashes.
+2026-11-24-composer-tool-dependency-contract.md: 4570fc5f36b11423bfed143a642be44548713bff
+2026-11-24-composer-tool-dependency-contract.zh.md: 419db9397abcf60a80641dc5c6b5aab9f7109082
