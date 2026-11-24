@@ -33,6 +33,7 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
@@ -259,6 +260,8 @@ export function useHomeMessageListProviderValue({
     getDoctorSubject,
     selectAllPagination
   })
+  // The conversation's current Assistant / Agent, not the snapshot each message header shows.
+  const toggleAuthorProfile = useProfilePaneToggle()?.toggle
 
   useEffect(() => {
     if (!assistant) return
@@ -861,7 +864,7 @@ export function useHomeMessageListProviderValue({
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
       navigateToRoute,
-      ...pickMessageHeaderActions(headerCapabilities),
+      ...pickMessageHeaderActions({ ...headerCapabilities, toggleAuthorProfile }),
       removeMessageErrorPart,
       openPath,
       openCitationsPanel,
@@ -903,6 +906,7 @@ export function useHomeMessageListProviderValue({
       exportActions,
       errorActions,
       headerCapabilities,
+      toggleAuthorProfile,
       leafCapabilities,
       navigateToRoute,
       loadOlder,

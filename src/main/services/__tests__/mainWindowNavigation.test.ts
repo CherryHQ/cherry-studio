@@ -358,6 +358,43 @@ describe('mainWindowNavigation', () => {
       expect(backgroundWindow.focus).not.toHaveBeenCalled()
     })
 
+    it('delivers an update handoff retried after a transient main-frame load without another mount', () => {
+      let loading = true
+      const mainWindow = {
+        ...focusedWindow,
+        webContents: { isLoadingMainFrame: () => loading, isCrashed: () => false }
+      }
+      windowManagerMock.getWindowsByType.mockReturnValue([mainWindow])
+      windowManagerMock.getWindow.mockReturnValue(mainWindow)
+      markMainRendererReadyForTabAttach('main-1')
+      setMainSurfaceReceiver('update', true)
+
+      expect(deliverToReadyMain('app.updater.run_check', undefined)).toBe(false)
+      loading = false
+
+      expect(deliverToReadyMain('app.updater.run_check', undefined)).toBe(true)
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'app.updater.run_check', undefined)
+    })
+
+    it('leaves tab delivery ready when a handoff is refused during a main-frame load', () => {
+      const tab = { id: 'returned-tab' } as Parameters<typeof openTabInMainWindow>[0]
+      const loadingWindow = {
+        ...focusedWindow,
+        webContents: { isLoadingMainFrame: () => true, isCrashed: () => false }
+      }
+      windowManagerMock.getWindowsByType.mockReturnValue([loadingWindow])
+      windowManagerMock.getWindow.mockReturnValue(loadingWindow)
+      markMainRendererReadyForTabAttach('main-1')
+      setMainSurfaceReceiver('error', true)
+
+      expect(deliverToReadyMain('app.error.open', fault)).toBe(false)
+
+      windowManagerMock.getWindowsByType.mockReturnValue([focusedWindow])
+      windowManagerMock.getWindow.mockReturnValue(focusedWindow)
+      openTabInMainWindow(tab)
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'tab.attached', tab)
+    })
+
     it('presents a queued renderer crash when the error receiver becomes ready', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([focusedWindow])
       markMainRendererReadyForTabAttach('main-1')
@@ -376,6 +413,36 @@ describe('mainWindowNavigation', () => {
         })
       )
     })
+    it('delivers a queued renderer crash into a minimized or hidden main without raising it', () => {
+      const backgroundWindow = { ...focusedWindow, isVisible: vi.fn(() => true), isMinimized: vi.fn(() => true) }
+      windowManagerMock.getWindowsByType.mockReturnValue([backgroundWindow])
+      markMainRendererReadyForTabAttach('main-1')
+      queueMainRendererFault('Renderer process crashed')
+
+      setMainSurfaceReceiver('error', true)
+
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith(
+        'main-1',
+        'app.error.open',
+        expect.objectContaining({ operation: 'renderer.crash' })
+      )
+      expect(backgroundWindow.restore).not.toHaveBeenCalled()
+      expect(backgroundWindow.show).not.toHaveBeenCalled()
+      expect(backgroundWindow.focus).not.toHaveBeenCalled()
+
+      ipcApiServiceMock.send.mockClear()
+      backgroundWindow.isMinimized.mockReturnValue(false)
+      backgroundWindow.isVisible.mockReturnValue(false)
+      queueMainRendererFault('Renderer process crashed again')
+      flushMainRendererFault()
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith(
+        'main-1',
+        'app.error.open',
+        expect.objectContaining({ message: 'Renderer process crashed again' })
+      )
+      expect(backgroundWindow.show).not.toHaveBeenCalled()
+    })
+
     it('keeps tab readiness while main is loading and presents the crash once loading ends', () => {
       let loading = true
       const loadingWindow = {

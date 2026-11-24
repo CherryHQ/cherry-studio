@@ -62,7 +62,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       throw new IpcError('MAIN_UNAVAILABLE', 'The main window is not ready to check for updates')
     }
   },
-  'app.updater.query_availability': async () => application.get('AppUpdaterService').queryUpdateAvailability(),
+  'app.updater.query_availability': async () => application.get('AppUpdaterService').queryAvailabilityUnlessBusy(),
   'app.surface.receiver': async ({ kind, ready }, { senderId }) => {
     if (!senderId || application.get('WindowManager').getWindowType(senderId) !== WindowType.Main) return
     setMainSurfaceReceiver(kind, ready)
@@ -91,7 +91,5 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       technicalDetail
     })
   },
-  'app.updater.quit_and_install': async ({ version }) => {
-    application.get('AppUpdaterService').quitAndInstall(version)
-  }
+  'app.updater.quit_and_install': async ({ version }) => application.get('AppUpdaterService').quitAndInstall(version)
 }

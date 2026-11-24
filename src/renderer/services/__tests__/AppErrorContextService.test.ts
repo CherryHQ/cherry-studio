@@ -110,6 +110,17 @@ describe('app error presentation', () => {
     ).not.toHaveProperty('code')
   })
 
+  it('puts the IPC error code on the snapshot without the file path', () => {
+    const fields = { source: 'notes', operation: 'notes.file.write' }
+    const noSpace = new IpcError(fileErrorCodes.EDIT_NO_SPACE, 'File editing I/O failed')
+    const denied = new IpcError(fileErrorCodes.EDIT_PERMISSION, 'File editing I/O failed')
+
+    expect(contextFromUnknown(noSpace, fields).code).toBe('FILE_EDIT_NO_SPACE')
+    expect(contextFromUnknown(denied, fields).code).toBe('FILE_EDIT_PERMISSION')
+    const pathCode = Object.assign(new Error('boom'), { code: '/Users/me/notes/a.md' })
+    expect(JSON.stringify(contextFromUnknown(pathCode, fields))).not.toContain('/Users/me/notes')
+  })
+
   it('keeps the original technical fault when a wrapper error carries it as its cause', () => {
     const parserError = new Error('Invalid PDF structure')
     const wrapper = new Error('Failed to load preview', { cause: parserError })

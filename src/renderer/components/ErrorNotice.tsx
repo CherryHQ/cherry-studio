@@ -18,6 +18,8 @@ export interface ErrorNoticeProps {
   readonly variant?: 'card' | 'inline'
   readonly title: ReactNode
   readonly info?: ReactNode
+  /** Shows all of `info` instead of two lines; use for recovery steps the user must read in full. */
+  readonly wrapInfo?: boolean
   readonly action?: ErrorNoticeAction
   /** Renders the 「详情 ›」 link and makes the whole surface open the detail. */
   readonly onOpenDetail?: () => void
@@ -38,6 +40,7 @@ export function ErrorNotice({
   variant = 'card',
   title,
   info,
+  wrapInfo = false,
   action,
   onOpenDetail,
   detail,
@@ -112,7 +115,11 @@ export function ErrorNotice({
         <>
           <div className={cn('font-medium text-[13px] leading-5', onDismiss && 'pr-5')}>{title}</div>
           {info ? (
-            <div className="mt-0.5 line-clamp-2 text-muted-foreground text-xs leading-[18px] [overflow-wrap:anywhere] [&_a]:text-link">
+            <div
+              className={cn(
+                'mt-0.5 text-muted-foreground text-xs leading-[18px] [overflow-wrap:anywhere] [&_a]:text-link',
+                !wrapInfo && 'line-clamp-2'
+              )}>
               {info}
             </div>
           ) : null}
@@ -124,7 +131,7 @@ export function ErrorNotice({
           ) : null}
         </>
       ) : (
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className={cn('flex min-w-0 flex-wrap items-center gap-2', onDismiss && 'pr-6')}>
           <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{title}</span>
           {actionButton || trailing ? (
             <div className="flex shrink-0 flex-wrap items-center gap-3">
