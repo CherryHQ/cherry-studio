@@ -78,6 +78,7 @@ describe('writeCliConfigFiles', () => {
   afterEach(async () => {
     vi.mocked(atomicWriteFile).mockClear()
     vi.mocked(remove).mockClear()
+    vi.mocked(read).mockReset().mockImplementation(actualRead)
     await rm(home, { recursive: true, force: true })
   })
 
@@ -190,6 +191,52 @@ describe('writeCliConfigFiles', () => {
     expect(atomicWriteFile).not.toHaveBeenCalled()
     expect(remove).not.toHaveBeenCalled()
     expect((await stat(claudeSettings())).isDirectory()).toBe(true)
+  })
+
+  it.each([
+    ['permission error', () => Object.assign(new Error('permission denied'), { code: 'EACCES' })],
+    ['invalid parent', () => Object.assign(new Error('not a directory'), { code: 'ENOTDIR' })],
+    ['null', () => null],
+    ['undefined', () => undefined],
+    [
+      'unreadable code',
+      () =>
+        Object.defineProperty({}, 'code', {
+          get() {
+            throw new Error('unreadable code')
+          }
+        })
+    ],
+    [
+      'revoked proxy',
+      () => {
+        const { proxy, revoke } = Proxy.revocable({}, {})
+        revoke()
+        return proxy
+      }
+    ]
+  ] as const)('restores an existing empty file after a later %s snapshot failure', async (_label, createFailure) => {
+    await mkdir(path.dirname(codexConfig()), { recursive: true })
+    await writeFile(codexConfig(), '')
+    await writeFile(codexAuth(), '{"user":"keep"}\n')
+    const failure = createFailure()
+    vi.mocked(read).mockImplementationOnce(actualRead).mockRejectedValueOnce(failure)
+    let rejected = false
+
+    try {
+      await writeCliConfigFiles(CodeCli.OPENAI_CODEX, [
+        { target: 'codex-config', content: 'model = "new"\n' },
+        { target: 'codex-auth', content: '{"user":"replace"}\n' }
+      ])
+    } catch (error) {
+      rejected = true
+      expect(Object.is(error, failure)).toBe(true)
+    }
+
+    expect(rejected).toBe(true)
+    expect(await readFile(codexConfig(), 'utf8')).toBe('')
+    expect(await readFile(codexAuth(), 'utf8')).toBe('{"user":"keep"}\n')
+    if (!isWin) expect((await stat(codexConfig())).mode & 0o777).toBe(0o600)
   })
 
   it('surfaces the original error and still rolls back the rest when a restore itself fails', async () => {

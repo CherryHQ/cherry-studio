@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 import { atomicWriteFile, ensureDir, read, remove } from '@main/utils/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
@@ -35,7 +36,7 @@ async function readOrNull(absPath: AbsoluteFilePath): Promise<string | null> {
   try {
     return await read(absPath)
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null
+    if (getErrorCode(err) === 'ENOENT') return null
     throw err
   }
 }
