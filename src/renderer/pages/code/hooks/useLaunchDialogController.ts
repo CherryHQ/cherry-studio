@@ -8,7 +8,7 @@ import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { isFileConfiguredCli } from '@shared/utils/cliConfig'
 
 import {
@@ -94,9 +94,8 @@ export function useLaunchDialogController({
     }
   }, [selectFolder])
 
-  // The CLI config file is written at "enable" time, not here — launch only
-  // opens a terminal running the CLI in the provider's directory. Provider-less
-  // tools (qoder / copilot) launch with a directory only.
+  // Provider-less tools launch with a directory only. Managed Codex credentials
+  // and gateway connections are reconciled again before starting the CLI.
   const handleLaunch = useCallback(async () => {
     // Provider-less tools (qoder/copilot) and the virtual "own login" option both
     // launch with a directory only — no Cherry provider/model is injected.
@@ -214,6 +213,16 @@ export function useLaunchDialogController({
           ...(mergeFiles ? { files: mergeFiles } : {}),
           writePrimaryModel: cliConfigContext.writePrimaryModel,
           gateway: { provider: apiGatewayProvider.provider, apiKey }
+        })
+      }
+      if (!isGatewayProvider && selectedCliTool === CodeCli.OPENAI_CODEX) {
+        // Re-resolve the model binding at launch, not just when the provider was enabled.
+        // The draft writer preserves unmanaged file fields and aborts on unavailable credentials.
+        await writeCliConfigDraft({
+          cliTool: selectedCliTool,
+          modelId: cliConfigContext.modelId,
+          configBlob: currentProviderConfig?.config,
+          writePrimaryModel: cliConfigContext.writePrimaryModel
         })
       }
       // Both routes address a model by its provider-facing apiModelId: the gateway matches on it,

@@ -1037,6 +1037,22 @@ describe('writeCliConfigDraft', () => {
       expect(writes).toEqual([])
     })
 
+    it('replaces an existing Codex credential with the current model-bound key', async () => {
+      existing['/resolved~/.codex/auth.json'] = JSON.stringify({ OPENAI_API_KEY: 'old-account', custom: 'keep' })
+      mockGet({
+        '/providers/deepseek': () => codexProvider,
+        '/providers/deepseek/api-keys': () => ({
+          keys: [enabledKey, { id: 'key-b', key: 'current-bound-key', isEnabled: true }]
+        }),
+        '/models/': () => ({ id: 'deepseek::deepseek-chat', apiKeyId: 'key-b' })
+      })
+      await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
+      expect(JSON.parse(findWrite('auth.json')!.content)).toMatchObject({
+        OPENAI_API_KEY: 'current-bound-key',
+        custom: 'keep'
+      })
+    })
+
     it('switches auth.json from ChatGPT OAuth to API-key mode while preserving the official login', async () => {
       existing['/resolved~/.codex/auth.json'] = JSON.stringify({
         auth_mode: 'chatgpt',

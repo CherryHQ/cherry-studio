@@ -59,6 +59,8 @@ const enabledProvider = { id: 'anthropic', name: 'Anthropic' } as Provider
 describe('useLaunchDialogController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.writeCliConfigDraft.mockReset()
+    mocks.writeCliConfigDraft.mockResolvedValue(undefined)
     mocks.availableTerminals = [
       { id: 'terminal', name: 'Terminal' },
       { id: 'iterm2', name: 'iTerm2' }
@@ -224,6 +226,47 @@ describe('useLaunchDialogController', () => {
       'code_cli.run',
       expect.objectContaining({ mode: 'normal', gateway: false, model: 'claude-sonnet-4-5' })
     )
+  })
+
+  it.each([false, true])('reconciles direct Codex credentials before launch (write fails: %s)', async (fails) => {
+    mocks.writeCliConfigDraft.mockImplementation(async () => {
+      if (fails) throw new Error('Bound key no longer available')
+    })
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.OPENAI_CODEX,
+        toolName: 'Codex',
+        enabledProvider,
+        directory: '/tmp/project',
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        gatewayModelsById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+    expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith({
+      cliTool: CodeCli.OPENAI_CODEX,
+      modelId: 'anthropic::claude-sonnet-4-5',
+      configBlob: undefined,
+      writePrimaryModel: true
+    })
+    if (fails) {
+      expect(mocks.requestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
+    } else {
+      expect(mocks.writeCliConfigDraft.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.requestMock.mock.invocationCallOrder[0]
+      )
+    }
   })
 
   // Reviewer: falling back to the raw id on a miss is only safe when the record exists and
