@@ -29,6 +29,12 @@ export const aiErrorCodes = {
   AI_AGENT_WORKSPACE_NOT_FOUND: 'AI_AGENT_WORKSPACE_NOT_FOUND',
   /** Moving Agent Sessions to the Recycle Bin was rejected while generation is unsettled. */
   AI_AGENT_SESSION_ARCHIVE_BUSY: 'AI_AGENT_SESSION_ARCHIVE_BUSY',
+  /**
+   * A Session or Agent restore timed out waiting for an in-flight workspace
+   * archive to settle. Transient and retryable — the renderer can offer retry
+   * guidance instead of a generic failure.
+   */
+  AI_AGENT_SESSION_RESTORE_CONFLICT: 'AI_AGENT_SESSION_RESTORE_CONFLICT',
   /** Direct permanent deletion of an active Agent Session was rejected because it is pinned. */
   AI_AGENT_SESSION_PINNED: 'AI_AGENT_SESSION_PINNED',
   /**

@@ -92,6 +92,7 @@ const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease
 const agentLifecycleService = {
   archiveSessions: vi.fn(),
   restoreSession: vi.fn(),
+  restoreAgent: vi.fn(),
   reuseOrCreateSession: vi.fn(),
   archiveAgent: vi.fn(),
   archiveAgentSessions: vi.fn(),
@@ -216,6 +217,26 @@ describe('aiHandlers', () => {
 
     await expect(aiHandlers['ai.agent.session.restore']({ sessionId: 'session-1' }, ctx)).rejects.toMatchObject({
       code: aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND
+    })
+  })
+
+  it('surfaces a Session restore stuck behind a workspace archive as a retryable conflict', async () => {
+    agentLifecycleService.restoreSession.mockRejectedValue(
+      DataApiErrorFactory.conflict('Workspace archive is still in progress; retry the restore shortly', 'Workspace')
+    )
+
+    await expect(aiHandlers['ai.agent.session.restore']({ sessionId: 'session-1' }, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_RESTORE_CONFLICT
+    })
+  })
+
+  it('surfaces an Agent restore stuck behind a workspace archive as a retryable conflict', async () => {
+    agentLifecycleService.restoreAgent.mockRejectedValue(
+      DataApiErrorFactory.conflict('Workspace archive is still in progress; retry the restore shortly', 'Workspace')
+    )
+
+    await expect(aiHandlers['ai.agent.restore']({ agentId: 'agent-1' }, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_RESTORE_CONFLICT
     })
   })
 
