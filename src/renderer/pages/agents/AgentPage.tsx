@@ -493,7 +493,9 @@ const AgentPage = () => {
       const workspaceSource = await resolveCreateWorkspaceSource(defaults, visibleSession)
       const result = defaults.handoffDraft
         ? {
-            session: await dataApiService.post('/agent-sessions', { body: { agentId, workspace: workspaceSource } }),
+            session: await dataApiService.post('/agent-sessions', {
+              body: { agentId, name: '', workspace: workspaceSource }
+            }),
             created: true,
             deletedDuplicateSessionIds: []
           }

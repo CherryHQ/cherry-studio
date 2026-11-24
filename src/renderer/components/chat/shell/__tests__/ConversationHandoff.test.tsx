@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AddNewTopicPayload } from '@renderer/components/composer/variants/shared/composerProviderActions'
 import { ipcApi } from '@renderer/ipc'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -42,7 +43,7 @@ describe('ConversationHandoff', () => {
     expect(save).toHaveBeenCalledWith('conversation-handoff.md', 'Reviewed text, no secrets')
   })
   it('seeds only the reviewed artifact in a fresh same-assistant draft without sending', async () => {
-    const onNewTopic = vi.fn(async () => undefined)
+    const onNewTopic = vi.fn<(payload?: AddNewTopicPayload) => Promise<void>>(async () => undefined)
     render(
       <ConversationHandoff
         sessionId="old"
@@ -58,11 +59,11 @@ describe('ConversationHandoff', () => {
     fireEvent.click(screen.getByText('handoff.new'))
     await waitFor(() => expect(onNewTopic).toHaveBeenCalledTimes(1))
     const payload = onNewTopic.mock.calls[0][0]
-    expect(payload.assistantId).toBe('assistant')
-    expect(payload.handoffDraft.text).toBe('')
-    expect(payload.handoffDraft.files).toHaveLength(1)
-    expect(payload.handoffDraft.files[0].blob.size).toBe(14)
-    expect(payload.handoffDraft.tokens[0].id).toBe(`file:${payload.handoffDraft.files[0].fileTokenSourceId}`)
+    expect(payload?.assistantId).toBe('assistant')
+    expect(payload?.handoffDraft?.text).toBe('')
+    expect(payload?.handoffDraft?.files).toHaveLength(1)
+    expect(payload?.handoffDraft?.files[0].blob.size).toBe(14)
+    expect(payload?.handoffDraft?.tokens[0].id).toBe(`file:${payload?.handoffDraft?.files[0].fileTokenSourceId}`)
     expect(save).not.toHaveBeenCalled()
   })
   it('ignores late generation after cancel and aborts the request', async () => {
