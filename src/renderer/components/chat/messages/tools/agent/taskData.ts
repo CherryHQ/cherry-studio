@@ -2,17 +2,18 @@ export type NormalizedTaskStatus = 'pending' | 'in_progress' | 'completed' | 'er
 
 type TaskScalar = string | number | null | undefined
 
+/** Runtime and stored task fields remain unparsed until the individual readers consume them. */
 export interface TaskRecordLike {
-  id?: TaskScalar
-  taskId?: TaskScalar
-  task_id?: TaskScalar
-  subject?: TaskScalar
-  task?: TaskScalar | TaskRecordLike
-  description?: TaskScalar
-  activeForm?: TaskScalar
-  activeText?: TaskScalar
-  status?: TaskScalar
-  tasks?: TaskRecordLike[]
+  id?: unknown
+  taskId?: unknown
+  task_id?: unknown
+  subject?: unknown
+  task?: unknown
+  description?: unknown
+  activeForm?: unknown
+  activeText?: unknown
+  status?: unknown
+  tasks?: unknown
 }
 
 export interface NormalizedTaskLike {
@@ -25,7 +26,8 @@ export interface NormalizedTaskLike {
 const TITLE_KEYS = ['subject', 'task', 'description', 'activeForm'] as const
 const ID_KEYS = ['id', 'taskId', 'task_id'] as const
 
-function getTaskScalar(value: TaskRecordLike[keyof TaskRecordLike]): TaskScalar {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw task fields may contain any runtime value; only verified scalar values reach the internal string normalizer.
+function getTaskScalar(value: unknown): TaskScalar {
   if (typeof value === 'string' || typeof value === 'number' || value === null || value === undefined) return value
 
   return undefined
@@ -91,11 +93,13 @@ export function getTaskActiveText(record: TaskRecordLike): string | undefined {
   return getTaskField(record, ['activeText', 'activeForm', 'description'])
 }
 
-export function isDeletedTaskStatus(value: TaskScalar): boolean {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The right pane selects the original input/output status before this deleted-marker check; invalid present values must not trigger fallback deletion.
+export function isDeletedTaskStatus(value: unknown): boolean {
   return typeof value === 'string' && value.trim().toLowerCase() === 'deleted'
 }
 
-export function normalizeTaskStatus(value: TaskScalar): NormalizedTaskStatus | undefined {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Task snapshots supply raw status fields; only the exact supported literals map to an internal task status.
+export function normalizeTaskStatus(value: unknown): NormalizedTaskStatus | undefined {
   switch (value) {
     case 'pending':
       return 'pending'

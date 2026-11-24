@@ -789,6 +789,52 @@ describe('agent right pane projections', () => {
     ])
   })
 
+  it('keeps an existing task when its snapshot row still has its ID but no usable title', () => {
+    const parts = [
+      toolPart('create-1', 'TaskCreate', undefined, 'input-available', { subject: 'Keep existing task' }),
+      toolPart('create-2', 'TaskCreate', undefined, 'input-available', { subject: 'Finish second task' }),
+      toolPart(
+        'list',
+        'TaskList',
+        undefined,
+        'output-available',
+        {},
+        {
+          tasks: [
+            null,
+            { id: '1', subject: { title: 'invalid title' }, status: 'completed' },
+            { id: '2', subject: 'Finish second task', status: 'completed' }
+          ]
+        }
+      )
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([
+      expect.objectContaining({ id: '1', title: 'Keep existing task', status: 'pending' }),
+      expect.objectContaining({ id: '2', title: 'Finish second task', status: 'completed' })
+    ])
+  })
+
+  it('does not delete a task when an invalid present input status overrides an output deletion marker', () => {
+    const parts = [
+      toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Keep existing task' }),
+      toolPart(
+        'update',
+        'TaskUpdate',
+        undefined,
+        'output-available',
+        { taskId: '1', status: { state: 'invalid' } },
+        { status: 'deleted', success: true }
+      )
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([expect.objectContaining({ id: '1', title: 'Keep existing task', status: 'pending' })])
+  })
+
   it('clears the current plan when TaskList returns an empty task array', () => {
     const parts = [
       toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Temporary task' }),
