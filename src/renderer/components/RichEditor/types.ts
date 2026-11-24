@@ -232,6 +232,26 @@ export type FormattingCommand =
   | 'taskList'
   | 'image'
 
+export interface MathDialogDetail {
+  defaultValue: string
+  position?: { x: number; y: number; top: number }
+  onSubmit: (latex: string) => void
+  onFormulaChange: (formula: string) => void
+  onCancel?: () => void
+}
+
+export interface ImageUploaderDetail {
+  onImageSelect: (imageUrl: string) => void
+  onCancel: () => void
+}
+
+declare global {
+  interface WindowEventMap {
+    openMathDialog: CustomEvent<MathDialogDetail>
+    openImageUploader: CustomEvent<ImageUploaderDetail>
+  }
+}
+
 export interface ToolbarProps {
   /** Editor instance ref */
   editor: Editor
@@ -282,7 +302,7 @@ export interface Command {
   // Toolbar support
   showInToolbar?: boolean
   toolbarGroup?: 'text' | 'formatting' | 'blocks' | 'media' | 'structure' | 'history'
-  formattingCommand?: string // Maps to FormattingCommand for state checking
+  formattingCommand?: FormattingCommand
 }
 
 export interface CommandSuggestion {

@@ -8,7 +8,7 @@ import { t } from 'i18next'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { loggerService } from '@logger'
-import type { FormattingState } from '@renderer/components/RichEditor/types'
+import type { FormattingState, MathDialogDetail } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 
 import { createRichEditorExtensions } from './createExtensions'
@@ -171,13 +171,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         onLinkHoverEnd: handleLinkHoverEnd,
         tocScrollParent: scrollParent,
         onTocUpdate: (content) => {
-          const resolveParent = (): HTMLElement | null => {
-            if (!scrollParent) return null
-
-            return typeof scrollParent === 'function' ? (scrollParent as () => HTMLElement)() : scrollParent
-          }
-
-          const parent = resolveParent()
+          const parent = scrollParent?.()
 
           if (!parent) return
           const parentTop = parent.getBoundingClientRect().top
@@ -233,7 +227,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
               }
             }
 
-            const customEvent = new CustomEvent('openMathDialog', {
+            const customEvent = new CustomEvent<MathDialogDetail>('openMathDialog', {
               detail: {
                 defaultValue: node.attrs.latex || '',
                 position: position,
@@ -266,7 +260,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
               }
             }
 
-            const customEvent = new CustomEvent('openMathDialog', {
+            const customEvent = new CustomEvent<MathDialogDetail>('openMathDialog', {
               detail: {
                 defaultValue: node.attrs.latex || '',
                 position: position,

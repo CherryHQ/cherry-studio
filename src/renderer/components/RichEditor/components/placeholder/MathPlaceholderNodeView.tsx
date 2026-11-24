@@ -3,6 +3,7 @@ import { Calculator } from 'lucide-react'
 import React, { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { MathDialogDetail } from '../../types'
 import PlaceholderBlock from './PlaceholderBlock'
 
 const MathPlaceholderNodeView: React.FC<NodeViewProps> = ({ node, deleteNode, editor }) => {
@@ -24,7 +25,7 @@ const MathPlaceholderNodeView: React.FC<NodeViewProps> = ({ node, deleteNode, ed
       }
     }
 
-    const event = new CustomEvent('openMathDialog', {
+    const event = new CustomEvent<MathDialogDetail>('openMathDialog', {
       detail: {
         defaultValue: '',
         position,

@@ -41,7 +41,7 @@ function getToolbarItems(enableImageInsertion: boolean, disabledCommands: readon
     groupCommands.forEach((cmd) => {
       items.push({
         id: cmd.id,
-        command: cmd.formattingCommand as FormattingCommand,
+        command: cmd.formattingCommand,
         icon: cmd.icon,
         handler: () => cmd.handler
       })
@@ -108,7 +108,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
   // Listen for custom events from placeholder nodes
   useEffect(() => {
-    const handleMathDialog = (event: CustomEvent) => {
+    const handleMathDialog = (event: WindowEventMap['openMathDialog']) => {
       const { defaultValue, onSubmit, onFormulaChange, position } = event.detail
       setPlaceholderCallbacks((prev) => ({
         ...prev,
@@ -121,19 +121,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       setShowMathInput(true)
     }
 
-    const handleImageUploader = (event: CustomEvent) => {
+    const handleImageUploader = (event: WindowEventMap['openImageUploader']) => {
       if (!enableImageInsertion) return
       const { onImageSelect, onCancel } = event.detail
       setPlaceholderCallbacks((prev) => ({ ...prev, onImageSelect, onImageCancel: onCancel }))
       setShowImageUploader(true)
     }
 
-    window.addEventListener('openMathDialog', handleMathDialog as EventListener)
-    window.addEventListener('openImageUploader', handleImageUploader as EventListener)
+    window.addEventListener('openMathDialog', handleMathDialog)
+    window.addEventListener('openImageUploader', handleImageUploader)
 
     return () => {
-      window.removeEventListener('openMathDialog', handleMathDialog as EventListener)
-      window.removeEventListener('openImageUploader', handleImageUploader as EventListener)
+      window.removeEventListener('openMathDialog', handleMathDialog)
+      window.removeEventListener('openImageUploader', handleImageUploader)
     }
   }, [enableImageInsertion])
 

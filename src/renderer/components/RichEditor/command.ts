@@ -33,6 +33,7 @@ import {
 import { loggerService } from '@logger'
 
 import CommandListPopover from './CommandListPopover'
+import type { FormattingCommand } from './types'
 
 const logger = loggerService.withContext('RichEditor.Command')
 
@@ -48,7 +49,7 @@ export interface Command {
   // Toolbar support
   showInToolbar?: boolean
   toolbarGroup?: 'text' | 'formatting' | 'blocks' | 'media' | 'structure' | 'history'
-  formattingCommand?: string // Maps to FormattingCommand for state checking
+  formattingCommand?: FormattingCommand
 }
 
 export enum CommandCategory {

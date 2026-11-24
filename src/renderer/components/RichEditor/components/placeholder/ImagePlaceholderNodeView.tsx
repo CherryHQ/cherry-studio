@@ -3,13 +3,14 @@ import { Image as ImageIcon } from 'lucide-react'
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ImageUploaderDetail } from '../../types'
 import PlaceholderBlock from './PlaceholderBlock'
 
 const ImagePlaceholderNodeView: React.FC<NodeViewProps> = ({ deleteNode, editor }) => {
   const { t } = useTranslation()
 
   const handleClick = useCallback(() => {
-    const event = new CustomEvent('openImageUploader', {
+    const event = new CustomEvent<ImageUploaderDetail>('openImageUploader', {
       detail: {
         onImageSelect: (imageUrl: string) => {
           if (imageUrl.trim()) {
