@@ -439,8 +439,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover, outputMo
     if (!displayedNaturalSize || !viewerContainer || viewerContainer.width <= 0) {
       return null
     }
-    const indicatorReserve =
-      painting.files.length > 0 && currentImageUrl ? indicatorHeight + 8 /* pt-2 footer gap */ : 0
+    const indicatorReserve = painting.files.length > 0 && currentImageUrl ? indicatorHeight : 0
     const availableHeight = Math.max(0, viewerContainer.height - promptBarHeight - indicatorReserve)
     if (availableHeight <= 0) {
       return null

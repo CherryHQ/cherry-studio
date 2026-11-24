@@ -12,7 +12,7 @@ export const paintingClasses = {
   centerStage: 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
   /** Pins the prompt visually to the bottom of the middle column. */
   promptDock:
-    'relative z-20 shrink-0 border-t border-border-subtle bg-background px-2 pt-2 pb-2 transition-opacity duration-300',
+    'relative z-20 shrink-0 border-t border-border-subtle bg-background px-2 pt-2 pb-2 transition-opacity duration-300 motion-reduce:transition-none',
   /** Dimmed state after idle so the generated image stays visually unobstructed (#20647). */
   promptDockIdle: 'opacity-40 hover:opacity-100 focus-within:opacity-100',
   /** Collapsed prompt dock after generate — frees artboard space (#20739). */
