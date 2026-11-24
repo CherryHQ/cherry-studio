@@ -450,7 +450,7 @@ export async function resolveProviderAiSdkConfig(
 async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'github-copilot-openai-compatible'>> {
   const storedHeaders = {} // TODO: read from PreferenceService if copilot headers are persisted
   const headers = mergeHeaders(COPILOT_DEFAULT_HEADERS, storedHeaders)
-  const { token } = await copilotService.getToken(null as any, headers)
+  const { token } = await copilotService.getToken(headers)
 
   return {
     providerId: 'github-copilot-openai-compatible',

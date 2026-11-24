@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 
 import { net, safeStorage } from 'electron'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -56,18 +57,31 @@ interface UserResponse {
   avatar: string
 }
 
-interface AuthResponse {
-  device_code: string
-  user_code: string
-  verification_uri: string
-}
+const authResponseSchema = z.object({
+  device_code: z.string().min(1),
+  user_code: z.string().min(1),
+  verification_uri: z.url({ protocol: /^https$/ })
+})
 
-interface TokenResponse {
-  access_token: string
-}
+type AuthResponse = z.infer<typeof authResponseSchema>
 
-interface CopilotTokenResponse {
-  token: string
+const tokenResponseSchema = z.object({ access_token: z.string().min(1) })
+
+type TokenResponse = z.infer<typeof tokenResponseSchema>
+
+const pollingResponseSchema = z.union([tokenResponseSchema, z.object({ error: z.string().min(1) })])
+
+const copilotTokenResponseSchema = z.object({ token: z.string().min(1) })
+
+type CopilotTokenResponse = z.infer<typeof copilotTokenResponseSchema>
+
+// oxlint-disable-next-line anti-slop/no-unknown-returns -- Credential-bearing JSON stays untrusted until its endpoint schema parses it; decode errors must omit response-body excerpts.
+async function readAuthorizationJson(response: Response): Promise<unknown> {
+  try {
+    return await response.json()
+  } catch {
+    throw new Error('Invalid authorization response JSON')
+  }
 }
 
 // 自定义错误类，统一错误处理
@@ -187,7 +201,11 @@ class CopilotService {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      return (await response.json()) as AuthResponse
+      const result = authResponseSchema.safeParse(await readAuthorizationJson(response))
+
+      if (!result.success) throw new Error('Invalid GitHub device authorization response')
+
+      return result.data
     } catch (error) {
       logger.error('Failed to get auth message:', error)
       throw new CopilotServiceError('无法获取GitHub授权信息', error)
@@ -224,12 +242,11 @@ class CopilotService {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
 
-        const data = (await response.json()) as TokenResponse
-        const { access_token } = data
+        const result = pollingResponseSchema.safeParse(await readAuthorizationJson(response))
 
-        if (access_token) {
-          return { access_token }
-        }
+        if (!result.success) throw new Error('Invalid GitHub access token response')
+
+        if ('access_token' in result.data) return result.data
       } catch (error) {
         // 指数退避策略
         currentDelay = Math.min(currentDelay * 2, CONFIG.POLLING.MAX_DELAY_MS)
@@ -271,10 +288,7 @@ class CopilotService {
   /**
    * 从本地文件读取令牌并获取Copilot令牌
    */
-  public getToken = async (
-    _: Electron.IpcMainInvokeEvent,
-    headers?: Record<string, string>
-  ): Promise<CopilotTokenResponse> => {
+  public getToken = async (headers?: Record<string, string>): Promise<CopilotTokenResponse> => {
     try {
       const requestHeaders = authHeaders(headers)
 
@@ -290,7 +304,11 @@ class CopilotService {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      return (await response.json()) as CopilotTokenResponse
+      const result = copilotTokenResponseSchema.safeParse(await readAuthorizationJson(response))
+
+      if (!result.success) throw new Error('Invalid Copilot token response')
+
+      return result.data
     } catch (error) {
       logger.error('Failed to get Copilot token:', error)
       throw new CopilotServiceError('无法获取Copilot令牌，请重新授权', error)

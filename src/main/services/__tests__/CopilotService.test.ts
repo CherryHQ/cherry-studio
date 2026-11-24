@@ -1,3 +1,6 @@
+import { inspect } from 'node:util'
+
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { decryptStringMock, existsSyncMock, netFetchMock, readFileMock } = vi.hoisted(() => ({
@@ -49,12 +52,13 @@ const getRequestHeaders = (url: string): Record<string, string> => {
 const countHeaderKeys = (headers: Record<string, string>, name: string): number =>
   Object.keys(headers).filter((headerName) => headerName.toLowerCase() === name.toLowerCase()).length
 
-describe('CopilotService headers', () => {
+describe('CopilotService', () => {
   beforeEach(() => {
     netFetchMock.mockReset()
     decryptStringMock.mockReset().mockReturnValue('github-access-token')
     existsSyncMock.mockReset().mockReturnValue(false)
     readFileMock.mockReset().mockResolvedValue(Buffer.from('encrypted-token'))
+    mockMainLoggerService.error.mockClear()
   })
 
   afterEach(() => {
@@ -124,7 +128,7 @@ describe('CopilotService headers', () => {
     netFetchMock.mockResolvedValue(fetchResponse({ token: 'copilot-token' }))
 
     await expect(
-      copilotService.getToken(IPC_EVENT, {
+      copilotService.getToken({
         'USER-AGENT': 'custom-agent'
       })
     ).resolves.toEqual({ token: 'copilot-token' })
@@ -149,7 +153,7 @@ describe('CopilotService headers', () => {
     const pollingPromise = copilotService.getCopilotToken(IPC_EVENT, 'device-code', {
       'X-Request': 'polling'
     })
-    const copilotTokenPromise = copilotService.getToken(IPC_EVENT, {
+    const copilotTokenPromise = copilotService.getToken({
       'X-Request': 'copilot-token'
     })
 
@@ -160,4 +164,109 @@ describe('CopilotService headers', () => {
     expect(new Headers(getRequestHeaders(COPILOT_TOKEN_URL)).get('x-request')).toBe('copilot-token')
     expect(new Headers(getRequestHeaders(GITHUB_ACCESS_TOKEN_URL)).get('x-request')).toBe('polling')
   })
+
+  it('returns only consumed authorization fields while accepting additional server metadata', async () => {
+    netFetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          device_code: 'device-code',
+          user_code: 'user-code',
+          verification_uri: 'https://github.com/login/device',
+          interval: 5,
+          expires_in: 900
+        })
+      )
+    )
+
+    await expect(copilotService.getAuthMessage(IPC_EVENT)).resolves.toEqual({
+      device_code: 'device-code',
+      user_code: 'user-code',
+      verification_uri: 'https://github.com/login/device'
+    })
+  })
+
+  it.each([
+    ['missing code', { user_code: 'private-code', verification_uri: 'https://github.com/login/device' }],
+    ['empty code', { device_code: '', user_code: 'private-code', verification_uri: 'https://github.com/login/device' }],
+    [
+      'wrong code type',
+      { device_code: 42, user_code: 'private-code', verification_uri: 'https://github.com/login/device' }
+    ],
+    [
+      'unsafe URI',
+      { device_code: 'private-device', user_code: 'private-code', verification_uri: 'javascript:alert(1)' }
+    ]
+  ])('rejects an authorization response with %s', async (_label, payload) => {
+    netFetchMock.mockResolvedValue(new Response(JSON.stringify(payload)))
+
+    await expect(copilotService.getAuthMessage(IPC_EVENT)).rejects.toThrow()
+    expect(inspect(mockMainLoggerService.error.mock.calls, { depth: 8 })).not.toContain('private-code')
+    expect(inspect(mockMainLoggerService.error.mock.calls, { depth: 8 })).not.toContain('private-device')
+  })
+
+  it('continues after a pending OAuth response and returns only a valid access token', async () => {
+    vi.useFakeTimers()
+    netFetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: 'authorization_pending', error_description: 'waiting' }))
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: 'opaque-access-token', token_type: 'bearer', scope: 'read:user' }))
+      )
+    const token = copilotService.getCopilotToken(IPC_EVENT, 'device-code')
+    const resolved = expect(token).resolves.toEqual({ access_token: 'opaque-access-token' })
+
+    await vi.runAllTimersAsync()
+    await resolved
+  })
+
+  it('eventually rejects when OAuth keeps reporting authorization pending', async () => {
+    vi.useFakeTimers()
+    netFetchMock.mockImplementation(async () => new Response(JSON.stringify({ error: 'authorization_pending' })))
+    const token = copilotService.getCopilotToken(IPC_EVENT, 'device-code')
+    const rejected = expect(token).rejects.toThrow()
+
+    await vi.runAllTimersAsync()
+    await rejected
+  })
+
+  it.each([null, {}, { access_token: '' }, { access_token: 42 }])(
+    'never returns an invalid access token',
+    async (payload) => {
+      vi.useFakeTimers()
+      netFetchMock.mockImplementation(async () => new Response(JSON.stringify(payload)))
+      const token = copilotService.getCopilotToken(IPC_EVENT, 'device-code')
+      const rejected = expect(token).rejects.toThrow()
+
+      await vi.runAllTimersAsync()
+      await rejected
+    }
+  )
+
+  it('projects an opaque Copilot token without returning unrelated account metadata', async () => {
+    netFetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({ token: 'opaque-copilot-token', expires_at: 123, account: { login: 'not-for-ipc' } })
+      )
+    )
+
+    await expect(copilotService.getToken()).resolves.toEqual({ token: 'opaque-copilot-token' })
+  })
+
+  it('does not include malformed credential response text in diagnostics', async () => {
+    netFetchMock.mockResolvedValue(new Response('private-token-body'))
+
+    await expect(copilotService.getToken()).rejects.toThrow()
+    expect(inspect(mockMainLoggerService.error.mock.calls, { depth: 8 })).not.toContain('private-token-body')
+  })
+
+  it.each([null, {}, { token: '' }, { token: 42 }, { token: { secret: 'private-token-value' } }])(
+    'rejects a malformed Copilot token without logging its payload',
+    async (payload) => {
+      netFetchMock.mockResolvedValue(new Response(JSON.stringify(payload)))
+
+      await expect(copilotService.getToken()).rejects.toThrow()
+      expect(inspect(mockMainLoggerService.error.mock.calls, { depth: 8 })).not.toContain('private-token-value')
+    }
+  )
 })

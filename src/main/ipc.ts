@@ -152,7 +152,9 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.Copilot_GetAuthMessage, copilotService.getAuthMessage.bind(copilotService))
   handleGuarded(IpcChannel.Copilot_GetCopilotToken, copilotService.getCopilotToken.bind(copilotService))
   handleGuarded(IpcChannel.Copilot_SaveCopilotToken, copilotService.saveCopilotToken.bind(copilotService))
-  handleGuarded(IpcChannel.Copilot_GetToken, copilotService.getToken.bind(copilotService))
+  handleGuarded(IpcChannel.Copilot_GetToken, (_, headers: Parameters<typeof copilotService.getToken>[0]) =>
+    copilotService.getToken(headers)
+  )
   handleGuarded(IpcChannel.Copilot_Logout, copilotService.logout.bind(copilotService))
   handleGuarded(IpcChannel.Copilot_GetUser, copilotService.getUser.bind(copilotService))
 

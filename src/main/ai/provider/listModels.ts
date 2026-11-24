@@ -525,7 +525,7 @@ const copilotFetcher: ModelFetcher = {
     // getToken exchanges the stored GitHub OAuth token for a Copilot session token.
     // It must NOT carry the provider's `Authorization: Bearer <apiKey>` (added by
     // defaultHeaders) — GitHub's token endpoint rejects the conflicting header with 401.
-    const { token } = await copilotService.getToken(null as any, copilotHeaders)
+    const { token } = await copilotService.getToken(copilotHeaders)
 
     const response = await getFromApi({
       url: `${withoutTrailingSlash(getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))}/models`,
