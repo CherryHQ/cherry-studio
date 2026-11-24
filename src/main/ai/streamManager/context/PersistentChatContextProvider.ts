@@ -954,20 +954,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
    * full tokenx estimate when no anchor exists or it was folded out by the marker.
    */
   private estimateContext(effective: CompactionRow[], dialect: TokenDialect): number {
-    let anchorIdx = -1
-
     for (let i = effective.length - 1; i >= 0; i--) {
-      if (effective[i].role === 'assistant' && typeof effective[i].contextTokens === 'number') {
-        anchorIdx = i
-        break
+      const row = effective[i]
+
+      if (row.role === 'assistant' && typeof row.contextTokens === 'number') {
+        const tail = effective.slice(i + 1).reduce((s, r) => s + estimateRowTokens(r, dialect), 0)
+
+        return row.contextTokens + tail
       }
     }
 
-    if (anchorIdx < 0) return this.estimateTotal(effective, dialect)
-    const base = effective[anchorIdx].contextTokens as number
-    const tail = effective.slice(anchorIdx + 1).reduce((s, r) => s + estimateRowTokens(r, dialect), 0)
-
-    return base + tail
+    return this.estimateTotal(effective, dialect)
   }
 
   /**
