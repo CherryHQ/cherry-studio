@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
+import { getErrorCode } from '@main/utils/error'
 import type { AgentType } from '@shared/data/api/schemas/agents'
 
 const SQLITE_FILE_PATTERN = /\.(?:db|sqlite)(?:-(?:journal|shm|wal))?$/i
@@ -235,7 +236,7 @@ async function canonicalizePath(targetPath: string, signal?: AbortSignal): Promi
 
     return signal?.aborted ? undefined : path.normalize(resolved)
   } catch (error) {
-    if (signal?.aborted || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+    if (signal?.aborted || getErrorCode(error) !== 'ENOENT') return undefined
 
     if (await pathExistsOrIsAmbiguous(targetPath)) return undefined
   }
@@ -252,7 +253,7 @@ async function canonicalizePath(targetPath: string, signal?: AbortSignal): Promi
 
       return path.normalize(path.resolve(canonicalParent, path.relative(parent, targetPath)))
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+      if (getErrorCode(error) !== 'ENOENT') return undefined
 
       if (await pathExistsOrIsAmbiguous(parent)) return undefined
       const next = path.dirname(parent)
@@ -305,7 +306,7 @@ async function pathExistsOrIsAmbiguous(targetPath: string): Promise<boolean> {
 
     return true
   } catch (error) {
-    return (error as NodeJS.ErrnoException).code !== 'ENOENT'
+    return getErrorCode(error) !== 'ENOENT'
   }
 }
 
