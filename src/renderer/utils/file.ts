@@ -166,9 +166,5 @@ export const mime2type = (mimeStr: string): FileType => {
 }
 
 export function parseFileTypes(str: string): FileType | null {
-  if (Object.values(FILE_TYPE).some((type) => type === str)) {
-    return str as FileType
-  }
-
-  return null
+  return Object.values(FILE_TYPE).find((type) => type === str) ?? null
 }
