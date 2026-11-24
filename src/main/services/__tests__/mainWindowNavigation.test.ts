@@ -376,6 +376,36 @@ describe('mainWindowNavigation', () => {
         })
       )
     })
+    it('delivers a queued renderer crash into a minimized or hidden main without raising it', () => {
+      const backgroundWindow = { ...focusedWindow, isVisible: vi.fn(() => true), isMinimized: vi.fn(() => true) }
+      windowManagerMock.getWindowsByType.mockReturnValue([backgroundWindow])
+      markMainRendererReadyForTabAttach('main-1')
+      queueMainRendererFault('Renderer process crashed')
+
+      setMainSurfaceReceiver('error', true)
+
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith(
+        'main-1',
+        'app.error.open',
+        expect.objectContaining({ operation: 'renderer.crash' })
+      )
+      expect(backgroundWindow.restore).not.toHaveBeenCalled()
+      expect(backgroundWindow.show).not.toHaveBeenCalled()
+      expect(backgroundWindow.focus).not.toHaveBeenCalled()
+
+      ipcApiServiceMock.send.mockClear()
+      backgroundWindow.isMinimized.mockReturnValue(false)
+      backgroundWindow.isVisible.mockReturnValue(false)
+      queueMainRendererFault('Renderer process crashed again')
+      flushMainRendererFault()
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith(
+        'main-1',
+        'app.error.open',
+        expect.objectContaining({ message: 'Renderer process crashed again' })
+      )
+      expect(backgroundWindow.show).not.toHaveBeenCalled()
+    })
+
     it('keeps tab readiness while main is loading and presents the crash once loading ends', () => {
       let loading = true
       const loadingWindow = {

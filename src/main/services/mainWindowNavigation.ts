@@ -153,7 +153,10 @@ export function flushMainRendererFault(): void {
     .getWindowsByType(WindowType.Main)
     .find((win) => !win.isDestroyed())
   if (mainWindow?.webContents.isLoadingMainFrame()) return
-  if (deliverToReadyMain('app.error.open', pendingRendererFault)) pendingRendererFault = undefined
+  // The crash toast is sticky, so it can wait in a minimized or hidden window instead of raising it.
+  if (deliverToReadyMain('app.error.open', pendingRendererFault, { reveal: false, deliverHidden: true })) {
+    pendingRendererFault = undefined
+  }
 }
 
 /**
@@ -161,12 +164,12 @@ export function flushMainRendererFault(): void {
  * Returns false when main is missing, still loading, or crashed — callers must
  * fail the IPC instead of broadcasting into an empty room.
  * With `reveal: false` the window is never raised, and a hidden or minimized
- * main window also returns false.
+ * main window also returns false unless `deliverHidden` is set.
  */
 export function deliverToReadyMain<E extends IpcEventName>(
   event: E,
   payload: EventPayload<E>,
-  { reveal = true }: { reveal?: boolean } = {}
+  { reveal = true, deliverHidden = false }: { reveal?: boolean; deliverHidden?: boolean } = {}
 ): boolean {
   const windowManager = application.get('WindowManager')
   const mainWindow = windowManager.getWindowsByType(WindowType.Main).find((win) => !win.isDestroyed())
@@ -177,7 +180,7 @@ export function deliverToReadyMain<E extends IpcEventName>(
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.show()
     mainWindow.focus()
-  } else if (!mainWindow.isVisible() || mainWindow.isMinimized()) {
+  } else if (!deliverHidden && (!mainWindow.isVisible() || mainWindow.isMinimized())) {
     return false
   }
   application.get('IpcApiService').send(windowId, event, payload)
