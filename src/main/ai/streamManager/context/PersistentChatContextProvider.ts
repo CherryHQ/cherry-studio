@@ -34,7 +34,7 @@ import {
   type MessageSnapshot,
   toContentRole
 } from '@shared/data/types/message'
-import type { UniqueModelId, Model } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
 
