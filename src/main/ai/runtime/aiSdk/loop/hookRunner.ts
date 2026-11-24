@@ -1,4 +1,4 @@
-import type { ToolSet } from 'ai'
+import type { ToolExecutionOptions, ToolSet } from 'ai'
 
 import { loggerService } from '@logger'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
@@ -37,7 +37,7 @@ export function wrapForwardedHook<TArgs extends unknown[], TResult>(
 
 /**
  * Brackets each tool's `execute` with start/end hooks. `durationMs`
- * excludes hook latency, matching v7's `executeToolCall`. Errors
+ * excludes hook latency. Errors
  * propagate after the end hook runs.
  */
 export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: AgentLoopHooks): ToolSet | undefined {
@@ -55,8 +55,8 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
 
     wrapped[name] = {
       ...tool,
-      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ToolSet erases each tool's input type; its SDK inputSchema validates the value and this wrapper preserves its identity.
-      execute: async (input: unknown, options) => {
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ToolSet erases each tool's input type; the SDK owns schema parsing and this wrapper forwards the input unchanged.
+      execute: async (input: unknown, options: ToolExecutionOptions) => {
         const startEvent: ToolExecutionStartEvent = {
           callId: options.toolCallId,
           toolName: name,
@@ -69,8 +69,7 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
         const startTime = performance.now()
 
         try {
-          // NB: AI SDK v6 allows `execute` to return AsyncIterable for preliminary results.
-          // No current tool uses that; the end hook would fire prematurely if one did.
+          // Current tools return ordinary results; this async wrapper cannot preserve AsyncIterable execution.
           const output = await originalExecute(input, options)
           const durationMs = performance.now() - startTime
           await safeCall('onToolExecutionEnd', hooks.onToolExecutionEnd, {
@@ -103,7 +102,7 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
           throw error
         }
       }
-    } as ToolSet[string]
+    }
   }
 
   return wrapped
