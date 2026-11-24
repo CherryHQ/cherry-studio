@@ -251,6 +251,16 @@ describe('FileProcessingService.startTask — routing', () => {
     expect(doc2xHandler.prepare).not.toHaveBeenCalled()
   })
 
+  it('rejects locally invalid Open MinerU endpoints during preflight', () => {
+    const service = new FileProcessingService()
+    resolveProcessorConfigByFeatureMock.mockReturnValue({
+      id: 'open-mineru',
+      type: 'api',
+      capabilities: [{ feature: 'document_to_markdown', apiHost: 'https://example.com?bad=1' }]
+    })
+    expect(() => service.getDocumentPreflightConfig('open-mineru')).toThrow()
+    expect(enqueueMock).not.toHaveBeenCalled()
+  })
   it('routes a background-mode handler on a local processor to file-processing.background-local', async () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue({
       id: 'tesseract',
@@ -270,6 +280,16 @@ describe('FileProcessingService.startTask — routing', () => {
     )
   })
 
+  it('rejects locally invalid Open MinerU endpoints during preflight', () => {
+    const service = new FileProcessingService()
+    resolveProcessorConfigByFeatureMock.mockReturnValue({
+      id: 'open-mineru',
+      type: 'api',
+      capabilities: [{ feature: 'document_to_markdown', apiHost: 'https://example.com?bad=1' }]
+    })
+    expect(() => service.getDocumentPreflightConfig('open-mineru')).toThrow()
+    expect(enqueueMock).not.toHaveBeenCalled()
+  })
   it('routes a background-mode handler on a remote processor to file-processing.background', async () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue({
       id: 'mistral',

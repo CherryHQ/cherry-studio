@@ -32,6 +32,16 @@ async function pdf(name: string, texts: string[]) {
 }
 
 describe('knowledge file admission', () => {
+  it('treats a moved extensionless selected root as unreadable, not a skippable descendant', async () => {
+    expect(await preflightKnowledgePaths([join(directory, 'moved-folder')])).toEqual([
+      { path: join(directory, 'moved-folder'), processor: '', reason: 'unreadable_file' }
+    ])
+  })
+  it('rejects a dotfile named .pdf consistently with runtime extension semantics', async () => {
+    const path = join(directory, '.pdf')
+    await writeFile(path, 'not a PDF')
+    expect((await preflightKnowledgeFile(path)).reason).toBe('unsupported_format')
+  })
   it('rejects unsupported and inaccessible files before import', async () => {
     expect((await preflightKnowledgeFile(join(directory, 'script.exe'))).reason).toBe('unsupported_format')
     expect((await preflightKnowledgeFile(join(directory, 'missing.pdf'))).reason).toBe('unreadable_file')

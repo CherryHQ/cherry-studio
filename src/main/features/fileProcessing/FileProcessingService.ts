@@ -8,6 +8,7 @@ import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/file
 
 import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { ocrImageToText } from './ocrImageToText'
+import { resolveApiHost as resolveOpenMineruApiHost } from './processors/openMineru/documentToMarkdown/handler'
 import { probeOpenMineru } from './processors/openMineru/protocol'
 import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler, localBackgroundJobHandler } from './tasks/backgroundJobHandler'
@@ -75,6 +76,7 @@ export class FileProcessingService extends BaseService {
     if (!capability.apiHost?.trim() && config.type === 'api') {
       throw new Error('API host is required')
     }
+    if (processorId === 'open-mineru') resolveOpenMineruApiHost(config)
     return { processorId, ...capability }
   }
 

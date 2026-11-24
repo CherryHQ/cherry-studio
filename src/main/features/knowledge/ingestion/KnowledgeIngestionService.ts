@@ -109,7 +109,8 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
 
     for (const input of inputs) {
       if (input.type !== 'file' && input.type !== 'directory') continue
-      if (input.type === 'file' && input.data.indexedPath) continue
+      // Only Main's internal restore performs inline copies of already-saved roots.
+      if (options.copyInline) continue
       const results = await preflightKnowledgePaths(
         [input.type === 'file' ? input.data.path : input.data.source],
         base.fileProcessorId

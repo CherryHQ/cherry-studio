@@ -120,7 +120,13 @@ vi.mock('../ingestion/filePreflight', () => ({
     paths.map((path) => ({
       path,
       processor: 'pdf',
-      reason: path.endsWith('.exe') ? 'unsupported_format' : 'ok'
+      reason: path.endsWith('.exe')
+        ? 'unsupported_format'
+        : path.includes('failed-scan')
+          ? 'ocr_required'
+          : path.includes('moved-folder')
+            ? 'unreadable_file'
+            : 'ok'
     }))
 }))
 
@@ -1524,6 +1530,48 @@ describe('KnowledgeService', () => {
     expect(enqueuedSourceCopies()).toEqual([[resolvePath('/Users/me/c/brief.md'), 'brief_1.md']])
   })
 
+  it('does not trust a caller supplied indexedPath to bypass ordinary add admission', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+    await expect(
+      ingestionOf(service).addItems('kb-1', [
+        {
+          type: 'file',
+          data: {
+            source: '/docs/failed-scan.pdf',
+            path: '/docs/failed-scan.pdf',
+            indexedPath: '/docs/artifact.md'
+          }
+        }
+      ])
+    ).rejects.toThrow('ocr_required')
+    expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
+  })
+  it('admits saved healthy and previously failed roots during internal restore', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+    await expect(
+      ingestionOf(service).addItems(
+        'kb-1',
+        [
+          { type: 'file', data: { source: '/docs/healthy.md', path: '/docs/healthy.md' } },
+          { type: 'file', data: { source: '/docs/failed-scan.pdf', path: '/docs/failed-scan.pdf' } }
+        ],
+        undefined,
+        { copyInline: true }
+      )
+    ).resolves.toMatchObject({ status: 'added' })
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledTimes(2)
+  })
+  it('rejects a missing replacement directory before creating or purging items', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+    await expect(
+      ingestionOf(service).addItems('kb-1', [{ type: 'directory', data: { source: '/docs/moved-folder' } }], 'replace')
+    ).rejects.toThrow('unreadable_file')
+    expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
+    expect(deleteKnowledgeItemFilesBestEffortMock).not.toHaveBeenCalled()
+  })
   it('rejects unsupported uploaded file extensions before copying files', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))

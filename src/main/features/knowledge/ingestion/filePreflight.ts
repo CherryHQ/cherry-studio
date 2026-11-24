@@ -68,7 +68,7 @@ export async function preflightKnowledgePaths(
     try {
       info = await stat(path)
     } catch {
-      results.push(await preflightKnowledgeFile(path, fileProcessorId))
+      results.push({ path, processor: '', reason: 'unreadable_file' })
       return
     }
     if (!info.isDirectory()) {

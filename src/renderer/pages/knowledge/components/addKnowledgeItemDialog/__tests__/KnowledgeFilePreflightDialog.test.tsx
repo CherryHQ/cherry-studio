@@ -28,6 +28,21 @@ const failed: KnowledgeFilePreflight = {
 }
 
 describe('knowledge preflight review', () => {
+  it('distinguishes matching basenames by their parent directory', () => {
+    render(
+      <KnowledgeFilePreflightDialog
+        results={[
+          { ...failed, path: '/docs/legal/scan.pdf' },
+          { ...failed, path: '/docs/sales/scan.pdf', reason: 'ok' }
+        ]}
+        onContinue={vi.fn()}
+        onCancel={vi.fn()}
+        onConfigure={vi.fn()}
+      />
+    )
+    expect(screen.getByText('/docs/legal/scan.pdf')).toBeInTheDocument()
+    expect(screen.getByText('/docs/sales/scan.pdf')).toBeInTheDocument()
+  })
   it('never accepts an all-blocked batch, provides settings recovery and cancels without importing', () => {
     const onContinue = vi.fn(),
       onCancel = vi.fn(),
@@ -40,7 +55,7 @@ describe('knowledge preflight review', () => {
         onConfigure={onConfigure}
       />
     )
-    expect(screen.getByText('scanned.pdf')).toBeInTheDocument()
+    expect(screen.getByText('/docs/scanned.pdf')).toBeInTheDocument()
     expect(screen.getByText('knowledge.preflight.reason.ocr_required')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'knowledge.preflight.continue' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'knowledge.preflight.configure' }))

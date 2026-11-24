@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 
 import AddKnowledgeItemDialog from '../AddKnowledgeItemDialog'
@@ -585,6 +586,40 @@ describe('AddKnowledgeItemDialog', () => {
       expect(toast.success).not.toHaveBeenCalled()
     })
 
+    it('imports a ready folder when the only loose file is unsupported', async () => {
+      mockUseKnowledgePage.mockReturnValue({
+        selectedBaseId: 'base-1',
+        pendingAddSource: 'file',
+        pendingAddFiles: [createMockFile('photo.png', 10)],
+        pendingAddDirectoryPaths: ['/host/FolderDropFixture']
+      })
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() =>
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'directory', data: { source: '/host/FolderDropFixture' } }],
+          'detect'
+        )
+      )
+      expect(ipcApi.request).toHaveBeenCalledWith('knowledge.preflight_files', {
+        baseId: 'base-1',
+        paths: ['/external/photo.png', '/host/FolderDropFixture']
+      })
+    })
+    it('releases a pending picker guard when the selected base changes', async () => {
+      const first = Promise.withResolvers<unknown>()
+      const request = vi.mocked(ipcApi.request)
+      const original = request.getMockImplementation()!
+      request.mockImplementationOnce(async () => first.promise as never)
+      mockUseKnowledgePage.mockReturnValue({ selectedBaseId: 'base-1', pendingAddSource: 'file' })
+      mockFileSelect.mockResolvedValue([createSelectedFile('fresh.md')])
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() => expect(request).toHaveBeenCalled())
+      request.mockImplementation(original)
+      mockUseKnowledgePage.mockReturnValue({ selectedBaseId: 'base-2', pendingAddSource: 'file' })
+      rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() => expect(mockSubmitKnowledgeItems).toHaveBeenCalled())
+      await act(async () => first.resolve(undefined))
+    })
     it.each([
       { label: '全部保留', strategy: 'rename' },
       { label: '替换', strategy: 'replace' }

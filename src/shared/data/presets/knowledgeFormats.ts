@@ -42,7 +42,9 @@ export function evaluateKnowledgeFilePreflight(
   }
 ): KnowledgeFilePreflight {
   const { hasTextlessPages, processorConfigured, parserAvailable, ...result } = input
-  const extension = /\.[^./\\]+$/.exec(input.path)?.[0].toLowerCase()
+  const basename = input.path.split(/[/\\]/).pop() ?? ''
+  const dot = basename.lastIndexOf('.')
+  const extension = dot > 0 ? basename.slice(dot).toLowerCase() : ''
   let reason: KnowledgeFilePreflight['reason'] = 'ok'
   if (!KNOWLEDGE_FORMAT_EXTENSIONS.some((ext) => ext === extension)) reason = 'unsupported_format'
   else if (input.size === undefined) reason = 'unreadable_file'

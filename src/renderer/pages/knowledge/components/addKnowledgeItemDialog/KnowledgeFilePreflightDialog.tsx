@@ -62,7 +62,7 @@ export function KnowledgeFilePreflightDialog({
           <ul className="space-y-2" aria-label={t('knowledge.preflight.files')}>
             {results?.map((file, index) => (
               <li key={`${file.path}-${index}`} className="rounded-md border border-border p-3 text-sm">
-                <p className="font-medium break-all">{file.path.split(/[/\\]/).pop()}</p>
+                <p className="font-medium break-all">{file.path}</p>
                 <p className={file.reason === 'ok' ? 'text-muted-foreground' : 'text-destructive'}>
                   {t(REASON_KEYS[file.reason])}
                 </p>
