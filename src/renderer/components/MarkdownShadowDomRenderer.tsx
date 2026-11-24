@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
 interface Props {
-  children: React.ReactNode
+  children?: React.ReactNode
 }
 
 const ShadowDomRenderer: React.FC<Props> = ({ children }) => {

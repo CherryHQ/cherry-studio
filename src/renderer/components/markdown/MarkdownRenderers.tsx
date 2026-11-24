@@ -15,7 +15,7 @@ import type { Components, ExtraProps } from 'streamdown'
 
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
-import ImageViewer, { type ImageViewerProps } from '@renderer/components/ImageViewer'
+import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
 import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
@@ -72,7 +72,8 @@ function isSameBareUrl(label: string, href: string): boolean {
  * animation output carries it. Any other element keeps the labelled-link boundary by
  * returning null.
  */
-function extractBareUrlText(node: ReactNode): string | null {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- React props and nested children are opaque; decode only supported label text and animation-marker fields.
+function extractBareUrlText(node: unknown): string | null {
   if (typeof node === 'string') return node
 
   if (typeof node === 'number') return String(node)
@@ -91,10 +92,15 @@ function extractBareUrlText(node: ReactNode): string | null {
   }
 
   if (isValidElement(node)) {
-    const props = node.props as { children?: ReactNode; 'data-sd-animate'?: unknown }
+    const props = node.props
 
-    if (props['data-sd-animate'] !== undefined) {
-      return extractBareUrlText(props.children)
+    if (
+      props !== null &&
+      typeof props === 'object' &&
+      'data-sd-animate' in props &&
+      props['data-sd-animate'] !== undefined
+    ) {
+      return extractBareUrlText('children' in props ? props.children : undefined)
     }
   }
 
@@ -335,7 +341,7 @@ export function MarkdownImageRenderer(props: MarkdownRendererProps<'img'>) {
 
   return (
     <ImageViewer
-      {...(imageProps as ImageViewerProps)}
+      {...imageProps}
       alt={alt}
       src={effectiveSrc}
       style={style ?? IMAGE_STYLE}
@@ -368,12 +374,12 @@ const MARKDOWN_COMPONENTS = {
   img: MarkdownImageRenderer,
   pre: MarkdownPreRenderer,
   p: MarkdownParagraphRenderer,
-  svg: MarkdownSvgRenderer as Components['svg']
+  svg: MarkdownSvgRenderer
 } satisfies Partial<Components>
 
 const MARKDOWN_COMPONENTS_WITH_STYLE = {
   ...MARKDOWN_COMPONENTS,
-  style: MarkdownShadowDomRenderer as Components['style']
+  style: MarkdownShadowDomRenderer
 } satisfies Partial<Components>
 
 interface UseMarkdownComponentsOptions {
