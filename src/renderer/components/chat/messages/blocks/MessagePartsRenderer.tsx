@@ -1551,6 +1551,10 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   if (!completedLayout) return null
 
   const completedHistoryEntries = completedLayout.historyEntries
+  const completedHasReasoning = completedHistoryEntries.some((entry) => isReasoningMessagePart(entry.part))
+  // Preference-driven sync target for the outer group. Undefined for tool-only
+  // histories so toggling the thinking setting leaves manual tool state alone.
+  const reasoningSyncTarget = completedHasReasoning ? !thoughtAutoCollapse : undefined
 
   const renderCompletedHistory = (isExpanded: boolean) =>
     isExpanded
@@ -1631,11 +1635,8 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         key={`completed-process-${message.id}`}
         phase="completed"
         outcome={completedHasError ? 'error' : 'success'}
-        defaultExpanded={
-          !completedHistoryIsOversized &&
-          (expandToolSteps ||
-            (!thoughtAutoCollapse && completedHistoryEntries.some((entry) => isReasoningMessagePart(entry.part))))
-        }
+        defaultExpanded={reasoningSyncTarget === true || (!completedHistoryIsOversized && expandToolSteps)}
+        syncExpanded={reasoningSyncTarget}
         message={message}
         toolItems={completedToolItems}>
         {renderCompletedHistory}

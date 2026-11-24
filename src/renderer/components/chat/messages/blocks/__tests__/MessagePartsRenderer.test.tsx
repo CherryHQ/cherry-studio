@@ -2411,6 +2411,49 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'false')
     })
 
+    it('expands a collapsed reasoning group when thinking auto-collapse is disabled while mounted', () => {
+      const parts = [
+        { type: 'reasoning', text: 'Deep thought', state: 'done' },
+        { type: 'text', text: 'final answer' }
+      ] as unknown as CherryMessagePart[]
+      const message = msg()
+      const { rerender } = render(
+        renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, thoughtAutoCollapse: true })
+      )
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'false')
+
+      rerender(renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, thoughtAutoCollapse: false }))
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it('collapses an expanded reasoning group when thinking auto-collapse is enabled while mounted', () => {
+      const parts = [
+        { type: 'reasoning', text: 'Deep thought', state: 'done' },
+        { type: 'text', text: 'final answer' }
+      ] as unknown as CherryMessagePart[]
+      const message = msg()
+      const { rerender } = render(
+        renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, thoughtAutoCollapse: false })
+      )
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'true')
+
+      rerender(renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, thoughtAutoCollapse: true }))
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('expands oversized reasoning history when thinking auto-collapse is disabled', () => {
+      renderParts(
+        [
+          { type: 'reasoning', text: 'x'.repeat(120_000), state: 'done' },
+          { type: 'text', text: 'final answer' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, thoughtAutoCollapse: false }
+      )
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'true')
+    })
+
     it('lists every step of a running turn without a click when tool steps expand', () => {
       activateTurn()
       renderParts(
