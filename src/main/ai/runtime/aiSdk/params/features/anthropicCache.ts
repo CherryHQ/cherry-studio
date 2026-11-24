@@ -15,11 +15,11 @@ import { estimateTokenCount } from 'tokenx'
 
 import { definePlugin } from '@cherrystudio/ai-core'
 import { resolveAnthropicCacheSettings } from '@shared/ai/anthropicCache'
+import { VOLATILE_PROMPT_VARIABLES } from '@shared/ai/promptVariables'
 import type { Assistant } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { AnthropicCacheTtl, Provider } from '@shared/data/types/provider'
 
-import { VOLATILE_PROMPT_VARIABLES } from '../../../../../utils/prompt'
 import type { RequestFeature } from '../feature'
 
 const MAX_CACHE_BREAKPOINTS = 4
