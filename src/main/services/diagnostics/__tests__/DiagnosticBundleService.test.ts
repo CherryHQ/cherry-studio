@@ -832,7 +832,14 @@ describe('DiagnosticBundleService', () => {
     expect(invalid.status).toBe('saved')
     expect((await readZip(destination)).entries).not.toContain('ai-diagnosis.json')
 
-    const saved = await service.exportBundle({ ...exportInput, errorContext, aiDiagnosis }, 'main-window')
+    const withoutChatOptIn = await service.exportBundle({ ...exportInput, errorContext, aiDiagnosis }, 'main-window')
+    expect(withoutChatOptIn.status).toBe('saved')
+    expect((await readZip(destination)).entries).not.toContain('ai-diagnosis.json')
+
+    const collectSpy = vi.spyOn(chatRecordCollector, 'collectChatRecords').mockReturnValue(chatCollection([]))
+    const saved = await service
+      .exportBundle({ ...exportInput, includeChatRecords: true, errorContext, aiDiagnosis }, 'main-window')
+      .finally(() => collectSpy.mockRestore())
     expect(saved.status).toBe('saved')
     const zip = await readZip(destination)
     expect(zip.entries).toContain('ai-diagnosis.json')
@@ -915,6 +922,44 @@ describe('DiagnosticBundleService', () => {
     })
     expect((await readZip(savedPath)).contents['ai-diagnosis.json'].equals(diagnosisBytes)).toBe(true)
   })
+
+  it.each([false, true])(
+    'attaches a conversation-derived ai-diagnosis.json only with the chat opt-in (%s)',
+    async (optIn) => {
+      const excerpt = 'earlier-message-excerpt'
+      const aiDiagnosis = {
+        source: 'doctor-agent' as const,
+        status: 'completed' as const,
+        text: `The previous message said "${excerpt}".`,
+        topicId: 'topic-1',
+        messageId: 'message-1'
+      }
+      const collectSpy = vi.spyOn(chatRecordCollector, 'collectChatRecords').mockReturnValue(chatCollection([]))
+      let archived: string[] = []
+      let archivedText = ''
+      uploadMocks.upload.mockImplementationOnce(async ({ filePath }) => {
+        const zip = await readZip(filePath)
+        archived = zip.entries
+        archivedText = Object.values(zip.contents)
+          .map((entry) => entry.toString())
+          .join('\n')
+        return { reportId: REPORT_ID, status: 'uploaded' }
+      })
+
+      try {
+        await new DiagnosticBundleService().uploadBundle({
+          ...UPLOAD_INPUT,
+          aiDiagnosis,
+          ...(optIn ? { chatTopicId: 'topic-1' } : {})
+        })
+      } finally {
+        collectSpy.mockRestore()
+      }
+
+      expect(archived.includes('ai-diagnosis.json')).toBe(optIn)
+      expect(archivedText.includes(excerpt)).toBe(optIn)
+    }
+  )
 
   it('uploads a bundle with the normalized description and returns the opaque report id unchanged', async () => {
     let uploadedManifest: Record<string, unknown> | undefined
