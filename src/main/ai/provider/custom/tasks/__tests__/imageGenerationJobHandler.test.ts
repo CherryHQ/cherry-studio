@@ -310,6 +310,18 @@ describe('imageGenerationJobHandler.execute', () => {
     })
   })
 
+  it('keeps a plain vendor error that looks encoded as a remote error with its text', async () => {
+    const vendorText = 'PaintingGenerateError:REQ_ERROR_TOKEN:quota exhausted'
+    submitMock.mockResolvedValue({ taskId: 'task-1' })
+    pollMock.mockRejectedValue(new Error(vendorText))
+
+    const error = await imageGenerationJobHandler.execute(createCtx()).catch((e: unknown) => e)
+    expect(decodePaintingGenerateError((error as Error).message)).toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: vendorText
+    })
+  })
+
   it('fails (not silently completes) when submit returns neither imageUrls nor a taskId', async () => {
     submitMock.mockResolvedValue({})
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/neither imageUrls nor a taskId/i)

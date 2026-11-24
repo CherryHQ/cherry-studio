@@ -8,7 +8,12 @@ import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
-import { encodePaintingGenerateError, PaintingGenerateError } from '@shared/ai/paintingGenerateError'
+import {
+  createPaintingGenerateError,
+  decodePaintingGenerateError,
+  encodePaintingGenerateError,
+  PaintingGenerateError
+} from '@shared/ai/paintingGenerateError'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String } from '@shared/types/file'
@@ -268,6 +273,12 @@ async function encodePaintingErrors<T>(call: Promise<T>): Promise<T> {
     return await call
   } catch (error) {
     if (error instanceof PaintingGenerateError) throw new Error(encodePaintingGenerateError(error))
+    // Vendor text that happens to look encoded (e.g. a TokenHub err_msg) must stay a remote error.
+    if (error instanceof Error && decodePaintingGenerateError(error.message)) {
+      throw new Error(
+        encodePaintingGenerateError(createPaintingGenerateError('REMOTE_ERROR', { message: error.message }))
+      )
+    }
     throw error
   }
 }
