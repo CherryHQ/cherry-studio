@@ -504,8 +504,6 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
     capabilities,
     inputModalities: override.inputModalities,
     outputModalities: override.outputModalities,
-    pricing: override.pricing as ProtoModelConfig['pricing'],
-    parameterSupport: override.parameterSupport as ProtoModelConfig['parameterSupport'],
     imageGeneration: override.imageGeneration
   }
 }

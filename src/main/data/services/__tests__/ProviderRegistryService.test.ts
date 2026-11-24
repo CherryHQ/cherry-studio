@@ -1129,6 +1129,54 @@ describe('ProviderRegistryService', () => {
       ])
     })
 
+    it('retains sparse parameters and available pricing for models defined only by provider overrides', () => {
+      const parameterSupport = { temperature: { supported: false } }
+      mockReadModels.mockReturnValue({ version: '1.0', models: [] })
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [
+          {
+            providerId: 'ollama',
+            modelId: 'vendor-priced',
+            parameterSupport,
+            pricing: { input: { perMillionTokens: 1 }, output: { perMillionTokens: 2 } }
+          },
+          {
+            providerId: 'ollama',
+            modelId: 'vendor-partial',
+            pricing: { output: { perMillionTokens: 3 } }
+          }
+        ]
+      })
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [{ id: 'ollama', name: 'Ollama', defaultChatEndpoint: null, metadata: {} }]
+      } as ReturnType<typeof readProviderRegistry>)
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'ollama',
+          presetProviderId: 'ollama',
+          name: 'Ollama',
+          orderKey: 'a0'
+        })
+        .run()
+
+      const collections = [
+        providerRegistryService.listProviderRegistryModels({ providerId: 'ollama' }),
+        providerRegistryService.listProviderRegistryModels(),
+        providerRegistryService.resolveModels('ollama', ['vendor-priced', 'vendor-partial'])
+      ]
+
+      for (const models of collections) {
+        expect(models.map((model) => model.apiModelId).sort()).toEqual(['vendor-partial', 'vendor-priced'])
+        const priced = models.find((model) => model.apiModelId === 'vendor-priced')
+        expect(priced?.parameterSupport).toEqual(parameterSupport)
+        expect(priced?.pricing).toMatchObject({ input: { perMillionTokens: 1 }, output: { perMillionTokens: 2 } })
+        expect(models.find((model) => model.apiModelId === 'vendor-partial')?.pricing).toBeUndefined()
+      }
+    })
+
     it('a standalone override (no models.json entry) only carries image-generation capability when it declares capabilities.force', async () => {
       // Regression: a vendor-exclusive override (e.g. Ollama's x/z-image-turbo) that sets
       // imageGeneration but omits `capabilities` synthesizes with capabilities: [] — invisible to

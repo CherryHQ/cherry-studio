@@ -22,6 +22,12 @@ the `supported` plus optional `range: { min, max }` shape for temperature, top-p
 and top-k. User parameter blocks remain sparse; reading stored user parameters
 does not add support defaults or rewrite stored values.
 
+For models defined only by a provider override, the synthesized preset supplies
+identity and descriptive metadata. Pricing and parameter support remain in the
+original override and enter the same merge as other provider overrides. Sparse
+pricing still requires both input and output rates before runtime pricing is
+available; synthesis does not invent missing rates.
+
 The sampling policy reads `temperature.range.max` for the existing ceiling-of-one
 rule. A declared maximum at or below one limits a requested temperature above one
 to one. A temperature declaration without a range does not use the model-family
