@@ -187,7 +187,7 @@ export async function buildClaudeCodeSessionSettings(
   }
 
   const agentConfig = agent.configuration
-  const builtinRole = agentConfig?.builtin_role as string | undefined
+  const builtinRole = agentConfig?.builtin_role
   const builtinPluginDirectory = builtinRole ? getBuiltinAgentPluginDirectory(builtinRole) : undefined
 
   const linkedChannelSnapshot =
@@ -463,7 +463,7 @@ export async function buildSkillWhitelist(
   cwd: string,
   channelLinked = false
 ): Promise<string[]> {
-  const builtinRole = agent.configuration?.builtin_role as string | undefined
+  const builtinRole = agent.configuration?.builtin_role
   const bundledNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
   let names = bundledNames.map((skill) => `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}`)
 
@@ -552,7 +552,7 @@ async function buildToolPermissions(
   toolPolicySnapshot: ToolPolicySnapshot
 }> {
   const agentConfig = agent.configuration
-  const builtinRole = agentConfig?.builtin_role as string | undefined
+  const builtinRole = agentConfig?.builtin_role
 
   // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
