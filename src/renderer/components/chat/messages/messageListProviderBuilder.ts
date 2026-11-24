@@ -18,7 +18,7 @@ type MessageLeafActionCapabilities = Pick<
   | 'notifyError'
 >
 
-type MessageHeaderActionCapabilities = Pick<MessageListActions, 'openUserProfile'>
+type MessageHeaderActionCapabilities = Pick<MessageListActions, 'openUserProfile' | 'toggleAuthorProfile'>
 
 export function pickMessageLeafState(
   capabilities: Partial<MessageLeafStateCapabilities>
@@ -63,6 +63,7 @@ export function pickMessageHeaderActions(
   const actions: Partial<MessageHeaderActionCapabilities> = {}
 
   if (capabilities.openUserProfile) actions.openUserProfile = capabilities.openUserProfile
+  if (capabilities.toggleAuthorProfile) actions.toggleAuthorProfile = capabilities.toggleAuthorProfile
 
   return actions
 }

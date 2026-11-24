@@ -10,9 +10,9 @@ import { ipcApi } from '@renderer/ipc'
 import type { AgentSessionExportOptions } from '@renderer/services/agentSessionExport'
 import { showImageActionFeedback } from '@renderer/services/imageActionFeedback'
 import { toast } from '@renderer/services/toast'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import {

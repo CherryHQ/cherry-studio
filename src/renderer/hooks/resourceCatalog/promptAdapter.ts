@@ -79,28 +79,6 @@ function getPromptBindingRefreshPaths(params: PromptBindingParams): ConcreteApiP
   return ['/prompts', '/prompt-bindings', getPromptBindingCollectionPath(target), `/prompts/${params.id}/bindings`]
 }
 
-export function usePromptBindingMutations(target: PromptBindingTarget) {
-  const { trigger: bindTrigger } = useMutation('PUT', '/prompts/:id/bindings/:targetType/:targetId', {
-    refresh: ({ args }) => getPromptBindingRefreshPaths(args!.params)
-  })
-  const { trigger: unbindTrigger } = useMutation('DELETE', '/prompts/:id/bindings/:targetType/:targetId', {
-    refresh: ({ args }) => getPromptBindingRefreshPaths(args!.params)
-  })
-
-  const bindPrompt = useCallback(
-    (id: string): Promise<void> =>
-      bindTrigger({ params: { id, targetType: target.type, targetId: target.id } }).then(() => undefined),
-    [bindTrigger, target.id, target.type]
-  )
-  const unbindPrompt = useCallback(
-    (id: string): Promise<void> =>
-      unbindTrigger({ params: { id, targetType: target.type, targetId: target.id } }).then(() => undefined),
-    [target.id, target.type, unbindTrigger]
-  )
-
-  return { bindPrompt, unbindPrompt }
-}
-
 export function usePromptTargetMutations(promptId: string) {
   const { trigger: bindTrigger } = useMutation('PUT', '/prompts/:id/bindings/:targetType/:targetId', {
     refresh: ({ args }) => getPromptBindingRefreshPaths(args!.params)

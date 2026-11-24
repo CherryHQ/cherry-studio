@@ -4,10 +4,12 @@ export interface KeyboardLayerProps {
   active: boolean
   children: React.ReactNode
   element: HTMLElement | null
+  guardHostClose?: boolean
   releaseAfterFocusRestore?: (cleanup: () => void) => void
 }
 
 const KeyboardLayerAdapterContext = React.createContext<React.ComponentType<KeyboardLayerProps> | null>(null)
+const HostCloseGuardContext = React.createContext(false)
 
 export function KeyboardLayerProvider({
   adapter,
@@ -66,15 +68,24 @@ export function KeyboardLayerRoot({ open, children }: { open: boolean; children:
   )
 }
 
-export function KeyboardLayer({ children, element, active, releaseAfterFocusRestore }: KeyboardLayerProps) {
+export function KeyboardLayer({
+  children,
+  element,
+  active,
+  guardHostClose,
+  releaseAfterFocusRestore
+}: KeyboardLayerProps) {
   const Adapter = React.use(KeyboardLayerAdapterContext)
   const lifetime = React.use(KeyboardLayerLifetimeContext)
+  const inheritedGuard = React.use(HostCloseGuardContext)
+  const guarded = inheritedGuard || Boolean(guardHostClose)
   return Adapter ? (
     <Adapter
       active={active}
       element={element}
+      guardHostClose={guarded}
       releaseAfterFocusRestore={releaseAfterFocusRestore ?? lifetime.releaseAfterFocusRestore}>
-      {children}
+      <HostCloseGuardContext value={guarded}>{children}</HostCloseGuardContext>
     </Adapter>
   ) : (
     children

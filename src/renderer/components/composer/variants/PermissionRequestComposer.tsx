@@ -2,11 +2,13 @@ import { ArrowUpRight, ChevronDown, Loader2, ShieldCheck, TriangleAlert } from '
 import { type ComponentType, useCallback, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
+import useSWRImmutable from 'swr/immutable'
 
 import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import {
+  getAgentConfigToolKind,
   isValidAgentToolsType,
   renderTool,
   TerminalOutput,
@@ -18,11 +20,15 @@ import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/ch
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import CopyButton from '@renderer/components/CopyButton'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
+import type { AgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
+import type { AgentConfigChangePreview as ConfigPreview } from '@shared/ai/agentConfigToolOutput'
 
 import type { ComposerOverride } from '../ComposerContext'
+import { AgentConfigChangePreview } from './AgentConfigChangePreview'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
 import { getPermissionRiskEffects, type PermissionRiskEffect } from './permissionRisk'
 
@@ -30,6 +36,13 @@ export type { PermissionRequestComposerRequest } from './permissionRequestCompos
 export { findNextPendingPermissionRequest } from './permissionRequestComposerRequest'
 
 const logger = loggerService.withContext('PermissionRequestComposer')
+
+const AGENT_CONFIG_TITLE_KEYS: Record<AgentConfigToolKind, string> = {
+  create_agent: 'agent.toolPermission.agent_config.title.create_agent',
+  create_assistant: 'agent.toolPermission.agent_config.title.create_assistant',
+  update: 'agent.toolPermission.agent_config.title.update',
+  self_update: 'agent.toolPermission.agent_config.title.self_update'
+}
 
 function isHandledElsewhere(event: KeyboardEvent) {
   return (
@@ -44,6 +57,7 @@ export type PermissionRequestComposerProps = {
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   className?: string
   agentName?: string
+  requiresAgentConfigPreview?: boolean
   onOpenSource?: (source: NonNullable<PermissionRequestComposerRequest['source']>) => void
 }
 
@@ -131,27 +145,49 @@ function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolRe
   )
 }
 
-function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse }) {
+type ConfigPreviewProps = { data?: ConfigPreview; failed: boolean }
+
+function McpPermissionPreview({
+  toolResponse,
+  configPreview
+}: {
+  toolResponse: McpToolResponse
+  configPreview: ConfigPreviewProps | null
+}) {
   const { t } = useTranslation()
   const args = normalizeArgs(toolResponse.arguments)
+  const argsPreview = args ? (
+    <ScrollArea
+      viewportProps={{ className: 'overflow-x-hidden', 'data-testid': 'permission-mcp-args-scroll' }}
+      className="max-h-60">
+      <ToolArgsTable args={args} title={t('message.tools.sections.input')} />
+    </ScrollArea>
+  ) : (
+    <div className="py-2 text-muted-foreground text-xs">{t('message.tools.noData')}</div>
+  )
 
   return (
     <div className="px-3 py-2">
-      <PermissionPreviewHeader toolName={toolResponse.tool.name} description={toolResponse.tool.description} />
-      {args ? (
-        <ScrollArea
-          viewportProps={{ className: 'overflow-x-hidden', 'data-testid': 'permission-mcp-args-scroll' }}
-          className="max-h-60">
-          <ToolArgsTable args={args} title={t('message.tools.sections.input')} />
-        </ScrollArea>
+      {/* The card title already names an Agent config call, so its preview skips the raw tool name. */}
+      {configPreview ? (
+        <AgentConfigChangePreview {...configPreview} args={argsPreview} />
       ) : (
-        <div className="py-2 text-muted-foreground text-xs">{t('message.tools.noData')}</div>
+        <>
+          <PermissionPreviewHeader toolName={toolResponse.tool.name} description={toolResponse.tool.description} />
+          {argsPreview}
+        </>
       )}
     </div>
   )
 }
 
-function PermissionPreview({ toolResponse }: { toolResponse: ToolResponseLike }) {
+function PermissionPreview({
+  toolResponse,
+  configPreview
+}: {
+  toolResponse: ToolResponseLike
+  configPreview: ConfigPreviewProps | null
+}) {
   const { t } = useTranslation()
   const args = toolResponse.arguments
   const command =
@@ -172,7 +208,7 @@ function PermissionPreview({ toolResponse }: { toolResponse: ToolResponseLike })
     )
   }
   if (isMcpToolResponse(toolResponse)) {
-    return <McpPermissionPreview toolResponse={toolResponse} />
+    return <McpPermissionPreview toolResponse={toolResponse} configPreview={configPreview} />
   }
 
   return <BuiltinPermissionPreview toolResponse={toolResponse} />
@@ -235,6 +271,7 @@ export default function PermissionRequestComposer({
   onRespond,
   className,
   agentName,
+  requiresAgentConfigPreview = false,
   onOpenSource
 }: PermissionRequestComposerProps) {
   const { t } = useTranslation()
@@ -246,7 +283,14 @@ export default function PermissionRequestComposer({
   const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
   // A typed reason means the user is denying — Enter must not approve behind their back.
   const hasRejectionReason = rejectionReason.trim().length > 0
-  const subtitle = getPermissionRequestSubtitle(request)
+  const configKind = getAgentConfigToolKind(request.toolResponse)
+  const { data: configPreview, error: configPreviewError } = useSWRImmutable(
+    configKind ? ['ai.agent.preview_config_change', request.approvalId] : null,
+    ([, approvalId]) => ipcApi.request('ai.agent.preview_config_change', { approvalId })
+  )
+  const cannotApprove = isSubmitting || (requiresAgentConfigPreview && !!configKind && !configPreview?.ok)
+  // The preview already shows the description, so an Agent config call needs no subtitle.
+  const subtitle = configKind ? null : getPermissionRequestSubtitle(request)
 
   const respond = useCallback(
     async (input: MessageToolApprovalInput, action: 'approve' | 'deny') => {
@@ -267,7 +311,7 @@ export default function PermissionRequestComposer({
   )
 
   const approve = useCallback(async () => {
-    if (isSubmitting) return
+    if (cannotApprove) return
     await respond(
       {
         match: request.match,
@@ -275,7 +319,7 @@ export default function PermissionRequestComposer({
       },
       'approve'
     )
-  }, [isSubmitting, request.match, respond])
+  }, [cannotApprove, request.match, respond])
 
   const deny = useCallback(async () => {
     if (isSubmitting) return
@@ -312,7 +356,7 @@ export default function PermissionRequestComposer({
             <span className="inline-flex shrink-0 text-muted-foreground">
               <ShieldCheck aria-hidden="true" className="size-4" />
             </span>
-            {t('agent.toolPermission.title')}
+            {configKind ? t(AGENT_CONFIG_TITLE_KEYS[configKind]) : t('agent.toolPermission.title')}
           </h2>
           {/* Live region stays mounted while idle so injecting the processing pill is announced */}
           <div role="status" aria-live="polite" className="ml-auto shrink-0">
@@ -396,7 +440,10 @@ export default function PermissionRequestComposer({
           <PermissionRiskSummary toolName={request.toolResponse.tool.name} args={request.toolResponse.arguments} />
         )}
         <div className="mt-2 overflow-hidden rounded-[12px] bg-muted dark:bg-muted/30" data-testid="permission-preview">
-          <PermissionPreview toolResponse={request.toolResponse} />
+          <PermissionPreview
+            toolResponse={request.toolResponse}
+            configPreview={configKind ? { data: configPreview, failed: Boolean(configPreviewError) } : null}
+          />
         </div>
 
         <div className="mt-2 px-1">
@@ -438,7 +485,7 @@ export default function PermissionRequestComposer({
               {hasRejectionReason ? 'Enter' : 'Esc'}
             </Kbd>
           </Button>
-          <Button type="button" variant="emphasis" disabled={isSubmitting} onClick={() => void approve()}>
+          <Button type="button" variant="emphasis" disabled={cannotApprove} onClick={() => void approve()}>
             {t(request.commandPolicy ? 'agent.toolPermission.button.allowOnce' : 'agent.toolPermission.button.allow')}
             {!hasRejectionReason && (
               <Kbd aria-hidden="true" className="bg-current/10 text-current">
