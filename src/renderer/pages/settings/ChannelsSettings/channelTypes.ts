@@ -1,99 +1,125 @@
 import type {
-  AgentChannelConfig,
   AgentChannelType,
+  CreateAgentChannelDto,
   UpdateAgentChannelDto
 } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
-export type AvailableChannel = {
-  type: AgentChannelType
+type ChannelCreateDefaults = {
+  [Type in AgentChannelType]: Readonly<Pick<Extract<CreateAgentChannelDto, { type: Type }>, 'type' | 'config'>>
+}[AgentChannelType]
+
+type ChannelDefinition = {
   name: string
   titleKey: string
   description: string
   available: boolean
-  defaultConfig: AgentChannelConfig
+  createDefaults: ChannelCreateDefaults
 }
 
-export const AVAILABLE_CHANNELS: AvailableChannel[] = [
+export type AvailableChannel = ChannelDefinition & { readonly type: AgentChannelType }
+
+const CHANNEL_DEFINITIONS: ChannelDefinition[] = [
   {
-    type: 'feishu',
     name: 'Feishu',
     titleKey: 'agent.channels.feishu.title',
     description: 'agent.channels.feishu.description',
     available: true,
-    defaultConfig: {
-      app_id: '',
-      app_secret: '',
-      encrypt_key: '',
-      verification_token: '',
-      allowed_chat_ids: [],
-      domain: 'feishu'
+    createDefaults: {
+      type: 'feishu',
+      config: {
+        app_id: '',
+        app_secret: '',
+        encrypt_key: '',
+        verification_token: '',
+        allowed_chat_ids: [],
+        domain: 'feishu'
+      }
     }
   },
   {
-    type: 'telegram',
     name: 'Telegram',
     titleKey: 'agent.channels.telegram.title',
     description: 'agent.channels.telegram.description',
     available: true,
-    defaultConfig: { bot_token: '', allowed_chat_ids: [] }
+    createDefaults: {
+      type: 'telegram',
+      config: { bot_token: '', allowed_chat_ids: [] }
+    }
   },
   {
-    type: 'qq',
     name: 'QQ',
     titleKey: 'agent.channels.qq.title',
     description: 'agent.channels.qq.description',
     available: true,
-    defaultConfig: { app_id: '', client_secret: '', allowed_chat_ids: [], mention_only: true }
+    createDefaults: {
+      type: 'qq',
+      config: { app_id: '', client_secret: '', allowed_chat_ids: [], mention_only: true }
+    }
   },
   {
-    type: 'wechat',
     name: 'WeChat',
     titleKey: 'agent.channels.wechat.title',
     description: 'agent.channels.wechat.description',
     available: true,
-    defaultConfig: { token_path: '', allowed_chat_ids: [] }
+    createDefaults: {
+      type: 'wechat',
+      config: { token_path: '', allowed_chat_ids: [] }
+    }
   },
   {
-    type: 'dingtalk',
     name: 'DingTalk',
     titleKey: 'agent.channels.dingtalk.title',
     description: 'agent.channels.dingtalk.description',
     available: true,
-    defaultConfig: {
-      client_id: '',
-      client_secret: '',
-      robot_code: '',
-      card_template_id: '',
-      allowed_chat_ids: [],
-      allowed_user_ids: []
+    createDefaults: {
+      type: 'dingtalk',
+      config: {
+        client_id: '',
+        client_secret: '',
+        robot_code: '',
+        card_template_id: '',
+        allowed_chat_ids: [],
+        allowed_user_ids: []
+      }
     }
   },
   {
-    type: 'wecom',
     name: 'WeCom',
     titleKey: 'agent.channels.wecom.title',
     description: 'agent.channels.wecom.description',
     available: true,
-    defaultConfig: { bot_id: '', secret: '', allowed_chat_ids: [], allowed_user_ids: [] }
+    createDefaults: {
+      type: 'wecom',
+      config: { bot_id: '', secret: '', allowed_chat_ids: [], allowed_user_ids: [] }
+    }
   },
   {
-    type: 'discord',
     name: 'Discord',
     titleKey: 'agent.channels.discord.title',
     description: 'agent.channels.discord.description',
     available: true,
-    defaultConfig: { bot_token: '', allowed_channel_ids: [] }
+    createDefaults: {
+      type: 'discord',
+      config: { bot_token: '', allowed_channel_ids: [] }
+    }
   },
   {
-    type: 'slack',
     name: 'Slack',
     titleKey: 'agent.channels.slack.title',
     description: 'agent.channels.slack.description',
     available: true,
-    defaultConfig: { bot_token: '', app_token: '', allowed_channel_ids: [] }
+    createDefaults: {
+      type: 'slack',
+      config: { bot_token: '', app_token: '', allowed_channel_ids: [] }
+    }
   }
 ]
+
+export const AVAILABLE_CHANNELS: AvailableChannel[] = CHANNEL_DEFINITIONS.map((definition) => ({
+  ...definition,
+  type: definition.createDefaults.type
+}))
 
 export type ChannelData = {
   id: string

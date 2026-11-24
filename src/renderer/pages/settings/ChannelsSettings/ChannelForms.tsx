@@ -20,9 +20,10 @@ import {
 } from '@cherrystudio/ui'
 import { FullAccessConfirmDialog, PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import type { FeishuChannelConfig, FeishuDomain } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
+import { FeishuDomainSchema } from '@shared/data/api/schemas/agentChannels'
 
+import { readChannelIds, readChannelText, readMentionOnly } from './channelConfigFields'
 import type { ChannelData, ChannelUpdates } from './channelTypes'
 import { DingTalkForm } from './DingTalkForm'
 import { WeComForm } from './WeComForm'
@@ -30,6 +31,8 @@ import { WeComForm } from './WeComForm'
 // --------------- Permission mode ---------------
 
 const INHERIT_PERMISSION_MODE_VALUE = '__inherit'
+
+const FeishuDisplayDomainSchema = FeishuDomainSchema.catch('feishu')
 
 // --------------- Form types ---------------
 
@@ -139,14 +142,14 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
   const idsKey = chatIdsConfig.configKey ?? 'allowed_chat_ids'
 
   const [fieldValues, setFieldValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(fields.map((f) => [f.key, (cfg[f.key] as string) ?? '']))
+    Object.fromEntries(fields.map((f) => [f.key, readChannelText(cfg[f.key])]))
   )
 
-  const [chatIds, setChatIds] = useState(((cfg[idsKey] as string[]) ?? []).join(', '))
+  const [chatIds, setChatIds] = useState(readChannelIds(cfg[idsKey]).join(', '))
 
   useEffect(() => {
-    setFieldValues(Object.fromEntries(fields.map((f) => [f.key, (cfg[f.key] as string) ?? ''])))
-    setChatIds(((cfg[idsKey] as string[]) ?? []).join(', '))
+    setFieldValues(Object.fromEntries(fields.map((f) => [f.key, readChannelText(cfg[f.key])])))
+    setChatIds(readChannelIds(cfg[idsKey]).join(', '))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(fields.map((f) => cfg[f.key])), cfg[idsKey]])
 
@@ -154,7 +157,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
     (key: string, value: string) => {
       const trimmed = value.trim()
 
-      if (trimmed !== ((cfg[key] as string) ?? '')) {
+      if (trimmed !== readChannelText(cfg[key])) {
         onConfigChange(patchConfig ? { configPatch: { [key]: trimmed } } : { config: { ...cfg, [key]: trimmed } })
       }
     },
@@ -167,7 +170,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
       .map((s) => s.trim())
       .filter(Boolean)
 
-    if (JSON.stringify(ids) !== JSON.stringify((cfg[idsKey] as string[]) ?? [])) {
+    if (JSON.stringify(ids) !== JSON.stringify(readChannelIds(cfg[idsKey]))) {
       onConfigChange(patchConfig ? { configPatch: { [idsKey]: ids } } : { config: { ...cfg, [idsKey]: ids } })
     }
   }, [chatIds, cfg, idsKey, onConfigChange, patchConfig])
@@ -256,7 +259,7 @@ const FeishuDomainSelector: FC<ChannelFormProps> = ({ channel, onConfigChange })
     <div>
       <Label className="mb-1 block text-xs">{t('agent.channels.feishu.domain')}</Label>
       <Select
-        value={(cfg.domain as FeishuDomain) ?? 'feishu'}
+        value={FeishuDisplayDomainSchema.parse(cfg.domain)}
         onValueChange={(value) => onConfigChange({ configPatch: { domain: value } })}>
         <SelectTrigger size="sm" className="w-full">
           <SelectValue />
@@ -274,9 +277,9 @@ type FeishuStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected
 
 export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
-  const cfg = channel.config as FeishuChannelConfig
-  const mentionOnly = (cfg.mention_only as boolean) ?? true
-  const hasCredentials = !!(cfg.app_id && cfg.app_secret)
+  const cfg = channel.config
+  const mentionOnly = readMentionOnly(cfg.mention_only)
+  const hasCredentials = !!(readChannelText(cfg.app_id) && readChannelText(cfg.app_secret))
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [status, setStatus] = useState<FeishuStatus>(hasCredentials ? 'confirmed' : 'idle')
 
@@ -428,7 +431,7 @@ export const DiscordForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =
 export const QQForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
   const cfg = channel.config
-  const mentionOnly = (cfg.mention_only as boolean) ?? true
+  const mentionOnly = readMentionOnly(cfg.mention_only)
 
   return (
     <ChannelFieldsForm

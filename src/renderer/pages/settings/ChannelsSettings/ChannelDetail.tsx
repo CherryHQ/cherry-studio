@@ -42,6 +42,7 @@ import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelStatus } from '@shared/data/types/channel'
 
+import { readChannelIds, readChannelText } from './channelConfigFields'
 import { getFormForType } from './ChannelForms'
 import type { AvailableChannel, ChannelData, ChannelUpdates } from './channelTypes'
 
@@ -60,48 +61,52 @@ function truncateId(s: string, prefixLen = 7, suffixLen = 3): string {
 
 function getChannelSummary(channel: ChannelData): string {
   const cfg = channel.config
-  const chatIds = (cfg.allowed_chat_ids as string[]) ?? []
+  const chatIds = readChannelIds(cfg.allowed_chat_ids)
+  const appId = readChannelText(cfg.app_id)
+  const botToken = readChannelText(cfg.bot_token)
+  const clientId = readChannelText(cfg.client_id)
+  const botId = readChannelText(cfg.bot_id)
   const parts: string[] = []
 
   switch (channel.type) {
     case 'feishu': {
-      if (cfg.app_id) parts.push(truncateId(cfg.app_id as string))
-      const domain = cfg.domain as string
+      if (appId) parts.push(truncateId(appId))
+      const domain = cfg.domain
       parts.push(domain === 'lark' ? 'Lark (International)' : 'Feishu (China)')
       break
     }
 
     case 'telegram':
-      if (cfg.bot_token) parts.push(`Token: ${truncateId(cfg.bot_token as string)}`)
+      if (botToken) parts.push(`Token: ${truncateId(botToken)}`)
 
       if (chatIds.length > 0) parts.push(`${chatIds.length} chat IDs`)
       break
     case 'qq':
-      if (cfg.app_id) parts.push(truncateId(cfg.app_id as string))
+      if (appId) parts.push(truncateId(appId))
 
       if (chatIds.length > 0) parts.push(`${chatIds.length} chat IDs`)
       break
     case 'discord': {
-      if (cfg.bot_token) parts.push(`Token: ${truncateId(cfg.bot_token as string)}`)
-      const channelIds = (cfg.allowed_channel_ids as string[]) ?? []
+      if (botToken) parts.push(`Token: ${truncateId(botToken)}`)
+      const channelIds = readChannelIds(cfg.allowed_channel_ids)
 
       if (channelIds.length > 0) parts.push(`${channelIds.length} channel IDs`)
       break
     }
 
     case 'slack': {
-      if (cfg.bot_token) parts.push(`Token: ${truncateId(cfg.bot_token as string)}`)
-      const slackChannelIds = (cfg.allowed_channel_ids as string[]) ?? []
+      if (botToken) parts.push(`Token: ${truncateId(botToken)}`)
+      const slackChannelIds = readChannelIds(cfg.allowed_channel_ids)
 
       if (slackChannelIds.length > 0) parts.push(`${slackChannelIds.length} channel IDs`)
       break
     }
 
     case 'dingtalk':
-      if (cfg.client_id) parts.push(truncateId(cfg.client_id as string))
+      if (clientId) parts.push(truncateId(clientId))
       break
     case 'wecom':
-      if (cfg.bot_id) parts.push(truncateId(cfg.bot_id as string))
+      if (botId) parts.push(truncateId(botId))
       break
     case 'wechat':
       break
@@ -528,14 +533,13 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
     const existingCount = channels?.length ?? 0
 
     const newChannel = await createChannel({
-      type: channelDef.type,
+      ...channelDef.createDefaults,
       name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
       workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
-      config: channelDef.defaultConfig,
       // Feishu and WeChat register by QR, so binding an active channel to an agent
       // starts the adapter flow. Credential-gated channels start inactive.
-      isActive: channelDef.type === 'feishu' || channelDef.type === 'wechat'
-    } as never)
+      isActive: channelDef.createDefaults.type === 'feishu' || channelDef.createDefaults.type === 'wechat'
+    })
 
     if (newChannel) {
       openEditModal(newChannel.id)

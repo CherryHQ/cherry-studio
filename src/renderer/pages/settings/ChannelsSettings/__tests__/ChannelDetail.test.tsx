@@ -195,7 +195,7 @@ describe('ChannelDetail', () => {
     titleKey: 'agent.channels.telegram.title',
     description: 'agent.channels.telegram.description',
     available: true,
-    defaultConfig: { bot_token: '', allowed_chat_ids: [] }
+    createDefaults: { type: 'telegram', config: { bot_token: '', allowed_chat_ids: [] } }
   }
   const feishuChannelDef: AvailableChannel = {
     type: 'feishu',
@@ -203,13 +203,16 @@ describe('ChannelDetail', () => {
     titleKey: 'agent.channels.feishu.title',
     description: 'agent.channels.feishu.description',
     available: true,
-    defaultConfig: {
-      app_id: '',
-      app_secret: '',
-      encrypt_key: '',
-      verification_token: '',
-      allowed_chat_ids: [],
-      domain: 'feishu'
+    createDefaults: {
+      type: 'feishu',
+      config: {
+        app_id: '',
+        app_secret: '',
+        encrypt_key: '',
+        verification_token: '',
+        allowed_chat_ids: [],
+        domain: 'feishu'
+      }
     }
   }
   const wechatChannelDef: AvailableChannel = {
@@ -218,7 +221,7 @@ describe('ChannelDetail', () => {
     titleKey: 'agent.channels.wechat.title',
     description: 'agent.channels.wechat.description',
     available: true,
-    defaultConfig: { token_path: '', allowed_chat_ids: [] }
+    createDefaults: { type: 'wechat', config: { token_path: '', allowed_chat_ids: [] } }
   }
 
   beforeEach(() => {
@@ -260,17 +263,97 @@ describe('ChannelDetail', () => {
       expect(channelMocks.createChannel).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'telegram',
-          config: channelDef.defaultConfig,
+          config: channelDef.createDefaults.config,
           isActive: false
         })
       )
     })
   })
 
+  it('allows repairing a malformed token without discarding the other stored config fields', async () => {
+    const config = {
+      bot_token: { stale: true },
+      allowed_chat_ids: ['chat-1', 42, 'chat-1'],
+      legacy_option: { keep: true }
+    }
+    channelMocks.channels = [{ ...channelMocks.channels[0], config }]
+    render(<ChannelDetail channelDef={channelDef} />)
+
+    expect(screen.getByText('2 chat IDs')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'common.edit' }))
+    const token = screen.getByPlaceholderText('agent.channels.telegram.botTokenPlaceholder')
+    expect(token).toHaveValue('')
+    expect(screen.getByPlaceholderText('agent.channels.telegram.chatIdsPlaceholder')).toHaveValue('chat-1, chat-1')
+
+    fireEvent.change(token, { target: { value: ' replacement-token ' } })
+    fireEvent.blur(token)
+
+    expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', {
+      config: {
+        bot_token: 'replacement-token',
+        allowed_chat_ids: ['chat-1', 42, 'chat-1'],
+        legacy_option: { keep: true }
+      }
+    })
+  })
+
+  it('keeps a malformed Feishu credential recoverable and saves only the edited field', async () => {
+    const config = {
+      app_id: 42,
+      app_secret: { stale: true },
+      allowed_chat_ids: ['chat-1', null, '', 'chat-1'],
+      domain: { stale: true }
+    }
+    channelMocks.channels = [{ ...channelMocks.channels[0], type: 'feishu', config }]
+    render(<ChannelDetail channelDef={feishuChannelDef} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'common.edit' }))
+
+    expect(screen.getByText('agent.channels.feishu.loginHint')).toBeInTheDocument()
+    const appId = screen.getByPlaceholderText('agent.channels.feishu.appIdPlaceholder')
+    expect(appId).toHaveValue('')
+    expect(screen.getByPlaceholderText('agent.channels.feishu.appSecretPlaceholder')).toHaveValue('')
+    expect(screen.getByPlaceholderText('agent.channels.feishu.chatIdsPlaceholder')).toHaveValue('chat-1, , chat-1')
+
+    fireEvent.change(appId, { target: { value: ' new-app-id ' } })
+    fireEvent.blur(appId)
+
+    expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', {
+      configPatch: { app_id: 'new-app-id' }
+    })
+  })
+
+  it.each([
+    { mentionOnly: false, checked: false },
+    { mentionOnly: undefined, checked: true },
+    { mentionOnly: 'false', checked: true }
+  ])('uses a boolean mention preference when the stored value is $mentionOnly', async ({ mentionOnly, checked }) => {
+    channelMocks.channels = [
+      {
+        ...channelMocks.channels[0],
+        type: 'feishu',
+        config: { app_id: 'app-id', app_secret: 'secret', mention_only: mentionOnly }
+      }
+    ]
+    render(<ChannelDetail channelDef={feishuChannelDef} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'common.edit' }))
+    const mentionSwitch = screen.getByRole('switch', { name: 'agent.channels.feishu.mentionOnlyLabel' })
+    expect(mentionSwitch).toHaveAttribute('aria-checked', String(checked))
+
+    fireEvent.click(mentionSwitch)
+
+    expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', {
+      configPatch: { mention_only: !checked }
+    })
+  })
+
   it('passes independent WeCom field patches through the settings save boundary', async () => {
     const config = { bot_id: 'old-bot', secret: 'old-secret', allowed_chat_ids: [], allowed_user_ids: [] }
     channelMocks.channels = [{ ...channelMocks.channels[0], type: 'wecom', config, isActive: false }]
-    render(<ChannelDetail channelDef={{ ...channelDef, type: 'wecom', name: 'WeCom', defaultConfig: config }} />)
+    render(
+      <ChannelDetail
+        channelDef={{ ...channelDef, type: 'wecom', name: 'WeCom', createDefaults: { type: 'wecom', config } }}
+      />
+    )
     const tooltip = await screen.findByText('common.edit')
     fireEvent.click(within(tooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button'))
     for (const [key, value] of [
@@ -512,7 +595,7 @@ describe('ChannelDetail', () => {
       id: 'new-feishu-channel',
       type: 'feishu',
       name: 'Feishu 1',
-      config: feishuChannelDef.defaultConfig,
+      config: feishuChannelDef.createDefaults.config,
       isActive: true
     })
     render(<ChannelDetail channelDef={feishuChannelDef} />)
@@ -523,7 +606,7 @@ describe('ChannelDetail', () => {
       expect(channelMocks.createChannel).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'feishu',
-          config: feishuChannelDef.defaultConfig,
+          config: feishuChannelDef.createDefaults.config,
           isActive: true
         })
       )
@@ -536,7 +619,7 @@ describe('ChannelDetail', () => {
       id: 'new-wechat-channel',
       type: 'wechat',
       name: 'WeChat',
-      config: wechatChannelDef.defaultConfig,
+      config: wechatChannelDef.createDefaults.config,
       isActive: true
     })
     render(<ChannelDetail channelDef={wechatChannelDef} />)
@@ -547,7 +630,7 @@ describe('ChannelDetail', () => {
       expect(channelMocks.createChannel).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'wechat',
-          config: wechatChannelDef.defaultConfig,
+          config: wechatChannelDef.createDefaults.config,
           isActive: true
         })
       )
