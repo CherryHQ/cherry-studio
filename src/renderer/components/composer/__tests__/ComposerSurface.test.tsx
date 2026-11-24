@@ -14,7 +14,7 @@ import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem }
 import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
 import { voiceTargetManager } from '@renderer/services/voice'
 import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
-import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { COMPOSER_FILE_KIND, type FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
@@ -22,6 +22,7 @@ import {
   readComposerClipboardFragment,
   writeComposerRichClipboardContent
 } from '@renderer/utils/message/composerClipboard'
+import { FILE_TYPE } from '@shared/types/file'
 
 import { ComposerContextProvider, ComposerLayerActiveProvider } from '../ComposerContext'
 import { serializeComposerDocument } from '../composerDraft'
