@@ -819,19 +819,25 @@ function createDeferred<T>() {
   return { promise, resolve, reject }
 }
 
-vi.mock('@renderer/hooks/agent/useChannels', () => ({
-  useChannels: () => ({
-    channels: [
-      { id: 'owned-channel', type: 'telegram', name: 'Telegram', config: {}, agentId: 'agent-1', isActive: true }
-    ],
-    isLoading: false,
-    createChannel: vi.fn(),
-    updateChannel: vi.fn()
-  })
-}))
+function mockNavigationChannel() {
+  const baseQuery = useQueryMock.getMockImplementation()!
+  useQueryMock.mockImplementation((path: string, ...rest: unknown[]) =>
+    path === '/agent-channels'
+      ? {
+          data: [
+            { id: 'owned-channel', type: 'telegram', name: 'Telegram', config: {}, agentId: 'agent-1', isActive: true }
+          ],
+          isLoading: false,
+          refetch: vi.fn(),
+          mutate: vi.fn()
+        }
+      : baseQuery(path, ...rest)
+  )
+}
 
 describe('edit dialogs', () => {
   it.each(['success', 'failure'] as const)('waits for a Channel navigation save and respects %s', async (outcome) => {
+    mockNavigationChannel()
     const save = createDeferred<AgentDetail>()
     updateAgentMock.mockImplementationOnce(() => save.promise)
     function Host() {
@@ -857,6 +863,7 @@ describe('edit dialogs', () => {
   })
 
   it('saves pending agent edits before navigating to Channel settings', async () => {
+    mockNavigationChannel()
     const user = userEvent.setup()
     function Host() {
       const [open, setOpen] = useState(true)

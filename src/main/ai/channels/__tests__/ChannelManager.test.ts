@@ -209,6 +209,27 @@ describe('ChannelManager', () => {
     expect(window.listenerCount('closed')).toBe(0)
   })
 
+  it('suppresses legacy Feishu replay while a managed login owns the channel', async () => {
+    const window = Object.assign(new EventEmitter(), { isDestroyed: () => false })
+    vi.mocked(application.get('WindowManager').getWindow).mockReturnValueOnce(window as unknown as BrowserWindow)
+    rows = [makeChannel({ type: 'feishu', config: {}, isActive: false })]
+    vi.mocked(channelService.updateChannel).mockImplementation((_id, updates) => {
+      rows[0] = { ...rows[0], ...updates }
+      return rows[0]
+    })
+    await manager.start()
+    expect(manager.beginQrLogin('first-window', 'ch-1', 'attempt')).toBe(true)
+    await vi.waitFor(() => expect(manager.getAdapter('ch-1')).toBeDefined())
+    const pending = { url: 'https://example.com/qr', expiresAt: Date.now() + 60_000 }
+    const read = vi.fn(() => pending)
+    Object.assign(adapters[0], { getPendingQrLogin: read })
+    expect(manager.getLegacyPendingFeishuQr('ch-1')).toBeNull()
+    expect(read).not.toHaveBeenCalled()
+    adapters[0].emit('qrLogin', { type: 'feishu', data: { channelId: 'ch-1', url: pending.url, status: 'confirmed' } })
+    expect(manager.getLegacyPendingFeishuQr('ch-1')).toEqual(pending)
+    expect(read).toHaveBeenCalledOnce()
+  })
+
   it('publishes unclaimed Feishu QR confirmations to Settings with the legacy credentials payload', async () => {
     rows = [makeChannel({ type: 'feishu', config: {} })]
     await manager.start()
