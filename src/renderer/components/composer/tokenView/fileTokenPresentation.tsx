@@ -3,9 +3,8 @@ import { FileText } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { loggerService } from '@logger'
-import { FILE_TYPE } from '@renderer/types/file'
+import { FILE_TYPE, type FileTokenPreviewData } from '@renderer/types/file'
 import { getFileIconName } from '@renderer/utils/fileIconName'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { fileUrlToPath, toSafeFileUrl } from '@shared/utils/file'
 
@@ -91,21 +90,22 @@ const fileTokenVariantByExtension = new Map<string, FileTokenVariant>(
   Object.entries(fileTokenVisualPresetByVariant).flatMap(([variant, preset]) => {
     const displayExtensions = 'displayExtensions' in preset ? preset.displayExtensions : undefined
 
+    // SAFETY: These own entries enumerate the private preset keys that define FileTokenVariant.
     return (displayExtensions ?? []).map((extension) => [extension, variant as FileTokenVariant])
   })
 )
 
-function getNormalizedFileExtension(file: ComposerAttachment | undefined, fallbackLabel: string) {
+function getNormalizedFileExtension(file: FileTokenPreviewData | undefined, fallbackLabel: string) {
   const extension = file?.ext || fallbackLabel.match(/\.[^.]+$/)?.[0] || ''
 
   return extension.replace(/^\./, '').toLowerCase()
 }
 
-function getFileExtensionLabel(file: ComposerAttachment | undefined, fallbackLabel: string) {
+function getFileExtensionLabel(file: FileTokenPreviewData | undefined, fallbackLabel: string) {
   return getNormalizedFileExtension(file, fallbackLabel).toUpperCase()
 }
 
-function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: string, readOnlyPreviewUrl?: string) {
+function getFilePreviewUrl(file: FileTokenPreviewData | undefined, fallbackLabel: string, readOnlyPreviewUrl?: string) {
   if (file?.type !== FILE_TYPE.IMAGE) return undefined
   const extension = getNormalizedFileExtension(file, fallbackLabel)
   // A path-less attachment (the message-editing round-trip) previews from its stored `file://` URL.
@@ -152,7 +152,7 @@ function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: 
   return toSafeFileUrl(parsedPath.data, extension || null)
 }
 
-function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel: string): FileTokenVariant {
+function getFileTokenVariant(file: FileTokenPreviewData | undefined, fallbackLabel: string): FileTokenVariant {
   const extension = getNormalizedFileExtension(file, fallbackLabel)
   const extensionVariant = fileTokenVariantByExtension.get(extension)
 
@@ -171,7 +171,7 @@ function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel
  * Tokens restored from a message have no attachment, so the label stands in for the file name — it
  * carries the extension (and the path, when the attachment was unknown) either way.
  */
-function getFileTokenIcon(file: ComposerAttachment | undefined, fallbackLabel: string, className: string) {
+function getFileTokenIcon(file: FileTokenPreviewData | undefined, fallbackLabel: string, className: string) {
   const iconName = getFileIconName(file?.origin_name || file?.name || fallbackLabel || file?.path || '')
 
   return (
@@ -185,7 +185,7 @@ function getFileTokenIcon(file: ComposerAttachment | undefined, fallbackLabel: s
 }
 
 export function getFileTokenPresentation(
-  file: ComposerAttachment | undefined,
+  file: FileTokenPreviewData | undefined,
   fallbackLabel: string,
   previewUrl?: string
 ): FileTokenPresentation {

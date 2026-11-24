@@ -37,12 +37,11 @@ import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIco
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import { ipcApi } from '@renderer/ipc'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
-import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
+import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE, type FileTokenPreviewData } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import type { AbsoluteFilePath, FileUrlString } from '@shared/types/file'
-import { fileUrlToPath } from '@shared/utils/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, FileTypeSchema } from '@shared/types/file'
+import { tryFileUrlToPath } from '@shared/utils/file'
 
 import type { ChatInputTokenKind, ChatTokenView } from '../chatTokenView'
 import type { ComposerInputFilePreviewAction } from '../filePreview'
@@ -118,6 +117,10 @@ const namedTokenIcons: ReadonlyMap<string, ReactNode> = new Map(
     quote: <TextQuote className={tokenIconClassName} />
   })
 )
+
+function isTokenRemoveTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('[data-composer-token-remove]') !== null
+}
 
 function stopTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
   event.preventDefault()
@@ -380,11 +383,33 @@ export function LinkComposerToken(props: ComposerTokenProps) {
   )
 }
 
-function isComposerAttachment(value: unknown): value is ComposerAttachment {
-  return typeof value === 'object' && value !== null
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Live attachments and stored tokens carry different payloads; project only independently checked preview fields.
+function readFileTokenPreviewData(value: unknown): FileTokenPreviewData | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const name = 'name' in value ? value.name : undefined
+  const originName = 'origin_name' in value ? value.origin_name : undefined
+  const extension = 'ext' in value ? value.ext : undefined
+  const size = 'size' in value ? value.size : undefined
+  const previewUrl = 'previewUrl' in value ? value.previewUrl : undefined
+  const blob = 'blob' in value ? value.blob : undefined
+  const kind = 'composerFileKind' in value ? value.composerFileKind : undefined
+  const fileType = FileTypeSchema.safeParse('type' in value ? value.type : undefined)
+  const path = AbsoluteFilePathSchema.safeParse('path' in value ? value.path : undefined)
+
+  return {
+    name: typeof name === 'string' ? name : undefined,
+    origin_name: typeof originName === 'string' ? originName : undefined,
+    ext: typeof extension === 'string' ? extension : undefined,
+    size: typeof size === 'number' ? size : undefined,
+    previewUrl: typeof previewUrl === 'string' ? previewUrl : undefined,
+    blob: blob instanceof Blob ? blob : undefined,
+    composerFileKind: kind === COMPOSER_FILE_KIND.PASTED_TEXT ? kind : undefined,
+    type: fileType.success ? fileType.data : undefined,
+    path: path.success ? path.data : undefined
+  }
 }
 
-function shouldShowFileTokenPopover(file: ComposerAttachment | undefined) {
+function shouldShowFileTokenPopover(file: FileTokenPreviewData | undefined) {
   return file?.type === FILE_TYPE.IMAGE || file?.composerFileKind === COMPOSER_FILE_KIND.PASTED_TEXT
 }
 
@@ -425,13 +450,15 @@ function getReadOnlyFilePreviewPath(readOnlyFilePreview: ReadOnlyComposerFileTok
   if (!readOnlyFilePreview?.url) return undefined
 
   try {
-    return normalizeFilePreviewPath(fileUrlToPath(readOnlyFilePreview.url as FileUrlString))
+    const path = tryFileUrlToPath(readOnlyFilePreview.url)
+
+    return path ? normalizeFilePreviewPath(path) : undefined
   } catch {
     return undefined
   }
 }
 
-function getEditableFilePreviewPath(file: ComposerAttachment | undefined) {
+function getEditableFilePreviewPath(file: FileTokenPreviewData | undefined) {
   if (!file?.path) return undefined
 
   try {
@@ -442,7 +469,7 @@ function getEditableFilePreviewPath(file: ComposerAttachment | undefined) {
 }
 
 function getPastedTextPreviewPath(
-  file: ComposerAttachment | undefined,
+  file: FileTokenPreviewData | undefined,
   readOnlyFilePreview: ReadOnlyComposerFileTokenPreview | undefined
 ) {
   return getReadOnlyFilePreviewPath(readOnlyFilePreview) ?? file?.path
@@ -468,7 +495,7 @@ function PastedTextTokenPreviewCard({
   readOnlyFilePreview,
   secondaryAction
 }: {
-  file: ComposerAttachment | undefined
+  file: FileTokenPreviewData | undefined
   readOnlyFilePreview?: ReadOnlyComposerFileTokenPreview
   secondaryAction?: ReactNode
 }) {
@@ -517,7 +544,7 @@ function FileTokenPreviewCard({
   readOnlyFilePreview,
   secondaryAction
 }: {
-  file: ComposerAttachment | undefined
+  file: FileTokenPreviewData | undefined
   label: string
   presentation: FileTokenPresentation
   readOnlyFilePreview?: ReadOnlyComposerFileTokenPreview
@@ -725,7 +752,7 @@ function ComposerTokenHoverPopover({
 
   const handleTriggerKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLElement>) => {
-      if ((event.target as HTMLElement | null)?.closest('[data-composer-token-remove]')) return
+      if (isTokenRemoveTarget(event.target)) return
 
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
@@ -754,7 +781,7 @@ function ComposerTokenHoverPopover({
 
   const handleTriggerClick = useCallback(
     (event: ReactMouseEvent<HTMLElement>) => {
-      if (!onActivate || (event.target as HTMLElement | null)?.closest('[data-composer-token-remove]')) return
+      if (!onActivate || isTokenRemoveTarget(event.target)) return
 
       stopTokenActionEvent(event)
       closePopover()
@@ -825,7 +852,7 @@ const ComposerTokenActivationTrigger = function ComposerTokenActivationTrigger({
 }: ComposerTokenActivationTriggerProps & { ref?: React.Ref<HTMLSpanElement> }) {
   const handleClick = useCallback(
     (event: ReactMouseEvent<HTMLElement>) => {
-      if ((event.target as HTMLElement | null)?.closest('[data-composer-token-remove]')) return
+      if (isTokenRemoveTarget(event.target)) return
 
       stopTokenActionEvent(event)
       void onActivate()
@@ -835,7 +862,7 @@ const ComposerTokenActivationTrigger = function ComposerTokenActivationTrigger({
 
   const handleKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLElement>) => {
-      if ((event.target as HTMLElement | null)?.closest('[data-composer-token-remove]')) return
+      if (isTokenRemoveTarget(event.target)) return
 
       if (event.key !== 'Enter' && event.key !== ' ') return
 
@@ -873,17 +900,17 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     tooltipActions
   } = props
 
-  const tokenFile = isComposerAttachment(token.payload) ? token.payload : undefined
+  const tokenFile = readFileTokenPreviewData(token.payload)
   const previewFileType = readOnlyFilePreview?.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : undefined
 
-  const file = readOnlyFilePreview
-    ? ({
+  const file: FileTokenPreviewData | undefined = readOnlyFilePreview
+    ? {
         ...tokenFile,
         ...(!tokenFile?.type && previewFileType && { type: previewFileType }),
         ...(readOnlyFilePreview.composerFileKind && {
           composerFileKind: readOnlyFilePreview.composerFileKind
         })
-      } as ComposerAttachment)
+      }
     : tokenFile
 
   const label = file?.origin_name || file?.name || token.label
@@ -945,7 +972,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
 
   const handleFilePreviewClick = useCallback(
     (event: ReactMouseEvent<HTMLSpanElement>) => {
-      if (!canOpenFilePreview || (event.target as HTMLElement | null)?.closest('[data-composer-token-remove]')) return
+      if (!canOpenFilePreview || isTokenRemoveTarget(event.target)) return
       stopTokenActionEvent(event)
       void openFilePreview()
     },
@@ -954,11 +981,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
 
   const handleFilePreviewKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLSpanElement>) => {
-      if (
-        !canOpenFilePreview ||
-        (event.target as HTMLElement | null)?.closest('[data-composer-token-remove]') ||
-        (event.key !== 'Enter' && event.key !== ' ')
-      ) {
+      if (!canOpenFilePreview || isTokenRemoveTarget(event.target) || (event.key !== 'Enter' && event.key !== ' ')) {
         return
       }
 

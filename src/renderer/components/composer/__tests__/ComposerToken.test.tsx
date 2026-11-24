@@ -18,12 +18,8 @@ import { createComposerEditorPreset } from '../composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
 import { createPromptVariableContent, selectPromptVariableToken } from '../promptVariables'
 import { PromptVariableToken } from '../PromptVariableToken'
-import {
-  ACTIVE_COMPOSER_INPUT_TOKEN_KINDS,
-  type ComposerDraftToken,
-  type PromptVariableComposerInputToken
-} from '../tokens'
-import { composerInputTokenComponentByKind, ComposerToken, FileComposerToken } from '../tokenView'
+import { type ComposerDraftToken, type PromptVariableComposerInputToken } from '../tokens'
+import { ComposerToken, FileComposerToken } from '../tokenView'
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 const imagePreviewShowMock = vi.hoisted(() => vi.fn())
@@ -332,10 +328,59 @@ describe('ComposerToken', () => {
     expect(token).toHaveTextContent('Custom skill')
   })
 
-  it('maps active composer token kinds to explicit components', () => {
-    expect(Object.keys(composerInputTokenComponentByKind).toSorted()).toEqual(
-      [...ACTIVE_COMPOSER_INPUT_TOKEN_KINDS].toSorted()
+  it('opens a partial file payload using valid name/path fields when its display label is malformed', async () => {
+    const user = userEvent.setup()
+    const onFilePreviewActivate = vi.fn()
+    render(
+      <FileComposerToken
+        onFilePreviewActivate={onFilePreviewActivate}
+        token={{
+          id: 'file:partial',
+          kind: 'file',
+          label: 'fallback label',
+          payload: {
+            name: 'report.md',
+            origin_name: { text: 'invalid label' },
+            path: '/tmp/report.md',
+            ext: '.md',
+            type: FILE_TYPE.TEXT
+          }
+        }}
+      />
     )
+
+    await user.click(screen.getByRole('button', { name: 'report.md' }))
+
+    expect(onFilePreviewActivate).toHaveBeenCalledWith({ displayName: 'report.md', previewPath: '/tmp/report.md' })
+  })
+
+  it('preserves a valid remote image preview when the payload blob is not a Blob', async () => {
+    const createUrl = vi.spyOn(URL, 'createObjectURL')
+    try {
+      const { container } = render(
+        <FileComposerToken
+          token={{
+            id: 'file:malformed-blob',
+            kind: 'file',
+            label: 'cover.png',
+            payload: {
+              name: 'cover.png',
+              ext: '.png',
+              type: FILE_TYPE.IMAGE,
+              previewUrl: 'https://example.com/cover.png',
+              blob: { data: 'invalid blob' }
+            }
+          }}
+        />
+      )
+
+      await openFileTokenPopover(container)
+
+      expect(screen.getByAltText('cover.png')).toHaveAttribute('src', 'https://example.com/cover.png')
+      expect(createUrl).not.toHaveBeenCalled()
+    } finally {
+      createUrl.mockRestore()
+    }
   })
 
   it('renders image file tokens with image variant metadata and preview', async () => {
