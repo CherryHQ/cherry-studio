@@ -2,6 +2,8 @@ import * as z from 'zod'
 
 import type OpenAI from '@cherrystudio/openai'
 import { objectValues } from '@renderer/utils/object'
+import type { ComposerMessageFileTokenPayload } from '@shared/data/types/uiParts'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 export const FILE_TYPE = {
   IMAGE: 'image',
@@ -21,6 +23,13 @@ export const COMPOSER_FILE_KIND = {
 } as const
 
 export type ComposerFileKind = (typeof COMPOSER_FILE_KIND)[keyof typeof COMPOSER_FILE_KIND]
+
+export interface FileTokenPreviewData extends ComposerMessageFileTokenPayload {
+  path?: AbsoluteFilePath
+  previewUrl?: string
+  blob?: Blob
+  composerFileKind?: ComposerFileKind
+}
 
 /**
  * @interface
@@ -80,6 +89,12 @@ export interface FileMetadata {
    * It is not a file path, display name, or file storage identity.
    */
   fileTokenSourceId?: string
+}
+
+/** A local-file reference extracted from a message part; `type` holds its MIME type. */
+export interface KnowledgeFileReference extends Pick<FileMetadata, 'name' | 'path'> {
+  type: string
+  origin_name?: string
 }
 
 export type PastedTextFileMetadata = FileMetadata & {
