@@ -35,15 +35,20 @@ export function collectFromFeatures(scope: RequestScope, features: readonly Requ
   for (const feature of features) {
     if (!shouldRun(feature, scope)) continue
 
-    const modelAdapters = invokeContribution(feature, 'contributeModelAdapters', scope)
+    const modelAdapters = invokeContribution(feature, 'contributeModelAdapters', scope, feature.contributeModelAdapters)
 
     if (modelAdapters) out.modelAdapters.push(...modelAdapters)
 
-    const hooks = invokeContribution(feature, 'contributeHooks', scope)
+    const hooks = invokeContribution(feature, 'contributeHooks', scope, feature.contributeHooks)
 
     if (hooks) out.hookParts.push(hooks)
 
-    const stopConditions = invokeContribution(feature, 'contributeStopConditions', scope)
+    const stopConditions = invokeContribution(
+      feature,
+      'contributeStopConditions',
+      scope,
+      feature.contributeStopConditions
+    )
 
     if (stopConditions) out.stopConditions.push(...stopConditions)
   }
@@ -65,13 +70,12 @@ function shouldRun(feature: RequestFeature, scope: RequestScope): boolean {
 
 type ContributionMethod = 'contributeModelAdapters' | 'contributeHooks' | 'contributeStopConditions'
 
-function invokeContribution<M extends ContributionMethod>(
+function invokeContribution<TResult>(
   feature: RequestFeature,
-  method: M,
-  scope: RequestScope
-): ReturnType<NonNullable<RequestFeature[M]>> | undefined {
-  const fn = feature[method] as ((scope: RequestScope) => ReturnType<NonNullable<RequestFeature[M]>>) | undefined
-
+  method: ContributionMethod,
+  scope: RequestScope,
+  fn: ((scope: RequestScope) => TResult) | undefined
+): TResult | undefined {
   if (!fn) return undefined
 
   try {
