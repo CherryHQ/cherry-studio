@@ -10,9 +10,9 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 
 import { createTestBinding, scriptedModel } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
-import { resolvePiCompactionSettings } from './piCompactionSettings'
 import type { AgentRuntimeEvent } from '../types'
 import { createPiBehaviorHost, createPiInteractionPorts } from './piBehaviorHost'
+import { resolvePiCompactionSettings } from './piCompactionSettings'
 
 const root = runtimeId<'thread'>('root')
 const child = { backendId: runtimeId<'backend'>('pi'), id: runtimeId<'thread'>('restored-child') }
