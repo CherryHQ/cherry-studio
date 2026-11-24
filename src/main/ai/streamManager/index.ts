@@ -2,6 +2,7 @@ export { AiStreamAdmissionError, UnsupportedAgentImageInputError } from './admis
 export { AiStreamManager } from './AiStreamManager'
 export { startAgentSessionRun } from './api/startAgentSessionRun'
 export { agentChatContextProvider } from './context/AgentChatContextProvider'
+export { assertAgentImageInput } from './context/agentImageInputGuard'
 export type { MainDispatchRequest } from './context/dispatch'
 export { ChannelAdapterListener } from './listeners/ChannelAdapterListener'
 export { PersistenceListener } from './listeners/PersistenceListener'

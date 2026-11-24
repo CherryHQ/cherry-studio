@@ -19,7 +19,6 @@ import { AgentSessionForkOperations, getEditFailure, resolveForkBoundary } from 
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
-import { assertAgentImageInput } from '@main/ai/streamManager/context/agentImageInputGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -94,6 +93,7 @@ import type {
 } from '../runtime/types'
 import type { AiStreamSource, MessageStreamEvent } from '../streamManager'
 import {
+  assertAgentImageInput,
   finalizeInterruptedParts,
   PersistenceListener,
   type StreamErrorResult,
