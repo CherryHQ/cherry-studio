@@ -11,7 +11,7 @@ export function useMetaDataParser<T extends string>(
 ) {
   const { timeout = 5000 } = options || {}
 
-  const [metadata, setMetadata] = useState<Record<T, string>>({} as Record<T, string>)
+  const [metadata, setMetadata] = useState<Partial<Record<T, string>>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
@@ -34,7 +34,7 @@ export function useMetaDataParser<T extends string>(
       const response = await axios.get(link, { timeout, signal: controller.signal })
 
       const htmlContent = response.data
-      const parsedMetadata = {} as Record<T, string>
+      const parsedMetadata: Partial<Record<T, string>> = {}
       let isReadingTitle = false
       let titleText = ''
 
@@ -48,10 +48,11 @@ export function useMetaDataParser<T extends string>(
 
       const setMetadataValue = (key: string, value: string | undefined) => {
         const trimmed = value?.trim()
+        const property = properties.find((candidate) => candidate === key)
 
-        if (!trimmed || !properties.includes(key as T) || parsedMetadata[key as T]) return
+        if (!trimmed || property === undefined || parsedMetadata[property]) return
         const shouldResolveUrl = key === 'image' || key === 'og:image'
-        parsedMetadata[key as T] = shouldResolveUrl ? resolveUrl(trimmed) : trimmed
+        parsedMetadata[property] = shouldResolveUrl ? resolveUrl(trimmed) : trimmed
       }
 
       const parser = new htmlparser2.Parser({
