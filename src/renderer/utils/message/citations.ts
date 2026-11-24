@@ -134,7 +134,7 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
     if (part.type !== 'dynamic-tool') return rawName
 
     const partMetadata = readCherryMeta(part)?.tool
-    const outputMetadata = extractOutputMetadata((toolPart as { output?: unknown }).output).metadata
+    const outputMetadata = extractOutputMetadata(toolPart.output).metadata
 
     const belongsToCherryTools = (metadata: ToolMetadata | typeof partMetadata | undefined) =>
       metadata?.serverId === CHERRY_TOOLS_MCP_SERVER || metadata?.serverName === CHERRY_TOOLS_MCP_SERVER
@@ -349,6 +349,7 @@ export function resolveMessageCitations(
     const toolName = resolveCitableToolName(part)
 
     if (!toolName) return
+    // SAFETY: resolveCitableToolName returns a name only for tool parts in output-available state.
     const output = parseCitableToolOutput(toolName, (part as { output?: unknown }).output)
 
     if (!output || output.items.length === 0) return
