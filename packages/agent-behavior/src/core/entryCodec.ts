@@ -1,6 +1,6 @@
-import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
+import type { ItemId, ThreadId } from '@cherrystudio/agent-runtime'
 
-import { type Fields, isFields } from './args'
+import type { Fields } from './args'
 import {
   type DeliveredRun,
   ENTRY_KINDS,
@@ -26,9 +26,16 @@ export type EncodedEntry = { readonly kind: EntryKind; readonly data: Fields }
 export type RawEntry = {
   readonly id: ItemId
   readonly kind: string
-  readonly data: JsonValue | undefined
+  readonly data: unknown
   readonly text?: string
 }
+
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native extension records contain unvalidated values; individual decoders check only the fields they consume.
+type RawFields = { readonly [field: string]: unknown }
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Recognize an object container from native extension data without claiming its values are JSON.
+const isRawFields = (value: unknown): value is RawFields =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 type SummaryUsage = Extract<PolicyRecord, { readonly type: 'summary-usage' }>['value']
 
@@ -65,14 +72,18 @@ const STOP_CAUSES: Members<TurnStop['cause']> = {
   'goal-withdraw': true
 }
 
-const isMember = <T extends string>(value: JsonValue, members: Members<T>): value is T =>
-  typeof value === 'string' && Object.hasOwn(members, value)
+const isMember = <T extends string>(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- A native record field must be a string member before it becomes a fact's discriminant.
+  value: unknown,
+  members: Members<T>
+): value is T => typeof value === 'string' && Object.hasOwn(members, value)
 
-const optionalGoalId = (value: JsonValue | undefined): boolean =>
-  value === undefined || value === null || typeof value === 'string'
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical record fields are unvalidated; absent and null goal ownership remain compatible with stored entries.
+const optionalGoalId = (value: unknown): boolean => value === undefined || value === null || typeof value === 'string'
 
 const isOptionalMember = <T extends string>(
-  value: JsonValue | undefined,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Optional native discriminants allow absence but must otherwise pass the same membership check.
+  value: unknown,
   members: Members<T>
 ): value is T | undefined => value === undefined || isMember(value, members)
 
@@ -117,7 +128,7 @@ export function decodeEntry(entry: RawEntry): HistoryEntry | undefined {
   // Status and message markers may store no data; every other kind then fails its own field checks.
   const data = entry.data ?? {}
 
-  if (!isFields(data)) return undefined
+  if (!isRawFields(data)) return undefined
   const { key, ...fields } = data
 
   if (key !== undefined && typeof key !== 'string') return undefined
@@ -130,7 +141,7 @@ export function decodeEntry(entry: RawEntry): HistoryEntry | undefined {
   return marker ? { kind: 'marker', id: entry.id, ...keyed, marker, text: entry.text ?? '' } : undefined
 }
 
-function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
+function decodeRecord(kind: string, f: RawFields): PolicyRecord | undefined {
   switch (kind) {
     case ENTRY_KINDS.summaryUsage: {
       const fields: readonly (keyof UsageFact)[] = [
@@ -144,10 +155,10 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
 
       const usage = f.usage
 
-      // SAFETY: This branch requires valid owner fields and all six finite, nonnegative usage fields in the stored JSON.
+      // SAFETY: This branch requires valid owner fields and all six finite, nonnegative usage fields in the input object.
       return (f.goalId === null || typeof f.goalId === 'string') &&
         (f.goalRoundId === undefined || typeof f.goalRoundId === 'string') &&
-        isFields(usage) &&
+        isRawFields(usage) &&
         fields.every((key) => typeof usage[key] === 'number' && Number.isFinite(usage[key]) && usage[key] >= 0)
         ? { type: 'summary-usage', value: f as SummaryUsage }
         : undefined
@@ -222,7 +233,7 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
   }
 }
 
-function decodeMarker(kind: string, f: Fields): MarkerFact | undefined {
+function decodeMarker(kind: string, f: RawFields): MarkerFact | undefined {
   switch (kind) {
     case ENTRY_KINDS.goalRound:
       // SAFETY: The stored round's required scalar fields and round-kind member are checked before this branch is selected.
@@ -249,12 +260,13 @@ function decodeMarker(kind: string, f: Fields): MarkerFact | undefined {
 }
 
 /** Keeps what a notification delivers today; the per-run `usage` older entries carry is dropped (R3). */
-function decodeRuns(list: JsonValue): DeliveredRun[] | undefined {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- A native notification's run list is opaque until its array and consumed member fields are checked.
+function decodeRuns(list: unknown): DeliveredRun[] | undefined {
   if (!Array.isArray(list)) return undefined
   const runs: DeliveredRun[] = []
 
   for (const item of list) {
-    if (!isFields(item)) return undefined
+    if (!isRawFields(item)) return undefined
     const { sessionId, run, outcome, stoppedBy } = item
 
     if (typeof sessionId !== 'string' || typeof run !== 'number' || !isMember(outcome, OUTCOMES)) return undefined

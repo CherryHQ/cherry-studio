@@ -1,9 +1,10 @@
-import { SessionManager } from '@earendil-works/pi-coding-agent'
+import type { StopReason } from '@earendil-works/pi-ai'
+import { SessionManager, type SessionEntry } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import { runtimeId } from '@cherrystudio/agent-runtime'
 
-import { historyOf, keysOf } from '../src/behavior/history'
+import { historyOf, keyOf, keysOf } from '../src/behavior/history'
 
 const usage = {
   input: 3,
@@ -15,6 +16,55 @@ const usage = {
 }
 
 describe('behavior history', () => {
+  it('reads unknown native custom data without dropping extension fields or marker keys', () => {
+    const manager = SessionManager.inMemory('/tmp/behavior-history')
+    const thread = runtimeId<'thread'>(manager.getSessionId())
+    const extension = Symbol('native extension')
+    const data: unknown = { active: true, at: 7, extension, key: 'plan-key' }
+    manager.appendCustomEntry('cherry.plan', data)
+    manager.appendCustomMessageEntry('cherry.subagent-status', 'working', false, { key: 'status-key', extension })
+
+    const history = historyOf(manager.getBranch(), thread)
+    expect(history).toHaveLength(2)
+    expect(history[0]).toMatchObject({ kind: 'record', record: { type: 'plan', value: { active: true, at: 7 } } })
+    expect(history[0]).toHaveProperty('record.value.extension', extension)
+    expect(history[1]).toMatchObject({ kind: 'marker', key: 'status-key', text: 'working' })
+    expect(keysOf(history)).toEqual(new Set(['plan-key', 'status-key']))
+  })
+
+  it('reads a string marker key without narrowing unrelated extension data', () => {
+    expect(keyOf({ key: 'own-key', opaque: Symbol('native extension') })).toBe('own-key')
+    expect(keyOf(Object.create({ key: 'inherited-key' }))).toBe('inherited-key')
+    expect(keyOf({ key: 7 })).toBeUndefined()
+    expect(keyOf(null)).toBeUndefined()
+  })
+
+  it.each(['stop', 'length', 'toolUse', 'error', 'aborted', 'pending', 'deferred', 'future-stop'])(
+    'projects only recognized completed assistant stop reasons: %s',
+    (stopReason) => {
+      const entry: SessionEntry = {
+        type: 'message',
+        id: 'reply',
+        parentId: null,
+        timestamp: '2026-11-24T00:00:00.000Z',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'answer' }],
+          api: 'contract',
+          provider: 'contract',
+          model: 'model',
+          usage,
+          stopReason: stopReason as StopReason,
+          timestamp: 1
+        }
+      }
+      const history = historyOf([entry], runtimeId<'thread'>('thread'))
+
+      if (['pending', 'deferred', 'future-stop'].includes(stopReason)) expect(history).toEqual([])
+      else expect(history).toMatchObject([{ kind: 'assistant', stop: stopReason, text: 'answer' }])
+    }
+  )
+
   // Catches a projection that reads a marker's data from `content` instead of `details`, loses a record's key, a
   // reply's cost or a person's text, keys a call and its result apart from the gate's `<sessionId>:<toolCallId>`, or
   // drops a blocked call's reason from its result: keysSeen would miss writes, usage would bill nothing, approvals could

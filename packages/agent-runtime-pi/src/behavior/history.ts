@@ -1,4 +1,4 @@
-import type { AssistantMessage, TextContent, ToolResultMessage, Usage } from '@earendil-works/pi-ai'
+import type { AssistantMessage, ToolResultMessage, Usage } from '@earendil-works/pi-ai'
 import type { buildSessionContext, SessionEntry } from '@earendil-works/pi-coding-agent'
 
 import {
@@ -11,19 +11,16 @@ import {
   type ToolCallFact,
   type UsageFact
 } from '@cherrystudio/agent-behavior'
-import { type ItemId, type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
+import { type ItemId, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
 /** A message of the context Pi builds from the branch. */
 export type ContextMessage = ReturnType<typeof buildSessionContext>['messages'][number]
-
-type AssistantStop = Extract<HistoryEntry, { kind: 'assistant' }>['stop']
 
 type ToolCallPart = Extract<AssistantMessage['content'][number], { type: 'toolCall' }>
 
 /** How a blocked call's result reads, as Durable stores it (README "History projection"). */
 export const BLOCKED_PREFIX = 'Tool call blocked: '
 export const ZERO_USAGE: UsageFact = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costUsd: 0 }
-const STOPS: ReadonlySet<string> = new Set<AssistantStop>(['stop', 'length', 'toolUse', 'error', 'aborted'])
 
 /** H9 @keys: coding-agent's call key is `<sessionId>:<toolCallId>`; history, the gate and approvals share it. */
 export const callKeyFor = (thread: ThreadId, toolCallId: string): CallKey => callKeyOf(`${thread}:${toolCallId}`)
@@ -84,7 +81,7 @@ export function restoredRunUsage(entries: readonly SessionEntry[], thread: Threa
         const accounting = decodeEntry({
           id: runtimeId(entry.id),
           kind: entry.customType,
-          data: entry.data as JsonValue
+          data: entry.data
         })
 
         if (accounting?.kind !== 'record' || accounting.record.type !== 'summary-usage') continue
@@ -99,18 +96,18 @@ export function restoredRunUsage(entries: readonly SessionEntry[], thread: Threa
 }
 
 /** Content as the package reads its text (HistoryEntry): an image as `[image]` in place, no thinking or calls. */
-export function textOf(content: string | readonly { readonly type: string }[]): string {
+export function textOf(
+  content: string | readonly (AssistantMessage['content'][number] | ToolResultMessage['content'][number])[]
+): string {
   if (typeof content === 'string') return content
 
-  return content
-    .map((part) => (part.type === 'text' ? (part as TextContent).text : part.type === 'image' ? '[image]' : ''))
-    .join('')
+  return content.map((part) => (part.type === 'text' ? part.text : part.type === 'image' ? '[image]' : '')).join('')
 }
 
 /** The `key` a marker's details or a record's data carries. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native custom-message details also contain unrelated extension data; recognize only an object carrying a string marker key.
 export function keyOf(details: unknown): string | undefined {
-  const key = typeof details === 'object' && details !== null ? (details as { readonly key?: unknown }).key : undefined
+  const key = typeof details === 'object' && details !== null && 'key' in details ? details.key : undefined
 
   return typeof key === 'string' ? key : undefined
 }
@@ -125,13 +122,13 @@ function projectEntry(entry: SessionEntry, thread: ThreadId): HistoryEntry | und
 
   switch (entry.type) {
     case 'custom':
-      return decodeEntry({ id, kind: entry.customType, data: entry.data as JsonValue | undefined })
+      return decodeEntry({ id, kind: entry.customType, data: entry.data })
     // A marker keeps its data in `details`; `content` is the text the model reads.
     case 'custom_message':
       return decodeEntry({
         id,
         kind: entry.customType,
-        data: entry.details as JsonValue | undefined,
+        data: entry.details,
         text: textOf(entry.content)
       })
     case 'compaction':
@@ -148,7 +145,18 @@ function projectMessage(id: ItemId, message: ContextMessage, thread: ThreadId): 
     case 'user':
       return { kind: 'user', id, text: textOf(message.content) }
     case 'assistant': {
-      if (!STOPS.has(message.stopReason)) return undefined
+      const stop = message.stopReason
+
+      switch (stop) {
+        case 'stop':
+        case 'length':
+        case 'toolUse':
+        case 'error':
+        case 'aborted':
+          break
+        default:
+          return undefined
+      }
 
       const toolCalls = message.content.flatMap((part): ToolCallFact[] =>
         part.type === 'toolCall'
@@ -162,7 +170,7 @@ function projectMessage(id: ItemId, message: ContextMessage, thread: ThreadId): 
         text: textOf(message.content),
         toolCalls,
         usage: usageFact(message.usage),
-        stop: message.stopReason as AssistantStop
+        stop
       }
 
       return message.errorMessage === undefined ? reply : { ...reply, error: message.errorMessage }

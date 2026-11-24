@@ -68,7 +68,7 @@ Each port's TSDoc is its specification: the intent, one `@harness` section each 
 README does not repeat them; `tests/ports/portNaming.test.ts` fails a port that lacks them. Methods and parameters
 are named as a verb and an object and carry no harness noun (hook, commit, session, task, extension).
 
-Encoded entry data, turn metadata and tool schema roots are JSON objects. The encoder and tool registrars establish these shapes before adapters merge entry keys or register tools; raw history data and tool argument values retain their broader JSON contracts.
+Encoded entry data, turn metadata and tool schema roots are JSON objects. The encoder and tool registrars establish these shapes before adapters merge entry keys or register tools; tool argument values retain their broader JSON contract.
 
 ### Harness ports (H1 to H12)
 
@@ -207,6 +207,9 @@ are new. Durable refuses only `pi.` kinds, so all thirteen are storable there.
 Write a record or marker with `encodeEntry(fact, key)`. It returns the `{ kind, data }` to store, with `key` as one
 extra `data` field when given (Durable: `tx.appendEntry({ kind, data })`). A `TurnInput` already has its `kind` and
 `data` laid out by the same encoder; when the harness stores one it merges its request key into `data` as `key`.
+
+`RawEntry.data` accepts unknown native extension data. Decoding checks the object container and the fields listed
+above without recursively validating JSON or removing unrelated extension fields.
 
 Read every stored entry of a custom kind with `decodeEntry({ id, kind, data, text })` and skip the entries for which
 it returns `undefined`. It returns `undefined` for a kind outside `ENTRY_KINDS`, for `data` that is not an object (a

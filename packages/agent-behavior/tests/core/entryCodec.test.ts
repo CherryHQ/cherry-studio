@@ -88,6 +88,30 @@ describe('entry kinds', () => {
 })
 
 describe('entry codec', () => {
+  it('decodes owned fields from unknown native data while preserving opaque extensions', () => {
+    const extension = Symbol('native extension')
+    const data: unknown = { active: true, at: 7, key: 'plan-key', extension, ['__proto__']: { source: 'native' } }
+
+    const decoded = decodeEntry({ id, kind: ENTRY_KINDS.plan, data })
+    expect(decoded).toMatchObject({
+      kind: 'record',
+      id,
+      key: 'plan-key',
+      record: { type: 'plan', value: { active: true, at: 7 } }
+    })
+    expect(decoded).toHaveProperty('record.value.extension', extension)
+    expect(decoded).toHaveProperty('record.value.__proto__', { source: 'native' })
+  })
+
+  it.each([null, undefined])('keeps a data-less status marker when native details are %s', (data: unknown) => {
+    expect(decodeEntry({ id, kind: ENTRY_KINDS.subagentStatus, data, text: 'still working' })).toEqual({
+      kind: 'marker',
+      id,
+      text: 'still working',
+      marker: { type: 'subagent-status' }
+    })
+  })
+
   // Catches a record that does not survive the adapter's store-and-read path, losing goal, subagent, plan or stop state.
   it.each(records.map((record) => [record.type, record] as const))(
     'round-trips the %s record with its key',
@@ -173,6 +197,8 @@ describe('entry codec', () => {
 
   // Review focus 2: a foreign or corrupt entry must be skipped, not crash every read of the conversation.
   it.each([
+    ['array record data', { kind: 'cherry.plan', data: [] }],
+    ['primitive record data', { kind: 'cherry.plan', data: 'plan' }],
     ['a pi.* kind', { kind: 'pi.user', data: {} }],
     ['an unknown cherry.* kind', { kind: 'cherry.unknown', data: {} }],
     ['null record data', { kind: 'cherry.goal', data: null }],
