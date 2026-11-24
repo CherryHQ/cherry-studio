@@ -13,6 +13,8 @@
 import { colorToLuminance, isWhiteFill, parseSvgPathBounds, parseViewBox } from './svg-utils'
 import type { CustomPlugin, XastChild, XastElement, XastParent, XastRoot } from './types'
 
+// SAFETY: SVGO 3's helper only filters parent.children by node identity,
+// matching the mirrored XAST types used by these plugins.
 const { detachNodeFromParent } = require('svgo/lib/xast') as {
   detachNodeFromParent: (node: XastChild, parentNode: XastParent) => void
 }
