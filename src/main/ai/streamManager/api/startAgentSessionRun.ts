@@ -50,6 +50,10 @@ export async function startAgentSessionRun(input: {
     // would evict that stream before its terminal lifecycle ran (stale-generation guard skips it).
     await manager.whenTerminalDispatchSettled(topicId)
 
+    if (input.requireIdle) {
+      await application.get('AgentSessionRuntimeService').whenSessionClosingSettled(input.sessionId)
+    }
+
     if (manager.isWriteQuiesced) {
       throw new Error(
         'AiStreamManager is write-quiesced (backup restore in progress); refusing a new agent-session turn'
@@ -57,7 +61,6 @@ export async function startAgentSessionRun(input: {
     }
 
     if (input.requireIdle) {
-      await application.get('AgentSessionRuntimeService').whenSessionClosingSettled(input.sessionId)
       if (
         manager.hasLiveStream(topicId) ||
         application.get('AgentSessionRuntimeService').isSessionBusy(input.sessionId)

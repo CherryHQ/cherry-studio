@@ -217,6 +217,33 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
     await expect(run).resolves.toEqual({ mode: 'started' })
   })
 
+  it('rejects a send when write quiesce starts during idle teardown', async () => {
+    let release!: () => void
+    whenSessionClosingSettled.mockImplementationOnce(
+      () =>
+        new Promise<void>((done) => {
+          release = done
+        })
+    )
+    let quiesced = false
+    vi.spyOn(managerHolder.current!, 'isWriteQuiesced', 'get').mockImplementation(() => quiesced)
+    const run = startAgentSessionRun({
+      sessionId: 's',
+      userParts: [text('queued')],
+      listeners: [listener('remote')],
+      requireIdle: { expectedAgentId: 'agent-1' }
+    })
+    const rejected = expect(run).rejects.toThrow('write-quiesced')
+    await flush()
+    quiesced = true
+    release()
+    await flush()
+    prepareResolvers[0]?.()
+    await rejected
+    expect(prepareDispatchMock).not.toHaveBeenCalled()
+    expect(sendSpy).not.toHaveBeenCalled()
+  })
+
   it('returns busy when the runtime becomes active during preparation', async () => {
     prepareDispatchMock.mockRejectedValueOnce(
       DataApiErrorFactory.resourceLocked('Agent session', 's', 'an active turn')
