@@ -1,21 +1,15 @@
-import type { BrowserWindow, MenuItemConstructorOptions } from 'electron'
+import type { BaseWindow, BrowserWindow, MenuItemConstructorOptions } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  applicationMock,
   menuMock,
   browserWindowMock,
   shellMock,
   appMock,
   windowManagerMock,
-  preferenceServiceMock,
   openSettingsInMainWindowMock,
   commandServiceMock
 } = vi.hoisted(() => {
-  const preferenceServiceMock = {
-    get: vi.fn(),
-    subscribeChange: vi.fn(() => ({ dispose: vi.fn() }))
-  }
   const openSettingsInMainWindowMock = vi.fn()
   const commandServiceMock = {
     execute: vi.fn()
@@ -27,25 +21,14 @@ const {
   }
 
   return {
-    preferenceServiceMock,
     openSettingsInMainWindowMock,
     commandServiceMock,
     windowManagerMock,
-    applicationMock: {
-      get: vi.fn((name: string) => {
-        if (name === 'PreferenceService') return preferenceServiceMock
-        if (name === 'CommandService') return commandServiceMock
-        if (name === 'WindowManager') {
-          return windowManagerMock
-        }
-        return undefined
-      })
-    },
     menuMock: {
       buildFromTemplate: vi.fn((template: MenuItemConstructorOptions[]) => ({ template })),
       setApplicationMenu: vi.fn()
     },
-    browserWindowMock: { getFocusedWindow: vi.fn(() => null) },
+    browserWindowMock: { getFocusedWindow: vi.fn(() => null), fromId: vi.fn<(id: number) => BrowserWindow | null>() },
     shellMock: {
       openExternal: vi.fn()
     },
@@ -58,9 +41,19 @@ const {
   }
 })
 
-vi.mock('@application', () => ({
-  application: applicationMock
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'CommandService') return commandServiceMock
+    if (name === 'WindowManager') return windowManagerMock
+
+    return originalGet(name)
+  })
+
+  return result
+})
 
 vi.mock('@main/core/lifecycle', () => {
   class MockBaseService {
@@ -93,6 +86,8 @@ vi.mock('@main/services/mainWindowNavigation', () => ({
   openSettingsInMainWindow: openSettingsInMainWindowMock
 }))
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+
 import { WindowType } from '@main/core/window/types'
 
 import { AppMenuService } from '../AppMenuService'
@@ -109,7 +104,8 @@ describe('AppMenuService', () => {
     // AppMenuService is darwin-only; pin the platform so platform-gated
     // accelerators resolve identically on every CI runner.
     Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
-    preferenceServiceMock.get.mockReturnValue(undefined)
+    MockMainPreferenceServiceUtils.resetMocks()
+    browserWindowMock.fromId.mockReset().mockReturnValue(null)
     service = new AppMenuService()
   })
 
@@ -181,6 +177,7 @@ describe('AppMenuService', () => {
     await (service as any).onInit()
 
     const window = { id: 1 } as BrowserWindow
+    browserWindowMock.fromId.mockImplementation((id) => (id === window.id ? window : null))
     const viewSubmenu = latestTemplate().flatMap(
       (item) => (item.submenu as MenuItemConstructorOptions[] | undefined) ?? []
     )
@@ -195,5 +192,18 @@ describe('AppMenuService', () => {
     expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', window)
     expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.out', window)
     expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.reset', window)
+  })
+
+  it('does not redirect a non-BrowserWindow menu command to the main windows', async () => {
+    await (service as any).onInit()
+    const viewSubmenu = latestTemplate().flatMap(
+      (item) => (item.submenu as MenuItemConstructorOptions[] | undefined) ?? []
+    )
+    const zoomInItem = viewSubmenu.find((item) => item.label === 'Zoom In')
+
+    zoomInItem?.click?.(undefined as never, { id: 99 } as BaseWindow, undefined as never)
+
+    expect(browserWindowMock.fromId).toHaveBeenCalledWith(99)
+    expect(commandServiceMock.execute).not.toHaveBeenCalled()
   })
 })

@@ -8,8 +8,6 @@ import { getAppLanguage, t } from '@main/i18n'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 import type { NativeCommandMenuItem, NativeMenuItem } from '@main/services/menu/adapters/nativeMenuAdapter'
 import { toElectronMenuTemplate } from '@main/services/menu/adapters/nativeMenuAdapter'
-import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import type { SupportedPlatform } from '@shared/types/command'
 import {
   type CommandId,
   evaluateContextExpr,
@@ -21,6 +19,7 @@ import {
 import { doctorSettingsPath } from '@shared/utils/doctor'
 
 const logger = loggerService.withContext('AppMenuService')
+const APP_MENU_PLATFORM = 'darwin'
 
 const appMenuCommands: CommandId[] = ['app.settings.open', 'app.zoom.in', 'app.zoom.out', 'app.zoom.reset']
 
@@ -32,25 +31,25 @@ const getShortcutAccelerator = (command: CommandId): string | undefined => {
 
   if (!commandDefinition || !rule) return undefined
 
-  const context = { platform: process.platform }
+  const context = { platform: APP_MENU_PLATFORM }
 
   if (!evaluateContextExpr(commandDefinition.enablement, context)) {
     return undefined
   }
 
-  const rawPref = application.get('PreferenceService').get(rule.preferenceKey) as PreferenceShortcutType | undefined
+  const rawPref = application.get('PreferenceService').get(rule.preferenceKey)
 
   return resolveCommandKeybinding({
     command,
     preference: rawPref,
     context,
-    platform: process.platform as SupportedPlatform
+    platform: APP_MENU_PLATFORM
   })?.accelerator
 }
 
 @Injectable('AppMenuService')
 @ServicePhase(Phase.WhenReady)
-@Conditional(onPlatform('darwin'))
+@Conditional(onPlatform(APP_MENU_PLATFORM))
 export class AppMenuService extends BaseService {
   protected async onInit() {
     const preferenceService = application.get('PreferenceService')
@@ -245,7 +244,10 @@ export class AppMenuService extends BaseService {
 
     const template = toElectronMenuTemplate(items, {
       executeCommand: (command, context) => {
-        application.get('CommandService').execute(command, context.browserWindow as BrowserWindow | undefined)
+        const window = context.browserWindow ? BrowserWindow.fromId(context.browserWindow.id) : undefined
+
+        if (context.browserWindow && !window) return
+        application.get('CommandService').execute(command, window ?? undefined)
       }
     })
 
@@ -258,7 +260,7 @@ export class AppMenuService extends BaseService {
   ): Map<CommandId, NativeCommandMenuItem> {
     const model = resolveMenu({
       location: 'app.menu',
-      context: { platform: process.platform },
+      context: { platform: APP_MENU_PLATFORM },
       getCommandState: (command) => {
         return {
           label: labels[command] ?? command,
