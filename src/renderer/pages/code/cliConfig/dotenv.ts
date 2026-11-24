@@ -127,15 +127,17 @@ export function renderDotenvFile(envMap: Map<string, string>, originalContent = 
   for (const block of blocks) {
     if (!block.key) {
       out.push(...block.lines)
-    } else if (!envMap.has(block.key)) {
-      // deleted key — drop every occurrence so it cannot resurface on read-back
-    } else if (
-      lastBlockByKey.get(block.key) !== block ||
-      parseWithDotenv(block.lines.join('\n'))[block.key] === envMap.get(block.key)
-    ) {
+      continue
+    }
+
+    const value = envMap.get(block.key)
+    // Drop every occurrence of a deleted key so it cannot resurface on read-back.
+    if (value === undefined) continue
+
+    if (lastBlockByKey.get(block.key) !== block || parseWithDotenv(block.lines.join('\n'))[block.key] === value) {
       out.push(...block.lines)
     } else {
-      out.push(renderDotenvEntry(block.key, envMap.get(block.key) as string))
+      out.push(renderDotenvEntry(block.key, value))
     }
   }
 
