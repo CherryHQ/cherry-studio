@@ -8,5 +8,5 @@ export const META_TOOL_NAMES = ['tool_search', 'tool_inspect', 'tool_invoke', 't
 export type MetaToolName = (typeof META_TOOL_NAMES)[number]
 
 export function isMetaToolName(name: string): name is MetaToolName {
-  return (META_TOOL_NAMES as readonly string[]).includes(name)
+  return META_TOOL_NAMES.some((candidate) => candidate === name)
 }
