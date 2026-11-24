@@ -26,7 +26,7 @@ import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 
 import ClipboardPreview from './components/ClipboardPreview'
@@ -152,7 +152,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const summarizeFlowError = useCallback(
     (cause: unknown, executionId?: UniqueModelId) => {
       // Main may resolve the model itself, so the failed execution outranks the send-time snapshot.
-      const sentModel = executionId ? parseUniqueModelId(executionId) : sentModelRef.current
+      // Error handling must not throw on an unexpected id; fall back to the send-time snapshot.
+      const sentModel = isUniqueModelId(executionId) ? parseUniqueModelId(executionId) : sentModelRef.current
       const { category, i18nKey } = classifyError(serializeToastError(cause), sentModel.providerId)
       const message = category === 'unknown' ? t('error.diagnosis.unknown') : t(i18nKey)
       return { message, cause, ...sentModel }
