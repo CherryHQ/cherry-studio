@@ -883,6 +883,40 @@ describe('useChatWriteActions — fork and resend', () => {
     )
   })
 
+  it('recovers the full comparison map when the active reply was regenerated for one model', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    // Regenerating only A narrowed the active reply's stored map to A alone.
+    const regeneratedA = uiMsg('a1', 'assistant', 'u1')
+    regeneratedA.metadata.modelId = 'provider::model-a'
+    regeneratedA.metadata.isActiveBranch = true
+    regeneratedA.metadata.turnOptions = {
+      modelPrompts: [{ modelId: 'provider::model-a' as any, systemPrompt: 'Prompt A edited' }]
+    }
+    const originalB = uiMsg('a2', 'assistant', 'u1')
+    originalB.metadata.modelId = 'provider::model-b'
+    originalB.metadata.turnOptions = {
+      modelPrompts: [
+        { modelId: 'provider::model-a' as any, systemPrompt: 'Prompt A' },
+        { modelId: 'provider::model-b' as any, systemPrompt: 'Prompt B' }
+      ]
+    }
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), regeneratedA, originalB], cache)
+
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+
+    expect(streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mentionedModelIds: ['provider::model-a', 'provider::model-b'],
+        modelPrompts: [
+          { modelId: 'provider::model-a', systemPrompt: 'Prompt A edited' },
+          { modelId: 'provider::model-b', systemPrompt: 'Prompt B' }
+        ]
+      })
+    )
+  })
+
   it('rejects edit-and-resend when stream open is blocked', async () => {
     const cache = makeCache()
     vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
