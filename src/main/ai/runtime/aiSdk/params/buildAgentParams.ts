@@ -8,7 +8,6 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { collectMcpToolResources } from '@main/ai/messages/mcpToolResources'
@@ -16,6 +15,7 @@ import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AutomationRun } from '@main/services/automation'
 import { getProviderById, getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import { mergeHeaders } from '@main/utils/http'
+import { extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import {
   FS_READ_TOOL_NAME,
   KB_READ_TOOL_NAME,
