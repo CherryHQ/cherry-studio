@@ -296,6 +296,7 @@ export class AgentJobsService extends BaseService {
       return created
     })
     agentTaskService.notifyReadModelChange([id], 'membership')
+    if (explicitBindSessionId) agentSessionService.notifyReadModelChange([explicitBindSessionId], 'membership')
     jobManager.syncJobScheduleTimerById(id)
 
     const entity = agentTaskService.getTask(agentId, id)
@@ -399,6 +400,12 @@ export class AgentJobsService extends BaseService {
     // Unconditional: the projection carries name/prompt/trigger too, and
     // updateTx always bumps updatedAt — a silent rename strands IM/MCP windows.
     agentTaskService.notifyReadModelChange([taskId])
+    if (reuseConfigChanged) {
+      const changedSessionIds = [existing.reuseSessionId, pickerSessionId].filter(
+        (id): id is string => typeof id === 'string'
+      )
+      agentSessionService.notifyReadModelChange(changedSessionIds, 'membership')
+    }
     if (schedulePatch.trigger !== undefined) {
       jobManager.syncJobScheduleTimerById(taskId)
     }

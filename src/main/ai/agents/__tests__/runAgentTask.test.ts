@@ -508,6 +508,26 @@ describe('runAgentTask', () => {
       expect(agentSessionService.create).not.toHaveBeenCalled()
     })
 
+    it('fails without replacement if an established session disappears during admission', async () => {
+      vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce({
+        ...makeSession('/ws/a'),
+        id: 'sess-sticky'
+      })
+      mockStartRun.mockResolvedValueOnce({ mode: 'not-started', reason: 'session-invalid' } as never)
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(
+        makeSchedule('daily-summary', { reuse: { enabled: true, revision: 0, boundKind: 'explicit' } })
+      )
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+
+      await expect(
+        runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, reuseRevision: 0 } }))
+      ).rejects.toThrow(TaskReuseBindingLostError)
+      expect(mockStartRun).toHaveBeenCalledTimes(1)
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+      expect(mockBindTaskSessionReuse).not.toHaveBeenCalled()
+    })
+
     it('refuses to resume a session owned by another agent', async () => {
       vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce({ ...makeSession('/ws/a'), agentId: 'a2' })
       vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))

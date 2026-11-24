@@ -397,6 +397,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         completionActive = false
         return { kind: 'skipped', result: 'Skipped (session busy)' }
       }
+      if (resolved.reused && reuseBinding) throw new TaskReuseBindingLostError(reuseBinding.scheduleId)
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
       rebound = true
       session = agentSessionService.create(

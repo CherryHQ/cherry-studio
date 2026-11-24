@@ -832,6 +832,30 @@ describe('AgentJobsService', () => {
         })
       })
 
+      it.each(['create', 'edit'] as const)('refreshes an observed ordinary list after picker %s', (action) => {
+        const sessionId = createOrdinarySession('picked')
+        const existing = action === 'edit' ? service.createTask(AGENT_ID, form) : null
+        let mountedItems = agentSessionService.listByCursor({ agentId: AGENT_ID, scope: 'ordinary' }).items
+        expect(mountedItems.some((item) => item.id === sessionId)).toBe(true)
+        const observe = notifyDataApiDataChangeMock.mockImplementation((effects) => {
+          if (
+            effects.some(
+              (effect: { endpoint: string; kind: string }) =>
+                effect.endpoint === '/agent-sessions' && effect.kind === 'membership'
+            )
+          ) {
+            mountedItems = agentSessionService.listByCursor({ agentId: AGENT_ID, scope: 'ordinary' }).items
+          }
+        })
+        try {
+          if (existing) service.updateTask(AGENT_ID, existing.id, { reuseSession: true, reuseSessionId: sessionId })
+          else service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+          expect(mountedItems.some((item) => item.id === sessionId)).toBe(false)
+        } finally {
+          observe.mockReset()
+        }
+      })
+
       it('ignores the picker value when reuse is off', () => {
         const sessionId = createOrdinarySession('ignored')
 
