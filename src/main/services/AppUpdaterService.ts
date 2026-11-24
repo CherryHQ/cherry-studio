@@ -162,6 +162,8 @@ export class AppUpdaterService extends BaseService {
   private retirements = 0
   // electron-updater installs whatever it cached last, so installation names the version it confirmed.
   private downloadedVersion: string | null = null
+  // Queued or running checks plus unsettled downloads; the read-only query must not add a feed request.
+  private updaterActivity = 0
   // electron-updater returns its in-flight check promise. The next check waits
   // until that promise settles, then configures and calls checkForUpdates again.
   private updateCheckQueue: Promise<void> = Promise.resolve()
@@ -282,10 +284,11 @@ export class AppUpdaterService extends BaseService {
     if (promise == null) return
     // Cancellation and download failures are already emitted by electron-updater.
     // This chain only waits until the library drops its reused downloadPromise.
-    const settled = promise.then(
-      () => undefined,
-      () => undefined
-    )
+    this.updaterActivity += 1
+    const settle = () => {
+      this.updaterActivity -= 1
+    }
+    const settled = promise.then(settle, settle)
     const previous = this.pendingDownload
     this.pendingDownload = previous.then(() => settled)
   }
@@ -467,7 +470,17 @@ export class AppUpdaterService extends BaseService {
     }
   }
 
-  public async queryUpdateAvailability(): Promise<OutputFor<'app.updater.query_availability'>> {
+  /**
+   * Check-only query for error details. A scheduled check does not mark the shared renderer state
+   * as checking, so only main knows a running check or download already answers availability.
+   */
+  public async queryAvailabilityUnlessBusy(): Promise<OutputFor<'app.updater.query_availability'>> {
+    return this.updaterActivity > 0 ? { status: 'busy' } : this.queryUpdateAvailability()
+  }
+
+  public async queryUpdateAvailability(): Promise<
+    Exclude<OutputFor<'app.updater.query_availability'>, { status: 'busy' }>
+  > {
     if (this.isPortable()) return { status: 'unsupported' }
     const { currentVersion, updateChannel, updateHeaders } = await this.getUpdateRequest()
     const updater = new ReleaseNotesUpdater()
@@ -571,11 +584,12 @@ export class AppUpdaterService extends BaseService {
    */
   private performUpdateCheck(manual: boolean) {
     const retirement = this.retirements
+    this.updaterActivity += 1
     const run = this.updateCheckQueue.then(() => this.runConfiguredUpdateCheck(manual, retirement))
-    this.updateCheckQueue = run.then(
-      () => undefined,
-      () => undefined
-    )
+    const settle = () => {
+      this.updaterActivity -= 1
+    }
+    this.updateCheckQueue = run.then(settle, settle)
     return run
   }
 

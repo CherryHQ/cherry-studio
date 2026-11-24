@@ -248,7 +248,11 @@ class AppUpdateCheckService {
       channel,
       at: Date.now(),
       result: ipcApi.request('app.updater.query_availability').then(
-        (availability) => (availability.status === 'available' ? availability.version : null),
+        (availability) => {
+          // A running check answers through shared update state; ask again after it ends.
+          if (availability.status === 'busy' && this.availabilityQuery === entry) this.availabilityQuery = null
+          return availability.status === 'available' ? availability.version : null
+        },
         (error: unknown) => {
           logger.warn('Automatic update availability query failed', error as Error)
           if (this.availabilityQuery === entry) this.availabilityQuery = null

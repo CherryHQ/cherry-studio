@@ -225,6 +225,40 @@ describe('AppUpdaterService', () => {
       expect(trackAppUpdateMock).not.toHaveBeenCalled()
     })
 
+    it('does not add a feed request while a scheduled check or its download is still running', async () => {
+      let finishLookup: (value: unknown) => void = () => undefined
+      let finishDownload: () => void = () => undefined
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishLookup = resolve
+          }) as never
+      )
+      const lookup = (
+        appUpdater as unknown as { performUpdateCheck: (manual: boolean) => Promise<unknown> }
+      ).performUpdateCheck(false)
+      await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledOnce())
+
+      await expect(appUpdater.queryAvailabilityUnlessBusy()).resolves.toEqual({ status: 'busy' })
+      finishLookup({
+        isUpdateAvailable: true,
+        updateInfo: { version: '2.0.0' },
+        cancellationToken: { cancel: vi.fn() },
+        downloadPromise: new Promise<void>((resolve) => {
+          finishDownload = resolve
+        })
+      })
+      await lookup
+      await expect(appUpdater.queryAvailabilityUnlessBusy()).resolves.toEqual({ status: 'busy' })
+      expect(releaseNotesCheckMock).not.toHaveBeenCalled()
+
+      finishDownload()
+      await vi.waitFor(async () => {
+        releaseNotesCheckMock.mockResolvedValue({ isUpdateAvailable: false, updateInfo: { version: '1.0.0' } })
+        await expect(appUpdater.queryAvailabilityUnlessBusy()).resolves.toMatchObject({ status: 'current' })
+      })
+    })
+
     it('does not turn a failed or unsupported updater query into an up-to-date result', async () => {
       releaseNotesCheckMock.mockRejectedValueOnce(new Error('HTTP 503'))
       await expect(appUpdater.queryUpdateAvailability()).rejects.toThrow('HTTP 503')

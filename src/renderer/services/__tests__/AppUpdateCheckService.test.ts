@@ -534,6 +534,15 @@ describe('queryAvailableVersion', () => {
     expect(callsTo('app.updater.query_availability')).toHaveLength(2)
   })
 
+  it('asks again once main no longer reports a running check instead of reusing that answer', async () => {
+    request
+      .mockResolvedValueOnce({ status: 'busy' })
+      .mockResolvedValueOnce({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' })
+
+    await expect(appUpdateCheckService.queryAvailableVersion(UpgradeChannel.LATEST)).resolves.toBeNull()
+    await expect(appUpdateCheckService.queryAvailableVersion(UpgradeChannel.LATEST)).resolves.toBe('2.1.0')
+  })
+
   it('does not reuse a result from before a channel switch', async () => {
     request
       .mockResolvedValueOnce({ status: 'available', currentVersion: '2.0.0', version: '2.1.0-beta.1' })
