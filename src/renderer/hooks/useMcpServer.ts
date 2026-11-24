@@ -30,7 +30,7 @@ export const useMcpServers = (query?: ListMcpServersQuery, options: { enabled?: 
     (reorderedList: McpServer[]) => {
       void mutate(data ? { ...data, items: reorderedList } : undefined, false)
       reorderTrigger({ body: { orderedIds: reorderedList.map((s) => s.id) } }).catch((error) => {
-        loggerService.withContext('useMcpServer').warn('Failed to reorder MCP servers, reverting', error as Error)
+        loggerService.withContext('useMcpServer').warn('Failed to reorder MCP servers, reverting', error)
         void mutate()
       })
     },
@@ -126,7 +126,7 @@ export const useMcpServerMutations = (id: string) => {
     // The delete is committed once the IPC call returns — a failed cache
     // refresh must not surface as a delete failure.
     await invalidateCache('/mcp-servers').catch((error) =>
-      loggerService.withContext('useMcpServer').warn('Failed to refresh MCP server cache after delete', error as Error)
+      loggerService.withContext('useMcpServer').warn('Failed to refresh MCP server cache after delete', error)
     )
   }, [id, invalidateCache])
 
