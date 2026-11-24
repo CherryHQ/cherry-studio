@@ -53,12 +53,14 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
   const [activeSource, setActiveSource] = useState<SkillSearchSource>(DEFAULT_SEARCH_SOURCE)
   const [installedSources, setInstalledSources] = useState<Set<string>>(() => new Set())
   const [searchDebouncing, setSearchDebouncing] = useState(false)
-  // The modal traps focus, so a failed install keeps its Details inside it rather than in a toast.
-  const [installFailure, setInstallFailure] = useState<{
-    message: string
-    cause: unknown
-    installSource: string
-  } | null>(null)
+  // The modal traps focus, so each failed install keeps its Details inside it rather than in a toast.
+  const [installFailures, setInstallFailures] = useState<
+    Array<{
+      message: string
+      cause: unknown
+      installSource: string
+    }>
+  >([])
   const pendingInstallSourcesRef = useRef<Set<string>>(new Set())
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const urlErrorId = useId()
@@ -78,7 +80,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
     setSubmittedUrl('')
     setActiveSource(DEFAULT_SEARCH_SOURCE)
     setInstalledSources(new Set())
-    setInstallFailure(null)
+    setInstallFailures([])
     setSearchDebouncing(false)
     pendingInstallSourcesRef.current.clear()
     clear()
@@ -154,15 +156,18 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
       }
 
       pendingInstallSourcesRef.current.add(result.installSource)
-      setInstallFailure((current) => (current?.installSource === result.installSource ? null : current))
+      setInstallFailures((current) => current.filter((failure) => failure.installSource !== result.installSource))
       try {
         const { skill, cause } = await install(result.installSource)
         if (!skill) {
-          setInstallFailure({
-            message: t('settings.skills.installFailed', { name: result.name }),
-            cause,
-            installSource: result.installSource
-          })
+          setInstallFailures((current) => [
+            ...current,
+            {
+              message: t('settings.skills.installFailed', { name: result.name }),
+              cause,
+              installSource: result.installSource
+            }
+          ])
           return
         }
 
@@ -243,24 +248,31 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
           </div>
         </div>
 
-        {installFailure ? (
-          <div className="shrink-0 px-6 pt-3">
-            <ErrorNotice
-              variant="inline"
-              title={installFailure.message}
-              onDismiss={() => setInstallFailure(null)}
-              detail={
-                installFailure.cause !== undefined ? (
-                  <ErrorDetailAction
-                    error={installFailure.cause}
-                    message={installFailure.message}
-                    source="skills"
-                    operation="skill.install"
-                    recordId={installFailure.installSource}
-                  />
-                ) : undefined
-              }
-            />
+        {installFailures.length > 0 ? (
+          <div className="flex shrink-0 flex-col gap-2 px-6 pt-3">
+            {installFailures.map((failure) => (
+              <ErrorNotice
+                key={failure.installSource}
+                variant="inline"
+                title={failure.message}
+                onDismiss={() =>
+                  setInstallFailures((current) =>
+                    current.filter((item) => item.installSource !== failure.installSource)
+                  )
+                }
+                detail={
+                  failure.cause !== undefined ? (
+                    <ErrorDetailAction
+                      error={failure.cause}
+                      message={failure.message}
+                      source="skills"
+                      operation="skill.install"
+                      recordId={failure.installSource}
+                    />
+                  ) : undefined
+                }
+              />
+            ))}
           </div>
         ) : null}
 
