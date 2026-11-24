@@ -181,14 +181,16 @@ async function route(senderId: number, payload: unknown, emit: Emit): Promise<Mi
   // Own-property check: `ROUTES['constructor']` would otherwise resolve up the prototype
   // chain, and the gate below refusing it would be luck, not design.
   if (!Object.hasOwn(ROUTES, method)) throw new InvalidArgumentError(`Unknown method: ${method}`)
-  const handler = ROUTES[method as MiniAppMethod]
+  // SAFETY: ROUTES is a private literal with exactly the MiniAppMethod keys; the own-property check excludes prototype members.
+  const routedMethod = method as MiniAppMethod
+  const handler = ROUTES[routedMethod]
 
   // From here on the call is attributable, so from here on it is logged — the gate's
   // refusal included, which is the line the activity log exists to show.
   const started = Date.now()
 
   try {
-    assertMethodAllowed(appId, method as MiniAppMethod)
+    assertMethodAllowed(appId, routedMethod)
 
     // Synchronous refusal while the app is being taken offline. Returns void: the host
     // never waits for in-flight calls, so there is nothing to release.
@@ -197,13 +199,13 @@ async function route(senderId: number, payload: unknown, emit: Emit): Promise<Mi
     // Identity comes from `senderId` (Electron), never the payload. `requestId` does come
     // from the payload but names only this guest's own call — lookups scope by senderId.
     const value = await handler(appId, params, emit, senderId, requestId, callId)
-    miniAppActivityLog.recordCall(appId, method as MiniAppMethod, 'ok', Date.now() - started, params, value)
+    miniAppActivityLog.recordCall(appId, routedMethod, 'ok', Date.now() - started, params, value)
 
     return value
   } catch (error) {
     miniAppActivityLog.recordCall(
       appId,
-      method as MiniAppMethod,
+      routedMethod,
       publicErrorOf(error).name,
       Date.now() - started,
       params,
