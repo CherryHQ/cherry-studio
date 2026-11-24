@@ -82,23 +82,17 @@ function isFunctionTool(
   return tool.type === 'function'
 }
 
-function withCacheProviderOptions<T extends { providerOptions?: unknown }>(
-  value: T,
+function withCacheControl(
+  providerOptions: ProviderOptions | undefined,
   cacheControl: ReturnType<typeof getCacheControl>
-): T {
-  const result = { ...value }
-
-  const providerOptions =
-    value.providerOptions && typeof value.providerOptions === 'object' ? { ...value.providerOptions } : {}
-
-  Object.assign(providerOptions, {
+): ProviderOptions {
+  return {
+    ...providerOptions,
     anthropic: {
-      ...((value as Holder).providerOptions as { anthropic?: object } | undefined)?.anthropic,
+      ...providerOptions?.anthropic,
       cacheControl
     }
-  })
-
-  return Object.assign(result, { providerOptions })
+  }
 }
 
 interface CacheBreakpointBudget {
@@ -162,15 +156,12 @@ function applyToolCacheMarker(
     return sortedTools
 
   const markedTools = [...sortedTools]
-  markedTools[markerIndex] = withCacheProviderOptions(
-    markedTools[markerIndex] as LanguageModelV3FunctionTool,
-    cacheControl
-  )
+  // SAFETY: estimateToolsPrefix selects markerIndex only after isFunctionTool succeeds on this unchanged sorted array.
+  const tool = markedTools[markerIndex] as LanguageModelV3FunctionTool
+  markedTools[markerIndex] = { ...tool, providerOptions: withCacheControl(tool.providerOptions, cacheControl) }
 
   return markedTools
 }
-
-type Holder = { providerOptions?: unknown }
 
 type HolderPath = (string | number)[]
 
@@ -300,6 +291,7 @@ function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<str
   }
 
   // Removing a higher-precedence hint can expose a previously shadowed fallback.
+  // SAFETY: remove copies recorded SDK paths and changes only cache hints; all other call options retain their original shape.
   return result === params ? params : clampCacheMarkers(result as LanguageModelV3CallOptions, selected)
 }
 
@@ -350,7 +342,7 @@ export async function transformAnthropicCacheParams(
       systemPrefixTokens += estimateContentTokens(msg.content)
 
       if (msg.role === 'system' && systemPrefixTokens >= settings.tokenThreshold && budget.use()) {
-        messages[i] = withCacheProviderOptions(msg, cacheControl)
+        messages[i] = { ...msg, providerOptions: withCacheControl(msg.providerOptions, cacheControl) }
         selected.add(`prompt.${i}`)
         break
       }
@@ -389,13 +381,15 @@ export async function transformAnthropicCacheParams(
       if (!budget.use()) break
 
       if (typeof msg.content === 'string') {
-        messages[i] = withCacheProviderOptions(msg, cacheControl)
+        messages[i] = { ...msg, providerOptions: withCacheControl(msg.providerOptions, cacheControl) }
         selected.add(`prompt.${i}`)
       } else {
         const newContent = [...msg.content]
         const lastIndex = newContent.length - 1
-        newContent[lastIndex] = withCacheProviderOptions(newContent[lastIndex], cacheControl)
+        const last = newContent[lastIndex]
+        newContent[lastIndex] = { ...last, providerOptions: withCacheControl(last.providerOptions, cacheControl) }
         selected.add(`prompt.${i}.content.${lastIndex}`)
+        // SAFETY: newContent copies this message's own parts and only replaces providerOptions, preserving its role/content pairing.
         messages[i] = { ...msg, content: newContent } as LanguageModelV3Message
       }
 
