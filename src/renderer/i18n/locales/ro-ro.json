@@ -3697,6 +3697,7 @@
   "provider.paddleocr": "PaddleOCR",
   "provider.perplexity": "Perplexity",
   "provider.ph8": "PH8",
+  "provider.teamorouter": "TeamoRouter",
   "provider.poe": "Poe",
   "provider.ppio": "PPIO",
   "provider.qiniu": "Qiniu AI",
