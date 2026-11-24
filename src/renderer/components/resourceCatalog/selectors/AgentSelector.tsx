@@ -1,4 +1,4 @@
-import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
+import { lazy, type ReactElement, Suspense, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
@@ -71,6 +71,7 @@ export function AgentSelector(props: AgentSelectorProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+  const createdAgentRef = useRef<AgentDetail | null>(null)
   const selectorOpen = open ?? internalOpen
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -143,14 +144,17 @@ export function AgentSelector(props: AgentSelectorProps) {
     [onDialogCloseAutoFocus]
   )
 
+  // Closing the wizard after a create closes the picker when it already picked the new Agent.
   const handleCreateDialogOpenChange = useCallback(
     (nextOpen: boolean) => {
       setCreateDialogOpen(nextOpen)
-      if (!nextOpen) {
-        onDialogCloseAutoFocus?.()
-      }
+      if (nextOpen) return
+      onDialogCloseAutoFocus?.()
+      if (!createdAgentRef.current) return
+      createdAgentRef.current = null
+      handleSelectorOpenChange(!autoSelectOnCreate)
     },
-    [onDialogCloseAutoFocus]
+    [autoSelectOnCreate, handleSelectorOpenChange, onDialogCloseAutoFocus]
   )
 
   const handleSubmitCreate = useCallback(
@@ -163,8 +167,7 @@ export function AgentSelector(props: AgentSelectorProps) {
         throw error
       }
 
-      setCreateDialogOpen(false)
-      onDialogCloseAutoFocus?.()
+      createdAgentRef.current = created
       try {
         await refetch()
       } catch (error) {
@@ -183,12 +186,10 @@ export function AgentSelector(props: AgentSelectorProps) {
         } else {
           props.onChange(created.id)
         }
-        handleSelectorOpenChange(false)
-        return
       }
-      handleSelectorOpenChange(true)
+      return created.id
     },
-    [autoSelectOnCreate, createAgent, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
+    [autoSelectOnCreate, createAgent, props, refetch, t]
   )
 
   const createDialog = (

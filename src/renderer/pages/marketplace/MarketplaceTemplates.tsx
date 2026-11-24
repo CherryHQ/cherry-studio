@@ -5,8 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Dialog, EmojiIcon } from '@cherrystudio/ui'
 import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialogs/create'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
-import { useExitPresence } from '@renderer/hooks/useExitPresence'
-import { toast } from '@renderer/services/toast'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { MarketplaceTemplate } from '@renderer/types/marketplace'
 import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
 
@@ -52,7 +51,8 @@ export function MarketplaceTemplates({
   const { createAgent, isCreatingAgent } = useAgentMutations()
   const [selected, setSelected] = useState<MarketplaceTemplate | null>(null)
   const [creating, setCreating] = useState<MarketplaceTemplate | null>(null)
-  const createDialog = useExitPresence(creating)
+  // Mounted from the first add on, so the wizard's edit dialog outlives the wizard closing.
+  const [wizardMounted, setWizardMounted] = useState(false)
   useLayoutEffect(
     () => () => {
       setSelected(null)
@@ -77,6 +77,7 @@ export function MarketplaceTemplates({
   const add = (item: MarketplaceTemplate) => {
     setSelected(null)
     setCreating(item)
+    setWizardMounted(true)
   }
   return (
     <div className={preview ? '' : 'flex h-full min-h-0 flex-col'}>
@@ -189,17 +190,21 @@ export function MarketplaceTemplates({
           ) : null}
         </MarketplaceDetailContent>
       </Dialog>
-      {createDialog.value ? (
+      {wizardMounted ? (
         <ResourceCreateWizard
           kind="agent"
           open={active && creating !== null}
           isSubmitting={isCreatingAgent}
-          initialValues={{
-            name: createDialog.value.name,
-            description: createDialog.value.description,
-            avatar: createDialog.value.avatar,
-            prompt: createDialog.value.prompt
-          }}
+          initialValues={
+            creating
+              ? {
+                  name: creating.name,
+                  description: creating.description,
+                  avatar: creating.avatar,
+                  prompt: creating.prompt
+                }
+              : undefined
+          }
           onOpenChange={(open) => {
             if (!open && !isCreatingAgent) {
               setCreating(null)
@@ -207,11 +212,10 @@ export function MarketplaceTemplates({
             }
           }}
           onSubmit={async (values) => {
-            await createAgent(buildCreateAgentCommand(values))
-            toast.success(t('common.add_success'))
-            setCreating(null)
-            trigger.current?.focus()
+            const created = await createAgent(buildCreateAgentCommand(values))
+            return created.id
           }}
+          onStartConversation={(agentId) => openRoute('/app/agents', { agentId })}
         />
       ) : null}
     </div>
