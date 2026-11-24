@@ -120,10 +120,10 @@ class VersionService {
       // Validate data
       if (
         !version ||
-        !['win', 'mac', 'linux', 'unknown'].includes(os) ||
-        !['prod', 'dev'].includes(environment) ||
-        !['packaged', 'unpackaged'].includes(packaged) ||
-        !['install', 'portable'].includes(mode) ||
+        (os !== 'win' && os !== 'mac' && os !== 'linux' && os !== 'unknown') ||
+        (environment !== 'prod' && environment !== 'dev') ||
+        (packaged !== 'packaged' && packaged !== 'unpackaged') ||
+        (mode !== 'install' && mode !== 'portable') ||
         !timestamp
       ) {
         return null
@@ -131,10 +131,10 @@ class VersionService {
 
       return {
         version,
-        os: os as OS,
-        environment: environment as Environment,
-        packaged: packaged as Packaged,
-        mode: mode as Mode,
+        os,
+        environment,
+        packaged,
+        mode,
         timestamp
       }
     } catch (error) {
