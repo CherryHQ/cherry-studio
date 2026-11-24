@@ -41,6 +41,7 @@ export function useWindowInitData<T>(): T | null {
 
     void ipcApi.request('window.get_init_data').then((initial) => {
       if (!cancelled && initial !== null && initial !== undefined) {
+        // SAFETY: WindowManager returns this sender window's payload unchanged; callers pair T with its owning service's init-data type.
         setData(initial as T)
       }
     })
@@ -52,6 +53,7 @@ export function useWindowInitData<T>(): T | null {
 
   useIpcOn('window.reused', (payload) => {
     if (payload !== undefined && payload !== null) {
+      // SAFETY: WindowManager targets the window that owns this unchanged payload; T follows its owning service's init-data type.
       setData(payload as T)
     }
   })
