@@ -22,7 +22,7 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { defangSystemReminderTags, sanitizeUntrustedText } from '@main/ai/untrustedContent'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { Message } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
 import type { Serializable } from '@shared/types/serializable'
 import { SerializableSchema } from '@shared/utils/serializable'
@@ -118,8 +118,11 @@ function projectError(data: Record<string, unknown>) {
   if (typeof data.responseBody === 'string') projected.responseBody = truncateText(data.responseBody, BODY_LIMIT)
 
   if (Array.isArray(data.errors)) {
-    projected.attempts = data.errors.map((attempt) => {
-      const { statusCode, message } = (attempt ?? {}) as { statusCode?: unknown; message?: unknown }
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored retry arrays may contain arbitrary values; only two checked fields reach the redacted projection.
+    projected.attempts = data.errors.map((attempt: unknown) => {
+      if (typeof attempt !== 'object' || attempt === null) return { statusCode: undefined, message: undefined }
+      const statusCode = 'statusCode' in attempt ? attempt.statusCode : undefined
+      const message = 'message' in attempt ? attempt.message : undefined
 
       return {
         statusCode,
@@ -134,8 +137,9 @@ function projectError(data: Record<string, unknown>) {
 /** Every `data-error` part of the message, projected for the model. */
 export function incidentErrors(message: IncidentMessage): Serializable[] {
   return (message.data.parts ?? []).flatMap((part) =>
-    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical message parts are not deep-validated; redaction owns the resulting value contract.
-    part.type === 'data-error' ? [untrustedForModel(projectError(part.data as Record<string, unknown>))] : []
+    part?.type === 'data-error' && typeof part.data === 'object' && part.data !== null
+      ? [untrustedForModel(projectError(part.data))]
+      : []
   )
 }
 
@@ -336,9 +340,9 @@ function requestShape(body: unknown): Record<string, unknown> | undefined {
         const roles: Record<string, number> = {}
 
         for (const item of value) {
-          const role = (item as { role?: unknown })?.role
-
-          if (typeof role === 'string') roles[role] = (roles[role] ?? 0) + 1
+          if (typeof item === 'object' && item !== null && 'role' in item && typeof item.role === 'string') {
+            roles[item.role] = (roles[item.role] ?? 0) + 1
+          }
         }
 
         shape[key] = { count: value.length, roles }
@@ -391,9 +395,9 @@ export function incidentRequest(incident: DoctorAgentIncident): Serializable {
   let route: { endpointType?: string; baseUrl?: string; optionsNamespace?: string; providerId: string } | undefined
 
   try {
-    if (message.modelId) {
+    if (isUniqueModelId(message.modelId)) {
       // Pure resolution only: resolveSdkConfig would advance multi-key rotation and may refresh OAuth.
-      const { providerId, modelId } = parseUniqueModelId(message.modelId as UniqueModelId)
+      const { providerId, modelId } = parseUniqueModelId(message.modelId)
 
       const { endpointType, baseUrl, providerOptionsKey } = resolveEffectiveEndpoint(
         providerService.getByProviderId(providerId),
@@ -408,9 +412,8 @@ export function incidentRequest(incident: DoctorAgentIncident): Serializable {
   }
 
   const requests = (message.data.parts ?? []).flatMap((part) => {
-    if (part.type !== 'data-error') return []
-    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical error parts retain arbitrary requestBodyValues and expose only checked origins plus redacted projections.
-    const data = part.data as Record<string, unknown>
+    if (part?.type !== 'data-error' || typeof part.data !== 'object' || part.data === null) return []
+    const data = part.data
     const errorOrigin = originOf(data.url)
     const routeOrigin = originOf(route?.baseUrl)
 
@@ -438,9 +441,10 @@ export async function incidentTranscript(incident: DoctorAgentIncident, maxEntri
     return { unavailable: `the ${agent?.type ?? 'unknown'} runtime keeps no readable transcript` }
   }
 
-  const message = readIncidentMessage(incident) as AgentSessionMessageEntity | undefined
+  const message = readIncidentMessage(incident)
+  const messageToken = message && 'runtimeResumeToken' in message ? message.runtimeResumeToken : undefined
   // The message's own token survives forks and edits; the session's latest one is the fallback.
-  const token = message?.runtimeResumeToken ?? agentSessionMessageService.getNativeSessionId(sessionId)
+  const token = messageToken ?? agentSessionMessageService.getNativeSessionId(sessionId)
   const events = token ? await driver.readTranscriptEvidence(token, maxEntries) : undefined
 
   if (!events) return { unavailable: 'no transcript for this session (Claude-login sessions keep theirs in ~/.claude)' }

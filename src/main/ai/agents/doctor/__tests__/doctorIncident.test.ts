@@ -25,6 +25,7 @@ vi.mock('@data/services/TemporaryChatService', () => ({
 }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
+    getNativeSessionId: () => 'native-latest',
     listSessionMessages: (sessionId: string, { messageId, limit }: { messageId: string; limit: number }) => {
       const items =
         sessionId === 'session-1'
@@ -63,7 +64,14 @@ vi.mock('@main/ai/provider/endpoint', () => ({
   })
 }))
 
-import { incidentLogs, incidentMessages, incidentRequest, incidentTranscript } from '../doctorIncident'
+import {
+  incidentErrors,
+  incidentLogs,
+  incidentMessages,
+  incidentRequest,
+  incidentTranscript,
+  readIncidentMessage
+} from '../doctorIncident'
 
 const incident = { topicId: 'agent-session:session-1', messageId: 'msg-3' }
 
@@ -169,7 +177,83 @@ describe('incidentMessages', () => {
   })
 })
 
+describe('incidentErrors', () => {
+  it('skips malformed stored errors and bounds and redacts mixed retry evidence', () => {
+    mocks.sessionMessages = [
+      message('msg-3', 'assistant', '', {
+        data: {
+          parts: [
+            null,
+            { type: 'data-error', data: null },
+            { type: 'data-error', data: 'invalid error' },
+            {
+              type: 'data-error',
+              data: {
+                errors: [
+                  null,
+                  7,
+                  'invalid attempt',
+                  { statusCode: 503, message: `${KEY} ${'retry '.repeat(100)}OMITTED_RETRY_TAIL` },
+                  { statusCode: 'provider-down', message: { content: 'private attempt content' } }
+                ]
+              }
+            }
+          ]
+        }
+      })
+    ]
+    const stored = readIncidentMessage(incident)
+    if (!stored) throw new Error('Missing incident fixture')
+
+    const result = incidentErrors(stored)
+    expect(result).toHaveLength(1)
+    expect(result).toHaveProperty('0.attempts', expect.any(Array))
+    expect(result).toHaveProperty('0.attempts.3.statusCode', 503)
+    expect(result).toHaveProperty('0.attempts.4.statusCode', 'provider-down')
+    const serialized = JSON.stringify(result)
+    expect(serialized).not.toContain(KEY)
+    expect(serialized).not.toContain('OMITTED_RETRY_TAIL')
+    expect(serialized).not.toContain('private attempt content')
+  })
+})
+
 describe('incidentRequest', () => {
+  it('counts valid roles among malformed request items without resolving an invalid model ID', () => {
+    mocks.sessionMessages = [
+      message('msg-3', 'assistant', '', {
+        modelId: 'invalid-model-id',
+        data: {
+          parts: [
+            { type: 'data-error', data: null },
+            {
+              type: 'data-error',
+              data: {
+                requestBodyValues: {
+                  messages: [
+                    null,
+                    'legacy entry',
+                    7,
+                    { role: 'user', content: 'private request content' },
+                    { role: { content: 'private role content' } },
+                    { role: 'user' },
+                    { role: 'assistant' }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      })
+    ]
+    const result = incidentRequest(incident)
+    expect(result).toMatchObject({
+      route: { unresolved: true },
+      requests: [{ requestShape: { messages: { count: 7, roles: { user: 2, assistant: 1 } } } }]
+    })
+    expect(JSON.stringify(result)).not.toContain('private request content')
+    expect(JSON.stringify(result)).not.toContain('private role content')
+  })
+
   it('handles malformed stored tool definitions without exposing nested tool content', () => {
     mocks.sessionMessages = [
       message('msg-3', 'assistant', '', {
@@ -293,6 +377,23 @@ describe('incidentLogs', () => {
 })
 
 describe('incidentTranscript', () => {
+  it.each([{}, { runtimeResumeToken: null }])(
+    'uses the session transcript when the message has no token: %j',
+    async (extra) => {
+      mocks.sessionMessages = [message('msg-3', 'assistant', '', extra)]
+      mocks.readTranscriptEvidence.mockImplementation(async (token: string) =>
+        token === 'native-latest'
+          ? [{ kind: 'system', subtype: 'retry', message: 'session retry evidence' }]
+          : undefined
+      )
+
+      expect(await incidentTranscript(incident, 60)).toEqual({
+        runtime: 'claude-code',
+        events: [{ kind: 'system', subtype: 'retry', message: 'session retry evidence' }]
+      })
+    }
+  )
+
   it("reads the failed message's own runtime transcript, redacted", async () => {
     mocks.readTranscriptEvidence.mockImplementation(async (token: string) =>
       token === 'native-3'
