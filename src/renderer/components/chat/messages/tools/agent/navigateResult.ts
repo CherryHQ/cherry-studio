@@ -32,32 +32,33 @@ export function getAgentNavigateResult(
 
   const input = response.arguments
 
-  if (!isRecord(input) || typeof input.path !== 'string' || input.path.length === 0) return undefined
+  if (!isRecord(input)) return undefined
+  const path = input.path
+  if (typeof path !== 'string' || path.length === 0) return undefined
 
-  if (
-    'query' in input &&
-    (!isRecord(input.query) || !Object.values(input.query).every((value) => typeof value === 'string'))
-  ) {
-    return undefined
+  const target: AgentNavigateResult['input'] = { path }
+  if ('query' in input) {
+    const query = input.query
+    if (!isRecord(query)) return undefined
+
+    const entries: Array<[string, string]> = []
+    for (const [key, value] of Object.entries(query)) {
+      if (typeof value !== 'string') return undefined
+      entries.push([key, value])
+    }
+    target.query = Object.fromEntries(entries)
   }
 
   const prefix = 'Navigate link created: '
 
-  if (
-    typeof response.response !== 'string' ||
-    !response.response.startsWith(prefix) ||
-    response.response.length === prefix.length
-  ) {
+  const output = response.response
+  if (typeof output !== 'string' || !output.startsWith(prefix) || output.length === prefix.length) {
     return undefined
   }
 
-  const target: AgentNavigateResult['input'] = { path: input.path }
-
-  if ('query' in input) target.query = input.query as Record<string, string>
-
   return {
     input: target,
-    output: response.response
+    output
   }
 }
 

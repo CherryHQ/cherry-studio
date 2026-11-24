@@ -113,9 +113,13 @@ export function NavigateToolInline({ input, output }: { input?: unknown; output?
     output && typeof output === 'string'
       ? output
       : Array.isArray(output)
-        ? (output as Array<{ text?: string }>)
-            .map((o) => o?.text)
-            .filter(Boolean)
+        ? output
+            .map((block) => {
+              if (typeof block !== 'object' || block === null || !('text' in block)) return ''
+              const text = block.text
+
+              return typeof text === 'string' ? text : ''
+            })
             .join('')
         : ''
 

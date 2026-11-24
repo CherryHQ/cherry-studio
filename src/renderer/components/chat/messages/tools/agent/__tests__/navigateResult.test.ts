@@ -68,6 +68,29 @@ describe('Agent navigate success contract', () => {
     })
   })
 
+  it('preserves literal query keys in the validated navigation target', () => {
+    const query = Object.freeze(JSON.parse('{"id":"provider-1","__proto__":"literal"}'))
+
+    expect(getAgentNavigateResult(response({ arguments: { path: '/settings/provider', query } }))).toEqual({
+      input: { path: '/settings/provider', query: JSON.parse('{"id":"provider-1","__proto__":"literal"}') },
+      output
+    })
+  })
+
+  it('returns checked query values instead of retaining an unvalidated accessor', () => {
+    let reads = 0
+    const query = {
+      get id() {
+        reads += 1
+        return reads === 1 ? 'provider-1' : 42
+      }
+    }
+    const result = getAgentNavigateResult(response({ arguments: { path: '/settings/provider', query } }))
+
+    expect(result).toEqual({ input, output })
+    expect(result?.input.query?.id).toBe('provider-1')
+  })
+
   it.each([
     { ...tool, name: 'nav' },
     { ...tool, name: 'Navigate' },
@@ -121,9 +144,7 @@ describe('Agent navigate success contract', () => {
     { path: '/settings/provider', query: 'id=provider-1' },
     { path: '/settings/provider', query: undefined }
   ])('rejects incomplete or lossy arguments %j', (argumentsValue) => {
-    expect(
-      getAgentNavigateResult(response({ arguments: argumentsValue as NormalToolResponse['arguments'] }))
-    ).toBeUndefined()
+    expect(getAgentNavigateResult(response({ arguments: argumentsValue }))).toBeUndefined()
     expectRejected(part({ input: argumentsValue }))
   })
 

@@ -7,7 +7,7 @@ import { MessageListProvider } from '../../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../../types'
 import { NavigateToolInline } from '../NavigateTool'
 
-function renderNavigation(input: unknown) {
+function renderNavigation(input: unknown, output?: unknown) {
   const navigateToRoute = vi.fn()
   const value: MessageListProviderValue = {
     state: {
@@ -36,7 +36,7 @@ function renderNavigation(input: unknown) {
   }
   render(
     <MessageListProvider value={value}>
-      <NavigateToolInline input={input} />
+      <NavigateToolInline input={input} output={output} />
     </MessageListProvider>
   )
   return navigateToRoute
@@ -71,4 +71,15 @@ it('forwards only string query values and preserves literal reserved keys', asyn
     path: '/settings/provider',
     query: JSON.parse('{"id":"provider-1","__proto__":"literal"}')
   })
+})
+
+it.each([
+  { label: 'string output', output: 'Navigate link created: /settings/provider', success: true },
+  { label: 'split text blocks', output: [{ text: 'Navigate link ' }, { text: 'created' }], success: true },
+  { label: 'array-valued text', output: [{ text: 'Navigate link ' }, { text: ['created'] }], success: false }
+])('shows navigation success only for actual text: $label', ({ output, success }) => {
+  renderNavigation({ path: '/settings/provider' }, output)
+
+  // Array-valued text must not produce the green completion marker through implicit string coercion.
+  expect(screen.getByRole('button').querySelector('.text-success') !== null).toBe(success)
 })
