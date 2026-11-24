@@ -73,7 +73,7 @@ export function useAppUpdateHandler() {
     updateAppUpdateState({ checking: false, lastErrorKey: null })
     if (!wasManual) {
       // A later background result supersedes an earlier manual notice, but stays silent.
-      appUpdateCheckService.setUpdateNotice(null)
+      appUpdateCheckService.clearLookupNotice()
       return
     }
     // A withheld feed is not "up to date"; the failure notice offers the official download.

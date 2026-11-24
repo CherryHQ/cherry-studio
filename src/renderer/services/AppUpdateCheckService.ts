@@ -37,6 +37,8 @@ class AppUpdateCheckService {
   private latestInfo: UpdateInfo | null = null
   private missingEventTimer: ReturnType<typeof setTimeout> | undefined
   private noticeKey: string | null = null
+  /** A failed preference write keeps its notice; no lookup result supersedes that write. */
+  private noticeFromFailedWrite = false
   private session = 0
   private activeSession = 0
   /** Session whose events stay inactive until the cancelling preference write settles. */
@@ -89,6 +91,7 @@ class AppUpdateCheckService {
   }
 
   setUpdateNotice(key: string | null): void {
+    this.noticeFromFailedWrite = false
     if (this.noticeKey === key) return
     this.noticeKey = key
     for (const listener of this.noticeListeners) listener()
@@ -105,7 +108,12 @@ class AppUpdateCheckService {
 
   private noteSuccessfulUpdateEvent(): void {
     this.noteUpdateCheckEvent()
-    this.setUpdateNotice(null)
+    this.clearLookupNotice()
+  }
+
+  /** A later lookup result supersedes an earlier lookup's notice, not a failed preference write. */
+  clearLookupNotice(): void {
+    if (!this.noticeFromFailedWrite) this.setUpdateNotice(null)
   }
 
   markUpdateDownloading(info: UpdateInfo): void {
@@ -173,7 +181,10 @@ class AppUpdateCheckService {
     if (epoch !== this.session || this.heldEpoch !== epoch) return
     this.heldEpoch = null
     this.activeSession = this.session
-    if (outcome === 'failed') this.setUpdateNotice('settings.about.updateError')
+    if (outcome === 'failed') {
+      this.setUpdateNotice('settings.about.updateError')
+      this.noticeFromFailedWrite = true
+    }
     this.settleChannelAck(outcome)
   }
 
