@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-24-lifecycle-service-factories.md
+2026-11-24-lifecycle-service-factories.md: 768b232ab022abf8c22728ba281838a6db4d8dc5
+2026-11-24-lifecycle-service-factories.zh.md: 485f6327b0195220df789baa4dacdd60c3bd1379
