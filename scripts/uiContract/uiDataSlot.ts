@@ -25,11 +25,12 @@ type SlotHandler<Result> = { invoke(...args: unknown[]): Result }['invoke']
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Event variance adds a callable view without parsing the other forwarded native and custom props.
 type SlotProps<Result> = AnyProps & {
   [Name in `on${Capitalize<string>}`]?: SlotHandler<Result>
+} & {
+  ref?: RefTarget
 }
 
 type UiDataSlotProps<Result> = SlotProps<Result> & {
   children?: ReactElement<SlotProps<Result>> | ReactPortal | Exclude<ReactNode, ReactElement>
-  ref?: RefTarget
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- React asChild refs may hold DOM nodes or custom imperative handles; forward the opaque instance and preserve cleanup semantics.
@@ -68,7 +69,7 @@ function mergeSlotProps<Result>(slotProps: SlotProps<Result>, childProps: SlotPr
         overrideProps[propName] = slotPropValue
       }
     } else if (propName === 'style') {
-      overrideProps[propName] = { ...(slotPropValue as object), ...(childPropValue as object) }
+      overrideProps[propName] = { ...(slotPropValue ?? {}), ...(childPropValue ?? {}) }
     } else if (propName === 'className') {
       overrideProps[propName] = [slotPropValue, childPropValue].filter(Boolean).join(' ')
     }
@@ -79,8 +80,8 @@ function mergeSlotProps<Result>(slotProps: SlotProps<Result>, childProps: SlotPr
 }
 
 /** Verbatim Radix Slot semantics (@radix-ui/react-slot getElementRef). */
-function getElementRef(element: ReactElement & RefAttributes<unknown>): RefTarget {
-  const props = element.props as AnyProps
+function getElementRef(element: ReactElement<{ ref?: RefTarget }> & RefAttributes<unknown>): RefTarget {
+  const props = element.props
   let getter = Object.getOwnPropertyDescriptor(props, 'ref')?.get
   let mayWarn = getter && 'isReactWarning' in getter && getter.isReactWarning
 
@@ -88,9 +89,9 @@ function getElementRef(element: ReactElement & RefAttributes<unknown>): RefTarge
   getter = Object.getOwnPropertyDescriptor(element, 'ref')?.get
   mayWarn = getter && 'isReactWarning' in getter && getter.isReactWarning
 
-  if (mayWarn) return props.ref as RefTarget
+  if (mayWarn) return props.ref
 
-  return (props.ref as RefTarget) || element.ref
+  return props.ref || element.ref
 }
 
 /**
@@ -146,7 +147,7 @@ export function UiDataSlot<Result>({ ref, children, ...slotProps }: UiDataSlotPr
   const slotDataUi = typeof slotProps['data-ui'] === 'string' ? slotProps['data-ui'] : ''
 
   // eslint-disable-next-line @eslint-react/no-children-count -- a slot must validate its single child, like Radix's Slot.
-  if (Children.count(children) !== 1 || !isValidElement(children)) {
+  if (Children.count(children) !== 1 || !isValidElement<SlotProps<Result>>(children)) {
     // Verbatim Radix Slot semantics: empty children render as-is; anything else
     // that cannot slot is an authoring error and must throw, never vanish.
     if (children || children === 0) {
@@ -158,8 +159,7 @@ export function UiDataSlot<Result>({ ref, children, ...slotProps }: UiDataSlotPr
 
   const child = children
 
-  // SAFETY: the validated element is the child accepted by this component's typed props.
-  const childProps = child.props as SlotProps<Result>
+  const childProps = child.props
   const childDataUi = typeof childProps['data-ui'] === 'string' ? childProps['data-ui'] : ''
   const dataUi = mergeDataUi(childDataUi, slotDataUi)
   latest.current.child = getElementRef(child)

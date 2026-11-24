@@ -24,6 +24,22 @@ function renderBoth(slotProps: SlotInputProps, childProps: SlotInputProps) {
 }
 
 describe('UiDataSlot prop merging (parity with Radix Slot)', () => {
+  it('preserves opaque style enumeration and own prototype-named fields for custom children', () => {
+    function Receiver({ style }: { style: unknown }) {
+      return h('output', { 'data-testid': 'style-value' }, JSON.stringify(style))
+    }
+
+    const view = render(
+      h(UiDataSlot, { style: 'ab' }, h(Receiver, { style: { ['__proto__']: { source: 'child' }, color: 'blue' } }))
+    )
+    expect(JSON.parse(view.getByTestId('style-value').textContent ?? '')).toEqual({
+      0: 'a',
+      1: 'b',
+      ['__proto__']: { source: 'child' },
+      color: 'blue'
+    })
+  })
+
   it('joins className and merges style like Radix Slot', () => {
     const { fromSlot, fromUiDataSlot } = renderBoth(
       { className: 'from-slot', style: { color: 'red', margin: '1px' } },
