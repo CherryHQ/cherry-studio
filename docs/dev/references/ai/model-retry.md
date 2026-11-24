@@ -76,6 +76,7 @@ API-key fallback exists; otherwise it returns a `wrapModel` closure. Key rotatio
 is attempted first for 401/429 responses. When model retry is enabled, a selected
 replacement key still receives the configured same-model retry for other
 retryable errors (such as 503/529) before cross-model fallback begins.
+An SDK invalid-argument error terminates the call without retry or model fallback.
 
 ```ts
 // ai-retry's condition-based API (ai-retry/language-model). The retry STRATEGY

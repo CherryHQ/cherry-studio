@@ -15,7 +15,7 @@
  * Streaming caveat: ai-retry can only retry/fall back before the first
  * content chunk is emitted; mid-stream errors surface as stream errors.
  */
-import type { LanguageModelV3 } from '@ai-sdk/provider'
+import { InvalidArgumentError, type LanguageModelV3 } from '@ai-sdk/provider'
 import { APICallError, RetryError, type ToolCallRepairFunction, type ToolSet, wrapLanguageModel } from 'ai'
 import {
   isErrorAttempt,
@@ -87,6 +87,9 @@ function lazyFallbackRetryable(
   let cached: Promise<RetryFallback | null> | undefined
   return async (context) => {
     if (!isErrorAttempt(context.current)) return undefined
+    const attemptError = context.current.error
+    const terminalError = RetryError.isInstance(attemptError) ? attemptError.lastError : attemptError
+    if (InvalidArgumentError.isInstance(terminalError)) return undefined
     cached ??= resolveFallback()
     const fallback = await cached
     if (!fallback) {

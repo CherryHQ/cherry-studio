@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
 
+import { InvalidArgumentError, TypeValidationError } from '@ai-sdk/provider'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
-import { isToolUIPart, type UIMessageChunk } from 'ai'
+import { isToolUIPart, RetryError, type UIMessageChunk } from 'ai'
+import { $ZodError } from 'zod/v4/core'
 
 import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
@@ -47,6 +49,8 @@ import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/mod
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 import { KeyedMutex } from '@shared/utils/async'
+import { hasReportingOwner } from '@shared/utils/errorReporting'
+import { isSensitiveKey, REDACTED } from '@shared/utils/redaction'
 
 import type { AsInProcess } from '../AiService'
 import { applyTurnOutputAttributes } from '../observability'
@@ -273,6 +277,57 @@ function errorFromStreamChunk(errorText: string): SerializedError {
     message: getSafeProviderErrorMessage({ message: errorText }),
     stack: null,
     streamStage: 'response-stream'
+  }
+}
+
+function serializeChatError(error: unknown): SerializedError {
+  const terminalError = RetryError.isInstance(error) ? error.lastError : error
+  if (!InvalidArgumentError.isInstance(terminalError)) return serializeError(error)
+
+  const serialized: SerializedError = {
+    name: terminalError.name,
+    message: getSafeProviderErrorMessage(terminalError),
+    stack: null,
+    cause: null,
+    providerErrorCategory: 'bad_request',
+    isRetryable: false,
+    ...(hasReportingOwner(error) && { reportingHandled: true })
+  }
+  const validationError = terminalError.cause
+  if (
+    terminalError.argument !== 'providerOptions' ||
+    !TypeValidationError.isInstance(validationError) ||
+    !(validationError.cause instanceof $ZodError)
+  ) {
+    return serialized
+  }
+
+  const issue = validationError.cause.issues[0]
+  if (!issue) return serialized
+  const path = issue.path.map(String)
+  const value = path.reduce<unknown>(
+    (input, key) =>
+      input && typeof input === 'object' && Object.hasOwn(input, key)
+        ? (input as Record<string, unknown>)[key]
+        : undefined,
+    validationError.value
+  )
+  let displayValue = REDACTED
+  if (!path.some(isSensitiveKey)) {
+    if (typeof value === 'string') {
+      displayValue = JSON.stringify(getSafeProviderErrorMessage({ message: value }) || (value ? '<string>' : ''))
+    } else if (value !== null && typeof value === 'object') {
+      displayValue = Array.isArray(value) ? '<array>' : '<object>'
+    } else {
+      displayValue = String(value)
+    }
+  }
+  const parameter = path.join('.') || terminalError.argument
+  return {
+    ...serialized,
+    message: `${serialized.message}: ${parameter} = ${displayValue}`,
+    parameter,
+    value: displayValue
   }
 }
 
@@ -2171,7 +2226,7 @@ export class AiStreamManager extends BaseService {
     exec.loopPromise = launchLoop()
       .catch((err) => {
         // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
-        return this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
+        return this.onExecutionError(topicId, modelId, serializeChatError(err), exec, err)
       })
       .finally(() => activity.dispose())
 
@@ -2257,7 +2312,7 @@ export class AiStreamManager extends BaseService {
           { topicId, modelId, err: chatErrorContext(err) }
         )
       }
-      await this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
+      await this.onExecutionError(topicId, modelId, serializeChatError(err), exec, err)
       return
     }
 
@@ -2333,9 +2388,13 @@ export class AiStreamManager extends BaseService {
           }
         )
       }
-      const fromThrow = serializeError(result.threw.error)
+      const fromThrow = serializeChatError(result.threw.error)
       const serialized =
-        result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow) && !fromThrow.i18nKey
+        result.streamErrorText !== undefined &&
+        !signal.aborted &&
+        !hasHttpMetadata(fromThrow) &&
+        !fromThrow.i18nKey &&
+        fromThrow.name !== 'AI_InvalidArgumentError'
           ? errorFromStreamChunk(result.streamErrorText)
           : fromThrow
       if (fromThrow.reportingHandled === true) serialized.reportingHandled = true
