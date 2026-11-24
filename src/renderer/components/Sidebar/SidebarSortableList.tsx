@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { Sortable, type SortableItemId } from '@cherrystudio/ui'
@@ -14,7 +14,7 @@ export type SidebarClickGuard = <E = void>(item: SortableItemId, handler?: (even
 
 interface SidebarSortableListProps<T> {
   items: T[]
-  itemKey: keyof T
+  itemKey: Extract<ComponentProps<typeof Sortable<T>>['itemKey'], keyof T>
   /** Container classes; applied to both the sortable and the plain fallback list. */
   className?: string
   /** When provided the list is drag-sortable; otherwise it renders a static list. */

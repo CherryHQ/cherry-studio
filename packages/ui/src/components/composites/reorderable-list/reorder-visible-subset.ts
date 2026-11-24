@@ -1,9 +1,11 @@
+import type { Key } from 'react'
+
 export interface ReorderVisibleSubsetParams<T> {
   items: T[]
   visibleItems?: T[]
   fromIndex: number
   toIndex: number
-  getId: (item: T) => string | number
+  getId: (item: T) => Key
 }
 
 export function reorderVisibleSubset<T>({

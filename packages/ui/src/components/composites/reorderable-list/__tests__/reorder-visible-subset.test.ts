@@ -32,6 +32,20 @@ describe('reorderVisibleSubset', () => {
     expect(nextItems.map((item) => item.id)).toEqual(['item-5', 'item-1', 'item-2', 'item-3', 'item-4'])
   })
 
+  it('keeps bigint, numeric and string identities distinct', () => {
+    const mixedItems = [{ id: 1n }, { id: '1' }, { id: 1 }]
+    const nextItems = reorderVisibleSubset({
+      items: mixedItems,
+      visibleItems: [mixedItems[0], mixedItems[2]],
+      fromIndex: 1,
+      toIndex: 0,
+      getId: (item) => item.id
+    })
+
+    expect(nextItems).toEqual([mixedItems[2], mixedItems[0], mixedItems[1]])
+    expect(mixedItems.map((item) => item.id)).toEqual([1n, '1', 1])
+  })
+
   it('returns the same list when the indexes are unchanged', () => {
     expect(
       reorderVisibleSubset({

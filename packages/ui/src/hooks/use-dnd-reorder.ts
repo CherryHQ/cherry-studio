@@ -2,6 +2,7 @@ import type { Key } from 'react'
 import { useCallback, useMemo } from 'react'
 
 import { reorderVisibleSubset } from '../components/composites/reorderable-list/reorder-visible-subset'
+import type { ItemKey } from '../lib/item-key'
 
 interface UseDndReorderParams<T> {
   /** 原始的、完整的数据列表 */
@@ -11,7 +12,7 @@ interface UseDndReorderParams<T> {
   /** 用于更新原始列表状态的函数 */
   onUpdate: (newList: T[]) => void
   /** 用于从列表项中获取唯一ID的属性名或函数 */
-  itemKey: keyof T | ((item: T) => Key)
+  itemKey: ItemKey<T, Key>
 }
 
 /**
@@ -28,7 +29,12 @@ interface UseDndReorderParams<T> {
  */
 export function useDndReorder<T>({ originalList, filteredList, onUpdate, itemKey }: UseDndReorderParams<T>) {
   const getId = useCallback(
-    (item: T) => (typeof itemKey === 'function' ? itemKey(item) : (item[itemKey] as Key)),
+    (item: T): Key => {
+      if (typeof itemKey === 'function') return itemKey(item)
+
+      // SAFETY: ItemKey only permits fields whose declared values are React keys.
+      return item[itemKey] as Key
+    },
     [itemKey]
   )
 
@@ -44,7 +50,7 @@ export function useDndReorder<T>({ originalList, filteredList, onUpdate, itemKey
 
   // 将 *过滤后列表* 的视图索引转换为 *原始列表* 的数据索引（itemKey 兜底用）
   const getItemKey = useCallback(
-    (index: number): Key => {
+    (index: number): number => {
       const item = filteredList[index]
 
       if (!item) return index
@@ -64,7 +70,7 @@ export function useDndReorder<T>({ originalList, filteredList, onUpdate, itemKey
         visibleItems: filteredList,
         fromIndex: oldIndex,
         toIndex: newIndex,
-        getId: (item) => getId(item) as string | number
+        getId
       })
 
       if (nextList !== originalList) {

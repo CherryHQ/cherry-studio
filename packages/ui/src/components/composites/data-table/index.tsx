@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow
 } from '@cherrystudio/ui/components/primitives/table'
+import type { ItemKey } from '@cherrystudio/ui/lib/item-key'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 export type DataTableKey = React.Key
@@ -55,7 +56,7 @@ export type DataTableSelection<TData> =
 export type DataTableProps<TData> = {
   data: TData[]
   columns: ColumnDef<TData, unknown>[]
-  rowKey: keyof TData | ((record: TData) => DataTableKey)
+  rowKey: ItemKey<TData, DataTableKey>
   selection?: DataTableSelection<TData>
   headerLeft?: React.ReactNode
   headerRight?: React.ReactNode
@@ -150,6 +151,7 @@ function DataTable<TData>({
         return rowKey(record)
       }
 
+      // SAFETY: ItemKey only permits fields whose declared values are DataTableKey.
       return record[rowKey] as DataTableKey
     },
     [rowKey]

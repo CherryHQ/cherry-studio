@@ -10,6 +10,7 @@ import { DragDropProvider, DragOverlay, KeyboardSensor, PointerSensor, useDragDr
 import React, { type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import type { ItemKey } from '@cherrystudio/ui/lib/item-key'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { ItemRenderer } from './item-renderer'
@@ -17,7 +18,7 @@ import { SortableItem } from './sortable-item'
 import type { RenderItemType, SortableAccessibility, SortableItemId } from './types'
 
 function preventActivation(event: PointerEvent, source: Draggable) {
-  // PointerSensor checks that the target is an Element before it calls this.
+  // SAFETY: PointerSensor rejects non-Element targets before invoking preventActivation.
   const target = event.target as Element
   // A nested list inside the marked region stays draggable: the marker only guards rows that contain it.
   const noDnd = target.closest('[data-no-dnd]')
@@ -109,7 +110,7 @@ interface SortableProps<T> {
   /** Array of sortable items */
   items: T[]
   /** Function or key to get unique identifier for each item */
-  itemKey: keyof T | ((item: T) => SortableItemId)
+  itemKey: ItemKey<T, SortableItemId>
   /** Callback when sorting is complete, receives old and new indices */
   onSortEnd: (event: { oldIndex: number; newIndex: number }) => void
   /** Callback when drag starts */
@@ -185,7 +186,12 @@ function Sortable<T>({
   accessibility
 }: SortableProps<T>) {
   const getId = useCallback(
-    (item: T) => (typeof itemKey === 'function' ? itemKey(item) : (item[itemKey] as SortableItemId)),
+    (item: T): SortableItemId => {
+      if (typeof itemKey === 'function') return itemKey(item)
+
+      // SAFETY: ItemKey only permits fields whose declared values are SortableItemId.
+      return item[itemKey] as SortableItemId
+    },
     [itemKey]
   )
 
