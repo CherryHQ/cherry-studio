@@ -63,6 +63,23 @@ describe('findLatestPendingAskUserQuestionRequest', () => {
     expect(result).toBeNull()
   })
 
+  it('preserves an existing answer and note whose question text is __proto__', () => {
+    const result = findLatestPendingAskUserQuestionRequest({
+      'message-1': [
+        makePart({
+          input: {
+            questions: [{ ...input.questions[0], question: '__proto__' }],
+            answers: { ['__proto__']: 'Pino' },
+            annotations: { ['__proto__']: { notes: 'Keep context' } }
+          }
+        })
+      ]
+    })
+
+    expect(result?.input.answers).toEqual({ ['__proto__']: 'Pino' })
+    expect(result?.input.annotations).toEqual({ ['__proto__']: { notes: 'Keep context' } })
+  })
+
   it('accepts AskUserQuestion input without multiSelect and defaults it to false', () => {
     const result = findLatestPendingAskUserQuestionRequest({
       'message-1': [

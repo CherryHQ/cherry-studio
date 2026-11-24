@@ -126,7 +126,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: mocks.translate })
 }))
 
-import { useAgentChatRuntimeState } from '../useAgentChatRuntimeState'
+import { formatAskUserQuestionAnswerMessage, useAgentChatRuntimeState } from '../useAgentChatRuntimeState'
 
 vi.mock('@cherrystudio/ui', async () => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
@@ -214,6 +214,24 @@ function makeAskUserQuestionApproval(part = makeAskUserQuestionPart()) {
 }
 
 describe('useAgentChatRuntimeState', () => {
+  it('recovers literal question answers and ignores missing prototype-named answers', () => {
+    const question = askUserQuestionInput.questions[0]
+    const input = {
+      questions: ['constructor', '__proto__', 'Choose logger'].map((text) => ({ ...question, question: text })),
+      answers: { 'Choose logger': 'Pino' },
+      annotations: {}
+    }
+
+    expect(formatAskUserQuestionAnswerMessage(input)).toBe('Choose logger\nPino')
+    expect(
+      formatAskUserQuestionAnswerMessage({
+        ...input,
+        answers: { ['__proto__']: 'Winston' },
+        annotations: { ['__proto__']: { notes: 'Keep context' } }
+      })
+    ).toBe('__proto__\nWinston\nKeep context')
+  })
+
   afterEach(() => {
     vi.useRealTimers()
   })

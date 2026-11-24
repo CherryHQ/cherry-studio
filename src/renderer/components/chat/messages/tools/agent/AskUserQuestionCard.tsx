@@ -114,7 +114,10 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
 
   const content = (
     <div className="flex flex-col gap-3">
-      <CompletedContent question={currentQuestion} answer={answers[currentQuestion.question]} />
+      <CompletedContent
+        question={currentQuestion}
+        answer={Object.hasOwn(answers, currentQuestion.question) ? answers[currentQuestion.question] : undefined}
+      />
 
       {totalQuestions > 1 && (
         <Navigation

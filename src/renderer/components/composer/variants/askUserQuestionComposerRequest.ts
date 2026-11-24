@@ -1,4 +1,4 @@
-import type { UIMessagePart } from 'ai'
+import type { DynamicToolUIPart, ToolUIPart } from 'ai'
 import { isToolUIPart } from 'ai'
 
 import {
@@ -18,17 +18,8 @@ export type AskUserQuestionComposerRequest = {
   match: MessageToolApprovalMatch
 }
 
-type AskUserQuestionToolPart = CherryMessagePart & {
-  type: string
-  toolName?: string
-  toolCallId: string
-  state?: string
-  input?: unknown
-  approval?: { id?: string }
-}
-
-function getToolName(part: AskUserQuestionToolPart): string {
-  if (part.toolName?.trim()) return part.toolName
+function getToolName(part: ToolUIPart | DynamicToolUIPart): string {
+  if (part.type === 'dynamic-tool' && part.toolName.trim()) return part.toolName
 
   if (part.type.startsWith('tool-')) return part.type.replace(/^tool-/, '')
 
@@ -42,31 +33,30 @@ export function findLatestPendingAskUserQuestionRequest(
 
   for (const [messageId, parts] of Object.entries(partsByMessageId)) {
     for (const part of parts) {
-      if (!isToolUIPart(part as UIMessagePart<never, never>)) continue
+      if (!isToolUIPart(part)) continue
 
-      const toolPart = part as AskUserQuestionToolPart
-      const approvalId = toolPart.approval?.id
+      const approvalId = part.approval?.id
 
-      if (!isAskUserQuestionToolName(getToolName(toolPart)) || toolPart.state !== APPROVAL_REQUESTED || !approvalId) {
+      if (!isAskUserQuestionToolName(getToolName(part)) || part.state !== APPROVAL_REQUESTED || !approvalId) {
         continue
       }
 
-      const input = parseAskUserQuestionToolInput(toolPart.input)
+      const input = parseAskUserQuestionToolInput(part.input)
 
       if (!input?.questions.length) continue
 
       latest = {
         messageId,
-        toolCallId: toolPart.toolCallId,
+        toolCallId: part.toolCallId,
         approvalId,
         input,
         match: {
           part,
-          state: toolPart.state,
-          toolCallId: toolPart.toolCallId,
+          state: part.state,
+          toolCallId: part.toolCallId,
           messageId,
           approvalId,
-          input: toolPart.input
+          input: part.input
         }
       }
     }

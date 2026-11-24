@@ -5,6 +5,7 @@ import { runtimeId } from '@cherrystudio/agent-runtime'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 
 import { createTestBinding, scriptedModel } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
@@ -89,7 +90,7 @@ describe('Pi behavior host model lookup', () => {
       .run()
   })
 
-  async function createHost() {
+  async function createHost(emit: Parameters<typeof createPiBehaviorHost>[0]['emit'] = () => {}) {
     const rootModel = modelService.list({ enabled: true }).find((model) => model.id === 'anthropic::sonnet')!
     const binding = await createTestBinding({ stream: scriptedModel([]).model })
     return createPiBehaviorHost({
@@ -117,10 +118,51 @@ describe('Pi behavior host model lookup', () => {
       },
       usageSessionId: async () => 'usage',
       toolCallIdentity: async () => ({ toolCallId: 'call' }),
-      emit: () => {},
+      emit,
       observe: () => {}
     })
   }
+
+  it('preserves literal question keys in answers and annotations returned by the approval UI', async () => {
+    const { callKeyOf } = await import('@cherrystudio/agent-behavior')
+    const { host } = await createHost((event) => {
+      if (event.type !== 'tool-approval-request') return
+      toolApprovalRegistry.dispatch(event.request.approvalId, {
+        approved: true,
+        updatedInput: {
+          answers: { ['__proto__']: 'Pino', constructor: 'Winston' },
+          annotations: { ['__proto__']: { notes: 'Keep context' } }
+        }
+      })
+    })
+    const controller = new AbortController()
+
+    try {
+      const answer = await host.questions.ask(
+        {
+          call: { thread: root, key: callKeyOf('literal-question') },
+          questions: ['__proto__', 'constructor'].map((question) => ({
+            question,
+            header: 'Logger',
+            options: [
+              { label: 'Pino', description: 'JSON logs' },
+              { label: 'Winston', description: 'Existing logger' }
+            ],
+            multiSelect: false
+          }))
+        },
+        controller.signal
+      )
+
+      expect(answer).toEqual({
+        status: 'answered',
+        answers: { ['__proto__']: 'Pino', constructor: 'Winston' },
+        annotations: { ['__proto__']: { notes: 'Keep context' } }
+      })
+    } finally {
+      controller.abort()
+    }
+  })
 
   it('selects the provider-qualified model even when the parent uses another provider', async () => {
     const { host } = await createHost()

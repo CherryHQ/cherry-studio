@@ -112,9 +112,11 @@ export function formatAskUserQuestionAnswerMessage(value: unknown): string | und
 
   if (!parsed?.answers) return undefined
 
+  const { answers, annotations } = parsed
   const lines = parsed.questions.flatMap((question) => {
-    const answer = parsed.answers?.[question.question]?.trim()
-    const notes = parsed.annotations?.[question.question]?.notes
+    const answer = Object.hasOwn(answers, question.question) ? answers[question.question]?.trim() : undefined
+    const notes =
+      annotations && Object.hasOwn(annotations, question.question) ? annotations[question.question]?.notes : undefined
     const body = [answer, typeof notes === 'string' ? notes.trim() : ''].filter(Boolean).join('\n')
 
     return body ? [`${question.question}\n${body}`] : []

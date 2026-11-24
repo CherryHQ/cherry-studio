@@ -544,6 +544,28 @@ describe('AskUserQuestionComposer', () => {
     })
   })
 
+  it('submits the selected answer and note for a literal __proto__ question', async () => {
+    const request = makeRequest([{ ...questions[0], question: '__proto__', multiSelect: true }])
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
+    fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: ' Keep context ' } })
+    fireEvent.click(screen.getByText('Submit'))
+
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: request.match,
+        approved: true,
+        updatedInput: {
+          questions: request.input.questions,
+          answers: { ['__proto__']: 'Winston' },
+          annotations: { ['__proto__']: { notes: 'Keep context' } }
+        }
+      })
+    )
+  })
+
   it('keeps typed text as the answer for a question without a selection', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)

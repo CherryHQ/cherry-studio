@@ -11,6 +11,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { questionKeyRecord } from '@shared/ai/askUserQuestion'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
@@ -41,8 +42,8 @@ type HostOptions = {
 const recordSchema = z.record(z.string(), z.json())
 
 const answerSchema = z.object({
-  answers: z.record(z.string(), z.string()),
-  annotations: z.record(z.string(), z.object({ notes: z.string().optional() })).optional()
+  answers: questionKeyRecord(z.string()),
+  annotations: questionKeyRecord(z.object({ notes: z.string().optional() })).optional()
 })
 
 const verdictSchema = z.object({ verdict: z.enum(['met', 'not_met', 'impossible']), reason: z.string() })

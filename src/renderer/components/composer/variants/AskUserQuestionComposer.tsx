@@ -117,29 +117,29 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
   const buildAnswers = useCallback(
     (answersByIndex: AnswersByIndex = selectedAnswers) => {
-      const answers: Record<string, string> = {}
+      const entries: [string, string][] = []
 
       questions.forEach((question, index) => {
         const values = answersByIndex[index] ?? []
         const notes = customAnswers[index]?.trim()
 
         if (values.length > 0) {
-          answers[question.question] = values.join(', ')
+          entries.push([question.question, values.join(', ')])
         } else if (notes) {
           // Typed text without a selection is the answer itself; next to a selection
           // it travels as an `annotations` note instead (see buildAnnotations).
-          answers[question.question] = notes
+          entries.push([question.question, notes])
         }
       })
 
-      return answers
+      return Object.fromEntries(entries)
     },
     [customAnswers, questions, selectedAnswers]
   )
 
   const buildAnnotations = useCallback(
     (answersByIndex: AnswersByIndex = selectedAnswers) => {
-      const annotations: Record<string, { notes: string }> = {}
+      const entries: [string, { notes: string }][] = []
 
       questions.forEach((question, index) => {
         const notes = customAnswers[index]?.trim()
@@ -148,10 +148,10 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
         // The typed text supplements a selected option, so it goes out as the
         // protocol's per-question `notes` annotation instead of replacing the answer.
-        annotations[question.question] = { notes }
+        entries.push([question.question, { notes }])
       })
 
-      return Object.keys(annotations).length > 0 ? annotations : undefined
+      return entries.length > 0 ? Object.fromEntries(entries) : undefined
     },
     [customAnswers, questions, selectedAnswers]
   )

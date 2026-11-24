@@ -48,6 +48,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
 import * as z from 'zod'
 
+import { questionKeyRecord } from '@shared/ai/askUserQuestion'
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import type { ToolDisclosureItem } from './ToolDisclosure'
@@ -221,12 +222,12 @@ export const AskUserQuestionItemSchema = z.object({
   multiSelect: z.boolean().default(false)
 })
 
-export const AskUserQuestionAnswerSchema = z.record(z.string(), z.string())
+export const AskUserQuestionAnswerSchema = questionKeyRecord(z.string())
 
 export const AskUserQuestionToolInputSchema = z.object({
   questions: z.array(AskUserQuestionItemSchema).min(1).max(4),
   answers: AskUserQuestionAnswerSchema.optional(),
-  annotations: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
+  annotations: questionKeyRecord(z.record(z.string(), z.unknown())).optional(),
   metadata: z.record(z.string(), z.unknown()).optional()
 })
 
@@ -263,8 +264,9 @@ export const TO_MARKDOWN_RUNTIME_TOOL_NAME = `mcp__cherry-tools__${TO_MARKDOWN_T
  * detached subagent returns immediately, so its tool call reaches a terminal state while the work has
  * barely started — the tool call finished, the task did not.
  */
-export function isBackgroundAgentOutput(output: AgentToolOutput | undefined): boolean {
-  if (!output || Array.isArray(output)) return false
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- A launch label needs only its status literal; stored and cross-runtime results do not prove the complete SDK AgentOutput contract.
+export function isBackgroundAgentOutput(output: unknown): boolean {
+  if (!output || typeof output !== 'object' || Array.isArray(output) || !('status' in output)) return false
 
   return output.status === 'async_launched' || output.status === 'remote_launched'
 }
