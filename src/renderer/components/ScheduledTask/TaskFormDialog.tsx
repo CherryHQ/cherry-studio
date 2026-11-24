@@ -33,6 +33,7 @@ import {
   SelectValue,
   Switch
 } from '@cherrystudio/ui'
+import { DiscardChangesDialog } from '@renderer/components/DiscardChangesDialog'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
@@ -511,6 +512,12 @@ type TaskFormDialogProps = {
   open: boolean
   agents: AgentInfo[]
   onOpenChange: (open: boolean) => void
+  /** Keeps the owning Agent fixed to `agents[0]`, e.g. when opened from that Agent's settings. */
+  agentLocked?: boolean
+  /** Extra content below the fields, such as run history. */
+  children?: ReactNode
+  /** Actions at the start of the footer, such as Delete and Run now. */
+  footerStart?: ReactNode
 } & (
   | {
       task: ScheduledTaskEntity
@@ -525,7 +532,7 @@ type TaskFormDialogProps = {
 )
 
 export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
-  const { open, task, agents, onOpenChange } = props
+  const { open, task, agents, onOpenChange, agentLocked = false } = props
   const { t } = useTranslation()
   const { channels: rawChannels, error: channelsError, isLoading: channelsLoading } = useChannels()
   const channelsReady = !channelsLoading && !channelsError
@@ -543,6 +550,8 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const [submitted, setSubmitted] = useState(false)
   const [promptPreviewKey, setPromptPreviewKey] = useState(0)
   const [polishing, setPolishing] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [initialAgentId, setInitialAgentId] = useState<string | null>(null)
   const wasOpenRef = useRef(false)
   const initialDraftRef = useRef<TaskDraftSnapshot | null>(null)
   const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
@@ -552,7 +561,9 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     if (open && !wasOpenRef.current) {
       const draft = task ? taskToDraftSnapshot(task) : null
       initialDraftRef.current = draft
-      setAgentId(task?.agentId ?? (agents.length === 1 ? agents[0].id : null))
+      const defaultAgentId = task?.agentId ?? (agents.length === 1 ? agents[0].id : null)
+      setInitialAgentId(defaultAgentId)
+      setAgentId(defaultAgentId)
       setName(draft?.name ?? '')
       setPrompt(draft?.prompt ?? '')
       setSchedule(draft?.schedule ?? DEFAULT_SCHEDULE)
@@ -563,6 +574,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
       setGuardValue(draft ? guardToFormValue(draft.guard) : '')
       setSaving(false)
       setSubmitted(false)
+      setConfirmDiscard(false)
       setPromptPreviewKey((key) => key + 1)
     }
     wasOpenRef.current = open
@@ -592,6 +604,22 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     props.task !== undefined &&
     scheduleInputsEqual(schedule, initialDraftRef.current?.schedule ?? taskToDraftSnapshot(props.task).schedule)
   const resolvedTrigger = trigger ?? (unchangedExistingSchedule ? props.task?.trigger : null)
+  const initialDraft = initialDraftRef.current
+  const hasDraft =
+    agentId !== initialAgentId ||
+    name !== (initialDraft?.name ?? '') ||
+    prompt !== (initialDraft?.prompt ?? '') ||
+    !scheduleInputsEqual(schedule, initialDraft?.schedule ?? DEFAULT_SCHEDULE) ||
+    schedule.timeoutMinutes !== (initialDraft?.schedule ?? DEFAULT_SCHEDULE).timeoutMinutes ||
+    !stringArraysEqual(channelIds, initialDraft?.channelIds ?? []) ||
+    workspaceId !== (initialDraft?.workspaceId ?? null) ||
+    reuseSession !== (initialDraft?.reuseSession ?? false) ||
+    polishing
+  const requestClose = () => {
+    if (saving) return
+    if (hasDraft) setConfirmDiscard(true)
+    else onOpenChange(false)
+  }
 
   const guardInvalid = guardType !== 'always' && !guardValue.trim()
 
@@ -663,8 +691,8 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   ])
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
-      <DialogContent size="xl" closeOnOverlayClick={!saving}>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && requestClose()}>
+      <DialogContent size="xl" guardDismiss={saving || hasDraft}>
         <DialogHeader>
           <DialogTitle>
             {t(isEditing ? 'settings.scheduledTasks.editTitle' : 'settings.scheduledTasks.createTitle')}
@@ -736,7 +764,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={saving || isEditing}
+                      disabled={saving || isEditing || agentLocked}
                       aria-label={t('agent.channels.bindAgent')}
                       aria-invalid={(submitted && !agentId) || undefined}
                       aria-busy={saving || undefined}>
@@ -799,16 +827,27 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
               disabled={saving}
               onChange={setChannelIds}
             />
+            {props.children}
           </FieldGroup>
         </ScrollArea>
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
+          {props.footerStart}
+          <Button type="button" variant="outline" disabled={saving} onClick={requestClose}>
             {t('common.cancel')}
           </Button>
           <Button type="button" disabled={saving} loading={saving} aria-busy={saving} onClick={handleSave}>
             {t('agent.tasks.save')}
           </Button>
         </DialogFooter>
+        {confirmDiscard && (
+          <DiscardChangesDialog
+            onCancel={() => setConfirmDiscard(false)}
+            onDiscard={() => {
+              setConfirmDiscard(false)
+              onOpenChange(false)
+            }}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )

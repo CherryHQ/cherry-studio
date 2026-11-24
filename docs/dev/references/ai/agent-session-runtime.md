@@ -21,7 +21,7 @@ sources:
   - packages/agent-behavior/src
   - packages/agent-runtime-pi/src
   - packages/agent-runtime-pi-durable/src
-  - src/main/ai/runtime/agentPrompt.ts
+  - src/main/ai/agents/prompt
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
   - src/main/ai/messages/readConversation.ts
   - src/main/ai/mcp/servers/cherryAutonomyTools.ts
@@ -177,7 +177,7 @@ also require their own lifecycle and product decisions.
 
 ## System prompt ownership
 
-`src/main/ai/runtime/agentPrompt.ts` is the single materializer for Cherry-owned Agent prompt policy. Every runtime passes the same Agent, workspace, agent-data path, channel state, and resolved citation guidance into `buildAgentRuntimePrompt()`, then maps its `{ base, append }` result into the runtime SDK.
+`src/main/ai/agents/prompt/buildAgentPrompt.ts` assembles the shared Agent prompt. Each runtime supplies the Agent, workspace, agent-data path, and references to tools the session can call, then maps `{ base, append }` into its SDK.
 
 The common materializer owns Cherry policy content, semantic authority, and the ordering of blocks carried through its `append` result:
 
@@ -904,7 +904,7 @@ Allowed in v1:
   passed explicitly as `sessionDir`. The resume token is the pi session id;
   reopen resolves it by scanning this directory for `*_<id>.jsonl`, so the
   directory can be relocated without invalidating stored tokens.
-- Cherry's runtime-neutral Agent prompt, materialized by `buildAgentRuntimePrompt()` and injected
+- Cherry's runtime-neutral Agent prompt, materialized by `buildAgentPrompt()` and injected
   through `systemPromptOverride` and `appendSystemPromptOverride`. The materializer uses
   `PromptBuilder` for workspace `system.md` and the current agent data directory's `SOUL.md`,
   `USER.md`, and `memory/FACT.md`, and adds the same instruction authority, channel security,
@@ -1141,7 +1141,7 @@ Native file and shell tools remain available both directly and from scripts.
 Every nested call emits its own tool events and passes Cherry's approval gate,
 including disabled-tool, SQLite, global-install approval, direct-mise mutation, and
 permission-mode policies. Global-install decisions use the root session's effective
-permission mode, including for child sessions. The script itself needs no separate
+permission mode, including for child sessions. The script itself normally needs no separate
 approval because its file and shell operations pass through those tool calls.
 
 Pi and Pi Durable project nested calls as ordinary tool parts with native call and
@@ -1153,6 +1153,10 @@ failure does not erase an earlier successful child. Retention is limited to 256 
 total); over-budget fields are omitted whole with byte counts and omission metadata.
 Legacy sessions cannot recover results that were never recorded. These presentation
 records do not change the model-facing codemode output or native approval checks.
+
+Reading an MCP skill does not change code-mode approval policy;
+the builtin skills server is directly exposed for verified on-demand reads.
+See [MCP Skills Client](./mcp-skills-client.md).
 
 Scripts have no default time limit. An explicit `timeout_ms` includes time spent
 waiting for tool approval and cancels pending calls when it expires. Native MCP

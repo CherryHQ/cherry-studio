@@ -574,7 +574,7 @@ export class AgentTaskService {
   listTasks(
     agentId: string,
     options: ListOptions & { includeHeartbeat?: boolean } = {}
-  ): { tasks: ScheduledTaskEntity[]; total: number } {
+  ): { tasks: ScheduledTaskEntity[]; total: number; activeTotal: number } {
     return this.queryTasks({ ...options, agentId })
   }
 
@@ -596,6 +596,7 @@ export class AgentTaskService {
   ): {
     tasks: ScheduledTaskEntity[]
     total: number
+    activeTotal: number
   } {
     const { agentId, includeHeartbeat = false, limit, offset } = options
     const all = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
@@ -636,7 +637,8 @@ export class AgentTaskService {
     const sessionIds = agentSessionService.getTaskSessionIdsByScheduleIds(sliced.map((task) => task.id))
     return {
       tasks: sliced.map((s) => this.toScheduledTaskEntity(s, sessionIds.get(s.id) ?? null)),
-      total: filtered.length
+      total: filtered.length,
+      activeTotal: filtered.filter((schedule) => deriveStatus(schedule) === 'active').length
     }
   }
 

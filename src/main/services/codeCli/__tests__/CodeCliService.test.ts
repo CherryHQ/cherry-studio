@@ -1155,6 +1155,70 @@ describe('CodeCliService', () => {
         message: expect.stringContaining('Failed to launch terminal: spawn xterm ENOENT')
       })
     })
+
+    // Regression: on Arch Linux + Hyprland (and other standalone setups) the
+    // default terminals are kitty/foot and none of the DE wrappers or xterm is
+    // installed. Detection must find them instead of falling through to the
+    // missing `xterm` fallback (which failed with `spawn xterm ENOENT`).
+    it('launches kitty when only kitty is installed (Arch + Hyprland)', async () => {
+      const spawn = await mockLinuxSpawn(['kitty'])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/proj'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launch?.[0]).toBe('kitty')
+      expect(launch?.[1]).toEqual([
+        '--working-directory',
+        '/home/me/proj',
+        'bash',
+        '-c',
+        expect.stringContaining('clear && ')
+      ])
+    })
+
+    it('launches foot when only foot is installed (Arch + Hyprland)', async () => {
+      const spawn = await mockLinuxSpawn(['foot'])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/proj'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launch?.[0]).toBe('foot')
+      expect(launch?.[1]).toEqual([
+        '--working-directory',
+        '/home/me/proj',
+        'bash',
+        '-c',
+        expect.stringContaining('clear && ')
+      ])
+    })
+
+    it('prefers a detected emulator over the xterm fallback when both exist', async () => {
+      const spawn = await mockLinuxSpawn(['kitty', 'xterm'])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/proj'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      // kitty must win over the last-resort xterm, not fall through to it.
+      expect(launch?.[0]).toBe('kitty')
+    })
   })
 
   describe('run (provider/model validation is owned solely by the service)', () => {

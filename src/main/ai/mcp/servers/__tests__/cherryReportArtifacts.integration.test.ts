@@ -1,0 +1,156 @@
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
+import { seedSessionRoot, setupTestDatabase } from '@test-helpers/db'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { artifactService } from '@data/services/ArtifactService'
+import { backfillPastOutputs } from '@main/ai/agents/ArtifactBackfillService'
+
+import { createCherryToolsServer } from '../cherryBuiltinTools'
+import { callBuiltinTool, toolText } from './builtinMcpClient'
+
+describe('report_artifacts indexes the Agent outputs', () => {
+  const dbh = setupTestDatabase()
+  let workspacePath: string
+  let sessionId: string
+
+  function createServer() {
+    return createCherryToolsServer({
+      agentId: 'reporter',
+      agentDataPath: workspacePath,
+      sessionId,
+      workspaceSource: { type: 'system' },
+      workspacePath,
+      trustedNotifyChannels: [],
+      allowAnyOwnedNotifyChannel: false,
+      getKnowledgeAccess: () => ({ allKnowledgeBases: false, baseIds: [] })
+    })
+  }
+
+  beforeEach(async () => {
+    workspacePath = await mkdtemp(path.join(os.tmpdir(), 'cherry-report-artifacts-'))
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'reporter', type: 'claude-code', name: 'Reporter', instructions: '', orderKey: 'a' })
+      .run()
+    const workspace = agentWorkspaceService.findOrCreateByPath(workspacePath)
+    sessionId = agentSessionService.create({
+      agentId: 'reporter',
+      name: 'Weekly review',
+      workspace: { type: 'user', workspaceId: workspace.id }
+    }).id
+  })
+
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    await rm(workspacePath, { recursive: true, force: true })
+  })
+
+  it('indexes the declarations without reading file metadata', async () => {
+    await mkdir(path.join(workspacePath, 'out'))
+    await writeFile(path.join(workspacePath, 'out', 'report.html'), '<h1>Report</h1>')
+    await writeFile(path.join(workspacePath, 'chart.png'), Buffer.alloc(2048))
+
+    const result = await callBuiltinTool(createServer, 'report_artifacts', {
+      artifacts: [
+        { path: 'out/report.html', description: 'Weekly report' },
+        { path: path.join(workspacePath, 'chart.png') },
+        { path: 'missing.csv' }
+      ]
+    })
+
+    expect(result.isError, toolText(result)).not.toBe(true)
+    const byTitle = Object.fromEntries(
+      artifactService.list({ agentId: 'reporter' }).items.map((item) => [item.title, item])
+    )
+    expect(byTitle['Weekly report']).toMatchObject({
+      path: path.join(workspacePath, 'out', 'report.html'),
+      kind: 'page',
+      size: undefined,
+      sourceId: sessionId,
+      sourceName: 'Weekly review'
+    })
+    expect(byTitle['chart.png']).toMatchObject({ kind: 'media', size: undefined })
+    expect(byTitle['missing.csv']).toMatchObject({ kind: 'file', size: undefined })
+  })
+
+  it('excludes paths outside the workspace without following links in reported declarations', async () => {
+    const outside = await mkdtemp(path.join(os.tmpdir(), 'cherry-outside-artifacts-'))
+    try {
+      const outsideFile = path.join(await realpath(outside), 'private.md')
+      await writeFile(outsideFile, 'not a deliverable')
+      await symlink(outsideFile, path.join(workspacePath, 'escape.md'))
+      await writeFile(path.join(workspacePath, 'inside.md'), 'deliverable')
+
+      const result = await callBuiltinTool(createServer, 'report_artifacts', {
+        artifacts: [{ path: 'escape.md' }, { path: outsideFile }, { path: 'inside.md' }]
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      expect(artifactService.list({ agentId: 'reporter' }).items).toMatchObject([
+        { title: 'inside.md', size: undefined },
+        { title: 'escape.md', size: undefined }
+      ])
+    } finally {
+      await rm(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('still confirms the report when the outputs cannot be indexed', async () => {
+    sessionId = 'session-without-row'
+
+    const result = await callBuiltinTool(createServer, 'report_artifacts', { artifacts: [{ path: 'a.md' }] })
+
+    expect(result.isError, toolText(result)).not.toBe(true)
+    expect(toolText(result)).toContain('Recorded 1 artifact')
+  })
+
+  describe('past reports', () => {
+    function pastReport(artifacts: { path: string; description?: string }[]) {
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values({
+          sessionId,
+          parentId: seedSessionRoot(dbh.db, sessionId),
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolName: 'mcp__cherry-tools__report_artifacts',
+                toolCallId: 'call-1',
+                state: 'output-available',
+                input: { artifacts },
+                output: { content: 'Recorded' }
+              }
+            ]
+          } as never
+        })
+        .run()
+    }
+
+    it('indexes historical declarations without reading metadata from disk', async () => {
+      await writeFile(path.join(workspacePath, 'summary.md'), '# Summary')
+      pastReport([{ path: 'summary.md', description: 'Summary' }, { path: 'deleted.pdf' }])
+
+      await backfillPastOutputs()
+
+      const byTitle = Object.fromEntries(
+        artifactService.list({ agentId: 'reporter' }).items.map((item) => [item.title, item])
+      )
+      expect(byTitle.Summary).toMatchObject({
+        path: path.join(workspacePath, 'summary.md'),
+        kind: 'page',
+        size: undefined
+      })
+      expect(byTitle['deleted.pdf']).toMatchObject({ kind: 'file', size: undefined })
+    })
+  })
+})
