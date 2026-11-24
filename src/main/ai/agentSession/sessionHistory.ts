@@ -2,6 +2,8 @@ import { getToolName, isToolUIPart } from 'ai'
 
 import { application } from '@application'
 import { computeHeadTailExcerpt } from '@cherrystudio/ai-core'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
+import { RuntimeForkAnchorSchema } from '@data/services/agentSessionForkContract'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
 import { spliceTextAtKey } from '@main/ai/contextBuild/toolOutputStore'
@@ -26,6 +28,57 @@ function historyToolOutput(output: unknown): unknown {
   return formatToolExcerpt(computeHeadTailExcerpt(text, PERSIST_HEAD_CHARS, PERSIST_TAIL_CHARS))
 }
 
+function hasNativeMetadata(row: {
+  runtimeResumeToken: string | null
+  inputContextId: string | null
+  data: { nativeSessionId?: string }
+}) {
+  return Boolean(row.runtimeResumeToken || row.data.nativeSessionId || row.inputContextId)
+}
+
+function isDestinationOwnedNativeMetadata(
+  row: {
+    runtimeResumeToken: string | null
+    inputContextId: string | null
+    data: { nativeSessionId?: string; runtimeAnchor?: unknown }
+  },
+  destinationId: string,
+  sessionId: string
+): boolean {
+  const db = application.get('DbService').getDb()
+  const destination = contexts.contextTx(db, destinationId)
+  const destinationKind = contexts.backendTx(db, destination.backendId).locator.kind
+  const checkpoint = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor).data?.checkpoint
+  if (checkpoint?.runtime === destinationKind) {
+    if (
+      destinationKind === 'pi-durable' &&
+      checkpoint.backendId === destination.backendId &&
+      checkpoint.conversationId === destination.nativeThreadId
+    )
+      return true
+    if (
+      destinationKind !== 'pi-durable' &&
+      checkpoint.runtimeSessionId !== undefined &&
+      checkpoint.runtimeSessionId === destination.nativeThreadId
+    )
+      return true
+  }
+
+  const sameTarget = (candidate: { backendId: string; nativeThreadId: string | null }) =>
+    candidate.backendId === destination.backendId &&
+    candidate.nativeThreadId !== null &&
+    candidate.nativeThreadId === destination.nativeThreadId
+
+  if (row.inputContextId) {
+    const source = contexts.sessionContextsTx(db, sessionId).find((candidate) => candidate.id === row.inputContextId)
+    if (source) return sameTarget(source)
+  }
+
+  return [row.runtimeResumeToken, row.data.nativeSessionId].some(
+    (token) => token !== null && token !== undefined && token === destination.nativeThreadId
+  )
+}
+
 /** Reuse product history only before this branch has submitted native input. */
 export async function readSessionHistory(
   sessionId: string,
@@ -41,7 +94,10 @@ export async function readSessionHistory(
     if (row.role === 'user') locallyHandled = row.data.locallyHandled === true
     return !locallyHandled
   })
-  if (prefix.some((row) => row.runtimeResumeToken || row.data.nativeSessionId || row.inputContextId)) return
+  if (contextId) {
+    if (prefix.some((row) => hasNativeMetadata(row) && isDestinationOwnedNativeMetadata(row, contextId, sessionId)))
+      return
+  } else if (prefix.some(hasNativeMetadata)) return
   const history: string[] = []
   const files: CherryMessagePart[] = []
   for (const row of prefix) {

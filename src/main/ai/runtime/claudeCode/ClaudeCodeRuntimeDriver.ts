@@ -187,7 +187,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.knowledgeBaseIds,
       this.input.serviceTier,
       this.input.headless === true,
-      this.input.permissionModeOverride
+      this.input.permissionModeOverride,
+      this.input.branchHead
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
@@ -198,7 +199,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.context = prepareClaudeBranch(
       this.input.sessionId,
       resolveClaudeConfigDirectory(request.options.env),
-      request.options.resume ?? this.input.nativeSessionId,
+      request.options.resume,
       this.input.branchHead
     )
 

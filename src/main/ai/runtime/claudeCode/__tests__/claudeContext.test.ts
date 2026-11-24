@@ -12,8 +12,9 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree'
 
-import { prepareClaudeBranch, reserveClaudeBranchTx } from '../claudeContext'
+import { prepareClaudeBranch, reserveClaudeBranchTx, resolveClaudeBranchResumeToken } from '../claudeContext'
 
 const dbh = setupTestDatabase()
 let sessionId: string
@@ -82,4 +83,41 @@ it('rolls back an edit binding with its message metadata and then captures the s
     bindingState: 'pending'
   })
   expect(contexts.context(original.id).nativeThreadId).toBe(original.nativeThreadId)
+})
+
+it('uses a fresh Claude identity when the latest native token belongs to a foreign ancestor', () => {
+  const foreign = application.get('DbService').withWriteTx((tx) => {
+    const root = ensureAgentSessionRootTx(tx, sessionId)
+    const backend = contexts.ensureBackendTx(
+      tx,
+      { version: 1, kind: 'pi-durable', fileName: 'foreign.sqlite' },
+      'bound'
+    )
+    return contexts.reserveBranchTx(tx, {
+      sessionId,
+      backendId: backend.id,
+      anchorMessageId: root,
+      nativeThreadId: '1'
+    })
+  })
+  contexts.bindContext(foreign.id, '1')
+  const current = messages.saveMessage({
+    sessionId,
+    message: { role: 'user', data: { parts: [{ type: 'text', text: 'Continue' }] } }
+  })
+
+  const context = prepareClaudeBranch(sessionId, '/test/claude', '1', current.id)
+
+  expect(contexts.backend(context.backendId).locator.kind).toBe('claude-code')
+  expect(context.nativeThreadId).not.toBe('1')
+  expect(context.nativeThreadId).toMatch(/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i)
+  expect(resolveClaudeBranchResumeToken(sessionId, '/test/claude', '1', current.id)).toBeUndefined()
+})
+
+it('resolves a resume token only from the bound destination Claude branch', () => {
+  const context = prepareClaudeBranch(sessionId, '/test/claude')
+  contexts.bindContext(context.id, context.nativeThreadId!)
+
+  expect(resolveClaudeBranchResumeToken(sessionId, '/test/claude')).toBe(context.nativeThreadId)
+  expect(resolveClaudeBranchResumeToken(sessionId, '/test/other-claude')).toBeUndefined()
 })

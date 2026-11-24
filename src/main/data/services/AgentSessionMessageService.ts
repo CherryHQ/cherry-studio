@@ -555,6 +555,27 @@ export class AgentSessionMessageService {
       .get()?.id
   }
 
+  hasInputContextBindingTx(tx: DbOrTx, sessionId: string, contextId: string): boolean {
+    return Boolean(
+      tx
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.inputContextId, contextId)))
+        .limit(1)
+        .get()
+    )
+  }
+
+  moveInputContextBindingsTx(tx: DbOrTx, sessionId: string, fromContextId: string, toContextId: string): void {
+    const target = tx.select().from(agentSessionContextTable).where(eq(agentSessionContextTable.id, toContextId)).get()
+    if (!target || target.sessionId !== sessionId)
+      throw new Error('Input recovery context does not belong to this session')
+    tx.update(sessionMessagesTable)
+      .set({ inputContextId: toContextId })
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.inputContextId, fromContextId)))
+      .run()
+  }
+
   bindInputContextTx(tx: DbOrTx, sessionId: string, messageId: string, contextId: string): SessionMessageRow {
     this.assertActiveSession(tx, sessionId)
     const row = this.findExistingMessageRow(tx, sessionId, messageId)

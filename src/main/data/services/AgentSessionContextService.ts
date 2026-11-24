@@ -196,15 +196,61 @@ class AgentSessionContextService {
     tx: DbOrTx,
     contextId: string,
     backendId: string,
-    nativeThreadId: string | null
-  ): AgentSessionContextRow {
+    nativeThreadId: string | null,
+    preserveTarget = false
+  ): { context: AgentSessionContextRow; recoveryContext?: AgentSessionContextRow } {
     this.backendTx(tx, backendId)
-    return tx
+    const previous = this.contextTx(tx, contextId)
+    const context = tx
       .update(contexts)
       .set({ backendId, nativeThreadId, checkpointMapping: null })
       .where(eq(contexts.id, contextId))
       .returning()
       .get()
+    const recoveryContext =
+      preserveTarget && previous.nativeThreadId
+        ? tx
+            .insert(contexts)
+            .values({
+              sessionId: previous.sessionId,
+              backendId: previous.backendId,
+              nativeThreadId: previous.nativeThreadId,
+              bindingState: previous.bindingState,
+              anchorMessageId: null
+            })
+            .returning()
+            .get()
+        : undefined
+    return { context, ...(recoveryContext ? { recoveryContext } : {}) }
+  }
+
+  hasNativeThreadForLocatorTx(
+    tx: DbOrTx,
+    sessionId: string,
+    locator: AgentRuntimeLocator,
+    nativeThreadId: string
+  ): boolean {
+    const parsed = locatorSchema.parse(locator)
+    const backend = tx.select().from(backends).where(eq(backends.locator, parsed)).get()
+    if (!backend) return false
+    return Boolean(
+      tx
+        .select({ id: contexts.id })
+        .from(contexts)
+        .where(
+          and(
+            eq(contexts.sessionId, sessionId),
+            eq(contexts.backendId, backend.id),
+            eq(contexts.nativeThreadId, nativeThreadId)
+          )
+        )
+        .limit(1)
+        .get()
+    )
+  }
+
+  sessionContextsTx(tx: DbOrTx, sessionId: string): AgentSessionContextRow[] {
+    return tx.select().from(contexts).where(eq(contexts.sessionId, sessionId)).all()
   }
 
   branchTx(tx: DbOrTx, sessionId: string, messageId: string) {

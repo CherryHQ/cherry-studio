@@ -334,6 +334,52 @@ it('preserves native recovery when existing product history has a resume token',
   expect(await readSessionHistory('session', current.id)).toBeUndefined()
 })
 
+it('supplies reference history when prior native metadata belongs to a foreign runtime', async () => {
+  const foreignBackend = dbh.db.transaction((tx) => {
+    const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound')
+    contexts.reserveBranchTx(tx, {
+      sessionId: 'session',
+      backendId: backend.id,
+      anchorMessageId: head,
+      nativeThreadId: 'foreign-native'
+    })
+    return backend
+  })
+  const historical = dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, head)).get()!
+  dbh.db
+    .update(agentSessionMessageTable)
+    .set({
+      runtimeResumeToken: 'foreign-native',
+      data: { ...historical.data, runtimeAnchor: { checkpoint: { runtime: 'pi' } } }
+    })
+    .where(eq(agentSessionMessageTable.id, head))
+    .run()
+  const current = save('user', [{ type: 'text', text: 'Continue' }])
+  const fresh = prepareDurableBranch('session', current.id)
+
+  expect(contexts.backend(fresh.backendId).locator.kind).toBe('pi-durable')
+  expect(fresh.backendId).not.toBe(foreignBackend.id)
+  const history = await readSessionHistory('session', current.id, fresh.id)
+  expect(buildAgentUserContent(current, history)).toContain('Mango recorded')
+})
+
+it('withholds reference history when prior native metadata belongs to the destination runtime', async () => {
+  const destination = prepareDurableBranch('session', head)
+  contexts.bindContext(destination.id, '7')
+  const historical = dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, head)).get()!
+  dbh.db
+    .update(agentSessionMessageTable)
+    .set({
+      runtimeResumeToken: '7',
+      data: { ...historical.data, runtimeAnchor: { checkpoint: { runtime: 'pi-durable' } } }
+    })
+    .where(eq(agentSessionMessageTable.id, head))
+    .run()
+  const current = save('user', [{ type: 'text', text: 'Continue' }])
+
+  expect(await readSessionHistory('session', current.id, destination.id)).toBeUndefined()
+})
+
 it.each(['pi', 'pi-durable', 'claude-code'] as const)(
   'isolates unbound %s branches without changing their source messages or creating history checkpoints',
   (runtime) => {
