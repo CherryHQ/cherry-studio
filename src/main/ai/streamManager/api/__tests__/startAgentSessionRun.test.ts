@@ -28,7 +28,7 @@ const prepareDispatchMock = vi.fn((primary: StreamListener, req: { topicId: stri
 const { sessionGetById, runtimeBusy, whenSessionClosingSettled } = vi.hoisted(() => ({
   sessionGetById: vi.fn(),
   runtimeBusy: vi.fn(() => false),
-  whenSessionClosingSettled: vi.fn(async () => undefined)
+  whenSessionClosingSettled: vi.fn(async (): Promise<void> => undefined)
 }))
 
 vi.mock('../../context/AgentChatContextProvider', () => ({
