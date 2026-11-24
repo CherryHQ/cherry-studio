@@ -57,6 +57,7 @@ export async function startAgentSessionRun(input: {
     }
 
     if (input.requireIdle) {
+      await application.get('AgentSessionRuntimeService').whenSessionClosingSettled(input.sessionId)
       if (
         manager.hasLiveStream(topicId) ||
         application.get('AgentSessionRuntimeService').isSessionBusy(input.sessionId)

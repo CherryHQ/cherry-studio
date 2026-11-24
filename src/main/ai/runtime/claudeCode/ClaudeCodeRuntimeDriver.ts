@@ -260,6 +260,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!consumedWarmQuery) this.liveSpawnPreflightReserved = true
     try {
       const { createClaudeCodeRuntime } = await import('@cherrystudio/agent-runtime-claude-code')
+      if (this.input.signal?.aborted) throw new Error('Claude Code connection cancelled before spawn')
       const { resume, cwd, ...nativeOptions } = options
       if (!cwd) throw new Error('Claude Code workspace is unavailable')
       const config = { ...nativeOptions, cwd }
@@ -297,6 +298,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       await this.observeRoot(this.handle)
       if (consumedWarmQuery && !consumedWarmQuery.processDiagnostics.exited)
         throw new Error('Prewarmed process has no exit barrier')
+      if (this.input.signal?.aborted) throw new Error('Claude Code connection cancelled before spawn')
       const started = this.handle.claude.start(
         consumedWarmQuery && {
           query: consumedWarmQuery.warmQuery,

@@ -1549,6 +1549,13 @@ export class AgentSessionRuntimeService extends BaseService {
     return barrier
   }
 
+  /** Admission may outlive a terminal dispatch while its idle native child shuts down. */
+  async whenSessionClosingSettled(sessionId: string): Promise<void> {
+    while (this.closingSessions.has(sessionId)) {
+      await this.closingSessions.get(sessionId)!.promise
+    }
+  }
+
   async closeSessionForArchive(sessionId: string): Promise<void> {
     await this.closeSession(sessionId)
     await application.get('ClaudeCodeWarmQueryManager').close(sessionId)

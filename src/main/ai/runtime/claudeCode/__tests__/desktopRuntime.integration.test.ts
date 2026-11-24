@@ -246,6 +246,39 @@ it.each(['before-start', 'spawn'] as const)(
   }
 )
 
+it('cancels after reservation without spawning and returns the reserved slot', async () => {
+  const test = await desktop()
+  const controller = new AbortController()
+  const manager = {
+    getActiveProcessCount: () => 0,
+    getCapSlotProcessCount: () => 0,
+    tryReserveLiveSpawnPreflight: vi.fn(() => {
+      controller.abort()
+      return true
+    }),
+    releaseLiveSpawnPreflight: vi.fn()
+  }
+  MockApplicationUtils.setService('ClaudeCodeProcessManager', manager)
+  vi.spyOn(application, 'getExisting').mockImplementation(
+    (name) =>
+      (name === 'ClaudeCodeProcessManager'
+        ? manager
+        : name === 'ClaudeCodeWarmQueryManager'
+          ? { evictOldestWarmQuery: () => false }
+          : undefined) as never
+  )
+  await expect(
+    test.connect(undefined, undefined, true, {
+      sessionId: test.sessionId,
+      agentId: 'fixture',
+      modelId: 'native-test::claude-sonnet-4-6',
+      signal: controller.signal
+    })
+  ).rejects.toThrow('connection cancelled before spawn')
+  expect(manager.releaseLiveSpawnPreflight).toHaveBeenCalledOnce()
+  expect(ports.spawn).not.toHaveBeenCalled()
+})
+
 it('cancels a cold native connection blocked by the live process cap', async () => {
   const test = await desktop()
   const controller = new AbortController()
