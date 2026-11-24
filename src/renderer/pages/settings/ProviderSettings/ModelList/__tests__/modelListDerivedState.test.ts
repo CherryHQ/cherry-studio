@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import {
   applyModelFilters,
@@ -53,6 +53,28 @@ const models = [
 ] as any[]
 
 describe('modelListDerivedState', () => {
+  it('retains reserved object property names as ordinary model groups', () => {
+    const groupedModels = ['__proto__', 'constructor', 'toString'].map<Model>((group) => ({
+      id: 'provider::model',
+      providerId: 'provider',
+      name: group,
+      group,
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    }))
+
+    const groups = groupModels(groupedModels, true, { preferModelGroup: true })
+
+    expect(Object.keys(groups)).toEqual(['__proto__', 'constructor', 'toString'])
+    expect(countModelsInGroups(groups)).toBe(3)
+    for (const model of groupedModels) {
+      expect(Object.hasOwn(groups, model.name)).toBe(true)
+      expect(groups[model.name]).toEqual([model])
+    }
+  })
+
   it('groups filtered models into sorted unified groups', () => {
     const groups = groupModels(applyModelFilters(models as any, '', 'all'))
 

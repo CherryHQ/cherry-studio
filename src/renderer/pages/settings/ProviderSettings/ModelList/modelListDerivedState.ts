@@ -115,12 +115,7 @@ export const groupModels = (
   models: Model[],
   preserveGroupOrder = false,
   options: GroupModelsOptions = {}
-): ModelGroups =>
-  groupModelEntries(models, preserveGroupOrder, options).reduce((acc, [key, value]) => {
-    acc[key] = value
-
-    return acc
-  }, {} as ModelGroups)
+): ModelGroups => Object.fromEntries(groupModelEntries(models, preserveGroupOrder, options))
 
 // Text-to-speech is the only audio-output sub-kind we can single out from
 // generic audio generation today (the `AUDIO_GENERATION` capability backs
@@ -173,6 +168,7 @@ export const countModelsInGroups = (groups: ModelGroups | ReadonlyArray<readonly
 }
 
 export const getCapabilityModelCounts = (models: Model[]): ModelListCapabilityCounts => {
+  // SAFETY: Every count key comes from this tuple, and the seed assigns a number to every tuple member.
   const counts = Object.fromEntries(
     MODEL_LIST_CAPABILITY_FILTERS.map((filter) => [filter, 0])
   ) as ModelListCapabilityCounts
