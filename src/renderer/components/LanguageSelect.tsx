@@ -31,10 +31,10 @@ type Props = {
   onClick?: MouseEventHandler<HTMLDivElement>
 }
 
-type LanguageComboboxOption = ComboboxOption & {
+type LanguageComboboxOption = ComboboxOption<{
   content: ReactNode
   searchText: string
-}
+}>
 
 const renderTextContent = (content: ReactNode) =>
   typeof content === 'string' ? <span className="truncate">{content}</span> : content
@@ -136,17 +136,15 @@ const LanguageSelect = (props: Props) => {
     return [...before.map(toExtraOption), ...languageOptions, ...after.map(toExtraOption)]
   }, [defaultLanguageRenderer, extraOptionsAfter, extraOptionsBefore, getLabel, languageRenderer, languages])
 
-  const renderOption = useCallback((option: ComboboxOption) => {
-    return (option as LanguageComboboxOption).content
+  const renderOption = useCallback((option: LanguageComboboxOption) => {
+    return option.content
   }, [])
 
   const renderValue = useCallback(
-    (selectedValue: string | string[], options: ComboboxOption[]) => {
+    (selectedValue: string | string[], options: LanguageComboboxOption[]) => {
       const currentValue = Array.isArray(selectedValue) ? selectedValue[0] : selectedValue
 
-      const selectedOption = options.find((option) => option.value === currentValue) as
-        | LanguageComboboxOption
-        | undefined
+      const selectedOption = options.find((option) => option.value === currentValue)
 
       return (
         <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -157,11 +155,9 @@ const LanguageSelect = (props: Props) => {
     [renderUnknownLanguage]
   )
 
-  const filterOption = useCallback((option: ComboboxOption, search: string) => {
+  const filterOption = useCallback((option: LanguageComboboxOption, search: string) => {
     const normalizedSearch = search.trim().toLowerCase()
-    const languageOption = option as LanguageComboboxOption
-
-    return [languageOption.searchText, option.value].filter(Boolean).join(' ').toLowerCase().includes(normalizedSearch)
+    return [option.searchText, option.value].filter(Boolean).join(' ').toLowerCase().includes(normalizedSearch)
   }, [])
 
   const handleChange = useCallback(
