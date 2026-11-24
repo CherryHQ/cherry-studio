@@ -25,6 +25,8 @@ vi.mock('@main/services/RegionService', () => ({
   regionService: { getCountry: vi.fn(async () => 'US') }
 }))
 
+vi.mock('@main/core/macElectronBridge', () => ({ isMacElectronBridgePackage: () => false }))
+
 vi.mock('@main/utils/systemInfo', () => ({
   generateUserAgent: vi.fn(() => 'test-user-agent'),
   getClientId: vi.fn(() => 'test-client-id')

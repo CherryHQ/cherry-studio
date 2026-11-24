@@ -6,13 +6,48 @@ import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
-import { Button, type CodeEditorHandles, Field, FieldContent, FieldError } from '@cherrystudio/ui'
+import { Button, type CodeEditorHandles, Field, FieldContent, FieldError, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { StaticMarkdown } from '@renderer/components/markdown'
 import { cn } from '@renderer/utils/style'
 
-const promptEditorExtensions = [EditorView.theme({ '&.cm-focused': { outline: 'none' } })]
+// The first lines stop short of the corner controls instead of running under them.
+const promptEditorExtensions = [
+  EditorView.theme({ '&.cm-focused': { outline: 'none' }, '.cm-line:nth-child(-n+2)': { paddingRight: '4rem' } })
+]
+
+/** A control in the editor's style: icon-only and named by its tooltip, or with `showLabel` its text beside the icon. */
+export function PromptEditorIconButton({
+  label,
+  icon,
+  disabled,
+  onClick,
+  showLabel = false
+}: {
+  label: string
+  icon: ReactNode
+  disabled?: boolean
+  onClick: () => void
+  showLabel?: boolean
+}) {
+  const button = (
+    <Button
+      type="button"
+      variant="ghost"
+      aria-label={showLabel ? undefined : label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'flex min-h-0 items-center justify-center rounded-md border border-border-subtle bg-background text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:opacity-40',
+        showLabel ? 'h-6 gap-1 px-2 py-0 font-normal text-xs' : 'size-6 p-0'
+      )}>
+      {icon}
+      {showLabel ? label : null}
+    </Button>
+  )
+  return showLabel ? button : <Tooltip content={label}>{button}</Tooltip>
+}
 
 export interface PromptEditorFieldHandles {
   insertText: (text: string) => boolean
@@ -26,6 +61,8 @@ interface PromptEditorFieldProps {
   placeholder?: string
   error?: string
   actions?: ReactNode
+  /** Controls shown beside the Edit/Preview toggle in the editor's top-right corner. */
+  inlineActions?: ReactNode
   labelAddon?: ReactNode
   previewValue?: string
   resetPreviewKey?: unknown
@@ -34,6 +71,8 @@ interface PromptEditorFieldProps {
   autoFocus?: boolean
   fill?: boolean
   disabled?: boolean
+  /** Accessible name of the text area, when `label` is not plain text (tabs, say). */
+  editorLabel?: string
 }
 
 export function PromptEditorField({
@@ -44,6 +83,7 @@ export function PromptEditorField({
   placeholder,
   error,
   actions,
+  inlineActions,
   labelAddon,
   previewValue,
   resetPreviewKey,
@@ -51,7 +91,8 @@ export function PromptEditorField({
   maxHeight = '50vh',
   autoFocus = false,
   fill = false,
-  disabled = false
+  disabled = false,
+  editorLabel
 }: PromptEditorFieldProps) {
   const { t } = useTranslation()
   const previewId = useId()
@@ -75,6 +116,13 @@ export function PromptEditorField({
   const hasError = Boolean(error)
   const effectiveShowPreview = showPreview && value.length > 0
   const tokenCount = useMemo(() => estimateTextTokens(value), [value])
+  const extensions = useMemo(
+    () =>
+      editorLabel
+        ? [...promptEditorExtensions, EditorView.contentAttributes.of({ 'aria-label': editorLabel })]
+        : promptEditorExtensions,
+    [editorLabel]
+  )
 
   useImperativeHandle(ref, () => ({
     insertText: (text: string) => codeEditorRef.current?.insertText?.(text) ?? false
@@ -108,18 +156,7 @@ export function PromptEditorField({
           {label}
           {labelAddon}
         </div>
-        <div className="flex items-center gap-1.5">
-          {actions}
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setShowPreview((v) => !v)}
-            disabled={disabled || value.length === 0}
-            className="flex h-6 min-h-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0 text-xs font-normal text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-            {effectiveShowPreview ? <Edit className="size-3" /> : <Eye className="size-3" />}
-            <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
-          </Button>
-        </div>
+        <div className="flex items-center gap-1.5">{actions}</div>
       </div>
 
       <FieldContent className={fill ? 'min-h-0 max-w-full min-w-0' : 'max-w-full min-w-0'}>
@@ -127,11 +164,23 @@ export function PromptEditorField({
           aria-invalid={hasError || undefined}
           onMouseDown={handleEditorAreaMouseDown}
           className={cn(
-            'max-w-full min-w-0 overflow-hidden rounded-md border bg-background transition-all',
+            'relative max-w-full min-w-0 overflow-hidden rounded-md border bg-background transition-all',
             fill && 'flex min-h-0 flex-1 flex-col',
             hasError ? 'border-error-border focus-within:border-error' : 'border-border focus-within:border-ring',
             disabled && 'cursor-not-allowed opacity-50'
           )}>
+          {/* Keeps the area's mouse-down focus forwarding from stealing these clicks. */}
+          <div
+            className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1.5"
+            onMouseDown={(event) => event.stopPropagation()}>
+            {inlineActions}
+            <PromptEditorIconButton
+              label={t(effectiveShowPreview ? 'common.edit' : 'common.preview')}
+              icon={effectiveShowPreview ? <Edit className="size-3" /> : <Eye className="size-3" />}
+              disabled={disabled || value.length === 0}
+              onClick={() => setShowPreview((v) => !v)}
+            />
+          </div>
           {effectiveShowPreview ? (
             <div
               className={cn(
@@ -140,6 +189,7 @@ export function PromptEditorField({
               )}
               style={fill ? undefined : { minHeight, maxHeight }}
               onDoubleClick={() => !disabled && setShowPreview(false)}>
+              <span aria-hidden="true" className="float-right h-6 w-14" />
               <StaticMarkdown id={previewId}>{previewValue || value}</StaticMarkdown>
             </div>
           ) : (
@@ -154,7 +204,7 @@ export function PromptEditorField({
               onChange={handleChange}
               editable={!disabled}
               options={{ foldGutter: false, lineNumbers: false, highlightActiveLine: false }}
-              extensions={promptEditorExtensions}
+              extensions={extensions}
               expanded={false}
               className={fill ? 'min-h-0 flex-1' : undefined}
               height={fill ? '100%' : undefined}

@@ -37,11 +37,11 @@ import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIco
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import { ipcApi } from '@renderer/ipc'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
-import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
+import { COMPOSER_FILE_KIND, type ComposerFileKind } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import type { AbsoluteFilePath, FileUrlString } from '@shared/types/file'
+import { type AbsoluteFilePath, FILE_TYPE, type FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
 
 import type { ChatInputTokenKind, ChatTokenView } from '../chatTokenView'

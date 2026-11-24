@@ -98,4 +98,27 @@ describe('useWindowScopedPersistCache', () => {
 
     expect(result.current[0]).toBeNull()
   })
+
+  it('seeds a key bound later in a detached window from that key, not from the first one', () => {
+    windowFrameMock.mode = 'window'
+    cacheService.setPersist('ui.chat.artifact_pane.width', 280)
+    cacheService.setPersist('ui.chat.profile_pane.width', 400)
+    cacheService.delete('ui.window.chat.artifact_pane.width')
+    cacheService.delete('ui.window.chat.profile_pane.width')
+
+    type Key = 'ui.chat.artifact_pane.width' | 'ui.chat.profile_pane.width'
+    const windowKey = {
+      'ui.chat.artifact_pane.width': 'ui.window.chat.artifact_pane.width',
+      'ui.chat.profile_pane.width': 'ui.window.chat.profile_pane.width'
+    } as const
+    const { result, rerender } = renderHook(
+      ({ cacheKey }: { cacheKey: Key }) => useWindowScopedPersistCache(cacheKey, windowKey[cacheKey]),
+      { initialProps: { cacheKey: 'ui.chat.artifact_pane.width' as Key } }
+    )
+    expect(result.current[0]).toBe(280)
+
+    rerender({ cacheKey: 'ui.chat.profile_pane.width' })
+
+    expect(result.current[0]).toBe(400)
+  })
 })

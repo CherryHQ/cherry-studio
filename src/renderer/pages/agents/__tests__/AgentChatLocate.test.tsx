@@ -230,12 +230,12 @@ vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
 const activeSessionMocks = vi.hoisted(() => ({
   result: {
     activeSessionId: 'session-1',
-    session: { id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
+    session: { id: 'session-1', name: 'First session', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
     isLoading: false,
     setActiveSessionId: vi.fn()
   } as {
     activeSessionId: string | null
-    session: { id: string; agentId: string | null; workspace: { path: string } | null } | undefined
+    session: { id: string; name: string; agentId: string | null; workspace: { path: string } | null } | undefined
     isLoading: boolean
     setActiveSessionId: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
@@ -293,8 +293,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 
 vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
-    `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
+    `${workspaceId ?? ''}\0${workspacePath ?? ''}`
 }))
 
 vi.mock('../messages/agentMessageListAdapter', () => ({
@@ -308,7 +307,9 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
-  AgentChatNavbar: ({ tools }: { tools?: ReactNode }) => <div data-testid="agent-chat-navbar">{tools}</div>
+  AgentChatNavbar: ({ conversationControls }: { conversationControls?: ReactNode }) => (
+    <div data-testid="agent-chat-navbar">{conversationControls}</div>
+  )
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
@@ -317,6 +318,13 @@ vi.mock('../components/AgentSessionMessages', () => ({
 
 vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
   default: ({ open }: { open: boolean }) => <div data-testid="citations-panel" data-open={String(open)} />
+}))
+
+vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls', () => ({
+  AgentConversationControls: () => <div />
+}))
+vi.mock('@renderer/components/chat/shell/ConversationTopBarPortal', () => ({
+  useConversationTopBarPortalLayout: () => ({ iconOnly: false })
 }))
 
 describe('AgentChat locate pending message', () => {
@@ -345,7 +353,7 @@ describe('AgentChat locate pending message', () => {
   beforeEach(() => {
     activeSessionMocks.result = {
       activeSessionId: 'session-1',
-      session: { id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
+      session: { id: 'session-1', name: 'First session', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
       isLoading: false,
       setActiveSessionId: vi.fn()
     }
@@ -379,6 +387,12 @@ describe('AgentChat locate pending message', () => {
         }
       }
     })
+  })
+
+  it('shows the rename entry for a session with an empty name', () => {
+    const bootstrap = createConversationBootstrap({ ...activeSessionMocks.result.session, name: '' } as any)
+    renderAgentChat(<AgentChat conversationBootstrap={bootstrap} />)
+    expect(screen.getByRole('button', { name: 'message.tools.sessionCreate.untitled' })).toBeInTheDocument()
   })
 
   it.each([true, false])('retains navigation while a center surface hides messages (end=%s)', async (toEnd) => {

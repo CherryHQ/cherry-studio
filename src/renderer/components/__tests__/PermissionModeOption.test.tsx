@@ -106,6 +106,7 @@ describe('PermissionModeSelect', () => {
     const matches = vi.spyOn(option, 'matches').mockImplementation((selector) => selector === ':focus-visible')
 
     try {
+      fireEvent.keyDown(option, { key: 'ArrowDown' })
       fireEvent.focus(option)
       expect(await screen.findByRole('tooltip')).toHaveTextContent('Needs a model that supports it.')
       expect(option).toHaveAttribute('aria-describedby')
