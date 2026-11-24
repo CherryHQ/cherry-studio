@@ -10,6 +10,7 @@ import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { runPathMutationExclusive } from '@main/services/file'
+import { getErrorCode } from '@main/utils/error'
 import { isPathInside } from '@main/utils/file'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
@@ -187,7 +188,7 @@ export class SkillService {
       try {
         return await fs.promises.realpath(directory)
       } catch (error) {
-        if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) return undefined
+        if (['ENOENT', 'ENOTDIR'].includes(getErrorCode(error) ?? '')) return undefined
         throw error
       }
     }
@@ -430,7 +431,7 @@ export class SkillService {
 
         results.push({ name: metadata.name, description: metadata.description, filename: skill.name })
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
+        if (getErrorCode(error) === 'ENOENT') continue
         logger.warn('Failed to parse skill metadata; skipping', {
           skillsDir: path.dirname(skill.path),
           entry: skill.name,
@@ -483,7 +484,7 @@ export class SkillService {
           results.push({ name: entry.name, path: path.join(skillsDir, entry.name) })
         }
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
+        if (getErrorCode(error) === 'ENOENT') continue
         logger.warn('Failed to enumerate skills directory', {
           skillsDir,
           error: error instanceof Error ? error.message : String(error)
@@ -997,7 +998,7 @@ export class SkillService {
     try {
       stat = await fs.promises.lstat(target)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      if (getErrorCode(error) !== 'ENOENT') throw error
     }
 
     if (stat) {
@@ -1028,7 +1029,7 @@ export class SkillService {
     try {
       entries = await fs.promises.readdir(root)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      if (getErrorCode(error) === 'ENOENT') return
       throw error
     }
 
@@ -1048,7 +1049,7 @@ export class SkillService {
           await fs.promises.unlink(target)
         }
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') failures.push(error)
+        if (getErrorCode(error) !== 'ENOENT') failures.push(error)
       }
     }
 
@@ -1193,7 +1194,7 @@ export class SkillService {
     try {
       stats = await fs.promises.lstat(skillDir)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      if (getErrorCode(error) !== 'ENOENT') throw error
       agentGlobalSkillService.deleteById(skillId)
       await this.unlinkMirror(skill.folderName)
       agentGlobalSkillService.notifySkillMembershipChange(skillId)
@@ -1457,7 +1458,7 @@ export class SkillService {
     } catch (error) {
       // A whole-root read failure (or a not-yet-created root) is transient — never
       // prune on it, or a hiccup would drop every skill and its enablement.
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      if (getErrorCode(error) !== 'ENOENT') {
         logger.warn('Failed to scan skill library; skipping DB reconcile', {
           error: error instanceof Error ? error.message : String(error)
         })
@@ -1629,7 +1630,7 @@ export class SkillService {
         await fs.promises.lstat(this.getSkillStoragePath(skill.folderName))
         continue
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        if (getErrorCode(error) !== 'ENOENT') {
           logger.warn('Failed to verify missing skill folder; keeping catalog row', {
             folderName: skill.folderName,
             error: error instanceof Error ? error.message : String(error)
@@ -1722,7 +1723,7 @@ export class SkillService {
       try {
         return { status: 'found', content: await fs.promises.readFile(path.join(dir, variant), 'utf-8') }
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') sawError = true
+        if (getErrorCode(error) !== 'ENOENT') sawError = true
       }
     }
 
@@ -1843,7 +1844,7 @@ export class SkillService {
     try {
       entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      if (getErrorCode(error) === 'ENOENT') return null
       throw error
     }
 
