@@ -2,6 +2,8 @@ import { mkdir, mkdtemp, readFile, readdir, rmdir, unlink, writeFile } from 'nod
 import os from 'node:os'
 import path from 'node:path'
 
+import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
+import { createReadTool } from '@earendil-works/pi-durable/tools'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { eq } from 'drizzle-orm'
@@ -14,6 +16,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { createClaudeCodeIdentityHooks } from '@main/ai/runtime/claudeCode/identityHooks'
+import { withPrivateMemoryRead } from '@main/ai/runtime/piDurable/durableMemoryRead'
 import { BaseService } from '@main/core/lifecycle'
 
 import { planLegacyMemory } from '../legacyMemoryPlan'
@@ -278,6 +281,34 @@ describe('legacy memory activation', () => {
     expect(plan.get('MEMORY.md')).toContain(first)
     expect([...plan.values()].filter((content) => content.includes(second))).toHaveLength(1)
     expect([...plan.keys()].filter((target) => target !== 'MEMORY.md')).toHaveLength(1)
+  })
+
+  it('keeps comments intact and lets the root Durable conversation read the migrated topic', async () => {
+    const introduction = '# Introduction\n' + 'a'.repeat(14000) + '\n'
+    const conditions = '# Conditions\n<!--\n# Inside comment\n' + 'b'.repeat(13500) + '\n-->\nOnly ship after approval.'
+    await writeFile(path.join(root, 'memory', 'FACT.md'), introduction + conditions)
+    dbh.db.insert(agentWorkspaceTable).values({ id: 'workspace', name: 'W', path: fixture, orderKey: 'a0' }).run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: 'session', agentId, workspaceId: 'workspace', orderKey: 'a0', name: 'S' })
+      .run()
+    const runtime = new AgentSessionRuntimeService()
+    MockApplicationUtils.setService('AgentSessionRuntimeService', runtime)
+    vi.spyOn(runtime, 'getInteractionState').mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+
+    expect(await migration.ensureAgent(agentId)).toBe(true)
+    const entry = await readFile(path.join(root, 'MEMORY.md'), 'utf8')
+    expect(entry).not.toContain('<!--')
+    const link = /\[Legacy facts 1\]\(([^)]+)\)/.exec(entry)![1]
+    const tool = withPrivateMemoryRead(createReadTool(), 'session', agentId, root, (id) => id === 1)
+    const read = (conversationId: number) =>
+      tool.execute(
+        { path: path.join(root, link) },
+        { conversationId } as Parameters<typeof tool.execute>[1],
+        BACKGROUND_CONTEXT
+      )
+    expect((await read(1)).structuredOutput).toBe(conditions)
+    await expect(read(2)).rejects.toThrow('Private memory is unavailable')
   })
 
   it('allows confirmed recovery to unblock a failed migration after normal lifecycle initialization', async () => {
