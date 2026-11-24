@@ -1130,6 +1130,7 @@
   "chat.topics.export.obsidian_title_required": "Tiêu đề không được để trống",
   "chat.topics.export.obsidian_vault": "Kho lưu trữ",
   "chat.topics.export.obsidian_vault_placeholder": "Vui lòng chọn tên kho lưu trữ",
+  "chat.topics.export.share_image": "Xuất ảnh để chia sẻ",
   "chat.topics.export.siyuan": "Xuất sang Siyuan Note",
   "chat.topics.export.title": "Xuất khẩu",
   "chat.topics.export.title_naming_failed": "Không thể tạo tiêu đề, đang sử dụng tiêu đề mặc định",
