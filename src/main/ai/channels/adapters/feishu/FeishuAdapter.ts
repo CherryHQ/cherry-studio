@@ -15,7 +15,7 @@ import {
   type ChannelStreamErrorOptions,
   type SendMessageOptions
 } from '../../ChannelAdapter'
-import { isSlashCommand } from '../../constants'
+import { parseSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP } from '../../utils'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
 import { createFeishuHttpInstance } from './FeishuHttpInstance'
@@ -614,7 +614,9 @@ class FeishuAdapter extends ChannelAdapter {
     const conversationId = message.threadId
     const conversation = conversationId ? { conversationId: `thread:${conversationId}`, replyInThread: true } : {}
 
-    if (isSlashCommand(text)) {
+    const command = parseSlashCommand(text)
+
+    if (command) {
       const parts = text.split(/\s+/)
       this.emit('command', {
         chatId: message.chatId,
@@ -622,7 +624,7 @@ class FeishuAdapter extends ChannelAdapter {
         userId: message.senderId,
         userName: message.senderName ?? '',
         messageId: message.messageId,
-        command: parts[0].slice(1).toLowerCase() as 'new' | 'compact' | 'help' | 'whoami',
+        command,
         args: parts.slice(1).join(' ') || undefined
       })
 

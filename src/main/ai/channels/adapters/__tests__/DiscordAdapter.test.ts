@@ -136,6 +136,69 @@ describe('DiscordAdapter gateway handshake', () => {
     expect(unexpectedFetches).toEqual([])
   })
 
+  it.each([{}, { heartbeat_interval: '60000' }, { heartbeat_interval: 0 }])(
+    'waits for a valid Hello before identifying or sending heartbeats',
+    async (hello) => {
+      const adapter = createAdapter()
+      try {
+        await adapter.connect()
+        const socket = sockets[0]
+        socket.open()
+        socket.receive({ op: 10, d: hello })
+        await vi.advanceTimersByTimeAsync(60000)
+        expect(socket.frames).toEqual([])
+
+        socket.receive({ op: 10, d: { heartbeat_interval: 60000 } })
+        expect(socket.frames).toEqual([expect.objectContaining({ op: 2 })])
+        await vi.advanceTimersByTimeAsync(30000)
+        expect(socket.frames.at(-1)?.op).toBe(1)
+      } finally {
+        await adapter.disconnect()
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it('keeps command-like message suffixes as ordinary content', async () => {
+    const adapter = createAdapter()
+    const messages: unknown[] = []
+    const commands: unknown[] = []
+    adapter.on('message', (message) => messages.push(message))
+    adapter.on('command', (command) => commands.push(command))
+    try {
+      await adapter.connect()
+      const socket = sockets[0]
+      socket.open()
+      socket.receive({
+        op: 0,
+        t: 'MESSAGE_CREATE',
+        d: {
+          id: 'ordinary',
+          channel_id: 'chat',
+          author: { id: 'user', username: 'name' },
+          content: '/new-other'
+        }
+      })
+      socket.receive({
+        op: 0,
+        t: 'MESSAGE_CREATE',
+        d: {
+          id: 'command',
+          channel_id: 'chat',
+          author: { id: 'user', username: 'name' },
+          content: '/new extra text'
+        }
+      })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(messages).toMatchObject([{ text: '/new-other' }])
+      expect(commands).toMatchObject([{ command: 'new' }])
+    } finally {
+      await adapter.disconnect()
+      vi.useRealTimers()
+    }
+  })
+
   it('validates READY and message identities before changing connection state or emitting messages', async () => {
     const adapter = createAdapter()
     const messages: unknown[] = []
@@ -302,6 +365,19 @@ describe('DiscordAdapter gateway handshake', () => {
       vi.useRealTimers()
     }
   })
+})
+
+it.each([42, {}, '', null])('does not edit a Discord message with an invalid creation id', async (id) => {
+  const adapter = createAdapter()
+  mockNetFetch.mockReset()
+  mockNetFetch.mockImplementation(async () => new Response(JSON.stringify({ id })))
+  try {
+    await adapter.onTextUpdate('channel:test', 'draft')
+    await expect(adapter.onStreamComplete('channel:test', 'final')).resolves.toBe(false)
+    expect(mockNetFetch.mock.calls.map((call) => call[1].method)).toEqual(['POST'])
+  } finally {
+    await adapter.disconnect()
+  }
 })
 
 it('clears a withdrawn draft while keeping the same Discord message for resumed content', async () => {

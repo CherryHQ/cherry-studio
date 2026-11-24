@@ -12,7 +12,7 @@ import {
   type ChannelStreamErrorOptions,
   type SendMessageOptions
 } from '../../ChannelAdapter'
-import { isSlashCommand } from '../../constants'
+import { parseSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
 import { splitMessage } from '../../utils'
 import { toSlackMarkdown } from './slackMarkdown'
@@ -446,15 +446,16 @@ class SlackAdapter extends ChannelAdapter {
 
     if (!text && imageUrls.length === 0 && fileAttachments.length === 0) return
 
-    if (isSlashCommand(text)) {
-      if (text.startsWith('/whoami')) {
+    const command = parseSlashCommand(text)
+
+    if (command) {
+      if (command === 'whoami') {
         await this.sendWhoami(chatId)
 
         return
       }
 
-      const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
-      this.emit('command', { chatId, userId, userName, command: cmd })
+      this.emit('command', { chatId, userId, userName, command })
     } else {
       // Download images (with bot token auth for private files)
       let images: ImageAttachment[] | undefined

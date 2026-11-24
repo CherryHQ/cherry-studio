@@ -18,13 +18,17 @@ import {
   type ChannelStreamErrorOptions,
   type SendMessageOptions
 } from '../../ChannelAdapter'
-import { isSlashCommand, SLASH_COMMANDS } from '../../constants'
+import { parseSlashCommand, SLASH_COMMANDS } from '../../constants'
 import { FlushController } from '../../FlushController'
 import { splitMessage } from '../../utils'
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10'
 const DISCORD_MAX_LENGTH = 2000
 const USER_AGENT = 'DiscordBot (https://github.com/CherryHQ/cherry-studio, 1.0.0)'
+
+const discordCreatedMessageSchema = z.object({ id: z.string().min(1) })
+const discordGatewaySchema = z.object({ url: z.string().min(1) })
+const discordHelloSchema = z.object({ heartbeat_interval: z.number().positive() })
 
 // Discord Gateway Opcodes
 const OP_DISPATCH = 0
@@ -189,8 +193,8 @@ class DiscordStreamingController {
         body: { content: this.currentText || '...' }
       })
 
-      const data = (await response.json()) as { id?: string }
-      this.messageId = data.id ?? null
+      const data = discordCreatedMessageSchema.parse(await response.json())
+      this.messageId = data.id
     } catch (error) {
       this.log.warn('Failed to create Discord streaming message', {
         error: error instanceof Error ? error.message : String(error)
@@ -317,7 +321,7 @@ class DiscordAdapter extends ChannelAdapter {
       throw new Error(`Failed to get gateway URL: HTTP ${response.status} - ${errorText}`)
     }
 
-    const data = (await response.json()) as { url: string }
+    const data = discordGatewaySchema.parse(await response.json())
 
     return data.url
   }
@@ -393,7 +397,7 @@ class DiscordAdapter extends ChannelAdapter {
 
     switch (payload.op) {
       case OP_HELLO:
-        this.handleHello(payload.d as { heartbeat_interval: number })
+        this.handleHello(discordHelloSchema.parse(payload.d))
         break
       case OP_DISPATCH:
         if (payload.t) await this.handleDispatch(payload.t, payload.d)
@@ -557,19 +561,20 @@ class DiscordAdapter extends ChannelAdapter {
 
     if (!text && imageUrls.length === 0 && fileAttachments.length === 0) return
 
-    if (isSlashCommand(text)) {
-      if (text.startsWith('/whoami')) {
+    const command = parseSlashCommand(text)
+
+    if (command) {
+      if (command === 'whoami') {
         await this.sendWhoami(chatId)
 
         return
       }
 
-      const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
       this.emit('command', {
         chatId,
         userId: msg.author.id,
         userName: msg.author.username ?? '',
-        command: cmd
+        command
       })
     } else {
       // Download images in parallel, converting to base64

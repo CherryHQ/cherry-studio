@@ -12,11 +12,21 @@ import {
   type ChannelMessageEvent,
   type SendMessageOptions
 } from '../../ChannelAdapter'
-import { isSlashCommand } from '../../constants'
+import { parseSlashCommand } from '../../constants'
 import { splitMessage } from '../../utils'
 
 const QQ_MAX_LENGTH = 2000
 const QQ_API_BASE = 'https://api.sgroup.qq.com'
+
+const qqTokenSchema = z.object({
+  access_token: z.string().min(1),
+  expires_in: z
+    .union([z.number(), z.string().refine((value) => value.trim().length > 0)])
+    .transform(Number)
+    .pipe(z.number().positive())
+})
+const qqGatewaySchema = z.object({ url: z.string().min(1) })
+const qqHelloSchema = z.object({ heartbeat_interval: z.number().positive() })
 
 type QqMessageBody = {
   markdown: { content: string }
@@ -204,19 +214,20 @@ class QqAdapter extends ChannelAdapter {
       throw new Error(`Failed to get access token: HTTP ${response.status}`)
     }
 
-    const data = (await response.json()) as { access_token?: string; expires_in?: number }
+    const data = await response.json()
+    const token = qqTokenSchema.safeParse(data)
 
-    if (!data.access_token || !data.expires_in) {
+    if (!token.success) {
       const errorText = JSON.stringify(data)
       throw new Error(`Invalid token response from QQ API: ${errorText}`)
     }
 
     this.tokenCache = {
-      accessToken: data.access_token,
-      expiresAt: Date.now() + data.expires_in * 1000
+      accessToken: token.data.access_token,
+      expiresAt: Date.now() + token.data.expires_in * 1000
     }
 
-    return data.access_token
+    return token.data.access_token
   }
 
   private async apiRequest(
@@ -249,7 +260,7 @@ class QqAdapter extends ChannelAdapter {
 
   private async getGatewayUrl(signal?: AbortSignal): Promise<string> {
     const response = await this.apiRequest(`${QQ_API_BASE}/gateway`, undefined, signal)
-    const data = (await response.json()) as { url: string }
+    const data = qqGatewaySchema.parse(await response.json())
 
     return data.url
   }
@@ -324,7 +335,7 @@ class QqAdapter extends ChannelAdapter {
 
     switch (payload.op) {
       case OP_HELLO:
-        await this.handleHello(payload.d as { heartbeat_interval: number })
+        await this.handleHello(qqHelloSchema.parse(payload.d))
         break
       case OP_DISPATCH:
         if (payload.t) {
@@ -556,14 +567,16 @@ class QqAdapter extends ChannelAdapter {
 
     const text = this.parseContent(msg.content)
 
-    if (isSlashCommand(text)) {
-      if (text.startsWith('/whoami')) {
+    const command = parseSlashCommand(text)
+
+    if (command) {
+      if (command === 'whoami') {
         await this.sendWhoami(chatId, msg.id)
 
         return
       }
 
-      this.emitCommand(chatId, userId, userName, text, msg.id)
+      this.emit('command', { chatId, userId, userName, command, messageId: msg.id })
 
       return
     }
@@ -689,11 +702,6 @@ class QqAdapter extends ChannelAdapter {
     if (this.allowedChatIds.length === 0) return true
 
     return this.allowedChatIds.includes(chatId) || (rawId !== undefined && this.allowedChatIds.includes(rawId))
-  }
-
-  private emitCommand(chatId: string, userId: string, userName: string, text: string, messageId: string): void {
-    const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
-    this.emit('command', { chatId, userId, userName, command: cmd, messageId })
   }
 
   private async sendWhoami(chatId: string, messageId: string): Promise<void> {

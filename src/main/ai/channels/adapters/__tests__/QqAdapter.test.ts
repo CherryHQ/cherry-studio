@@ -1,4 +1,7 @@
+import { EventEmitter } from 'node:events'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import WebSocket from 'ws'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -138,6 +141,130 @@ describe('QqAdapter gateway payload validation', () => {
       { chatId: 'group:g1', userId: 'm1', text: 'hi' },
       { chatId: 'group:g1', userId: 'legacy', text: 'hi' }
     ])
+  })
+
+  it('keeps unknown command suffixes as messages and preserves valid command identity', async () => {
+    const adapter = createAdapter()
+    const messages: unknown[] = []
+    const commands: unknown[] = []
+    adapter.on('message', (message: unknown) => messages.push(message))
+    adapter.on('command', (command: unknown) => commands.push(command))
+
+    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('ordinary', 'g1', '/help!'))
+    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('command', 'g1', '/help details'))
+
+    expect(messages).toMatchObject([{ text: '/help!', messageId: 'ordinary' }])
+    expect(commands).toMatchObject([{ command: 'help', messageId: 'command' }])
+    await adapter.disconnect()
+  })
+})
+
+describe('QqAdapter token boundary', () => {
+  beforeEach(() => mockNetFetch.mockReset())
+  afterEach(() => vi.restoreAllMocks())
+
+  it.each([7200, '7200'])('uses native token lifetime %s through the existing refresh window', async (expiresIn) => {
+    let now = 1000000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    let issued = 0
+    const authorizations: Array<string | null> = []
+    mockNetFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === 'https://bots.qq.com/app/getAppAccessToken') {
+        issued++
+        return new Response(JSON.stringify({ access_token: `token-${issued}`, expires_in: expiresIn }))
+      }
+      authorizations.push(new Headers(init?.headers).get('Authorization'))
+      return new Response('{}')
+    })
+    const adapter = createAdapter()
+    try {
+      await adapter.sendMessage('group:g1', 'first')
+      now += (7200 - 60) * 1000 - 1
+      await adapter.sendMessage('group:g1', 'before refresh')
+      now++
+      await adapter.sendMessage('group:g1', 'refresh')
+
+      expect(authorizations).toEqual(['QQBot token-1', 'QQBot token-1', 'QQBot token-2'])
+    } finally {
+      await adapter.disconnect()
+    }
+  })
+
+  it.each([true, null, ' ', 'NaN', 0])('retains diagnostics for invalid token lifetime %s', async (expiresIn) => {
+    mockNetFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: 'token',
+          expires_in: expiresIn,
+          diagnostic: 'native token failure'
+        })
+      )
+    )
+    const adapter = createAdapter()
+    try {
+      await expect(adapter.sendMessage('group:g1', 'message')).rejects.toThrow('native token failure')
+      expect(mockNetFetch).toHaveBeenCalledTimes(1)
+    } finally {
+      await adapter.disconnect()
+    }
+  })
+})
+
+describe('QqAdapter Hello boundary', () => {
+  class Socket extends EventEmitter {
+    readyState = 1
+    frames: Array<{ op: number }> = []
+    send(text: string) {
+      this.frames.push(JSON.parse(text))
+    }
+    close() {
+      this.readyState = 3
+    }
+    receive(payload: unknown) {
+      this.emit('message', Buffer.from(JSON.stringify(payload)))
+    }
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    mockNetFetch.mockReset()
+    mockNetFetch.mockImplementation(
+      async (url: string) =>
+        new Response(
+          JSON.stringify(
+            url === 'https://bots.qq.com/app/getAppAccessToken'
+              ? { access_token: 'token', expires_in: '7200' }
+              : { url: 'wss://gateway.example' }
+          )
+        )
+    )
+  })
+  afterEach(() => {
+    vi.mocked(WebSocket).mockReset()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it('starts Identify and heartbeat only after a valid interval arrives', async () => {
+    const socket = new Socket()
+    vi.mocked(WebSocket).mockImplementation(function () {
+      return socket as unknown as WebSocket
+    })
+    const adapter = createAdapter()
+    try {
+      await adapter.connect()
+      socket.receive({ op: 10, d: { heartbeat_interval: false } })
+      await vi.advanceTimersByTimeAsync(60000)
+      expect(socket.frames).toEqual([])
+
+      socket.receive({ op: 10, d: { heartbeat_interval: 60000 } })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(socket.frames).toEqual([expect.objectContaining({ op: 2 })])
+      await vi.advanceTimersByTimeAsync(60000)
+      expect(socket.frames.at(-1)?.op).toBe(1)
+    } finally {
+      await adapter.disconnect()
+    }
   })
 })
 

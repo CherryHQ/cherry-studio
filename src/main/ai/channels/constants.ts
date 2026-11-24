@@ -5,8 +5,8 @@ export const SLASH_COMMANDS = [
   { name: 'whoami', description: 'Show chat info' }
 ] as const
 
-const COMMAND_REGEX = new RegExp(`^\\/(${SLASH_COMMANDS.map((c) => c.name).join('|')})\\b`)
+export function parseSlashCommand(text: string) {
+  const token = text.split(/\s+/, 1)[0]
 
-export function isSlashCommand(text: string): boolean {
-  return COMMAND_REGEX.test(text)
+  return SLASH_COMMANDS.find(({ name }) => token === `/${name}`)?.name
 }

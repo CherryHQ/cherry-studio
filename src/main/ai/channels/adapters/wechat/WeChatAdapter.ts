@@ -4,7 +4,7 @@ import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { isSlashCommand } from '../../constants'
+import { parseSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { type IncomingMessage, WeixinBot } from './WeChatProtocol'
 
@@ -205,8 +205,10 @@ class WeChatAdapter extends ChannelAdapter {
 
       if (!text && !images && !files) return
 
-      if (isSlashCommand(text)) {
-        if (text.startsWith('/whoami')) {
+      const command = parseSlashCommand(text)
+
+      if (command) {
+        if (command === 'whoami') {
           this.sendWhoami(msg).catch((err) => {
             this.log.error('Failed to send whoami response', {
               error: err instanceof Error ? err.message : String(err)
@@ -216,13 +218,11 @@ class WeChatAdapter extends ChannelAdapter {
           return
         }
 
-        // 'whoami' is handled above and returns early, so it won't reach here
-        const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
         this.emit('command', {
           chatId: msg.userId,
           userId: msg.userId,
           userName: msg.userId,
-          command: cmd
+          command
         })
       } else {
         this.emit('message', {
