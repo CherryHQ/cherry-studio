@@ -38,6 +38,7 @@ const MCP_SERVER_MUTABLE_FIELDS = {
   configSample: true,
   disabledTools: true,
   disabledAutoApproveTools: true,
+  skillPermissions: true,
   shouldConfig: true,
   sortOrder: true,
   isActive: true,

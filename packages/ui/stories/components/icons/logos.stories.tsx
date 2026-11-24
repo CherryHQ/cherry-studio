@@ -28,7 +28,6 @@ interface ShowcaseProps {
 }
 
 type LogoKind = 'model' | 'provider'
-const MODEL_LOGO_SCALE = 2 / 3
 
 interface LogoMarkProps {
   Component: CompoundIcon
@@ -39,16 +38,13 @@ interface LogoMarkProps {
 }
 
 export const LogoMark = ({ Component, fontSize, kind, name, variant }: LogoMarkProps) => {
-  const shouldInset = kind === 'model' && !name.startsWith('Gpt') && name !== 'Aionlabs'
-  const iconSize = shouldInset ? fontSize * MODEL_LOGO_SCALE : fontSize
-
   return (
     <span
       className="flex items-center justify-center"
       data-logo-kind={kind}
       data-logo-name={name}
       style={{ height: fontSize, width: fontSize }}>
-      <Component style={{ fontSize: iconSize }} variant={variant} />
+      <Component style={{ fontSize }} variant={variant} />
     </span>
   )
 }

@@ -6,7 +6,6 @@ import {
   AGENT_LANGUAGE_MAX_LENGTH,
   AGENT_LANGUAGE_PRESETS,
   normalizeAgentLanguageInput,
-  resolveAgentLanguagePreview,
   validateAgentLanguageInput
 } from '../agentLanguage'
 
@@ -54,24 +53,6 @@ describe('normalizeAgentLanguageInput', () => {
     expect(normalizeAgentLanguageInput('  English  ')).toBe('English')
     expect(normalizeAgentLanguageInput('  ')).toBeNull()
     expect(normalizeAgentLanguageInput('a\nb')).toBeNull()
-  })
-})
-
-describe('resolveAgentLanguagePreview', () => {
-  it('opts out when the mode is off even with a global language set', () => {
-    expect(resolveAgentLanguagePreview('off', 'English', '日本語')).toBeNull()
-  })
-
-  it('inherits the global language', () => {
-    expect(resolveAgentLanguagePreview('inherit', '', '日本語')).toBe('日本語')
-  })
-
-  it('prefers a valid custom draft over the global language', () => {
-    expect(resolveAgentLanguagePreview('custom', '  Thai ', '日本語')).toBe('Thai')
-  })
-
-  it('falls back to the global language while the custom draft is invalid', () => {
-    expect(resolveAgentLanguagePreview('custom', '   ', '日本語')).toBe('日本語')
   })
 })
 

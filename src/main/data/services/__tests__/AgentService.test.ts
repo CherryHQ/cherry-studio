@@ -34,6 +34,7 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
+import { UpdateAgentSchema } from '@shared/data/api/schemas/agents'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -310,7 +311,8 @@ describe('AgentService', () => {
       expect(customModel?.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high'] }])
       expect(customModel?.requestControls?.serviceTier).toEqual({
         default: 'standard',
-        options: ['standard', 'auto', 'fast', 'flex']
+        options: ['standard', 'auto', 'fast', 'flex'],
+        values: { standard: 'on_demand', auto: 'auto', fast: 'performance', flex: 'flex' }
       })
       expect(agentService.getAgent('startup-preset-agent')?.configuration?.reasoning_effort).toBe('high')
       expect(agentService.getAgent('startup-custom-agent')?.configuration?.reasoning_effort).toBe('low')
@@ -390,6 +392,95 @@ describe('AgentService', () => {
 
       const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Missing Model'))
       expect(agents).toHaveLength(0)
+    })
+
+    describe('with channels', () => {
+      const telegram = {
+        type: 'telegram' as const,
+        name: 'Telegram',
+        isActive: true,
+        config: { bot_token: 'token-1', allowed_chat_ids: ['42'] }
+      }
+
+      it('creates the channels bound to the new Agent in the system workspace', async () => {
+        const agent = createAgentForTest({
+          type: 'claude-code',
+          name: 'With Channels',
+          model: TEST_MODEL_ID,
+          channels: [telegram, { ...telegram, name: 'Second', isActive: false, permissionMode: 'plan' }]
+        })
+
+        const channels = await dbh.db.select().from(agentChannelTable).where(eq(agentChannelTable.agentId, agent.id))
+        expect(
+          channels.map(({ name, type, isActive, permissionMode, workspace, config }) => ({
+            name,
+            type,
+            isActive,
+            permissionMode,
+            workspace,
+            config
+          }))
+        ).toEqual([
+          {
+            name: 'Telegram',
+            type: 'telegram',
+            isActive: true,
+            permissionMode: null,
+            workspace: { type: 'system' },
+            config: telegram.config
+          },
+          {
+            name: 'Second',
+            type: 'telegram',
+            isActive: false,
+            permissionMode: 'plan',
+            workspace: { type: 'system' },
+            config: telegram.config
+          }
+        ])
+      })
+
+      it('leaves neither the Agent nor any channel when one channel is rejected', async () => {
+        const error = captureError(() =>
+          createAgentForTest({
+            type: 'claude-code',
+            name: 'Rolled Back',
+            model: TEST_MODEL_ID,
+            // The first channel is valid; the second is active without a token.
+            channels: [telegram, { ...telegram, name: 'No token', config: { bot_token: '' } }]
+          })
+        )
+
+        expect(error).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+        expect(await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Rolled Back'))).toHaveLength(0)
+        expect(await dbh.db.select().from(agentChannelTable)).toHaveLength(0)
+      })
+
+      it('creates QR-login channels inactive, and Feishu with credentials as requested', async () => {
+        const feishuConfig = { app_id: '', app_secret: '', encrypt_key: '', verification_token: '', domain: 'feishu' }
+        const agent = createAgentForTest({
+          type: 'claude-code',
+          name: 'QR Channels',
+          model: TEST_MODEL_ID,
+          channels: [
+            { type: 'wechat', name: 'WeChat', isActive: true, config: { token_path: '' } },
+            { type: 'feishu', name: 'Feishu QR', isActive: true, config: { ...feishuConfig, domain: 'feishu' } },
+            {
+              type: 'feishu',
+              name: 'Feishu App',
+              isActive: true,
+              config: { ...feishuConfig, domain: 'lark', app_id: 'cli_1', app_secret: 'secret' }
+            }
+          ]
+        })
+
+        const channels = await dbh.db.select().from(agentChannelTable).where(eq(agentChannelTable.agentId, agent.id))
+        expect(Object.fromEntries(channels.map((channel) => [channel.name, channel.isActive]))).toEqual({
+          WeChat: false,
+          'Feishu QR': false,
+          'Feishu App': true
+        })
+      })
     })
   })
 
@@ -638,6 +729,51 @@ describe('AgentService', () => {
           reasoning_effort: 'default'
         }
       })
+    })
+
+    it('validates a reasoning patch against the caller-supplied session model (inv_98911732422a84bf)', async () => {
+      const kimiK3ModelId = createUniqueModelId('moonshot', 'kimi-k3')
+      await dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'moonshot',
+          presetProviderId: 'moonshot',
+          name: 'Moonshot',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      await dbh.db
+        .insert(userModelTable)
+        .values({
+          id: kimiK3ModelId,
+          providerId: 'moonshot',
+          modelId: 'kimi-k3',
+          presetModelId: 'kimi-k3',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      // The agent's own model stays TEST_MODEL_ID (which supports only the
+      // default effort); the session steering this edit overrides to Kimi K3,
+      // so `high` must validate against the override, not the agent default
+      // (cherry-pr-review inv_98911732422a84bf).
+      const parsed = UpdateAgentSchema.parse({
+        configuration: { reasoning_effort: 'high' },
+        reasoningValidationModelId: kimiK3ModelId
+      })
+      expect(parsed.reasoningValidationModelId).toBe(kimiK3ModelId)
+      const created = await insertAgent({ model: TEST_MODEL_ID, configuration: { reasoning_effort: 'low' } })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' },
+        reasoningValidationModelId: kimiK3ModelId
+      })
+      expect(updated?.configuration?.reasoning_effort).toBe('high')
+
+      // Without the hint the agent's unchanged model remains the basis.
+      const updatedWithoutHint = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' }
+      })
+      expect(updatedWithoutHint?.configuration?.reasoning_effort).toBe('default')
     })
 
     it('preserves an explicit reasoning tombstone while changing the model', async () => {

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,6 +49,7 @@ describe('AgentSessionContextSeeder', () => {
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, sessionId),
         id: randomUUID(),
         sessionId,
         role: 'user',

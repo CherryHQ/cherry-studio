@@ -359,6 +359,7 @@ describe('cherry-tools autonomy tools', () => {
             ]
           }
         }
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         const before = structuredClone(message)
         const exact = mode.startsWith('exact-') || mode === 'tool-result'
         const source = mode === 'tool-result' ? 'agent' : mode.replace('exact-', '')

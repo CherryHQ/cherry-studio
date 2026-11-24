@@ -16,6 +16,16 @@ export {
   initialAssistantFormState
 } from './assistantForm'
 export {
+  type AutoConfigCatalogs,
+  type AutoConfigDraft,
+  type AutoConfigKind,
+  buildAutoConfigInput,
+  getFeaturedMcpName,
+  parseAutoConfigDraft,
+  RESOURCE_AUTO_CONFIG_SYSTEM_PROMPT,
+  toFeaturedMcpId
+} from './autoConfigure'
+export {
   type AssistantConfigMcpMode,
   MCP_MODE_OPTIONS,
   RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT,

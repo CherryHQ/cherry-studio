@@ -1,5 +1,6 @@
 import type { ReasoningSupport } from '../schemas/model'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
+import { glmSamplingParameterSupport } from './parameterSupports'
 import { openaiCompatible } from './types'
 import { modeWire } from './wires'
 
@@ -62,9 +63,11 @@ export default openaiCompatible({
     official: 'https://open.bigmodel.cn/'
   },
   overrides: [
+    ...['glm-5', 'glm-5.1'].map((apiModelId) => ({ apiModelId, parameterSupport: glmSamplingParameterSupport })),
     // BigModel serves these with a dotted version; generation derives the canonical key + apiModelId.
     ...['glm-5.2', 'glm-5.2-fast'].map((apiModelId) => ({
       apiModelId,
+      parameterSupport: glmSamplingParameterSupport,
       reasoningContracts: {
         'openai-chat-completions': {
           support: glm52Support,
@@ -74,6 +77,7 @@ export default openaiCompatible({
     })),
     ...['glm-5.3', 'glm-5.3-flash'].map((apiModelId) => ({
       apiModelId,
+      parameterSupport: glmSamplingParameterSupport,
       reasoningContracts: {
         'openai-chat-completions': {
           support: { defaultEffort: 'max' as const },

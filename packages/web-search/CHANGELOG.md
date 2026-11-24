@@ -6,6 +6,22 @@
 
 - Change the package license from AGPL-3.0-only to MIT and update the README license statement.
 
+## 0.9.0
+
+### Minor Changes
+
+- [#24791](https://github.com/CherryHQ/cherry-studio/pull/24791) [`2dc35a3`](https://github.com/CherryHQ/cherry-studio/commit/2dc35a385b4f9568a80b6c1897276719abe19dba) Thanks [@404-Page-Found](https://github.com/404-Page-Found)! - Add a `searchImages` capability with typed image results and a StepFun provider that implements it.
+
+## 0.8.0
+
+### Minor Changes
+
+- [#21426](https://github.com/CherryHQ/cherry-studio/pull/21426) [`1350943`](https://github.com/CherryHQ/cherry-studio/commit/135094397393a867072f6f73520c91b950312171) Thanks [@Nolikzero](https://github.com/Nolikzero)! - Add the SerpKite keyword search provider.
+
+### Patch Changes
+
+- [#24234](https://github.com/CherryHQ/cherry-studio/pull/24234) [`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658) Thanks [@DeJeune](https://github.com/DeJeune)! - Standardize public libraries on MIT and include package-local license files.
+
 ## 0.7.0
 
 ### Minor Changes

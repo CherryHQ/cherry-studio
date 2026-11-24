@@ -531,7 +531,7 @@ export const toMarkdownOutputSchema = z.object({
 })
 
 export const TO_MARKDOWN_DESCRIPTION =
-  'Convert a local document to Markdown in a temp file; scan-only PDFs need OCR. See path for supported formats.'
+  'Convert a local document to Markdown in a temp file. Scanned PDFs use the default processor in Document processing settings. See path for supported formats.'
 
 export type ToMarkdownInput = z.infer<typeof toMarkdownInputSchema>
 export type ToMarkdownOutput = z.infer<typeof toMarkdownOutputSchema>

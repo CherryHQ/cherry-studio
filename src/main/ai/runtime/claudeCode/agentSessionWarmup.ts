@@ -44,9 +44,11 @@ import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import { isExternalCliProvider, isSupportFastMode } from '@shared/utils/provider'
+import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { gatewayCredentialsFingerprint, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { taskCompactionPercent } from '../taskCompaction'
 import type { AgentRuntimeConnectInput, AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
@@ -124,11 +126,20 @@ interface ConnectionMaterializationFacts {
   mcp: unknown[]
   skills: string[]
   notificationContext: AgentNotificationContext
+  compactionPercent?: number
   contextWindow: number | null
   maxOutputTokens: number | null
   fastMode: boolean
   proxyEnvironmentFingerprint: string
   effectiveLanguage?: string | null
+  promptModelName?: string | null
+}
+
+function resolvePromptModelName(uniqueModelId: UniqueModelId, agent: AgentEntity): string | null {
+  if (uniqueModelId === agent.model) return agent.modelName || null
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  const model = modelService.getByKey(providerId, modelId)
+  return model.name ?? modelId
 }
 
 type CustomHeaderSource = string | Readonly<Record<string, string>> | undefined
@@ -188,7 +199,15 @@ function buildUsageModels(
         providerId: ref.providerId,
         modelId: ref.modelId,
         pricing: ref.model?.pricing,
-        billing: ref.provider?.settings?.billing,
+        billing:
+          ref.provider?.settings?.billing ??
+          (ref.provider && ref.model
+            ? getDefaultProviderBilling(
+                ref.provider,
+                ref.model,
+                resolveEffectiveEndpoint(ref.provider, ref.model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).baseUrl
+              )
+            : undefined),
         invocationStartedAt: null
       }).pricingSnapshot,
       aliases: new Set<string>()
@@ -289,26 +308,35 @@ export async function deriveConnectionConfig(
   reasoningEffort: ReasoningEffortOption = 'default',
   fastMode = false,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard'
+  serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
+  /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
+   *  default while ignoring session overrides. */
+  headless = false
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
-  const session = agentSessionService.getById(sessionId)
+  const session = agentSessionService.getById(sessionId, { includeTaskReuse: true })
   if (!session?.agentId) return unroutable
   const agent = agentService.getAgent(session.agentId)
-  if (!agent?.model) return unroutable
+  if (!agent) return unroutable
+  // A cleared agent default still routes when the session carries its own
+  // override — only a session with no effective model is unroutable.
+  const effectiveModel = connectionModelId ?? (headless ? agent.model : (session.model ?? agent.model))
+  if (!effectiveModel) return unroutable
   try {
     return {
       ok: true,
       config: await deriveConnectionConfigFromSnapshot(
         session,
         agent,
-        connectionModelId ?? agent.model,
+        effectiveModel,
         reasoningEffort,
         fastMode,
         selectedKnowledgeBaseIds,
         undefined,
-        serviceTier
+        serviceTier,
+        connectionModelId,
+        headless
       )
     }
   } catch (error) {
@@ -347,7 +375,9 @@ async function deriveConnectionConfigFromSnapshot(
   fastMode: boolean,
   selectedKnowledgeBaseIds: readonly string[] = [],
   materialized?: ConnectionMaterializationFacts,
-  serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard'
+  serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
+  connectionModelId?: UniqueModelId,
+  headless = false
 ): Promise<ConnectionConfig> {
   const cwd = session.workspace?.path
   if (!cwd) throw new Error(`Agent session ${session.id} has no workspace path`)
@@ -362,8 +392,10 @@ async function deriveConnectionConfigFromSnapshot(
     contextWindow = model.contextWindow ?? null
     maxOutputTokens = model.maxOutputTokens ?? null
     const { baseUrl } = resolveEffectiveEndpoint(provider, model)
-    // Same pinning semantics as the query-request builder (see its comment).
-    const pinSubModelsToPrimary = uniqueModelId !== agent.model
+    // A stale primary capture must not inherit newer sub-model settings.
+    // Compare against the dispatch mode's effective model so ordinary overrides keep their aliases.
+    const pinSubModelsToPrimary =
+      connectionModelId !== undefined && connectionModelId !== (headless ? agent.model : (session.model ?? agent.model))
     routeFacts = deriveRouteFacts(
       provider,
       model,
@@ -382,6 +414,7 @@ async function deriveConnectionConfigFromSnapshot(
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
   const rebuildFacts = {
+    promptSuggestions: !headless && application.get('PreferenceService').get('agent.input.suggestions.enabled'),
     modelId: uniqueModelId,
     contextWindow,
     maxOutputTokens,
@@ -399,8 +432,12 @@ async function deriveConnectionConfigFromSnapshot(
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
+    compactionPercent: materialized ? materialized.compactionPercent : taskCompactionPercent(session),
     promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
-    promptModelName: agent.modelName || null,
+    promptModelName:
+      materialized?.promptModelName !== undefined
+        ? materialized.promptModelName
+        : resolvePromptModelName(uniqueModelId, agent),
     browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
     computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
@@ -478,24 +515,31 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   fastMode = false,
   /** Composer knowledge selection frozen when the turn was submitted. */
   selectedKnowledgeBaseIds: readonly string[] = [],
-  serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard'
+  serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
+  /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
+   *  default while ignoring session overrides. */
+  headless = false
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
-  const session = agentSessionService.getById(sessionId)
+  const session = agentSessionService.getById(sessionId, { includeTaskReuse: true })
   if (!session?.agentId) return undefined
 
   const agent = agentService.getAgent(session.agentId)
-  if (!agent?.model) return undefined
+  if (!agent) return undefined
+  // A cleared agent default still routes when the session carries its own
+  // override — only a session with no effective model is unroutable.
+  const uniqueModelId = connectionModelId ?? (headless ? agent.model : (session.model ?? agent.model))
+  if (!uniqueModelId) return undefined
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
 
-  const uniqueModelId = connectionModelId ?? agent.model
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
   // Freeze the model metadata that configures this subprocess. Re-reading it after async route,
   // settings, and skill materialization can otherwise make the baseline describe a different
   // compaction window from the one actually passed to Claude Code.
+  const compactionPercent = taskCompactionPercent(session)
   const contextWindow = model.contextWindow
   const maxOutputTokens = model.maxOutputTokens
   const nativeFastMode =
@@ -504,8 +548,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     isSupportFastMode(provider, model) &&
     provider.fastMode.transport === 'claude-code'
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
-  // A captured turn must not pick up root or background model edits made before its connection opens.
-  const pinSubModelsToPrimary = uniqueModelId !== agent.model
+  // A stale primary capture must not inherit newer sub-model settings.
+  // Compare against the dispatch mode's effective model so ordinary overrides keep their aliases.
+  const pinSubModelsToPrimary =
+    connectionModelId !== undefined && connectionModelId !== (headless ? agent.model : (session.model ?? agent.model))
   const planModel = pinSubModelsToPrimary ? undefined : agent.planModel
   const smallModel = pinSubModelsToPrimary ? undefined : agent.smallModel
   const route = await resolveClaudeCodeRuntimeRoute(
@@ -528,12 +574,14 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       ? agentSessionMessageService.getLastRuntimeResumeToken(session.id)
       : effectiveResume) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
+  const promptModelName = resolvePromptModelName(uniqueModelId, agent)
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
       provider,
       {
         contextWindow,
+        compactionPercent,
         maxOutputTokens,
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
@@ -544,7 +592,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         thinkingOptions:
           route.branch === 'external-cli' ? resolveClaudeCodeThinkingOptions(model, reasoningEffort) : undefined,
         fastMode: nativeFastMode,
-        effectiveLanguage
+        effectiveLanguage,
+        promptModelName,
+        effectiveModelId: uniqueModelId
       },
       agent
     ),
@@ -566,15 +616,19 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
       notificationContext,
+      compactionPercent,
       contextWindow: contextWindow ?? null,
       maxOutputTokens: maxOutputTokens ?? null,
       fastMode: route.branch === 'gateway' ? fastMode : nativeFastMode,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       }),
-      effectiveLanguage
+      effectiveLanguage,
+      promptModelName
     },
-    serviceTier
+    serviceTier,
+    connectionModelId,
+    headless
   )
   const sdkModelId = route.modelIds.primary
   const options = createClaudeCodeQueryOptions({
@@ -582,6 +636,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     settings,
     effectiveResume: resumeSessionId ?? settings.resume
   })
+
+  options.promptSuggestions = !headless && application.get('PreferenceService').get('agent.input.suggestions.enabled')
 
   return {
     connectionConfig,
@@ -890,7 +946,21 @@ function mergeRuntimeSettings(
 export async function buildClaudeCodeWarmQueryRequestForAgentSession(
   sessionId: string
 ): Promise<WarmQueryRequest | undefined> {
-  const request = await buildClaudeCodeQueryRequestForAgentSession(sessionId)
+  const session = agentSessionService.getById(sessionId)
+  if (!session?.agentId) return undefined
+  const agent = agentService.getAgent(session.agentId)
+  if (!agent) return undefined
+  // Prewarm interactive use of the agent default. Headless turns reconcile their own options.
+  const request = await buildClaudeCodeQueryRequestForAgentSession(
+    sessionId,
+    undefined,
+    agent.model ?? undefined,
+    'default',
+    false,
+    [],
+    'standard',
+    false
+  )
   if (!request) return undefined
   return {
     key: request.key,

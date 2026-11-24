@@ -29,6 +29,10 @@ Lower-priority guidance still applies when it does not conflict with a higher-pr
 
 The hierarchy is an explicit instruction contract provided to the model, not a deterministic enforcement or security boundary; application and runtime hooks independently enforce hard runtime and tool-safety constraints. Prompt composition still preserves existing workspace and `SOUL.md` content verbatim. This change does not structurally remove legacy role text, so resolving conflicts remains model-mediated rather than guaranteed.
 
+Remote MCP skill instructions enter as origin-labeled tool results, not System
+Prompt authority or local skill installations. Their tool approval and
+integrity boundary is described in [MCP Skills Client](./mcp-skills-client.md).
+
 ## System Prompt authoring
 
 Assistant and Agent editors both call the field **System Prompt** and expose variable insertion, resolved preview, generation, and polishing. Their storage and runtimes remain different: Assistant stores `assistant.prompt`; Agent stores `agent.instructions`. The editor's resolved preview is display-only: unresolved source text is persisted, and Main resolves it independently when materializing a connection.
@@ -92,11 +96,13 @@ next turn boundary; workspace prompt files retain their existing lifecycle.
 
 ## Update and variable lifecycle
 
-Saving `agent.instructions` invalidates the connection rebuild signature. Changes to `app.user.name` and the Agent's resolved primary model name also invalidate it because they affect `{{username}}` and `{{model_name}}`. An idle stale connection closes eagerly; a live response finishes with its captured prompt; the next fresh model turn rebuilds and sees the saved value.
+Saving `agent.instructions` invalidates the connection rebuild signature. Changes to `app.user.name` and the effective connection model name also invalidate it because they affect `{{username}}` and `{{model_name}}`. An idle stale connection closes eagerly; a live response finishes with its captured prompt; the next fresh model turn rebuilds and sees the saved value.
 
 System Prompt variables are resolved by `buildAgentRuntimePrompt` when an Agent
-runtime connection is created or rebuilt. `{{model_name}}` uses the Agent's
-resolved primary model name. Volatile values such as `{{date}}`, `{{time}}`,
+runtime connection is created or rebuilt. `{{model_name}}` uses the effective connection model name: the session override
+when configured for an interactive turn, otherwise the Agent default. Headless
+(scheduled or responder-less) runs use the Agent default and ignore session
+overrides. Volatile values such as `{{date}}`, `{{time}}`,
 and `{{datetime}}` remain connection snapshots until another rebuild; they do
 not force a rebuild every turn.
 

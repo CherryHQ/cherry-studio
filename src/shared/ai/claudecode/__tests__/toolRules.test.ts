@@ -4,8 +4,7 @@ import {
   buildClaudeMcpToolName,
   type ClaudeToolDescriptor,
   matchesClaudeToolRule,
-  resolveClaudeToolAccess,
-  resolveClaudeToolInvocationAccess
+  resolveClaudeToolAccess
 } from '../toolRules'
 
 describe('Claude Code tool rules', () => {
@@ -66,28 +65,5 @@ describe('Claude Code tool rules', () => {
     expect(resolveClaudeToolAccess(read, { permissionMode: 'auto' }).approval).toBe('auto')
     expect(resolveClaudeToolAccess(edit, { permissionMode: 'auto' }).approval).toBe('prompt')
     expect(resolveClaudeToolAccess(webSearch, { permissionMode: 'auto' }).approval).toBe('prompt')
-  })
-
-  it('applies invocation-level acceptEdits Bash defaults', () => {
-    const bash: ClaudeToolDescriptor = {
-      id: 'Bash',
-      name: 'Bash',
-      origin: 'builtin'
-    }
-
-    expect(
-      resolveClaudeToolInvocationAccess(
-        bash,
-        { permissionMode: 'acceptEdits' },
-        { toolName: 'Bash', input: { command: 'mkdir tmp' } }
-      ).approval
-    ).toBe('auto')
-    expect(
-      resolveClaudeToolInvocationAccess(
-        bash,
-        { permissionMode: 'acceptEdits' },
-        { toolName: 'Bash', input: { command: 'curl example.com' } }
-      ).approval
-    ).toBe('prompt')
   })
 })

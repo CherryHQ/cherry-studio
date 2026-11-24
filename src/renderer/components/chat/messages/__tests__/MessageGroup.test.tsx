@@ -585,6 +585,32 @@ describe('MessageGroup', () => {
     expect(screen.queryByTestId('hoisted-attachment')).toBeNull()
   })
 
+  // Stop withdrew the second message before the agent received it; it must not read as sent.
+  it('marks a withdrawn user message as not sent and offers to resend or edit it', () => {
+    const resendUnsentMessage = vi.fn()
+    const editUnsentMessage = vi.fn()
+    mocks.messageListActions.mockReturnValue({ resendUnsentMessage, editUnsentMessage })
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+    const sent = { ...createMessage('msg-1', 0, 'vertical'), role: 'user' as const }
+    const withdrawn = { ...createMessage('msg-2', 1, 'vertical'), role: 'user' as const, status: 'paused' as const }
+
+    render(<MessageGroup messages={[sent, withdrawn]} />)
+
+    expect(screen.getAllByText('agent.unsent_message.label')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'agent.unsent_message.resend' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.unsent_message.edit' }))
+    expect(resendUnsentMessage).toHaveBeenCalledWith(withdrawn)
+    expect(editUnsentMessage).toHaveBeenCalledWith(withdrawn)
+  })
+
   it('restores the outside file card when preview or open exists without a right-pane file preview', () => {
     const previewFile = vi.fn()
     mocks.messageListActions.mockReturnValue({

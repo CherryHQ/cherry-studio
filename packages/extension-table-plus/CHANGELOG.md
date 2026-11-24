@@ -6,6 +6,18 @@
 
 - Include the existing MIT license terms with the upstream Tiptap copyright notice and Cherry Studio contributor attribution.
 
+## 3.0.15
+
+### Patch Changes
+
+- [#24590](https://github.com/CherryHQ/cherry-studio/pull/24590) [`7a14371`](https://github.com/CherryHQ/cherry-studio/commit/7a14371ce83304e985c22a8455c654b383ccae55) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Fix ESM and TypeScript import entry points for the package root and all five table subpaths to reference the generated files.
+
+## 3.0.14
+
+### Patch Changes
+
+- [#24234](https://github.com/CherryHQ/cherry-studio/pull/24234) [`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658) Thanks [@DeJeune](https://github.com/DeJeune)! - Standardize public libraries on MIT and include package-local license files.
+
 ## 3.0.13
 
 ### Patch Changes

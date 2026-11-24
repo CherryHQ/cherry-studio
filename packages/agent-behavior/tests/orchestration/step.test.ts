@@ -7,7 +7,7 @@ import { turnInput, type TxOp } from '../../src/core/decisions'
 import { callKeyOf } from '../../src/core/facts'
 import { keys } from '../../src/core/keys'
 import { MAX_SUBAGENT_REQUESTS } from '../../src/core/subagents/subagentText'
-import { gatherInputs, step } from '../../src/orchestration/step'
+import { step } from '../../src/orchestration/step'
 import type { BoundPorts } from '../../src/ports/harness'
 import { markers, records, world } from './world'
 
@@ -100,26 +100,6 @@ describe('step', () => {
         views: [{ sessionId: spawned[0].child, parentToolCallId: 'scan', description: 'scan', status: 'running' }]
       }
     ])
-  })
-
-  // Catches inputs that read only the thread's own approval outcomes: a child waiting for a person would never show
-  // as waiting, and its slot and status text would be wrong (A-d).
-  it("gathers the children's approval outcomes with the thread's", async () => {
-    const w = world()
-    const t = await w.fake.createThread()
-    const { spawned } = await w.enter(t, (_entries, ports) =>
-      ports.ledger.transact(t, () => ({
-        ops: [{ type: 'spawn-child', spec: childSpec('background', 'scan'), key: keys.subagentSpawn(callKeyOf('c')) }],
-        effects: [],
-        result: null
-      }))
-    )
-    const child = spawned[0].child
-    const ref = { thread: child, key: callKeyOf(`${child}:call-1`) }
-    const tool = { callId: 'call-1', callKey: ref.key, name: 'bash', args: {} }
-    void w.host.approvals.ask({ call: ref, tool, presentation: 'stream' }, new AbortController().signal)
-    const inputs = await w.enter(t, (_entries, ports) => gatherInputs({ ports, host: w.host }, t))
-    expect(inputs.approvals).toEqual([{ call: ref, state: 'pending' }])
   })
 })
 

@@ -9,7 +9,7 @@ const Baichuan = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const BaichuanIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Baichuan, {
   Avatar: BaichuanAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#FFF3E4'
 })
 
 export default BaichuanIcon

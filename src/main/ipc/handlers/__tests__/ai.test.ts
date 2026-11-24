@@ -700,7 +700,9 @@ describe('aiHandlers — agent sessions & tasks', () => {
 
     await aiHandlers['ai.agent.session.open_path']({ sessionId: 's1', path: 'assets/logo.png' }, ctx)
 
-    expect(openRequestPath).toHaveBeenCalledWith('assets/logo.png', '/home/alice/project')
+    expect(openRequestPath).toHaveBeenCalledExactlyOnceWith('assets/logo.png', '/home/alice/project', {
+      channel: 'ai.agent.session.open_path'
+    })
   })
 
   // A workspace row that is not an absolute path must not steer resolution; the caller's own
@@ -710,7 +712,9 @@ describe('aiHandlers — agent sessions & tasks', () => {
 
     await aiHandlers['ai.agent.session.open_path']({ sessionId: 's1', path: '/opt/out.png' }, ctx)
 
-    expect(openRequestPath).toHaveBeenCalledWith('/opt/out.png', undefined)
+    expect(openRequestPath).toHaveBeenCalledExactlyOnceWith('/opt/out.png', undefined, {
+      channel: 'ai.agent.session.open_path'
+    })
   })
 
   it('respond_tool_approval delegates to AiService with the resolved sender WebContents', async () => {

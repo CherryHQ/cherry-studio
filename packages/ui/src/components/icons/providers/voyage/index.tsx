@@ -17,7 +17,7 @@ const Voyage = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const VoyageIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Voyage, {
   Avatar: VoyageAvatar,
-  colorPrimary: '#012E33'
+  colorPrimary: '#e8eced'
 })
 
 export default VoyageIcon

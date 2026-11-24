@@ -10,6 +10,7 @@ import {
   type AgentParams,
   type AgentResult,
   type CommandReceipt,
+  type TaskMethod,
   questionInputSchema,
   encodeAgentCommand
 } from '@cherrystudio/remote-protocol/agent'
@@ -18,8 +19,8 @@ import { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMes
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { remoteCommandService, type RemoteCommandOutcome } from '@data/services/RemoteCommandService'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 
 import type { RemoteAgentHub } from './agentJournal'
@@ -40,6 +41,7 @@ import {
   toSessionSummary
 } from './agentQueries'
 import type { AgentSubscriptions } from './agentSubscriptions'
+import { getTask, getTaskRun, listTasks, listTaskRuns, readTaskContent } from './agentTaskQueries'
 import type { UploadOwner } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAgentHandlers')
@@ -65,6 +67,16 @@ export function registerAgentMethods(
     rpc.addMethod<AgentParams<M>, AgentResult<M>>(name, agentMethods[name] as never, (params) =>
       Promise.resolve().then(() => handler(params, access.requireAgent()))
     )
+
+  const taskHandlers: { [M in TaskMethod]: (params: AgentParams<M>) => AgentResult<M> } = {
+    'agent.tasks.list': listTasks,
+    'agent.tasks.get': ({ taskId }) => ({ task: getTask(taskId) }),
+    'agent.tasks.runs.list': listTaskRuns,
+    'agent.tasks.runs.get': ({ taskId, runId }) => ({ run: getTaskRun(taskId, runId) }),
+    'agent.tasks.content.read': readTaskContent
+  }
+  const registerTask = <M extends TaskMethod>(name: M) => on(name, taskHandlers[name])
+  for (const name of Object.keys(taskHandlers) as TaskMethod[]) registerTask(name)
 
   const summaryOf = (sessionId: string) => {
     const summary = toSessionSummary(getSession(sessionId), hub.activeExecutionId(sessionId))

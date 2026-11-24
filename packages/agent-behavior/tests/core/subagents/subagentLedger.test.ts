@@ -131,14 +131,11 @@ describe('subagent ledger', () => {
     expect(resolveChild(ledgers, 'nope')).toBeUndefined()
   })
 
-  // Catches a child waiting for an approval shown as running, or a finished child still shown as running (Y7, A-d).
-  it('shows background children with their approval state', () => {
+  // Catches a finished child still shown as running, or a foreground child shown as a background one (Y7).
+  it('shows background children as running or finished', () => {
     const history = [runEntry(run('a')), finished('b'), runEntry(run('f', { background: false }))]
-    const pending = [{ call: { thread: thread('a'), key: 'x' as never }, state: 'pending' as const }]
-    expect(
-      subagentViews(facts(history, { children: { a: { running: true, runUsage: [usage(0)] } } }), pending)
-    ).toEqual([
-      { sessionId: 'a', parentToolCallId: 'call-a', description: 'task a', status: 'awaiting_approval' },
+    expect(subagentViews(facts(history, { children: { a: { running: true, runUsage: [usage(0)] } } }))).toEqual([
+      { sessionId: 'a', parentToolCallId: 'call-a', description: 'task a', status: 'running' },
       { sessionId: 'b', parentToolCallId: 'call-b', description: 'task b', status: 'finished', outcome: 'completed' }
     ])
   })

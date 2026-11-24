@@ -227,7 +227,7 @@ export function UsageResponsiveShell({ children }: { children: ReactNode }) {
       theme={theme}
       className="min-w-0 overflow-x-hidden"
       // Wider than form settings so 4-col metrics and the year heatmap fit, but still capped on ultrawide windows.
-      innerClassName="min-w-0 w-full max-w-6xl">
+      innerClassName="min-w-0 w-full">
       <div className="@container/usage flex min-w-0 flex-col gap-6">{children}</div>
     </SettingsContentColumn>
   )

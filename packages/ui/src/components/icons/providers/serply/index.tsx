@@ -9,7 +9,7 @@ const Serply = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const SerplyIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Serply, {
   Avatar: SerplyAvatar,
-  colorPrimary: '#F03E2F'
+  colorPrimary: '#feeeec'
 })
 
 export default SerplyIcon

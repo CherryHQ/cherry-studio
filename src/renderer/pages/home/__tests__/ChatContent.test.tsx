@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import type * as RendererIpc from '@renderer/ipc'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -24,7 +25,8 @@ const { ipcMock } = vi.hoisted((): { ipcMock: IpcMock } => ({
     on: () => () => {}
   }
 }))
-vi.mock('@renderer/ipc', () => ({
+vi.mock('@renderer/ipc', async (importOriginal) => ({
+  ...(await importOriginal<typeof RendererIpc>()),
   ipcApi: {
     request: (route: string, input: unknown) => ipcMock.request(route, input),
     on: (event: string, cb: (p: unknown) => void) => ipcMock.on(event, cb)

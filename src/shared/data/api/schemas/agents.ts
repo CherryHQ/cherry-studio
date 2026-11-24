@@ -1,4 +1,3 @@
-import * as z from 'zod'
 /**
  * Agents domain API Schema definitions
  *
@@ -6,6 +5,7 @@ import * as z from 'zod'
  * Entity schemas live here (Rule C/D: entity role wins when a type is both
  * a response payload and an entity). DTOs are derived via .pick().
  */
+import * as z from 'zod'
 
 import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
@@ -234,6 +234,8 @@ export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).pa
   planModel: UniqueModelIdSchema.nullable().optional(),
   smallModel: UniqueModelIdSchema.nullable().optional(),
   configuration: AgentConfigurationSchema.partial().optional(),
+  /** Validation basis for `configuration.reasoning_effort` normalization: the model the caller is actually steering (a session-level override when set). Omitted falls back to the agent's (possibly patched) model (cherry-pr-review inv_98911732422a84bf). */
+  reasoningValidationModelId: UniqueModelIdSchema.optional(),
   /**
    * Per-skill enablement changes for this agent. Omitted means "leave skills
    * unchanged"; an empty array is a no-op. The server applies each update
@@ -293,6 +295,16 @@ export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
 // API Schema definitions
 // ============================================================================
 
+/** Activity of one Agent: its own sessions, task runs and recent token use only. */
+export interface AgentStats {
+  /** Ordinary conversations, excluding scheduled-task runs and deleted sessions. */
+  sessionCount: number
+  /** Runs of this Agent's scheduled tasks started in the last 7 days (rolling). */
+  recentTaskRunCount: number
+  /** Tokens attributed to this Agent over the last 7 days (rolling). */
+  recentTokens: number
+}
+
 export type AgentSchemas = {
   /** List all agents. Creation is a mixed filesystem + DB command on IpcApi (`ai.agent.create`). */
   '/agents': {
@@ -312,6 +324,14 @@ export type AgentSchemas = {
       params: { agentId: string }
       body: UpdateAgentDto
       response: AgentEntity
+    }
+  }
+
+  /** Usage overview of one Agent, for its profile. */
+  '/agents/:agentId/stats': {
+    GET: {
+      params: { agentId: string }
+      response: AgentStats
     }
   }
 
@@ -343,7 +363,7 @@ export type AgentSchemas = {
     GET: {
       params: { agentId: string }
       query?: ListQuery
-      response: OffsetPaginationResponse<ScheduledTaskEntity>
+      response: OffsetPaginationResponse<ScheduledTaskEntity> & { activeTotal: number }
     }
   }
 

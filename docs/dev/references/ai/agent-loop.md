@@ -31,8 +31,13 @@ Caller-owned requests (`contextOwner: 'caller'`) use the same stream lifecycle
 but execute through AI Core's `streamText` / `generateText`, without constructing
 `ToolLoopAgent`. They retain `messageRules`, provider plugins, usage observers,
 and error/cancellation delivery. The execution is capped at one step, strips
-local tool execution, omits `prepareStep` and AI tool repair, and disables retries
-and model fallbacks. Tool calls return to the caller that owns the outer loop.
+local tool execution, omits `prepareStep` and AI tool repair, and disables model fallbacks.
+A supplied `wrapModel` is applied after provider middleware, just as in the chat loop.
+SDK built-in retries stay at zero while that wrapper is active; without a wrapper, they
+default to zero and honor an explicit `maxRetries` value. Tool calls return to the caller that owns the outer loop. Caller-owned
+requests can supply the SDK's `Output` specification for structured generation. Their UI
+stream carries the SDK's finish-step provider metadata and raw finish reason in
+`message-metadata`, so protocol adapters can retain native response details.
 
 ## API
 
@@ -54,6 +59,12 @@ const dispose = agent.on('onStepFinish', step => { … })
 
 `stream()` and `generate()` share the underlying agent — only the AI SDK
 call differs. `runToCompletion()` / `toTool()` are not part of the current API.
+
+Model health checks can call `generate(input, signal, 'stream')` to consume
+the complete SDK stream and return the same aggregate result. This mode requires
+non-empty text and a normal `stop` or `length` finish. It rejects stream errors,
+aborts, empty output, and incomplete responses before running success hooks.
+The default `generate` mode remains non-streaming.
 
 ## Hooks model
 

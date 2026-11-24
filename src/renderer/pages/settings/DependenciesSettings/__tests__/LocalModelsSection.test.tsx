@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import {
   LOCAL_MODEL_STATUS_CACHE_KEY,
@@ -32,7 +33,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  PageHeader: (await importOriginal<typeof CherryStudioUi>()).PageHeader,
+  HelpTooltip: () => null,
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,
@@ -47,23 +50,16 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  DescriptionSwitch: ({
+  Label: ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => <label {...props}>{children}</label>,
+  Switch: ({
     checked,
-    description,
-    label,
-    onCheckedChange
+    onCheckedChange,
+    id
   }: {
     checked: boolean
-    description?: string
-    label: string
+    id?: string
     onCheckedChange: (checked: boolean) => void
-  }) => (
-    <label>
-      <span>{label}</span>
-      {description && <span>{description}</span>}
-      <input type="checkbox" checked={checked} onChange={(event) => onCheckedChange(event.target.checked)} />
-    </label>
-  )
+  }) => <input id={id} type="checkbox" checked={checked} onChange={(event) => onCheckedChange(event.target.checked)} />
 }))
 
 const EMBEDDING = 'qwen3-embedding-0.6b'

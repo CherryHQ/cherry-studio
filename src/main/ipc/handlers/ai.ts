@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
+import { dialog } from 'electron'
+
 import { application } from '@application'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
@@ -12,13 +14,14 @@ import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinAssistantSession } from '@main/ai/agents/createBuiltinAssistantSession'
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
+import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { MessageProjectionUpdate } from '@shared/ai/messageProjection'
 import { ErrorCode, isDataApiError, isDataApiResourceNotFoundError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
@@ -111,6 +114,21 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.agent.session.predict_prompt': (input) => application.get('AgentSessionRuntimeService').predictPrompt(input),
+  'ai.agent.session.abort_prediction': async ({ sessionId, requestId }) =>
+    application.get('AgentSessionRuntimeService').abortPromptPrediction(sessionId, requestId),
+  'ai.agent.import.prepare': async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'DeepSeek', extensions: ['zip'] }]
+    })
+    if (result.canceled || !result.filePaths[0]) return null
+    return application.get('AgentImportService').prepare(result.filePaths[0])
+  },
+  'ai.agent.import.status': async () => application.get('AgentImportService').status(),
+  'ai.agent.import.start': async ({ id }) => application.get('AgentImportService').start(id),
+  'ai.agent.import.cancel': async ({ id }) => application.get('AgentImportService').cancel(id),
+
   'ai.projection.attach': ({ target, subscriptionId }, { senderId }) => {
     const sender = senderWebContents(senderId)
     if (!sender || senderId === null) throw new Error('Projection subscription requires a window')
@@ -143,6 +161,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
         : application.get('AiService').generateText(generate)
     )
   },
+  'ai.profile_starters.generate': (input) =>
+    exposeAiError('ai.profile_starters.generate', () => generateProfileStarters(input)),
   'ai.text.abort': async ({ requestId }) => {
     application.get('AiService').abortRequest(requestId)
   },
@@ -315,7 +335,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
   'ai.agent.session.open_path': async ({ sessionId, path }) => {
     const workspacePath = agentSessionService.getById(sessionId).workspace.path
-    await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data)
+    await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data, {
+      channel: 'ai.agent.session.open_path'
+    })
   },
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──

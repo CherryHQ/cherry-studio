@@ -13,11 +13,11 @@ import { application } from '@application'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -38,6 +38,9 @@ function rowToMcpServer(row: typeof mcpServerTable.$inferSelect): McpServer {
 }
 
 export class McpServerService {
+  private readonly _onChanged = new Emitter<string>()
+  readonly onChanged = this._onChanged.event
+
   private get db() {
     return application.get('DbService').getDb()
   }
@@ -132,7 +135,6 @@ export class McpServerService {
    */
   create(dto: CreateMcpServerDto): McpServer {
     this.validateName(dto.name)
-    this.validateQVerisConfiguration({ name: dto.name, env: dto.env, isActive: dto.isActive ?? false })
 
     const { sortOrder, isActive, ...rest } = dto
 
@@ -156,7 +158,6 @@ export class McpServerService {
       const names = new Set<string>()
       for (const dto of dtos) {
         this.validateName(dto.name)
-        this.validateQVerisConfiguration({ name: dto.name, env: dto.env, isActive: dto.isActive ?? false })
         if (names.has(dto.name)) {
           throw DataApiErrorFactory.conflict(`MCP server '${dto.name}' already exists`, 'McpServer')
         }
@@ -201,12 +202,7 @@ export class McpServerService {
       }
 
       const existing = rowToMcpServer(existingRow)
-      const name = dto.name ?? existing.name
-      const env = dto.env ?? existing.env
-      const isActive = dto.isActive ?? existing.isActive
-
-      this.validateName(name)
-      this.validateQVerisConfiguration({ name, env, isActive })
+      this.validateName(dto.name ?? existing.name)
 
       const updates = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as Partial<
         typeof mcpServerTable.$inferInsert
@@ -215,6 +211,7 @@ export class McpServerService {
       return rowToMcpServer(row)
     })
 
+    this._onChanged.fire(id)
     logger.info('Updated MCP server', { id, changes: Object.keys(dto) })
 
     return result
@@ -261,6 +258,7 @@ export class McpServerService {
       })
     }
 
+    this._onChanged.fire(id)
     logger.info('Deleted MCP server', { id })
   }
 
@@ -280,12 +278,6 @@ export class McpServerService {
   private validateName(name: string): void {
     if (!name?.trim()) {
       throw DataApiErrorFactory.validation({ name: ['Name is required'] })
-    }
-  }
-
-  private validateQVerisConfiguration(server: Pick<McpServer, 'name' | 'env' | 'isActive'>): void {
-    if (server.name === BuiltinMcpServerNames.qveris && server.isActive && !server.env?.QVERIS_API_KEY?.trim()) {
-      throw DataApiErrorFactory.validation({ env: ['QVERIS_API_KEY is required when QVeris is enabled'] })
     }
   }
 }

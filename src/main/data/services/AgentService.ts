@@ -8,12 +8,15 @@ import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { agentAvatarFileRefTable } from '@data/db/schemas/fileRelations'
+import { jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
+import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
@@ -28,14 +31,17 @@ import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } fr
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import { type AgentChannelDraft, isQrLoginChannel } from '@shared/data/api/schemas/agentChannels'
 import {
   AGENT_MUTABLE_FIELDS,
   type AgentBase,
   type AgentConfiguration,
   type AgentEntity,
+  type AgentStats,
   sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
+import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
@@ -69,6 +75,7 @@ type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
 type AgentCreateInput = AgentBase & {
   type: AgentType
   skillIds?: string[]
+  channels?: AgentChannelDraft[]
 }
 
 interface EnsureBuiltinAgentInput {
@@ -273,6 +280,8 @@ function fetchKnowledgeBasesForAgents(tx: DbOrTx, agentIds: string[]): Map<strin
   return map
 }
 
+const STATS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+
 export class AgentService {
   private readonly _onAgentCreated = new Emitter<AgentCreatedEvent>()
   readonly onAgentCreated: Event<AgentCreatedEvent> = this._onAgentCreated.event
@@ -358,7 +367,7 @@ export class AgentService {
    * Create primitive for main-process command orchestration. The caller owns
    * non-data side effects and supplies the already-reserved id.
    */
-  createAgentWithId(id: string, req: AgentCreateInput): AgentEntity {
+  createAgentWithId(id: string, req: AgentCreateInput, avatarFileId?: FileEntryId): AgentEntity {
     // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
     if (getBuiltinRole(req.configuration) !== undefined) {
       throw DataApiErrorFactory.invalidOperation(
@@ -424,7 +433,20 @@ export class AgentService {
           for (const skillId of skillIds) {
             globalSkillService.upsertJoinTx(tx, id, skillId, true)
           }
-          return result
+          if (!result) return null
+          if (avatarFileId) this.setAvatarSlotTx(tx, id, avatarFileId)
+          // A rejected channel throws here and rolls back the Agent with it.
+          const channelIds = (req.channels ?? []).map(
+            (channel) =>
+              agentChannelService.createChannelTx(tx, {
+                ...channel,
+                agentId: id,
+                workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
+                // QR login needs the Agent to exist, so it runs after create.
+                isActive: isQrLoginChannel(channel) ? false : channel.isActive
+              }).id
+          )
+          return { ...result, channelIds }
         }),
       defaultHandlersFor('Agent', id)
     )
@@ -432,8 +454,9 @@ export class AgentService {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds)
+    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds, avatarFileId)
     notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [id] }])
+    for (const channelId of row.channelIds) agentChannelService.notifyReadModelChange(channelId, 'membership')
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
   }
@@ -627,6 +650,39 @@ export class AgentService {
     const result = database.select().from(agentsTable).where(whereClause).limit(1).all()
 
     return result[0]
+  }
+
+  /** Usage overview of one live Agent; null when it does not exist. */
+  getStats(id: string, now = Date.now()): AgentStats | null {
+    const database = application.get('DbService').getDb()
+    if (!this.getAgent(id)) return null
+    const since = now - STATS_WINDOW_MS
+    const [sessions] = database
+      .select({ count: count() })
+      .from(agentSessionTable)
+      .where(
+        and(
+          eq(agentSessionTable.agentId, id),
+          eq(agentSessionTable.type, 'conversation'),
+          isNull(agentSessionTable.taskId),
+          isNull(agentSessionTable.deletedAt)
+        )
+      )
+      .all()
+    const taskIds = agentTaskService.listTasks(id).tasks.map((task) => task.id)
+    const [taskRuns] = taskIds.length
+      ? database
+          .select({ count: count() })
+          .from(jobTable)
+          .where(and(inArray(jobTable.scheduleId, taskIds), gte(jobTable.startedAt, since)))
+          .all()
+      : [{ count: 0 }]
+
+    return {
+      sessionCount: sessions.count,
+      recentTaskRunCount: taskRuns.count,
+      recentTokens: aiUsageRecordService.totalTokens({ from: since, to: now }, { type: 'agent', id })
+    }
   }
 
   getAgent(id: string): AgentEntity | null {
@@ -846,7 +902,9 @@ export class AgentService {
             }
 
             const nextConfiguration = applyAgentConfigurationPatch(persistedConfiguration, configurationPatch)
-            const effectiveModelId = updates.model !== undefined ? updates.model : current.model
+            // Normalize a reasoning-effort patch against the model the caller is actually steering: with a session-level model override the agent's own model is unchanged, and validating against it would drop an effort the session's effective model supports (cherry-pr-review inv_98911732422a84bf).
+            const effectiveModelId =
+              updates.reasoningValidationModelId ?? (updates.model !== undefined ? updates.model : current.model)
             if (!reasoningEffortRemoved && effectiveModelId && (modelChanged || reasoningEffortPatched)) {
               const nextModel = modelService.findByIdTx(tx, effectiveModelId)
               if (nextModel) {

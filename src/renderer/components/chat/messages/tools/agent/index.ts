@@ -19,3 +19,4 @@ export {
 export { isValidAgentToolsType, renderTool, toolRenderers } from './toolRendererRegistry'
 export { UnknownToolRenderer } from './UnknownToolRenderer'
 export { getSubagentTaskStatus } from './subagentStatus'
+export { TerminalOutput } from './TerminalOutput'

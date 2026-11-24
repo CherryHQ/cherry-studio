@@ -1,12 +1,12 @@
-import { isFileUIPart } from 'ai'
-import { takeRight } from 'es-toolkit/compat'
-
 /**
  * Renderer helpers that call the AI (`ai.text.generate`) to produce short text:
  * generic text generation plus topic/note auto-naming. Stateless request/response.
  * Every request passes `reasoningEffort: 'none'`: short throwaway output never
  * benefits from provider-default thinking, which only adds latency and tokens.
  */
+import { isFileUIPart } from 'ai'
+import { takeRight } from 'es-toolkit/compat'
+
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'

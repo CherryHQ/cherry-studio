@@ -9,7 +9,7 @@ const Doc2x = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const Doc2xIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Doc2x, {
   Avatar: Doc2xAvatar,
-  colorPrimary: '#7748F9'
+  colorPrimary: '#f3effe'
 })
 
 export default Doc2xIcon

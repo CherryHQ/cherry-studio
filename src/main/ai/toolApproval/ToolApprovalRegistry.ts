@@ -9,6 +9,7 @@ const logger = loggerService.withContext('ToolApprovalRegistry')
  * `tool_call` block/mutation) so no SDK type leaks into this shared path.
  */
 export type DispatchDecision = {
+  applicationScope?: 'always' | 'session' | 'reject'
   approved: boolean
   reason?: string
   /** Marks a reason the user actually supplied, so drivers can attribute it to the user rather
@@ -23,7 +24,7 @@ type PendingApproval = {
   toolCallId: string
   toolName: string
   originalInput: Record<string, unknown>
-  presentation: 'stream' | 'message'
+  presentation: 'stream' | 'message' | 'application'
   resolve: (decision: DispatchDecision) => void
   signal?: AbortSignal
   abortListener?: () => void

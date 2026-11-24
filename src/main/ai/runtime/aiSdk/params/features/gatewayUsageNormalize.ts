@@ -17,16 +17,20 @@ export {
 } from '@main/ai/utils/usageNormalize'
 
 /**
- * Reads the Anthropic cache buckets out of raw usage. The gateway reports them only
- * there — never as the sibling usage fields an adapter maps.
+ * Recovers grounded raw cache dialects that adapters may leave unmapped, using
+ * canonical counts before aliases so explicit zero counts keep their precedence.
  */
-function withRawAnthropicCacheUsage(usage: LanguageModelV3Usage): LanguageModelV3Usage {
+function withRawCacheUsage(usage: LanguageModelV3Usage): LanguageModelV3Usage {
   if (!isPlainObject(usage) || !isPlainObject(usage.raw)) return usage
 
   const { raw } = usage
   const toCount = (value: unknown) => (typeof value === 'number' ? value : undefined)
-  const rawRead = toCount(raw.cache_read_input_tokens)
-  const rawWrite = toCount(raw.cache_creation_input_tokens)
+  const details = isPlainObject(raw.prompt_tokens_details)
+    ? (raw.prompt_tokens_details as Record<string, unknown>)
+    : undefined
+  const rawRead =
+    toCount(raw.cache_read_input_tokens) ?? toCount(details?.cached_tokens) ?? toCount(details?.cache_read_tokens)
+  const rawWrite = toCount(raw.cache_creation_input_tokens) ?? toCount(details?.cache_creation_tokens)
   if (rawRead === undefined && rawWrite === undefined) return usage
 
   const inputTokens = isFlatV3Usage(usage) ? normalizeFlatV3Usage(usage).inputTokens : usage.inputTokens
@@ -46,10 +50,7 @@ function withRawAnthropicCacheUsage(usage: LanguageModelV3Usage): LanguageModelV
     // Drop the raw augmentation and keep the provider-reported split.
     return usage
   }
-  // Cache reads and writes displace uncached input: reconcile noCache so the buckets keep
-  // summing to the prompt total instead of leaving the flat remainder in place. An omitted
-  // read bucket reconciles as zero, so a write-only payload cannot leave the write tokens
-  // counted on top of an unreconciled noCache in local cost analytics.
+  // Cache buckets displace uncached input so local estimates do not price them twice.
   const noCache = Math.max(0, total - (cacheRead ?? 0) - (cacheWrite ?? 0))
   return { ...usage, inputTokens: { ...inputTokens, noCache, cacheRead, cacheWrite } }
 }
@@ -59,7 +60,7 @@ const gatewayUsageNormalizeMiddleware: LanguageModelMiddleware = {
   wrapGenerate: async ({ doGenerate }) => {
     const result = await doGenerate()
     const usage = isFlatV3Usage(result.usage) ? normalizeFlatV3Usage(result.usage) : result.usage
-    return { ...result, usage: withRawAnthropicCacheUsage(usage) }
+    return { ...result, usage: withRawCacheUsage(usage) }
   },
   wrapStream: async ({ doStream }) => {
     const { stream, ...rest } = await doStream()
@@ -68,7 +69,7 @@ const gatewayUsageNormalizeMiddleware: LanguageModelMiddleware = {
         transform(chunk, controller) {
           if (chunk.type === 'finish') {
             const usage = isFlatV3Usage(chunk.usage) ? normalizeFlatV3Usage(chunk.usage) : chunk.usage
-            controller.enqueue({ ...chunk, usage: withRawAnthropicCacheUsage(usage) })
+            controller.enqueue({ ...chunk, usage: withRawCacheUsage(usage) })
             return
           }
           controller.enqueue(chunk)
