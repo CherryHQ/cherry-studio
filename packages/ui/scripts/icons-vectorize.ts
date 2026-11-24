@@ -56,8 +56,8 @@ function parseArgs(): CliArgs {
     } else if (arg.startsWith('--preset=')) {
       const value = arg.split('=')[1]
 
-      if (['poster', 'photo', 'bw'].includes(value)) {
-        preset = value as PresetName
+      if (value === 'poster' || value === 'photo' || value === 'bw') {
+        preset = value
       } else {
         throw new Error(`Invalid preset: ${value}. Use "poster", "photo", or "bw".`)
       }
