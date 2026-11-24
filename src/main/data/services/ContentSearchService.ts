@@ -1,13 +1,9 @@
+import * as z from 'zod'
+
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
-import {
-  type DataApiError,
-  DataApiErrorFactory,
-  ErrorCode,
-  isDataApiError,
-  toDataApiError
-} from '@shared/data/api/errors'
+import { DataApiError, ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type {
   ContentSearchFilters,
   ContentSearchGroup,
@@ -22,6 +18,7 @@ import {
 } from '@shared/data/api/schemas/search'
 
 const logger = loggerService.withContext('ContentSearchService')
+const validationErrorDetailsSchema = z.object({ fieldErrors: z.record(z.string(), z.array(z.string())) })
 
 type ContentSearchAdapterInput<T extends ContentSearchSourceType> = {
   q: string
@@ -35,37 +32,41 @@ type ContentSearchSourceAdapter<T extends ContentSearchSourceType> = {
   search(input: ContentSearchAdapterInput<T>): Extract<ContentSearchGroup, { sourceType: T }>
 }
 
-function toSourceCursorError<TError>(sourceType: ContentSearchSourceType, error: TError): TError | DataApiError {
-  if (!isDataApiError(error) || error.code !== ErrorCode.VALIDATION_ERROR) return error
-
-  const details = error.details as { fieldErrors?: Record<string, string[]> } | undefined
-  const cursorErrors = details?.fieldErrors?.cursor
-
-  if (!cursorErrors) return error
-
-  return DataApiErrorFactory.validation({ [`cursors.${sourceType}`]: cursorErrors }, error.message)
-}
-
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Search adapters can reject arbitrary values; normalize at this boundary while retaining validated cursor details and DataApi request context.
 function withSourceContext(sourceType: ContentSearchSourceType, error: unknown) {
-  const sourcedError = toSourceCursorError(sourceType, error)
+  const context = `content search source ${sourceType}`
 
-  if (!isDataApiError(sourcedError)) {
-    return toDataApiError(sourcedError, `content search source ${sourceType}`)
+  if (!isDataApiError(error)) return toDataApiError(error, context)
+
+  let message = `${context} failed: ${error.message}`
+  let details = error.details
+
+  if (error.code === ErrorCode.VALIDATION_ERROR) {
+    const sourceFields = details?.fieldErrors
+    const parsed = validationErrorDetailsSchema.safeParse({ fieldErrors: sourceFields })
+
+    if (parsed.success) {
+      const cursorErrors = parsed.data.fieldErrors.cursor
+      const field = `cursors.${sourceType}`
+
+      if (cursorErrors && sourceFields && typeof sourceFields === 'object') {
+        // Preserve opaque extension fields and own prototype-named keys instead of replacing them with the projection.
+        const renamedFields = new Map<string, unknown>(Object.entries(sourceFields))
+        renamedFields.delete('cursor')
+        renamedFields.set(field, cursorErrors)
+        details = { ...details, fieldErrors: Object.fromEntries(renamedFields) }
+        message = error.message
+      } else if (parsed.data.fieldErrors[field]) {
+        return error
+      }
+    }
   }
 
-  const details = sourcedError.details as { fieldErrors?: Record<string, string[]> } | undefined
+  const wrapped = new DataApiError(error.code, message, error.status, details, error.requestContext)
 
-  if (sourcedError.code === ErrorCode.VALIDATION_ERROR && details?.fieldErrors?.[`cursors.${sourceType}`]) {
-    return sourcedError
-  }
+  if (error.reportingHandled) wrapped.reportingHandled = true
 
-  return DataApiErrorFactory.create(
-    sourcedError.code,
-    `content search source ${sourceType} failed: ${sourcedError.message}`,
-    sourcedError.details,
-    sourcedError.requestContext
-  )
+  return wrapped
 }
 
 export const CONTENT_SEARCH_SOURCE_ADAPTERS = {

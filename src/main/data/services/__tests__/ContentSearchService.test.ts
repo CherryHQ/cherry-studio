@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import {
   CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE,
   ContentSearchQuerySchema,
@@ -221,6 +221,98 @@ describe('ContentSearchService', () => {
         }
       }
     })
+  })
+
+  it.each(contentSearchSourceTypes)('retains error metadata while renaming the %s cursor field', (sourceType) => {
+    const field = `cursors.${sourceType}`
+    const failure = new DataApiError<string>(
+      ErrorCode.VALIDATION_ERROR,
+      'Invalid cursor',
+      409,
+      {
+        fieldErrors: {
+          cursor: ['Invalid cursor'],
+          [field]: ['Older error'],
+          q: ['Query error'],
+          ['__proto__']: ['Literal field']
+        },
+        extension: 'retained'
+      },
+      { requestId: 'request-1', path: '/search/content', method: 'GET' }
+    )
+    failure.reportingHandled = true
+    const adapter = sourceType === 'topic-message' ? topicSearchMock : sessionSearchMock
+    adapter.mockImplementationOnce(() => {
+      throw failure
+    })
+
+    expect(() => service.search({ q: 'needle', sources: [sourceType] })).toThrowError(
+      expect.objectContaining({
+        code: ErrorCode.VALIDATION_ERROR,
+        status: 409,
+        message: 'Invalid cursor',
+        details: {
+          fieldErrors: { [field]: ['Invalid cursor'], q: ['Query error'], ['__proto__']: ['Literal field'] },
+          extension: 'retained'
+        },
+        requestContext: failure.requestContext,
+        reportingHandled: true
+      })
+    )
+  })
+
+  it('keeps already-qualified empty cursor errors without adding source context', () => {
+    const failure = new DataApiError<string>(ErrorCode.VALIDATION_ERROR, 'Invalid cursor', 422, {
+      fieldErrors: { 'cursors.topic-message': [] }
+    })
+    topicSearchMock.mockImplementationOnce(() => {
+      throw failure
+    })
+
+    expect(() => service.search({ q: 'needle', sources: ['topic-message'] })).toThrowError(
+      expect.objectContaining({
+        message: 'Invalid cursor',
+        details: failure.details
+      })
+    )
+  })
+
+  it.each(['invalid', { cursor: 'invalid' }, { cursor: [42] }, { 'cursors.session-message': ['Other source'] }])(
+    'keeps unvalidated or other-source field errors in the contextual failure (%j)',
+    (fieldErrors) => {
+      const failure = new DataApiError<string>(ErrorCode.VALIDATION_ERROR, 'Validation failed', 422, { fieldErrors })
+      topicSearchMock.mockImplementationOnce(() => {
+        throw failure
+      })
+
+      expect(() => service.search({ q: 'needle', sources: ['topic-message'] })).toThrowError(
+        expect.objectContaining({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'content search source topic-message failed: Validation failed',
+          details: failure.details
+        })
+      )
+    }
+  )
+
+  it('preserves extension codes without interpreting cursor-shaped metadata as validation', () => {
+    const failure = new DataApiError('EXTENSION_SEARCH_FAILURE', 'Remote search failed', 502, {
+      fieldErrors: { cursor: ['Opaque metadata'] }
+    })
+    failure.reportingHandled = true
+    topicSearchMock.mockImplementationOnce(() => {
+      throw failure
+    })
+
+    expect(() => service.search({ q: 'needle', sources: ['topic-message'] })).toThrowError(
+      expect.objectContaining({
+        code: 'EXTENSION_SEARCH_FAILURE',
+        status: 502,
+        message: 'content search source topic-message failed: Remote search failed',
+        details: failure.details,
+        reportingHandled: true
+      })
+    )
   })
 
   it('fails the full query with source context when a source has a non-cursor error', async () => {

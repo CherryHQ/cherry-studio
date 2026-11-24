@@ -147,7 +147,7 @@ DataApi must not be used as a general-purpose RPC layer. It is the **data** busi
 - Skips retry for client errors (4xx)
 
 ### Error Handling
-- Typed error codes (`ErrorCode` enum)
+- Built-in `ErrorCode` values, with extension strings preserved through IPC
 - `DataApiError` class with retryability detection
 - Factory methods for consistent error creation
 

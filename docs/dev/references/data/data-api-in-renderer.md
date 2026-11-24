@@ -315,6 +315,10 @@ await dataApiService.delete('/topics/abc123')
 
 ## Error Handling
 
+IPC errors preserve extension codes. Validate detail fields before consuming them;
+see [Error Handling](./api-types.md#error-handling) for the reconstruction and
+factory type contracts.
+
 ### With Hooks
 
 ```typescript

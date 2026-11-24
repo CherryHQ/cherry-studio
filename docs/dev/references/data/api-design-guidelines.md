@@ -342,7 +342,7 @@ All error responses follow the `SerializedDataApiError` structure (transmitted v
 
 ```typescript
 interface SerializedDataApiError {
-  code: ErrorCode | string  // ErrorCode enum value (e.g., 'NOT_FOUND')
+  code: string              // Built-in code (e.g., 'NOT_FOUND') or an extension code
   message: string           // Human-readable error message
   status: number            // HTTP status code
   details?: Record<string, unknown>  // Additional context (e.g., field errors)

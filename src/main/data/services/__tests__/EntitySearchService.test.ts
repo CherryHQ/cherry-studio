@@ -13,6 +13,7 @@ import { agentService } from '@data/services/AgentService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { EntitySearchService } from '@data/services/EntitySearchService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { DataApiError } from '@shared/data/api/errors'
 import { ENTITY_SEARCH_MAX_LIMIT_PER_TYPE, EntitySearchQuerySchema } from '@shared/data/api/schemas/search'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -210,6 +211,35 @@ describe('EntitySearchService', () => {
     // the `types.map`, so later types are not attempted — the query still fails as a whole
     // with type context, without wasting DB work on the remaining types.
     expect(agentSearch).not.toHaveBeenCalled()
+  })
+
+  it('preserves extension error metadata when adding the failing entity type', () => {
+    const failure = new DataApiError(
+      'EXTENSION_SEARCH_FAILURE',
+      'Remote search failed',
+      502,
+      { retryAfter: 15 },
+      {
+        requestId: 'request-1',
+        path: '/search/entities',
+        method: 'GET'
+      }
+    )
+    failure.reportingHandled = true
+    vi.spyOn(assistantDataService, 'search').mockImplementationOnce(() => {
+      throw failure
+    })
+
+    expect(() => service.search({ q: 'needle', types: ['assistant'] })).toThrowError(
+      expect.objectContaining({
+        code: 'EXTENSION_SEARCH_FAILURE',
+        status: 502,
+        message: 'entity search type assistant failed: Remote search failed',
+        details: { retryAfter: 15 },
+        requestContext: failure.requestContext,
+        reportingHandled: true
+      })
+    )
   })
 
   it('clamps direct service limitPerType above the maximum', async () => {

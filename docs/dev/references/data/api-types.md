@@ -265,6 +265,22 @@ const serialized = apiError.toJSON()
 const reconstructed = DataApiError.fromJSON(response.error)
 ```
 
+`DataApiError<T>` preserves the code/details pairing for known-code factories. Its
+default code type is `string`: IPC reconstruction preserves extension codes from
+other API versions. An extension code is retryable only if it belongs to the
+existing retryable-code set.
+
+Reconstructed details remain opaque field values. Comparing the code, including
+through `isDataApiNotFoundError`, does not validate a code-specific details shape.
+`isDataApiResourceNotFoundError` additionally checks the resource name; it does not
+establish the type of other fields such as `id`.
+
+`toDataApiError` uses `isSerializedDataApiError` to validate serialized candidates,
+including optional details containers, request context and reporting ownership.
+Malformed candidates fall back to internal-error normalization. `fromJSON` accepts
+an already typed `SerializedDataApiError`; it reconstructs the error without
+reinterpreting its code or copying its details.
+
 ### Retryable Error Codes
 
 The following errors are automatically considered retryable:

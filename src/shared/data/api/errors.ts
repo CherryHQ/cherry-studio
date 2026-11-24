@@ -316,8 +316,8 @@ export type ErrorDetailsMap = {
  * Get the detail type for a specific error code.
  * Falls back to generic Record for unmapped codes.
  */
-export type DetailsForCode<T extends ErrorCode> = T extends keyof ErrorDetailsMap
-  ? ErrorDetailsMap[T]
+export type DetailsForCode<T extends string> = T extends keyof ErrorDetailsMap
+  ? { [K in keyof ErrorDetailsMap[T]]: ErrorDetailsMap[T][K] }
   :
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Unmapped error codes retain caller-owned extension details; only mapped codes define specific field types.
       Record<string, unknown> | undefined
@@ -344,8 +344,12 @@ export const RETRYABLE_ERROR_CODES: ReadonlySet<ErrorCode> = new Set([
  * @param code - The error code to check
  * @returns true if the error is safe to retry
  */
-export function isRetryableErrorCode(code: ErrorCode): boolean {
-  return RETRYABLE_ERROR_CODES.has(code)
+export function isRetryableErrorCode(code: string): boolean {
+  for (const retryableCode of RETRYABLE_ERROR_CODES) {
+    if (retryableCode === code) return true
+  }
+
+  return false
 }
 
 // ============================================================================
@@ -359,8 +363,8 @@ export function isRetryableErrorCode(code: ErrorCode): boolean {
  */
 export interface SerializedDataApiError {
   reportingHandled?: true
-  /** Error code from ErrorCode enum */
-  code: ErrorCode | string
+  /** Known error code or an extension code from another API version. */
+  code: string
   /** Human-readable error message */
   message: string
   /** HTTP status code */
@@ -371,6 +375,22 @@ export interface SerializedDataApiError {
   /** Request context for debugging */
   requestContext?: RequestContext
 }
+
+const serializedDataApiErrorSchema: z.ZodType<SerializedDataApiError> = z.object({
+  code: z.string(),
+  message: z.string(),
+  status: z.number(),
+  details: z.record(z.string(), z.unknown()).optional(),
+  requestContext: z
+    .object({
+      requestId: z.string(),
+      path: z.string(),
+      method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']),
+      timestamp: z.number().optional()
+    })
+    .optional(),
+  reportingHandled: z.literal(true).optional()
+})
 
 // ============================================================================
 // DataApiError Class
@@ -401,9 +421,9 @@ export interface SerializedDataApiError {
  * }
  * ```
  */
-export class DataApiError<T extends ErrorCode = ErrorCode> extends Error {
+export class DataApiError<T extends string = string> extends Error {
   public reportingHandled?: true
-  /** Error code from ErrorCode enum */
+  /** Known error code or a preserved extension code from IPC. */
   public readonly code: T
   /** HTTP status code */
   public readonly status: number
@@ -460,7 +480,7 @@ export class DataApiError<T extends ErrorCode = ErrorCode> extends Error {
       code: this.code,
       message: this.message,
       status: this.status,
-      details: this.details as SerializedDataApiError['details'],
+      details: this.details,
       requestContext: this.requestContext
     }
 
@@ -475,13 +495,7 @@ export class DataApiError<T extends ErrorCode = ErrorCode> extends Error {
    * @returns DataApiError instance
    */
   static fromJSON(error: SerializedDataApiError): DataApiError {
-    const result = new DataApiError(
-      error.code as ErrorCode,
-      error.message,
-      error.status,
-      error.details,
-      error.requestContext
-    )
+    const result = new DataApiError(error.code, error.message, error.status, error.details, error.requestContext)
 
     if (hasReportingOwner(error)) result.reportingHandled = true
 
@@ -848,7 +862,7 @@ export function isDataApiError(error: unknown): error is DataApiError {
  * @param error - Any thrown value
  * @returns true if the error is a NOT_FOUND DataApiError
  */
-export function isDataApiNotFoundError(error: unknown): error is DataApiError<ErrorCode.NOT_FOUND> {
+export function isDataApiNotFoundError(error: unknown): error is DataApiError & { code: ErrorCode.NOT_FOUND } {
   return isDataApiError(error) && error.code === ErrorCode.NOT_FOUND
 }
 
@@ -861,7 +875,7 @@ export function isDataApiNotFoundError(error: unknown): error is DataApiError<Er
 export function isDataApiResourceNotFoundError(
   error: unknown,
   resource: string
-): error is DataApiError<ErrorCode.NOT_FOUND> {
+): error is DataApiError & { code: ErrorCode.NOT_FOUND } {
   return isDataApiNotFoundError(error) && error.details?.resource === resource
 }
 
@@ -871,16 +885,11 @@ export function isDataApiResourceNotFoundError(
  * @returns true if the object has DataApiError structure
  */
 export function isSerializedDataApiError(error: unknown): error is SerializedDataApiError {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    'message' in error &&
-    'status' in error &&
-    typeof error.code === 'string' &&
-    typeof error.message === 'string' &&
-    typeof error.status === 'number'
-  )
+  try {
+    return serializedDataApiErrorSchema.safeParse(error).success
+  } catch {
+    return false
+  }
 }
 
 /**

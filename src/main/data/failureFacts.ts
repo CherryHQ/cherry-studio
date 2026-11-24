@@ -49,7 +49,7 @@ export function classifyDataApiFailure(error: unknown, apiError: DataApiError): 
       ErrorCode.INVALID_OPERATION,
       ErrorCode.RESOURCE_LOCKED,
       ErrorCode.CONCURRENT_MODIFICATION
-    ].includes(apiError.code)
+    ].some((code) => code === apiError.code)
   ) {
     return { source: 'application', kind: 'expected', reason: apiError.code.toLowerCase(), outcome: 'failed' }
   }
@@ -58,7 +58,11 @@ export function classifyDataApiFailure(error: unknown, apiError: DataApiError): 
 
   if (database.reason !== 'database_failed') return database
 
-  if ([ErrorCode.DATA_INCONSISTENT, ErrorCode.DATABASE_ERROR, ErrorCode.MIGRATION_ERROR].includes(apiError.code)) {
+  if (
+    [ErrorCode.DATA_INCONSISTENT, ErrorCode.DATABASE_ERROR, ErrorCode.MIGRATION_ERROR].some(
+      (code) => code === apiError.code
+    )
+  ) {
     return { ...database, reason: apiError.code.toLowerCase() }
   }
 
