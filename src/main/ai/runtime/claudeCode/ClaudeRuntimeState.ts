@@ -1,8 +1,8 @@
 import type { ClaudeControl, ClaudeResultFailure, ClaudeTaskFact } from '@cherrystudio/agent-runtime-claude-code'
+import type { MessageStats } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
 import type { AgentRuntimeEvent } from '../types'
-import { convertClaudeCodeUsage, v3UsageToStats } from './usage'
 
 export class ClaudeCodeResultError extends Error {
   readonly exitCode = 1
@@ -24,10 +24,24 @@ export class ClaudeCodeResultError extends Error {
 export function claudeControlEvents(control: ClaudeControl): AgentRuntimeEvent[] {
   switch (control.type) {
     case 'result': {
-      const usage = convertClaudeCodeUsage(control.usage)
-      usage.outputTokens.reasoning = control.reasoningTokens
+      const noCacheTokens = control.usage.input_tokens ?? 0
+      const cacheReadTokens = control.usage.cache_read_input_tokens ?? 0
+      const cacheWriteTokens = control.usage.cache_creation_input_tokens ?? 0
+      // Native input_tokens excludes cache buckets; display statistics count all input tokens.
+      const inputTokens = noCacheTokens + cacheWriteTokens + cacheReadTokens
+      const outputTokens = control.usage.output_tokens ?? 0
+      const stats: MessageStats = {
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        inputTokenDetails: { noCacheTokens, cacheReadTokens, cacheWriteTokens }
+      }
 
-      return [{ type: 'chunk', chunk: { type: 'message-metadata', messageMetadata: { stats: v3UsageToStats(usage) } } }]
+      if (control.reasoningTokens !== undefined) {
+        stats.outputTokenDetails = { reasoningTokens: control.reasoningTokens }
+      }
+
+      return [{ type: 'chunk', chunk: { type: 'message-metadata', messageMetadata: { stats } } }]
     }
 
     case 'autonomous-turn-state':
