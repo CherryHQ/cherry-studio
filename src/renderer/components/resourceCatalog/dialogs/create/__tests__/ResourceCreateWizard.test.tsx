@@ -1860,6 +1860,16 @@ describe('ResourceCreateWizard result page', () => {
     expect(summaryValue(MCP_ROW)).toHaveTextContent('GitHub')
   })
 
+  it('does not claim a reviewed server was saved when saved bindings are empty', async () => {
+    MockUseDataApiUtils.mockQueryData('/assistants/:id', { id: 'assistant-1', mcpServerIds: [] } as never)
+    const user = userEvent.setup()
+    render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
+    await createManually(user)
+    await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.assistant_title' })
+    expect(summaryValue(MCP_ROW)).toHaveTextContent(`${RESULT}.empty.not_added`)
+    expect(summaryValue(MCP_ROW)).not.toHaveTextContent('GitHub')
+  })
+
   it('retains the review catalog snapshot when navigating Back from Knowledge', async () => {
     const user = userEvent.setup()
     render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)

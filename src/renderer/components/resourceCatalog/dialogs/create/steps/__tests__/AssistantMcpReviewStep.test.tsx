@@ -25,7 +25,7 @@ const servers = [
   { id: 'browser', name: '@cherry/browser', type: 'inMemory', isActive: true }
 ] as McpServer[]
 
-function Editor() {
+function Editor({ active = true }: { active?: boolean }) {
   const form = useForm<ResourceCreateWizardFormValues>({
     defaultValues: {
       name: 'Assistant',
@@ -47,7 +47,7 @@ function Editor() {
           body: buildCreateAssistantDto({ ...values, modelId: 'provider::model' })
         })
       )}>
-      <AssistantMcpReviewStep form={form} active disabled={false} portalContainer={null} />
+      <AssistantMcpReviewStep form={form} active={active} disabled={false} portalContainer={null} />
       <button type="submit" disabled={reviewed === undefined}>
         Save assistant
       </button>
@@ -101,6 +101,30 @@ describe('McpStep reviewed selection', () => {
       body: expect.objectContaining({ reviewedMcpServerIds: [] })
     })
   })
+  it('keeps a selected snapshot row removable after leaving the step and returning with a held refresh', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryData('/mcp-servers', { items: [servers[1]], total: 1, page: 1 })
+    const { rerender } = render(<Editor />)
+    expect(await screen.findByRole('switch', { name: 'Files' })).toBeChecked()
+    rerender(<Editor active={false} />)
+    let finish!: (value: unknown) => void
+    vi.mocked(dataApiService.get).mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          finish = done
+        }) as never
+    )
+    rerender(<Editor />)
+    expect(screen.getByRole('switch', { name: 'Files' })).toBeChecked()
+    expect(screen.getByRole('button', { name: 'Save assistant' })).toBeEnabled()
+    await user.click(screen.getByRole('switch', { name: 'Files' }))
+    await user.click(screen.getByRole('button', { name: 'Save assistant' }))
+    expect(dataApiService.post).toHaveBeenLastCalledWith('/assistants', {
+      body: expect.objectContaining({ reviewedMcpServerIds: [] })
+    })
+    await act(async () => finish({ items: servers, total: servers.length, page: 1 }))
+  })
+
   it('shows active inherited servers, freezes the reviewed set, and preserves clearing without changing defaults', async () => {
     const user = userEvent.setup()
     render(<Editor />)
