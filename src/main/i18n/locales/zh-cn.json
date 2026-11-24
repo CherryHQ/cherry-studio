@@ -259,6 +259,7 @@
   "paintings.comfyui.workflow_failed": "ComfyUI 工作流执行失败：",
   "paintings.comfyui.workflow_rejected": "ComfyUI 拒绝了该工作流（HTTP {{status}}）",
   "paintings.generate_failed": "生成图像失败",
+  "paintings.image_download_failed": "图像已生成，但下载失败。",
   "paintings.image_mix_failed": "图像混合失败",
   "selection.name": "划词助手",
   "settings.mcp.oauth.callback.listen_error": "无法在 127.0.0.1:{{port}} 监听 OAuth 回调（{{reason}}）。请检查端口是否可用后重试。",
