@@ -24,8 +24,16 @@ export const memoryRequestSchemas = {
     output: MemoryExtractionPreviewSchema
   }),
   'memory.dreaming.status': defineRoute({ input: MemoryScopeSchema, output: MemoryDreamingStatusSchema }),
-  'memory.dreaming.request': defineRoute({ input: MemoryScopeSchema, output: z.void() }),
   'memory.dreaming.cancel': defineRoute({ input: MemoryScopeSchema, output: z.void() }),
+  'memory.private.list': defineRoute({
+    input: z.object({ agentId: z.string().min(1) }),
+    output: z.object({ status: z.enum(['not_started', 'pending', 'failed', 'complete']), files: z.array(z.string()) })
+  }),
+  'memory.private.read': defineRoute({
+    input: z.object({ agentId: z.string().min(1), path: z.string() }),
+    output: z.object({ content: z.string().nullable(), truncated: z.boolean() })
+  }),
+  'memory.open_folder': defineRoute({ input: z.void(), output: z.void() }),
   'memory.editor.open': defineRoute({
     input: z.object({ kind: z.literal('shared') }),
     output: z.object({
