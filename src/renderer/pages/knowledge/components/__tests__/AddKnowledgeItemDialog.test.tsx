@@ -620,6 +620,35 @@ describe('AddKnowledgeItemDialog', () => {
       await waitFor(() => expect(mockSubmitKnowledgeItems).toHaveBeenCalled())
       await act(async () => first.resolve(undefined))
     })
+    it('a slower drop finishing after a base switch cannot overwrite the newer review', async () => {
+      const slow = Promise.withResolvers<unknown>()
+      const request = vi.mocked(ipcApi.request)
+      const original = request.getMockImplementation()!
+      // Drop A: its file metadata hangs.
+      request.mockImplementationOnce(() => slow.promise as never)
+      mockUseKnowledgePage.mockReturnValue({
+        selectedBaseId: 'base-1',
+        pendingAddSource: 'file',
+        pendingAddFiles: [createMockFile('slow.md', 10)]
+      })
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() => expect(request).toHaveBeenCalledWith('file.get_metadata', expect.anything()))
+      // Base switch opens drop B's session and review; B completes.
+      request.mockImplementation(original)
+      mockUseKnowledgePage.mockReturnValue({
+        selectedBaseId: 'base-2',
+        pendingAddSource: 'file',
+        pendingAddFiles: [createMockFile('fresh.md', 10)]
+      })
+      rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() => expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1))
+      expect(mockSubmitKnowledgeItems.mock.calls[0][0]).toEqual([
+        { type: 'file', data: expect.objectContaining({ source: '/external/fresh.md' }) }
+      ])
+      // A's metadata arrives late; A exits as stale and B's review stands.
+      await act(async () => slow.resolve(undefined))
+      expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
+    })
     it.each([
       { label: '全部保留', strategy: 'rename' },
       { label: '替换', strategy: 'replace' }

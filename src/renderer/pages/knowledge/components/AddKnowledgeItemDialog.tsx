@@ -258,6 +258,10 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       describeItem: (item: T) => string | undefined
     ): Promise<KnowledgeAddItemInput[]> => {
       mixedDropApprovedRef.current = false
+      // Capture the session BEFORE the metadata wait: a slower drop A must not
+      // capture a newer session B after B's review has opened and overwrite its
+      // review state and approval resolver.
+      const session = sessionRef.current
       const fileBatch = await resolveKnowledgeFileBatch(files, resolveItem, describeItem)
       const fileOutcome = selectKnowledgeFileBatchOutcome(fileBatch)
       if (fileOutcome.fatal !== undefined) {
@@ -267,7 +271,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: fileOutcome.skipped.length }))
       }
       if (fileOutcome.resolved.length === 0 && !pendingAddDirectoryPaths?.length) return []
-      const session = sessionRef.current
+      if (session !== sessionRef.current) return []
       const results = await ipcApi.request('knowledge.preflight_files', {
         baseId: selectedBaseId,
         paths: [...fileOutcome.resolved.map((data) => data.path), ...(pendingAddDirectoryPaths ?? [])]
