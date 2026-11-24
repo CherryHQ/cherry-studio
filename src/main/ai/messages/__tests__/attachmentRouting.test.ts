@@ -376,6 +376,7 @@ describe('prepareChatMessages — routing', () => {
       mime: 'video/webm',
       kind: 'video' as const
     }
+    const oggAudio = { ...audioOnly, mime: 'audio/ogg' }
     const audioNative: NativeFileSupport = { image: false, pdf: false, audio: true, video: false }
     const videoNative: NativeFileSupport = { image: false, pdf: false, audio: false, video: true }
 
@@ -526,11 +527,11 @@ describe('prepareChatMessages — routing', () => {
 
     it('analyzes a managed ogg file when OpenAI chat rejects audio/ogg', async () => {
       getByIdMock.mockResolvedValueOnce({ ext: 'ogg' })
+      probeMock.mockResolvedValueOnce(oggAudio)
       mediaAnalysisMock.mockResolvedValueOnce('ogg transcript')
 
       const [out] = await run([fileWithEntry('e1', 'clip.ogg', 'audio/ogg')], openAiChatAudio)
 
-      expect(probeMock).not.toHaveBeenCalled()
       expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
         fallbackVisionModelId: undefined
       })
@@ -542,6 +543,7 @@ describe('prepareChatMessages — routing', () => {
     it('keeps a managed ogg file native when the converter accepts audio/ogg', async () => {
       materializerMode.real = true
       getByIdMock.mockResolvedValueOnce({ ext: 'ogg' })
+      probeMock.mockResolvedValueOnce(oggAudio)
       readMock.mockResolvedValueOnce({ content: 'T0dH', mime: 'application/octet-stream' })
 
       const [out] = await run([fileWithEntry('e1', 'clip.ogg', 'application/octet-stream')], {
@@ -549,7 +551,6 @@ describe('prepareChatMessages — routing', () => {
         audioMediaTypes: ['audio/ogg']
       })
 
-      expect(probeMock).not.toHaveBeenCalled()
       expect(mediaAnalysisMock).not.toHaveBeenCalled()
       expect(out.parts).toEqual([
         expect.objectContaining({
@@ -559,6 +560,23 @@ describe('prepareChatMessages — routing', () => {
           url: 'data:audio/ogg;base64,T0dH'
         })
       ])
+    })
+
+    it('analyzes an Ogg Theora video instead of sending it as native audio/ogg', async () => {
+      getByIdMock.mockResolvedValueOnce({ ext: 'ogg' })
+      probeMock.mockResolvedValueOnce({ ...withVideo, mime: 'video/ogg' })
+      mediaAnalysisMock.mockResolvedValueOnce('frame summary')
+
+      const [out] = await run([fileWithEntry('e1', 'clip.ogg', 'audio/ogg')], {
+        ...audioNative,
+        audioMediaTypes: ['audio/ogg']
+      })
+
+      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
+        fallbackVisionModelId: undefined
+      })
+      expect(out.parts.some((part) => part.type === 'file')).toBe(false)
+      expect(textOf(out.parts)[0]).toBe('Attached file "clip.ogg":\nframe summary')
     })
 
     it('does not deliver audio-only WebM as native video', async () => {

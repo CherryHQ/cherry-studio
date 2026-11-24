@@ -162,27 +162,28 @@ function dispatchAudioMediaType(bareExt: string): string | undefined {
   return mime.getType(normalizedExt) ?? undefined
 }
 
-/** WebM is audio or video only after probe. Unambiguous extensions keep their static type. */
+const PROBED_EXTS = new Set(['webm', 'ogg'])
+
+/** WebM and Ogg are audio or video only after probe. Unambiguous extensions keep their static type. */
 async function resolveAttachmentFileType(
   entryId: string,
   bareExt: string,
   signal?: AbortSignal
 ): Promise<{ fileType: FileType; mediaType?: string; unknownProbe?: boolean; probeFailed?: boolean }> {
-  if (bareExt.replace(/^\./, '').toLowerCase() !== 'webm') {
-    const fileType = getFileTypeByExt(bareExt)
-    const mediaType = dispatchAudioMediaType(bareExt)
-    return mediaType ? { fileType, mediaType } : { fileType }
-  }
+  const fileType = getFileTypeByExt(bareExt)
+  const mediaType = dispatchAudioMediaType(bareExt)
+  const byExt = mediaType ? { fileType, mediaType } : { fileType }
+  if (!PROBED_EXTS.has(bareExt.replace(/^\./, '').toLowerCase())) return byExt
   const probe = await application
     .get('MediaAnalysisService')
     .probe({ kind: 'entry', entryId }, signal)
     .catch((error: unknown) => {
       if (signal?.aborted || isAbortError(error)) throw error
-      logger.warn('WebM probe failed; keeping the extension type for native delivery', { error, entryId })
+      logger.warn('Media probe failed; keeping the extension type for native delivery', { error, entryId })
       return null
     })
-  // The name is the only evidence left, so a native-video model still receives the file.
-  if (!probe) return { fileType: FILE_TYPE.VIDEO, probeFailed: true }
+  // The name is the only evidence left, so a model native to that type still receives the file.
+  if (!probe) return { ...byExt, probeFailed: true }
   // A .webm name can still be Matroska or MP4. Kind chooses the capability; probe.mime is dispatched.
   if (probe.kind === 'video') return { fileType: FILE_TYPE.VIDEO, mediaType: probe.mime }
   if (probe.kind === 'audio') return { fileType: FILE_TYPE.AUDIO, mediaType: probe.mime }
@@ -353,7 +354,7 @@ async function prepareChatMessage<T extends UIMessage>(
         continue
       }
 
-      // Analysis needs the same probe, so an unprobed WebM that is not native stays a note.
+      // Analysis needs the same probe, so an unprobed WebM/Ogg that is not native stays a note.
       if (resolved.probeFailed) {
         kept.push(noteOf(handle))
         continue
