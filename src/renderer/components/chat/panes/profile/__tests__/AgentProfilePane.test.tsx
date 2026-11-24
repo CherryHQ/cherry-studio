@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentEntity, ScheduledTaskEntity } from '@shared/data/types/agent'
 
 import { AgentProfilePane } from '../AgentProfilePane'

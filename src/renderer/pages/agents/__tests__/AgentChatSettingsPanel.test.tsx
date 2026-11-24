@@ -240,10 +240,6 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicOverlayHandoffOnTerminal: () => {}
 }))
 
-vi.mock('@renderer/utils/agentSession', () => ({
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
-}))
-
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({ t: (key: string) => key })
