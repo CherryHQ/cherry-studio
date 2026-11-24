@@ -82,6 +82,14 @@ describe('MarkdownFilePreview links', () => {
     })
   })
 
+  it('preserves encoded filename punctuation and source locations through preview navigation', async () => {
+    mocks.readText.mockResolvedValue('[Source](./src/report%3A42.ts#L7-L9)')
+    const openFile = vi.fn()
+    renderArtifactPreview(openFile)
+    await userEvent.click(await screen.findByRole('link', { name: 'Source' }))
+    expect(openFile).toHaveBeenCalledWith('/tmp/workspace/src/report:42.ts', { line: 7, endLine: 9 })
+  })
+
   it('opens a relative Markdown link from the workspace root through the host', async () => {
     mocks.readText.mockResolvedValue('[Design token system](./packages/ui/docs/design-token-system.md)')
     const openFile = vi.fn()

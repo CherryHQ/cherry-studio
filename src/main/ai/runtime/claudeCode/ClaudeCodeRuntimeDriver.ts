@@ -24,10 +24,15 @@ import {
   bindNativeInput
 } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
+import { logAiFailure } from '@main/ai/errorReporting'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
+import {
+  appendAgentAttachmentPaths,
+  withAgentContext,
+  wrapAgentSessionDeliveryContent
+} from '@main/ai/runtime/agentUserContent'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -64,7 +69,9 @@ import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from
 import type { ConsumedWarmQuery } from './ClaudeCodeWarmQueryManager'
 import { forkClaudeSession } from './claudeFork'
 import { ClaudeMessageMetadata } from './ClaudeMessageMetadata'
+import { ClaudePromptSuggestion } from './ClaudePromptSuggestion'
 import { claudeControlEvents, ClaudeCodeResultError } from './ClaudeRuntimeState'
+import { classifyClaudeFailure } from './failureFacts'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
 import { canSalvageClaudeOutput } from './processExitDiagnostics'
 import {
@@ -121,6 +128,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return this.context?.id
   }
 
+  private readonly promptSuggestion = new ClaudePromptSuggestion()
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
   private readonly abortController = new AbortController()
   private runtime?: ClaudeCodeRuntime
@@ -177,7 +185,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
       this.input.knowledgeBaseIds,
-      this.input.serviceTier
+      this.input.serviceTier,
+      this.input.headless === true,
+      this.input.permissionModeOverride
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
@@ -261,6 +271,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
     this.bindApprovalEmitter()
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
+    this.toolPolicySnapshot?.setPermissionMode(request.connectionConfig?.live.toolPolicy.permissionMode ?? undefined)
     registerMcpSessionCatalogSync(
       this.input.sessionId,
       this.input.agentId,
@@ -290,16 +301,26 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
   }
 
+  predictPrompt(signal: AbortSignal): Promise<string> {
+    return this.promptSuggestion.read(signal)
+  }
+
   async send(input: AgentRuntimeCommand): Promise<void> {
+    this.promptSuggestion.clear()
     this.currentSources.clear()
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
-    const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
-      supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
-    })
+    const sdkMessage = await toSdkUserMessage(
+      withAgentContext(input.message, input.context),
+      this.resumeToken,
+      input.systemReminder,
+      {
+        supportsAttachmentReads: this.assistantFileToolsEnabled,
+        supportsImages: resolveModelImageSupport(this.input.modelId)
+      }
+    )
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'follow-up', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -317,16 +338,25 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   redirect(input: AgentRuntimeCommand): boolean {
+    this.promptSuggestion.clear()
     if (this.closing || !this.handle) return false
-    void this.submitSteer(input).catch((error) => this.eventQueue.push({ type: 'error', error }))
+    void this.submitSteer(input).catch((error) => {
+      logAiFailure(logger, 'Claude steer failed', error, 'agent.claude.steer', classifyClaudeFailure(error))
+      this.eventQueue.push({ type: 'error', error })
+    })
     return true
   }
 
   private async submitSteer(input: AgentRuntimeCommand): Promise<void> {
-    const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
-      supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
-    })
+    const sdkMessage = await toSdkUserMessage(
+      withAgentContext(input.message, input.context),
+      this.resumeToken,
+      input.systemReminder,
+      {
+        supportsAttachmentReads: this.assistantFileToolsEnabled,
+        supportsImages: resolveModelImageSupport(this.input.modelId)
+      }
+    )
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'steer', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -339,13 +369,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
   }
 
-  async reconcile(input: {
-    modelId: UniqueModelId
-    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
-    serviceTier?: AgentRuntimeConnectInput['serviceTier']
-    knowledgeBaseIds?: readonly string[]
-    fastMode?: boolean
-  }): Promise<AgentRuntimeReconcileResult> {
+  async reconcile(input: Parameters<AgentRuntimeConnection['reconcile']>[0]): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
     // gate and the subprocess on different policies.
@@ -357,13 +381,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return run
   }
 
-  private async reconcileOnce(input: {
-    modelId: UniqueModelId
-    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
-    serviceTier?: AgentRuntimeConnectInput['serviceTier']
-    knowledgeBaseIds?: readonly string[]
-    fastMode?: boolean
-  }): Promise<AgentRuntimeReconcileResult> {
+  private async reconcileOnce(
+    input: Parameters<AgentRuntimeConnection['reconcile']>[0]
+  ): Promise<AgentRuntimeReconcileResult> {
     if (!this.handle) return 'rebuild'
     const derived = await deriveConnectionConfig(
       this.input.sessionId,
@@ -371,7 +391,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.reasoningEffort ?? 'default',
       input.fastMode === true,
       input.knowledgeBaseIds,
-      input.serviceTier
+      input.serviceTier,
+      input.headless === true,
+      input.permissionModeOverride
     )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig
@@ -391,7 +413,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           const changed = await this.handle.claude.setPermissionMode(permissionMode)
           if (changed.status !== 'confirmed') throw new Error(changed.error.message)
           // Approval must use the confirmed mode while the tool catalog is refreshing.
-          this.toolPolicySnapshot?.setPermissionMode(permissionMode)
+          this.toolPolicySnapshot?.setPermissionMode(fresh.live.toolPolicy.permissionMode ?? undefined)
         }
         await this.toolPolicySnapshot?.update(agent)
       } catch (error) {
@@ -458,6 +480,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async interrupt(): Promise<void> {
+    this.promptSuggestion.clear()
     const interrupt = this.handle?.interrupt
     if (!interrupt) return
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -492,6 +515,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async closeQuery(): Promise<void> {
+    this.promptSuggestion.clear()
     this.closing = true
     this.closingAccess.abort()
     if (this.parkedQuery) {
@@ -527,6 +551,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const contextId = this.context!.id
     this.rootContexts.set(handle.thread.id, this.context!)
     this.rootProjections.push(projection)
+    let legacy: ClaudeObservation['legacy']
     let end!: () => void
     this.observationEnds.push(
       new Promise<void>((resolve) => {
@@ -534,6 +559,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       })
     )
     const observation = await handle.claude.observe(async (batch) => {
+      this.promptSuggestion.accept(batch)
+      legacy = batch.legacy ?? legacy
+      const currentLegacy = legacy
       this.publishInvocations(batch, 'current-turn')
       let publish = () => {}
       try {
@@ -562,7 +590,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             type: 'message-projection',
             projection: {
               contextId,
-              legacy: batch.legacy,
+              legacy: currentLegacy,
               messages,
               live: owned,
               refresh: [...new Set([...refresh, ...changed.map((message) => message.id)])],
@@ -585,6 +613,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.eventQueue.close()
       } catch (error) {
         publish()
+        logAiFailure(logger, 'Claude projection failed', error, 'agent.claude.adapt', {
+          source: 'application',
+          kind: 'defect',
+          reason: 'stream_adapter_failed',
+          outcome: 'failed',
+          runtime: 'claude-code'
+        })
         this.eventQueue.push({ type: 'error', error })
       } finally {
         if (batch.events.some((event) => event.type === 'closed')) end()
@@ -622,11 +657,19 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           .messages.filter((message) => message.role === 'assistant' && this.currentSources.has(message.id))
           .flatMap((message) => message.parts)
           .reduce((length, part) => length + (part.type === 'text' ? part.text.length : 0), 0)
-        terminal.push(
-          canSalvageClaudeOutput(surfaced, bufferedChars, batch.state?.aborted === true)
-            ? { type: 'turn-complete' }
-            : { type: 'error', error: surfaced }
+        const salvaged = canSalvageClaudeOutput(surfaced, bufferedChars, batch.state?.aborted === true)
+        logAiFailure(
+          logger,
+          'Claude Code query failed',
+          surfaced,
+          'agent.claude.prompt',
+          classifyClaudeFailure(error, {
+            recovered: salvaged,
+            cancelled: batch.state?.aborted,
+            process: this.processDiagnostics
+          })
         )
+        terminal.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error: surfaced })
       }
     }
     for (const control of batch.controls ?? []) {
@@ -684,7 +727,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       logger.warn(control.message, { detail: control.detail })
     } else if (control.type === 'result') {
       if (control.sessionId !== this.handle?.claude.sessionId) return
-      if (control.failure) return { type: 'error', error: new ClaudeCodeResultError(control.failure) }
+      if (control.failure) {
+        const error = new ClaudeCodeResultError(control.failure)
+        logAiFailure(logger, 'Claude Code result failed', error, 'agent.claude.prompt', classifyClaudeFailure(error))
+        return { type: 'error', error }
+      }
       if (!control.terminal) return
       this.updateResumeToken(control.sessionId)
       const checkpoint = ClaudeForkCheckpointSchema.safeParse({
@@ -1275,6 +1322,7 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     try {
       return await connection.start()
     } catch (error) {
+      logAiFailure(logger, 'Claude Code startup failed', error, 'agent.claude.start', classifyClaudeFailure(error))
       await connection.close()
       throw error
     }

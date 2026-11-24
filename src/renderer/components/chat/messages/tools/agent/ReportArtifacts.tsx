@@ -1,15 +1,14 @@
-import { Icon } from '@iconify/react'
 import type { TFunction } from 'i18next'
 import { ChevronDown } from 'lucide-react'
-import { type MouseEvent, useCallback, useMemo, useState } from 'react'
+import { type MouseEvent, useCallback, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { getOpenTargetBadge, getOpenTargetLabel, OpenTargetIcon } from '@renderer/components/OpenTarget'
 import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import { getFileIconName } from '@renderer/utils/fileIconName'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
@@ -125,7 +124,6 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
     [resolvePath, unresolvedTargetPath]
   )
   const fileName = useMemo(() => getArtifactFileName(displayPath), [displayPath])
-  const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
   const [popupMenuOpen, setPopupMenuOpen] = useState(false)
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
@@ -219,7 +217,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         aria-label={`${t('common.preview')} ${fileName}`}
         className="group/preview flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-2.5 border-0 bg-transparent px-2.5 py-2 text-left aria-disabled:cursor-default">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
-          <Icon icon={`material-icon-theme:${iconName}`} className="text-[20px]" />
+          <FileIcon path={displayPath} className="text-[20px]" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate font-medium text-[13px] text-foreground leading-5">{fileName}</span>
@@ -276,6 +274,8 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
   )
 }
 
+const COLLAPSED_ARTIFACT_LIMIT = 3
+
 /**
  * Message-level footer for `report_artifacts` declarations. The tool call itself is hidden from the
  * inline tool stream; this card is appended after the complete message content so deliverables stay
@@ -286,17 +286,35 @@ export const MessageReportArtifacts = ({
 }: {
   toolResponses: readonly ReportArtifactsToolResponse[]
 }) => {
-  // Memoised: `getReportArtifactsViewModel` zod-parses each response, and this
-  // card re-renders on every streaming tick. `toolResponses` is already a stable
-  // memoised ref from `MessagePartsRenderer`, so this skips re-parsing per tick.
+  const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
+  const listId = useId()
   const viewModel = useMemo(() => getReportArtifactsViewModel(toolResponses), [toolResponses])
   if (!viewModel) return null
 
+  const hiddenCount = viewModel.artifacts.length - COLLAPSED_ARTIFACT_LIMIT
+  const visibleArtifacts = expanded ? viewModel.artifacts : viewModel.artifacts.slice(0, COLLAPSED_ARTIFACT_LIMIT)
+
   return (
     <div className="my-1 flex w-full flex-col gap-1.5">
-      {viewModel.artifacts.map((artifact) => (
-        <ReportArtifactFileCard key={artifact.path} artifact={artifact} />
-      ))}
+      <div id={listId} className="flex min-w-0 flex-col gap-1.5">
+        {visibleArtifacts.map((artifact) => (
+          <ReportArtifactFileCard key={artifact.path} artifact={artifact} />
+        ))}
+      </div>
+      {hiddenCount > 0 && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-expanded={expanded}
+          aria-controls={listId}
+          className="self-start text-muted-foreground"
+          onClick={() => setExpanded((value) => !value)}>
+          <ChevronDown aria-hidden className={expanded ? 'rotate-180' : undefined} />
+          {expanded ? t('common.collapse') : t('chat.artifacts.show_remaining', { count: hiddenCount })}
+        </Button>
+      )}
     </div>
   )
 }

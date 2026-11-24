@@ -23,10 +23,10 @@ const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<vo
 const eventEmitMock = vi.hoisted(() => vi.fn())
 const clearTopicMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
 const activeTabMock = vi.hoisted(() => ({ current: true }))
-const citationBrowserMocks = vi.hoisted(() => ({ ensure: vi.fn(), tryOpen: vi.fn() }))
+const citationBrowserMocks = vi.hoisted(() => ({ openPage: vi.fn(), tryOpen: vi.fn() }))
 
 vi.mock('@renderer/services/AgentBrowserRuntimeService', () => ({
-  topicBrowserRuntimeService: { ensure: citationBrowserMocks.ensure }
+  topicBrowserRuntimeService: { openPage: citationBrowserMocks.openPage }
 }))
 
 vi.mock('@renderer/components/chat/panes/Shell', async (importOriginal) => ({
@@ -257,7 +257,7 @@ describe('Chat', () => {
       panel.props.openBrowserUrl('https://example.com/reference')
     })
 
-    expect(citationBrowserMocks.ensure).toHaveBeenCalledExactlyOnceWith(topic.id, 'https://example.com/reference')
+    expect(citationBrowserMocks.openPage).toHaveBeenCalledExactlyOnceWith(topic.id, 'https://example.com/reference')
     expect(citationBrowserMocks.tryOpen).toHaveBeenCalledExactlyOnceWith('browser', { userInitiated: true })
     expect(conversationShellProps.current.sidePanel.props.children.props.open).toBe(false)
   })

@@ -27,17 +27,19 @@ export function NumberShortcutSettings({
           <div className="mt-1 text-sm text-muted-foreground">
             {mode === 'custom'
               ? t('settings.shortcuts.number_keys.custom_description')
-              : t('settings.shortcuts.number_keys.description', {
-                  conversations: `${mode === 'conversation' ? primary : secondary} 1–9`,
-                  tabs: `${mode === 'tab' ? primary : secondary} 1–9`
-                })}
+              : mode === 'off'
+                ? t('settings.shortcuts.number_keys.off_description')
+                : t('settings.shortcuts.number_keys.description', {
+                    conversations: `${mode === 'conversation' ? primary : secondary} 1–9`,
+                    tabs: `${mode === 'tab' ? primary : secondary} 1–9`
+                  })}
           </div>
         </div>
         <Select
           value={mode}
           disabled={saving}
           onValueChange={(value) => {
-            if (value === 'conversation' || value === 'tab') onChange(value)
+            if (value === 'conversation' || value === 'tab' || value === 'off') onChange(value)
           }}>
           <SelectTrigger className="w-auto shrink-0 rounded-lg" aria-label={t('settings.shortcuts.number_keys.title')}>
             <SelectValue>
@@ -45,12 +47,15 @@ export function NumberShortcutSettings({
                 ? conversationLabel
                 : mode === 'tab'
                   ? tabLabel
-                  : t('settings.shortcuts.number_keys.custom')}
+                  : mode === 'off'
+                    ? t('settings.shortcuts.number_keys.off')
+                    : t('settings.shortcuts.number_keys.custom')}
             </SelectValue>
           </SelectTrigger>
           <SelectContent align="end" position="popper">
             <SelectItem value="tab">{tabLabel}</SelectItem>
             <SelectItem value="conversation">{conversationLabel}</SelectItem>
+            <SelectItem value="off">{t('settings.shortcuts.number_keys.off')}</SelectItem>
           </SelectContent>
         </Select>
       </SettingRow>

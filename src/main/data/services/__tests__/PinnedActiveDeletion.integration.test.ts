@@ -1,6 +1,6 @@
 import '@data/services/AgentSessionMessageService'
 import '@data/services/MessageService'
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { seedSessionRoot, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
@@ -123,6 +123,7 @@ describe('pinned active permanent deletion', () => {
         {
           id: ACTIVE_MESSAGE,
           sessionId: 'active-session',
+          parentId: seedSessionRoot(dbh.db, 'active-session'),
           role: 'user',
           data: { parts: [{ type: 'text', text: 'active session body' }] },
           status: 'success'
@@ -130,6 +131,7 @@ describe('pinned active permanent deletion', () => {
         {
           id: OTHER_MESSAGE,
           sessionId: 'other-session',
+          parentId: seedSessionRoot(dbh.db, 'other-session'),
           role: 'user',
           data: { parts: [{ type: 'text', text: 'other session body' }] },
           status: 'success'
@@ -137,6 +139,7 @@ describe('pinned active permanent deletion', () => {
         {
           id: ARCHIVED_MESSAGE,
           sessionId: 'archived-session',
+          parentId: seedSessionRoot(dbh.db, 'archived-session'),
           role: 'user',
           data: { parts: [{ type: 'text', text: 'archived session body' }] },
           status: 'success'
@@ -335,11 +338,7 @@ describe('pinned active permanent deletion', () => {
 
     expect(sessionIds()).toHaveLength(4)
     expect(
-      dbh.db
-        .select()
-        .from(agentSessionMessageTable)
-        .where(eq(agentSessionMessageTable.sessionId, 'other-session'))
-        .get()?.id
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, OTHER_MESSAGE)).get()?.id
     ).toBe(OTHER_MESSAGE)
   })
 

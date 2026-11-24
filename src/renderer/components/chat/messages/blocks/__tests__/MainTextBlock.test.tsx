@@ -799,7 +799,7 @@ Hidden answer
         expect(tooltipContent.querySelector('[data-token-path]')).toHaveTextContent(
           '/internal/message-files/report.pdf'
         )
-        expect(tooltipContent.querySelector('[data-token-size]')).toHaveTextContent('2 KB')
+        expect(tooltipContent.querySelector('[data-token-size]')).toHaveTextContent('2.0 KB')
         expect(document.body).not.toHaveTextContent('/Users/jd/private/report.pdf')
 
         token.focus()

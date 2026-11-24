@@ -8,7 +8,7 @@ import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { MarkdownHostProvider, StaticMarkdown } from '@renderer/components/markdown'
-import { parseFileLinkHref } from '@renderer/utils/filePath'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -67,6 +67,7 @@ function MarkdownPreviewEmpty() {
 }
 
 interface MarkdownPreviewContentProps {
+  location?: FilePreviewPluginProps['location']
   filePath: AbsoluteFilePath
   hideFrontmatter: boolean
   loadState: MarkdownFileLoadState
@@ -85,7 +86,7 @@ function resolveMarkdownImageSrc(filePath: AbsoluteFilePath, src: string): strin
 }
 
 function resolveMarkdownFileLink(workspacePath: AbsoluteFilePath, href: string | undefined): AbsoluteFilePath | null {
-  const linkPath = parseFileLinkHref(href)
+  const linkPath = href
   if (!linkPath) return null
 
   const candidate = AbsoluteFilePathSchema.safeParse(linkPath).success ? linkPath : joinPath(workspacePath, linkPath)
@@ -102,15 +103,16 @@ function MarkdownPreviewContent({
   hideFrontmatter,
   loadState,
   markdownId,
-  mode
+  mode,
+  location
 }: MarkdownPreviewContentProps): ReactNode {
   const navigation = useOptionalFilePreviewNavigation()
   const resolveImageSrc = useCallback((src: string) => resolveMarkdownImageSrc(filePath, src), [filePath])
   const openFilePath = useCallback(
-    (path: string) => {
+    (path: string, location?: FileLocation) => {
       if (!navigation) return
       const target = resolveMarkdownFileLink(navigation.workspacePath, path)
-      if (target) return navigation.openFile(target)
+      if (target) return location ? navigation.openFile(target, { ...location }) : navigation.openFile(target)
     },
     [navigation]
   )
@@ -123,6 +125,7 @@ function MarkdownPreviewContent({
       <div className="flex min-h-full w-full">
         <Suspense fallback={<MarkdownPreviewLoading />}>
           <FileEditor
+            location={location}
             value={loadState.content}
             fileName={filePath}
             wrapLines
@@ -156,13 +159,19 @@ export default function MarkdownFilePreview({
   metadata,
   metadataRequest,
   refreshKey,
-  type = 'file'
+  type = 'file',
+  location
 }: FilePreviewPluginProps) {
   const markdownId = useId()
-  const [mode, setMode] = useState<MarkdownFilePreviewMode>('preview')
+  const [mode, setMode] = useState<MarkdownFilePreviewMode>(location ? 'source' : 'preview')
   const [loadState, setLoadState] = useState<MarkdownFileLoadState>({ status: 'loading' })
   const sourceMetadata = metadataRequest ?? metadata.size
-  const effectiveMode = type === 'artifact' ? 'preview' : mode
+  const [previousLocation, setPreviousLocation] = useState(location)
+  if (previousLocation !== location) {
+    setPreviousLocation(location)
+    setMode(location ? 'source' : 'preview')
+  }
+  const effectiveMode = type === 'artifact' ? (location ? 'source' : 'preview') : mode
 
   // Layout cleanup invalidates reads before promise callbacks can beat passive cleanup.
   // Read metadata after ancestor layout setup, including Activity reconnections.
@@ -207,6 +216,7 @@ export default function MarkdownFilePreview({
       ) : null}
       <FilePreviewLayout.Content>
         <MarkdownPreviewContent
+          location={location}
           filePath={filePath}
           hideFrontmatter={type === 'artifact'}
           loadState={loadState}

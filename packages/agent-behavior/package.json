@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsdown",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.core.json --noEmit"
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-behavior/tsconfig.json && pnpm --workspace-root exec tsrs -p packages/agent-behavior/tsconfig.core.json --noEmit"
   },
   "dependencies": {
     "@cherrystudio/agent-runtime": "workspace:*"

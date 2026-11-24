@@ -9,13 +9,13 @@ import {
   InputGroupButton,
   InputGroupInput,
   RowFlex,
-  Switch
+  Switch,
+  HelpTooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -84,7 +84,9 @@ const MarkdownExportSettings: FC = () => {
       <SettingTitle>{t('settings.data.markdown_export.title')}</SettingTitle>
       <SettingDivider />
       <SettingRow id="setting-data-markdown-export-path" className="scroll-mt-6">
-        <SettingRowTitle>{t('settings.data.markdown_export.path')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.markdown_export.path')} <HelpTooltip content={t('settings.data.markdown_export.help')} />
+        </SettingRowTitle>
         <RowFlex className="w-78.75 items-center gap-1.25">
           <InputGroup className="h-8 w-62.5">
             <InputGroupInput
@@ -110,56 +112,53 @@ const MarkdownExportSettings: FC = () => {
           </Button>
         </RowFlex>
       </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.markdown_export.help')}</SettingHelpText>
-      </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.markdown_export.force_dollar_math.title')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.markdown_export.force_dollar_math.title')}{' '}
+          <HelpTooltip content={t('settings.data.markdown_export.force_dollar_math.help')} />
+        </SettingRowTitle>
         <Switch checked={forceDollarMathInMarkdown} onCheckedChange={handleToggleForceDollarMath} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.markdown_export.force_dollar_math.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
       <SettingRow id="setting-data-markdown-export-topic-naming" className="scroll-mt-6">
-        <SettingRowTitle>{t('settings.data.message_title.use_topic_naming.title')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.message_title.use_topic_naming.title')}{' '}
+          <HelpTooltip content={t('settings.data.message_title.use_topic_naming.help')} />
+        </SettingRowTitle>
         <Switch checked={useTopicNamingForMessageTitle} onCheckedChange={handleToggleTopicNaming} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.message_title.use_topic_naming.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
       <SettingRow id="setting-data-markdown-export-model-name" className="scroll-mt-6">
-        <SettingRowTitle>{t('settings.data.markdown_export.show_model_name.title')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.markdown_export.show_model_name.title')}{' '}
+          <HelpTooltip content={t('settings.data.markdown_export.show_model_name.help')} />
+        </SettingRowTitle>
         <Switch checked={showModelNameInExport} onCheckedChange={handleToggleShowModelName} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.markdown_export.show_model_name.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
       <SettingRow id="setting-data-markdown-export-model-provider" className="scroll-mt-6">
-        <SettingRowTitle>{t('settings.data.markdown_export.show_model_provider.title')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.markdown_export.show_model_provider.title')}{' '}
+          <HelpTooltip content={t('settings.data.markdown_export.show_model_provider.help')} />
+        </SettingRowTitle>
         <Switch checked={showModelProviderInMarkdown} onCheckedChange={handleToggleShowModelProvider} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.markdown_export.show_model_provider.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.markdown_export.exclude_citations.title')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.markdown_export.exclude_citations.title')}{' '}
+          <HelpTooltip content={t('settings.data.markdown_export.exclude_citations.help')} />
+        </SettingRowTitle>
         <Switch checked={excludeCitationsInExport} onCheckedChange={handleToggleExcludeCitations} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.markdown_export.exclude_citations.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
       <SettingRow id="setting-data-markdown-export-citations" className="scroll-mt-6">
-        <SettingRowTitle>{t('settings.data.markdown_export.standardize_citations.title')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.markdown_export.standardize_citations.title')}{' '}
+          <HelpTooltip content={t('settings.data.markdown_export.standardize_citations.help')} />
+        </SettingRowTitle>
         <Switch checked={standardizeCitationsInExport} onCheckedChange={handleToggleStandardizeCitations} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.markdown_export.standardize_citations.help')}</SettingHelpText>
       </SettingRow>
     </SettingGroup>
   )

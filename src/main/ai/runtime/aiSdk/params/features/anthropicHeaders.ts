@@ -5,9 +5,12 @@
 
 import { type AiPlugin, definePlugin, type StreamTextParams, type StreamTextResult } from '@cherrystudio/ai-core'
 import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isAnthropicModel } from '@shared/utils/model'
 
 import { addAnthropicHeaders } from '../../../../utils/anthropicHeaders'
+import type { RequestFeature } from '../feature'
 
 export interface AnthropicHeadersPluginConfig {
   model: Model
@@ -37,11 +40,6 @@ const createAnthropicHeadersPlugin = ({
       }
     }
   })
-
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { isAnthropicModel } from '@shared/utils/model'
-
-import type { RequestFeature } from '../feature'
 
 export const anthropicHeadersFeature: RequestFeature = {
   name: 'anthropic-headers',

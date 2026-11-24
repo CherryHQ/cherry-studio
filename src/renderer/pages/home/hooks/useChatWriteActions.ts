@@ -1,7 +1,3 @@
-import type { ChatRequestOptions } from 'ai'
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
 /**
  * Build the `ChatWriteActions` bag passed down through context.
  *
@@ -16,6 +12,10 @@ import { useTranslation } from 'react-i18next'
  * this file exists to get the ~300 lines of handler code out of
  * `ChatContent.tsx`, not to change behaviour.
  */
+import type { ChatRequestOptions } from 'ai'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'

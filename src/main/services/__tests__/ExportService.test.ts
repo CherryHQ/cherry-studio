@@ -2,8 +2,8 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 
-import AdmZip from 'adm-zip'
 import { dialog } from 'electron'
+import JSZip from 'jszip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `t` pulls in i18n + preference machinery that isn't initialized under test; the
@@ -16,6 +16,11 @@ async function freshService() {
   vi.resetModules()
   const { ExportService } = await import('../ExportService')
   return new ExportService()
+}
+
+async function readZipEntry(file: string, name = 'word/document.xml') {
+  const zip = await JSZip.loadAsync(fs.readFileSync(file))
+  return zip.file(name)!.async('string')
 }
 
 describe('ExportService.exportToWord', () => {
@@ -118,7 +123,7 @@ describe('ExportService.exportToWord', () => {
       const service = await freshService()
       await expect(service.exportToWord('# Title\n\nBody paragraph', 'doc.docx')).resolves.toBe(true)
 
-      const documentXml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      const documentXml = await readZipEntry(tmpFile)
       expect(documentXml).toContain('Title')
       expect(documentXml).toContain('Body paragraph')
     })
@@ -128,7 +133,7 @@ describe('ExportService.exportToWord', () => {
         vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
         const service = await freshService()
         await service.exportToWord(markdown, 'doc.docx')
-        return new AdmZip(tmpFile).readAsText('word/document.xml')
+        return readZipEntry(tmpFile)
       }
 
       const countIndent = (xml: string, twips: number) => xml.split(`<w:ind w:left="${twips}"`).length - 1
@@ -243,8 +248,7 @@ describe('ExportService.exportToWord', () => {
       const service = await freshService()
       await service.exportToWord('[A **B** C](https://example.com) tail', 'doc.docx')
 
-      const zip = new AdmZip(tmpFile)
-      const documentXml = zip.readAsText('word/document.xml')
+      const documentXml = await readZipEntry(tmpFile)
       const hyperlinks = documentXml.match(/<w:hyperlink[^>]*>[\s\S]*?<\/w:hyperlink>/g) ?? []
       expect(hyperlinks).toHaveLength(1)
       const [hyperlink = ''] = hyperlinks
@@ -255,7 +259,7 @@ describe('ExportService.exportToWord', () => {
       expect(textsOf(documentXml.replace(hyperlink, ''))).toEqual([' tail'])
 
       const relId = hyperlink.match(/r:id="([^"]+)"/)?.[1]
-      const rels = zip.readAsText('word/_rels/document.xml.rels')
+      const rels = await readZipEntry(tmpFile, 'word/_rels/document.xml.rels')
       expect(rels).toMatch(new RegExp(`Id="${relId}"[^>]*Target="https://example.com"`))
     })
 
@@ -265,7 +269,7 @@ describe('ExportService.exportToWord', () => {
       const service = await freshService()
       await service.exportToWord('[empty]()', 'doc.docx')
 
-      const documentXml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      const documentXml = await readZipEntry(tmpFile)
       expect(documentXml).not.toContain('<w:hyperlink')
       expect(documentXml).not.toContain('Hyperlink')
       expect(textsOf(documentXml)).toEqual(['empty'])
@@ -279,7 +283,7 @@ describe('ExportService.exportToWord', () => {
       const service = await freshService()
       await service.exportToWord('Intro\n\n    const answer = 42\n    return answer\n', 'doc.docx')
 
-      const documentXml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      const documentXml = await readZipEntry(tmpFile)
       const runs = documentXml.match(/<w:r>[\s\S]*?<\/w:r>/g) ?? []
       const codeRuns = runs.filter((run) => /const answer = 42|return answer/.test(run))
       expect(codeRuns).toHaveLength(2)
@@ -294,7 +298,7 @@ describe('ExportService.exportToWord', () => {
       const service = await freshService()
       await service.exportToWord('- a\n  1. b\n  2. c\n- d\n\n5. e\n6. f\n', 'doc.docx')
 
-      const documentXml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      const documentXml = await readZipEntry(tmpFile)
       const paragraphs = documentXml.match(/<w:p>[\s\S]*?<\/w:p>/g) ?? []
       const items = paragraphs.map((paragraph) => {
         const texts = textsOf(paragraph)
@@ -318,7 +322,7 @@ describe('ExportService.exportToWord', () => {
       const service = await freshService()
       await service.exportToWord('```\nline1\nline2\n```\n', 'doc.docx')
 
-      const documentXml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      const documentXml = await readZipEntry(tmpFile)
       const paragraphs = documentXml.match(/<w:p>[\s\S]*?<\/w:p>/g) ?? []
       expect(paragraphs).toHaveLength(1)
       const [codeParagraph = ''] = paragraphs
@@ -333,7 +337,7 @@ describe('ExportService.exportToWord', () => {
       const service = await freshService()
       await service.exportToWord('before ![alt **text**](x.png) after', 'doc.docx')
 
-      const documentXml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      const documentXml = await readZipEntry(tmpFile)
       expect(textsOf(documentXml)).toEqual(['before ', 'alt text', ' after'])
     })
 
@@ -345,7 +349,7 @@ describe('ExportService.exportToWord', () => {
       const service = await freshService()
       await service.exportToWord('![first\nsecond  \nthird `code` ![inner](y.png) tail](x.png)', 'doc.docx')
 
-      const documentXml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      const documentXml = await readZipEntry(tmpFile)
       expect(textsOf(documentXml)).toEqual(['first second third code inner tail'])
     })
 
@@ -356,7 +360,7 @@ describe('ExportService.exportToWord', () => {
       const service = await freshService()
       await service.exportToWord('keep ~~gone~~ tail', 'doc.docx')
 
-      const documentXml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      const documentXml = await readZipEntry(tmpFile)
       const runs = documentXml.match(/<w:r>[\s\S]*?<\/w:r>/g) ?? []
       expect(runs.map((run) => textsOf(run)[0])).toEqual(['keep ', 'gone', ' tail'])
       expect(runs.map((run) => run.includes('<w:strike/>'))).toEqual([false, true, false])
@@ -370,7 +374,7 @@ describe('ExportService.exportToWord', () => {
       const service = await freshService()
       await service.exportToWord('# Head ![alt **x**](a.png) ~~gone~~ **b** tail', 'doc.docx')
 
-      const documentXml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      const documentXml = await readZipEntry(tmpFile)
       const paragraphs = documentXml.match(/<w:p>[\s\S]*?<\/w:p>/g) ?? []
       expect(paragraphs).toHaveLength(1)
       const [heading = ''] = paragraphs
@@ -389,7 +393,7 @@ describe('ExportService.exportToWord', () => {
       const service = await freshService()
       await service.exportToWord('#### Title', 'doc.docx')
 
-      const documentXml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      const documentXml = await readZipEntry(tmpFile)
       const [heading = ''] = documentXml.match(/<w:p>[\s\S]*?<\/w:p>/g) ?? []
       expect(heading).toContain('<w:pStyle w:val="Heading4"/>')
       expect(textsOf(heading)).toEqual(['Title'])
@@ -404,7 +408,7 @@ describe('ExportService.exportToWord', () => {
       const service = await freshService()
       await service.exportToWord('1. ```\n   code\n   ```\n2. two\n\n- - nested\n- top\n', 'doc.docx')
 
-      const documentXml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      const documentXml = await readZipEntry(tmpFile)
       const paragraphs = documentXml.match(/<w:p>[\s\S]*?<\/w:p>/g) ?? []
       const items = paragraphs.map((paragraph) => ({
         texts: textsOf(paragraph).filter((text) => text !== '\t'),
@@ -429,7 +433,7 @@ describe('ExportService.exportToWord', () => {
       const service = await freshService()
       await service.exportToWord(`${markdown}\n\noutside`, 'doc.docx')
 
-      const xml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      const xml = await readZipEntry(tmpFile)
       const paragraphs = xml.match(/<w:p>[\s\S]*?<\/w:p>/g) ?? []
       const code = paragraphs.find((paragraph) => textsOf(paragraph).includes('code'))
       const outside = paragraphs.find((paragraph) => textsOf(paragraph).includes('outside'))

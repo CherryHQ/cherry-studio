@@ -16,6 +16,7 @@ import {
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
+import { formatFileSize } from '@renderer/utils/file'
 import type { CacheCleanupGroup } from '@shared/types/cacheCleanup'
 import { CACHE_CLEANUP_GROUPS } from '@shared/types/cacheCleanup'
 import type { CacheCleanupGroupInspection, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
@@ -67,16 +68,6 @@ const CLEANUP_OPTIONS = [
 ] as const
 
 type Props = ClearCachePopupParams & PopupInjectedProps<void>
-
-export function formatCacheCleanupSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-
-  const units = ['B', 'KB', 'MB', 'GB'] as const
-  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  const value = bytes / 1024 ** unitIndex
-  const formatted = new Intl.NumberFormat(undefined, { maximumFractionDigits: value < 10 ? 2 : 1 }).format(value)
-  return `${formatted} ${units[unitIndex]}`
-}
 
 function mergeLegacySizes(
   mainInspection: CacheCleanupGroupInspection,
@@ -243,7 +234,7 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
     const size = state.inspection?.size
     if (!size || size.bytes === null) return t('settings.data.clear_cache.unavailable')
 
-    const formatted = formatCacheCleanupSize(size.bytes)
+    const formatted = formatFileSize(size.bytes)
     if (size.completeness === 'partial') return t('settings.data.clear_cache.total_partial', { size: formatted })
     return size.accuracy === 'estimated' ? t('settings.data.clear_cache.approximately', { size: formatted }) : formatted
   }
@@ -251,7 +242,7 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
   const renderTotal = () => {
     if (totalLoading) return t('settings.data.clear_cache.calculating')
 
-    const formatted = formatCacheCleanupSize(totalBytes)
+    const formatted = formatFileSize(totalBytes)
     if (totalHasUnknown) {
       return t('settings.data.clear_cache.total_partial', { size: formatted })
     }

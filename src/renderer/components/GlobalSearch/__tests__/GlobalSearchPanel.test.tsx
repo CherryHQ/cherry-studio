@@ -2422,7 +2422,7 @@ describe('GlobalSearchPanel', () => {
   it('keeps the confirmed composition text in the input when compositionend precedes the change event', async () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    const input = screen.getByLabelText(SEARCH_INPUT_LABEL) as HTMLInputElement
+    const input = screen.getByLabelText<HTMLInputElement>(SEARCH_INPUT_LABEL)
     fireEvent.compositionStart(input)
     fireEvent.change(input, { target: { value: 'ni' } })
 

@@ -74,6 +74,24 @@ function createSession(overrides: Partial<AgentSessionEntity & { pinned: boolean
 }
 
 describe('SessionList helpers', () => {
+  it('keeps the selected sort independent of time, agent and workspace grouping', () => {
+    const sessions = [
+      createSession({ id: 'old', orderKey: 'a0', lastActivityAt: '2026-01-01T01:00:00.000Z' }),
+      createSession({ id: 'new', orderKey: 'a1', lastActivityAt: '2026-01-01T02:00:00.000Z' })
+    ]
+    for (const mode of ['time', 'agent', 'workdir'] as const) {
+      const options = { mode, now: '2026-01-01T12:00:00.000Z' }
+      expect(
+        sortSessionsForDisplayGroups(sessions, { ...options, sort: { by: 'lastActivityAt', direction: 'desc' } }).map(
+          (s) => s.id
+        )
+      ).toEqual(['new', 'old'])
+      expect(sortSessionsForDisplayGroups(sessions, { ...options, sort: { by: 'orderKey' } }).map((s) => s.id)).toEqual(
+        ['old', 'new']
+      )
+    }
+  })
+
   it('builds normal ascending order anchors for session drops', () => {
     const payload = createResourceListItemReorderPayload({
       sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',

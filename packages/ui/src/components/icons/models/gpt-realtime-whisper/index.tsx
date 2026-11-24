@@ -9,7 +9,7 @@ const GptRealtimeWhisper = ({ variant, className, ...props }: CompoundIconProps)
 
 export const GptRealtimeWhisperIcon: CompoundIcon = /*#__PURE__*/ Object.assign(GptRealtimeWhisper, {
   Avatar: GptRealtimeWhisperAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#f77fdb'
 })
 
 export default GptRealtimeWhisperIcon

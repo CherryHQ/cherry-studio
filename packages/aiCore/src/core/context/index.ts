@@ -1,5 +1,6 @@
 export { type AISDKMessage, fromAISDK, toAISDK } from './adapter'
 export { compactModelMessages } from './compaction'
+export { isContextOverflowError } from './contextOverflow'
 export { compactHistory, type CompactionPlan, planCompaction, type PlanCompactionOptions } from './durableCompaction'
 export { ensureValidHistory } from './ensureValidHistory'
 export {

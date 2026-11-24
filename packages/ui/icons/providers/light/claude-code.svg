@@ -1,4 +1,6 @@
-<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<rect width="120" height="120" fill="#fcf3f0"/>
+<g fill="none" transform="translate(18 18) scale(0.96551724) translate(-16.0000 -17.8333)">
   <g clip-path="url(#clip0_20_611)">
     <path
       fill-rule="evenodd"
@@ -12,4 +14,5 @@
       <rect width="86" height="86" fill="white" transform="translate(16.5 16.5)" />
     </clipPath>
   </defs>
+</g>
 </svg>

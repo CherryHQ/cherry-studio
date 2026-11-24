@@ -39,7 +39,7 @@ These decisions go beyond the Spec table, and each exists because a probe failed
 - The first touch move and the drop each dispatch a synthetic `pointermove` on the activator. Pointer capture on `<body>` hides the gesture from the row, so a Radix `ContextMenu` long-press timer would otherwise open a modal menu after the finger moved or lifted, and leave `<body>` at `pointer-events: none`. Holding still past 700 ms keeps the long-press menu.
 - Window blur stops the operation through the drag manager and then calls `destroy()` on each sensor. Sensors stay attached after an outside stop, and only they know about a press that has not activated.
 
-`BlurCancelPointerSensor` stays exported for the `@dnd-kit/core` consumers. `GroupedSortableVirtualList`, the knowledge navigator, the shared `arrayMove` callers, and `useDndState` stay on `@dnd-kit/core`.
+The sensors, window-blur cancel, and long-press release now live in `DragDropRoot`, which `Sortable` and the grouped drag lists share; [Move the grouped drag lists to @dnd-kit/react](../../proposed/architecture/2026-11-19-grouped-drag-lists-on-dnd-kit-react.md) moved the remaining `@dnd-kit/core` callers and removed `BlurCancelPointerSensor` and `useDndState`.
 
 ## Alternatives considered
 
@@ -55,7 +55,7 @@ These decisions go beyond the Spec table, and each exists because a probe failed
 
 ## Consequences
 
-Touch hold-and-drag now works in every `Sortable` list. `Sortable` ships two dnd-kit generations until a later Spec removes the old one. Replacing `@hello-pangea/dnd` nets about 10 KB gzip: about 40 KB added, about 29 KB removed, measured on a standalone esbuild bundle and the published UMD file rather than the app build. `@dnd-kit/react` is pre-1.0, so upgrades need these probes rerun, and `sensor.destroy()` depends on 0.5.1 leaving sensors reusable, which a unit test guards.
+Touch hold-and-drag now works in every `Sortable` list. Replacing `@hello-pangea/dnd` nets about 10 KB gzip: about 40 KB added, about 29 KB removed, measured on a standalone esbuild bundle and the published UMD file rather than the app build. `@dnd-kit/react` is pre-1.0, so upgrades need these probes rerun, and `sensor.destroy()` depends on 0.5.1 leaving sensors reusable, which a unit test guards.
 
 Dropping after the pointer leaves every row now commits the last shown position; `@dnd-kit/core` snapped back. Row attributes (`role`, `tabindex`, `aria-*`) now arrive on a scheduler tick on the row's outer element, so tests use `findByRole`. A touch hold longer than 700 ms on a row with a context menu opens the menu while the drag is active; lifting ends the drag without a move. In a popover, Escape during a keyboard drag also closes the popover, because Radix handles it first; no reorder commits.
 

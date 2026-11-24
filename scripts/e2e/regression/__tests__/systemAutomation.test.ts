@@ -64,6 +64,7 @@ it.each(['macos', 'windows'] as const)(
     externalAppRequest.mockImplementation((_platform, request) => {
       if (request.action === 'close') desktop.windows = []
       if (request.action === 'quit') desktop.processes = []
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       return structuredClone(desktop)
     })
     automation.openExternalText(platform, paths, filePath)
