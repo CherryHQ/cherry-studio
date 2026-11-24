@@ -27,6 +27,9 @@ export type McpServerType = z.infer<typeof McpServerTypeSchema>
 export const McpServerInstallSourceSchema = z.enum(['builtin', 'manual', 'ai_assisted', 'protocol', 'unknown'])
 export type McpServerInstallSource = z.infer<typeof McpServerInstallSourceSchema>
 
+export const McpSkillPermissionSchema = z.enum(['auto', 'prompt', 'disabled'])
+export type McpSkillPermission = z.infer<typeof McpSkillPermissionSchema>
+
 // ============================================================================
 // McpServer Entity
 // ============================================================================
@@ -84,6 +87,8 @@ export const McpServerSchema = z.strictObject({
   disabledTools: z.array(z.string()).optional(),
   /** Disabled auto-approve tools */
   disabledAutoApproveTools: z.array(z.string()).optional(),
+  /** Reading permission keyed by the exact Skill URI. */
+  skillPermissions: z.record(z.string(), McpSkillPermissionSchema).optional(),
   /** Whether the server needs configuration */
   shouldConfig: z.boolean().optional(),
   /** Sort order for display */

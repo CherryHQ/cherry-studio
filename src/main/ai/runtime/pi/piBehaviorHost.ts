@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 
 import * as z from 'zod'
@@ -42,7 +43,8 @@ const answerSchema = z.object({
   annotations: z.record(z.string(), z.object({ notes: z.string().optional() })).optional()
 })
 const verdictSchema = z.object({ verdict: z.enum(['met', 'not_met', 'impossible']), reason: z.string() })
-const approvalId = (call: CallRef) => `behavior:${JSON.stringify(call)}`
+// A CallRef repeats across Durable stores, including a fresh store after an edit and resend in the same session.
+const approvalId = () => `behavior:${randomUUID()}`
 
 /** Desktop services for one root's behavior tree; no tool loop or policy decisions live here. */
 /** A child binding carries its own compaction so its summarizer's model resolves in its own runtime. */
@@ -214,7 +216,7 @@ export function createPiInteractionPorts(
     signal.throwIfAborted()
     const presentation = approval.getInteractionState().userResponse
     if (presentation === 'unavailable') return undefined
-    const id = approvalId(call)
+    const id = approvalId()
     const decision = await new Promise<DispatchDecision>((resolve) => {
       const pending = toolApprovalRegistry.register({
         approvalId: id,
