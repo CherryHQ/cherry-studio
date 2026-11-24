@@ -6,6 +6,7 @@ import { McpServer } from '@modelcontextprotocol/server'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -606,6 +607,35 @@ describe('Agent create and configure tools', () => {
 
       expect(result.isError).toBe(true)
       expect(agentService.getAgent('target')?.description).toBe('User edit')
+    })
+
+    // Catches an approved model change that writes a model the user disabled after the preview.
+    it.each([
+      [
+        'the model',
+        () => dbh.db.update(userModelTable).set({ isEnabled: false }).where(eq(userModelTable.id, OTHER_MODEL)).run()
+      ],
+      [
+        'its provider',
+        () =>
+          dbh.db
+            .update(userProviderTable)
+            .set({ isEnabled: false })
+            .where(eq(userProviderTable.providerId, 'wire'))
+            .run()
+      ]
+    ])('refuses an approved model change once %s is disabled', async (_case, disable) => {
+      seedAgent('target')
+      const approvalId = pendingApproval('mcp__assistant__update_agent', { agentId: 'target', model: OTHER_MODEL })
+      expect(previewAgentConfigChange(approvalId).ok).toBe(true)
+      const input = prepareAgentConfigApproval(approvalId, { approved: true }).executionInput!()
+      disable()
+
+      const result = await callBuiltinTool(assistantServer, 'update_agent', input)
+
+      expect(result.isError).toBe(true)
+      expect(toolText(result)).toContain('disabled')
+      expect(agentService.getAgent('target')?.model).toBe(DEFAULT_MODEL)
     })
 
     it('rejects a reviewed update if skill bindings change independently before it writes', async () => {

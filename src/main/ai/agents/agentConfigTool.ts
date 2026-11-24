@@ -881,6 +881,9 @@ export function updateAgentFromTool(
   const plan = approved ?? planAgentUpdate(agentId, input, options)
   if (plan.agentId !== agentId) throw new Error(STALE_APPROVAL_REASON)
   const { dto, summary, replaceAvatarImage, expected } = plan
+  // The approved values stay exact, but their model may have been disabled since the preview.
+  const agentType = approved && dto.model ? agentService.getAgent(agentId)?.type : undefined
+  if (agentType && dto.model) resolveModel(dto.model, agentType)
   const updated = agentService.updateAgent(agentId, dto, { replaceAvatarImage, expected })
   if (!updated) throw new Error(`Agent not found: ${agentId}`)
   return toOutput(updated, summary)
