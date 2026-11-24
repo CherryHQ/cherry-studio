@@ -289,8 +289,10 @@ describe('MiniAppPreviewService', () => {
     const record = svc.getPreviewByRuntimeId(summary.runtimeId)
     expect(record?.networkHosts).toEqual(['api.example.com'])
     expect(record?.grants).toContain('ai.chat')
-    expect(record?.grants).toContain('clipboard.read')
     expect(record?.grants).toContain('storage.set')
+    // Declared or not, the clipboard's read primitive never reaches a
+    // model-authored, never-human-reviewed package (see PREVIEW_WITHHELD_GRANTS).
+    expect(record?.grants).not.toContain('clipboard.read')
 
     // The bridge's grant lookup resolves the live preview's declared set (in
     // memory — a preview has no grant rows) instead of the DB.
@@ -303,6 +305,38 @@ describe('MiniAppPreviewService', () => {
     // Closing invalidates the identity: the runtime id stops resolving at once.
     await svc.closePreview(summary.previewId)
     expect(svc.getPreviewByRuntimeId(summary.runtimeId)).toBeUndefined()
+  })
+
+  it('withholds the clipboard read primitive and the bridge gate refuses it', async () => {
+    // A model-authored package declaring optional clipboard.read + network.fetch
+    // must not be able to read the user's clipboard in preview: the grant set
+    // drops the read primitive, so the bridge's grant gate denies the call even
+    // for a visible, focused guest.
+    const svc = new MiniAppPreviewService()
+    const declared = {
+      ...MANIFEST,
+      permissions: ['storage.*', 'network.*'],
+      optionalPermissions: ['clipboard.read'],
+      network: ['api.example.com']
+    }
+    const pkg = await writePackage((zip) => {
+      zip.file('manifest.json', JSON.stringify(declared))
+    })
+    const token = await validatePackage(pkg, 'session-clip')
+
+    const summary = await svc.openPreview({ sessionId: 'session-clip', artifactToken: token.token })
+    const record = svc.getPreviewByRuntimeId(summary.runtimeId)
+    expect(record?.grants).not.toContain('clipboard.read')
+    expect(record?.grants).toContain('network.fetch')
+
+    vi.mocked(application.getExisting).mockImplementation((name: string) =>
+      name === 'MiniAppPreviewService' ? svc : undefined
+    )
+    const { assertMethodAllowed } = await import('../../grants')
+    expect(() => assertMethodAllowed(summary.runtimeId, 'clipboard.read')).toThrowError(/clipboard\.read/)
+    expect(() => assertMethodAllowed(summary.runtimeId, 'network.fetch')).not.toThrow()
+
+    await svc.closePreview(summary.previewId)
   })
 
   it('drops the preview-owned storage and file state on close', async () => {
