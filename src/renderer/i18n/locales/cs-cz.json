@@ -904,6 +904,8 @@
   "chat.input.slash_commands.commands.team_onboarding": "Podle vašeho používání připravit průvodce, který pomůže členům týmu s Claude Code",
   "chat.input.slash_commands.commands.usage": "Zobrazit náklady relace, limity využití tarifu a statistiky aktivity",
   "chat.input.slash_commands.title": "Lomítková příkazy",
+  "chat.input.subscription_notice.message": "Máte předplatné Cherry AI. Pokračujte s modelem z předplatného.",
+  "chat.input.subscription_notice.switch": "Použít model z předplatného",
   "chat.input.toolbar.customize": "Přizpůsobit panel nástrojů",
   "chat.input.toolbar.drag.cancelled": "Změna pořadí pro {{name}} byla zrušena.",
   "chat.input.toolbar.drag.dropped": "{{name}} byl(a) umístěn(a).",

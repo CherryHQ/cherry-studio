@@ -904,6 +904,8 @@
   "chat.input.slash_commands.commands.team_onboarding": "Βοήθεια στα μέλη της ομάδας για εξοικείωση με το Claude Code μέσω ενός οδηγού βασισμένου στη χρήση σας",
   "chat.input.slash_commands.commands.usage": "Εμφάνιση κόστους συνεδρίας, ορίων χρήσης πλάνου και στατιστικών δραστηριότητας",
   "chat.input.slash_commands.title": "Εντολές Κάθετης Γραμμής",
+  "chat.input.subscription_notice.message": "Έχετε συνδρομή στο Cherry AI. Αλλάξτε σε μοντέλο της συνδρομής για να συνεχίσετε.",
+  "chat.input.subscription_notice.switch": "Χρήση μοντέλου συνδρομής",
   "chat.input.toolbar.customize": "Προσαρμογή γραμμής εργαλείων",
   "chat.input.toolbar.drag.cancelled": "Η αναδιάταξη ακυρώθηκε για {{name}}.",
   "chat.input.toolbar.drag.dropped": "{{name}} αποσύνδεθηκε.",

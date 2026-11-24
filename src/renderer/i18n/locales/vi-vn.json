@@ -904,6 +904,8 @@
   "chat.input.slash_commands.commands.team_onboarding": "Giúp đồng đội làm quen với Claude Code bằng hướng dẫn dựa trên cách sử dụng của bạn",
   "chat.input.slash_commands.commands.usage": "Hiển thị chi phí phiên, giới hạn sử dụng gói và thống kê hoạt động",
   "chat.input.slash_commands.title": "Lệnh gạch chéo",
+  "chat.input.subscription_notice.message": "Bạn đã đăng ký Cherry AI. Hãy chuyển sang mô hình trong gói đăng ký để tiếp tục.",
+  "chat.input.subscription_notice.switch": "Dùng mô hình trong gói đăng ký",
   "chat.input.toolbar.customize": "Tùy chỉnh thanh công cụ",
   "chat.input.toolbar.drag.cancelled": "Đã hủy sắp xếp lại cho {{name}}.",
   "chat.input.toolbar.drag.dropped": "{{name}} đã rơi.",

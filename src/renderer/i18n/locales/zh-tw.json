@@ -904,6 +904,8 @@
   "chat.input.slash_commands.commands.team_onboarding": "根據你的使用情況產生指南，協助團隊成員上手 Claude Code",
   "chat.input.slash_commands.commands.usage": "顯示工作階段成本、方案用量上限與活動統計",
   "chat.input.slash_commands.title": "斜線指令",
+  "chat.input.subscription_notice.message": "你已訂閱 CherryAI，可改用訂閱模型繼續",
+  "chat.input.subscription_notice.switch": "改用訂閱模型",
   "chat.input.toolbar.customize": "自訂工具列",
   "chat.input.toolbar.drag.cancelled": "已取消對 {{name}} 的重新排序。",
   "chat.input.toolbar.drag.dropped": "已放下 {{name}}。",

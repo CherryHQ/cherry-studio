@@ -582,6 +582,10 @@ vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
   useCherryCloudQuotaExhaustion: () => mocks.quotaExhaustion
 }))
 
+vi.mock('@renderer/hooks/cherryCloud/useHasCurrentPaidPlan', () => ({
+  useHasCurrentPaidPlan: (enabled: boolean) => enabled
+}))
+
 vi.mock('@renderer/hooks/command', () => ({
   useCommandRuntime: () => ({ execute: vi.fn() }),
   useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
@@ -919,6 +923,19 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
     render(<>{mocks.surfaceProps?.queueContent}</>)
     expect(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' })).toBeInTheDocument()
+  })
+
+  it('switches the conversation to the subscription model picked from the provider-failure notice', async () => {
+    const cloudModel = { ...modelB, id: 'cherryai-subscription::cloud' as const, providerId: 'cherryai-subscription' }
+    mocks.selectedModel = cloudModel
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} suggestSubscriptionModel />)
+    render(<>{mocks.surfaceProps?.queueContent}</>)
+    const notice = screen.getByRole('status')
+    fireEvent.click(within(notice).getByRole('button', { name: 'chat.input.subscription_notice.switch' }))
+    fireEvent.click(await within(notice).findByText('select model 2'))
+
+    expect(mocks.setModel).toHaveBeenCalledWith(cloudModel, {})
   })
   it('appends a screenshot and its message to the draft without sending', async () => {
     const onSend = vi.fn()

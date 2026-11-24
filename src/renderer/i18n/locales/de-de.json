@@ -904,6 +904,8 @@
   "chat.input.slash_commands.commands.team_onboarding": "Teammitgliedern mit einer Anleitung auf Basis deiner Nutzung beim Einstieg in Claude Code helfen",
   "chat.input.slash_commands.commands.usage": "Sitzungskosten, Plannutzungslimits und Aktivitätsstatistiken anzeigen",
   "chat.input.slash_commands.title": "Schrägstrich-Befehle",
+  "chat.input.subscription_notice.message": "Du hast Cherry AI abonniert. Wechsle zu einem Abo-Modell, um weiterzumachen.",
+  "chat.input.subscription_notice.switch": "Abo-Modell verwenden",
   "chat.input.toolbar.customize": "Symbolleiste anpassen",
   "chat.input.toolbar.drag.cancelled": "Die Neuanordnung für {{name}} wurde abgebrochen.",
   "chat.input.toolbar.drag.dropped": "{{name}} wurde fallen gelassen.",

@@ -904,6 +904,8 @@
   "chat.input.slash_commands.commands.team_onboarding": "Помочь участникам команды освоить Claude Code с помощью руководства на основе вашего опыта использования",
   "chat.input.slash_commands.commands.usage": "Показывать стоимость сеанса, лимиты использования плана и статистику активности",
   "chat.input.slash_commands.title": "Слэш-команды",
+  "chat.input.subscription_notice.message": "У вас есть подписка Cherry AI. Переключитесь на модель из подписки, чтобы продолжить.",
+  "chat.input.subscription_notice.switch": "Использовать модель из подписки",
   "chat.input.toolbar.customize": "Настроить панель инструментов",
   "chat.input.toolbar.drag.cancelled": "Отменена перестановка для {{name}}.",
   "chat.input.toolbar.drag.dropped": "{{name}} отключён.",

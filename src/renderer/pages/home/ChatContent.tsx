@@ -8,6 +8,7 @@ import { RefreshProvider } from '@renderer/components/chat/messages/blocks/Messa
 import type { MessageListActions, MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import { shouldSuggestSubscriptionModel } from '@renderer/components/composer/subscriptionModelSuggestion'
 import type {
   ChatComposerResolvedContext,
   ChatContextUsageSource,
@@ -200,6 +201,10 @@ const ChatContentInner: FC<InnerProps> = ({
     }
     return { contextTokens, modelId }
   }, [activeNodeId, isHistoryStale, uiMessages])
+  const suggestSubscriptionModel = useMemo(
+    () => !isHistoryStale && shouldSuggestSubscriptionModel(runtime.messages, runtime.partsByMessageId),
+    [isHistoryStale, runtime.messages, runtime.partsByMessageId]
+  )
 
   useEffect(() => {
     if (!locateMessageId && !locateToEnd) {
@@ -275,6 +280,7 @@ const ChatContentInner: FC<InnerProps> = ({
       assistantContext={assistantContext}
       providers={providers}
       onConversationControlsChange={handleConversationControlsChange}
+      suggestSubscriptionModel={suggestSubscriptionModel}
     />
   ) : (
     <ChatComposerSlot
@@ -290,6 +296,7 @@ const ChatContentInner: FC<InnerProps> = ({
       assistantContext={assistantContext}
       providers={providers}
       onConversationControlsChange={handleConversationControlsChange}
+      suggestSubscriptionModel={suggestSubscriptionModel}
     />
   )
   const placement = runtime.shouldRenderHomeComposer ? 'home' : 'docked'

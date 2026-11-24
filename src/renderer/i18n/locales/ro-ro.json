@@ -904,6 +904,8 @@
   "chat.input.slash_commands.commands.team_onboarding": "Ajută colegii de echipă să se familiarizeze cu Claude Code folosind un ghid bazat pe utilizarea ta",
   "chat.input.slash_commands.commands.usage": "Afișează costul sesiunii, limitele de utilizare ale planului și statisticile activității",
   "chat.input.slash_commands.title": "Comenzi slash",
+  "chat.input.subscription_notice.message": "Ai abonament Cherry AI. Treci la un model din abonament pentru a continua.",
+  "chat.input.subscription_notice.switch": "Folosește un model din abonament",
   "chat.input.toolbar.customize": "Personalizați bara de instrumente",
   "chat.input.toolbar.drag.cancelled": "Reordonarea a fost anulată pentru {{name}}.",
   "chat.input.toolbar.drag.dropped": "{{name}} a căzut.",

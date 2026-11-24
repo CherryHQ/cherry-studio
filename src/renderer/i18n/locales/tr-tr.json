@@ -904,6 +904,8 @@
   "chat.input.slash_commands.commands.team_onboarding": "Kullanımına dayalı bir rehberle ekip arkadaşlarının Claude Code kullanmaya başlamasına yardımcı ol",
   "chat.input.slash_commands.commands.usage": "Oturum maliyetini, plan kullanım sınırlarını ve etkinlik istatistiklerini göster",
   "chat.input.slash_commands.title": "Eğik Çizgi Komutları",
+  "chat.input.subscription_notice.message": "Cherry AI aboneliğiniz var. Devam etmek için bir abonelik modeline geçin.",
+  "chat.input.subscription_notice.switch": "Abonelik modelini kullan",
   "chat.input.toolbar.customize": "Araç çubuğunu özelleştir",
   "chat.input.toolbar.drag.cancelled": "{{name}} için yeniden sıralama iptal edildi.",
   "chat.input.toolbar.drag.dropped": "{{name}} bırakıldı.",

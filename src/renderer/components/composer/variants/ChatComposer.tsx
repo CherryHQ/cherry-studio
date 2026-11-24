@@ -73,12 +73,13 @@ import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { imageExts } from '@shared/utils/file'
-import { isGPT5SeriesReasoningModel, isVisionModel } from '@shared/utils/model'
+import { isGPT5SeriesReasoningModel, isNonChatModel, isVisionModel } from '@shared/utils/model'
 
 import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
+import { SubscriptionModelNotice } from '../SubscriptionModelNotice'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
@@ -128,6 +129,7 @@ const CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
 const CHAT_NEW_CONVERSATION_TOOL_ID = 'composer:new-conversation'
 const CHAT_CLEAR_CONTEXT_TOOL_ID = 'composer:clear-context'
 const EMPTY_MODELS: Model[] = []
+const isChatModel = (model: Model) => !isNonChatModel(model)
 const openChatMcpStatusPanel = ({
   unifiedPanelControl
 }: {
@@ -187,6 +189,8 @@ export interface ChatComposerProps {
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   previewInputFile?: ComposerInputFilePreviewAction
+  /** The latest reply failed at another provider in a way a subscription model can get past. */
+  suggestSubscriptionModel?: boolean
 }
 
 interface SavedComposerDraft {
@@ -279,6 +283,7 @@ const ChatComposerRoot = ({
   onNewTopic,
   onCreateEmptyTopic,
   previewInputFile,
+  suggestSubscriptionModel,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
@@ -339,6 +344,7 @@ const ChatComposerRoot = ({
             onNewTopic={onNewTopic}
             onCreateEmptyTopic={onCreateEmptyTopic}
             previewInputFile={previewInputFile}
+            suggestSubscriptionModel={suggestSubscriptionModel}
             renderControls={renderControls}
             forceNarrowLayout={forceNarrowLayout}
             deferQuickPanel={deferQuickPanel}
@@ -380,6 +386,7 @@ const ChatComposerInner = ({
   onNewTopic,
   onCreateEmptyTopic,
   previewInputFile,
+  suggestSubscriptionModel = false,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
@@ -742,6 +749,15 @@ const ChatComposerInner = ({
       selectMentionedModels(nextModels)
     },
     [exitInputHistoryPreviewForModelChange, selectMentionedModels]
+  )
+  // Go through the composer's own picker path so the visible model selection follows the switch.
+  const selectSubscriptionModel = useCallback(
+    (nextModel: Model | undefined) => {
+      if (!nextModel) return
+      if (useMentionedModelSelector) handleMentionedModelsSelect([nextModel])
+      else void handleModelSelect(nextModel)
+    },
+    [handleMentionedModelsSelect, handleModelSelect, useMentionedModelSelector]
   )
   const handleMentionedModelMultiSelectModeChange = useCallback(
     (enabled: boolean) => {
@@ -1955,9 +1971,15 @@ const ChatComposerInner = ({
           }
           onPause={onPause}
           queueContent={
-            quotaExhaustion ? (
+            quotaExhaustion || suggestSubscriptionModel ? (
               <>
-                <CherryCloudQuotaNotice exhaustion={quotaExhaustion} />
+                {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
+                <SubscriptionModelNotice
+                  providerFailed={suggestSubscriptionModel}
+                  currentModel={effectiveSubmittedModel}
+                  filter={isChatModel}
+                  onSelect={selectSubscriptionModel}
+                />
                 {followupsDock}
               </>
             ) : (

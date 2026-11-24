@@ -904,6 +904,8 @@
   "chat.input.slash_commands.commands.team_onboarding": "ช่วยให้เพื่อนร่วมทีมเริ่มใช้งาน Claude Code ด้วยคู่มือจากการใช้งานของคุณ",
   "chat.input.slash_commands.commands.usage": "แสดงค่าใช้จ่ายเซสชัน ขีดจำกัดแผน และสถิติกิจกรรม",
   "chat.input.slash_commands.title": "คำสั่ง Slash",
+  "chat.input.subscription_notice.message": "คุณสมัครสมาชิก Cherry AI แล้ว เปลี่ยนไปใช้โมเดลจากการสมัครสมาชิกเพื่อดำเนินการต่อ",
+  "chat.input.subscription_notice.switch": "ใช้โมเดลจากการสมัครสมาชิก",
   "chat.input.toolbar.customize": "ปรับแต่งแถบเครื่องมือ",
   "chat.input.toolbar.drag.cancelled": "ยกเลิกการเรียงลำดับใหม่สำหรับ {{name}}",
   "chat.input.toolbar.drag.dropped": "วาง {{name}} แล้ว",

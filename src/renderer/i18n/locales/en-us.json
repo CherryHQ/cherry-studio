@@ -904,6 +904,8 @@
   "chat.input.slash_commands.commands.team_onboarding": "Help teammates ramp on Claude Code with a guide from your usage",
   "chat.input.slash_commands.commands.usage": "Show session cost, plan usage limits, and activity stats",
   "chat.input.slash_commands.title": "Slash Commands",
+  "chat.input.subscription_notice.message": "You're subscribed to Cherry AI. Switch to a subscription model to keep going.",
+  "chat.input.subscription_notice.switch": "Use a subscription model",
   "chat.input.toolbar.customize": "Customize toolbar",
   "chat.input.toolbar.drag.cancelled": "Reordering cancelled for {{name}}.",
   "chat.input.toolbar.drag.dropped": "{{name}} dropped.",

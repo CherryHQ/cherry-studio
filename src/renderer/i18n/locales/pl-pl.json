@@ -918,6 +918,8 @@
   "chat.input.slash_commands.commands.team_onboarding": "Pomóż członkom zespołu wdrożyć się w Claude Code dzięki przewodnikowi opartemu na Twojej pracy",
   "chat.input.slash_commands.commands.usage": "Pokaż koszt sesji, limity planu i statystyki aktywności",
   "chat.input.slash_commands.title": "Polecenia ukośnika (Slash commands)",
+  "chat.input.subscription_notice.message": "Masz subskrypcję Cherry AI. Przełącz się na model z subskrypcji, aby kontynuować.",
+  "chat.input.subscription_notice.switch": "Użyj modelu z subskrypcji",
   "chat.input.toolbar.customize": "Dostosuj pasek narzędzi",
   "chat.input.toolbar.drag.cancelled": "Zmiana kolejności anulowana dla {{name}}.",
   "chat.input.toolbar.drag.dropped": "Upuszczono {{name}}.",

@@ -150,7 +150,8 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     sendDisabled,
     onDraftAssistantChange,
     contextUsage,
-    chatTarget
+    chatTarget,
+    suggestSubscriptionModel
   }: {
     placement: 'home' | 'docked'
     onSend: (
@@ -161,6 +162,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
     contextUsage?: { contextTokens: number; modelId: string } | null
     chatTarget?: ComposerChatTarget
+    suggestSubscriptionModel?: boolean
   }) => {
     capturedOnSend = onSend
     if (placement === 'home') {
@@ -173,6 +175,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
             home composer
           </button>
           {contextUsage ? <span role="meter" aria-label="context usage" /> : null}
+          {suggestSubscriptionModel ? <span role="status" aria-label="subscription suggestion" /> : null}
         </>
       )
     }
@@ -192,6 +195,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
           send
         </button>
         {contextUsage ? <span role="meter" aria-label="context usage" /> : null}
+        {suggestSubscriptionModel ? <span role="status" aria-label="subscription suggestion" /> : null}
       </>
     )
   }
@@ -405,6 +409,36 @@ describe('ChatContent', () => {
     view.rerender(<ChatContent topic={topic} />)
 
     expect(screen.queryByRole('meter', { name: 'context usage' })).not.toBeInTheDocument()
+  })
+
+  it('suggests a subscription model to the composer while the latest reply failed at its provider', () => {
+    const failedReply = {
+      ...createUiMessage('history-assistant', 'assistant'),
+      parts: [{ type: 'data-error', data: { message: 'Invalid API key', statusCode: 401 } }],
+      metadata: { createdAt: '2026-01-01T00:00:01.000Z', modelId: 'openai::gpt-4o', status: 'error' }
+    } as CherryUIMessage
+    const topicMessagesResult = {
+      uiMessages: [createUiMessage('history-user', 'user'), failedReply],
+      siblingsMap: {},
+      isLoading: false,
+      isStale: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: failedReply.id,
+      rootId: 'root-1',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }
+    mockUseTopicMessages.mockReturnValue(topicMessagesResult)
+
+    const view = render(<ChatContent topic={topic} />)
+
+    expect(screen.getByRole('status', { name: 'subscription suggestion' })).toBeInTheDocument()
+
+    mockUseTopicMessages.mockReturnValue({ ...topicMessagesResult, isLoading: true, isStale: true })
+    view.rerender(<ChatContent topic={topic} />)
+
+    expect(screen.queryByRole('status', { name: 'subscription suggestion' })).not.toBeInTheDocument()
   })
 
   it('submits against the captured empty branch without patching it first and hides its empty bubble', async () => {

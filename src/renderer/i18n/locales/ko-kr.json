@@ -904,6 +904,8 @@
   "chat.input.slash_commands.commands.team_onboarding": "내 사용 경험을 바탕으로 팀원의 Claude Code 적응을 돕는 가이드 작성",
   "chat.input.slash_commands.commands.usage": "세션 비용, 요금제 사용 한도 및 활동 통계 표시",
   "chat.input.slash_commands.title": "슬래시 명령",
+  "chat.input.subscription_notice.message": "Cherry AI를 구독 중입니다. 구독 모델로 전환해 계속하세요.",
+  "chat.input.subscription_notice.switch": "구독 모델 사용",
   "chat.input.toolbar.customize": "도구 모음 사용자 지정",
   "chat.input.toolbar.drag.cancelled": "{{name}} 순서 변경이 취소되었습니다.",
   "chat.input.toolbar.drag.dropped": "{{name}}을(를) 놓았습니다.",

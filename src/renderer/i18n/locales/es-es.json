@@ -904,6 +904,8 @@
   "chat.input.slash_commands.commands.team_onboarding": "Ayudar a tus compañeros a familiarizarse con Claude Code con una guía basada en tu uso",
   "chat.input.slash_commands.commands.usage": "Mostrar costo de sesión, límites de uso del plan y estadísticas de actividad",
   "chat.input.slash_commands.title": "Comandos de barra",
+  "chat.input.subscription_notice.message": "Tienes una suscripción a Cherry AI. Cambia a un modelo de la suscripción para continuar.",
+  "chat.input.subscription_notice.switch": "Usar un modelo de la suscripción",
   "chat.input.toolbar.customize": "Personalizar barra de herramientas",
   "chat.input.toolbar.drag.cancelled": "Reorden cancelado para {{name}}.",
   "chat.input.toolbar.drag.dropped": "{{name}} se ha caído.",
