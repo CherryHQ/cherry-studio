@@ -18,7 +18,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
-import type { ConversationRef } from '../types'
+import type { AppProviderSettingsMap, ConversationRef } from '../types'
 import { resolveContextWindow } from './resolveContextWindow'
 
 const logger = loggerService.withContext('resolveCompressionModel')
@@ -62,7 +62,7 @@ export async function resolveCompressionModel(
     logger.warn('compression provider/model lookup failed', {
       providerId,
       modelId,
-      error: (error as Error).message
+      error
     })
 
     return null
@@ -71,11 +71,7 @@ export async function resolveCompressionModel(
   try {
     const { sdkConfig } = await resolveSdkConfig(provider, model, resolveEffectiveEndpoint(provider, model))
 
-    // App provider extensions are registered beyond the executor's built-in type union.
-    const executor = await createExecutor(
-      sdkConfig.providerId as Parameters<typeof createExecutor>[0],
-      sdkConfig.providerSettings as Parameters<typeof createExecutor>[1]
-    )
+    const executor = await createExecutor<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings)
 
     const languageModel = await executor.languageModel(sdkConfig.modelId)
 
@@ -94,7 +90,7 @@ export async function resolveCompressionModel(
     logger.warn('compression model resolution failed', {
       providerId,
       modelId,
-      error: (error as Error).message
+      error
     })
 
     return null

@@ -38,6 +38,19 @@ describe('resolveCompressionModel', () => {
     expect(await resolveCompressionModel('not-a-unique-id', CONVERSATION)).toBeNull()
   })
 
+  it.each([null, undefined, 'provider unavailable'])(
+    'keeps compression disabled after an arbitrary failure: %s',
+    async (error) => {
+      providerLookup.mockImplementationOnce(() => {
+        throw error
+      })
+      await expect(resolveCompressionModel('opencode::small', CONVERSATION)).resolves.toBeNull()
+
+      providerConfig.mockRejectedValueOnce(error)
+      await expect(resolveCompressionModel('opencode::small', CONVERSATION)).resolves.toBeNull()
+    }
+  )
+
   it('returns null when provider/model lookup throws', async () => {
     providerLookup.mockImplementationOnce(() => {
       throw new Error('no such provider')
