@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { pathExists } from '@main/utils/legacyFile'
 import { findSkillMdPath } from '@main/utils/markdownParser'
@@ -132,7 +133,7 @@ export class SkillInstaller {
     try {
       backupStats = await fs.promises.lstat(backupPath)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      if (getErrorCode(error) === 'ENOENT') return
       throw error
     }
 
@@ -157,7 +158,7 @@ export class SkillInstaller {
     try {
       entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      if (getErrorCode(error) === 'ENOENT') return
       throw error
     }
 
@@ -186,9 +187,7 @@ export class SkillInstaller {
       await deleteDirectoryRecursive(skillPath)
       logger.info('Skill folder deleted', { skillPath })
     } catch (error) {
-      const nodeError = error as NodeJS.ErrnoException
-
-      if (nodeError.code !== 'ENOENT') {
+      if (getErrorCode(error) !== 'ENOENT') {
         throw error
       }
 
@@ -277,7 +276,7 @@ export class SkillInstaller {
         throw new Error(`Committed skill cleanup marker is not a directory: ${cleanupPath}`)
       }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      if (getErrorCode(error) === 'ENOENT') return
       throw error
     }
 
@@ -288,7 +287,7 @@ export class SkillInstaller {
     try {
       await deleteDirectoryRecursive(destPath)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      if (getErrorCode(error) !== 'ENOENT') throw error
     }
 
     if (!hasBackup) return
