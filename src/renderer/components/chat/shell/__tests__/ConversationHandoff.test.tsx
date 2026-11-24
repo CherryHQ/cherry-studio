@@ -20,7 +20,7 @@ describe('ConversationHandoff', () => {
     const models = [
       { id: 'provider::a', name: 'Model A' },
       { id: 'provider::b', name: 'Model B' }
-    ] as Model[]
+    ] as unknown as Model[]
     render(<ConversationHandoff sessionId="multi-model" hasMessages modelCandidates={models} />)
     expect(screen.getByText('handoff.create')).toBeEnabled()
     fireEvent.click(screen.getByText('handoff.create'))
