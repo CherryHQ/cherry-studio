@@ -2,6 +2,8 @@ import { realpathSync } from 'node:fs'
 import path from 'node:path'
 import { parentPort, workerData } from 'node:worker_threads'
 
+import { getErrorCode } from '@main/utils/error'
+
 export interface RelocationWorkerInput {
   oldCwd: string
   newCwd: string
@@ -44,7 +46,7 @@ async function run(input: RelocationWorkerInput) {
     } catch (error) {
       const parent = path.dirname(newCwd)
 
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || parent === newCwd) throw error
+      if (getErrorCode(error) !== 'ENOENT' || parent === newCwd) throw error
       newCwd = parent
     }
   }
@@ -54,6 +56,7 @@ async function run(input: RelocationWorkerInput) {
   return { oldKey, newKey }
 }
 
+// SAFETY: workspaceRelocation.ts is the sole worker creator and supplies the shared RelocationWorkerInput payload.
 void run(workerData as RelocationWorkerInput).then(
   (result) => parentPort?.postMessage({ result }),
   (error) => parentPort?.postMessage({ error: error instanceof Error ? error.message : String(error) })

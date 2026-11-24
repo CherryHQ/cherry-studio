@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { ensureAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { t } from '@main/i18n'
+import { getErrorCode } from '@main/utils/error'
 import { getPathStatus, type PathStatus } from '@main/utils/file'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
@@ -70,7 +71,7 @@ async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
     logger.warn(`Failed to validate or create system workspace directory: ${cwd}`, { error })
     throw new AgentSessionWorkspaceError(
       workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }),
-      isRetryableWorkspaceErrorCode((error as NodeJS.ErrnoException)?.code)
+      isRetryableWorkspaceErrorCode(getErrorCode(error))
     )
   }
 }

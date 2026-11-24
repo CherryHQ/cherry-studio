@@ -1,6 +1,7 @@
-import { open } from 'node:fs/promises'
+import { type FileHandle, open } from 'node:fs/promises'
 import path from 'node:path'
 
+import { getErrorCode } from '@main/utils/error'
 import { ensureDir, isPathInside, lstat, mkdir, realpath, removeDir } from '@main/utils/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -14,7 +15,7 @@ async function lstatIfExists(targetPath: string) {
   try {
     return await lstat(asAbsolutePath(targetPath))
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    if (getErrorCode(error) === 'ENOENT') return undefined
     throw error
   }
 }
@@ -140,18 +141,23 @@ async function ensureEmptyFile(filePath: string): Promise<void> {
     return
   }
 
+  let handle: FileHandle
+
   try {
-    const handle = await open(filePath, 'wx', 0o600)
-    await handle.close()
+    handle = await open(filePath, 'wx', 0o600)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+    if (getErrorCode(error) !== 'EEXIST') throw error
 
     const racedFile = await lstatIfExists(filePath)
 
     if (!racedFile?.isFile || racedFile.isSymbolicLink) {
       throw new Error(`Agent data file must be a real file: ${filePath}`)
     }
+
+    return
   }
+
+  await handle.close()
 }
 
 export async function ensureAgentDataDirectory(

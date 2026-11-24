@@ -3,6 +3,8 @@ import { createReadStream } from 'node:fs'
 import { lstat, readdir } from 'node:fs/promises'
 import path from 'node:path'
 
+import { getErrorCode } from '@main/utils/error'
+
 import { assertAgentStoragePath } from './agentDataDirectory'
 
 export async function relocationArtifactExists(file: string): Promise<boolean> {
@@ -11,7 +13,7 @@ export async function relocationArtifactExists(file: string): Promise<boolean> {
 
     return true
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+    if (getErrorCode(error) === 'ENOENT') return false
     throw error
   }
 }
