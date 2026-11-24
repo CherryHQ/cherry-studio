@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-仅扩展展示层映射：token `word` 增加 `odt/rtf`，`excel` 增加 `ods/tsv`，`powerpoint` 增加 `odp`，`document` 增加 `epub`；图标表增加 `markdown/jsonl/text/epub/avif/heic/heif/tgz`；artifact 标签增加 `mdx/epub`；格式标签增加 `odt/ods/csv/tsv/odp/rtf/epub/markdown/mdx/text`。保持 `documentExts`/`imageExts` 不变，使 `officeparser`、图片预览与上传能力仍限定在已验证格式（传统 `.ppt` 不进入 `documentExts`；`avif/heic/heif` 不进入 `imageExts`，仅显示图标）。
+仅扩展展示层映射：token `word` 增加 `odt/rtf`，`excel` 增加 `ods/tsv`，`powerpoint` 增加 `odp`，`document` 增加 `epub`；图标表增加 `markdown/jsonl/text/epub/avif/heic/heif/tgz`；artifact 标签增加 `mdx/epub`；格式标签增加 `odt/ods/csv/tsv/odp/rtf/epub/markdown/mdx/text`。文件库列表/网格通过 `getFileIconPath(name, format)` 渲染共享 `FileIcon`，不再使用通用 `typeIcons[file.type]`，保留中性 `typeIconColors`/`typeBgColors`。保持 `documentExts`/`imageExts` 不变，使 `officeparser`、图片预览与上传能力仍限定在已验证格式（传统 `.ppt` 不进入 `documentExts`；`avif/heic/heif` 不进入 `imageExts`，仅显示图标）。
 
 ## Alternatives considered
 
@@ -20,11 +20,12 @@ Status: implemented
 
 ## Consequences
 
-Composer token、消息附件、artifact 卡片与文件库共享同一 office 家族映射。未知文件保持通用 `document` 图标与 `fallback/FILE` 变体，与 `text` 变体区分。`documentExts`/`imageExts` 仍是处理层来源；展示层可以更丰富。
+Composer token、消息附件、artifact 卡片与文件库列表/网格图标及标签共享同一 office 家族映射。未知文件保持通用 `document` 图标与 `fallback/FILE` 变体，与 `text` 变体区分。`documentExts`/`imageExts` 仍是处理层来源；展示层可以更丰富。
 
 ## Verification
 
 - Regression — `src/renderer/utils/__tests__/fileIconName.test.ts`：office 家族及 `epub/markdown/jsonl/text/avif/heic/heif/tgz` 映射到已存在的图标。
 - Regression — `src/renderer/components/composer/tokenView/__tests__/fileTokenPresentation.test.tsx`：office/epub 变体统一，压缩包/未知保持 fallback。
-- Regression — `src/renderer/components/composer/__tests__/ComposerToken.test.tsx`、`FileList.test.tsx`、`MainTextBlock.test.tsx`、`fileExtensions.test.ts`、`fileType.test.ts`：聚焦运行 69 项通过。
+- Regression — `src/renderer/pages/files/__tests__/fileDisplay.test.ts`：`getFileIconPath` 与共享映射覆盖 office/epub，压缩包使用 `zip`，未知使用通用 `document`。
+- Regression — `src/renderer/components/composer/__tests__/ComposerToken.test.tsx`、`FileList.test.tsx`、`FileGrid.test.tsx`、`MainTextBlock.test.tsx`、`fileExtensions.test.ts`、`fileType.test.ts`：聚焦运行通过。
 - `pnpm exec tsc --noEmit -p tsconfig.web.json --composite false` 通过。

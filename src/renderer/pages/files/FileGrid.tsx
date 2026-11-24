@@ -4,10 +4,11 @@ import { memo, type RefObject, useCallback, useEffect, useMemo, useState } from 
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 
 import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
-import { getFormatLabel, typeBgColors, typeIconColors, typeIcons } from './fileDisplay'
+import { getFileIconPath, getFormatLabel, typeBgColors, typeIconColors } from './fileDisplay'
 import { InlineRename } from './InlineRename'
 
 const GRID_GAP_PX = 12
@@ -104,7 +105,7 @@ export const FileGrid = memo(function FileGrid({
               transform: `translateY(${virtualRow.start}px)`
             }}>
             {row.map((file) => {
-              const Icon = typeIcons[file.type]
+              const iconPath = getFileIconPath(file)
               const isRenaming = renamingId === file.id
               const isImage = file.type === 'image'
               const previewUrl = isImage && !file.isMissing ? file.previewUrl : undefined
@@ -127,7 +128,7 @@ export const FileGrid = memo(function FileGrid({
                           className="h-full w-full object-contain"
                         />
                       ) : (
-                        <Icon size={24} strokeWidth={1.2} className={typeIconColors[file.type]} />
+                        <FileIcon path={iconPath} width={24} height={24} className={typeIconColors[file.type]} />
                       )}
                       {!isImage && (
                         <span className="absolute top-1.5 left-1.5 rounded bg-background/70 px-1.5 py-px text-xs font-medium tracking-wide text-muted-foreground backdrop-blur-sm">
