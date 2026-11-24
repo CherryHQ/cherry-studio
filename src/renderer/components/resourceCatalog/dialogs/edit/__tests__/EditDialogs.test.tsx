@@ -2790,6 +2790,12 @@ describe('Agent configuration memory', () => {
   beforeEach(() => {
     ipcRequestMock.mockImplementation(async (route: string, input: { key?: string; content?: string }) => {
       if (route === 'agent.memory.read') return { directory: '/agents/agent-1', files }
+      if (route === 'memory.private.list') return { status: 'complete', files: ['MEMORY.md', '.memories/topic.md'] }
+      if (route === 'memory.private.read')
+        return {
+          content: (input as { path: string }).path === 'MEMORY.md' ? 'Private entry body' : 'Private topic body',
+          truncated: false
+        }
       if (route === 'agent.memory.write')
         return { ...files.find((file) => file.key === input.key), content: input.content, version: 'v2' }
       return undefined
@@ -2820,9 +2826,13 @@ describe('Agent configuration memory', () => {
       expectedVersion: 'v1'
     })
     expect(updateAgentMock).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('tab', { name: 'Event log' }))
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
-    expect(screen.getByText('{"event":"remembered"}')).toBeVisible()
+    expect(screen.queryByRole('tab', { name: 'Event log' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Durable knowledge' })).toBeNull()
+    await user.click(screen.getByRole('tab', { name: 'Private memory' }))
+    expect(await screen.findByText('Private entry body')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: '.memories/topic.md' }))
+    expect(await screen.findByText('Private topic body')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
   })
 
   it('keeps copy and folder actions available through the memory menu', async () => {

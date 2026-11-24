@@ -207,7 +207,7 @@ Evidence-bound correction records allow automatic extraction, native projected e
 
 Private migration backs up FACT and preserves its content, conditions and references before enabling the Agent's private `MEMORY.md` and topics. Unsafe splitting, ambiguous links or partial results leave the original recoverable and the new private scope inactive. Read-only legacy FACT remains available until migration succeeds. Runtime safety checks inspect the inactive private scope without requiring successful migration; protected or invalid state still blocks unsafe history.
 
-After migration, FACT and JOURNAL are retained history. Active memory changes use `MEMORY.md` and topics. The identity/legacy editor operates on its original files independently.
+After migration, FACT and JOURNAL are retained history. Active memory changes use `MEMORY.md` and topics. The agent editor shows editable SOUL and USER files. Its read-only Private memory tab opens the migrated entry and topics for the selected agent.
 
 ## Choosing a mechanism
 
