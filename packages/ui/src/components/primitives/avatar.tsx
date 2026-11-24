@@ -21,7 +21,11 @@ function Avatar({
     if (found !== undefined) return found
 
     if (React.isValidElement(child) && child.type === AvatarImage) {
-      return (child.props as React.ComponentProps<typeof AvatarImage>).src ?? undefined
+      const imageProps = child.props
+
+      if (imageProps && typeof imageProps === 'object' && 'src' in imageProps && typeof imageProps.src === 'string') {
+        return imageProps.src
+      }
     }
 
     return undefined
