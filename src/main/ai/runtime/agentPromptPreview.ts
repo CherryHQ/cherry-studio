@@ -140,7 +140,7 @@ export async function previewAgentSystemPrompt(draft: AgentSystemPromptDraft): P
     ...piOptions,
     cwd,
     skillPaths: [
-      ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
+      ...enabledSkills.map((skill) => skillService.getInstalledSkillDirectory(skill)),
       ...workspaceSkillPaths
     ]
   })
