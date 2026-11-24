@@ -53,7 +53,7 @@ describe('portable handoff', () => {
     expect(() => splitHandoffSource(source, 4096)).toThrow('context window')
   })
   it('extracts each chronological source segment before reducing into a portable note', async () => {
-    const generate = vi.fn(async () => note)
+    const generate = vi.fn(async (_prompt: string) => note)
     expect(
       await buildHandoff('start ' + 'x'.repeat(9000) + ' final', 12_000, generate, new AbortController().signal)
     ).toBe(note)

@@ -883,7 +883,7 @@ export class AiService extends BaseService {
             disableTools: true,
             system: HANDOFF_SYSTEM_PROMPT,
             prompt,
-            maxTokens: 4096,
+            callOverrides: { maxOutputTokens: 4096 },
             requestOptions: { signal }
           })
           if (result.finishReason === 'length')

@@ -12,7 +12,7 @@ const save = vi.fn(async () => '/tmp/handoff.md')
 beforeEach(() => {
   vi.clearAllMocks()
   window.api = { file: { save } } as never
-  vi.mocked(ipcApi.request).mockResolvedValue('## Goals\nContinue the task' as never)
+  vi.mocked(ipcApi.request).mockResolvedValue('## Goals\nContinue the task')
 })
 describe('ConversationHandoff', () => {
   it('offers at 80% without generating, saving or attaching', () => {
