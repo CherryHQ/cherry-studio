@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FeishuForm } from '../ChannelForms'
 import type { ChannelData } from '../channelTypes'
 
+vi.unmock('@cherrystudio/ui')
+
 const mocks = vi.hoisted(() => ({ request: vi.fn(), onQr: undefined as undefined | ((data: any) => void) }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('@renderer/ipc', () => ({
