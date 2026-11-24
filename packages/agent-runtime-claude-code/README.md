@@ -30,7 +30,13 @@ the Query iterator to a second reader.
 native identity. Hosts store the opaque `Thread.id`; they do not parse its encoding.
 A child is a native root session plus stable agent ID, independent of run ID and
 tool invocation. Its relationship retains evidenced creation origin across continuation and archive
-recovery. `claude.openChild(toolCallId, signal?)` returns that relation and an independently releasable
+recovery. Its `work` follows the owner's task table: `running` from `background_tasks_changed` or `task_started` until
+`task_notification` or a terminal `task_updated`. A child known only from the archive is `idle`, because background
+tasks end with the CLI process that ran them. Its `revision`, also on the child's archive reads, is the child's raw
+transcript entry count at the owner's latest archive read; a child that received live frames since reports none until
+the next read, because live frames do not map one to one onto transcript entries. Archive recovery takes a child's parent from its recorded parent agent,
+then from the transcript holding its spawning Agent/Task call; a child with messages but neither is a direct child of
+the root, as the SDK reports depth-1 parents as null. `claude.openChild(toolCallId, signal?)` returns that relation and an independently releasable
 access, waiting for known native creation and rejecting unknown/ambiguous evidence. It starts no work.
 Child accesses have no common input or interrupt operation.
 

@@ -16,6 +16,7 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
+import { ChildResidency, childKey } from '@main/ai/agentSession/ChildResidency'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
 import {
   prepareNativeSubmission,
@@ -117,12 +118,6 @@ function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionCon
   return changedFacts.length > 0 ? changedFacts : ['unknown']
 }
 
-type ClaudeChildResource = {
-  relation?: Subagent
-  handle: ClaudeThreadHandle
-  projection: ChildThreadProjection
-}
-
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   get contextId(): string | undefined {
     return this.context?.id
@@ -141,11 +136,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly rootProjections: ThreadMessageProjection[] = []
   private readonly rootContexts = new Map<string, ReturnType<typeof contexts.context>>()
   private context?: ReturnType<typeof prepareClaudeBranch>
-  private readonly children = new Map<
-    string,
-    | { state: 'opening'; pending: Promise<ClaudeChildResource | undefined> }
-    | { state: 'attached' | 'closing'; resource: ClaudeChildResource }
-  >()
+  private readonly children = new ChildResidency<ClaudeThreadHandle>({
+    accepting: () => !this.closing,
+    closing: () => this.closing
+  })
   private closing = false
   private readonly closingAccess = new AbortController()
   private closePromise?: Promise<void>
@@ -485,7 +479,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       await this.closePromise
       return
     }
-    for (const child of await this.childResources()) await child.projection.drain()
+    await this.children.drain()
   }
 
   async interrupt(): Promise<void> {
@@ -537,17 +531,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.closePromise = undefined
       throw new Error(closed.error.message)
     }
-    await this.childResources()
+    await this.children.resources()
     await Promise.all(this.observationEnds)
     await Promise.all(this.observations.map((observation) => observation.drain()))
-    for (const [key, child] of this.children) {
-      const resource = child.state === 'opening' ? await child.pending : child.resource
-      if (!resource) continue
-      this.children.set(key, { state: 'closing', resource })
-      await resource.projection.stop()
-      await resource.handle.release()
-      this.children.delete(key)
-    }
+    await this.children.close()
     await Promise.all(this.observations.map((observation) => observation.stop()))
     await Promise.all(this.rootProjections.map((projection) => projection.close()))
     this.teardownSession()
@@ -558,6 +545,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const metadata = new ClaudeMessageMetadata(this.mcpToolMetadata)
     const projection = new ThreadMessageProjection(handle.thread, metadata.decorate)
     const contextId = this.context!.id
+    this.children.restoreReleased(contextId)
     this.rootContexts.set(handle.thread.id, this.context!)
     this.rootProjections.push(projection)
     let legacy: ClaudeObservation['legacy']
@@ -639,7 +627,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(observation.error.message)
     }
     this.observations.push(observation.value)
-    this.restoreChildren(this.context!)
   }
 
   private async acceptRoot(
@@ -755,61 +742,24 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private discoverChild(relation: Subagent): void {
-    if (relation.child) void this.observeChild(relation.child)
-  }
-
-  private restoreChildren(parent: ReturnType<typeof contexts.context>): void {
-    for (const context of contexts.children(parent.id)) {
-      if (context.bindingState !== 'bound' || !context.nativeThreadId || !context.spawnToolCallId) continue
-      void this.observeChild(
-        { backendId: runtimeId(context.backendId), id: runtimeId(context.nativeThreadId) },
-        undefined,
-        context
-      )
-    }
-  }
-
-  private async childResources(): Promise<ClaudeChildResource[]> {
-    const resources: ClaudeChildResource[] = []
-    for (const child of this.children.values()) {
-      const resource = child.state === 'opening' ? await child.pending : child.resource
-      if (resource) resources.push(resource)
-    }
-    return resources
+    const child = relation.child
+    if (child) this.children.relate(relation, () => this.observeChild(child))
   }
 
   private async observeChild(
     thread: Thread,
     granted?: ClaudeThreadHandle,
     saved?: ReturnType<typeof contexts.context>
-  ): Promise<ClaudeChildResource | undefined> {
-    const key = JSON.stringify([thread.backendId, thread.id])
-    const existing = this.children.get(key)
-    if (existing) {
-      await granted?.release()
-      if (existing.state === 'closing') {
-        await existing.resource.projection.stop()
-        await existing.resource.handle.release()
-        this.children.delete(key)
-        return this.observeChild(thread, undefined, saved)
-      }
-      return existing.state === 'opening' ? existing.pending : existing.resource
-    }
-    if (this.closing) {
-      await granted?.release()
-      return undefined
-    }
-    let handle: ClaudeThreadHandle | undefined
-    let resource: ClaudeChildResource | undefined
+  ) {
     let end = () => {}
-    const pending = Promise.resolve()
-      .then(async () => {
-        if (granted) handle = granted
-        else {
-          const opened = await this.runtime!.open(thread)
-          if (opened.status !== 'confirmed') throw new Error(opened.error.message)
-          handle = opened.value
-        }
+    const resource = await this.children.open(childKey(thread.backendId, thread.id), {
+      granted,
+      acquire: async () => {
+        const opened = await this.runtime!.open(thread)
+        if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+        return opened.value
+      },
+      build: async (handle, hold) => {
         const relation = handle.claude.relation()
         let context = saved
         if (!context) {
@@ -830,6 +780,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
         const childContext = context
         const access = handle
+        hold(relation)
         // The SDK stores the child prompt without forwarding it in the live conversation feed.
         await access.claude.archive()
         const metadata = new ClaudeMessageMetadata(this.mcpToolMetadata)
@@ -839,7 +790,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             end = resolve
           })
         )
-        const projection = new ChildThreadProjection(
+        const projection: ChildThreadProjection = new ChildThreadProjection(
           childContext,
           {
             ...access,
@@ -875,8 +826,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
                   if (batch.events.some((event) => event.type === 'closed')) end()
                 }
               })
-              if (result.status !== 'confirmed') end()
-              return result
+              if (result.status !== 'confirmed') {
+                end()
+                return result
+              }
+              const observation = result.value
+              // A released child stops observing without a closed event; close must not wait for one.
+              return {
+                status: 'confirmed' as const,
+                value: { drain: () => observation.drain(), stop: () => observation.stop().finally(end) }
+              }
             }
           },
           async () => {
@@ -886,51 +845,33 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
               messages: archive.value.content,
               legacy: archive.value.legacy,
               removed: archive.value.retracted,
-              aliases: Object.fromEntries(archive.value.content.map((message) => [message.id, message.id]))
+              aliases: Object.fromEntries(archive.value.content.map((message) => [message.id, message.id])),
+              revision: archive.value.revision
             }
           },
           metadata.decorate
         )
-        resource = { relation, handle: access, projection }
-        await projection.attach()
-        this.children.set(key, { state: 'attached', resource })
-        this.restoreChildren(childContext)
-        return resource
-      })
-      .catch(async (error) => {
-        end()
-        logger.error('Claude child observation failed', { thread, error })
-        if (resource) {
-          try {
-            await resource.projection.stop()
-          } catch (flushError) {
-            this.children.set(key, { state: 'closing', resource })
-            logger.error('Failed to flush Claude child attachment', { thread, error: flushError })
-            return undefined
-          }
-        }
-        await handle?.release()
-        this.children.delete(key)
-        return undefined
-      })
-    this.children.set(key, { state: 'opening', pending })
-    return pending
+        return { relation, projection }
+      }
+    })
+    if (!resource) end()
+    return resource
   }
 
   async childProjection(toolCallId: string) {
     if (this.closing) return undefined
-    const known = (await this.childResources()).filter(
+    const known = await this.children.pinLoaded(
       (child) => (child.relation?.origin?.toolCallId ?? child.projection.context.spawnToolCallId) === toolCallId
     )
-    if (known.length > 1) return undefined
-    if (known[0]) {
-      const projection = known[0].projection
-      await projection.attach()
-      return { snapshot: () => projection.snapshot(), subscribe: projection.subscribe.bind(projection) }
+    try {
+      if (known.children.length > 1) return undefined
+      if (known.children[0]) return await this.children.watch(known.children[0])
+    } finally {
+      known.unpin()
     }
     if (this.closing || !this.handle) return undefined
     const saved = contexts.findChild(this.input.sessionId, toolCallId)
-    let child: ClaudeChildResource | undefined
+    let child
     if (saved?.bindingState === 'bound' && saved.nativeThreadId && saved.backendId === this.context?.backendId) {
       child = await this.observeChild(
         { backendId: runtimeId(saved.backendId), id: runtimeId(saved.nativeThreadId) },
@@ -942,9 +883,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       if (opened.status !== 'confirmed') return undefined
       child = await this.observeChild(opened.value.relation.child, opened.value.handle)
     }
-    if (!child) return undefined
-    await child.projection.attach()
-    return { snapshot: () => child.projection.snapshot(), subscribe: child.projection.subscribe.bind(child.projection) }
+    return child && this.children.watch(child)
   }
 
   private bindApprovalEmitter(): void {

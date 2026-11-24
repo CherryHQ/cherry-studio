@@ -1,0 +1,44 @@
+# Agent Note: Host-owned child thread residency
+
+Status: implemented
+
+English | [中文](2026-11-19-agent-child-residency.zh.md)
+
+## Problem
+
+Opening an agent session attached every bound child thread in Main. Claude Code's `restoreChildren` opened each saved child, and Pi and Pi Durable opened every child their root snapshot listed. Each attachment read the full native archive into a `ChildThreadProjection` that stayed loaded until the root closed. Only Pi Durable released a finished child, and only for the rest of that process.
+
+In an Electron reproduction (17 Claude Code subagents, each reading 40 images), Main's heap stayed near 974 MB after every child finished. Reopening the idle session raised it from 94 MB to 877 MB without any new work. A larger run of the same workload crashed Main with a V8 out-of-memory error after about four minutes.
+
+The [runtime contract](../../proposed/architecture/2026-10-17-agent-runtime-contract.md) ("Coordinate access without owning execution") leaves residency to the host. The host, however, had three copies of the child attachment state machine, and only one of them released anything.
+
+## Decision
+
+- `src/main/ai/agentSession/ChildResidency.ts` owns child attachment for the Claude Code, Pi and Pi Durable connections. It covers the opening, attached, releasing and failed states, run by one serial reconciler per child ([child history revision](2026-11-20-agent-child-history-revision.md)), joined concurrent opens, pins for viewers and commands, views that follow a release and reopen, drain (which also joins queued restores, in-flight opens and release flushes), and close.
+- A connection hands every `Subagent` relationship it observes to `ChildResidency.relate`. A child is finished when its latest relationship reports `work: 'idle'` ([subagent work state](2026-11-19-agent-subagent-work-state.md)). The residency then flushes, releases and records any finished child that no viewer, command or loaded nested child pins.
+- Releasing writes `checkpointMapping.child.settled` on the child's context row (`AgentSessionContextService.settleChild`) after the final flush, when the child is still idle after it, together with the revision that flush read (`settledRevision`). A relationship reporting a newer revision reloads a released child. A released child that a relationship reports working again loses the marker and its released record, so the next idle relationship restores it even if the reopen failed. Close writes it for the finished children it stops. Attaching a settled child clears it.
+- A reopen records a settled descendant as released (`restoreReleased`) when its whole subtree is settled; a settled child with an unsettled descendant is restored, because its observation carries that descendant's relationship. Relationship replays leave released children released and restore unsettled idle children one at a time, each flushed and released, together with any parent release it sets off, before the next. A released child is reloaded by a viewer (`childProjection`), a command (`messageChild`), a Pi child completion or usage attribution, or a relationship that reports it running.
+- No schema migration is needed: `checkpointMapping` is JSON, and `saveProjectionTx` merges child writes into the existing child checkpoint.
+
+## Alternatives considered
+
+- **Evict inside each runtime adapter.** The contract keeps one native owner per runtime and rules out per-thread eviction without native verification. The duplicated projections live in Main, so the host owns the policy.
+- **Keep eager restore and release right after attach.** A reopen would still load every archive at once at its peak, and every reopen would repeat the full read.
+- **Infer finished from saved product rows.** A crash can leave rows that look complete while the native archive holds more. The marker is written only after a real flush of a finished child.
+- **Use activity alone for every runtime.** Pi reports idle mid-request for a background child, and Claude reports unknown before `task_started`. Both would release live children.
+
+## Consequences
+
+- A parent that resumes a released child (for example Claude's `SendMessage`) reports it running, so the host observes it without a viewer. The child's saved rows reconcile from the archive when it opens. A nested child whose parent is released and that resumes without its parent running is still observed only when a viewer or command opens it, except in Pi Durable, which announces it to its nearest loaded ancestor.
+- Children of sessions saved before this change have no marker. Every runtime restores them once and settles them.
+- A reopen no longer publishes background task events for settled children, because they are never attached.
+- Content that a native owner delivers for a child after its release stays in the native archive until the child is opened again.
+- The native Claude owner still holds every child's parsed transcript until its root connection closes, and its root archive read parses every child. In the reproduction this is about 276 MB of images after a live run and 122 MB after a settled reopen. Per-thread eviction there needs the native contract that the runtime contract defers.
+
+## Verification
+
+- AC1 — `pnpm typecheck:node` passes, and `pnpm test:main` over the 23 test files that cover the three connections, `ChildThreadProjection` and `AgentSessionContextService` passes (699 tests, 2 skipped); every connection now attaches, pins, releases, drains and closes children only through `ChildResidency`.
+- AC2 — `PiDurableRuntimeConnection.test.ts` "releases a background child after its run ends and keeps its final answer", `PiRuntimeConnection.test.ts` "releases a finished child, leaves it unloaded on reopen, and reloads it for a message", and `desktopRuntime.integration.test.ts` "reopens a settled nested child on demand under its immediate parent after an attachment failure" each wait for the settled marker while the root stays open and read the final answer from saved rows.
+- AC3 — `PiDurableRuntimeConnection.test.ts` "leaves a settled child unloaded on reopen until a viewer asks for it" and the Pi and Claude tests above record `ChildThreadProjection.attach` calls across a reopen: none before a view or message, then the saved history on reload; the Claude test fails its first lazy attach and the retry finds exactly one context row.
+- AC4 — `PiRuntimeConnection.test.ts` "stops a running background child without cancelling a later parent turn": a background child held mid-request stays loaded, and `stopTask` stops it; activity-based Pi evidence failed this test before the task-status rule.
+- AC5 — Electron dev instance on an isolated profile: after 17 Claude Code subagents × 40 images finish, all 17 contexts are settled, a heap snapshot holds 0 `ChildThreadProjection`, and Main's post-GC heap is 515 MB (974 MB before); a 40-child session saved before the change settles on its first reopen, and its next cold reopen holds 0 `ChildThreadProjection` at 240 MB (877 MB before), with every remaining image copy owned by `ClaudeProjection.messages` or `ClaudeFeed.native`.

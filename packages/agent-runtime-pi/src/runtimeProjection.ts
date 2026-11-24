@@ -217,6 +217,8 @@ export class PiProjection {
     responseIds: Record<string, string>
     aliases: Record<string, string>
     legacy: Record<string, { messageId: string; parts: number[] }>
+    /** The branch length, as `Subagent.revision`; a child's branch only grows. */
+    revision: number
   } {
     const branch = this.session.sessionManager.getBranch()
     const start = branch.findLastIndex(
@@ -247,7 +249,13 @@ export class PiProjection {
         })
         legacy[message.id] = { messageId: message.id, parts }
       }
-      return { messages: this.snapshotMessages, responseIds, aliases: { ...aliases, ...this.aliases }, legacy }
+      return {
+        messages: this.snapshotMessages,
+        responseIds,
+        aliases: { ...aliases, ...this.aliases },
+        legacy,
+        revision: branch.length
+      }
     } finally {
       this.snapshotMessages = undefined
       this.calls = calls

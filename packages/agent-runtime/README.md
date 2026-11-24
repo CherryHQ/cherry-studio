@@ -16,11 +16,16 @@ current context. Reads never submit input or resume work. `context.changed` and 
 the same result, including unknown or unsupported capability. Revisions belong to their native
 thread and must not be compared across backends. Context occupancy is not billable turn usage.
 
-`Subagent { id, parent, child?, origin? }` describes an observed relationship. Its ID is scoped to the
+`Subagent { id, parent, child?, origin?, work?, revision? }` describes an observed relationship. Its ID is scoped to the
 parent and survives child continuation; it is not an assignment ID or completion status. A child
 without an accessible context omits `child`. Snapshots expose `subagents`, and `subagent.upsert`
 updates one relationship. Evidenced `origin` carries the parent-scoped creation `toolCallId` and optional
-description; continuation does not replace that origin. Concrete facets provide `openChild(toolCallId, signal?)`
+description; continuation does not replace that origin. `work` is the owner's evidence for the child's native
+work: `running` while a run is active or admitted input waits for one, `idle` once the child has run and nothing
+remains. Owners publish `subagent.upsert` on the parent's observation when it changes and report current evidence
+when they replay relationships; absent `work` means the owner has none. `revision` grows with the child's committed
+native history, and a later archive read of the child reports at least the revision an earlier relationship carried;
+owners include it whenever they can read it without loading the child. Concrete facets provide `openChild(toolCallId, signal?)`
 to await an admitted creation and return its relationship and access together, without starting execution.
 Open an available child separately to observe its output or use its input.
 

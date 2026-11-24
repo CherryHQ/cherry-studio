@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/dev/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-19-agent-child-residency.md
-2026-11-19-agent-child-residency.md: 92ea33f4894747bf764e971545b95d8f3068c9bf
-2026-11-19-agent-child-residency.zh.md: 4e665794bc79264a520f918f7752534480c11658

@@ -3,7 +3,14 @@ import { isDeepStrictEqual } from 'node:util'
 import { v4 as uuid } from 'uuid'
 
 import { application } from '@application'
-import type { InputState, RuntimeMessage, Observation, Thread, ThreadHandle } from '@cherrystudio/agent-runtime'
+import type {
+  InputState,
+  RuntimeMessage,
+  Observation,
+  Thread,
+  ThreadHandle,
+  ThreadSnapshot
+} from '@cherrystudio/agent-runtime'
 import type { AgentSessionCheckpoints, AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
@@ -26,6 +33,8 @@ type CommittedHistory = {
   aliases: Readonly<Record<string, string>>
   removed?: readonly string[]
   legacy?: Readonly<Record<string, { messageId: string; parts: number[] }>>
+  /** The native history revision this read reflects (`Subagent.revision`). */
+  revision?: number
 }
 type Composition = NonNullable<NonNullable<AgentSessionCheckpoints['child']>['composition']>
 
@@ -111,6 +120,12 @@ export class ChildThreadProjection {
 
   snapshot(): AgentChildView {
     return this.delivery.snapshot()
+  }
+
+  /** The native activity and input outcomes accepted so far. */
+  runState(): Pick<ThreadSnapshot, 'activity' | 'inputs'> {
+    const { activity, inputs } = this.projection.snapshot()
+    return { activity, inputs }
   }
 
   subscribe(listener: (update: AgentChildUpdate) => void): () => void {
@@ -541,6 +556,11 @@ export class ChildThreadProjection {
 
   get thread(): Thread {
     return this.handle.thread
+  }
+
+  /** The native history revision of the latest archive read; after `stop`, the revision the saved rows hold. */
+  get revision(): number | undefined {
+    return this.history?.revision
   }
 }
 

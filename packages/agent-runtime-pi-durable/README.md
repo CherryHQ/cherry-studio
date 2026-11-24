@@ -21,7 +21,7 @@ source. `release()` stops that access's subscriptions; it does not close the sha
 Harness or cancel work. Releasing a conversation's last access unloads it: the adapter
 detaches its native view and drops its loaded history, and a later `open` loads it again.
 When an unloaded child receives input, its nearest loaded ancestor publishes
-`subagent.upsert` so hosts can observe it again. `shutdown()` seals all accesses, closes the Harness and
+`subagent.upsert` with `work: 'running'` so hosts can observe it again. `shutdown()` seals all accesses, closes the Harness and
 storage, and joins tracked calls. Unfinished durable tasks are not marked cancelled.
 It captures committed archives after native execution has quiesced and before storage
 closes; retained accesses can flush these archives until `release()`.
@@ -129,7 +129,11 @@ and `subagent.upsert`. Parent attachment queries all pages of immediately owned 
 commit observation delivers subsequent creations. Completed children remain discoverable after
 restart, with or without shared behavior. A child's creation commit writes its only origin
 record, so origin lookups stop there and keep the result; the adapter keeps no other relationship
-cache or task graph watch. Relationship IDs use the native child
+cache or task graph watch. It does keep each child's committed run and queued-input state, which commit observation updates
+from the child's live and inbox documents. A relationship's `work` is `running` while a run is committed or input
+is queued, and for a child created in this process until its first run ends; otherwise it is `idle`. A change
+publishes `subagent.upsert` on the loaded parent. Relationships and archive reads carry `revision`, the newest entry
+ID visible from the child conversation. Relationship IDs use the native child
 conversation ID within the parent, so subsequent inputs retain the same relationship.
 They carry evidenced creation `origin` and no assignment completion status. Behavior lineage preserves
 the original creation call across continuation; cold recovery also reads stored child relationships.

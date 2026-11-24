@@ -139,8 +139,10 @@ describe('Pi runtime contract', () => {
     await expect.poll(() => texts(childEvents)).toContain('child second')
     expect(childEvents.some((event) => event.type === 'gap')).toBe(false)
     expect(confirmed(await childAccess.contextUsage()).revision).not.toBe(childUsage.revision)
-    const relations = parentEvents.filter((event) => event.type === 'subagent.upsert')
-    expect(relations).toHaveLength(1)
+    const relations = parentEvents.flatMap((event) => (event.type === 'subagent.upsert' ? [event.subagent] : []))
+    expect(new Set(relations.map((relation) => relation.id))).toEqual(new Set([relationship.subagent.id]))
+    // The parent's continuation starts a second child run; the parent observes both runs start and end.
+    expect(relations.flatMap((relation) => relation.work ?? [])).toEqual(['running', 'idle', 'running', 'idle'])
     expect(childAccess.thread).toEqual(relationship.subagent.child)
   })
 })

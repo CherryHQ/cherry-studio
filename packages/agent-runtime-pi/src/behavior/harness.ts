@@ -40,6 +40,7 @@ import {
   type CallScope,
   type Conversation,
   type Installation,
+  isIdle,
   type JobRecord,
   newConversation,
   piIdle,
@@ -55,7 +56,12 @@ export type BehaviorSessionRequest = {
    * For a child: give it the model `origin.modelKey` names. The adapter's extension already leaves out the package's
    * `'parent-only'` tools; host-owned tools follow the host's own child configuration.
    */
-  readonly child?: { readonly parent: ThreadId; readonly origin: SubagentOrigin }
+  readonly child?: {
+    readonly parent: ThreadId
+    readonly origin: SubagentOrigin
+    /** Whether the child is a stored conversation being reopened rather than one a transaction just spawned. */
+    readonly reopened: boolean
+  }
 }
 
 export interface PiBehaviorOptions {
@@ -68,6 +74,8 @@ export interface PiBehaviorOptions {
    */
   readonly onError?: (error: unknown) => void
   readonly onResults?: (thread: ThreadId, result: OperationResult<SubagentResults>) => void
+  /** Whether `thread` has native work, reported at every run start and end. */
+  readonly onWork?: (thread: ThreadId, work: 'running' | 'idle') => void
 }
 
 /** The agent-behavior harness ports on native coding-agent sessions (README "Behavior ports"). */
@@ -389,7 +397,9 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
   }
   async function openNative(conv: Conversation): Promise<void> {
     const child =
-      conv.lineage.kind === 'subagent' ? { parent: conv.lineage.parent, origin: conv.lineage.origin } : undefined
+      conv.lineage.kind === 'subagent'
+        ? { parent: conv.lineage.parent, origin: conv.lineage.origin, reopened: conv.reopened }
+        : undefined
     const native = await options.openSession({
       sessionManager: conv.manager,
       extension: conversationExtension(adapter, conv),
@@ -436,6 +446,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     report,
     results(thread) {
       const conv = conversation(thread)
+      options.onWork?.(thread, isIdle(conv) ? 'idle' : 'running')
       const input = conv.active && conv.submissions.get(conv.active.key)?.input
       const marker =
         input && typeof input !== 'string'

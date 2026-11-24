@@ -29,7 +29,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
+import { ChildThreadProjection, savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
 import { readForkResources } from '@main/ai/agentSession/fork/resources'
@@ -143,6 +143,14 @@ beforeAll(() => checkCommand({ command: 'true', dialect: 'bash', permissionMode:
 const APPROVAL_WAIT = { timeout: 10_000 } as const
 // Native child scheduling and archive projection can exceed the one-second poll default on Windows CI.
 const CHILD_WAIT = { timeout: 10_000 } as const
+/** The connection's released children and loaded children. */
+const residency = (connection: PiDurableRuntimeConnection) => {
+  const children = [...connection['children']['children'].values()]
+  return {
+    released: children.flatMap((child) => (child.phase === 'released' && child.saved ? [child.saved] : [])),
+    loaded: children.flatMap((child) => (child.resource ? [child.resource] : []))
+  }
+}
 
 describe('desktop Pi Durable connection', () => {
   const dbh = setupTestDatabase()
@@ -1848,7 +1856,7 @@ describe('desktop Pi Durable connection', () => {
       expect(events.filter((event) => event.type === 'error')).toEqual([])
       if (scenario === 'retry archive flush') {
         const shutdown = vi.spyOn(connection['runtime']!, 'shutdown')
-        const resource = (await connection['childResources']()).find(
+        const resource = (await connection['children'].resources()).find(
           (known) => known.projection.context.id === contextId
         )!
         vi.spyOn(resource.handle, 'archive').mockResolvedValueOnce({
@@ -1911,7 +1919,7 @@ describe('desktop Pi Durable connection', () => {
       await done(events)
       const view = (await connection.childProjection('spawn'))!
       const contextId = view.snapshot().contextId
-      const [child] = await connection['childResources']()
+      const [child] = await connection['children'].resources()
       if (outcome === 'rejected')
         vi.spyOn(child.handle.input, 'submit').mockImplementationOnce(async (draft) => ({
           status: 'rejected',
@@ -2072,6 +2080,8 @@ describe('desktop Pi Durable connection', () => {
       expect(JSON.stringify(savedChildView(contexts.context(view.snapshot().contextId)).messages)).toContain(
         'Final child output'
       )
+      // The finished, unwatched child then releases and records that it settled.
+      await expect.poll(() => residency(connection).released.length, CHILD_WAIT).toBe(1)
       const changes = dbh.sqlite.prepare('SELECT total_changes() AS count').get()
       await new Promise((resolve) => setTimeout(resolve, 160))
       expect(dbh.sqlite.prepare('SELECT total_changes() AS count').get()).toEqual(changes)
@@ -2270,7 +2280,7 @@ describe('desktop Pi Durable connection', () => {
     await connection.send({ message: message('delegate') })
     await done(events, CHILD_WAIT.timeout)
     await expect
-      .poll(() => [connection['releasedChildren'].size, connection['children'].size], CHILD_WAIT)
+      .poll(() => [residency(connection).released.length, residency(connection).loaded.length], CHILD_WAIT)
       .toEqual([1, 0])
     return connection
   }
@@ -2293,7 +2303,7 @@ describe('desktop Pi Durable connection', () => {
     const connection = await finishedChild()
     const view = (await connection.childProjection('spawn'))!
     const unsubscribe = view.subscribe(() => {})
-    const [child] = await connection['childResources']()
+    const [child] = await connection['children'].resources()
     const flushing = gate()
     vi.spyOn(child.projection, 'stop').mockImplementationOnce(async () => {
       await flushing.wait(undefined)
@@ -2408,12 +2418,8 @@ describe('desktop Pi Durable connection', () => {
     await answering.reached
     await done(events)
     const view = (await connection.childProjection('spawn'))!
-    const [child] = (
-      connection as unknown as {
-        children: Map<string, { resource: { projection: { projection: ThreadMessageProjection } } }>
-      }
-    ).children.values()
-    const childMessages = child.resource.projection.projection
+    const [child] = residency(connection).loaded
+    const childMessages = child.projection['projection']
     const accept = ThreadMessageProjection.prototype.accept
     let failed = false
     const fault = vi.spyOn(ThreadMessageProjection.prototype, 'accept').mockImplementation(async function (
@@ -2830,12 +2836,76 @@ describe('desktop Pi Durable connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
     await done(events, CHILD_WAIT.timeout)
-    await expect.poll(() => connection['releasedChildren'].size, CHILD_WAIT).toBe(1)
-    expect(await connection['childResources']()).toEqual([])
-    const [released] = connection['releasedChildren'].values()
+    await expect.poll(() => residency(connection).released.length, CHILD_WAIT).toBe(1)
+    expect(await connection['children'].resources()).toEqual([])
+    const [released] = residency(connection).released
+    expect(contexts.context(released.contextId).checkpointMapping?.child?.settled).toBe(true)
     expect(JSON.stringify(savedChildView(contexts.context(released.contextId)).messages)).toContain(
       'child final answer'
     )
+  })
+
+  // Catches a released child that its parent continues running unobserved, its answer missing from saved rows.
+  it('reloads a released child that its parent continues and saves its continued answer without a viewer', async () => {
+    let root = ''
+    let childId = ''
+    let childRuns = 0
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root)
+        return assistantReply(childRuns++ === 0 ? 'child first answer' : 'child continued answer')
+      const last = JSON.stringify(call.messages.at(-1))
+      if (last.includes('delegate'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'research', prompt: 'child work', background: true })],
+          'toolUse'
+        )
+      if (last.includes('continue it'))
+        return assistantReply(
+          [toolCallPart('continue-call', 'message_subagent', { id: childId, message: 'continue' })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await done(events, CHILD_WAIT.timeout)
+    await expect.poll(() => residency(connection).released.length, CHILD_WAIT).toBe(1)
+    const [released] = residency(connection).released
+    childId = released.thread.id
+    const attached: string[] = []
+    const attach = ChildThreadProjection.prototype.attach
+    vi.spyOn(ChildThreadProjection.prototype, 'attach').mockImplementation(function (this: ChildThreadProjection) {
+      attached.push(this.context.id)
+      return attach.call(this)
+    })
+    events.length = 0
+    await connection.send({ message: message('continue it') })
+    await done(events, CHILD_WAIT.timeout)
+    await expect
+      .poll(() => JSON.stringify(savedChildView(contexts.context(released.contextId)).messages), CHILD_WAIT)
+      .toContain('child continued answer')
+    expect(attached).toContain(released.contextId)
+    await expect
+      .poll(() => contexts.context(released.contextId).checkpointMapping?.child?.settled, CHILD_WAIT)
+      .toBe(true)
+  })
+
+  // Catches a reopen attaching every finished child again before it can release it.
+  it('leaves a settled child unloaded on reopen until a viewer asks for it', async () => {
+    const connection = await finishedChild()
+    await connection.close()
+    const attached: string[] = []
+    const attach = ChildThreadProjection.prototype.attach
+    vi.spyOn(ChildThreadProjection.prototype, 'attach').mockImplementation(function (this: ChildThreadProjection) {
+      attached.push(this.context.id)
+      return attach.call(this)
+    })
+    const { connection: reopened } = await connect()
+    await reopened.drainChildWrites()
+    expect(attached).toEqual([])
+    const view = (await reopened.childProjection('spawn'))!
+    expect(JSON.stringify(view.snapshot().messages)).toContain('child first answer')
   })
 
   // Catches each run start reporting and rebinding every earlier input again.

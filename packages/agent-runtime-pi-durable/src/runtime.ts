@@ -19,6 +19,8 @@ import {
   type Cursor,
   type EntryId,
   type HarnessOptions,
+  InboxDoc,
+  LiveDoc,
   type Storage,
   type SubmissionRecord,
   type ToolTaskInput,
@@ -108,6 +110,8 @@ export interface PiDurableArchive {
   readonly messages: readonly RuntimeMessage[]
   /** Proven committed-to-live identities within this observation source. */
   readonly aliases: Readonly<Record<string, string>>
+  /** The newest visible entry ID this read covers, as `Subagent.revision`; entry IDs only grow. */
+  readonly revision?: number
 }
 export interface PiDurableRuntime extends AgentRuntime {
   /** Native transactions share this owner's mutation line; callers must retain their backend access. */
@@ -216,6 +220,7 @@ export async function createPiDurableRuntime(
               while (pending.size) await Promise.allSettled([...pending])
               for (const entry of live.values()) {
                 const content = new ContentProjection()
+                let revision: number | undefined
                 let cursor: Cursor | undefined
                 do {
                   const page = await owned.scanEntries(
@@ -224,15 +229,18 @@ export async function createPiDurableRuntime(
                     cursor,
                     context
                   )
-                  for (const record of page.items)
+                  for (const record of page.items) {
+                    revision = record.id
                     if (record.conversationId === entry.conversation.id) content.entry(record)
+                  }
                   cursor = page.next
                 } while (cursor)
                 archives.set(entry.conversation.id, {
                   messages: content.messages,
                   responseIds: content.responseIds,
                   legacy: content.legacy,
-                  aliases: { ...entry.projection.aliases }
+                  aliases: { ...entry.projection.aliases },
+                  revision
                 })
               }
             } finally {
@@ -331,28 +339,90 @@ export async function createPiDurableRuntime(
       ...(toolCallId && { origin: { toolCallId, ...(description && { description }) } })
     }
   }
+  /**
+   * Each child's committed run and queued input, and whether it has run. Work changes only when one of them does,
+   * not with streamed output; a created child is running until its first run ends.
+   */
+  const childWork = new Map<number, { run: boolean; queued: boolean; ran: boolean }>()
+  const workOf = (state: { run: boolean; queued: boolean; ran: boolean }): 'running' | 'idle' =>
+    state.run || state.queued || !state.ran ? 'running' : 'idle'
+  async function readWork(tx: Tx, id: ConversationId): Promise<'running' | 'idle'> {
+    // A child this process never saw created is historical: no run and no queued input means it is done.
+    const state = {
+      run: (await tx.doc(LiveDoc, id)).run !== undefined,
+      queued: (await tx.doc(InboxDoc, id)).items.length > 0,
+      ran: childWork.get(id)?.ran ?? true
+    }
+    childWork.set(id, state)
+    return workOf(state)
+  }
+  async function readChildState(tx: Tx, id: ConversationId) {
+    const revision = await tx.latestEntryId(id)
+    return { work: await readWork(tx, id), ...(revision !== undefined && { revision }) }
+  }
   const readChildren = async (tx: Tx, parent: ConversationId) => {
     const children = await pages((cursor) => tx.scanConversations({ ownerConversationId: parent }, 256, cursor))
-    return (await Promise.all(children.map((child) => readRelation(tx, child)))).filter((child) => child !== undefined)
+    const relations = await Promise.all(
+      children.map(async (child) => {
+        const relation = await readRelation(tx, child)
+        return relation && { ...relation, ...(await readChildState(tx, child.id)) }
+      })
+    )
+    return relations.filter((child) => child !== undefined)
   }
-  /** A released child that receives input is announced to its nearest loaded ancestor so hosts observe it again. */
-  const announceResumed = async (id: number): Promise<void> => {
-    const record = (conversationId: number) =>
-      native.commit((tx) => tx.conversation(conversationId as ConversationId), context)
-    const child = await record(id)
-    for (let current = child; current?.owner; current = await record(current.owner.conversationId)) {
-      const entry = live.get(current.owner.conversationId)
-      if (!entry) continue
-      const subagent = await readRelation(relationRecords, child!)
-      if (subagent && live.get(current.owner.conversationId) === entry)
-        entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
-      return
+  /**
+   * Publishes a child's work to every loaded feed that lists it. A `resumed` child, unloaded when it received input, is
+   * first announced as running to its nearest loaded ancestor, so hosts observe its new history.
+   */
+  const publishWork = async (id: number, resumed = false): Promise<void> => {
+    if (resumed) {
+      const record = (conversationId: number) =>
+        native.commit((tx) => tx.conversation(conversationId as ConversationId), context)
+      const child = await record(id)
+      for (let current = child; current?.owner; current = await record(current.owner.conversationId)) {
+        const entry = live.get(current.owner.conversationId)
+        if (!entry) continue
+        const subagent = await readRelation(relationRecords, child!)
+        if (subagent && live.get(current.owner.conversationId) === entry)
+          entry.projection.feed.publish({ type: 'subagent.upsert', subagent: { ...subagent, work: 'running' } })
+        break
+      }
+    }
+    const revision = await native.commit((tx) => tx.latestEntryId(id as ConversationId), context)
+    // Read after the awaits above, so a child that finished during them is not left running.
+    const state = childWork.get(id)
+    if (!state) return
+    for (const entry of live.values()) {
+      const listed = entry.projection.feed.snapshot.subagents?.find((relation) => relation.child?.id === String(id))
+      if (listed && listed.work !== workOf(state))
+        entry.projection.feed.publish({
+          type: 'subagent.upsert',
+          subagent: { ...listed, work: workOf(state), ...(revision !== undefined && { revision }) }
+        })
     }
   }
+  // `advance` must not call the Session, so its Session reads start after it returns.
+  const later = (read: () => Promise<void>) => void track(Promise.resolve().then(read)).catch(report)
   const unsubscribe = native.observeCommits({
     advance(publication) {
       const changed = new Set<number>()
+      const worked = new Set<number>()
+      const resumed = new Set<number>()
       for (const change of publication.changes) {
+        if (
+          change.type === 'document' &&
+          change.kind === 'change' &&
+          change.conversationId !== undefined &&
+          (change.record.kind === 'pi.live' || change.record.kind === 'pi.inbox')
+        ) {
+          const previous = childWork.get(change.conversationId)
+          const next = { run: false, queued: false, ran: false, ...previous }
+          if (change.record.kind === 'pi.live') next.run = change.value.run !== undefined
+          else next.queued = ((change.value.items as readonly unknown[] | undefined)?.length ?? 0) > 0
+          next.ran ||= next.run
+          childWork.set(change.conversationId, next)
+          if (!previous || workOf(previous) !== workOf(next)) worked.add(change.conversationId)
+        }
         if (change.type === 'entry' && (change.value.model || change.value.head || change.value.edits))
           changed.add(change.value.conversationId)
         if (
@@ -376,8 +446,7 @@ export async function createPiDurableRuntime(
             }
           }
           inputs.set(record.id, record)
-          if (record.status === 'placed' && !live.has(record.conversationId))
-            void track(announceResumed(record.conversationId)).catch(report)
+          if (record.status === 'placed' && !live.has(record.conversationId)) resumed.add(record.conversationId)
         }
         if (change.type === 'conversation' && change.value.owner) {
           const parent = change.value.owner.conversationId
@@ -385,12 +454,17 @@ export async function createPiDurableRuntime(
           if (entry)
             void track(
               readRelation(relationRecords, change.value).then((subagent) => {
-                if (subagent && live.get(parent) === entry)
-                  entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
+                if (!subagent || live.get(parent) !== entry) return
+                const state = childWork.get(change.value.id)
+                const known = entry.projection.feed.snapshot.subagents?.find((child) => child.id === subagent.id)
+                const work = state ? workOf(state) : (known?.work ?? 'running')
+                entry.projection.feed.publish({ type: 'subagent.upsert', subagent: { ...subagent, work } })
               })
             ).catch(report)
         }
       }
+      for (const id of resumed) later(() => publishWork(id, true))
+      for (const id of worked) if (!resumed.has(id)) later(() => publishWork(id))
       for (const id of changed) {
         const entry = live.get(id)
         if (entry) {
@@ -650,7 +724,8 @@ export async function createPiDurableRuntime(
           track(
             native.commit(async (tx) => {
               const record = await tx.conversation(entry.conversation.id)
-              return record && readRelation(tx, record)
+              const relation = record && (await readRelation(tx, record))
+              return relation && { ...relation, ...(await readChildState(tx, record.id)) }
             }, context)
           ),
         async openChild(toolCallId, signal) {
@@ -813,7 +888,8 @@ export async function createPiDurableRuntime(
                   messages: [...content.messages],
                   responseIds: { ...content.responseIds },
                   legacy: content.legacy,
-                  aliases
+                  aliases,
+                  revision: head.id
                 }
               }
             } catch (cause) {
