@@ -1,5 +1,5 @@
 /**
- * Citation reference helpers — projects `ContentReference[]` (V2 storage
+ * Citation reference helpers — projects stored reference entries (V2 storage
  * format on `text` parts' `providerMetadata.cherry.references`) to the
  * renderer's `Citation` and inline `citationReferences` shapes that
  * `MainTextBlock` / `CitationsList` consume.
@@ -10,11 +10,31 @@
  * the citation-reference projections remain, which are still needed by
  * `MessagePartsRenderer` to render inline citations from text-part metadata.
  */
+import * as z from 'zod'
 
 import type { Citation } from '@renderer/types/message'
-import type { WebSearchSource } from '@renderer/types/webSearchProvider'
-import type { CitationReference, ContentReference } from '@shared/data/types/message'
-import { isKnowledgeCitation, isMemoryCitation, isWebCitation, ReferenceCategory } from '@shared/data/types/message'
+import { type WebSearchSource, WebSearchSourceSchema } from '@renderer/types/webSearchProvider'
+import { CitationType, ReferenceCategory } from '@shared/data/types/message'
+
+const citationDescriptorSchema = z.object({
+  category: z.literal(ReferenceCategory.CITATION),
+  citationType: z.enum(CitationType),
+  content: z.unknown().optional()
+})
+const optionalCitationString = z.string().optional().catch(undefined)
+const webReferenceFieldsSchema = z.object({
+  results: z.unknown().optional(),
+  source: WebSearchSourceSchema.optional().catch(undefined)
+})
+const knowledgeCitationFieldsSchema = z.object({
+  id: z.number().optional().catch(undefined),
+  content: optionalCitationString,
+  sourceUrl: optionalCitationString
+})
+const memoryCitationFieldsSchema = z.object({ memory: optionalCitationString, hash: optionalCitationString })
+const groundingChunkFieldsSchema = z.object({
+  web: z.object({ uri: optionalCitationString, title: optionalCitationString }).optional().catch(undefined)
+})
 
 export type CitationReferenceView = {
   citationBlockId?: string
@@ -22,26 +42,30 @@ export type CitationReferenceView = {
 }
 
 /**
- * Convert ContentReference[] (new format) to inline citationReferences shape.
+ * Convert stored citation descriptors to the inline citationReferences shape.
  * The renderer expects `{ citationBlockId?, citationBlockSource? }[]`.
  *
  * Knowledge/memory citations carry no web-search source; their inline `[N]`
  * markers resolve through the default plain-bracket normalization branch.
  */
 export function convertReferencesToCitationReferences(
-  references: ContentReference[],
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored metadata admits unknown reference entries; project only citation descriptors and validated web source names.
+  references: readonly unknown[],
   blockId: string
 ): CitationReferenceView[] | undefined {
-  const citations = references.filter((ref): ref is CitationReference => ref.category === ReferenceCategory.CITATION)
+  const citations = references.flatMap((ref) => {
+    const parsed = citationDescriptorSchema.safeParse(ref)
+
+    return parsed.success ? [parsed.data] : []
+  })
 
   if (citations.length === 0) return undefined
 
-  return citations.map((ref) => ({
-    citationBlockId: blockId,
-    citationBlockSource: isWebCitation(ref)
-      ? ((ref.content?.source ?? undefined) as WebSearchSource | undefined)
-      : undefined
-  }))
+  return citations.map((ref) => {
+    const web = ref.citationType === CitationType.WEB ? webReferenceFieldsSchema.safeParse(ref.content) : undefined
+
+    return { citationBlockId: blockId, citationBlockSource: web?.success ? web.data.source : undefined }
+  })
 }
 
 function toHostOrUrl(url: string): string {
@@ -131,24 +155,23 @@ function normalizeWebResults(results: unknown): Citation[] {
 
   // Gemini grounding format: { groundingChunks, groundingSupports }
   if (obj && Array.isArray(obj.groundingChunks)) {
-    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the array container is checked; optional chunk fields stay unvalidated and web values are inspected below.
-    const chunks = obj.groundingChunks as Array<Record<string, unknown>>
+    const chunks: readonly unknown[] = obj.groundingChunks
 
     const groundingSupports: Citation['metadata'] =
       obj.groundingSupports && Array.isArray(obj.groundingSupports) ? obj.groundingSupports : undefined
 
     return chunks
       .map((chunk, index) => {
-        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The web container is checked; URI and title are accepted only after their string checks.
-        const web = chunk?.web && typeof chunk.web === 'object' ? (chunk.web as Record<string, unknown>) : undefined
-        const url = typeof web?.uri === 'string' ? web.uri : ''
+        const parsed = groundingChunkFieldsSchema.safeParse(chunk)
+        const web = parsed.success ? parsed.data.web : undefined
+        const url = web?.uri ?? ''
 
         if (!url) return null
 
         const citation: Citation = {
           number: index + 1,
           url,
-          title: typeof web?.title === 'string' ? web.title : toHostOrUrl(url),
+          title: web?.title ?? toHostOrUrl(url),
           showFavicon: true,
           type: 'websearch'
         }
@@ -180,58 +203,80 @@ function assignMissingCitationNumbers(citations: Citation[]): Citation[] {
 }
 
 /**
- * Convert ContentReference[] (new format) to renderer Citation[].
+ * Convert stored reference entries to renderer Citation[].
  * Used by MessagePartsRenderer to preserve inline citation tagging.
  */
-export function convertReferencesToCitations(references: ContentReference[]): Citation[] {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical reference entries and their rows are unvalidated; preserve valid fields and numbering without claiming a complete ContentReference.
+export function convertReferencesToCitations(references: readonly unknown[]): Citation[] {
   const all: Citation[] = []
 
   for (const ref of references) {
-    if (isWebCitation(ref)) {
-      all.push(...normalizeWebResults(ref.content?.results))
+    const parsed = citationDescriptorSchema.safeParse(ref)
+
+    if (!parsed.success) continue
+    const reference = parsed.data
+
+    if (reference.citationType === CitationType.WEB) {
+      const web = webReferenceFieldsSchema.safeParse(reference.content)
+      all.push(...normalizeWebResults(web.success ? web.data.results : undefined))
       continue
     }
 
-    if (isKnowledgeCitation(ref)) {
-      const knowledge = Array.isArray(ref.content) ? ref.content : []
+    if (reference.citationType === CitationType.KNOWLEDGE) {
+      const knowledge = Array.isArray(reference.content) ? reference.content : []
       // Keep the migrated item id as the display number so inline [N] markers
       // in the text resolve; on a collision with an already-claimed number
       // (possible in mixed migrated data) fall back to sequential assignment.
       const usedNumbers = new Set(all.flatMap((citation) => (citation.number > 0 ? [citation.number] : [])))
       all.push(
-        ...knowledge.map((item) => {
-          const number = item.id > 0 && !usedNumbers.has(item.id) ? item.id : 0
+        ...knowledge.flatMap((item) => {
+          const parsed = knowledgeCitationFieldsSchema.safeParse(item)
+
+          if (!parsed.success) return []
+          const fields = parsed.data
+          const id = fields.id ?? 0
+          const number = id > 0 && !usedNumbers.has(id) ? id : 0
 
           if (number > 0) usedNumbers.add(number)
-          // v1 stored a file source as the whole markdown link `[name](http://file/x)`, so the
-          // raw value is neither a linkable URL nor a readable title. Unwrap it the way v1's own
-          // renderer did; the main process routes `http://file/` back to the stored file.
-          const fileMatch = item.sourceUrl?.match(/\[(.*?)]\(http:\/\/file\/(.*?)\)/)
+          // Migrated file sources store a whole markdown link; unwrap it so the title
+          // and http://file target remain readable and resolvable.
+          const fileMatch = fields.sourceUrl?.match(/\[(.*?)]\(http:\/\/file\/(.*?)\)/)
 
-          return {
-            number,
-            url: fileMatch ? `http://file/${fileMatch[2]}` : item.sourceUrl || '',
-            title: fileMatch ? fileMatch[1] : item.sourceUrl || '',
-            content: item.content,
-            showFavicon: true,
-            type: 'knowledge'
-          }
+          return [
+            {
+              number,
+              url: fileMatch ? `http://file/${fileMatch[2]}` : fields.sourceUrl || '',
+              title: fileMatch ? fileMatch[1] : fields.sourceUrl || '',
+              content: fields.content,
+              showFavicon: true,
+              type: 'knowledge' as const
+            }
+          ]
         })
       )
       continue
     }
 
-    if (isMemoryCitation(ref)) {
-      const memories = Array.isArray(ref.content) ? ref.content : []
+    if (reference.citationType === CitationType.MEMORY) {
+      const memories = Array.isArray(reference.content) ? reference.content : []
       all.push(
-        ...memories.map((item) => ({
-          number: 0,
-          url: '',
-          title: `Memory ${item.hash?.slice(0, 8) || ''}`.trim(),
-          content: item.memory,
-          showFavicon: false,
-          type: 'memory'
-        }))
+        ...memories.flatMap((item) => {
+          const parsed = memoryCitationFieldsSchema.safeParse(item)
+
+          if (!parsed.success) return []
+          const fields = parsed.data
+
+          return [
+            {
+              number: 0,
+              url: '',
+              title: `Memory ${fields.hash?.slice(0, 8) || ''}`.trim(),
+              content: fields.memory,
+              showFavicon: false,
+              type: 'memory' as const
+            }
+          ]
+        })
       )
     }
   }

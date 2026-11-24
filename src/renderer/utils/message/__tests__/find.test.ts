@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import type { MessageExportView } from '@renderer/types/messageExport'
 
-import { getMainTextContent, getNamingTextContent, getToolCitationExport } from '../find'
+import {
+  getCitationContent,
+  getMainTextContent,
+  getNamingTextContent,
+  getThinkingContent,
+  getToolCitationExport
+} from '../find'
 
 function createExportView(parts: MessageExportView['parts']): MessageExportView {
   return {
@@ -16,6 +22,49 @@ function createExportView(parts: MessageExportView['parts']): MessageExportView 
 }
 
 describe('message/find', () => {
+  it('retains usable historical fields while skipping malformed parts and preserving naming exclusions', () => {
+    const message = createExportView([
+      null,
+      { type: 'text', text: 'Main answer' },
+      { type: 'data-code', data: { content: 'const value = 1', language: 42 } },
+      { type: 'data-code', data: { content: 42, language: 'ts' } },
+      { type: 'data-translation', data: { content: 'Translated answer' } },
+      { type: 'data-error', data: { name: 'HttpError', code: 401, message: 'Denied' } },
+      { type: 'data-error', data: { code: 0, message: 'No numeric prefix' } },
+      { type: 'reasoning', text: { invalid: true } },
+      { type: 'reasoning', text: 'Reasoning text' }
+    ] as MessageExportView['parts'])
+
+    expect(getMainTextContent(message)).toBe(
+      'Main answer\n\n```\nconst value = 1\n```\n\nTranslated answer\n\nHttpError\n401\nDenied\n\nNo numeric prefix'
+    )
+    expect(getNamingTextContent(message)).toBe('Main answer\n\n```\nconst value = 1\n```')
+    expect(getThinkingContent(message)).toBe('Reasoning text')
+  })
+
+  it('keeps flat legacy citation numbering while rejecting malformed reference fields', () => {
+    const message = createExportView([
+      {
+        type: 'text',
+        text: 'Legacy references',
+        providerMetadata: {
+          cherry: {
+            references: [
+              null,
+              { category: 'citation', url: 42 },
+              { category: 'citation', number: 0, title: 42, url: 'https://first.test' },
+              { category: 'citation', title: 'Second', url: 'https://second.test' }
+            ]
+          }
+        }
+      }
+    ])
+
+    expect(getCitationContent(message)).toBe(
+      '[0] [https://first.test](https://first.test)\n[2] [Second](https://second.test)'
+    )
+  })
+
   it('includes visible custom data parts in exports while excluding auxiliary content from naming', () => {
     const message = createExportView([
       { type: 'text', text: 'Main answer' },
@@ -157,7 +206,7 @@ describe('getToolCitationExport', () => {
         type: 'text',
         // `citation-N` sourceIds are 0-indexed on the wire, so `citation-2` is marker [3].
         text: 'Claim [3]',
-        providerMetadata: { cherry: { references: [{ category: 'metadata' }] } }
+        providerMetadata: { cherry: { references: [null, { category: 'metadata' }] } }
       }
     ] as MessageExportView['parts'])
 

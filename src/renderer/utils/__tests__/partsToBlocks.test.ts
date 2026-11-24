@@ -3,9 +3,63 @@ import { describe, expect, it } from 'vitest'
 import type { ContentReference } from '@shared/data/types/message'
 import { CitationType, ReferenceCategory } from '@shared/data/types/message'
 
-import { convertReferencesToCitations } from '../partsToBlocks'
+import { convertReferencesToCitationReferences, convertReferencesToCitations } from '../partsToBlocks'
 
 describe('partsToBlocks citation helpers', () => {
+  it('preserves known citation numbers and valid fields beside malformed stored entries', () => {
+    const references: readonly unknown[] = [
+      null,
+      'invalid reference',
+      { category: 'metadata' },
+      { category: 'citation', citationType: 'web', content: { results: [{ url: 'https://web.test' }] } },
+      {
+        category: 'citation',
+        citationType: 'knowledge',
+        content: [
+          null,
+          { id: 3, content: 'File text', sourceUrl: '[Manual.pdf](http://file/entry-1)' },
+          { id: 3, content: 'Second text', sourceUrl: { invalid: true } }
+        ]
+      },
+      {
+        category: 'citation',
+        citationType: 'memory',
+        content: [null, { memory: 'Remember this', hash: '1234567890abcdef' }, { memory: 'Keep this', hash: 42 }]
+      }
+    ]
+
+    expect(
+      convertReferencesToCitations(references).map(({ number, url, title, content }) => ({
+        number,
+        url,
+        title,
+        content
+      }))
+    ).toEqual([
+      { number: 1, url: 'https://web.test', title: 'web.test', content: undefined },
+      { number: 3, url: 'http://file/entry-1', title: 'Manual.pdf', content: 'File text' },
+      { number: 2, url: '', title: '', content: 'Second text' },
+      { number: 4, url: '', title: 'Memory 12345678', content: 'Remember this' },
+      { number: 5, url: '', title: 'Memory', content: 'Keep this' }
+    ])
+  })
+
+  it('uses only validated web source names for inline citation references', () => {
+    const references: readonly unknown[] = [
+      null,
+      { category: 'metadata' },
+      { category: 'citation', citationType: 'web', content: { source: 'gemini' } },
+      { category: 'citation', citationType: 'web', content: { source: { invalid: true } } },
+      { category: 'citation', citationType: 'knowledge', content: [] }
+    ]
+
+    expect(convertReferencesToCitationReferences(references, 'part-1')).toEqual([
+      { citationBlockId: 'part-1', citationBlockSource: 'gemini' },
+      { citationBlockId: 'part-1', citationBlockSource: undefined },
+      { citationBlockId: 'part-1', citationBlockSource: undefined }
+    ])
+  })
+
   it('preserves grounding chunk numbers and support data while skipping invalid web entries', () => {
     const groundingSupports = [{ segment: { text: 'a claim' }, groundingChunkIndices: [1, 3] }]
     const references: ContentReference[] = [

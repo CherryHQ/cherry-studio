@@ -5,11 +5,12 @@
  * building. Pure — no Redux, no DataApi, no v1 block shapes. Parts are the
  * single source of truth.
  */
+import * as z from 'zod'
+
 import type { Citation } from '@renderer/types/message'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
-import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
-import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
 import { toExportableCitations } from './citations'
@@ -18,15 +19,23 @@ function getParts(message: ExportableMessage): CherryMessagePart[] {
   return message.parts ?? []
 }
 
-function getDataPart<T>(part: CherryMessagePart): Partial<T> | undefined {
-  if ('data' in part && part.data && typeof part.data === 'object') {
-    return part.data as Partial<T>
-  }
+const exportPartFieldsSchema = z.object({ type: z.string(), text: z.string().catch(''), data: z.unknown().optional() })
+const exportStringField = z.string().optional().catch(undefined)
+const exportCodeFieldsSchema = z.object({ content: exportStringField, language: exportStringField })
+const exportTranslationFieldsSchema = z.object({ content: exportStringField })
+const exportErrorFieldsSchema = z.object({
+  name: exportStringField,
+  code: z.union([z.string(), z.number()]).optional().catch(undefined),
+  message: exportStringField
+})
+const flatCitationFieldsSchema = z.object({
+  category: z.literal('citation'),
+  url: z.string(),
+  title: exportStringField,
+  number: z.number().optional().catch(undefined)
+})
 
-  return undefined
-}
-
-function formatCodePart(data: Partial<CodePartData> | undefined): string {
+function formatCodePart(data: z.infer<typeof exportCodeFieldsSchema> | undefined): string {
   const content = data?.content ?? ''
 
   if (!content.trim()) return ''
@@ -35,10 +44,34 @@ function formatCodePart(data: Partial<CodePartData> | undefined): string {
   return `\`\`\`${language}\n${content}\n\`\`\``
 }
 
-function formatErrorPart(data: Partial<ErrorPartData> | undefined): string {
+function formatErrorPart(data: z.infer<typeof exportErrorFieldsSchema> | undefined): string {
   if (!data) return ''
 
   return [data.name, data.code, data.message].filter(Boolean).join('\n')
+}
+
+function renderExportPart(part: z.infer<typeof exportPartFieldsSchema>): string {
+  switch (part.type) {
+    case 'text':
+      return part.text
+    case 'data-code': {
+      const data = exportCodeFieldsSchema.safeParse(part.data)
+
+      return formatCodePart(data.success ? data.data : undefined)
+    }
+    case 'data-translation': {
+      const data = exportTranslationFieldsSchema.safeParse(part.data)
+
+      return data.success ? (data.data.content ?? '') : ''
+    }
+    case 'data-error': {
+      const data = exportErrorFieldsSchema.safeParse(part.data)
+
+      return formatErrorPart(data.success ? data.data : undefined)
+    }
+    default:
+      return ''
+  }
 }
 
 /**
@@ -47,30 +80,26 @@ function formatErrorPart(data: Partial<ErrorPartData> | undefined): string {
  * must go through this so a code part keeps its fences and language tag.
  */
 export function getRenderableTextContent(part: CherryMessagePart): string {
-  switch (part.type) {
-    case 'text':
-      return part.text ?? ''
-    case 'data-code':
-      return formatCodePart(getDataPart<CodePartData>(part))
-    case 'data-translation':
-      return getDataPart<TranslationPartData>(part)?.content ?? ''
-    case 'data-error':
-      return formatErrorPart(getDataPart<ErrorPartData>(part))
-    default:
-      return ''
-  }
+  const parsed = exportPartFieldsSchema.safeParse(part)
+
+  return parsed.success ? renderExportPart(parsed.data) : ''
 }
 
 // Auxiliary part types whose text belongs in a full export but must NOT steer
 // the topic-naming / summary prompt — error dumps and raw translations would
 // pollute the generated title.
-const NAMING_EXCLUDED_PART_TYPES = new Set<CherryMessagePart['type']>(['data-error', 'data-translation'])
+const NAMING_EXCLUDED_PART_TYPES = new Set<string>(['data-error', 'data-translation'])
 
-function collectText(message: ExportableMessage, excludedTypes?: ReadonlySet<CherryMessagePart['type']>): string {
+function collectText(message: ExportableMessage, excludedTypes?: ReadonlySet<string>): string {
   return getParts(message)
-    .filter((part) => !excludedTypes?.has(part.type))
-    .map(getRenderableTextContent)
-    .filter((t) => t.trim().length > 0)
+    .flatMap((part) => {
+      const parsed = exportPartFieldsSchema.safeParse(part)
+
+      if (!parsed.success || excludedTypes?.has(parsed.data.type)) return []
+      const text = renderExportPart(parsed.data)
+
+      return text.trim().length > 0 ? [text] : []
+    })
     .join('\n\n')
 }
 
@@ -90,9 +119,13 @@ export const getNamingTextContent = (message: ExportableMessage): string =>
 
 export const getThinkingContent = (message: ExportableMessage): string => {
   return getParts(message)
-    .filter((p): p is Extract<CherryMessagePart, { type: 'reasoning' }> => p.type === 'reasoning')
-    .map((p) => p.text ?? '')
-    .filter((t) => t.trim().length > 0)
+    .flatMap((part) => {
+      const parsed = exportPartFieldsSchema.safeParse(part)
+
+      return parsed.success && parsed.data.type === 'reasoning' && parsed.data.text.trim().length > 0
+        ? [parsed.data.text]
+        : []
+    })
     .join('\n\n')
 }
 
@@ -105,22 +138,22 @@ export const getCitationContent = (message: ExportableMessage): string => {
   const lines: string[] = []
 
   for (const part of getParts(message)) {
-    if (part.type !== 'text') continue
+    const parsedPart = exportPartFieldsSchema.safeParse(part)
 
-    const refs = (readCherryMeta(part)?.references ?? []) as Array<{
-      category?: string
-      number?: number
-      title?: string
-      url?: string
-    }>
+    if (!parsedPart.success || parsedPart.data.type !== 'text') continue
+
+    const refs = readCherryMeta(part)?.references ?? []
 
     for (const ref of refs) {
-      if (ref.category !== 'citation') continue
+      const parsed = flatCitationFieldsSchema.safeParse(ref)
 
-      if (!ref.url) continue
-      const number = ref.number ?? lines.length + 1
-      const title = ref.title || ref.url.slice(0, 1999)
-      lines.push(`[${number}] [${title}](${ref.url.slice(0, 1999)})`)
+      if (!parsed.success) continue
+      const citation = parsed.data
+
+      if (!citation.url) continue
+      const number = citation.number ?? lines.length + 1
+      const title = citation.title || citation.url.slice(0, 1999)
+      lines.push(`[${number}] [${title}](${citation.url.slice(0, 1999)})`)
     }
   }
 
@@ -150,17 +183,13 @@ const formatCitationLines = (citations: Citation[]): string =>
  * matching sources list, which {@link getCitationContent} cannot produce.
  */
 export const getToolCitationExport = (message: ExportableMessage, content: string) => {
-  // Legacy reference metadata wins, mirroring MainTextBlock: those messages number
-  // their `[N]` markers from the stored references, so resolving them here would
-  // renumber the text by first appearance and drift from that sources list.
-  //
-  // Gate on the same predicate the renderer uses (MainTextBlock: references present
-  // AND they yield citations). `getCitationContent` cannot stand in for it — it reads
-  // a flat `ref.url` that the real nested `WebCitationReference` shape never has, so
-  // it returns '' for migrated messages that do render legacy citations.
+  // Legacy [N] markers keep their stored numbering; yield to them only when
+  // their references produce citations, matching MainTextBlock.
   const rendersLegacyCitations = getParts(message).some((part) => {
-    if (part.type !== 'text') return false
-    const references = readCherryMeta(part)?.references as ContentReference[] | undefined
+    const parsed = exportPartFieldsSchema.safeParse(part)
+
+    if (!parsed.success || parsed.data.type !== 'text') return false
+    const references = readCherryMeta(part)?.references
 
     return !!references?.length && convertReferencesToCitations(references).length > 0
   })

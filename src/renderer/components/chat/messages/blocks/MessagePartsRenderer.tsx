@@ -48,7 +48,7 @@ import {
   convertReferencesToCitations
 } from '@renderer/utils/partsToBlocks'
 import type { FileHandle } from '@shared/data/types/file'
-import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
@@ -105,12 +105,10 @@ import TranslationBlock from './TranslationBlock'
 
 const logger = loggerService.withContext('MessagePartsRenderer')
 
-// The same references array must convert to the same citation array identities
-// across renders: a fresh array here cascades into ChatMarkdown's components
-// map and forces Streamdown to re-render (and re-animate) every markdown block
-// on each streaming tick.
+// Reuse each references array's converted identities so streaming ticks do not
+// rebuild ChatMarkdown's component map and restart markdown animations.
 const referenceCitationsCache = new WeakMap<
-  ContentReference[],
+  readonly unknown[],
   { citations: Citation[]; citationReferences?: CitationReferenceView[] }
 >()
 
@@ -851,8 +849,7 @@ function renderPart(
     case 'text': {
       const cherryMeta = getCherryMeta(part)
 
-      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy entries are only partially validated; citation converters interpret them without replacing the cached array.
-      const references = cherryMeta?.references as ContentReference[] | undefined
+      const references = cherryMeta?.references
       let converted = references ? referenceCitationsCache.get(references) : undefined
 
       if (references && !converted) {
@@ -1967,8 +1964,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
 
     const textParts = messageParts.filter((part) => {
       if (part.type !== 'text') return false
-      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy entries are only partially validated; reuse the citation converters without claiming a complete ContentReference parse.
-      const references = getCherryMeta(part)?.references as ContentReference[] | undefined
+      const references = getCherryMeta(part)?.references
 
       return !references?.length || convertReferencesToCitations(references).length === 0
     })
