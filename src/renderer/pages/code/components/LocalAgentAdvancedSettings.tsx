@@ -16,6 +16,7 @@ export function LocalAgentAdvancedSettings({
   preset,
   detection,
   hasAgent,
+  restoring,
   busyAction,
   pendingSelection,
   feedback,
@@ -31,6 +32,7 @@ export function LocalAgentAdvancedSettings({
   preset?: LocalAgentPreset
   detection?: LocalAgentDetection
   hasAgent: boolean
+  restoring?: boolean
   busyAction?: 'save' | 'check' | 'toggle' | 'install' | 'uninstall' | 'confirm-uninstall' | 'model' | 'terminal'
   pendingSelection?: string
   feedback?: ReactNode
@@ -137,7 +139,7 @@ export function LocalAgentAdvancedSettings({
               </Button>
               <Button disabled={busy || (!dirty && hasAgent)} onClick={() => void save()}>
                 {busyAction === 'save' && <Loader2 className="size-4 animate-spin" />}
-                {t('common.save')}
+                {t(restoring ? 'local_agents.enable' : 'common.save')}
               </Button>
             </div>
           )}
@@ -157,7 +159,7 @@ export function LocalAgentAdvancedSettings({
           <Input
             id="local-agent-name"
             className="h-8"
-            disabled={!!preset}
+            disabled={!!preset || restoring}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />

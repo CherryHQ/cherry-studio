@@ -209,10 +209,10 @@ export class AgentJobsService extends BaseService {
       })
     )
 
-    // Only heartbeat configuration changes require schedule convergence.
     this.registerDisposable(
-      agentService.onAgentUpdated(({ updates, agent }) => {
+      agentService.onAgentUpdated(({ updates, agent, taskScheduleIds }) => {
         if (this.isShuttingDown) return
+        for (const id of taskScheduleIds ?? []) application.get('JobManager').syncJobScheduleTimerById(id)
         const configPatch = updates.configuration
         if (!configPatch) return
         if (
@@ -386,6 +386,7 @@ export class AgentJobsService extends BaseService {
   resumeTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
     const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return null
+    this.assertAgentIsActive(agentId)
     if (existing.status === 'missed') return existing
     // State-aware no-op: resuming an already-enabled task would re-register
     // the SchedulerService timer and reset an interval's phase.
@@ -496,6 +497,7 @@ export class AgentJobsService extends BaseService {
     return this.taskLocks.runExclusive(taskId, async () => {
       const existing = this.getActiveTask(agentId, taskId)
       if (!existing || existing.status === 'completed') return false
+      this.assertAgentIsActive(agentId)
       if (existing.status === 'missed') {
         const enqueued = application.get('DbService').withWriteTx((tx) => {
           const schedule = jobScheduleService.getByIdTx(tx, taskId)

@@ -918,8 +918,10 @@ describe('local agent settings navigation', () => {
     rerender(<LocalAgentSettingsPage />)
     expect(screen.getByRole('heading', { name: 'Saved custom Agent' })).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Saved custom Agent · 已启用' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '高级设置' })).toBeDisabled()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '高级设置' }))
+    expect(screen.getByLabelText('自定义可执行程序路径')).toBeEnabled()
+    expect(screen.getByRole('button', { name: '启用此智能体' })).toBeVisible()
   })
 
   it('selects the new agent when an existing settings page receives another deep link', async () => {

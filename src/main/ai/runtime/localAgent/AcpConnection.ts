@@ -1084,13 +1084,18 @@ export class AcpConnection extends LocalConnection {
       }
       if (!this.localSessionInfo.protocolInfo?.verified.includes('prompt'))
         this.localSessionInfo.protocolInfo?.verified.push('prompt')
+      const truncated = response.stopReason === 'max_tokens' || response.stopReason === 'max_turn_requests'
+      if (this.headless && truncated) {
+        this.finish(new Error(t('local_agent.scheduled_output_limit')))
+        return
+      }
       this.finish(
         undefined,
         response.stopReason === 'cancelled'
           ? 'cancelled'
           : response.stopReason === 'refusal'
             ? 'content-filter'
-            : response.stopReason === 'max_tokens' || response.stopReason === 'max_turn_requests'
+            : truncated
               ? 'length'
               : response.stopReason === 'end_turn'
                 ? 'stop'

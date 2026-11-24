@@ -15,6 +15,13 @@ export const LocalAgentConfigurationSchema = z.strictObject({
 })
 export type LocalAgentConfiguration = z.infer<typeof LocalAgentConfigurationSchema>
 
+export const LocalAgentLaunchSettingsSchema = LocalAgentConfigurationSchema.pick({
+  executableOverride: true,
+  args: true,
+  env: true
+})
+export type LocalAgentLaunchSettings = z.infer<typeof LocalAgentLaunchSettingsSchema>
+
 export interface LocalAgentPreset {
   id: string
   name: string

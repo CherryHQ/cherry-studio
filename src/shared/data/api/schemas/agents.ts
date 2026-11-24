@@ -204,7 +204,7 @@ export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 export type TaskRunSummary =
   | { status: 'queued' }
   | { status: 'running' }
-  | { status: 'completed' | 'failed' | 'cancelled'; finishedAt: string }
+  | { status: 'completed' | 'failed' | 'cancelled' | 'skipped'; finishedAt: string }
 export type ScheduledTaskListItem = ScheduledTaskEntity & { runSummary: TaskRunSummary | null }
 
 export const TaskRunLogEntitySchema = z.strictObject({
@@ -214,8 +214,8 @@ export const TaskRunLogEntitySchema = z.strictObject({
   startedAt: z.string(),
   /** null while unfinished and for runs that never started (no queue-wait shown as duration). */
   durationMs: z.number().nullable(),
-  /** JobStatus terminal set + 'running' (pending/delayed collapse to 'running' for display). */
-  status: z.enum(['running', 'completed', 'failed', 'cancelled']),
+  /** Display outcomes. Pending and delayed runs are shown as running. */
+  status: z.enum(['running', 'completed', 'failed', 'cancelled', 'skipped']),
   result: z.string().nullable().optional(),
   error: z.string().nullable().optional()
 })

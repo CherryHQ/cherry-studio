@@ -8,6 +8,7 @@ import { agentTaskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
+import type { LocalAgentLaunchSettings } from '@shared/ai/localAgent'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   ReusableAgentSessionPlaceholdersResponse,
@@ -85,7 +86,7 @@ export class AgentLifecycleService extends BaseService {
     )
   }
 
-  restoreAgent(agentId: string) {
+  restoreAgent(agentId: string, launchSettings?: LocalAgentLaunchSettings) {
     return this.runOperation('restore-agent:' + agentId, () =>
       this.agentLocks.runExclusive(agentId, () =>
         this.withOperationLocks(agentSessionService.listIdsByAgent(agentId), async () => {
@@ -96,11 +97,13 @@ export class AgentLifecycleService extends BaseService {
             workspaces,
             () =>
               application.get('DbService').withWriteTx((tx) => {
-                const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId)
+                const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId, launchSettings)
+                const enabled = agent.type !== 'local' || agent.configuration?.localRuntime?.enabled
                 return {
                   agent,
                   restoredSessionIds,
-                  scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, 'active', Date.now()).scheduleIds
+                  scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, enabled ? 'active' : 'trashed', Date.now())
+                    .scheduleIds
                 }
               })
           )

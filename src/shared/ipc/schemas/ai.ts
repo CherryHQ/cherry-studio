@@ -9,6 +9,7 @@ import type { AgentDelegationSnapshot } from '@shared/ai/agentSessionDelivery'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import {
   LocalAgentConfigurationSchema,
+  LocalAgentLaunchSettingsSchema,
   LocalAgentInstallResultSchema,
   LocalAgentModelCatalogSchema,
   LocalAgentUninstallResultSchema,
@@ -571,7 +572,7 @@ export const aiRequestSchemas = {
     output: AgentConfigChangePreviewSchema
   }),
   'ai.agent.restore': defineRoute({
-    input: z.object({ agentId: z.string() }),
+    input: z.object({ agentId: z.string(), launchSettings: LocalAgentLaunchSettingsSchema.optional() }),
     output: AgentEntitySchema
   }),
   'ai.agent.delete': defineRoute({

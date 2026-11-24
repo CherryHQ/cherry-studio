@@ -751,6 +751,27 @@ describe('local protocol processes', () => {
     ])
   })
 
+  it.each(['max_tokens', 'max_turn_requests'])(
+    'fails an unattended ACP turn at %s with partial output',
+    async (reason) => {
+      const { connection, events, drained, text } = create(
+        'acp',
+        `stop:${reason}`,
+        undefined,
+        undefined,
+        undefined,
+        true
+      )
+      await connection.start(cwd)
+      await connection.send(input)
+      await connection.close()
+      await drained
+      expect(text()).toContain('hello')
+      expect(events.some((event) => event.type === 'error')).toBe(true)
+      expect(events.some((event) => event.type === 'turn-complete')).toBe(false)
+    }
+  )
+
   it('records advertised capabilities separately from successful protocol checks', async () => {
     const { connection } = create('acp')
     await connection.start(cwd, undefined, true)

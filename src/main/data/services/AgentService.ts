@@ -28,7 +28,12 @@ import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
-import { LocalAgentConfigurationSchema, type LocalAgentConfiguration, LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
+import {
+  LocalAgentConfigurationSchema,
+  type LocalAgentConfiguration,
+  type LocalAgentLaunchSettings,
+  LOCAL_AGENT_PRESETS
+} from '@shared/ai/localAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -56,6 +61,7 @@ export interface AgentUpdatedEvent {
   agentId: string
   updates: UpdateAgentDto
   agent: AgentEntity
+  taskScheduleIds?: string[]
 }
 
 export interface AgentCreatedEvent {
@@ -920,7 +926,7 @@ export class AgentService {
       this.assertKnowledgeBasesExistTx(application.get('DbService').getDb(), newKnowledgeBaseIds)
     }
 
-    withSqliteErrors(
+    const taskScheduleIds = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
           const [current] = tx
@@ -930,6 +936,7 @@ export class AgentService {
             .limit(1)
             .all()
           if (!current) throw DataApiErrorFactory.notFound('Agent', id)
+          let changedLocalEnabled: boolean | undefined
           if (current.type === 'local') {
             const previous = LocalAgentConfigurationSchema.parse(current.configuration.localRuntime)
             const next = LocalAgentConfigurationSchema.parse(
@@ -941,6 +948,7 @@ export class AgentService {
             )
             if (next.protocol !== previous.protocol || next.presetId !== previous.presetId)
               throw DataApiErrorFactory.invalidOperation('update local agent', 'Protocol and preset cannot change')
+            if (next.enabled !== previous.enabled) changedLocalEnabled = next.enabled
             if (
               updates.planModel ||
               updates.smallModel ||
@@ -1054,6 +1062,10 @@ export class AgentService {
             getDataService('AgentGlobalSkillService').applyJoinUpdatesByAgentTx(tx, id, newSkillUpdates)
           }
           if (replaceAvatarImage) this.clearAvatarSlotTx(tx, id)
+          return changedLocalEnabled !== undefined
+            ? agentTaskService.setOwnerStateTx(tx, id, changedLocalEnabled ? 'active' : 'trashed', Date.now())
+                .scheduleIds
+            : []
         }),
       defaultHandlersFor('Agent', id)
     )
@@ -1061,7 +1073,13 @@ export class AgentService {
     const updated = this.getAgent(id)
     if (updated) {
       this.notifyReadModelChange([id], 'projection')
-      this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
+      if (taskScheduleIds.length > 0) agentTaskService.notifyReadModelChange(taskScheduleIds, 'membership')
+      this._onAgentUpdated.fire({
+        agentId: id,
+        updates,
+        agent: updated,
+        ...(taskScheduleIds.length > 0 ? { taskScheduleIds } : {})
+      })
     }
     return updated
   }
@@ -1206,20 +1224,41 @@ export class AgentService {
     return agent
   }
 
-  restoreAgentTx(tx: DbOrTx, id: string): { agent: AgentEntity; restoredSessionIds: string[] } {
+  restoreAgentTx(
+    tx: DbOrTx,
+    id: string,
+    launchSettings?: LocalAgentLaunchSettings
+  ): { agent: AgentEntity; restoredSessionIds: string[] } {
     const [target] = tx
-      .select({ deletedAt: agentsTable.deletedAt })
+      .select({
+        deletedAt: agentsTable.deletedAt,
+        configuration: agentsTable.configuration,
+        type: agentsTable.type,
+        updatedAt: agentsTable.updatedAt
+      })
       .from(agentsTable)
       .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
       .limit(1)
       .all()
     if (!target || target.deletedAt === null) throw DataApiErrorFactory.notFound('Agent', id)
 
+    const restoreData: Partial<AgentRow> = { deletedAt: null }
+    if (launchSettings) {
+      const runtime = LocalAgentConfigurationSchema.safeParse(target.configuration.localRuntime)
+      if (target.type !== 'local' || !runtime.success || runtime.data.protocol !== 'acp' || runtime.data.presetId) {
+        throw DataApiErrorFactory.invalidOperation('restore agent', 'Only custom ACP launch settings can be changed')
+      }
+      restoreData.configuration = {
+        ...target.configuration,
+        localRuntime: LocalAgentConfigurationSchema.parse({ ...runtime.data, ...launchSettings, enabled: true })
+      }
+      restoreData.updatedAt = Math.max(Date.now(), target.updatedAt + 1)
+    }
     const restoredSessionIds = agentSessionService.restoreTrashedWithAgentTx(tx, id, target.deletedAt)
 
     const [row] = tx
       .update(agentsTable)
-      .set({ deletedAt: null })
+      .set(restoreData)
       .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
       .returning()
       .all()

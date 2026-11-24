@@ -60,6 +60,7 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
 import {
   LOCAL_AGENT_PRESETS,
+  LocalAgentLaunchSettingsSchema,
   type LocalAgentConfiguration,
   type LocalAgentCheckResult,
   type LocalAgentDetection,
@@ -641,7 +642,7 @@ export function LocalAgentDetails({
     </Tooltip>
   )
   const openEditor = () => {
-    if (archived) return
+    if (archived && preset) return
     setConnection(undefined)
     clearResult()
     setEditing(true)
@@ -887,7 +888,18 @@ export function LocalAgentDetails({
       }
       const restored =
         archived && configuration.enabled && agent
-          ? await ipcApi.request('ai.agent.restore', { agentId: agent.id })
+          ? await ipcApi.request('ai.agent.restore', {
+              agentId: agent.id,
+              ...(action === 'save'
+                ? {
+                    launchSettings: LocalAgentLaunchSettingsSchema.parse({
+                      executableOverride: configuration.executableOverride,
+                      args: configuration.args,
+                      env: configuration.env
+                    })
+                  }
+                : {})
+            })
           : undefined
       const updated = restored?.configuration?.localRuntime?.enabled
         ? restored
@@ -1007,7 +1019,7 @@ export function LocalAgentDetails({
                       size="icon"
                       className="size-7 shrink-0 rounded-lg text-foreground-tertiary hover:text-foreground"
                       aria-label={t('common.advanced_settings')}
-                      disabled={busy || archived}
+                      disabled={busy || (archived && !!preset)}
                       onClick={openEditor}>
                       <Settings2 className="lucide-custom size-3.5 text-muted-foreground" />
                     </Button>
@@ -1225,6 +1237,7 @@ export function LocalAgentDetails({
           preset={preset}
           detection={detection}
           hasAgent={!!agent}
+          restoring={archived}
           busyAction={installing ? 'install' : busyAction}
           pendingSelection={pendingSelection}
           feedback={feedback}
@@ -1233,7 +1246,9 @@ export function LocalAgentDetails({
           onChange={clearResult}
           onError={showError}
           onUninstall={uninstall}
-          onSave={(localRuntime, name) => save(localRuntime, name, 'save')}
+          onSave={(localRuntime, name) =>
+            save(archived ? { ...localRuntime, enabled: true } : localRuntime, name, 'save')
+          }
         />
       )}
     </>

@@ -259,6 +259,7 @@
   "local_agent.host_required_with_env": "{{agent}} richiede che {{host}} sia installato (o configurato tramite {{envVar}}).",
   "local_agent.model_unavailable": "Il modello selezionato «{{model}}» non è più disponibile. Scegli un altro modello nei servizi degli agenti.",
   "local_agent.runtime_required": "È richiesto {{runtime}} {{version}} o successivo.",
+  "local_agent.scheduled_output_limit": "L’agente ACP ha raggiunto il limite di output o di richieste prima di completare l’attività pianificata.",
   "mcp.skills.dynamic": "Le skill MCP dinamiche non sono supportate perché i loro file non possono essere verificati con un manifesto fisso.",
   "notification.action_required.agent": "L'agente richiede il tuo intervento",
   "notification.action_required.assistant": "L'assistente richiede il tuo intervento",

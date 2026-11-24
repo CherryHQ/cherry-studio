@@ -259,6 +259,7 @@
   "local_agent.host_required_with_env": "{{agent}} necesită instalarea {{host}} (sau configurarea prin {{envVar}}).",
   "local_agent.model_unavailable": "Modelul selectat „{{model}}” nu mai este disponibil. Alegeți alt model în Servicii pentru agenți.",
   "local_agent.runtime_required": "Este necesar {{runtime}} {{version}} sau o versiune ulterioară.",
+  "local_agent.scheduled_output_limit": "Agentul ACP a atins limita de ieșire sau de solicitări înainte de a finaliza sarcina programată.",
   "mcp.skills.dynamic": "Abilitățile MCP dinamice nu sunt acceptate deoarece fișierele lor nu pot fi verificate cu un manifest fix.",
   "notification.action_required.agent": "Agentul are nevoie de intervenția ta",
   "notification.action_required.assistant": "Asistentul are nevoie de intervenția ta",

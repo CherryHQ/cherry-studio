@@ -126,9 +126,11 @@ Enabling a local CLI creates a persistent agent. Each preset has one stable agen
 independent IDs. Disabling asks for confirmation, archives the agent and its active
 conversations, and stops its managed WebUI. Running tasks must stop before the
 existing archive operation can proceed. Cancelling or failing to archive leaves the
-agent active. The manager keeps archived local agents visible with their configuration
-read-only. Enabling restores the original agent ID, configuration, ordering, and
-conversations archived with it; independently archived conversations stay archived.
+agent active. The manager keeps archived local agents visible. Enabling restores
+the original agent ID, configuration, ordering, and conversations archived with it.
+When a custom ACP executable moves, its advanced settings let you verify and save
+the new launch configuration as part of the same restore. Independently archived
+conversations stay archived.
 Archived data follows Settings → Archive retention, so permanent removal ends this
 restore path. No Cherry model
 provider is required. “Local” refers to the CLI process, not an offline model.
@@ -359,6 +361,8 @@ ACP stop reasons map to stream finish reasons: `end_turn` → `stop`,
 `cancelled` uses the stream cancellation path and persists a paused turn. Limit
 and refusal reasons are preserved in the stream; the existing shared message
 status still describes completion of the stream, not completion of the user's task.
+For scheduled ACP runs, an output or request limit instead fails the run and
+retains the partial reply in its conversation.
 
 ACP `thought_level` select options use the unified Agent configuration menu. Known
 levels reuse the translated labels of provider models; custom values

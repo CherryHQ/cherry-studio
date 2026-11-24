@@ -12,6 +12,8 @@ The scheduled-task selector and creation service reject every local Agent. The r
 
 Enable configured local agents in the existing scheduler and run history. Codex uses a read-only sandbox and disables native integrations. The Claude SDK receives only read tools with ambient settings and MCP disabled. The host passes through the configured provider endpoint, model, and credentials. The ACP host limits file reads to the workspace and denies writes, terminals, approvals, and elicitation. Connections rebuild when switching between interactive and unattended execution. Reuse the existing database fields.
 
+Suspend active schedules in the same transaction as a local enablement change. Preserve individually paused schedules and apply the existing missed-run rules when an owner becomes available again. A partial ACP reply remains in the conversation when an output or request limit fails the run. Busy sessions yield a skipped run with no result notification. Existing scheduled notifications recover run identity from their deduplication key.
+
 ## Alternatives considered
 
 Using a second CLI runner would duplicate session, cancellation, and result handling. Inheriting interactive permissions would let a saved session setting expand the scope of a recurring task.

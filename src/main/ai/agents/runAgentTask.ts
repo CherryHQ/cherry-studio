@@ -157,6 +157,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   }
 
   const config = agent.configuration ?? {}
+  if (agent.type === 'local' && !config.localRuntime?.enabled) {
+    return { kind: 'skipped', result: 'Skipped (disabled)' }
+  }
 
   // Identity is the reserved prompt, not the schedule name — see HEARTBEAT_PROMPT_SENTINEL.
   const isHeartbeat = prompt === HEARTBEAT_PROMPT_SENTINEL

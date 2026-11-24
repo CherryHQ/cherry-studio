@@ -259,6 +259,7 @@
   "local_agent.host_required_with_env": "{{agent}} 需要先安装 {{host}}（或通过 {{envVar}} 环境变量指定路径）。",
   "local_agent.model_unavailable": "所选模型“{{model}}”已不可用，请在智能体服务中重新选择模型。",
   "local_agent.runtime_required": "需要 {{runtime}} {{version}} 或更高版本。",
+  "local_agent.scheduled_output_limit": "ACP 智能体在完成定时任务前已达到输出量或请求次数上限。",
   "mcp.skills.dynamic": "暂不支持动态 MCP 技能，因为无法依据固定清单验证其文件。",
   "notification.action_required.agent": "智能体任务需要你的响应",
   "notification.action_required.assistant": "助手需要你的响应",

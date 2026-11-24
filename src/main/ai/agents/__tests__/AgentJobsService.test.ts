@@ -20,6 +20,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
@@ -227,6 +228,75 @@ describe('AgentJobsService', () => {
   })
 
   // ---------------------------------------------------------------- create
+
+  it('suspends existing local tasks on disable and re-arms only previously active schedules', async () => {
+    const id = OTHER_AGENT_ID
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id,
+        type: 'local',
+        name: 'Local ACP',
+        instructions: '',
+        orderKey: id,
+        configuration: { localRuntime: { protocol: 'acp', enabled: true, args: [], env: {} } }
+      })
+      .run()
+    const active = service.createTask(id, form)
+    const paused = service.createTask(id, { ...form, name: 'paused task' })
+    await service.pauseTask(id, paused.id)
+
+    agentService.updateAgent(id, { configuration: { localRuntime: { enabled: false } } })
+    expect(agentTaskService.getTaskById(active.id)).toMatchObject({ status: 'paused', enabled: false })
+    expect(scheduler.has(`schedule:${active.id}`)).toBe(false)
+    await expect(service.runTask(id, active.id)).rejects.toThrow('Scheduled tasks require an enabled local agent')
+    expect(() => service.resumeTask(id, active.id)).toThrow('Scheduled tasks require an enabled local agent')
+    expect(jobService.list({ scheduleId: active.id })).toEqual([])
+
+    agentService.updateAgent(id, { configuration: { localRuntime: { enabled: true } } })
+    expect(scheduler.has(`schedule:${active.id}`)).toBe(true)
+    expect(scheduler.has(`schedule:${paused.id}`)).toBe(false)
+  })
+
+  it('restores a custom ACP with repaired launch settings and its original schedule', async () => {
+    const id = OTHER_AGENT_ID
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id,
+        type: 'local',
+        name: 'Custom ACP',
+        instructions: '',
+        orderKey: id,
+        configuration: {
+          localRuntime: {
+            enabled: true,
+            protocol: 'acp',
+            executableOverride: '/old/acp',
+            args: ['old'],
+            env: {},
+            nativeModel: 'saved-model'
+          }
+        }
+      })
+      .run()
+    const task = service.createTask(id, form)
+    const session = agentSessionService.create({ agentId: id, name: 'Owned', workspace: { type: 'system' } })
+    await lifecycle.archiveAgent(id, { archiveSessions: true })
+
+    const settings = { executableOverride: '/new/acp', args: ['new'], env: {} }
+    const restored = await lifecycle.restoreAgent(id, settings)
+
+    expect(restored.id).toBe(id)
+    expect(restored.configuration?.localRuntime).toMatchObject({
+      ...settings,
+      nativeModel: 'saved-model',
+      enabled: true
+    })
+    expect(agentSessionService.getById(session.id).deletedAt).toBeUndefined()
+    expect(agentTaskService.getTaskById(task.id)).toMatchObject({ id: task.id, status: 'active' })
+    expect(scheduler.has(`schedule:${task.id}`)).toBe(true)
+  })
 
   it('refreshes workspace visibility after task creation, workspace changes and deletion', async () => {
     const workspace = agentWorkspaceService.findOrCreateByPath('/tmp/heartbeat-task-visibility')

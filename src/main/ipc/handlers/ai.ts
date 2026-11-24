@@ -267,9 +267,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('LocalAgentInstallService').install(presetId, targetVersion, systemOnly),
   'ai.agent.create': createAgent,
   'ai.agent.preview_config_change': async ({ approvalId }) => previewAgentConfigChange(approvalId),
-  'ai.agent.restore': async ({ agentId }) => {
+  'ai.agent.restore': async ({ agentId, launchSettings }) => {
     try {
-      return await application.get('AgentLifecycleService').restoreAgent(agentId)
+      return await application.get('AgentLifecycleService').restoreAgent(agentId, launchSettings)
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
         throw new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, error.message)
