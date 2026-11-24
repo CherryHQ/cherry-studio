@@ -42,7 +42,7 @@ export function useProviders(
   query?: ListProvidersQuery,
   options?: { enabled?: boolean; swrOptions?: SWRConfiguration }
 ) {
-  const filtered = query ? (omitBy(query, isUndefined) as ListProvidersQuery) : undefined
+  const filtered: ListProvidersQuery | undefined = query ? omitBy(query, isUndefined) : undefined
   const hasQuery = filtered && Object.keys(filtered).length > 0
 
   const queryOptions =
