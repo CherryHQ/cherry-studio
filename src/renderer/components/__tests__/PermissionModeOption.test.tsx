@@ -208,6 +208,22 @@ describe('PermissionModeSelect', () => {
     fireEvent.change(nativeSelect as HTMLSelectElement, { target: { value: 'auto' } })
     expect(onValueChange).toHaveBeenCalledWith('auto')
   })
+
+  it.each(['plan', 'unexpected-mode'])('ignores the unoffered native selection %s', (mode) => {
+    const onValueChange = vi.fn()
+    render(<PermissionSelectHarness onValueChange={onValueChange} />)
+    const nativeSelect = document.querySelector('select')
+    if (!nativeSelect) throw new Error('Expected the native select')
+
+    const option = document.createElement('option')
+    option.value = mode
+    nativeSelect.appendChild(option)
+    nativeSelect.value = mode
+    expect(nativeSelect.value).toBe(mode)
+    fireEvent.change(nativeSelect)
+
+    expect(onValueChange).not.toHaveBeenCalled()
+  })
 })
 
 const fullAccessCard = {

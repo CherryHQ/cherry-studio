@@ -230,16 +230,17 @@ export function PermissionModeSelect({
         value={value}
         onValueChange={(next) => {
           // Radix's hidden native select can briefly emit an empty value while its dynamic options change.
-          if (!next) return
+          const nextCard = cards.find((card) => card.mode === next)
+          if (!nextCard) return
 
-          if (next === 'bypassPermissions' && value !== 'bypassPermissions') {
+          if (nextCard.mode === 'bypassPermissions' && value !== 'bypassPermissions') {
             setFullAccessPending(true)
 
             return
           }
 
           setFullAccessPending(false)
-          onValueChange(next as PermissionMode)
+          onValueChange(nextCard.mode)
         }}>
         <FormControl>
           <SelectTrigger className="h-9 w-full rounded-md" aria-label={ariaLabel}>
