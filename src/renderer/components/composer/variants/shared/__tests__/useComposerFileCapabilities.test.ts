@@ -1,32 +1,15 @@
 import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { anyFileExt } from '@renderer/utils/file'
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY, type ModelCapability } from '@shared/data/types/model'
 import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 
 import { useComposerFileCapabilities } from '../useComposerFileCapabilities'
 
-const mocks = vi.hoisted(() => ({
-  isAudioModel: vi.fn(),
-  isAudioModels: vi.fn(),
-  isVideoModel: vi.fn(),
-  isVideoModels: vi.fn()
-}))
-
-vi.mock('@renderer/utils/model', () => mocks)
-
-const model = (id: string) => ({ id }) as unknown as Model
+const model = (id: string, capabilities: ModelCapability[] = []) => ({ id, capabilities }) as unknown as Model
 const containsAll = (haystack: string[], needles: readonly string[]) => needles.every((n) => haystack.includes(n))
 const ALL_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts]
-
-beforeEach(() => {
-  vi.clearAllMocks()
-  mocks.isAudioModel.mockReturnValue(false)
-  mocks.isAudioModels.mockReturnValue(false)
-  mocks.isVideoModel.mockReturnValue(false)
-  mocks.isVideoModels.mockReturnValue(false)
-})
 
 describe('useComposerFileCapabilities', () => {
   describe('agent surface (bare model)', () => {
@@ -68,18 +51,24 @@ describe('useComposerFileCapabilities', () => {
     })
 
     it('adds audio exts only when every mentioned model supports audio input', () => {
-      mocks.isAudioModels.mockReturnValue(true)
-      const models = [model('a'), model('b')]
+      const audio = MODEL_CAPABILITY.AUDIO_RECOGNITION
+      const models = [model('a', [audio]), model('b', [audio])]
 
       const { result } = renderHook(() => useComposerFileCapabilities({ models, fallbackModel: undefined }))
 
       expect(containsAll(result.current.supportedExts, audioExts)).toBe(true)
       expect(containsAll(result.current.supportedExts, videoExts)).toBe(false)
+
+      const mixed = [model('a', [audio]), model('b')]
+      const { result: mixedResult } = renderHook(() =>
+        useComposerFileCapabilities({ models: mixed, fallbackModel: undefined })
+      )
+
+      expect(containsAll(mixedResult.current.supportedExts, audioExts)).toBe(false)
     })
 
     it('falls back to the assistant model for audio when nothing is mentioned', () => {
-      mocks.isAudioModel.mockReturnValue(true)
-      const fallbackModel = model('assistant')
+      const fallbackModel = model('assistant', [MODEL_CAPABILITY.AUDIO_RECOGNITION])
 
       const { result } = renderHook(() => useComposerFileCapabilities({ models: [], fallbackModel }))
 

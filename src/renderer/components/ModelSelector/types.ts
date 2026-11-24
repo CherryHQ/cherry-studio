@@ -83,6 +83,7 @@ export interface ModelSelectorGroupItem {
   groupKind: 'pinned' | 'provider'
   provider?: Provider
   canNavigateToSettings?: boolean
+  titleAction?: ReactNode
   trailing?: ReactNode
 }
 
@@ -125,6 +126,7 @@ export interface ModelSelectorComposition {
   providerGroups?: readonly {
     id: string
     providerIds: readonly string[]
+    titleAction?: ReactNode
     trailing?: ReactNode
   }[]
   actions?: readonly ModelSelectorActionItem[]
