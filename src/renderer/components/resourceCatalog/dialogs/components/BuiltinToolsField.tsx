@@ -5,17 +5,12 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { platform } from '@renderer/utils/platform'
-import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
-import {
-  CLAUDE_KNOWLEDGE_TOOL_NAMES,
-  CLAUDE_TOOL_CATEGORIES,
-  type ClaudeToolCategory
-} from '@shared/ai/claudecode/toolRegistry'
+import { CLAUDE_TOOL_CATEGORIES, type ClaudeToolCategory } from '@shared/ai/claudecode/toolRegistry'
 import { COMPUTER_USE_TOOL_GROUP } from '@shared/ai/computerUseTools'
 import type { AgentType } from '@shared/data/types/agent'
 
+import { getAgentBuiltinTools } from './builtinTools'
 import { CapabilityRow } from './CapabilityList'
 
 const CATEGORY_LABEL_KEYS: Record<ClaudeToolCategory, string> = {
@@ -62,10 +57,7 @@ export function BuiltinToolsField({
     onDisabledToolsChange(enabled ? disabledTools.filter((name) => name !== id) : [...disabledTools, id])
 
   const sections = useMemo(() => {
-    const caps: AgentRuntimeCapabilities = AGENT_RUNTIME_CAPABILITIES[agentType]
-    const tools = caps
-      .builtinTools(platform)
-      .filter((tool) => !caps.knowledgeBases || hasKnowledgeScope || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
+    const tools = getAgentBuiltinTools(agentType, hasKnowledgeScope)
     return CLAUDE_TOOL_CATEGORIES.map((category) => ({
       category,
       label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),

@@ -101,7 +101,7 @@ function AgentProfileSettings({ agent }: { agent: AgentEntity }) {
           label={permissionLabel}
           value={permissionCard ? t(permissionCard.titleKey, permissionCard.titleFallback) : permissionMode}
           icon={<PermissionModeIcon mode={permissionMode} size={16} />}
-          onClick={() => openEdit('basic')}
+          onClick={() => openEdit('advanced')}
           className="w-40"
         />
       </ProfileSettingsRow>
@@ -109,7 +109,7 @@ function AgentProfileSettings({ agent }: { agent: AgentEntity }) {
         <ProfileSettingButton
           label={languageLabel}
           value={languageValue}
-          onClick={() => openEdit('basic')}
+          onClick={() => openEdit('advanced')}
           className="w-40"
         />
       </ProfileSettingsRow>
