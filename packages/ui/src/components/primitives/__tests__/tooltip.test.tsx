@@ -1099,6 +1099,31 @@ describe('Tooltip', () => {
       }
     })
 
+    it('sweeps orphaned content adopted from another window', async () => {
+      const frame = document.createElement('iframe')
+      document.body.appendChild(frame)
+      vi.useFakeTimers()
+      try {
+        const sourceDocument = frame.contentDocument
+        if (!sourceDocument) throw new Error('The iframe document is unavailable')
+
+        const ghost = sourceDocument.createElement('div')
+        ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-tooltip-sweepable', '')
+        ghost.setAttribute('data-state', 'closed')
+        document.body.appendChild(document.adoptNode(ghost))
+        await act(async () => {})
+
+        act(() => {
+          vi.advanceTimersByTime(SWEEP_DELAY_MS + 100)
+        })
+        expect(document.body.contains(ghost)).toBe(false)
+      } finally {
+        frame.remove()
+        vi.useRealTimers()
+      }
+    })
+
     it('does not sweep closed content without the ownership marker', async () => {
       vi.useFakeTimers()
       try {

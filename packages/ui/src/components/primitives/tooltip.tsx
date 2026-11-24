@@ -235,6 +235,7 @@ function setupTooltipOrphanSweeper(): void {
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       if (mutation.type === 'attributes') {
+        // SAFETY: Native attribute mutation records always target an Element.
         const target = mutation.target as Element
 
         if (target.getAttribute('data-slot') === 'tooltip-content') {
@@ -250,25 +251,26 @@ function setupTooltipOrphanSweeper(): void {
       }
 
       for (const node of mutation.addedNodes) {
-        const element = node as Element
-        const isElement = element.nodeType === 1
+        if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) continue
 
-        if (!isElement && element.nodeType !== 11) continue // 元素或 DocumentFragment（其子树整体追加）
+        // SAFETY: These native nodeType values identify Element or DocumentFragment, including foreign-realm nodes.
+        const container = node as Element | DocumentFragment
+        const element = 'matches' in container ? container : null
 
         // content 内部元素（arrow/svg/文本）的 churn 与关闭判定无关
-        if (isElement && element.parentElement?.getAttribute('data-slot') === 'tooltip-content') continue
+        if (element?.parentElement?.getAttribute('data-slot') === 'tooltip-content') continue
 
         // 一条原生属性查询取代逐元素 JS 遍历：大子树挂载时不再做 O(子树) 的 JS 工作
-        if (isElement && element.matches(SWEEPABLE_CONTENT_SELECTOR)) maybeSweep(element)
+        if (element?.matches(SWEEPABLE_CONTENT_SELECTOR)) maybeSweep(element)
 
-        for (const target of element.querySelectorAll(SWEEPABLE_CONTENT_SELECTOR)) {
+        for (const target of container.querySelectorAll(SWEEPABLE_CONTENT_SELECTOR)) {
           maybeSweep(target)
         }
 
         // shadow 宿主没有对应选择器，只查节点自身与直接子级（宿主随深层子树一并插入不在支持范围）
-        if (isElement && element.shadowRoot) scanShadowTree(element.shadowRoot)
+        if (element?.shadowRoot) scanShadowTree(element.shadowRoot)
 
-        for (const child of element.children) {
+        for (const child of container.children) {
           if (child.shadowRoot) scanShadowTree(child.shadowRoot)
         }
       }
