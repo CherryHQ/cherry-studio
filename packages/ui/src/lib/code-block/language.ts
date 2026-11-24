@@ -210,6 +210,7 @@ function normalizeExtension(language: string, languageConfig?: LanguageConfig) {
 
 type Support = Language | LanguageSupport
 
+const languageAliases = new Map(Object.entries(CODE_LANGUAGES))
 const languages = new Map<string, Promise<Support | null>>()
 
 export function loadCodeBlockLanguage(language: string, config?: LanguageConfig): Promise<Support | null> {
@@ -221,17 +222,16 @@ export function loadCodeBlockLanguage(language: string, config?: LanguageConfig)
       if (extension === 'dot') return (await import('@viz-js/lang-dot')).dot()
 
       if (extension === 'mmd' || extension === 'mermaid') return (await import('codemirror-lang-mermaid')).mermaid()
-      const { loadLanguage } = await import('@uiw/codemirror-extensions-langs')
+      const { langNames, loadLanguage } = await import('@uiw/codemirror-extensions-langs')
       const canonical = normalizeCodeLanguage(extension)
 
-      const candidates = [
-        extension,
-        normalizeExtension(canonical),
-        ...(CODE_LANGUAGES[canonical as keyof typeof CODE_LANGUAGES] ?? [])
-      ]
+      const candidates = [extension, normalizeExtension(canonical), ...(languageAliases.get(canonical) ?? [])]
 
       for (const candidate of candidates) {
-        const support = loadLanguage(candidate as Parameters<typeof loadLanguage>[0])
+        const name = langNames.find((name) => name === candidate)
+        if (name === undefined) continue
+
+        const support = loadLanguage(name)
 
         if (support) return support
       }
