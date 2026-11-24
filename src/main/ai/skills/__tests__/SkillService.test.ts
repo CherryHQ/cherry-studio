@@ -7,10 +7,10 @@ import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import AdmZip from 'adm-zip'
 import Database from 'better-sqlite3'
 import { eq } from 'drizzle-orm'
 import { net } from 'electron'
+import JSZip from 'jszip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -63,7 +63,7 @@ vi.mock('@main/utils/processRunner', async (importOriginal) => ({
 // Spy wrappers over the real implementations: install tests stub a single step (temp dir, ZIP
 // extraction, directory resolution) while the rest of the path still runs for real.
 vi.mock('../skillPaths', async (importOriginal) => {
-  const actual = (await importOriginal()) as typeof skillPaths
+  const actual = await importOriginal<typeof skillPaths>()
   return {
     ...actual,
     createTempDir: vi.fn(actual.createTempDir),
@@ -71,7 +71,7 @@ vi.mock('../skillPaths', async (importOriginal) => {
   }
 })
 vi.mock('../skillArchive', async (importOriginal) => {
-  const actual = (await importOriginal()) as typeof skillArchive
+  const actual = await importOriginal<typeof skillArchive>()
   return {
     ...actual,
     extractZip: vi.fn(actual.extractZip),
@@ -519,21 +519,18 @@ describe('SkillService', () => {
       await fs.promises.mkdir(path.join(directory, 'assets'), { recursive: true })
       await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '# Skill one')
       await fs.promises.writeFile(path.join(directory, 'assets', 'image.bin'), Buffer.from([0, 255, 128]))
+      await fs.promises.writeFile(path.join(directory, 'run.sh'), '#!/bin/sh\n', { mode: 0o755 })
       vi.mocked(findSkillMdPath).mockResolvedValue(path.join(directory, 'SKILL.md'))
       const getPathSpy = vi
         .spyOn(application, 'getPath')
         .mockImplementation((_key: string, filename?: string) => (filename ? path.join(root, filename) : root))
       try {
         const data = await new SkillService().exportArchive(SKILL_ID_1)
-        const zip = new AdmZip(Buffer.from(data))
-        expect(
-          zip
-            .getEntries()
-            .map((entry) => entry.entryName)
-            .sort()
-        ).toEqual(['SKILL.md', 'assets/image.bin'])
-        expect(zip.readAsText('SKILL.md')).toBe('# Skill one')
-        expect(zip.readFile('assets/image.bin')).toEqual(Buffer.from([0, 255, 128]))
+        const zip = await JSZip.loadAsync(data)
+        expect(Object.keys(zip.files).sort()).toEqual(['SKILL.md', 'assets/image.bin', 'run.sh'])
+        await expect(zip.file('SKILL.md')!.async('string')).resolves.toBe('# Skill one')
+        await expect(zip.file('assets/image.bin')!.async('nodebuffer')).resolves.toEqual(Buffer.from([0, 255, 128]))
+        if (!isWin) expect(Number(zip.file('run.sh')!.unixPermissions) & 0o777).toBe(0o755)
         await expect(new SkillService().exportArchive('missing')).rejects.toThrow('Skill not found')
       } finally {
         getPathSpy.mockRestore()
@@ -593,9 +590,9 @@ describe('SkillService', () => {
 
     it('classifies a real ZIP without SKILL.md and preserves the extraction path without adding rows', async () => {
       const zipPath = path.join(root, 'no-skill.zip')
-      const zip = new AdmZip()
-      zip.addFile('paper-pilot-main/README.md', Buffer.from('# Readme'))
-      zip.writeZip(zipPath)
+      const zip = new JSZip()
+      zip.file('paper-pilot-main/README.md', Buffer.from('# Readme'))
+      await fs.promises.writeFile(zipPath, await zip.generateAsync({ type: 'nodebuffer' }))
       const error = await service.installFromZip({ zipFilePath: zipPath }).catch((error: unknown) => error)
       expect(error).toBeInstanceOf(SkillImportError)
       expect(error).toMatchObject({ code: 'SKILL_DIRECTORY_NOT_FOUND' })
@@ -609,12 +606,12 @@ describe('SkillService', () => {
       async (layout) => {
         const name = `import-${layout}`
         const zipPath = path.join(root, `${layout}.zip`)
-        const zip = new AdmZip()
-        zip.addFile(
+        const zip = new JSZip()
+        zip.file(
           layout === 'root' ? 'SKILL.md' : `${name}/SKILL.md`,
           Buffer.from(`---\nname: ${name}\ndescription: Import fixture\n---\n# Skill`)
         )
-        zip.writeZip(zipPath)
+        await fs.promises.writeFile(zipPath, await zip.generateAsync({ type: 'nodebuffer' }))
         const installed = await service.installFromZip({ zipFilePath: zipPath })
         expect(installed.name).toBe(name)
         expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([
@@ -2211,9 +2208,9 @@ describe('SkillService', () => {
       const root = await createTempDir('skill-zip-limit-')
       const zipPath = path.join(root, 'over-limit.zip')
       const extractDir = path.join(root, 'extract')
-      const zip = new AdmZip()
-      for (let index = 0; index < 60_000; index++) zip.addFile(`${index}.txt`, Buffer.alloc(0))
-      zip.writeZip(zipPath)
+      const zip = new JSZip()
+      for (let index = 0; index < 60_000; index++) zip.file(`${index}.txt`, Buffer.alloc(0))
+      await fs.promises.writeFile(zipPath, await zip.generateAsync({ type: 'nodebuffer' }))
 
       const actualArchive = await vi.importActual<typeof skillArchive>('../skillArchive')
       vi.mocked(skillArchive.extractZip).mockImplementation(actualArchive.extractZip)
@@ -2235,11 +2232,11 @@ describe('SkillService', () => {
       const zipPath = path.join(root, 'repo-main.zip')
       const extractDir = path.join(root, 'extract')
 
-      const zip = new AdmZip()
-      zip.addFile('repo-main/skills/demo/SKILL.md', Buffer.from('---\nname: demo\n---\n'))
+      const zip = new JSZip()
+      zip.file('repo-main/skills/demo/SKILL.md', Buffer.from('---\nname: demo\n---\n'))
       // Repository payload that is not part of the skill, over the per-skill ceiling on its own.
-      for (let index = 0; index < 110; index++) zip.addFile(`repo-main/assets/${index}.bin`, Buffer.alloc(1024 * 1024))
-      zip.writeZip(zipPath)
+      for (let index = 0; index < 110; index++) zip.file(`repo-main/assets/${index}.bin`, Buffer.alloc(1024 * 1024))
+      await fs.promises.writeFile(zipPath, await zip.generateAsync({ type: 'nodebuffer' }))
 
       const actualArchive = await vi.importActual<typeof skillArchive>('../skillArchive')
       vi.mocked(skillArchive.extractZip).mockImplementation(actualArchive.extractZip)
@@ -2586,8 +2583,8 @@ describe('SkillService', () => {
     })
 
     function servePackage(files: Record<string, string>, collection = true) {
-      const zip = new AdmZip()
-      for (const [name, content] of Object.entries(files)) zip.addFile(name, Buffer.from(content))
+      const zip = new JSZip()
+      for (const [name, content] of Object.entries(files)) zip.file(name, Buffer.from(content))
       const item = {
         id: itemId,
         name: { en: 'one', zh: null },
@@ -2610,7 +2607,7 @@ describe('SkillService', () => {
       vi.mocked(net.fetch).mockImplementation(async () => Response.json(item))
       vi.mocked(remoteFetch.fetchRemoteFile).mockImplementation(async (url, destination) => {
         expect(url).toBe(item.downloadUrl)
-        await fs.promises.writeFile(destination, zip.toBuffer(), { flag: 'wx' })
+        await fs.promises.writeFile(destination, await zip.generateAsync({ type: 'nodebuffer' }), { flag: 'wx' })
       })
       return item
     }
@@ -2727,6 +2724,36 @@ describe('SkillService', () => {
       expect(retried.installed.map((skill) => skill.folderName)).toEqual(['two'])
       expect(retried.alreadyInstalled.map((skill) => skill.id)).toEqual([partial.installed[0].id])
       expect(await fs.promises.readFile(path.join(firstDir, 'user-note.txt'), 'utf8')).toBe('keep')
+    })
+
+    it('installs, exports, and uninstalls marketplace collection members with equal-length Chinese folder names', async () => {
+      servePackage({
+        'repo/剪口播/SKILL.md': '---\nname: 剪口播\n---\n# 剪口播',
+        'repo/自进化/SKILL.md': '---\nname: 自进化\n---\n# 自进化',
+        'repo/口播成片/SKILL.md': '---\nname: 口播成片\n---\n# 口播成片',
+        'repo/ian-xiaohei-svg-motion/SKILL.md': '---\nname: ian-xiaohei-svg-motion\n---\n# Motion'
+      })
+      const service = new SkillService()
+      const result = await service.installMarketplace(itemId)
+      expect(result.failed).toEqual([])
+      expect(result.installed.map((skill) => skill.folderName).sort()).toEqual([
+        'ian-xiaohei-svg-motion',
+        '剪口播',
+        '口播成片',
+        '自进化'
+      ])
+      expect(
+        await fs.promises.readFile(path.join(root, 'feature.agents.skills', '剪口播', 'SKILL.md'), 'utf8')
+      ).toContain('# 剪口播')
+      expect(
+        await fs.promises.readFile(path.join(root, 'feature.agents.skills', '自进化', 'SKILL.md'), 'utf8')
+      ).toContain('# 自进化')
+      const chineseSkill = result.installed.find((skill) => skill.folderName === '剪口播')!
+      const exported = await service.exportArchive(chineseSkill.id)
+      expect(exported.byteLength).toBeGreaterThan(0)
+      await service.uninstall(chineseSkill.id)
+      expect(fs.existsSync(path.join(root, 'feature.agents.skills', '剪口播'))).toBe(false)
+      expect(fs.existsSync(path.join(root, 'feature.agents.skills', '自进化'))).toBe(true)
     })
 
     it.each<Record<string, string>>([
@@ -3637,11 +3664,11 @@ describe('SkillService', () => {
     it('rejects entries that escape the destination dir before extracting', async () => {
       const zipDir = await createTempDir('skill-zipslip-')
       const destDir = await createTempDir('skill-dest-')
-      const zip = new AdmZip()
-      zip.addFile('SKILL.md', Buffer.from('---\nname: x\n---\n'))
-      zip.addFile('../../../evil-slip-marker.sh', Buffer.from('pwn'))
+      const zip = new JSZip()
+      zip.file('SKILL.md', Buffer.from('---\nname: x\n---\n'))
+      zip.file('../../../evil-slip-marker.sh', Buffer.from('pwn'))
       const zipPath = path.join(zipDir, 'skill.zip')
-      zip.writeZip(zipPath)
+      await fs.promises.writeFile(zipPath, await zip.generateAsync({ type: 'nodebuffer' }))
 
       // node-stream-zip rejects malicious names itself ('Malicious entry') and the
       // explicit guard is defense-in-depth — either layer rejecting satisfies the contract.
@@ -3655,11 +3682,11 @@ describe('SkillService', () => {
     it('extracts a well-formed skill zip', async () => {
       const zipDir = await createTempDir('skill-zip-ok-')
       const destDir = await createTempDir('skill-dest-')
-      const zip = new AdmZip()
-      zip.addFile('SKILL.md', Buffer.from('---\nname: x\n---\n'))
-      zip.addFile('nested/helper.md', Buffer.from('# helper'))
+      const zip = new JSZip()
+      zip.file('SKILL.md', Buffer.from('---\nname: x\n---\n'))
+      zip.file('nested/helper.md', Buffer.from('# helper'))
       const zipPath = path.join(zipDir, 'skill.zip')
-      zip.writeZip(zipPath)
+      await fs.promises.writeFile(zipPath, await zip.generateAsync({ type: 'nodebuffer' }))
 
       await skillArchive.extractZip(zipPath, destDir)
       await expect(fs.promises.readFile(path.join(destDir, 'SKILL.md'), 'utf-8')).resolves.toContain('name: x')
@@ -3676,10 +3703,10 @@ describe('SkillService', () => {
     ])('rejects %s before extracting anything', async (_case, entryNames) => {
       const zipDir = await createTempDir('skill-zip-collide-')
       const destDir = await createTempDir('skill-dest-')
-      const zip = new AdmZip()
-      for (const name of entryNames) zip.addFile(name, Buffer.from(name.endsWith('/') ? '' : `# ${name}`))
+      const zip = new JSZip()
+      for (const name of entryNames) zip.file(name, Buffer.from(name.endsWith('/') ? '' : `# ${name}`))
       const zipPath = path.join(zipDir, 'skill.zip')
-      zip.writeZip(zipPath)
+      await fs.promises.writeFile(zipPath, await zip.generateAsync({ type: 'nodebuffer' }))
 
       await expect(skillArchive.extractZip(zipPath, destDir)).rejects.toThrow('collide')
       await expect(fs.promises.readdir(destDir)).resolves.toEqual([])
@@ -3694,11 +3721,11 @@ describe('SkillService', () => {
     it('extracts same-named files that live in different directories', async () => {
       const zipDir = await createTempDir('skill-zip-ok-')
       const destDir = await createTempDir('skill-dest-')
-      const zip = new AdmZip()
-      zip.addFile('README.md', Buffer.from('# root'))
-      zip.addFile('docs/readme.md', Buffer.from('# docs'))
+      const zip = new JSZip()
+      zip.file('README.md', Buffer.from('# root'))
+      zip.file('docs/readme.md', Buffer.from('# docs'))
       const zipPath = path.join(zipDir, 'skill.zip')
-      zip.writeZip(zipPath)
+      await fs.promises.writeFile(zipPath, await zip.generateAsync({ type: 'nodebuffer' }))
 
       await skillArchive.extractZip(zipPath, destDir)
       await expect(fs.promises.readFile(path.join(destDir, 'docs', 'readme.md'), 'utf-8')).resolves.toBe('# docs')

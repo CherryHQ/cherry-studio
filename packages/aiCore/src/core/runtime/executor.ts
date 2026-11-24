@@ -34,6 +34,8 @@ import type {
   streamTextParams
 } from './types'
 
+type ModelWrapper = (model: LanguageModelV3) => LanguageModelV3
+
 function startProviderCall(
   start: (() => RuntimeProviderCallHandler) | undefined,
   fallback: RuntimeProviderCallHandler | undefined
@@ -95,8 +97,9 @@ export class RuntimeExecutor<
 
   /**
    * 流式文本生成
+   * @param wrapModel 在 provider 中间件之后应用的最外层模型包装器。
    */
-  async streamText(params: streamTextParams): Promise<ReturnType<typeof _streamText>> {
+  async streamText(params: streamTextParams, wrapModel?: ModelWrapper): Promise<ReturnType<typeof _streamText>> {
     const { model } = params
     const requestPlugins = typeof model === 'string' ? [this.resolveModelPlugin] : []
 
@@ -109,7 +112,7 @@ export class RuntimeExecutor<
 
         return _streamText({
           ...transformedParams,
-          model: resolvedModel,
+          model: this.wrapModel(resolvedModel, wrapModel),
           experimental_transform
         })
       },
@@ -122,15 +125,17 @@ export class RuntimeExecutor<
 
   /**
    * 生成文本
+   * @param wrapModel 在 provider 中间件之后应用的最外层模型包装器。
    */
-  async generateText(params: generateTextParams): Promise<ReturnType<typeof _generateText>> {
+  async generateText(params: generateTextParams, wrapModel?: ModelWrapper): Promise<ReturnType<typeof _generateText>> {
     const { model } = params
     const requestPlugins = typeof model === 'string' ? [this.resolveModelPlugin] : []
 
     return this.pluginEngine.executeWithPlugins<Parameters<typeof _generateText>[0], ReturnType<typeof _generateText>>(
       'generateText',
       params,
-      (resolvedModel, transformedParams) => _generateText({ ...transformedParams, model: resolvedModel }),
+      (resolvedModel, transformedParams) =>
+        _generateText({ ...transformedParams, model: this.wrapModel(resolvedModel, wrapModel) }),
       undefined,
       requestPlugins
     )
@@ -296,6 +301,12 @@ export class RuntimeExecutor<
    */
   public resolveLanguageModel(modelId: string): Promise<LanguageModelV3> {
     return this.pluginEngine.resolveModel(modelId, [this.resolveModelPlugin])
+  }
+
+  private wrapModel(model: LanguageModel, wrapModel?: ModelWrapper): LanguageModel {
+    if (!wrapModel) return model
+    if (!isV3Model(model)) throw new Error('Model wrapper requires a V3 language model')
+    return wrapModel(model)
   }
 
   /**

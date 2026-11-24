@@ -737,11 +737,13 @@ export class MessageService {
   listLiveCreatedInRangeMetadataPage({
     fromMs,
     toMs,
+    topicId,
     cursor: rawCursor,
     limit
   }: {
     fromMs: number
     toMs: number
+    topicId?: string
     cursor?: string
     limit: number
   }): CursorPaginationResponse<LiveMessageRangeMetadata> {
@@ -764,6 +766,7 @@ export class MessageService {
           isNull(messageTable.deletedAt),
           isNull(topicTable.deletedAt),
           ne(messageTable.role, 'root'),
+          topicId === undefined ? undefined : eq(messageTable.topicId, topicId),
           cursor ? ordering.where(cursor) : undefined
         )
       )
@@ -2204,11 +2207,12 @@ export class MessageService {
    * Uses recursive CTE to fetch all ancestors in a single query,
    * avoiding N+1 query problem for deep message trees.
    */
-  getPathToNode(nodeId: string): Message[] {
+  getPathToNode(nodeId: string, options: { last?: number } = {}): Message[] {
     const db = application.get('DbService').getDb()
     this.getAddressableMessageRowTx(db, nodeId)
-    const pathRows = this.getPathRowsToNodeTx(db, nodeId)
-    return pathRows.map(rowToMessage)
+    const ids = this.getPathIdsToNodeTx(db, nodeId)
+    const tail = options.last === undefined ? ids : ids.slice(Math.max(0, ids.length - options.last))
+    return this.getRowsInOrderTx(db, tail).map(rowToMessage)
   }
 
   /**

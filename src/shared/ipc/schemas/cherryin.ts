@@ -31,7 +31,7 @@ const apiHostInput = z.object({ apiHost: z.string() })
 export const cherryinRequestSchemas = {
   'cherryin.sign_in': defineRoute({
     input: z.object({ requestId: z.string().min(1), oauthServer: z.string(), apiHost: z.string().optional() }),
-    output: z.object({ apiKeys: z.string().min(1) })
+    output: z.object({ apiKeys: z.string() })
   }),
   'cherryin.get_balance': defineRoute({ input: apiHostInput, output: cherryInBalanceSchema }),
   'cherryin.logout': defineRoute({ input: apiHostInput, output: z.void() })

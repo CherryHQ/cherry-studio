@@ -219,10 +219,7 @@ const MiniAppsPage: FC = () => {
               </div>
             ) : filteredApps.length === 0 && filteredBuiltins.length === 0 ? (
               <div className="flex flex-1 items-center justify-center">
-                <EmptyState
-                  preset={search ? 'no-result' : 'no-miniapp'}
-                  title={search ? t('common.no_results') : t('miniApp.title')}
-                />
+                <EmptyState title={search ? t('common.no_results') : t('miniApp.title')} />
               </div>
             ) : (
               <>
@@ -252,7 +249,7 @@ const MiniAppsPage: FC = () => {
                       aria-label={t('miniApp.add.title')}
                       className="group h-auto min-h-[104px] w-[92px] flex-col justify-start gap-0 bg-transparent px-0 pt-1 text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent"
                       onClick={openCreateAppPanel}>
-                      <span className="mini-app-icon-frame relative flex size-14 items-center justify-center rounded-[50%] [corner-shape:squircle] border-border-subtle after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:[corner-shape:inherit] after:border after:border-inherit bg-background-subtle after:border-dashed transition-[border-color,background-color] duration-[160ms] ease-in-out group-hover:bg-accent group-focus-visible:border-ring group-focus-visible:bg-accent motion-reduce:transition-none">
+                      <span className="mini-app-icon-frame relative flex size-14 items-center justify-center rounded-2xl border-border-subtle after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:border after:border-inherit bg-background-subtle after:border-dashed transition-[border-color,background-color] duration-[160ms] ease-in-out group-hover:bg-accent group-focus-visible:border-ring group-focus-visible:bg-accent motion-reduce:transition-none">
                         <Plus className="size-6" strokeWidth={1.5} />
                       </span>
                       <span className="mt-2 min-h-9 w-full max-w-[92px] truncate text-center text-[13px] text-muted-foreground leading-[18px]">
@@ -274,12 +271,8 @@ const MiniAppsPage: FC = () => {
                           type="button"
                           className="flex min-h-[104px] w-[92px] cursor-pointer flex-col items-center pt-1 outline-none hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent"
                           onClick={() => setInstall({ builtinAppId: entry.appId })}>
-                          <span className="mini-app-icon-frame relative flex size-14 items-center justify-center overflow-hidden rounded-[50%] [corner-shape:squircle] border-border-subtle after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:[corner-shape:inherit] after:border after:border-inherit transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none">
-                            <img
-                              src={entry.iconUrl}
-                              alt=""
-                              className="size-14 rounded-[inherit] [corner-shape:inherit]"
-                            />
+                          <span className="mini-app-icon-frame relative flex size-14 items-center justify-center overflow-hidden rounded-2xl border-border-subtle after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:border after:border-inherit transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none">
+                            <img src={entry.iconUrl} alt="" className="size-14 rounded-[inherit]" />
                           </span>
                           <span className="mt-2 min-h-9 w-full max-w-[92px] select-none truncate text-center text-[13px] text-muted-foreground leading-[18px]">
                             {entry.name}

@@ -1,6 +1,7 @@
 import { Bot, History } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import type { AgentSessionDisplayMode } from '@shared/data/preference/preferenceTypes'
 
 import { ConversationListOptionsMenu } from './ConversationListOptionsMenu'
@@ -32,9 +33,14 @@ export function SessionListOptionsMenu({
   sectionIds
 }: SessionListOptionsMenuProps) {
   const { t } = useTranslation()
+  const [sort, setSort] = usePreference('agent.session.sort')
 
   return (
     <ConversationListOptionsMenu
+      sort={sort}
+      onSortChange={(next) => {
+        void setSort(next)
+      }}
       title={t('agent.session.display.title')}
       mode={mode}
       onChange={onChange}

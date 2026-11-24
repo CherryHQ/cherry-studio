@@ -1,4 +1,4 @@
-import { FileText, Folder, Link2, type LucideIcon, StickyNote } from 'lucide-react'
+import { Folder, Link2, type LucideIcon, StickyNote } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -10,12 +10,12 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import type { KnowledgeAddItemConflict, KnowledgeItemType } from '@shared/data/types/knowledge'
 
 type ConflictResolution = 'rename' | 'replace'
 
-const CONFLICT_TYPE_ICON: Record<KnowledgeItemType, LucideIcon> = {
-  file: FileText,
+const CONFLICT_TYPE_ICON: Record<Exclude<KnowledgeItemType, 'file'>, LucideIcon> = {
   note: StickyNote,
   directory: Folder,
   url: Link2
@@ -57,12 +57,16 @@ const KnowledgeAddConflictDialog = ({
         </DialogHeader>
         <ul className="flex max-h-60 flex-col gap-1 overflow-y-auto">
           {conflicts.map((conflict, index) => {
-            const Icon = CONFLICT_TYPE_ICON[conflict.type]
+            const Icon = conflict.type === 'file' ? null : CONFLICT_TYPE_ICON[conflict.type]
             return (
               <li
                 key={`${conflict.type}-${conflict.title}-${index}`}
                 className="flex items-center gap-2 rounded-md bg-accent/40 px-2.5 py-1.5 text-sm">
-                <Icon className="size-4 shrink-0 text-muted-foreground" />
+                {Icon ? (
+                  <Icon className="size-4 shrink-0 text-muted-foreground" />
+                ) : (
+                  <FileIcon path={conflict.title} className="size-4 shrink-0" />
+                )}
                 <span className="truncate">{conflict.title}</span>
               </li>
             )

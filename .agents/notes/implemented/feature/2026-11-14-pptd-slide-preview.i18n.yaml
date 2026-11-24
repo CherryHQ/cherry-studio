@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-14-pptd-slide-preview.md
+2026-11-14-pptd-slide-preview.md: 02e2116f7182b48ec3d0eecd8deded0d91d4c7c3
+2026-11-14-pptd-slide-preview.zh.md: fad3842b67a528a2bde2e1ab4924c66db97895ea

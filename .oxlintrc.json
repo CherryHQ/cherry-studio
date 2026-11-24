@@ -5,7 +5,7 @@
     "es2022": true
   },
   "globals": {},
-  "jsPlugins": ["@shadcn/lint", "./scripts/lint/scroll-area.mjs"],
+  "jsPlugins": ["@shadcn/lint", "./scripts/lint/scroll-area.mjs", "./scripts/lint/import-layout.mjs"],
   "ignorePatterns": [
     "node_modules/**",
     "build/**",
@@ -27,6 +27,10 @@
     "typeAware": true
   },
   "overrides": [
+    {
+      "files": ["**/*.test.*", "**/*.spec.*", "**/__tests__/**"],
+      "rules": { "import/first": "off" }
+    },
     {
       "files": [
         "src/renderer/**/*.{ts,tsx}",
@@ -111,6 +115,8 @@
   ],
   "plugins": ["unicorn", "typescript", "oxc", "import"],
   "rules": {
+    "import/first": "error",
+    "import-layout/no-block-comments-between-imports": "error",
     "no-array-constructor": "off",
     "no-caller": "error",
     "no-eval": "error",

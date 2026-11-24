@@ -45,15 +45,21 @@ when a later snapshot uses committed rather than live preview identities.
 Explicit removals persist with the checkpoint and hide those sources after reopen;
 absence from a compacted native view alone does not remove saved product history.
 
+Child model-response errors become `data-error` parts alongside any received content. Each attempt's error
+survives archive writes, later retries and reopening, including failures with no text. These message-local errors
+do not determine the child's task status, which follows the native run outcome.
+
 ## Publication
 
-`MessageProjection` shares diffing, immutable baselines and subscriber delivery. A changed message is upserted; text/reasoning growth with otherwise unchanged structure uses an append patch. Every update carries the complete message order, which also expresses removal. New or changed mutable payloads are captured before publication; unchanged isolated messages and parts keep stable references in Main and the renderer. Text updates share immutable strings without copying unrelated tool output.
+`MessageProjection` shares diffing, immutable baselines and subscriber delivery. A changed message is upserted; text/reasoning growth with otherwise unchanged structure uses an append patch. Every update carries the complete message order, which also expresses removal. New or changed mutable payloads are captured before publication; unchanged isolated messages and parts keep stable references in Main and the renderer. Immutable strings, including image bodies, are shared within copied mutable containers without serializing their contents.
 
 Root updates coalesce into one pending view over 80 ms; renderer output projection runs once per flushed batch, not per accepted chunk. Without subscribers, the pending view waits for the next baseline capture instead of a timer. Child reconciliation already batches native updates and writes its archive before publication. It publishes immediately when observed; otherwise delivery waits for a baseline read, while archival continues. Closing flushes the final pending view before disposal. Revisions count published batches, not model chunks. Capturing a baseline flushes pending accepted content first.
 
 A root terminal is published in the notification phase, after terminal persistence. The final view includes accepted content, the final execution state and its owning `userMessageId` in the same revision. That identity correlates a queued submit's user-only acknowledgement with its later assistant attempt and recovery completion. Persistence failure publishes an `unresolved` execution with readable content and an error; it does not signal a successful DB handoff. Host-resolved approvals are folded into Main's snapshots so a later SDK snapshot cannot restore a dismissed approval card.
 
 ## Attachment and recovery
+
+When Durable reopens during an unfinished placed input, its unique logical user-input boundary identifies committed output for the existing reply, including a tool-wait interval with no generation preview. Earlier answers and queued or ambiguous input boundaries remain historical. Recovery does not resend the input.
 
 `ai.projection.attach` accepts a topic or child target and a window-owned subscription ID. Main resolves the owner, registers delivery and captures a baseline without an asynchronous gap between registration and snapshot. A cancelled or replaced asynchronous attachment cannot install a listener. Window destruction removes its delivery leases.
 

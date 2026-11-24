@@ -63,6 +63,8 @@ const {
   mockAgentIngressHold,
   mockJobManager,
   mockAgentJobs,
+  mockArtifactBackfill,
+  mockArtifactBackfillHold,
   mockHeartbeatHold,
   mockJobHold,
   mockAiStreamManager,
@@ -86,6 +88,7 @@ const {
   const mockAgentIngressHold = { dispose: vi.fn() }
   const mockJobHold = { dispose: vi.fn() }
   const mockHeartbeatHold = { dispose: vi.fn() }
+  const mockArtifactBackfillHold = { dispose: vi.fn() }
   const mockAiStreamHold = { dispose: vi.fn() }
   const mockAgentExecutionHold = { dispose: vi.fn() }
   const mockZipExtract = vi.fn()
@@ -123,6 +126,11 @@ const {
       pause: vi.fn(() => mockHeartbeatHold),
       drainInFlight: vi.fn(async () => ({ settled: true }))
     },
+    mockArtifactBackfill: {
+      pause: vi.fn(() => mockArtifactBackfillHold),
+      drainInFlight: vi.fn(async () => ({ settled: true }))
+    },
+    mockArtifactBackfillHold,
     mockAiStreamManager: {
       pause: vi.fn(() => mockAiStreamHold),
       drainInFlight: vi.fn(async (): Promise<{ stragglerIds: string[] }> => ({ stragglerIds: [] })),
@@ -286,6 +294,7 @@ vi.mock('@application', () => ({
         return mockAgentLifecycle
       }
       if (name === 'AgentJobsService') return mockAgentJobs
+      if (name === 'ArtifactBackfillService') return mockArtifactBackfill
       if (name === 'JobManager') {
         return mockJobManager
       }
@@ -332,7 +341,13 @@ vi.mock('node-stream-zip', () => ({
 import { ZipArchive } from 'archiver'
 import * as fs from 'fs-extra'
 
-import BackupManager, { BackupOperationBusyError } from '../LegacyBackupManager'
+import { shouldReportFailure } from '@shared/utils/errorReporting'
+
+import BackupManager, {
+  BackupOperationBusyError,
+  BackupActiveWritersError,
+  classifyBackupFailure
+} from '../LegacyBackupManager'
 import WebDav from '../WebDav'
 
 const createDirent = (name: string, type: 'directory' | 'file' = 'file') => ({
@@ -859,6 +874,19 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(fs.remove).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
   })
 
+  it('leaves restore unstaged if artifact backfill can still write to the live database', async () => {
+    arrangeDirectRestore()
+    mockArtifactBackfill.drainInFlight.mockResolvedValueOnce({ settled: false })
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
+      'Background data writes did not quiesce'
+    )
+
+    expect(mockDbService.checkpointTruncate).not.toHaveBeenCalled()
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+    expect(mockArtifactBackfillHold.dispose).toHaveBeenCalledOnce()
+  })
+
   it('refuses backup capture while an admitted heartbeat write has not drained', async () => {
     mockAgentJobs.drainInFlight.mockResolvedValueOnce({ settled: false })
 
@@ -869,6 +897,18 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockDbService.checkpointTruncate).not.toHaveBeenCalled()
     expect(mockHeartbeatHold.dispose).toHaveBeenCalledOnce()
     expect(mockCreateAtomicWriteStream).not.toHaveBeenCalled()
+  })
+
+  it('leaves backup uncaptured if artifact backfill can still write to the live database', async () => {
+    mockArtifactBackfill.drainInFlight.mockResolvedValueOnce({ settled: false })
+
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+      'Background data writes did not quiesce'
+    )
+
+    expect(mockDbService.checkpointTruncate).not.toHaveBeenCalled()
+    expect(mockCreateAtomicWriteStream).not.toHaveBeenCalled()
+    expect(mockArtifactBackfillHold.dispose).toHaveBeenCalledOnce()
   })
 
   it('opens staged files with write access before fsync on Windows', () => {
@@ -892,6 +932,8 @@ describe('BackupManager direct v2 data compatibility', () => {
     arrangeDirectRestore()
 
     await (backupManager as any).restoreDirect('/extract')
+
+    expect(mockArtifactBackfillHold.dispose).not.toHaveBeenCalled()
 
     expect(mockWriteRestoreJournal).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1942,5 +1984,31 @@ describe('WebDAV client cache (S6 allowSelfSignedTls switch)', () => {
 
     expect(explicitFalse).toBe(first)
     expect(WebDav).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('backup failure reporting', () => {
+  it.each(['list', 'delete'] as const)('preserves ownership when wrapping a remote %s failure', async (operation) => {
+    const manager = new BackupManager()
+    const denied = Object.assign(new Error('authentication required'), { status: 401 })
+    vi.spyOn(manager as any, 'getWebDavInstance').mockReturnValue({
+      getDirectoryContents: vi.fn().mockRejectedValue(denied),
+      deleteFile: vi.fn().mockRejectedValue(denied)
+    })
+    const config = { webdavHost: 'https://example.com/dav' }
+    const result =
+      operation === 'list'
+        ? manager.listWebdavFiles(null, config)
+        : manager.deleteWebdavFile(null, 'backup.zip', config)
+    await expect(result).rejects.toMatchObject({ message: 'authentication required', reportingHandled: true })
+  })
+
+  it('keeps busy preconditions local without suppressing snapshot consistency failures', () => {
+    expect(shouldReportFailure(classifyBackupFailure(new BackupOperationBusyError()))).toBe(false)
+    expect(shouldReportFailure(classifyBackupFailure(new BackupActiveWritersError()))).toBe(false)
+    expect(classifyBackupFailure(new Error('snapshot integrity failed')).kind).toBe('reliability')
+    expect(shouldReportFailure(classifyBackupFailure(Object.assign(new Error('disk full'), { code: 'ENOSPC' })))).toBe(
+      true
+    )
   })
 })

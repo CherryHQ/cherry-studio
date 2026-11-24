@@ -35,5 +35,8 @@ const ApiKeyItemSchema = z
   })
 
 export const ApiKeysResponseSchema = z
-  .union([z.array(ApiKeyItemSchema), z.object({ data: z.array(ApiKeyItemSchema) })])
+  .union([
+    z.array(ApiKeyItemSchema),
+    z.object({ success: z.literal(true).optional(), data: z.array(ApiKeyItemSchema) })
+  ])
   .transform((data): string[] => (Array.isArray(data) ? data : data.data))
