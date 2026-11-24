@@ -872,21 +872,55 @@ export class CodeCliService extends BaseService {
         break
       }
       case 'linux': {
-        // Linux - Prefer the XDG-configured default terminal, then try common emulators.
+        // Linux - prefer the XDG-configured default terminal, then the
+        // emulators a user is most likely to have installed.
+        //
+        // The candidate list used to be just [xdg-terminal-exec, gnome-terminal,
+        // konsole, deepin-terminal, x-terminal-emulator, xterm]. On standalone
+        // setups (e.g. Arch Linux + Hyprland, where the default terminals are
+        // kitty/foot and none of the DE wrappers or xterm are installed) every
+        // probe missed, so detection fell through to the hard-coded `xterm`
+        // fallback and the launch failed with `spawn xterm ENOENT`. Widening the
+        // list — and running `cd` inside the launched command so the working
+        // directory is correct even without a per-emulator flag — fixes that.
+        //
+        // The previously-supported entries keep their original relative order
+        // and positions (so a configured distro/DE default is still honoured);
+        // the new standalone/Wayland emulators are inserted ahead of the `xterm`
+        // last-resort only, so an installed real terminal beats xterm without
+        // shadowing xdg-terminal-exec or x-terminal-emulator.
         const envPrefix = buildEnvPrefix(false)
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
+        // cd inside the launched command so the working directory is correct
+        // on emulators that don't expose a --working-directory flag.
+        const innerCommand = `cd ${posixQuote(directory)} && clear && ${command}; exec bash`
 
-        const linuxTerminals = [
-          'xdg-terminal-exec',
-          'gnome-terminal',
-          'konsole',
-          'deepin-terminal',
-          'x-terminal-emulator',
-          'xterm'
+        // Ordered candidates → launch-args builder. The first binary found on
+        // PATH wins. Each builder returns the argv for the terminal binary; the
+        // terminal is spawned without a shell, so no extra quoting is needed here.
+        const linuxTerminalCandidates: Array<[string, (directory: string) => string[]]> = [
+          // XDG terminal-executor: honours the user's configured default.
+          ['xdg-terminal-exec', (dir) => [`--dir=${dir}`, '--', 'bash', '-c', innerCommand]],
+          // DE defaults.
+          ['gnome-terminal', (dir) => ['--working-directory', dir, '--', 'bash', '-c', innerCommand]],
+          ['konsole', (dir) => ['--workdir', dir, '-e', 'bash', '-c', innerCommand]],
+          ['deepin-terminal', (dir) => ['-w', dir, '-e', innerCommand]],
+          // Debian wrapper: honours the distro's update-alternatives default.
+          ['x-terminal-emulator', () => ['-e', 'bash', '-c', innerCommand]],
+          // Standalone / Wayland-popular emulators (Arch + Hyprland etc.).
+          ['kitty', (dir) => ['--working-directory', dir, 'bash', '-c', innerCommand]],
+          ['foot', (dir) => ['--working-directory', dir, 'bash', '-c', innerCommand]],
+          ['alacritty', (dir) => ['--working-directory', dir, '-e', 'bash', '-c', innerCommand]],
+          ['wezterm', () => ['bash', '-c', innerCommand]],
+          ['terminator', (dir) => ['--working-directory', dir, '-e', innerCommand]],
+          ['tilix', (dir) => ['--working-directory', dir, '-e', innerCommand]],
+          ['st', () => ['bash', '-c', innerCommand]],
+          // Last resort.
+          ['xterm', () => ['-e', 'bash', '-c', innerCommand]]
         ]
-        let foundTerminal: string | undefined
 
-        for (const terminal of linuxTerminals) {
+        let foundTerminal: string | undefined
+        for (const [terminal] of linuxTerminalCandidates) {
           try {
             // Check if terminal exists
             const checkResult = spawn('which', [terminal], { stdio: 'pipe' })
@@ -907,26 +941,12 @@ export class CodeCliService extends BaseService {
           }
         }
 
-        if (foundTerminal === 'xdg-terminal-exec') {
-          terminalCommand = 'xdg-terminal-exec'
-          terminalArgs = [`--dir=${directory}`, '--', 'bash', '-c', `clear && ${command}; exec bash`]
-        } else if (foundTerminal === 'gnome-terminal') {
-          terminalCommand = 'gnome-terminal'
-          terminalArgs = ['--working-directory', directory, '--', 'bash', '-c', `clear && ${command}; exec bash`]
-        } else if (foundTerminal === 'konsole') {
-          terminalCommand = 'konsole'
-          terminalArgs = ['--workdir', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
-        } else if (foundTerminal === 'deepin-terminal') {
-          terminalCommand = 'deepin-terminal'
-          terminalArgs = ['-w', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
-        } else if (foundTerminal === 'x-terminal-emulator') {
-          terminalCommand = 'x-terminal-emulator'
-          terminalArgs = ['-e', 'bash', '-c', `cd ${posixQuote(directory)} && clear && ${command}; exec bash`]
-        } else {
-          // Default to xterm
-          terminalCommand = 'xterm'
-          terminalArgs = ['-e', `cd ${posixQuote(directory)} && clear && ${command} && bash`]
-        }
+        // Build launch args from the detected candidate, defaulting to xterm
+        // when nothing was found (the launch then surfaces a clear ENOENT error).
+        const selected =
+          linuxTerminalCandidates.find(([id]) => id === (foundTerminal ?? 'xterm')) ?? linuxTerminalCandidates.at(-1)!
+        terminalCommand = selected[0]
+        terminalArgs = selected[1](directory)
         break
       }
       default:
