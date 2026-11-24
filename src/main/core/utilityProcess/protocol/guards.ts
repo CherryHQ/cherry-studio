@@ -15,7 +15,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 
 /** Request ids are allocated by main, monotonically per generation, starting at 1. */
 export function isRequestId(value: unknown): value is number {
-  return Number.isInteger(value) && (value as number) >= 1
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Optional request IDs come from raw log/protocol-error frames; validate them before correlating a request.
@@ -28,8 +28,9 @@ export function isFrameIdentity(value: unknown): value is FrameIdentity & { kind
     value.protocol === PROTOCOL &&
     value.version === PROTOCOL_VERSION &&
     typeof value.processId === 'string' &&
+    typeof value.generation === 'number' &&
     Number.isInteger(value.generation) &&
-    (value.generation as number) >= 1 &&
+    value.generation >= 1 &&
     typeof value.kind === 'string'
   )
 }
@@ -138,11 +139,12 @@ export function isChildFrame(value: unknown): value is ChildFrame {
 
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stream envelopes arrive with only their identity validated; sequence, metadata and native byte payloads are checked here.
 function isStreamMessage(frame: Record<string, unknown>): boolean {
-  if (!isRequestId(frame.requestId) || !Number.isSafeInteger(frame.sequence)) return false
+  const sequence = frame.sequence
+  if (!isRequestId(frame.requestId) || typeof sequence !== 'number' || !Number.isSafeInteger(sequence)) return false
 
-  if (frame.kind === 'stream-end' || frame.kind === 'stream-end-ack') return (frame.sequence as number) >= 0
+  if (frame.kind === 'stream-end' || frame.kind === 'stream-end-ack') return sequence >= 0
 
-  if ((frame.sequence as number) < 1) return false
+  if (sequence < 1) return false
 
   return (
     frame.kind === 'stream-credit' ||

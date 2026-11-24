@@ -8,6 +8,39 @@ const identity: FrameIdentity = { protocol: PROTOCOL, version: PROTOCOL_VERSION,
 const stamp = <T extends object>(frame: T) => ({ ...identity, ...frame })
 
 describe('frame guards', () => {
+  it.each([
+    [1, true],
+    [Number.MAX_SAFE_INTEGER + 1, true],
+    [0, false],
+    [-1, false],
+    [1.5, false],
+    ['1', false],
+    [null, false],
+    [Number.NaN, false],
+    [Number.POSITIVE_INFINITY, false]
+  ])('requires positive integer request IDs and generations: %s', (value, valid) => {
+    expect(isMainFrame(stamp({ kind: 'cancel', requestId: value }))).toBe(valid)
+    expect(isChildFrame(stamp({ kind: 'ready', generation: value }))).toBe(valid)
+  })
+
+  it.each([
+    [0, true, false],
+    [1, true, true],
+    [Number.MAX_SAFE_INTEGER, true, true],
+    [-1, false, false],
+    [1.5, false, false],
+    ['1', false, false],
+    [null, false, false],
+    [Number.NaN, false, false],
+    [Number.POSITIVE_INFINITY, false, false],
+    [Number.MAX_SAFE_INTEGER + 1, false, false]
+  ])('requires safe stream sequences and permits zero only for EOF: %s', (sequence, eofValid, dataValid) => {
+    expect(isMainFrame(stamp({ kind: 'stream-end', requestId: 1, sequence }))).toBe(eofValid)
+    expect(isChildFrame(stamp({ kind: 'stream-end-ack', requestId: 1, sequence }))).toBe(eofValid)
+    expect(isMainFrame(stamp({ kind: 'stream-credit', requestId: 1, sequence }))).toBe(dataValid)
+    expect(isChildFrame(stamp({ kind: 'stream-data', requestId: 1, sequence, metadata: '{}' }))).toBe(dataValid)
+  })
+
   it('accepts every canonical frame kind on both directions', () => {
     expect(isConnectFrame(stamp({ kind: 'connect', initData: undefined }))).toBe(true)
     expect(isMainFrame(stamp({ kind: 'request', requestId: 1, method: 'ping', input: undefined }))).toBe(true)
