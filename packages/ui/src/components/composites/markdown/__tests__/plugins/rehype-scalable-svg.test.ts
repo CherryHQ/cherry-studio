@@ -1,3 +1,4 @@
+import type { Element, Root } from 'hast'
 import rehypeParse from 'rehype-parse'
 import rehypeStringify from 'rehype-stringify'
 import { unified } from 'unified'
@@ -22,6 +23,24 @@ const createSvgHtml = (attributes: Record<string, string>): string => {
 }
 
 describe('rehypeScalableSvg', () => {
+  it('scales numeric HAST dimensions without treating them as strings', () => {
+    const svg: Element = {
+      type: 'element',
+      tagName: 'svg',
+      properties: { width: 100, height: 50 },
+      children: []
+    }
+    const tree: Root = { type: 'root', children: [svg] }
+    unified().use(rehypeScalableSvg).runSync(tree)
+
+    expect(svg.properties).toMatchObject({
+      viewBox: '0 0 100 50',
+      width: '100%',
+      style: 'max-width: 100px'
+    })
+    expect(svg.properties.height).toBeUndefined()
+  })
+
   describe('simple SVG cases', () => {
     it('should add viewBox when missing numeric width and height', () => {
       const html = createSvgHtml({ width: '100', height: '50' })
@@ -144,15 +163,6 @@ describe('rehypeScalableSvg', () => {
   })
 
   describe('edge cases', () => {
-    it('should handle SVG with no properties object', () => {
-      // Create HTML that will result in an SVG element with no properties
-      const html = '<svg></svg>'
-      const result = processHtml(html)
-
-      // The plugin should handle undefined properties gracefully
-      expect(result).toBe('<svg></svg>')
-    })
-
     it('should handle SVG with no dimensions', () => {
       const html = '<svg></svg>'
       const result = processHtml(html)

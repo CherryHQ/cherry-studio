@@ -48,8 +48,8 @@ function rehypeScalableSvg() {
       if (node.tagName === 'svg') {
         const properties = node.properties
         const hasViewBox = 'viewBox' in properties
-        const width = (properties.width as string)?.trim()
-        const height = (properties.height as string)?.trim()
+        const width = properties.width?.toString().trim()
+        const height = properties.height?.toString().trim()
 
         if (width && !isSafeSvgDimension(width)) delete properties.width
 
