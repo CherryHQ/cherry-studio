@@ -14,6 +14,7 @@ const NAME_ENDPOINT = {
   agents: '/agent-sessions/:sessionId'
 } as const satisfies Record<ConversationAppId, string>
 
+// SAFETY: NAME_ENDPOINT is a private literal checked against the complete ConversationAppId key set.
 const CONVERSATION_APP_IDS = Object.keys(NAME_ENDPOINT) as ConversationAppId[]
 
 function readConversationName(appId: ConversationAppId, id: string): Promise<{ name?: string | null }> {
