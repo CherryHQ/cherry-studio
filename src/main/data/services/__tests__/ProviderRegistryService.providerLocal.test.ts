@@ -130,6 +130,29 @@ describe('ProviderRegistryService provider-owned model metadata', () => {
     expect(isFunctionCallingModel(visionModel)).toBe(false)
   })
 
+  it('reads back the explicitly discovered vision input after importing an Ace model', () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'my-ace', presetProviderId: 'acedatacloud', name: 'Ace', orderKey: 'b0' })
+      .run()
+    const modelId = 'vision-fixture'
+    modelService.create([
+      {
+        dto: {
+          providerId: 'my-ace',
+          modelId,
+          capabilities: ['image-recognition'],
+          inputModalities: ['text', 'image']
+        },
+        registryData: providerRegistryService.lookupModel('my-ace', modelId)
+      }
+    ])
+    providerRegistryService.clearCache()
+    const saved = modelService.getByKey('my-ace', modelId)
+    expect(saved.inputModalities).toEqual(['text', 'image'])
+    expect(isFunctionCallingModel(saved)).toBe(false)
+  })
+
   it('keeps catalog matching for ordinary providers', () => {
     const result = providerRegistryService.resolveModel({ id: 'openai', presetProviderId: 'openai' }, 'gpt-image-1')
     expect(result.presetModel?.id).toBe('gpt-image-1')

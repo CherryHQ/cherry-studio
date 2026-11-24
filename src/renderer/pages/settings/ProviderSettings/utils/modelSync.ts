@@ -66,6 +66,7 @@ export function toCreateModelDto(
     name: model.name,
     group: model.group,
     ...(capabilities ? { capabilities: [...capabilities] } : {}),
+    ...(!model.presetModelId && model.inputModalities?.length ? { inputModalities: [...model.inputModalities] } : {}),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Discovered rather than registry-supplied for local providers — Ollama's window comes from
     // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
@@ -137,6 +138,9 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
 
     for (const field of REGISTRY_FIELDS) {
       if (field === 'endpointTypes' && base.endpointTypes?.length) {
+        continue
+      }
+      if (field === 'inputModalities' && !registry.presetModelId && base.inputModalities?.length) {
         continue
       }
       if (field === 'name' && keepFetchedName) {

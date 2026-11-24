@@ -358,3 +358,38 @@ it('preserves fetched Poe routing through registry enrichment and the create DTO
     endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
   })
 })
+
+it('persists discovered input modalities for models without a catalog preset', async () => {
+  const identity = {
+    id: 'my-ace::vision-fixture',
+    providerId: 'my-ace',
+    apiModelId: 'vision-fixture',
+    name: 'vision-fixture'
+  }
+  listModelsMock.mockResolvedValueOnce({
+    models: [{ ...identity, inputModalities: ['text', 'image'], capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }]
+  })
+  dataApiGetMock.mockResolvedValueOnce([
+    { ...identity, presetModelId: null, inputModalities: ['text'], capabilities: [] }
+  ])
+
+  const {
+    models: [discovered]
+  } = await fetchResolvedProviderModels('my-ace')
+  const dto = toCreateModelDto('my-ace', discovered)
+  expect(discovered.inputModalities).toEqual(['text', 'image'])
+  expect(dto.inputModalities).toEqual(['text', 'image'])
+  expect(dto.capabilities).toEqual([MODEL_CAPABILITY.IMAGE_RECOGNITION])
+})
+
+it('inherits the registry input modalities for a catalog-backed model', async () => {
+  const identity = { apiModelId: 'catalog-model', name: 'Catalog model' }
+  listModelsMock.mockResolvedValueOnce({ models: [{ ...identity, inputModalities: ['text', 'image'] }] })
+  dataApiGetMock.mockResolvedValueOnce([{ ...identity, presetModelId: 'catalog-model', inputModalities: ['text'] }])
+
+  const {
+    models: [discovered]
+  } = await fetchResolvedProviderModels('example')
+  expect(discovered.inputModalities).toEqual(['text'])
+  expect(toCreateModelDto('example', discovered).inputModalities).toBeUndefined()
+})
