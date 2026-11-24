@@ -5198,6 +5198,7 @@
   "settings.memory.clear_confirm": "Очистить все локальные файлы памяти?",
   "settings.memory.clear_success": "Очистка выполнена",
   "settings.memory.failed": "Не удалось завершить операцию. Проверьте оставшиеся элементы и повторите попытку.",
+  "settings.memory.global": "Глобальная память",
   "settings.memory.no_recovery": "Нет операций для восстановления.",
   "settings.memory.outcome.conflict": "Конфликт",
   "settings.memory.outcome.pending": "Не завершено",

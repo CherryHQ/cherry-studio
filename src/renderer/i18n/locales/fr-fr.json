@@ -5196,6 +5196,7 @@
   "settings.memory.clear_confirm": "Effacer tous les fichiers de mémoire locaux ?",
   "settings.memory.clear_success": "Effacement réussi",
   "settings.memory.failed": "L’opération n’a pas pu être terminée. Vérifiez les éléments restants et réessayez.",
+  "settings.memory.global": "Mémoire globale",
   "settings.memory.no_recovery": "Aucune opération ne peut être restaurée.",
   "settings.memory.outcome.conflict": "Conflit",
   "settings.memory.outcome.pending": "Non terminé",

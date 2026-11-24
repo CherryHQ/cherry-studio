@@ -5196,6 +5196,7 @@
   "settings.memory.clear_confirm": "Xóa tất cả tệp bộ nhớ cục bộ?",
   "settings.memory.clear_success": "Đã xóa thành công",
   "settings.memory.failed": "Không thể hoàn tất thao tác. Hãy kiểm tra các mục còn lại và thử lại.",
+  "settings.memory.global": "Bộ nhớ toàn cục",
   "settings.memory.no_recovery": "Không có thao tác nào để khôi phục.",
   "settings.memory.outcome.conflict": "Xung đột",
   "settings.memory.outcome.pending": "Chưa hoàn tất",
