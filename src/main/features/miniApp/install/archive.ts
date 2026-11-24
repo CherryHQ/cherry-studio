@@ -140,12 +140,14 @@ async function readEntryBounded(
   let total = 0
 
   for await (const chunk of await zip.stream(name)) {
-    total += (chunk as Buffer).length
+    // SAFETY: StreamZip creates a binary reader/inflater/verifier stream, and this owned stream never enables text decoding.
+    const bytes = chunk as Buffer
+    total += bytes.length
 
     // Throwing destroys the stream, so the inflate stops AT the limit instead of running
     // to completion and being judged once the memory is already gone.
     if (total > limit) throw new Error(`Package ${label} is over the ${limit} byte limit`)
-    chunks.push(chunk as Buffer)
+    chunks.push(bytes)
   }
 
   return Buffer.concat(chunks)
@@ -284,7 +286,7 @@ function assertPackageSize(size: number): void {
 export async function sha256File(filePath: string): Promise<string> {
   const hash = crypto.createHash('sha256')
 
-  for await (const chunk of fs.createReadStream(filePath)) hash.update(chunk as Buffer)
+  for await (const chunk of fs.createReadStream(filePath)) hash.update(chunk)
 
   return `sha256:${hash.digest('hex')}`
 }
