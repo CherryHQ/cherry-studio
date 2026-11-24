@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import {
   ResourcePaneCountButton,
   type ResourcePaneCountButtonProps,
@@ -52,8 +53,17 @@ type ChatTopBarControlsProps = Omit<ChatConversationControlsProps, 'iconOnly' | 
 
 function ChatTopBarControls(props: ChatTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
+  const profilePane = useProfilePaneToggle()
 
-  return <ChatConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+  return (
+    <ChatConversationControls
+      {...props}
+      side="bottom"
+      iconOnly={iconOnly}
+      onAvatarClick={profilePane?.toggle}
+      avatarActive={profilePane?.active}
+    />
+  )
 }
 
 interface Props {
@@ -279,6 +289,7 @@ const Chat: FC<Props> = (props) => {
                     (assistantContext.isLoading ? t('common.loading') : t('button.select_assistant'))
                   }
                   assistantEmoji={assistantContext.assistant?.emoji}
+                  assistantAvatarSrc={assistantContext.assistant?.avatarSrc}
                   model={assistantContext.model}
                   modelPending={
                     assistantContext.isLoading || assistantContext.isModelPending || !activeConversationControlsSnapshot

@@ -4022,6 +4022,15 @@
       "providerId": "cerebras"
     },
     {
+      "apiModelId": "anthropic/claude-fable-5.2",
+      "capabilities": {
+        "remove": ["structured-output"]
+      },
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-fable-5-2",
+      "providerId": "cherryin"
+    },
+    {
       "apiModelId": "deepseek/deepseek-v3.2",
       "modelId": "deepseek-v3-2",
       "providerId": "cherryin",
@@ -44020,6 +44029,17 @@
       }
     },
     {
+      "apiModelId": "deepseek/deepseek-flash",
+      "modelId": "deepseek-flash",
+      "name": "DeepSeek-V4.1-Flash-1017 原厂直供",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "deepseek-v4.1-flash",
+      "modelId": "deepseek-v4-1-flash",
+      "providerId": "tokenhub"
+    },
+    {
       "apiModelId": "deepseek-v4-flash",
       "modelId": "deepseek-v4-flash",
       "providerId": "tokenhub"
@@ -44031,6 +44051,23 @@
       "providerId": "tokenhub"
     },
     {
+      "apiModelId": "deepseek/deepseek-v4-flash-0731",
+      "modelId": "deepseek-v4-flash",
+      "name": "DeepSeek-V4-Flash 0731 正式版 原厂直供",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "deepseek/deepseek-v4-flash",
+      "modelId": "deepseek-v4-flash",
+      "name": "DeepSeek-V4-Flash 原厂直供",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "deepseek/deepseek-v4-flash-vision-exp",
+      "modelId": "deepseek-v4-flash-vision-exp",
+      "providerId": "tokenhub"
+    },
+    {
       "apiModelId": "deepseek-v4-pro",
       "modelId": "deepseek-v4-pro",
       "providerId": "tokenhub"
@@ -44039,6 +44076,23 @@
       "apiModelId": "deepseek-v4-pro-202606",
       "modelId": "deepseek-v4-pro",
       "name": "DeepSeek-V4-Pro 原厂直供",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "deepseek/deepseek-v4-pro-0813",
+      "modelId": "deepseek-v4-pro",
+      "name": "DeepSeek-V4-Pro 0813 正式版 原厂直供",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "deepseek/deepseek-v4-pro",
+      "modelId": "deepseek-v4-pro",
+      "name": "DeepSeek-V4-Pro 原厂直供",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "deepseek-v4-pro-0813",
+      "modelId": "deepseek-v4-pro",
       "providerId": "tokenhub"
     },
     {
@@ -44132,6 +44186,21 @@
       "providerId": "tokenhub"
     },
     {
+      "apiModelId": "glm-5.3",
+      "modelId": "glm-5-3",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "glm-5.3-flash",
+      "modelId": "glm-5-3-flash",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "glm-5.3-flashx",
+      "modelId": "glm-5-3-flashx",
+      "providerId": "tokenhub"
+    },
+    {
       "apiModelId": "glm-5-turbo",
       "modelId": "glm-5-turbo",
       "providerId": "tokenhub"
@@ -44139,6 +44208,11 @@
     {
       "apiModelId": "glm-5v-turbo",
       "modelId": "glm-5v-turbo",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "hunyuan-role-latest",
+      "modelId": "hunyuan-role-latest",
       "providerId": "tokenhub"
     },
     {
@@ -44200,6 +44274,11 @@
       "providerId": "tokenhub"
     },
     {
+      "apiModelId": "hy3",
+      "modelId": "hy3",
+      "providerId": "tokenhub"
+    },
+    {
       "apiModelId": "hy4",
       "modelId": "hy4",
       "providerId": "tokenhub"
@@ -44230,6 +44309,46 @@
       "providerId": "tokenhub"
     },
     {
+      "apiModelId": "kimi-k2.7-code-highspeed",
+      "modelId": "kimi-k2-7-code-highspeed",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "kimi-k2.8-preview",
+      "modelId": "kimi-k2-8-preview",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "kimi-k3",
+      "modelId": "kimi-k3",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "kimi-k3.1-pro",
+      "modelId": "kimi-k3-1-pro",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "kimi-k3.1-pro-highspeed",
+      "modelId": "kimi-k3-1-pro-highspeed",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "mimo-v2.5-pro",
+      "modelId": "mimo-v2-5-pro",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "mimo-v2.6-flash",
+      "modelId": "mimo-v2-6-flash",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "mimo-v2.6-pro",
+      "modelId": "mimo-v2-6-pro",
+      "providerId": "tokenhub"
+    },
+    {
       "apiModelId": "minimax-m2.7",
       "modelId": "minimax-m2-7",
       "providerId": "tokenhub"
@@ -44240,6 +44359,11 @@
       "providerId": "tokenhub"
     },
     {
+      "apiModelId": "minimax-m3.1-flash",
+      "modelId": "minimax-m3-1-flash",
+      "providerId": "tokenhub"
+    },
+    {
       "apiModelId": "qwen3.5-flash",
       "modelId": "qwen3-5-flash",
       "providerId": "tokenhub"
@@ -44247,6 +44371,11 @@
     {
       "apiModelId": "qwen3.5-plus",
       "modelId": "qwen3-5-plus",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "step-5-preview",
+      "modelId": "step-5-preview",
       "providerId": "tokenhub"
     },
     {
@@ -45850,5 +45979,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "134efd4d3ac8597b"
+  "version": "2ddae0a588cd186d"
 }

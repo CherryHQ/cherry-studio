@@ -3919,6 +3919,45 @@
       }
     },
     {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 1000000,
+      "id": "claude-fable-5-2",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Claude Fable 5.2",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "high",
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "defaultEffort": "high",
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
+        "wireDialect": "adaptive-always"
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
       "id": "claude-fable-latest",
@@ -13421,7 +13460,7 @@
     {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition"],
       "contextWindow": 1000000,
-      "family": "minimax",
+      "family": "minimax-m-flash",
       "id": "minimax-m3-1-flash",
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 524288,
@@ -13453,11 +13492,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0
         }
       },
       "reasoning": {
@@ -14951,27 +14990,27 @@
         "file-input"
       ],
       "contextWindow": 262144,
-      "family": "kimi-k2",
+      "family": "kimi-code",
       "id": "kimi-k2-7-code-highspeed",
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 262144,
       "metadata": {},
-      "name": "Kimi K2.7 Code High Speed",
+      "name": "Kimi K2.7 Code HighSpeed",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "moonshot",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.38
+          "perMillionTokens": 0.3884
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.9
+          "perMillionTokens": 1.9421
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 8
+          "perMillionTokens": 8.0673
         }
       },
       "reasoning": {
@@ -14986,6 +15025,45 @@
           "max": 30720,
           "min": 0
         }
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "kimi-k2",
+      "id": "kimi-k2-8-preview",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "Kimi K2.8 Preview",
+      "outputModalities": ["text"],
+      "ownedBy": "moonshot",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "max",
+            "kind": "effort",
+            "values": ["low", "high", "max"]
+          }
+        ],
+        "defaultEffort": "max",
+        "supportedEfforts": ["low", "high", "max"]
       }
     },
     {
@@ -15048,7 +15126,7 @@
         "file-input"
       ],
       "contextWindow": 1048576,
-      "family": "kimi-k3",
+      "family": "kimi",
       "id": "kimi-k3",
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 131072,
@@ -15076,15 +15154,19 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.283
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.9879
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 2.827
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 14.133
         }
       },
       "reasoning": {
@@ -15109,6 +15191,7 @@
       "maxOutputTokens": 1048576,
       "metadata": {},
       "name": "Kimi K3.1 Pro",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "moonshot",
       "parameterSupport": {
@@ -15166,6 +15249,7 @@
       "maxOutputTokens": 1048576,
       "metadata": {},
       "name": "Kimi K3.1 Pro Highspeed",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "moonshot",
       "parameterSupport": {
@@ -20317,6 +20401,42 @@
       }
     },
     {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition"],
+      "contextWindow": 1048576,
+      "family": "step",
+      "id": "step-5-preview",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Step 5 Preview",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "stepfun",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.10461
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high"]
+      }
+    },
+    {
       "capabilities": ["audio-generation"],
       "family": "step",
       "id": "step-tts-2",
@@ -20545,6 +20665,16 @@
       }
     },
     {
+      "capabilities": [],
+      "contextWindow": 32768,
+      "id": "hunyuan-role-latest",
+      "maxInputTokens": 28672,
+      "maxOutputTokens": 4096,
+      "metadata": {},
+      "name": "Hunyuan Role Latest",
+      "ownedBy": "tencent"
+    },
+    {
       "capabilities": ["reasoning", "function-call"],
       "id": "hunyuan-t1",
       "metadata": {},
@@ -20759,7 +20889,7 @@
     {
       "capabilities": ["reasoning", "function-call"],
       "contextWindow": 262144,
-      "family": "Hy",
+      "family": "hy",
       "id": "hy3",
       "inputModalities": ["text"],
       "maxInputTokens": 196608,
@@ -22651,28 +22781,28 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1050000,
-      "family": "mimo",
+      "contextWindow": 1048576,
+      "family": "mimo-pro",
       "id": "mimo-v2-5-pro",
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "MiMo V2.5 Pro",
+      "name": "MiMo-V2.5-Pro",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "xiaomi",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.0036
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.3045
+          "perMillionTokens": 0.435
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.609
+          "perMillionTokens": 0.87
         }
       },
       "reasoning": {
@@ -22730,7 +22860,7 @@
         "file-input"
       ],
       "contextWindow": 1048576,
-      "family": "mimo",
+      "family": "mimo-flash",
       "id": "mimo-v2-6-flash",
       "inputModalities": ["text", "image", "audio", "video"],
       "maxOutputTokens": 131072,
@@ -22773,7 +22903,7 @@
         "file-input"
       ],
       "contextWindow": 1048576,
-      "family": "mimo",
+      "family": "mimo-pro",
       "id": "mimo-v2-6-pro",
       "inputModalities": ["text", "image", "audio", "video"],
       "maxOutputTokens": 131072,
@@ -23681,7 +23811,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1310720,
+      "contextWindow": 1048576,
       "family": "glm",
       "id": "glm-5-3",
       "inputModalities": ["text"],
@@ -23694,7 +23824,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.275
         },
         "cacheWrite": {
           "currency": "USD",
@@ -23702,11 +23832,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.4
+          "perMillionTokens": 1.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.4
+          "perMillionTokens": 3.851
         }
       },
       "reasoning": {
@@ -23785,11 +23915,58 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 0
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "high", "max"]
+          }
+        ],
+        "supportedEfforts": ["low", "high", "max"]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1000000,
+      "family": "glm",
+      "id": "glm-5-3-flashx",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "GLM-5.3-FlashX",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.37
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
         }
       },
       "reasoning": {
@@ -24019,5 +24196,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "92d2386de7dd37d4"
+  "version": "676797cfd819d8f8"
 }

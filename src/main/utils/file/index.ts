@@ -13,7 +13,6 @@
  *   `isTextByContent`, `mimeToExt`).
  * - `./path` — path predicates (`isPathInside`, `isSameOrInside`, `canWrite`, …).
  * - `./pathStatus` — `getPathStatus` + its result types.
- * - `./shell` — OS open / reveal (`open`, `showInFolder`).
  *
  * Related surfaces that live elsewhere (not here):
  * - Legacy v1 file helpers (`getFileExt`, `readTextFileWithAutoEncoding`,
@@ -54,7 +53,6 @@ export {
   atomicWriteFile,
   atomicWriteIfUnchanged,
   type AtomicWriteStream,
-  compressImage,
   copy,
   copyNew,
   createAtomicWriteStream,
@@ -100,4 +98,3 @@ export {
   resolvePath
 } from './path'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
-export { open, showInFolder } from './shell'
