@@ -51,6 +51,23 @@ The repository previously carried target-architecture documents for a generic
 adapter layer and root package barrel. Those APIs did not land; the current
 reference set documents implemented behavior only.
 
+## Composer tool dependencies
+
+Declare tools with `defineTool` and list their required public state and actions
+in `dependencies`. Contributions receive only those fields, with the original
+provider references. Expansion controls and registry internals are not tool
+dependencies. The factory binds these types before tools enter the heterogeneous
+registry; raw definitions cannot be registered directly.
+
+Menu and runtime contributions share one projected context. Runtime selection
+applies scope visibility, then the tool condition, then model eligibility.
+Assistant, model and Session data remain optional; conditions may see no model.
+Only declared dependencies and base context changes update a mounted tool.
+
+Token reconciliation reads the latest provider state through a stable callback.
+It uses scope visibility without applying runtime conditions or model gates, so
+attachment pruning and knowledge-base restoration also work without a model.
+
 ## Agent mode controls
 
 The Agent composer exposes Plan as an independent Quick Panel toggle on harnesses

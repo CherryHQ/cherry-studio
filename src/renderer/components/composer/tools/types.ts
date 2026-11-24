@@ -1,3 +1,4 @@
+import { pick } from 'es-toolkit'
 import type { TFunction } from 'i18next'
 import React from 'react'
 
@@ -13,7 +14,7 @@ import type { Model } from '@shared/data/types/model'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { ComposerSerializedToken } from '../tokens'
-import type { ComposerToolContextValue } from './ComposerToolProvider'
+import type { ComposerToolDispatch, ComposerToolState } from './ComposerToolProvider'
 
 export { TopicType }
 
@@ -24,26 +25,9 @@ export interface ComposerToolScopeConfig {
   enableDragDrop?: boolean
 }
 
-type ReadableKeys<T> = {
-  [K in keyof T]: T[K] extends (...args: any[]) => any ? never : K
-}[keyof T]
+export type ToolStateMap = Omit<ComposerToolState, 'isExpanded'>
 
-type ActionKeys<T> = {
-  [K in keyof T]: T[K] extends (...args: any[]) => any ? K : never
-}[keyof T]
-
-// 工具按钮不应该访问这些内部 API
-type ExcludedStateKeys = 'isExpanded'
-
-type ExcludedActionKeys = 'setIsExpanded' | 'toolsRegistry' | 'triggers' // 这些 API 由工具系统内部管理
-
-type ToolStateKeys = Exclude<ReadableKeys<ComposerToolContextValue>, ExcludedStateKeys>
-
-type ToolActionKeys = Exclude<ActionKeys<ComposerToolContextValue>, ExcludedActionKeys>
-
-export type ToolStateMap = Pick<ComposerToolContextValue, ToolStateKeys>
-
-export type ToolActionMap = Pick<ComposerToolContextValue, ToolActionKeys>
+export type ToolActionMap = Omit<ComposerToolDispatch, 'setIsExpanded' | 'toolsRegistry' | 'triggers'>
 
 export type ToolStateKey = keyof ToolStateMap
 
@@ -53,8 +37,8 @@ export type ToolActionKey = keyof ToolActionMap
  * Tool dependencies configuration
  */
 export interface ToolDependencies {
-  state?: ToolStateKeys[]
-  actions?: ToolActionKeys[]
+  readonly state?: readonly ToolStateKey[]
+  readonly actions?: readonly ToolActionKey[]
 }
 
 export interface ToolContext {
@@ -93,8 +77,8 @@ export type ToolRenderContext<S extends readonly ToolStateKey[], A extends reado
 }
 
 export interface ToolComposerMenuContribution<
-  S extends readonly ToolStateKey[] = readonly ToolStateKey[],
-  A extends readonly ToolActionKey[] = readonly ToolActionKey[]
+  S extends readonly ToolStateKey[] = readonly [],
+  A extends readonly ToolActionKey[] = readonly []
 > {
   createItems: (context: ToolRenderContext<S, A>) => ComposerToolLauncher[]
 }
@@ -113,20 +97,20 @@ export interface ToolComposerToolbarContribution {
 }
 
 export interface ToolTokenContribution<
-  S extends readonly ToolStateKey[] = readonly ToolStateKey[],
-  A extends readonly ToolActionKey[] = readonly ToolActionKey[]
+  S extends readonly ToolStateKey[] = readonly [],
+  A extends readonly ToolActionKey[] = readonly []
 > {
   /**
    * Reconcile composer state when the editor's managed tokens change. Each tool prunes/re-adds
-   * ONLY its own token kind (file/knowledge/skill) via `context.actions`, using functional
+   * ONLY its own token kind (file/knowledge) via `context.actions`, using functional
    * `setState` updates so it is safe to call from an event handler.
    */
   reconcile: (draftTokens: readonly ComposerSerializedToken[], context: ToolRenderContext<S, A>) => void
 }
 
 export interface ToolComposerContribution<
-  S extends readonly ToolStateKey[] = readonly ToolStateKey[],
-  A extends readonly ToolActionKey[] = readonly ToolActionKey[]
+  S extends readonly ToolStateKey[] = readonly [],
+  A extends readonly ToolActionKey[] = readonly []
 > {
   // Composer-native "+" popover and "/" root suggestion entries.
   menuItems?: ToolComposerMenuContribution<S, A>
@@ -141,13 +125,7 @@ export interface ToolComposerContribution<
   tokens?: ToolTokenContribution<S, A>
 }
 
-/**
- * Tool definition with full type inference for dependencies
- */
-export interface ToolDefinition<
-  S extends readonly ToolStateKey[] = readonly ToolStateKey[],
-  A extends readonly ToolActionKey[] = readonly ToolActionKey[]
-> {
+interface ToolMetadata {
   key: string
   label: string | ((t: TFunction) => string)
 
@@ -156,20 +134,90 @@ export interface ToolDefinition<
   visibleInScopes?: ComposerToolScope[]
   defaultHidden?: boolean
   availableWithoutModel?: boolean
-
-  // Dependencies
-  dependencies?: {
-    state?: S
-    actions?: A
-  }
-
-  // Composer-native contributions.
-  composer?: ToolComposerContribution<S, A>
 }
 
-/**
- * Helper function to define a tool with full type inference
- */
-export const defineTool = <S extends readonly ToolStateKey[], A extends readonly ToolActionKey[]>(
+/** Tool definition with dependency tuples shared by all contributions. */
+export type ToolDefinition<
+  S extends readonly ToolStateKey[] = readonly [],
+  A extends readonly ToolActionKey[] = readonly []
+> = ToolMetadata & {
+  dependencies?: { state?: S; actions?: A }
+  composer?: ToolComposerContribution<S, A>
+} & (S extends readonly [] ? unknown : { dependencies: { state: S } }) &
+  (A extends readonly [] ? unknown : { dependencies: { actions: A } })
+
+export interface ToolContextSource extends ToolContext {
+  state: ToolStateMap
+  actions: ToolActionMap
+  launcher: ToolLauncherApi
+  t: TFunction
+}
+
+interface PreparedToolRuntime {
+  render?: () => React.ReactNode
+  createItems?: () => ComposerToolLauncher[]
+}
+
+export interface ComposerToolRegistration extends ToolMetadata {
+  dependencies?: ToolDependencies
+  prepareRuntime: (source: ToolContextSource) => PreparedToolRuntime
+  reconcileTokens?: (tokens: readonly ComposerSerializedToken[], source: ToolContextSource) => void
+}
+
+const EMPTY_KEYS: readonly [] = []
+
+function buildToolContext<S extends readonly ToolStateKey[], A extends readonly ToolActionKey[]>(
+  source: ToolContextSource,
+  stateKeys: S,
+  actionKeys: A
+): ToolRenderContext<S, A> {
+  return {
+    scope: source.scope,
+    assistant: source.assistant,
+    model: source.model,
+    session: source.session,
+    state: pick(source.state, stateKeys),
+    actions: pick(source.actions, actionKeys),
+    launcher: source.launcher,
+    t: source.t
+  }
+}
+
+export const defineTool = <
+  const S extends readonly ToolStateKey[] = readonly [],
+  const A extends readonly ToolActionKey[] = readonly []
+>(
   tool: ToolDefinition<S, A>
-): ToolDefinition<S, A> => tool
+): ToolDefinition<S, A> & ComposerToolRegistration => {
+  const bridge = {
+    prepareRuntime(source: ToolContextSource): PreparedToolRuntime {
+      const context = buildToolContext(
+        source,
+        tool.dependencies?.state ?? EMPTY_KEYS,
+        tool.dependencies?.actions ?? EMPTY_KEYS
+      )
+      const prepared: PreparedToolRuntime = {}
+      const menu = tool.composer?.menuItems
+      const Runtime = tool.composer?.runtime
+
+      if (menu) prepared.createItems = () => menu.createItems(context)
+      if (Runtime) prepared.render = () => React.createElement(Runtime, { context })
+
+      return prepared
+    }
+  }
+  const tokens = tool.composer?.tokens
+
+  if (tokens) {
+    return Object.assign(tool, bridge, {
+      reconcileTokens(draft: readonly ComposerSerializedToken[], source: ToolContextSource) {
+        tokens.reconcile(
+          draft,
+          buildToolContext(source, tool.dependencies?.state ?? EMPTY_KEYS, tool.dependencies?.actions ?? EMPTY_KEYS)
+        )
+      }
+    })
+  }
+
+  return Object.assign(tool, bridge)
+}
