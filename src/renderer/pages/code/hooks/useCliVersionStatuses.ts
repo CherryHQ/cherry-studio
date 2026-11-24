@@ -52,6 +52,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
   const [availabilityRevision, setAvailabilityRevision] = useState(0)
   const latestRef = useRef<Record<string, string | undefined>>({})
   const toolKey = toolIds.join('|')
+  // SAFETY: CodeCli values are nonempty and contain no pipe; splitting the joined sequence preserves its order and duplicates.
   const tools = useMemo(() => (toolKey ? (toolKey.split('|') as CodeCli[]) : []), [toolKey])
 
   useEffect(() => {
@@ -63,7 +64,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
       const binaryNames = tools.map((toolId) => CODE_CLI_TOOL_PRESET_MAP[toolId].executable)
 
       const snapshots = await ipcApi.request('binary.get_tool_snapshots', binaryNames).catch((error) => {
-        logger.error('Failed to get CLI tool snapshots', error as Error)
+        logger.error('Failed to get CLI tool snapshots', error)
 
         return null
       })
@@ -97,7 +98,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
 
       if (hasAppliedCli) {
         latestVersions = await ipcApi.request('binary.get_latest_versions', false).catch((error) => {
-          logger.error('Failed to read latest-version cache', error as Error)
+          logger.error('Failed to read latest-version cache', error)
 
           return {}
         })
@@ -113,7 +114,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
 
         if (needsLatest) {
           latestVersions = await ipcApi.request('binary.get_latest_versions', true).catch((error) => {
-            logger.error('Failed to get latest binary versions', error as Error)
+            logger.error('Failed to get latest binary versions', error)
 
             return {}
           })
