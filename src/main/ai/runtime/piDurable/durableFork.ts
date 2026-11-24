@@ -26,7 +26,9 @@ export async function forkDurable(
   input.signal.throwIfAborted()
 
   const conversationId = await session.commit(async (tx) => {
+    // SAFETY: the checkpoint schema validates a lossless positive ID; the driver also matches its source binding before this call.
     const source = Number(selected.conversationId) as ConversationId
+    // SAFETY: the checkpoint schema validates this positive safe integer; the following native scan verifies its entry is visible.
     const entryId = Number(selected.entryId) as EntryId
     const entries = new Set<string>()
     let cursor: Parameters<typeof tx.scanEntries>[2]
