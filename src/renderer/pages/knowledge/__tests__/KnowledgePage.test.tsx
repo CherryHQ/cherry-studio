@@ -2070,7 +2070,6 @@ describe('KnowledgePage', () => {
       ]
       expect(request.mock.calls.filter(([route]) => route === 'knowledge.add_items')).toEqual([])
       await user.click(await screen.findByRole('button', { name: /knowledge\.preflight\.continue|导入可用文件/ }))
-      await user.click(await screen.findByRole('button', { name: /knowledge\.preflight\.continue|导入可用文件/ }))
       await waitFor(() =>
         expect(request).toHaveBeenCalledWith('knowledge.add_items', {
           baseId: 'base-1',
