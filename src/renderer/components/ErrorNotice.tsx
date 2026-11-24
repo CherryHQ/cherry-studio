@@ -131,7 +131,7 @@ export function ErrorNotice({
           ) : null}
         </>
       ) : (
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className={cn('flex min-w-0 flex-wrap items-center gap-2', onDismiss && 'pr-6')}>
           <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{title}</span>
           {actionButton || trailing ? (
             <div className="flex shrink-0 flex-wrap items-center gap-3">
