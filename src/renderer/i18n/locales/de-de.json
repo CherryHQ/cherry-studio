@@ -5196,6 +5196,7 @@
   "settings.memory.clear_confirm": "Alle lokalen Erinnerungsdateien löschen?",
   "settings.memory.clear_success": "Erfolgreich gelöscht",
   "settings.memory.failed": "Der Vorgang konnte nicht abgeschlossen werden. Prüfe die verbleibenden Einträge und versuche es erneut.",
+  "settings.memory.global": "Globaler Speicher",
   "settings.memory.no_recovery": "Kein wiederherstellbarer Vorgang vorhanden.",
   "settings.memory.outcome.conflict": "Konflikt",
   "settings.memory.outcome.pending": "Nicht abgeschlossen",

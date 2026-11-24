@@ -26,6 +26,8 @@ beforeEach(() => {
         active.add(editor.editorId)
         data = editor
         break
+      case 'memory.open_folder':
+        break
       case 'memory.editor.close':
         active.delete(args.editorId!)
         break
@@ -60,9 +62,13 @@ beforeEach(() => {
 })
 
 describe('shared memory file controls', () => {
-  it('shows only recovery and clear actions without reading or listing files', async () => {
+  it('shows global memory actions after recovery and browses without reading files', async () => {
     render(<MemoryFileControls />)
     await waitFor(() => expect(screen.getByRole('button', { name: '清除全局记忆' })).toBeEnabled())
+    expect(screen.getByText('全局记忆')).toBeVisible()
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['恢复', '浏览', '清除'])
+    await userEvent.click(screen.getByRole('button', { name: '浏览' }))
+    expect(vi.mocked(window.api.ipcApi.request).mock.calls.map(([route]) => route)).toContain('memory.open_folder')
     expect(screen.queryByText('topic')).not.toBeInTheDocument()
     expect(screen.queryByText('记忆文件')).not.toBeInTheDocument()
     expect(screen.queryByText('记忆概览')).not.toBeInTheDocument()

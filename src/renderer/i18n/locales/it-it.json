@@ -5196,6 +5196,7 @@
   "settings.memory.clear_confirm": "Cancellare tutti i file di memoria locali?",
   "settings.memory.clear_success": "Cancellazione completata",
   "settings.memory.failed": "Impossibile completare l’operazione. Controlla gli elementi rimanenti e riprova.",
+  "settings.memory.global": "Memoria globale",
   "settings.memory.no_recovery": "Nessuna operazione ripristinabile.",
   "settings.memory.outcome.conflict": "Conflitto",
   "settings.memory.outcome.pending": "Non completato",
