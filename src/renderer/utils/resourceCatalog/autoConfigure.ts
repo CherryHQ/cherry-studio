@@ -12,8 +12,18 @@ export type AutoConfigCatalogs = {
   /** Installed non-builtin skills; builtins are always enabled for new agents. */
   skills: AutoConfigCatalogItem[]
   knowledgeBases: AutoConfigCatalogItem[]
+  /** Installed servers, plus uninstalled configuration-free featured servers under {@link toFeaturedMcpId}. */
   mcpServers: AutoConfigCatalogItem[]
 }
+
+const FEATURED_MCP_ID_PREFIX = 'preset:'
+
+/** Stable ID for a featured marketplace MCP server that is not installed yet. */
+export const toFeaturedMcpId = (presetName: string) => `${FEATURED_MCP_ID_PREFIX}${presetName}`
+
+/** The preset name behind a {@link toFeaturedMcpId} ID, or `undefined` for an installed server's ID. */
+export const getFeaturedMcpName = (id: string) =>
+  id.startsWith(FEATURED_MCP_ID_PREFIX) ? id.slice(FEATURED_MCP_ID_PREFIX.length) : undefined
 
 /** A validated configuration that only references resources present in the supplied catalogs. */
 export type AutoConfigDraft = {
