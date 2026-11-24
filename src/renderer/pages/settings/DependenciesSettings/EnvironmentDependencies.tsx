@@ -193,12 +193,14 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     async (force = false): Promise<Record<string, string> | null> => {
       const requestId = ++latestRequestIdRef.current
       setCheckingUpdates(true)
+      let operation = 'binary.get_latest_versions'
       try {
         const [versionsResult, stateResult] = await Promise.allSettled([
           ipcApi.request('binary.get_latest_versions', force),
           force ? refreshState(true) : Promise.resolve(true)
         ])
         if (versionsResult.status === 'rejected') throw versionsResult.reason
+        operation = 'binary.get_tool_snapshots'
         if (stateResult.status === 'rejected') throw stateResult.reason
         if (mountedRef.current && requestId === latestRequestIdRef.current) {
           setLatestVersions(versionsResult.value)
@@ -210,7 +212,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       } catch (error) {
         logger.error('Failed to fetch latest versions', error as Error)
         if (force && mountedRef.current && requestId === latestRequestIdRef.current) {
-          toast.error({ title: t('settings.dependencies.updateCheckFailed'), cause: error })
+          toast.error({
+            title: t('settings.dependencies.updateCheckFailed'),
+            cause: error,
+            data: { source: 'settings.dependencies', operation }
+          })
         }
         return null
       } finally {
@@ -315,7 +321,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       }
     } catch (error) {
       logger.error('Failed to remove tool', error as Error)
-      toast.error({ title: t('settings.dependencies.removeError'), cause: error })
+      toast.error({
+        title: t('settings.dependencies.removeError'),
+        cause: error,
+        data: { source: 'settings.dependencies', operation: 'binary.remove_tool', recordId: target.name }
+      })
     } finally {
       setDeleteTarget(null)
       await refreshState()
@@ -328,7 +338,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       await ipcApi.request('binary.remove_tool', { name, definitionOnly: true })
     } catch (error) {
       logger.error('Failed to remove tool definition', error as Error)
-      toast.error({ title: t('settings.dependencies.removeError'), cause: error })
+      toast.error({
+        title: t('settings.dependencies.removeError'),
+        cause: error,
+        data: { source: 'settings.dependencies', operation: 'binary.remove_tool_definition', recordId: name }
+      })
     } finally {
       setDefinitionFallback(null)
       await refreshState()
@@ -1246,7 +1260,11 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
     commitQueueRef.current = commitQueueRef.current
       .then(() => setSettings(next))
       .catch((error) => {
-        toast.error({ title: t('common.save_failed'), cause: error })
+        toast.error({
+          title: t('common.save_failed'),
+          cause: error,
+          data: { source: 'settings.dependencies', operation: 'binary.save_install_settings' }
+        })
       })
   }
   const commitUrl = (key: 'githubMirror' | 'npmRegistry' | 'pipIndexUrl', value: string) => {
