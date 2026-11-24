@@ -1,7 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { buildMcpWireWildcard } from '@shared/ai/tools/mcpSourcePolicy'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
@@ -14,6 +13,9 @@ vi.mock('../useMcpServer', () => ({
     error: null,
     refetch: vi.fn()
   })
+}))
+vi.mock('@data/hooks/useDataApi', () => ({
+  useMutation: () => ({ trigger: mocks.add })
 }))
 import { useBuiltinMcpCatalog } from '../useBuiltinMcpCatalog'
 
@@ -39,20 +41,11 @@ describe('ZoneFoundry through the current builtin catalog', () => {
       first = result.current.add(preset)
       second = result.current.add(preset)
     })
-    expect(mocks.add).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        name: BuiltinMcpServerNames.zonefoundry,
-        type: 'streamableHttp',
-        baseUrl: 'https://relay.zonefoundry.dev/mcp',
-        isActive: false,
-        isTrusted: false,
-        shouldConfig: true,
-        env: { ZONEFOUNDRY_API_KEY: '' },
-        disabledAutoApproveTools: [buildMcpWireWildcard(BuiltinMcpServerNames.zonefoundry)]
-      })
-    )
+    expect(mocks.add).toHaveBeenCalledExactlyOnceWith({
+      body: { name: BuiltinMcpServerNames.zonefoundry, activate: false }
+    })
     expect(result.current.adding.has(preset.name)).toBe(true)
-    const installed = { ...preset, id: 'installed-zonefoundry' }
+    const installed = { ...preset, id: 'installed-zonefoundry', installSource: 'builtin' as const }
     await act(async () => {
       resolve(installed)
       expect(await first).toEqual(installed)
@@ -61,7 +54,7 @@ describe('ZoneFoundry through the current builtin catalog', () => {
     expect(result.current.adding.has(preset.name)).toBe(false)
     mocks.servers = [installed]
     const { result: reloaded } = renderHook(() => useBuiltinMcpCatalog())
-    await expect(reloaded.current.add(preset)).resolves.toEqual(installed)
+    expect(reloaded.current.findInstalled(preset)).toEqual(installed)
     expect(mocks.add).toHaveBeenCalledTimes(1)
   })
 })

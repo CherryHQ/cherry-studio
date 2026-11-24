@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { mcpServerService } from '@data/services/McpServerService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import { CreateMcpServerSchema } from '@shared/data/api/schemas/mcpServers'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
@@ -323,7 +322,7 @@ describe('McpServerService', () => {
     it('persists the actual Marketplace ZoneFoundry preset before credentials or activation', () => {
       const preset = PRESET_MCP_SERVERS.find((server) => server.name === BuiltinMcpServerNames.zonefoundry)
       if (!preset) throw new Error('ZoneFoundry preset missing')
-      const created = mcpServerService.create(CreateMcpServerSchema.parse(preset))
+      const created = mcpServerService.installPreset({ name: preset.name, activate: false })
       expect(created).toMatchObject({
         name: preset.name,
         isActive: false,
