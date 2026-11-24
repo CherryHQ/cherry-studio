@@ -14,6 +14,91 @@ describe('classifyNetworkError', () => {
     )
   })
 
+  it.each([null, undefined, false, 0, 'private request details'])(
+    'classifies an opaque rejection without exposing its text',
+    (failure) => {
+      expect(classifyNetworkError(failure)).toEqual({ kind: 'unknown', code: undefined })
+    }
+  )
+
+  it('classifies a revoked proxy without replacing the original probe failure', () => {
+    const { proxy, revoke } = Proxy.revocable({}, {})
+    revoke()
+
+    expect(classifyNetworkError(proxy)).toEqual({ kind: 'unknown', code: undefined })
+    expect(classifyNetworkError(proxy, 407)).toEqual({ kind: 'proxy_auth', code: 'HTTP 407' })
+  })
+
+  it('preserves readable transport evidence when the cause cannot be read', () => {
+    const error = Object.assign(new Error('private connection details'), { code: 'ECONNREFUSED' })
+    Object.defineProperty(error, 'cause', {
+      get() {
+        throw new Error('unreadable cause')
+      }
+    })
+
+    expect(classifyNetworkError(error)).toEqual({ kind: 'refused', code: 'ECONNREFUSED' })
+  })
+
+  it('still reads a cause when the outer code cannot be read', () => {
+    const error = new Error('fetch failed', {
+      cause: Object.assign(new Error('inner failure'), { code: 'ENOTFOUND' })
+    })
+    Object.defineProperty(error, 'code', {
+      get() {
+        throw new Error('unreadable code')
+      }
+    })
+
+    expect(classifyNetworkError(error)).toEqual({ kind: 'dns', code: 'ENOTFOUND' })
+  })
+
+  it('still recognizes a caller abort when an outer name cannot be read', () => {
+    const error = new Error('outer failure', { cause: new DOMException('deadline elapsed', 'TimeoutError') })
+    Object.defineProperty(error, 'name', {
+      get() {
+        throw new Error('unreadable name')
+      }
+    })
+
+    expect(classifyNetworkError(error)).toEqual({ kind: 'timeout', code: 'TimeoutError' })
+  })
+
+  it.each(['CUSTOM_FAILURE', ''])(
+    'keeps the first string Node code %j instead of adopting a deeper Node code',
+    (code) => {
+      const error = Object.assign(
+        new Error('outer failure', {
+          cause: Object.assign(new Error('inner failure'), { code: 'ECONNREFUSED' })
+        }),
+        { code }
+      )
+
+      expect(classifyNetworkError(error)).toEqual({ kind: 'unknown', code })
+    }
+  )
+
+  it('retains Node, Chromium and caller-abort precedence across wrapped errors', () => {
+    const chromium = Object.assign(new Error('net::ERR_CERT_REVOKED'), { name: 'AbortError' })
+    const known = Object.assign(new Error('outer failure', { cause: chromium }), { code: 'ECONNREFUSED' })
+    const unknown = Object.assign(new Error('outer failure', { cause: chromium }), { code: 'CUSTOM_FAILURE' })
+
+    expect(classifyNetworkError(known)).toEqual({ kind: 'refused', code: 'ECONNREFUSED' })
+    expect(classifyNetworkError(unknown)).toEqual({ kind: 'tls_cert', code: 'ERR_CERT_REVOKED' })
+  })
+
+  it('finishes classification for cyclic causes and ignores errors beyond the five-value boundary', () => {
+    const cyclic = Object.assign(new Error('connection failed'), { code: 'ECONNRESET' })
+    cyclic.cause = cyclic
+    expect(classifyNetworkError(cyclic)).toEqual({ kind: 'reset', code: 'ECONNRESET' })
+
+    let nested: Error = Object.assign(new Error('inner failure'), { code: 'ENOTFOUND' })
+    for (let depth = 0; depth < 5; depth++) nested = new Error('wrapper', { cause: nested })
+
+    expect(classifyNetworkError(nested)).toEqual({ kind: 'unknown', code: undefined })
+    expect(classifyNetworkError(nested.cause)).toEqual({ kind: 'dns', code: 'ENOTFOUND' })
+  })
+
   it('reads Chromium codes out of net.fetch messages', () => {
     expect(classifyNetworkError(new Error('net::ERR_NAME_NOT_RESOLVED'))).toEqual({
       kind: 'dns',

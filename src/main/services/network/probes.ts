@@ -3,10 +3,11 @@ import { connect as tlsConnect } from 'node:tls'
 
 import { net } from 'electron'
 
-import { getErrorMessage } from '@main/utils/error'
+import { getErrorCode, getErrorMessage } from '@main/utils/error'
 
 import { NETWORK_ERROR_CODES, type NetworkFailureKind, type NetworkLayerResult, type TlsPeerInfo } from './types'
 
+// SAFETY: NETWORK_ERROR_CODES is a checked object literal with only NetworkFailureKind keys and string-array values.
 const CODE_TO_KIND: ReadonlyMap<string, NetworkFailureKind> = new Map(
   (Object.entries(NETWORK_ERROR_CODES) as Array<[NetworkFailureKind, readonly string[]]>).flatMap(([kind, codes]) =>
     codes.map((code) => [code, kind] as const)
@@ -33,13 +34,20 @@ export function classifyNetworkError(
 
   const chain: unknown[] = []
 
-  for (let current = error; current != null && chain.length < 5; current = (current as { cause?: unknown }).cause) {
+  for (let current = error; current != null && chain.length < 5;) {
     chain.push(current)
+
+    if (chain.length === 5) break
+
+    try {
+      // oxlint-disable-next-line anti-slop/no-reflect-get -- Causes are opaque rejection values; contain getter/Proxy failures without losing the current error's evidence.
+      current = typeof current === 'object' || typeof current === 'function' ? Reflect.get(current, 'cause') : undefined
+    } catch {
+      break
+    }
   }
 
-  const nodeCode = chain
-    .map((e) => (e as { code?: unknown } | null)?.code)
-    .find((code): code is string => typeof code === 'string')
+  const nodeCode = chain.map(getErrorCode).find((code) => code !== undefined)
 
   const message = chain.map((value) => getErrorMessage(value, '')).join(' ')
   const chromiumCode = /(ERR_[A-Z_]+)/.exec(message)?.[1]
@@ -55,9 +63,23 @@ export function classifyNetworkError(
   }
 
   // An abort is the caller's deadline (`AbortSignal.timeout`, run cancel), never the network's verdict.
-  const abort = chain
-    .map((e) => (e as { name?: unknown } | null)?.name)
-    .find((n) => n === 'AbortError' || n === 'TimeoutError')
+  let abort: 'AbortError' | 'TimeoutError' | undefined
+
+  for (const value of chain) {
+    try {
+      if (value === null || (typeof value !== 'object' && typeof value !== 'function')) continue
+
+      // oxlint-disable-next-line anti-slop/no-reflect-get -- Only the two recognized caller-abort names are consumed; an unreadable name must not discard another cause's evidence.
+      const name = Reflect.get(value, 'name')
+
+      if (name === 'AbortError' || name === 'TimeoutError') {
+        abort = name
+        break
+      }
+    } catch {
+      // An unreadable name cannot establish a caller abort.
+    }
+  }
 
   if (abort) return { kind: 'timeout', code: nodeCode ?? abort }
 
