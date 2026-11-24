@@ -84,7 +84,7 @@ Shared-memory settings show the latest run result and provide **Restore backup**
 Clearing nonempty memory retains forgetting markers. Conversations that may contain old memory remain blocked after restart or disabling shared access. You can start a new conversation to continue chatting with filtered memory. Ordinary corrections do not trigger forgetting protection; legacy protected or invalid states still require verification. If clearing was the latest operation and the shared memory still matches its version immediately after the clear, choose **Restore backup** to undo it. Content forgotten before the clear stays protected. If a file has a version conflict, recovery preserves its current contents.
 {% endhint %}
 
-In the agent editor, **Memory** lets you edit **Persona** (`SOUL.md`) and **User profile** (`USER.md`). After migration, open **Private memory** to read `MEMORY.md`. Select a topic from the list or follow its link in the entry. Private memory remains available when shared memory is off.
+In the agent editor, **Memory** lets you edit **Persona** (`SOUL.md`) and **User profile** (`USER.md`). After migration, open **Private memory** to read `MEMORY.md`. Select a topic from the **More** menu or follow its link in the entry. Private memory remains available when shared memory is off.
 
 ### Sub-agents, Workflows, and Background Commands
 

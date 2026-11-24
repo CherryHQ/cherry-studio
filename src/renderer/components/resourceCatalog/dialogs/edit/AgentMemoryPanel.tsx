@@ -8,6 +8,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   ScrollArea,
   Tabs,
@@ -23,7 +26,7 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentMemoryFile, AgentMemorySnapshot } from '@shared/ipc/schemas/agent'
 
-import { PrivateMemoryView } from './PrivateMemoryView'
+import { PrivateMemoryView, usePrivateMemoryIndex } from './PrivateMemoryView'
 
 type PanelKey = 'soul' | 'user' | 'private'
 const FILE_ORDER = ['soul', 'user', 'private'] as const
@@ -94,6 +97,8 @@ export function AgentMemoryPanel({
   const leaveRequest = useRef<{ promise: Promise<boolean>; resolve: (leave: boolean) => void } | null>(null)
 
   const [revision, setRevision] = useState(0)
+  const [privatePath, setPrivatePath] = useState('MEMORY.md')
+  const privateIndex = usePrivateMemoryIndex(agent.id, selectedKey === 'private', revision)
   const files = snapshot?.files ?? []
   const selected = files.find((file) => file.key === selectedKey)
   const isDirty = mode === 'edit' && !!selected && draft !== selected.content
@@ -116,6 +121,7 @@ export function AgentMemoryPanel({
       : ''
 
   const applySelect = (key: PanelKey) => {
+    setPrivatePath('MEMORY.md')
     setSelectedKey(key)
     setMode('view')
     setDraft('')
@@ -238,7 +244,8 @@ export function AgentMemoryPanel({
   }
 
   const renderContent = () => {
-    if (selectedKey === 'private') return <PrivateMemoryView key={revision} agentId={agent.id} />
+    if (selectedKey === 'private')
+      return <PrivateMemoryView agentId={agent.id} index={privateIndex} path={privatePath} select={setPrivatePath} />
     if (error) {
       return (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
@@ -372,6 +379,21 @@ export function AgentMemoryPanel({
                       </DropdownMenuTrigger>
                     </Tooltip>
                     <DropdownMenuContent align="end">
+                      {selectedKey === 'private' && privateIndex?.files.some((file) => file !== 'MEMORY.md') && (
+                        <>
+                          <DropdownMenuRadioGroup
+                            value={privatePath}
+                            onValueChange={setPrivatePath}
+                            className="max-h-56 overflow-y-auto">
+                            {['MEMORY.md', ...privateIndex.files.filter((file) => file !== 'MEMORY.md')].map((file) => (
+                              <DropdownMenuRadioItem key={file} value={file}>
+                                <span className="max-w-64 truncate">{file}</span>
+                              </DropdownMenuRadioItem>
+                            ))}
+                          </DropdownMenuRadioGroup>
+                          <DropdownMenuSeparator />
+                        </>
+                      )}
                       {selectedKey !== 'private' && (
                         <DropdownMenuItem
                           disabled={!selected?.exists || !selected.content}

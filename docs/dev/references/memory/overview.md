@@ -69,7 +69,7 @@ Open **Settings → Tools → Shared memory**, alongside MCP and Skills.
 
 The agent editor's **Memory** tab has three views. **Persona** and **User profile** edit `SOUL.md` and `USER.md` with explicit Save/Cancel, version checks, and confirmation before discarding drafts. Truncated identity files are read-only.
 
-**Private memory** opens the selected agent's migrated `MEMORY.md`. Users can select a topic from the file picker or follow a link in the entry. The main process authorizes each read for that agent. Browsing does not start a migration and remains available with shared memory disabled.
+**Private memory** opens the selected agent's migrated `MEMORY.md`. Users can select a topic from the More menu or follow a link in the entry. The main process authorizes each read for that agent. Browsing does not start a migration and remains available with shared memory disabled.
 
 ## Entry snapshots in model requests
 

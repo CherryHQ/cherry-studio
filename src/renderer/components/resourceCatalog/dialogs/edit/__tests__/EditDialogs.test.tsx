@@ -2835,6 +2835,10 @@ describe('Agent configuration memory', () => {
     expect(await screen.findByText('Private entry body')).toBeVisible()
     await user.click(screen.getByRole('link', { name: 'View topic' }))
     expect(await screen.findByText('Private topic body')).toBeVisible()
+    expect(screen.queryByRole('combobox')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'MEMORY.md' }))
+    expect(await screen.findByText('Private entry body')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
   })
 

@@ -1,34 +1,46 @@
-import { FileText } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ScrollArea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { ScrollArea } from '@cherrystudio/ui'
 import { MarkdownHostProvider, StaticMarkdown } from '@renderer/components/markdown'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { OutputFor } from '@shared/ipc/types'
 
-export function PrivateMemoryView({ agentId }: { agentId: string }) {
-  const { t } = useTranslation()
-  const [index, setIndex] = useState<OutputFor<'memory.private.list'>>()
-  const [failed, setFailed] = useState(false)
-  const [path, setPath] = useState('MEMORY.md')
+export function usePrivateMemoryIndex(agentId: string, activeTab: boolean, revision: number) {
+  const [index, setIndex] = useState<OutputFor<'memory.private.list'> | null>()
   useEffect(() => {
+    if (!activeTab) return
     let active = true
+    setIndex(undefined)
     void ipcApi.request('memory.private.list', { agentId }).then(
       (value) => {
         if (active) setIndex(value)
       },
       () => {
-        if (active) setFailed(true)
+        if (active) setIndex(null)
       }
     )
     return () => {
       active = false
     }
-  }, [agentId])
+  }, [agentId, activeTab, revision])
+  return index
+}
 
-  if (failed)
+export function PrivateMemoryView({
+  agentId,
+  index,
+  path,
+  select
+}: {
+  agentId: string
+  index: ReturnType<typeof usePrivateMemoryIndex>
+  path: string
+  select: (path: string) => void
+}) {
+  const { t } = useTranslation()
+  if (index === null)
     return (
       <p role="alert" className="py-4 text-sm text-error">
         {t('agent.memory.load_failed')}
@@ -48,30 +60,9 @@ export function PrivateMemoryView({ agentId }: { agentId: string }) {
     )
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col" data-ui="agent.private-memory">
-      <div className="flex min-w-0 items-center gap-2 border-b border-border-subtle py-2">
-        <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        {index.files.some((file) => file !== 'MEMORY.md') ? (
-          <Select value={path} onValueChange={setPath}>
-            <SelectTrigger size="sm" className="min-w-0 max-w-full" aria-label={t('files.select_file', { name: path })}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {['MEMORY.md', ...index.files.filter((file) => file !== 'MEMORY.md')].map((file) => (
-                <SelectItem key={file} value={file}>
-                  {file}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <span className="text-sm font-medium">MEMORY.md</span>
-        )}
-      </div>
-      <ScrollArea className="min-h-0 flex-1">
-        <PrivateMemoryContent key={path} agentId={agentId} path={path} files={index.files} select={setPath} />
-      </ScrollArea>
-    </section>
+    <ScrollArea className="min-h-0 flex-1" data-ui="agent.private-memory">
+      <PrivateMemoryContent key={path} agentId={agentId} path={path} files={index.files} select={select} />
+    </ScrollArea>
   )
 }
 
