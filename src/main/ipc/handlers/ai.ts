@@ -16,6 +16,7 @@ import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSes
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
+import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
 import { openRequestPath } from '@main/services/file'
@@ -160,6 +161,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
         : application.get('AiService').generateText(generate)
     )
   },
+  'ai.profile_starters.generate': (input) =>
+    exposeAiError('ai.profile_starters.generate', () => generateProfileStarters(input)),
   'ai.text.abort': async ({ requestId }) => {
     application.get('AiService').abortRequest(requestId)
   },

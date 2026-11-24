@@ -172,6 +172,29 @@ describe('AgentTaskService active-Agent read contract', () => {
     ).rejects.toThrow()
   })
 
+  it('paginates one Agent’s tasks and counts the full active list', async () => {
+    seedAgent('owner')
+    for (let index = 0; index < 51; index++) seedTask(`task-${index}`, 'owner')
+    jobScheduleService.setEnabled(seedTask('paused-task', 'owner'), false)
+
+    const first = await agentHandlers['/agents/:agentId/tasks'].GET({
+      params: { agentId: 'owner' },
+      query: { page: 1, limit: 50 }
+    })
+    const second = await agentHandlers['/agents/:agentId/tasks'].GET({
+      params: { agentId: 'owner' },
+      query: { page: 2, limit: 50 }
+    })
+
+    expect(first).toMatchObject({ total: 52, activeTotal: 51 })
+    expect(second).toMatchObject({ total: 52, activeTotal: 51 })
+    expect(first).toHaveProperty('items.length', 50)
+    expect(second).toHaveProperty('items.length', 2)
+    expect(
+      'items' in first && 'items' in second && new Set([...first.items, ...second.items].map((task) => task.id)).size
+    ).toBe(52)
+  })
+
   it('hides tasks owned by trashed or missing Agents from every normal read and shows them after restore', () => {
     seedAgent('agent-active')
     seedAgent('agent-trashed', Date.now())
@@ -180,8 +203,8 @@ describe('AgentTaskService active-Agent read contract', () => {
     const missingTaskId = seedTask('task-missing', 'agent-missing')
 
     expect(agentTaskService.listAllTasks().tasks.map((task) => task.id)).toEqual([activeTaskId])
-    expect(agentTaskService.listTasks('agent-trashed')).toEqual({ tasks: [], total: 0 })
-    expect(agentTaskService.listTasks('agent-missing')).toEqual({ tasks: [], total: 0 })
+    expect(agentTaskService.listTasks('agent-trashed')).toEqual({ tasks: [], total: 0, activeTotal: 0 })
+    expect(agentTaskService.listTasks('agent-missing')).toEqual({ tasks: [], total: 0, activeTotal: 0 })
     expect(agentTaskService.getTaskById(trashedTaskId)).toBeNull()
     expect(agentTaskService.getTaskDetail(trashedTaskId)).toBeNull()
     expect(agentTaskService.getTask('agent-trashed', trashedTaskId)).toBeNull()

@@ -495,7 +495,7 @@ export class AgentJobsService extends BaseService {
   async runTask(agentId: string, taskId: string): Promise<boolean> {
     return this.taskLocks.runExclusive(taskId, async () => {
       const existing = this.getActiveTask(agentId, taskId)
-      if (!existing) return false
+      if (!existing || existing.status === 'completed') return false
       if (existing.status === 'missed') {
         const enqueued = application.get('DbService').withWriteTx((tx) => {
           const schedule = jobScheduleService.getByIdTx(tx, taskId)
