@@ -231,13 +231,9 @@ async function writeMemoryFile(
 
 export const agentHandlers: IpcHandlersFor<typeof agentRequestSchemas> = {
   'agent.set_avatar': (input) => agentAvatarService.apply(input),
-  'agent.memory.read': async ({ agentId, identityOnly }) => {
+  'agent.memory.read': async ({ agentId }) => {
     const { root, directory } = await resolveAgentDirectory(agentId)
-    const files = await Promise.all(
-      (identityOnly ? MEMORY_FILES.filter((file) => file.key === 'soul' || file.key === 'user') : MEMORY_FILES).map(
-        (file) => readMemoryFile(root, directory, file)
-      )
-    )
+    const files = await Promise.all(MEMORY_FILES.map((file) => readMemoryFile(root, directory, file)))
     return { directory, files, factMigrated: application.get('MemoryMigrationService').isMigrated(agentId) }
   },
   'agent.memory.write': async ({ agentId, key, content, expectedVersion }) => {
