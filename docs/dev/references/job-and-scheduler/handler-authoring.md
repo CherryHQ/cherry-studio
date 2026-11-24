@@ -111,6 +111,11 @@ and do not prevent dispatch. Keep the observer synchronous and short.
 
 `onSettled?(event: JobSettledEvent<TPayload>)` fires once when a job reaches a terminal state (errors are caught + logged, never propagated). The event is a projection of the persisted terminal snapshot — no `jobService.getById` reverse lookup needed:
 
+When `JobHandle.finished` resolves, its snapshot is terminal. If the terminal write
+fails and the persisted row is still nonterminal, awaiters receive a local failed
+snapshot with `JOB_FINALIZE_TX_FAILED`. That value does not publish a terminal
+cache state or `onSettled` event; the database row remains available for recovery.
+
 | Field | Type | Notes |
 |---|---|---|
 | `jobId` | `string` | |

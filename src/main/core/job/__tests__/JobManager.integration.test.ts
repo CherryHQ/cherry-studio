@@ -26,7 +26,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
@@ -1106,54 +1106,63 @@ describe('JobManager integration', () => {
       await teardownManager(scheduler, jobManager)
     })
 
-    it('keeps failed persistence recoverable without publishing a terminal settlement', async () => {
-      const settledEvents: JobSettledEvent[] = []
-      const handler: JobHandler = {
-        recovery: 'retry',
-        cancelTimeoutMs: 500,
-        defaultConcurrency: 2,
-        async execute() {
-          throw new Error('handler-intentional-failure')
-        },
-        onSettled(event) {
-          settledEvents.push(event)
+    it.each([new Error('synthetic-corrupt-terminal'), undefined, 'synthetic-corrupt-terminal'])(
+      'completes awaiters with a failed snapshot while preserving failed persistence for recovery (%s)',
+      async (terminalFailure) => {
+        const settledEvents: JobSettledEvent[] = []
+        const handler: JobHandler = {
+          recovery: 'retry',
+          cancelTimeoutMs: 500,
+          defaultConcurrency: 2,
+          async execute() {
+            throw new Error('handler-intentional-failure')
+          },
+          onSettled(event) {
+            settledEvents.push(event)
+          }
+        }
+        const { scheduler, jobManager } = await bootstrapManager({
+          handlers: [['retry.fallback.task.2', handler]]
+        })
+
+        const unhandled: unknown[] = []
+        const listener = (reason: unknown) => unhandled.push(reason)
+        process.on('unhandledRejection', listener)
+
+        const retrySpy = vi.spyOn(jobService, 'setDelayedRetryTx').mockImplementation(() => {
+          throw Object.assign(new Error('synthetic-corrupt'), { code: 'SQLITE_CORRUPT' })
+        })
+        const terminalSpy = vi.spyOn(jobService, 'setTerminalTx').mockImplementation(() => {
+          throw terminalFailure
+        })
+
+        try {
+          const handle = jobManager.enqueue('retry.fallback.task.2' as never, { message: 'doubled-doom' } as never, {
+            maxAttempts: 3
+          })
+
+          // Failed retry and terminal writes leave the row running for recovery.
+          // That row must not reach observers whose contract requires a terminal snapshot.
+          await drainAllQueues(jobManager)
+          const completion = await handle.finished
+
+          expect(unhandled).toHaveLength(0)
+          expect(jobService.getById(handle.id)?.status).toBe('running')
+          expect(settledEvents).toEqual([])
+          expectTypeOf<Awaited<JobHandle['finished']>['status']>().toEqualTypeOf<'completed' | 'failed' | 'cancelled'>()
+          expect(completion).toMatchObject({
+            id: handle.id,
+            status: 'failed',
+            error: { code: 'JOB_FINALIZE_TX_FAILED', retryable: true }
+          })
+        } finally {
+          process.off('unhandledRejection', listener)
+          retrySpy.mockRestore()
+          terminalSpy.mockRestore()
+          await teardownManager(scheduler, jobManager)
         }
       }
-      const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [['retry.fallback.task.2', handler]]
-      })
-
-      const unhandled: unknown[] = []
-      const listener = (reason: unknown) => unhandled.push(reason)
-      process.on('unhandledRejection', listener)
-
-      // Force both writes to fail so the §D outer .catch path becomes the
-      // last line of defense.
-      const retrySpy = vi.spyOn(jobService, 'setDelayedRetryTx').mockImplementation(() => {
-        throw Object.assign(new Error('synthetic-corrupt'), { code: 'SQLITE_CORRUPT' })
-      })
-      const terminalSpy = vi.spyOn(jobService, 'setTerminalTx').mockImplementation(() => {
-        throw Object.assign(new Error('synthetic-corrupt-terminal'), { code: 'SQLITE_CORRUPT' })
-      })
-
-      const handle = jobManager.enqueue('retry.fallback.task.2' as never, { message: 'doubled-doom' } as never, {
-        maxAttempts: 3
-      })
-
-      // Failed retry and terminal writes leave the row running for recovery.
-      // That row must not reach observers whose contract requires a terminal snapshot.
-      await drainAllQueues(jobManager)
-      await new Promise((r) => setTimeout(r, 100))
-
-      expect(unhandled).toHaveLength(0)
-      expect(jobService.getById(handle.id)?.status).toBe('running')
-      expect(settledEvents).toEqual([])
-
-      process.off('unhandledRejection', listener)
-      retrySpy.mockRestore()
-      terminalSpy.mockRestore()
-      await teardownManager(scheduler, jobManager)
-    })
+    )
   })
 
   describe('settled event payload', () => {

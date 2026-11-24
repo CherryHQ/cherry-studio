@@ -1,5 +1,11 @@
 import type { LoggerService } from '@main/core/logger/LoggerService'
-import type { JobError, JobScheduleSnapshot, JobSnapshot, JobStatus } from '@shared/data/api/schemas/jobs'
+import type {
+  JobError,
+  JobScheduleSnapshot,
+  JobSnapshot,
+  JobStatus,
+  TerminalJobStatus
+} from '@shared/data/api/schemas/jobs'
 import type { CatchUpPolicy, RetryPolicy, Trigger } from '@shared/data/api/schemas/jobs'
 import type { Serializable } from '@shared/types/serializable'
 
@@ -112,6 +118,8 @@ export interface JobHandler<TPayload = unknown> {
 /** Strongly-typed handler for a registered job type. */
 export type JobHandlerFor<K extends JobType> = JobHandler<JobPayloadOf<K>>
 
+export type TerminalJobSnapshot = JobSnapshot & { status: TerminalJobStatus }
+
 /** Result of `jobManager.enqueue` — id + initial snapshot + terminal promise. */
 export interface JobHandle {
   id: string
@@ -123,7 +131,7 @@ export interface JobHandle {
    * (does not reject) — callers that await across shutdown should race with
    * an external timeout.
    */
-  finished: Promise<JobSnapshot>
+  finished: Promise<TerminalJobSnapshot>
 }
 
 /**
