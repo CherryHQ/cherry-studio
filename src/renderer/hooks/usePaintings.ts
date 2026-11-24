@@ -7,7 +7,7 @@ import type { CreatePaintingDto, ListPaintingsQueryParams, UpdatePaintingDto } f
 import type { Painting } from '@shared/data/types/painting'
 
 export function usePaintings(query?: ListPaintingsQueryParams) {
-  const filtered = query ? (omitBy(query, isUndefined) as ListPaintingsQueryParams) : undefined
+  const filtered = query ? omitBy<ListPaintingsQueryParams>(query, isUndefined) : undefined
   const hasQuery = filtered && Object.keys(filtered).length > 0
   const { data, isLoading, refetch } = useQuery('/paintings', hasQuery ? { query: filtered } : undefined)
   const { trigger: createTrigger } = useMutation('POST', '/paintings', { refresh: ['/paintings'] })
