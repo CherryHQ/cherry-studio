@@ -1,6 +1,8 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+import * as z from 'zod'
+
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
@@ -20,6 +22,7 @@ import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
  */
 
 const logger = loggerService.withContext('ClaudeCodeSkillDependencies')
+const PluginManifestNameSchema = z.object({ name: z.string() })
 
 export const SKILL_TOOL_NAME = 'Skill'
 
@@ -44,11 +47,11 @@ export async function buildPluginDirectoryIndex(directories: readonly string[]):
 
   for (const directory of directories) {
     try {
-      const manifest = JSON.parse(
-        await fs.promises.readFile(path.join(directory, '.claude-plugin', 'plugin.json'), 'utf-8')
-      ) as { name?: unknown }
+      const manifest = PluginManifestNameSchema.safeParse(
+        JSON.parse(await fs.promises.readFile(path.join(directory, '.claude-plugin', 'plugin.json'), 'utf-8'))
+      )
 
-      if (typeof manifest.name === 'string' && !index.has(manifest.name)) index.set(manifest.name, directory)
+      if (manifest.success && !index.has(manifest.data.name)) index.set(manifest.data.name, directory)
     } catch {
       // The SDK owns reporting malformed plugin manifests.
     }
