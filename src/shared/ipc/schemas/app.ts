@@ -99,6 +99,7 @@ export const appRequestSchemas = {
     input: z.void(),
     output: z.discriminatedUnion('status', [
       z.object({ status: z.literal('unsupported') }),
+      z.object({ status: z.literal('busy') }),
       z.object({ status: z.literal('current'), currentVersion: z.string() }),
       z.object({ status: z.literal('available'), currentVersion: z.string(), version: z.string() })
     ])

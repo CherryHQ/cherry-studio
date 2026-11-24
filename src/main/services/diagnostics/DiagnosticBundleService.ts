@@ -946,7 +946,9 @@ export class DiagnosticBundleService {
     }
 
     const parsedContext = appErrorContextSchema.safeParse(input.errorContext)
-    const aiDiagnosis = selectDiagnosticAiAttachment(input.aiDiagnosis, input.errorContext)
+    const attachable = selectDiagnosticAiAttachment(input.aiDiagnosis, input.errorContext)
+    // A failed-message analysis may quote the conversation, so it needs the same opt-in as chat records.
+    const aiDiagnosis = attachable?.topicId === undefined || input.includeChatRecords ? attachable : undefined
     const entries = [
       { name: 'diagnostics.json', content: `${JSON.stringify(manifest, null, 2)}\n` },
       ...(scanReportJson !== undefined ? [{ name: SCAN_REPORT_ARCHIVE_NAME, content: scanReportJson }] : []),

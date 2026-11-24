@@ -72,7 +72,8 @@ function attachableRun(state: DoctorAgentState):
 
 /**
  * Copy of the AI text currently cached for this scope and incident.
- * A contextual fault never reads the global analysis. Idle, running, empty, and stale runs are ignored.
+ * A contextual fault never reads the global analysis. Idle, running, empty, and stale runs, and runs of an
+ * expired Doctor report, are ignored.
  */
 export function captureDiagnosticAiDiagnosis(input: DiagnosticAiSnapshotInput): DiagnosticAiDiagnosis | undefined {
   const faultId = input.errorContext?.id
@@ -80,6 +81,7 @@ export function captureDiagnosticAiDiagnosis(input: DiagnosticAiSnapshotInput): 
 
   const doctorState = cacheService.getShared(doctorStateCacheKey(input.scope))
   if (doctorState?.status !== 'completed') return undefined
+  if (Date.parse(doctorState.report.expiresAt) <= Date.now()) return undefined
 
   const agentState = cacheService.getShared(doctorAgentStateCacheKey(doctorAgentKey(input.scope, input.incident)))
   const run = agentState ? attachableRun(agentState) : undefined

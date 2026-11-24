@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import type { AppErrorContext } from '@shared/types/appError'
@@ -88,6 +88,21 @@ const operationContext: AppErrorContext = {
 describe('captureDiagnosticAiDiagnosis', () => {
   beforeEach(() => {
     MockCacheUtils.resetMocks()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime('2026-05-01T00:05:00.000Z')
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('omits the analysis once its Doctor report has expired', () => {
+    publish('global', agentState({ scope: 'global', text: CONCLUSION }))
+    expect(captureDiagnosticAiDiagnosis({ scope: 'global' })?.text).toBe(CONCLUSION)
+
+    vi.setSystemTime('2026-05-01T00:10:01.000Z')
+
+    expect(captureDiagnosticAiDiagnosis({ scope: 'global' })).toBeUndefined()
   })
 
   it('returns the current completed analysis with its real run metadata and redacted text', () => {

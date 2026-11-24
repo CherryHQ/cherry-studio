@@ -38,6 +38,19 @@ const upstreamServerError = {
   statusCode: 503
 } satisfies SerializedError
 
+const noteSaveError = {
+  name: 'IpcError',
+  message: 'File editing I/O failed',
+  stack: null
+} satisfies SerializedError
+
+const noteSaveContext = {
+  id: 'ctx-notes',
+  source: 'notes',
+  operation: 'notes.file.write',
+  message: 'File editing I/O failed'
+}
+
 const passingVersionResult: DoctorCheckResult = {
   id: 'install-version-channel',
   status: 'pass',
@@ -133,6 +146,7 @@ const translations: Record<string, string> = {
   'error.diagnostics.result': 'Diagnostic result',
   'error.diagnostics.result_summary':
     '<fixed>Fixed: {{fixed}}; </fixed><attention>needs attention: {{attention}}</attention>.',
+  'error.code': 'Error code',
   'error.message': 'Error message',
   'error.modelId': 'Model',
   'error.name': 'Error name',
@@ -297,7 +311,7 @@ function publishDiagnosis(scope: DoctorScopeKey, text: string, incident?: Doctor
       selectedCheckIds: [],
       startedAt: '2026-05-01T00:00:00.000Z',
       finishedAt: '2026-05-01T00:00:01.000Z',
-      expiresAt: '2026-05-01T00:10:01.000Z',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
       basics: {
         version: '2.0.0',
         edition: 'global',
@@ -1215,6 +1229,36 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(screen.getByText('{"error":"quota"}')).toBeInTheDocument()
   })
 
+  it.each([
+    ['a serialized error', (code: string) => ({ error: { ...noteSaveError, code } })],
+    [
+      'an error context',
+      (code: string) => ({
+        error: undefined,
+        errorContext: createAppErrorContext({ ...noteSaveContext, code }),
+        subject: { kind: 'operation', operationId: 'ctx-notes' } as const
+      })
+    ]
+  ])('tells same-message note save failures apart by their code from %s', async (_from, props) => {
+    const user = userEvent.setup()
+    for (const code of ['FILE_EDIT_NO_SPACE', 'FILE_EDIT_PERMISSION']) {
+      renderErrorDetailContent(props(code))
+      await user.click(screen.getByRole('button', { name: 'View Details' }))
+      expect(screen.getByText('Error code:').parentElement).toHaveTextContent(`Error code:${code}`)
+      cleanup()
+    }
+  })
+
+  it('does not show a code that is not a machine code', async () => {
+    const user = userEvent.setup()
+    renderErrorDetailContent({ error: { ...noteSaveError, code: '/Users/me/notes/a.md' } })
+
+    await user.click(screen.getByRole('button', { name: 'View Details' }))
+    expect(screen.getByText('File editing I/O failed')).toBeInTheDocument()
+    expect(screen.queryByText('Error code:')).not.toBeInTheDocument()
+    expect(screen.queryByText(/\/Users\/me\/notes/)).not.toBeInTheDocument()
+  })
+
   it('shows the supplied stack when the detail was opened without a serialized error', async () => {
     const user = userEvent.setup()
     renderErrorDetailContent({
@@ -1507,6 +1551,18 @@ describe('ErrorDetailContent automatic update check', () => {
     await waitFor(() => expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(2))
     expect(screen.queryByText(UPDATE_AVAILABLE)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Update now' })).not.toBeInTheDocument()
+
+    // The RC lookup displaced the Beta answer, so switching back waits for the replacement Beta lookup.
+    MockUsePreferenceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+    view.rerender(
+      <Dialog open>
+        <DialogContent>
+          <ErrorDetailContent subject={{ kind: 'global' }} error={providerError} />
+        </DialogContent>
+      </Dialog>
+    )
+    await waitFor(() => expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(3))
+    expect(screen.queryByText(UPDATE_AVAILABLE)).not.toBeInTheDocument()
   })
 
   it('does not query the feed while an update is already downloading', () => {
