@@ -2,34 +2,46 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import * as z from 'zod'
+
 const ROOT = path.resolve(__dirname, '../..')
 const GLOSSARY_PATH = path.join(ROOT, 'scripts/i18n-glossary.json')
 const OUTPUT_PATH = path.join(ROOT, 'docs/dev/i18n/terminology.md')
 
-type Term = { note?: unknown; 'zh-cn'?: unknown }
-
-type Glossary = { doNotTranslate?: unknown; terms?: unknown }
+const glossarySchema = z.object({
+  doNotTranslate: z.array(z.string({ error: 'doNotTranslate must be a string array' }), {
+    error: 'doNotTranslate must be a string array'
+  }),
+  terms: z.unknown()
+})
+const termSchema = z.object({
+  'zh-cn': z.string({ error: 'missing zh-cn term' }).refine((value) => value.trim().length > 0, {
+    error: 'missing zh-cn term'
+  }),
+  note: z.string({ error: 'missing terminology note' }).refine((value) => value.trim().length > 0, {
+    error: 'missing terminology note'
+  })
+})
 
 const escapeCell = (value: string): string => value.replaceAll('|', '\\|').replaceAll('\n', ' ')
 
-export const generateTerminology = (glossary: Glossary): string => {
-  if (!Array.isArray(glossary.doNotTranslate) || !glossary.doNotTranslate.every((value) => typeof value === 'string')) {
-    throw new Error('doNotTranslate must be a string array')
-  }
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The repository glossary is read from JSON; validate the envelope and every rendered term before generating Markdown.
+export const generateTerminology = (glossary: unknown): string => {
+  const { doNotTranslate, terms: rawTerms } = glossarySchema.parse(glossary)
 
-  if (typeof glossary.terms !== 'object' || glossary.terms === null || Array.isArray(glossary.terms)) {
+  if (typeof rawTerms !== 'object' || rawTerms === null || Array.isArray(rawTerms)) {
     throw new Error('terms must be an object')
   }
 
-  const terms = Object.entries(glossary.terms as Record<string, Term>).sort(([left], [right]) =>
-    left.localeCompare(right)
-  )
+  const terms = Object.entries(rawTerms)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([english, rawTerm]): [string, z.infer<typeof termSchema>] => {
+      const term = termSchema.safeParse(rawTerm)
 
-  for (const [english, term] of terms) {
-    if (typeof term['zh-cn'] !== 'string' || !term['zh-cn'].trim()) throw new Error(`${english}: missing zh-cn term`)
+      if (!term.success) throw new Error(`${english}: ${term.error.issues[0].message}`)
 
-    if (typeof term.note !== 'string' || !term.note.trim()) throw new Error(`${english}: missing terminology note`)
-  }
+      return [english, term.data]
+    })
 
   return [
     '---',
@@ -44,22 +56,21 @@ export const generateTerminology = (glossary: Glossary): string => {
     '',
     '## Keep unchanged',
     '',
-    glossary.doNotTranslate.length ? glossary.doNotTranslate.map((value) => `- ${value}`).join('\n') : '- None',
+    doNotTranslate.length ? doNotTranslate.map((value) => `- ${value}`).join('\n') : '- None',
     '',
     '## Terms',
     '',
     '| English | 简体中文 | Usage |',
     '|---------|----------|-------|',
     ...terms.map(
-      ([english, term]) =>
-        `| ${escapeCell(english)} | ${escapeCell(term['zh-cn'] as string)} | ${escapeCell(term.note as string)} |`
+      ([english, term]) => `| ${escapeCell(english)} | ${escapeCell(term['zh-cn'])} | ${escapeCell(term.note)} |`
     ),
     ''
   ].join('\n')
 }
 
 const main = (): void => {
-  const glossary = JSON.parse(fs.readFileSync(GLOSSARY_PATH, 'utf8')) as Glossary
+  const glossary = JSON.parse(fs.readFileSync(GLOSSARY_PATH, 'utf8'))
   const generated = generateTerminology(glossary)
 
   if (process.argv.includes('--check')) {

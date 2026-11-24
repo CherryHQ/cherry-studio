@@ -20,4 +20,27 @@ describe('generateTerminology', () => {
       'missing zh-cn'
     )
   })
+
+  it.each([null, false, 42, [], { 'zh-cn': '智能体', note: '  ' }])(
+    'rejects an unreadable term with its key',
+    (term) => {
+      expect(() => generateTerminology({ doNotTranslate: [], terms: { Agent: term } })).toThrow('Agent:')
+    }
+  )
+
+  it('preserves whitespace, escaped Markdown and own prototype-named term keys', () => {
+    const glossary = JSON.parse(
+      '{"doNotTranslate":[],"terms":{"__proto__":{"zh-cn":" 原型 ","note":"Keep | pipes\\nand lines"}}}'
+    )
+    const output = generateTerminology(glossary)
+
+    expect(output).toContain('| __proto__ |  原型  | Keep \\| pipes and lines |')
+  })
+
+  it.each([null, [], { doNotTranslate: [42], terms: {} }, { doNotTranslate: [], terms: [] }])(
+    'rejects malformed glossary containers',
+    (glossary) => {
+      expect(() => generateTerminology(glossary)).toThrow()
+    }
+  )
 })
