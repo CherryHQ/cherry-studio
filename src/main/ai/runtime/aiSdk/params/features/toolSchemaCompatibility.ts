@@ -12,6 +12,8 @@
  *
  * Native Gemini replaces non-string `enum`/`const` with their bare type and
  * expands type arrays because its Schema proto requires concrete types.
+ * Incompatible enums keep type-compatible choices, split by primitive type,
+ * or carry their allowed values in the description when no enum can be sent.
  *
  * Native Gemini drops tools with untyped array items: no safe type can be inferred.
  * It drops `propertyNames` / `additionalProperties`, absent from its proto (#20939).
@@ -88,13 +90,15 @@ const SCHEMA_VALUES = new Set([
   'else'
 ])
 
+type SchemaMapper = (node: JSONSchema7, path: string[]) => JSONSchema7
+
 /**
  * Recurses only through schema-bearing keys, applying `mapNode` to every
  * schema node bottom-up — so a *property named* `minimum` survives while the
  * `minimum` **keyword** is only ever seen as a plain value. Returns the same
  * reference when nothing changed.
  */
-function mapSchemas(schema: JSONSchema7Definition, mapNode: (node: JSONSchema7) => JSONSchema7): JSONSchema7Definition {
+function mapSchemas(schema: JSONSchema7Definition, mapNode: SchemaMapper, path: string[] = []): JSONSchema7Definition {
   if (typeof schema !== 'object' || schema === null) return schema
 
   const result: Record<string, unknown> = {}
@@ -102,24 +106,26 @@ function mapSchemas(schema: JSONSchema7Definition, mapNode: (node: JSONSchema7) 
   for (const [key, value] of Object.entries(schema)) {
     let next = value
     if (SCHEMA_MAPS.has(key) && typeof value === 'object' && value !== null) {
-      next = mapSchemaMap(value as Record<string, JSONSchema7Definition>, mapNode)
+      next = mapSchemaMap(value as Record<string, JSONSchema7Definition>, mapNode, [...path, key])
     } else if (SCHEMA_LISTS.has(key) && Array.isArray(value)) {
-      next = mapSchemaList(value, mapNode)
+      next = mapSchemaList(value, mapNode, [...path, key])
     } else if (SCHEMA_VALUES.has(key)) {
-      next = Array.isArray(value) ? mapSchemaList(value, mapNode) : mapSchemas(value, mapNode)
+      next = Array.isArray(value)
+        ? mapSchemaList(value, mapNode, [...path, key])
+        : mapSchemas(value, mapNode, [...path, key])
     }
     if (next !== value) changed = true
     result[key] = next
   }
-  const mapped = mapNode(result)
+  const mapped = mapNode(result, path)
   if (mapped !== (result as JSONSchema7)) changed = true
   return changed ? mapped : schema
 }
 
-function mapSchemaList(list: unknown[], mapNode: (node: JSONSchema7) => JSONSchema7): unknown[] {
+function mapSchemaList(list: unknown[], mapNode: SchemaMapper, path: string[]): unknown[] {
   let changed = false
-  const next = list.map((item) => {
-    const mapped = mapSchemas(item as JSONSchema7Definition, mapNode)
+  const next = list.map((item, index) => {
+    const mapped = mapSchemas(item as JSONSchema7Definition, mapNode, [...path, String(index)])
     if (mapped !== item) changed = true
     return mapped
   })
@@ -128,12 +134,13 @@ function mapSchemaList(list: unknown[], mapNode: (node: JSONSchema7) => JSONSche
 
 function mapSchemaMap(
   map: Record<string, JSONSchema7Definition>,
-  mapNode: (node: JSONSchema7) => JSONSchema7
+  mapNode: SchemaMapper,
+  path: string[]
 ): Record<string, JSONSchema7Definition> {
   let changed = false
   const next: Record<string, JSONSchema7Definition> = {}
   for (const [key, value] of Object.entries(map)) {
-    next[key] = mapSchemas(value, mapNode)
+    next[key] = mapSchemas(value, mapNode, [...path, key])
     if (next[key] !== value) changed = true
   }
   return changed ? next : map
@@ -199,6 +206,73 @@ function stripNonStringEnums(node: JSONSchema7): JSONSchema7 {
   delete replacement.const
   if (replacement.type === undefined) replacement.type = kind
   return replacement
+}
+
+function normalizeGeminiEnum(node: JSONSchema7): JSONSchema7 {
+  const { enum: values, type, ...rest } = node
+  if (!Array.isArray(values)) return node
+
+  const declared = typeof type === 'string' ? [type] : type
+  const groups = new Map<Extract<JSONSchema7['type'], string>, NonNullable<JSONSchema7['enum']>>()
+  let compatibleValues = 0
+  let hasComplexValues = false
+  for (const value of values) {
+    if (typeof value === 'object' && value !== null) {
+      const kind = Array.isArray(value) ? 'array' : 'object'
+      if (!declared || declared.includes(kind)) hasComplexValues = true
+      continue
+    }
+    let kind: Extract<JSONSchema7['type'], string>
+    if (value === null) kind = 'null'
+    else if (typeof value === 'number') {
+      kind =
+        Number.isInteger(value) && declared?.includes('integer') && !declared.includes('number') ? 'integer' : 'number'
+    } else {
+      kind = typeof value === 'boolean' ? 'boolean' : 'string'
+    }
+    if (declared && !declared.includes(kind)) continue
+    compatibleValues++
+    const group = groups.get(kind)
+    if (group) group.push(value)
+    else groups.set(kind, [value])
+  }
+
+  if (!hasComplexValues && groups.size > 0) {
+    // The SDK already handles one primitive type and an optional null in untyped enums.
+    const sdkAccepts = groups.size === 1 || (type === undefined && groups.size === 2 && groups.has('null'))
+    if (sdkAccepts && !Array.isArray(type) && compatibleValues === values.length) return node
+
+    const branches = [...groups].map(([kind, members]): JSONSchema7 => {
+      if (kind === 'string' || kind === 'null') return { type: kind, enum: members }
+      // Gemini's function declaration only guarantees string enums.
+      return { type: kind, description: `Allowed values (JSON): ${JSON.stringify(members)}.` }
+    })
+    if (branches.length === 1 && (type !== undefined || node.$ref === undefined)) {
+      const [branch] = branches
+      const description = [node.description, branch.description].filter(Boolean).join(' ')
+      return { ...rest, ...branch, ...(description && { description }) }
+    }
+    if (
+      node.$ref === undefined &&
+      node.const === undefined &&
+      node.anyOf === undefined &&
+      node.allOf === undefined &&
+      node.oneOf === undefined &&
+      node.format === undefined &&
+      node.minLength === undefined
+    ) {
+      return { ...rest, anyOf: branches }
+    }
+  }
+
+  const { const: constant, ...fallback } = rest
+  const descriptions = [node.description, `Original enum values (JSON): ${JSON.stringify(values)}.`]
+  if (constant !== undefined) descriptions.push(`Required value (JSON): ${JSON.stringify(constant)}.`)
+  return {
+    ...fallback,
+    type: type ?? (node.$ref || node.anyOf || node.allOf || node.oneOf ? undefined : 'string'),
+    description: descriptions.filter(Boolean).join(' ')
+  }
 }
 
 /**
@@ -290,8 +364,21 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     let inputSchema = stripKeywords(tool.inputSchema, keywords)
     inputSchema = addMissingProperties(inputSchema)
     if (isGeminiEndpoint) inputSchema = stripKeywords(inputSchema, GEMINI_UNSUPPORTED)
-    if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, expandTypeArrays)
-    if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, stripNonStringEnums)
+    if (isGeminiEndpoint) {
+      inputSchema = mapSchemas(inputSchema, (node, path) => {
+        const normalized = normalizeGeminiEnum(node)
+        if (normalized !== node) {
+          logger.debug('Normalized Gemini tool schema enum', {
+            providerId: scope.sdkConfig.providerId,
+            toolName: tool.name,
+            path: [...path, 'enum'],
+            action: normalized.enum ? 'typed' : normalized.anyOf !== node.anyOf ? 'split' : 'described'
+          })
+        }
+        return expandTypeArrays(normalized)
+      })
+      inputSchema = mapSchemas(inputSchema, stripNonStringEnums)
+    }
     if (isChatGeminiModel) inputSchema = stripKeywords(inputSchema, CHAT_GEMINI_UNSUPPORTED)
     const optOutOfStrict = isResponsesEndpoint && tool.strict === undefined
     if (inputSchema === tool.inputSchema && !optOutOfStrict) transformedTools.push(tool)
