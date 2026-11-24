@@ -124,15 +124,11 @@ export class MiniAppRuntimeService extends BaseService {
 
   protected async onReady(): Promise<void> {
     // 1. Capability bridge.
-    this.ipcHandle(MINI_APP_BRIDGE_CHANNEL, async (event, payload) => {
-      const requestId = (payload as { requestId?: string })?.requestId
-
-      const emit = (chunk: string) => {
-        if (requestId) event.sender.send(MINI_APP_STREAM_CHANNEL, { requestId, chunk })
-      }
-
-      return handleBridgeRequest(event.sender.id, payload, emit)
-    })
+    this.ipcHandle(MINI_APP_BRIDGE_CHANNEL, (event, payload) =>
+      handleBridgeRequest(event.sender.id, payload, (requestId, chunk) => {
+        event.sender.send(MINI_APP_STREAM_CHANNEL, { requestId, chunk })
+      })
+    )
 
     // 2. Host-pushed locale changes — `languagechange` does not fire for
     //    an `acceptLanguages` change, measured on Electron 41.
@@ -682,6 +678,7 @@ export class MiniAppRuntimeService extends BaseService {
   async clearUnrepaired(appId: string): Promise<void> {
     const unrepaired = await this.recovered
 
+    // SAFETY: onReady resolves this barrier with a service-owned Set; clearUnrepaired removes marks after a clean install.
     ;(unrepaired as Set<string>).delete(appId)
   }
 

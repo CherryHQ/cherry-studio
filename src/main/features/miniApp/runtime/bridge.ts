@@ -54,6 +54,7 @@ function installedVersionOf(appId: string): string {
 }
 
 type Emit = (chunk: string) => void
+type EmitStreamChunk = (requestId: string, chunk: string) => void
 
 type Handler = (
   appId: string,
@@ -61,7 +62,7 @@ type Handler = (
   params: unknown,
   emit: Emit,
   senderId: number,
-  /** The guest's own id for this call. Host-visible so `ai.cancel` can name a stream. */
+  /** Preload routing label for stream chunks, independent of the cancellation callId. */
   requestId: string | undefined,
   /** The app's own label for this call, when it gave one. Names an `ai.cancel` target. */
   callId: string | undefined
@@ -155,9 +156,13 @@ export function publicErrorOf(error: unknown): CherryPublicError {
  * see `'Error'`. The envelope is the only shape that survives the boundary.
  */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest IPC sends an untrusted request; route authenticates its Electron sender and parses the envelope inside this non-throwing reply boundary.
-export async function handleBridgeRequest(senderId: number, payload: unknown, emit: Emit): Promise<BridgeResult> {
+export async function handleBridgeRequest(
+  senderId: number,
+  payload: unknown,
+  emitStreamChunk: EmitStreamChunk
+): Promise<BridgeResult> {
   try {
-    return { ok: true, value: await route(senderId, payload, emit) }
+    return { ok: true, value: await route(senderId, payload, emitStreamChunk) }
   } catch (error) {
     const publicError = publicErrorOf(error)
 
@@ -168,7 +173,7 @@ export async function handleBridgeRequest(senderId: number, payload: unknown, em
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The guest payload remains raw until sender identity is resolved and RequestSchema validates method/request labels.
-async function route(senderId: number, payload: unknown, emit: Emit): Promise<MiniAppReply> {
+async function route(senderId: number, payload: unknown, emitStreamChunk: EmitStreamChunk): Promise<MiniAppReply> {
   const runtime = application.get('MiniAppRuntimeService')
   const appId = runtime.resolveAppIdBySender(senderId)
 
@@ -177,6 +182,9 @@ async function route(senderId: number, payload: unknown, emit: Emit): Promise<Mi
   }
 
   const { method, params, requestId, callId } = RequestSchema.parse(payload)
+  const emit: Emit = (chunk) => {
+    if (requestId) emitStreamChunk(requestId, chunk)
+  }
 
   // Own-property check: `ROUTES['constructor']` would otherwise resolve up the prototype
   // chain, and the gate below refusing it would be luck, not design.
@@ -196,8 +204,8 @@ async function route(senderId: number, payload: unknown, emit: Emit): Promise<Mi
     // never waits for in-flight calls, so there is nothing to release.
     runtime.beginCapabilityCall(appId)
 
-    // Identity comes from `senderId` (Electron), never the payload. `requestId` does come
-    // from the payload but names only this guest's own call — lookups scope by senderId.
+    // Electron's senderId identifies the guest; requestId routes its stream chunks.
+    // callId, scoped by senderId, names an ai.cancel target.
     const value = await handler(appId, params, emit, senderId, requestId, callId)
     miniAppActivityLog.recordCall(appId, routedMethod, 'ok', Date.now() - started, params, value)
 
