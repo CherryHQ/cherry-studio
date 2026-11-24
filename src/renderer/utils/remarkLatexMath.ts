@@ -1,9 +1,9 @@
 import type { ElementContent, Properties } from 'hast'
-import type { InlineMath, Link, Math, Paragraph, PhrasingContent, Root, RootContent, Text } from 'mdast'
+import type { InlineMath, Link, Math, Paragraph, Parent, PhrasingContent, Root, RootContent, Text } from 'mdast'
 import type { CompileContext, Extension as FromMarkdownExtension } from 'mdast-util-from-markdown'
 import type { Construct, Extension as MicromarkExtension, State, Token, Tokenizer } from 'micromark-util-types'
 import type { Plugin } from 'unified'
-import type { Parent, Position } from 'unist'
+import type { Position } from 'unist'
 import { SKIP, visit } from 'unist-util-visit'
 
 declare module 'micromark-util-types' {
@@ -877,16 +877,12 @@ function toPlainText(node: InlineMath): Text {
   return { type: 'text', value, position: node.position }
 }
 
-function isInlineMath(node: unknown): node is InlineMath {
-  return typeof node === 'object' && node !== null && 'type' in node && node.type === 'inlineMath' && 'value' in node
-}
-
 function demoteLinkMath(node: Link): void {
   const demote = (parent: Parent): void => {
     parent.children = parent.children.map((child) => {
-      if (isInlineMath(child) && getLatexMathKind(child)) return toPlainText(child)
+      if (child.type === 'inlineMath' && getLatexMathKind(child)) return toPlainText(child)
 
-      if ('children' in child && Array.isArray(child.children)) demote(child as Parent)
+      if ('children' in child) demote(child)
 
       return child
     })
@@ -1150,7 +1146,7 @@ function repairSetextEnvironments(tree: Root, source: string): void {
     if (parent.type === 'blockquote') return SKIP
 
     if (!('children' in parent)) return undefined
-    const children = parent.children as RootContent[]
+    const children = parent.children
     // A standalone closer still supports Markdown-looking formula bodies.
     // For an inline closer, unrelated structural siblings are stronger
     // evidence of prose than blank paragraph breaks alone.
