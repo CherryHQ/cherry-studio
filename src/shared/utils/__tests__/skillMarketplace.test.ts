@@ -275,6 +275,9 @@ describe('parseGiteaSkillUrl (#20206)', () => {
 
 describe('Gitea descriptor raw path validation', () => {
   it.each([
+    'https://gitea.example?next=/o/r/src/branch/main/SKILL.md',
+    'https://gitea.example#next=/o/r/src/branch/main/SKILL.md',
+    'https:/gitea.example/o/r/src/branch/main/SKILL.md',
     'https://gitea.example/o/r/src/branch/main/SKILL.md/',
     'https://gitea.example/o/r/src/branch/main/di\tr/SKILL.md',
     'https://gitea.example/o/r/src/branch/main//SKILL.md'

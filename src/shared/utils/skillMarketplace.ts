@@ -143,8 +143,9 @@ export function parseGithubSkillUrl(rawUrl: string): GithubSkillLocation | null 
   try {
     const trimmedUrl = rawUrl.trim()
     url = new URL(trimmedUrl)
-    const authorityEnd = trimmedUrl.indexOf('/', trimmedUrl.indexOf('://') + 3)
-    const rawPath = authorityEnd === -1 ? '' : trimmedUrl.slice(authorityEnd).split(/[?#]/, 1)[0]
+    const pathMatch = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]+(\/[^?#]*)?(?:[?#]|$)/i.exec(trimmedUrl)
+    if (!pathMatch) return null
+    const rawPath = pathMatch[1] ?? ''
     const rawSegments = rawPath.split('/').filter(Boolean).map(decodeURIComponent)
     // WHATWG URL parsing removes literal dot segments before exposing `pathname`; inspect the raw
     // path first so accepting a repository-root descriptor does not turn traversal into a valid ref.
@@ -214,8 +215,9 @@ export function parseGiteaSkillUrl(rawUrl: string): GiteaSkillLocation | null {
   try {
     const trimmedUrl = rawUrl.trim()
     url = new URL(trimmedUrl)
-    const authorityEnd = trimmedUrl.indexOf('/', trimmedUrl.indexOf('://') + 3)
-    const rawPath = authorityEnd === -1 ? '' : trimmedUrl.slice(authorityEnd).split(/[?#]/, 1)[0]
+    const pathMatch = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]+(\/[^?#]*)?(?:[?#]|$)/i.exec(trimmedUrl)
+    if (!pathMatch) return null
+    const rawPath = pathMatch[1] ?? ''
     if (
       Array.from(trimmedUrl).some((character) => character.charCodeAt(0) <= 32 || character.charCodeAt(0) === 127) ||
       rawPath.endsWith('/')

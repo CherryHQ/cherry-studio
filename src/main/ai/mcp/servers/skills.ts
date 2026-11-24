@@ -52,7 +52,7 @@ export function createSkillsServer(agentId: string, sessionId?: string): McpServ
     async ({ query }) => {
       // A rejected URL is never a public-registry keyword query. In particular,
       // embedded credentials must not reach network searches, logs or errors.
-      if (/^[a-z][a-z0-9+.-]*:\/\//i.test(query.trim())) {
+      if (/^(?:[a-z][a-z0-9+.-]*:|[\\/]{2})/i.test(query.trim())) {
         let parsed: URL
         try {
           parsed = new URL(query.trim())
