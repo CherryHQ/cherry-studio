@@ -12,6 +12,8 @@ import { DraftAgentAvatarPicker } from '../DraftAgentAvatarPicker'
 vi.mock('@cherrystudio/ui', async (original) => original<typeof Ui>())
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(), prepareEntityImageBytes: vi.fn() }))
+const cropAvatar = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/components/Avatar/AvatarCropPopup', () => ({ AvatarCropPopup: { show: cropAvatar } }))
 vi.mock('@renderer/components/EmojiPicker', () => ({
   EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
     <button type="button" onClick={() => onEmojiClick('🎓')}>
@@ -46,6 +48,7 @@ function Harness({ active = true }: { active?: boolean }) {
 beforeEach(() => {
   vi.mocked(checkEntityImageSize).mockReset().mockReturnValue(null)
   vi.mocked(prepareEntityImageBytes).mockReset().mockResolvedValue(bytes)
+  cropAvatar.mockReset().mockResolvedValue({ x: 0, y: 0, width: 64, height: 64 })
   URL.createObjectURL = vi.fn(() => 'blob:avatar-preview')
   URL.revokeObjectURL = vi.fn()
 })
