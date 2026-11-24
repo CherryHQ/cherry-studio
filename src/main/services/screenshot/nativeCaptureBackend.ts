@@ -27,6 +27,7 @@ let cached: typeof NodeScreenshotsModule | null = null
 export function loadNativeCaptureBackend(): typeof NodeScreenshotsModule {
   if (!cached) {
     try {
+      // SAFETY: This lazy CommonJS load uses the pinned package's exports and its own published module declaration.
       cached = require('node-screenshots') as typeof NodeScreenshotsModule
     } catch (error) {
       logger.error('Failed to load the native screen capture backend', error)
