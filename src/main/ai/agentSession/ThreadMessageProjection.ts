@@ -359,6 +359,7 @@ export class ThreadMessageProjection {
     const normalized: CherryUIMessage = {
       id: source.id,
       role: source.role,
+      // SAFETY: Registered Claude/Pi/PiDurable adapters construct only SDK built-in parts, without custom data-* payloads.
       parts: source.parts as CherryUIMessage['parts'],
       metadata: { status: pending ? 'pending' : 'success' }
     }
