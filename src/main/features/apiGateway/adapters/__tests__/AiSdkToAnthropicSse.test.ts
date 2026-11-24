@@ -637,7 +637,8 @@ describe('AiSdkToAnthropicSse', () => {
         type: 'tool_use',
         id: 'call_1',
         name: 'test',
-        input: { arg: 'value' }
+        input: { arg: 'value' },
+        caller: { type: 'direct' }
       })
 
       expect(response.usage).toMatchObject({

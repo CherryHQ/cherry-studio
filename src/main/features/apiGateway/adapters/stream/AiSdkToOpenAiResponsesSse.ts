@@ -145,8 +145,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   /**
    * Build base response object for streaming events.
    * Returns a partial response with only the fields needed for streaming.
-   * Cast to Response for SDK compatibility - streaming events intentionally
-   * omit fields that are not available until completion.
+   * The gateway emits its supported fields rather than the full SDK response.
    */
   private buildBaseResponse(status: ResponseStatus = 'in_progress'): PartialStreamingResponse {
     return {
@@ -196,9 +195,10 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
 
   /**
    * Build base response and cast to Response for event emission.
-   * This is safe because streaming consumers expect partial data.
+   * SDK event declarations require the complete response despite this gateway's subset.
    */
   private buildResponseForEvent(status: ResponseStatus = 'in_progress'): Response {
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Gateway response envelopes omit SDK-required configuration fields and optional usage details; this bridge does not make them complete SDK Responses.
     return this.buildBaseResponse(status) as Response
   }
 
@@ -314,6 +314,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
         break
 
       case 'message-metadata':
+        // SAFETY: Gateway usage comes from the AI SDK observer's MessageStats projection; stream listeners erase its metadata type without changing the payload.
         this.applyUsageMetadata(chunk.messageMetadata as GatewayUsageMetadata | undefined)
         break
 
@@ -547,6 +548,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
    * Handle finish event
    */
   private handleFinish(chunk: { finishReason?: FinishReason; messageMetadata?: unknown }): void {
+    // SAFETY: Gateway metadata is the observer-owned MessageStats projection or absent; the listener interface erases that type.
     this.applyUsageMetadata(chunk.messageMetadata as GatewayUsageMetadata | undefined)
 
     if (!this.finishReason) {
@@ -654,8 +656,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   }
 
   /**
-   * Build a complete Response object for non-streaming responses.
-   * Returns a partial response cast to Response type.
+   * Build the gateway's response subset for non-streaming output.
    */
   buildNonStreamingResponse(): Response {
     const partialResponse: PartialStreamingResponse = {
@@ -671,6 +672,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       usage: this.buildUsage()
     }
 
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Non-streaming output retains the same partial gateway contract; omitted SDK fields are not synthesized by this type bridge.
     return partialResponse as Response
   }
 }

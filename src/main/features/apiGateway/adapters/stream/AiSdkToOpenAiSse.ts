@@ -183,6 +183,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
         break
 
       case 'message-metadata':
+        // SAFETY: Gateway usage comes from the AI SDK observer's MessageStats projection; stream listeners erase its metadata type without changing the payload.
         this.applyUsageMetadata(chunk.messageMetadata as GatewayUsageMetadata | undefined)
         break
 
@@ -321,6 +322,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
   }
 
   private handleFinish(chunk: { finishReason?: FinishReason; messageMetadata?: unknown }): void {
+    // SAFETY: Gateway metadata is the observer-owned MessageStats projection or absent; the listener interface erases that type.
     this.applyUsageMetadata(chunk.messageMetadata as GatewayUsageMetadata | undefined)
 
     if (!this.finishReason) {

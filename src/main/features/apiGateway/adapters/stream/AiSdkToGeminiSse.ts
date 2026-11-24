@@ -118,10 +118,12 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
 
       case 'finish':
         this.finishReason = toGeminiFinishReason(chunk.finishReason)
+        // SAFETY: Gateway metadata is the observer-owned MessageStats projection or absent; the listener interface erases that type.
         this.applyUsageMetadata(chunk.messageMetadata as GatewayUsageMetadata | undefined)
         break
 
       case 'message-metadata':
+        // SAFETY: Gateway usage comes from the AI SDK observer's MessageStats projection; stream listeners erase its metadata type without changing the payload.
         this.applyUsageMetadata(chunk.messageMetadata as GatewayUsageMetadata | undefined)
         break
 

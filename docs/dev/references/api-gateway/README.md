@@ -398,10 +398,12 @@ or child message after delivery, without guessing the active product reply.
 
 Adapters consume the AI SDK **`UIMessageChunk`** stream (not `fullStream`):
 
-- **Usage** comes from `message-metadata` chunks, projected as
-  `GatewayUsageMetadata` (`promptTokens` = input, `completionTokens` = output,
-  `thoughtsTokens` = reasoning, `totalTokens`). There is **no cache-token
-  breakdown** on this channel.
+- **Usage** comes from `message-metadata` chunks as `GatewayUsageMetadata.stats`,
+  with `inputTokens`, `outputTokens` and `totalTokens`. Input totals include cache
+  reads and writes; output totals include reasoning. When reported,
+  `inputTokenDetails` carries cache breakdowns and
+  `outputTokenDetails.reasoningTokens` carries reasoning usage. Unreported
+  breakdowns remain absent.
 - **`finishReason`** comes from the `finish` chunk; reasoning **signatures**
   come from the reasoning part's `providerMetadata` (cached per provider via
   `reasoningCache.ts` so split signatures survive across chunks).

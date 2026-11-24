@@ -48,11 +48,9 @@ import { BaseStreamAdapter } from './BaseStreamAdapter'
 const logger = loggerService.withContext('AiSdkToAnthropicSse')
 
 /**
- * Newer `@anthropic-ai/sdk` requires fields the gateway has no real source for
- * (cache TTL breakdown, inference geo, service tier, code-execution container,
- * tool caller). The gateway forwards models the client invokes, so these are
- * always client-side null; supply the SDK-required defaults to satisfy the type
- * while keeping the emitted SSE shapes otherwise unchanged.
+ * The gateway does not project cache TTL breakdown, inference geo, service tier
+ * or a code-execution container. Those fields remain null; client tools are
+ * reported as direct calls.
  */
 const NULL_CACHE_CREATION = null
 const NULL_INFERENCE_GEO = null
@@ -70,6 +68,7 @@ const NULL_CONTAINER = null
  */
 export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent, Message> {
   private readonly toClientToolName?: (toolName: string) => string
+  private stopReason: StopReason | null = null
   /** Cache-write tokens are Anthropic-dialect reporting, not shared adapter state. */
   private cacheWriteTokens?: number
 
@@ -193,6 +192,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         break
 
       case 'message-metadata':
+        // SAFETY: Gateway usage comes from the AI SDK observer's MessageStats projection; stream listeners erase its metadata type without changing the payload.
         this.applyUsageMetadata(chunk.messageMetadata as GatewayUsageMetadata | undefined)
         break
 
@@ -497,29 +497,29 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
 
     this.emit(stopEvent)
 
-    this.state.stopReason = 'tool_use'
+    this.stopReason = 'tool_use'
   }
 
   private handleFinish(chunk: { finishReason?: FinishReason; messageMetadata?: unknown }): void {
-    // `finish` may also carry the final usage projection.
+    // SAFETY: Gateway metadata is the observer-owned MessageStats projection or absent; the listener interface erases that type.
     this.applyUsageMetadata(chunk.messageMetadata as GatewayUsageMetadata | undefined)
 
-    if (!this.state.stopReason) {
+    if (!this.stopReason) {
       switch (chunk.finishReason) {
         case 'stop':
-          this.state.stopReason = 'end_turn'
+          this.stopReason = 'end_turn'
           break
         case 'length':
-          this.state.stopReason = 'max_tokens'
+          this.stopReason = 'max_tokens'
           break
         case 'tool-calls':
-          this.state.stopReason = 'tool_use'
+          this.stopReason = 'tool_use'
           break
         case 'content-filter':
-          this.state.stopReason = 'refusal'
+          this.stopReason = 'refusal'
           break
         default:
-          this.state.stopReason = 'end_turn'
+          this.stopReason = 'end_turn'
       }
     }
   }
@@ -556,7 +556,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
       delta: {
         container: NULL_CONTAINER,
         stop_details: null,
-        stop_reason: (this.state.stopReason as StopReason) || 'end_turn',
+        stop_reason: this.stopReason || 'end_turn',
         stop_sequence: null
       },
       usage
@@ -606,8 +606,9 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
             type: 'tool_use',
             id: block.toolId!,
             name: block.toolName!,
-            input: JSON.parse(block.toolInput || '{}')
-          } as ToolUseBlock)
+            input: JSON.parse(block.toolInput || '{}'),
+            caller: { type: 'direct' }
+          })
           break
       }
     }
@@ -622,7 +623,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
       container: NULL_CONTAINER,
       model: this.state.model,
       stop_details: null,
-      stop_reason: (this.state.stopReason as StopReason) || 'end_turn',
+      stop_reason: this.stopReason || 'end_turn',
       stop_sequence: null,
       usage: {
         input_tokens: inputUsage.inputTokens,
