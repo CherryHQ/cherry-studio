@@ -59,6 +59,15 @@ describe('presentProductionUnhandledRejection', () => {
     expect(present).toHaveBeenCalledTimes(4)
   })
 
+  it('presents a string reason and an object reason whose JSON text matches it', () => {
+    const { presentProductionUnhandledRejection: show } = telemetry
+
+    expect(show('{"code":"ENOSPC"}', 1_000)).toBe(true)
+    expect(show({ code: 'ENOSPC' }, 1_001)).toBe(true)
+    expect(show('Error:disk full', 1_002)).toBe(true)
+    expect(show(new Error('disk full'), 1_003)).toBe(true)
+  })
+
   it('does not remember a fault the presenter did not accept', () => {
     present.mockReturnValueOnce(false)
 

@@ -5,15 +5,15 @@ import { useTranslation } from 'react-i18next'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Button, ScrollArea } from '@cherrystudio/ui'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ErrorNotice } from '@renderer/components/ErrorNotice'
+import { KnowledgeDialogFooter } from '@renderer/components/knowledge/KnowledgeDialogLayout'
+import { useEmbeddingDimensions } from '@renderer/hooks/useEmbeddingDimensions'
 import { useEnableKnowledgeBaseEmbedding } from '@renderer/hooks/useKnowledgeBase'
 import { toast } from '@renderer/services/toast'
+import { getKnowledgeBaseFailureReason } from '@renderer/utils/knowledgeError'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
-import { KnowledgeDialogFooter } from '../../components/KnowledgeDialogLayout'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
-import { useEmbeddingDimensions } from '../../hooks/useEmbeddingDimensions'
 import { useKnowledgeRagConfig } from '../../hooks/useKnowledgeRagConfig'
-import { getKnowledgeBaseFailureReason } from '../../utils/error'
 import { buildKnowledgeRagConfigPatch } from '../../utils/rag'
 import { getKnowledgeRagConfigFormState } from '../../utils/validate'
 import ChunkingSection from './ChunkingSection'
@@ -67,6 +67,7 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
         <ErrorNotice
           title={t('knowledge.status.failed')}
           info={failureReason}
+          wrapInfo
           action={{ label: t('knowledge.restore.action'), onClick: () => onRestoreBase(base) }}
           detail={
             <ErrorDetailAction

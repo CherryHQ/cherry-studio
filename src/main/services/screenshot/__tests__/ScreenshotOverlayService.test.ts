@@ -2112,4 +2112,60 @@ describe('ScreenshotOverlayService', () => {
       expect(service.isSessionOverlay('overlay-0-0')).toBe(true)
     })
   })
+
+  describe('overlay renderer failure', () => {
+    const fault = {
+      id: '00000000-0000-4000-8000-000000000000',
+      occurredAt: '2026-01-01T00:00:00.000Z',
+      source: 'screenshotWindow',
+      operation: 'react.render',
+      message: 'overlay boom',
+      name: 'TypeError'
+    } as const
+
+    const startWithHiddenSource = async () => {
+      singleDisplaySetup()
+      const source = createFakeWindow()
+      container.windows.set('chat', source)
+      await service.startCapture('chat')
+      expect(source.hide).toHaveBeenCalled()
+      return source
+    }
+
+    it('restores the source before raising main, so the restored window cannot cover the notice', async () => {
+      const source = await startWithHiddenSource()
+      handoff.deliverToReadyMain.mockReturnValue(true)
+
+      await service.failFromOverlay('overlay-0-0', fault)
+
+      expect(handoff.deliverToReadyMain).toHaveBeenCalledWith('app.error.open', fault)
+      expect(source.show.mock.invocationCallOrder[0]).toBeLessThan(
+        handoff.deliverToReadyMain.mock.invocationCallOrder[0]
+      )
+      expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
+      expect(handoff.showSupportedMessageBox).not.toHaveBeenCalled()
+    })
+
+    it('presents the native fallback itself, after every overlay is closed, when main is unavailable', async () => {
+      await startWithHiddenSource()
+
+      await service.failFromOverlay('overlay-0-0', fault)
+
+      expect(handoff.showSupportedMessageBox).toHaveBeenCalledWith(
+        expect.objectContaining({ technicalDetail: 'TypeError\noverlay boom' })
+      )
+      expect(container.windowManager.close.mock.invocationCallOrder[0]).toBeLessThan(
+        handoff.showSupportedMessageBox.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('leaves the live session alone when the failing window is not one of its overlays', async () => {
+      await startWithHiddenSource()
+
+      await service.failFromOverlay('idle-pooled-overlay', fault)
+
+      expect(service.isSessionOverlay('overlay-0-0')).toBe(true)
+      expect(handoff.showSupportedMessageBox).toHaveBeenCalledOnce()
+    })
+  })
 })

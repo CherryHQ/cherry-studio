@@ -10,6 +10,7 @@ const importMocks = vi.hoisted(() => ({
   importAssistant: vi.fn(),
   openErrorDetail: vi.fn().mockResolvedValue('opened'),
   toastError: vi.fn(),
+  toastInlineError: vi.fn(),
   toastSuccess: vi.fn()
 }))
 
@@ -37,7 +38,8 @@ vi.mock('@renderer/services/toast', () => ({
   toast: {
     error: importMocks.toastError,
     success: importMocks.toastSuccess
-  }
+  },
+  toastInlineError: importMocks.toastInlineError
 }))
 
 import { ImportAssistantDialog } from '../ImportAssistantDialog'
@@ -107,7 +109,8 @@ describe('ImportAssistantDialog', () => {
     )
   })
 
-  it('reports a failed import by its translated summary and keeps the raw reason behind Details', async () => {
+  // A second Details entry in the toast would be a separate occurrence that Doctor analysis cannot share.
+  it('reports a failed import by its translated summary and keeps the raw reason behind its only Details', async () => {
     const user = userEvent.setup()
     const cause = new Error('UNIQUE constraint failed: assistant.name')
     importMocks.importAssistant.mockRejectedValue(cause)
@@ -122,14 +125,14 @@ describe('ImportAssistantDialog', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('library.import_dialog.failure')
     expect(alert).not.toHaveTextContent(cause.message)
-    expect(within(alert).getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
-    expect(importMocks.toastError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'library.import_dialog.failure',
-        cause,
-        data: expect.objectContaining({ errorContext: expect.objectContaining({ operation: 'assistant.import' }) })
-      })
-    )
+    await user.click(within(alert).getByRole('button', { name: /common\.detail/ }))
+    await waitFor(() => expect(importMocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(importMocks.openErrorDetail.mock.calls[0][0].context).toMatchObject({
+      message: cause.message,
+      operation: 'assistant.import'
+    })
+    expect(importMocks.toastInlineError).toHaveBeenCalledWith('library.import_dialog.failure')
+    expect(importMocks.toastError).not.toHaveBeenCalled()
   })
 
   it.each([404, 429])('keeps the HTTP %s status of a failed URL fetch in its Details', async (status) => {

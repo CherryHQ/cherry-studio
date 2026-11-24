@@ -102,6 +102,12 @@ it('retries a newer release whose download failed instead of confirming it with 
 describe('a click queued behind a slow scheduled check', () => {
   const newer = { ...releaseInfo, version: '2.2.0' }
 
+  async function startManualCheck(result: { current: ReturnType<typeof useAppUpdateState> }) {
+    await act(() =>
+      appUpdateCheckService.runAppUpdateCheck(result.current.appUpdateState, result.current.updateAppUpdateState)
+    )
+  }
+
   async function clickDuringScheduledCheck() {
     const showDialog = vi.fn().mockResolvedValue(undefined)
     const { result } = renderHook(() => {
@@ -131,6 +137,28 @@ describe('a click queued behind a slow scheduled check', () => {
 
     expect(toast.success).toHaveBeenCalledTimes(1)
     expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateNotAvailable')
+  })
+
+  it('confirms the release the scheduled check downloaded after the queued click fails', async () => {
+    const showDialog = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() => {
+      useAppUpdateHandler()
+      return useAppUpdateState()
+    })
+    appUpdateCheckService.registerUpdateDialog(async () => ({ show: showDialog }))
+    await startManualCheck(result)
+    emit('app.updater.available', releaseInfo)
+    emit('app.updater.error', new Error('download failed'))
+
+    emit('app.updater.check_started', { manual: false })
+    await startManualCheck(result)
+    emit('app.updater.available', newer)
+    emit('app.updater.downloaded', newer)
+    emit('app.updater.check_started', { manual: true })
+    emit('app.updater.error', new Error('lookup failed'))
+    await startManualCheck(result)
+
+    await waitFor(() => expect(showDialog).toHaveBeenCalledWith({ releaseInfo: newer }))
   })
 
   it('confirms installation of a newer release its own check downloads', async () => {

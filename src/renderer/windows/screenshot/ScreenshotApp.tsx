@@ -19,32 +19,18 @@ function ScreenshotRuntime(): null {
   return null
 }
 
-/** Hand the fault to main and release the overlay before any native support dialog. */
+/** Main ends the session before presenting, so the fallback never depends on this renderer surviving. */
 export async function dismissScreenshotFault(error: unknown): Promise<void> {
-  const logger = loggerService.withContext('ScreenshotApp')
   const context = createAppErrorContext({
     source: 'screenshotWindow',
     operation: 'react.render',
     message: error instanceof Error ? error.message : stringifyThrown(error),
     ...(error instanceof Error ? { name: error.name, ...(error.stack ? { stack: error.stack } : {}) } : {})
   })
-  let handoffFailed = false
   try {
-    await ipcApi.request('app.error.handoff', context)
-  } catch (handoffError) {
-    handoffFailed = true
-    logger.error('Failed to hand off a screenshot error', handoffError as Error)
-  }
-  try {
-    await ipcApi.request('screenshot.cancel')
-  } catch (cancelError) {
-    logger.error('Failed to dismiss the screenshot overlay', cancelError as Error)
-  }
-  if (!handoffFailed) return
-  try {
-    await ipcApi.request('app.error.degraded', context)
-  } catch (degradedError) {
-    logger.error('Failed to present a screenshot error locally', degradedError as Error)
+    await ipcApi.request('screenshot.fail', context)
+  } catch (failError) {
+    loggerService.withContext('ScreenshotApp').error('Failed to report a screenshot error', failError as Error)
   }
 }
 

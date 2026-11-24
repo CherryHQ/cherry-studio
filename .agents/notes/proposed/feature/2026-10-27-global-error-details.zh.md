@@ -28,7 +28,7 @@ Status: proposed
 
 - AC1 — toast、Promise 失败、错误对话框、内联错误以及渲染或窗口兜底都能打开共享错误详情，且不丢失恢复操作和原始技术原因。(verification: renderer)
 - AC2 — 每次发生都带有独立的 ID、时间、来源和操作；Doctor 能分析非对话操作，纯图像模型跳过聊天探测，没有模型的操作从不运行模型探测；其首次诊断只运行适用的系统检查，带服务商 ID 的实时检查还会运行该服务商不依赖模型的检查，例如 DNS 解析。(verification: unit + renderer)
-- AC3 — 从事件发起的诊断上传和导出包含 `error-context.json`，仅当同一故障存在对应分析时才包含 `ai-diagnosis.json`；从关于页发起的通用报告不包含 `error-context.json`，只附当前 Doctor 报告的全局分析；重试保留快照，不新增数据库或图片附件。(verification: unit)
+- AC3 — 从事件发起的诊断上传和导出包含 `error-context.json`，仅当同一故障存在未过期的对应分析时才包含 `ai-diagnosis.json`，针对失败消息的分析还需用户勾选附带聊天记录；从关于页发起的通用报告不包含 `error-context.json`，只附当前 Doctor 报告的全局分析；重试保留快照，不新增数据库或图片附件。(verification: unit)
 - AC4 — 针对操作的 AI 咨询说明它读取错误上下文和诊断，失败的消息说明读取对话，没有事件时两句都不显示。(verification: renderer)
 - AC5 — 已确认的服务商 HTTP 5xx 只隐藏直接上报按钮；AI 咨询仍可转交上报，非 5xx 错误仍可上报。(verification: renderer)
 - AC6 — 错误详情和关于页共用更新状态、按渠道检查、进度和安装确认；轻量窗口交给主窗口处理，被暂扣的更新源绝不显示为已是最新；打开错误详情时只查询不下载（关闭自动更新或已有检查、下载在进行时不查询），有新版本时提示，用户点击更新后才下载；已下载完成的版本进入安装确认。(verification: unit + renderer)

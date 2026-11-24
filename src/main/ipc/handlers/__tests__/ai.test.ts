@@ -6,9 +6,11 @@ import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionForkError } from '@main/ai/runtime/fork/checkpoint'
 import { AiStreamAdmissionError } from '@main/ai/streamManager'
+import { PathStaleVersionError } from '@main/utils/file'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const {
@@ -59,6 +61,7 @@ const aiService = {
   checkModel: vi.fn(),
   embedMany: vi.fn(),
   runTextRequest: vi.fn(),
+  runTextStreamRequest: vi.fn(),
   runImageRequest: vi.fn(),
   abortRequest: vi.fn(),
   listModels: vi.fn(),
@@ -103,12 +106,14 @@ const agentJobsService = {
   pauseTask: vi.fn(),
   resumeTask: vi.fn(),
   deleteTask: vi.fn(),
-  runTask: vi.fn()
+  runTask: vi.fn(),
+  writeHeartbeatDocument: vi.fn()
 }
 
 // WebContentsListener (constructed in the stream_open handler) wires once()/isDestroyed().
 const fakeWebContents = { id: 1, once: vi.fn(), isDestroyed: () => false, send: vi.fn() }
 const windowManager = { getWindow: vi.fn() }
+const ipcApiService = { send: vi.fn() }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -142,6 +147,8 @@ beforeEach(() => {
         return windowManager
       case 'FileManager':
         return fileManager
+      case 'IpcApiService':
+        return ipcApiService
       default:
         throw new Error(`Unexpected application.get(${name})`)
     }
@@ -290,6 +297,29 @@ describe('aiHandlers', () => {
     })
     expect(aiService.generateText).not.toHaveBeenCalled()
     expect(result).toBe(out)
+  })
+
+  // Catches deltas lost on the way to the caller, or sent to another window, while a one-shot call streams.
+  it('generate_text with streamDeltas pushes each delta to the calling window under its requestId', async () => {
+    const out = { text: 'hello world' }
+    aiService.runTextStreamRequest.mockImplementation(async (_id, _request, onTextDelta: (delta: string) => void) => {
+      onTextDelta('hello ')
+      onTextDelta('world')
+      return out
+    })
+
+    const result = await aiHandlers['ai.text.generate'](
+      { requestId: 'r1', streamDeltas: true, uniqueModelId: 'openai::gpt-4o', prompt: 'hi' },
+      ctx
+    )
+
+    expect(result).toBe(out)
+    expect(ipcApiService.send.mock.calls).toEqual([
+      ['w1', 'ai.text.delta', { requestId: 'r1', delta: 'hello ' }],
+      ['w1', 'ai.text.delta', { requestId: 'r1', delta: 'world' }]
+    ])
+    expect(aiService.runTextStreamRequest.mock.calls[0][1]).not.toHaveProperty('streamDeltas')
+    expect(aiService.runTextRequest).not.toHaveBeenCalled()
   })
 
   it('generate_image unwraps { requestId, payload } into runImageRequest', async () => {
@@ -859,6 +889,25 @@ describe('aiHandlers — agent task commands', () => {
     const error = await aiHandlers['ai.agent.task.run']({ agentId: 'agent-1', taskId: 'gone' }, ctx).catch((e) => e)
     expect(error).toBeInstanceOf(IpcError)
     expect(error.code).toBe(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND)
+  })
+})
+
+describe('aiHandlers — heartbeat document', () => {
+  // A relocated profile path is not a home directory, so report redaction would not mask it.
+  it('reports a stale heartbeat write as STALE_VERSION without the file path', async () => {
+    const target = '/Volumes/Data/CherryProfile/agents/agent-1/heartbeat.md'
+    agentJobsService.writeHeartbeatDocument.mockRejectedValueOnce(
+      new PathStaleVersionError(target as never, { mtime: 1, size: 2 }, { mtime: 3, size: 4 })
+    )
+
+    const error = await aiHandlers['ai.agent.heartbeat.write'](
+      { agentId: 'agent-1', content: '- task', version: { mtime: 1, size: 2 }, contentHash: 'hash' } as never,
+      ctx
+    ).catch((e) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.code).toBe(fileErrorCodes.STALE_VERSION)
+    expect(JSON.stringify({ message: error.message, data: error.data })).not.toContain('CherryProfile')
   })
 })
 

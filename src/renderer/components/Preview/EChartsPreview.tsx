@@ -12,6 +12,12 @@ import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 
 const logger = loggerService.withContext('EChartsPreview')
 
+/** Parser reason and position only. V8 quotes the offending source in double quotes, so that form is dropped. */
+function jsonParseFault(error: unknown): SyntaxError {
+  const message = error instanceof Error ? error.message : ''
+  return new SyntaxError(message && !message.includes('"') ? message : 'Unexpected token in JSON')
+}
+
 const EChartsPreview = ({
   children,
   enableToolbar = false,
@@ -56,7 +62,7 @@ const EChartsPreview = ({
         option = JSON.parse(content) as EChartsCoreOption
       } catch (parseError) {
         optionRef.current = null
-        throw new Error(t('code_block.preview.invalid_json'), { cause: parseError })
+        throw new Error(t('code_block.preview.invalid_json'), { cause: jsonParseFault(parseError) })
       }
 
       optionRef.current = option

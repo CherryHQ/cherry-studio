@@ -83,7 +83,8 @@ host toolbar drawn over the preview, such as the RichEditor code block header,
 stays clickable above the placeholder.
 The layout reports the failure through the optional `onErrorChange` prop.
 `CodeBlockView` uses it to drop its copy-image and image-download actions until
-a render succeeds.
+a render succeeds. `MermaidFilePreview` uses it to disable its header toolbar
+actions, so they never act on a diagram hidden under the placeholder.
 
 SVG, Graphviz, PlantUML, and Mermaid diagrams are centered in their host.
 

@@ -414,7 +414,7 @@ function wipeNestedUserDataTargets(failures: string[]): void {
       fs.rmSync(target, RM_OPTIONS)
     } catch (error) {
       logger.warn('Failed to remove nested user data during reset', { target, error: String(error) })
-      failures.push(target)
+      failures.push(`${target}: ${String(error)}`)
     }
   }
 }
@@ -536,7 +536,7 @@ function wipeDirectoryEntries(dir: string, shouldWipeEntry: (entry: string) => b
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       logger.warn('Cannot list directory for data reset', { dir, error: String(error) })
-      failures.push(dir)
+      failures.push(`${dir}: ${String(error)}`)
     }
     return
   }
@@ -547,7 +547,7 @@ function wipeDirectoryEntries(dir: string, shouldWipeEntry: (entry: string) => b
       fs.rmSync(path.join(dir, entry), RM_OPTIONS)
     } catch (error) {
       logger.warn('Failed to remove entry during data reset', { entry, error: String(error) })
-      failures.push(path.join(dir, entry))
+      failures.push(`${path.join(dir, entry)}: ${String(error)}`)
     }
   }
 }

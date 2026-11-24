@@ -30,6 +30,7 @@ export default function MermaidFilePreview({ filePath, metadataRequest, refreshK
   const { t } = useTranslation()
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
   const previewRef = useRef<BasicPreviewHandles | null>(null)
+  const [renderFailed, setRenderFailed] = useState(false)
 
   // Layout cleanup invalidates the read before its promise can resolve into a stale file.
   useLayoutEffect(() => {
@@ -93,13 +94,14 @@ export default function MermaidFilePreview({ filePath, metadataRequest, refreshK
     )
   } else {
     content = (
-      <MermaidPreview ref={previewRef} fit="contain" className="h-full w-full">
+      <MermaidPreview ref={previewRef} fit="contain" className="h-full w-full" onErrorChange={setRenderFailed}>
         {loadState.source}
       </MermaidPreview>
     )
   }
 
-  const ready = loadState.status === 'ready' && Boolean(loadState.source.trim())
+  // A failed render keeps the previous SVG under its overlay, so actions would act on a hidden diagram.
+  const ready = loadState.status === 'ready' && Boolean(loadState.source.trim()) && !renderFailed
   const actions: Array<{ label: string; icon: typeof ZoomIn; run: (preview: BasicPreviewHandles) => unknown }> = [
     { label: t('preview.zoom_out'), icon: ZoomOut, run: (preview) => preview.zoom(-ZOOM_STEP) },
     { label: t('preview.zoom_in'), icon: ZoomIn, run: (preview) => preview.zoom(ZOOM_STEP) },

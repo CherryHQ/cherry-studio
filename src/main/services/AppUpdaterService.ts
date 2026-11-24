@@ -162,6 +162,11 @@ export class AppUpdaterService extends BaseService {
   private retirements = 0
   // electron-updater installs whatever it cached last, so installation names the version it confirmed.
   private downloadedVersion: string | null = null
+  // Native install failures are dispatched synchronously and belong to the install attempt, not a check.
+  private installFailure: Error | null = null
+  private installing = false
+  // Queued or running checks plus unsettled downloads; the read-only query must not add a feed request.
+  private updaterActivity = 0
   // electron-updater returns its in-flight check promise. The next check waits
   // until that promise settles, then configures and calls checkForUpdates again.
   private updateCheckQueue: Promise<void> = Promise.resolve()
@@ -282,10 +287,11 @@ export class AppUpdaterService extends BaseService {
     if (promise == null) return
     // Cancellation and download failures are already emitted by electron-updater.
     // This chain only waits until the library drops its reused downloadPromise.
-    const settled = promise.then(
-      () => undefined,
-      () => undefined
-    )
+    this.updaterActivity += 1
+    const settle = () => {
+      this.updaterActivity -= 1
+    }
+    const settled = promise.then(settle, settle)
     const previous = this.pendingDownload
     this.pendingDownload = previous.then(() => settled)
   }
@@ -338,6 +344,10 @@ export class AppUpdaterService extends BaseService {
 
   private registerAutoUpdaterListeners(): void {
     const onError = (error: Error) => {
+      if (this.installing) {
+        this.installFailure = error
+        return
+      }
       if (this.listeningGeneration === 0 || this.listeningGeneration !== this.checkGeneration) return
       if (!this.acceptedRelease) this.failedGeneration = this.checkGeneration
       logFailure(logger, 'update error', error, 'update.run', classifyUpdateFailure(error))
@@ -347,6 +357,8 @@ export class AppUpdaterService extends BaseService {
     this.registerDisposable(() => autoUpdater.removeListener('error', onError))
 
     const onUpdateAvailable = (releaseInfo: UpdateInfo) => {
+      // The download that follows repoints electron-updater's installer before `update-downloaded`.
+      if (releaseInfo.version !== this.downloadedVersion) this.downloadedVersion = null
       if (this.listeningGeneration === 0 || this.listeningGeneration !== this.checkGeneration) return
       if (!this.acceptedRelease) {
         this.stagedAvailable = releaseInfo
@@ -467,7 +479,17 @@ export class AppUpdaterService extends BaseService {
     }
   }
 
-  public async queryUpdateAvailability(): Promise<OutputFor<'app.updater.query_availability'>> {
+  /**
+   * Check-only query for error details. A scheduled check does not mark the shared renderer state
+   * as checking, so only main knows a running check or download already answers availability.
+   */
+  public async queryAvailabilityUnlessBusy(): Promise<OutputFor<'app.updater.query_availability'>> {
+    return this.updaterActivity > 0 ? { status: 'busy' } : this.queryUpdateAvailability()
+  }
+
+  public async queryUpdateAvailability(): Promise<
+    Exclude<OutputFor<'app.updater.query_availability'>, { status: 'busy' }>
+  > {
     if (this.isPortable()) return { status: 'unsupported' }
     const { currentVersion, updateChannel, updateHeaders } = await this.getUpdateRequest()
     const updater = new ReleaseNotesUpdater()
@@ -571,11 +593,12 @@ export class AppUpdaterService extends BaseService {
    */
   private performUpdateCheck(manual: boolean) {
     const retirement = this.retirements
+    this.updaterActivity += 1
     const run = this.updateCheckQueue.then(() => this.runConfiguredUpdateCheck(manual, retirement))
-    this.updateCheckQueue = run.then(
-      () => undefined,
-      () => undefined
-    )
+    const settle = () => {
+      this.updaterActivity -= 1
+    }
+    this.updateCheckQueue = run.then(settle, settle)
     return run
   }
 
@@ -686,13 +709,28 @@ export class AppUpdaterService extends BaseService {
     return Math.round(CHECK_INTERVAL_MS * (1 + (Math.random() * 2 - 1) * CHECK_JITTER_RATIO))
   }
 
-  /** @param version the release the install confirmation showed */
-  public quitAndInstall(version: string) {
+  /**
+   * @param version the release the install confirmation showed
+   * @throws IpcError when that release is no longer the downloaded one, or the native installer fails
+   */
+  public async quitAndInstall(version: string): Promise<void> {
     if (version !== this.downloadedVersion) {
       throw new IpcError(IpcErrorCode.VALIDATION_FAILED, 'The confirmed update is no longer the downloaded one')
     }
     application.markQuitting()
-    setImmediate(() => autoUpdater.quitAndInstall(true, true))
+    await new Promise((resolve) => setImmediate(resolve))
+    this.installFailure = null
+    this.installing = true
+    try {
+      autoUpdater.quitAndInstall(true, true)
+    } finally {
+      this.installing = false
+    }
+    const failure = this.installFailure as Error | null
+    if (failure) {
+      logFailure(logger, 'update install failed', failure, 'update.install', classifyUpdateFailure(failure))
+      throw new IpcError(IpcErrorCode.INTERNAL, 'The downloaded update could not be installed')
+    }
   }
 
   /**

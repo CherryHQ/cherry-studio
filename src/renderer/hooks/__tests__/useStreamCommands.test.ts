@@ -9,7 +9,7 @@ import { useStreamCommands } from '../useStreamCommands'
 afterEach(() => vi.restoreAllMocks())
 
 // A rebuilt Error drops provider status and body, so 5xx-gated diagnosis could never apply.
-it('hands the stored error part to onError with provider detail intact', async () => {
+it('hands the stored error part and the failed execution model to onError', async () => {
   const ipc = projectionIpc()
   const stored = {
     name: 'AI_APICallError',
@@ -29,8 +29,10 @@ it('hands the stored error part to onError with provider detail intact', async (
   const hook = renderHook(() => useStreamCommands('stored-error', undefined, onError))
   await act(async () => ipc.attachments[0].resolve(view))
   await waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
-  const [error, cause] = onError.mock.calls[0]
+  const [error, cause, executionId] = onError.mock.calls[0]
   expect(error.message).toBe('Service Unavailable')
   expect(cause).toMatchObject({ statusCode: 503, responseBody: '{"error":"overloaded"}', stack: 'stored stack' })
+  // Main may resolve the model itself, so the renderer's send-time snapshot can be empty.
+  expect(executionId).toBe('p::m')
   hook.unmount()
 })
