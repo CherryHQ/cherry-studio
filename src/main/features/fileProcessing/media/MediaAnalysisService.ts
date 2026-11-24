@@ -30,7 +30,8 @@ import {
   hashMediaExecutionConfig,
   resolveMediaExecutionConfig,
   type MediaExecutionConfig,
-  type MediaVisionExecutionConfig
+  type MediaVisionExecutionConfig,
+  type MediaVisionServing
 } from './mediaExecutionConfig'
 import type { MediaFfmpegService } from './MediaFfmpegService'
 import type { ClassifiedMediaProbe } from './probeClassification'
@@ -376,6 +377,15 @@ async function summarizeFrames(
   answered: Map<number, string | null>,
   signal?: AbortSignal
 ): Promise<void> {
+  if (frames.length === 0) return
+  let serving: MediaVisionServing
+  try {
+    serving = await vision.resolveServing()
+  } catch {
+    signal?.throwIfAborted()
+    logger.warn('Failed to resolve the vision model credential')
+    return
+  }
   for (let index = 0; index < frames.length; index += VISION_BATCH_SIZE) {
     signal?.throwIfAborted()
     const batch = frames.slice(index, index + VISION_BATCH_SIZE)
@@ -392,14 +402,14 @@ async function summarizeFrames(
         content.push({ type: 'image', image: await readFile(frame.path), mediaType: 'image/jpeg' })
       }
       const result = await aiCoreGenerateText<AppProviderSettingsMap>(
-        vision.sdkConfig.providerId,
-        vision.sdkConfig.providerSettings,
+        serving.sdkConfig.providerId,
+        serving.sdkConfig.providerSettings,
         {
-          model: vision.sdkConfig.modelId,
+          model: serving.sdkConfig.modelId,
           abortSignal: signal,
           messages: [{ role: 'user', content }]
         },
-        [createAiUsagePlugin(vision.usage)]
+        [createAiUsagePlugin(serving.usage)]
       )
       assignSummaries(batch, result.text, answered)
     } catch {

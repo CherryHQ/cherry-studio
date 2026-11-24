@@ -67,6 +67,7 @@ beforeEach(() => {
   ]) {
     vi.spyOn(definition, 'status').mockResolvedValue({ status: 'ready' })
   }
+  state.resolveSdkConfig.mockReset()
   state.resolveProcessor.mockReset().mockImplementation(() => {
     throw new Error('no OCR configured')
   })
@@ -181,7 +182,7 @@ describe('resolveMediaExecutionConfig', () => {
     expect(config.asr).toEqual({ modelId: APPLE_ASR_MODEL_ID, language: 'en-US' })
   })
 
-  it('refreshes vision pricing per invocation while retaining the serving credential', async () => {
+  it('resolves the vision credential only on first use and refreshes pricing per invocation', async () => {
     state.preferences.set('feature.file_processing.default_video_vision_model', 'openai::gpt-4o')
     vi.mocked(modelService.getByKey).mockReturnValue({
       id: 'openai::gpt-4o',
@@ -238,8 +239,18 @@ describe('resolveMediaExecutionConfig', () => {
     })
 
     const vision = (await resolveMediaExecutionConfig()).vision
+    // Resolving a credential advances API-key rotation, so a cache hit must not do it.
+    expect(state.resolveSdkConfig).not.toHaveBeenCalled()
+    const serving = await vision!.resolveServing()
+    await vision!.resolveServing()
+    expect(state.resolveSdkConfig).toHaveBeenCalledOnce()
+    expect(serving.sdkConfig).toEqual({
+      providerId: 'openai-chat',
+      providerSettings: { apiKey: 'secret' },
+      modelId: 'gpt-4o-2024-08-06'
+    })
 
-    expect(vision?.usage()).toEqual(
+    expect(serving.usage()).toEqual(
       expect.objectContaining({
         providerId: 'openai',
         providerName: 'OpenAI',
@@ -259,7 +270,7 @@ describe('resolveMediaExecutionConfig', () => {
     billing.defaultMultiplier = 3
     billing.scheduleEnabled = false
     billing.periods = []
-    expect(vision?.usage()).toEqual(
+    expect(serving.usage()).toEqual(
       expect.objectContaining({
         providerId: 'openai',
         modelId: 'gpt-4o-2024-08-06',
@@ -276,6 +287,15 @@ describe('resolveMediaExecutionConfig', () => {
 
 describe('hashMediaExecutionConfig', () => {
   it('changes for execution identities but excludes SDK credentials', () => {
+    const servingWith = (apiKey: string, keyId: string) => async () => ({
+      sdkConfig: { providerId: 'openai-chat' as const, providerSettings: { apiKey }, modelId: 'gpt-4o' },
+      usage: () =>
+        createAiUsageCaptureContext({
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          credentialReceipt: { attribution: 'explicit', id: keyId, masked: `sk-${keyId}` }
+        })
+    })
     const config: MediaExecutionConfig = {
       asr: { modelId: APPLE_ASR_MODEL_ID, language: 'en-US' },
       ocr: null,
@@ -285,38 +305,16 @@ describe('hashMediaExecutionConfig', () => {
         modelId: 'gpt-4o',
         endpointType: 'openai-chat-completions',
         baseUrl: 'https://api.openai.com/v1',
-        sdkConfig: { providerId: 'openai-chat', providerSettings: { apiKey: 'secret-a' }, modelId: 'gpt-4o' },
-        usage: () =>
-          createAiUsageCaptureContext({
-            providerId: 'openai',
-            modelId: 'gpt-4o',
-            credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' }
-          })
+        resolveServing: servingWith('secret-a', 'key-a')
       },
       budget: { maxFrames: 24, targetIntervalMs: 4_000, maxEdgePx: 1280, jpegQuality: 75 },
       pipelineVersion: MEDIA_PIPELINE_VERSION
     }
-    const withAnotherSecret: MediaExecutionConfig = {
+    const withAnotherCredential: MediaExecutionConfig = {
       ...config,
-      vision: {
-        ...config.vision!,
-        sdkConfig: { ...config.vision!.sdkConfig, providerSettings: { apiKey: 'secret-b' } }
-      }
+      vision: { ...config.vision!, resolveServing: servingWith('secret-b', 'key-b') }
     }
-    const withAnotherReceipt: MediaExecutionConfig = {
-      ...config,
-      vision: {
-        ...config.vision!,
-        usage: () =>
-          createAiUsageCaptureContext({
-            providerId: 'openai',
-            modelId: 'gpt-4o',
-            credentialReceipt: { attribution: 'explicit', id: 'key-b', masked: 'sk-b****bbbb' }
-          })
-      }
-    }
-    expect(hashMediaExecutionConfig(config)).toBe(hashMediaExecutionConfig(withAnotherSecret))
-    expect(hashMediaExecutionConfig(config)).toBe(hashMediaExecutionConfig(withAnotherReceipt))
+    expect(hashMediaExecutionConfig(config)).toBe(hashMediaExecutionConfig(withAnotherCredential))
     expect(hashMediaExecutionConfig(config)).not.toBe(
       hashMediaExecutionConfig({ ...config, asr: { ...config.asr!, language: 'ja-JP' } })
     )

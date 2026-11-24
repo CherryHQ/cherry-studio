@@ -36,12 +36,7 @@ export interface MediaOcrExecutionConfig {
   }
 }
 
-export interface MediaVisionExecutionConfig {
-  uniqueModelId: UniqueModelId
-  providerId: string
-  modelId: string
-  endpointType: string
-  baseUrl: string
+export interface MediaVisionServing {
   sdkConfig: {
     providerId: keyof AppProviderSettingsMap
     providerSettings: AppProviderSettingsMap[keyof AppProviderSettingsMap]
@@ -49,6 +44,16 @@ export interface MediaVisionExecutionConfig {
   }
   /** Resolve pricing at the start of each vision invocation while preserving request attribution. */
   usage: () => ReturnType<typeof createAiUsageCaptureContext>
+}
+
+export interface MediaVisionExecutionConfig {
+  uniqueModelId: UniqueModelId
+  providerId: string
+  modelId: string
+  endpointType: string
+  baseUrl: string
+  /** Resolves the serving credential once, on first use, so cached analyses never advance API-key rotation. */
+  resolveServing: () => Promise<MediaVisionServing>
 }
 
 export interface MediaExecutionConfig {
@@ -105,7 +110,7 @@ function resolveOcrExecutionConfig(): MediaOcrExecutionConfig | null {
   }
 }
 
-async function resolveVisionExecutionConfig(): Promise<MediaVisionExecutionConfig | null> {
+function resolveVisionExecutionConfig(): MediaVisionExecutionConfig | null {
   const raw = application.get('PreferenceService').get('feature.file_processing.default_video_vision_model')
   if (!raw) return null
   const parsed = UniqueModelIdSchema.safeParse(raw)
@@ -117,46 +122,52 @@ async function resolveVisionExecutionConfig(): Promise<MediaVisionExecutionConfi
     const provider = providerService.getByProviderId(providerId)
     if (!isVideoVisionSelectableModel(model, provider)) return null
     const endpoint = resolveEffectiveEndpoint(provider, model)
-    const { sdkConfig, credentialReceipt } = await resolveSdkConfig(provider, model, endpoint)
-    const usage = () => {
-      let pricingSnapshot: ReturnType<typeof createAiUsageCaptureContext>['pricingSnapshot'] = null
-      try {
-        const currentProvider = providerService.getByProviderId(provider.id)
-        const currentModel = modelService.getByKey(provider.id, modelId)
-        pricingSnapshot = createAiUsageCaptureContext({
-          providerId: currentProvider.id,
+    const createServing = async (): Promise<MediaVisionServing> => {
+      const { sdkConfig, credentialReceipt } = await resolveSdkConfig(provider, model, endpoint)
+      const usage = () => {
+        let pricingSnapshot: ReturnType<typeof createAiUsageCaptureContext>['pricingSnapshot'] = null
+        try {
+          const currentProvider = providerService.getByProviderId(provider.id)
+          const currentModel = modelService.getByKey(provider.id, modelId)
+          pricingSnapshot = createAiUsageCaptureContext({
+            providerId: currentProvider.id,
+            modelId: sdkConfig.modelId,
+            pricing: currentModel.pricing,
+            billing: currentProvider.settings.billing,
+            billingModelId: modelId
+          }).pricingSnapshot
+        } catch {
+          // Keep the invocation attributable even if the pricing catalog changed mid-analysis.
+        }
+        return createAiUsageCaptureContext({
+          providerId: provider.id,
+          providerName: provider.name,
           modelId: sdkConfig.modelId,
-          pricing: currentModel.pricing,
-          billing: currentProvider.settings.billing,
-          billingModelId: modelId
-        }).pricingSnapshot
-      } catch {
-        // Keep the invocation attributable even if the pricing catalog changed mid-analysis.
+          modelName: model.name,
+          pricingSnapshot,
+          trustProviderReportedCost: provider.reportsActualCost,
+          reportedCostCurrency: provider.reportedCostCurrency,
+          credentialReceipt
+        })
       }
-      return createAiUsageCaptureContext({
-        providerId: provider.id,
-        providerName: provider.name,
-        modelId: sdkConfig.modelId,
-        modelName: model.name,
-        pricingSnapshot,
-        trustProviderReportedCost: provider.reportsActualCost,
-        reportedCostCurrency: provider.reportedCostCurrency,
-        credentialReceipt
-      })
+      return {
+        sdkConfig: {
+          providerId: sdkConfig.providerId,
+          providerSettings: sdkConfig.providerSettings,
+          modelId: sdkConfig.modelId
+        },
+        usage
+      }
     }
 
+    let serving: Promise<MediaVisionServing> | undefined
     return {
       uniqueModelId: parsed.data,
       providerId,
       modelId,
       endpointType: String(endpoint.endpointType ?? ''),
       baseUrl: endpoint.baseUrl,
-      sdkConfig: {
-        providerId: sdkConfig.providerId,
-        providerSettings: sdkConfig.providerSettings,
-        modelId: sdkConfig.modelId
-      },
-      usage
+      resolveServing: () => (serving ??= createServing())
     }
   } catch {
     return null
@@ -167,7 +178,7 @@ export async function resolveMediaExecutionConfig(signal?: AbortSignal): Promise
   return {
     asr: await resolveAsrExecutionConfig(signal),
     ocr: resolveOcrExecutionConfig(),
-    vision: await resolveVisionExecutionConfig(),
+    vision: resolveVisionExecutionConfig(),
     budget: { ...DEFAULT_MEDIA_FRAME_BUDGET },
     pipelineVersion: MEDIA_PIPELINE_VERSION
   }

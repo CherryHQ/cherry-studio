@@ -21,22 +21,24 @@ const visionExecution = (): MediaVisionExecutionConfig => ({
   modelId: 'gpt-4o',
   endpointType: 'openai-chat-completions',
   baseUrl: 'https://api.openai.com/v1',
-  sdkConfig: { providerId: 'openai-chat', providerSettings: { apiKey: 'secret-a' }, modelId: 'gpt-4o' },
-  usage: () =>
-    createAiUsageCaptureContext({
-      providerId: 'openai',
-      providerName: 'OpenAI',
-      modelId: 'gpt-4o',
-      modelName: 'GPT-4o',
-      pricing: {
-        input: { perMillionTokens: 2.5, currency: 'USD' },
-        output: { perMillionTokens: 10, currency: 'USD' }
-      },
-      billing: { defaultMultiplier: 2, scheduleEnabled: false, timeZone: 'UTC', periods: [] },
-      trustProviderReportedCost: true,
-      reportedCostCurrency: 'USD',
-      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' }
-    })
+  resolveServing: vi.fn(async () => ({
+    sdkConfig: { providerId: 'openai-chat' as const, providerSettings: { apiKey: 'secret-a' }, modelId: 'gpt-4o' },
+    usage: () =>
+      createAiUsageCaptureContext({
+        providerId: 'openai',
+        providerName: 'OpenAI',
+        modelId: 'gpt-4o',
+        modelName: 'GPT-4o',
+        pricing: {
+          input: { perMillionTokens: 2.5, currency: 'USD' },
+          output: { perMillionTokens: 10, currency: 'USD' }
+        },
+        billing: { defaultMultiplier: 2, scheduleEnabled: false, timeZone: 'UTC', periods: [] },
+        trustProviderReportedCost: true,
+        reportedCostCurrency: 'USD',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' }
+      })
+  }))
 })
 
 const runtime = vi.hoisted(() => ({
@@ -1047,6 +1049,36 @@ describe('MediaAnalysisService', () => {
       expect(recovered.visuals?.length).toBeGreaterThan(0)
       expect(recovered.visuals?.every((frame) => frame.summary === 'slide')).toBe(true)
       expect(recovered.warnings).not.toContain('vision_failed')
+    })
+
+    it('does not resolve a vision credential when every frame is already answered', async () => {
+      runtime.config = { ...runtime.config, ocr: systemOcr }
+      runtime.ocrImage.mockRejectedValue(new Error('OCR processor is misconfigured'))
+      runtime.generateText.mockImplementation(async () => ({
+        text: requestedFrames(runtime.generateText.mock.calls.length - 1)
+          .map((frame) => `${frame}: slide`)
+          .join('\n')
+      }))
+
+      await service.analyze(file)
+      expect(runtime.config.vision!.resolveServing).toHaveBeenCalledTimes(1)
+      // OCR keeps failing, so the analysis reruns while every vision frame comes from the cache.
+      await service.analyze(file)
+
+      expect(runtime.config.vision!.resolveServing).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not resolve a vision credential for a cached analysis', async () => {
+      runtime.generateText.mockImplementation(async () => ({
+        text: requestedFrames(runtime.generateText.mock.calls.length - 1)
+          .map((frame) => `${frame}: slide`)
+          .join('\n')
+      }))
+
+      await service.analyze(file)
+      await service.analyze(file)
+
+      expect(runtime.config.vision!.resolveServing).toHaveBeenCalledTimes(1)
     })
 
     it('keeps the frames each overlapping analysis paid for', async () => {
