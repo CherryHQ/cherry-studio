@@ -13,9 +13,11 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { toast } from '@renderer/services/toast'
 import { AGENT_LANGUAGE_MAX_LENGTH, AGENT_LANGUAGE_PRESETS } from '@renderer/utils/agent/agentLanguage'
 import type { AgentFormState } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 
 type ReplyLanguageValue = Pick<AgentFormState, 'languageMode' | 'languageCustom'>
 
@@ -24,6 +26,7 @@ const OTHER_LANGUAGE = '__other_language__'
 type ReplyLanguageSelectProps = {
   value: ReplyLanguageValue
   onChange: (patch: Partial<ReplyLanguageValue>) => void
+  onDraftChange?: (draft: string | undefined) => void
   portalContainer?: HTMLElement | null
   triggerClassName?: string
 }
@@ -32,34 +35,44 @@ type ReplyLanguageSelectProps = {
  * Reply language as one select over the `languageMode` / `languageCustom` mapping. Renders the select and,
  * for "Other language…", the input as siblings so the parent lays them out.
  */
-export function ReplyLanguageSelect({ value, onChange, portalContainer, triggerClassName }: ReplyLanguageSelectProps) {
+export function ReplyLanguageSelect({
+  value,
+  onChange,
+  onDraftChange,
+  portalContainer,
+  triggerClassName
+}: ReplyLanguageSelectProps) {
   const { t } = useTranslation()
   const [globalLanguage] = usePreference('agent.language')
   const isPreset = AGENT_LANGUAGE_PRESETS.includes(value.languageCustom)
   // Stays on "Other" while typing, even when the text happens to match a preset.
-  const [otherChosen, setOtherChosen] = useState(value.languageMode === 'custom' && !isPreset)
-  const [typing, setTyping] = useState(false)
+  const [draft, setDraft] = useState<{ text: string; edited: boolean }>()
   // A change from elsewhere (another window, the profile pane) shows the stored value as it is.
   const [seen, setSeen] = useState(value)
   if (seen.languageMode !== value.languageMode || seen.languageCustom !== value.languageCustom) {
     setSeen(value)
-    if (!typing) setOtherChosen(value.languageMode === 'custom' && !isPreset)
+    setDraft(undefined)
   }
   const selected =
-    value.languageMode !== 'custom'
-      ? value.languageMode
-      : otherChosen || !isPreset
-        ? OTHER_LANGUAGE
-        : value.languageCustom
+    draft !== undefined || (value.languageMode === 'custom' && !isPreset)
+      ? OTHER_LANGUAGE
+      : value.languageMode === 'custom'
+        ? value.languageCustom
+        : value.languageMode
   const label = t('library.config.agent.field.language.label')
 
   const handleChange = (next: string) => {
     // Radix's hidden native select can briefly emit an empty value.
     if (!next) return
-    setOtherChosen(next === OTHER_LANGUAGE)
-    if (next === 'inherit' || next === 'off') onChange({ languageMode: next })
-    else if (next === OTHER_LANGUAGE)
-      onChange({ languageMode: 'custom', languageCustom: isPreset ? '' : value.languageCustom })
+    if (next === OTHER_LANGUAGE) {
+      const text = value.languageMode === 'custom' && !isPreset ? value.languageCustom : ''
+      setDraft({ text, edited: false })
+      onDraftChange?.(text)
+      return
+    }
+    setDraft(undefined)
+    onDraftChange?.(undefined)
+    if (next === 'inherit' || next === 'off') onChange({ languageMode: next, languageCustom: '' })
     else onChange({ languageMode: 'custom', languageCustom: next })
   }
 
@@ -91,14 +104,29 @@ export function ReplyLanguageSelect({ value, onChange, portalContainer, triggerC
       </Select>
       {selected === OTHER_LANGUAGE ? (
         <Input
-          value={value.languageCustom}
+          value={draft?.text ?? value.languageCustom}
           maxLength={AGENT_LANGUAGE_MAX_LENGTH}
           spellCheck={false}
           placeholder={t('library.config.agent.field.language.other_placeholder')}
           aria-label={t('settings.agent.language.custom_label')}
-          onFocus={() => setTyping(true)}
-          onBlur={() => setTyping(false)}
-          onChange={(event) => onChange({ languageCustom: event.target.value })}
+          onBlur={() => {
+            if (draft === undefined) return
+            setDraft(undefined)
+            onDraftChange?.(undefined)
+            if (!draft.edited) return
+            const languageCustom = draft.text.trim()
+            if (!languageCustom) {
+              onChange({ languageMode: 'inherit', languageCustom: '' })
+              return
+            }
+            const parsed = AgentLanguageSchema.safeParse(languageCustom)
+            if (parsed.success) onChange({ languageMode: 'custom', languageCustom: parsed.data })
+            else toast.error(t('settings.agent.language.error.multiline'))
+          }}
+          onChange={(event) => {
+            setDraft({ text: event.target.value, edited: true })
+            onDraftChange?.(event.target.value)
+          }}
         />
       ) : null}
     </>

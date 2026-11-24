@@ -83,7 +83,36 @@ function usePiPromptPreview(draft: PiPromptDraft, instructions: string) {
 export function PiPromptField({ value, onChange, draft }: PiPromptFieldProps) {
   const { t } = useTranslation()
   const { preview, failed, retry } = usePiPromptPreview(draft, value)
-  const tokens = preview ? estimateTokenCount(`${preview.before}${value}${preview.after}`) : null
+  const [resolved, setResolved] = useState<{ value: string; agentId?: string; text: string }>()
+  const hasVariables = /{{[^{}]+}}/.test(value)
+  const agentId = draft.agentId
+  useEffect(() => {
+    if (!hasVariables) return
+    let cancelled = false
+    const timer = setTimeout(() => {
+      void ipcApi.request('agent.system_prompt.resolve_instructions', { instructions: value, agentId }).then(
+        (text) => {
+          if (!cancelled) setResolved({ value, agentId, text })
+        },
+        (error: unknown) => {
+          if (!cancelled) logger.warn('Failed to resolve Agent prompt instructions', error as Error)
+        }
+      )
+    }, PREVIEW_DEBOUNCE_MS)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [agentId, hasVariables, value])
+  const instructions = hasVariables
+    ? resolved?.value === value && resolved.agentId === agentId
+      ? resolved.text
+      : undefined
+    : value
+  const tokens =
+    preview && instructions !== undefined
+      ? estimateTokenCount(`${preview.before}${instructions}${preview.after}`)
+      : null
 
   return (
     <div className="flex flex-col gap-2">
