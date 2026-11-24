@@ -219,14 +219,15 @@ reconnecting, with edits and attachment capability gated on live session data.
 Stop requests protocol cancellation before closing the owned process tree if
 necessary. Outstanding approvals settle as denied or cancelled. Partial output
 survives failures. Cherry does not replay the prompt or replace a failed native
-session with a new one. Non-resumable connections skip idle reclamation. Explicit
-closure can make them unrestorable.
+session with a new one. Non-resumable connections skip idle reclamation for
+interactive and reusable task sessions. One-off task sessions use the standard
+idle timeout. Closing a non-resumable connection can make it unrestorable.
 
 ACP request cancellation is independent of turn cancellation. A cancelled
 approval cannot authorize a later write or process start. Cancelling a terminal
-wait leaves the terminal running. ACP output/request limits and refusal stay
-visible as stream finish reasons. Scheduled runs that reach an ACP output or
-request limit fail and retain the partial reply.
+wait leaves the terminal running. Interactive ACP turns expose output/request
+limits and refusal as stream finish reasons. Scheduled runs fail on those stop
+reasons and retain any partial reply.
 
 ACP usage comes from prompt responses and session usage updates. Codex measures
 per-turn usage from thread totals relative to a pre-turn baseline so repeated

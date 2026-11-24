@@ -1350,7 +1350,8 @@ entry and only swaps the current UI turn plus the UI pending queue.
 
 Pi and Pi Durable declare `retainWhileIdle`: their in-process owners remain available beyond the idle TTL.
 Explicit close, branch replacement, configuration rebuild, and service shutdown still retire it.
-For other connections, when the idle timer expires, the runtime closes the entry:
+Non-resumable ACP processes have their own [idle retention rules](./local-agent-runtime.md#failure-cancellation-and-usage).
+For connections subject to the idle timer, expiry closes the entry:
 
 - clears `runtimeState.queue`;
 - closes the runtime connection;

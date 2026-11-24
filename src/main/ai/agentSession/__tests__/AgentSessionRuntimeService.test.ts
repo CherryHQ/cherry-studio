@@ -16,6 +16,7 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import type * as ForkDataModule from '@data/services/AgentSessionForkService'
 import type * as SessionMessageModule from '@data/services/AgentSessionMessageService'
 import type * as SessionModule from '@data/services/AgentSessionService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import type * as UsageRecordModule from '@data/services/AiUsageRecordService'
 import type { AgentSessionForkResources } from '@main/ai/agentSession/fork/resources'
@@ -5536,6 +5537,30 @@ describe('AgentSessionRuntimeService', () => {
         await service.closeSession('session-1')
         expect(service.inspect('session-1')).toBeUndefined()
       } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it.each([
+      { agentType: 'local', oneOff: true, closes: true },
+      { agentType: 'local', oneOff: false, closes: false },
+      { agentType: 'pi', oneOff: true, closes: false }
+    ])('reclaims a retained idle process only for one-off local tasks (%j)', async ({ agentType, oneOff, closes }) => {
+      const taskSession = vi.spyOn(agentSessionService, 'isOneOffTaskSession').mockReturnValue(oneOff)
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn({ ...baseTurnInput, agentType })
+        getEntry(service).connection = { retainWhileIdle: true, close: async () => {}, send: () => {}, events: [] }
+        service.markTurnTerminal('session-1', 'success')
+
+        await vi.advanceTimersByTimeAsync(5 * 60 * 1000 - 1)
+        expect(service.inspect('session-1')?.status).toBe('idle')
+        await vi.advanceTimersByTimeAsync(1)
+        expect(service.inspect('session-1')?.status).toBe(closes ? undefined : 'idle')
+        await service.closeSession('session-1')
+      } finally {
+        taskSession.mockRestore()
         vi.useRealTimers()
       }
     })

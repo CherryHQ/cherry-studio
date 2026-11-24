@@ -260,6 +260,7 @@
   "local_agent.model_unavailable": "Το επιλεγμένο μοντέλο «{{model}}» δεν είναι πλέον διαθέσιμο. Επιλέξτε άλλο μοντέλο στις Υπηρεσίες πρακτόρων.",
   "local_agent.runtime_required": "Απαιτείται {{runtime}} {{version}} ή νεότερο.",
   "local_agent.scheduled_output_limit": "Ο πράκτορας ACP έφτασε στο όριο εξόδου ή αιτημάτων πριν ολοκληρώσει την προγραμματισμένη εργασία.",
+  "local_agent.scheduled_refusal": "Ο πράκτορας ACP αρνήθηκε να ολοκληρώσει την προγραμματισμένη εργασία.",
   "mcp.skills.dynamic": "Οι δυναμικές δεξιότητες MCP δεν υποστηρίζονται, επειδή τα αρχεία τους δεν επαληθεύονται με σταθερό δηλωτικό.",
   "notification.action_required.agent": "Ο Agent χρειάζεται τη συμβολή σας",
   "notification.action_required.assistant": "Ο βοηθός χρειάζεται τη συμβολή σας",

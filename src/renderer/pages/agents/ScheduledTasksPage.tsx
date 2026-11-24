@@ -12,7 +12,7 @@ import {
   TASK_RUN_STATUS_KEYS,
   TaskRunSummaryLine
 } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTaskConversation } from '@renderer/hooks/agent/useTaskConversation'
 import { TASKS_PAGE_LIMIT, useAllTasks, useCreateTask, useTask } from '@renderer/hooks/agent/useTasks'
@@ -20,7 +20,9 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
+import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 import AgentChat from './AgentChat'
 import { ScheduledTaskGroup } from './components/ScheduledTaskSidebar'
@@ -83,7 +85,11 @@ export default function ScheduledTasksPage() {
   // Keep the lazy form mounted after first use so Dialog can finish its exit animation.
   const [createOpen, setCreateOpen] = useState<boolean>()
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const creatingConversation = useRef(false)
   const { createTask } = useCreateTask()
+  const { trigger: createConversation } = useMutation('POST', '/agent-sessions', {
+    refresh: ['/agent-sessions', '/agent-workspaces']
+  })
   const ids = useMemo(
     () => [...new Set([...active.tasks, ...paused.tasks, ...completed.tasks].map((item) => item.agentId))].sort(),
     [active.tasks, paused.tasks, completed.tasks]
@@ -101,6 +107,18 @@ export default function ScheduledTasksPage() {
   })
   const selectTask = (id: string) => {
     void navigate({ to: '/app/scheduled-tasks', search: { taskId: id }, replace: true })
+  }
+  const startNewTaskConversation = async (agentId: string) => {
+    if (creatingConversation.current) return
+    creatingConversation.current = true
+    try {
+      const session = await createConversation({ body: { agentId, name: '', workspace: { type: 'system' } } })
+      await navigate({ to: '/app/agents', search: { sessionId: session.id } })
+    } catch (error) {
+      toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
+    } finally {
+      creatingConversation.current = false
+    }
   }
   const selectRun = (id: string) => {
     if (taskId) void navigate({ to: '/app/scheduled-tasks', search: { taskId, runId: id }, replace: true })
@@ -271,7 +289,7 @@ export default function ScheduledTasksPage() {
         onPaneAutoCollapseChange={shell.handlePaneAutoCollapseChange}
         paneManualToggle={shell.paneManualToggle}
         showResourceListControls={false}
-        onStartNewTaskConversation={(agentId) => void navigate({ to: '/app/agents', search: { agentId } })}
+        onStartNewTaskConversation={(agentId) => void startNewTaskConversation(agentId)}
         conversationToolbar={toolbar}
         centerSurface={!conversation.session ? { content: storedResult } : null}
       />

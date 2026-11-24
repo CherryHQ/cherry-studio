@@ -2,12 +2,14 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ToastViewport } from '@cherrystudio/ui/components/primitives/toast'
 import { ipcApi } from '@renderer/ipc'
 import { LocalAgentConfigurationSchema } from '@shared/ai/localAgent'
 
 import { LocalAgentLogin, clearLocalAgentAuthStatusCache } from '../LocalAgentLogin'
 
 vi.unmock('@cherrystudio/ui')
+vi.unmock('@renderer/services/toast')
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: vi.fn((route, ...args) =>
@@ -296,19 +298,22 @@ describe('external authentication', () => {
     expect(onAuthenticated).toHaveBeenCalledOnce()
   })
 
-  it('displays live browser sign-in link and one-time verification code for OpenCode device flow', async () => {
+  it('keeps the device code available if copying fails and confirms a successful retry', async () => {
     const pending = Promise.withResolvers<void>()
-    request.mockReturnValueOnce(pending.promise)
+    request.mockReturnValueOnce(pending.promise).mockResolvedValue(undefined)
     const onAuthenticated = vi.fn().mockResolvedValue(undefined)
     const onTerminalLogin = vi.fn().mockResolvedValue(undefined)
     render(
-      <LocalAgentLogin
-        {...props}
-        config={{ ...config, protocol: 'acp', presetId: 'opencode' }}
-        authMethods={[{ id: 'opencode-login', name: 'OpenCode', type: 'agent' }]}
-        onTerminalLogin={onTerminalLogin}
-        onAuthenticated={onAuthenticated}
-      />
+      <>
+        <LocalAgentLogin
+          {...props}
+          config={{ ...config, protocol: 'acp', presetId: 'opencode' }}
+          authMethods={[{ id: 'opencode-login', name: 'OpenCode', type: 'agent' }]}
+          onTerminalLogin={onTerminalLogin}
+          onAuthenticated={onAuthenticated}
+        />
+        <ToastViewport />
+      </>
     )
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
     expect(screen.getByRole('button', { name: /在终端中配置 OpenCode Go 或其他服务/ })).toBeVisible()
@@ -332,6 +337,25 @@ describe('external authentication', () => {
       'href',
       'https://opencode.ai/console/device?user_code=GZNF-ZXWC'
     )
+
+    const writeText = vi
+      .fn()
+      .mockRejectedValueOnce(new DOMException('Clipboard permission denied', 'NotAllowedError'))
+      .mockResolvedValueOnce(undefined)
+    const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    try {
+      await userEvent.click(screen.getByRole('button', { name: '复制验证码' }))
+      expect(await screen.findByText('复制失败')).toBeVisible()
+      expect(screen.queryByRole('button', { name: '已复制' })).not.toBeInTheDocument()
+      expect(screen.getByText('GZNF-ZXWC')).toBeVisible()
+
+      await userEvent.click(screen.getByRole('button', { name: '复制验证码' }))
+      expect(await screen.findByRole('button', { name: '已复制' })).toBeVisible()
+    } finally {
+      if (original) Object.defineProperty(navigator, 'clipboard', original)
+      else Reflect.deleteProperty(navigator, 'clipboard')
+    }
 
     await act(async () => pending.resolve())
     await waitFor(() => expect(onAuthenticated).toHaveBeenCalledOnce())

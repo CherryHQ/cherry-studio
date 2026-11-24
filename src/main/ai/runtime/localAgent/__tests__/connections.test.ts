@@ -753,8 +753,8 @@ describe('local protocol processes', () => {
     ])
   })
 
-  it.each(['max_tokens', 'max_turn_requests'])(
-    'fails an unattended ACP turn at %s with partial output',
+  it.each(['max_tokens', 'max_turn_requests', 'refusal'])(
+    'fails an unattended ACP turn stopped by %s and keeps partial output',
     async (reason) => {
       const { connection, events, closeAndDrain, text } = create(
         'acp',

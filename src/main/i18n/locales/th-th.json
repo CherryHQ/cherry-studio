@@ -260,6 +260,7 @@
   "local_agent.model_unavailable": "โมเดล “{{model}}” ที่เลือกไม่พร้อมใช้งานแล้ว โปรดเลือกโมเดลอื่นในบริการเอเจนต์",
   "local_agent.runtime_required": "ต้องใช้ {{runtime}} {{version}} หรือใหม่กว่า",
   "local_agent.scheduled_output_limit": "เอเจนต์ ACP ถึงขีดจำกัดเอาต์พุตหรือคำขอก่อนทำงานตามกำหนดการเสร็จ",
+  "local_agent.scheduled_refusal": "เอเจนต์ ACP ปฏิเสธที่จะทำงานตามกำหนดเวลาให้เสร็จ",
   "mcp.skills.dynamic": "ยังไม่รองรับทักษะ MCP แบบไดนามิก เนื่องจากไม่สามารถตรวจสอบไฟล์กับรายการไฟล์คงที่ได้",
   "notification.action_required.agent": "เอเจนต์ต้องการข้อมูลจากคุณ",
   "notification.action_required.assistant": "ผู้ช่วยต้องการข้อมูลจากคุณ",

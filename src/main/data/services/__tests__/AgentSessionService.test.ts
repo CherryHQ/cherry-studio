@@ -119,6 +119,21 @@ describe('AgentSessionService', () => {
     })
   }
 
+  it('identifies task sessions that can be reclaimed without losing the next scheduled run', async () => {
+    const task = createTaskSchedule()
+    const ordinary = await createSession('ordinary')
+    const disposable = agentSessionService.create(
+      { agentId: 'agent-session-test', name: 'one-off', workspace: { type: 'system' } },
+      'conversation',
+      task.id
+    )
+    expect(agentSessionService.isOneOffTaskSession(ordinary.id)).toBe(false)
+    expect(agentSessionService.isOneOffTaskSession(disposable.id)).toBe(true)
+
+    bindTaskSession(disposable.id, task.id)
+    expect(agentSessionService.isOneOffTaskSession(disposable.id)).toBe(false)
+  })
+
   it('keeps task sessions out of conversations after job retention cleanup', async () => {
     const task = createTaskSchedule()
     const workspace = await createWorkspace('task-runs')

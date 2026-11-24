@@ -33,6 +33,7 @@ import {
   Label
 } from '@cherrystudio/ui'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import {
   LOCAL_AGENT_PRESETS,
@@ -459,8 +460,15 @@ export function LocalAgentLogin({
 
   const copyCode = async () => {
     if (!authPrompt?.code) return
-    await navigator.clipboard?.writeText(authPrompt.code).catch(() => undefined)
+    const current = generation.current
     clearCopyState()
+    try {
+      await navigator.clipboard.writeText(authPrompt.code)
+    } catch {
+      if (generation.current === current) toast.error(t('common.copy_failed'))
+      return
+    }
+    if (generation.current !== current) return
     setCopiedCode(true)
     copyTimer.current = setTimeout(() => {
       setCopiedCode(false)

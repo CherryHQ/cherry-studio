@@ -134,7 +134,7 @@ export class LocalAgentAuthService extends BaseService {
           if ((nextUrl && nextUrl !== lastUrl) || (nextCode && nextCode !== lastCode)) {
             lastUrl = nextUrl
             lastCode = nextCode
-            application.getOptional('IpcApiService')?.broadcast('ai.local_agents.auth_prompt', {
+            application.get('IpcApiService').broadcast('ai.local_agents.auth_prompt', {
               requestId,
               ...(nextUrl ? { url: nextUrl } : {}),
               ...(nextCode ? { code: nextCode } : {})

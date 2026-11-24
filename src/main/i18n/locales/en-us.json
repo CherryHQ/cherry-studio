@@ -260,6 +260,7 @@
   "local_agent.model_unavailable": "The selected model “{{model}}” is no longer available. Choose another model in Agent Services.",
   "local_agent.runtime_required": "{{runtime}} {{version}} or newer is required.",
   "local_agent.scheduled_output_limit": "The ACP agent reached its output or request limit before completing the scheduled task.",
+  "local_agent.scheduled_refusal": "The ACP agent declined to complete the scheduled task.",
   "mcp.skills.dynamic": "Dynamic MCP skills are not supported because their files cannot be verified against a fixed manifest.",
   "notification.action_required.agent": "Agent needs your input",
   "notification.action_required.assistant": "Assistant needs your input",

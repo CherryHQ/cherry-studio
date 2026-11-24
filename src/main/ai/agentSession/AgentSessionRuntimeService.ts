@@ -1716,7 +1716,7 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   releaseIdleConnection(sessionId: string): void {
     const idleEntry = this.entries.get(sessionId)
-    if (idleEntry && this.currentConnection(idleEntry)?.retainWhileIdle) return
+    if (idleEntry && this.shouldRetainWhileIdle(idleEntry)) return
     if (idleEntry && hasAgentSessionRuntimeBackgroundWork(idleEntry.runtimeState)) return
     if (this.isSessionBusy(sessionId)) return
     void this.closeSession(sessionId)
@@ -4391,17 +4391,26 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
+  private shouldRetainWhileIdle(entry: AgentSessionRuntimeEntry): boolean {
+    if (!this.currentConnection(entry)?.retainWhileIdle) return false
+    return entry.agentType !== 'local' || !agentSessionService.isOneOffTaskSession(entry.sessionId)
+  }
+
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
-    if (this.currentConnection(entry)?.retainWhileIdle) return
-    if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) || this.runtimeStatus(entry) !== 'idle') {
+    if (
+      hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) ||
+      this.runtimeStatus(entry) !== 'idle' ||
+      this.shouldRetainWhileIdle(entry)
+    ) {
       return
     }
     entry.idleTimer = setTimeout(() => {
       if (
         !this.isCurrentEntry(entry) ||
         hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) ||
-        this.runtimeStatus(entry) !== 'idle'
+        this.runtimeStatus(entry) !== 'idle' ||
+        this.shouldRetainWhileIdle(entry)
       ) {
         return
       }

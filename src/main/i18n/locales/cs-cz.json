@@ -260,6 +260,7 @@
   "local_agent.model_unavailable": "Vybraný model „{{model}}“ již není k dispozici. Vyberte jiný model ve Službách agentů.",
   "local_agent.runtime_required": "Vyžaduje se {{runtime}} {{version}} nebo novější.",
   "local_agent.scheduled_output_limit": "Agent ACP dosáhl limitu výstupu nebo požadavků před dokončením naplánované úlohy.",
+  "local_agent.scheduled_refusal": "Agent ACP odmítl dokončit naplánovanou úlohu.",
   "mcp.skills.dynamic": "Dynamické dovednosti MCP nejsou podporovány, protože jejich soubory nelze ověřit podle pevného manifestu.",
   "notification.action_required.agent": "Agent potřebuje vaši odpověď",
   "notification.action_required.assistant": "Asistent potřebuje vaši odpověď",

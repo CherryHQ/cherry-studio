@@ -469,6 +469,20 @@ export class AgentSessionService {
     return this.readById(id, undefined, options?.includeTaskReuse)
   }
 
+  isOneOffTaskSession(id: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(
+          and(eq(sessionsTable.id, id), isNotNull(sessionsTable.taskId), eq(sessionsTable.isTaskReuseTarget, false))
+        )
+        .get()
+    )
+  }
+
   private readById(id: string, scope?: SQL, includeTaskReuse = false) {
     const db = application.get('DbService').getDb()
     const [row] = db

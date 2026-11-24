@@ -174,9 +174,10 @@ export class AcpConnection extends LocalConnection {
       launch.env.DSH_PERMISSION_MODE = dshPermissionMode
     }
     if (!probe && this.config.presetId === 'deepseek-harness' && !this.config.env.DSH_HOME) {
+      const usesDefaultProfile = launch.args.length === 2 && launch.args[0] === '--profile' && launch.args[1] === 'acp'
       const prepared = await application
         .get('DeepSeekHarnessService')
-        .prepareAgent(this.config.args.length ? undefined : this.sessionId)
+        .prepareAgent(usesDefaultProfile ? this.sessionId : undefined)
       if (prepared?.gateway) {
         if (this.abort.signal.aborted) {
           await prepared.gateway.dispose()
@@ -1086,6 +1087,10 @@ export class AcpConnection extends LocalConnection {
       const truncated = response.stopReason === 'max_tokens' || response.stopReason === 'max_turn_requests'
       if (this.headless && truncated) {
         this.finish(new Error(t('local_agent.scheduled_output_limit')))
+        return
+      }
+      if (this.headless && response.stopReason === 'refusal') {
+        this.finish(new Error(t('local_agent.scheduled_refusal')))
         return
       }
       this.finish(
