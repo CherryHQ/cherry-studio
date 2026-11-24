@@ -92,8 +92,9 @@ const ROUTES: Record<MiniAppMethod, Handler> = {
   // Gated `none` on purpose: it reports the CALLER'S OWN grant state, so there is nothing
   // to protect — gating it would only leave an app blind to what it may call.
   'app.getPermissions': (appId) => {
-    // A live preview grants its whole declared set (in memory, no consent UI), so
-    // its map is uniformly true — read it from the preview record, not the DB.
+    // A live preview grants its declared set minus the preview-withheld privileged
+    // capabilities (in memory, no consent UI), so its map is uniformly true — read
+    // it from the preview record, not the DB.
     const preview = application.getExisting('MiniAppPreviewService')?.getPreviewByRuntimeId(appId)
     if (preview) return Object.fromEntries(preview.grants.map((k) => [k, true]))
     const manifest = MiniAppManifestSchema.parse(installationOf(appId).manifestJson)
