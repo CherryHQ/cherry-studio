@@ -19,8 +19,8 @@ import { useScopedKnowledgeToolSignals } from '@renderer/hooks/useScopedKnowledg
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { hasMcpToolSignals } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
+import { hasMcpToolSignals } from '@shared/utils/mcp'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 

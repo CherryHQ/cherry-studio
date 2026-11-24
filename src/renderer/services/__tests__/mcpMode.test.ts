@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Assistant } from '@renderer/types/assistant'
-import { getEffectiveMcpMode, hasMcpToolSignals } from '@renderer/utils/mcpMode'
+import { getEffectiveMcpMode, hasMcpToolSignals } from '@shared/utils/mcp'
 
 describe('getEffectiveMcpMode', () => {
   it('returns mcpMode when explicitly set to auto', () => {

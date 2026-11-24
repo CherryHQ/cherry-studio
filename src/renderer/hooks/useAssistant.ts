@@ -18,7 +18,7 @@
 
 import { useCallback, useRef } from 'react'
 
-import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
@@ -29,13 +29,13 @@ import { useScopedKnowledgeToolSignals } from '@renderer/hooks/useScopedKnowledg
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { ipcApi } from '@renderer/ipc'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
-import { hasMcpToolSignals } from '@renderer/utils/mcpMode'
 import { resolveModelSwitchSettings } from '@renderer/utils/model'
 import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { ChatModelSetting } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
+import { hasMcpToolSignals } from '@shared/utils/mcp'
 import { resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
 const logger = loggerService.withContext('useAssistant')
@@ -56,10 +56,15 @@ const ASSISTANTS_REFRESH_KEYS: ConcreteApiPaths[] = ['/assistants', '/assistants
  * consumer.
  */
 export function useAssistantsApi(options: { enabled?: boolean } = {}) {
+  const enabled = options.enabled ?? true
+  const invalidate = useInvalidateCache()
   const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery('/assistants', {
-    enabled: options.enabled ?? true,
+    enabled,
     query: { limit: ASSISTANTS_LIST_LIMIT }
   })
+  // Assistants created in main (e.g. by an Agent's create tool) announce themselves here;
+  // refresh every list variant so a searched or grouped library picks them up too.
+  useDataChange(enabled ? '/assistants' : [], () => void invalidate('/assistants'))
 
   return {
     assistants: data?.items ?? EMPTY_ASSISTANTS,
@@ -82,6 +87,13 @@ export function useAssistantApiById(id: string | undefined) {
     enabled: !!id,
     swrOptions: { keepPreviousData: false }
   })
+  useDataChange(
+    id ? '/assistants/:id' : [],
+    (effects) => {
+      if (effects.some((effect) => !effect.entityIds || (id && effect.entityIds.includes(id)))) void refetch()
+    },
+    { routeParams: id ? { id } : undefined }
+  )
 
   return {
     assistant: data,
