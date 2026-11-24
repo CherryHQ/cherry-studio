@@ -36,14 +36,17 @@ export const isNumberShortcut = (command: CommandId): boolean => NUMBER_COMMANDS
 
 export type NumberShortcutMode = 'conversation' | 'tab' | 'off'
 
-export function getNumberShortcutPreset(mode: NumberShortcutMode, platform?: SupportedPlatform) {
+export function getNumberShortcutPreset(
+  mode: NumberShortcutMode,
+  platform?: SupportedPlatform
+): Partial<Record<CommandId, PreferenceShortcutType>> {
   if (mode === 'off') {
-    return Object.fromEntries(
+    return Object.fromEntries<PreferenceShortcutType>(
       NUMBER_COMMANDS.map((command) => [
         command,
         { ...getCommandDefaultShortcutPreference(command, platform)!, enabled: false }
       ])
-    ) as Partial<Record<CommandId, PreferenceShortcutType>>
+    )
   }
 
   const secondary: ShortcutModifier = platform === 'darwin' ? 'Ctrl' : 'Alt'
