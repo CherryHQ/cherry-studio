@@ -126,6 +126,12 @@ const CLI_AUTH_OPTIONS: Partial<Record<string, readonly CliAuthOption[]>> = {
 
 const PI_QUICK_PROVIDERS = ['openai-codex', 'github-copilot', 'anthropic', 'openai'] as const
 
+const cachedAuthStatus = new Map<string, OutputFor<'ai.local_agents.auth_status'>>()
+
+export function clearLocalAgentAuthStatusCache(): void {
+  cachedAuthStatus.clear()
+}
+
 export function LocalAgentLogin({
   config,
   authMethods,
@@ -197,7 +203,7 @@ export function LocalAgentLogin({
   }>()
   const authFailed = !!authenticationError && classifyLocalAgentError(authenticationError).kind === 'authentication'
   const hasNativeStatus = !!preset?.authStatusArgs
-  const currentStatus = authStatus?.signature === signature ? authStatus.status : undefined
+  const currentStatus = authStatus?.signature === signature ? authStatus.status : cachedAuthStatus.get(signature)
   const status = authFailed && !hasNativeStatus ? 'signed-out' : (currentStatus ?? 'unknown')
   const signedIn = status === 'signed-in'
   const needsLogin = !signedIn
@@ -209,10 +215,16 @@ export function LocalAgentLogin({
 
   // Antigravity requires credentials for session/new, which produces the live model catalog.
   useEffect(() => {
-    if (sessionRequiresLogin && freshCatalog) setAuthStatus({ signature, status: 'signed-in' })
+    if (sessionRequiresLogin && freshCatalog) {
+      cachedAuthStatus.set(signature, 'signed-in')
+      setAuthStatus({ signature, status: 'signed-in' })
+    }
   }, [sessionRequiresLogin, freshCatalog, signature])
   useEffect(() => {
-    if (sessionRequiresLogin && authFailed) setAuthStatus({ signature, status: 'signed-out' })
+    if (sessionRequiresLogin && authFailed) {
+      cachedAuthStatus.set(signature, 'signed-out')
+      setAuthStatus({ signature, status: 'signed-out' })
+    }
   }, [sessionRequiresLogin, authFailed, signature])
 
   useEffect(() => {
@@ -225,7 +237,11 @@ export function LocalAgentLogin({
       const nextStatus = await ipcApi
         .request('ai.local_agents.auth_status', JSON.parse(signature))
         .catch(() => 'unknown' as const)
-      if (active) setAuthStatus({ signature, status: nextStatus })
+      if (active) {
+        if (nextStatus === 'signed-in' || nextStatus === 'signed-out') cachedAuthStatus.set(signature, nextStatus)
+        else cachedAuthStatus.delete(signature)
+        setAuthStatus({ signature, status: nextStatus })
+      }
       pending = false
     }
     void refresh()
@@ -396,12 +412,16 @@ export function LocalAgentLogin({
       request.current = undefined
       await onAuthenticated(nextConfig)
       if (generation.current !== current) return
-      if (sessionRequiresLogin) setAuthStatus({ signature, status: 'signed-in' })
+      if (sessionRequiresLogin) {
+        cachedAuthStatus.set(signature, 'signed-in')
+        setAuthStatus({ signature, status: 'signed-in' })
+      }
       setApiKey('')
       setMethod(undefined)
       setOpen(false)
     } catch (failure) {
       if (generation.current === current) {
+        cachedAuthStatus.delete(signature)
         setAuthStatus(undefined)
         showError(failure)
       }
@@ -451,7 +471,7 @@ export function LocalAgentLogin({
   if (!available) return null
   if (
     !open &&
-    ((hasNativeStatus && authStatus?.signature !== signature) ||
+    ((hasNativeStatus && currentStatus === undefined) ||
       (sessionRequiresLogin && status === 'unknown' && modelsLoading))
   ) {
     return (
