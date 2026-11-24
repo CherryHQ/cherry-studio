@@ -2470,6 +2470,8 @@ it('uses native Ace Messages with the selected Bearer key and an actual caller t
   )
   const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride: 'ace-selected-key' })
   expect(config.providerId).toBe('anthropic')
+  expect(config.providerSettings).toMatchObject({ authToken: 'ace-selected-key', fetch: customFetch })
+  expect(config.providerSettings).not.toHaveProperty('apiKey')
   const client = createAnthropic(config.providerSettings as Parameters<typeof createAnthropic>[0])
   const result = await generateText({
     model: client('claude-sonnet-5-5'),
@@ -2496,4 +2498,18 @@ it('uses native Ace Messages with the selected Bearer key and an actual caller t
   expect(Array.isArray(body.tools)).toBe(true)
   expect(body.tools[0].name).toBe('lookup')
   expect(JSON.stringify(body)).not.toContain('supported')
+})
+
+it('sends the selected Ace Responses key through the standard bearer authentication', async () => {
+  const provider = makeProvider({
+    id: 'acedatacloud',
+    presetProviderId: 'acedatacloud',
+    endpointConfigs: {
+      [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'open-responses', baseUrl: 'https://api.acedata.cloud/v1' }
+    }
+  })
+  const model = makeModel({ providerId: 'acedatacloud', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+  const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride: 'ace-selected-key' })
+  expect(config.providerSettings).toMatchObject({ apiKey: 'ace-selected-key', fetch: customFetch })
+  expect(config.providerSettings).not.toHaveProperty(['headers', 'X-Api-Key'])
 })
