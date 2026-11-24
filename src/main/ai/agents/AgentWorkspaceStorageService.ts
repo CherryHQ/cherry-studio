@@ -264,8 +264,23 @@ class AgentWorkspaceStorageService {
     if (packNeeded && options.pack) await options.pack()
   }
 
-  async purgeWorkspace(workspace: Workspace): Promise<void> {
-    await this.withSystemWorkspaceStorage(workspace.path, () => this.purge(workspace), true)
+  /**
+   * Returns false when the cleanup was deferred: another in-flight operation
+   * (e.g. an archive pack) holds the storage reservation, so the directory is
+   * left for the orphan sweep. Callers that report reclamation success must
+   * propagate this instead of silently claiming the files are gone.
+   */
+  async purgeWorkspace(workspace: Workspace): Promise<boolean> {
+    return (
+      (await this.withSystemWorkspaceStorage(
+        workspace.path,
+        async () => {
+          await this.purge(workspace)
+          return true
+        },
+        true
+      )) ?? false
+    )
   }
 
   async reclaimOrphanWorkspace(workspacePath: string, options: OrphanSessionReclaimOptions): Promise<string[]> {

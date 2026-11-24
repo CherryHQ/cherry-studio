@@ -27,10 +27,17 @@ interface PurgeBatch {
   readonly hasMore: boolean
   /** Run immediately after the batch's write transaction commits. */
   readonly notifyPurged: () => void
+  /** Workspace directories whose cleanup was deferred to the orphan sweep (a pack held the reservation). */
+  readonly deferredWorkspacePaths?: readonly string[]
 }
 
-function completedPurgeBatch(purgedIds: readonly string[], hasMore: boolean, notifyPurged: () => void): PurgeBatch {
-  return { purgedIds, hasMore, notifyPurged }
+function completedPurgeBatch(
+  purgedIds: readonly string[],
+  hasMore: boolean,
+  notifyPurged: () => void,
+  deferredWorkspacePaths?: readonly string[]
+): PurgeBatch {
+  return { purgedIds, hasMore, notifyPurged, deferredWorkspacePaths }
 }
 
 /**
@@ -57,14 +64,14 @@ const PURGE_DOMAINS: ReadonlyArray<{
     name: 'session',
     purgeExpired: async (cutoffMs, limit) => {
       const batch = await application.get('AgentLifecycleService').purgeExpiredSessions(cutoffMs, limit)
-      return completedPurgeBatch(batch.purgedIds, batch.hasMore, () => {})
+      return completedPurgeBatch(batch.purgedIds, batch.hasMore, () => {}, batch.deferredWorkspacePaths)
     }
   },
   {
     name: 'agent',
     purgeExpired: async (cutoffMs, limit) => {
       const batch = await application.get('AgentLifecycleService').purgeExpiredAgents(cutoffMs, limit)
-      return completedPurgeBatch(batch.purgedIds, batch.hasMore, () => {})
+      return completedPurgeBatch(batch.purgedIds, batch.hasMore, () => {}, batch.deferredWorkspacePaths)
     }
   },
   {
@@ -129,6 +136,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     const totalSteps = PURGE_DOMAINS.length + 3 // + task schedule, file, and agent-dir sweeps
     const purged: Record<string, number> = {}
 
+    const deferredWorkspacePaths: string[] = []
     for (const [index, domain] of retentionDisabled ? [] : PURGE_DOMAINS.entries()) {
       ctx.signal.throwIfAborted()
       const purgedIds: string[] = []
@@ -141,6 +149,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
         ctx.signal.throwIfAborted()
         batch = await domain.purgeExpired(cutoffMs, PURGE_BATCH_SIZE)
         purgedIds.push(...batch.purgedIds)
+        if (batch.deferredWorkspacePaths) deferredWorkspacePaths.push(...batch.deferredWorkspacePaths)
         // A later batch may fail after this transaction has already committed.
         if (batch.purgedIds.length > 0) batch.notifyPurged()
       } while (batch.hasMore)
@@ -192,6 +201,13 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
       if (ctx.signal.aborted) throw error
       reclaimed = false
       logger.warn('Agent orphan sweep failed — residue retried next purge run', { error })
+    }
+    // A workspace directory left for the orphan sweep (its pack held the
+    // reservation through the purge wait) means files remain on disk: report
+    // partial success instead of an unqualified reclaim.
+    if (deferredWorkspacePaths.length > 0) {
+      reclaimed = false
+      logger.warn('Workspace cleanup deferred to the orphan sweep', { deferredWorkspacePaths })
     }
     ctx.reportProgress(100)
 

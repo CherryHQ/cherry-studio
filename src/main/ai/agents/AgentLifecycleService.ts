@@ -200,14 +200,16 @@ export class AgentLifecycleService extends BaseService {
     return this.runOperation('purge-expired-agents', async () => {
       const ids = agentService.listExpiredTrashIds(cutoffMs, limit)
       const purgedIds: string[] = []
+      const deferredWorkspacePaths: string[] = []
       for (const id of ids) {
         await this.agentLocks.runExclusive(id, async () => {
           if (!agentService.isExpiredTrash(id, cutoffMs)) return
           const result = await this.deleteAgentInternal(id, false, true)
           if (result.deleted) purgedIds.push(id)
+          deferredWorkspacePaths.push(...result.deferredWorkspacePaths)
         })
       }
-      return { purgedIds, hasMore: ids.length === limit }
+      return { purgedIds, hasMore: ids.length === limit, deferredWorkspacePaths }
     })
   }
 
@@ -365,11 +367,11 @@ export class AgentLifecycleService extends BaseService {
   private async purgeExpiredSessionsInternal(
     cutoffMs: number,
     limit: number
-  ): Promise<{ purgedIds: string[]; hasMore: boolean }> {
+  ): Promise<{ purgedIds: string[]; hasMore: boolean; deferredWorkspacePaths: string[] }> {
     const hold = application.get('AgentSessionDeliveryService').pause('trash-purge')
     try {
       const sessionIds = agentSessionService.listExpiredTrashIds(cutoffMs, limit)
-      if (sessionIds.length === 0) return { purgedIds: [], hasMore: false }
+      if (sessionIds.length === 0) return { purgedIds: [], hasMore: false, deferredWorkspacePaths: [] }
 
       const releases: Array<() => void> = []
       try {
@@ -400,9 +402,16 @@ export class AgentLifecycleService extends BaseService {
                 .get('DbService')
                 .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, expiredSessionIds, cutoffMs))
         agentSessionService.notifyPurged(purgedIds)
-        await this.removePurgedSystemWorkspaces(workspaces.filter(({ id }) => purgedIds.includes(id)))
+        // Protected deletion has committed: release the global delivery pause
+        // before waiting on in-flight workspace packs, so an unrelated Session
+        // keeps delivering while a pack settles (issue #21645). dispose() is
+        // idempotent; the outer finally becomes a no-op.
+        hold.dispose()
+        const deferredWorkspacePaths = await this.removePurgedSystemWorkspaces(
+          workspaces.filter(({ id }) => purgedIds.includes(id))
+        )
         await reclaimPurgedRuntimeSessions(resumeTokensForDeletedSessions(purgedIds, tokensBySession))
-        return { purgedIds, hasMore: sessionIds.length === limit }
+        return { purgedIds, hasMore: sessionIds.length === limit, deferredWorkspacePaths }
       } finally {
         for (const release of releases.reverse()) release()
       }
@@ -466,8 +475,9 @@ export class AgentLifecycleService extends BaseService {
     deleteSessions: boolean,
     permanent: boolean,
     targetState: 'active' | 'trashed' = 'trashed'
-  ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
-    if (permanent && agentService.getLifecycleState(agentId) !== targetState) return { deleted: false }
+  ): Promise<{ deleted: boolean; deletedSessionIds?: string[]; deferredWorkspacePaths: string[] }> {
+    if (permanent && agentService.getLifecycleState(agentId) !== targetState)
+      return { deleted: false, deferredWorkspacePaths: [] }
     const deleteAgent = async () => {
       const workspaces = agentSessionService.listSystemWorkspaceSessions(agentSessionService.listIdsByAgent(agentId))
       const tokensBySession =
@@ -502,7 +512,7 @@ export class AgentLifecycleService extends BaseService {
         deleteSessions ? [] : result.affectedSessionIds,
         !permanent && deleteSessions
       )
-      await this.removePurgedSystemWorkspaces(
+      const deferredWorkspacePaths = await this.removePurgedSystemWorkspaces(
         workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
       )
       if (permanent && targetState === 'active' && deleteSessions) {
@@ -512,7 +522,8 @@ export class AgentLifecycleService extends BaseService {
       }
       return {
         deleted: result.deleted,
-        ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})
+        ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {}),
+        deferredWorkspacePaths
       }
     }
 
@@ -595,7 +606,13 @@ export class AgentLifecycleService extends BaseService {
     }
   }
 
-  private async removePurgedSystemWorkspaces(workspaces: Array<{ id: string; path: string }>): Promise<void> {
+  /**
+   * Returns the paths whose filesystem cleanup was deferred (reservation held
+   * by an in-flight pack, or a failed removal): the orphan sweep reclaims them
+   * later, and callers reporting reclamation success must treat them as
+   * outstanding.
+   */
+  private async removePurgedSystemWorkspaces(workspaces: Array<{ id: string; path: string }>): Promise<string[]> {
     // A purge racing the background archive pack loses the workspace's storage
     // reservation to it: purgeWorkspace then silently skips filesystem cleanup
     // while the deleted session's archive publishes unclaimed. Settle first,
@@ -611,13 +628,16 @@ export class AgentLifecycleService extends BaseService {
         error
       })
     }
+    const deferred: string[] = []
     for (const workspace of workspaces) {
       try {
-        await agentWorkspaceStorageService.purgeWorkspace(workspace)
+        if (!(await agentWorkspaceStorageService.purgeWorkspace(workspace))) deferred.push(workspace.path)
       } catch (error) {
+        deferred.push(workspace.path)
         logger.warn('Failed to remove purged Agent Session workspace', { workspacePath: workspace.path, error })
       }
     }
+    return deferred
   }
 
   private async deleteAgentSessionsInternal(agentId: string): Promise<{ deletedIds: string[] }> {

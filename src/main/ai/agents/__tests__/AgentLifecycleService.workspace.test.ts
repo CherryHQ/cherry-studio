@@ -31,7 +31,8 @@ const mocks = vi.hoisted(() => ({
   closeSession: vi.fn().mockResolvedValue(undefined),
   closeSessionForArchive: vi.fn().mockResolvedValue(undefined),
   enqueueTx: vi.fn(),
-  cancelJob: vi.fn().mockResolvedValue({ outcome: 'cancelled' })
+  cancelJob: vi.fn().mockResolvedValue({ outcome: 'cancelled' }),
+  pauseDispose: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -53,7 +54,7 @@ vi.mock('@application', async () => {
       closeSessionForArchive: mocks.closeSessionForArchive
     },
     AgentSessionDeliveryService: {
-      pause: () => ({ dispose() {} }),
+      pause: () => ({ dispose: mocks.pauseDispose }),
       drainSessionQueues: async () => {},
       kick: () => {}
     },
@@ -117,6 +118,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   beforeEach(() => {
     mocks.enqueueTx.mockReset()
     mocks.cancelJob.mockClear()
+    mocks.pauseDispose.mockClear()
   })
 
   /** Replay every queued archive task through the real job handler (the JobManager stub only captures enqueues). */
@@ -1082,6 +1084,53 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(Date.now() - started).toBeGreaterThanOrEqual(150)
     expect(mocks.cancelJob).not.toHaveBeenCalled()
     expect(existsSync(workspacePath(root, 'system'))).toBe(false)
+  })
+
+  it('releases the delivery pause before waiting on an in-flight pack during trash purge', async () => {
+    await lifecycle.archiveSessions(['system'])
+    dbh.db.update(agentSessionTable).set({ deletedAt: 1 }).where(eq(agentSessionTable.id, 'system')).run()
+    seedArchiveJob('running')
+    const order: string[] = []
+    mocks.pauseDispose.mockImplementation(() => {
+      order.push('disposed')
+    })
+    const timer = setTimeout(() => {
+      order.push('settled')
+      dbh.db
+        .update(jobTable)
+        .set({ status: 'completed' })
+        .where(eq(jobTable.idempotencyKey, 'archive-system-workspace:system'))
+        .run()
+    }, 300)
+    try {
+      await lifecycle.purgeExpiredSessions(Date.now(), 500)
+    } finally {
+      clearTimeout(timer)
+    }
+    // The global delivery pause must end once the protected deletion commits,
+    // not after the in-flight pack settles, so unrelated Sessions keep
+    // delivering (issue #21645).
+    expect(order).toEqual(['disposed', 'settled'])
+  })
+
+  it('reports workspace cleanup deferred when the reservation is held through the purge', async () => {
+    await lifecycle.archiveSessions(['system'])
+    dbh.db.update(agentSessionTable).set({ deletedAt: 1 }).where(eq(agentSessionTable.id, 'system')).run()
+    // A pack still owning the workspace reservation when the purge runs: the
+    // cleanup defers to the orphan sweep and the batch must say so (issue
+    // #21645).
+    const reservation = agentWorkspaceStorageService.reserveWorkspaceStorage(
+      agentWorkspaceStorageService.workspaceStoragePaths(workspacePath(root, 'system')),
+      workspacePath(root, 'system')
+    )
+    expect(typeof reservation).toBe('function')
+    try {
+      const batch = await lifecycle.purgeExpiredSessions(Date.now(), 500)
+      expect(batch.deferredWorkspacePaths).toContain(workspacePath(root, 'system'))
+      expect(existsSync(workspacePath(root, 'system'))).toBe(true)
+    } finally {
+      if (typeof reservation === 'function') reservation()
+    }
   })
 
   it('does not restore a workspace belonging to an independently archived session with its agent', async () => {
