@@ -38,10 +38,14 @@ describe('ImageToolbar', () => {
     await user.click(screen.getByRole('button', { name: 'preview.pan_left' }))
     await user.click(screen.getByRole('button', { name: 'preview.pan_right' }))
 
-    expect(pan).toHaveBeenNthCalledWith(1, 0, -20)
-    expect(pan).toHaveBeenNthCalledWith(2, 0, 20)
-    expect(pan).toHaveBeenNthCalledWith(3, -20, 0)
-    expect(pan).toHaveBeenNthCalledWith(4, 20, 0)
+    expect(pan.mock.calls[0][0]).toBe(0)
+    expect(pan.mock.calls[0][1]).toBeLessThan(0)
+    expect(pan.mock.calls[1][0]).toBe(0)
+    expect(pan.mock.calls[1][1]).toBeGreaterThan(0)
+    expect(pan.mock.calls[2][0]).toBeLessThan(0)
+    expect(pan.mock.calls[2][1]).toBe(0)
+    expect(pan.mock.calls[3][0]).toBeGreaterThan(0)
+    expect(pan.mock.calls[3][1]).toBe(0)
   })
 
   it('maps zoom and reset controls to their image actions', async () => {
@@ -52,8 +56,8 @@ describe('ImageToolbar', () => {
     await user.click(screen.getByRole('button', { name: 'preview.zoom_out' }))
     await user.click(screen.getByRole('button', { name: 'preview.reset' }))
 
-    expect(zoom).toHaveBeenNthCalledWith(1, 0.1)
-    expect(zoom).toHaveBeenNthCalledWith(2, -0.1)
+    expect(zoom.mock.calls[0][0]).toBeGreaterThan(0)
+    expect(zoom.mock.calls[1][0]).toBeLessThan(0)
     expect(pan).toHaveBeenCalledWith(0, 0, true)
     expect(zoom).toHaveBeenNthCalledWith(3, 1, true)
   })

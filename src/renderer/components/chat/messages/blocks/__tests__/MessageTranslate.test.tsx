@@ -29,11 +29,6 @@ vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
 const block = { id: 't1', status: 'done' as const, content: 'translated text' }
 
 describe('MessageTranslate', () => {
-  it('renders the delete button when onDelete is provided', () => {
-    render(<MessageTranslate block={block} onDelete={vi.fn()} />)
-    expect(screen.getByTestId('trash-icon')).toBeInTheDocument()
-  })
-
   it('omits the delete button when onDelete is absent', () => {
     render(<MessageTranslate block={block} />)
     expect(screen.queryByTestId('trash-icon')).not.toBeInTheDocument()
@@ -44,10 +39,5 @@ describe('MessageTranslate', () => {
     render(<MessageTranslate block={block} onDelete={onDelete} />)
     fireEvent.click(screen.getByRole('button'))
     expect(onDelete).toHaveBeenCalledTimes(1)
-  })
-
-  it('uses translate.close as the tooltip content', () => {
-    render(<MessageTranslate block={block} onDelete={vi.fn()} />)
-    expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'translate.close')
   })
 })

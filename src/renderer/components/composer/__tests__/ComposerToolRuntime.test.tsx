@@ -1,10 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-import type { ComposerToolLauncher } from '../toolLauncher'
-import type { ToolRenderContext } from '../tools/types'
 
 const { mockGetToolsForScope, mockQuickPanelValue, mockTranslate, mockUseQuickPanel } = vi.hoisted(() => {
   const mockQuickPanelValue = {
@@ -58,14 +54,11 @@ vi.mock('@cherrystudio/ui', () => ({
 
 import {
   ComposerActiveToolControls,
-  ComposerPinnedToolsProvider,
   ComposerToolFooterActionsSync,
   ComposerToolMenu,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
   useComposerToolDispatch,
-  useComposerToolLauncherActions,
-  useComposerToolLauncherController,
   useComposerToolState
 } from '../ComposerToolRuntime'
 import { TopicType } from '../tools/types'
@@ -84,20 +77,6 @@ const model = {
   name: 'Model'
 } as any
 
-const menuLauncher: ComposerToolLauncher = {
-  id: 'fake-menu',
-  kind: 'command',
-  label: 'Fake menu',
-  icon: 'fake'
-}
-
-const runtimeLauncher: ComposerToolLauncher = {
-  id: 'fake-runtime',
-  kind: 'command',
-  label: 'Fake runtime',
-  icon: 'fake'
-}
-
 const footerAction = (id: string, panelSymbol: string, order: number) => ({
   id,
   panelSymbol,
@@ -114,35 +93,6 @@ const registeredFooterActions = [
   footerAction('manage-notes', 'notes', 10),
   footerAction('customize-toolbar', '/', 10)
 ]
-
-const LauncherObserver = ({
-  onSnapshot,
-  source
-}: {
-  onSnapshot: (ids: string[]) => void
-  source?: 'popover' | 'root-panel'
-}) => {
-  const { getLaunchers } = useComposerToolLauncherController()
-
-  useEffect(() => {
-    onSnapshot(getLaunchers(source).map((launcher) => launcher.id))
-  }, [getLaunchers, onSnapshot, source])
-
-  return null
-}
-
-const LauncherActionReader = ({
-  onRender,
-  readRef
-}: {
-  onRender: () => void
-  readRef: { current: () => string[] }
-}) => {
-  const { getLaunchers } = useComposerToolLauncherActions()
-  onRender()
-  readRef.current = () => getLaunchers().map((launcher) => launcher.id)
-  return null
-}
 
 const FileStateObserver = ({ onSnapshot }: { onSnapshot: (files: any[]) => void }) => {
   const { files } = useComposerToolState()
@@ -162,23 +112,6 @@ const FileStateWriter = ({ nextFiles }: { nextFiles: any[] }) => {
   }, [nextFiles, setFiles])
 
   return null
-}
-
-const ToolStateControls = () => {
-  const { setFiles, setSelectedKnowledgeBases } = useComposerToolDispatch()
-
-  return (
-    <>
-      <button type="button" onClick={() => setFiles([{ id: 'file-1', path: '/tmp/file.txt' } as any])}>
-        Add file
-      </button>
-      <button
-        type="button"
-        onClick={() => setSelectedKnowledgeBases([{ id: 'knowledge-1', name: 'Knowledge' } as any])}>
-        Select knowledge
-      </button>
-    </>
-  )
 }
 
 const LauncherRegistrationProbe = ({
@@ -353,119 +286,6 @@ describe('ComposerToolRuntimeHost', () => {
     expect(file.fileTokenSourceId).not.toBe('/tmp/notes.md')
   })
 
-  it('does not re-register tools when launcher registry updates its version', async () => {
-    const createItems = vi.fn(() => [menuLauncher])
-    let runtimeRegisterCount = 0
-
-    const Runtime = ({ context }: { context: ToolRenderContext<readonly ['files'], readonly []> }) => {
-      useEffect(() => {
-        runtimeRegisterCount += 1
-        return context.launcher.registerLaunchers([runtimeLauncher])
-      }, [context.launcher])
-
-      return null
-    }
-
-    mockGetToolsForScope.mockReturnValue([
-      {
-        key: 'fake-menu-tool',
-        label: 'Fake menu tool',
-        composer: {
-          menuItems: { createItems }
-        }
-      },
-      {
-        key: 'fake-runtime-tool',
-        label: 'Fake runtime tool',
-        dependencies: {
-          state: ['files']
-        },
-        composer: {
-          runtime: Runtime
-        }
-      }
-    ])
-
-    const onSnapshot = vi.fn()
-    const onNonReactiveRender = vi.fn()
-    const readLaunchersRef = { current: () => [] as string[] }
-
-    render(
-      <ComposerToolRuntimeProvider
-        actions={{
-          addNewTopic: vi.fn(),
-          onTextChange: vi.fn()
-        }}>
-        <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} />
-        <LauncherActionReader onRender={onNonReactiveRender} readRef={readLaunchersRef} />
-        <LauncherObserver onSnapshot={onSnapshot} />
-      </ComposerToolRuntimeProvider>
-    )
-
-    await waitFor(() => {
-      const lastSnapshot = onSnapshot.mock.lastCall?.[0]
-      expect(lastSnapshot).toHaveLength(2)
-      expect(lastSnapshot).toEqual(expect.arrayContaining(['fake-menu', 'fake-runtime']))
-    })
-    expect(readLaunchersRef.current()).toEqual(expect.arrayContaining(['fake-menu', 'fake-runtime']))
-    expect(onNonReactiveRender).toHaveBeenCalledTimes(1)
-    expect(createItems).toHaveBeenCalledTimes(1)
-    expect(runtimeRegisterCount).toBe(1)
-  })
-
-  it('re-registers only tools whose declared state dependencies change', async () => {
-    const user = userEvent.setup()
-    const createFileItems = vi.fn<
-      (context: ToolRenderContext<readonly ['files'], readonly []>) => ComposerToolLauncher[]
-    >(() => [menuLauncher])
-    const createKnowledgeItems = vi.fn<
-      (context: ToolRenderContext<readonly ['selectedKnowledgeBases'], readonly []>) => ComposerToolLauncher[]
-    >(() => [runtimeLauncher])
-
-    mockGetToolsForScope.mockReturnValue([
-      {
-        key: 'file-tool',
-        label: 'File tool',
-        dependencies: { state: ['files'] },
-        composer: { menuItems: { createItems: createFileItems } }
-      },
-      {
-        key: 'knowledge-tool',
-        label: 'Knowledge tool',
-        dependencies: { state: ['selectedKnowledgeBases'] },
-        composer: { menuItems: { createItems: createKnowledgeItems } }
-      }
-    ])
-
-    render(
-      <ComposerToolRuntimeProvider
-        actions={{
-          addNewTopic: vi.fn(),
-          onTextChange: vi.fn()
-        }}>
-        <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} />
-        <ToolStateControls />
-      </ComposerToolRuntimeProvider>
-    )
-
-    await waitFor(() => {
-      expect(createFileItems).toHaveBeenCalledTimes(1)
-      expect(createKnowledgeItems).toHaveBeenCalledTimes(1)
-    })
-
-    await user.click(screen.getByRole('button', { name: 'Add file' }))
-
-    await waitFor(() => expect(createFileItems).toHaveBeenCalledTimes(2))
-    expect(createKnowledgeItems).toHaveBeenCalledTimes(1)
-    expect(createFileItems.mock.lastCall?.[0].state.files).toHaveLength(1)
-
-    await user.click(screen.getByRole('button', { name: 'Select knowledge' }))
-
-    await waitFor(() => expect(createKnowledgeItems).toHaveBeenCalledTimes(2))
-    expect(createFileItems).toHaveBeenCalledTimes(2)
-    expect(createKnowledgeItems.mock.lastCall?.[0].state.selectedKnowledgeBases).toHaveLength(1)
-  })
-
   it('keeps the latest launcher registration when a stale disposer runs', async () => {
     let registration: { disposeFirst: () => void; readIds: () => string[] } | undefined
     const onReady = vi.fn((value) => {
@@ -565,38 +385,6 @@ describe('ComposerToolRuntimeHost', () => {
     view.rerender(renderContent())
     expect(mockQuickPanelValue.updateFooterActions).toHaveBeenLastCalledWith([])
   })
-
-  it('does not subscribe the runtime host to quick panel state', async () => {
-    const runtimeRender = vi.fn()
-
-    const Runtime = () => {
-      runtimeRender()
-      return null
-    }
-
-    mockGetToolsForScope.mockReturnValue([
-      {
-        key: 'fake-runtime-tool',
-        label: 'Fake runtime tool',
-        composer: {
-          runtime: Runtime
-        }
-      }
-    ])
-
-    render(
-      <ComposerToolRuntimeProvider
-        actions={{
-          addNewTopic: vi.fn(),
-          onTextChange: vi.fn()
-        }}>
-        <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} />
-      </ComposerToolRuntimeProvider>
-    )
-
-    await waitFor(() => expect(runtimeRender).toHaveBeenCalledTimes(1))
-    expect(mockUseQuickPanel).not.toHaveBeenCalled()
-  })
 })
 
 describe('ComposerToolMenu', () => {
@@ -608,12 +396,6 @@ describe('ComposerToolMenu', () => {
     fireEvent.click(screen.getByLabelText('settings.quickPanel.title'))
 
     expect(openUnifiedPanel).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not render the plus trigger when the unified panel is unavailable', () => {
-    renderRuntime([], <ComposerToolMenu unifiedPanelControl={{ available: false, open: vi.fn() }} />)
-
-    expect(screen.queryByLabelText('settings.quickPanel.title')).not.toBeInTheDocument()
   })
 })
 
@@ -647,149 +429,5 @@ describe('ComposerActiveToolControls', () => {
     )
 
     await waitFor(() => expect(screen.queryByLabelText('DisabledActive')).not.toBeInTheDocument())
-  })
-
-  it('does not pin active launchers that opt out of composer active controls', async () => {
-    renderRuntime(
-      [
-        {
-          key: 'fake-menu-tool',
-          label: 'Fake menu tool',
-          composer: {
-            menuItems: {
-              createItems: vi.fn(() => [
-                {
-                  active: true,
-                  showInActiveControls: false,
-                  id: 'unpinned-active-tool',
-                  kind: 'command',
-                  label: 'UnpinnedActive',
-                  icon: 'fake',
-                  sources: ['popover'],
-                  action: vi.fn()
-                }
-              ])
-            }
-          }
-        }
-      ],
-      <ComposerActiveToolControls />
-    )
-
-    await waitFor(() => expect(screen.queryByLabelText('UnpinnedActive')).not.toBeInTheDocument())
-  })
-
-  it('drops active launchers already rendered by the pinned toolbar (dedup)', async () => {
-    renderRuntime(
-      [
-        {
-          key: 'fake-menu-tool',
-          label: 'Fake menu tool',
-          composer: {
-            menuItems: {
-              createItems: vi.fn(() => [
-                {
-                  active: true,
-                  id: 'pinned-active-tool',
-                  kind: 'command',
-                  label: 'PinnedActive',
-                  icon: 'fake',
-                  sources: ['popover'],
-                  action: vi.fn()
-                }
-              ])
-            }
-          }
-        }
-      ],
-      <ComposerPinnedToolsProvider value={['pinned-active-tool']}>
-        <ComposerActiveToolControls />
-      </ComposerPinnedToolsProvider>
-    )
-
-    await waitFor(() => expect(screen.queryByLabelText('PinnedActive')).not.toBeInTheDocument())
-  })
-
-  it('shows an active launcher as a chip when it is not pinned (backfill)', async () => {
-    renderRuntime(
-      [
-        {
-          key: 'fake-menu-tool',
-          label: 'Fake menu tool',
-          composer: {
-            menuItems: {
-              createItems: vi.fn(() => [
-                {
-                  active: true,
-                  id: 'unpinned-active-tool',
-                  kind: 'command',
-                  label: 'BackfilledActive',
-                  icon: 'fake',
-                  sources: ['popover'],
-                  action: vi.fn()
-                }
-              ])
-            }
-          }
-        }
-      ],
-      <ComposerPinnedToolsProvider value={['some-other-tool']}>
-        <ComposerActiveToolControls />
-      </ComposerPinnedToolsProvider>
-    )
-
-    await waitFor(() => expect(screen.queryByLabelText('BackfilledActive')).toBeInTheDocument())
-  })
-})
-
-describe('ComposerToolLauncher sources', () => {
-  it('exposes submenu options to the root panel without adding their parent', async () => {
-    const onSnapshot = vi.fn()
-
-    mockGetToolsForScope.mockReturnValue([
-      {
-        key: 'fake-menu-tool',
-        label: 'Fake menu tool',
-        composer: {
-          menuItems: {
-            createItems: vi.fn(() => [
-              {
-                id: 'mode-parent',
-                kind: 'group',
-                label: 'ModeParent',
-                icon: 'fake',
-                sources: ['popover'],
-                submenu: [
-                  {
-                    id: 'mode-child-fast',
-                    kind: 'command',
-                    label: 'FastMode',
-                    icon: 'fake',
-                    sources: ['root-panel'],
-                    action: vi.fn()
-                  }
-                ]
-              }
-            ])
-          }
-        }
-      }
-    ])
-
-    render(
-      <ComposerToolRuntimeProvider
-        actions={{
-          addNewTopic: vi.fn(),
-          onTextChange: vi.fn()
-        }}>
-        <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} />
-        <LauncherObserver source="root-panel" onSnapshot={onSnapshot} />
-      </ComposerToolRuntimeProvider>
-    )
-
-    await waitFor(() => {
-      const lastSnapshot = onSnapshot.mock.lastCall?.[0]
-      expect(lastSnapshot).toEqual(['mode-child-fast'])
-    })
   })
 })

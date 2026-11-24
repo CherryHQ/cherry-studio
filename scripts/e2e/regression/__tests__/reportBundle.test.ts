@@ -13,93 +13,74 @@ const bash =
   which.sync('bash', { nothrow: true }) ??
   (process.platform === 'win32' ? join(dirname(which.sync('git')), '..', 'bin', 'bash.exe') : 'bash')
 
-describe('single regression artifact bundle', () => {
-  it('publishes a checkpoint before smoke only after successful sanitization, including tolerated failures', () => {
+describe('desktop regression and smoke report bundle', () => {
+  it('publishes sanitized regression evidence independently of smoke', () => {
     const platformSteps = workflow.jobs.test.steps
-    const generate = platformSteps.find((step: { id?: string }) => step.id === 'regression_checkpoint')
-    const upload = platformSteps.find((step: { name: string }) => step.name === 'Upload regression checkpoint')
-    const finalUpload = platformSteps.find(
-      (step: { name: string }) => step.name === 'Upload platform report and evidence'
+    const finalize = platformSteps.find((step: { id?: string }) => step.id === 'platform_report')
+    const upload = platformSteps.find((step: { name: string }) => step.name === 'Upload platform report and evidence')
+    const smokeUpload = workflow.jobs.smoke.steps.find(
+      (step: { name: string }) => step.name === 'Upload standalone smoke report and evidence'
     )
-    const smoke = platformSteps.find((step: { name: string }) => step.name === 'Run standalone smoke suite')
-    expect(platformSteps.indexOf(generate)).toBeLessThan(platformSteps.indexOf(upload))
-    expect(platformSteps.indexOf(upload)).toBeLessThan(platformSteps.indexOf(smoke))
-    for (const cancelled of [false, true]) {
-      for (const outcome of ['success', 'failure', 'skipped', 'cancelled']) {
-        for (const [step, dependency, skipsCancelled] of [
-          [generate, 'smoke-build', true],
-          [upload, 'regression_checkpoint', true],
-          [finalUpload, 'platform_report', false]
-        ] as const) {
-          const context = {
-            always: () => true,
-            cancelled: () => cancelled,
-            steps: {
-              'smoke-build': { outcome: 'success', conclusion: 'success' },
-              regression_checkpoint: { outcome: 'success', conclusion: 'success' },
-              platform_report: { outcome: 'success', conclusion: 'success' }
-            }
-          }
-          context.steps[dependency].outcome = outcome
-          expect(runInNewContext(step.if, context)).toBe(outcome === 'success' && !(cancelled && skipsCancelled))
-        }
-      }
-    }
-  })
-
-  it('uses the same credential redaction and public evidence roots for checkpoint and final uploads', () => {
-    const platformSteps = workflow.jobs.test.steps
-    const generate = platformSteps.find((step: { id?: string }) => step.id === 'regression_checkpoint')
-    const final = platformSteps.find((step: { id?: string }) => step.id === 'platform_report')
-    expect(generate.run).toContain('cli.ts finalize --run-dir "$RUN_DIR"')
-    expect(final.run).toBe(generate.run)
-    for (const step of [generate, final]) {
-      expect(Object.keys(step.env).sort()).toEqual([
-        'CHERRY_TEST_CHERRYIN_ACCOUNT',
-        'CHERRY_TEST_CHERRYIN_PASSWORD',
-        'CHERRY_TEST_CUSTOM_PROVIDER_API_KEY',
-        'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY'
-      ])
-      for (const [name, value] of Object.entries(step.env)) expect(value).toBe(`\${{ secrets.${name} }}`)
-    }
-    for (const name of ['Upload regression checkpoint', 'Upload platform report and evidence']) {
-      const upload = platformSteps.find((step: { name: string }) => step.name === name)
-      expect(upload.with.name).toBe('test-evidence-${{ matrix.platform }}')
-      expect(upload.with.overwrite).toBe(true)
-      expect(upload.with['include-hidden-files']).not.toBe(true)
-      expect(upload.with.path.trim().split('\n')).toEqual(
-        ['report', 'evidence', 'agent-workspace', 'fixtures', 'release/installation.json'].map(
-          (path) => `\${{ runner.temp }}/cherry-regression/${path}`
-        )
+    expect(workflow.jobs.test.needs).not.toContain('smoke')
+    expect(platformSteps.indexOf(finalize)).toBeLessThan(platformSteps.indexOf(upload))
+    expect(finalize.run).toContain('cli.ts finalize --run-dir "$RUN_DIR"')
+    expect(finalize.env).toBeUndefined()
+    for (const outcome of ['success', 'failure', 'skipped', 'cancelled']) {
+      expect(runInNewContext(upload.if, { always: () => true, steps: { platform_report: { outcome } } })).toBe(
+        outcome === 'success'
+      )
+      expect(runInNewContext(smokeUpload.if, { always: () => true, steps: { smoke: { outcome } } })).toBe(
+        outcome === 'success' || outcome === 'failure'
       )
     }
+    expect(upload.with.name).toBe('test-evidence-${{ matrix.platform }}')
+    expect(smokeUpload.with.name).toBe('smoke-evidence-${{ matrix.platform }}')
+    expect(upload.with.path.trim().split('\n')).toEqual(
+      ['report', 'evidence', 'agent-workspace', 'fixtures', 'release/installation.json'].map(
+        (path) => `\${{ runner.temp }}/cherry-regression/${path}`
+      )
+    )
+    expect(smokeUpload.with.path.trim().split('\n')).toEqual(
+      ['report', 'evidence'].map((path) => `\${{ runner.temp }}/cherry-regression/${path}`)
+    )
   })
 
-  it('keeps final reports and gates mandatory and rejects failed smoke jobs even when regression passes', () => {
-    const platformSteps = workflow.jobs.test.steps
-    expect(
-      platformSteps
-        .filter((step: { 'continue-on-error'?: boolean }) => step['continue-on-error'])
-        .map((step: { name: string }) => step.name)
-    ).toEqual(['Generate regression checkpoint', 'Upload regression checkpoint'])
-    const aggregateGate = workflow.jobs.aggregate.steps.find(
+  it('checks selected suite outcomes even when the other suite passes', () => {
+    const gate = workflow.jobs.aggregate.steps.find(
       (step: { name: string }) => step.name === 'Validate aggregate result'
     )
-    expect(aggregateGate['continue-on-error']).not.toBe(true)
-    expect(runInNewContext(aggregateGate.if, { always: () => true })).toBe(true)
-    for (const result of ['success', 'failure', 'cancelled']) {
-      const execution = spawnSync(bash, ['-e', '-o', 'pipefail', '-c', `pnpm() { return 0; }\n${aggregateGate.run}`], {
-        encoding: 'utf8',
-        env: { ...process.env, TEST_RESULT: result }
-      })
-      expect(execution.status === 0).toBe(result === 'success')
+    expect(gate['continue-on-error']).not.toBe(true)
+    expect(runInNewContext(gate.if, { always: () => true })).toBe(true)
+    expect(workflow.jobs.aggregate.needs).toEqual(['resolve', 'test', 'smoke'])
+    expect(
+      runInNewContext(workflow.jobs.aggregate.if, { always: () => true, needs: { resolve: { result: 'success' } } })
+    ).toBe(true)
+    for (const [regression, smoke, testResult, smokeResult, reportStatus, expected] of [
+      ['true', 'all', 'success', 'success', 0, true],
+      ['true', 'all', 'failure', 'success', 0, false],
+      ['true', 'all', 'success', 'failure', 0, false],
+      ['true', 'all', 'success', 'cancelled', 0, false],
+      ['true', 'all', 'skipped', 'skipped', 0, false],
+      ['true', 'all', 'success', 'success', 1, false],
+      ['true', 'none', 'success', 'skipped', 0, true],
+      ['false', 'all', 'skipped', 'success', 1, true]
+    ] as const) {
+      const execution = spawnSync(
+        bash,
+        ['-e', '-o', 'pipefail', '-c', `pnpm() { return ${reportStatus}; }\n${gate.run}`],
+        {
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            TEST_RESULT: testResult,
+            SMOKE_RESULT: smokeResult,
+            RUN_REGRESSION: regression,
+            RUN_SMOKE: smoke
+          }
+        }
+      )
+      expect(execution.status === 0).toBe(expected)
     }
-  })
-
-  it('requires a resolved target and a non-skipped test job while retaining failed-run reports', () => {
-    expect(workflow.jobs.aggregate.if).toBe(
-      "always() && needs.resolve.result == 'success' && needs.test.result != 'skipped'"
-    )
   })
 
   let directory: string
@@ -108,11 +89,11 @@ describe('single regression artifact bundle', () => {
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, content)
   }
-  const runStep = (name: string, result = 'success') =>
+  const runStep = (name: string, regression = 'true', smoke = 'none') =>
     spawnSync(bash, ['-e', '-o', 'pipefail', '-c', steps.find((step) => step.name === name)!.run!], {
       cwd: directory,
       encoding: 'utf8',
-      env: { ...process.env, TEST_RESULT: result }
+      env: { ...process.env, RUN_REGRESSION: regression, RUN_SMOKE: smoke, SMOKE_SCOPE: smoke }
     })
 
   beforeEach(() => {
@@ -124,13 +105,15 @@ describe('single regression artifact bundle', () => {
     for (const platform of ['macos', 'windows']) {
       write(`downloaded-reports/test-evidence-${platform}/report/results.json`, '{}')
       write(`downloaded-reports/test-evidence-${platform}/evidence/logs/app.log`, platform)
+      write(`downloaded-reports/smoke-evidence-${platform}/report/smoke-results.json`, '{}')
+      write(`downloaded-reports/smoke-evidence-${platform}/report/smoke/index.html`, `smoke ${platform}`)
     }
     write('combined-report/combined-report.md', 'Summary')
     write('combined-report/combined-results.json', '{}')
     write('merged-html/index.html', '<a href="data/evidence.txt">Evidence</a>')
     write('merged-html/data/evidence.txt', 'Attachment')
-    expect(runStep('Collect platform evidence').status).toBe(0)
-    expect(runStep('Assemble complete report').status).toBe(0)
+    expect(runStep('Collect platform evidence', 'true', 'all').status).toBe(0)
+    expect(runStep('Assemble complete report', 'true', 'all').status).toBe(0)
     expect(readFileSync(join(directory, 'combined-report/summary.md'), 'utf8')).toBe('Summary')
     expect(readFileSync(join(directory, 'combined-report/data/evidence.txt'), 'utf8')).toBe('Attachment')
     for (const platform of ['macos', 'windows']) {
@@ -140,20 +123,33 @@ describe('single regression artifact bundle', () => {
     }
   })
 
-  it('prefers fresh evidence and recovers successful unchanged platforms on rerun', () => {
-    write('downloaded-reports/test-evidence-macos/report/results.json', 'fresh')
-    for (const platform of ['macos', 'windows']) {
-      write(`downloaded-reports/test-report/evidence/${platform}/report/results.json`, 'previous')
-    }
-    expect(runStep('Collect platform evidence').status).toBe(0)
-    expect(readFileSync(join(directory, 'platform-reports/macos/report/results.json'), 'utf8')).toBe('fresh')
-    expect(readFileSync(join(directory, 'platform-reports/windows/report/results.json'), 'utf8')).toBe('previous')
+  it('bundles smoke-only reports without regression results and requires evidence from both platforms', () => {
+    write('combined-report/combined-report.md', 'Smoke summary')
+    write('platform-reports/macos/report/smoke-results.json', '{}')
+    write('platform-reports/macos/report/smoke/index.html', 'macOS evidence')
+    expect(runStep('Assemble complete report', 'false', 'all').status).not.toBe(0)
+
+    write('platform-reports/windows/report/smoke-results.json', '{}')
+    write('platform-reports/windows/report/smoke/index.html', 'Windows evidence')
+    expect(runStep('Assemble complete report', 'false', 'all').status).toBe(0)
+    expect(readFileSync(join(directory, 'combined-report/index.html'), 'utf8')).toContain(
+      'evidence/windows/report/smoke/index.html'
+    )
+    expect(readFileSync(join(directory, 'combined-report/summary.md'), 'utf8')).toBe('Smoke summary')
+    expect(existsSync(join(directory, 'combined-report/combined-results.json'))).toBe(false)
   })
 
-  it('does not hide failed jobs behind old evidence or assemble an incomplete bundle', () => {
-    write('downloaded-reports/test-report/evidence/windows/report/results.json', 'previous')
-    expect(runStep('Collect platform evidence', 'failure').status).toBe(0)
-    expect(existsSync(join(directory, 'platform-reports/windows'))).toBe(false)
-    expect(runStep('Assemble complete report').status).not.toBe(0)
+  it('cannot substitute an older aggregate bundle for a missing suite report', () => {
+    for (const platform of ['macos', 'windows']) {
+      write(`downloaded-reports/test-evidence-${platform}/report/results.json`, '{}')
+    }
+    write('downloaded-reports/smoke-evidence-macos/report/smoke-results.json', '{}')
+    write('downloaded-reports/smoke-evidence-macos/report/smoke/index.html', 'macOS evidence')
+    write('downloaded-reports/test-report/evidence/windows/report/smoke-results.json', '{}')
+    write('downloaded-reports/test-report/evidence/windows/report/smoke/index.html', 'Previous Windows evidence')
+
+    expect(runStep('Collect platform evidence', 'true', 'all').status).toBe(0)
+    expect(existsSync(join(directory, 'platform-reports/windows/report/smoke-results.json'))).toBe(false)
+    expect(runStep('Assemble complete report', 'true', 'all').status).not.toBe(0)
   })
 })

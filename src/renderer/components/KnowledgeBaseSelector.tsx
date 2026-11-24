@@ -106,13 +106,14 @@ export const KnowledgeBaseSelector = ({
       data-testid="knowledge-base-selector-content">
       {({ availableListHeight }) => (
         <ScrollArea
+          contentProps={{ className: 'px-1 py-1' }}
           viewportProps={{
             id: listboxId,
             ref: listRef,
             role: 'listbox',
             'aria-label': ariaLabel,
             tabIndex: -1,
-            className: 'px-1 py-1 outline-none'
+            className: 'outline-none'
           }}
           className="min-h-0 flex-1"
           style={{ height: availableListHeight ?? listHeight }}>

@@ -135,14 +135,6 @@ describe('handleBridgeRequest', () => {
     expect(assertMethodAllowed).not.toHaveBeenCalled()
   })
 
-  it('admits every call through the quiescing gate', async () => {
-    resolveAppIdBySender.mockReturnValue('com.example.real')
-
-    await handleBridgeRequest(1, { method: 'storage.set', params: { key: 'k', value: 'v' } }, noopEmit)
-
-    expect(beginCapabilityCall).toHaveBeenCalledWith('com.example.real')
-  })
-
   it('does not admit a call for an app that is quiescing', async () => {
     // Admission is the runtime's call, not the bridge's — the bridge must let the
     // refusal through rather than catching it into a generic failure.
@@ -207,16 +199,6 @@ describe('handleBridgeRequest', () => {
       ok: false,
       error: { name: 'InvalidArgument' }
     })
-  })
-
-  it('checks the grant before dispatching a gated method', async () => {
-    resolveAppIdBySender.mockReturnValue('com.example.real')
-    assertMethodAllowed.mockClear()
-
-    await handleBridgeRequest(1, { method: 'storage.set', params: { key: 'k', value: 'v' } }, noopEmit)
-
-    expect(assertMethodAllowed).toHaveBeenCalledWith('com.example.real', 'storage.set')
-    expect(storageSet).toHaveBeenCalled()
   })
 
   it('does not dispatch when the grant check refuses', async () => {

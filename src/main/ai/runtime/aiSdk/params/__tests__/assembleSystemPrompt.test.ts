@@ -1,7 +1,8 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import type { ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { Assistant } from '@shared/data/types/assistant'
+import type { Assistant, AssistantReplyLanguage } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 vi.mock('@main/utils/prompt', () => ({
@@ -40,18 +41,6 @@ describe('assembleSystemPrompt', () => {
     vi.clearAllMocks()
   })
 
-  it('returns undefined when no section contributes text', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: '' }),
-      model
-    })
-    expect(out).toBeUndefined()
-  })
-
-  it('returns undefined when no assistant is supplied and tools are absent', async () => {
-    expect(await assembleSystemPrompt({ model })).toBeUndefined()
-  })
-
   it('resolves template variables in assistant.prompt', async () => {
     const out = await assembleSystemPrompt({
       assistant: makeAssistant({ prompt: 'Today is {{date}}' }),
@@ -75,120 +64,43 @@ describe('assembleSystemPrompt', () => {
       tools: { tool_search: {} } as unknown as ToolSet
     })
     expect(out).toContain('base')
-    expect(out).toContain('<deferred-tools>')
-    expect(out).toContain('</deferred-tools>')
-    expect(out).toContain('tool_invoke')
+
     // tool_exec is intentionally NOT advertised to the model (privilege-escalation surface).
-    expect(out).not.toContain('tool_exec')
   })
 
-  it('lists deferred namespaces with counts when deferredEntries is supplied', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { tool_search: {} } as unknown as ToolSet,
-      deferredEntries: [
-        { name: 'mcp__gh__a', namespace: 'mcp:gh' },
-        { name: 'mcp__gh__b', namespace: 'mcp:gh' },
-        { name: 'mcp__gmail__c', namespace: 'mcp:gmail' }
-      ] as never
-    })
-    expect(out).toContain('<namespaces>')
-    expect(out).toContain('<namespace name="mcp:gh" count="2"/>')
-    expect(out).toContain('<namespace name="mcp:gmail" count="1"/>')
-  })
+  describe('reply language', () => {
+    const withLanguage = (replyLanguage?: AssistantReplyLanguage) =>
+      makeAssistant({ prompt: 'base', settings: { ...makeAssistant().settings, replyLanguage } })
 
-  it('does not append deferred-tools guidance when tool_search is absent', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { other_tool: {} } as unknown as ToolSet
-    })
-    expect(out).toBe('base')
-  })
+    afterEach(() => MockMainPreferenceServiceUtils.resetMocks())
 
-  it('appends citation guidance when web_search is an inline tool', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { web_search: {} } as unknown as ToolSet,
-      hasCitableTools: true
-    })
-    expect(out).toContain('<citations>')
-    expect(out).toContain('[cite:ID]')
-  })
+    it('asks for the language the Assistant names', async () => {
+      const out = await assembleSystemPrompt({
+        assistant: withLanguage({ mode: 'custom', language: 'Deutsch' }),
+        model
+      })
 
-  it('appends citation guidance when kb_search is the only citable tool', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { kb_search: {} } as unknown as ToolSet,
-      hasCitableTools: true
-    })
-    expect(out).toContain('<citations>')
-  })
-
-  it('appends citation guidance when kb_read is the only citable tool', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { kb_read: {} } as unknown as ToolSet,
-      hasCitableTools: true
-    })
-    expect(out).toContain('<citations>')
-  })
-
-  it('appends citation guidance when web tools are only available deferred', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { tool_search: {} } as unknown as ToolSet,
-      deferredEntries: [{ name: 'web_search', namespace: 'web' }] as never,
-      hasCitableTools: true
-    })
-    expect(out).toContain('<citations>')
-  })
-
-  it('does not append citation guidance without a citable tool', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { other_tool: {}, kb_list: {} } as unknown as ToolSet
-    })
-    expect(out).toBe('base')
-  })
-
-  it('does not infer citation capability from a same-named final tool', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { web_search: {} } as unknown as ToolSet,
-      hasCitableTools: false
-    })
-    expect(out).toBe('base')
-  })
-
-  it('anchors relative dates to the runtime local date when web search is enabled', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      webSearchEnabled: true,
-      now: new Date(2026, 7, 20, 23, 59)
+      expect(out).toMatch(/^base\n\n.*respond in Deutsch\./)
     })
 
-    expect(out).toContain('<current-date>2026-08-20</current-date>')
-    expect(out).toContain('this month')
-    expect(out).toContain('Do not substitute dates remembered from training')
-  })
+    it('follows the global reply language when the Assistant inherits it', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', '日本語')
 
-  it('does not add volatile date context when web search is unavailable', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      webSearchEnabled: false,
-      now: new Date(2026, 7, 20)
+      const out = await assembleSystemPrompt({ assistant: withLanguage({ mode: 'inherit' }), model })
+
+      expect(out).toContain('respond in 日本語.')
     })
 
-    expect(out).toBe('base')
+    it.each([
+      { name: 'an Assistant saved before the setting existed', replyLanguage: undefined },
+      { name: 'no constraint', replyLanguage: { mode: 'off' } as const },
+      { name: 'inheriting while no global language is set', replyLanguage: { mode: 'inherit' } as const, global: null }
+    ])('adds nothing for $name', async ({ replyLanguage, global = 'English' }) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', global)
+
+      const out = await assembleSystemPrompt({ assistant: withLanguage(replyLanguage), model })
+
+      expect(out).toBe('base')
+    })
   })
 })

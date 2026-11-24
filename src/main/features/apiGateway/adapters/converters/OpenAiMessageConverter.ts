@@ -5,6 +5,7 @@
  * Handles messages, tools, and extended features like reasoning_content.
  */
 
+import type { JSONValue } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { jsonSchema, tool } from 'ai'
@@ -15,6 +16,7 @@ import type {
   ChatCompletionUserMessageParam
 } from '@cherrystudio/openai/resources'
 import type { ChatCompletionCreateParamsBase } from '@cherrystudio/openai/resources/chat/completions'
+import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -22,6 +24,9 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
+import { isBlankToolName } from './toolName'
+
+const logger = loggerService.withContext('OpenAiMessageConverter')
 
 let uiMessageSeq = 0
 function nextUIMessageId(): string {
@@ -44,6 +49,7 @@ export interface ExtendedChatCompletionCreateParams extends ChatCompletionCreate
  */
 interface ExtendedAssistantMessage extends ChatCompletionAssistantMessageParam {
   reasoning_content?: string | null
+  reasoning_details?: JSONValue[]
 }
 
 /**
@@ -157,8 +163,12 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
     const parts: CherryUIMessage['parts'] = []
 
     // reasoning_content (DeepSeek-style thinking)
-    if (msg.reasoning_content) {
-      const p: ReasoningUIPart = { type: 'reasoning', text: msg.reasoning_content }
+    if (msg.reasoning_content || msg.reasoning_details?.length) {
+      const p: ReasoningUIPart = {
+        type: 'reasoning',
+        text: msg.reasoning_content ?? '',
+        ...(msg.reasoning_details && { providerMetadata: { openrouter: { reasoning_details: msg.reasoning_details } } })
+      }
       parts.push(p)
     }
 
@@ -200,9 +210,19 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
     if (!tools || tools.length === 0) return undefined
 
     const aiSdkTools: ToolSet = {}
+    const droppedTools: Array<{ index: number; path: string; name: string; description?: string | null }> = []
 
-    for (const toolDef of tools) {
+    for (const [index, toolDef] of tools.entries()) {
       if (toolDef.type !== 'function') continue
+      if (isBlankToolName(toolDef.function.name)) {
+        droppedTools.push({
+          index,
+          path: `tools[${index}].function.name`,
+          name: toolDef.function.name,
+          description: toolDef.function.description
+        })
+        continue
+      }
 
       const rawSchema = toolDef.function.parameters
       const schema = rawSchema ?? { type: 'object' as const }
@@ -214,6 +234,14 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
       })
 
       aiSdkTools[toolDef.function.name] = aiTool
+    }
+
+    if (droppedTools.length > 0) {
+      logger.warn('Dropped tools with empty or whitespace-only names before provider request', {
+        inputFormat: 'openai',
+        model: params.model,
+        droppedTools
+      })
     }
 
     return Object.keys(aiSdkTools).length > 0 ? aiSdkTools : undefined

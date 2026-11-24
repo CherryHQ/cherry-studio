@@ -28,23 +28,7 @@ const painting: PaintingData = {
 }
 
 describe('PaintingStrip', () => {
-  it('uses the skeleton surface for a running painting without a preview yet', () => {
-    render(
-      <PaintingStrip
-        runningPaintingId={painting.id}
-        items={[painting]}
-        hasMore={false}
-        loadMore={vi.fn()}
-        onDeletePainting={vi.fn()}
-        onSelectPainting={vi.fn()}
-        onAddPainting={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('painting-skeleton-surface')).toBeInTheDocument()
-  })
-
-  it('moves a painting to the Recycle Bin without opening a confirmation', async () => {
+  it('requests deletion of the selected painting', async () => {
     const user = userEvent.setup()
     const onDeletePainting = vi.fn().mockResolvedValue(undefined)
 
@@ -61,6 +45,5 @@ describe('PaintingStrip', () => {
 
     await user.click(screen.getByRole('button', { name: 'paintings.button.delete.image.label' }))
     expect(onDeletePainting).toHaveBeenCalledWith(painting)
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

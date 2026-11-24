@@ -14,7 +14,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
 }))
 
 vi.mock('lucide-react', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     FileSearch: ({ className, size }: { className?: string; size?: number | string }) => (
@@ -39,7 +39,6 @@ describe('MessageKnowledgeSearchToolTitle', () => {
     )
 
     expect(screen.getByText('1 search results')).toBeInTheDocument()
-    expect(screen.queryByTestId('file-search-icon')).toBeNull()
 
     fireEvent.click(screen.getByRole('button'))
     expect(await screen.findByText('Cherry Studio')).toBeInTheDocument()

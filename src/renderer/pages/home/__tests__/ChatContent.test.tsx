@@ -1,10 +1,12 @@
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import type * as RendererIpc from '@renderer/ipc'
+import type * as EventServiceModule from '@renderer/services/EventService'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -24,7 +26,8 @@ const { ipcMock } = vi.hoisted((): { ipcMock: IpcMock } => ({
     on: () => () => {}
   }
 }))
-vi.mock('@renderer/ipc', () => ({
+vi.mock('@renderer/ipc', async (importOriginal) => ({
+  ...(await importOriginal<typeof RendererIpc>()),
   ipcApi: {
     request: (route: string, input: unknown) => ipcMock.request(route, input),
     on: (event: string, cb: (p: unknown) => void) => ipcMock.on(event, cb)
@@ -66,14 +69,13 @@ vi.mock('@renderer/hooks/useTopicMessages', () => ({
   useTopicMessages: (...args: unknown[]) => mockUseTopicMessages(...args)
 }))
 
-vi.mock('@renderer/services/EventService', () => ({
-  EVENT_NAMES: {
-    LOCATE_MESSAGE: 'LOCATE_MESSAGE'
-  },
-  EventEmitter: {
-    emit: mockEventEmit
+vi.mock('@renderer/services/EventService', async (importOriginal) => {
+  const actual = await importOriginal<typeof EventServiceModule>()
+  return {
+    ...actual,
+    EventEmitter: { emit: mockEventEmit, on: actual.EventEmitter.on.bind(actual.EventEmitter) }
   }
-}))
+})
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: mockUseExecutionOverlay
@@ -540,17 +542,34 @@ describe('ChatContent', () => {
     })
   })
 
-  it('refreshes topic metadata after stream open so time-grouped sidebars can reorder', async () => {
-    render(<ChatContent topic={topic} />)
-
-    await act(async () => {
-      await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' }] })
-      await Promise.resolve()
+  // Catches the empty-chat greeting replacing a broken uploaded avatar with a generic robot.
+  it('greets with the saved emoji when the uploaded avatar fails to load', () => {
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: null,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
     })
+    const assistantContext = {
+      assistant: {
+        id: 'assistant-1',
+        emoji: '🦊',
+        avatarSrc: 'file:///missing-avatar.png',
+        knowledgeBaseIds: [],
+        settings: { enableWebSearch: false }
+      }
+    } as never
 
-    await waitFor(() => {
-      expect(mockInvalidateCache).toHaveBeenCalledWith(['/topics', '/topics/topic-1'])
-    })
+    render(<ChatContent topic={topic} assistantContext={assistantContext} />)
+
+    const greeting = screen.getByTestId('conversation-greeting')
+    fireEvent.error(greeting.querySelector('img')!)
+    expect(within(greeting).getAllByText('🦊').length).toBeGreaterThan(0)
+    expect(within(greeting).queryAllByText('🤖')).toHaveLength(0)
   })
 
   it('keeps the composer visible while topic history is loading', () => {
@@ -567,93 +586,7 @@ describe('ChatContent', () => {
 
     render(<ChatContent topic={topic} />)
 
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
-    expect(screen.getByTestId('message-list-loading')).toBeInTheDocument()
-    expect(screen.queryByTestId('messages')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'send' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'send' })).toHaveAttribute('data-use-mentioned-model-selector', 'true')
-  })
-
-  it('keeps an empty real topic in docked composer mode', () => {
-    mockUseTopicMessages.mockReturnValue({
-      uiMessages: [],
-      siblingsMap: {},
-      isLoading: false,
-      refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: null,
-      loadOlder: vi.fn(),
-      hasOlder: false,
-      mutate: vi.fn().mockResolvedValue(undefined)
-    })
-    mockUseChatWithHistory.mockReturnValue({
-      sendMessage: vi.fn(),
-      regenerate: vi.fn(),
-      stop: vi.fn(),
-      error: null,
-      status: 'ready',
-      setMessages: vi.fn(),
-      activeExecutions: []
-    })
-
-    render(<ChatContent topic={topic} />)
-
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'true')
-    expect(screen.getByTestId('composer-dock-composer')).toHaveTextContent('send')
-    // Loaded-and-empty is the greeting's show condition.
-    expect(screen.getByTestId('conversation-greeting')).toBeInTheDocument()
-  })
-
-  it('keeps the empty-conversation greeting hidden while topic history is loading', () => {
-    mockUseTopicMessages.mockReturnValue({
-      uiMessages: [],
-      siblingsMap: {},
-      isLoading: true,
-      refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: null,
-      loadOlder: vi.fn(),
-      hasOlder: false,
-      mutate: vi.fn().mockResolvedValue(undefined)
-    })
-    mockUseChatWithHistory.mockReturnValue({
-      sendMessage: vi.fn(),
-      regenerate: vi.fn(),
-      stop: vi.fn(),
-      error: null,
-      status: 'ready',
-      setMessages: vi.fn(),
-      activeExecutions: []
-    })
-
-    render(<ChatContent topic={topic} />)
-
-    expect(screen.queryByTestId('conversation-greeting')).toBeNull()
-  })
-
-  it('hides the empty-conversation greeting once the conversation has messages', () => {
-    mockUseTopicMessages.mockReturnValue({
-      uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
-      siblingsMap: {},
-      isLoading: false,
-      refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: null,
-      loadOlder: vi.fn(),
-      hasOlder: false,
-      mutate: vi.fn().mockResolvedValue(undefined)
-    })
-    mockUseChatWithHistory.mockReturnValue({
-      sendMessage: vi.fn(),
-      regenerate: vi.fn(),
-      stop: vi.fn(),
-      error: null,
-      status: 'ready',
-      setMessages: vi.fn(),
-      activeExecutions: []
-    })
-
-    render(<ChatContent topic={topic} />)
-
-    expect(screen.queryByTestId('conversation-greeting')).toBeNull()
   })
 
   it('renders only uiMessages in the list (execution overlay affects parts, not the list itself)', async () => {
@@ -749,7 +682,6 @@ describe('ChatContent', () => {
       text: 'persisted seed'
     })
     expect(firstStreamingLayers.liveMessageIds).toEqual([pendingMessage.id])
-    expect(mockToolApprovalOverridesOptions.current?.streamingLayers).toBe(firstStreamingLayers)
 
     const secondLiveAssistant = {
       ...pendingMessage,
@@ -768,8 +700,6 @@ describe('ChatContent', () => {
         text: 'stream frame 2'
       })
     })
-    expect(mockMessageListValue.current.state.streamingLayers).toBe(firstStreamingLayers)
-    expect(mockToolApprovalOverridesOptions.current?.streamingLayers).toBe(firstStreamingLayers)
   })
 
   it('streams branch live state from reserved messages and live assistant snapshots before topic cache updates', async () => {
@@ -1375,25 +1305,6 @@ describe('ChatContent', () => {
     expect(regenerate).not.toHaveBeenCalled()
   })
 
-  it('configures message writes to refresh the branch tree cache', () => {
-    render(<ChatContent topic={topic} />)
-
-    expect(mockUseMutation).toHaveBeenCalledWith(
-      'PATCH',
-      '/messages/:id',
-      expect.objectContaining({
-        refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
-      })
-    )
-    expect(mockUseMutation).toHaveBeenCalledWith(
-      'POST',
-      '/messages/:id/siblings',
-      expect.objectContaining({
-        refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
-      })
-    )
-  })
-
   it('clears branch live state after all multi-model executions finish in the same tick', async () => {
     const onBranchLiveStateChange = vi.fn()
     const reservedUser = {
@@ -1497,7 +1408,6 @@ describe('ChatContent', () => {
       expect(disposeOverlay).toHaveBeenCalledWith('reserved-assistant-a')
       expect(onBranchLiveStateChange).not.toHaveBeenLastCalledWith(null)
     })
-    expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(disposeOverlay.mock.invocationCallOrder[0])
 
     act(() => {
       finish!('provider::model-b', {

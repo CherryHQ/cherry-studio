@@ -11,7 +11,7 @@ import type { ToolStatus } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
 import { getSessionDeliveryStatus } from './sessionDeliveryStatus'
-import { parseSessionCreateResult } from './sessionToolResult'
+import { getSessionCreateTargetAgentName, parseSessionCreateResult } from './sessionToolResult'
 
 interface SessionCreateInput {
   message?: string
@@ -50,6 +50,8 @@ export function SessionCreateTool({
   const sessionInput = getInput(input)
   const result = parseSessionCreateResult(output)
   const title = sessionInput.title?.trim() || t('message.tools.sessionCreate.untitled')
+  const targetAgentName = getSessionCreateTargetAgentName(result)
+  const targetLabel = [targetAgentName, title].filter(Boolean).join(' / ')
   const message = sessionInput.message?.trim()
   const deliveryStatus = getSessionDeliveryStatus(result?.delivery?.status, t)
   const errorText = hasError ? extractToolErrorText(output) : undefined
@@ -76,8 +78,8 @@ export function SessionCreateTool({
           <GitBranchPlus aria-hidden="true" size={13} strokeWidth={1.9} />
         </span>
         <span className="shrink-0">{actionLabel}</span>
-        <span className="truncate text-foreground" title={title}>
-          {title}
+        <span className="truncate text-foreground" title={targetLabel}>
+          {targetLabel}
         </span>
       </div>
     ),
@@ -100,9 +102,11 @@ export function SessionCreateTool({
                 <div className="truncate font-medium text-foreground text-sm" title={title}>
                   {title}
                 </div>
-                <div className="mt-0.5 text-foreground-tertiary text-xs">
-                  {t('message.tools.sessionCreate.inheritedContext')}
-                </div>
+                {targetAgentName === undefined ? (
+                  <div className="mt-0.5 text-foreground-tertiary text-xs">
+                    {t('message.tools.sessionCreate.inheritedContext')}
+                  </div>
+                ) : null}
               </div>
               {result ? (
                 <Badge

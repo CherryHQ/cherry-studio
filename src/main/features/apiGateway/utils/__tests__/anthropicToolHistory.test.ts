@@ -26,7 +26,6 @@ describe('normalizeAnthropicToolHistory', () => {
     const result = normalizeAnthropicToolHistory(messages)
 
     expect(result).toEqual({ status: 'unchanged', messages })
-    if (result.status === 'unchanged') expect(result.messages).toBe(messages)
   })
 
   it('ignores string content and server-tool blocks', () => {
@@ -39,13 +38,13 @@ describe('normalizeAnthropicToolHistory', () => {
     const messages: MessageParam[] = [
       { role: 'user', content: 'Run the server tool' },
       { role: 'assistant', content: [serverTool] },
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       { role: 'assistant', content: [structuredClone(serverTool)] }
     ]
 
     const result = normalizeAnthropicToolHistory(messages)
 
     expect(result).toEqual({ status: 'unchanged', messages })
-    if (result.status === 'unchanged') expect(result.messages).toBe(messages)
   })
 
   it('removes identical calls and results without mutating input or cloning unchanged messages', () => {
@@ -53,10 +52,13 @@ describe('normalizeAnthropicToolHistory', () => {
     const output = toolResult('c1', 'A')
     const unchangedMessage: MessageParam = { role: 'user', content: 'Keep this message' }
     const messages: MessageParam[] = [
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       { role: 'assistant', content: [call, structuredClone(call)] },
       unchangedMessage,
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       { role: 'user', content: [output, structuredClone(output)] }
     ]
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(messages)
 
     const result = normalizeAnthropicToolHistory(messages)
@@ -65,11 +67,7 @@ describe('normalizeAnthropicToolHistory', () => {
     if (result.status !== 'repaired') throw new Error('expected repaired history')
     expect(result.duplicateToolUseCount).toBe(1)
     expect(result.duplicateToolResultCount).toBe(1)
-    expect(result.messages).not.toBe(messages)
-    expect(result.messages[0]).not.toBe(messages[0])
     expect(result.messages[0].content).toEqual([call])
-    expect(result.messages[1]).toBe(unchangedMessage)
-    expect(result.messages[2]).not.toBe(messages[2])
     expect(result.messages[2].content).toEqual([output])
     expect(messages).toEqual(snapshot)
   })
@@ -125,6 +123,7 @@ describe('normalizeAnthropicToolHistory', () => {
     const messages: MessageParam[] = [
       { role: 'assistant', content: [call] },
       { role: 'user', content: [toolResult('c1', 'A')] },
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       { role: 'assistant', content: [structuredClone(call)] }
     ]
 

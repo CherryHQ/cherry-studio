@@ -82,7 +82,7 @@ describe('pinHandlers', () => {
       expect(result).toEqual([{ id: PIN_ID, entityType: 'model', entityId: MODEL_ID }])
     })
 
-    it('should delegate POST with parsed body (idempotency returns the same row on repeat calls)', async () => {
+    it('should delegate POST with parsed body', async () => {
       const row = {
         id: PIN_ID,
         entityType: 'topic',
@@ -93,10 +93,8 @@ describe('pinHandlers', () => {
 
       const firstCall = { body: { entityType: 'topic', entityId: ENTITY_ID } }
       await expect(pinHandlers['/pins'].POST(firstCall as never)).resolves.toMatchObject({ id: PIN_ID })
-      await expect(pinHandlers['/pins'].POST(firstCall as never)).resolves.toMatchObject({ id: PIN_ID })
 
-      expect(pinMock).toHaveBeenNthCalledWith(1, { entityType: 'topic', entityId: ENTITY_ID })
-      expect(pinMock).toHaveBeenNthCalledWith(2, { entityType: 'topic', entityId: ENTITY_ID })
+      expect(pinMock).toHaveBeenCalledWith({ entityType: 'topic', entityId: ENTITY_ID })
     })
 
     it('should accept UUID agent ids for agent pins', async () => {

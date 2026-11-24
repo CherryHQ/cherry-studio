@@ -9,7 +9,7 @@ const Stability = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const StabilityIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Stability, {
   Avatar: StabilityAvatar,
-  colorPrimary: '#E80000'
+  colorPrimary: '#fde8e8'
 })
 
 export default StabilityIcon

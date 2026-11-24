@@ -9,11 +9,15 @@ runs in the completion callback on the host's main thread. Calls finish before t
 worker is released; native crashes are not isolated from the host process.
 
 macOS uses NSWorkspace file URLs, Windows uses SHAssocEnumHandlers and
-IAssocHandler::Invoke, and Linux uses GIO content types and GAppInfo. Opening
-re-enumerates the file's current handlers and rejects missing identities. The
-list includes default metadata separately; Main removes its duplicate menu row,
-hashes application identities for the renderer, and owns caching and dangerous
-extension policy. Directory editors and terminals remain in the existing service.
+IAssocHandler::Invoke, and Linux uses GIO content types and GAppInfo. Folder
+paths are enumerated through the same APIs: macOS resolves folder URLs through
+NSWorkspace, Linux uses `inode/directory` content, while Windows enumerates the `Folder` and `Directory`
+programmatic identifiers and omits Explorer because Main presents the system file
+manager as its own row. Opening re-enumerates the path's current handlers and
+rejects missing identities. The list includes default metadata separately; Main
+removes its duplicate menu row, hashes application identities for the renderer,
+and owns caching and dangerous extension policy. Terminals from the curated list,
+and every editor when enumeration is unavailable, remain in the existing service.
 
 Applications declare support through OS registrations. Results do not prove
 actual parsing compatibility, and successful activation does not prove rendering.
@@ -72,7 +76,9 @@ xvfb-run -a env LD_PRELOAD=libgtk-4.so.1 node native/external-app/linux/smoke.cj
 The Windows icon smoke creates temporary per-user file associations and compares
 different DLL resource indices for identical executables, then removes them.
 Linux smoke uses isolated XDG directories to check themed and absolute SVG icons,
-missing/corrupt icon fallback, and launching. Standalone Node preloads GTK for
+missing/corrupt icon fallback, and launching both files and folders with Unicode
+and spaces in their paths. Folder handlers declare `MimeType=inode/directory;`
+in their desktop entries. Standalone Node preloads GTK for
 this test; passing the Electron binary path as the first smoke argument runs the
 same assertions inside Electron (with `--gtk-version=3` or `--gtk-version=4` as the
 next argument). Electron provides its own loaded GTK. No display means themed icon

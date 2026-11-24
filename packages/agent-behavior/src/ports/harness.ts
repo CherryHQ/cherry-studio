@@ -1,17 +1,7 @@
 import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { Effect, JobKind, JobSpec, Step, StopCause, TurnInput } from '../core/decisions'
-import type {
-  CallKey,
-  ConversationFacts,
-  GateCall,
-  GateFacts,
-  HistoryEntry,
-  PolicyRecord,
-  RunEndFacts,
-  ToolResultFact
-} from '../core/facts'
-import type { CompactionReason } from '../core/hostFacts'
+import type { CallKey, ConversationFacts, GateCall, GateFacts, RunEndFacts, ToolResultFact } from '../core/facts'
 import type { Key } from '../core/keys'
 
 export type TransactResult<R extends JsonValue> = {
@@ -48,7 +38,7 @@ export interface Ledger {
     thread: ThreadId,
     decide: (facts: ConversationFacts) => Step<R>
   ): Promise<TransactResult<R>>
-  /** What the model would see next on `thread`, a compaction's summary included, for the verifier and summarizer. */
+  /** What the model would see next on `thread`, including a compaction summary, for the verifier. */
   modelContext(thread: ThreadId): Promise<readonly JsonValue[]>
 }
 
@@ -246,7 +236,7 @@ export interface Tools {
 }
 
 export type GateVerdict = { readonly block?: string; readonly args?: JsonValue }
-/** For handlers that run where the harness cannot commit (Durable's hooks): the gate and `onCompacting`. */
+/** For handlers that run where the harness cannot commit, such as Durable's tool gate. */
 export type GatePorts = Pick<HarnessPorts, 'memory' | 'clock'>
 export interface GateHandlers {
   /**
@@ -311,7 +301,7 @@ export interface RequestMeterHandler {
  *
  * Every conversation's requests are metered, each with its lineage, so the cap applies to children only.
  *
- * @harness coding-agent Wraps the stream function and the summarizer; a subagent session is `'child'`.
+ * @harness coding-agent Wraps the stream function, including native summaries; a subagent session is `'child'`.
  * @harness durable The model bridge counts per session id, rebuilt from the run's entries, and fails a refused request
  * with a non-retryable `quota exceeded` error; the adapter reports such a child run as `limit_reached`. A conversation
  * with a parent is `'child'`.
@@ -323,36 +313,10 @@ export interface RequestMeter {
   register(handler: RequestMeterHandler): void
 }
 
-/** A compaction about to happen: what the summary must cover, under a key a rerun of this compaction keeps. */
-export type CompactionRequest = {
-  /** Durable: the compaction task id; coding-agent: `<sessionId>:<id of the entry the compaction follows>`. */
-  readonly key: string
-  /** Full branch captured before the summary request; adapters persist any returned accounting once by its key. */
-  readonly history: readonly HistoryEntry[]
-  readonly reason: CompactionReason
-  readonly messages: readonly JsonValue[]
-  readonly previousSummary?: string
-  readonly instructions?: string
-  readonly signal: AbortSignal
-}
-/**
- * The summary to compact with, or a decline that cancels the compaction (D33); a decline's `reason` is the summarizer's
- * error or an empty summary, for the host to show as the compaction's failure.
- */
-export type CompactionVerdict =
-  | {
-      readonly summary: string
-      readonly accounting?: {
-        readonly key: string
-        readonly record: Extract<PolicyRecord, { readonly type: 'summary-usage' }>
-      }
-    }
-  | { readonly decline: true; readonly reason: string }
 export interface LifecycleHandlers {
   onOpen(thread: ThreadId, open: { readonly reopened: boolean }, ports: BoundPorts): Promise<void>
   /** A committed child's native session failed to open; runs before that commit's jobs start. */
   onChildOpenFailed?(parent: ThreadId, child: ThreadId, error: string, ports: BoundPorts): Promise<void>
-  onCompacting(thread: ThreadId, request: CompactionRequest, ports: GatePorts): Promise<CompactionVerdict>
   onCompacted(thread: ThreadId, ports: BoundPorts): Promise<void>
   onClose(thread: ThreadId, ports: BoundPorts): Promise<void>
 }
@@ -367,29 +331,20 @@ export interface LifecycleHandlers {
  * the stopped run and its foreground children may still appear active in the facts, so `onOpen` must not decide on
  * facts read after its own stop. No conversation's interrupted run resumes before its own `onOpen` has run.
  *
- * `onCompacting` decides a compaction before it happens: the package summarizes with the host's `Summarizer` and
- * answers with the summary or a decline, and the harness compacts only with a summary. Its optional accounting is
- * persisted alongside the summary or its memo and projected once into history, including child run usage. Adapters never call
- * `Summarizer` themselves. A compaction during a run is one model request of that run: the harness asks
- * `RequestMeter.allow` first, counts it, and a refusal cancels the compaction without asking `onCompacting`.
+ * Each runtime owns compaction and its summary. Every native summary request is metered individually, and reported
+ * usage is attributed to the initiating goal and child run even when compaction outlives that run.
  *
  * `onCompacted` may be called while a run is active (coding-agent's automatic compaction fires inside a run), and
  * `hostCallInFlight` may still be true when it starts. It must not `append-quiet` there: it ensures the idle driver,
  * which writes the compaction status once the conversation is idle.
  *
- * @harness coding-agent `session_start`, `session_before_compact` (cancelled on a decline, whose `reason` becomes the
- * `compaction-end` error), the end of the compaction and `session_shutdown`; runs do not resume, so there is no stop
- * before resume.
+ * @harness coding-agent `session_start`, the end of compaction and `session_shutdown`; runs do not resume.
  * @harness durable The host calls `onOpen` for every conversation after `Harness.open` and `inspect()` and before
  * `resume()`. Stops there only mark (`abortTask`, `abortSubmission`), because `abort()`, `submit` and the waits enable
- * scheduling; `beforeCompact` returns `{ summary }`, or `{ decline: true }` with the `reason` reported to the host,
- * and its select phase reruns after a crash under the same task id; compaction completion is observed through a
- * watch; `close()` writes nothing.
+ * scheduling; compaction completion is observed through a watch; `close()` writes nothing.
  * @harness fake `onOpen` at creation and, on every restart, for every conversation before any resumed run or job,
  * with ports that reject every method outside the list above; a stop there only marks the restored run, which resume
- * ends as aborted, and a job ensured there starts after the last `onOpen`; `compact()` asks `onCompacting` under the
- * key `<thread>:<id of its last entry>`; `onClose` on close.
- * @keys `onCompacting` memoizes a non-empty summary under `cherry.summary:<CompactionRequest.key>`.
+ * ends as aborted, and a job ensured there starts after the last `onOpen`; `onClose` runs on close.
  */
 export interface Lifecycle {
   /** Called during install. */

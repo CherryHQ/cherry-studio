@@ -24,9 +24,17 @@ export class ThreadProjection {
     readonly aliases: Readonly<Record<string, string>>
   }): Promise<void> {
     const changed = await this.view.accept(batch.events)
+    const inputs = batch.events
+      .flatMap((event) =>
+        event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+      )
+      .flatMap((message) =>
+        message.role === 'user' && message.metadata?.inputId ? [[message.id, message.metadata.inputId] as const] : []
+      )
     this.emit({
       contextId: this.contextId,
       messages: changed,
+      ...(inputs.length > 0 && { inputs: Object.fromEntries(inputs) }),
       live: changed.filter((message) => batch.live.includes(message.id)).map((message) => message.id),
       replaces: {
         ...Object.fromEntries(Object.entries(batch.aliases).map(([committed, live]) => [live, committed])),

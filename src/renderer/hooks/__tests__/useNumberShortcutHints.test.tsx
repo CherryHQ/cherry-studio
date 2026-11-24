@@ -57,3 +57,14 @@ it('follows the swapped tab modifier instead of continuing to reveal on the old 
   await act(() => vi.advanceTimersByTimeAsync(500))
   expect(result.current.get('tab.open_1')).toBe(isMac ? '⌘1' : 'Ctrl+1')
 })
+
+it('shows no number hints when shortcuts are off', async () => {
+  vi.useFakeTimers()
+  for (const [key, value] of Object.entries(getNumberShortcutUpdates('off', isMac ? 'darwin' : 'win32'))) {
+    mockPreferenceState.set(key, value)
+  }
+  const { result } = renderHook(() => useNumberShortcutHints(TAB_NUMBER_COMMANDS), { wrapper: Wrapper })
+  fireEvent.keyDown(window, { key: isMac ? 'Control' : 'Alt', ctrlKey: isMac, altKey: !isMac })
+  await act(() => vi.advanceTimersByTimeAsync(500))
+  expect(result.current.size).toBe(0)
+})

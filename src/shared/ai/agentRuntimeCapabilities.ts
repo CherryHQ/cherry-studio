@@ -28,6 +28,9 @@ export interface AgentRuntimeCapabilities {
    *  and are not access-controlled ClaudeToolDescriptors, so pi sets this false. */
   claudeRegistryTools: boolean
   slashCommands: readonly SlashCommand[]
+  /** Input sent while the agent works waits in the runtime's own durable queue, so the composer
+   *  sends it at once instead of holding it in the follow-up dock. */
+  nativeFollowUp: boolean
   createDefaults: { permissionMode: AgentPermissionMode }
   /** Extra restriction on top of the base agent-friendly filter; null = none. `provider` is
    *  undefined for orphan models — each runtime decides fail-open vs fail-closed there. */
@@ -35,7 +38,7 @@ export interface AgentRuntimeCapabilities {
   /** providerMetadata.cherry.transport tag stamped by the runtime's stream adapter. */
   transport: string
   /** Edit-dialog catalog rows. */
-  builtinTools: () => readonly {
+  builtinTools: (platform?: string) => readonly {
     id: string
     labelKey: string
     descriptionKey: string
@@ -82,6 +85,7 @@ const PI_CAPABILITIES = {
   skills: true,
   claudeRegistryTools: false,
   slashCommands: PI_BUILTIN_COMMANDS,
+  nativeFollowUp: false,
   createDefaults: { permissionMode: 'auto' },
   // Orphan models are rejected (pre-descriptor behavior): pi needs the provider's endpoint
   // config to resolve a wire protocol, so no provider ⇒ not drivable. The managed CherryAI
@@ -91,8 +95,10 @@ const PI_CAPABILITIES = {
     isPiCompatibleModel(provider, model) &&
     !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
   transport: 'pi-agent',
-  builtinTools: () =>
-    PI_BUILTIN_TOOLS.map((tool) => ({
+  builtinTools: (platform?: string) =>
+    PI_BUILTIN_TOOLS.filter(
+      (tool) => platform === undefined || !('platform' in tool) || tool.platform === platform
+    ).map((tool) => ({
       id: tool.name,
       labelKey: `agent.tools.builtin.${tool.name}.label`,
       descriptionKey: `agent.tools.builtin.${tool.name}.description`,
@@ -112,6 +118,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     skills: true,
     claudeRegistryTools: true,
     slashCommands: CLAUDE_CODE_BUILTIN_COMMANDS,
+    nativeFollowUp: false,
     createDefaults: { permissionMode: 'auto' },
     // Claude Code reaches non-native providers through the local API Gateway, so its picker must use
     // the same routability rule as the gateway model catalog.
@@ -132,6 +139,8 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     ...PI_CAPABILITIES,
     labelKey: 'library.config.agent.field.runtime.option.pi_durable',
     labelFallback: 'Pi Durable',
-    builtinTools: () => PI_CAPABILITIES.builtinTools().filter((tool) => tool.id !== PI_TOOL_RECALL_TOOL_NAME)
+    nativeFollowUp: true,
+    builtinTools: (platform?: string) =>
+      PI_CAPABILITIES.builtinTools(platform).filter((tool) => tool.id !== PI_TOOL_RECALL_TOOL_NAME)
   }
 } as const satisfies Record<AgentType, AgentRuntimeCapabilities>

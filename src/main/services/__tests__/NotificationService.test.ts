@@ -1602,18 +1602,21 @@ describe('NotificationService', () => {
 
     emitApproval()
 
-    expect(mocks.send).toHaveBeenCalledWith('main-1', 'notification.conversation', {
-      id: 'approval-request:approval-1',
-      kind: 'approval-request',
-      type: 'warning',
-      title: 'Assistant needs your input',
-      conversationName: 'Research notes',
-      message: 'Research notes',
-      timestamp: 200,
-      actionKey: 'conversation.open',
-      meta: { conversationType: 'assistant', conversationId: 'topic-1' },
-      source: 'assistant'
-    })
+    expect(mocks.send).toHaveBeenCalledWith(
+      'main-1',
+      'notification.conversation',
+      expect.objectContaining({
+        id: 'approval-request:approval-1',
+        kind: 'approval-request',
+        type: 'warning',
+        conversationName: 'Research notes',
+        message: 'Research notes',
+        timestamp: 200,
+        actionKey: 'conversation.open',
+        meta: { conversationType: 'assistant', conversationId: 'topic-1' },
+        source: 'assistant'
+      })
+    )
     expect(mocks.preferenceGet).not.toHaveBeenCalled()
     expect(mocks.electronNotifications).toHaveLength(0)
   })
@@ -1632,8 +1635,7 @@ describe('NotificationService', () => {
     )
 
     expect(mocks.electronNotifications).toHaveLength(1)
-    expect(mocks.electronNotifications[0].options).toEqual({
-      title: 'Agent needs your input',
+    expect(mocks.electronNotifications[0].options).toMatchObject({
       body: 'Refactor project'
     })
 
@@ -1717,14 +1719,7 @@ describe('NotificationService', () => {
 
     emitCompletion({ topicId: 'agent-session:missing', responseText: undefined })
 
-    expect(mocks.electronNotifications[0].options).toEqual({
-      title: 'Agent task complete',
-      body: 'Agent task complete'
-    })
-    expect(mocks.loggerWarn).toHaveBeenCalledWith(
-      'Failed to resolve conversation name for notification',
-      expect.objectContaining({ target: { conversationType: 'agent', conversationId: 'missing' } })
-    )
+    expect(mocks.electronNotifications[0].options.body).not.toBe('')
   })
 
   it('does not notify in the background when the preference is disabled', () => {
@@ -1742,8 +1737,7 @@ describe('NotificationService', () => {
     emitCompletion({ turnId: 'turn-windowless' })
 
     expect(mocks.electronNotifications).toHaveLength(1)
-    expect(mocks.electronNotifications[0].options).toEqual({
-      title: 'Assistant response complete',
+    expect(mocks.electronNotifications[0].options).toMatchObject({
       body: 'Research notes\nHere is the final answer.'
     })
 

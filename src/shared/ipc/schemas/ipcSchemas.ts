@@ -3,6 +3,7 @@ import { agentRequestSchemas } from './agent'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
 import { type ApiGatewayEventSchemas, apiGatewayRequestSchemas } from './apiGateway'
 import { type AppEventSchemas, appRequestSchemas } from './app'
+import { assistantRequestSchemas } from './assistant'
 import { type BackupEventSchemas, backupRequestSchemas } from './backup'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { type BrowserEventSchemas, browserRequestSchemas } from './browser'
@@ -19,6 +20,7 @@ import { doctorAgentRequestSchemas } from './doctorAgent'
 import { exportRequestSchemas } from './export'
 import { externalAppRequestSchemas } from './externalApp'
 import { type FileEventSchemas, fileRequestSchemas } from './file'
+import { type FileObservationEventSchemas, fileObservationRequestSchemas } from './fileObservation'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { hermesDashboardRequestSchemas } from './hermesDashboard'
 import { knowledgeRequestSchemas } from './knowledge'
@@ -80,6 +82,7 @@ export const ipcRequestSchemas = {
   ...externalAppRequestSchemas,
   ...hermesDashboardRequestSchemas,
   ...fileRequestSchemas,
+  ...fileObservationRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
   ...localModelRequestSchemas,
@@ -92,6 +95,7 @@ export const ipcRequestSchemas = {
   ...ovmsRequestSchemas,
   ...pdfjsRequestSchemas,
   ...printRequestSchemas,
+  ...assistantRequestSchemas,
   ...profileRequestSchemas,
   ...proxyRequestSchemas,
   ...providerRequestSchemas,
@@ -129,6 +133,7 @@ export type IpcEventSchemas = AiEventSchemas &
   CherryCloudEventSchemas &
   ComputerUseEventSchemas &
   FileEventSchemas &
+  FileObservationEventSchemas &
   McpEventSchemas &
   MiniAppEventSchemas &
   NavigationEventSchemas &

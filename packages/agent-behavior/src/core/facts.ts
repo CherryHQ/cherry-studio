@@ -211,6 +211,8 @@ export type HistoryEntry =
       readonly isError: boolean
       readonly details?: JsonValue
       readonly text: string
+      /** The reason the gate's `before` blocked the call with; absent when the call was not blocked. */
+      readonly blocked?: string
     }
   | {
       readonly kind: 'marker'
@@ -222,7 +224,7 @@ export type HistoryEntry =
   | { readonly kind: 'record'; readonly id: ItemId; readonly key?: string; readonly record: PolicyRecord }
   | { readonly kind: 'compaction'; readonly id: ItemId }
 
-/** [plan choice] No `awaitingApproval`: the adapter cannot read host approval outcomes inside its commit; the core derives it from `CallInputs.approvals`. */
+/** No approval state: a parent never reads its children's calls (P1). */
 export interface ChildFacts {
   /** Durable: the child's `pi.live.run` exists. */
   readonly running: boolean

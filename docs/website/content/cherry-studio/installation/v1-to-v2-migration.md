@@ -10,7 +10,7 @@ icon: arrow-right-arrow-left
 {% endhint %}
 
 {% hint style="warning" %}
-保留数据的正确路径是：**V1.9.13 → V2（直接完成数据迁移）**，无需先安装特定的 V2 中转版本。
+保留数据的正确路径是：**V1.9.13 → V2.2.2（完成数据迁移）→ 当前版本**。2.2.2 是最后一个包含迁移代码的已发布版本。
 {% endhint %}
 
 ## 根据当前情况选择
@@ -57,7 +57,7 @@ icon: arrow-right-arrow-left
 {% step %}
 ### 首次启动 V2
 
-从 [V2 官方下载](https://cherryai.com.cn/download) 获取匹配系统和芯片的 V2 安装包，也可以使用 [GitCode 发布页](https://gitcode.com/CherryHQ/cherry-studio/releases) 或 [GitHub 发布页](https://github.com/CherryHQ/cherry-studio/releases)。完全退出 V1 后安装并启动。
+从 [2.2.2 发布页](https://gitcode.com/CherryHQ/cherry-studio/releases/tag/v2.2.2) 获取匹配系统和芯片的安装包。完全退出 V1 后安装并启动。
 {% endstep %}
 
 {% step %}
@@ -69,7 +69,7 @@ icon: arrow-right-arrow-left
 {% step %}
 ### 查看结果并重启
 
-迁移完成后先展开警告信息，再选择【重启应用】。
+迁移完成后先展开警告信息，再选择【重启应用】。确认迁移结果后，再升级到当前版本。
 {% endstep %}
 {% endstepper %}
 
@@ -128,5 +128,5 @@ icon: arrow-right-arrow-left
 * [Cherry Studio V2 官方下载](https://cherryai.com.cn/download)
 * [Cherry Studio V1 官方下载](https://cherryai.com.cn/download/v1)
 * V2 发布页：[GitCode](https://gitcode.com/CherryHQ/cherry-studio/releases) · [GitHub](https://github.com/CherryHQ/cherry-studio/releases)
-* [官方迁移设计说明](https://github.com/CherryHQ/cherry-studio/blob/main/src/main/data/migration/v2/README.md#version-compatibility-gate)
+* [官方迁移设计说明](https://github.com/CherryHQ/cherry-studio/blob/v2.2.2/src/main/data/migration/v2/README.md#version-compatibility-gate)
 * [问题反馈与功能建议](../../question-contact/suggestions.md)
