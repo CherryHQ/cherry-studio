@@ -25,9 +25,14 @@ vi.mock('@data/services/TemporaryChatService', () => ({
 }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
-    listSessionMessages: (sessionId: string) => ({
-      items: sessionId === 'session-1' ? mocks.sessionMessages : [{ id: 'other', role: 'user', data: {} }]
-    })
+    listSessionMessages: (sessionId: string, { messageId, limit }: { messageId: string; limit: number }) => {
+      const items =
+        sessionId === 'session-1'
+          ? (mocks.sessionMessages as { id: string }[])
+          : [{ id: 'other', role: 'user', data: {} }]
+      const anchor = items.findIndex((item) => item.id === messageId)
+      return { items: items.slice(Math.max(anchor, 0), Math.max(anchor, 0) + limit) }
+    }
   }
 }))
 vi.mock('@main/ai/messages/readConversation', () => ({
@@ -120,6 +125,18 @@ describe('incidentMessages', () => {
 
   it('redacts credentials inside message text', () => {
     expect(JSON.stringify(incidentMessages(incident, 5))).not.toContain(KEY)
+  })
+
+  it('reports the incident as missing instead of returning unrelated newest messages once it was deleted', () => {
+    expect(incidentMessages({ ...incident, messageId: 'deleted' }, 5)).toEqual({ messages: [], missing: true })
+  })
+
+  it('finds an incident buried under more than a page of newer messages', () => {
+    const newer = Array.from({ length: 60 }, (_, i) => message(`later-${i}`, 'user', 'later turn'))
+    mocks.sessionMessages = [...newer, ...mocks.sessionMessages]
+
+    const { messages } = incidentMessages(incident, 1) as { messages: { id: string }[] }
+    expect(messages.map((item) => item.id)).toEqual(['msg-2', 'msg-3'])
   })
 })
 

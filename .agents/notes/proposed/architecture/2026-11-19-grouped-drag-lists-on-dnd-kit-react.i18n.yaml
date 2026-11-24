@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-19-grouped-drag-lists-on-dnd-kit-react.md
+2026-11-19-grouped-drag-lists-on-dnd-kit-react.md: ab400be27e113142f49337c61644e30e3914b710
+2026-11-19-grouped-drag-lists-on-dnd-kit-react.zh.md: dfc5aa613170ff146ff92259a5b17720d4f86cda

@@ -10,7 +10,7 @@ import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { runPathMutationExclusive } from '@main/services/file'
-import { isPathInside } from '@main/utils/file'
+import { isOutsidePath, isPathInside } from '@main/utils/file'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -44,6 +44,7 @@ import {
   resolveSkillDirectory,
   validateZipFile
 } from './skillArchive'
+import { isSkillExternallyExportable } from './skillExportPolicy'
 import { SkillImportError } from './SkillImportError'
 import { SkillInstaller } from './SkillInstaller'
 import { createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
@@ -149,20 +150,12 @@ export class SkillService {
     return agentGlobalSkillService.getByFolderName(folderName)
   }
 
-  /**
-   * Resolve the absolute path a skill with the given name would live at under
-   * the global Skills storage root.
-   */
-  getSkillDirectory(name: string): string {
-    return this.getSkillStoragePath(sanitizeFolderName(name))
-  }
-
   /** Resolve the app-owned directory for an installed skill. */
   getInstalledSkillDirectory(skill: Pick<InstalledSkill, 'folderName' | 'source' | 'sourceUrl'>): string {
     const rootPath = path.resolve(application.getPath('feature.agents.skills'))
     const skillPath = path.resolve(rootPath, skill.folderName)
     const relativePath = path.relative(rootPath, skillPath)
-    if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    if (!relativePath || isOutsidePath(relativePath)) {
       throw new Error(`Invalid managed Skill folder: ${skill.folderName}`)
     }
     return skillPath
@@ -617,10 +610,20 @@ export class SkillService {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
     const skillsRoot = path.resolve(application.getPath('feature.agents.skills'))
-    const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
+    const sourceParent = path.resolve(path.dirname(skillDir))
+    const resolvedSkillsRoot =
+      source === 'local' && sourceParent !== skillsRoot
+        ? await fs.promises.realpath(skillsRoot).catch((error: NodeJS.ErrnoException) => {
+            if (error.code === 'ENOENT') return skillsRoot
+            throw error
+          })
+        : skillsRoot
+    const isInPlace = sourceParent === resolvedSkillsRoot
     const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(metadata.filename)
 
     const existing = this.findCatalogSkillCaseInsensitive(folderName)
+    const reimportingLocal =
+      source === 'local' && isInPlace && existing?.source === 'local' && existing.folderName === folderName
     if (existing) {
       // Only the same source + exact origin may replace a folder. The narrow legacy skills.sh path
       // upgrades a prior repo-root URL after an explicit reinstall resolves the same folder.
@@ -628,7 +631,7 @@ export class SkillService {
         existing.source === source &&
         ((existing.sourceUrl ?? null) === (sourceUrl ?? null) ||
           this.isLegacySkillsShReinstall(existing, sourceUrl, folderName))
-      if (!sameOrigin) {
+      if (!sameOrigin && !reimportingLocal) {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
             `refusing to overwrite it with a ${source} install.`
@@ -652,7 +655,7 @@ export class SkillService {
 
     const contentHash = await this.installer.computeContentHash(skillDir)
     const destFolderName = existing?.folderName ?? folderName
-    const destPath = this.getSkillStoragePath(destFolderName)
+    const destPath = reimportingLocal ? skillDir : this.getSkillStoragePath(destFolderName)
 
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
     await this.installer.install(skillDir, destPath)
@@ -873,6 +876,9 @@ export class SkillService {
   }
 
   private async setExportEnabled(folderName: string, enabled: boolean): Promise<void> {
+    const appEnabled = application.get('PreferenceService').get('agent.skills.external_export.enabled') !== false
+    const skill = enabled && appEnabled ? agentGlobalSkillService.getByFolderName(folderName) : null
+    const shouldExport = enabled && appEnabled && skill !== null && isSkillExternallyExportable(skill)
     const root = path.resolve(application.getPath('external.agents.skills'))
     const target = path.resolve(root, folderName)
     if (!isPathInside(target, root) || target === root) throw new Error(`Invalid skill export: ${folderName}`)
@@ -887,16 +893,81 @@ export class SkillService {
       const owned =
         stat.isSymbolicLink() && path.resolve(path.dirname(target), await fs.promises.readlink(target)) === source
       if (!owned) {
-        if (enabled) throw new Error(`Skill export conflicts with an existing user entry: ${target}`)
+        if (shouldExport) throw new Error(`Skill export conflicts with an existing user entry: ${target}`)
         return
       }
-      if (!enabled) await fs.promises.unlink(target)
+      if (!shouldExport) await fs.promises.unlink(target)
       return
     }
-    if (enabled) {
+    if (shouldExport) {
       await fs.promises.mkdir(root, { recursive: true })
       await fs.promises.symlink(source, target, isWin ? 'junction' : 'dir')
     }
+  }
+
+  private async pruneExternalExports(): Promise<void> {
+    const root = path.resolve(application.getPath('external.agents.skills'))
+    let entries: string[]
+    try {
+      entries = await fs.promises.readdir(root)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
+    const failures: unknown[] = []
+    for (const name of entries) {
+      const target = path.join(root, name)
+      try {
+        const stat = await fs.promises.lstat(target)
+        if (
+          stat.isSymbolicLink() &&
+          path.resolve(path.dirname(target), await fs.promises.readlink(target)) ===
+            path.resolve(this.getMirrorRoot(), name)
+        ) {
+          await fs.promises.unlink(target)
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') failures.push(error)
+      }
+    }
+    if (failures.length)
+      throw new AggregateError(
+        failures,
+        `Failed to prune ${failures.length} external skill exports: ${String(failures[0])}`
+      )
+  }
+
+  /** Project the export directory to match the current preference + per-skill choices. */
+  async syncExternalExports(): Promise<void> {
+    await this.mutationLock.runExclusive(async () => {
+      const enabled = application.get('PreferenceService').get('agent.skills.external_export.enabled') !== false
+      const skills = agentGlobalSkillService.listAll()
+      const failures: unknown[] = []
+      for (const skill of skills) {
+        try {
+          if (enabled) {
+            if (!(await this.linkMirror(skill.folderName, { throwOnError: true })))
+              throw new Error(`Failed to mirror skill: ${skill.folderName}`)
+          } else {
+            await this.setExportEnabled(skill.folderName, false)
+          }
+        } catch (error) {
+          failures.push(error)
+        }
+      }
+      if (!enabled) {
+        try {
+          await this.pruneExternalExports()
+        } catch (error) {
+          failures.push(...(error instanceof AggregateError ? error.errors : [error]))
+        }
+      }
+      if (failures.length)
+        throw new AggregateError(
+          failures,
+          `Failed to sync ${failures.length} external skill exports: ${String(failures[0])}`
+        )
+    })
   }
 
   /**
@@ -1416,7 +1487,7 @@ export class SkillService {
     try {
       entries = await fs.promises.readdir(root, { withFileTypes: true })
     } catch {
-      return
+      entries = []
     }
 
     for (const entry of entries) {
@@ -1427,6 +1498,13 @@ export class SkillService {
       // This is an app-owned one-way projection. Unknown entries are either stale POSIX symlinks,
       // stale Windows directory copies, or out-of-band writes; none belong in the SDK discovery root.
       await this.unlinkMirror(folderName)
+    }
+    if (application.get('PreferenceService').get('agent.skills.external_export.enabled') === false) {
+      try {
+        await this.pruneExternalExports()
+      } catch (error) {
+        logger.warn('Failed to prune external skill exports', { error })
+      }
     }
   }
 

@@ -9,7 +9,7 @@ const Dola = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const DolaIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Dola, {
   Avatar: DolaAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#EDF5FF'
 })
 
 export default DolaIcon

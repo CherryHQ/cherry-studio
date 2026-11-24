@@ -1,5 +1,5 @@
 import { openaiCompatible } from './_api'
-import { defineCreator } from './types'
+import { type CreatorModel, defineCreator } from './types'
 
 // The catalog can represent one static price only. Use DeepSeek's documented
 // peak ceiling so cost estimates never understate first-party billing.
@@ -49,23 +49,27 @@ export default defineCreator({
       reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] },
       openWeights: true
     },
-    {
-      id: 'deepseek-flash',
-      name: 'DeepSeek V4.1 Flash',
-      family: 'deepseek-flash',
-      capabilities: ['function-call', 'image-recognition', 'reasoning', 'structured-output'],
-      contextWindow: 1000000,
-      maxOutputTokens: 393216,
-      inputModalities: ['text', 'image'],
-      outputModalities: ['text'],
-      pricing: {
-        cacheRead: { currency: 'USD', perMillionTokens: 0.006 },
-        input: { currency: 'USD', perMillionTokens: 0.3 },
-        output: { currency: 'USD', perMillionTokens: 1.2 }
-      },
-      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] },
-      openWeights: true
-    },
+    // Both IDs serve V4.1 Flash today; keep their documented capacity in one definition.
+    // https://api-docs.deepseek.com/api/list-models/
+    ...['deepseek-flash', 'deepseek-v4-1-flash'].map(
+      (id): CreatorModel => ({
+        id,
+        name: 'DeepSeek V4.1 Flash',
+        family: 'deepseek-flash',
+        capabilities: ['function-call', 'image-recognition', 'reasoning', 'structured-output'],
+        contextWindow: 1048576,
+        maxOutputTokens: 393216,
+        inputModalities: ['text', 'image'],
+        outputModalities: ['text'],
+        pricing: {
+          cacheRead: { currency: 'USD', perMillionTokens: 0.006 },
+          input: { currency: 'USD', perMillionTokens: 0.3 },
+          output: { currency: 'USD', perMillionTokens: 1.2 }
+        },
+        reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] },
+        openWeights: true
+      })
+    ),
     {
       id: 'deepseek-v4-pro',
       name: 'DeepSeek V4 Pro',

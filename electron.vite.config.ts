@@ -80,7 +80,7 @@ const rendererEdition = resolveRendererEdition(process.env.CHERRY_EDITION)
 const sentryBuildContext = getSentryBuildContext(pkg.name, pkg.version, rendererEdition)
 const { sourceMapUploadEnabled } = resolveSentryBuildSettings(process.env)
 const sentrySourceMap = sourceMapUploadEnabled ? ('hidden' as const) : isDev
-const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer') =>
+export const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer' | 'utility-process') =>
   sourceMapUploadEnabled
     ? sentryVitePlugin({
         authToken: process.env.SENTRY_AUTH_TOKEN,
@@ -137,6 +137,18 @@ const miniAppThemeAssetPlugin = (): Plugin => ({
   }
 })
 
+const commandParserAssetsPlugin = (): Plugin => ({
+  name: 'cherry-command-parser-assets',
+  apply: 'build',
+  buildStart() {
+    const require = createRequire(import.meta.url)
+    for (const filename of ['tree-sitter.wasm', 'tree-sitter-bash.wasm', 'tree-sitter-powershell.wasm']) {
+      const source = readFileSync(require.resolve(`@vscode/tree-sitter-wasm/wasm/${filename}`))
+      this.emitFile({ type: 'asset', fileName: `assets/command-parsers/${filename}`, source })
+    }
+  }
+})
+
 /** Shared with the utility-process entries build, which must resolve identically. */
 export const mainResolveAlias = {
   '@main': resolve('src/main'),
@@ -168,6 +180,7 @@ export const mainResolveAlias = {
   '@cherrystudio/web-search/providers/deepseek': resolve('packages/web-search/src/providers/deepseek.ts'),
   '@cherrystudio/web-search/providers/desearch': resolve('packages/web-search/src/providers/desearch.ts'),
   '@cherrystudio/web-search/providers/searchapi': resolve('packages/web-search/src/providers/searchapi.ts'),
+  '@cherrystudio/web-search/providers/serpkite': resolve('packages/web-search/src/providers/serpkite.ts'),
   '@cherrystudio/web-search/tools/config': resolve('packages/web-search/src/tools/config.ts'),
   '@cherrystudio/web-search/tools/url-filter': resolve('packages/web-search/src/tools/urlFilter.ts'),
   '@cherrystudio/web-search/tools/content': resolve('packages/web-search/src/tools/content.ts'),
@@ -187,7 +200,7 @@ export default defineConfig({
         name: 'cherry-selection-panel',
         buildStart() {
           this.addWatchFile(selectionPanelSource)
-          buildSelectionPanel()
+          if (process.env.CHERRY_RELEASE_JS_ONLY !== 'true') buildSelectionPanel()
         }
       },
       {
@@ -195,11 +208,12 @@ export default defineConfig({
         apply: 'build',
         buildStart() {
           for (const file of externalAppSources) this.addWatchFile(file)
-          buildExternalApp()
+          if (process.env.CHERRY_RELEASE_JS_ONLY !== 'true') buildExternalApp()
         }
       },
       chunkExportGuardPlugin(),
       miniAppThemeAssetPlugin(),
+      commandParserAssetsPlugin(),
       ...visualizerPlugin('main'),
       ...sentrySourceMapPlugins('main')
     ],
@@ -319,6 +333,7 @@ export default defineConfig({
         '@cherrystudio/web-search/providers/deepseek': resolve('packages/web-search/src/providers/deepseek.ts'),
         '@cherrystudio/web-search/providers/desearch': resolve('packages/web-search/src/providers/desearch.ts'),
         '@cherrystudio/web-search/providers/searchapi': resolve('packages/web-search/src/providers/searchapi.ts'),
+        '@cherrystudio/web-search/providers/serpkite': resolve('packages/web-search/src/providers/serpkite.ts'),
         '@cherrystudio/web-search/tools/config': resolve('packages/web-search/src/tools/config.ts'),
         '@cherrystudio/web-search/tools/url-filter': resolve('packages/web-search/src/tools/urlFilter.ts'),
         '@cherrystudio/web-search/tools/content': resolve('packages/web-search/src/tools/content.ts'),
@@ -354,7 +369,7 @@ export default defineConfig({
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
           selectionAgent: resolve(__dirname, 'src/renderer/windows/selection/agent/index.html'),
           selectionCapsule: resolve(__dirname, 'src/renderer/windows/selection/capsule/index.html'),
-          migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
+          legacyUpgrade: resolve(__dirname, 'src/renderer/windows/legacyUpgrade/index.html'),
           userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html'),
           screenshot: resolve(__dirname, 'src/renderer/windows/screenshot/index.html')

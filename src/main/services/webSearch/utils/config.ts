@@ -20,10 +20,12 @@ export interface WebSearchPreferenceReader {
   get<K extends PreferenceKeyType>(key: K): PreferenceDefaultScopeType[K] | Promise<PreferenceDefaultScopeType[K]>
 }
 
+// searchImages has no persisted default provider: there is no chat dispatch consumer for it
+// yet, so callers must always pass an explicit provider id for that capability.
 const DEFAULT_PROVIDER_KEY_BY_CAPABILITY = {
   searchKeywords: 'chat.web_search.default_search_keywords_provider',
   fetchUrls: 'chat.web_search.default_fetch_urls_provider'
-} as const satisfies Record<WebSearchCapability, PreferenceKeyType>
+} as const satisfies Partial<Record<WebSearchCapability, PreferenceKeyType>>
 
 function trimString(value: string): string {
   return value.trim()
@@ -180,7 +182,8 @@ export async function getProviderForCapability(
   capability: WebSearchCapability,
   preferences: WebSearchPreferenceReader
 ): Promise<WebSearchProvider> {
-  const providerId = requestedProviderId ?? (await preferences.get(DEFAULT_PROVIDER_KEY_BY_CAPABILITY[capability]))
+  const defaultProviderKey = capability === 'searchImages' ? undefined : DEFAULT_PROVIDER_KEY_BY_CAPABILITY[capability]
+  const providerId = requestedProviderId ?? (defaultProviderKey ? await preferences.get(defaultProviderKey) : undefined)
 
   if (!providerId) {
     throw new WebSearchConfigError(

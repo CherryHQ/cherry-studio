@@ -44,6 +44,7 @@ export class ClaudeMessageMetadata {
 
   accept(batch: ClaudeObservation): boolean {
     let refreshAll = !isDeepStrictEqual(this.catalog, this.mcpToolMetadata)
+    // oxlint-disable-next-line no-restricted-globals -- Refresh the MCP catalog on loadout changes before applying mutable display metadata.
     if (refreshAll) this.catalog = structuredClone(this.mcpToolMetadata)
     for (const native of batch.native) {
       const message = native.message

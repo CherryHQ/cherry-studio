@@ -60,7 +60,7 @@ export const callTo = (name: string, args: JsonValue = {}, callId = `c${++items}
 })
 export const result = (
   tool: string,
-  options: { isError?: boolean; details?: JsonValue; text?: string; callId?: string } = {}
+  options: { isError?: boolean; details?: JsonValue; text?: string; callId?: string; blocked?: string } = {}
 ): HistoryEntry => ({
   kind: 'tool-result',
   id: item(),
@@ -69,7 +69,8 @@ export const result = (
   tool,
   isError: options.isError ?? false,
   ...(options.details === undefined ? {} : { details: options.details }),
-  text: options.text ?? ''
+  text: options.text ?? '',
+  ...(options.blocked === undefined ? {} : { blocked: options.blocked })
 })
 export const record = (value: PolicyRecord, key?: string): HistoryEntry => ({
   kind: 'record',
@@ -134,7 +135,6 @@ export const MODELS: ModelFacts = {
 export const inputs = (patch: Partial<CallInputs> = {}): CallInputs => ({
   now: 1000,
   settings: SETTINGS,
-  approvals: [],
   models: MODELS,
   ...patch
 })

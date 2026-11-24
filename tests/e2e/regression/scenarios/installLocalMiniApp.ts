@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
-import AdmZip from 'adm-zip'
+import JSZip from 'jszip'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
@@ -17,8 +17,8 @@ export async function installLocalMiniApp(app: RegressionApp, page: Page, testIn
   await mkdir(archives, { recursive: true })
   const packagePath = join(archives, 'miniapp-valid.miniapp')
   const invalidPath = join(archives, 'miniapp-invalid.zip')
-  const archive = new AdmZip()
-  archive.addFile(
+  const archive = new JSZip()
+  archive.file(
     'manifest.json',
     Buffer.from(
       JSON.stringify({
@@ -32,7 +32,7 @@ export async function installLocalMiniApp(app: RegressionApp, page: Page, testIn
       })
     )
   )
-  archive.addFile(
+  archive.file(
     'index.html',
     Buffer.from(`<!doctype html><html><body>
     <h1>Local permission probe</h1><pre id="result">Running</pre>
@@ -50,7 +50,7 @@ export async function installLocalMiniApp(app: RegressionApp, page: Page, testIn
       })();
     </script></body></html>`)
   )
-  await writeFile(packagePath, archive.toBuffer())
+  await writeFile(packagePath, await archive.generateAsync({ type: 'nodebuffer' }))
   await writeFile(invalidPath, 'This is not a ZIP archive or a mini app package.')
 
   const screenshot = async (label: string) => {

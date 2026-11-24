@@ -151,7 +151,7 @@ describe('Topics helpers', () => {
     expect(getTopicTimeBucket(localIso(2026, 5, 8, 23), now)).toBe('earlier')
   })
 
-  it('orders time-mode rows by orderKey inside each group when manualOrder is set', () => {
+  it('orders time-mode rows by orderKey inside each group when manual sorting is selected', () => {
     const now = new Date(2026, 4, 15, 12)
     const topics = [
       createTopic({ id: 'today-b', lastActivityAt: localIso(2026, 5, 15, 9), orderKey: 'b' }),
@@ -161,7 +161,7 @@ describe('Topics helpers', () => {
     ]
 
     expect(
-      sortTopicsForDisplayGroups(topics, { manualOrder: true, mode: 'time', now }).map((topic) => topic.id)
+      sortTopicsForDisplayGroups(topics, { sort: { by: 'orderKey' }, mode: 'time', now }).map((topic) => topic.id)
     ).toEqual(['pinned', 'today-a', 'today-b', 'week'])
   })
 

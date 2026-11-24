@@ -4,6 +4,7 @@ import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSt
 import { useTranslation } from 'react-i18next'
 
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
+import { AssistantProfilePane, PROFILE_PANE_ID } from '@renderer/components/chat/panes/profile'
 import {
   createResourcePaneCapability,
   RESOURCE_PANE_TAB,
@@ -12,6 +13,7 @@ import {
   type RightPanelCapability,
   type RightPanelComponentProps,
   type RightPanelComposition,
+  RightPanelHeaderControls,
   RightPanelProvider,
   RightPanelShortcut,
   RightPanelViewport,
@@ -33,6 +35,10 @@ const TracePane = lazy(() =>
 )
 
 interface TopicRightPaneMeta {
+  /** The conversation's current Assistant, shown by the profile pane. */
+  assistantId?: string
+  /** Opens one of the Assistant's topics from its profile. */
+  onOpenTopic?: (topicId: string) => void
   topicId?: string
   topicName?: string
   /** Container-level trace id. When developer mode is on, the Trace tab renders this trace tree. */
@@ -47,6 +53,7 @@ interface TopicRightPanelScope extends TopicRightPaneMeta {
   browserTitle: string
   branchTitle: string
   developerMode: boolean
+  profileTitle: string
   resourcePane: ResourcePaneConfig | null
   traceTitle: string
 }
@@ -147,6 +154,7 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
 }
 
 function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  const actions = useRightPanelActions()
   if (!scope.topicId) return null
   return (
     <SessionBrowserView
@@ -155,7 +163,8 @@ function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<Topi
       securityProfile={WebviewSecurityProfile.AgentBrowser}
       isHostActive={active}
       target={{ id: `topic-browser:${scope.topicId}`, label: scope.browserTitle }}
-      onNavigate={(url) => browserRuntime.ensure(scope.topicId!, url)}
+      toolbarActions={<RightPanelHeaderControls canMaximize />}
+      onEmpty={actions.close}
     />
   )
 }
@@ -176,6 +185,16 @@ function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicR
       <TracePane payload={{ topicId: scope.topicId ?? '', traceId: scope.traceId ?? '' }} />
     </Suspense>
   )
+}
+
+function TopicProfileRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  return scope.assistantId ? (
+    <AssistantProfilePane
+      assistantId={scope.assistantId}
+      activeTopicId={scope.topicId}
+      onOpenTopic={scope.onOpenTopic}
+    />
+  ) : null
 }
 
 /** Stable capability declarations; catalog order is the fallback order. */
@@ -209,14 +228,30 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       instanceKey: `browser:${scope.topicId ?? 'unavailable'}`,
       title: scope.browserTitle,
       readiness: scope.topicId ? 'ready' : 'unavailable',
+      headerMode: 'content',
       canMaximize: true
     })
   },
-  TOPIC_TRACE_PANE_CAPABILITY
+  TOPIC_TRACE_PANE_CAPABILITY,
+  // Last, so it never becomes the fallback the sidebar shortcut opens; the avatars are its entry.
+  {
+    component: TopicProfileRightPanel,
+    widthPreset: 'profile',
+    resolve: (scope) => ({
+      id: PROFILE_PANE_ID,
+      instanceKey: `profile:assistant:${scope.assistantId ?? 'unavailable'}`,
+      title: scope.profileTitle,
+      readiness: scope.assistantId ? 'ready' : 'unavailable',
+      headerMode: 'content',
+      canMaximize: false
+    })
+  }
 ] satisfies readonly RightPanelCapability<TopicRightPanelScope>[]
 
 function TopicRightPaneProvider({
   children,
+  assistantId,
+  onOpenTopic,
   resourcePane,
   topicId,
   topicName,
@@ -242,6 +277,8 @@ function TopicRightPaneProvider({
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()
   const scope = useMemo<TopicRightPanelScope>(
     () => ({
+      assistantId,
+      onOpenTopic,
       topicId,
       topicName,
       traceId,
@@ -249,9 +286,10 @@ function TopicRightPaneProvider({
       developerMode: enableDeveloperMode,
       browserTitle: t('settings.browser.title'),
       branchTitle: t('chat.message.flow.title'),
+      profileTitle: t('chat.profile_pane.title'),
       traceTitle: t('trace.label')
     }),
-    [enableDeveloperMode, resourcePane, t, topicId, topicName, traceId]
+    [assistantId, enableDeveloperMode, onOpenTopic, resourcePane, t, topicId, topicName, traceId]
   )
 
   return (

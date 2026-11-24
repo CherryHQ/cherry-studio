@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { resolveIconRef, resolveModelIconRef, resolveModelToProviderIconRef, resolveProviderIconRef } from '../registry'
 
 describe('resolveProviderIconRef', () => {
+  it('resolves the Rapid-MLX provider icon', () => {
+    expect(resolveProviderIconRef('rapid-mlx')).toEqual(expect.objectContaining({ kind: 'provider', key: 'rapid-mlx' }))
+  })
+
   it('falls back to the model catalog for provider IDs that only exist there', () => {
     // `claude` is a model-catalog key with no provider-catalog entry
     expect(resolveProviderIconRef('claude')).toEqual(expect.objectContaining({ kind: 'model', key: 'claude' }))
@@ -81,5 +85,33 @@ describe('resolveIconRef — full fallback chain', () => {
     expect(resolveIconRef('some-unmatched-model', 'openai')).toEqual(
       expect.objectContaining({ kind: 'provider', key: 'openai' })
     )
+  })
+})
+
+// New OpenAI model IDs must resolve to their own artwork instead of an older family fallback.
+describe('latest OpenAI model artwork', () => {
+  it.each([
+    ['gpt-6.1-sol', 'gpt-6-1-sol'],
+    ['gpt-6.1-terra', 'gpt-6-1-terra'],
+    ['gpt-6-luna', 'gpt-6-luna'],
+    ['gpt-6-sol', 'gpt-6-sol'],
+    ['gpt-6-cyber', 'gpt-6-cyber'],
+    ['gpt-5.6-cyber', 'gpt-5-6-cyber'],
+    ['gpt-image-2.6-sunburst', 'gpt-image-2-6-sunburst'],
+    ['gpt-image-2.6-flare', 'gpt-image-2-6-flare'],
+    ['gpt-image-2.5-sunburst', 'gpt-image-2-5-sunburst'],
+    ['gpt-image-2.5-flare', 'gpt-image-2-5-flare'],
+    ['gpt-live-1', 'gpt-live-1'],
+    ['gpt-live-transcribe', 'gpt-live-transcribe'],
+    ['gpt-transcribe', 'gpt-transcribe'],
+    ['gpt-rosalind-research', 'gpt-rosalind-research'],
+    ['chat-latest', 'chat-latest'],
+    ['chatgpt-image-latest', 'chatgpt-image-latest'],
+    ['gpt-daybreak-red-latest', 'gpt-daybreak-red-latest'],
+    ['gpt-daybreak-blue-latest', 'gpt-daybreak-blue-latest']
+  ])('resolves %s without falling back to unrelated artwork', (modelId, key) => {
+    for (const id of [modelId, modelId.replaceAll('.', '-'), `openai/${modelId}`]) {
+      expect(resolveIconRef(id, 'openai')).toEqual(expect.objectContaining({ kind: 'model', key }))
+    }
   })
 })

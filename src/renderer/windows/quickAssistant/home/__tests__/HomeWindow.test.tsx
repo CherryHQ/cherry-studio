@@ -373,7 +373,7 @@ describe('HomeWindow', () => {
     render(<HomeWindow draggable={false} />)
     await waitFor(() => expect(state.voiceTargetRegistration).not.toBeNull())
 
-    const input = screen.getByTestId('quick-input') as HTMLInputElement
+    const input = screen.getByTestId<HTMLInputElement>('quick-input')
     fireEvent.change(input, { target: { value: 'hello world' } })
     input.setSelectionRange(6, 11)
 

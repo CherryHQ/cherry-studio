@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-所有生成请求将入站协议转换为 SDK 消息、工具和提供商选项，再运行一次由调用方拥有执行权的 SDK 调用。出站协议和传输由 SDK provider adapter 负责。网关不增加 Agent 循环、工具执行、AI 修复、生成重试或模型回退；普通应用聊天保留现有循环。
+所有生成请求将入站协议转换为 SDK 消息、工具和提供商选项，再运行一次由调用方拥有执行权的 SDK 调用。出站协议和传输由 SDK provider adapter 负责。网关不增加 Agent 循环、工具执行、AI 修复或模型回退。HTTP 请求继续关闭生成重试；内部对象调用按[子任务重试决策](../bug-fix/2026-11-19-subagent-retry-error-projection.md)使用共享模型包装器。普通应用聊天保留现有循环。
 
 复用现有提供商解析、messageRules、兼容中间件、追踪和用量捕获。入站转换器保留已支持的调用方语义：直接使用 SDK JSON schema，保留工具结果错误状态、映射工具选择，并通过 provider metadata/options 携带显式缓存标记。调用方显式缓存设置优先于自动缓存布置。支持 Anthropic 的内部请求继续优先使用已配置的 Anthropic 端点，其他端点准入和回退规则不变。
 

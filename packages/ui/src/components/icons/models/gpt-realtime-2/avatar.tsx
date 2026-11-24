@@ -9,7 +9,7 @@ export function GptRealtime2Avatar({ size = 32, shape = 'circle', className }: O
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
+      <AvatarFallback className="text-foreground">
         <GptRealtime2Light style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
