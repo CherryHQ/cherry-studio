@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import type { DetectedWindow, ScreenshotResultData } from '@shared/types/screenshot'
+import { appErrorContextSchema } from '@shared/utils/appError'
 
 import { defineRoute } from '../define'
 import { uint8ArraySchema } from './common'
@@ -85,6 +86,8 @@ export const screenshotRequestSchemas = {
   'screenshot.save': defineRoute({ input: screenshotResultSchema, output: z.void() }),
   /** Dismiss every overlay without producing anything. */
   'screenshot.cancel': defineRoute({ input: z.void(), output: z.void() }),
+  /** The calling overlay's renderer failed: end the session, then present the fault from main. */
+  'screenshot.fail': defineRoute({ input: appErrorContextSchema, output: z.void() }),
   /** The calling overlay took over the interaction; the previously active one resets. */
   'screenshot.overlay_active': defineRoute({ input: z.void(), output: z.void() }),
   /**

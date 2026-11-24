@@ -339,6 +339,39 @@ describe('DiagnosticUploadPanel', () => {
     })
   })
 
+  it.each([false, true])('sends a failed-message AI analysis only with the chat opt-in (%s)', async (optIn) => {
+    const aiDiagnosis: DiagnosticAiDiagnosis = {
+      source: 'doctor-agent',
+      status: 'completed',
+      text: 'The previous message asked for a long summary.',
+      topicId: 'errored-conversation',
+      messageId: 'failed-message'
+    }
+    const user = userEvent.setup()
+    render(
+      <TestDiagnosticUploadPanel
+        aiDiagnosis={aiDiagnosis}
+        initialDescription="A model request failed"
+        chatTopicId="errored-conversation"
+      />
+    )
+
+    expect(screen.queryByText('The AI diagnostic result is included.')).not.toBeInTheDocument()
+    if (optIn) {
+      await user.click(
+        screen.getByRole('checkbox', {
+          name: 'Include chat history from this conversation (last 24 hours) to help us diagnose and fix the issue.'
+        })
+      )
+      expect(screen.getByText('The AI diagnostic result is included.')).toBeInTheDocument()
+    }
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    expect(await screen.findByText(reportId)).toBeInTheDocument()
+    const [, input] = mocks.request.mock.calls.find(([route]) => route === 'diagnostics.bundle.upload') ?? []
+    expect(input?.aiDiagnosis).toEqual(optIn ? aiDiagnosis : undefined)
+  })
+
   it('exposes no dismiss action while submitting and shows the report status details on success', async () => {
     let resolveUpload: (result: typeof uploadedResult) => void = () => undefined
     mocks.request.mockImplementation((route: string) => {

@@ -20,8 +20,7 @@ import {
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useImportAssistantMutation } from '@renderer/hooks/resourceCatalog'
-import { toastAppError } from '@renderer/services/AppErrorDetailService'
-import { toast } from '@renderer/services/toast'
+import { toast, toastInlineError } from '@renderer/services/toast'
 import { AssistantTransferError, parseAssistantImportContent } from '@renderer/utils/assistantTransfer'
 import { LocalizedToastError } from '@renderer/utils/errorToast'
 
@@ -220,10 +219,8 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
         }, AUTO_CLOSE_DELAY_MS)
       }
     } else {
-      toastAppError(nextStatus.message, nextStatus.cause, {
-        source: 'resource.assistant',
-        operation: 'assistant.import'
-      })
+      // The dialog's notice holds the only Details entry, so the report and Doctor share one occurrence.
+      toastInlineError(nextStatus.message)
     }
 
     setLoading(false)
@@ -320,6 +317,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       }}>
       <DialogContent
         closeOnOverlayClick={!loading}
+        guardDismiss={loading}
         className="overflow-hidden"
         onPointerDownOutside={(event) => loading && event.preventDefault()}>
         {/* Header */}

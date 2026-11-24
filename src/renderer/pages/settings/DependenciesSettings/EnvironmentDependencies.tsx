@@ -193,12 +193,14 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     async (force = false): Promise<Record<string, string> | null> => {
       const requestId = ++latestRequestIdRef.current
       setCheckingUpdates(true)
+      let operation = 'binary.get_latest_versions'
       try {
         const [versionsResult, stateResult] = await Promise.allSettled([
           ipcApi.request('binary.get_latest_versions', force),
           force ? refreshState(true) : Promise.resolve(true)
         ])
         if (versionsResult.status === 'rejected') throw versionsResult.reason
+        operation = 'binary.get_tool_snapshots'
         if (stateResult.status === 'rejected') throw stateResult.reason
         if (mountedRef.current && requestId === latestRequestIdRef.current) {
           setLatestVersions(versionsResult.value)
@@ -210,7 +212,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       } catch (error) {
         logger.error('Failed to fetch latest versions', error as Error)
         if (force && mountedRef.current && requestId === latestRequestIdRef.current) {
-          toast.error({ title: t('settings.dependencies.updateCheckFailed'), cause: error })
+          toast.error({
+            title: t('settings.dependencies.updateCheckFailed'),
+            cause: error,
+            data: { source: 'settings.dependencies', operation }
+          })
         }
         return null
       } finally {
@@ -315,7 +321,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       }
     } catch (error) {
       logger.error('Failed to remove tool', error as Error)
-      toast.error({ title: t('settings.dependencies.removeError'), cause: error })
+      toast.error({
+        title: t('settings.dependencies.removeError'),
+        cause: error,
+        data: { source: 'settings.dependencies', operation: 'binary.remove_tool', recordId: target.name }
+      })
     } finally {
       setDeleteTarget(null)
       await refreshState()
@@ -328,7 +338,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       await ipcApi.request('binary.remove_tool', { name, definitionOnly: true })
     } catch (error) {
       logger.error('Failed to remove tool definition', error as Error)
-      toast.error({ title: t('settings.dependencies.removeError'), cause: error })
+      toast.error({
+        title: t('settings.dependencies.removeError'),
+        cause: error,
+        data: { source: 'settings.dependencies', operation: 'binary.remove_tool_definition', recordId: name }
+      })
     } finally {
       setDefinitionFallback(null)
       await refreshState()
@@ -936,11 +950,17 @@ function AddToolDialog({
   const [selectedTool, setSelectedTool] = useState('')
   const [version, setVersion] = useState('')
   const [adding, setAdding] = useState(false)
-  const [addError, setAddError] = useState<unknown>(null)
+  // The name travels with the cause: the user may pick another result while the add is pending.
+  const [addError, setAddError] = useState<{ cause: unknown; name: string } | null>(null)
   const searchIdRef = useRef(0)
+  // Bumped on close so an add that settles after dismissal cannot touch the next session.
+  const sessionRef = useRef(0)
 
   useEffect(() => {
-    if (!open) setAddError(null)
+    if (open) return
+    sessionRef.current++
+    setAddError(null)
+    setAdding(false)
   }, [open])
 
   const reset = () => {
@@ -997,21 +1017,23 @@ function AddToolDialog({
 
   const handleSubmit = async () => {
     if (!selectedName.trim() || !selectedTool.trim()) return
+    const session = sessionRef.current
+    const name = selectedName.trim()
     setAdding(true)
     setAddError(null)
     try {
       const added = await onAdd({
-        name: selectedName.trim(),
+        name,
         tool: selectedTool.trim(),
         requestedVersion: version.trim() || undefined
       })
-      if (!added) return
+      if (!added || session !== sessionRef.current) return
       reset()
       onOpenChange(false)
     } catch (error) {
-      setAddError(error)
+      if (session === sessionRef.current) setAddError({ cause: error, name })
     } finally {
-      setAdding(false)
+      if (session === sessionRef.current) setAdding(false)
     }
   }
 
@@ -1081,16 +1103,16 @@ function AddToolDialog({
             value={version}
             onChange={(e) => setVersion(e.target.value)}
           />
-          {addError != null && (
+          {addError && (
             <ErrorNotice
               variant="inline"
               title={t('settings.dependencies.addFailed')}
               detail={
                 <ErrorDetailAction
-                  error={addError}
+                  error={addError.cause}
                   message={t('settings.dependencies.addFailed')}
                   operation="binary.add_custom_tool"
-                  recordId={selectedName}
+                  recordId={addError.name}
                   source="settings.dependencies"
                 />
               }
@@ -1238,7 +1260,11 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
     commitQueueRef.current = commitQueueRef.current
       .then(() => setSettings(next))
       .catch((error) => {
-        toast.error({ title: t('common.save_failed'), cause: error })
+        toast.error({
+          title: t('common.save_failed'),
+          cause: error,
+          data: { source: 'settings.dependencies', operation: 'binary.save_install_settings' }
+        })
       })
   }
   const commitUrl = (key: 'githubMirror' | 'npmRegistry' | 'pipIndexUrl', value: string) => {

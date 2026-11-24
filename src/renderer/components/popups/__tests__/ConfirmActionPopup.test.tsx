@@ -1,18 +1,26 @@
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
-import { appErrorContextService } from '@renderer/services/AppErrorContextService'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import { createPopup, POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
-const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }))
+const { toastError, openErrorDetail } = vi.hoisted(() => ({
+  toastError: vi.fn(),
+  openErrorDetail: vi.fn().mockResolvedValue('opened')
+}))
 const dialogMock = vi.hoisted(() => ({
   onOpenChange: undefined as ((open: boolean) => void) | undefined
 }))
 
 vi.mock('@renderer/services/toast', () => ({
   toast: { error: toastError }
+}))
+
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: openErrorDetail }
 }))
 
 // This suite exercises the real popup store + host, so opt out of the global mock.
@@ -22,6 +30,7 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
 
   return {
+    Alert: ({ children, role }) => React.createElement('div', { role: role ?? 'alert' }, children),
     Button: ({ children, loadingIcon, loading, ...props }) =>
       React.createElement('button', props, loading ? loadingIcon : null, children),
     Dialog: ({ children, open, onOpenChange }) => {
@@ -68,6 +77,7 @@ afterEach(() => {
   vi.advanceTimersByTime(POPUP_EXIT_MS)
   vi.useRealTimers()
   toastError.mockClear()
+  openErrorDetail.mockClear()
   dialogMock.onOpenChange = undefined
 })
 
@@ -97,7 +107,8 @@ describe('ConfirmActionPopup', () => {
     await expect(result).resolves.toBe(true)
   })
 
-  it('toasts the failure, stays open, and resolves true on retry', async () => {
+  // The dialog traps focus, so a Details entry that only lives in the window-level toast is unreachable by keyboard.
+  it('shows the failure inside the dialog with keyboard-reachable Details, stays open, and resolves true on retry', async () => {
     const user = userEvent.setup()
     render(<PopupHost />)
 
@@ -120,13 +131,20 @@ describe('ConfirmActionPopup', () => {
     await user.click(screen.getByRole('button', { name: 'Delete' }))
     await act(async () => {})
 
-    const payload = toastError.mock.calls[0]?.[0]
-    expect(payload).toMatchObject({ title: i18n.t('common.error'), description: 'boom' })
-    expect(appErrorContextService.contextForHostError('confirm-action-failed', payload)).toMatchObject({
+    const alert = within(confirmDialog).getByRole('alert')
+    expect(alert).toHaveTextContent(i18n.t('common.error'))
+    expect(alert).toHaveTextContent('boom')
+    const details = within(alert).getByRole('button', { name: i18n.t('common.detail') })
+    for (let step = 0; step < 10 && document.activeElement !== details; step++) await user.tab()
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(openErrorDetail.mock.calls[0][0].context).toMatchObject({
       message: 'boom',
       operation: 'confirm_action.run',
       source: 'popup.confirm_action'
     })
+    expect(toastError).not.toHaveBeenCalled()
     expect(settled).toBe(false)
     expect(screen.getByRole('button', { name: 'Delete' })).toBeEnabled()
 

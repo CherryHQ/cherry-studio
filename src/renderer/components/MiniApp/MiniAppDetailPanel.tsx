@@ -35,7 +35,6 @@ import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
-import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import { formatFileSize } from '@renderer/utils/file'
 import { permissionLabel } from '@renderer/utils/miniAppPermission'
@@ -107,6 +106,12 @@ interface Props {
 
 const logger = loggerService.withContext('MiniAppDetailPanel')
 
+interface PanelError {
+  message: string
+  cause: unknown
+  operation: string
+}
+
 const asUniqueModelId = (id: string | null | undefined): UniqueModelId | null => (id && isUniqueModelId(id) ? id : null)
 
 const hostOf = (url: string): string => {
@@ -150,7 +155,7 @@ const Usage: FC<{ label: string; usage: QuotaUsageWithLimits; testId: string }> 
 const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   const { t, i18n } = useTranslation()
   const [detail, setDetail] = useState<MiniAppDetail | null>(null)
-  const [error, setError] = useState<{ message: string; cause: unknown; operation: string } | null>(null)
+  const [error, setError] = useState<PanelError | null>(null)
   const [busy, setBusy] = useState(false)
   const [pendingAction, setPendingAction] = useState<DestructiveAction | null>(null)
   const { providers } = useProviders()
@@ -217,7 +222,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   }, [reload])
 
   /** Every write goes through here: one spinner, one error surface, one reload after. */
-  const run = async (action: () => Promise<unknown>, { reloadAfter = true } = {}) => {
+  const run = async (operation: string, action: () => Promise<unknown>, { reloadAfter = true } = {}) => {
     setBusy(true)
     setError(null)
     try {
@@ -229,7 +234,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
       setError({
         message: t('miniApp.detail.action_failed'),
         cause: e,
-        operation: 'miniapp.action'
+        operation
       })
       return false
     } finally {
@@ -257,15 +262,14 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   const replace = useMiniAppInstallPreview(reload, { expectAppId: appId })
   const { value: updateOffer } = useExitPresence(update.offer)
   const { value: replacePreview } = useExitPresence(replace.preview)
-  const replaceError = replace.error
-  useEffect(() => {
-    if (!replaceError) return
-    toastAppError(t(replaceError.key, replaceError.params), replaceError.cause, {
-      source: 'miniapp',
-      operation: replaceError.operation,
-      recordId: appId
-    })
-  }, [appId, replaceError, t])
+  // Shown in the panel, not a toast: the modal traps focus, so a toast's Details is out of keyboard reach.
+  const replaceError: PanelError | null = replace.error
+    ? {
+        message: t(replace.error.key, replace.error.params),
+        cause: replace.error.cause,
+        operation: replace.error.operation
+      }
+    : null
   const handlePickReplacement = () =>
     replace.settle(
       () => ipcApi.request('mini_app.install.pick_and_preview'),
@@ -277,7 +281,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
     if (!pendingAction) return
     const action = pendingAction
     // Nothing to reload after an uninstall: the row is gone, and the panel closes with it.
-    const ok = await run(() => ipcApi.request(`mini_app.${action}`, { appId }), {
+    const ok = await run(`miniapp.${action}`, () => ipcApi.request(`mini_app.${action}`, { appId }), {
       reloadAfter: action !== 'uninstall'
     })
     if (ok && action === 'uninstall') {
@@ -296,6 +300,23 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
       description: t('miniApp.detail.uninstall_confirm', { name: detail?.name ?? appId })
     }
   }
+
+  const errorNotice = (shown: PanelError | null) =>
+    shown && (
+      <ErrorNotice
+        variant="inline"
+        title={shown.message}
+        detail={
+          <ErrorDetailAction
+            error={shown.cause}
+            message={shown.message}
+            source="miniapp"
+            operation={shown.operation}
+            recordId={appId}
+          />
+        }
+      />
+    )
 
   const sourceLine = (d: MiniAppDetail): string => {
     if (d.source === 'url') return t('miniApp.detail.source.url', { host: hostOf(d.sourceUrl ?? '') })
@@ -330,21 +351,8 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
               </div>
             </div>
             {/* In the pinned header, not the scrolling body: a refused action must stay in view. */}
-            {error && (
-              <ErrorNotice
-                variant="inline"
-                title={error.message}
-                detail={
-                  <ErrorDetailAction
-                    error={error.cause}
-                    message={error.message}
-                    source="miniapp"
-                    operation={error.operation}
-                    recordId={appId}
-                  />
-                }
-              />
-            )}
+            {errorNotice(error)}
+            {errorNotice(replaceError)}
           </DialogHeader>
 
           {detail && (
@@ -400,13 +408,21 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
                         size="sm"
                         variant="ghost"
                         disabled={busy}
-                        onClick={() => run(() => ipcApi.request('mini_app.grant.snooze_pending', { appId }))}>
+                        onClick={() =>
+                          run('miniapp.grant.snooze_pending', () =>
+                            ipcApi.request('mini_app.grant.snooze_pending', { appId })
+                          )
+                        }>
                         {t('miniApp.detail.pending_snooze')}
                       </Button>
                       <Button
                         size="sm"
                         disabled={busy}
-                        onClick={() => run(() => ipcApi.request('mini_app.grant.approve_pending', { appId }))}>
+                        onClick={() =>
+                          run('miniapp.grant.approve_pending', () =>
+                            ipcApi.request('mini_app.grant.approve_pending', { appId })
+                          )
+                        }>
                         {t('miniApp.detail.grant_pending')}
                       </Button>
                     </div>
@@ -443,7 +459,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
                     hosts={detail.network}
                     disabled={busy}
                     onToggle={(key, on) =>
-                      run(() =>
+                      run(on ? 'miniapp.grant.approve' : 'miniapp.grant.revoke', () =>
                         ipcApi.request(on ? 'mini_app.grant.approve' : 'mini_app.grant.revoke', {
                           appId,
                           permission: key
@@ -499,7 +515,13 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
                         variant="outline"
                         disabled={busy}
                         onClick={() =>
-                          run(() => ipcApi.request('mini_app.activity.open_folder', { appId }), { reloadAfter: false })
+                          run(
+                            'miniapp.activity.open_folder',
+                            () => ipcApi.request('mini_app.activity.open_folder', { appId }),
+                            {
+                              reloadAfter: false
+                            }
+                          )
                         }>
                         {t('miniApp.activity.open_folder')}
                       </Button>
@@ -509,6 +531,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
                         disabled={busy || activity.entries.length === 0}
                         onClick={() =>
                           run(
+                            'miniapp.activity.clear',
                             async () => {
                               await ipcApi.request('mini_app.activity.clear', { appId })
                               await loadActivity()
@@ -572,10 +595,14 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
                           providers={providers}
                           filter={chatModelFilter}
                           placeholder={slot.placeholder}
-                          onSelect={(model) => run(() => slot.write(model?.id ?? null))}
+                          onSelect={(model) => run('miniapp.set_model', () => slot.write(model?.id ?? null))}
                         />
                         {slot.set && (
-                          <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => slot.write(null))}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={busy}
+                            onClick={() => run('miniapp.set_model', () => slot.write(null))}>
                             {t('miniApp.detail.model_use_default')}
                           </Button>
                         )}
@@ -604,7 +631,9 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
                           size="sm"
                           variant="outline"
                           disabled={locked}
-                          onClick={() => run(() => ipcApi.request('mini_app.update.rollback', { appId }))}>
+                          onClick={() =>
+                            run('miniapp.update.rollback', () => ipcApi.request('mini_app.update.rollback', { appId }))
+                          }>
                           {t('miniApp.detail.rollback')}
                         </Button>
                       )}

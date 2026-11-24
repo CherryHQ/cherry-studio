@@ -161,6 +161,22 @@ describe('projectAppErrorContext', () => {
     expect(summarizeProviderResponse('{"error":"quota"}')).toBe('{"error":"quota"}')
   })
 
+  it('keeps a machine error code on export and upload so same-message failures stay distinct', () => {
+    const fields = { source: 'notes', operation: 'notes.file.write', message: 'File editing I/O failed' }
+    const noSpace = createAppErrorContext({ ...fields, code: 'FILE_EDIT_NO_SPACE' })
+    const denied = createAppErrorContext({ ...fields, code: 'FILE_EDIT_PERMISSION' })
+
+    for (const view of ['export', 'upload'] as const) {
+      expect(projectAppErrorContext(noSpace, view).code).toBe('FILE_EDIT_NO_SPACE')
+      expect(projectAppErrorContext(denied, view).code).toBe('FILE_EDIT_PERMISSION')
+    }
+    expect(appErrorContextSchema.parse(noSpace).code).toBe('FILE_EDIT_NO_SPACE')
+    for (const code of ['file_edit_no_space', '/Users/me/notes/a.md', 'FILE_EDIT /Users/me/notes/a.md']) {
+      expect(createAppErrorContext({ ...fields, code })).not.toHaveProperty('code')
+      expect(isAppErrorContext({ ...noSpace, code })).toBe(false)
+    }
+  })
+
   it('drops image payloads from a provider response and keeps the failure text', () => {
     const summary = summarizeProviderResponse(
       JSON.stringify({

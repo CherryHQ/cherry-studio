@@ -332,7 +332,9 @@ describe('redactDiagnosticText', () => {
     ['open c:\\users\\bob\\Desktop', 'open ~\\Desktop'],
     ['{"path":"C:\\\\Users\\\\bob\\\\Desktop"}', '{"path":"~\\\\Desktop"}'],
     ['open C:\\Users\\John Smith\\AppData\\x.log', 'open ~\\AppData\\x.log'],
-    ['open C:/Users/John Smith/AppData', 'open ~/AppData']
+    ['open C:/Users/John Smith/AppData', 'open ~/AppData'],
+    ['read C:\\Users\\Jane Mary Doe\\prefs.json', 'read ~\\prefs.json'],
+    ['{"path":"C:\\\\Users\\\\Jane Mary Doe\\\\prefs.json"}', '{"path":"~\\\\prefs.json"}']
   ])('replaces the home directory in %s', (text, expected) => {
     expect(redactDiagnosticText(text)).toBe(expected)
   })

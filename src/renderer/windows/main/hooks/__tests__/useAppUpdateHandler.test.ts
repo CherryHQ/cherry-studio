@@ -354,6 +354,18 @@ describe('useAppUpdateHandler', () => {
     expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateError')
   })
 
+  it('keeps a rejected channel write failing when a held background check then finds no update', () => {
+    renderHook(() => useAppUpdateHandler())
+    const epoch = appUpdateCheckService.invalidateSharedUpdateCheck()
+    appUpdateCheckService.noteSharedUpdatePreferenceFailure(epoch)
+
+    emit('app.updater.check_started', { manual: false })
+    emit('app.updater.not_available', currentPayload)
+    emit('app.updater.available', releaseInfo)
+
+    expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateError')
+  })
+
   it('always resets failures and keeps a manual failure beside the check control', async () => {
     renderHook(() => useAppUpdateHandler())
 

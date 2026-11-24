@@ -171,7 +171,7 @@ vi.mock('../../../hooks/useKnowledgeRagConfig', () => ({
   useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base)
 }))
 
-vi.mock('../../../hooks/useEmbeddingDimensions', () => ({
+vi.mock('@renderer/hooks/useEmbeddingDimensions', () => ({
   useEmbeddingDimensions: () => ({
     fetchDimensions: async (uniqueModelId: string) => {
       const { embeddings } = await mockEmbedMany({
@@ -184,7 +184,7 @@ vi.mock('../../../hooks/useEmbeddingDimensions', () => ({
   })
 }))
 
-vi.mock('../../../components/KnowledgeModelSelect', () => ({
+vi.mock('@renderer/components/knowledge/KnowledgeModelSelect', () => ({
   isRerankModel: () => true,
   KnowledgeModelSelect: ({
     value,
@@ -215,7 +215,7 @@ vi.mock('../../../components/KnowledgeModelSelect', () => ({
   )
 }))
 
-vi.mock('../../../components/KnowledgeEmbeddingModelSelect', () => ({
+vi.mock('@renderer/components/knowledge/KnowledgeEmbeddingModelSelect', () => ({
   KnowledgeEmbeddingModelSelect: ({
     value,
     placeholder,

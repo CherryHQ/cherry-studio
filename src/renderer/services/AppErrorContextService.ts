@@ -2,7 +2,12 @@ import type { SerializedError } from '@renderer/types/error'
 import type { AppErrorContext } from '@shared/types/appError'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
-import { createAppErrorContext, summarizeErrorParams, summarizeProviderResponse } from '@shared/utils/appError'
+import {
+  createAppErrorContext,
+  isSafeErrorCode,
+  summarizeErrorParams,
+  summarizeProviderResponse
+} from '@shared/utils/appError'
 
 import { presentedRouteService } from './PresentedRouteService'
 
@@ -121,8 +126,6 @@ function copySerialized(error: SerializedError): SerializedError {
 }
 
 const AI_REQUEST_FAILED = 'AI_REQUEST_FAILED'
-// Machine codes like `FILE_EDIT_NO_SPACE` are safe to keep; free-form values (paths, text) are not.
-const SAFE_ERROR_CODE = /^[A-Z][A-Z0-9_]{1,63}$/
 
 /** Provider payload on an AI request IPC failure, without loading the AI error module. */
 function ipcRequestDetail(value: unknown): SerializedError | undefined {
@@ -146,7 +149,7 @@ export function diagnosticErrorFromUnknown(error: unknown): SerializedError | un
     const stack = suppliedStack(value) ?? null
     const statusCode = typeof record.statusCode === 'number' ? record.statusCode : undefined
     const responseBody = typeof record.responseBody === 'string' ? record.responseBody : undefined
-    const code = typeof record.code === 'string' && SAFE_ERROR_CODE.test(record.code) ? record.code : undefined
+    const code = isSafeErrorCode(record.code) ? record.code : undefined
     if (name === null && message === null && stack === null && statusCode === undefined && responseBody === undefined) {
       return undefined
     }
@@ -214,6 +217,7 @@ export function contextFromUnknown(
     ...(fields.occurredAt ? { occurredAt: fields.occurredAt } : {}),
     ...(name ? { name } : {}),
     ...(stack ? { stack } : {}),
+    ...(isSafeErrorCode(diagnostic?.code) ? { code: diagnostic.code } : {}),
     ...(typeof diagnostic?.statusCode === 'number' ? { statusCode: diagnostic.statusCode } : {}),
     ...(responseBody ? { responseBody } : {}),
     ...(fields.providerId ? { providerId: fields.providerId } : {}),

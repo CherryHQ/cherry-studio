@@ -563,4 +563,48 @@ describe('SkillMarketplaceDialog', () => {
     expect(toastError).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
   })
+
+  it('keeps each failed install and its Details until that failure is dismissed or retried', async () => {
+    const user = userEvent.setup()
+    skillSearchState.results = [
+      resultsFixture[0],
+      { ...resultsFixture[0], slug: 'converter', name: 'Converter', installSource: 'claude-plugins:a/skills/converter' }
+    ]
+    installMock.mockImplementation(async (installSource: string) => ({
+      skill: null,
+      cause: new Error(`clone failed for ${installSource}`)
+    }))
+    renderDialog()
+
+    await user.selectOptions(sourceSelect(), 'claude-plugins.dev')
+    typeSearchQuery('code')
+    const [firstInstall, secondInstall] = screen.getAllByRole('button', { name: /settings.skills.install/ })
+    await user.click(firstInstall)
+    await user.click(secondInstall)
+
+    const dialog = screen.getByRole('dialog')
+    await waitFor(() => expect(within(dialog).getAllByRole('alert')).toHaveLength(2))
+    const firstNotice = within(dialog).getByText('settings.skills.installFailed:Code Review').closest('[role="alert"]')!
+    await user.click(within(firstNotice as HTMLElement).getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(openDetail).toHaveBeenCalledTimes(1))
+    expect(openDetail.mock.calls[0][0].context).toMatchObject({
+      message: 'clone failed for claude-plugins:anthropic/skills/code-review',
+      recordId: 'claude-plugins:anthropic/skills/code-review'
+    })
+
+    await user.click(within(firstNotice as HTMLElement).getByRole('button', { name: 'common.close' }))
+    expect(within(dialog).getAllByRole('alert')).toHaveLength(1)
+    const secondNotice = within(dialog).getByRole('alert')
+    expect(secondNotice).toHaveTextContent('settings.skills.installFailed:Converter')
+    await user.click(within(secondNotice).getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(openDetail).toHaveBeenCalledTimes(2))
+    expect(openDetail.mock.calls[1][0].context).toMatchObject({
+      message: 'clone failed for claude-plugins:a/skills/converter',
+      recordId: 'claude-plugins:a/skills/converter'
+    })
+
+    installMock.mockResolvedValueOnce({ skill: { id: 'skill-2', name: 'Converter' } })
+    await user.click(screen.getAllByRole('button', { name: /settings.skills.install/ })[1])
+    await waitFor(() => expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument())
+  })
 })
