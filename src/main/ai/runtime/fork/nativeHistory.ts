@@ -1,15 +1,17 @@
 import { constants } from 'node:fs'
 import { lstat, open } from 'node:fs/promises'
 
+import { getErrorCode } from '@main/utils/error'
+
 import { AgentSessionForkError } from './checkpoint'
 
 export async function readNativeForkHistory<T>(read: () => Promise<T>): Promise<T> {
   try {
     return await read()
   } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') throw new AgentSessionForkError('history_missing')
+    if (getErrorCode(error) === 'ENOENT') throw new AgentSessionForkError('history_missing')
 
-    if (error instanceof SyntaxError) throw new AgentSessionForkError('history_corrupt')
+    if (Error.isError(error) && error instanceof SyntaxError) throw new AgentSessionForkError('history_corrupt')
     throw error
   }
 }
