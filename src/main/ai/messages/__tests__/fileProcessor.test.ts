@@ -299,3 +299,52 @@ describe('materializeNativeFilePart — repeated history images', () => {
     expect(first[2]).toBeNull()
   })
 })
+
+describe('attachment image downscaling', () => {
+  const input = async (width: number, height: number) =>
+    sharp({ create: { width, height, channels: 4, background: { r: 12, g: 34, b: 56, alpha: 0.5 } } })
+      .png()
+      .toBuffer()
+  const partFor = (bytes: Buffer): FileUIPart =>
+    filePart({
+      url: `data:image/png;base64,${bytes.toString('base64')}`,
+      mediaType: 'image/png',
+      filename: 'panorama.png'
+    })
+
+  it.each([
+    [8300, 20, 8192, 19],
+    [20, 8300, 19, 8192]
+  ])('downscales %i×%i so no edge exceeds the provider limit', async (width, height, outWidth, outHeight) => {
+    const part = partFor(await input(width, height))
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
+    const snapshot = structuredClone(part)
+    const result = await materializeNativeFilePart(part)
+    const output = Buffer.from(result!.url.split(',')[1], 'base64')
+    expect(await sharp(output).metadata()).toMatchObject({ width: outWidth, height: outHeight })
+    expect(part).toEqual(snapshot)
+    expect(result?.filename).toBe('panorama.png')
+    expect(result?.mediaType).toBe('image/png')
+  })
+
+  it('drops the attachment through the failure-note path when downscaling fails', async () => {
+    const part = partFor(await input(8400, 20))
+    const resize = vi.spyOn(sharp.prototype, 'resize').mockImplementationOnce(() => {
+      throw new Error('encoder failed')
+    })
+    try {
+      expect(await materializeNativeFilePart(part)).toBeNull()
+    } finally {
+      resize.mockRestore()
+    }
+  })
+
+  it('caches the downscaled result so history images are not re-encoded', async () => {
+    const part = partFor(await input(8500, 20))
+    const first = await materializeNativeFilePart(part)
+    const decodes = sharpCalls.count
+    const second = await materializeNativeFilePart({ ...part })
+    expect(sharpCalls.count).toBe(decodes)
+    expect(second).toEqual(first)
+  })
+})

@@ -30,6 +30,10 @@ const logger = loggerService.withContext('ai:fileProcessor')
 // Ark documents edges >14 px; 15 also satisfies an inclusive 14 px floor.
 // This is an attachment compatibility target, not a universal provider minimum.
 const MIN_ATTACHMENT_IMAGE_EDGE = 15
+// Providers reject images whose width or height exceeds their documented edge
+// limit (DeepSeek: "width and height must each be at most 8192 pixels").
+// Downscaling here keeps one oversized attachment from aborting the whole turn.
+const MAX_ATTACHMENT_IMAGE_EDGE = 8192
 const MAX_IMAGE_VALIDATIONS = 512
 /** Decisions by data URL digest: `null` rejects, `url` replaces the image with its padded form. */
 const imageValidations = new Map<string, { url?: string } | null>()
@@ -153,6 +157,43 @@ async function validateImage(normalized: FileUIPart): Promise<FileUIPart | null>
       const width = metadata.width
       const height = metadata.pageHeight ?? metadata.height
       if (!width || !height) throw new Error('Image dimensions are unavailable')
+      if (width > MAX_ATTACHMENT_IMAGE_EDGE || height > MAX_ATTACHMENT_IMAGE_EDGE) {
+        const scale = MAX_ATTACHMENT_IMAGE_EDGE / Math.max(width, height)
+        // Pin the long edge to the exact limit; the short edge follows the ratio.
+        const resizedWidth = width >= height ? MAX_ATTACHMENT_IMAGE_EDGE : Math.max(1, Math.floor(width * scale))
+        const resizedHeight = height > width ? MAX_ATTACHMENT_IMAGE_EDGE : Math.max(1, Math.floor(height * scale))
+        try {
+          if (resizedWidth * resizedHeight * (metadata.pages ?? 1) > MAX_ATTACHMENT_IMAGE_PIXELS) {
+            throw new Error('Downscaled image exceeds the pixel budget')
+          }
+          const resized = await sharp(bytes, {
+            failOn: 'error',
+            limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS,
+            animated: true
+          })
+            .keepMetadata()
+            .resize(resizedWidth, resizedHeight, { fit: 'fill' })
+            .toBuffer()
+          logger.info('Downscaled an oversized image attachment to the provider edge limit', {
+            filename: normalized.filename,
+            width,
+            height,
+            resizedWidth,
+            resizedHeight
+          })
+          return { ...normalized, url: `data:${normalized.mediaType};base64,${resized.toString('base64')}` }
+        } catch (error) {
+          // Drop through the per-file failure note, which names the attachment,
+          // instead of letting the provider's 400 abort the whole turn.
+          logger.warn('Could not downscale an oversized image attachment; using the existing file failure note', {
+            filename: normalized.filename,
+            mediaType: normalized.mediaType,
+            limit: MAX_ATTACHMENT_IMAGE_EDGE,
+            reason: error instanceof Error ? error.message : String(error)
+          })
+          return null
+        }
+      }
       const padW = Math.max(width, MIN_ATTACHMENT_IMAGE_EDGE)
       const padH = Math.max(height, MIN_ATTACHMENT_IMAGE_EDGE)
       if (padW === width && padH === height) return normalized
