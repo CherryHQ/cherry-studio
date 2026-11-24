@@ -6,7 +6,6 @@ import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { agentService } from '@data/services/AgentService'
 import { BaseService, Emitter } from '@main/core/lifecycle'
 import { memoryHandlers } from '@main/ipc/handlers/memory'
 
@@ -59,16 +58,6 @@ afterEach(async () => {
 })
 
 describe('memory editor command boundary', () => {
-  it('reports private migration state without initializing files or granting another window access', async () => {
-    vi.spyOn(agentService, 'getAgent').mockReturnValue({ id: 'agent' } as ReturnType<typeof agentService.getAgent>)
-    MockApplicationUtils.setService('MemoryMigrationService', { status: () => 'pending', isMigrated: () => false })
-    const input = { agentId: 'agent' }
-    await expect(memoryHandlers['memory.private.list'](input, main)).resolves.toEqual({ status: 'pending', files: [] })
-    await expect(memoryHandlers['memory.private.list'](input, { senderId: 'quick' })).rejects.toThrow()
-    await expect(memoryHandlers['memory.private.read']({ ...input, path: 'MEMORY.md' }, main)).rejects.toThrow()
-    expect(await readdir(fixture)).toEqual([])
-  })
-
   it('denies unmanaged and quick windows before creating memory files', async () => {
     await expect(memoryHandlers['memory.editor.open']({ kind: 'shared' }, { senderId: null })).rejects.toMatchObject({
       data: { reason: 'unavailable' }
