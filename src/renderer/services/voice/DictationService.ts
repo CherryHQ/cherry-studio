@@ -151,10 +151,15 @@ const voiceReasons = new Set<string>(Object.keys(voiceErrorCodes))
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dictation receives arbitrary browser and service failures; this classifier validates the reason field against known voice reasons before using it.
 function errorCategory(error: unknown, fallback: DictationErrorCategory): DictationErrorCategory {
-  if (typeof error !== 'object' || error === null || !('reason' in error)) return fallback
-  const reason = (error as { reason?: unknown }).reason
+  try {
+    if (typeof error !== 'object' || error === null || !('reason' in error)) return fallback
+    const reason = error.reason
 
-  return typeof reason === 'string' && voiceReasons.has(reason) ? (reason as VoiceErrorReason) : fallback
+    // SAFETY: voiceReasons contains only keys of voiceErrorCodes, which define the complete VoiceErrorReason union.
+    return typeof reason === 'string' && voiceReasons.has(reason) ? (reason as VoiceErrorReason) : fallback
+  } catch {
+    return fallback
+  }
 }
 
 export class DictationService {

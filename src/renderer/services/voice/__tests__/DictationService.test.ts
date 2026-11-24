@@ -502,6 +502,33 @@ describe('DictationService recording lifecycle', () => {
     await h.service.teardown()
   })
 
+  it.each(['getter', 'proxy'] as const)('keeps unreadable error metadata inside failure handling: %s', async (kind) => {
+    const h = createHarness()
+    const failure =
+      kind === 'getter'
+        ? {
+            get reason() {
+              throw new Error('unreadable reason')
+            }
+          }
+        : new Proxy(
+            {},
+            {
+              has: () => {
+                throw new Error('unreadable membership')
+              }
+            }
+          )
+    h.voice.readTranscriptionPreferenceInput.mockRejectedValueOnce(failure)
+
+    await expect(h.service.start()).resolves.toBeUndefined()
+
+    expect(h.service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' })
+    expect(h.getUserMedia).not.toHaveBeenCalled()
+    expect(h.createMediaRecorder).not.toHaveBeenCalled()
+    await h.service.teardown()
+  })
+
   it('clears a completed failure on Off so it cannot reappear on On', async () => {
     const h = createHarness()
     h.voice.readTranscriptionPreferenceInput.mockRejectedValueOnce({ reason: 'unsupported' })
