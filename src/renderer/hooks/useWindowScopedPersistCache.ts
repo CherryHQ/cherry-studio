@@ -33,11 +33,12 @@ export function useWindowScopedPersistCache<K extends RendererPersistCacheKey, W
   windowCacheKey: W & CompatibleWindowCacheKey<K, W>
 ): WindowScopedCachePair<K> {
   const persistedPair = usePersistCache(persistCacheKey)
-  // Seed the window tier from a mount-time snapshot: a live persisted binding would re-seed a
-  // nullish local value whenever another window broadcasts the persisted key.
+  // SAFETY: CompatibleWindowCacheKey requires mutually assignable schema values and excludes any-valued window keys.
+  // Snapshot once so persisted broadcasts cannot re-seed a nullish detached-window value.
   const seed = useRef(persistedPair[0] as InferUseCacheValue<typeof windowCacheKey>)
   const windowPair = useCache(windowCacheKey, seed.current)
   const isWindowFrame = useWindowFrame().mode === 'window'
 
+  // SAFETY: The compatible key constraint equates both hook value types and their updater inputs; seeding preserves the pair.
   return (isWindowFrame ? windowPair : persistedPair) as WindowScopedCachePair<K>
 }
