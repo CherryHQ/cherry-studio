@@ -51,7 +51,30 @@ export const agentArchiveWorkspaceJobHandler: JobHandler<{ sessionId: string }> 
       })
       return { skipped: true }
     }
-    const outcome = await agentWorkspaceStorageService.archiveWorkspace(workspace)
+    let outcome: Awaited<ReturnType<typeof agentWorkspaceStorageService.archiveWorkspace>>
+    try {
+      outcome = await agentWorkspaceStorageService.archiveWorkspace(
+        workspace,
+        // Re-read after the worker's strict close: a purge committed while the
+        // close was held must stop the pack, not be archived over (issue #21645).
+        () => {
+          const current = agentSessionService.listSystemWorkspaceSessions([ctx.input.sessionId])[0]
+          return !!current && current.deletedAt !== null
+        }
+      )
+    } catch (error) {
+      // Log every failed attempt with its session: JobManager records a retry
+      // without the cause and a later successful retry clears the stored error,
+      // so this line is the only durable trace of what failed (issue #21645).
+      ctx.logger.error('Workspace archive attempt failed', { sessionId: ctx.input.sessionId, error })
+      throw error
+    }
+    if (outcome === 'skipped') {
+      ctx.logger.info('Skipping workspace archive — workspace was permanently deleted during close', {
+        sessionId: ctx.input.sessionId
+      })
+      return { skipped: true }
+    }
     if (outcome === 'busy') {
       // Transient contention is not completion: surface it so the retry policy
       // requeues the pack instead of settling the task with the directory

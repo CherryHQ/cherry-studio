@@ -426,7 +426,7 @@ export class AgentLifecycleService extends BaseService {
         onArchivedSystemWorkspacesTx: this.enqueueWorkspaceArchivesTx,
         ...(targetState === 'active' ? { targetState } : {})
       })
-      await this.finishDeletion(result.deletedIds, result.deliveryResults)
+      await this.finishDeletion(result.deletedIds, result.deliveryResults, [], !permanent)
       await this.removePurgedSystemWorkspaces(
         workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
       )
@@ -499,7 +499,8 @@ export class AgentLifecycleService extends BaseService {
       await this.finishDeletion(
         result.affectedSessionIds,
         result.deliveryResults,
-        deleteSessions ? [] : result.affectedSessionIds
+        deleteSessions ? [] : result.affectedSessionIds,
+        !permanent && deleteSessions
       )
       await this.removePurgedSystemWorkspaces(
         workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
@@ -631,7 +632,7 @@ export class AgentLifecycleService extends BaseService {
           sessionTypes: ['conversation'],
           onArchivedSystemWorkspacesTx: this.enqueueWorkspaceArchivesTx
         })
-        await this.finishDeletion(result.deletedIds, result.deliveryResults)
+        await this.finishDeletion(result.deletedIds, result.deliveryResults, [], true)
         return { deletedIds: result.deletedIds }
       },
       false
@@ -653,13 +654,19 @@ export class AgentLifecycleService extends BaseService {
   private async finishDeletion(
     sessionIds: string[],
     deliveryResults: AgentSessionMessageEntity[],
-    retrySessionIds: string[] = []
+    retrySessionIds: string[] = [],
+    archiveClose = false
   ): Promise<void> {
     const closed = await Promise.allSettled(
       sessionIds.map(async (sessionId) => {
         const runtime = application.get('AgentSessionRuntimeService')
         await runtime.cancelSessionForks(sessionId)
-        await runtime.closeSession(sessionId)
+        // An archive acknowledgement must wait for strict teardown (warm-query
+        // disposal and the closing barrier), not just the permissive close: the
+        // pack worker's own strict barrier must not be the only one (issue
+        // #21645). Purges keep the permissive close.
+        if (archiveClose) await runtime.closeSessionForArchive(sessionId)
+        else await runtime.closeSession(sessionId)
       })
     )
     await application

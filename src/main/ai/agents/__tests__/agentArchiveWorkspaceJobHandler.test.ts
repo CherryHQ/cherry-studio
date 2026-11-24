@@ -56,7 +56,7 @@ describe('agentArchiveWorkspaceJobHandler', () => {
     await expect(agentArchiveWorkspaceJobHandler.execute(makeContext('session'))).resolves.toEqual({
       archived: '/workspaces/session'
     })
-    expect(archiveWorkspace).toHaveBeenCalledWith(archivedWorkspace)
+    expect(archiveWorkspace).toHaveBeenCalledWith(archivedWorkspace, expect.any(Function))
   })
 
   it('skips a workspace restored after the task was queued (AC3)', async () => {
@@ -75,6 +75,30 @@ describe('agentArchiveWorkspaceJobHandler', () => {
     listWorkspaces.mockReturnValue([archivedWorkspace] as never)
     archiveWorkspace.mockRejectedValueOnce(new Error('disk full'))
     await expect(agentArchiveWorkspaceJobHandler.execute(makeContext('session'))).rejects.toThrow('disk full')
+  })
+
+  it('logs a failed attempt with the session id before the task retries', async () => {
+    // JobManager records a retry without the cause and a later successful retry
+    // clears the stored error, so the handler logs each failed attempt itself.
+    listWorkspaces.mockReturnValue([archivedWorkspace] as never)
+    const failure = new Error('disk full')
+    archiveWorkspace.mockRejectedValueOnce(failure)
+    const ctx = makeContext('session')
+    await expect(agentArchiveWorkspaceJobHandler.execute(ctx)).rejects.toThrow('disk full')
+    expect(ctx.logger.error).toHaveBeenCalledWith('Workspace archive attempt failed', {
+      sessionId: 'session',
+      error: failure
+    })
+  })
+
+  it('stops the pack when a purge commits while the strict close is held', async () => {
+    listWorkspaces.mockReturnValue([archivedWorkspace] as never)
+    archiveWorkspace.mockImplementationOnce(async (_workspace, isStillArchivable) => {
+      // The purge lands mid-close, under the storage reservation.
+      listWorkspaces.mockReturnValue([] as never)
+      return (await (isStillArchivable as () => boolean)()) ? 'archived' : 'skipped'
+    })
+    await expect(agentArchiveWorkspaceJobHandler.execute(makeContext('session'))).resolves.toEqual({ skipped: true })
   })
 
   it('rejects on storage contention so the task retries instead of falsely succeeding', async () => {

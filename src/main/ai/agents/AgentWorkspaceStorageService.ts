@@ -172,13 +172,21 @@ class AgentWorkspaceStorageService {
    * handler tell contention apart from a completed pack instead of settling
    * the task with the directory unpacked.
    */
-  async archiveWorkspace(workspace: Workspace): Promise<'archived' | 'busy' | 'blocked'> {
+  async archiveWorkspace(
+    workspace: Workspace,
+    isStillArchivable?: () => boolean
+  ): Promise<'archived' | 'busy' | 'blocked' | 'skipped'> {
     if (!existsSync(application.getPath('feature.agents.system_workspaces'))) await this.quiesce(workspace.id)
     const release = this.reserveWorkspaceStorage(this.workspaceStoragePaths(workspace.path), workspace.path)
     if (release === undefined) return 'archived' // no managed storage root: nothing to pack
     if (typeof release !== 'function') return release === 'claimed' ? 'blocked' : 'busy'
     try {
       await this.quiesce(workspace.id)
+      // The strict close above can wait arbitrarily long; a purge committed
+      // meanwhile must not be packed over. Revalidate the business state under
+      // the reservation, after the close, before any packing starts (issue
+      // #21645).
+      if (isStillArchivable && !isStillArchivable()) return 'skipped'
       const root = application.getPath('feature.agents.system_workspaces')
       const state = await this.inspect(root, workspace)
       if (!state) return 'archived'

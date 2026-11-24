@@ -631,7 +631,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   })
 
   it('keeps the directory if runtime shutdown fails', async () => {
-    mocks.closeSession.mockRejectedValueOnce(new Error('runtime still holds files'))
+    mocks.closeSessionForArchive.mockRejectedValueOnce(new Error('runtime still holds files'))
     await lifecycle.archiveSessions(['system'])
     expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
     expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
@@ -643,6 +643,49 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
       { sessionId: 'system' },
       expect.objectContaining({ idempotencyKey: 'archive-system-workspace:system' })
     )
+  })
+
+  it('waits for strict runtime teardown before acknowledging an archive', async () => {
+    // Held disposal (warm-query close, closing barrier): the archive
+    // acknowledgement must wait for strict teardown, not just the permissive
+    // close — independently of any compression (issue #21645).
+    let release!: () => void
+    mocks.closeSessionForArchive.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve
+        })
+    )
+    let acknowledged = false
+    const ack = lifecycle.archiveSessions(['system']).then(() => {
+      acknowledged = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(acknowledged).toBe(false)
+    expect(mocks.closeSessionForArchive).toHaveBeenCalledWith('system')
+    release()
+    await ack
+    expect(acknowledged).toBe(true)
+  })
+
+  it('does not pack a workspace purged while the worker waits for strict close', async () => {
+    await lifecycle.archiveSessions(['system'])
+    let release!: () => void
+    mocks.closeSessionForArchive.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve
+        })
+    )
+    const flush = flushArchiveJobs()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    // The purge commits while the worker holds the reservation and waits for
+    // the strict close; packing must never start for the deleted workspace.
+    dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, 'system')).run()
+    release()
+    await flush
+    expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
+    expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
   })
 
   it('retains files across sweep retries when permissive close resolves but strict shutdown fails', async () => {
