@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 import {
   copy,
   ensureDir,
@@ -282,22 +283,23 @@ export function collectKnowledgeReservedRelativePaths(
       continue
     }
 
-    const data = item.data as { relativePath?: unknown; indexedRelativePath?: unknown }
+    const relativePath = 'relativePath' in item.data ? item.data.relativePath : undefined
+    const indexedRelativePath = 'indexedRelativePath' in item.data ? item.data.indexedRelativePath : undefined
 
-    if (typeof data.relativePath === 'string') {
-      reserved.add(data.relativePath)
+    if (typeof relativePath === 'string') {
+      reserved.add(relativePath)
 
       if (
         item.type === 'file' &&
-        typeof data.indexedRelativePath !== 'string' &&
-        needsProcessedArtifactReservation(options.fileProcessorId, data.relativePath)
+        typeof indexedRelativePath !== 'string' &&
+        needsProcessedArtifactReservation(options.fileProcessorId, relativePath)
       ) {
-        reserved.add(getProcessedMarkdownRelativePath(data.relativePath))
+        reserved.add(getProcessedMarkdownRelativePath(relativePath))
       }
     }
 
-    if (typeof data.indexedRelativePath === 'string') {
-      reserved.add(data.indexedRelativePath)
+    if (typeof indexedRelativePath === 'string') {
+      reserved.add(indexedRelativePath)
     }
   }
 
@@ -315,8 +317,8 @@ export async function deleteKnowledgeItemFiles(
   // A directory container owns a whole `raw/<prefix>` subtree (its files plus nested
   // dirs) under its `relativePath`; remove it recursively in one shot.
   const directoryPrefixes = items.flatMap((item) => {
-    if (item.type !== 'directory') return []
-    const relativePath = (item.data as { relativePath?: unknown }).relativePath
+    if (item.type !== 'directory' || item.data === null || typeof item.data !== 'object') return []
+    const relativePath = 'relativePath' in item.data ? item.data.relativePath : undefined
 
     return typeof relativePath === 'string' ? [relativePath] : []
   })
@@ -364,7 +366,7 @@ async function pruneEmptyKnowledgeMaterialDirs(baseId: string, relativePaths: Se
     try {
       await fs.rmdir(getKnowledgeBaseFilePath(baseId, dir))
     } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code
+      const code = getErrorCode(err)
 
       // ENOTEMPTY (another item still lives here) and ENOENT (already gone) are the
       // expected, benign outcomes. Surface anything else (EACCES/EBUSY/…) as a warning
@@ -459,7 +461,7 @@ async function assertTargetAvailable(destPath: AbsoluteFilePath): Promise<void> 
   try {
     await fs.lstat(destPath)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (getErrorCode(error) === 'ENOENT') {
       return
     }
 

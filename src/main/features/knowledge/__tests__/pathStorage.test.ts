@@ -481,6 +481,16 @@ describe('deleteKnowledgeItemFiles', () => {
     expect(removeMock).toHaveBeenCalledWith(path.join(MATERIAL_DIR, 'a.md'))
   })
 
+  it('continues deleting valid items when a directory has null data', async () => {
+    await deleteKnowledgeItemFiles(BASE_ID, [
+      { type: 'directory', data: null },
+      { type: 'file', data: { relativePath: 'remaining.pdf' } }
+    ])
+
+    expect(removeMock).toHaveBeenCalledWith(path.join(MATERIAL_DIR, 'remaining.pdf'))
+    expect(removeDirMock).not.toHaveBeenCalled()
+  })
+
   it('deduplicates identical relativePath and indexedRelativePath', async () => {
     await deleteKnowledgeItemFiles(BASE_ID, [
       {
