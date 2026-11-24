@@ -621,11 +621,8 @@ describe('runDataReset', () => {
     }))
 
     // Relocation must still isolate sessionData before ready, so the warning cannot hold preboot.
-    const outcome = await Promise.race([
-      runReset().then(() => 'returned'),
-      new Promise((resolve) => setTimeout(() => resolve('waiting for ready'), 100))
-    ])
-    expect(outcome).toBe('returned')
+    // `ready` stays pending until markReady(), so returning at all proves preboot did not wait for it.
+    await runReset()
     expect(markerExists()).toBe(false)
     expect(showMessageBoxMock).not.toHaveBeenCalled()
 
