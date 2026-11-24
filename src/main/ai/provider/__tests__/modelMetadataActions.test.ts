@@ -37,9 +37,34 @@ describe('explicit custom model metadata actions', () => {
 
   it('declines non-default model endpoints before listing or writing any metadata', async () => {
     mocks.get.mockReturnValueOnce({ endpointTypes: ['openai-responses'] })
+    mocks.provider.mockReturnValueOnce({
+      id: 'provider',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://chat.example/v1' },
+        'openai-responses': { baseUrl: 'https://other.example/v1' }
+      }
+    })
     await expect(refreshCustomModelMetadata('provider', 'wanted')).rejects.toThrow('non-default endpoint')
     expect(mocks.list).not.toHaveBeenCalled()
     expect(mocks.apply).not.toHaveBeenCalled()
+  })
+
+  it('refreshes a Responses model when both endpoints resolve the same catalog URL', async () => {
+    mocks.get.mockReturnValueOnce({ endpointTypes: ['openai-responses'] })
+    mocks.provider.mockReturnValueOnce({
+      id: 'provider',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://chat.example/v1' },
+        'openai-responses': { baseUrl: 'https://chat.example/v1' }
+      }
+    })
+    mocks.list.mockResolvedValueOnce({
+      models: [{ apiModelId: 'wanted', providerMetadata: { contextWindow: 8000 } }]
+    })
+    await refreshCustomModelMetadata('provider', 'wanted')
+    expect(mocks.apply).toHaveBeenCalledWith('provider', 'wanted', { contextWindow: 8000 })
   })
 
   it('does not write on failed, missing or unsupported provider results', async () => {
