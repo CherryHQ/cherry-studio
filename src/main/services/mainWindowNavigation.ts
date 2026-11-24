@@ -182,11 +182,8 @@ function isTabDeliveryReady(windowId: string): boolean {
   if (!isMainRendererReadyForTabAttach) return false
   const win = application.get('WindowManager').getWindow(windowId)
   if (!win || win.isDestroyed()) return false
-  if (win.webContents.isLoadingMainFrame() || win.webContents.isCrashed()) {
-    isMainRendererReadyForTabAttach = false
-    return false
-  }
-  return true
+  // Real reloads and crashes reset readiness through MainWindowService; a load in progress only waits.
+  return !win.webContents.isLoadingMainFrame() && !win.webContents.isCrashed()
 }
 
 /**

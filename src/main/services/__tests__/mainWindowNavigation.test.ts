@@ -337,6 +337,23 @@ describe('mainWindowNavigation', () => {
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'app.updater.run_check', undefined)
     })
 
+    it('delivers an update handoff retried after a transient main-frame load without another mount', () => {
+      let loading = true
+      windowManagerMock.getWindowsByType.mockReturnValue([focusedWindow])
+      windowManagerMock.getWindow.mockReturnValue({
+        isDestroyed: () => false,
+        webContents: { isLoadingMainFrame: () => loading, isCrashed: () => false }
+      })
+      markMainRendererReadyForTabAttach('main-1')
+      setMainSurfaceReceiver('update', true)
+
+      expect(deliverToReadyMain('app.updater.run_check', undefined)).toBe(false)
+      loading = false
+
+      expect(deliverToReadyMain('app.updater.run_check', undefined)).toBe(true)
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'app.updater.run_check', undefined)
+    })
+
     it('presents a queued renderer crash when the error receiver becomes ready', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([focusedWindow])
       markMainRendererReadyForTabAttach('main-1')
