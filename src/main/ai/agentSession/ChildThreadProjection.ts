@@ -13,7 +13,7 @@ import { MessageProjection } from '@main/ai/messages/MessageProjection'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import type { ChildProjectionState } from '@shared/ai/messageProjection'
-import type { CherryUIMessage, MessageStatus } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { bindNativeInput } from './nativeSubmission'
 import { ThreadMessageProjection, type MessageDecorator } from './ThreadMessageProjection'
@@ -43,8 +43,8 @@ export function savedChildView(context: AgentSessionContextRow): AgentChildView 
     messages: compose(
       readAgentSessionPath(application.get('DbService').getDb(), context.sessionId).map((row) => ({
         id: row.id,
-        role: row.role as CherryUIMessage['role'],
-        metadata: { status: row.status as MessageStatus },
+        role: row.role,
+        metadata: { status: row.status },
         parts: row.data.parts ?? []
       })),
       context.checkpointMapping?.child?.composition ?? {}
@@ -95,9 +95,9 @@ export class ChildThreadProjection {
     for (const row of readAgentSessionPath(application.get('DbService').getDb(), context.sessionId))
       this.saved.set(row.id, {
         id: row.id,
-        role: row.role as CherryUIMessage['role'],
+        role: row.role,
         parts: row.data.parts ?? [],
-        metadata: { status: row.status as MessageStatus }
+        metadata: { status: row.status }
       })
   }
 
@@ -252,9 +252,9 @@ export class ChildThreadProjection {
       for (const row of readAgentSessionPath(application.get('DbService').getDb(), this.context.sessionId))
         this.saved.set(row.id, {
           id: row.id,
-          role: row.role as CherryUIMessage['role'],
+          role: row.role,
           parts: row.data.parts ?? [],
-          metadata: { status: row.status as MessageStatus }
+          metadata: { status: row.status }
         })
       this.reloadSaved = false
     }

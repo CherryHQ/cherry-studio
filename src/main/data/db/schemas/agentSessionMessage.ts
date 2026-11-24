@@ -2,7 +2,7 @@ import { asc, desc, sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
-import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
+import type { MessageData, MessageRole, MessageSnapshot, MessageStats, MessageStatus } from '@shared/data/types/message'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { agentSessionTable } from './agentSession'
@@ -16,7 +16,7 @@ export const agentSessionMessageTable = sqliteTable(
     sessionId: text()
       .notNull()
       .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
-    role: text().notNull(),
+    role: text().$type<MessageRole>().notNull(),
     parentId: text(),
     // `data` stores MessageData (`{ parts }`); Drizzle handles
     // JSON.stringify/parse automatically via `{ mode: 'json' }`.
@@ -24,7 +24,7 @@ export const agentSessionMessageTable = sqliteTable(
       .$type<MessageData & { runtimeAnchor?: unknown; nativeSessionId?: string; deliveryReplyAnchor?: string }>()
       .notNull(),
     searchableText: text().notNull().default(''),
-    status: text().notNull(),
+    status: text().$type<MessageStatus>().notNull(),
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     messageSnapshot: text({ mode: 'json' }).$type<MessageSnapshot>(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),

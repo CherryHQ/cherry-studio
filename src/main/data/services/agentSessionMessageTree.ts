@@ -4,6 +4,7 @@ import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { ContentMessageRole } from '@shared/data/types/message'
 
 export function ensureAgentSessionRootTx(db: DbOrTx, sessionId: string): string {
   const root = db
@@ -71,7 +72,9 @@ export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: strin
     .where(and(eq(messages.sessionId, sessionId), inArray(messages.id, agentSessionPathIds(sessionId, selected))))
     .all()
 
-  return orderAgentSessionPath(rows, selected).filter((row) => row.role !== 'root')
+  return orderAgentSessionPath(rows, selected).filter(
+    (row): row is typeof row & { role: ContentMessageRole } => row.role !== 'root'
+  )
 }
 
 export function readAgentSessionAncestry(db: DbOrTx, sessionId: string, head: string) {

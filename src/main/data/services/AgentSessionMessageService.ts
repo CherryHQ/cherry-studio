@@ -61,7 +61,8 @@ import {
   AGENT_SESSION_MESSAGE_SEARCH_ROLES,
   type CherryMessagePart,
   coerceSearchRole,
-  type MessageRuntimeStatsInput
+  type MessageRuntimeStatsInput,
+  toContentRole
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
@@ -1431,10 +1432,10 @@ export class AgentSessionMessageService {
     return {
       id: row.id,
       sessionId: row.sessionId,
-      role: row.role as AgentSessionMessageEntity['role'],
+      role: toContentRole(row.role),
       data: publicMessageData(row.data),
       searchableText: row.searchableText,
-      status: row.status as AgentSessionMessageEntity['status'],
+      status: row.status,
       modelId: row.modelId,
       messageSnapshot: row.messageSnapshot,
       stats: row.stats,

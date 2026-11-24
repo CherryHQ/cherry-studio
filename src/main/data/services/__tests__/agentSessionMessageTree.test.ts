@@ -1,6 +1,6 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
@@ -8,6 +8,8 @@ import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSess
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 import { agentSessionMessageService as service } from '@data/services/AgentSessionMessageService'
+import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
+import type { ContentMessageRole, MessageStatus } from '@shared/data/types/message'
 
 // Catch lost branches, orphaned descendants, and output retargeted by a later UI selection.
 describe('Agent message tree', () => {
@@ -36,6 +38,15 @@ describe('Agent message tree', () => {
       .items.toReversed()
       .map((row) => row.id)
   }
+
+  it('returns content rows without widening their role and status types', () => {
+    const saved = append('Content')
+    const rows = readAgentSessionPath(dbh.db, sessionId)
+
+    expect(rows.map((row) => row.id)).toEqual([saved.id])
+    expectTypeOf<(typeof rows)[number]['role']>().toEqualTypeOf<ContentMessageRole>()
+    expectTypeOf<(typeof rows)[number]['status']>().toEqualTypeOf<MessageStatus>()
+  })
 
   it('projects large outputs as each page is read without hydrating the lookahead message', () => {
     const output = { content: 'x'.repeat(128 * 1024) }
