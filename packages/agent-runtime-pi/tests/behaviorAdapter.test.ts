@@ -1351,6 +1351,8 @@ describe('coding-agent behavior adapter', () => {
     const nativeMarker = Symbol('native input')
     let original: object | undefined
     let executed: unknown
+    let beforeArgs: unknown
+    let afterArgs: unknown
     const pi = await openPiHarness(
       (ports) => {
         ports.tools.register({
@@ -1361,8 +1363,14 @@ describe('coding-agent behavior adapter', () => {
           }
         })
         ports.toolGate.register({
-          before: async () => ({ args: rewritten }),
-          after: async () => undefined
+          before: async (call) => {
+            beforeArgs = call.args
+            return { args: rewritten }
+          },
+          after: async (call) => {
+            afterArgs = call.args
+            return undefined
+          }
         })
       },
       [
@@ -1383,6 +1391,9 @@ describe('coding-agent behavior adapter', () => {
     await pi.harness.settle()
 
     expect(executed).toBe(original)
+    expect(afterArgs).toBe(executed)
+    expect(beforeArgs).toEqual({ removed: true, path: 'old' })
+    expect(beforeArgs).not.toBe(original)
     expect(Object.getPrototypeOf(executed)).toBe(Object.prototype)
     expect(Object.keys(executed as object)).toEqual(['__proto__', 'constructor', 'path'])
     expect(Object.getOwnPropertyDescriptor(executed, '__proto__')).toEqual({
@@ -1395,6 +1406,38 @@ describe('coding-agent behavior adapter', () => {
     expect(executed).toMatchObject({ constructor: 'value', path: 'new' })
     expect(rewritten).toEqual(JSON.parse('{"__proto__":{"label":"literal"},"constructor":"value","path":"new"}'))
     expect(Object.getPrototypeOf(rewritten)).toBe(Object.prototype)
+    expect(pi.errors).toEqual([])
+  })
+
+  it('passes opaque native tool details to the result gate without replacing their identity', async () => {
+    const details = new Map([['native', 'opaque']])
+    let observed: unknown
+    const pi = await openPiHarness(
+      (ports) =>
+        ports.toolGate.register({
+          before: async () => ({}),
+          after: async (_call, result) => {
+            observed = result.details
+            return undefined
+          }
+        }),
+      [
+        (api) =>
+          api.registerTool({
+            name: 'opaque',
+            label: 'opaque',
+            description: 'opaque details',
+            parameters: { type: 'object' },
+            execute: async () => ({ content: [{ type: 'text', text: 'done' }], details })
+          })
+      ]
+    )
+    const thread = await pi.harness.createThread()
+    pi.harness.script(thread, [{ text: '', toolCalls: [{ name: 'opaque', args: {} }] }, { text: 'done' }])
+    await pi.harness.sendUser(thread, 'go')
+    await pi.harness.settle()
+
+    expect(observed).toBe(details)
     expect(pi.errors).toEqual([])
   })
 

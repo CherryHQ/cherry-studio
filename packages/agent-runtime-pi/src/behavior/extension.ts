@@ -100,7 +100,7 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
         const nested = event.parentToolCallId !== undefined
         const key = callKeyFor(conv.thread, event.toolCallId)
         conv.callIds.set(key, event.toolCallId)
-        // oxlint-disable-next-line no-restricted-globals -- Capture one tool invocation input before behavior stores it across native execution.
+        // oxlint-disable-next-line no-restricted-globals, anti-slop/require-safety-comment-for-type-assertion -- Snapshot the native input before rewrites; Pi's mutable extension fields are not proven recursively JSON by cloning.
         const args = structuredClone(event.input) as JsonValue
         const call: ToolCallFact = { callId: event.toolCallId, callKey: key, name: event.toolName, args }
 
@@ -139,6 +139,7 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
           key: callKeyFor(conv.thread, event.toolCallId),
           thread: conv.thread,
           tool: event.toolName,
+          // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Preserve the actual executed argument object; Pi does not revalidate extension mutations as JSON after the gate.
           args: event.input as JsonValue,
           nested: event.parentToolCallId !== undefined
         }
@@ -167,6 +168,7 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
             isError
           }
 
+          // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Native details are opaque; retain their identity through the existing behavior adapter without claiming JSON validation.
           if (details !== undefined) result.details = details as JsonValue
           const replaced = await gate.after(gated, result, adapter.gatePorts)
 
@@ -210,7 +212,7 @@ function nativeTool(adapter: Adapter, conv: Conversation, tool: ToolDefinition):
     name: tool.name,
     label: tool.name,
     description: tool.description,
-    parameters: tool.schema as object,
+    parameters: tool.schema,
     executionMode: tool.executionMode,
     exposure: 'model-only',
     async execute(toolCallId, params, signal) {
@@ -219,6 +221,7 @@ function nativeTool(adapter: Adapter, conv: Conversation, tool: ToolDefinition):
       const call = {
         key: callKeyFor(conv.thread, toolCallId),
         thread: conv.thread,
+        // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Native extensions can mutate schema-checked params without revalidation; behavior receives the arguments actually executed.
         args: params as JsonValue,
         signal: signal ?? new AbortController().signal
       }
@@ -241,14 +244,11 @@ function nativeTool(adapter: Adapter, conv: Conversation, tool: ToolDefinition):
 function replaceArgs(input: ToolResultEvent['input'], args: JsonValue): void {
   if (typeof args !== 'object' || args === null || Array.isArray(args))
     throw new TypeError('A gate can only rewrite tool arguments to an object')
-  // Array.isArray excludes arrays at runtime; TypeScript retains JsonValue's readonly-array member.
-  const fields = args as { readonly [key: string]: JsonValue }
-
   for (const field of Object.keys(input)) delete input[field]
 
-  for (const field of Object.keys(fields)) {
+  for (const [field, value] of Object.entries(args)) {
     Object.defineProperty(input, field, {
-      value: fields[field],
+      value,
       enumerable: true,
       configurable: true,
       writable: true
