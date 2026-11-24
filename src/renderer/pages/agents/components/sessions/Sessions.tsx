@@ -58,7 +58,7 @@ import {
 } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import { getConversationListSortLocale } from '@renderer/utils/chat/conversationListSort'
 import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
@@ -92,6 +92,7 @@ import {
   getSidebarShortcutResourceIds,
   SIDEBAR_SHORTCUT_PROVIDER_IDS
 } from '@renderer/utils/sidebar'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { classifyTurn } from '@shared/ai/transport'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
