@@ -1006,4 +1006,153 @@ describe('SkillService authoring and remote updates', () => {
     await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo good\n')
     await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
   })
+
+  it('heals a legacy baseline when reconcile renames skill.md to SKILL.md while the source stays lowercase', async () => {
+    const originDir = path.join(root, 'origin', 'writer')
+    await fs.promises.mkdir(path.join(originDir, 'scripts'), { recursive: true })
+    await fs.promises.writeFile(
+      path.join(originDir, 'skill.md'),
+      '---\nname: writer\ndescription: writer description\nversion: 1.0.0\n---\n\n# Instructions\n',
+      'utf-8'
+    )
+    await fs.promises.writeFile(path.join(originDir, 'scripts', 'run.sh'), 'echo baseline\n', 'utf-8')
+    const canonicalOrigin = await fs.promises.realpath(originDir)
+    const installedDir = path.join(skillsRoot, 'writer')
+    await fs.promises.cp(canonicalOrigin, installedDir, { recursive: true })
+    const legacyBaseline = await installer.computeLegacyContentHash(canonicalOrigin)
+    await seedSkill(SKILL_ID, 'writer', {
+      source: 'system',
+      sourceUrl: pathToFileURL(canonicalOrigin).href,
+      contentHash: legacyBaseline
+    })
+    // Simulate reconcile normalizing the managed descriptor to uppercase while the source stays lowercase.
+    await fs.promises.rename(path.join(installedDir, 'skill.md'), path.join(installedDir, 'SKILL.md'))
+
+    const check = await new SkillService().checkRemoteUpdate(SKILL_ID)
+    // v2 digests agree (canonicalized descriptor, same bytes/modes), so the stale legacy baseline
+    // must heal instead of reporting a false overwrite prompt.
+    expect(check).toMatchObject({ state: 'up_to_date', localChanges: false })
+    const healed = agentGlobalSkillService.getById(SKILL_ID)
+    expect(healed?.contentHash).toBe(await installer.computeContentHash(installedDir))
+  })
+
+  it.skipIf(isWin)(
+    'offers a permission-only source update when the managed tree is edited on a legacy baseline',
+    async () => {
+      const originDir = path.join(root, 'origin', 'writer')
+      await writeSkill(originDir, { supportingContent: 'echo baseline\n' })
+      const helperPath = path.join(originDir, 'scripts', 'run.sh')
+      await fs.promises.chmod(helperPath, 0o644)
+      const canonicalOrigin = await fs.promises.realpath(originDir)
+      const installedDir = path.join(skillsRoot, 'writer')
+      await fs.promises.cp(canonicalOrigin, installedDir, { recursive: true })
+      const legacyBaseline = await installer.computeLegacyContentHash(canonicalOrigin)
+      await seedSkill(SKILL_ID, 'writer', {
+        source: 'system',
+        sourceUrl: pathToFileURL(canonicalOrigin).href,
+        contentHash: legacyBaseline
+      })
+      // Edit a managed file, then change only the execute bits of the source script.
+      await fs.promises.writeFile(path.join(installedDir, 'scripts', 'run.sh'), 'echo local\n', 'utf-8')
+      await fs.promises.chmod(helperPath, 0o755)
+
+      const service = new SkillService()
+      const check = await service.checkRemoteUpdate(SKILL_ID)
+      expect(check).toMatchObject({ state: 'available', localChanges: true })
+      if (check.state !== 'available') throw new Error('Expected an available permission-only update')
+      await expect(
+        service.applyRemoteUpdate({ skillId: SKILL_ID, revision: check.revision, overwriteLocalChanges: false })
+      ).rejects.toMatchObject({ code: skillErrorCodes.REMOTE_LOCAL_CHANGES })
+      const updated = await service.applyRemoteUpdate({
+        skillId: SKILL_ID,
+        revision: check.revision,
+        overwriteLocalChanges: true
+      })
+      expect(updated).toMatchObject({ id: SKILL_ID })
+      expect((await fs.promises.stat(path.join(installedDir, 'scripts', 'run.sh'))).mode & 0o111).not.toBe(0)
+    }
+  )
+
+  it('preserves an intervening edit when obsolete-backup staging failed before the next sweep', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const oldDir = path.join(root, 'old')
+    const newDir = path.join(root, 'new')
+    await writeSkill(oldDir, { supportingContent: 'echo old\n' })
+    await writeSkill(newDir, { supportingContent: 'echo new\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.cp(oldDir, backupPath, { recursive: true })
+    const newHash = await installer.computeContentHash(newDir)
+
+    const originalRename = fs.promises.rename
+    const renameSpy = vi.spyOn(fs.promises, 'rename').mockImplementation(async (...args: unknown[]) => {
+      const [from, to] = args as [string, string]
+      if (from === backupPath && to === path.join(skillsRoot, '.writer.cleanup')) {
+        throw Object.assign(new Error('staging failed'), { code: 'EACCES' })
+      }
+      return (originalRename as (...a: unknown[]) => Promise<void>)(...args)
+    })
+    try {
+      await installer.recoverInterruptedInstallWithBaseline(destPath, newHash)
+    } finally {
+      renameSpy.mockRestore()
+    }
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo new\n')
+
+    // User edits before the next sweep: the destination no longer matches the baseline, but the
+    // leftover `.bak` is still obsolete (old tree) and must not be restored over the edit.
+    await fs.promises.writeFile(path.join(destPath, 'scripts', 'run.sh'), 'echo edited\n', 'utf-8')
+    await installer.recoverInterruptedInstallWithBaseline(destPath, newHash)
+
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo edited\n')
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('restores an incomplete backup when no verified replacement exists', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const goodDir = path.join(root, 'good')
+    await writeSkill(goodDir, { supportingContent: 'echo good\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(goodDir, backupPath, { recursive: true })
+    await fs.promises.rm(path.join(backupPath, 'SKILL.md'))
+
+    await installer.recoverInterruptedInstall(destPath)
+
+    // The only copy of the helper files survives, so reconcile keeps the row instead of pruning.
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo good\n')
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('preserves a complete backup when descriptor stat fails transiently', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const goodDir = path.join(root, 'good')
+    await writeSkill(goodDir, { supportingContent: 'echo good\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(goodDir, destPath, { recursive: true })
+    await fs.promises.cp(goodDir, backupPath, { recursive: true })
+
+    const originalStat = fs.promises.stat
+    const statSpy = vi.spyOn(fs.promises, 'stat').mockImplementation(async (...args: unknown[]) => {
+      const [target] = args as [string]
+      if (target.startsWith(backupPath) && (target.endsWith('SKILL.md') || target.endsWith('skill.md'))) {
+        throw Object.assign(new Error('transient stat failure'), { code: 'EACCES' })
+      }
+      return (originalStat as (...a: unknown[]) => Promise<unknown>)(...args) as never
+    })
+    try {
+      await installer.recoverInterruptedInstall(destPath)
+    } finally {
+      statSpy.mockRestore()
+    }
+
+    // A failed descriptor `stat` must not delete the complete backup.
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo good\n')
+    await expect(fs.promises.access(path.join(backupPath, 'SKILL.md'))).resolves.toBeUndefined()
+  })
 })

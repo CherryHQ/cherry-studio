@@ -146,8 +146,47 @@ export class SkillInstaller {
     // Never restore an incomplete backup over a complete replacement. A partial
     // `.bak` cleanup (e.g. SKILL.md deleted before the sweep) must not delete the
     // valid destination; drop the fragment instead and keep the installed tree.
-    const backupDescriptor = await findSkillMdPath(backupPath)
-    if (!backupDescriptor) {
+    // Distinguish a truly missing descriptor (both casings ENOENT) from a transient
+    // read failure (EACCES/EIO): the latter must preserve the backup for retry instead
+    // of deleting a complete tree. When no verified replacement exists (destination
+    // missing), restore even an incomplete backup to preserve helper files and keep
+    // the catalog row plus per-agent enablement instead of pruning.
+    const backupDescriptorState = await this.getBackupDescriptorState(backupPath)
+    if (backupDescriptorState === 'error') {
+      if (!(await pathExists(destPath))) {
+        // No verified replacement and descriptor readability is uncertain: restore the backup
+        // to preserve helper files and keep the catalog row plus per-agent enablement instead
+        // of pruning. Reconcile keeps present folders even with unreadable descriptors.
+        try {
+          await fs.promises.rename(backupPath, destPath)
+          logger.info('Recovered skill backup with unreadable descriptor to preserve files and registration', {
+            destPath,
+            backupPath
+          })
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        }
+        return
+      }
+      logger.warn('Skill backup descriptor unreadable; preserving backup for retry', {
+        destPath,
+        backupPath
+      })
+      return
+    }
+    if (backupDescriptorState === 'missing') {
+      if (!(await pathExists(destPath))) {
+        try {
+          await fs.promises.rename(backupPath, destPath)
+          logger.info('Recovered incomplete skill backup to preserve files and registration', {
+            destPath,
+            backupPath
+          })
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        }
+        return
+      }
       logger.warn('Ignoring incomplete skill backup without a descriptor; preserving installed tree', {
         destPath,
         backupPath
@@ -162,6 +201,25 @@ export class SkillInstaller {
 
     await fs.promises.rename(backupPath, destPath)
     logger.info('Recovered interrupted skill install', { destPath, backupPath })
+  }
+
+  /**
+   * Distinguish a truly missing backup descriptor (both `SKILL.md` casings ENOENT)
+   * from a transient read failure (EACCES/EIO). `findSkillMdPath` swallows all
+   * errors to null, so a failed `stat` would incorrectly delete a complete backup;
+   * this three-state check preserves the backup for retry on read errors.
+   */
+  private async getBackupDescriptorState(backupPath: string): Promise<'found' | 'missing' | 'error'> {
+    let sawError = false
+    for (const variant of ['SKILL.md', 'skill.md']) {
+      try {
+        await fs.promises.stat(path.join(backupPath, variant))
+        return 'found'
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') sawError = true
+      }
+    }
+    return sawError ? 'error' : 'missing'
   }
 
   /**
@@ -258,12 +316,26 @@ export class SkillInstaller {
       return
     }
 
-    await this.recoverInterruptedInstall(destPath)
-    if (cleanupExists) {
+    // No tree matches the persisted baseline (e.g., `.bak` → `.cleanup` staging failed
+    // earlier, then the user edited the replacement before the next sweep). Preserve an
+    // existing destination instead of restoring an obsolete `.bak` over it: the generic
+    // restore would erase the intervening edit. Only restore when the destination is
+    // missing entirely, to avoid pruning the catalog row and its per-agent enablement.
+    // Obsolete markers that don't match the baseline are best-effort cleaned up; a partial
+    // cleanup leaves a `.bak` that future baseline-aware sweeps will again preserve (not
+    // restore) since it still won't match, and catalogued folders are skipped by the
+    // generic sweep.
+    if (!(await pathExists(destPath))) {
+      await this.recoverInterruptedInstall(destPath)
+    }
+    if (backupExists && backupHash !== baselineHash) {
+      await this.safeRemoveDirectory(backupPath, 'obsolete skill backup')
+    }
+    if (cleanupExists && cleanupHash !== baselineHash) {
       try {
         await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
       } catch {
-        // Best-effort: the default restore already preserved the old complete tree.
+        // Best-effort: the destination (with any intervening edit) is already preserved.
       }
     }
   }
