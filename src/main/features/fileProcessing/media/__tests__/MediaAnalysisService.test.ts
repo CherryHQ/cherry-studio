@@ -1,4 +1,5 @@
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import type * as FsPromisesModule from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -61,8 +62,20 @@ const runtime = vi.hoisted(() => ({
   transcribe: vi.fn(),
   closeTranscription: vi.fn(async () => undefined),
   ocrImage: vi.fn(),
-  generateText: vi.fn()
+  generateText: vi.fn(),
+  onRemove: null as null | (() => void)
 }))
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsPromisesModule>()
+  return {
+    ...actual,
+    rm: (...args: Parameters<typeof actual.rm>) => {
+      runtime.onRemove?.()
+      return actual.rm(...args)
+    }
+  }
+})
 
 vi.mock('@cherrystudio/ai-core', async (importOriginal) => {
   const actual = await importOriginal<typeof AiCoreModule>()
@@ -164,6 +177,7 @@ beforeEach(async () => {
   runtime.closeTranscription.mockReset().mockResolvedValue(undefined)
   runtime.ocrImage.mockReset()
   runtime.generateText.mockReset()
+  runtime.onRemove = null
   service = new MediaAnalysisService()
 })
 
@@ -506,6 +520,55 @@ describe('MediaAnalysisService', () => {
     await vi.waitFor(() => expect(runtime.extractAudio).toHaveBeenCalledOnce())
     controller.abort(reason)
     await expect(pending).rejects.toBe(reason)
+    expect(await readdir(runtime.tempRoot)).toEqual([])
+  })
+
+  it('rejects a cancellation that arrives while the job directory is being removed', async () => {
+    const controller = new AbortController()
+    const reason = new Error('cancelled during cleanup')
+    runtime.onRemove = () => controller.abort(reason)
+
+    await expect(service.analyze(file, controller.signal)).rejects.toBe(reason)
+  })
+
+  it('removes the job directory only after a sibling modality stops writing into it', async () => {
+    runtime.probe.mockResolvedValue({
+      durationMs: 20_000,
+      hasAudio: true,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    const controller = new AbortController()
+    const reason = new Error('cancelled')
+    let audioWritten: Promise<void> = Promise.resolve()
+    // FFmpeg recreates its output directory, so a late audio extraction can outlive a cancelled visual scan.
+    runtime.extractAudio.mockImplementation(async ({ outputDir }, signal: AbortSignal) => {
+      await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }))
+      audioWritten = (async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        await mkdir(outputDir, { recursive: true })
+        await writeFile(join(outputDir, 'chunk.wav'), Buffer.from('RIFF-late'))
+      })()
+      await audioWritten
+      return { chunks: [], sampleRateHz: 16000, channels: 1 }
+    })
+    runtime.detectSceneChanges.mockImplementation(
+      async (_input: unknown, signal: AbortSignal) =>
+        await new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+
+    const pending = service.analyze(file, controller.signal)
+    await vi.waitFor(() => {
+      expect(runtime.extractAudio).toHaveBeenCalledOnce()
+      expect(runtime.detectSceneChanges).toHaveBeenCalledOnce()
+    })
+    controller.abort(reason)
+
+    await expect(pending).rejects.toBe(reason)
+    await audioWritten
     expect(await readdir(runtime.tempRoot)).toEqual([])
   })
 

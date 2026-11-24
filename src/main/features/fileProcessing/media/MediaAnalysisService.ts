@@ -113,6 +113,7 @@ export class MediaAnalysisService extends BaseService {
       await rm(jobDir, { recursive: true, force: true }).catch(() => {
         logger.warn('Failed to remove media analysis job directory')
       })
+      signal?.throwIfAborted()
     }
   }
 
@@ -135,10 +136,15 @@ export class MediaAnalysisService extends BaseService {
     signal?.throwIfAborted()
     const ffmpeg = this.mediaFfmpeg()
     const probe = await ffmpeg.probe({ filePath, fallbackExt: fallbackExt ?? undefined }, signal)
-    const [audio, visual] = await Promise.all([
+    // Settle both so neither modality still writes under jobDir once the caller removes it.
+    const [audioResult, visualResult] = await Promise.allSettled([
       this.analyzeAudio(filePath, probe, jobDir, execution, signal),
       this.analyzeVisuals(filePath, probe, jobDir, execution, visionCacheKey, signal)
     ])
+    if (audioResult.status === 'rejected') throw audioResult.reason
+    if (visualResult.status === 'rejected') throw visualResult.reason
+    const audio = audioResult.value
+    const visual = visualResult.value
     signal?.throwIfAborted()
 
     const warnings = [...new Set([...audio.warnings, ...visual.warnings])]
