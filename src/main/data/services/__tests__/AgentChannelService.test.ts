@@ -303,6 +303,27 @@ describe('AgentChannelService', () => {
   })
 
   describe('normalizeChannelConfig (via createChannel)', () => {
+    it('keeps historical raw configuration readable without applying write-time validation', () => {
+      const id = '11111111-1111-4111-8111-111111111111'
+      dbh.db
+        .insert(agentChannelTable)
+        .values({
+          id,
+          type: 'telegram',
+          name: 'Legacy channel',
+          workspace: SYSTEM_WORKSPACE,
+          isActive: false,
+          config: { type: 'old-telegram', bot_token: 123, extension: { enabled: true } }
+        })
+        .run()
+
+      const expected = { bot_token: 123, extension: { enabled: true } }
+      expect(agentChannelService.getChannel(id)?.config).toEqual(expected)
+      expect(
+        agentChannelService.listChannels({ type: 'telegram' }).find((channel) => channel.id === id)?.config
+      ).toEqual(expected)
+    })
+
     it('persists an explicit Feishu mention_only=false', () => {
       const channel = agentChannelService.createChannel({
         type: 'feishu',

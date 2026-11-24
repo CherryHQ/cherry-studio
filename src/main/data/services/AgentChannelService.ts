@@ -65,12 +65,13 @@ export class AgentChannelService {
   private rowToEntity(row: ChannelRow): AgentChannelEntity {
     const clean = nullsToUndefined(row)
 
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Historical configs are projected without per-channel revalidation; the discriminator/config correlation remains a legacy read contract.
     return {
       ...clean,
       type: row.type,
-      config: normalizeChannelConfig(row.config) as AgentChannelEntity['config'],
+      config: normalizeChannelConfig(row.config),
       workspace: row.workspace,
-      permissionMode: (row.permissionMode ?? undefined) as AgentChannelEntity['permissionMode'],
+      permissionMode: row.permissionMode ?? undefined,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
     } as AgentChannelEntity
@@ -340,7 +341,12 @@ export class AgentChannelService {
       .from(channelsTable)
       .where(and(eq(channelsTable.type, type), eq(channelsTable.isActive, true)))
       .all()
-      .some((row) => row.id !== id && (row.config as Record<string, string>)[key]?.trim() === botId)
+      .some((row) => {
+        if (row.id === id) return false
+        // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Persisted bot IDs remain unvalidated; non-string legacy values retain their existing trim failure instead of being silently ignored.
+        const existingBotId = row.config[key] as string | null | undefined
+        return existingBotId?.trim() === botId
+      })
 
     if (conflict)
       throw DataApiErrorFactory.invalidOperation(
