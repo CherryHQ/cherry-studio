@@ -292,8 +292,7 @@ describe('KnowledgeService integration', () => {
     // data root at a real temp dir so restore can read and copy raw sources.
     const dataRoot = await mkdtemp(nodePath.join(tmpdir(), 'knowledge-restore-'))
     const originalGetPath = application.getPath
-    application.getPath = ((key: string, filename?: string) =>
-      nodePath.resolve(dataRoot, key, filename ?? '')) as typeof application.getPath
+    application.getPath = (key: string, filename?: string) => nodePath.resolve(dataRoot, key, filename ?? '')
     try {
       for (const name of ['healthy.md', 'scan.pdf']) {
         const target = getKnowledgeBaseFilePath(SOURCE_BASE_ID, name)
@@ -306,7 +305,7 @@ describe('KnowledgeService integration', () => {
           baseId: SOURCE_BASE_ID,
           groupId: null,
           type: 'file',
-          data: { source: '/original/healthy.md', relativePath: 'healthy.md' },
+          data: { source: '/original/healthy.md', relativePath: 'healthy.md' as PosixRelativeFilePath },
           status: 'completed',
           error: null
         },
@@ -315,7 +314,7 @@ describe('KnowledgeService integration', () => {
           baseId: SOURCE_BASE_ID,
           groupId: null,
           type: 'file',
-          data: { source: '/original/scan.pdf', relativePath: 'scan.pdf' },
+          data: { source: '/original/scan.pdf', relativePath: 'scan.pdf' as PosixRelativeFilePath },
           status: 'failed',
           error: 'scanned PDF requires a file processor'
         }
