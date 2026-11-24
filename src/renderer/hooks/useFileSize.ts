@@ -19,7 +19,7 @@ export function useFileSize(
   knownSizeBytes?: number
 ): FileSizeState {
   const fileKey = workspacePath && filePath ? `${workspacePath}\0${filePath}` : null
-  const requestKey = fileKey ? `${fileKey}\0${refreshKey ?? ''}` : null
+  const requestKey = fileKey ? `${fileKey}\0${refreshKey ?? ''}\0${knownSizeBytes ?? ''}` : null
   const [result, setResult] = useState<{ fileKey: string | null; requestKey: string | null; state: FileSizeState }>({
     fileKey: null,
     requestKey: null,

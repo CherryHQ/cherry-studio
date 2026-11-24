@@ -1,6 +1,3 @@
-import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
-import type { LanguageModelUsage, ModelMessage } from 'ai'
-
 /**
  * In-loop compaction feature: a `prepareStep` hook that rewrites the
  * about-to-send prompt in place when it crosses `compress.thresholdPercent` of
@@ -23,6 +20,9 @@ import type { LanguageModelUsage, ModelMessage } from 'ai'
  * replaces. Having both this hook and the old budget-stop active would
  * double-compact, so budgetStop is removed in the same change.
  */
+import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
+import type { LanguageModelUsage, ModelMessage } from 'ai'
+
 import {
   compactHistory,
   compactModelMessages,
@@ -35,7 +35,6 @@ import {
   toAISDK
 } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import {
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
@@ -49,6 +48,7 @@ import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
+import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
 
 import type { RequestFeature } from '../feature'

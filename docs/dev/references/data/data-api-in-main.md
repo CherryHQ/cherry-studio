@@ -304,6 +304,12 @@ For function signature details and design-decision history (e.g. why shallow-not
 
 **Cursor (keyset) pagination.** List endpoints that page by a `(sortKey, id)` tuple use the shared codec + ordering helper in `services/utils/keysetCursor.ts` — `decodeListCursor` / `encodeCursor` for the `<key>:<id>` wire format, and `keysetOrdering(keyCol, idCol, { major, tie })` which returns both the strict-tuple WHERE predicate (`.where(cursor)`) and its matching `orderBy`, derived from one direction spec. Do NOT hand-write cursor encode/decode, the keyset WHERE tuple, or the `ORDER BY` in a service. See [services/utils/README.md](../../../../src/main/data/services/utils/README.md) for the list-vs-search decode policy split and boundaries, and the [Pagination Guide](./data-pagination-guide.md) for the end-to-end pagination model (offset + cursor).
 
+Conversation Name sorting uses `main/utils/listOrdering.ts` for metadata selection:
+it applies the shared locale comparator to matching name/id metadata before
+hydrating a bounded page. Its cursor still carries the name/id boundary; SQL
+binary comparison cannot reproduce linguistic collation. See
+[Conversation list sorting](../chat/README.md#conversation-list-sorting).
+
 ### Service with Transaction
 
 The main database uses synchronous better-sqlite3. Transaction callbacks and

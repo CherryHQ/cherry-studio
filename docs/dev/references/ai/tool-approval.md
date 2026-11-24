@@ -12,6 +12,7 @@ sources:
   - src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts
   - src/main/ai/runtime/claudeCode/hooks.ts
   - src/main/ai/toolApproval/ToolApprovalRegistry.ts
+  - src/main/ai/toolApproval/builtinToolPolicyRegistry.ts
   - src/main/ai/toolApproval/commandPolicy/index.ts
   - src/main/ai/toolApproval/commandPolicy/checkCommand.ts
   - src/main/ai/toolApproval/commandPolicy/policyEvaluator.ts
@@ -55,6 +56,11 @@ A card whose request is gone is never left answerable. When a connection or
 stream ends with an approval still pending, `ToolApprovalRegistry.onAborted`
 retires the persisted card to `output-error`, so the composer stops offering a
 question nothing can receive.
+
+MCP skill loading and file reads follow each Skill’s server-owned reading permission
+through ordinary tool approval. Unconfigured entries ask each time; Full Access skips
+prompts, and explicit disablement remains effective. Reading a skill adds no session
+activation or additional approval rules for later tools; see [MCP Skills Client](./mcp-skills-client.md).
 
 The composer identifies the requesting Agent or subagent. Child requests carry the
 spawning tool-call ID in provider metadata; the card uses that identity to show the
@@ -302,7 +308,10 @@ Each new model tool call that reaches the per-call decision branch of
 `canUseTool` gets a fresh `approvalId`
 (`src/main/ai/runtime/claudeCode/settingsBuilder.ts:513`, `src/main/ai/runtime/claudeCode/settingsBuilder.ts:599`).
 Dispatch consumes that approval entry once, without memoising by tool name or
-arguments (`src/main/ai/toolApproval/ToolApprovalRegistry.ts:88`). SDK permission
+arguments (`src/main/ai/toolApproval/ToolApprovalRegistry.ts:88`). Pi and Pi
+Durable likewise give every approval registration a fresh ID
+(`src/main/ai/runtime/pi/piBehaviorHost.ts`), because a native call reference
+repeats across Durable stores, including a new store in the same session. SDK permission
 suggestions (`permission_suggestions` / `permissionSuggestions`) are unused.
 The MCP portion of the pre-approved tool list contains built-in tool policies
 only; user-defined MCP tools are excluded (`src/main/ai/runtime/claudeCode/settingsBuilder.ts:507`,

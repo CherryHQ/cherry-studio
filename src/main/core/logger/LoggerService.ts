@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 import os from 'os'
 import path from 'path'
 import { isMainThread } from 'worker_threads'
@@ -6,7 +7,6 @@ import { app, ipcMain } from 'electron'
 import winston from 'winston'
 import DailyRotateFile from 'winston-daily-rotate-file'
 
-/* eslint-disable no-restricted-syntax */
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { LOGS_DIR } from '@main/core/paths/constants'
 import { isDev } from '@main/core/platform'

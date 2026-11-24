@@ -66,8 +66,8 @@ export const stoppedText = (child: string, partial: string | undefined) =>
   partial ? `Stopped subagent ${child}. Partial output before it stopped:\n${partial}` : `Stopped subagent ${child}.`
 
 /** A child's state in the words lists of subagents use. */
-export function statusText(record: SubagentRunRecord, live: boolean, awaiting: boolean): string {
-  if (live) return awaiting ? 'waiting for a tool approval' : 'running'
+export function statusText(record: SubagentRunRecord, live: boolean): string {
+  if (live) return 'running'
   return record.stoppedBy ? STOPPED_BY[record.stoppedBy] : (record.outcome ?? 'finished')
 }
 export function unknownIdText(id: string, listed: readonly string[]): string {
@@ -120,14 +120,11 @@ const STATUS_FOOTER =
   'Running subagents report back on their own when they finish: do not start them again, and do not wait for or poll them.'
 /** The status a compaction leaves (D26, S20); `undefined` when there is nothing to list. */
 export function statusMessage(
-  running: readonly { readonly record: SubagentRunRecord; readonly awaiting: boolean }[],
+  running: readonly SubagentRunRecord[],
   pending: readonly PendingResult[]
 ): string | undefined {
   const lines = [
-    ...running.map(
-      ({ record, awaiting }) =>
-        `- "${record.description}" (id: ${record.sessionId}): ${awaiting ? 'waiting for a tool approval' : 'running'}`
-    ),
+    ...running.map((record) => `- "${record.description}" (id: ${record.sessionId}): running`),
     ...pending.map(
       (item) => `- "${item.description}" (id: ${item.sessionId}): finished; its result comes with the next update`
     )

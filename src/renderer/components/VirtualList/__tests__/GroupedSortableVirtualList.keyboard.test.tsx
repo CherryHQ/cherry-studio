@@ -1,3 +1,4 @@
+import { installDndDomStubs } from '@test-mocks/dndDomStubs'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -76,6 +77,8 @@ function renderList(
 }
 
 describe('GroupedSortableVirtualList keyboard activation', () => {
+  beforeAll(installDndDomStubs)
+
   it('does not start dragging when IME completion keys originate from a nested input', () => {
     const onDragStart = renderList((item) => <input aria-label={`Rename ${item.label}`} />)
 
@@ -91,7 +94,7 @@ describe('GroupedSortableVirtualList keyboard activation', () => {
     const onDragStart = renderList((item) => <span>{item.label}</span>)
     const user = userEvent.setup()
 
-    screen.getByRole('button', { name: 'Alpha' }).focus()
+    ;(await screen.findByRole('button', { name: 'Alpha' })).focus()
     await user.keyboard('{Enter}')
 
     await waitFor(() => expect(onDragStart).toHaveBeenCalledTimes(1))
@@ -118,7 +121,7 @@ describe('GroupedSortableVirtualList keyboard activation', () => {
     })
     const user = userEvent.setup()
 
-    screen.getByRole('button', { name: 'First' }).focus()
+    ;(await screen.findByRole('button', { name: 'First' })).focus()
     await user.keyboard('{Enter}')
 
     await waitFor(() => expect(onDragStart).toHaveBeenCalledTimes(1))

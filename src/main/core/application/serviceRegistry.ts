@@ -4,8 +4,10 @@ import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
+import { ArtifactBackfillService } from '@main/ai/agents/ArtifactBackfillService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
+import { AgentImportService } from '@main/ai/agentSession/import/AgentImportService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
 import { TtsInferenceService } from '@main/ai/localModel'
@@ -58,7 +60,13 @@ import { ConversationNotificationService } from '@main/services/ConversationNoti
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
 import { ErrorReportingService } from '@main/services/errorReporting'
-import { DirectoryTreeManager, FileManager, FileIntakeService, FileEditService } from '@main/services/file'
+import {
+  DirectoryTreeManager,
+  FileManager,
+  FileIntakeService,
+  FileEditService,
+  FileObservationService
+} from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
@@ -123,6 +131,7 @@ export const services = {
   WindowManager,
   UtilityProcessManager,
   DbService,
+  ArtifactBackfillService,
   CacheService,
   DataApiService,
   IpcApiService,
@@ -147,6 +156,7 @@ export const services = {
   AttachmentPresenceService,
   FileIntakeService,
   DirectoryTreeManager,
+  FileObservationService,
   FileProcessingService,
   PowerService,
   RuntimeActivityService,
@@ -190,6 +200,7 @@ export const services = {
   ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
+  AgentImportService,
   AgentSessionDeliveryService,
   AgentJobsService,
   AgentLifecycleService,

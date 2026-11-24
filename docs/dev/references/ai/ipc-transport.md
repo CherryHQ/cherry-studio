@@ -10,6 +10,10 @@ sources:
 
 # IPC Transport
 
+## DeepSeek import commands
+
+`ai.agent.import.prepare` opens the native ZIP picker and returns validated preview counts without requiring an existing Agent. `status` restores the source importer's latest operation; `start` creates a DeepSeek Agent with ordinary Pi Durable defaults and imports its sessions, while `cancel` stops unfinished work. Retries reuse the operation and Agent. `ai.agent.import.progress` broadcasts revisioned snapshots. `AgentImportService` owns execution independently of the dialog lifetime. Imported conversations use normal Agent session reads and navigation after publication.
+
 ## Commands and observation
 
 Desktop consumers send commands through `useStreamCommands` or the existing conversation turn controller. They observe assistant output through the shared message projection store. Input admission and observation have separate lifetimes.

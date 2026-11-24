@@ -87,7 +87,7 @@ it('restores ordered history across byte chunks and isolates archive and observa
       const part = snapshot.messages[0].parts[0]
       if (part?.type !== 'text') throw new Error('Expected restored text')
       expect(part.text.startsWith('0历史🙂')).toBe(true)
-      part.text = 'mutated by observer'
+      expect(() => Object.assign(part, { text: 'mutated by observer' })).toThrow(TypeError)
     })
   )
   await observation.drain()

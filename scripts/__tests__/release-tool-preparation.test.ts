@@ -96,6 +96,30 @@ describe('release tool preparation', () => {
       expect(workflow.jobs[jobName].needs).not.toContain('tools')
     })
 
+    it(`${file} accepts the current tool interface before dependencies are installed`, () => {
+      const parent = workflow.jobs[file === 'release.yml' ? 'prepare' : 'resolve']
+      const preflight = parent.steps.find((step: { run?: string }) => step.run?.includes('PACKAGING_DOWNLOAD_VERSION'))
+      const sourcePath = file === 'release.yml' ? 'release-source' : 'preview-source'
+      const check = preflight.run.split('\n').find((line: string) => line.includes('PACKAGING_DOWNLOAD_VERSION'))
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tool-interface-'))
+      try {
+        const scripts = path.join(directory, sourcePath, 'scripts')
+        fs.mkdirSync(path.join(scripts, 'release'), { recursive: true })
+        fs.copyFileSync(
+          path.resolve(import.meta.dirname, '../download-binaries.js'),
+          path.join(scripts, 'download-binaries.js')
+        )
+        fs.copyFileSync(
+          path.resolve(import.meta.dirname, '../release/prepare-tools.js'),
+          path.join(scripts, 'release/prepare-tools.js')
+        )
+        const result = spawnSync('bash', ['-c', check], { cwd: directory, encoding: 'utf8' })
+        expect(result.status, result.stderr).toBe(0)
+      } finally {
+        fs.rmSync(directory, { recursive: true, force: true })
+      }
+    })
+
     it(`${file} rejects an old application source before bundle or packaging work`, () => {
       const parent = workflow.jobs[file === 'release.yml' ? 'prepare' : 'resolve']
       const preflight = parent.steps.find((step: { run?: string }) => step.run?.includes('PACKAGING_DOWNLOAD_VERSION'))

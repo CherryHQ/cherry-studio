@@ -1,3 +1,5 @@
+import type { Editor } from '@tiptap/core'
+import type { LucideIcon } from 'lucide-react'
 export interface RichEditorProps {
   /** Initial markdown content for the editor */
   initialContent?: string
@@ -250,8 +252,6 @@ export interface ToolbarProps {
 }
 
 // Command System Types for Slash Commands
-import type { Editor } from '@tiptap/core'
-import type { LucideIcon } from 'lucide-react'
 
 export enum CommandCategory {
   TEXT = 'text',

@@ -387,7 +387,7 @@ export interface WindowInfo {
 /**
  * Arguments for `WindowManager.open()` / `create()`.
  *
- * Both fields are optional — callers can pass any combination:
+ * Fields are optional — callers can pass any combination:
  *   wm.open(type)
  *   wm.open(type, { initData })
  *   wm.open(type, { options })
@@ -408,6 +408,8 @@ export interface OpenWindowArgs<T = unknown> {
   initData?: T
   /** Optional BrowserWindow configuration overrides. */
   options?: Partial<WindowOptions>
+  /** Mutate merged options after saved bounds are restored, before fresh construction; skipped on reuse. */
+  configureOptions?: (options: WindowOptions) => void
 }
 
 /**
