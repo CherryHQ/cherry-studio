@@ -18,7 +18,8 @@ import { purifyMarkdownImages } from '@renderer/utils/markdownLight'
 import { getNamingTextContent } from '@renderer/utils/message/find'
 import { readDefaultModel, readQuickModel } from '@renderer/utils/model'
 import { normalizeGeneratedNoteName, removeSpecialCharactersForTopicName } from '@renderer/utils/naming'
-import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
+import { replacePromptVariables } from '@renderer/utils/prompt'
+import { containsSupportedVariables } from '@shared/ai/promptVariables'
 import type { Model } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('aiGeneration')

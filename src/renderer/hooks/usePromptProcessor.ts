@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 
 import { loggerService } from '@logger'
-import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
+import { replacePromptVariables } from '@renderer/utils/prompt'
+import { containsSupportedVariables } from '@shared/ai/promptVariables'
 
 const logger = loggerService.withContext('usePromptProcessor')
 
