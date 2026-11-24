@@ -31,7 +31,6 @@ import {
   CreateAssistantToolInputSchema,
   SelfUpdateToolInputSchema
 } from '@main/ai/agents/agentConfigToolSchemas'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
   createAgentChannelAndWaitForQr,
@@ -61,6 +60,7 @@ import {
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import {
   AGENT_CREATE_TOOL_NAME,
