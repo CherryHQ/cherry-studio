@@ -216,10 +216,8 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         (candidate) => (candidate as { name?: string }).name === 'qwen-enable-thinking'
       ) as any
 
-      // Simulate configureContext + transformParams
       const extensions = new Map<string, unknown>()
       const context = { extensions, middlewares: [] as any[] }
-      plugin.configureContext(context)
 
       const params = { providerOptions: { openai: { temperature: 0.7 } } }
       const result = plugin.transformParams(params, context)
@@ -244,10 +242,8 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         (candidate) => (candidate as { name?: string }).name === 'qwen-enable-thinking'
       ) as any
 
-      // Simulate configureContext + transformParams
       const extensions = new Map<string, unknown>()
       const context = { extensions, middlewares: [] as any[] }
-      plugin.configureContext(context)
 
       const params = { providerOptions: { openai: { temperature: 0.7 } } }
       const result = plugin.transformParams(params, context)

@@ -26,16 +26,11 @@ export const qwenEnableThinkingFeature: RequestFeature = {
       name: 'qwen-enable-thinking',
       enforce: 'pre',
 
-      configureContext: (context) => {
-        context.extensions.set('__qwenEnableThinkingKey', scope.sdkConfig.providerOptionsKey)
-        context.extensions.set('__qwenEnableThinkingOn', scope.reasoning.kind !== 'off')
-      },
+      transformParams: (params) => {
+        const key = scope.sdkConfig.providerOptionsKey
+        const enabled = scope.reasoning.kind !== 'off'
 
-      transformParams: (params, context) => {
-        const key = context.extensions.get('__qwenEnableThinkingKey') as string | undefined
-        const enabled = context.extensions.get('__qwenEnableThinkingOn') as boolean | undefined
-
-        if (!key || enabled === undefined) return params
+        if (!key) return params
 
         const providerOptions = { ...params.providerOptions }
         providerOptions[key] = { ...providerOptions[key], enable_thinking: enabled }
