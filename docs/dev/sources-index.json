@@ -271,7 +271,7 @@
     },
     {
       "path": "docs/dev/references/data/data-ordering-guide.md",
-      "sources": ["src/main/data/db/schemas/_columnHelpers.ts","src/main/data/services/utils/orderKey.ts","src/renderer/data/hooks/useReorder.ts","src/shared/data/api/schemas/_endpointHelpers.ts"]
+      "sources": ["src/main/data/db/schemas/_columnHelpers.ts","src/main/data/services/utils/orderKey.ts","src/renderer/data/hooks/useDataApi.ts","src/renderer/data/hooks/useReorder.ts","src/shared/data/api/schemas/_endpointHelpers.ts","src/shared/data/api/schemas/apiSchemas.ts","src/shared/data/api/schemas/knowledges.ts","src/shared/data/api/schemas/prompts.ts","src/shared/data/api/types.ts"]
     },
     {
       "path": "docs/dev/references/data/data-pagination-guide.md",

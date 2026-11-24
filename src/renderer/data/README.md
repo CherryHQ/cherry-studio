@@ -52,8 +52,8 @@ handles optimistic updates, PATCH dispatch, revalidation, and rollback on top
 of `useMutation`.
 
 ```tsx
-const { data } = useQuery('/mcp-servers')
-const { applyReorderedList } = useReorder('/mcp-servers')
+const { data } = useQuery('/assistants')
+const { applyReorderedList } = useReorder('/assistants')
 return <ReorderableList items={data?.items ?? []} getId={getId} renderItem={renderRow} onReorder={applyReorderedList} />
 ```
 
@@ -62,3 +62,5 @@ service-layer helpers (`insertWithOrderKey` / `insertManyWithOrderKey` / `applyM
 `resetOrder`), migrator helpers, renderer integration, migration checklist, FAQ
 — lives in the **[Reorder Guide](../../../docs/dev/references/data/data-ordering-guide.md)**.
 The guide is the canonical reference for both main- and renderer-side work.
+
+The hook accepts registered collection schema paths and derives each move body from its order endpoint. Scoped collections use template paths with their declared params. Collections without a batch endpoint, including knowledge bases, expose only `move` and `isPending`.

@@ -3,11 +3,10 @@
  * DataApi.
  *
  * Sits on top of {@link useMutation} — never calls `dataApiService.*` directly
- * — and wires up the two request flavours the server side exposes for any
- * sortable resource:
+ * — and wires up the registered ordering operations:
  *
  * - `PATCH /{res}/:id/order`   — single-item move with an anchor body.
- * - `PATCH /{res}/order:batch` — multi-item move ordered by dependency.
+ * - `PATCH /{res}/order:batch` — multi-item move, when this endpoint is registered.
  *
  * Supports three default collection cache shapes out of the box — flat array
  * (`T[]`), wrapped pagination (`{ items, total, page }` / `{ items, nextCursor }`),
@@ -27,15 +26,36 @@ import {
   useMutation,
   useReadCache,
   useWriteCache,
-  useWriteInfiniteCache
+  useWriteInfiniteCacheSnapshot
 } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { computeMinimalMoves, reorderLocally } from '@renderer/data/utils/reorder'
-import type { ApiPath, ConcreteApiPaths, TemplateApiPaths } from '@shared/data/api/paths'
+import type { BodyForPath, ConcreteApiPaths, TemplateApiPaths } from '@shared/data/api/paths'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { ApiSchemas, GetMethodApiPaths } from '@shared/data/api/types'
 
 const logger = loggerService.withContext('useReorder')
+
+type SortableCollectionPath = {
+  [Path in GetMethodApiPaths]: `${Path}/:id/order` extends keyof ApiSchemas
+    ? ApiSchemas[`${Path}/:id/order`] extends { PATCH: { body: unknown } }
+      ? Path
+      : never
+    : never
+}[GetMethodApiPaths]
+
+type BatchSortableCollectionPath = {
+  [Path in SortableCollectionPath]: `${Path}/order:batch` extends keyof ApiSchemas
+    ? ApiSchemas[`${Path}/order:batch`] extends { PATCH: { body: unknown } }
+      ? Path
+      : never
+    : never
+}[SortableCollectionPath]
+
+type ParameterizedSortableCollectionPath = {
+  [Path in SortableCollectionPath]: Path extends `${string}/:${string}` ? Path : never
+}[SortableCollectionPath]
 
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Cached rows have heterogeneous fields; ordering checks the selected string identity and preserves every other value.
 type ItemList = Array<Record<string, unknown>>
@@ -118,7 +138,7 @@ function updateInfiniteItems(cache: InfiniteCollectionCache, items: ItemList): I
 export interface UseReorderOptions<Cache = CollectionCache> {
   /** Query parameters of the collection cache to update. */
   query?: Parameters<ReturnType<typeof useReadCache>>[1]
-  /** Target a useInfiniteQuery collection with the same page limit. */
+  /** Target a useInfiniteQuery collection with the same page limit; optimistic values must remain page arrays. */
   infinite?: { limit: number }
   /**
    * Revalidate the collection key after a successful server write.
@@ -169,19 +189,11 @@ export interface UseReorderOptions<Cache = CollectionCache> {
   updateItems?: UpdateItems<Cache>
 }
 
-export interface UseReorderResult {
-  /** Move an item using an anchor or an extended body containing `anchor`. */
-  move: (id: string, request: ReorderRequest) => Promise<void>
-  /**
-   * Drop-in callback for dnd libraries: accepts the fully reordered list and
-   * internally diffs it against the cached collection, dispatching either a
-   * single `move` or a batch PATCH depending on how many positions changed.
-   * Items are identified by `idKey` (default `'id'`).
-   */
-  applyReorderedList: (reorderedList: ItemList) => Promise<void>
-  /** True while any mutation owned by this hook is in flight. */
+export type UseReorderResult<Path extends SortableCollectionPath = SortableCollectionPath> = {
+  /** Move an item with the request body declared by this collection's order endpoint. */
+  move: (id: string, request: BodyForPath<`${Path}/:id/order`, 'PATCH'>) => Promise<void>
   isPending: boolean
-}
+} & (Path extends BatchSortableCollectionPath ? { applyReorderedList: (reorderedList: ItemList) => Promise<void> } : {})
 
 type ReorderParamsOption<TCollection extends TemplateApiPaths> =
   ParamsOption<TCollection, 'GET'> extends infer TParams
@@ -191,6 +203,12 @@ type ReorderParamsOption<TCollection extends TemplateApiPaths> =
         : TParams
       : TParams
     : never
+
+type ReorderArgs<Cache> = {
+  [Path in SortableCollectionPath]: Path extends ParameterizedSortableCollectionPath
+    ? [collectionUrl: Path, options: UseReorderOptions<Cache> & ReorderParamsOption<Path>]
+    : [collectionUrl: Path, options?: UseReorderOptions<Cache> & ReorderParamsOption<Path>]
+}[SortableCollectionPath]
 
 /**
  * Build optimistic drag-and-drop reorder handlers on top of `useMutation`.
@@ -227,10 +245,8 @@ type ReorderParamsOption<TCollection extends TemplateApiPaths> =
  * option is static and cannot express a value derived from (current cache +
  * anchor). Rollback on error goes through {@link useInvalidateCache}.
  *
- * Known bounded tech debt: the single-item and batch endpoints are typed via
- * `as TemplateApiPaths` / `as ConcreteApiPaths` casts. Each consumer resource
- * must register `/{res}/:id/order` and `/{res}/order:batch` in `ApiSchemas`
- * to eventually remove the casts; the cast surface is confined to this hook.
+ * Collections must declare their GET and single-item order endpoint in ApiSchemas.
+ * Whole-list reordering is exposed only when the batch endpoint is also registered.
  *
  * @example Flat-array collection
  * const { data } = useQuery('/pins')
@@ -243,25 +259,22 @@ type ReorderParamsOption<TCollection extends TemplateApiPaths> =
  * <ReorderableList items={data?.items ?? []} getId={getId} renderItem={renderRow} onReorder={applyReorderedList} />
  *
  * @example Nested group view via accessors
- * const { applyReorderedList } = useReorder('/grouped-view', {
+ * const { applyReorderedList } = useReorder('/assistants', {
  *   selectItems: (cache: GroupedView) => cache.groups[0].items,
  *   updateItems: (cache, items) => {
  *     return { ...cache, groups: [{ ...cache.groups[0], items }, ...cache.groups.slice(1)] }
  *   }
  * })
  */
-export function useReorder<TCollection extends TemplateApiPaths, Cache = CollectionCache>(
+export function useReorder<TCollection extends ParameterizedSortableCollectionPath, Cache = CollectionCache>(
   collectionUrl: TCollection,
   options: UseReorderOptions<Cache> & ReorderParamsOption<TCollection>
-): UseReorderResult
-export function useReorder<TCollection extends ConcreteApiPaths, Cache = CollectionCache>(
-  collectionUrl: TCollection,
-  options?: UseReorderOptions<Cache>
-): UseReorderResult
-export function useReorder<Cache>(
-  collectionUrl: ApiPath,
-  options?: UseReorderOptions<Cache> & { params?: unknown }
-): UseReorderResult {
+): UseReorderResult<TCollection>
+export function useReorder<
+  TCollection extends Exclude<SortableCollectionPath, ParameterizedSortableCollectionPath>,
+  Cache = CollectionCache
+>(collectionUrl: TCollection, options?: UseReorderOptions<Cache>): UseReorderResult<TCollection>
+export function useReorder<Cache>(...[collectionUrl, options]: ReorderArgs<Cache>): UseReorderResult {
   const hasSelect = options?.selectItems !== undefined
   const hasUpdate = options?.updateItems !== undefined
 
@@ -301,45 +314,39 @@ export function useReorder<Cache>(
   const revalidate = options?.revalidateOnSuccess !== false
   const idKey = options?.idKey ?? 'id'
   const computeOptimistic = options?.computeOptimistic ?? reorderLocally
-  const mutationParams = options?.params as Record<string, string | number> | undefined
+  const mutationParams = options?.params
 
   if (mutationParams && Object.hasOwn(mutationParams, 'id')) {
     throw new Error('useReorder: collection params must not use the reserved item parameter "id"')
   }
 
+  // SAFETY: Resolution only substitutes this schema-owned collection's declared GET params.
   const resolvedCollectionUrl = resolveTemplate(collectionUrl, mutationParams) as ConcreteApiPaths
   const query = options?.query
   const infinite = options?.infinite
 
-  const writeInfiniteCache = useWriteInfiniteCache(
-    resolvedCollectionUrl as never,
-    {
-      query,
-      limit: infinite?.limit
-    } as never
-  )
+  const writeInfiniteCache = useWriteInfiniteCacheSnapshot(resolvedCollectionUrl, { query, limit: infinite?.limit })
 
   const writeCurrent = useCallback(
     async (value: Cache | CollectionCache) => {
-      if (infinite) await writeInfiniteCache(value as never)
-      else await writeCache(resolvedCollectionUrl, value, query)
+      if (infinite) {
+        if (Array.isArray(value)) await writeInfiniteCache(value)
+      } else await writeCache(resolvedCollectionUrl, value, query)
     },
     [infinite, writeInfiniteCache, writeCache, resolvedCollectionUrl, query]
   )
 
-  // Template path `${collectionUrl}/:id/order` is not yet registered in
-  // ApiSchemas for arbitrary resources, so we widen via `TemplateApiPaths`.
-  // The cast is confined to this hook — callers receive the strict
-  // `OrderRequest` / `OrderBatchRequest` types from the public surface.
+  const orderPath = `${collectionUrl}/:id/order` as const
+  const batchPath = collectionUrl === '/knowledge-bases' ? null : (`${collectionUrl}/order:batch` as const)
   const { trigger: patchOrder } = useMutation(
     'PATCH',
-    `${collectionUrl}/:id/order` as TemplateApiPaths,
+    orderPath,
     revalidate ? { refresh: [resolvedCollectionUrl] } : undefined
   )
 
   const { trigger: patchBatch } = useMutation(
     'PATCH',
-    `${collectionUrl}/order:batch` as ApiPath,
+    batchPath,
     revalidate ? { refresh: [resolvedCollectionUrl] } : undefined
   )
 
@@ -424,7 +431,8 @@ export function useReorder<Cache>(
 
       try {
         if (optimistic !== undefined) await writeCurrent(optimistic)
-        await patchBatch({ params: mutationParams, body: { moves } } as Parameters<typeof patchBatch>[0])
+        if (mutationParams) await patchBatch({ params: mutationParams, body: { moves } })
+        else await patchBatch({ body: { moves } })
       } catch (err) {
         logger.warn(`batch reorder failed for ${String(collectionUrl)}, rolling back`, { error: err })
         await invalidateCache(resolvedCollectionUrl)
@@ -488,5 +496,5 @@ export function useReorder<Cache>(
     ]
   )
 
-  return { move, applyReorderedList, isPending }
+  return batchPath === null ? { move, isPending } : { move, applyReorderedList, isPending }
 }

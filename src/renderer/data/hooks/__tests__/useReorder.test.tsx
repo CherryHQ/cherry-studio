@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import React from 'react'
 import useSWR, { unstable_serialize } from 'swr'
 import { unstable_serialize as serializeInfinite } from 'swr/infinite'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -22,7 +22,7 @@ vi.mock('@renderer/utils/platform', async (importOriginal) => {
 })
 
 import { useInfiniteQuery, useQuery } from '../useDataApi'
-import { type UseReorderOptions, useReorder } from '../useReorder'
+import { type UseReorderOptions, type UseReorderResult, useReorder } from '../useReorder'
 
 // --- dataApiService mock ---
 // We mock at the `dataApiService.*` boundary (not `useMutation`) so the
@@ -49,7 +49,7 @@ vi.mock('@data/DataApiService', () => ({
 
 // --- Test helpers ---
 
-const COLLECTION = '/mcp-servers' as const
+const COLLECTION = '/assistants' as const
 
 interface Item {
   id: string
@@ -185,6 +185,43 @@ describe('useReorder - move()', () => {
 })
 
 describe('useReorder - template collection paths', () => {
+  it('requires registered ordering capabilities and the collection-specific move body', () => {
+    expectTypeOf<'/mcp-servers'>().not.toExtend<Parameters<typeof useReorder>[0]>()
+    expectTypeOf<UseReorderResult<'/knowledge-bases'>>().not.toHaveProperty('applyReorderedList')
+    expectTypeOf<UseReorderResult<'/assistants'>>().toHaveProperty('applyReorderedList')
+    expectTypeOf<{ position: 'first' }>().not.toExtend<Parameters<UseReorderResult<'/knowledge-bases'>['move']>[1]>()
+  })
+
+  it('retains collection scope in a batch reorder and leaves a sibling scope untouched', async () => {
+    const resolved = '/prompt-bindings/assistant/assistant-1'
+    const sibling = '/prompt-bindings/agent/agent-2'
+    const initial = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }]
+    const siblingItems = [{ id: 'x' }]
+    const { Wrapper, cache } = createSWRTestWrapper([
+      [[resolved], initial],
+      [[sibling], siblingItems]
+    ])
+    patchMock.mockResolvedValue({})
+    const { result } = renderHook(
+      () =>
+        useReorder('/prompt-bindings/:targetType/:targetId', {
+          params: { targetType: 'assistant', targetId: 'assistant-1' },
+          revalidateOnSuccess: false
+        }),
+      { wrapper: Wrapper }
+    )
+    const reordered = [initial[2], initial[3], initial[0], initial[1]]
+    await act(async () => result.current.applyReorderedList(reordered))
+
+    expect(patchMock.mock.calls).toHaveLength(1)
+    expect(patchMock).toHaveBeenCalledWith(`${resolved}/order:batch`, {
+      body: { moves: expect.any(Array) },
+      query: undefined
+    })
+    expect(cache.get(unstable_serialize([resolved]))?.data).toEqual(reordered)
+    expect(cache.get(unstable_serialize([sibling]))?.data).toBe(siblingItems)
+  })
+
   it('resolves collection params for cache access and reorder mutations', async () => {
     const template = '/prompt-bindings/:targetType/:targetId' as const
     const resolved = '/prompt-bindings/assistant/assistant-1'
@@ -676,6 +713,31 @@ describe('useReorder - custom accessors', () => {
 })
 
 describe('useReorder - query and infinite caches', () => {
+  it('skips a non-array custom infinite overlay while preserving the explicit move request', async () => {
+    const { Wrapper, cache } = createSWRTestWrapper()
+    const key = serializeInfinite(() => ['/knowledge-bases', { limit: 2 }])
+    cache.set(key, { data: 'a,b' })
+    patchMock.mockResolvedValue({})
+    const { result } = renderHook(
+      () =>
+        useReorder('/knowledge-bases', {
+          infinite: { limit: 2 },
+          revalidateOnSuccess: false,
+          selectItems: (value: string) => value.split(',').map((id) => ({ id })),
+          updateItems: (_value, items) => items.map((item) => item.id).join(',')
+        }),
+      { wrapper: Wrapper }
+    )
+    await act(async () => result.current.move('b', { anchor: { position: 'first' } }))
+
+    expect(cache.get(key)?.data).toBe('a,b')
+    expect(patchMock).toHaveBeenCalledWith('/knowledge-bases/b/order', {
+      body: { anchor: { position: 'first' } },
+      query: undefined
+    })
+    expect(result.current).not.toHaveProperty('applyReorderedList')
+  })
+
   it.each([
     { shape: 'flat-array page', pages: [[{ id: 'a' }, { id: 'b' }]] },
     { shape: 'non-record item', pages: [{ items: [null, { id: 'b' }], nextCursor: null }] }
@@ -690,12 +752,12 @@ describe('useReorder - query and infinite caches', () => {
     )
 
     await act(async () => {
-      await result.current.move('b', { position: 'first' })
+      await result.current.move('b', { anchor: { position: 'first' } })
     })
 
     expect(cache.get(key)?.data).toBe(pages)
     expect(patchMock.mock.calls).toEqual([
-      ['/knowledge-bases/b/order', { body: { position: 'first' }, query: undefined }]
+      ['/knowledge-bases/b/order', { body: { anchor: { position: 'first' } }, query: undefined }]
     ])
   })
 

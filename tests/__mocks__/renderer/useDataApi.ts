@@ -158,7 +158,7 @@ export const mockUseQuery = vi.fn(
 export const mockUseMutation = vi.fn(
   <TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
     method: TMethod,
-    _path: TPath,
+    _path: TPath | null,
     _options?: {
       onSuccess?: (data: ResponseForPath<TPath, TMethod>) => void
       onError?: (error: Error) => void
@@ -172,6 +172,7 @@ export const mockUseMutation = vi.fn(
     error: Error | undefined
   } => {
     const mockTrigger = vi.fn(async (_data?: TriggerArgs<TPath, TMethod>) => {
+      if (_path === null) throw new Error('Cannot trigger a disabled DataApi mutation')
       // Simulate different responses based on method
       switch (method) {
         case 'POST':
@@ -394,6 +395,11 @@ function defaultMockUseWriteInfiniteCache<TPath extends ApiPath>(
 export const mockUseWriteInfiniteCache = vi.fn(defaultMockUseWriteInfiniteCache) as Mock &
   typeof defaultMockUseWriteInfiniteCache
 
+export const mockUseWriteInfiniteCacheSnapshot = vi.fn((path: string, options?: { query?: object; limit?: number }) => {
+  const key = serializeInfiniteKey(() => [path, { ...options?.query, limit: options?.limit ?? 10 }])
+  return useMemo(() => vi.fn((value: unknown) => applyMockInfiniteQueryMutation(key, value)), [key])
+})
+
 /**
  * Mock useInfiniteFlatItems helper.
  * Mirrors production: flattens `pages[].items` honoring optional reverse flags.
@@ -541,6 +547,7 @@ export const MockUseDataApi = {
   useReadCache: mockUseReadCache,
   useWriteCache: mockUseWriteCache,
   useWriteInfiniteCache: mockUseWriteInfiniteCache,
+  useWriteInfiniteCacheSnapshot: mockUseWriteInfiniteCacheSnapshot,
   prefetch: mockPrefetch
 }
 
@@ -564,6 +571,7 @@ export const MockUseDataApiUtils = {
     mockUseReadCache.mockClear()
     mockUseWriteCache.mockClear()
     mockUseWriteInfiniteCache.mockClear()
+    mockUseWriteInfiniteCacheSnapshot.mockClear()
     mockPrefetch.mockClear()
     mockCacheStore.clear()
     mockInfiniteQueryStore.clear()

@@ -3,8 +3,13 @@ description: Fractional-indexing ordering spec for sortable resources - orderKey
 sources:
   - src/main/data/services/utils/orderKey.ts
   - src/shared/data/api/schemas/_endpointHelpers.ts
+  - src/shared/data/api/schemas/apiSchemas.ts
+  - src/shared/data/api/schemas/knowledges.ts
+  - src/shared/data/api/schemas/prompts.ts
+  - src/shared/data/api/types.ts
   - src/main/data/db/schemas/_columnHelpers.ts
   - src/renderer/data/hooks/useReorder.ts
+  - src/renderer/data/hooks/useDataApi.ts
 ---
 
 # Ordering Guide
@@ -93,9 +98,9 @@ import { useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 
 // Paginated collection — items live under `.items`.
-function McpServerList() {
-  const { data } = useQuery('/mcp-servers')
-  const { applyReorderedList, isPending } = useReorder('/mcp-servers')
+function AssistantList() {
+  const { data } = useQuery('/assistants')
+  const { applyReorderedList, isPending } = useReorder('/assistants')
   return <ReorderableList items={data?.items ?? []} getId={getId} renderItem={renderRow} onReorder={applyReorderedList} />
 }
 
@@ -254,6 +259,8 @@ User  Component          SWR cache         Main           SQLite
 
 Three observable steps: **optimistic write → PATCH → revalidate** (or **invalidate** on error). The optimistic value is derived by a pure `reorderLocally(items, id, anchor, idKey)` from the current cache — the hook never constructs `order_key` client-side. All cache side-effects go through the DataApi hooks; `useReorder` holds zero direct SWR imports.
 
+`useReorder` accepts collection schema paths declaring GET and a single-item order PATCH. Its move body comes from that endpoint. A scoped collection uses its template plus declared GET params; arbitrary API paths and pre-resolved scoped paths are not accepted. `applyReorderedList` exists only when the collection also declares a batch endpoint. Knowledge bases expose `move` and `isPending`, with an `{ anchor, groupId? }` body.
+
 ### 4.2 Non-`id` primary keys — the `idKey` option
 
 ```tsx
@@ -286,23 +293,25 @@ useReorder('/knowledge-bases', {
 })
 ```
 
-Infinite collections reorder the items across loaded pages, preserving page sizes and cursor metadata. Writes update both the aggregate and individual page caches through `useWriteInfiniteCache`; components render the cached result without a separate pending list.
+Infinite collections reorder the items across loaded pages, preserving page sizes and cursor metadata. Writes update both the aggregate and individual page caches through `useWriteInfiniteCacheSnapshot`; components render the cached result without a separate pending list. This cache-owned writer accepts opaque page snapshots and projects only cursor metadata. The schema-typed `useWriteInfiniteCache` facade uses the same core. Both retain captured query identity, cursor truthiness and superseded-commit protection.
+
+Custom infinite reducers must return a page array. A non-array result skips the optimistic write while an explicit `move` still reaches the server. Custom non-infinite cache values, including primitive representations, retain their existing behavior.
 
 `move` accepts either an anchor directly or an extended request such as `{ anchor, groupId }`, forwarding the complete body to the server. A resource's `computeOptimistic(items, id, anchor, idKey, request)` reducer can use the fifth argument to update membership and reorder within the destination scope. Batch/list-diff operations continue to send ordinary anchor moves; use `move` for cross-scope changes.
 
 ### 4.4 Using accessors for nested shapes
 
-For responses the defaults cannot reach — grouped views, GraphQL-style connections, or envelopes with a different field name — pass `selectItems` and `updateItems` together. Passing one without the other throws at hook construction.
+For caller-owned cached views the defaults cannot reach — grouped views, connections, or envelopes with a different field name — pass `selectItems` and `updateItems` together, using the registered collection path. Passing one without the other throws at hook construction.
 
 ```tsx
 // Envelope with a different field name: cache = { data: T[], meta }
-useReorder('/custom', {
+useReorder('/assistants', {
   selectItems: (cache) => (cache as Envelope).data,
   updateItems: (cache, items) => ({ ...(cache as Envelope), data: items })
 })
 
 // Grouped view: cache = { groups: [{ id, items }], version }
-useReorder('/grouped-view', {
+useReorder('/groups', {
   selectItems: (cache) => (cache as GroupedView).groups[0].items,
   updateItems: (cache, items) => {
     const c = cache as GroupedView
@@ -311,7 +320,7 @@ useReorder('/grouped-view', {
 })
 
 // GraphQL-ish connection: cache = { edges: [{ node }], pageInfo }
-useReorder('/connection', {
+useReorder('/providers', {
   selectItems: (cache) => (cache as Conn).edges.map((e) => e.node),
   updateItems: (cache, items) => {
     const c = cache as Conn

@@ -58,7 +58,8 @@ import {
   useQuery,
   useReadCache,
   useWriteCache,
-  useWriteInfiniteCache
+  useWriteInfiniteCache,
+  useWriteInfiniteCacheSnapshot
 } from '../useDataApi'
 
 const {
@@ -936,6 +937,37 @@ describe('useInfiniteQuery integration', () => {
     expect(result.current.pages[0]?.activeNodeId).toBe('overridden')
   })
 
+  it('mirrors opaque snapshot pages using the captured path and unmodified cursor identity', async () => {
+    const { Wrapper, cache } = makeWrapper()
+    const path = '/knowledge-bases'
+    const query = { scope: 'custom', cursor: 0 }
+    const cursor = { token: 'next-page' }
+    const pages = [
+      { rows: [{ id: 'a' }], nextCursor: cursor, metadata: { selection: 'first' } },
+      { rows: [{ id: 'b' }], nextCursor: null, metadata: { selection: 'second' } }
+    ]
+    const { result, rerender } = renderHook(
+      ({ target }) => useWriteInfiniteCacheSnapshot(target, { query: { ...query }, limit: 2 }),
+      { wrapper: Wrapper, initialProps: { target: path } }
+    )
+    const captured = result.current
+    rerender({ target: path })
+    expect(result.current).toBe(captured)
+    rerender({ target: '/topics/other/messages' })
+
+    await act(async () => captured(pages))
+
+    const firstKey = [path, { ...query, limit: 2 }]
+    const secondKey = [path, { ...query, limit: 2, cursor }]
+    const aggregateKey = unstable_serialize_infinite(() => firstKey)
+    expect(cache.get(aggregateKey)?.data).toBe(pages)
+    expect(cache.get(unstable_serialize(firstKey))?.data).toBe(pages[0])
+    expect(cache.get(unstable_serialize(secondKey))?.data).toBe(pages[1])
+    expect(
+      cache.get(unstable_serialize_infinite(() => ['/topics/other/messages', { ...query, limit: 2 }]))
+    ).toBeUndefined()
+  })
+
   it('keeps a cache-only writer stable across equivalent inline query options', () => {
     const { Wrapper } = makeWrapper()
     const { result, rerender } = renderHook(
@@ -1527,6 +1559,26 @@ describe('useMutation trigger identity & option freshness', () => {
   function spyPost() {
     return vi.spyOn(dataApiService, 'post').mockResolvedValue({ id: 'created' })
   }
+
+  it('rejects a disabled mutation before dispatch and can enable the same hook on rerender', async () => {
+    const post = spyPost()
+    const onSuccess = vi.fn()
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useMutation('POST', enabled ? '/topics' : null, { onSuccess }),
+      { wrapper: Wrapper, initialProps: { enabled: false } }
+    )
+    await expect(result.current.trigger({ body: { name: 'new topic' } })).rejects.toThrow('disabled')
+    expect(post).not.toHaveBeenCalled()
+    expect(onSuccess).not.toHaveBeenCalled()
+
+    rerender({ enabled: true })
+    await act(async () => {
+      expect(await result.current.trigger({ body: { name: 'new topic' } })).toEqual({ id: 'created' })
+    })
+    expect(post).toHaveBeenCalledWith('/topics', { body: { name: 'new topic' }, query: undefined })
+    expect(onSuccess).toHaveBeenCalledTimes(1)
+  })
 
   it('a trigger captured before a rerender still sees the latest onSuccess', async () => {
     spyPost()

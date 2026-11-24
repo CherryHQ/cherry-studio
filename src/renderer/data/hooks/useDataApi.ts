@@ -12,6 +12,7 @@
  * - {@link useReadCache} - Non-reactive cache peek (single sanctioned home for `unstable_serialize`)
  * - {@link useWriteCache} - Write to a cache key without revalidating (optimistic overlay)
  * - {@link useWriteInfiniteCache} - Write to one infinite-query cache without revalidating
+ * - {@link useWriteInfiniteCacheSnapshot} - Write caller-owned page snapshots through the same cache core
  * - {@link prefetch} - Warm up cache before user interactions
  *
  * All hooks use SWR under the hood for caching, deduplication, and revalidation.
@@ -261,7 +262,7 @@ type InfiniteQueryKey = [string, { limit: number; cursor?: unknown }]
 
 type InfiniteQueryKeyGetter = (
   pageIndex: number,
-  previousPageData: Pick<CursorPaginationResponse<unknown>, 'nextCursor'> | null
+  previousPageData: { readonly nextCursor?: unknown } | null
 ) => InfiniteQueryKey | null
 
 function createInfiniteQueryKeyGetter<TQuery extends object>(
@@ -457,10 +458,11 @@ export function useQuery<TPath extends ApiPath>(
  * a fresh inline options object does not change trigger identity, and trigger
  * always sees the latest `onSuccess` / `onError` / `refresh` / `optimisticData`
  * at call time.
+ * @param path - Registered endpoint, or null to disable the mutation without conditionally mounting the hook.
  */
 export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
   method: TMethod,
-  path: TPath,
+  path: TPath | null,
   options?: {
     /** Callback when mutation succeeds */
     onSuccess?: (data: ResponseForPath<TPath, TMethod>) => void
@@ -516,7 +518,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
   } = useSWRMutation<
     ResponseForPath<TPath, TMethod>,
     Error,
-    string,
+    string | null,
     { request: Promise<ResponseForPath<TPath, TMethod>> }
   >(path, fetcher, {
     populateCache: false,
@@ -530,6 +532,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
   // not stale the option callbacks.
   const trigger = useCallback(
     async (data?: TriggerArgs<TPath, TMethod>): Promise<ResponseForPath<TPath, TMethod>> => {
+      if (path === null) throw new Error('Cannot trigger a disabled DataApi mutation')
       const opts = optionsRef.current
       // Capture args in this call's closure so concurrent triggers don't clobber
       // each other's refresh context (refs would race on overlapping awaits).
@@ -978,9 +981,22 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
   path: CursorPaginatedPath<TPath>,
   options?: Omit<InfiniteQueryOptions<TPath>, 'enabled' | 'swrOptions'>
 ) {
+  return useInfiniteCacheWriter<ResponseForPath<TPath, 'GET'>>(resolveTemplate(path, options?.params), options)
+}
+
+interface InfiniteCacheSnapshotOptions {
+  query?: Parameters<ReturnType<typeof useReadCache>>[1]
+  limit?: number
+}
+
+/** Writes caller-owned page snapshots without claiming a complete API response shape. */
+export function useWriteInfiniteCacheSnapshot(path: string, options?: InfiniteCacheSnapshotOptions) {
+  return useInfiniteCacheWriter<unknown>(path, options)
+}
+
+function useInfiniteCacheWriter<Page>(resolvedPath: string, options?: InfiniteCacheSnapshotOptions) {
   const { cache, mutate } = useSWRConfig()
   const limit = options?.limit ?? 10
-  const resolvedPath = resolveTemplate(path, options?.params)
   const nextGetKey = createInfiniteQueryKeyGetter(resolvedPath, options?.query, limit)
   const nextInfiniteCacheKey = unstable_serialize_infinite(nextGetKey)
 
@@ -992,15 +1008,13 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
   )
 
   return useCallback(
-    async (value: InfiniteCacheValue<ResponseForPath<TPath, 'GET'>>) => {
-      type Page = ResponseForPath<TPath, 'GET'>
-
+    async (value: InfiniteCacheValue<Page>) => {
       const collectPageEntries = (cachedPages: Page[] | undefined) => {
         const entries: Array<{ key: InfiniteQueryKey; page: Page; serializedKey: string }> = []
 
         if (!cachedPages) return entries
 
-        let previousPage: Pick<CursorPaginationResponse<unknown>, 'nextCursor'> | null = null
+        let previousPage: Parameters<InfiniteQueryKeyGetter>[1] = null
 
         for (let index = 0; index < cachedPages.length; index++) {
           const page = cachedPages[index]
@@ -1008,8 +1022,9 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
 
           if (!key) break
           entries.push({ key, page, serializedKey: unstable_serialize(key) })
-          // SAFETY: CursorPaginatedPath selects a cursor response; only its nextCursor projection is consumed here.
-          previousPage = page as Pick<CursorPaginationResponse<unknown>, 'nextCursor'>
+          previousPage = page ? {} : null
+          if (typeof page === 'object' && page !== null && 'nextCursor' in page)
+            previousPage = { nextCursor: page.nextCursor }
         }
 
         return entries

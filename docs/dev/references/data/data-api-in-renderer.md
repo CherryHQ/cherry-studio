@@ -74,6 +74,8 @@ SWR's own `mutate`/`trigger`, changing only when a meaningful input changes
 (e.g. `nextPage` when page availability flips). `useMutation`'s `trigger` reads
 its options through a ref, so inline `options` objects never churn its identity.
 
+Pass `null` as a mutation's path when that operation is unavailable. The hook remains mounted with SWR's disabled key; attempting to trigger it rejects before dispatch, optimistic writes, refresh or callbacks. A later render can supply the registered path to enable it.
+
 ### useInfiniteQuery (Cursor-based Infinite Scroll)
 
 For infinite scroll UIs with "Load More" pattern. The hook exposes `pages` —
@@ -105,6 +107,8 @@ const items = useInfiniteFlatItems(pages, { reversePages: true })
 generic is constrained via `CursorPaginatedPath`. `pages` is reference-stable
 across rerenders when SWR's underlying data is unchanged, so
 `useInfiniteFlatItems(pages)` skips recomputation.
+
+Cache-only overlays use `useWriteInfiniteCache` for schema-typed responses or `useWriteInfiniteCacheSnapshot` for caller-owned page arrays. Both synchronize aggregate and individual page keys without revalidation and keep a captured writer bound to its original path/query. The snapshot writer reads cursor metadata without treating each page as a complete endpoint response.
 
 ### usePaginatedQuery (Offset-based Pagination)
 
