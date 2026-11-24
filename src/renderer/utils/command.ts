@@ -17,6 +17,9 @@ import { formatShortcutDisplay } from '@shared/utils/shortcut'
  * and command resolution live in the shared layer.
  */
 
+export const resolveCommandPlatform = (platform: string | undefined): SupportedPlatform | undefined =>
+  platform === 'darwin' || platform === 'win32' || platform === 'linux' ? platform : undefined
+
 /** Configured bindings remain visible when their keyboard-only context is inactive. */
 export const resolveCommandPresentationKeybinding = (
   command: CommandId,

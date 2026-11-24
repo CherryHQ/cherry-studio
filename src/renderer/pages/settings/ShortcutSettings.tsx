@@ -40,6 +40,7 @@ import { shortcutAnchorId } from '@renderer/pages/settings/shortcut.search'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
+import { resolveCommandPlatform } from '@renderer/utils/command'
 import { scrollIntoView } from '@renderer/utils/dom'
 import {
   getNumberShortcutMode,
@@ -52,7 +53,6 @@ import {
 import { isMac, platform } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import type { SupportedPlatform } from '@shared/types/command'
 import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
 import { type CommandId, findCommandDefinition, findKeybindingConflicts } from '@shared/utils/command'
 import {
@@ -70,8 +70,7 @@ import { NumberShortcutSettings } from './NumberShortcutSettings'
 
 const logger = loggerService.withContext('ShortcutSettings')
 
-const numberShortcutPlatform =
-  platform === 'darwin' || platform === 'win32' || platform === 'linux' ? platform : undefined
+const numberShortcutPlatform = resolveCommandPlatform(platform)
 
 const shortcutRouteApi = getRouteApi('/settings/shortcut')
 
@@ -336,7 +335,7 @@ const ShortcutSettings: FC = () => {
       command,
       preference,
       preferences,
-      platform: platform as SupportedPlatform
+      platform: numberShortcutPlatform
     })[0]
 
     return conflict ? getCommandLabel(conflict.conflictingCommand) : null
@@ -414,7 +413,7 @@ const ShortcutSettings: FC = () => {
 
     if (!confirmed) return
 
-    const updates: Record<string, PreferenceShortcutType> = getAllShortcutDefaultPreferences()
+    const updates = getAllShortcutDefaultPreferences()
 
     try {
       clearSystemConflict()
@@ -428,28 +427,25 @@ const ShortcutSettings: FC = () => {
   const handleToggleVisibleShortcuts = async (enabled: boolean) => {
     const nextPreferencesByCommand: Partial<Record<CommandId, PreferenceShortcutType>> = { ...shortcutPreferences }
 
-    const updates = visibleShortcuts.reduce(
-      (acc, record) => {
-        // Fixed reservations (e.g. the native close role) must opt into toggling
-        // to avoid silently reverting their accelerator when disabled.
-        if (
-          !record.preference.binding.length ||
-          (record.keybinding.editable === false && record.keybinding.enableToggle !== true)
-        )
-          return acc
-        nextPreferencesByCommand[record.command] = {
-          binding: record.preference.binding,
-          enabled
-        }
-        acc[record.key] = {
-          binding: record.preference.binding,
-          enabled
-        }
-
+    const updates = visibleShortcuts.reduce<Record<string, PreferenceShortcutType>>((acc, record) => {
+      // Fixed reservations (e.g. the native close role) must opt into toggling
+      // to avoid silently reverting their accelerator when disabled.
+      if (
+        !record.preference.binding.length ||
+        (record.keybinding.editable === false && record.keybinding.enableToggle !== true)
+      )
         return acc
-      },
-      {} as Record<string, PreferenceShortcutType>
-    )
+      nextPreferencesByCommand[record.command] = {
+        binding: record.preference.binding,
+        enabled
+      }
+      acc[record.key] = {
+        binding: record.preference.binding,
+        enabled
+      }
+
+      return acc
+    }, {})
 
     if (isEmpty(updates)) return
 
@@ -555,7 +551,8 @@ const ShortcutSettings: FC = () => {
             )}
             onKeyDown={(event) => void handleKeyDown(event, record)}
             onBlur={(event) => {
-              const isUndoClick = (event.relatedTarget as HTMLElement)?.closest('.shortcut-undo-icon')
+              const isUndoClick =
+                event.relatedTarget instanceof Element && event.relatedTarget.closest('.shortcut-undo-icon')
 
               if (!isUndoClick) {
                 clearEditingState()
@@ -726,7 +723,10 @@ const ShortcutSettings: FC = () => {
                     <DropdownMenuRadioGroup
                       value={activeGroup}
                       onValueChange={(value) => {
-                        setActiveGroup(value as ShortcutSettingsFilterGroup)
+                        const option = groupOptions.find((item) => item.value === value)
+                        if (!option) return
+
+                        setActiveGroup(option.value)
                         setSearchQuery('')
                       }}>
                       {groupOptions.map((option) => (

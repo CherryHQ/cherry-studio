@@ -21,14 +21,16 @@ import {
   readScopeContext,
   readRegisteredHandler
 } from '@renderer/hooks/command'
+import { resolveCommandPlatform } from '@renderer/utils/command'
 import { platform } from '@renderer/utils/platform'
-import type { ContextReader, SupportedPlatform } from '@shared/types/command'
+import type { ContextReader } from '@shared/types/command'
 import { type CommandId, REGISTERED_KEYBINDINGS, resolveCommandByKeybinding } from '@shared/utils/command'
 import { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
 
 import { CommandKeyboardLayer } from './CommandFocusScope'
 
 const logger = loggerService.withContext('CommandProvider')
+const currentPlatform = resolveCommandPlatform(platform)
 
 function isEditableEvent(event: KeyboardEvent): boolean {
   for (const node of event.composedPath()) {
@@ -46,8 +48,8 @@ function isEditableEvent(event: KeyboardEvent): boolean {
 }
 
 const shortcutPreferenceKeys = Object.fromEntries(
-  REGISTERED_KEYBINDINGS.map((rule) => [rule.command, rule.preferenceKey])
-) as Record<CommandId, (typeof REGISTERED_KEYBINDINGS)[number]['preferenceKey']>
+  REGISTERED_KEYBINDINGS.map((rule) => [rule.command, rule.preferenceKey] as const)
+)
 
 export function CommandProvider({ children }: { children: ReactNode }) {
   const contextSnapshot = useCommandContextSnapshot()
@@ -94,10 +96,10 @@ export function CommandProvider({ children }: { children: ReactNode }) {
       >()
 
       const command = resolveCommandByKeybinding({
-        binding: getShortcutBindingFromKeyboardEvent(event, platform as SupportedPlatform),
+        binding: getShortcutBindingFromKeyboardEvent(event, currentPlatform),
         preferences: stateRef.current.shortcutPreferences,
         context,
-        platform: platform as SupportedPlatform,
+        platform: currentPlatform,
         scope: 'renderer',
         canExecuteCommand: (id) => {
           const entry = findScopeHandler(scope, id)
