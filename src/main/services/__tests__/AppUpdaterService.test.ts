@@ -1,32 +1,16 @@
 import type { UpdateInfo } from 'builder-util-runtime'
 import { CancellationError, HttpError } from 'builder-util-runtime'
+import type { Logger } from 'electron-updater'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  appEditionState,
-  loggerErrorMock,
-  netFetchMock,
-  releaseNotesCheckMock,
-  releaseNotesUpdaterInstances,
-  trackAppUpdateMock
-} = vi.hoisted(() => ({
-  appEditionState: { current: 'global' },
-  loggerErrorMock: vi.fn(),
-  netFetchMock: vi.fn(),
-  releaseNotesCheckMock: vi.fn(),
-  releaseNotesUpdaterInstances: [] as Array<Record<string, unknown>>,
-  trackAppUpdateMock: vi.fn()
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      info: vi.fn(),
-      error: loggerErrorMock,
-      warn: vi.fn()
-    })
-  }
-}))
+const { appEditionState, netFetchMock, releaseNotesCheckMock, releaseNotesUpdaterInstances, trackAppUpdateMock } =
+  vi.hoisted(() => ({
+    appEditionState: { current: 'global' },
+    netFetchMock: vi.fn(),
+    releaseNotesCheckMock: vi.fn(),
+    releaseNotesUpdaterInstances: [] as Array<{ logger: Logger | null }>,
+    trackAppUpdateMock: vi.fn()
+  }))
 
 vi.mock('@data/PreferenceService', async () => {
   const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
@@ -90,11 +74,11 @@ vi.mock('electron-updater', () => {
     autoInstallOnAppQuit = true
     channel = ''
     forceDevUpdateConfig = false
-    logger: unknown = null
+    logger: Logger | null = null
     requestHeaders: Record<string, string> = {}
 
     constructor(public options?: unknown) {
-      releaseNotesUpdaterInstances.push(this as unknown as Record<string, unknown>)
+      releaseNotesUpdaterInstances.push(this)
     }
 
     checkForUpdates() {
@@ -126,6 +110,7 @@ vi.mock('electron-updater', () => {
 })
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { app, net } from 'electron'
 import { autoUpdater } from 'electron-updater'
 
@@ -225,6 +210,47 @@ describe('AppUpdaterService', () => {
       await expect(appUpdater.queryUpdateAvailability()).rejects.toThrow('HTTP 503')
       releaseNotesCheckMock.mockResolvedValueOnce(null)
       await expect(appUpdater.queryUpdateAvailability()).rejects.toThrow('did not produce a result')
+    })
+  })
+
+  describe('updater diagnostics', () => {
+    beforeEach(async () => {
+      releaseNotesCheckMock.mockResolvedValue({ isUpdateAvailable: false, updateInfo: { version: '1.0.0' } })
+      await appUpdater.queryUpdateAvailability()
+      vi.clearAllMocks()
+    })
+
+    it.each(['warn', 'error'] as const)('preserves the original Error in %s diagnostics', (level) => {
+      const error = new Error('Native updater failed')
+
+      releaseNotesUpdaterInstances[0].logger?.[level](error)
+
+      expect(mockMainLoggerService[level]).toHaveBeenCalledWith('Updater diagnostic', error)
+      expect(mockMainLoggerService[level].mock.calls[0][1]).toBe(error)
+    })
+
+    it.each(['info', 'warn', 'error', 'debug'] as const)('keeps string %s diagnostics unchanged', (level) => {
+      releaseNotesUpdaterInstances[0].logger?.[level]?.('Checking for update')
+
+      expect(mockMainLoggerService[level]).toHaveBeenCalledWith('Checking for update')
+    })
+
+    it.each([undefined, null, 42])('keeps a non-string diagnostic in metadata (%s)', (message) => {
+      releaseNotesUpdaterInstances[0].logger?.info(message)
+
+      expect(mockMainLoggerService.info).toHaveBeenCalledWith('Updater diagnostic', { message })
+    })
+
+    it('does not coerce opaque diagnostic objects before the logger serializes them', () => {
+      const message = {
+        toString() {
+          throw new Error('Diagnostic must not be coerced')
+        }
+      }
+
+      expect(() => releaseNotesUpdaterInstances[0].logger?.warn(message)).not.toThrow()
+      expect(mockMainLoggerService.warn.mock.calls[0][0]).toBe('Updater diagnostic')
+      expect(mockMainLoggerService.warn.mock.calls[0][1].message).toBe(message)
     })
   })
 
@@ -516,7 +542,7 @@ describe('AppUpdaterService', () => {
 
       expect(result).toEqual(releaseInfo)
       expect(result).not.toBe(releaseInfo)
-      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to localize release notes', error)
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith('Failed to localize release notes', error)
     })
 
     it('leaves marked release notes unchanged when language lookup fails', () => {

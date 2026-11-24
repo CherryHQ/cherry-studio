@@ -27,6 +27,7 @@ import type { AppEdition } from '@shared/types/appEdition'
 import type { FailureFacts } from '@shared/types/errorReporting'
 import { APP_NAME } from '@shared/utils/constants'
 import { isCancellation } from '@shared/utils/errorReporting'
+import { getLogError } from '@shared/utils/logSerialization'
 import {
   hasMultiLanguageReleaseNotes,
   isStableReleaseVersion,
@@ -37,6 +38,24 @@ import {
 } from '@shared/utils/releaseNotes'
 
 const logger = loggerService.withContext('AppUpdaterService')
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- electron-updater accepts arbitrary diagnostic payloads, including native macOS errors; keep them out of the logger's string message slot.
+function logUpdaterMessage(level: 'info' | 'warn' | 'error', message?: unknown): void {
+  if (typeof message === 'string') {
+    logger[level](message)
+
+    return
+  }
+
+  logger[level]('Updater diagnostic', getLogError(message) ?? { message })
+}
+
+const updaterLogger = {
+  info: logUpdaterMessage.bind(null, 'info'),
+  warn: logUpdaterMessage.bind(null, 'warn'),
+  error: logUpdaterMessage.bind(null, 'error'),
+  debug: logger.debug.bind(logger)
+} satisfies Logger
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Updater operations can reject arbitrary values; native cancellation, HTTP status, and verified transport codes determine reporting eligibility.
 export function classifyUpdateFailure(error: unknown): FailureFacts {
@@ -158,7 +177,7 @@ export class AppUpdaterService extends BaseService {
   private updateCheckFailures = 0
 
   protected async onInit(): Promise<void> {
-    autoUpdater.logger = logger as Logger
+    autoUpdater.logger = updaterLogger
     // Packaged builds use app-update.yml generated from electron-builder.yml;
     // development uses the repository's dev-app-update.yml.
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
@@ -171,6 +190,8 @@ export class AppUpdaterService extends BaseService {
     this.registerAutoUpdaterListeners()
 
     if (isWin) {
+      // SAFETY: electron-updater's autoUpdater factory constructs NsisUpdater on win32;
+      // isWin uses that same process.platform discriminator.
       ;(autoUpdater as NsisUpdater).installDirectory = application.getPath('app.install')
     }
 
@@ -385,7 +406,7 @@ export class AppUpdaterService extends BaseService {
     if (this.isPortable()) return { status: 'unsupported' }
     const { currentVersion, updateChannel, updateHeaders } = await this.getUpdateRequest()
     const updater = new ReleaseNotesUpdater()
-    updater.logger = logger as Logger
+    updater.logger = updaterLogger
     updater.forceDevUpdateConfig = !app.isPackaged
     updater.autoDownload = false
     updater.autoInstallOnAppQuit = false
@@ -405,7 +426,7 @@ export class AppUpdaterService extends BaseService {
     try {
       const { updateChannel, updateHeaders } = await this.getUpdateRequest()
       const updater = new ReleaseNotesUpdater()
-      updater.logger = logger as Logger
+      updater.logger = updaterLogger
       updater.forceDevUpdateConfig = !app.isPackaged
       updater.autoDownload = false
       updater.autoInstallOnAppQuit = false
