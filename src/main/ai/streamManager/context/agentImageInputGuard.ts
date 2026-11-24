@@ -16,6 +16,9 @@ export function assertAgentImageInput(
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const model = resolveModel(providerId, modelId)
   if (!isVisionModel(model)) {
-    throw new UnsupportedAgentImageInputError(modelId, t('agent.session.pi.unsupported_image_input', { model: modelId }))
+    throw new UnsupportedAgentImageInputError(
+      modelId,
+      t('agent.session.pi.unsupported_image_input', { model: modelId })
+    )
   }
 }
