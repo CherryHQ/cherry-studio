@@ -4,10 +4,11 @@ import { memo, type RefObject, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Checkbox, type CheckedState } from '@cherrystudio/ui'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 
 import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
-import { getFormatLabel, typeIconColors, typeIcons } from './fileDisplay'
+import { getFileIconPath, getFormatLabel, typeIconColors } from './fileDisplay'
 import { InlineRename } from './InlineRename'
 
 export type SortKey = 'name' | 'size' | 'updatedAt' | 'type'
@@ -148,7 +149,7 @@ export const FileList = memo(function FileList({
         const file = files[virtualRow.index]
         if (!file) return null
         const selected = selectedIds.has(file.id)
-        const Icon = typeIcons[file.type]
+        const iconPath = getFileIconPath(file)
         const isRenaming = renamingId === file.id
         const canUseFileActions = !file.isMissing
         const canOpen = canUseFileActions
@@ -190,7 +191,12 @@ export const FileList = memo(function FileList({
               </div>
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-background-subtle">
-                  <Icon size={14} strokeWidth={1.4} className={`shrink-0 ${typeIconColors[file.type]}`} />
+                  <FileIcon
+                    path={iconPath}
+                    width={14}
+                    height={14}
+                    className={`shrink-0 ${typeIconColors[file.type]}`}
+                  />
                 </span>
                 {isRenaming ? (
                   <InlineRename
