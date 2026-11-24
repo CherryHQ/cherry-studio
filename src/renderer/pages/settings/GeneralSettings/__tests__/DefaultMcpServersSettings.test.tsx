@@ -9,6 +9,18 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { DefaultMcpServersSettings } from '../DefaultMcpServersSettings'
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: async (_route: string, input: { serverId: string; enabled: boolean }) => {
+      const current = mockPreferenceState.get('assistant.default_mcp_server_ids') as string[]
+      await mockPreferenceService.set(
+        'assistant.default_mcp_server_ids',
+        input.enabled ? [...new Set([...current, input.serverId])] : current.filter((id) => id !== input.serverId)
+      )
+    }
+  }
+}))
+
 vi.unmock('@cherrystudio/ui')
 vi.unmock('@data/hooks/usePreference')
 
@@ -31,6 +43,24 @@ afterEach(() => {
 })
 
 describe('DefaultMcpServersSettings', () => {
+  it('shows and retries a cold catalog failure instead of claiming there are no servers', async () => {
+    const user = userEvent.setup()
+    const retry = vi.fn().mockResolvedValue(undefined)
+    MockUseDataApiUtils.mockQueryResult('/mcp-servers', {
+      data: undefined,
+      isLoading: false,
+      error: new Error('offline'),
+      refetch: retry
+    })
+    const { rerender } = render(<DefaultMcpServersSettings />)
+    await screen.findByRole('alert')
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(retry).toHaveBeenCalledOnce()
+    MockUseDataApiUtils.mockQueryData('/mcp-servers', { items: servers, total: servers.length, page: 1 })
+    rerender(<DefaultMcpServersSettings />)
+    expect(await screen.findByRole('switch', { name: 'Files' })).toBeChecked()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
   it('saves opt-in defaults and reflects changes from another window', async () => {
     const user = userEvent.setup()
     render(<DefaultMcpServersSettings />)

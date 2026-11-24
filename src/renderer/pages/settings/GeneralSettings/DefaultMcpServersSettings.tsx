@@ -7,13 +7,14 @@ import { McpServerCatalogGrid } from '@renderer/components/resourceCatalog/dialo
 import { SettingDescription, SettingDivider, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { preferenceService } from '@renderer/data/PreferenceService'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
 
 const DEFAULT_MCP_KEY = 'assistant.default_mcp_server_ids'
 
 export function DefaultMcpServersSettings() {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const [ids, setIds] = usePreference(DEFAULT_MCP_KEY, { optimistic: false })
+  const [ids] = usePreference(DEFAULT_MCP_KEY, { optimistic: false })
   const [ready, setReady] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [saveFailed, setSaveFailed] = useState(false)
@@ -49,7 +50,7 @@ export function DefaultMcpServersSettings() {
     setSaving(true)
     setSaveFailed(false)
     try {
-      await setIds(enabled ? [...new Set([...ids, id])] : ids.filter((value) => value !== id))
+      await ipcApi.request('assistant.toggle_default_mcp', { serverId: id, enabled })
     } catch {
       setSaveFailed(true)
     } finally {

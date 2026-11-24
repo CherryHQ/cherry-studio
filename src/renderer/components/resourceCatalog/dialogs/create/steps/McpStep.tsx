@@ -29,7 +29,7 @@ export function McpStep({
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    if (!active || reviewedIds !== undefined) return
+    if (!active) return
     let cancelled = false
     setFailed(false)
     void Promise.all([
@@ -46,10 +46,11 @@ export function McpStep({
           servers.items.filter((server) => server.isActive && !isBrowserMcpServer(server)).map((server) => server.id)
         )
         setCatalog(servers.items)
-        form.setValue(
-          'reviewedMcpServerIds',
-          [...new Set(ids)].filter((id) => activeIds.has(id))
-        )
+        if (form.getValues('reviewedMcpServerIds') === undefined)
+          form.setValue(
+            'reviewedMcpServerIds',
+            [...new Set(ids)].filter((id) => activeIds.has(id))
+          )
       })
       .catch(() => {
         if (!cancelled) setFailed(true)
@@ -57,7 +58,7 @@ export function McpStep({
     return () => {
       cancelled = true
     }
-  }, [active, attempt, form, reviewedIds])
+  }, [active, attempt, form])
 
   if (reviewedIds === undefined) {
     return failed ? (

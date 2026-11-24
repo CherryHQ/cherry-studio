@@ -62,13 +62,13 @@ export function McpServerCatalogGrid({
   onToggle: (id: string, enabled: boolean) => void
   portalContainer: HTMLElement | null
   title?: string
-  /** A reviewed creation snapshot; display exactly the catalog that seeded selection. */
+  /** Initial catalog while the live availability query revalidates. */
   servers?: McpServer[]
 }) {
   const { t } = useTranslation()
-  const { data, isLoading } = useQuery('/mcp-servers', {})
+  const { data, isLoading, error, refetch } = useQuery('/mcp-servers', { swrOptions: { revalidateOnMount: true } })
   const mcpServers = useMemo<McpServer[]>(
-    () => (servers ?? data?.items ?? []).filter((server) => !isBrowserMcpServer(server)),
+    () => (data?.items ?? servers ?? []).filter((server) => !isBrowserMcpServer(server)),
     [data, servers]
   )
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
@@ -97,6 +97,14 @@ export function McpServerCatalogGrid({
 
   return (
     <div>
+      {error ? (
+        <div role="alert" className="space-y-2">
+          <p>{t('assistant.mcp_defaults.load_failed')}</p>
+          <Button type="button" variant="outline" onClick={() => void refetch()}>
+            {t('common.retry')}
+          </Button>
+        </div>
+      ) : null}
       {title ? (
         <div className="flex items-center gap-1.5">
           <div className="text-[13px] leading-none font-medium text-foreground">{title}</div>
@@ -114,7 +122,7 @@ export function McpServerCatalogGrid({
           </Tooltip>
         </div>
       ) : null}
-      <div className={title ? 'mt-2' : undefined}>
+      <div hidden={Boolean(error) && !data && !servers} className={title ? 'mt-2' : undefined}>
         <CatalogToggleGrid
           items={catalog}
           enabledIds={enabledIds}

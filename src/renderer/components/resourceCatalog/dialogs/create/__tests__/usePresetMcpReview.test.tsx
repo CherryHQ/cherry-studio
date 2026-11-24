@@ -3,6 +3,7 @@ import { mockPreferenceService, mockPreferenceState } from '@test-mocks/renderer
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Activity } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
@@ -55,6 +56,28 @@ describe('preset MCP review', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }))
     await waitFor(() => expect(saved).toHaveBeenCalledWith([]))
     expect(mockPreferenceState.get('assistant.default_mcp_server_ids')).toEqual(['files'])
+  })
+  it('keeps a pending review alive when Activity hides and restores its tab', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <Activity mode="visible">
+        <PresetFlow />
+      </Activity>
+    )
+    await user.click(screen.getByRole('button', { name: 'Add preset' }))
+    await screen.findByRole('switch', { name: 'Local files' })
+    rerender(
+      <Activity mode="hidden">
+        <PresetFlow />
+      </Activity>
+    )
+    rerender(
+      <Activity mode="visible">
+        <PresetFlow />
+      </Activity>
+    )
+    await user.click(await screen.findByRole('button', { name: 'Create' }))
+    await waitFor(() => expect(saved).toHaveBeenCalledExactlyOnceWith(['files']))
   })
   it('does not create anything when cancelled', async () => {
     const user = userEvent.setup()

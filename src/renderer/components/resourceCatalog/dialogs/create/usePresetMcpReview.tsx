@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useInsertionEffect, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -20,7 +20,7 @@ export function usePresetMcpReview() {
     resolveRef.current = null
     setOpen(false)
   }
-  useEffect(() => () => resolveRef.current?.(null), [])
+  useInsertionEffect(() => () => resolveRef.current?.(null), [])
   const reviewMcp = () => {
     resolveRef.current?.(null)
     form.reset({ reviewedMcpServerIds: undefined })
@@ -35,14 +35,16 @@ export function usePresetMcpReview() {
       onOpenChange={(next) => {
         if (!next) finish(null)
       }}>
-      <DialogContent>
+      <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden">
         <DialogTitle>{t('settings.mcp.title')}</DialogTitle>
-        {open ? (
-          <Suspense fallback={<p role="status">{t('common.loading')}</p>}>
-            <McpStep key="preset-review" form={form} active disabled={false} portalContainer={null} />
-          </Suspense>
-        ) : null}
-        <div className="flex justify-end gap-2">
+        <div className="min-h-0 overflow-y-auto">
+          {open ? (
+            <Suspense fallback={<p role="status">{t('common.loading')}</p>}>
+              <McpStep key="preset-review" form={form} active disabled={false} portalContainer={null} />
+            </Suspense>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 justify-end gap-2">
           <Button type="button" variant="ghost" onClick={() => finish(null)}>
             {t('common.cancel')}
           </Button>

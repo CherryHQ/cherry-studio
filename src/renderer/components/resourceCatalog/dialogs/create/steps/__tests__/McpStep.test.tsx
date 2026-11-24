@@ -3,6 +3,7 @@ import { mockPreferenceService, mockPreferenceState } from '@test-mocks/renderer
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Activity } from 'react'
 import { useForm } from 'react-hook-form'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -70,6 +71,36 @@ afterEach(() => {
 })
 
 describe('McpStep reviewed selection', () => {
+  it('refreshes availability after a hidden tab returns without replacing reviewed IDs', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <Activity mode="visible">
+        <Editor />
+      </Activity>
+    )
+    await user.click(await screen.findByRole('switch', { name: 'Files' }))
+    rerender(
+      <Activity mode="hidden">
+        <Editor />
+      </Activity>
+    )
+    const updated = { items: servers.map((server) => ({ ...server, isActive: true })), total: servers.length, page: 1 }
+    MockDataApiUtils.setCustomResponse('/mcp-servers', 'GET', updated)
+    MockUseDataApiUtils.mockQueryData('/mcp-servers', updated)
+    mockPreferenceState.set(key, ['b'])
+    rerender(
+      <Activity mode="visible">
+        <Editor />
+      </Activity>
+    )
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Inactive server' })).toBeEnabled())
+    expect(screen.getByRole('switch', { name: 'Files' })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Research' })).not.toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Save assistant' }))
+    expect(dataApiService.post).toHaveBeenLastCalledWith('/assistants', {
+      body: expect.objectContaining({ reviewedMcpServerIds: [] })
+    })
+  })
   it('shows active inherited servers, freezes the reviewed set, and preserves clearing without changing defaults', async () => {
     const user = userEvent.setup()
     render(<Editor />)
