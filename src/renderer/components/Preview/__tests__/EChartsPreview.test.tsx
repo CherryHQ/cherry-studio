@@ -167,6 +167,20 @@ describe('EChartsPreview', () => {
     expect(request.error.message).not.toBe('Invalid JSON configuration')
   })
 
+  // Catches V8 quoting the chart source into the snapshot a problem report uploads as `error-context.json`.
+  it('keeps the chart source out of the Details payload when the parser quotes its input', async () => {
+    render(<EChartsPreview>{'{"title": SECRET_CHART_MARKER}'}</EChartsPreview>)
+    await advanceDebounce()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+    await vi.waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+
+    const request = detailMocks.open.mock.calls[0][0]
+    expect(JSON.stringify(request)).not.toContain('SECRET_CHA')
+    expect(request.context.name).toBe('SyntaxError')
+    expect(request.context.message).toContain('JSON')
+  })
+
   it('reports an ECharts setOption error as a render failure without the library text', async () => {
     mocks.chart.setOption.mockImplementation(() => {
       throw new Error('Invalid option')
