@@ -884,7 +884,9 @@ export class AiService extends BaseService {
             system: HANDOFF_SYSTEM_PROMPT,
             prompt,
             callOverrides: { maxOutputTokens: 4096 },
-            requestOptions: { signal }
+            // The dialog discloses the selected model and sizes chunks by its
+            // window, so a fallback provider must never see these prompts.
+            requestOptions: { signal, maxRetries: 0 }
           })
           if (result.finishReason === 'length')
             throw new Error('The handoff exceeded the output limit. Try a larger-context model.')
