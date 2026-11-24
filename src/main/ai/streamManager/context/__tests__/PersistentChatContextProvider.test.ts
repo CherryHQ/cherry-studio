@@ -374,6 +374,38 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(again.models.map((entry) => entry.request.systemPromptOverride)).toEqual(['Prompt A', 'Prompt B'])
   })
 
+  it('rejects duplicate model prompt pairs on regeneration before merging stored copies', async () => {
+    const submitted = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        mentionedModelIds: [MODEL_ID],
+        modelPrompts: [{ modelId: MODEL_ID, systemPrompt: 'stored' }],
+        userMessageParts: [{ type: 'text', text: 'compare' }]
+      },
+      { hasLiveStream: false }
+    )
+    const user = submitted.reservedMessages!.find((message) => message.role === 'user')!
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'regenerate-message',
+          topicId: 'topic-1',
+          parentAnchorId: user.id,
+          mentionedModelIds: [MODEL_ID],
+          modelPrompts: [
+            { modelId: MODEL_ID, systemPrompt: 'one' },
+            { modelId: MODEL_ID, systemPrompt: 'two' }
+          ]
+        },
+        { hasLiveStream: false }
+      )
+    ).rejects.toThrow('Duplicate model prompt')
+  })
+
   it('rejects prompts for unselected models and duplicate pairs before writing user messages', async () => {
     const count = messageService.getChildrenByParentId('a1').length
     for (const modelPrompts of [

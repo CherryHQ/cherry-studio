@@ -1096,6 +1096,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     assistantId: string | undefined
   ): AssistantTurnOptions['modelPrompts'] {
     let pairs = req.modelPrompts
+    // Validate the incoming map before any merge: duplicate model ids would
+    // otherwise collapse silently under the stored-anchor recovery below.
+    if (pairs) {
+      const incoming = new Set<string>()
+      for (const pair of pairs) {
+        if (incoming.has(pair.modelId)) throw new Error('Duplicate model prompt')
+        incoming.add(pair.modelId)
+      }
+    }
     if (req.trigger === 'regenerate-message' && req.parentAnchorId) {
       // Recover the full stored comparison map across sibling replies: a
       // single-model regeneration stores only that model's entry, so an

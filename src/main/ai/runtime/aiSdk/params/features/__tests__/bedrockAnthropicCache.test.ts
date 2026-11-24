@@ -2,7 +2,6 @@ import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageModelV3Message } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
-import type { Assistant } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -97,10 +96,10 @@ function cachePoints(body: ConverseBody): { position: string; cachePoint: Conver
 async function bedrockBody(
   params: LanguageModelV3CallOptions,
   provider = makeProvider(),
-  assistantConfig?: Assistant,
+  systemPrompt?: string,
   supportsOneHourTtl = true
 ): Promise<ConverseBody> {
-  const marked = await transformAnthropicCacheParams(params, provider, assistantConfig)
+  const marked = await transformAnthropicCacheParams(params, provider, systemPrompt)
   return captureConverseBody(transformBedrockCacheParams(marked, supportsOneHourTtl))
 }
 
@@ -232,10 +231,7 @@ describe('Bedrock Converse request body', () => {
   })
 
   it('adds no cache point for prompts with volatile time variables', async () => {
-    const body = await bedrockBody(conversation, makeProvider(), {
-      id: 'a1',
-      prompt: 'Current time: {{time}}'
-    } as Assistant)
+    const body = await bedrockBody(conversation, makeProvider(), 'Current time: {{time}}')
 
     expect(cachePoints(body)).toEqual([])
   })

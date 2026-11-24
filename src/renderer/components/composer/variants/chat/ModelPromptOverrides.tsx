@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Checkbox, Textarea } from '@cherrystudio/ui'
 import type { ModelPromptPair } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 
@@ -32,12 +33,13 @@ export function ModelPromptOverrides({
                 {model.name} <span className="text-xs text-muted-foreground">({model.providerId})</span>
               </legend>
               <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
+                <Checkbox
+                  size="sm"
                   checked={pair !== undefined}
-                  onChange={(event) =>
+                  aria-label={`${model.name}: ${t('chat.model_prompt.override')}`}
+                  onCheckedChange={(checked) =>
                     onChange(
-                      event.target.checked
+                      checked === true
                         ? [
                             ...value.filter((entry) => entry.modelId !== model.id),
                             { modelId: model.id, systemPrompt: '' }
@@ -49,7 +51,7 @@ export function ModelPromptOverrides({
                 {t('chat.model_prompt.override')}
               </label>
               {pair ? (
-                <textarea
+                <Textarea.Input
                   id={fieldId}
                   aria-label={`${model.name}: ${t('chat.model_prompt.override')}`}
                   rows={3}

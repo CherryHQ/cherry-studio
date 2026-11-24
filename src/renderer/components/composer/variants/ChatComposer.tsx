@@ -1919,7 +1919,11 @@ const ChatComposerInner = ({
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
       <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
-      {!editingMessageForCurrentTopic && effectiveSubmittedModels.length > 1 ? (
+      {!editingMessageForCurrentTopic &&
+      (effectiveSubmittedModels.length > 1 ||
+        // Keep a saved override editable after the selection narrows to one model; otherwise the
+        // editor disappears while the payload still dispatches the hidden override.
+        modelPrompts.some((pair) => effectiveSubmittedModels.some((model) => model.id === pair.modelId))) ? (
         <ModelPromptOverrides
           models={effectiveSubmittedModels}
           value={modelPrompts}
