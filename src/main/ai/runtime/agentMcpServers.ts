@@ -8,7 +8,7 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { resolveAgentCapabilities, resolveAgentMcpToolExposure } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
 import { createAgentMemoryServer } from '@main/ai/mcp/servers/agentMemory'
 import { createAssistantServer } from '@main/ai/mcp/servers/assistant'
@@ -80,7 +80,7 @@ export function buildAgentMcpServers(
   const servers: Record<string, AgentMcpServer> = {}
   const channelLinked =
     linkedChannelSnapshot === undefined ? notificationContext.sourceChannel !== null : linkedChannelSnapshot !== null
-  const hostTools = resolveHostTools(agent, { channelLinked })
+  const { hostTools, resourceCreateEnabled, selfConfigEnabled } = resolveAgentMcpToolExposure(agent, { channelLinked })
 
   for (const mcpId of agent.mcps ?? []) {
     try {
@@ -125,6 +125,8 @@ export function buildAgentMcpServers(
         workspacePath: session.workspace.path,
         trustedNotifyChannels: notificationContext.channels,
         allowAnyOwnedNotifyChannel: notificationContext.allowAnyOwnedChannel,
+        resourceCreateEnabled,
+        selfConfigEnabled,
         getKnowledgeAccess: () => {
           const liveAgent = agentService.getAgent(agent.id)
           return {
@@ -157,7 +159,7 @@ export function buildAgentMcpServers(
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {
     servers.assistant = {
       name: CHERRY_MCP_SERVER.ASSISTANT,
-      connect: serveAgentMcpServer(() => createAssistantServer(modelId, hostTools?.tools))
+      connect: serveAgentMcpServer(() => createAssistantServer(modelId, hostTools))
     }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {

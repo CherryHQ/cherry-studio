@@ -8,6 +8,7 @@ import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkServ
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { loggerService } from '@logger'
+import { previewAgentConfigChange } from '@main/ai/agents/agentConfigTool'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { createAgent } from '@main/ai/agents/createAgent'
@@ -15,6 +16,7 @@ import { createBuiltinAssistantSession } from '@main/ai/agents/createBuiltinAssi
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
+import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
 import { openRequestPath } from '@main/services/file'
@@ -152,14 +154,23 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.claude_code.binary.retry': async () => application.get('ClaudeCodeBinaryService').ensure(true),
   // ── One-shot model calls — AiService owns the provider clients. ──
   // A renderer one-shot call has no topic; it is its own conversation.
-  'ai.text.generate': ({ requestId, ...request }) => {
+  'ai.text.generate': ({ requestId, streamDeltas, ...request }, { senderId }) => {
     const generate = { ...request, conversation: { id: `one-shot:${randomUUID()}` } }
-    return exposeAiError('ai.text.generate', () =>
-      requestId
+    return exposeAiError('ai.text.generate', () => {
+      if (requestId && streamDeltas && senderId) {
+        return application
+          .get('AiService')
+          .runTextStreamRequest(requestId, generate, (delta) =>
+            application.get('IpcApiService').send(senderId, 'ai.text.delta', { requestId, delta })
+          )
+      }
+      return requestId
         ? application.get('AiService').runTextRequest(requestId, generate)
         : application.get('AiService').generateText(generate)
-    )
+    })
   },
+  'ai.profile_starters.generate': (input) =>
+    exposeAiError('ai.profile_starters.generate', () => generateProfileStarters(input)),
   'ai.text.abort': async ({ requestId }) => {
     application.get('AiService').abortRequest(requestId)
   },
@@ -212,6 +223,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
+  'ai.agent.preview_config_change': async ({ approvalId }) => previewAgentConfigChange(approvalId),
   'ai.agent.restore': async ({ agentId }) => {
     try {
       return await application.get('AgentLifecycleService').restoreAgent(agentId)
