@@ -35,7 +35,6 @@ import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
-import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import { formatFileSize } from '@renderer/utils/file'
 import { permissionLabel } from '@renderer/utils/miniAppPermission'
@@ -107,6 +106,12 @@ interface Props {
 
 const logger = loggerService.withContext('MiniAppDetailPanel')
 
+interface PanelError {
+  message: string
+  cause: unknown
+  operation: string
+}
+
 const asUniqueModelId = (id: string | null | undefined): UniqueModelId | null => (id && isUniqueModelId(id) ? id : null)
 
 const hostOf = (url: string): string => {
@@ -150,7 +155,7 @@ const Usage: FC<{ label: string; usage: QuotaUsageWithLimits; testId: string }> 
 const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   const { t, i18n } = useTranslation()
   const [detail, setDetail] = useState<MiniAppDetail | null>(null)
-  const [error, setError] = useState<{ message: string; cause: unknown; operation: string } | null>(null)
+  const [error, setError] = useState<PanelError | null>(null)
   const [busy, setBusy] = useState(false)
   const [pendingAction, setPendingAction] = useState<DestructiveAction | null>(null)
   const { providers } = useProviders()
@@ -257,15 +262,14 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   const replace = useMiniAppInstallPreview(reload, { expectAppId: appId })
   const { value: updateOffer } = useExitPresence(update.offer)
   const { value: replacePreview } = useExitPresence(replace.preview)
-  const replaceError = replace.error
-  useEffect(() => {
-    if (!replaceError) return
-    toastAppError(t(replaceError.key, replaceError.params), replaceError.cause, {
-      source: 'miniapp',
-      operation: replaceError.operation,
-      recordId: appId
-    })
-  }, [appId, replaceError, t])
+  // Shown in the panel, not a toast: the modal traps focus, so a toast's Details is out of keyboard reach.
+  const replaceError: PanelError | null = replace.error
+    ? {
+        message: t(replace.error.key, replace.error.params),
+        cause: replace.error.cause,
+        operation: replace.error.operation
+      }
+    : null
   const handlePickReplacement = () =>
     replace.settle(
       () => ipcApi.request('mini_app.install.pick_and_preview'),
@@ -296,6 +300,23 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
       description: t('miniApp.detail.uninstall_confirm', { name: detail?.name ?? appId })
     }
   }
+
+  const errorNotice = (shown: PanelError | null) =>
+    shown && (
+      <ErrorNotice
+        variant="inline"
+        title={shown.message}
+        detail={
+          <ErrorDetailAction
+            error={shown.cause}
+            message={shown.message}
+            source="miniapp"
+            operation={shown.operation}
+            recordId={appId}
+          />
+        }
+      />
+    )
 
   const sourceLine = (d: MiniAppDetail): string => {
     if (d.source === 'url') return t('miniApp.detail.source.url', { host: hostOf(d.sourceUrl ?? '') })
@@ -330,21 +351,8 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
               </div>
             </div>
             {/* In the pinned header, not the scrolling body: a refused action must stay in view. */}
-            {error && (
-              <ErrorNotice
-                variant="inline"
-                title={error.message}
-                detail={
-                  <ErrorDetailAction
-                    error={error.cause}
-                    message={error.message}
-                    source="miniapp"
-                    operation={error.operation}
-                    recordId={appId}
-                  />
-                }
-              />
-            )}
+            {errorNotice(error)}
+            {errorNotice(replaceError)}
           </DialogHeader>
 
           {detail && (

@@ -6,12 +6,13 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { useMutation } from '@data/hooks/useDataApi'
 import i18n from '@renderer/i18n/resolver'
 import { appErrorContextService } from '@renderer/services/AppErrorContextService'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import type { Model } from '@shared/data/types/model'
 
 // `vi.hoisted`: `vi.mock` is hoisted above every `const`, so a factory closing over a
 // plain `const request` hits the TDZ on first import of the mocked module.
-const { request, activity, selectableModels } = vi.hoisted(() => {
+const { request, activity, selectableModels, mocks } = vi.hoisted(() => {
   const model = (providerId: string, name: string): Model => ({
     id: `${providerId}::mini-app-test`,
     providerId,
@@ -24,9 +25,14 @@ const { request, activity, selectableModels } = vi.hoisted(() => {
   return {
     request: vi.fn(),
     activity: { entries: [] as unknown[], bytes: 0, days: 0 },
-    selectableModels: [model('openai', 'Regular chat model')]
+    selectableModels: [model('openai', 'Regular chat model')],
+    mocks: { openErrorDetail: vi.fn().mockResolvedValue('opened') }
   }
 })
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: mocks.openErrorDetail }
+}))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
 // An independently tested child: the real selector needs the portal container the
 // global `@cherrystudio/ui` stand-in does not provide (same boundary ContextManagementSettings draws).
@@ -60,6 +66,7 @@ afterAll(async () => {
 // are "was NOT called with X" — exactly what a leftover call turns red.
 beforeEach(() => {
   request.mockReset()
+  mocks.openErrorDetail.mockClear()
 })
 
 import type { MiniAppDetail } from '@shared/ipc/schemas/miniApp'
@@ -274,11 +281,7 @@ describe('MiniAppDetailPanel', () => {
     // is a takeover primitive for whatever file the user happened to pick.
     request.mockResolvedValueOnce(previewFor('com.example.other'))
     await userEvent.click(replaceButton())
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith(
-        expect.objectContaining({ title: expect.stringMatching(/com\.example\.other/) })
-      )
-    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(/com\.example\.other/)
     expect(screen.queryByTestId('install-preview')).toBeNull()
     expect(request).toHaveBeenCalledWith('mini_app.install.cancel_preview', { installToken: 'tok-file' })
 
@@ -295,25 +298,34 @@ describe('MiniAppDetailPanel', () => {
     expect(request).not.toHaveBeenCalledWith('mini_app.update.pick_replacement', expect.anything())
   })
 
-  it('opens Details for a failed replacement pick with its cause and step', async () => {
+  // The panel is a modal: a Details entry that lives only in the window-level toast is unreachable by keyboard.
+  it('keeps a failed replacement pick inside the panel with keyboard-reachable Details', async () => {
     await open()
     vi.mocked(toast.error).mockClear()
     const failure = new Error('not a mini app package')
     request.mockRejectedValueOnce(failure)
+    const user = userEvent.setup()
 
-    await userEvent.click(screen.getByRole('button', { name: /replace package|替换本地包/i }))
+    const replaceButton = screen.getByRole('button', { name: /replace package|替换本地包/i })
+    await user.click(replaceButton)
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalled())
-    const payload = vi.mocked(toast.error).mock.calls[0][0] as Parameters<
-      typeof appErrorContextService.contextForHostError
-    >[1]
-    expect(payload).toMatchObject({ title: i18n.t('miniApp.install.preview_error') })
-    expect(appErrorContextService.contextForHostError('replace-pick-failed', payload)).toMatchObject({
+    const dialog = screen.getByRole('dialog')
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert).toHaveTextContent(i18n.t('miniApp.install.preview_error'))
+    expect(alert).not.toHaveTextContent(/not a mini app package/)
+    const details = within(alert).getByRole('button', { name: i18n.t('common.detail') })
+    for (let step = 0; step < 60 && document.activeElement !== details; step++) await user.tab()
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(mocks.openErrorDetail.mock.calls[0][0].context).toMatchObject({
       message: 'not a mini app package',
       operation: 'miniapp.install.pick_and_preview',
       recordId: detail.appId,
       source: 'miniapp'
     })
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(replaceButton).toBeEnabled()
   })
 
   it('opens Details for a failed update check with its cause and step', async () => {
