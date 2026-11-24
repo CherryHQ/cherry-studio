@@ -73,7 +73,7 @@ describe('ConversationHandoff', () => {
     expect(payload?.assistantId).toBe('assistant')
     expect(payload?.handoffDraft?.text).toBe('')
     expect(payload?.handoffDraft?.files).toHaveLength(1)
-    expect(payload?.handoffDraft?.files[0]?.blob.size).toBe(14)
+    expect(payload?.handoffDraft?.files[0]?.blob?.size).toBe(14)
     expect(payload?.handoffDraft?.tokens[0]?.id).toBe(`file:${payload?.handoffDraft?.files[0]?.fileTokenSourceId}`)
     expect(save).not.toHaveBeenCalled()
   })
