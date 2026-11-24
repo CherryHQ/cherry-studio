@@ -236,7 +236,7 @@ function WorkspaceControl({
   const isSystemWorkspace = workspace?.type === 'system'
   const selectorValue = isSystemWorkspace ? null : workspaceId
   const workspaceLabel = isSystemWorkspace
-    ? t(agent?.type === 'local' ? 'local_agents.managed_workspace' : 'agent.session.workspace_selector.no_project')
+    ? t('agent.session.workspace_selector.no_project')
     : (workspace?.name ?? selectWorkspaceLabel)
   const canQuickClearWorkspace = Boolean(onWorkspaceChange && workspace && !iconOnly)
   if (!onWorkspaceChange && workspace?.path && (workspace.type === 'user' || agent?.type === 'local')) {

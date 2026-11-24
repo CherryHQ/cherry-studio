@@ -2534,7 +2534,6 @@
   "local_agents.installing": "Instalowanie…",
   "local_agents.login_help": "Pomoc logowania",
   "local_agents.login_required": "Wymagane logowanie lub konfiguracja",
-  "local_agents.managed_workspace": "Niezależny obszar roboczy",
   "local_agents.mode": "Tryb sesji",
   "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI nie obsługuje obecnie niestandardowych modeli dostawców.",
   "local_agents.model_sources.gateway": "Zunifikowana brama",

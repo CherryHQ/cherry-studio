@@ -2510,7 +2510,6 @@
   "local_agents.installing": "กำลังติดตั้ง…",
   "local_agents.login_help": "วิธีลงชื่อเข้าใช้",
   "local_agents.login_required": "ต้องเข้าสู่ระบบหรือตั้งค่า",
-  "local_agents.managed_workspace": "พื้นที่ทำงานแยก",
   "local_agents.mode": "โหมดเซสชัน",
   "local_agents.model_sources.cursor_provider_unsupported": "ขณะนี้ Cursor CLI ไม่รองรับโมเดลผู้ให้บริการที่กำหนดเอง",
   "local_agents.model_sources.gateway": "เกตเวย์รวม",

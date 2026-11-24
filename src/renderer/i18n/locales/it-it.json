@@ -2510,7 +2510,6 @@
   "local_agents.installing": "Installazione…",
   "local_agents.login_help": "Guida all’accesso",
   "local_agents.login_required": "Accesso o configurazione richiesti",
-  "local_agents.managed_workspace": "Area di lavoro indipendente",
   "local_agents.mode": "Modalità sessione",
   "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI al momento non supporta modelli di fornitori personalizzati.",
   "local_agents.model_sources.gateway": "Gateway unificato",

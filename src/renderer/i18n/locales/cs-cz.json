@@ -2511,7 +2511,6 @@
   "local_agents.installing": "Instalace…",
   "local_agents.login_help": "Nápověda k přihlášení",
   "local_agents.login_required": "Vyžaduje se přihlášení nebo konfigurace",
-  "local_agents.managed_workspace": "Samostatný pracovní prostor",
   "local_agents.mode": "Režim relace",
   "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI momentálně nepodporuje vlastní modely poskytovatelů.",
   "local_agents.model_sources.gateway": "Sjednocená brána",

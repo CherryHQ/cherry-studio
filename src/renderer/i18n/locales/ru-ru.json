@@ -2512,7 +2512,6 @@
   "local_agents.installing": "Установка…",
   "local_agents.login_help": "Помощь со входом",
   "local_agents.login_required": "Требуется вход или настройка",
-  "local_agents.managed_workspace": "Отдельная рабочая папка",
   "local_agents.mode": "Режим сеанса",
   "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI сейчас не поддерживает пользовательские модели провайдеров.",
   "local_agents.model_sources.gateway": "Единый шлюз",

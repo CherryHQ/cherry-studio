@@ -2510,7 +2510,6 @@
   "local_agents.installing": "Yükleniyor…",
   "local_agents.login_help": "Oturum açma yardımı",
   "local_agents.login_required": "Oturum açma veya yapılandırma gerekli",
-  "local_agents.managed_workspace": "Bağımsız çalışma dizini",
   "local_agents.mode": "Oturum modu",
   "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI şu anda özel sağlayıcı modellerini desteklemiyor.",
   "local_agents.model_sources.gateway": "Birleşik Ağ Geçidi",

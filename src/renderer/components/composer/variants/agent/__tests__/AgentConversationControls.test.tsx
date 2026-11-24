@@ -1,8 +1,8 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SWRConfig } from 'swr'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
@@ -13,10 +13,14 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof Cher
 
 const workspace = { id: 'workspace-1', type: 'user', name: 'My workspace', path: '/projects/my-workspace' } as const
 
-function renderControls(workspace: AgentConversationControlsProps['workspace']) {
+function renderControls(
+  workspace: AgentConversationControlsProps['workspace'],
+  agent?: AgentConversationControlsProps['agent']
+) {
   return render(
     <SWRConfig value={{ provider: () => new Map() }}>
       <AgentConversationControls
+        agent={agent}
         workspace={workspace}
         workspaceId={workspace?.id}
         selectAgentLabel="Select agent"
@@ -34,6 +38,10 @@ function renderControls(workspace: AgentConversationControlsProps['workspace']) 
 }
 
 describe('locked conversation workspace', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
   beforeEach(async () => {
     MockUseCacheUtils.resetMocks()
     await i18n.changeLanguage('en-US')
@@ -77,5 +85,25 @@ describe('locked conversation workspace', () => {
     expect(noProject.querySelector('svg.lucide-folder')).not.toBeInTheDocument()
     expect(screen.queryByTestId('clear-workspace-button')).not.toBeInTheDocument()
     expect(window.api.ipcApi.request).not.toHaveBeenCalled()
+  })
+
+  it('labels a local agent system workspace as no work directory while keeping the directory opener', async () => {
+    const user = userEvent.setup()
+    renderControls({ id: 'system-workspace', type: 'system', name: 'Internal workspace', path: '/internal/system' }, {
+      id: 'local-agent-1',
+      name: 'Claude Code',
+      type: 'local'
+    } as NonNullable<AgentConversationControlsProps['agent']>)
+
+    const noProject = screen.getByRole('button', { name: 'No work directory' })
+    expect(noProject.querySelector('svg.lucide-folder')).toBeInTheDocument()
+    await waitFor(() => expect(noProject).toBeEnabled())
+    await user.click(noProject)
+
+    expect(window.api.ipcApi.request).toHaveBeenCalledWith('external_app.target.open', {
+      targetPath: '/internal/system',
+      pathKind: 'directory',
+      targetId: 'file_manager'
+    })
   })
 })

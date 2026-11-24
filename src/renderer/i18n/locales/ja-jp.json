@@ -2510,7 +2510,6 @@
   "local_agents.installing": "インストール中…",
   "local_agents.login_help": "ログインのヘルプ",
   "local_agents.login_required": "ログインまたは設定が必要です",
-  "local_agents.managed_workspace": "専用の作業ディレクトリ",
   "local_agents.mode": "セッションモード",
   "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI は現在、カスタムプロバイダーモデルに対応していません。",
   "local_agents.model_sources.gateway": "統合ゲートウェイ",

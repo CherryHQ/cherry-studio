@@ -2510,7 +2510,6 @@
   "local_agents.installing": "Installing…",
   "local_agents.login_help": "Sign-in help",
   "local_agents.login_required": "Login or configuration required",
-  "local_agents.managed_workspace": "Independent workspace",
   "local_agents.mode": "Session mode",
   "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI currently does not support custom provider models.",
   "local_agents.model_sources.gateway": "Unified Gateway",

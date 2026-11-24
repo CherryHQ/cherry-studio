@@ -2510,7 +2510,6 @@
   "local_agents.installing": "正在安裝…",
   "local_agents.login_help": "登入說明",
   "local_agents.login_required": "需要登入或設定",
-  "local_agents.managed_workspace": "獨立工作目錄",
   "local_agents.mode": "對話模式",
   "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI 目前不支援自訂服務商模型。",
   "local_agents.model_sources.gateway": "統一網關",

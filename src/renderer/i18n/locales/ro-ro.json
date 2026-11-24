@@ -2511,7 +2511,6 @@
   "local_agents.installing": "Se instalează…",
   "local_agents.login_help": "Ajutor pentru autentificare",
   "local_agents.login_required": "Este necesară autentificarea sau configurarea",
-  "local_agents.managed_workspace": "Director de lucru independent",
   "local_agents.mode": "Modul sesiunii",
   "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI nu acceptă momentan modele de furnizor personalizate.",
   "local_agents.model_sources.gateway": "Gateway Unificat",
