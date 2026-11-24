@@ -126,11 +126,12 @@ export class OfficialAnnouncementService extends BaseService {
     const cutoff = Date.now() - RETENTION_MS
 
     try {
-      const platform = (
-        { win32: 'windows', darwin: 'macos', linux: 'linux' } as Partial<
-          Record<NodeJS.Platform, 'windows' | 'macos' | 'linux'>
-        >
-      )[process.platform]
+      const platforms: Partial<Record<NodeJS.Platform, 'windows' | 'macos' | 'linux'>> = {
+        win32: 'windows',
+        darwin: 'macos',
+        linux: 'linux'
+      }
+      const platform = platforms[process.platform]
 
       if (!platform) return
 
