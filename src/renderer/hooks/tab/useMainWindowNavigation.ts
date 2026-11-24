@@ -72,9 +72,9 @@ function useOpenSettingsRoute() {
 
 function useMainRouteEventBridge(handleRoute: (path: string) => void) {
   useEffect(() => {
-    const handleOpenMainRoute = (event: Event) => {
+    const handleOpenMainRoute = (event: OpenMainRouteEvent) => {
       event.preventDefault()
-      handleRoute((event as OpenMainRouteEvent).detail.path)
+      handleRoute(event.detail.path)
     }
 
     window.addEventListener(OPEN_MAIN_ROUTE_EVENT, handleOpenMainRoute)

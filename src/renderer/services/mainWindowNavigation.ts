@@ -8,6 +8,12 @@ export const OPEN_MAIN_ROUTE_EVENT = 'cherry:open-main-route'
 
 export type OpenMainRouteEvent = CustomEvent<{ path: string }>
 
+declare global {
+  interface WindowEventMap {
+    [OPEN_MAIN_ROUTE_EVENT]: OpenMainRouteEvent
+  }
+}
+
 /**
  * Open a route in the main window, from ANY window. Local-first delivery:
  * a cancelable DOM event is dispatched in this window — if the main-window
