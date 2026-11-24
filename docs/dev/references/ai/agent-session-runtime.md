@@ -9,6 +9,10 @@ sources:
   - src/main/ai/agents/AgentWorkspaceStorageService.ts
   - src/main/data/services/AgentSessionService.ts
   - src/main/data/db/schemas/agentSession.ts
+  - src/main/data/db/schemas/agentPlan.ts
+  - src/main/data/services/AgentPlanService.ts
+  - src/main/data/api/handlers/agentPlans.ts
+  - src/shared/data/api/schemas/agentPlans.ts
   - src/main/ai/agents/runAgentTask.ts
   - src/main/ai/agents/heartbeatSchedule.ts
   - src/shared/ai/agentHeartbeat.ts
@@ -95,6 +99,48 @@ and history opening do not generate host predictions; a resident result can be r
 | Runtime drivers | Map typed native facts into product events, bind product/native identities, and own one access/projection resource record per child. |
 | Usage capture | Each driver exposes provider-invocation capture according to its transport. Pi uses native providers through the internal gateway and one gateway-owned billing path; native totals serve context/UI statistics only. Gateway-backed calls use AiService middleware. |
 | Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
+
+## Host plan storage and idle edits
+
+This is a storage/editing layer of the proposed host-plan Spec, not runtime execution
+support. `GET /agent-sessions/:sessionId/plan` returns the active root conversation's
+plan or `null`. `PUT` replaces its objective and ordered pending work with an
+`expectedRevision` (zero only for initial creation). The history sub-resource has
+bounded cursor pages. Reads and writes reject missing, trashed and child/background
+sessions. Changing the session's Agent metadata does not replace its host record.
+
+`agent_plan` owns the current snapshot and revision. `agent_plan_history` appends
+accepted user-edit snapshots and origin without changing previous records.
+`agent_plan_step_identity` retains plan-scoped UUIDs after removal, so an edit cannot
+revive a retired identity. Hard session deletion cascades to all three tables;
+soft trash makes them inaccessible while retaining normal trash/restore ownership.
+Migration starts empty and never imports apparent completion from old transcript
+text. Native transcript cards and spawned-task records keep their existing owners.
+
+The only exposed writer is `AgentSessionRuntimeService.replaceHostPlan`. It shares
+`AiStreamManager.withDispatchLock` with turn admission, then refuses unsettled stream
+work or write quiescing. Inside one synchronous `withWriteTx`, the full runtime edit
+guard, root-session access, expected revision and dependency graph are checked before
+current state, identity reservations and history commit together. There is no async
+gap between the runtime guard and commit. An earlier launch makes the edit conflict;
+an earlier successful edit commits before a later dispatch can enter. Competing
+windows must reload/reapply after a revision conflict. Unchanged snapshots create no
+revision, history or notification. Post-commit notifications contain endpoint scopes,
+not plan text; session membership changes also invalidate plan reads.
+
+New steps are pending. Renderer writes cannot supply status, runtime provenance or
+delivery evidence. Only pending work can be changed/removed; recorded non-pending
+steps retain text, dependencies, status and relative order. Missing/duplicate/self
+references, cycles and orders that precede prerequisites are rejected, not repaired.
+The request bounds are 200 steps, 1,000 characters per title and 8,000 per objective.
+
+The response explicitly reports `delivery: unsupported`. No observation adapter,
+runtime-to-host ID reconciliation, reviewable native proposal, next-turn delivery,
+progress producer or editor is enabled here. Tests seed recorded statuses to verify
+protection; they do not demonstrate native progress mapping. Editing does not open a
+turn, connect a driver, approve a tool or change native files. Native consumption,
+ordered execution and Electron/renderer acceptance remain follow-up, so the Spec
+stays proposed.
 
 ## Context usage
 
@@ -1429,6 +1475,10 @@ see [Backup and shutdown](./agent-lifecycle.md#backup-and-shutdown).
 ## Verification
 
 Focused tests:
+
+- `src/main/ai/agentSession/__tests__/AgentSessionHostPlan.integration.test.ts`
+- `src/main/data/db/__tests__/agentPlanMigration.test.ts`
+- `src/shared/data/api/schemas/__tests__/agentPlans.test.ts`
 
 - `src/main/ai/streamManager/context/__tests__/AgentChatContextProvider.test.ts`
 - `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`

@@ -14,6 +14,7 @@
 import type { ApiImplementation } from '@shared/data/api/types'
 
 import { agentChannelHandlers } from './agentChannels'
+import { agentPlanHandlers } from './agentPlans'
 import { agentHandlers } from './agents'
 import { agentSessionMessageHandlers } from './agentSessionMessages'
 import { agentSessionHandlers } from './agentSessions'
@@ -54,6 +55,7 @@ import { translateHandlers } from './translate'
 export const apiHandlers: ApiImplementation = {
   ...apiGatewayPairedDeviceHandlers,
   ...agentHandlers,
+  ...agentPlanHandlers,
   ...archiveHandlers,
   ...assistantHandlers,
   ...agentChannelHandlers,

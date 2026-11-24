@@ -215,7 +215,12 @@ export class AgentSessionService {
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
     if (effects.length === 0) return
-    if (kind === 'membership') effects.push({ endpoint: '/agent-workspaces', kind: 'membership' })
+    if (kind === 'membership')
+      effects.push(
+        { endpoint: '/agent-workspaces', kind: 'membership' },
+        { endpoint: '/agent-sessions/:sessionId/plan' },
+        { endpoint: '/agent-sessions/:sessionId/plan/history', kind: 'membership' }
+      )
     notifyDataApiDataChange(effects)
   }
 
