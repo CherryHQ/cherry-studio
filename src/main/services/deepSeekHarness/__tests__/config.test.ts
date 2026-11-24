@@ -385,4 +385,52 @@ describe('DeepSeek Harness config transaction', () => {
     await expect(writeDeepSeekHarnessConfig(dir, projection())).resolves.toBeDefined()
     await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   })
+
+  it('reclaims a valid managed owner with extra metadata and an untrimmed nonempty token', async () => {
+    const lockPath = path.join(dir, '.credentials.yaml.lock')
+    await writeFile(
+      lockPath,
+      JSON.stringify({ version: 1, pid: 424242, token: ' ', extension: 'retained compatibility' }),
+      { mode: 0o600 }
+    )
+    vi.spyOn(process, 'kill').mockImplementation((pid: number, signal?: string | number) => {
+      if (pid === 424242 && signal === 0) throw Object.assign(new Error('process not found'), { code: 'ESRCH' })
+      return true
+    })
+
+    await expect(writeDeepSeekHarnessConfig(dir, projection())).resolves.toBeDefined()
+    await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it.each([{ code: 'EPERM' }, null, undefined, 'unreadable probe'])(
+    'keeps the owner lock when process existence cannot be established: %j',
+    async (failure) => {
+      const lockPath = path.join(dir, '.credentials.yaml.lock')
+      const owner = JSON.stringify({ version: 1, pid: 424242, token: 'live-owner' })
+      await writeFile(lockPath, owner, { mode: 0o600 })
+      let probes = 0
+      let signalProbe!: () => void
+      const probed = new Promise<void>((resolve) => {
+        signalProbe = resolve
+      })
+      vi.spyOn(process, 'kill').mockImplementation((pid: number, signal?: string | number) => {
+        if (pid === 424242 && signal === 0) {
+          probes += 1
+          if (probes === 2) signalProbe()
+          throw failure
+        }
+        return true
+      })
+      const pending = writeDeepSeekHarnessConfig(dir, projection()).then(
+        (receipt) => ({ receipt }),
+        (error: unknown) => ({ error })
+      )
+      expect(await Promise.race([probed.then(() => 're-probed'), pending.then(() => 'finished-early')])).toBe(
+        're-probed'
+      )
+      expect(await readFile(lockPath, 'utf8')).toBe(owner)
+      await unlink(lockPath)
+      expect(await pending).toHaveProperty('receipt')
+    }
+  )
 })

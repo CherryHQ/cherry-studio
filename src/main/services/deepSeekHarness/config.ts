@@ -3,8 +3,10 @@ import type { FileHandle } from 'node:fs/promises'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { Document, isMap, isSeq, parseDocument, type YAMLError } from 'yaml'
+import { Document, isMap, isScalar, isSeq, parseDocument, type YAMLError } from 'yaml'
+import * as z from 'zod'
 
+import { getErrorCode } from '@main/utils/error'
 import { atomicWriteFile } from '@main/utils/file'
 import { ENDPOINT_TYPE, type EndpointType, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -43,11 +45,8 @@ interface HeldLock {
   handle: FileHandle
 }
 
-interface LockOwner {
-  version: 1
-  pid: number
-  token: string
-}
+const LockOwnerSchema = z.object({ version: z.literal(1), pid: z.number().int().positive(), token: z.string().min(1) })
+type LockOwner = z.infer<typeof LockOwnerSchema>
 
 const SETTINGS_FILE = 'settings.yaml'
 const CREDENTIALS_FILE = '.credentials.yaml'
@@ -86,17 +85,9 @@ function isMissing(error: unknown): boolean {
 
 function parseLockOwner(content: string): LockOwner | undefined {
   try {
-    const owner = JSON.parse(content) as Partial<LockOwner>
+    const owner = LockOwnerSchema.safeParse(JSON.parse(content))
 
-    if (
-      owner.version === 1 &&
-      Number.isSafeInteger(owner.pid) &&
-      Number(owner.pid) > 0 &&
-      typeof owner.token === 'string' &&
-      owner.token.length > 0
-    ) {
-      return owner as LockOwner
-    }
+    if (owner.success) return owner.data
   } catch {
     // Locks from DSH or older Cherry versions have no ownership metadata.
   }
@@ -110,7 +101,7 @@ function isProcessAlive(pid: number): boolean {
 
     return true
   } catch (error) {
-    return (error as NodeJS.ErrnoException).code !== 'ESRCH'
+    return getErrorCode(error) !== 'ESRCH'
   }
 }
 
@@ -353,7 +344,7 @@ function renderCredentials(snapshot: FileSnapshot, credentialRef: string, creden
     // one for the current provider.
     if (isMap(document.contents)) {
       for (const pair of [...document.contents.items]) {
-        const rawKey = (pair.key as { value?: unknown })?.value
+        const rawKey = isScalar(pair.key) ? pair.key.value : undefined
         const key = typeof rawKey === 'string' ? rawKey : String(pair.key)
 
         if (MANAGED_CREDENTIAL_REF_RE.test(key)) document.delete(key)
@@ -394,7 +385,9 @@ function sameSnapshotContent(snapshot: FileSnapshot, expected: string): boolean 
 
 export function resolveDeepSeekHarnessEndpoint(provider: Provider, model: Model) {
   const isSupported = (endpoint: EndpointType | undefined): endpoint is (typeof DIRECT_ENDPOINTS)[number] =>
-    Boolean(endpoint && DIRECT_ENDPOINTS.includes(endpoint as (typeof DIRECT_ENDPOINTS)[number]))
+    endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ||
+    endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES ||
+    endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
 
   const hasBaseUrl = (endpoint: EndpointType): boolean => Boolean(provider.endpointConfigs?.[endpoint]?.baseUrl)
   const declaredModelEndpoints = model.endpointTypes?.length ? model.endpointTypes.filter(isSupported) : undefined
