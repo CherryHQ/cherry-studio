@@ -544,7 +544,11 @@ export const reportArtifactsInputSchema = z.object({
   artifacts: z
     .array(
       z.object({
-        path: z.string().trim().min(1).describe('Absolute or workspace-relative path to a final deliverable file.'),
+        path: z
+          .string()
+          .trim()
+          .min(1)
+          .describe('Absolute or relative path to a final deliverable inside the session workspace.'),
         description: z.string().trim().min(1).optional().describe('One-line description of what this file is.')
       })
     )
@@ -574,6 +578,10 @@ export { GENERATE_IMAGE_TOOL_NAME, generateImageOutputItemSchema, generateImageO
 export const CRON_TOOL_NAME = 'cron'
 export const NOTIFY_TOOL_NAME = 'notify'
 export const CONFIG_TOOL_NAME = 'config'
+/** The approval-gated sibling of `config` that changes the calling Agent's own settings. */
+export const CONFIG_UPDATE_TOOL_NAME = 'config_update'
+export const AGENT_CREATE_TOOL_NAME = 'agent_create'
+export const ASSISTANT_CREATE_TOOL_NAME = 'assistant_create'
 
 // ── read_file ────────────────────────────────────────────────────
 
