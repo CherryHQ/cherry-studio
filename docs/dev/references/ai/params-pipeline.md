@@ -61,14 +61,12 @@ and forward tool choice, active tools and structured `Output` settings to caller
 Provider-scoped options merge after capability defaults, so explicit Gemini safety settings and
 cached context reach the same provider for HTTP and object callers.
 
-On `openai-chat-completions`, tool-schema middleware removes only `propertyNames`
-for recognizable Gemini raw model IDs. Recognition is a compatibility heuristic,
-not proof of endpoint schema support; opaque upstream aliases remain unrecognized.
-This intentionally relaxes provider-visible key constraints rather than converting
-them losslessly. Validation ownership is unchanged: MCP tools keep their compiled
-validator against the original schema, while caller-owned gateway tools remain the
-caller's responsibility. Responses, Ollama, Anthropic Messages and undefined
-endpoint scopes receive no new treatment from this pass.
+On `openai-chat-completions`, tool-schema middleware normalizes incompatible enums
+and removes `propertyNames` for recognizable Gemini raw model IDs, including
+custom relays. Recognition is a compatibility heuristic that leaves opaque aliases
+unrecognized. Normalization can relax the constraints sent to the provider. MCP
+tools still validate against the original schema, and gateway callers validate
+their own tools.
 
 ## RequestFeature
 
