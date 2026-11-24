@@ -6,6 +6,30 @@ import { createCapsFetch, createStaleQueueFetch, postWrites, respond, systemStat
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 describe('cancel', () => {
+  it('re-probes a malformed non-string version before allowing targeted interruption', async () => {
+    let probes = 0
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/system_stats')) {
+        probes += 1
+        return probes === 1 ? respond({ system: { comfyui_version: 57 } }) : systemStats('0.3.60')
+      }
+      if (init?.method === 'POST') return respond({})
+      return respond({ queue_running: [[1, 'pid-1']], queue_pending: 'malformed queue' })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
+    await transport.cancel('pid-1')
+    expect(probes).toBe(2)
+    expect(postWrites(doFetch)).toEqual([
+      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
+      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
+      { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
+    ])
+  })
+
   it('interrupts a running prompt by id and also dequeues it', async () => {
     const doFetch = createCapsFetch('0.3.57', [[1, 'pid-1', {}, {}, []]], [[2, 'other', {}, {}, []]])
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })

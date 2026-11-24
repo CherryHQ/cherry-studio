@@ -1,5 +1,5 @@
 import type { JSONObject } from '@ai-sdk/provider'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
@@ -126,6 +126,58 @@ describe('ComfyuiTransport', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it.each([null, {}, { prompt_id: 42 }, { prompt_id: '' }])(
+    'rejects an invalid successful prompt response and cleans up the requested task: %j',
+    async (payload) => {
+      let requestedId: string | undefined
+      const deleted: unknown[] = []
+      const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/prompt') && init?.method === 'POST') {
+          requestedId = JSON.parse(String(init.body)).prompt_id
+          return respond(payload)
+        }
+        if (url.includes('/queue') && init?.method === 'POST') {
+          deleted.push(JSON.parse(String(init.body)).delete)
+          return respond({})
+        }
+        if (url.includes('/object_info')) return respond(objectInfo)
+        if (url.includes('/system_stats')) return respond({})
+        if (url.includes('/queue')) return respond({})
+        return respond(workflow)
+      })
+      const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+      await expect(transport.submit(submitInput)).rejects.toMatchObject({
+        code: 'REMOTE_ERROR',
+        message: expect.stringContaining('no_prompt_id')
+      })
+      expect(requestedId).toEqual(expect.any(String))
+      expect(deleted).toEqual([[requestedId]])
+    }
+  )
+
+  it.each([null, { name: '' }, { name: 7 }])('rejects an invalid successful upload response: %j', async (payload) => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/upload/image')) return respond(payload)
+      if (url.includes('/object_info')) return respond(objectInfo)
+      return respond({
+        ...workflow,
+        nodes: [...workflow.nodes, { id: 3, type: 'LoadImage', widgets_values: ['old.png'] }]
+      })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await expect(
+      transport.submit({ ...submitInput, files: [{ type: 'file', data: new Uint8Array([1]), mediaType: 'image/png' }] })
+    ).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: expect.stringContaining('request_failed')
+    })
+    expect(doFetch.mock.calls.some(([url]) => String(url).endsWith('/prompt'))).toBe(false)
   })
 
   it('reports a rejected workflow without waiting for a remote cleanup that has nothing to clean', async () => {

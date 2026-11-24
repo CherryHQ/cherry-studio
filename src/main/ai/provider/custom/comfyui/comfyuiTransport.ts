@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import type { JSONObject } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
+import * as z from 'zod'
 
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
@@ -86,11 +87,29 @@ export interface ComfyuiTransportSettings extends ComfyuiRequestOptions {
   apiKey?: string
 }
 
-/** One `/history/{id}` entry: the images it produced, or the failure it reported. */
-interface HistoryEntry {
-  outputs?: Record<string, { images?: Array<{ filename: string; subfolder?: string; type?: string }> }>
-  status?: { status_str?: string; messages?: unknown[] }
-}
+const promptResponseSchema = z.object({ prompt_id: z.string().min(1) })
+const uploadResponseSchema = z.object({ name: z.string().min(1), subfolder: z.unknown().optional() })
+const systemStatsSchema = z.object({ system: z.unknown().optional() })
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Dynamic task and node IDs select fields from remote JSON objects; their values remain unvalidated until consumed.
+type ResponseObject = { readonly [field: string]: unknown }
+const responseObjectSchema = z.custom<ResponseObject>(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Check only the remote object container, preserving own prototype-named IDs that Zod record parsing drops.
+  (value: unknown) => typeof value === 'object' && value !== null && !Array.isArray(value)
+)
+const queueEntriesSchema = z.array(z.array(z.unknown())).nullish()
+const imageLocatorSchema = z.object({
+  filename: z.string(),
+  subfolder: z.string().nullish(),
+  type: z.string().nullish()
+})
+const historyEntrySchema = z.object({ status: z.unknown().optional(), outputs: z.unknown().optional() })
+const historyOutputSchema = z.object({ images: z.array(imageLocatorSchema).nullish() })
+
+/** The requested history entry's consumed result; error evidence stays opaque until displayed. */
+type HistoryEntry =
+  | { state: 'pending' }
+  | { state: 'error'; messages: unknown }
+  | { state: 'complete'; images: z.infer<typeof imageLocatorSchema>[] }
 
 /** Per-transport short-lived timeouts to prevent forever-pending HTTP calls. */
 const CANCEL_QUEUE_TIMEOUT_MS = 5000
@@ -148,9 +167,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
   private readonly headers: Record<string, string>
   private readonly doFetch: FetchFunction
   private readonly apiKey?: string
-  /** Cached target-specific interrupt capability promise. Resolved once on
-   *  first `cancel()` call and cached for the transport's lifetime; failures
-   *  are also cached (fail-closed: persistent false result, never retry). */
+  /** Successful capability probes stay cached; failed HTTP, JSON or version reads are retried. */
   private capabilitiesPromise?: Promise<ComfyuiCancelCapabilities>
 
   constructor(settings: ComfyuiTransportSettings) {
@@ -224,7 +241,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
     // response still leaves the id ours to cancel. ComfyUI v0.37+ rejects a
     // `prompt_id` that is not a canonical UUID before it queues anything.
     const requestedPromptId = randomUUID()
-    let promptId: string | undefined
+    let promptId: string
 
     try {
       promptId = await this.withDeadline(
@@ -251,9 +268,13 @@ class ComfyuiTransport implements ImageGenerationTransport {
             })
           }
 
-          const { prompt_id } = (await response.json()) as { prompt_id?: string }
+          const result = promptResponseSchema.safeParse(await response.json())
 
-          return prompt_id
+          if (!result.success) {
+            throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.no_prompt_id') })
+          }
+
+          return result.data.prompt_id
         }
       )
     } catch (error) {
@@ -263,10 +284,6 @@ class ComfyuiTransport implements ImageGenerationTransport {
       // remote round-trip it does not need. `cancel()` bounds its own writes.
       void this.cancel(requestedPromptId).catch(() => undefined)
       throw error
-    }
-
-    if (!promptId) {
-      throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.no_prompt_id') })
     }
 
     return { taskId: promptId }
@@ -310,15 +327,15 @@ class ComfyuiTransport implements ImageGenerationTransport {
           })
         }
 
-        const result = (await response.json()) as { name?: unknown; subfolder?: unknown }
+        const result = uploadResponseSchema.safeParse(await response.json())
 
-        if (typeof result.name !== 'string' || result.name.length === 0) {
+        if (!result.success) {
           throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.request_failed') })
         }
 
-        return typeof result.subfolder === 'string' && result.subfolder.length > 0
-          ? `${result.subfolder}/${result.name}`
-          : result.name
+        return typeof result.data.subfolder === 'string' && result.data.subfolder.length > 0
+          ? `${result.data.subfolder}/${result.data.name}`
+          : result.data.name
       }
     )
   }
@@ -343,26 +360,23 @@ class ComfyuiTransport implements ImageGenerationTransport {
       if (options.signal?.aborted) throw createAbortError('Task polling aborted')
 
       try {
-        const history = await this.fetchHistory(taskId, options.signal, deadline - Date.now())
-        const entry = history[taskId]
+        const entry = await this.fetchHistory(taskId, options.signal, deadline - Date.now())
 
         // A failed run can still carry the outputs of the nodes that finished
         // before it: the error status is the answer, whatever sits beside it.
-        if (entry?.status?.status_str === 'error') {
+        if (entry.state === 'error') {
           throw createPaintingGenerateError('REMOTE_ERROR', {
             message:
-              `${t('paintings.comfyui.workflow_failed')} ${JSON.stringify(entry.status.messages ?? {}).slice(0, 500)}`.trim()
+              `${t('paintings.comfyui.workflow_failed')} ${JSON.stringify(entry.messages ?? {}).slice(0, 500)}`.trim()
           })
         }
 
-        if (entry?.outputs && Object.keys(entry.outputs).length > 0) {
-          const images = Object.values(entry.outputs).flatMap((output) => output.images ?? [])
-
-          if (images.length === 0) {
+        if (entry.state === 'complete') {
+          if (entry.images.length === 0) {
             throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.no_image') })
           }
 
-          return await Promise.all(images.map((image) => this.fetchImage(image, options.signal)))
+          return await Promise.all(entry.images.map((image) => this.fetchImage(image, options.signal)))
         }
       } catch (error) {
         if (options.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
@@ -439,11 +453,16 @@ class ComfyuiTransport implements ImageGenerationTransport {
               throw new Error(`ComfyUI /system_stats answered ${response.status}`)
             }
 
-            const stats = (await response.json()) as JSONObject
-            const verStr = (stats.system as JSONObject)?.comfyui_version as string | undefined
+            const stats = systemStatsSchema.parse(await response.json())
+            const system = stats.system
+            const verStr =
+              typeof system === 'object' && system !== null && 'comfyui_version' in system
+                ? system.comfyui_version
+                : undefined
 
             if (!verStr) return { targetedInterrupt: false }
 
+            if (typeof verStr !== 'string') throw new Error('ComfyUI /system_stats returned a non-string version')
             const ver = parseVersion(verStr)
 
             return {
@@ -533,17 +552,8 @@ class ComfyuiTransport implements ImageGenerationTransport {
     ).catch(() => undefined)
   }
 
-  /**
-   * Which cancellation request `taskId` needs, from the server's queue:
-   * `'running'` is interrupted, `'pending'` is dequeued. A queue entry keys
-   * the prompt id at index 1 (`[number, prompt_id, prompt, extra_data,
-   * outputs]`). An unreadable queue reports `'none'` — without proof the
-   * prompt is ours, neither request is safe to send.
-   *
-   * Both the GET request and the JSON parse are bounded by `CANCEL_QUEUE_TIMEOUT_MS`
-   * so a hung server cannot make `cancel()` wait forever.  On timeout or error
-   * we return `'none'`, which leaves the task untouched.
-   */
+  /** Background-only queue snapshot for cancellation logs; it never gates writes.
+   * Queue tuples key prompt IDs at index 1; unreadable or timed-out snapshots return 'none'. */
   private async cancelAction(taskId: string): Promise<'running' | 'pending' | 'none'> {
     try {
       const controller = new AbortController()
@@ -556,18 +566,20 @@ class ComfyuiTransport implements ImageGenerationTransport {
         })
 
         if (!response.ok) return 'none'
-        const queue = (await response.json()) as { queue_running?: unknown[][]; queue_pending?: unknown[][] }
+        const queue = responseObjectSchema.parse(await response.json())
+        const running = queueEntriesSchema.safeParse(queue.queue_running)
 
-        if (queue.queue_running?.some((item) => item[1] === taskId)) return 'running'
+        if (running.success && running.data?.some((item) => item[1] === taskId)) return 'running'
+        const pending = queueEntriesSchema.safeParse(queue.queue_pending)
 
-        if (queue.queue_pending?.some((item) => item[1] === taskId)) return 'pending'
+        if (pending.success && pending.data?.some((item) => item[1] === taskId)) return 'pending'
 
         return 'none'
       } finally {
         clearTimeout(timer)
       }
     } catch {
-      // Timeout or network error → queue unreadable → no write is safe.
+      // Unreadable snapshots suppress only the diagnostic queue state.
       return 'none'
     }
   }
@@ -594,7 +606,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
     taskId: string,
     signal: AbortSignal | undefined,
     remainingMs: number
-  ): Promise<Record<string, HistoryEntry>> {
+  ): Promise<HistoryEntry> {
     // The error path (readErrorMessage → response.text()) and the success path
     // (response.json()) share the poll's remaining budget, and the deadline
     // aborts the body read rather than only racing it: a server that returns
@@ -604,7 +616,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
       signal,
       remainingMs,
       t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 }),
-      async (deadlineSignal) => {
+      async (deadlineSignal): Promise<HistoryEntry> => {
         const response = await this.doFetch(`${this.baseURL}/history/${taskId}`, {
           headers: this.headers,
           signal: deadlineSignal
@@ -621,16 +633,32 @@ class ComfyuiTransport implements ImageGenerationTransport {
           throw new Error(message)
         }
 
-        return (await response.json()) as Record<string, HistoryEntry>
+        const history = responseObjectSchema.parse(await response.json())
+        const rawEntry = Object.hasOwn(history, taskId) ? history[taskId] : undefined
+
+        if (rawEntry === undefined || rawEntry === null) return { state: 'pending' }
+        const entry = historyEntrySchema.parse(rawEntry)
+        const status = entry.status
+
+        if (typeof status === 'object' && status !== null && 'status_str' in status && status.status_str === 'error') {
+          return { state: 'error', messages: 'messages' in status ? status.messages : undefined }
+        }
+
+        if (entry.outputs === undefined || entry.outputs === null) return { state: 'pending' }
+        const outputs = responseObjectSchema.parse(entry.outputs)
+
+        if (Object.keys(outputs).length === 0) return { state: 'pending' }
+
+        return {
+          state: 'complete',
+          images: Object.values(outputs).flatMap((output) => historyOutputSchema.parse(output).images ?? [])
+        }
       }
     )
   }
 
   /** The AI SDK downloads returned URLs itself, so hand back inline data. */
-  private async fetchImage(
-    image: { filename: string; subfolder?: string; type?: string },
-    signal?: AbortSignal
-  ): Promise<string> {
+  private async fetchImage(image: z.infer<typeof imageLocatorSchema>, signal?: AbortSignal): Promise<string> {
     const query = new URLSearchParams({
       filename: image.filename,
       subfolder: image.subfolder ?? '',

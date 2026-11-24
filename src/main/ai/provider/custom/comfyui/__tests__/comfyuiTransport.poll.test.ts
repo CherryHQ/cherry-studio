@@ -38,6 +38,65 @@ describe('poll', () => {
     vi.useRealTimers()
   })
 
+  it('keeps prototype-named task and output IDs and applies nullish image locator defaults', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/history/')) {
+        return respond({
+          ['__proto__']: {
+            outputs: { ['__proto__']: { images: [{ filename: 'out.png', subfolder: null, type: null }] } }
+          }
+        })
+      }
+      return new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/png' } })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const result = transport.poll('__proto__')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(await result).toEqual(['data:image/png;base64,AQID'])
+    expect(String(doFetch.mock.calls[1][0])).toBe('http://localhost:8188/view?filename=out.png&subfolder=&type=output')
+  })
+
+  it('retries malformed image locators instead of downloading coerced filenames or ending the task', async () => {
+    let historyReads = 0
+    const doFetch = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/history/')) {
+        historyReads += 1
+        return historyReads === 1
+          ? respond({ 'pid-1': { outputs: { node: { images: [{ filename: 42 }] } } } })
+          : historyWithImage()
+      }
+      return new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/png' } })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const result = transport.poll('pid-1')
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
+    expect(await result).toEqual(['data:image/png;base64,AQID'])
+    expect(historyReads).toBe(2)
+    expect(doFetch.mock.calls.filter(([url]) => String(url).includes('/view?')).map(([url]) => String(url))).toEqual([
+      'http://localhost:8188/view?filename=out.png&subfolder=&type=output'
+    ])
+  })
+
+  it('reports workflow errors before inspecting malformed outputs', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST' || !String(input).includes('/history/')) return respond({})
+      return respond({
+        'pid-1': { status: { status_str: 'error', messages: { reason: 'node failed' } }, outputs: { node: null } }
+      })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+    const result = transport.poll('pid-1')
+    const rejected = expect(result).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: expect.stringContaining('node failed')
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    await rejected
+    expect(doFetch.mock.calls.some(([url]) => String(url).includes('/view?'))).toBe(false)
+  })
+
   it('returns fetched images as data URLs when the history has outputs', async () => {
     const doFetch = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input).includes('/history/')) return historyWithImage()
