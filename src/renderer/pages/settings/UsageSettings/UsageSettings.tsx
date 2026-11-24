@@ -45,7 +45,6 @@ import {
   ROLLUP_LABEL_KEYS,
   TOP_COUNT_KEYS,
   type UsageChartType,
-  type UsageTopCount,
   WINDOW_KEYS,
   WINDOW_LABEL_KEYS
 } from './usageAnalytics'
@@ -582,7 +581,12 @@ function UsageSettings() {
             <UsagePanel>
               <UsagePanelHeader className="flex min-w-0 flex-wrap items-end gap-3">
                 <UsageControlRow className="w-40" label={t('settings.usage.explore.groupBy')}>
-                  <Select value={groupBy} onValueChange={(value) => setGroupBy(value as typeof groupBy)}>
+                  <Select
+                    value={groupBy}
+                    onValueChange={(value) => {
+                      const selected = GROUP_BY_KEYS.find((key) => key === value)
+                      if (selected !== undefined) setGroupBy(selected)
+                    }}>
                     <SelectTrigger size="sm" className="w-full" aria-label={t('settings.usage.explore.groupBy')}>
                       <SelectValue />
                     </SelectTrigger>
@@ -596,7 +600,12 @@ function UsageSettings() {
                   </Select>
                 </UsageControlRow>
                 <UsageControlRow className="w-32" label={t('settings.usage.explore.metric')}>
-                  <Select value={chartMetric} onValueChange={(value) => setChartMetric(value as typeof chartMetric)}>
+                  <Select
+                    value={chartMetric}
+                    onValueChange={(value) => {
+                      const selected = METRIC_KEYS.find((key) => key === value)
+                      if (selected !== undefined) setChartMetric(selected)
+                    }}>
                     <SelectTrigger size="sm" className="w-full" aria-label={t('settings.usage.explore.metric')}>
                       <SelectValue />
                     </SelectTrigger>
@@ -612,7 +621,10 @@ function UsageSettings() {
                 <UsageControlRow className="w-24" label={t('settings.usage.explore.top')}>
                   <Select
                     value={String(topCount)}
-                    onValueChange={(value) => setTopCount(Number(value) as UsageTopCount)}>
+                    onValueChange={(value) => {
+                      const selected = TOP_COUNT_KEYS.find((count) => String(count) === value)
+                      if (selected !== undefined) setTopCount(selected)
+                    }}>
                     <SelectTrigger size="sm" className="w-full" aria-label={t('settings.usage.explore.top')}>
                       <SelectValue />
                     </SelectTrigger>
