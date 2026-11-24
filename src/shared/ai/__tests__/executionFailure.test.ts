@@ -61,6 +61,14 @@ required service tier.`,
     })
   })
 
+  // Catches a stored provider error like `cherryin API error (401): …` losing its auth diagnosis.
+  it.each([
+    ['cherryin API error (401): {"error":{"message":"invalid token"}}', 'auth'],
+    ['Task timed out after 401 minute(s)', 'network']
+  ])('reads the status of a parenthesized API error, not of a duration: %s', (message, reasonCode) => {
+    expect(toExecutionFailure({ name: 'Error', message, stack: null }).failure.reasonCode).toBe(reasonCode)
+  })
+
   it('preserves an existing classification when provider payloads were already redacted', () => {
     expect(
       toExecutionFailure({

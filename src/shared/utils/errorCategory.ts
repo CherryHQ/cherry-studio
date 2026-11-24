@@ -38,12 +38,12 @@ export function isErrorCategory(value: unknown): value is ErrorCategory {
 /**
  * Recover an HTTP status from free text. Only for sources without a structured status
  * (CLI stderr, stored job errors); callers holding a real status field must pass that instead.
- * The number must sit in HTTP syntax (`HTTP 429`, `API Error: 403`,
- * `Request rejected (429)`, or a leading `403:`), so durations are ignored.
+ * The number must sit in HTTP syntax (`HTTP 429`, `API Error: 403`, `Request rejected (429)`,
+ * `API error (401)`, or a leading `403:`), so durations are ignored.
  */
 export function extractHttpStatus(text: string): number | undefined {
   const match =
-    /(?:\bHTTP(?:\/\d+(?:\.\d+)?)?\s+|\bAPI Error:\s*)([45]\d{2})\b|\bRequest rejected \(([45]\d{2})\)|^\s*([45]\d{2}):/i.exec(
+    /(?:\bHTTP(?:\/\d+(?:\.\d+)?)?\s+|\bAPI Error:\s*)([45]\d{2})\b|\b(?:Request rejected|API error) \(([45]\d{2})\)|^\s*([45]\d{2}):/i.exec(
       text
     )
   return match ? Number(match[1] ?? match[2] ?? match[3]) : undefined
