@@ -23,7 +23,7 @@ import {
   MAX_ARCHIVE_SIZE,
   validateRepositorySkillDirectory
 } from './skillArchive'
-import { createTempDir, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
+import { createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
 
 const MAX_MARKETPLACE_JSON_BYTES = 16 * 1024 * 1024
 
@@ -144,9 +144,9 @@ export async function downloadSkillPackage(url: string, collection = false) {
       await assertSkillDirectoryWithinLimits(skillDir)
       const metadata = await parseSkillMetadata(skillDir, memberPath, 'skills', { calculateSize: false })
       const folderName = sanitizeFolderName(isCollection ? metadata.filename : metadata.name)
-      if (!folderName || folderNames.has(folderName.toLowerCase()))
-        throw new Error(`Conflicting skill folder: ${folderName}`)
-      folderNames.add(folderName.toLowerCase())
+      const folderKey = normalizeFolderKey(folderName)
+      if (!folderName || folderNames.has(folderKey)) throw new Error(`Conflicting skill folder: ${folderName}`)
+      folderNames.add(folderKey)
       if (!isCollection) {
         const stagedDir = path.join(tempDir, 'staged', folderName)
         await fs.mkdir(path.dirname(stagedDir))

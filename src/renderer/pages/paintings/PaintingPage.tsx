@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useCache } from '@data/hooks/useCache'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import { useIsActiveTab, useTabInputFocus } from '@renderer/hooks/tab'
 
 import Artboard from './components/Artboard'
 import PaintingComposer from './components/PaintingComposer'
@@ -26,6 +27,7 @@ import { paintingClasses } from './paintingPrimitives'
 
 const PaintingPage: FC = () => {
   const { t } = useTranslation()
+  const isActiveTab = useIsActiveTab()
   const { templates: promptPresets } = usePaintingTemplateCatalog()
   const providerOptions = usePaintingProviderOptions()
   const draftDefaults = usePaintingDraftDefaults(providerOptions)
@@ -34,6 +36,10 @@ const PaintingPage: FC = () => {
   // After generate, collapse the prompt dock so the artboard keeps the space
   // long prompts used to steal (#20739). Blank drafts stay expanded for typing.
   const [promptDockCollapsed, setPromptDockCollapsed] = useState(false)
+  const [focusPrompt, setFocusPrompt] = useState<() => boolean>()
+  const handlePromptFocusTargetChange = useCallback((focus: (() => boolean) | undefined) => {
+    setFocusPrompt(() => focus)
+  }, [])
 
   const patchPainting = useCallback((updates: Partial<PaintingData>) => {
     setCurrentPainting((current) => ({ ...current, ...updates }))
@@ -138,6 +144,11 @@ const PaintingPage: FC = () => {
     setPromptDockCollapsed(true)
   }, [composerPainting.id, generating, hasGeneratedImages, showTemplateShowcase])
 
+  useEffect(() => {
+    if (isActiveTab) setPromptDockCollapsed(false)
+  }, [isActiveTab])
+  useTabInputFocus(focusPrompt)
+
   return (
     <div data-ui="paintings.view" className={paintingClasses.page}>
       <div className={paintingClasses.content} inert={busy} aria-busy={busy}>
@@ -183,7 +194,7 @@ const PaintingPage: FC = () => {
                           <Artboard painting={composerPainting} isLoading={false} outputModel={outputModel} />
                         )}
 
-                        <p className="mt-[clamp(4px,2cqh,10px)] max-w-lg shrink-0 px-4 pb-1 text-center text-xs leading-5 text-muted-foreground">
+                        <p className="text-muted-foreground mt-[clamp(4px,2cqh,10px)] max-w-lg shrink-0 px-4 pb-1 text-center text-xs leading-5">
                           {t('paintings.showcase.caption')}
                         </p>
                       </div>
@@ -224,6 +235,8 @@ const PaintingPage: FC = () => {
                       <QuickPanelProvider>
                         <PaintingComposer
                           painting={composerPainting}
+                          disabled={busy}
+                          onFocusTargetChange={handlePromptFocusTargetChange}
                           generating={generating}
                           submitting={submitting}
                           onPromptChange={(prompt) => patchPainting({ prompt })}

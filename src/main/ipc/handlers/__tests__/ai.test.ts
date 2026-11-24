@@ -59,6 +59,7 @@ const aiService = {
   checkModel: vi.fn(),
   embedMany: vi.fn(),
   runTextRequest: vi.fn(),
+  runTextStreamRequest: vi.fn(),
   runImageRequest: vi.fn(),
   abortRequest: vi.fn(),
   listModels: vi.fn(),
@@ -109,6 +110,7 @@ const agentJobsService = {
 // WebContentsListener (constructed in the stream_open handler) wires once()/isDestroyed().
 const fakeWebContents = { id: 1, once: vi.fn(), isDestroyed: () => false, send: vi.fn() }
 const windowManager = { getWindow: vi.fn() }
+const ipcApiService = { send: vi.fn() }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -142,6 +144,8 @@ beforeEach(() => {
         return windowManager
       case 'FileManager':
         return fileManager
+      case 'IpcApiService':
+        return ipcApiService
       default:
         throw new Error(`Unexpected application.get(${name})`)
     }
@@ -290,6 +294,29 @@ describe('aiHandlers', () => {
     })
     expect(aiService.generateText).not.toHaveBeenCalled()
     expect(result).toBe(out)
+  })
+
+  // Catches deltas lost on the way to the caller, or sent to another window, while a one-shot call streams.
+  it('generate_text with streamDeltas pushes each delta to the calling window under its requestId', async () => {
+    const out = { text: 'hello world' }
+    aiService.runTextStreamRequest.mockImplementation(async (_id, _request, onTextDelta: (delta: string) => void) => {
+      onTextDelta('hello ')
+      onTextDelta('world')
+      return out
+    })
+
+    const result = await aiHandlers['ai.text.generate'](
+      { requestId: 'r1', streamDeltas: true, uniqueModelId: 'openai::gpt-4o', prompt: 'hi' },
+      ctx
+    )
+
+    expect(result).toBe(out)
+    expect(ipcApiService.send.mock.calls).toEqual([
+      ['w1', 'ai.text.delta', { requestId: 'r1', delta: 'hello ' }],
+      ['w1', 'ai.text.delta', { requestId: 'r1', delta: 'world' }]
+    ])
+    expect(aiService.runTextStreamRequest.mock.calls[0][1]).not.toHaveProperty('streamDeltas')
+    expect(aiService.runTextRequest).not.toHaveBeenCalled()
   })
 
   it('generate_image unwraps { requestId, payload } into runImageRequest', async () => {
