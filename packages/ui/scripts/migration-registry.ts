@@ -30,7 +30,7 @@ export function parseMigrationRegistry(source: string): MigrationRegistry {
   let parsed: unknown
 
   try {
-    parsed = JSON.parse(source) as unknown
+    parsed = JSON.parse(source)
   } catch (error) {
     throw new Error('[theme-contract] migration registry is not valid JSON', { cause: error })
   }
