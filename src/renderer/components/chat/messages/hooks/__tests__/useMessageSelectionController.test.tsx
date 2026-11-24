@@ -283,6 +283,115 @@ describe('useMessageSelectionController', () => {
     expect(cacheValues['chat.selected_message_ids']).toEqual(['a'])
   })
 
+  describe('delete messages before', () => {
+    it.each(['before', 'during'] as const)(
+      'keeps main delete policy when it rejects an above-target row %s confirmation',
+      async (timing) => {
+        let allowed = timing !== 'before'
+        const deleteMessage = vi.fn()
+        const { result } = renderHook(() =>
+          useMessageSelectionController({
+            topicId: 'topic-1',
+            messages: [message('older'), message('target')],
+            partsByMessageId: {},
+            deleteMessage,
+            canDeleteMessage: () => allowed
+          })
+        )
+        if (timing === 'during') {
+          popupConfirm.mockImplementationOnce(async () => {
+            allowed = false
+            return true
+          })
+        }
+        await act(async () => {
+          await result.current.actions.deleteMessagesBefore?.('target')
+        })
+        expect(deleteMessage).not.toHaveBeenCalled()
+        expect(popupConfirm).toHaveBeenCalledTimes(timing === 'before' ? 0 : 1)
+      }
+    )
+
+    it('deletes only selectable messages older than the target after confirmation', async () => {
+      const deleteMessage = vi.fn()
+      const messages: MessageListItem[] = [
+        message('u1'),
+        { ...message('divider'), isContextBoundary: true },
+        message('u2'),
+        message('u3')
+      ]
+      const { result } = renderHook(() =>
+        useMessageSelectionController({ topicId: 'topic-1', messages, partsByMessageId: {}, deleteMessage })
+      )
+      popupConfirm.mockResolvedValueOnce(true)
+
+      await act(async () => {
+        await result.current.actions.deleteMessagesBefore?.('u3')
+      })
+
+      expect(popupConfirm).toHaveBeenCalledWith(
+        expect.objectContaining({ content: 'message.delete.confirm.content:2' })
+      )
+      expect(deleteMessage.mock.calls.map(([id]) => id)).toEqual(['u1', 'u2'])
+    })
+
+    it('deletes only the loaded snapshot and does not fetch older history', async () => {
+      const deleteMessage = vi.fn()
+      const start = vi.fn()
+      const { result } = renderHook(() =>
+        useMessageSelectionController({
+          topicId: 'topic-1',
+          messages: [message('loaded-older'), message('target')],
+          partsByMessageId: {},
+          deleteMessage,
+          selectAllPagination: { hasOlder: true, isLoading: false, start, stop: vi.fn() }
+        })
+      )
+      popupConfirm.mockResolvedValueOnce(true)
+      await act(async () => {
+        await result.current.actions.deleteMessagesBefore?.('target')
+      })
+      expect(deleteMessage.mock.calls.map(([id]) => id)).toEqual(['loaded-older'])
+      expect(start).not.toHaveBeenCalled()
+    })
+
+    it('deletes nothing when the loaded-above confirmation is cancelled', async () => {
+      const deleteMessage = vi.fn()
+      const { result } = renderHook(() =>
+        useMessageSelectionController({
+          topicId: 'topic-1',
+          messages: [message('older'), message('target')],
+          partsByMessageId: {},
+          deleteMessage
+        })
+      )
+      popupConfirm.mockResolvedValueOnce(false)
+      await act(async () => {
+        await result.current.actions.deleteMessagesBefore?.('target')
+      })
+      expect(deleteMessage).not.toHaveBeenCalled()
+    })
+
+    it('warns and deletes nothing when no message precedes the target', async () => {
+      const deleteMessage = vi.fn()
+      const { result } = renderHook(() =>
+        useMessageSelectionController({
+          topicId: 'topic-1',
+          messages: [message('u1'), message('u2')],
+          partsByMessageId: {},
+          deleteMessage
+        })
+      )
+
+      await act(async () => {
+        await result.current.actions.deleteMessagesBefore?.('u1')
+      })
+
+      expect(popupConfirm).not.toHaveBeenCalled()
+      expect(deleteMessage).not.toHaveBeenCalled()
+    })
+  })
+
   describe('per-message delete policy', () => {
     const user = message('user')
     const otherUser = message('other-user')

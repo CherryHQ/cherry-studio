@@ -53,6 +53,14 @@ Per-type metadata in `windowRegistry.ts` is split into three layers. Each field 
 
 ---
 
+## Main Window Size
+
+Without valid remembered bounds, Main opens centered on the primary display's work area at 90% of its width and height, capped at 1440 × 900 DIPs. The normal minimum is 960 × 600; each dimension yields to a smaller work area. Remembered geometry takes precedence over the default, with size and position fitted together before construction. Other window types retain their registry defaults.
+
+MainWindowService supplies the initial sizing policy through `OpenWindowArgs.configureOptions`, which WindowManager calls after restoring saved bounds and before constructing the window. The policy lives in `src/main/services/mainWindowBounds.ts`.
+
+MainWindowService fits explicit minimum-size changes from compact mode to the current display's work area. Initial sizing does not set a maximum size, and moving between displays or changing the display configuration does not trigger application-driven bounds correction. Users can resize the window freely after creation.
+
 ## WM Does Not Know "Pin"
 
 **Cherry Studio windows do not share a single "pin" concept** — the pinnable windows do not all mean the same thing by it:

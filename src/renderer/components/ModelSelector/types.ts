@@ -83,6 +83,7 @@ export interface ModelSelectorGroupItem {
   groupKind: 'pinned' | 'provider'
   provider?: Provider
   canNavigateToSettings?: boolean
+  titleAction?: ReactNode
   trailing?: ReactNode
 }
 
@@ -109,6 +110,8 @@ export interface ModelSelectorActionItem {
   leading?: ReactNode
   trailing?: ReactNode
   detail?: ReactNode
+  /** Same rank as `ModelSelectorPresentation.priority`: higher sorts later in its group. */
+  priority?: number
   onAction: () => void
 }
 
@@ -123,6 +126,7 @@ export interface ModelSelectorComposition {
   providerGroups?: readonly {
     id: string
     providerIds: readonly string[]
+    titleAction?: ReactNode
     trailing?: ReactNode
   }[]
   actions?: readonly ModelSelectorActionItem[]
