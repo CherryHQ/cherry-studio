@@ -168,6 +168,8 @@
   "dialog.legacy_upgrade.title": "Cần chuyển đổi dữ liệu trước khi nâng cấp",
   "dialog.mini_app_export": "Xuất từ {{name}}",
   "dialog.open_file": "Mở tệp",
+  "dialog.os_unsupported.detail": "Thiết bị này báo cáo {{osRelease}}. Cherry Studio yêu cầu {{minimum}} (64-bit) trở lên. Windows 7, 8 và 8.1 không được hỗ trợ, bao gồm cả việc khởi chạy thông qua lớp tương thích của bên thứ ba.\n\nKhông có dữ liệu nào bị thay đổi. Để tiếp tục, hãy nâng cấp Windows hoặc sử dụng thiết bị được hỗ trợ. Các bộ cài đặt cũ hơn vẫn có sẵn trên trang phát hành chỉ để tham khảo và không nhận hỗ trợ hay bản cập nhật bảo mật.",
+  "dialog.os_unsupported.title": "Phiên bản Windows không được hỗ trợ",
   "dialog.pdf_files": "Tệp PDF",
   "dialog.png_image": "Hình ảnh PNG",
   "dialog.quit_active_tasks.continue": "Tiếp tục chạy",

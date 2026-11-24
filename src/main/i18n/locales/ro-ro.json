@@ -168,6 +168,8 @@
   "dialog.legacy_upgrade.title": "Actualizarea necesită migrarea datelor",
   "dialog.mini_app_export": "Exportă din {{name}}",
   "dialog.open_file": "Deschide fișier",
+  "dialog.os_unsupported.detail": "Acest dispozitiv raportează {{osRelease}}. Cherry Studio necesită {{minimum}} (64 de biți) sau o versiune ulterioară. Windows 7, 8 și 8.1 nu sunt acceptate, inclusiv lansările prin straturi de compatibilitate terțe.\n\nNu au fost modificate date. Pentru a continua, actualizați Windows sau utilizați un dispozitiv acceptat. Programele de instalare anterioare rămân disponibile doar cu titlu de referință pe pagina versiunilor și nu primesc asistență sau actualizări de securitate.",
+  "dialog.os_unsupported.title": "Versiunea Windows nu este acceptată",
   "dialog.pdf_files": "Fișiere PDF",
   "dialog.png_image": "Imagine PNG",
   "dialog.quit_active_tasks.continue": "Continuați executarea",

@@ -22,6 +22,7 @@ import { prepareBackupRestoreSession, runBackupRestoreGate } from '@main/core/pr
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
 import { runLegacyUpgradeGate } from '@main/core/preboot/legacyUpgradeGate'
+import { runOsSupportGate } from '@main/core/preboot/osSupportGate'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { MINI_APP_SCHEME_DECLARATION } from '@main/features/miniApp/runtime/protocol'
@@ -35,8 +36,14 @@ import { getApplicationId } from '@main/utils/appEdition'
 import { registerIpc } from './ipc'
 import { versionService } from './services/VersionService'
 
-// should be the first to resolveUserDataLocation()
-resolveUserDataLocation()
+// Unsupported Windows releases exit here, before userData is resolved or
+// any profile file is touched.
+if (runOsSupportGate() === 'handled') {
+  // runOsSupportGate already quit; this return only matters under test mocks.
+} else {
+  // should be the first to resolveUserDataLocation()
+  resolveUserDataLocation()
+}
 requireSingleInstance()
 configureChromiumFlags()
 configureRemoteDebugging()

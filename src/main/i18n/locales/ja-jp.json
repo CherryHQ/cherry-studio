@@ -168,6 +168,8 @@
   "dialog.legacy_upgrade.title": "アップグレードにはデータ移行が必要です",
   "dialog.mini_app_export": "{{name}} から書き出す",
   "dialog.open_file": "ファイルを開く",
+  "dialog.os_unsupported.detail": "このデバイスは {{osRelease}} と報告しています。Cherry Studio には {{minimum}}（64 ビット）以降が必要です。Windows 7、8、8.1 はサポート対象外であり、サードパーティの互換レイヤー経由の起動も公式サポートの対象外です。\n\nデータに変更は加えられていません。続行するには Windows をアップグレードするか、サポートされているデバイスを使用してください。過去のインストーラーはリリースページで参照用としてのみ入手可能であり、サポートやセキュリティ更新は提供されません。",
+  "dialog.os_unsupported.title": "サポートされていない Windows バージョン",
   "dialog.pdf_files": "PDFファイル",
   "dialog.png_image": "PNG画像",
   "dialog.quit_active_tasks.continue": "実行を続ける",

@@ -94,3 +94,9 @@ First, you need to confirm whether the model supports image recognition. Cherry 
 Image recognition models support image file uploads. If the model's functionality is not correctly matched, you can find the model in the corresponding service provider's model list, click the settings button after its name, and check the image option.
 
 Specific model information can be found and reviewed with the corresponding service provider. Similar to embedding models, models that do not support vision do not need to have image functionality forcibly enabled, and checking the image option will have no effect.
+
+***
+
+## Can Windows 7 run Cherry Studio?
+
+No. Cherry Studio requires Windows 10 1809 (build 17763, 64-bit) or later, including Windows 11. Windows 7, 8, and 8.1 are not supported, including launches through third-party compatibility layers. On an older system the installer and the app show a message and exit without changing any files. Past installers remain available on [GitHub Releases](https://github.com/CherryHQ/cherry-studio/releases) for reference only and receive no support or security updates.

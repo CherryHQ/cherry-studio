@@ -168,6 +168,8 @@
   "dialog.legacy_upgrade.title": "Yükseltme için veri geçişi gerekiyor",
   "dialog.mini_app_export": "{{name}} üzerinden dışa aktar",
   "dialog.open_file": "Dosya Aç",
+  "dialog.os_unsupported.detail": "Bu cihaz {{osRelease}} bildiriyor. Cherry Studio, {{minimum}} (64 bit) veya üzerini gerektirir. Üçüncü taraf uyumluluk katmanları üzerinden başlatma dahil olmak üzere Windows 7, 8 ve 8.1 desteklenmez.\n\nHiçbir veri değiştirilmedi. Devam etmek için Windows'u yükseltin veya desteklenen bir cihaz kullanın. Eski yükleyiciler yalnızca başvuru amacıyla sürümler sayfasında mevcuttur ve destek veya güvenlik güncelleştirmesi almaz.",
+  "dialog.os_unsupported.title": "Windows sürümü desteklenmiyor",
   "dialog.pdf_files": "PDF Dosyaları",
   "dialog.png_image": "PNG Görüntüsü",
   "dialog.quit_active_tasks.continue": "Çalışmaya devam et",

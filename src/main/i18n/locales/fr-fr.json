@@ -168,6 +168,8 @@
   "dialog.legacy_upgrade.title": "Migration des données requise",
   "dialog.mini_app_export": "Exporter depuis {{name}}",
   "dialog.open_file": "Ouvrir le fichier",
+  "dialog.os_unsupported.detail": "Cet appareil signale {{osRelease}}. Cherry Studio requiert {{minimum}} (64 bits) ou ultérieur. Windows 7, 8 et 8.1 ne sont pas pris en charge, y compris via des couches de compatibilité tierces.\n\nAucune donnée n'a été modifiée. Pour continuer, mettez Windows à niveau ou utilisez un appareil pris en charge. Les anciens programmes d'installation restent disponibles sur la page des versions à titre indicatif uniquement et ne reçoivent ni assistance ni mises à jour de sécurité.",
+  "dialog.os_unsupported.title": "Version de Windows non prise en charge",
   "dialog.pdf_files": "Fichiers PDF",
   "dialog.png_image": "Image PNG",
   "dialog.quit_active_tasks.continue": "Continuer l’exécution",

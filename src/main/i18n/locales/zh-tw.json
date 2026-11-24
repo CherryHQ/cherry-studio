@@ -168,6 +168,8 @@
   "dialog.legacy_upgrade.title": "升級前需要遷移資料",
   "dialog.mini_app_export": "從 {{name}} 匯出",
   "dialog.open_file": "開啟檔案",
+  "dialog.os_unsupported.detail": "目前系統回報為 {{osRelease}}。Cherry Studio 需要 {{minimum}}（64 位元）或更高版本。Windows 7、8、8.1 均不受支援，透過第三方相容層啟動也不屬於官方支援。\n\n未對你的資料進行任何變更。如需繼續使用，請升級 Windows 或更換受支援的裝置。歷史安裝包僅可在發佈頁存檔查看，不再提供支援與安全性更新。",
+  "dialog.os_unsupported.title": "目前 Windows 版本不受支援",
   "dialog.pdf_files": "PDF 檔案",
   "dialog.png_image": "PNG 影像",
   "dialog.quit_active_tasks.continue": "繼續執行",

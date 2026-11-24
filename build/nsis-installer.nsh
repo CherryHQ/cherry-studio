@@ -78,6 +78,42 @@
       StrCpy $0 "0"
     ${EndIf}
   FunctionEnd
+
+  ; Minimum supported Windows version: Windows 10 1809 (build 17763, 64-bit),
+  ; including Windows 11 (which also reports major version 10). Windows 7/8/8.1
+  ; (NT 6.x) and earlier are unsupported, including launches through
+  ; third-party compatibility layers. Sets $0 to "1" when supported.
+  Function checkWindowsVersion
+    Push $R0
+    Push $R1
+    StrCpy $0 "0"
+    ReadRegDWORD $R0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentMajorVersionNumber"
+    ReadRegStr $R1 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentBuildNumber"
+    ; Legacy systems (Win7/8/8.1) have no CurrentMajorVersionNumber value.
+    ${If} $R0 == ""
+      StrCpy $R0 "0"
+    ${EndIf}
+    ${If} $R1 == ""
+      StrCpy $R1 "0"
+    ${EndIf}
+    IntCmp $R0 10 checkWinVer_isWin10 checkWinVer_older checkWinVer_newer
+    checkWinVer_older:
+      StrCpy $0 "0"
+      Goto checkWinVer_done
+    checkWinVer_newer:
+      StrCpy $0 "1"
+      Goto checkWinVer_done
+    checkWinVer_isWin10:
+      IntCmp $R1 17763 checkWinVer_supported checkWinVer_unsupported checkWinVer_supported
+    checkWinVer_unsupported:
+      StrCpy $0 "0"
+      Goto checkWinVer_done
+    checkWinVer_supported:
+      StrCpy $0 "1"
+    checkWinVer_done:
+      Pop $R1
+      Pop $R0
+  FunctionEnd
 !endif
 
 !macro customInit
@@ -121,6 +157,30 @@
       Your system: $1$\r$\n\
       App architecture: $3$\r$\n$\r$\n\
       Please download the correct version from:$\r$\n\
+      $4"
+    ExecShell "open" "$4"
+    Abort
+  ${EndIf}
+
+  ; Check minimum Windows version before installing or changing anything.
+  ; Windows 7/8/8.1 and earlier cannot run this build (Electron 23+ requires
+  ; Windows 10+); third-party compatibility layers are not supported either.
+  Call checkWindowsVersion
+  ${If} $0 != "1"
+    StrCpy $4 "https://cherryai.com/"
+    ${If} $LANGUAGE == ${LANG_SIMPCHINESE}
+    ${OrIf} $LANGUAGE == ${LANG_TRADCHINESE}
+      StrCpy $4 "https://cherryai.com.cn/"
+    ${EndIf}
+    MessageBox MB_ICONSTOP "\
+      Unsupported Windows Version$\r$\n$\r$\n\
+      Cherry Studio requires Windows 10 1809 (build 17763, 64-bit) or later, including Windows 11.$\r$\n\
+      Windows 7, 8 and 8.1 are not supported, including launches through third-party compatibility layers.$\r$\n\
+      No files were installed or changed.$\r$\n$\r$\n\
+      当前 Windows 版本不受支持，需要 Windows 10 1809（内部版本 17763，64 位）或更高版本（含 Windows 11）。$\r$\n\
+      Windows 7 / 8 / 8.1 不受支持，通过第三方兼容层启动也不属于官方支持。本次未安装或更改任何文件。$\r$\n$\r$\n\
+      Past installers remain available on GitHub Releases for reference only (no support or security updates).$\r$\n\
+      Supported downloads and documents:$\r$\n\
       $4"
     ExecShell "open" "$4"
     Abort

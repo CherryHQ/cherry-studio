@@ -168,6 +168,8 @@
   "dialog.legacy_upgrade.title": "업그레이드에 데이터 마이그레이션이 필요합니다",
   "dialog.mini_app_export": "{{name}}에서 내보내기",
   "dialog.open_file": "파일 열기",
+  "dialog.os_unsupported.detail": "이 장치에서 {{osRelease}}이(가) 보고되었습니다. Cherry Studio에는 {{minimum}}(64비트) 이상이 필요합니다. Windows 7, 8, 8.1은 지원되지 않으며, 타사 호환 레이어를 통한 실행도 공식 지원 대상이 아닙니다.\n\n데이터는 변경되지 않았습니다. 계속하려면 Windows를 업그레이드하거나 지원되는 장치를 사용하세요. 이전 설치 프로그램은 릴리스 페이지에서 참조용으로만 제공되며 지원이나 보안 업데이트가 제공되지 않습니다.",
+  "dialog.os_unsupported.title": "지원되지 않는 Windows 버전",
   "dialog.pdf_files": "PDF 파일",
   "dialog.png_image": "PNG 이미지",
   "dialog.quit_active_tasks.continue": "계속 실행",

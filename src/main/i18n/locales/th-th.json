@@ -168,6 +168,8 @@
   "dialog.legacy_upgrade.title": "ต้องย้ายข้อมูลก่อนอัปเกรด",
   "dialog.mini_app_export": "ส่งออกจาก {{name}}",
   "dialog.open_file": "เปิดไฟล์",
+  "dialog.os_unsupported.detail": "อุปกรณ์นี้รายงาน {{osRelease}} Cherry Studio ต้องการ {{minimum}} (64 บิต) หรือใหม่กว่า ไม่รองรับ Windows 7, 8 และ 8.1 รวมถึงการเปิดผ่านเลเยอร์ความเข้ากันได้ของบุคคลที่สาม\n\nไม่มีการเปลี่ยนแปลงข้อมูลใดๆ หากต้องการดำเนินการต่อ โปรดอัปเกรด Windows หรือใช้อุปกรณ์ที่รองรับ ตัวติดตั้งรุ่นเก่ายังคงมีให้ดูเพื่ออ้างอิงเท่านั้นในหน้าปล่อยรุ่น และจะไม่ได้รับการสนับสนุนหรืออัปเดตความปลอดภัย",
+  "dialog.os_unsupported.title": "ไม่รองรับ Windows เวอร์ชันนี้",
   "dialog.pdf_files": "ไฟล์ PDF",
   "dialog.png_image": "รูปภาพ PNG",
   "dialog.quit_active_tasks.continue": "ทำงานต่อ",
