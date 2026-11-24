@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AddNewTopicPayload } from '@renderer/components/composer/variants/shared/composerProviderActions'
 import { ipcApi } from '@renderer/ipc'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 import { ConversationHandoff } from '../ConversationHandoff'
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
@@ -16,6 +16,27 @@ beforeEach(() => {
   vi.mocked(ipcApi.request).mockResolvedValue('## Goals\nContinue the task')
 })
 describe('ConversationHandoff', () => {
+  it('lets the user choose a handoff model when several composer models are selected', async () => {
+    const models = [
+      { id: 'provider::a', name: 'Model A' },
+      { id: 'provider::b', name: 'Model B' }
+    ] as Model[]
+    render(<ConversationHandoff sessionId="multi-model" hasMessages modelCandidates={models} />)
+    expect(screen.getByText('handoff.create')).toBeEnabled()
+    fireEvent.click(screen.getByText('handoff.create'))
+    // Generation stays unavailable until the user picks the destination model.
+    expect(screen.getByText('handoff.generate')).toBeDisabled()
+    fireEvent.click(screen.getByText('handoff.model'))
+    fireEvent.click(await screen.findByText('Model B'))
+    expect(screen.getByText('handoff.generate')).toBeEnabled()
+    fireEvent.click(screen.getByText('handoff.generate'))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith(
+        'ai.handoff.generate',
+        expect.objectContaining({ sessionId: 'multi-model', modelId: 'provider::b' })
+      )
+    )
+  })
   it('offers at 80% without generating, saving or attaching', () => {
     const onNewTopic = vi.fn()
     const { rerender } = render(

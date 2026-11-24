@@ -1909,6 +1909,7 @@
   "handoff.draft": "Editable Markdown handoff",
   "handoff.error": "Handoff failed. Retry, check your provider settings and model context window, or choose a larger-context model. Your original conversation is unchanged.",
   "handoff.generate": "Generate draft",
+  "handoff.model": "Handoff model",
   "handoff.new": "Attach to new conversation",
   "handoff.offer": "Context is nearly full. Continue in a new conversation with a handoff.",
   "handoff.regenerate": "Regenerate",

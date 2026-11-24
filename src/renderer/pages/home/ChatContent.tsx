@@ -22,7 +22,7 @@ import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import ChatComposerSlot from './ChatComposerSlot'
@@ -44,6 +44,7 @@ interface Props {
   providers?: Provider[]
   onConversationControlsChange?: ChatConversationControlsChangeHandler
   composerModelId?: UniqueModelId
+  composerModelCandidates?: Model[]
 }
 
 /**
@@ -68,7 +69,8 @@ const ChatContent: FC<Props> = ({
   assistantContext,
   providers,
   onConversationControlsChange,
-  composerModelId
+  composerModelId,
+  composerModelCandidates
 }) => {
   const {
     uiMessages,
@@ -97,6 +99,7 @@ const ChatContent: FC<Props> = ({
       providers={providers}
       onConversationControlsChange={onConversationControlsChange}
       composerModelId={composerModelId}
+      composerModelCandidates={composerModelCandidates}
       isHistoryLoading={isHistoryLoading}
       isHistoryStale={isHistoryStale}
       initialMessages={uiMessages}
@@ -146,6 +149,7 @@ const ChatContentInner: FC<InnerProps> = ({
   providers,
   onConversationControlsChange,
   composerModelId,
+  composerModelCandidates,
   isHistoryLoading,
   isHistoryStale,
   initialMessages,
@@ -317,6 +321,7 @@ const ChatContentInner: FC<InnerProps> = ({
                 assistantId={topic.assistantId}
                 onNewTopic={onCreateEmptyTopic ?? onNewTopic}
                 modelId={handoffModel?.id ?? composerModelId}
+                modelCandidates={composerModelCandidates}
                 hasMessages={Boolean(topic.activeNodeId)}
                 percentage={
                   contextUsage && handoffUsageModel?.contextWindow

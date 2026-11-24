@@ -1909,6 +1909,7 @@
   "handoff.draft": "Düzenlenebilir Markdown devir notu",
   "handoff.error": "Devir başarısız. Yeniden deneyin, sağlayıcı ayarlarını ve bağlam penceresini kontrol edin veya daha büyük bağlamlı model seçin. Asıl konuşma değişmedi.",
   "handoff.generate": "Taslak oluştur",
+  "handoff.model": "Devir modeli",
   "handoff.new": "Yeni konuşmaya ekle",
   "handoff.offer": "Bağlam dolmak üzere. Devir notuyla yeni bir konuşmada devam edin.",
   "handoff.regenerate": "Yeniden oluştur",

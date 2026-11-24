@@ -1909,6 +1909,7 @@
   "handoff.draft": "Passation Markdown modifiable",
   "handoff.error": "Échec de la passation. Réessayez, vérifiez le fournisseur et la fenêtre de contexte ou choisissez un modèle au contexte plus grand. La conversation originale reste inchangée.",
   "handoff.generate": "Générer un brouillon",
+  "handoff.model": "Modèle de transfert",
   "handoff.new": "Joindre à une nouvelle conversation",
   "handoff.offer": "Le contexte est presque plein. Continuez dans une nouvelle conversation avec une passation.",
   "handoff.regenerate": "Régénérer",

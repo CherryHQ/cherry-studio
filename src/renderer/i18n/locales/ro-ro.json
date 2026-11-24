@@ -1911,6 +1911,7 @@
   "handoff.draft": "Notă Markdown editabilă",
   "handoff.error": "Predarea a eșuat. Reîncearcă, verifică furnizorul și fereastra de context sau alege un model cu un context mai mare. Conversația originală nu s-a schimbat.",
   "handoff.generate": "Generează schița",
+  "handoff.model": "Model de predare",
   "handoff.new": "Atașează la o conversație nouă",
   "handoff.offer": "Contextul este aproape plin. Continuă într-o conversație nouă cu o notă de predare.",
   "handoff.regenerate": "Regenerează",

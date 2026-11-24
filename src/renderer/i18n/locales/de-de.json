@@ -1909,6 +1909,7 @@
   "handoff.draft": "Bearbeitbare Markdown-Übergabe",
   "handoff.error": "Übergabe fehlgeschlagen. Erneut versuchen, Anbietereinstellungen und Kontextfenster prüfen oder ein Modell mit größerem Kontext wählen. Die ursprüngliche Unterhaltung bleibt unverändert.",
   "handoff.generate": "Entwurf erstellen",
+  "handoff.model": "Übergabemodell",
   "handoff.new": "An neue Unterhaltung anhängen",
   "handoff.offer": "Der Kontext ist fast voll. Mit einer Übergabe in einer neuen Unterhaltung fortfahren.",
   "handoff.regenerate": "Neu generieren",

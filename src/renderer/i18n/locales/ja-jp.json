@@ -1909,6 +1909,7 @@
   "handoff.draft": "編集可能な Markdown 引き継ぎ",
   "handoff.error": "引き継ぎに失敗しました。再試行し、プロバイダー設定とコンテキスト長を確認するか、より大きなモデルを選んでください。元の会話は変更されていません。",
   "handoff.generate": "下書きを生成",
+  "handoff.model": "引き継ぎモデル",
   "handoff.new": "新しい会話に添付",
   "handoff.offer": "コンテキストが上限に近づいています。引き継ぎを使って新しい会話で続けられます。",
   "handoff.regenerate": "再生成",

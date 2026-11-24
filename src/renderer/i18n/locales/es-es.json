@@ -1909,6 +1909,7 @@
   "handoff.draft": "Traspaso Markdown editable",
   "handoff.error": "Error al generar el traspaso. Reintenta, revisa el proveedor y la ventana de contexto o elige un modelo con más contexto. La conversación original no cambia.",
   "handoff.generate": "Generar borrador",
+  "handoff.model": "Modelo de transferencia",
   "handoff.new": "Adjuntar a conversación nueva",
   "handoff.offer": "El contexto está casi lleno. Continúa en una conversación nueva con un traspaso.",
   "handoff.regenerate": "Regenerar",

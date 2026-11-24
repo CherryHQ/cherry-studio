@@ -1909,6 +1909,7 @@
   "handoff.draft": "Ghi chú Markdown có thể sửa",
   "handoff.error": "Bàn giao thất bại. Hãy thử lại, kiểm tra nhà cung cấp và cửa sổ ngữ cảnh hoặc chọn mô hình có ngữ cảnh lớn hơn. Cuộc trò chuyện gốc không đổi.",
   "handoff.generate": "Tạo bản nháp",
+  "handoff.model": "Mô hình bàn giao",
   "handoff.new": "Đính kèm vào cuộc trò chuyện mới",
   "handoff.offer": "Ngữ cảnh gần đầy. Tiếp tục trong cuộc trò chuyện mới bằng ghi chú bàn giao.",
   "handoff.regenerate": "Tạo lại",

@@ -1909,6 +1909,7 @@
   "handoff.draft": "可編輯的 Markdown 交接說明",
   "handoff.error": "交接失敗。請重試、檢查供應商設定和模型上下文視窗，或選擇更大視窗的模型。原對話未變更。",
   "handoff.generate": "產生草稿",
+  "handoff.model": "交接模型",
   "handoff.new": "附加至新對話",
   "handoff.offer": "上下文即將用滿。可透過交接說明在新對話中繼續。",
   "handoff.regenerate": "重新產生",

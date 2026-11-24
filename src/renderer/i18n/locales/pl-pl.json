@@ -1933,6 +1933,7 @@
   "handoff.draft": "Edytowalna notatka Markdown",
   "handoff.error": "Przekazanie nie powiodło się. Spróbuj ponownie, sprawdź dostawcę i okno kontekstu lub wybierz większy model. Oryginalna rozmowa pozostaje bez zmian.",
   "handoff.generate": "Generuj szkic",
+  "handoff.model": "Model przekazania",
   "handoff.new": "Dołącz do nowej rozmowy",
   "handoff.offer": "Kontekst jest prawie pełny. Kontynuuj w nowej rozmowie z notatką przekazania.",
   "handoff.regenerate": "Generuj ponownie",

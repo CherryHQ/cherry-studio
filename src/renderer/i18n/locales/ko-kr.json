@@ -1909,6 +1909,7 @@
   "handoff.draft": "편집 가능한 Markdown 인계 문서",
   "handoff.error": "인계에 실패했습니다. 다시 시도하거나 공급자 설정과 컨텍스트 창을 확인하거나 더 큰 모델을 선택하세요. 원래 대화는 변경되지 않았습니다.",
   "handoff.generate": "초안 생성",
+  "handoff.model": "핸드오프 모델",
   "handoff.new": "새 대화에 첨부",
   "handoff.offer": "컨텍스트가 거의 찼습니다. 인계 문서로 새 대화에서 계속할 수 있습니다.",
   "handoff.regenerate": "다시 생성",

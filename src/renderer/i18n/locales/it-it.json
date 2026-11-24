@@ -1909,6 +1909,7 @@
   "handoff.draft": "Passaggio Markdown modificabile",
   "handoff.error": "Passaggio non riuscito. Riprova, controlla fornitore e finestra di contesto o scegli un modello con più contesto. La conversazione originale non cambia.",
   "handoff.generate": "Genera bozza",
+  "handoff.model": "Modello di handoff",
   "handoff.new": "Allega a nuova conversazione",
   "handoff.offer": "Il contesto è quasi pieno. Continua in una nuova conversazione con un passaggio.",
   "handoff.regenerate": "Rigenera",

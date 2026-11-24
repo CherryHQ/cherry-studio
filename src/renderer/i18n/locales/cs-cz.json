@@ -1911,6 +1911,7 @@
   "handoff.draft": "Upravitelná poznámka Markdown",
   "handoff.error": "Předání selhalo. Zkuste to znovu, ověřte poskytovatele a kontextové okno nebo vyberte větší model. Původní rozhovor se nezměnil.",
   "handoff.generate": "Vytvořit návrh",
+  "handoff.model": "Model předání",
   "handoff.new": "Připojit k novému rozhovoru",
   "handoff.offer": "Kontext je téměř plný. Pokračujte v novém rozhovoru s poznámkou pro předání.",
   "handoff.regenerate": "Vygenerovat znovu",

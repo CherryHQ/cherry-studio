@@ -258,6 +258,7 @@ const Chat: FC<Props> = (props) => {
         providers={providers}
         onConversationControlsChange={setConversationControlsSnapshot}
         composerModelId={composerModelId}
+        composerModelCandidates={composerModels}
       />
     ) : (
       // Nothing left to resolve and still no topic: the library is genuinely empty, so settle on
