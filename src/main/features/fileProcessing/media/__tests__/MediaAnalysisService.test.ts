@@ -396,7 +396,7 @@ describe('MediaAnalysisService', () => {
     expect(analysis.warnings).not.toContain('no_speech')
   })
 
-  it('keeps the no-speech warning when a silent chunk resolves beside spoken audio', async () => {
+  it('does not report no speech when a silent chunk resolves beside spoken audio', async () => {
     runtime.extractAudio.mockImplementation(async ({ outputDir }) => {
       const silentPath = join(outputDir, 'silent.wav')
       const spokenPath = join(outputDir, 'spoken.wav')
@@ -419,10 +419,10 @@ describe('MediaAnalysisService', () => {
     const analysis = await service.analyze(file)
 
     expect(analysis.audio?.segments).toEqual([{ startMs: 4_500, endMs: 5_500, text: 'hello' }])
-    expect(analysis.warnings).toContain('no_speech')
+    expect(analysis.warnings).not.toContain('no_speech')
   })
 
-  it('keeps later speech and the no-speech warning when an earlier chunk throws no_speech', async () => {
+  it('keeps later speech without a no-speech warning when an earlier chunk throws no_speech', async () => {
     runtime.extractAudio.mockImplementation(async ({ outputDir }) => {
       const silentPath = join(outputDir, 'silent.wav')
       const spokenPath = join(outputDir, 'spoken.wav')
@@ -445,7 +445,7 @@ describe('MediaAnalysisService', () => {
     const analysis = await service.analyze(file)
 
     expect(analysis.audio?.segments).toEqual([{ startMs: 4_500, endMs: 5_500, text: 'hello' }])
-    expect(analysis.warnings).toContain('no_speech')
+    expect(analysis.warnings).not.toContain('no_speech')
   })
 
   it('propagates cancellation from an in-flight transcription and removes its job directory', async () => {

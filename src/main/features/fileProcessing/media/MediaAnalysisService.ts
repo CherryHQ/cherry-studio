@@ -188,7 +188,6 @@ export class MediaAnalysisService extends BaseService {
         { filePath, outputDir, maxChunkBytes: MAX_AUDIO_CHUNK_BYTES },
         signal
       )
-      let noSpeech = false
 
       for (const chunk of extracted.chunks) {
         signal?.throwIfAborted()
@@ -207,18 +206,15 @@ export class MediaAnalysisService extends BaseService {
           result = await transcription.completed
         } catch (error) {
           signal?.throwIfAborted()
-          if (error instanceof VoiceRuntimeError && error.reason === 'no_speech') noSpeech = true
-          else throw error
+          if (!(error instanceof VoiceRuntimeError && error.reason === 'no_speech')) throw error
         } finally {
           await transcription.closed
         }
         if (!result) continue
-        let accepted = 0
         if (result.segments.length > 0) {
           for (const segment of result.segments) {
             const text = segment.text.trim()
             if (!text) continue
-            accepted += 1
             segments.push({
               startMs: sourceAudioMs(probe.audioStartMs, chunk.startMs, segment.startSecond),
               endMs: sourceAudioMs(probe.audioStartMs, chunk.startMs, segment.endSecond),
@@ -226,17 +222,15 @@ export class MediaAnalysisService extends BaseService {
             })
           }
         } else if (result.text.trim()) {
-          accepted += 1
           segments.push({
             startMs: sourceAudioMs(probe.audioStartMs, chunk.startMs),
             endMs: sourceAudioMs(probe.audioStartMs, chunk.endMs),
             text: result.text.trim()
           })
         }
-        if (accepted === 0) noSpeech = true
       }
 
-      return { completed: true, segments, warnings: noSpeech || segments.length === 0 ? ['no_speech'] : [] }
+      return { completed: true, segments, warnings: segments.length === 0 ? ['no_speech'] : [] }
     } catch {
       signal?.throwIfAborted()
       logger.warn('Audio analysis failed')
