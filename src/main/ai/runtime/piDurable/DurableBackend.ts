@@ -68,7 +68,7 @@ export class DurableBackend {
     try {
       for (const binding of contexts.roots(context.backendId)) {
         if (binding.id === context.id) {
-          await owner.prepare(input, binding)
+          if (binding.nativeThreadId) owner.nativeRoots.set(runtimeId(binding.nativeThreadId), binding.id)
           continue
         }
         const session = agentSessionService.getById(binding.sessionId)
@@ -109,6 +109,10 @@ export class DurableBackend {
         }
         taskCursor = page.next
       } while (taskCursor)
+      if (input.headless === undefined && root.nativeId && owner.pendingRoots.has(context.id)) {
+        input.permissionModeOverride = (await readDurableRequest(root.storage, root.nativeId))?.permissionModeOverride
+      }
+      await owner.prepare(input, context)
       storageOwned = false
       const created = await createPiDurableRuntime({
         backendId: runtimeId(context.backendId),
@@ -188,7 +192,8 @@ export class DurableBackend {
         reasoningEffort: saved.reasoningEffort,
         serviceTier: saved.serviceTier,
         fastMode: saved.fastMode,
-        knowledgeBaseIds: saved.knowledgeBaseIds
+        knowledgeBaseIds: saved.knowledgeBaseIds,
+        permissionModeOverride: saved.permissionModeOverride
       })
     }
     if (previous?.input === input) return previous
