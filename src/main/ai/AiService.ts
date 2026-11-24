@@ -7,7 +7,8 @@ import {
   type FinishReason,
   isToolUIPart,
   type LanguageModelUsage,
-  type ModelMessage
+  type ModelMessage,
+  NoImageGeneratedError
 } from 'ai'
 
 import { application } from '@application'
@@ -36,8 +37,10 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { t } from '@main/i18n'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
-import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { downloadImageAsBase64, downloadPublicImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import type { CompactionSink } from '@shared/ai/compaction'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import {
@@ -65,7 +68,6 @@ import {
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
-import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
@@ -869,6 +871,25 @@ export class AiService extends BaseService {
     )
   }
 
+  /**
+   * Cancellable streamed generation: the same result as {@link runTextRequest}, with each text delta
+   * reported to `onTextDelta` as it arrives. A model that cannot stream answers in one piece.
+   */
+  async runTextStreamRequest(
+    requestId: string,
+    request: AsInProcess<AiGenerateRequest>,
+    onTextDelta: (delta: string) => void
+  ): Promise<AiGenerateResult> {
+    return this.runWithAbort(requestId, (signal) =>
+      this.generateTextWithMode(
+        { ...request, requestOptions: { ...request.requestOptions, signal } },
+        [],
+        'stream',
+        onTextDelta
+      )
+    )
+  }
+
   async generateText(
     request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[] = []
@@ -879,7 +900,8 @@ export class AiService extends BaseService {
   private async generateTextWithMode(
     request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[],
-    mode: 'generate' | 'stream'
+    mode: 'generate' | 'stream',
+    onTextDelta?: (delta: string) => void
   ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
@@ -996,7 +1018,12 @@ export class AiService extends BaseService {
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
     return this.withRuntimeActivity('ai:generate-text', () =>
-      agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal, mode)
+      agent.generate(
+        request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] },
+        signal,
+        mode === 'stream' && model.supportsStreaming === false ? 'generate' : mode,
+        onTextDelta
+      )
     )
   }
 
@@ -1156,6 +1183,7 @@ export class AiService extends BaseService {
     // are NOT typed SDK options — they reach the wire via `providerOptions[id]`
     // (the WireProfile engine), which the image models read; passing them here is
     // dropped by `generateImage`, so they're omitted.
+    let imageDownloadFailed = false
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
@@ -1170,9 +1198,15 @@ export class AiService extends BaseService {
         return Promise.all(
           downloads.map(async ({ url }) => {
             if (signal?.aborted) return null
-            const downloaded = await downloadImageAsBase64(url.toString())
+            const downloaded =
+              sdkConfig.providerId === 'google'
+                ? await downloadPublicImageAsBase64(url.href, signal)
+                : await downloadImageAsBase64(url.href)
             if (signal?.aborted) return null
-            if (!downloaded) return null
+            if (!downloaded) {
+              imageDownloadFailed = true
+              return null
+            }
             return {
               data: Buffer.from(downloaded.data, 'base64'),
               mediaType: downloaded.media_type
@@ -1198,7 +1232,12 @@ export class AiService extends BaseService {
           ...imageParams,
           onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
         }
-      )
+      ).catch((error: unknown) => {
+        if (sdkConfig.providerId === 'google' && imageDownloadFailed && NoImageGeneratedError.isInstance(error)) {
+          throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.image_download_failed') })
+        }
+        throw error
+      })
 
       const dataUrls: Base64String[] = []
       let filteredCount = 0

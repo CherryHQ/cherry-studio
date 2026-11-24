@@ -5,8 +5,8 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
-import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
+import { extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
 import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 

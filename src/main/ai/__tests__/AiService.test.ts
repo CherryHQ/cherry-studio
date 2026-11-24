@@ -6,7 +6,7 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { generateText, modelMessageSchema, streamText } from 'ai'
+import { generateText, modelMessageSchema, NoImageGeneratedError, streamText } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -34,6 +34,7 @@ const mockCreateAgent = vi.fn()
 const mockRerank = vi.fn()
 const mockEmbedMany = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
+const mockDownloadPublicImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
 const mockAssistantGetById = vi.fn()
 const mockMessageGetById = vi.fn()
@@ -160,7 +161,8 @@ vi.mock('../provider/listModels', async (importOriginal) => {
   }
 })
 vi.mock('@main/utils/downloadAsBase64', () => ({
-  downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
+  downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args),
+  downloadPublicImageAsBase64: (...args: unknown[]) => mockDownloadPublicImageAsBase64(...args)
 }))
 
 vi.mock('@main/data/services/MessageService', () => ({
@@ -855,6 +857,43 @@ describe('AiService', () => {
     })
     expect(result).toEqual({ files: [fileEntry] })
   })
+
+  it.each([
+    { providerId: 'google', hasUrl: true, message: 'The image was generated, but it could not be downloaded.' },
+    { providerId: 'google', hasUrl: false, message: 'No image generated.' },
+    { providerId: 'test-provider', hasUrl: true, message: 'No image generated.' }
+  ])(
+    'reports the correct empty image outcome for $providerId (URL: $hasUrl)',
+    async ({ providerId, hasUrl, message }) => {
+      const service = createService()
+      mockApplicationGet.mockImplementation(
+        (name: string) => defaultServiceInstances[name as keyof typeof defaultServiceInstances]
+      )
+      vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+        sdkConfig: { providerId, providerSettings: {}, modelId: 'test-model' }
+      })
+      mockDownloadPublicImageAsBase64.mockResolvedValue(null)
+      mockDownloadImageAsBase64.mockResolvedValue(null)
+      mockGenerateImage.mockImplementation(async (_provider, _settings, options) => {
+        if (hasUrl) {
+          const files = await options.experimental_download([
+            { url: new URL('https://example.com/generated.png'), isUrlSupportedByModel: false }
+          ])
+          expect(files).toEqual([null])
+        }
+        throw new NoImageGeneratedError({ responses: [] })
+      })
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          cleanupPolicy: 'delete_when_unreferenced',
+          prompt: 'draw a cat',
+          paramValues: {}
+        })
+      ).rejects.toThrow(message)
+    }
+  )
 
   it('honors an explicit retry override for direct image requests', async () => {
     const service = createService()
