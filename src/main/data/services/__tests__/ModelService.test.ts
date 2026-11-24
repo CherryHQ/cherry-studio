@@ -623,6 +623,29 @@ describe('ModelService provider metadata', () => {
     expect(updated.metadataSources?.maxOutputTokens).toBe('provider')
   })
 
+  it('treats a null blur of an absent limit as unchanged but keeps an intentional clear as user', () => {
+    // Absent limit: tabbing through the blank field submits null while the
+    // effective value is undefined. Provenance must not flip to 'user', so a
+    // later refresh may adopt a newly advertised limit.
+    dbh.db.insert(userProviderTable).values(providerRow('blank-channel', 'Blank')).run()
+    dbh.db
+      .insert(userModelTable)
+      .values(modelRow('blank-channel', 'sparse', { contextWindow: null }))
+      .run()
+    modelService.update('blank-channel', 'sparse', { contextWindow: null })
+    expect(modelService.getByKey('blank-channel', 'sparse').metadataSources?.contextWindow).not.toBe('user')
+    const refreshed = modelService.applyProviderMetadata('blank-channel', 'sparse', { contextWindow: 128000 })
+    expect(refreshed.contextWindow).toBe(128000)
+    expect(refreshed.metadataSources?.contextWindow).toBe('provider')
+
+    // Intentional clear of a populated field stays a user override and freezes refresh.
+    seed()
+    modelService.update('custom-channel', 'model', { contextWindow: null })
+    const cleared = modelService.applyProviderMetadata('custom-channel', 'model', { contextWindow: 128000 })
+    expect(cleared.metadataSources?.contextWindow).toBe('user')
+    expect(cleared.contextWindow ?? null).toBeNull()
+  })
+
   it('refreshes provider and unknown fields but keeps user edits (AC5)', () => {
     seed()
     modelService.update('custom-channel', 'model', { contextWindow: 32000 })

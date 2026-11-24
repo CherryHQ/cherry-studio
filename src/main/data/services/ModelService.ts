@@ -642,7 +642,13 @@ class ModelService {
       const sources = getModelMetadataSources(existing, this.enrichRowsFromRegistryTx(tx, [existing])[0])
       const effective = this.enrichRowsFromRegistryTx(tx, [existing])[0]
       for (const field of editedMetadata) {
-        if (JSON.stringify(dto[field]) !== JSON.stringify(effective[field])) sources[field] = 'user'
+        // null and undefined both represent an absent limit: tabbing through an
+        // already blank field submits null while the effective value is
+        // undefined, and marking that as 'user' would freeze refresh. A real
+        // clear of a populated field (null vs a number) still counts as 'user'.
+        const submitted = dto[field] === null ? undefined : dto[field]
+        const current = effective[field] === null ? undefined : effective[field]
+        if (JSON.stringify(submitted) !== JSON.stringify(current)) sources[field] = 'user'
       }
       updates.metadataSources = sources
     }
