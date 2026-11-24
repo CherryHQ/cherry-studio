@@ -214,7 +214,7 @@ overrides:
   openai: npm:@cherrystudio/openai@6.15.0
   tar-fs: ^2.1.4
   tar: 7.5.21
-  '@xmldom/xmldom@>=0.8.0 <0.8.13': 0.8.13
+  '@xmldom/xmldom@>=0.8.0 <0.8.15': 0.8.15
   '@xmldom/xmldom@>=0.9.0 <0.9.10': 0.9.10
   axios@<1.16.0: 1.16.0
   fast-uri@>=3.0.0 <3.1.5: 3.1.5
@@ -9165,10 +9165,9 @@ packages:
   '@wecom/aibot-node-sdk@1.0.7':
     resolution: {integrity: sha512-51w+sTqunry6GD3HFvmuh0gArMSJDFE418vyvR1wMJHj1N6DaFuGD3HuaY2fazZs3mb9FWeQFX3+vU5t0Qhwmw==}
 
-  '@xmldom/xmldom@0.8.13':
-    resolution: {integrity: sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw==}
+  '@xmldom/xmldom@0.8.15':
+    resolution: {integrity: sha512-/5NV/vDALVFDXgLmfsy9TRCBlKwO2LNBFzpzvb9iIj+jR+eSc6DLYYvVOdivT/jm7MtU6TebYuRmzEOI7w40UA==}
     engines: {node: '>=10.0.0'}
-    deprecated: this version has critical issues, please update to the latest version
 
   '@xmldom/xmldom@0.9.10':
     resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
@@ -23811,7 +23810,7 @@ snapshots:
       - debug
       - utf-8-validate
 
-  '@xmldom/xmldom@0.8.13': {}
+  '@xmldom/xmldom@0.8.15': {}
 
   '@xmldom/xmldom@0.9.10': {}
 
@@ -27803,7 +27802,7 @@ snapshots:
 
   mammoth@1.12.0:
     dependencies:
-      '@xmldom/xmldom': 0.8.13
+      '@xmldom/xmldom': 0.8.15
       argparse: 1.0.10
       base64-js: 1.5.1
       bluebird: 3.4.7
@@ -28876,7 +28875,7 @@ snapshots:
 
   officeparser@5.1.1:
     dependencies:
-      '@xmldom/xmldom': 0.8.13
+      '@xmldom/xmldom': 0.8.15
       concat-stream: 2.0.0
       file-type: 16.5.4
       node-ensure: 0.0.0
@@ -29385,7 +29384,7 @@ snapshots:
 
   plist@3.1.0:
     dependencies:
-      '@xmldom/xmldom': 0.8.13
+      '@xmldom/xmldom': 0.8.15
       base64-js: 1.5.1
       xmlbuilder: 15.1.1
 
