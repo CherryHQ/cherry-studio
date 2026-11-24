@@ -1,4 +1,4 @@
-import { defineProvider } from './types'
+import { defineProvider, type ProviderModelOffer } from './types'
 import { openaiResponsesSummaryWire } from './wires'
 
 const webSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
@@ -18,6 +18,10 @@ export default defineProvider({
     }
   },
   overrides: [
+    ...['gpt-image-1-mini', 'gpt-image-1.5', 'chatgpt-image-latest'].map<ProviderModelOffer>((apiModelId) => ({
+      apiModelId,
+      endpointTypes: ['openai-image-generation', 'openai-image-edit']
+    })),
     {
       apiModelId: 'gpt-image-2.6-flare',
       endpointTypes: ['openai-image-generation', 'openai-image-edit'],

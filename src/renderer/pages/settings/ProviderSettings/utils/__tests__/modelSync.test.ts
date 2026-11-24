@@ -79,6 +79,33 @@ describe('fetchResolvedProviderModels', () => {
     })
   })
 
+  it('keeps output modalities when saving a dual-protocol model without a registry row', async () => {
+    const endpointTypes = [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    listModelsMock.mockResolvedValueOnce({
+      models: [
+        {
+          id: 'openrouter::test/image-chat',
+          apiModelId: 'test/image-chat',
+          name: 'Image Chat',
+          endpointTypes,
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+          outputModalities: ['text', 'image']
+        }
+      ]
+    })
+
+    const {
+      models: [model]
+    } = await fetchResolvedProviderModels('openrouter')
+
+    expect(toCreateModelDto('openrouter', model)).toMatchObject({
+      modelId: 'test/image-chat',
+      endpointTypes,
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      outputModalities: ['text', 'image']
+    })
+  })
+
   it('uses registry reasoning controls while preserving discovered thinking support', async () => {
     listModelsMock.mockResolvedValueOnce({
       models: [

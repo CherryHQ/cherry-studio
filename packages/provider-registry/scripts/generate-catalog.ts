@@ -614,6 +614,7 @@ function buildProviderModels(
   // OpenRouter's dedicated image catalog publishes typed, per-model parameter descriptors. Keep
   // these as provider overrides: the same canonical model can expose different controls through
   // another provider, and the raw org/model id must remain the API id used for lookup and requests.
+  const textServedIds = new Set((orModels.data ?? []).map((entry) => entry.id))
   for (const model of orImageModels.data ?? []) {
     const imageGeneration = parseOrImageGeneration(model)
     const modelId = canonOf(model.id)
@@ -639,7 +640,12 @@ function buildProviderModels(
           }
         : {}),
       capabilities: { add: ['image-generation'] },
-      endpointTypes: ['openai-image-generation'],
+      // A model served by BOTH catalogs also answers /chat/completions with text and image,
+      // so chat keeps it on the chat protocol and the paintings page keeps the image endpoint.
+      // Pinning the image endpoint alone would demote it to a one-shot image API in chat.
+      endpointTypes: textServedIds.has(model.id)
+        ? ['openai-chat-completions', 'openai-image-generation']
+        : ['openai-image-generation'],
       ...(meta?.inputModalities ? { inputModalities: meta.inputModalities } : {}),
       ...(meta?.outputModalities ? { outputModalities: meta.outputModalities } : {}),
       imageGeneration

@@ -23,6 +23,7 @@ import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
+import { isNonChatModel } from '@shared/utils/model'
 
 import ClipboardPreview from './components/ClipboardPreview'
 import type { FeatureMenusRef } from './components/FeatureMenus'
@@ -388,6 +389,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     async (prompt?: string) => {
       if (isEmpty(requestText)) return
       if (!isTopicReady || !temporaryTopicId) return
+      const isTextAction = prompt !== undefined
+      if (isTextAction && (!currentModel || isNonChatModel(currentModel))) {
+        setFlowError(t('selection.action.agent_issue.no_model'))
+        return
+      }
 
       try {
         setFlowError(null)
@@ -395,7 +401,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setUserInputText('')
         setIsPreparing(true)
         const message = { text: [prompt, requestText].filter(Boolean).join('\n\n') }
-        if (!isAssistantMode && currentModel) {
+        if (currentModel && (isTextAction || !isAssistantMode)) {
           void sendMessage(message, { body: { mentionedModels: [currentModel.id] } })
         } else {
           void sendMessage(message)
@@ -406,7 +412,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         logger.error('Error fetching result:', resolvedError)
       }
     },
-    [currentModel, isAssistantMode, isTopicReady, requestText, sendMessage, temporaryTopicId]
+    [currentModel, isAssistantMode, isTopicReady, requestText, sendMessage, t, temporaryTopicId]
   )
 
   const handlePause = useCallback(() => {

@@ -26,8 +26,7 @@ import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal }
  * `{ taskId }`; the shared poll loop GETs `/api/v1/tasks/{taskId}` and extracts
  * image URLs from a family-specific response shape recorded at submit time.
  *
- * DashScope has no public task-cancel endpoint — on abort we stop polling; the
- * server-side task continues but its result is discarded.
+ * DashScope can cancel queued tasks. Running tasks continue after local polling stops.
  */
 
 export const DEFAULT_DASHSCOPE_IMAGE_BASE_URL = 'https://maas.qianwenaiapi.com'
@@ -459,15 +458,11 @@ class DashScopeTransport implements ImageGenerationTransport {
     }
   }
 
-  /**
-   * DashScope has no public task-cancel endpoint, so cancellation is local
-   * only: drop the pending descriptor. The image-model adapter invokes this on
-   * abort, including the abort-after-submit-before-poll window where `poll()`'s
-   * `finally` never runs — without it that descriptor would leak for the
-   * lifetime of the (reused) transport.
-   */
   async cancel(taskId: string): Promise<void> {
     this.pendingDescriptors.delete(taskId)
+    await this.request<string>(`/api/v1/tasks/${encodeURIComponent(taskId)}/cancel`, 'POST', undefined, {
+      timeout: 10000
+    })
   }
 
   private async pollTaskResult(

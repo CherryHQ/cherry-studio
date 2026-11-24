@@ -1,6 +1,6 @@
-import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { MessageRef, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { ImageGenerationMode, UniqueModelId } from '@shared/data/types/model'
 
 import type { ImageTransportDescriptor } from '../imageGenerationModel'
 
@@ -28,6 +28,7 @@ export interface ImageGenerationJobPayload {
   aspectRatio?: string
   seed?: number
   inputFileIds?: string[]
+  mode?: ImageGenerationMode
   maskFileId?: string
   /** Per-model transport routing, derived in main from the registry — persisted
    *  here so the handler reaches the right endpoint / response family without
@@ -37,6 +38,7 @@ export interface ImageGenerationJobPayload {
   requestTimeoutMs?: number
   /** Non-secret request source captured when the job is enqueued. */
   source?: SourceSnapshot
+  messageRef?: MessageRef | null
   providerParams: Record<string, unknown>
   /** Stamped on the persisted output FileEntries — decided by the requesting business feature. */
   cleanupPolicy: CleanupPolicy

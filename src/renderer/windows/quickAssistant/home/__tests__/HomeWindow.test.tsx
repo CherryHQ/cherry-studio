@@ -8,6 +8,7 @@ import type { VoiceTargetRegistration } from '@renderer/services/voice'
 import { AutoReadService } from '@renderer/services/voice/AutoReadService'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
 type TestModel = {
@@ -16,10 +17,12 @@ type TestModel = {
   name: string
   providerId: string
   group: string
+  capabilities: Model['capabilities']
 }
 
 const state = vi.hoisted(() => ({
   quickAssistantId: '',
+  assistantModel: undefined as TestModel | undefined,
   defaultModel: {
     id: 'cherryai::qwen',
     modelId: 'qwen',
@@ -32,7 +35,8 @@ const state = vi.hoisted(() => ({
     modelId: 'claude-sonnet',
     name: 'Claude Sonnet',
     providerId: 'anthropic',
-    group: 'Anthropic'
+    group: 'Anthropic',
+    capabilities: []
   } as TestModel | undefined,
   messages: [] as never[],
   activeExecutions: [] as ActiveExecution[],
@@ -101,7 +105,10 @@ vi.mock('@renderer/utils/platform', () => ({
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => ({ assistant: undefined, model: undefined })
+  useAssistant: () => ({
+    assistant: state.quickAssistantId ? { id: state.quickAssistantId, name: 'Assistant' } : undefined,
+    model: state.assistantModel
+  })
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
@@ -203,11 +210,11 @@ vi.mock('../components/FeatureMenus', () => ({
       setRoute
     }: {
       ref?: React.RefObject<{ useFeature: () => void; resetSelectedIndex: () => void } | null>
-      onSendMessage: () => void
+      onSendMessage: (prompt?: string) => void
       setRoute: (route: 'chat' | 'translate' | 'summary' | 'explanation') => void
     }) => {
       if (ref) {
-        ref.current = { useFeature: onSendMessage, resetSelectedIndex: vi.fn() }
+        ref.current = { useFeature: () => onSendMessage(), resetSelectedIndex: vi.fn() }
       }
       return (
         <div data-testid="feature-menus">
@@ -216,6 +223,22 @@ vi.mock('../components/FeatureMenus', () => ({
           </button>
           <button type="button" onClick={() => setRoute('translate')}>
             Translate route
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setRoute('summary')
+              onSendMessage('Summarize')
+            }}>
+            Summarize
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setRoute('explanation')
+              onSendMessage('Explain')
+            }}>
+            Explain
           </button>
         </div>
       )
@@ -292,12 +315,14 @@ describe('finalizeLiveMessages', () => {
 describe('HomeWindow', () => {
   beforeEach(() => {
     state.quickAssistantId = ''
+    state.assistantModel = undefined
     state.quickModel = {
       id: 'anthropic::claude-sonnet',
       modelId: 'claude-sonnet',
       name: 'Claude Sonnet',
       providerId: 'anthropic',
-      group: 'Anthropic'
+      group: 'Anthropic',
+      capabilities: []
     }
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
@@ -358,6 +383,48 @@ describe('HomeWindow', () => {
 
     expect(screen.queryByTestId('quick-input')).not.toBeInTheDocument()
     expect(state.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it.each(['Summarize', 'Explain'])('blocks %s after the bound assistant switches to an image model', (action) => {
+    state.quickAssistantId = 'assistant'
+    state.assistantModel = state.quickModel
+    const { rerender } = render(<HomeWindow draggable={false} />)
+    fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
+
+    state.assistantModel = {
+      id: 'openai::gpt-image-1',
+      modelId: 'gpt-image-1',
+      name: 'GPT Image',
+      providerId: 'openai',
+      group: 'OpenAI',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+    }
+    rerender(<HomeWindow draggable={false} />)
+    fireEvent.click(screen.getByRole('button', { name: action }))
+
+    expect(screen.getByText('selection.action.agent_issue.no_model')).toBeInTheDocument()
+    expect(state.sendMessage).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Escape' }))
+    const input = screen.getByTestId('quick-input')
+    fireEvent.change(input, { target: { value: 'draw a tree' } })
+    fireEvent.keyDown(input, { code: 'Enter', key: 'Enter' })
+
+    expect(state.sendMessage).toHaveBeenCalledWith({ text: 'draw a tree' })
+  })
+
+  it('sends a summary with the bound assistant’s validated text model', () => {
+    state.quickAssistantId = 'assistant'
+    state.assistantModel = state.quickModel
+    render(<HomeWindow draggable={false} />)
+
+    fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Summarize' }))
+
+    expect(state.sendMessage).toHaveBeenCalledWith(
+      { text: 'Summarize\n\nhello' },
+      { body: { mentionedModels: ['anthropic::claude-sonnet'] } }
+    )
   })
 
   it('keeps typed input out of the clipboard preview', () => {

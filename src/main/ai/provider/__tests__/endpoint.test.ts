@@ -379,6 +379,72 @@ describe('resolveEffectiveEndpoint', () => {
     expect(baseUrl).toBe('')
   })
 
+  it('keeps an exclusive image protocol despite inaccurate text output metadata', () => {
+    const provider = makeProvider({
+      id: 'image-relay',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://chat.example.com/v1' },
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://images.example.com/v1' }
+      }
+    })
+    const model = makeModel({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      outputModalities: ['text', 'image']
+    })
+
+    expect(resolveEffectiveEndpoint(provider, model, undefined, 'chat').endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+    )
+    expect(resolveEffectiveEndpoint(provider, model, undefined, 'image').endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+    )
+  })
+
+  it('preserves declared chat priority for New API while selecting image transport by intent', () => {
+    const provider = makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/v1' },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://relay.example.com' },
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://relay.example.com/v1' }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gemini-3.1-flash-image',
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      ],
+      outputModalities: ['text', 'image']
+    })
+
+    expect(resolveEffectiveEndpoint(provider, model, undefined, 'chat').endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+    expect(resolveEffectiveEndpoint(provider, model, undefined, 'image').endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+    )
+  })
+
+  it('does not mistake another exclusive endpoint for image transport', () => {
+    const provider = makeProvider({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://api.example.com/v1' },
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://api.example.com/v1' }
+      }
+    })
+    const model = makeModel({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    })
+
+    expect(resolveEffectiveEndpoint(provider, model, undefined, 'image').endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+    )
+  })
+
   describe('preferredEndpointType', () => {
     // DeepSeek V4 Flash: `openai-responses` leads because it routes in-app chat, but the model also
     // serves Anthropic Messages — which is the only dialect the Claude Agent SDK can speak.

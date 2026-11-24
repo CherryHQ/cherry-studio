@@ -141,6 +141,41 @@ describe('catalog invariants (data/*.json)', () => {
     })
   })
 
+  it.each(['gpt-image-1-mini', 'gpt-image-1.5', 'chatgpt-image-latest'])(
+    'declares only Images endpoints on the bundled OpenAI %s offer',
+    (id) => {
+      const row = providerModelOverrides.find(
+        (override) => override.providerId === 'openai' && (override.apiModelId ?? override.modelId) === id
+      )
+      expect(row?.endpointTypes).toEqual(['openai-image-generation', 'openai-image-edit'])
+      expect(models.find((model) => model.id === row?.modelId)?.outputModalities).toEqual(['image'])
+    }
+  )
+
+  it.each(['google/gemini-2.5-flash-image', 'google/gemini-3.1-flash-image'])(
+    'preserves both bundled OpenRouter protocols for %s',
+    (id) => {
+      const row = providerModelOverrides.find(
+        (override) => override.providerId === 'openrouter' && override.apiModelId === id
+      )
+      expect(row?.endpointTypes).toEqual(['openai-chat-completions', 'openai-image-generation'])
+      expect(row?.outputModalities).toEqual(expect.arrayContaining(['text', 'image']))
+    }
+  )
+
+  it('keeps the image endpoint on every OpenRouter image-generation override', () => {
+    // A model open to the image catalog must stay reachable from the paintings page even when chat
+    // also serves it; dropping or reordering the image endpoint would break image generation.
+    const imageOverrides = providerModelOverrides.filter(
+      (override) => override.providerId === 'openrouter' && override.imageGeneration
+    )
+
+    expect(imageOverrides.length).toBeGreaterThan(0)
+    for (const override of imageOverrides) {
+      expect(override.endpointTypes, override.apiModelId).toContain('openai-image-generation')
+    }
+  })
+
   it('drops Vercel OpenAI fast routing aliases without dropping real fast models', () => {
     expect(isModelsDevRoutingAlias('vercel', 'openai/gpt-5-fast')).toBe(true)
     expect(isModelsDevRoutingAlias('vercel', 'bytedance/seedance-2.0-fast')).toBe(false)

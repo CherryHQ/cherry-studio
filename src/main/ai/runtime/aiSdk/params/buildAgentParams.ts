@@ -45,7 +45,7 @@ import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
 import { applyHttpTrace, type AgentRuntimeTraceContext } from '../../../observability'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
-import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint, resolveProviderOptionsKey } from '../../../provider/endpoint'
 import { resolveSdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
@@ -79,7 +79,7 @@ import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
-import { resolveCapabilities } from './capabilities'
+import { hasNativeImageOutput, resolveCapabilities } from './capabilities'
 import { collectFromFeatures } from './collectFromFeatures'
 import { createCustomParamsFetch, selectCustomBodyParameters } from './customParamsFetch'
 import type { RequestFeature } from './feature'
@@ -676,7 +676,16 @@ function buildAgentOptions(
     provider,
     {
       enableReasoning: capabilities ? capabilities.enableReasoning : request.reasoningEffort !== undefined,
-      enableGenerateImage: capabilities?.enableGenerateImage ?? false,
+      enableGenerateImage:
+        capabilities?.enableGenerateImage ??
+        hasNativeImageOutput(
+          model,
+          sdkConfig.providerOptionsKey ??
+            resolveProviderOptionsKey(sdkConfig.providerId, {
+              actualProviderId: provider.id,
+              endpointType
+            })
+        ),
       enableWebSearch: capabilities ? scope.webToolRoutes?.webSearch === 'server' : false
     },
     {

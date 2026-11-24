@@ -17,6 +17,7 @@ vi.mock('../resolveCompressionModel', () => ({
 }))
 // resolveContextSettings runs for real — it is a pure 3-layer merge.
 
+import { makeModel } from '../../__tests__/fixtures/model'
 import { resolveRequestContextSettings } from '../resolveRequestContextSettings'
 
 /** Wire the mocked PreferenceService to a global-settings snapshot. */
@@ -43,7 +44,7 @@ const setPrefs = (
   mockPrefGet.mockImplementation((k: string) => map[k])
 }
 
-const model = { id: 'openai::gpt-4o' } as never
+const model = makeModel({ id: 'openai::gpt-4o' })
 
 describe('resolveRequestContextSettings — compression-model assembly', () => {
   beforeEach(() => {
