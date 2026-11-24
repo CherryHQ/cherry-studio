@@ -14,6 +14,7 @@ import { sanitizeSeedreamImageParams, validateSeedreamImageParams } from '@share
 import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
+import type * as HandoffNoteModule from '../messages/handoffNote'
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
 import type { AiStreamRequest } from '../types/requests'
@@ -161,7 +162,7 @@ vi.mock('../provider/listModels', async (importOriginal) => {
   }
 })
 vi.mock('../messages/handoffNote', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../messages/handoffNote')>()),
+  ...(await importOriginal<typeof HandoffNoteModule>()),
   readHandoffSource: vi.fn(() => 'handoff source')
 }))
 vi.mock('@main/utils/downloadAsBase64', () => ({
