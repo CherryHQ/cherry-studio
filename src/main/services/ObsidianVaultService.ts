@@ -4,6 +4,7 @@ import path from 'path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
+import { getErrorCode } from '@main/utils/error'
 
 const logger = loggerService.withContext('ObsidianVaultService')
 
@@ -85,7 +86,7 @@ class ObsidianVaultService {
       try {
         stats = await fs.promises.stat(vaultPath)
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        if (getErrorCode(error) === 'ENOENT') {
           logger.error(`Vault path does not exist: ${vaultPath}`)
 
           return []
