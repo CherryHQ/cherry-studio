@@ -145,6 +145,10 @@ vi.mock('@cherrystudio/remote-protocol', async (importOriginal) => {
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
+    CherryCloudService: {
+      getAccountReceipt: () => ({ models: { freshness: 'unknown' } }),
+      syncEntitledModelsIfStale: async () => undefined
+    },
     FileManager: fake.files,
     AiStreamManager: fake.manager,
     AgentSessionRuntimeService: fake.runtime,
@@ -1239,6 +1243,29 @@ describe('remote agent access', () => {
       modelId: 'old',
       providerId: 'provider',
       name: 'Original display name'
+    })
+  })
+
+  it('persists the selected provider model on the new session and rejects a model disabled after browsing', async () => {
+    seedModel('model-picker-test', 'chat', 'Picker test chat')
+    dbh.db
+      .update(userProviderTable)
+      .set({ isEnabled: true })
+      .where(eq(userProviderTable.providerId, 'model-picker-test'))
+      .run()
+    const model = { providerId: 'model-picker-test', modelId: 'chat' }
+    const uniqueId = 'model-picker-test::chat'
+    const catalog = await call('agent.models.list', { agentId: 'agent-1', search: 'picker test' })
+    expect(catalog.items).toEqual([{ ...model, name: 'Picker test chat', providerName: 'Desktop provider' }])
+    const create = { agentId: 'agent-1', workspace: { kind: 'system' as const }, commandId: randomUUID(), model }
+    const receipt = await call('agent.sessions.create', create)
+    expect(agentSessionService.getById(receipt.sessionId).model).toBe(uniqueId)
+    expect(agentSessionService.getById(sessionId).model).toBeNull()
+    dbh.db.update(userModelTable).set({ isEnabled: false }).where(eq(userModelTable.id, uniqueId)).run()
+    expect(await call('agent.sessions.create', create)).toEqual(receipt)
+    expect(await call('agent.sessions.create', { ...create, commandId: randomUUID() })).toMatchObject({
+      status: 'rejected',
+      error: { reason: 'TARGET_UNAVAILABLE' }
     })
   })
 

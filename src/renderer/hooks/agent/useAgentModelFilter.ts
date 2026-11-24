@@ -12,13 +12,10 @@
 
 import { useMemo } from 'react'
 
-import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { isAgentModelSelectable } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isNonChatModel } from '@shared/utils/model'
-
-const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 
 type ModelPredicate = (model: Model, provider?: Provider) => boolean
 
@@ -27,11 +24,8 @@ type ModelPredicate = (model: Model, provider?: Provider) => boolean
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
  */
 export function useAgentModelFilter(agentType: AgentType | undefined): ModelPredicate {
-  return useMemo<ModelPredicate>(() => {
-    const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
-    return (model, provider) => {
-      if (!baseAgentFilter(model)) return false
-      return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
-    }
-  }, [agentType])
+  return useMemo<ModelPredicate>(
+    () => (model, provider) => isAgentModelSelectable(agentType, model, provider),
+    [agentType]
+  )
 }

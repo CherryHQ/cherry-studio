@@ -32,6 +32,7 @@ import {
   inputDigest,
   listAgents,
   listMessages,
+  listModels,
   listParts,
   listPersistedInteractions,
   listSessions,
@@ -153,6 +154,17 @@ export function registerAgentMethods(
   }
 
   on('agent.agents.list', ({ cursor, limit }) => listAgents(cursor, limit))
+  on('agent.models.list', async (params) => {
+    if (!params.cursor) {
+      // A cloud refresh failure still leaves locally configured models available.
+      await application
+        .get('CherryCloudService')
+        .syncEntitledModelsIfStale()
+        .catch(() => undefined)
+      access.requireAgent()
+    }
+    return listModels(params)
+  })
   on('agent.workspaces.list', ({ agentId, cursor, limit }) => listWorkspaces(agentId, cursor, limit))
   on('agent.sessions.list', (params) =>
     queryPage((attemptLimit) => {

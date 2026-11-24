@@ -4,7 +4,7 @@ import { open } from 'node:fs/promises'
 import { getToolName, isToolUIPart } from 'ai'
 
 import { application } from '@application'
-import { modelSummarySchema } from '@cherrystudio/remote-protocol/agent'
+import { modelOptionSchema, modelSummarySchema } from '@cherrystudio/remote-protocol/agent'
 import type {
   AgentInteraction,
   AgentParams,
@@ -21,10 +21,14 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
+import { isAgentModelSelectable } from '@shared/ai/agentRuntimeCapabilities'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
@@ -359,6 +363,39 @@ export function listAgents(cursor?: string, limit?: number) {
   )
 }
 
+function selectableModels(agentId: string, selected?: { providerId: string; modelId: string }) {
+  const agent = agentService.getAgent(agentId)
+  if (!agent) throw new RemoteRpcError('NOT_FOUND', 'Agent not found')
+  const providers = new Map(providerService.list({ enabled: true }).map((provider) => [provider.id, provider]))
+  const cloud = application.get('CherryCloudService').getAccountReceipt().models
+  const available = new Set(cloud.freshness !== 'unknown' ? cloud.value.availableModelIds.agent : [])
+  const exhausted = new Set(cloud.freshness === 'fresh' ? cloud.value.quotaExhaustedModelIds : [])
+  return modelService.list({ enabled: true, providerId: selected?.providerId }).flatMap((model) => {
+    const provider = providers.get(model.providerId)
+    if (!provider || !isAgentModelSelectable(agent.type, model, provider)) return []
+    if (isManagedCherryCloudModel(provider.id) && (!available.has(model.id) || exhausted.has(model.id))) return []
+    const identity = parseUniqueModelId(model.id)
+    if (selected && identity.modelId !== selected.modelId) return []
+    const summary = modelOptionSchema.safeParse({
+      ...identity,
+      name: model.name.trim() || identity.modelId,
+      providerName: provider.name.trim() || provider.id
+    })
+    return summary.success ? [{ id: model.id, summary: summary.data }] : []
+  })
+}
+
+export function listModels({ agentId, cursor, limit, search }: AgentParams<'agent.models.list'>) {
+  const keywords = search?.toLowerCase().trim().split(/\s+/) ?? []
+  const items = selectableModels(agentId)
+    .map(({ summary }) => summary)
+    .filter((item) => {
+      const text = [item.providerId, item.providerName, item.modelId, item.name].join(' ').toLowerCase()
+      return keywords.every((keyword) => text.includes(keyword))
+    })
+  return pageOf(items, cursor, limit)
+}
+
 export function listWorkspaces(agentId: string, cursor?: string, limit?: number) {
   if (!agentService.agentExists(agentId)) throw new RemoteRpcError('NOT_FOUND', 'Agent not found')
   return {
@@ -393,10 +430,14 @@ export function listSessions(query: AgentParams<'agent.sessions.list'>): {
 }
 
 export function createSessionTx(tx: DbOrTx, sessionId: string, input: AgentParams<'agent.sessions.create'>): void {
+  const model = input.model ? selectableModels(input.agentId, input.model)[0]?.id : undefined
+  if (input.model && !model)
+    throw new RemoteRpcError('TARGET_UNAVAILABLE', 'Selected session model is no longer available')
   notFound(() =>
     agentSessionService.createTx(tx, sessionId, {
       agentId: input.agentId,
       name: input.title ?? '',
+      model,
       workspace:
         'workspace' in input
           ? input.workspace.kind === 'system'
