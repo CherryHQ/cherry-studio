@@ -2,6 +2,23 @@ import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('utils/dom')
 
+export function getEventTargetNode(target: EventTarget | null): Node | null {
+  if (!target || !('nodeType' in target) || typeof target.nodeType !== 'number') return null
+
+  // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Browser event targets supply native nodes; this bridge preserves cross-realm identity and does not validate arbitrary external objects.
+  return target as Node
+}
+
+export function isElementNode(node: Node | null): node is Element {
+  return node?.nodeType === 1
+}
+
+export function getEventTargetElement(target: EventTarget | null): Element | null {
+  const node = getEventTargetNode(target)
+
+  return isElementNode(node) ? node : (node?.parentElement ?? null)
+}
+
 interface ChromiumScrollIntoViewOptions extends ScrollIntoViewOptions {
   /**
    * @see https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollIntoView#container

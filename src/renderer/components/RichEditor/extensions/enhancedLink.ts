@@ -3,6 +3,8 @@ import Link from '@tiptap/extension-link'
 import type { MarkType, ResolvedPos } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 
+import { getEventTargetElement } from '@renderer/utils/dom'
+
 // Plugin to handle hover interactions
 const linkHoverPlugin = new PluginKey('linkHover')
 
@@ -41,7 +43,7 @@ interface LinkHoverPluginOptions {
   onLinkHover?: (
     attrs: { href: string; text: string; title?: string },
     position: DOMRect,
-    element: HTMLElement,
+    element: Element,
     linkRange?: { from: number; to: number }
   ) => void
   onLinkHoverEnd?: () => void
@@ -81,8 +83,7 @@ const createLinkHoverPlugin = (options: LinkHoverPluginOptions) => {
           // Don't process hover if not editable
           if (!options.editable) return false
 
-          const target = event.target as HTMLElement
-          const linkElement = target.closest('a[href]') as HTMLAnchorElement
+          const linkElement = getEventTargetElement(event.target)?.closest('a[href]')
 
           if (linkElement) {
             // Clear any existing timeout
@@ -203,8 +204,7 @@ const createLinkHoverPlugin = (options: LinkHoverPluginOptions) => {
           return false
         },
         mouseout: (_, event) => {
-          const target = event.target as HTMLElement
-          const linkElement = target.closest('a[href]')
+          const linkElement = getEventTargetElement(event.target)?.closest('a[href]')
 
           if (linkElement) {
             // Clear hover timeout if leaving the link
@@ -214,7 +214,7 @@ const createLinkHoverPlugin = (options: LinkHoverPluginOptions) => {
             }
 
             // Check if we're still within the link or moving to the popup
-            const relatedTarget = event.relatedTarget as HTMLElement
+            const relatedTarget = getEventTargetElement(event.relatedTarget)
             const isMovingToPopup = relatedTarget?.closest('[data-link-editor]')
             const isStillInLink = relatedTarget?.closest('a[href]') === linkElement
 
@@ -307,7 +307,7 @@ export interface EnhancedLinkOptions {
   onLinkHover?: (
     attrs: { href: string; text: string; title?: string },
     position: DOMRect,
-    element: HTMLElement,
+    element: Element,
     linkRange?: { from: number; to: number }
   ) => void
   onLinkHoverEnd?: () => void

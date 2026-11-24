@@ -137,7 +137,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     (
       attrs: { href: string; text: string; title?: string },
       position: DOMRect,
-      _element: HTMLElement,
+      _element: Element,
       linkRange?: { from: number; to: number }
     ) => {
       if (!editable) return

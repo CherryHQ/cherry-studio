@@ -11,7 +11,7 @@ export type FindElementNextToCoords = {
 
 export const findElementNextToCoords = (options: FindElementNextToCoords) => {
   const { x, y, direction, editor } = options
-  let resultElement: HTMLElement | null = null
+  let resultElement: Element | null = null
   let resultNode: Node | null = null
   let pos: number | null = null
 
@@ -25,7 +25,7 @@ export const findElementNextToCoords = (options: FindElementNextToCoords) => {
     if (filteredElements.length > 0) {
       const target = filteredElements[0]
 
-      resultElement = target as HTMLElement
+      resultElement = target
       pos = editor.view.posAtDOM(target, 0)
 
       if (pos >= 0) {

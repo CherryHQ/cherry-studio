@@ -36,7 +36,7 @@ interface Props {
   forceVisible?: boolean
   isAssistantMessage: boolean
   isProcessing: boolean
-  messageContainerRef: React.RefObject<HTMLDivElement>
+  messageContainerRef: React.RefObject<HTMLDivElement | null>
   onStartEditing?: (messageId: string) => void
   onMenuOpenChange?: (open: boolean) => void
   onSelectContext?: (msgId: string) => void

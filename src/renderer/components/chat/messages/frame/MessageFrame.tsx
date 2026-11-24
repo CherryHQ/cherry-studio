@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollArea } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { scrollIntoView } from '@renderer/utils/dom'
+import { getEventTargetElement, scrollIntoView } from '@renderer/utils/dom'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { classNames, cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -188,7 +188,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     (event: React.MouseEvent<HTMLDivElement>) => {
       if (!isMultiSelectMode) return
 
-      if ((event.target as HTMLElement | null)?.closest('[role="checkbox"]')) return
+      if (getEventTargetElement(event.target)?.closest('[role="checkbox"]')) return
 
       event.preventDefault()
       event.stopPropagation()
@@ -260,7 +260,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isAssistantMessage={false}
           isGrouped={isGrouped}
           isProcessing={isProcessing}
-          messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+          messageContainerRef={messageContainerRef}
           onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onSelectContext={onSelectContext}
           variant="header"
@@ -287,7 +287,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isAssistantMessage={isAssistantMessage}
           isGrouped={isGrouped}
           isProcessing={isProcessing}
-          messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+          messageContainerRef={messageContainerRef}
           onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onMenuOpenChange={setIsMessageMenuOpen}
           onSelectContext={onSelectContext}
@@ -318,7 +318,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isLastMessage={isLastMessage}
           isGrouped={isGrouped}
           isProcessing={isProcessing}
-          messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+          messageContainerRef={messageContainerRef}
           onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onSelectContext={onSelectContext}
           messageFont={messageFont}
@@ -370,7 +370,7 @@ const UserBubbleMessage = ({
   isLastMessage: boolean
   isGrouped?: boolean
   isProcessing: boolean
-  messageContainerRef: React.RefObject<HTMLDivElement>
+  messageContainerRef: React.RefObject<HTMLDivElement | null>
   onStartEditing?: (messageId: string) => void
   onSelectContext?: (msgId: string) => void
   messageFont: string

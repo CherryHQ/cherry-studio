@@ -5,11 +5,13 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { TextSelection } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 
+import { getEventTargetNode, isElementNode } from '@renderer/utils/dom'
+
 import { findElementNextToCoords } from '../helpers/findNextElementFromCursor'
 import { getOuterNode, getOuterNodePos } from '../helpers/getOutNode'
 import { removeNode } from '../helpers/removeNode'
 
-const getOuterDomNode = (view: EditorView, domNode: HTMLElement) => {
+const getOuterDomNode = (view: EditorView, domNode: globalThis.Node | null) => {
   let tmpDomNode = domNode
 
   // Traverse to top level node.
@@ -18,7 +20,7 @@ const getOuterDomNode = (view: EditorView, domNode: HTMLElement) => {
       break
     }
 
-    tmpDomNode = tmpDomNode.parentNode as HTMLElement
+    tmpDomNode = tmpDomNode.parentNode
   }
 
   return tmpDomNode
@@ -143,10 +145,9 @@ export const PlusButtonPlugin = ({
               return
             }
 
-            let domNode = view.nodeDOM(currentNodePos) as HTMLElement
+            const domNode = getOuterDomNode(view, view.nodeDOM(currentNodePos))
 
-            if (!domNode) return
-            domNode = getOuterDomNode(view, domNode)
+            if (!isElementNode(domNode)) return
 
             if (domNode === view.dom) {
               hideButton()
@@ -202,10 +203,9 @@ export const PlusButtonPlugin = ({
             }
 
             // 取到块对应的 DOM
-            let domNode = result.resultElement as HTMLElement
-            domNode = getOuterDomNode(view, domNode)
+            const domNode = getOuterDomNode(view, result.resultElement)
 
-            if (domNode === view.dom || domNode?.nodeType !== 1) {
+            if (domNode === view.dom || !isElementNode(domNode)) {
               hideButton()
 
               return false
@@ -262,7 +262,7 @@ export const PlusButtonPlugin = ({
           // 当鼠标离开编辑器区域时隐藏按钮
           mouseleave(_view, e) {
             // 如果指针正好在 wrapper（按钮）上则不隐藏
-            if (wrapper.contains(e.relatedTarget as HTMLElement)) return false
+            if (wrapper.contains(getEventTargetNode(e.relatedTarget))) return false
             hideButton()
             currentNode = null
             currentNodePos = -1

@@ -58,7 +58,7 @@ export interface MessageMenuBarActionContext {
   message: MessageListItem
   messageParts: CherryMessagePart[]
   messageForExport: MessageExportView
-  messageContainerRef: RefObject<HTMLDivElement>
+  messageContainerRef: RefObject<HTMLDivElement | null>
   acquireMessageCaptureLease?: (messageId: string) => () => void
   getRenderedMessageElement?: (messageId: string) => HTMLElement | null
   mainTextContent: string
