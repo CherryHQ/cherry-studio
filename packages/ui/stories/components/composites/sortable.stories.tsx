@@ -1,11 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { clsx } from 'clsx'
-import { useMemo, useState } from 'react'
+import { type ComponentProps, useMemo, useState } from 'react'
 
 import { Sortable } from '../../../src/components'
 import { useDndReorder } from '../../../src/hooks'
 
 type ExampleItem = { id: number; label: string }
+
+type DemoArgs = Pick<ComponentProps<typeof Sortable<ExampleItem>>, 'gap' | 'useDragOverlay' | 'showGhost'>
 
 const initialItems: ExampleItem[] = Array.from({ length: 18 }).map((_, i) => ({
   id: i + 1,
@@ -87,7 +89,7 @@ export const Grid: Story = {
   render: (args) => <GridDemo {...args} />
 }
 
-function VerticalDemo(args: any) {
+function VerticalDemo(args: DemoArgs) {
   const { query, setQuery, filteredList, onSortEnd } = useExampleData()
 
   return (
@@ -106,9 +108,9 @@ function VerticalDemo(args: any) {
           onSortEnd={onSortEnd}
           layout="list"
           horizontal={false}
-          gap={args.gap as string}
-          useDragOverlay={args.useDragOverlay as boolean}
-          showGhost={args.showGhost as boolean}
+          gap={args.gap}
+          useDragOverlay={args.useDragOverlay}
+          showGhost={args.showGhost}
           renderItem={(item, { dragging }) => (
             <div className="min-w-[200px]">
               <ItemCard item={item} dragging={dragging} />
@@ -124,7 +126,7 @@ function VerticalDemo(args: any) {
   )
 }
 
-function HorizontalDemo(args: any) {
+function HorizontalDemo(args: DemoArgs) {
   const { query, setQuery, filteredList, onSortEnd } = useExampleData()
 
   return (
@@ -143,9 +145,9 @@ function HorizontalDemo(args: any) {
           onSortEnd={onSortEnd}
           layout="list"
           horizontal
-          gap={args.gap as string}
-          useDragOverlay={args.useDragOverlay as boolean}
-          showGhost={args.showGhost as boolean}
+          gap={args.gap}
+          useDragOverlay={args.useDragOverlay}
+          showGhost={args.showGhost}
           renderItem={(item, { dragging }) => (
             <div className="min-w-[100px]">
               <ItemCard item={item} dragging={dragging} />
@@ -159,7 +161,7 @@ function HorizontalDemo(args: any) {
   )
 }
 
-function GridDemo(args: any) {
+function GridDemo(args: DemoArgs) {
   const { query, setQuery, filteredList, onSortEnd } = useExampleData()
 
   return (
@@ -176,9 +178,9 @@ function GridDemo(args: any) {
         itemKey="id"
         onSortEnd={onSortEnd}
         layout="grid"
-        gap={(args.gap as string) ?? '12px'}
-        useDragOverlay={args.useDragOverlay as boolean}
-        showGhost={args.showGhost as boolean}
+        gap={args.gap ?? '12px'}
+        useDragOverlay={args.useDragOverlay}
+        showGhost={args.showGhost}
         renderItem={(item, { dragging }) => <ItemCard item={item} dragging={dragging} />}
       />
 

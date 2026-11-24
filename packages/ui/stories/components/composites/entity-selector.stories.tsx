@@ -5,9 +5,11 @@ import { useMemo, useState } from 'react'
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { Checkbox } from '@cherrystudio/ui/components/primitives/checkbox'
 
-import { EntitySelector } from '../../../src/components/composites/entity-selector'
+import { EntitySelector, type EntitySelectorProps } from '../../../src/components/composites/entity-selector'
 
 type ExampleItem = { id: string; name: string; description?: string; emoji?: string }
+
+type SelectionValue = Parameters<EntitySelectorProps<ExampleItem>['onChange']>[0]
 
 const ITEMS: ExampleItem[] = [
   { id: 'item-1', name: 'Item 1', description: 'Description for item 1', emoji: '📦' },
@@ -90,7 +92,7 @@ export default meta
 type Story = StoryObj
 
 function DefaultDemo() {
-  const [value, setValue] = useState<string>('item-1')
+  const [value, setValue] = useState<SelectionValue>('item-1')
 
   return (
     <EntitySelector
@@ -98,7 +100,7 @@ function DefaultDemo() {
       items={ITEMS}
       mode="single"
       value={value}
-      onChange={(next) => setValue(next as string)}
+      onChange={setValue}
       renderItem={(item, ctx) => <ExampleRow item={item} {...ctx} />}
     />
   )
@@ -116,7 +118,7 @@ export const Default: Story = {
 }
 
 function WithSearchDemo() {
-  const [value, setValue] = useState<string>('item-1')
+  const [value, setValue] = useState<SelectionValue>('item-1')
   const [query, setQuery] = useState('')
 
   const filtered = useMemo(() => {
@@ -133,7 +135,7 @@ function WithSearchDemo() {
       items={filtered}
       mode="single"
       value={value}
-      onChange={(next) => setValue(next as string)}
+      onChange={setValue}
       search={{ value: query, onChange: setQuery, placeholder: 'Search…' }}
       renderItem={(item, ctx) => <ExampleRow item={item} {...ctx} />}
       emptyState={EMPTY_STATE}
@@ -154,7 +156,7 @@ export const WithSearch: Story = {
 }
 
 function WithFilterPanelSlotDemo() {
-  const [value, setValue] = useState<string>('item-1')
+  const [value, setValue] = useState<SelectionValue>('item-1')
   const [tags, setTags] = useState<string[]>([])
   const [sort, setSort] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -168,7 +170,7 @@ function WithFilterPanelSlotDemo() {
       items={ITEMS}
       mode="single"
       value={value}
-      onChange={(next) => setValue(next as string)}
+      onChange={setValue}
       search={{ value: query, onChange: setQuery, placeholder: 'Search…' }}
       renderItem={(item, ctx) => <ExampleRow item={item} {...ctx} />}
       filterActive={tags.length > 0 || sort !== null}
@@ -249,8 +251,8 @@ function WithMultiSelectDemo() {
       mode={enabled ? 'multi' : 'single'}
       value={enabled ? multi : single}
       onChange={(next) => {
-        if (enabled) setMulti(next as string[])
-        else setSingle(next as string)
+        if (Array.isArray(next)) setMulti(next)
+        else setSingle(next)
       }}
       renderItem={(item, ctx) => <ExampleRow item={item} {...ctx} />}
       multiSelect={{
@@ -276,7 +278,7 @@ export const WithMultiSelect: Story = {
 }
 
 function WithContextMenuSlotDemo() {
-  const [value, setValue] = useState<string>('item-1')
+  const [value, setValue] = useState<SelectionValue>('item-1')
 
   return (
     <EntitySelector
@@ -284,7 +286,7 @@ function WithContextMenuSlotDemo() {
       items={ITEMS}
       mode="single"
       value={value}
-      onChange={(next) => setValue(next as string)}
+      onChange={setValue}
       renderItem={(item, ctx) => <ExampleRow item={item} {...ctx} />}
       renderItemContextMenu={(item, { close }) => (
         <div className="min-w-[140px] rounded-md border border-border/60 bg-popover p-1 shadow-md">
@@ -317,7 +319,7 @@ export const WithContextMenuSlot: Story = {
 }
 
 function WithFooterSlotDemo() {
-  const [value, setValue] = useState<string>('item-1')
+  const [value, setValue] = useState<SelectionValue>('item-1')
 
   return (
     <EntitySelector
@@ -325,7 +327,7 @@ function WithFooterSlotDemo() {
       items={ITEMS}
       mode="single"
       value={value}
-      onChange={(next) => setValue(next as string)}
+      onChange={setValue}
       renderItem={(item, ctx) => <ExampleRow item={item} {...ctx} />}
       footer={
         <button
@@ -393,7 +395,7 @@ function FullFeaturedDemo() {
     }
 
     const pinnedSet = new Set(pinnedIds)
-    const pinned = pinnedIds.map((id) => next.find((it) => it.id === id)).filter(Boolean) as RichItem[]
+    const pinned = pinnedIds.map((id) => next.find((it) => it.id === id)).filter((item) => item !== undefined)
     const rest = next.filter((it) => !pinnedSet.has(it.id))
 
     return [...pinned, ...rest]
@@ -409,8 +411,8 @@ function FullFeaturedDemo() {
       mode={enabled ? 'multi' : 'single'}
       value={enabled ? multi : single}
       onChange={(next) => {
-        if (enabled) setMulti(next as string[])
-        else setSingle(next as string)
+        if (Array.isArray(next)) setMulti(next)
+        else setSingle(next)
       }}
       search={{ value: query, onChange: setQuery, placeholder: 'Search…' }}
       renderItem={(item, ctx) => <ExampleRow item={item} {...ctx} />}
@@ -527,12 +529,12 @@ export const FullFeatured: Story = {
 }
 
 function ConsumerManagedSortDemo() {
-  const [value, setValue] = useState<string>('item-1')
+  const [value, setValue] = useState<SelectionValue>('item-1')
   const [pinnedIds, setPinnedIds] = useState<string[]>(['item-3'])
 
   const sortedItems = useMemo(() => {
     const pinnedSet = new Set(pinnedIds)
-    const pinned = pinnedIds.map((id) => ITEMS.find((it) => it.id === id)).filter(Boolean) as ExampleItem[]
+    const pinned = pinnedIds.map((id) => ITEMS.find((it) => it.id === id)).filter((item) => item !== undefined)
     const rest = ITEMS.filter((it) => !pinnedSet.has(it.id))
 
     return [...pinned, ...rest]
@@ -544,7 +546,7 @@ function ConsumerManagedSortDemo() {
       items={sortedItems}
       mode="single"
       value={value}
-      onChange={(next) => setValue(next as string)}
+      onChange={setValue}
       renderItem={(item, ctx) => <ExampleRow item={item} {...ctx} />}
       renderItemContextMenu={(item, { close }) => {
         const isPinned = pinnedIds.includes(item.id)
@@ -583,12 +585,12 @@ export const ConsumerManagedSort: Story = {
 }
 
 function WithSectionsDemo() {
-  const [value, setValue] = useState<string>('item-1')
+  const [value, setValue] = useState<SelectionValue>('item-1')
   const [pinnedIds, setPinnedIds] = useState<string[]>(['item-3'])
 
   const { pinnedItems, restItems } = useMemo(() => {
     const pinnedSet = new Set(pinnedIds)
-    const pinned = pinnedIds.map((id) => ITEMS.find((it) => it.id === id)).filter(Boolean) as ExampleItem[]
+    const pinned = pinnedIds.map((id) => ITEMS.find((it) => it.id === id)).filter((item) => item !== undefined)
     const rest = ITEMS.filter((it) => !pinnedSet.has(it.id))
 
     return { pinnedItems: pinned, restItems: rest }
@@ -607,7 +609,7 @@ function WithSectionsDemo() {
       ]}
       mode="single"
       value={value}
-      onChange={(next) => setValue(next as string)}
+      onChange={setValue}
       renderItem={(item, ctx) => <ExampleRow item={item} {...ctx} />}
       renderItemContextMenu={(item, { close }) => {
         const isPinned = pinnedIds.includes(item.id)

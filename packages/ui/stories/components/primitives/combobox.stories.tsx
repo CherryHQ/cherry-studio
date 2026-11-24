@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { ChevronDown, User } from 'lucide-react'
-import { useState } from 'react'
+import { type ComponentProps, useState } from 'react'
 
 import { Combobox } from '@cherrystudio/ui'
 
@@ -49,6 +49,8 @@ const meta: Meta<typeof Combobox> = {
 export default meta
 
 type Story = StoryObj<typeof meta>
+
+type SelectionValue = Parameters<NonNullable<ComponentProps<typeof Combobox>['onChange']>>[0]
 
 // Mock data - 根据设计稿中的用户选择场景
 const userOptions = [
@@ -323,9 +325,9 @@ export const MultipleWithSelectedValues: Story = {
 // 所有状态展示 - 对应设计稿的三列（Normal, Focus, Error）
 export const AllStates: Story = {
   render: function AllStatesExample() {
-    const [normalValue, setNormalValue] = useState('')
-    const [selectedValue, setSelectedValue] = useState('rachel-meyers')
-    const [errorValue, setErrorValue] = useState('')
+    const [normalValue, setNormalValue] = useState<SelectionValue>('')
+    const [selectedValue, setSelectedValue] = useState<SelectionValue>('rachel-meyers')
+    const [errorValue, setErrorValue] = useState<SelectionValue>('')
 
     return (
       <div className="flex flex-col gap-6">
@@ -335,7 +337,7 @@ export const AllStates: Story = {
           <Combobox
             options={userOptions}
             value={normalValue}
-            onChange={(val) => setNormalValue(val as string)}
+            onChange={setNormalValue}
             placeholder="Please Select"
             width={280}
           />
@@ -347,7 +349,7 @@ export const AllStates: Story = {
           <Combobox
             options={userOptions}
             value={selectedValue}
-            onChange={(val) => setSelectedValue(val as string)}
+            onChange={setSelectedValue}
             placeholder="Please Select"
             width={280}
           />
@@ -360,7 +362,7 @@ export const AllStates: Story = {
             error
             options={userOptions}
             value={errorValue}
-            onChange={(val) => setErrorValue(val as string)}
+            onChange={setErrorValue}
             placeholder="Please Select"
             width={280}
           />
@@ -373,7 +375,7 @@ export const AllStates: Story = {
             disabled
             options={userOptions}
             value={selectedValue}
-            onChange={(val) => setSelectedValue(val as string)}
+            onChange={setSelectedValue}
             placeholder="Please Select"
             width={280}
           />
@@ -386,39 +388,21 @@ export const AllStates: Story = {
 // 所有尺寸
 export const AllSizes: Story = {
   render: function AllSizesExample() {
-    const [value, setValue] = useState('')
+    const [value, setValue] = useState<SelectionValue>('')
 
     return (
       <div className="flex flex-col gap-4">
         <div>
           <p className="mb-2 text-sm text-muted-foreground">Small</p>
-          <Combobox
-            size="sm"
-            options={simpleOptions}
-            value={value}
-            onChange={(val) => setValue(val as string)}
-            width={280}
-          />
+          <Combobox size="sm" options={simpleOptions} value={value} onChange={setValue} width={280} />
         </div>
         <div>
           <p className="mb-2 text-sm text-muted-foreground">Default</p>
-          <Combobox
-            size="default"
-            options={simpleOptions}
-            value={value}
-            onChange={(val) => setValue(val as string)}
-            width={280}
-          />
+          <Combobox size="default" options={simpleOptions} value={value} onChange={setValue} width={280} />
         </div>
         <div>
           <p className="mb-2 text-sm text-muted-foreground">Large</p>
-          <Combobox
-            size="lg"
-            options={simpleOptions}
-            value={value}
-            onChange={(val) => setValue(val as string)}
-            width={280}
-          />
+          <Combobox size="lg" options={simpleOptions} value={value} onChange={setValue} width={280} />
         </div>
       </div>
     )
@@ -428,9 +412,9 @@ export const AllSizes: Story = {
 // 多选不同状态组合 - 对应设计稿底部区域
 export const MultipleStates: Story = {
   render: function MultipleStatesExample() {
-    const [normalValue, setNormalValue] = useState<string[]>([])
-    const [selectedValue, setSelectedValue] = useState<string[]>(['rachel-meyers', 'john-doe'])
-    const [errorValue, setErrorValue] = useState<string[]>(['rachel-meyers'])
+    const [normalValue, setNormalValue] = useState<SelectionValue>([])
+    const [selectedValue, setSelectedValue] = useState<SelectionValue>(['rachel-meyers', 'john-doe'])
+    const [errorValue, setErrorValue] = useState<SelectionValue>(['rachel-meyers'])
 
     return (
       <div className="flex flex-col gap-6">
@@ -441,7 +425,7 @@ export const MultipleStates: Story = {
             multiple
             options={userOptions}
             value={normalValue}
-            onChange={(val) => setNormalValue(val as string[])}
+            onChange={setNormalValue}
             placeholder="Please Select"
             width={280}
           />
@@ -454,7 +438,7 @@ export const MultipleStates: Story = {
             multiple
             options={userOptions}
             value={selectedValue}
-            onChange={(val) => setSelectedValue(val as string[])}
+            onChange={setSelectedValue}
             placeholder="Please Select"
             width={280}
           />
@@ -468,7 +452,7 @@ export const MultipleStates: Story = {
             error
             options={userOptions}
             value={errorValue}
-            onChange={(val) => setErrorValue(val as string[])}
+            onChange={setErrorValue}
             placeholder="Please Select"
             width={280}
           />
@@ -498,7 +482,7 @@ export const WithoutSearch: Story = {
 
 export const TriggerSearchFontList: Story = {
   render: function TriggerSearchFontListExample() {
-    const [font, setFont] = useState('inter')
+    const [font, setFont] = useState<SelectionValue>('inter')
     const selectedFont = fontOptions.find((option) => option.value === font)
 
     return (
@@ -506,7 +490,7 @@ export const TriggerSearchFontList: Story = {
         <Combobox
           options={fontOptions}
           value={font}
-          onChange={(val) => setFont(val as string)}
+          onChange={setFont}
           searchPlacement="trigger"
           placeholder="Select font"
           emptyText="No fonts found"
@@ -536,13 +520,13 @@ export const TriggerSearchFontList: Story = {
 
 export const CustomFilterOption: Story = {
   render: function CustomFilterOptionExample() {
-    const [tool, setTool] = useState('')
+    const [tool, setTool] = useState<SelectionValue>('')
 
     return (
       <Combobox
         options={searchableToolOptions}
         value={tool}
-        onChange={(val) => setTool(val as string)}
+        onChange={setTool}
         placeholder="Search tools"
         searchPlaceholder="Search label, category, or keyword"
         emptyText="No tools found"
@@ -571,9 +555,9 @@ export const CustomFilterOption: Story = {
 // 实际使用场景 - 综合展示
 export const RealWorldExamples: Story = {
   render: function RealWorldExample() {
-    const [assignee, setAssignee] = useState('')
-    const [members, setMembers] = useState<string[]>([])
-    const [status, setStatus] = useState('')
+    const [assignee, setAssignee] = useState<SelectionValue>('')
+    const [members, setMembers] = useState<SelectionValue>([])
+    const [status, setStatus] = useState<SelectionValue>('')
 
     const statusOptions = [
       { value: 'pending', label: 'Pending', description: 'Waiting for review' },
@@ -589,7 +573,7 @@ export const RealWorldExamples: Story = {
           <Combobox
             options={userOptions}
             value={assignee}
-            onChange={(val) => setAssignee(val as string)}
+            onChange={setAssignee}
             placeholder="Select assignee..."
             width={280}
           />
@@ -602,7 +586,7 @@ export const RealWorldExamples: Story = {
             multiple
             options={userOptions}
             value={members}
-            onChange={(val) => setMembers(val as string[])}
+            onChange={setMembers}
             placeholder="Select members..."
             width={280}
           />
@@ -614,7 +598,7 @@ export const RealWorldExamples: Story = {
           <Combobox
             options={statusOptions}
             value={status}
-            onChange={(val) => setStatus(val as string)}
+            onChange={setStatus}
             placeholder="Select status..."
             width={280}
           />
