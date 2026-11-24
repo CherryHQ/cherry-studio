@@ -492,10 +492,22 @@ const AgentPage = () => {
   const resolveEmptySession = useCallback(
     async (agentId: string, defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity> => {
       const workspaceSource = await resolveCreateWorkspaceSource(defaults, visibleSession)
+      // A handoff destination holds its reviewed draft only in the session-keyed
+      // draft cache, so an unnamed, message-less session reads as an empty
+      // placeholder: a later new-conversation action would count it as reusable
+      // and delete the older duplicate, orphaning the draft. A durable name
+      // excludes it from that cleanup.
+      const handoffSessionName = (draft: CreateAgentSessionDefaults['handoffDraft']): string => {
+        const line = draft?.text
+          .split('\n')
+          .map((candidate) => candidate.replace(/^#+\s*/, '').trim())
+          .find((candidate) => candidate.length > 0)
+        return line?.slice(0, 60) || t('handoff.new')
+      }
       const result = defaults.handoffDraft
         ? {
             session: await dataApiService.post('/agent-sessions', {
-              body: { agentId, name: '', workspace: workspaceSource }
+              body: { agentId, name: handoffSessionName(defaults.handoffDraft), workspace: workspaceSource }
             }),
             created: true,
             deletedDuplicateSessionIds: []
@@ -516,7 +528,7 @@ const AgentPage = () => {
 
       return result.session
     },
-    [closeConversationTabs, invalidateCache, resolveCreateWorkspaceSource, reuseOrCreateSession, visibleSession]
+    [closeConversationTabs, invalidateCache, resolveCreateWorkspaceSource, reuseOrCreateSession, t, visibleSession]
   )
 
   const createAndActivateEmptySession = useCallback(

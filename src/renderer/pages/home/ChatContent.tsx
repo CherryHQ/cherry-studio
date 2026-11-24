@@ -204,7 +204,12 @@ const ChatContentInner: FC<InnerProps> = ({
     return { contextTokens, modelId }
   }, [activeNodeId, isHistoryStale, uiMessages])
 
-  const { model: handoffModel } = useModelById(contextUsage?.modelId ?? composerModelId)
+  // Generation targets the current composer selection, not the previous reply's
+  // model: forwarding the reply's provider after a composer switch would send the
+  // stored transcript and tool results to that provider. The usage display keeps
+  // the reply's model because its context window matches the token count.
+  const { model: handoffModel } = useModelById(composerModelId)
+  const { model: handoffUsageModel } = useModelById(contextUsage?.modelId ?? composerModelId)
 
   useEffect(() => {
     if (!locateMessageId && !locateToEnd) {
@@ -314,8 +319,8 @@ const ChatContentInner: FC<InnerProps> = ({
                 modelId={handoffModel?.id ?? composerModelId}
                 hasMessages={Boolean(topic.activeNodeId)}
                 percentage={
-                  contextUsage && handoffModel?.contextWindow
-                    ? (contextUsage.contextTokens / handoffModel.contextWindow) * 100
+                  contextUsage && handoffUsageModel?.contextWindow
+                    ? (contextUsage.contextTokens / handoffUsageModel.contextWindow) * 100
                     : null
                 }
               />
