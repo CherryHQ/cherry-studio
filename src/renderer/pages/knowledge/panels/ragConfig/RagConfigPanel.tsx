@@ -67,6 +67,7 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
         <ErrorNotice
           title={t('knowledge.status.failed')}
           info={failureReason}
+          wrapInfo
           action={{ label: t('knowledge.restore.action'), onClick: () => onRestoreBase(base) }}
           detail={
             <ErrorDetailAction
