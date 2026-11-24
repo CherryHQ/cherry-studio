@@ -41,7 +41,7 @@ class ConsentRevokedError extends Error {
 
 function linkSignals(first: AbortSignal, second?: AbortSignal | null): AbortSignal {
   if (!second) return first
-  const anySignals = (AbortSignal as typeof AbortSignal & { any?: (s: AbortSignal[]) => AbortSignal }).any
+  const anySignals = AbortSignal.any
 
   if (typeof anySignals === 'function') return anySignals.call(AbortSignal, [first, second])
   const controller = new AbortController()
@@ -127,7 +127,7 @@ export class AnalyticsService extends BaseService implements Activatable {
         return await globalThis.fetch(input, {
           ...init,
           signal: linkSignals(revokeController.signal, init?.signal)
-        } as RequestInit)
+        })
       } catch (error) {
         if (revokeController.signal.aborted) throw new ConsentRevokedError()
         throw error
