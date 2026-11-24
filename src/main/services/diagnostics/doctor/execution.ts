@@ -77,6 +77,7 @@ export class DoctorExecution {
           this.memo.set(key, value)
         }
 
+        // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- The caller-owned memo key must keep one result type across factories; this heterogeneous cache does not validate that contract at runtime.
         return value as ReturnType<typeof factory>
       }
     }
@@ -92,6 +93,7 @@ export class DoctorExecution {
     const definitions = new Map<DoctorCheckId, DoctorEngineDefinition>()
 
     for (const id of this.ids) definitions.set(id, doctorCheckRegistry[id])
+    // SAFETY: The closed registry binds each selected ID to its outcome; this engine preserves that pair and only adds contract-compatible error/skip results.
     this.results = (await runDoctorChecks<DoctorCheckId, DoctorProbeOutcome<DoctorCheckId>>({
       signal,
       initialResults: this.results,
@@ -142,6 +144,7 @@ export class DoctorExecution {
       },
       onResult: (result) => {
         active.delete(result.id)
+        // SAFETY: The engine preserves this closed registry's ID/outcome pair; its synthesized error/skip results also satisfy DoctorCheckResult.
         settled.set(result.id, result as DoctorCheckResult)
         onProgress?.([...settled.values()], [...active])
       }

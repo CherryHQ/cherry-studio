@@ -48,6 +48,7 @@ Runs health checks in main and publishes progress + terminal state on the shared
    ```
    `ctx.share(key, factory)` memoizes a probe for the current run, so checks in different layers (all the
    network checks, for instance) reuse one pass instead of probing again.
+   Every caller of the same key must use the same result type and probe semantics; the cache does not validate this at runtime.
 3. **Registry** — add the line in `registry.ts`. Until you do, the build fails.
 
 Reference implementations: `checks/config.ts` (a check with a fix) and `checks/storage.ts` (a silent-fallback

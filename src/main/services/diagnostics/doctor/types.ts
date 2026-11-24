@@ -13,7 +13,7 @@ import type {
 export interface DoctorContextBase {
   /** Aborted on the check's timeout or when the whole run is canceled; long probes should honour it. */
   readonly signal: AbortSignal
-  /** Memoizes `factory` under `key` for the current run, so checks in different layers reuse one probe. */
+  /** Memoizes one probe per run; all callers of a key must use the same result type and probe semantics. */
   share<T>(key: string, factory: (signal: AbortSignal) => Promise<T>): Promise<T>
 }
 
