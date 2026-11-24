@@ -13,6 +13,8 @@ import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
+  FileProcessorId,
+  FileProcessorOverride,
   PreferenceDefaultScopeType,
   PreferenceKeyType,
   UnifiedPreferenceKeyType,
@@ -25,6 +27,7 @@ import {
   isPublicBootConfigKey,
   toBootConfigKey
 } from '@shared/data/preference/preferenceUtils'
+import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { preferenceTable } from './db/schemas/preference'
@@ -269,6 +272,11 @@ export class PreferenceService extends BaseService {
       }
     )
 
+    this.ipcHandle(IpcChannel.Preference_ResetFileProcessorOptions, (event, processorId: FileProcessorId) => {
+      this.assertTrustedSender(event, IpcChannel.Preference_ResetFileProcessorOptions)
+      return this.resetFileProcessorOptions(processorId)
+    })
+
     this.ipcHandle(IpcChannel.Preference_GetMultipleRaw, (event, keys: UnifiedPreferenceKeyType[]) => {
       this.assertTrustedSender(event, IpcChannel.Preference_GetMultipleRaw)
       return this.getMultipleRaw(keys)
@@ -352,6 +360,29 @@ export class PreferenceService extends BaseService {
     }
 
     return (this.cache[route.key] ?? DefaultPreferences.default[route.key]) as UnifiedPreferenceType[K]
+  }
+
+  public async resetFileProcessorOptions(processorId: FileProcessorId): Promise<void> {
+    const key = 'feature.file_processing.overrides' as const
+    FileProcessorIdSchema.parse(processorId)
+    const current = this.get(key)
+    const override = current[processorId]
+    if (!override) return
+    const next = { ...current }
+    const kept: FileProcessorOverride = {}
+    if (override.apiKeys?.length) {
+      kept.apiKeys = override.apiKeys
+      for (const feature of ['image_to_text', 'document_to_markdown'] as const) {
+        const apiHost = override.capabilities?.[feature]?.apiHost
+        if (typeof apiHost === 'string') {
+          kept.capabilities ??= {}
+          kept.capabilities[feature] = { apiHost }
+        }
+      }
+    }
+    if (Object.keys(kept).length) next[processorId] = kept
+    else delete next[processorId]
+    await this.set(key, next)
   }
 
   /**

@@ -334,7 +334,7 @@ describe('processing settings pages', () => {
     await user.click(await screen.findByRole('button', { name: 'settings.tool.file_processing.reset_options' }))
     const params = show.mock.calls.at(-1)?.[0]
     expect(params).toBeDefined()
-    setOverridesMock.mockRejectedValueOnce(new Error('reset write failed'))
+    vi.mocked(preferenceService.resetFileProcessorOptions).mockRejectedValueOnce(new Error('reset write failed'))
     await expect(params!.action()).rejects.toThrow('reset write failed')
     show.mockRestore()
   })
