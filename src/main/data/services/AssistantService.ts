@@ -694,6 +694,7 @@ export class AssistantDataService {
     })
 
     logger.info('Updated assistant', { id, changes: Object.keys(dto) })
+    this.notifyReadModelChange([id], 'projection')
 
     return rowToAssistant(row, nextRelations, modelName, this.getAvatarIds([id]).get(id))
   }

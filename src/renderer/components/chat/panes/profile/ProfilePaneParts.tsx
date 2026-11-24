@@ -1,9 +1,8 @@
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, SegmentedControl, Skeleton } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 
 /** A titled group: the label row (with an optional action on the right) above a bordered card. */
 export function ProfilePaneSection({
@@ -57,39 +56,6 @@ export function ProfileSettingsRow({ label, children }: { label: string; childre
       <div className="min-w-0 truncate text-foreground text-sm">{label}</div>
       <div className="flex shrink-0 items-center gap-2">{children}</div>
     </div>
-  )
-}
-
-/** A settings value that opens the edit dialog on the page where it is changed. */
-export function ProfileSettingButton({
-  label,
-  value,
-  icon,
-  onClick,
-  className
-}: {
-  /** The row label, so the accessible name says which setting this is. */
-  label: string
-  value: string
-  icon?: ReactNode
-  onClick: () => void
-  className?: string
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      aria-label={`${label}: ${value}`}
-      onClick={onClick}
-      className={cn(
-        'h-8 max-w-48 justify-between gap-1.5 rounded-lg border-0 bg-muted/50 px-2.5 font-normal text-[13px] text-foreground shadow-none hover:bg-muted',
-        className
-      )}>
-      {icon}
-      <span className="min-w-0 truncate">{value}</span>
-      <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-    </Button>
   )
 }
 
