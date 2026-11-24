@@ -430,7 +430,8 @@ const TaskSessionPickerField: FC<{
   value: string | null
   onChange: (value: string | null) => void
   disabled?: boolean
-}> = ({ agentId, value, onChange, disabled }) => {
+  bindingLost?: boolean
+}> = ({ agentId, value, onChange, disabled, bindingLost }) => {
   const { t } = useTranslation()
   const { data: listPage } = useQuery('/agent-sessions', {
     query: { agentId: agentId ?? '', limit: 200 },
@@ -454,7 +455,7 @@ const TaskSessionPickerField: FC<{
     <Field>
       <FieldLabel htmlFor="task-form-reuse-session-id">{t('agent.tasks.reuseSession.sessionLabel')}</FieldLabel>
       <Select
-        value={value ?? AUTO_REUSE_VALUE}
+        value={value ?? (bindingLost ? '' : AUTO_REUSE_VALUE)}
         disabled={disabled || !agentId}
         onValueChange={(next) => onChange(next === AUTO_REUSE_VALUE ? null : next)}>
         <SelectTrigger id="task-form-reuse-session-id" className="w-full">
@@ -508,6 +509,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [reuseSession, setReuseSession] = useState(false)
   const [reuseSessionId, setReuseSessionId] = useState<string | null>(null)
+  const [reuseSelectionChanged, setReuseSelectionChanged] = useState(false)
   const [saving, setSaving] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [promptPreviewKey, setPromptPreviewKey] = useState(0)
@@ -529,6 +531,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
       setWorkspaceId(draft?.workspaceId ?? null)
       setReuseSession(draft?.reuseSession ?? false)
       setReuseSessionId(draft?.reuseSessionId ?? null)
+      setReuseSelectionChanged(false)
       setSaving(false)
       setSubmitted(false)
       setPromptPreviewKey((key) => key + 1)
@@ -586,7 +589,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
         }
         if (workspaceId !== initialDraft.workspaceId) updates.workspace = workspace
         if (reuseSession !== initialDraft.reuseSession) updates.reuseSession = reuseSession
-        if (reuseSessionId !== initialDraft.reuseSessionId) {
+        if (reuseSessionId !== initialDraft.reuseSessionId || (reuseSelectionChanged && props.task.reuseBindingLost)) {
           updates.reuseSessionId = reuseSession ? reuseSessionId : null
         }
         if (!stringArraysEqual(channelIds, initialDraft.channelIds)) updates.channelIds = channelIds
@@ -621,6 +624,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     props,
     reuseSession,
     reuseSessionId,
+    reuseSelectionChanged,
     schedule,
     resolvedTrigger,
     workspaceId
@@ -748,8 +752,12 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
               <TaskSessionPickerField
                 agentId={agentId}
                 value={reuseSessionId}
+                bindingLost={Boolean(task?.reuseBindingLost && !reuseSelectionChanged)}
                 disabled={saving}
-                onChange={setReuseSessionId}
+                onChange={(value) => {
+                  setReuseSessionId(value)
+                  setReuseSelectionChanged(true)
+                }}
               />
             )}
 
