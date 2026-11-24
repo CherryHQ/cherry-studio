@@ -137,7 +137,7 @@ describe('stripUnsupportedModelParams', () => {
         {
           ...model,
           parameterSupport: {
-            temperature: { supported: false, min: 0, max: 2 },
+            temperature: { supported: false, range: { min: 0, max: 2 } },
             maxTokens: true,
             stopSequences: true,
             systemMessage: true
@@ -232,8 +232,8 @@ describe('stripUnsupportedModelParams', () => {
     ({ temperature, topP, standard, wire }) => {
       const model = makeModel({
         parameterSupport: {
-          temperature: temperature === undefined ? undefined : { supported: temperature, min: 0, max: 1 },
-          topP: topP === undefined ? undefined : { supported: topP, min: 0, max: 1 },
+          temperature: temperature === undefined ? undefined : { supported: temperature, range: { min: 0, max: 1 } },
+          topP: topP === undefined ? undefined : { supported: topP, range: { min: 0, max: 1 } },
           maxTokens: true,
           stopSequences: true,
           systemMessage: true
@@ -300,16 +300,12 @@ describe('getTemperature', () => {
     expect(getTemperature(a, model, OFF_REASONING)).toBe(0.8)
   })
 
-  it('clamps temperature to 1 for isMaxTemperatureOneModel', () => {
-    // `isMaxTemperatureOneModel` first reads `parameterSupport.temperature.max`;
-    // its id-based fallback covers `claude/glm/kimi/moonshot` only — gpt-5
-    // is classified by the registry, not the fallback, so the test has to
-    // declare the parameter support explicitly.
+  it('clamps temperature to 1 when parameter support declares that range', () => {
     const a = makeSampling({ temperature: 1.5 })
     const model = makeModel({
       id: 'openai::gpt-5',
       parameterSupport: {
-        temperature: { supported: true, min: 0, max: 1 },
+        temperature: { supported: true, range: { min: 0, max: 1 } },
         maxTokens: true,
         stopSequences: true,
         systemMessage: true
@@ -324,7 +320,7 @@ describe('getTemperature', () => {
       id: 'moonshot::kimi-k2-6',
       providerId: 'moonshot',
       parameterSupport: {
-        temperature: { supported: false, min: 0, max: 1 },
+        temperature: { supported: false, range: { min: 0, max: 1 } },
         maxTokens: true,
         stopSequences: true,
         systemMessage: true
@@ -392,7 +388,7 @@ describe('getTopP', () => {
       id: 'moonshot::kimi-k3',
       providerId: 'moonshot',
       parameterSupport: {
-        topP: { supported: false, min: 0, max: 1 },
+        topP: { supported: false, range: { min: 0, max: 1 } },
         maxTokens: true,
         stopSequences: true,
         systemMessage: true

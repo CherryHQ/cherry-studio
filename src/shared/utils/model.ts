@@ -160,7 +160,9 @@ export const isTemperatureTopPMutuallyExclusiveModel = (model: Model): boolean =
 /** Check if model has max temperature of 1 */
 export const isMaxTemperatureOneModel = (model: Model): boolean => {
   if (model.parameterSupport?.temperature) {
-    return model.parameterSupport.temperature.max <= 1
+    const max = model.parameterSupport.temperature.range?.max
+
+    return max !== undefined && max <= 1
   }
 
   // Fallback: infer from model family

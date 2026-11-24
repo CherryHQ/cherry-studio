@@ -7,6 +7,7 @@ import {
   isAudioModel,
   isEmbeddingModel,
   isFunctionCallingModel,
+  isMaxTemperatureOneModel,
   isGatewayRoutableModel,
   isGenerateImageModel,
   isNonChatModel,
@@ -31,6 +32,23 @@ const createModel = (capabilities: Model['capabilities'] = []): Model => ({
 })
 
 describe('shared model capability helpers', () => {
+  it.each([
+    { support: undefined, expected: true },
+    { support: {}, expected: true },
+    { support: { temperature: { supported: true } }, expected: false },
+    { support: { temperature: { supported: true, range: { min: 0, max: 1 } } }, expected: true },
+    { support: { temperature: { supported: true, range: { min: 0, max: 2 } } }, expected: false }
+  ])('uses declared temperature ranges before model-family fallback: %j', ({ support, expected }) => {
+    const model: Model = {
+      ...createModel(),
+      id: 'anthropic::claude-sonnet-4-5',
+      apiModelId: 'claude-sonnet-4-5',
+      parameterSupport: support
+    }
+
+    expect(isMaxTemperatureOneModel(model)).toBe(expected)
+  })
+
   it.each([
     [undefined, 'gpt-4o'],
     ['', 'gpt-4o'],

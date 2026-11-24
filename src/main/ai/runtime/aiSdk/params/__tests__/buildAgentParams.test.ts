@@ -806,8 +806,8 @@ describe('buildAgentParams standard model parameters', () => {
       id: 'dashscope::kimi-k3',
       providerId: 'dashscope',
       parameterSupport: {
-        temperature: { supported: false, min: 0, max: 1 },
-        topP: { supported: false, min: 0, max: 1 },
+        temperature: { supported: false, range: { min: 0, max: 1 } },
+        topP: { supported: false, range: { min: 0, max: 1 } },
         maxTokens: true,
         stopSequences: true,
         systemMessage: true

@@ -60,7 +60,6 @@ import type {
   Model,
   ReasoningSummary,
   RuntimeModelPricing,
-  RuntimeParameterSupport,
   RuntimeReasoning,
   ServiceTierSelection
 } from '@shared/data/types/model'
@@ -571,7 +570,7 @@ export function mergePresetModel(
 
   return {
     ...metadata,
-    parameterSupport: parameterSupport as RuntimeParameterSupport | undefined,
+    parameterSupport,
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
     isHidden: false,

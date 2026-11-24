@@ -15,6 +15,19 @@ sources:
 
 This document describes how Cherry Studio loads, parses, and merges provider/model preset data with user data.
 
+## Parameter support
+
+Registry data, user-model DTOs, stored parameter blocks, and runtime models share
+the `supported` plus optional `range: { min, max }` shape for temperature, top-p,
+and top-k. User parameter blocks remain sparse; reading stored user parameters
+does not add support defaults or rewrite stored values.
+
+The sampling policy reads `temperature.range.max` for the existing ceiling-of-one
+rule. A declared maximum at or below one limits a requested temperature above one
+to one. A temperature declaration without a range does not use the model-family
+fallback; that fallback applies only when the temperature declaration is absent.
+This policy does not clamp to arbitrary declared minima or maxima.
+
 ## Architecture Overview
 
 ```

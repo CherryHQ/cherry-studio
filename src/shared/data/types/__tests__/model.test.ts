@@ -1,6 +1,24 @@
 import { describe, expect, it } from 'vitest'
 
-import { createUniqueModelId, UniqueModelIdSchema } from '../model'
+import { createUniqueModelId, ModelSchema, UniqueModelIdSchema } from '../model'
+
+describe('runtime model parameter support', () => {
+  it('accepts persisted sparse support metadata without changing its range or adding defaults', () => {
+    const parameterSupport = { temperature: { supported: true, range: { min: 0, max: 1 } } }
+    const model = ModelSchema.parse({
+      id: 'custom::model',
+      providerId: 'custom',
+      name: 'Custom Model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false,
+      parameterSupport
+    })
+
+    expect(model.parameterSupport).toEqual(parameterSupport)
+  })
+})
 
 describe('reserved route characters in a modelId', () => {
   // The schema and the constructor are the two ways a caller can ask whether an id

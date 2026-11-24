@@ -46,8 +46,8 @@ import type {
   Modality,
   Model,
   ModelCapability,
+  ParameterSupport,
   RuntimeModelPricing,
-  RuntimeParameterSupport,
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
@@ -179,11 +179,9 @@ export interface UserModelOverlay {
   maxInputTokens?: number | null
   maxOutputTokens?: number | null
   supportsStreaming?: boolean | null
-  parameterSupport?: RuntimeParameterSupport | null
+  parameterSupport?: ParameterSupport | null
   pricing?: RuntimeModelPricing | null
-  // Persisted reasoning rows may have optional fields the runtime type requires;
-  // applyUserOverlay narrows it via cast on copy.
-  reasoning?: Partial<RuntimeReasoning> | null
+  reasoning?: RuntimeReasoning | null
 }
 
 /**
@@ -234,7 +232,7 @@ export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Mo
   }
 
   if (overlay.reasoning) {
-    result.reasoning = overlay.reasoning as RuntimeReasoning
+    result.reasoning = overlay.reasoning
   }
 
   if (overlay.supportsStreaming != null) {
@@ -302,7 +300,9 @@ function deleteModelsSqliteHandlers(identifier: string): SqliteErrorHandlers {
  * Entries are either a shared key name, or [dtoKey, dbColumn] when names differ.
  * Exported for test coverage — ensures no DTO field is silently dropped.
  */
-export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateModelDto, keyof InsertUserModelRow]> = [
+export const UPDATE_MODEL_FIELD_MAP: Array<
+  Extract<keyof UpdateModelDto, keyof InsertUserModelRow> | [keyof UpdateModelDto, keyof InsertUserModelRow]
+> = [
   'name',
   'description',
   'group',
@@ -363,12 +363,6 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
   }
 }
 
-function dtoKeyToDbKey(key: keyof UpdateModelDto): string {
-  const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
-
-  return mapping && Array.isArray(mapping) ? mapping[1] : key
-}
-
 function getBaselineField(
   model: Model,
   field: PresetDeltaField
@@ -392,13 +386,15 @@ function matchesBaseline(
 
 function collectPresetDeltaFields(dto: CreateModelDto | UpdateModelDto, baseline: Model | null): PresetDeltaField[] {
   const deltaFields = new Set<PresetDeltaField>()
+  const update: UpdateModelDto = dto
 
-  for (const key of Object.keys(dto) as (keyof UpdateModelDto)[]) {
-    const field = dtoKeyToDbKey(key)
+  for (const entry of UPDATE_MODEL_FIELD_MAP) {
+    const [key, dbKey] = Array.isArray(entry) ? entry : [entry, entry]
+    const field = String(dbKey)
 
-    if (!isPresetDeltaField(field)) continue
+    if (!Object.hasOwn(dto, key) || !isPresetDeltaField(field)) continue
 
-    const value = dto[key]
+    const value = update[key]
 
     if (value === undefined) continue
 
@@ -455,7 +451,7 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
     maxInputTokens: row.maxInputTokens,
     maxOutputTokens: row.maxOutputTokens,
     supportsStreaming: row.supportsStreaming,
-    parameterSupport: row.parameters as RuntimeParameterSupport | null,
+    parameterSupport: row.parameters,
     pricing: row.pricing
   })
 }
@@ -498,7 +494,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     // selection list until registry enrichment projects the active profile.
     reasoning: reasoning ? { ...reasoning, selectableEfforts: reasoning.selectableEfforts ?? [] } : undefined,
     userDefaultReasoningEffort: row.reasoning?.defaultEffort,
-    parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
+    parameterSupport: row.parameters ?? undefined,
     pricing: row.pricing ?? undefined,
     hasCustomPricing: row.pricing != null,
     isEnabled: row.isEnabled,
@@ -615,9 +611,11 @@ class ModelService {
   ): Partial<InsertUserModelRow> {
     const updates: Partial<InsertUserModelRow> = {}
 
-    const hasPresetDeltaField = (Object.keys(dto) as (keyof UpdateModelDto)[])
-      .map(dtoKeyToDbKey)
-      .some(isPresetDeltaField)
+    const hasPresetDeltaField = UPDATE_MODEL_FIELD_MAP.some((entry) => {
+      const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry]
+
+      return Object.hasOwn(dto, dtoKey) && isPresetDeltaField(String(dbKey))
+    })
 
     let baseline: Model | null = null
 
@@ -638,7 +636,7 @@ class ModelService {
     }
 
     for (const entry of UPDATE_MODEL_FIELD_MAP) {
-      const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
+      const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry]
       const value = dto[dtoKey]
 
       if (value === undefined) continue
@@ -648,9 +646,9 @@ class ModelService {
         continue
       }
 
-      if (existing.presetModelId && isPresetDeltaField(String(dbKey))) {
-        const field = String(dbKey) as PresetDeltaField
+      const field = String(dbKey)
 
+      if (existing.presetModelId && isPresetDeltaField(field)) {
         if (baseline && matchesBaseline(value, getBaselineField(baseline, field), field)) {
           Object.assign(updates, { [dbKey]: null })
         } else {

@@ -273,40 +273,6 @@ export type RuntimeReasoning = z.infer<typeof RuntimeReasoningSchema>
 
 export type ParameterSupport = z.infer<typeof ParameterSupportDbSchema>
 
-/** Runtime form: strict parameter support with more fields (not derivable from DB form — different shape) */
-export const RuntimeParameterSupportSchema = z.object({
-  temperature: z
-    .object({
-      supported: z.boolean(),
-      min: z.number(),
-      max: z.number(),
-      default: z.number().optional()
-    })
-    .optional(),
-  topP: z
-    .object({
-      supported: z.boolean(),
-      min: z.number(),
-      max: z.number(),
-      default: z.number().optional()
-    })
-    .optional(),
-  topK: z
-    .object({
-      supported: z.boolean(),
-      min: z.number(),
-      max: z.number()
-    })
-    .optional(),
-  frequencyPenalty: z.boolean().optional(),
-  presencePenalty: z.boolean().optional(),
-  maxTokens: z.boolean(),
-  stopSequences: z.boolean(),
-  systemMessage: z.boolean()
-})
-
-export type RuntimeParameterSupport = z.infer<typeof RuntimeParameterSupportSchema>
-
 /** Pricing tier imported from catalog (source of truth) */
 export const PricingTierSchema = PricePerTokenSchema
 
@@ -444,7 +410,7 @@ export const ModelSchema = z.object({
     })
     .optional(),
   /** Parameter support */
-  parameterSupport: RuntimeParameterSupportSchema.optional(),
+  parameterSupport: ParameterSupportDbSchema.optional(),
 
   pricing: RuntimeModelPricingSchema.optional(),
   /** Runtime provenance; never inferred by comparing prices with the catalog. */
