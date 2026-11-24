@@ -11,6 +11,7 @@ import { loggerService } from '@logger'
 import { assertAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { withAgentMemoryFileLock } from '@main/ai/agents/agentMemoryFileLock'
 import { isWin } from '@main/core/platform'
+import { getErrorCode, getErrorMessage } from '@main/utils/error'
 
 const logger = loggerService.withContext('McpServer:AgentMemory')
 
@@ -35,7 +36,7 @@ async function resolveFileCI(dir: string, name: string): Promise<string> {
 
     return exact
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    if (getErrorCode(error) !== 'ENOENT') throw error
   }
 
   try {
@@ -52,19 +53,26 @@ async function resolveFileCI(dir: string, name: string): Promise<string> {
 
     return matchedPath
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      logger.warn('Unexpected error reading directory', { dir, error: (error as Error).message })
+    if (getErrorCode(error) !== 'ENOENT') {
+      logger.warn('Unexpected error reading directory', { dir, error: getErrorMessage(error, 'Directory read failed') })
     }
 
     return exact
   }
 }
 
-type JournalEntry = {
-  ts: string
-  tags: string[]
-  text: string
-}
+const JournalEntryFieldsSchema = z.object({
+  ts: z.string(),
+  tags: z.array(z.string()),
+  text: z.string()
+})
+
+// Preserve the original JSON, including prototype-named extension fields, after checking the journal fields.
+const JournalEntrySchema = z.custom<z.infer<typeof JournalEntryFieldsSchema>>(
+  (value) => JournalEntryFieldsSchema.safeParse(value).success
+)
+
+type JournalEntry = z.infer<typeof JournalEntrySchema>
 
 async function getAgentDataPath(ctx: MemoryToolContext): Promise<string> {
   const agent = agentService.getAgent(ctx.agentId)
@@ -98,7 +106,7 @@ async function assertRegularFileOrMissing(filePath: string): Promise<void> {
       throw new Error(`Agent memory file must be a real file: ${filePath}`)
     }
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    if (getErrorCode(error) !== 'ENOENT') throw error
   }
 }
 
@@ -176,11 +184,11 @@ async function memorySearch(query: string, tagFilter: string, limit: number, ctx
       await handle.close()
     }
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (getErrorCode(error) === 'ENOENT') {
       return 'No journal entries found.'
     }
 
-    throw new Error(`Failed to read journal at ${journalPath}: ${(error as Error).message}`)
+    throw new Error(`Failed to read journal at ${journalPath}: ${getErrorMessage(error, 'Journal read failed')}`)
   }
 
   const queryLower = query.toLowerCase()
@@ -191,7 +199,7 @@ async function memorySearch(query: string, tagFilter: string, limit: number, ctx
     if (!line.trim()) continue
 
     try {
-      const entry = JSON.parse(line) as JournalEntry
+      const entry = JournalEntrySchema.parse(JSON.parse(line))
 
       if (tagFilter && !entry.tags?.some((tag) => tag.toLowerCase() === tagLower)) continue
 

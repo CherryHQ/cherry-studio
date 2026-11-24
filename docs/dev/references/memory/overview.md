@@ -52,6 +52,11 @@ there is still no app-wide Global Memory setting.
 - Loaded into the system prompt at session start; updated by the agent autonomously via `mcp__agent-memory__memory` (FACT/JOURNAL) and Read/Edit tools (SOUL/USER).
 - Scoped to a single agent. See `src/main/ai/agents/prompt.ts` and `src/main/ai/mcp/servers/agentMemory.ts`.
 
+Journal search requires each JSONL entry to contain string `ts` and `text` fields
+and a string array `tags`. Malformed JSON, missing fields, and invalid field types
+are skipped without rewriting the file. Valid entries retain extra fields,
+including prototype-named JSON properties, in search results.
+
 ### Knowledge Base (Assistant + Agent)
 
 - User-curated document collections with per-base ingestion and retrieval indexes.

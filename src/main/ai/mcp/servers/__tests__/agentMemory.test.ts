@@ -88,6 +88,36 @@ describe('agent-memory MCP server', () => {
     expect(parsed.map((entry: { text: string }) => entry.text)).toEqual(['Deployed v2.0', 'Deployed v1.0'])
   })
 
+  it('skips malformed journal entries and preserves extension fields on valid entries', async () => {
+    const first = { ts: '2026-01-01T00:00:00Z', tags: ['deploy'], text: 'First release', source: { id: 'first' } }
+    const last = {
+      ts: '2026-01-02T00:00:00Z',
+      tags: ['DEPLOY'],
+      text: 'Latest release',
+      source: { id: 'last' },
+      ['__proto__']: { note: 'Retain this data field' },
+      constructor: 'Retain this data field too'
+    }
+    await writeFile(
+      path.join(memoryPath, 'JOURNAL.jsonl'),
+      [
+        JSON.stringify(first),
+        '{broken',
+        'null',
+        JSON.stringify({ ts: 'yesterday', tags: ['deploy'] }),
+        JSON.stringify({ ts: 'yesterday', tags: [42], text: 'Bad tags' }),
+        JSON.stringify({ ts: 42, tags: [], text: 'Bad timestamp' }),
+        JSON.stringify(last)
+      ].join('\n')
+    )
+    const server = await createServer()
+
+    const unfiltered = await callTool(server, { action: 'search' })
+    expect(JSON.parse(unfiltered.content[0].text!)).toEqual([last, first])
+    const filtered = await callTool(server, { action: 'search', tag: 'deploy', query: 'RELEASE', limit: 1 })
+    expect(JSON.parse(filtered.content[0].text!)).toEqual([last])
+  })
+
   it.each([
     { action: 'update' },
     { action: 'append' },
