@@ -251,6 +251,7 @@
   "paintings.comfyui.workflow_failed": "Esecuzione del flusso di lavoro ComfyUI non riuscita:",
   "paintings.comfyui.workflow_rejected": "ComfyUI ha rifiutato il flusso di lavoro (HTTP {{status}})",
   "paintings.generate_failed": "Generazione dell'immagine non riuscita",
+  "paintings.image_download_failed": "L’immagine è stata generata, ma non è stato possibile scaricarla.",
   "paintings.image_mix_failed": "Fusione delle immagini non riuscita",
   "selection.name": "Assistente di selezione",
   "settings.mcp.oauth.callback.listen_error": "Impossibile ascoltare il callback OAuth su 127.0.0.1:{{port}} ({{reason}}). Verifica che la porta sia disponibile e riprova.",
