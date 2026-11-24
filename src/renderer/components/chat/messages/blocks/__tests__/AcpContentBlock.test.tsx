@@ -1,10 +1,59 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
+
+import { MessageListProvider } from '../../MessageListProvider'
+import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../types'
 import { AcpContentBlock } from '../AcpContentBlock'
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 describe('ACP output content', () => {
   afterEach(() => vi.restoreAllMocks())
+
+  it('renders file links and local paths inside text blocks as clickable links', async () => {
+    const user = userEvent.setup()
+    const openPath = vi.fn()
+    const value: MessageListProviderValue = {
+      state: {
+        topic: { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic'],
+        messages: [],
+        partsByMessageId: {},
+        messageNavigation: 'none',
+        estimateSize: 0,
+        overscan: 0,
+        loadOlderDelayMs: 0,
+        loadingResetDelayMs: 0,
+        renderConfig: defaultMessageRenderConfig
+      },
+      actions: { openPath },
+      meta: { selectionLayer: false }
+    }
+
+    render(
+      <MessageListProvider value={value}>
+        <AcpContentBlock
+          content={{
+            type: 'text',
+            text: 'Created [pelican-bicycle.html](file:///tmp/pelican-bicycle.html), `src/app.ts`, and /tmp/dist/out.js'
+          }}
+        />
+      </MessageListProvider>
+    )
+
+    await user.click(screen.getByRole('link', { name: 'pelican-bicycle.html' }))
+    expect(openPath).toHaveBeenCalledWith('/tmp/pelican-bicycle.html')
+
+    const inlineCodeLink = await screen.findByRole('link', { name: 'src/app.ts' })
+    await user.click(inlineCodeLink)
+    expect(openPath).toHaveBeenCalledWith('src/app.ts')
+
+    const bareAnchoredLink = await screen.findByRole('link', { name: '/tmp/dist/out.js' })
+    await user.click(bareAnchoredLink)
+    expect(openPath).toHaveBeenCalledWith('/tmp/dist/out.js')
+  })
   it('displays embedded text verbatim and keeps unsafe resource URIs inert', () => {
     render(
       <AcpContentBlock

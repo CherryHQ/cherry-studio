@@ -1,3 +1,4 @@
+import { getToolName, isToolUIPart } from 'ai'
 import type { TFunction } from 'i18next'
 import { ChevronDown } from 'lucide-react'
 import { type MouseEvent, useCallback, useId, useMemo, useState } from 'react'
@@ -11,6 +12,8 @@ import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
+import { extractLocalAcpRawInputPaths, LocalAcpToolSchema } from '@shared/ai/localAgent'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { archiveExts, getFileTypeByExt } from '@shared/utils/file'
@@ -37,6 +40,111 @@ export function isReportArtifactsToolResponse(toolResponse: ReportArtifactsToolR
     return false
   const toolName = toolResponse.tool.name
   return toolName === REPORT_ARTIFACTS_TOOL_NAME || toolName.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`)
+}
+
+const LOCAL_ACP_WRITE_KINDS = new Set(['edit', 'create', 'write'])
+const LOCAL_CLAUDE_WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isLocalClaudeToolPart(part: CherryMessagePart): boolean {
+  const record = part as unknown as Record<string, unknown>
+  for (const field of ['callProviderMetadata', 'providerMetadata', 'resultProviderMetadata']) {
+    const metadata = record[field]
+    if (!isRecord(metadata)) continue
+    const cherry = metadata.cherry
+    if (isRecord(cherry) && cherry.localAgentProtocol === 'claude') return true
+  }
+  return false
+}
+
+function getCodexFileChangeKind(kind: unknown): string | undefined {
+  if (typeof kind === 'string') return kind.trim().toLowerCase()
+  if (isRecord(kind) && typeof kind.type === 'string') return kind.type.trim().toLowerCase()
+  return undefined
+}
+
+/**
+ * Fallback deliverable extractor for local agent turns that mutated files via ACP or Codex tools
+ * without invoking `cherry-tools` `report_artifacts`.
+ */
+export function buildLocalWrittenArtifactResponses(
+  parts: readonly CherryMessagePart[],
+  messageId: string
+): ReportArtifactsToolResponse[] {
+  const seen = new Set<string>()
+  const paths: string[] = []
+  const addPath = (raw: unknown) => {
+    if (typeof raw !== 'string') return
+    const trimmed = raw.trim()
+    if (!trimmed || seen.has(trimmed)) return
+    seen.add(trimmed)
+    paths.push(trimmed)
+  }
+
+  for (const part of parts) {
+    if (!isToolUIPart(part) || part.state !== 'output-available') continue
+    const toolName = getToolName(part)
+    const input = (part as { input?: unknown }).input
+    const output = (part as { output?: unknown }).output
+
+    if (isRecord(input) && 'localAcpTool' in input) {
+      const acp = LocalAcpToolSchema.safeParse(input.localAcpTool)
+      if (acp.success && acp.data.status !== 'failed') {
+        for (const item of acp.data.content ?? []) {
+          if (isRecord(item) && item.type === 'diff') addPath(item.path)
+        }
+        const kind = acp.data.kind?.trim().toLowerCase()
+        if (kind && LOCAL_ACP_WRITE_KINDS.has(kind)) {
+          for (const location of acp.data.locations ?? []) addPath(location.path)
+          for (const rawPath of extractLocalAcpRawInputPaths(acp.data.rawInput)) addPath(rawPath)
+        }
+      }
+      continue
+    }
+
+    if (toolName === 'ACP: Write' && isRecord(input)) {
+      addPath(input.path)
+      continue
+    }
+
+    if (LOCAL_CLAUDE_WRITE_TOOLS.has(toolName) && isLocalClaudeToolPart(part) && isRecord(input)) {
+      if (isRecord(output) && output.isError === true) continue
+      addPath(toolName === 'NotebookEdit' ? input.notebook_path : input.file_path)
+      continue
+    }
+
+    if (toolName === 'fileChange') {
+      if (isRecord(output) && (output.status === 'failed' || output.status === 'declined')) continue
+      const changes =
+        isRecord(output) && Array.isArray(output.changes)
+          ? output.changes
+          : isRecord(input) && Array.isArray(input.changes)
+            ? input.changes
+            : undefined
+      if (!changes) continue
+      for (const change of changes) {
+        if (!isRecord(change)) continue
+        if (getCodexFileChangeKind(change.kind) === 'delete') continue
+        addPath(change.path)
+      }
+    }
+  }
+
+  if (paths.length === 0) return []
+  return [
+    {
+      id: `${messageId}-local-artifacts`,
+      toolCallId: `${messageId}-local-artifacts`,
+      tool: { id: 'local-artifacts', name: REPORT_ARTIFACTS_TOOL_NAME, type: 'builtin' },
+      status: 'done',
+      arguments: {
+        artifacts: paths.map((path) => ({ path }))
+      }
+    }
+  ]
 }
 
 export function getReportArtifactsViewModel(

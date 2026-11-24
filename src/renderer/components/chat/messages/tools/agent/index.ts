@@ -6,7 +6,11 @@ export { AskUserQuestionCard } from './AskUserQuestionCard'
 export { AskUserQuestionOptimisticInputProvider } from './AskUserQuestionOptimisticContext'
 export { MessageChannelConfigTool } from './MessageChannelConfigTool'
 export { isKnownNavigationPath, NavigateToolInline } from './NavigateTool'
-export { isReportArtifactsToolResponse, MessageReportArtifacts } from './ReportArtifacts'
+export {
+  buildLocalWrittenArtifactResponses,
+  isReportArtifactsToolResponse,
+  MessageReportArtifacts
+} from './ReportArtifacts'
 export { SessionResultCards } from './SessionResultCards'
 export { isCherrySessionToolResponse, parseSessionCreateResult, parseSessionSendResult } from './sessionToolResult'
 export {

@@ -1999,6 +1999,58 @@ describe('MessagePartsRenderer', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
       expect(openArtifactFile).toHaveBeenCalledWith('dist/report.md')
     })
+
+    it('projects clickable footer artifact cards from local agent written files when report_artifacts was not called', () => {
+      const openArtifactFile = vi.fn()
+      renderParts(
+        [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'write-1',
+            toolName: 'ACP: Write',
+            state: 'output-available',
+            input: { path: 'pelican-bicycle.html', content: '<html></html>' },
+            output: { ok: true }
+          },
+          { type: 'text', text: 'Created pelican-bicycle.html', state: 'done' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        { openArtifactFile }
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Preview pelican-bicycle.html' }))
+      expect(openArtifactFile).toHaveBeenCalledWith('pelican-bicycle.html')
+    })
+
+    it('prefers explicit report_artifacts over local written-file fallback cards', () => {
+      const openArtifactFile = vi.fn()
+      renderParts(
+        [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'write-1',
+            toolName: 'ACP: Write',
+            state: 'output-available',
+            input: { path: 'temp-draft.html', content: '<html></html>' },
+            output: { ok: true }
+          },
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'report-1',
+            toolName: 'mcp__cherry-tools__report_artifacts',
+            state: 'output-available',
+            input: { artifacts: [{ path: 'dist/final.html' }] },
+            output: { ok: true }
+          },
+          { type: 'text', text: 'Done', state: 'done' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        { openArtifactFile }
+      )
+
+      expect(screen.getByRole('button', { name: 'Preview final.html' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Preview temp-draft.html' })).not.toBeInTheDocument()
+    })
   })
 
   describe('active layout', () => {

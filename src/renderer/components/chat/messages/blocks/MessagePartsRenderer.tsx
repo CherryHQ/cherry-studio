@@ -64,6 +64,7 @@ import {
   useMessageRenderConfig
 } from '../MessageListProvider'
 import {
+  buildLocalWrittenArtifactResponses,
   isCherrySessionToolResponse,
   isReportArtifactsToolResponse,
   MessageReportArtifacts,
@@ -1050,10 +1051,15 @@ function buildToolRenderItems(
 }
 
 function getReportArtifactToolResponses(entries: readonly PartEntry[], messageId: string) {
-  return entries.flatMap((entry) => {
+  const explicit = entries.flatMap((entry) => {
     const toolResponse = getCachedToolProjection(entry.part, `${messageId}-part-${entry.index}`).toolResponse
     return toolResponse && isReportArtifactsToolResponse(toolResponse) ? [toolResponse] : []
   })
+  if (explicit.length > 0) return explicit
+  return buildLocalWrittenArtifactResponses(
+    entries.map((entry) => entry.part),
+    messageId
+  )
 }
 
 function isReportArtifactEntry(entry: PartEntry, messageId: string): boolean {

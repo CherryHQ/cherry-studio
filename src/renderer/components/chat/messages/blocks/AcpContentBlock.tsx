@@ -1,12 +1,12 @@
 import { ContentBlockSchema } from '@modelcontextprotocol/core'
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ScrollArea } from '@cherrystudio/ui'
-import { StaticMarkdown } from '@renderer/components/markdown'
 import { dataUrlToBlob } from '@renderer/utils/image'
 import { tryFileUrlToPath } from '@shared/utils/file'
 
+import ChatMarkdown from '../markdown/ChatMarkdown'
 import Link from '../markdown/Link'
 import { ToolArgsTable } from '../tools/shared/ArgsTable'
 import { ClickableFilePath } from '../tools/shared/ClickableFilePath'
@@ -24,10 +24,12 @@ function AcpAudio({ data, mimeType }: { data: string; mimeType: string }) {
 
 export function AcpContentBlock({ content }: { content: unknown }) {
   const { t } = useTranslation()
+  const markdownId = useId()
   const parsed = ContentBlockSchema.safeParse(content)
   if (!parsed.success) return <ToolArgsTable args={{ content }} title={t('message.tools.sections.output')} />
   const block = parsed.data
-  if (block.type === 'text') return <StaticMarkdown>{block.text}</StaticMarkdown>
+  if (block.type === 'text')
+    return <ChatMarkdown block={{ id: markdownId, content: block.text, status: 'success' }} linkifyFilePaths />
   if (block.type === 'image')
     return <MessageImageBlock sources={[{ url: `data:${block.mimeType};base64,${block.data}` }]} isSingle />
   if (block.type === 'audio') return <AcpAudio data={block.data} mimeType={block.mimeType} />
