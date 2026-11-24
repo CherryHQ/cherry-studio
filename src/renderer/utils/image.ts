@@ -1315,11 +1315,8 @@ function assertImageBlob(blob: Blob, src: string): Blob {
 }
 
 export async function copyImageToClipboard(src: string): Promise<void> {
-  const blob = await getImageBlobFromSource(src)
-  const pngBlob = await convertImageToPng(blob)
-  const item = new ClipboardItem({
-    'image/png': pngBlob
-  })
-
-  await navigator.clipboard.write([item])
+  // Start the write while the document still has focus from the copy action.
+  const png = getImageBlobFromSource(src).then(convertImageToPng)
+  const item = new ClipboardItem({ 'image/png': png })
+  await Promise.all([png, navigator.clipboard.write([item])])
 }
