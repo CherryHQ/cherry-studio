@@ -1,4 +1,4 @@
-import { DynamicIcon, type IconName } from 'lucide-react/dynamic'
+import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
 import type { ComponentProps, FC, ReactNode } from 'react'
 
 type DynamicSelectionActionIconProps = Omit<ComponentProps<typeof DynamicIcon>, 'fallback' | 'name'> & {
@@ -7,7 +7,11 @@ type DynamicSelectionActionIconProps = Omit<ComponentProps<typeof DynamicIcon>, 
 }
 
 const DynamicSelectionActionIcon: FC<DynamicSelectionActionIconProps> = ({ fallback, name, ...props }) => {
-  return <DynamicIcon fallback={fallback} name={name as IconName} {...props} />
+  const iconName = iconNames.find((candidate) => candidate === name)
+
+  if (!iconName) return fallback?.() ?? null
+
+  return <DynamicIcon fallback={fallback} name={iconName} {...props} />
 }
 
 export default DynamicSelectionActionIcon

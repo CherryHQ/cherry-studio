@@ -25,7 +25,7 @@ import { openExternalWebsite } from '@renderer/services/website'
 import { isLinux, isMac, isWin } from '@renderer/utils/platform'
 import { parseSelectionActions } from '@renderer/utils/selectionAction'
 import { cn } from '@renderer/utils/style'
-import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
+import { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 
 import MacProcessTrustHintModal from './components/MacProcessTrustHintModal'
 import SelectionActionsList from './components/SelectionActionsList'
@@ -227,7 +227,11 @@ const SelectionAssistantSettings: FC = () => {
               </SettingLabel>
               <RadioGroup
                 value={triggerMode}
-                onValueChange={(value) => setTriggerMode(value as SelectionTriggerMode)}
+                onValueChange={(value) => {
+                  const mode = Object.values(SelectionTriggerMode).find((candidate) => candidate === value)
+
+                  if (mode) void setTriggerMode(mode)
+                }}
                 className="flex flex-wrap gap-3">
                 <Tooltip content={t('selection.settings.toolbar.trigger_mode.selected_note')}>
                   <label className="flex cursor-pointer items-center gap-2 text-sm">
@@ -347,7 +351,11 @@ const SelectionAssistantSettings: FC = () => {
                 </SettingLabel>
                 <RadioGroup
                   value={filterMode ?? 'default'}
-                  onValueChange={(value) => setFilterMode(value as SelectionFilterMode)}
+                  onValueChange={(value) => {
+                    const mode = Object.values(SelectionFilterMode).find((candidate) => candidate === value)
+
+                    if (mode) void setFilterMode(mode)
+                  }}
                   className="flex flex-wrap gap-3">
                   <label className="flex cursor-pointer items-center gap-2 text-sm">
                     <RadioGroupItem size="sm" value="default" />

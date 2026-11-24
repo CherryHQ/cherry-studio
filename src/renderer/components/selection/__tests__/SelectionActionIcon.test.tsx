@@ -1,66 +1,36 @@
 import '@testing-library/jest-dom/vitest'
 import { render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
-
-const dynamicIconState = vi.hoisted(() => ({
-  render: vi.fn()
-}))
-
-vi.mock('lucide-react/dynamic', () => ({
-  DynamicIcon: ({ className, name }: { className?: string; name: string }) => {
-    dynamicIconState.render(name)
-    return <svg className={className} data-icon-name={name} data-testid="dynamic-icon" />
-  }
-}))
+import { describe, expect, it } from 'vitest'
 
 import SelectionActionIcon from '../SelectionActionIcon'
 
 describe('SelectionActionIcon', () => {
-  it.each(['languages', 'file-question', 'scan-text', 'search', 'clipboard-copy', 'wand-sparkles', 'quote'])(
-    'renders built-in %s without the dynamic icon fallback',
-    (name) => {
-      dynamicIconState.render.mockClear()
+  it('shows the supplied fallback when no icon is configured', () => {
+    render(<SelectionActionIcon fallback={() => <span>Missing icon</span>} />)
 
-      render(<SelectionActionIcon name={name} data-testid="selection-action-icon" />)
-
-      expect(screen.getByTestId('selection-action-icon')).toBeInTheDocument()
-      expect(screen.queryByTestId('dynamic-icon')).not.toBeInTheDocument()
-      expect(dynamicIconState.render).not.toHaveBeenCalled()
-    }
-  )
-
-  it('renders the fallback synchronously when the optional icon name is empty', () => {
-    dynamicIconState.render.mockClear()
-
-    render(<SelectionActionIcon fallback={() => <span data-testid="missing-icon-fallback" />} />)
-
-    expect(screen.getByTestId('missing-icon-fallback')).toBeInTheDocument()
-    expect(dynamicIconState.render).not.toHaveBeenCalled()
+    expect(screen.getByText('Missing icon')).toBeInTheDocument()
   })
 
-  it('lazy-loads custom icon names and keeps the provided fallback', async () => {
-    render(
-      <SelectionActionIcon
-        name="custom-icon"
-        className="custom-icon-class"
-        fallback={() => <span data-testid="custom-icon-fallback" />}
-      />
-    )
+  it('loads a valid custom icon and replaces its loading fallback', async () => {
+    render(<SelectionActionIcon name="heart" data-testid="action-icon" fallback={() => <span>Loading icon</span>} />)
 
-    expect(screen.getByTestId('custom-icon-fallback')).toBeInTheDocument()
-
-    const icon = await screen.findByTestId('dynamic-icon')
-
-    await waitFor(() => expect(dynamicIconState.render).toHaveBeenCalledWith('custom-icon'))
-    expect(icon).toHaveAttribute('data-icon-name', 'custom-icon')
+    expect(await screen.findByTestId('action-icon')).toBeInTheDocument()
+    expect(screen.queryByText('Loading icon')).not.toBeInTheDocument()
   })
 
-  it.each(['constructor', '__proto__', 'toString'])(
-    'passes an unknown %s name to the dynamic icon loader',
+  it.each(['constructor', '__proto__', 'toString', 'not-a-lucide-icon'])(
+    'replaces a previously loaded icon with the fallback when the saved name becomes %s',
     async (name) => {
-      render(<SelectionActionIcon name={name} />)
+      const fallback = () => <span>Missing icon</span>
+      const { rerender } = render(<SelectionActionIcon name="heart" data-testid="action-icon" fallback={fallback} />)
+      await screen.findByTestId('action-icon')
 
-      expect(await screen.findByTestId('dynamic-icon')).toHaveAttribute('data-icon-name', name)
+      rerender(<SelectionActionIcon name={name} data-testid="action-icon" fallback={fallback} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Missing icon')).toBeInTheDocument()
+        expect(screen.queryByTestId('action-icon')).not.toBeInTheDocument()
+      })
     }
   )
 })

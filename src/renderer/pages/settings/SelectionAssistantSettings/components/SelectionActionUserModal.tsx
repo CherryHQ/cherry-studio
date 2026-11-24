@@ -30,8 +30,8 @@ import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { cn } from '@renderer/utils/style'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
-import { SELECTION_ACTION_RUNNER, type SelectionActionRunner } from '@shared/data/preference/preferenceTypes'
-import type { CustomSelectionAction } from '@shared/types/selection'
+import { SELECTION_ACTION_RUNNER } from '@shared/data/preference/preferenceTypes'
+import { type CustomSelectionAction, CustomSelectionActionSchema } from '@shared/types/selection'
 
 import { SelectionAgentPicker, SelectionWorkspacePicker } from './selectionAgentPickers'
 
@@ -57,6 +57,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
   const [formData, setFormData] = useState<Partial<CustomSelectionAction>>({})
   const [errors, setErrors] = useState<Partial<Record<keyof CustomSelectionAction, string>>>({})
   const runner = formData.runner ?? SELECTION_ACTION_RUNNER.DEFAULT
+  const selectedIcon = iconNames.find((name) => name === formData.icon)
 
   useEffect(() => {
     if (isModalOpen) {
@@ -81,7 +82,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
       newErrors.name = t('selection.settings.user_modal.name.hint')
     }
 
-    if (formData.icon && !iconNames.includes(formData.icon as any)) {
+    if (formData.icon && !selectedIcon) {
       newErrors.icon = t('selection.settings.user_modal.icon.error')
     }
 
@@ -190,8 +191,8 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   />
                   <IconPreview>
                     {formData.icon &&
-                      (iconNames.includes(formData.icon as any) ? (
-                        <DynamicIcon name={formData.icon as any} size={18} />
+                      (selectedIcon ? (
+                        <DynamicIcon name={selectedIcon} size={18} />
                       ) : (
                         <OctagonX size={18} color="var(--error)" />
                       ))}
@@ -214,9 +215,13 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               <RadioGroup
                 value={runner}
                 onValueChange={(value) => {
-                  setFormData((prev) => ({ ...prev, runner: value as SelectionActionRunner }))
+                  const result = CustomSelectionActionSchema.shape.runner.safeParse(value)
 
-                  if (value === SELECTION_ACTION_RUNNER.ASSISTANT && !formData.assistantId) {
+                  if (!result.success) return
+
+                  setFormData((prev) => ({ ...prev, runner: result.data }))
+
+                  if (result.data === SELECTION_ACTION_RUNNER.ASSISTANT && !formData.assistantId) {
                     handleInputChange('assistantId', firstAssistantId ?? '')
                   }
                 }}
