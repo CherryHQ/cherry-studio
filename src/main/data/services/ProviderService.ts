@@ -672,22 +672,26 @@ class ProviderService {
    * actually serves the request. An explicit override is never rotated, but is
    * matched back to a stored key when possible.
    */
-  resolveApiKey(providerId: string, override?: string, preferredKeyIds?: ReadonlySet<string>): ResolvedProviderApiKey {
-    const db = application.get('DbService').getDb()
-    const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
-
-    assertProviderAvailable(row, providerId)
-
-    const allKeys = row.apiKeys ?? []
+  resolveApiKey(
+    providerId: string,
+    override?: string,
+    preferredKeyIds?: ReadonlySet<string>,
+    keySnapshot?: readonly ApiKeyEntry[]
+  ): ResolvedProviderApiKey {
+    const allKeys = keySnapshot ?? this.getApiKeys(providerId)
     if (override !== undefined) {
       const matched = allKeys.find((entry) => entry.key === override)
       return matched ? toResolvedProviderApiKey(override, 'matched', matched) : unknownCredential(override)
     }
 
     let enabledKeys = allKeys.filter((k) => k.isEnabled)
+    let eligibleSet: string | undefined
     if (preferredKeyIds?.size) {
       const preferredKeys = enabledKeys.filter((key) => preferredKeyIds.has(key.id))
-      if (preferredKeys.length) enabledKeys = preferredKeys
+      if (preferredKeys.length) {
+        enabledKeys = preferredKeys
+        eligibleSet = JSON.stringify(preferredKeys.map(({ id }) => id).sort())
+      }
     }
 
     if (enabledKeys.length === 0) {
@@ -700,18 +704,20 @@ class ProviderService {
 
     // Round-robin using CacheService
     const cache = application.get('CacheService')
-    const cacheKey = rotationCacheKey(providerId)
+    const rotationKey = rotationCacheKey(providerId)
+    const cacheKey = eligibleSet === undefined ? rotationKey : `${rotationKey}:${eligibleSet}`
+    const ttl = eligibleSet === undefined ? undefined : 3_600_000
     const lastUsedKeyId = cache.get<string>(cacheKey)
 
     if (!lastUsedKeyId) {
-      cache.set(cacheKey, enabledKeys[0].id)
+      cache.set(cacheKey, enabledKeys[0].id, ttl)
       return toResolvedProviderApiKey(enabledKeys[0].key, 'explicit', enabledKeys[0])
     }
 
     const currentIndex = enabledKeys.findIndex((k) => k.id === lastUsedKeyId)
     const nextIndex = (currentIndex + 1) % enabledKeys.length
     const nextKey = enabledKeys[nextIndex]
-    cache.set(cacheKey, nextKey.id)
+    cache.set(cacheKey, nextKey.id, ttl)
 
     return toResolvedProviderApiKey(nextKey.key, 'explicit', nextKey)
   }

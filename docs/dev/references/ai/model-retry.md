@@ -23,7 +23,10 @@ and hook composition are untouched.
 New API Chat Completions prefers enabled keys whose `/models` list contains
 the selected model. Lists are fetched in parallel, with a two-second timeout,
 and reused for one minute. If none lists the model, normal rotation applies.
-Explicit key overrides, custom headers, and custom endpoint paths bypass this check.
+Each eligible key set rotates independently. The initial request and same-model
+key retries use the keys captured before discovery, paired with the same URL.
+Explicit key overrides, saved or per-request custom headers, and custom endpoint
+paths bypass discovery.
 
 ```text
 AiService.streamText/generateText

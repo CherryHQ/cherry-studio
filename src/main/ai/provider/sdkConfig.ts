@@ -1,6 +1,6 @@
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 
 import type { AppProviderSettingsMap } from '../types'
 import { resolveProviderAiSdkConfig } from './config'
@@ -19,6 +19,12 @@ export interface SdkConfig<T extends AppProviderKey = AppProviderKey> {
   readonly conversationHeader?: string
 }
 
+interface ResolvedSdkConfig {
+  sdkConfig: SdkConfig
+  credentialReceipt: ServingCredentialReceipt
+  keySnapshot?: readonly ApiKeyEntry[]
+}
+
 /**
  * Resolve everything the AI SDK needs to address one (provider, model) pair.
  * Modality-agnostic: chat, embedding, rerank and image calls all start here;
@@ -28,10 +34,12 @@ export async function resolveSdkConfig(
   provider: Provider,
   model: Model,
   resolvedEndpoint: ResolvedEndpoint,
-  apiKeyOverride?: string
-): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
-  const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
+  apiKeyOverride?: string,
+  hasRequestHeaders?: boolean
+): Promise<ResolvedSdkConfig> {
+  const { config, credentialReceipt, keySnapshot } = await resolveProviderAiSdkConfig(provider, model, {
     apiKeyOverride,
+    hasRequestHeaders,
     resolvedEndpoint
   })
   return {
@@ -44,6 +52,7 @@ export async function resolveSdkConfig(
       }),
       modelId: resolveWireModelId(model, resolvedEndpoint.endpointType)
     },
-    credentialReceipt
+    credentialReceipt,
+    keySnapshot
   }
 }

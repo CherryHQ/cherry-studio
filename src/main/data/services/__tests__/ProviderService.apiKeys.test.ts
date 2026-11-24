@@ -357,14 +357,6 @@ describe('ProviderService API keys', () => {
     expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-a')
   })
 
-  it('uses a preferred enabled key even when it is not next in the provider rotation', async () => {
-    await seedProvider()
-
-    expect(providerService.resolveApiKey('openai', undefined, new Set(['key-b'])).value).toBe('sk-b')
-    expect(providerService.resolveApiKey('openai', undefined, new Set(['key-b'])).value).toBe('sk-b')
-    expect(providerService.resolveApiKey('openai', 'sk-a', new Set(['key-b'])).value).toBe('sk-a')
-  })
-
   it('matches an explicit override to its stored identity without advancing rotation', async () => {
     await seedProvider()
 

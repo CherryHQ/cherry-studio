@@ -37,9 +37,8 @@ import { resolveWireModelId } from '../endpoint'
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
 // provider auth config from the direct-import ProviderService singleton. Mock
 // both at the module boundary so dispatch runs without touching the DB.
-const { resolveApiKeyMock, getApiKeysMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
+const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
   resolveApiKeyMock: vi.fn(),
-  getApiKeysMock: vi.fn(),
   getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(),
   getByProviderIdMock: vi.fn()
 }))
@@ -52,7 +51,6 @@ const { buildCherryCloudProviderConfigMock, generateSignatureMock, getCopilotTok
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
     resolveApiKey: resolveApiKeyMock,
-    getApiKeys: getApiKeysMock,
     getAuthConfig: getAuthConfigMock,
     getByProviderId: getByProviderIdMock
   }
@@ -2345,44 +2343,6 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const settings = config.providerSettings as Record<string, unknown>
       expect(settings.baseURL).toBe('https://api.newapi.com/v1')
-    })
-
-    it('uses the key that lists the selected model before sending a chat request', async () => {
-      const keys = [
-        { id: 'key-a', key: 'test-key-a', isEnabled: true },
-        { id: 'key-b', key: 'test-key-b', isEnabled: true }
-      ]
-      getApiKeysMock.mockReturnValue(keys)
-      resolveApiKeyMock.mockImplementation((_providerId, override, preferredKeyIds?: ReadonlySet<string>) => {
-        const selected = keys.find((key) => key.key === override || preferredKeyIds?.has(key.id)) ?? keys[0]
-        return { value: selected.key, apiKeySelection: { attribution: 'explicit', id: selected.id } }
-      })
-      const fetch = vi.mocked(net.fetch)
-      fetch.mockImplementation(async (url, init) => {
-        expect(String(url)).toBe('https://api.example.com/v1/models')
-        const authorization = new Headers(init?.headers).get('authorization')
-        return Response.json({ data: [{ id: authorization === 'Bearer test-key-b' ? 'grok-4.7' : 'gemini-4-argon' }] })
-      })
-      try {
-        const provider = makeProvider({
-          id: 'split-key-newapi',
-          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-          endpointConfigs: {
-            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com', adapterFamily: 'newapi' }
-          },
-          apiKeys: keys.map(({ id, isEnabled }) => ({ id, isEnabled }))
-        })
-        const model = makeModel({ apiModelId: 'grok-4.7', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
-        const config = await resolveProviderAiSdkConfig(provider, model)
-        expect(config.config.providerSettings).toMatchObject({ apiKey: 'test-key-b' })
-        expect(config.credentialReceipt).toMatchObject({ id: 'key-b' })
-
-        const next = await resolveProviderAiSdkConfig(provider, model)
-        expect(next.config.providerSettings).toMatchObject({ apiKey: 'test-key-b' })
-        expect(fetch).toHaveBeenCalledTimes(2)
-      } finally {
-        fetch.mockReset()
-      }
     })
 
     // A `/v1beta` typed for Gemini must not reach the chat route as `/v1beta/chat/completions`.

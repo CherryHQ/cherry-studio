@@ -35,7 +35,7 @@ import {
   MODALITY,
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { formatApiHost, formatOllamaApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { deriveModelGroupName } from '@shared/utils/model'
 import {
@@ -638,12 +638,9 @@ const KEY_MODEL_LIST_TIMEOUT_MS = 2_000
 export async function listNewApiKeysForModel(
   provider: Provider,
   baseUrl: string,
-  modelId: string
+  modelId: string,
+  keys: readonly ApiKeyEntry[]
 ): Promise<Set<string> | undefined> {
-  if (!baseUrl || Object.keys(getExtraHeaders(provider)).length) return undefined
-  if (provider.apiKeys.filter((key) => key.isEnabled).length < 2) return undefined
-
-  const keys = providerService.getApiKeys(provider.id, { enabled: true })
   if (keys.length < 2) return undefined
 
   const cache = application.get('CacheService')

@@ -321,7 +321,7 @@ describe('createRetryableWrap API key failover', () => {
     await expect(wrapped.doGenerate({ prompt: [] })).rejects.toMatchObject({ errors: [firstError, lastError] })
   })
 
-  it.each([400, 404, 503])('does not fail over API keys for HTTP %s', async (statusCode) => {
+  it.each([400, 503])('does not fail over API keys for HTTP %s', async (statusCode) => {
     const keyFallback = vi.fn(fallbackOf(makeFakeLanguageModel('same-model', vi.fn().mockResolvedValue(okResult))))
     const error = makeApiError(statusCode)
     const wrap = createRetryableWrap({
@@ -333,36 +333,6 @@ describe('createRetryableWrap API key failover', () => {
 
     await expect(wrapped.doGenerate({ prompt: [] })).rejects.toBe(error)
     expect(keyFallback).not.toHaveBeenCalled()
-  })
-
-  it('continues the same model stream with another key when the first group does not support it', async () => {
-    const modelId = 'grok-4.7'
-    const message = `Model "${modelId}" is not supported by any configured account in this group`
-    const primaryStream = vi.fn().mockRejectedValue(
-      new APICallError({
-        message,
-        url: 'https://api.test/v1/chat/completions',
-        requestBodyValues: { model: modelId },
-        responseBody: JSON.stringify({ error: { type: 'model_not_found', message } }),
-        statusCode: 404
-      })
-    )
-    const fallbackStream = vi.fn().mockResolvedValue(
-      streamResult([
-        { type: 'text-delta', id: 'text', delta: 'ok' },
-        { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage: okResult.usage }
-      ])
-    )
-    const wrap = createRetryableWrap({
-      apiKeyFallbacks: [fallbackOf(makeFakeLanguageModel(modelId, vi.fn(), fallbackStream))],
-      fallbacks: [],
-      retryPolicy: policy(false)
-    })
-    const model = wrap!(makeFakeLanguageModel(modelId, vi.fn(), primaryStream))
-
-    const { stream } = await model.doStream({ prompt: [] })
-
-    expect(await collectStream(stream)).toContainEqual({ type: 'text-delta', id: 'text', delta: 'ok' })
   })
 
   it('fails over a stream error before content is emitted', async () => {

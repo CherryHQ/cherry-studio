@@ -3,7 +3,7 @@ import type { ApiKeyEntry } from '@shared/data/types/provider'
 
 /** Remaining enabled keys in round-robin order after the key serving the first attempt. */
 export function resolveApiKeyFallbacks(
-  apiKeys: ApiKeyEntry[],
+  apiKeys: readonly ApiKeyEntry[],
   credentialReceipt: ServingCredentialReceipt,
   apiKeyOverride?: string
 ): ApiKeyEntry[] {
