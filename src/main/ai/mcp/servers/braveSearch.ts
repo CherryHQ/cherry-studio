@@ -49,54 +49,62 @@ function checkRateLimit() {
   requestCount.month++
 }
 
-interface BraveWeb {
-  web?: {
-    results?: Array<{
-      title: string
-      description: string
-      url: string
-      language?: string
-      published?: string
-      rank?: number
-    }>
-  }
-  locations?: {
-    results?: Array<{
-      id: string // Required by API
-      title?: string
-    }>
-  }
-}
+const braveWebResponseSchema = z.object({
+  web: z
+    .object({
+      results: z
+        .array(z.object({ title: z.string().nullish(), description: z.string().nullish(), url: z.string().nullish() }))
+        .nullish()
+    })
+    .nullish()
+})
 
-interface BraveLocation {
-  id: string
-  name: string
-  address: {
-    streetAddress?: string
-    addressLocality?: string
-    addressRegion?: string
-    postalCode?: string
-  }
-  coordinates?: {
-    latitude: number
-    longitude: number
-  }
-  phone?: string
-  rating?: {
-    ratingValue?: number
-    ratingCount?: number
-  }
-  openingHours?: string[]
-  priceRange?: string
-}
+const braveLocationsResponseSchema = z.object({
+  locations: z.object({ results: z.array(z.object({ id: z.string().nullish() })).nullish() }).nullish()
+})
 
-interface BravePoiResponse {
-  results: BraveLocation[]
-}
+const braveOpeningPeriodSchema = z.object({
+  full_name: z.string().nullish(),
+  abbr_name: z.string().nullish(),
+  opens: z.string().nullish(),
+  closes: z.string().nullish()
+})
 
-interface BraveDescription {
-  descriptions: { [id: string]: string }
-}
+const bravePoiResponseSchema = z.object({
+  results: z
+    .array(
+      z.object({
+        id: z.string().nullish(),
+        title: z.string(),
+        postal_address: z
+          .object({
+            streetAddress: z.string().nullish(),
+            addressLocality: z.string().nullish(),
+            addressRegion: z.string().nullish(),
+            postalCode: z.string().nullish(),
+            displayAddress: z.string().nullish()
+          })
+          .nullish(),
+        contact: z.object({ telephone: z.string().nullish() }).nullish(),
+        rating: z.object({ ratingValue: z.number().nullish(), reviewCount: z.number().nullish() }).nullish(),
+        price_range: z.string().nullish(),
+        opening_hours: z
+          .object({
+            days: z.array(z.array(braveOpeningPeriodSchema)).nullish(),
+            current_day: z.array(braveOpeningPeriodSchema).nullish()
+          })
+          .nullish()
+      })
+    )
+    .nullish()
+})
+
+const braveDescriptionsResponseSchema = z.object({
+  results: z.array(z.object({ id: z.string(), description: z.string().nullish() }).nullable()).nullish()
+})
+
+type BravePoiResponse = z.infer<typeof bravePoiResponseSchema>
+type BraveDescription = z.infer<typeof braveDescriptionsResponseSchema>
 
 async function performWebSearch(apiKey: string, query: string, count: number = 10, offset: number = 0) {
   checkRateLimit()
@@ -117,7 +125,7 @@ async function performWebSearch(apiKey: string, query: string, count: number = 1
     throw new Error(`Brave API error: ${response.status} ${response.statusText}\n${await response.text()}`)
   }
 
-  const data = (await response.json()) as BraveWeb
+  const data = braveWebResponseSchema.parse(await response.json())
 
   // Extract just web results
   const results = (data.web?.results || []).map((result) => ({
@@ -150,10 +158,9 @@ async function performLocalSearch(apiKey: string, query: string, count: number =
     throw new Error(`Brave API error: ${webResponse.status} ${webResponse.statusText}\n${await webResponse.text()}`)
   }
 
-  const webData = (await webResponse.json()) as BraveWeb
+  const webData = braveLocationsResponseSchema.parse(await webResponse.json())
 
-  const locationIds =
-    webData.locations?.results?.filter((r): r is { id: string; title?: string } => r.id != null).map((r) => r.id) || []
+  const locationIds = webData.locations?.results?.flatMap(({ id }) => (id == null ? [] : [id])) || []
 
   if (locationIds.length === 0) {
     return performWebSearch(apiKey, query, count) // Fallback to web search
@@ -185,7 +192,7 @@ async function getPoisData(apiKey: string, ids: string[]): Promise<BravePoiRespo
     throw new Error(`Brave API error: ${response.status} ${response.statusText}\n${await response.text()}`)
   }
 
-  return (await response.json()) as BravePoiResponse
+  return bravePoiResponseSchema.parse(await response.json())
 }
 
 async function getDescriptionsData(apiKey: string, ids: string[]): Promise<BraveDescription> {
@@ -205,7 +212,7 @@ async function getDescriptionsData(apiKey: string, ids: string[]): Promise<Brave
     throw new Error(`Brave API error: ${response.status} ${response.statusText}\n${await response.text()}`)
   }
 
-  return (await response.json()) as BraveDescription
+  return braveDescriptionsResponseSchema.parse(await response.json())
 }
 
 function formatLocalResults(poisData: BravePoiResponse, descData: BraveDescription): string {
@@ -214,21 +221,36 @@ function formatLocalResults(poisData: BravePoiResponse, descData: BraveDescripti
       .map((poi) => {
         const address =
           [
-            poi.address?.streetAddress ?? '',
-            poi.address?.addressLocality ?? '',
-            poi.address?.addressRegion ?? '',
-            poi.address?.postalCode ?? ''
+            poi.postal_address?.streetAddress ?? '',
+            poi.postal_address?.addressLocality ?? '',
+            poi.postal_address?.addressRegion ?? '',
+            poi.postal_address?.postalCode ?? ''
           ]
             .filter((part) => part !== '')
-            .join(', ') || 'N/A'
+            .join(', ') ||
+          poi.postal_address?.displayAddress ||
+          'N/A'
 
-        return `Name: ${poi.name}
+        const weekPeriods = poi.opening_hours?.days?.flat()
+        const periods = weekPeriods?.length ? weekPeriods : (poi.opening_hours?.current_day ?? [])
+        const hours = periods
+          .map((period) => {
+            const day = period.full_name || period.abbr_name || ''
+            const interval = [period.opens, period.closes].filter(Boolean).join('-')
+
+            return [day, interval].filter(Boolean).join(': ')
+          })
+          .filter(Boolean)
+          .join(', ')
+        const description = descData.results?.find((entry) => entry?.id === poi.id)?.description
+
+        return `Name: ${poi.title}
 Address: ${address}
-Phone: ${poi.phone || 'N/A'}
-Rating: ${poi.rating?.ratingValue ?? 'N/A'} (${poi.rating?.ratingCount ?? 0} reviews)
-Price Range: ${poi.priceRange || 'N/A'}
-Hours: ${(poi.openingHours || []).join(', ') || 'N/A'}
-Description: ${descData.descriptions[poi.id] || 'No description available'}
+Phone: ${poi.contact?.telephone || 'N/A'}
+Rating: ${poi.rating?.ratingValue ?? 'N/A'} (${poi.rating?.reviewCount ?? 0} reviews)
+Price Range: ${poi.price_range || 'N/A'}
+Hours: ${hours || 'N/A'}
+Description: ${description || 'No description available'}
 `
       })
       .join('\n---\n') || 'No local results found'
