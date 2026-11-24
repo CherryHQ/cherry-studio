@@ -23,10 +23,11 @@ type SystemPromptStepProps = {
   portalContainer: HTMLElement | null
   /** Fill the step's height; off when other fields follow the editor. */
   fill?: boolean
+  placeholder?: string
 }
 
-/** The System Prompt editor: the Assistant's step 2, and the top of the Agent's advanced step. */
-export function SystemPromptStep({ form, portalContainer, fill = true }: SystemPromptStepProps) {
+/** The System Prompt editor: the Assistant's step 2, and the top of the advanced step for Agents not on Pi Durable. */
+export function SystemPromptStep({ form, portalContainer, fill = true, placeholder }: SystemPromptStepProps) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const [polishing, setPolishing] = useState(false)
@@ -68,7 +69,7 @@ export function SystemPromptStep({ form, portalContainer, fill = true }: SystemP
             onChange={field.onChange}
             previewValue={processedPrompt || prompt}
             resetPreviewKey={resetPreviewKey}
-            placeholder={t('library.config.prompt.placeholder')}
+            placeholder={placeholder ?? t('library.config.prompt.placeholder')}
             minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
             maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
             autoFocus

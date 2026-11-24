@@ -70,6 +70,7 @@ import {
 import { HeartbeatCard } from '../components/HeartbeatCard'
 import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
 import { McpCapabilityList } from '../components/McpCapabilityList'
+import { PiPromptField } from '../components/PiPromptField'
 import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
@@ -568,7 +569,23 @@ function AgentEditDialogContent({
           forceMount
           hidden={activeTab !== 'prompt'}
           className="m-0 flex h-full min-h-0 flex-col">
-          <AgentPromptField form={form} modelName={promptModelName ?? null} portalContainer={dialogContentElement} />
+          {resource.type === 'pi-durable' ? (
+            <PiPromptField
+              value={values.instructions}
+              onChange={(next) => form.setValue('instructions', next, { shouldDirty: true, shouldTouch: true })}
+              draft={{
+                agentId: resource.id,
+                skillIds: values.skillIds,
+                disabledTools: values.disabledTools,
+                knowledgeBaseIds: values.knowledgeBaseIds,
+                mcpServerIds: values.mcps,
+                languageMode: values.languageMode,
+                languageCustom: values.languageCustom
+              }}
+            />
+          ) : (
+            <AgentPromptField form={form} modelName={promptModelName ?? null} portalContainer={dialogContentElement} />
+          )}
         </TabsContent>
         <TabsContent value="prompts" forceMount hidden={activeTab !== 'prompts'} className="m-0">
           <PromptBindingTab
@@ -970,7 +987,7 @@ function AgentPromptField({
           }
           value={field.value}
           onChange={handlePromptChange}
-          placeholder={t('library.config.prompt.placeholder')}
+          placeholder={t('library.config.agent.prompt.editor_placeholder')}
           previewValue={processedInstructions || instructions}
           resetPreviewKey={resetPreviewKey}
           fill
