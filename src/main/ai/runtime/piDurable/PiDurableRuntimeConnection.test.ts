@@ -1628,8 +1628,12 @@ describe('desktop Pi Durable connection', () => {
     subscription.dispose()
     expect(aborted).toEqual(approvals(first.events))
 
+    const toolCalls = (events: AgentRuntimeEvent[]) =>
+      events.flatMap((event) => (event.type === 'tool-approval-request' ? [event.request.toolCallId] : []))
     const second = await connect()
-    await expect.poll(() => approvals(second.events), APPROVAL_WAIT).toEqual(approvals(first.events))
+    // The same call is asked again, under a new approval ID since the first one was retired.
+    await expect.poll(() => toolCalls(second.events), APPROVAL_WAIT).toEqual(toolCalls(first.events))
+    expect(approvals(second.events)).not.toEqual(approvals(first.events))
     expect(existsSync(join(directory, 'a.txt'))).toBe(false)
   })
 

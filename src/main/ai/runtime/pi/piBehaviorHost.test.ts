@@ -220,4 +220,49 @@ describe('Pi approval identity', () => {
     await expect(second).resolves.toMatchObject({ kind: 'granted' })
     await expect(first).resolves.toMatchObject({ kind: 'denied' })
   })
+
+  // An edit and resend can start a fresh Durable store under the same session, which numbers its calls again.
+  it('gives each registration its own approval ID within one session', async () => {
+    const call = { thread: runtimeId<'thread'>('1'), key: callKeyOf('1') }
+    const ids: string[] = []
+    const ports = createPiInteractionPorts({
+      input: { sessionId: 's1', agentId: 'agent', modelId: 'test::model' },
+      approval: {
+        sessionId: 's1',
+        workspacePath: '/workspace',
+        agentDataPath: '/agent',
+        additionalReadOnlyRoots: [],
+        getPermissionMode: () => 'default',
+        getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
+        isDisabled: () => false,
+        autoApprovedTools: new Set(),
+        approvalRequiredTools: new Set(),
+        nonBypassableApprovalTools: new Set(),
+        delegationTools: new Set()
+      },
+      toolCallIdentity: async () => ({ toolCallId: 'call' }),
+      emit: (event: AgentRuntimeEvent) => {
+        if (event.type === 'tool-approval-request') ids.push(event.request.approvalId)
+      }
+    })
+    const askOnce = async () => {
+      const answer = ports.approvals.ask(
+        {
+          call,
+          tool: { callId: 'c1', callKey: call.key, name: 'Bash', args: { command: 'ls' } },
+          presentation: 'stream'
+        },
+        new AbortController().signal
+      )
+      await vi.waitFor(() => expect(toolApprovalRegistry.peek(ids.at(-1) ?? '')).toBeDefined())
+      toolApprovalRegistry.dispatch(ids.at(-1)!, { approved: true })
+      return answer
+    }
+
+    await askOnce()
+    await askOnce()
+
+    expect(ids).toHaveLength(2)
+    expect(ids[0]).not.toBe(ids[1])
+  })
 })
