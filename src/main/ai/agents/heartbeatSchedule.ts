@@ -72,12 +72,18 @@ type HeartbeatJobInputTemplate = {
   reuseRevision: number
 }
 
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical job templates retain arbitrary fields; heartbeat identity and drift checks validate only the fields they consume.
+type TemplateFields = Readonly<Record<string, unknown>>
+
+function isTemplateContainer(value: unknown): value is TemplateFields {
+  return typeof value === 'object' && value !== null
+}
+
 /** A row is this agent's heartbeat iff its template carries the sentinel prompt. */
 function isHeartbeatRow(row: { jobInputTemplate: unknown }, agentId: string): boolean {
-  if (typeof row.jobInputTemplate !== 'object' || row.jobInputTemplate === null) return false
-  const template = row.jobInputTemplate as { agentId?: unknown; prompt?: unknown }
+  const template = row.jobInputTemplate
 
-  return template.agentId === agentId && template.prompt === HEARTBEAT_PROMPT_SENTINEL
+  return isTemplateContainer(template) && template.agentId === agentId && template.prompt === HEARTBEAT_PROMPT_SENTINEL
 }
 
 /** Self-heal identity: whitespace-corrupted sentinel + reserved name + agentId. */
@@ -85,9 +91,9 @@ function matchesFallbackIdentity(row: JobScheduleSnapshot, agentId: string): boo
   // Only a string that trims to the sentinel is a corrupted heartbeat.
   // Preserve foreign tasks that happen to occupy a reserved name.
   if (row.name !== `heartbeat_${agentId}`) return false
-  const template = row.jobInputTemplate as { agentId?: unknown; prompt?: unknown } | null
+  const template = row.jobInputTemplate
 
-  if (template?.agentId !== agentId) return false
+  if (!isTemplateContainer(template) || template.agentId !== agentId) return false
 
   return typeof template.prompt === 'string' && template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL
 }
@@ -107,10 +113,9 @@ function findHeartbeatRow(agentId: string, rows: JobScheduleSnapshot[]) {
 
 export function reclaimHeartbeatWorkspacesTx(tx: DbOrTx, deletedSchedules: JobScheduleSnapshot[]): void {
   for (const schedule of deletedSchedules) {
-    const input = schedule.jobInputTemplate
+    const template = schedule.jobInputTemplate
 
-    if (typeof input !== 'object' || input === null || Array.isArray(input)) continue
-    const template = input as { agentId?: unknown; prompt?: unknown; workspace?: unknown }
+    if (!isTemplateContainer(template) || Array.isArray(template)) continue
 
     if (typeof template.agentId !== 'string' || typeof template.prompt !== 'string') continue
 
@@ -151,15 +156,8 @@ function isScheduleNameConflict(error: unknown): boolean {
 /** True when the stored template no longer matches what sync would write. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JobScheduleSnapshot retains raw persisted jobInputTemplate JSON; compare consumed heartbeat fields without trusting a current-template assertion.
 function templateDrifted(current: unknown, target: HeartbeatJobInputTemplate): boolean {
-  if (typeof current !== 'object' || current === null) return true
-
-  const template = current as {
-    agentId?: unknown
-    prompt?: unknown
-    timeoutMinutes?: unknown
-    reuseRevision?: unknown
-    workspace?: unknown
-  }
+  if (!isTemplateContainer(current)) return true
+  const template = current
 
   if (template.agentId !== target.agentId || template.prompt !== target.prompt) return true
 
@@ -295,10 +293,9 @@ export async function syncHeartbeatSchedule(
       const current = jobScheduleService.getByIdTx(tx, row.id)
 
       if (!current || !matchesHeartbeatIdentity(current, agentId)) continue
-      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical templates retain unrecognized fields when workspace is removed; only workspace is schema-validated here.
-      const input = current.jobInputTemplate as Record<string, unknown>
+      const input = current.jobInputTemplate
 
-      if (!Object.hasOwn(input, 'workspace')) continue
+      if (!isTemplateContainer(input) || !Object.hasOwn(input, 'workspace')) continue
       const { workspace, ...template } = input
       application.get('JobManager').updateJobScheduleTx(tx, current.id, { jobInputTemplate: template })
       const source = AgentSessionWorkspaceSourceSchema.safeParse(workspace)

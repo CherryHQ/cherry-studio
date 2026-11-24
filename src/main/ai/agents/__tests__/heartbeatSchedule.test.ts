@@ -1399,6 +1399,28 @@ describe('heartbeatSchedule', () => {
     )
   })
 
+  it('preserves unknown template fields during workspace-only cleanup', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    const workspace = agentWorkspaceService.findOrCreateByPath(path.join(agentsRoot, AGENT_ID))
+    const original = row.jobInputTemplate as Record<string, unknown>
+    jobScheduleService.update(row.id, {
+      jobInputTemplate: {
+        ...original,
+        extension: { source: 'historical' },
+        workspace: { type: 'user', workspaceId: workspace.id }
+      }
+    })
+
+    await syncHeartbeatSchedule(AGENT_ID)
+
+    const template = jobScheduleService.getById(row.id)?.jobInputTemplate
+    expect(template).toMatchObject({ ...original, extension: { source: 'historical' } })
+    expect(template).not.toHaveProperty('workspace')
+    expect(agentWorkspaceService.list({ includeSystem: true })).toEqual([])
+  })
+
   it('rolls back every legacy binding when a later cleanup fails', async () => {
     seedAgent(AGENT_ID)
     const workspace = agentWorkspaceService.findOrCreateByPath(path.join(agentsRoot, AGENT_ID))

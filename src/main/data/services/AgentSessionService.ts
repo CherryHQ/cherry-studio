@@ -115,6 +115,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     id: clean.id,
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Historical FK strings are projected unchanged; writes validate model IDs, but this read does not revalidate their format.
     model: (row.session.model ?? null) as UniqueModelId | null,
     name: clean.name,
     isNameManuallyEdited: clean.isNameManuallyEdited,
@@ -1033,14 +1034,16 @@ export class AgentSessionService {
 
     if (!current) return { row: undefined, clearedTaskScheduleIds: [] }
 
-    if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
+    const nextAgentId = patch.agentId
+
+    if (nextAgentId !== undefined) this.assertAgentExistsTx(tx, nextAgentId)
 
     if (patch.model !== undefined && patch.model !== null && !isUniqueModelId(patch.model)) {
       throw DataApiErrorFactory.invalidOperation('update session', `unknown model: ${patch.model}`)
     }
 
     const previousAgentId = current.agentId
-    const reassigned = patch.agentId !== undefined && patch.agentId !== previousAgentId
+    const reassigned = nextAgentId !== undefined && nextAgentId !== previousAgentId
 
     if (reassigned && patch.model === undefined && current.model != null) {
       // A cross-runtime reassignment may make the override unservable, so clear it atomically;
@@ -1048,22 +1051,17 @@ export class AgentSessionService {
       const agentTypes = tx
         .select({ id: agentsTable.id, type: agentsTable.type })
         .from(agentsTable)
-        .where(
-          inArray(
-            agentsTable.id,
-            previousAgentId != null ? [previousAgentId, patch.agentId as string] : [patch.agentId as string]
-          )
-        )
+        .where(inArray(agentsTable.id, previousAgentId != null ? [previousAgentId, nextAgentId] : [nextAgentId]))
         .all()
 
       const typeOf = new Map(agentTypes.map((row) => [row.id, row.type]))
 
       if (previousAgentId != null) {
-        if (typeOf.get(previousAgentId) !== typeOf.get(patch.agentId as string)) {
+        if (typeOf.get(previousAgentId) !== typeOf.get(nextAgentId)) {
           patch.model = null
         }
       } else if (
-        ['pi', 'pi-durable'].includes(typeOf.get(patch.agentId as string) ?? '') &&
+        ['pi', 'pi-durable'].includes(typeOf.get(nextAgentId) ?? '') &&
         !isPiServableUniqueModel(current.model)
       ) {
         // A deleted parent leaves no runtime type to compare; discard an override the new Pi agent
