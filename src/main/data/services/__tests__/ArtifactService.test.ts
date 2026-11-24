@@ -559,7 +559,11 @@ describe('artifact migrate-forward from the shipped 0042', () => {
 
   // Catches a rewritten 0042 that runs again on a database that applied it and fails on its duplicate column.
   it('adds the artifact table without running 0042 again', () => {
-    dbh.db.insert(topicTable).values({ id: 'existing', name: 'Existing topic', orderKey: 'a0' }).run()
+    dbh.sqlite
+      .prepare(
+        'INSERT INTO topic (id, name, order_key, last_activity_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+      )
+      .run('existing', 'Existing topic', 'a0', NOW, NOW, NOW)
     dbh.sqlite
       .prepare('INSERT INTO mcp_server (id, name, skill_permissions, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
       .run('existing-server', 'Existing MCP server', null, NOW, NOW)
@@ -584,7 +588,11 @@ describe.each([
   const dbh = setupTestDatabase({ beforeMigration: '0043_artifact' })
 
   it('keeps the existing rows and rebuilds the table in the current shape', () => {
-    dbh.db.insert(topicTable).values({ id: 'topic-1', name: 'Topic', orderKey: 'a0' }).run()
+    dbh.sqlite
+      .prepare(
+        'INSERT INTO topic (id, name, order_key, last_activity_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+      )
+      .run('topic-1', 'Topic', 'a0', NOW, NOW, NOW)
     dbh.sqlite.exec(
       `CREATE TABLE artifact (id text PRIMARY KEY NOT NULL, agent_id text, session_id text, ${extraColumn} topic_id text, path text, file_entry_id text, title text NOT NULL, size integer, reported_at integer NOT NULL)`
     )
