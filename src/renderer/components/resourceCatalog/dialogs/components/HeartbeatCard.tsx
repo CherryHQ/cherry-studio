@@ -13,10 +13,12 @@ type HeartbeatValue = Pick<AgentFormState, 'heartbeatEnabled' | 'heartbeatInterv
 type HeartbeatCardProps = {
   value: HeartbeatValue
   onChange: (patch: Partial<HeartbeatValue>) => void
+  /** Replaces the default description, e.g. where the heartbeat tasks cannot be edited yet. */
+  description?: string
 }
 
 /** Heartbeat switch card; when on, it reveals the interval and maximum run time in minutes. */
-export function HeartbeatCard({ value, onChange }: HeartbeatCardProps) {
+export function HeartbeatCard({ value, onChange, description }: HeartbeatCardProps) {
   const { t } = useTranslation()
   const title = t('library.config.agent.field.heartbeat_enabled.label')
   const rows = [
@@ -40,7 +42,7 @@ export function HeartbeatCard({ value, onChange }: HeartbeatCardProps) {
         <div className="flex min-w-0 flex-col gap-1">
           <span className="font-medium text-foreground text-sm leading-none">{title}</span>
           <span className="text-muted-foreground text-xs">
-            {t('library.config.agent.field.heartbeat_enabled.description')}
+            {description ?? t('library.config.agent.field.heartbeat_enabled.description')}
           </span>
         </div>
         <Switch
