@@ -38,6 +38,7 @@ const SOURCE_LABELS: Record<SkillSearchSource, string> = {
   github: 'GitHub'
 }
 
+// SAFETY: SOURCE_LABELS is a closed literal checked against SkillSearchSource; these are its own enumerable string keys.
 const SEARCH_SOURCES = Object.keys(SOURCE_LABELS) as SkillSearchSource[]
 const DEFAULT_SEARCH_SOURCE: SkillSearchSource = 'skills.sh'
 const SEARCH_DEBOUNCE_MS = 300
@@ -126,7 +127,9 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
 
   const handleSourceChange = useCallback(
     (value: string) => {
-      const nextSource = value as SkillSearchSource
+      const nextSource = SEARCH_SOURCES.find((source) => source === value)
+
+      if (!nextSource) return
       setActiveSource(nextSource)
 
       // The registries share one search, so switching among them only refilters. GitHub takes a URL

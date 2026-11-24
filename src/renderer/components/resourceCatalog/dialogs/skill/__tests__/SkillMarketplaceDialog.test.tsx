@@ -221,6 +221,19 @@ function sourceSelect() {
 }
 
 describe('SkillMarketplaceDialog', () => {
+  it('keeps the selected source and draft when the Select boundary emits an empty value', async () => {
+    const user = userEvent.setup()
+    renderDialog()
+    await user.selectOptions(sourceSelect(), 'github')
+    const input = screen.getByRole('textbox', { name: 'library.skill_marketplace.github_url_label' })
+    await user.type(input, 'https://github.com/acme/skills')
+
+    fireEvent.change(sourceSelect(), { target: { value: '' } })
+
+    expect(sourceSelect()).toHaveValue('github')
+    expect(input).toHaveValue('https://github.com/acme/skills')
+  })
+
   it('gives same-slug ClawHub publishers independent virtual rows', async () => {
     const user = userEvent.setup()
     skillSearchState.results = ['first-publisher', 'second-publisher'].map<SkillSearchResult>((author) => ({
