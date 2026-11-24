@@ -31,7 +31,7 @@ beforeAll(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
 })
 
-it('submits an explicit automatic reset after a lost binding', async () => {
+it.each(['save', 'cancel'] as const)('handles a pending automatic reset on %s', async (action) => {
   vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
     if (path === '/agent-workspaces') return [] as never
     if (path === '/agent-sessions') return { items: [], nextCursor: null } as never
@@ -55,6 +55,7 @@ it('submits an explicit automatic reset after a lost binding', async () => {
     updatedAt: '2026-01-01T00:00:00Z'
   }
   const update = vi.fn(async () => true)
+  const close = vi.fn()
   const { Wrapper } = createSWRTestWrapper()
   render(
     <Wrapper>
@@ -63,7 +64,7 @@ it('submits an explicit automatic reset after a lost binding', async () => {
           open
           agents={[{ id: 'agent-a', name: 'Agent' }]}
           task={task}
-          onOpenChange={vi.fn()}
+          onOpenChange={close}
           onUpdate={update}
         />
       </I18nextProvider>
@@ -72,6 +73,12 @@ it('submits an explicit automatic reset after a lost binding', async () => {
   const user = userEvent.setup()
   await user.click(await screen.findByRole('combobox', { name: 'Session to reuse' }))
   await user.click(await screen.findByRole('option', { name: 'New session on first run' }))
-  await user.click(screen.getByRole('button', { name: 'Save' }))
-  await waitFor(() => expect(update).toHaveBeenCalledWith({ reuseSessionId: null }))
+  await user.click(screen.getByRole('button', { name: action === 'save' ? 'Save' : 'Cancel' }))
+  if (action === 'save') {
+    await waitFor(() => expect(update).toHaveBeenCalledWith({ reuseSessionId: null }))
+  } else {
+    expect(close).not.toHaveBeenCalled()
+    expect(await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })).toBeInTheDocument()
+    expect(update).not.toHaveBeenCalled()
+  }
 })

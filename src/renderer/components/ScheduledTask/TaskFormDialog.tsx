@@ -576,6 +576,9 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     scheduleInputsEqual(schedule, initialDraftRef.current?.schedule ?? taskToDraftSnapshot(props.task).schedule)
   const resolvedTrigger = trigger ?? (unchangedExistingSchedule ? props.task?.trigger : null)
   const initialDraft = initialDraftRef.current
+  const reuseBindingChanged =
+    reuseSessionId !== (initialDraft?.reuseSessionId ?? null) ||
+    Boolean(reuseSelectionChanged && props.task?.reuseBindingLost)
   const hasDraft =
     agentId !== initialAgentId ||
     name !== (initialDraft?.name ?? '') ||
@@ -585,6 +588,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     !stringArraysEqual(channelIds, initialDraft?.channelIds ?? []) ||
     workspaceId !== (initialDraft?.workspaceId ?? null) ||
     reuseSession !== (initialDraft?.reuseSession ?? false) ||
+    reuseBindingChanged ||
     polishing
   const requestClose = () => {
     if (saving) return
@@ -617,7 +621,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
         }
         if (workspaceId !== initialDraft.workspaceId) updates.workspace = workspace
         if (reuseSession !== initialDraft.reuseSession) updates.reuseSession = reuseSession
-        if (reuseSessionId !== initialDraft.reuseSessionId || (reuseSelectionChanged && props.task.reuseBindingLost)) {
+        if (reuseBindingChanged) {
           updates.reuseSessionId = reuseSession ? reuseSessionId : null
         }
         if (!stringArraysEqual(channelIds, initialDraft.channelIds)) updates.channelIds = channelIds
@@ -652,7 +656,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     props,
     reuseSession,
     reuseSessionId,
-    reuseSelectionChanged,
+    reuseBindingChanged,
     schedule,
     resolvedTrigger,
     workspaceId
