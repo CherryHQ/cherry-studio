@@ -5197,6 +5197,7 @@
   "settings.memory.clear_confirm": "Limpar todos os ficheiros de memória locais?",
   "settings.memory.clear_success": "Limpeza concluída",
   "settings.memory.failed": "Não foi possível concluir a operação. Verifique os itens restantes e tente novamente.",
+  "settings.memory.global": "Memória global",
   "settings.memory.no_recovery": "Não existe nenhuma operação recuperável.",
   "settings.memory.outcome.conflict": "Conflito",
   "settings.memory.outcome.pending": "Não concluído",

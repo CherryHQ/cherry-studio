@@ -5198,6 +5198,7 @@
   "settings.memory.clear_confirm": "Vymazat všechny místní soubory paměti?",
   "settings.memory.clear_success": "Paměť byla vymazána",
   "settings.memory.failed": "Operaci se nepodařilo dokončit. Zkontrolujte zbývající položky a zkuste to znovu.",
+  "settings.memory.global": "Globální paměť",
   "settings.memory.no_recovery": "Žádnou operaci nelze obnovit.",
   "settings.memory.outcome.conflict": "Konflikt",
   "settings.memory.outcome.pending": "Nedokončeno",

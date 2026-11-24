@@ -5198,6 +5198,7 @@
   "settings.memory.clear_confirm": "Ștergeți toate fișierele locale de memorie?",
   "settings.memory.clear_success": "Ștergere reușită",
   "settings.memory.failed": "Operația nu a putut fi finalizată. Verifică elementele rămase și încearcă din nou.",
+  "settings.memory.global": "Memorie globală",
   "settings.memory.no_recovery": "Nu există nicio operație recuperabilă.",
   "settings.memory.outcome.conflict": "Conflict",
   "settings.memory.outcome.pending": "Neîncheiat",

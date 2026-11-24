@@ -5197,6 +5197,7 @@
   "settings.memory.clear_confirm": "로컬 메모리 파일을 모두 지울까요?",
   "settings.memory.clear_success": "메모리를 지웠습니다",
   "settings.memory.failed": "작업을 완료하지 못했습니다. 남은 항목을 확인한 뒤 다시 시도하세요.",
+  "settings.memory.global": "전역 메모리",
   "settings.memory.no_recovery": "복원할 수 있는 작업이 없습니다.",
   "settings.memory.outcome.conflict": "충돌",
   "settings.memory.outcome.pending": "미완료",

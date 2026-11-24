@@ -5197,6 +5197,7 @@
   "settings.memory.clear_confirm": "Να διαγραφούν όλα τα τοπικά αρχεία μνήμης;",
   "settings.memory.clear_success": "Η εκκαθάριση ολοκληρώθηκε",
   "settings.memory.failed": "Η ενέργεια δεν ολοκληρώθηκε. Έλεγξε τα στοιχεία που απομένουν και δοκίμασε ξανά.",
+  "settings.memory.global": "Καθολική μνήμη",
   "settings.memory.no_recovery": "Δεν υπάρχει ενέργεια για επαναφορά.",
   "settings.memory.outcome.conflict": "Σύγκρουση",
   "settings.memory.outcome.pending": "Δεν ολοκληρώθηκε",

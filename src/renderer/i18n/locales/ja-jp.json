@@ -5197,6 +5197,7 @@
   "settings.memory.clear_confirm": "ローカルのメモリファイルをすべて消去しますか？",
   "settings.memory.clear_success": "消去しました",
   "settings.memory.failed": "操作を完了できませんでした。未完了の項目を確認して再試行してください。",
+  "settings.memory.global": "グローバルメモリ",
   "settings.memory.no_recovery": "復元できる操作はありません。",
   "settings.memory.outcome.conflict": "競合",
   "settings.memory.outcome.pending": "未完了",

@@ -5197,6 +5197,7 @@
   "settings.memory.clear_confirm": "確定清除本機所有記憶檔案嗎？",
   "settings.memory.clear_success": "清除成功",
   "settings.memory.failed": "操作未能完成，請檢查未完成的內容後重試。",
+  "settings.memory.global": "全域記憶",
   "settings.memory.no_recovery": "目前沒有可還原的操作。",
   "settings.memory.outcome.conflict": "衝突",
   "settings.memory.outcome.pending": "未完成",

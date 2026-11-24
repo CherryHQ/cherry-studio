@@ -5197,6 +5197,7 @@
   "settings.memory.clear_confirm": "ล้างไฟล์ความจำในเครื่องทั้งหมดหรือไม่?",
   "settings.memory.clear_success": "ล้างข้อมูลสำเร็จ",
   "settings.memory.failed": "ไม่สามารถดำเนินการให้เสร็จได้ โปรดตรวจสอบรายการที่เหลือแล้วลองอีกครั้ง",
+  "settings.memory.global": "หน่วยความจำส่วนกลาง",
   "settings.memory.no_recovery": "ไม่มีการดำเนินการที่คืนค่าได้",
   "settings.memory.outcome.conflict": "ขัดแย้ง",
   "settings.memory.outcome.pending": "ยังไม่เสร็จ",

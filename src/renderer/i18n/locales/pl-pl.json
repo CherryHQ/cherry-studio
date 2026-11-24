@@ -5263,6 +5263,7 @@
   "settings.memory.clear_confirm": "Wyczyścić wszystkie lokalne pliki pamięci?",
   "settings.memory.clear_success": "Wyczyszczono pamięć",
   "settings.memory.failed": "Nie udało się ukończyć operacji. Sprawdź pozostałe elementy i spróbuj ponownie.",
+  "settings.memory.global": "Pamięć globalna",
   "settings.memory.no_recovery": "Brak operacji, którą można przywrócić.",
   "settings.memory.outcome.conflict": "Konflikt",
   "settings.memory.outcome.pending": "Nie ukończono",

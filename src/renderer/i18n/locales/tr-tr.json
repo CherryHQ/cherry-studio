@@ -5197,6 +5197,7 @@
   "settings.memory.clear_confirm": "Tüm yerel bellek dosyaları temizlensin mi?",
   "settings.memory.clear_success": "Başarıyla temizlendi",
   "settings.memory.failed": "İşlem tamamlanamadı. Kalan öğeleri inceleyip yeniden deneyin.",
+  "settings.memory.global": "Genel bellek",
   "settings.memory.no_recovery": "Geri yüklenebilir işlem yok.",
   "settings.memory.outcome.conflict": "Çakışma",
   "settings.memory.outcome.pending": "Tamamlanmadı",
