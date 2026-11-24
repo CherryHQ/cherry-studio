@@ -9,6 +9,7 @@ import { application } from '@application'
 import { diagnosticReportService } from '@data/services/DiagnosticReportService'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
+import { getErrorCode } from '@main/utils/error'
 import {
   createAtomicWriteStream,
   isPathInside,
@@ -215,6 +216,7 @@ async function selectBundleSources(
     if (candidate.item.kind === 'chatRecords') {
       selectedChats.push(candidate.item)
     } else {
+      // SAFETY: The item.kind check leaves SourceCandidate; item is the wrapper's only generic-dependent field.
       selectedFileCandidates.add(candidate as DiagnosticBudgetCandidate<SourceCandidate>)
     }
   }
@@ -349,7 +351,7 @@ async function writeBundleZip(
   } finally {
     await remove(stagingPath).catch((error) => {
       logger.warn('Failed to clean diagnostic bundle staging archive', {
-        code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+        code: getErrorCode(error) ?? 'UNKNOWN'
       })
     })
   }
@@ -369,7 +371,7 @@ async function probeDestination(destination: AbsoluteFilePath): Promise<Destinat
       size: snapshot.size
     }
   } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return { status: 'missing' }
+    if (getErrorCode(error) === 'ENOENT') return { status: 'missing' }
     throw error
   } finally {
     await snapshot?.close().catch(() => undefined)
@@ -396,7 +398,7 @@ async function resolveThroughExistingAncestor(target: AbsoluteFilePath): Promise
   try {
     return await realpath(target)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error
+    if (getErrorCode(error) !== 'ENOENT') throw error
     const parent = AbsoluteFilePathSchema.parse(path.dirname(target))
 
     if (parent === target) throw error
@@ -619,7 +621,7 @@ export class DiagnosticBundleService {
     } finally {
       await removeDir(tempRoot).catch((error) => {
         logger.warn('Failed to clean diagnostic bundle temporary files', {
-          code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+          code: getErrorCode(error) ?? 'UNKNOWN'
         })
       })
     }
@@ -728,7 +730,7 @@ export class DiagnosticBundleService {
       if (!retainTempRoot) {
         await removeDir(tempRoot).catch((error) => {
           logger.warn('Failed to clean diagnostic upload temporary files', {
-            code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+            code: getErrorCode(error) ?? 'UNKNOWN'
           })
         })
       }
@@ -872,7 +874,7 @@ export class DiagnosticBundleService {
     if (bundle.location !== 'temporary') return
     await removeDir(bundle.tempRoot).catch((error) => {
       logger.warn('Failed to clean retained diagnostic upload temporary files', {
-        code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+        code: getErrorCode(error) ?? 'UNKNOWN'
       })
     })
   }
@@ -918,7 +920,7 @@ export class DiagnosticBundleService {
         failedCandidates.push(candidate)
         collection.warnings.add(error instanceof SourceChangedError ? 'source_changed' : 'source_unreadable')
         logger.warn('Skipped a diagnostic source that could not be staged', {
-          code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+          code: getErrorCode(error) ?? 'UNKNOWN'
         })
       }
     }
@@ -943,7 +945,7 @@ export class DiagnosticBundleService {
       } catch (error) {
         collection.warnings.add('source_unreadable')
         logger.warn('Skipped diagnostic chat records that could not be staged', {
-          code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+          code: getErrorCode(error) ?? 'UNKNOWN'
         })
       }
     }
@@ -982,7 +984,7 @@ export class DiagnosticBundleService {
         collection.warnings.add('scan_failed')
         scan = { status: 'failed' }
         logger.warn('Failed to build the diagnostic scan report', {
-          code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+          code: getErrorCode(error) ?? 'UNKNOWN'
         })
       }
     }
