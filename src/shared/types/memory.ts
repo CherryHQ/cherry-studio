@@ -69,8 +69,7 @@ export type MemoryCandidate = z.infer<typeof MemoryCandidateSchema>
 const dreamingReason = z.enum(['model', 'budget', 'migration', 'conflict', 'backup', 'output', 'unavailable'])
 
 export const MemoryDreamingStatusSchema = z.object({
-  pending: z.boolean(),
-  status: z.enum(['idle', 'queued', 'running', 'failed', 'cancelled']),
+  status: z.enum(['idle', 'running', 'failed', 'cancelled']),
   reason: dreamingReason.optional(),
   lastRunAt: z.number().optional(),
   lastResult: z
