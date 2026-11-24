@@ -202,7 +202,7 @@ describe('packaging tool assets', () => {
             stripComponents: 1,
             version: 'tree-r1',
             binaries: ['tree/bin/run', 'tree/NOTICE'],
-            tree: { executables: ['bin/run'], sharedLibraries: ['lib/libone.so*'], notices: ['NOTICE'] },
+            tree: { executables: ['bin/run'], sharedLibraries: ['lib/libone.so.1'], notices: ['NOTICE'] },
             sha256: crypto.createHash('sha256').update(payload).digest('hex')
           }
         }

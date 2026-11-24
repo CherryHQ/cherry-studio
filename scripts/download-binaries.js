@@ -227,7 +227,7 @@ function hasReferencedFile(dir) {
 //   strip     — for zip: glob prefix per binary
 //   stripComponents — tar.gz --strip-components depth (default 1)
 //   version   — optional per-platform marker version (defaults to the tool version)
-//   tree      — for a tar.gz tree: executables, shared-library globs, and notice paths relative to dir
+//   tree      — for a tar.gz tree: executables, shared-library and notice paths relative to dir
 //   sha256    — checksum of the downloaded file (binary itself or archive)
 //
 // Tool fields:
@@ -274,7 +274,15 @@ function linuxFfmpegPackage(arch, sha256) {
     // DT_RPATH is $ORIGIN/../lib, so the stripped archive tree stays intact under ffmpeg/.
     tree: {
       executables: ['bin/ffmpeg', 'bin/ffprobe'],
-      sharedLibraries: ['lib/libav*.so*', 'lib/libsw*.so*'],
+      // The SONAMEs ffmpeg/ffprobe load (FFmpeg 8.1); a glob would accept the versioned file alone.
+      sharedLibraries: [
+        'lib/libavcodec.so.62',
+        'lib/libavfilter.so.11',
+        'lib/libavformat.so.62',
+        'lib/libavutil.so.60',
+        'lib/libswresample.so.6',
+        'lib/libswscale.so.9'
+      ],
       notices: ['licenses/**', 'SOURCE.txt', 'manifest.json']
     },
     sha256
@@ -650,7 +658,7 @@ function isUpToDate(binaryPaths, versionPath, expectedVersion, treeRoot = null, 
   return fs.readFileSync(versionPath, 'utf8').trim() === expectedVersion
 }
 
-/** Patterns are relative to the stripped tree root. `**` means a non-empty directory. */
+/** Paths are relative to the stripped tree root and must be files; `dir/**` means a non-empty directory. */
 function missingTreeEntries(root, tree) {
   const required = [...(tree.executables ?? []), ...(tree.sharedLibraries ?? []), ...(tree.notices ?? [])]
   return required.filter((pattern) => !treeEntryExists(root, pattern))
@@ -661,18 +669,7 @@ function treeEntryExists(root, pattern) {
     const dir = path.join(root, pattern.slice(0, -3))
     return Boolean(statOrNull(dir)?.isDirectory()) && hasAnyFile(dir)
   }
-  if (!pattern.includes('*')) {
-    return Boolean(statOrNull(path.join(root, pattern))?.isFile())
-  }
-  const dir = path.join(root, path.dirname(pattern))
-  if (!statOrNull(dir)?.isDirectory()) return false
-  const expression = new RegExp(
-    `^${path
-      .basename(pattern)
-      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '[^/]*')}$`
-  )
-  return readdirOrEmpty(dir).some((name) => expression.test(name))
+  return Boolean(statOrNull(path.join(root, pattern))?.isFile())
 }
 
 function hasAnyFile(dir) {

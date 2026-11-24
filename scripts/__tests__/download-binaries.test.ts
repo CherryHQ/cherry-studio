@@ -137,8 +137,18 @@ describe('extract – zip mode on Windows', () => {
 const LINUX_FFMPEG_TREE: Record<string, string> = {
   'bin/ffmpeg': 'ffmpeg',
   'bin/ffprobe': 'ffprobe',
-  'lib/libavcodec.so.61': 'avcodec',
-  'lib/libswscale.so.8': 'swscale',
+  'lib/libavcodec.so.62': 'avcodec',
+  'lib/libavcodec.so.62.28.102': 'avcodec',
+  'lib/libavfilter.so.11': 'avfilter',
+  'lib/libavfilter.so.11.14.102': 'avfilter',
+  'lib/libavformat.so.62': 'avformat',
+  'lib/libavformat.so.62.12.102': 'avformat',
+  'lib/libavutil.so.60': 'avutil',
+  'lib/libavutil.so.60.26.102': 'avutil',
+  'lib/libswresample.so.6': 'swresample',
+  'lib/libswresample.so.6.3.102': 'swresample',
+  'lib/libswscale.so.9': 'swscale',
+  'lib/libswscale.so.9.5.102': 'swscale',
   'licenses/ffmpeg/COPYING.LGPLv2.1': 'LGPL',
   'SOURCE.txt': 'source',
   'manifest.json': '{"tag":"ffmpeg-lgpl-v8.1.2-r1"}',
@@ -181,8 +191,8 @@ describe('extract – Linux FFmpeg tar tree', () => {
     const root = path.join(outputDir, 'ffmpeg')
     expect(fs.readFileSync(path.join(root, 'bin', 'ffmpeg'), 'utf8')).toBe('ffmpeg')
     expect(fs.readFileSync(path.join(root, 'bin', 'ffprobe'), 'utf8')).toBe('ffprobe')
-    expect(fs.readFileSync(path.join(root, 'lib', 'libavcodec.so.61'), 'utf8')).toBe('avcodec')
-    expect(fs.readFileSync(path.join(root, 'lib', 'libswscale.so.8'), 'utf8')).toBe('swscale')
+    expect(fs.readFileSync(path.join(root, 'lib', 'libavcodec.so.62'), 'utf8')).toBe('avcodec')
+    expect(fs.readFileSync(path.join(root, 'lib', 'libswscale.so.9'), 'utf8')).toBe('swscale')
     expect(fs.readFileSync(path.join(root, 'licenses', 'ffmpeg', 'COPYING.LGPLv2.1'), 'utf8')).toBe('LGPL')
     expect(fs.readFileSync(path.join(root, 'SOURCE.txt'), 'utf8')).toBe('source')
     expect(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8')).toContain('ffmpeg-lgpl-v8.1.2-r1')
@@ -192,13 +202,13 @@ describe('extract – Linux FFmpeg tar tree', () => {
     expect(fs.existsSync(stale)).toBe(false)
   })
 
-  it('rejects a stripped tree with no replaceable libav library', async () => {
+  it('rejects a stripped tree missing a SONAME the binaries load, even with its versioned file', async () => {
     const outputDir = makeTmpDir('dl-linux-out-')
-    const withoutLibav = { ...LINUX_FFMPEG_TREE }
-    delete withoutLibav['lib/libavcodec.so.61']
+    const withoutSoname = { ...LINUX_FFMPEG_TREE }
+    delete withoutSoname['lib/libavcodec.so.62']
 
-    await expect(extract(makeStrippedLinuxArchive(withoutLibav), 'tar.gz', outputDir, linuxPkg())).rejects.toThrow(
-      /lib\/libav\*\.so\*/
+    await expect(extract(makeStrippedLinuxArchive(withoutSoname), 'tar.gz', outputDir, linuxPkg())).rejects.toThrow(
+      /lib\/libavcodec\.so\.62(?!\.)/
     )
   })
 })
@@ -322,7 +332,14 @@ describe('FFmpeg bundle manifest', () => {
     expect(pkg.executableFiles).toEqual(['ffmpeg/bin/ffmpeg', 'ffmpeg/bin/ffprobe'])
     expect(pkg.tree).toEqual({
       executables: ['bin/ffmpeg', 'bin/ffprobe'],
-      sharedLibraries: ['lib/libav*.so*', 'lib/libsw*.so*'],
+      sharedLibraries: [
+        'lib/libavcodec.so.62',
+        'lib/libavfilter.so.11',
+        'lib/libavformat.so.62',
+        'lib/libavutil.so.60',
+        'lib/libswresample.so.6',
+        'lib/libswscale.so.9'
+      ],
       notices: ['licenses/**', 'SOURCE.txt', 'manifest.json']
     })
   })
@@ -593,7 +610,7 @@ describe('materialize – assembling the bundle from the shared cache', () => {
     materialize([tool], 'linux-x64', cache, bundle)
 
     expect(fs.readFileSync(path.join(bundle, '.ffmpeg-version'), 'utf8')).toBe('ffmpeg-lgpl-v8.1.2-r1')
-    expect(fs.readFileSync(path.join(bundle, 'ffmpeg', 'lib', 'libavcodec.so.61'), 'utf8')).toBe('avcodec')
+    expect(fs.readFileSync(path.join(bundle, 'ffmpeg', 'lib', 'libavcodec.so.62'), 'utf8')).toBe('avcodec')
     expect(fs.readFileSync(path.join(bundle, 'ffmpeg', 'licenses', 'ffmpeg', 'COPYING.LGPLv2.1'), 'utf8')).toBe('LGPL')
     expect(fs.readFileSync(path.join(bundle, 'ffmpeg', 'manifest.json'), 'utf8')).toContain('ffmpeg-lgpl-v8.1.2-r1')
     expect(fs.existsSync(path.join(bundle, 'ffmpeg', 'bin', 'dropped'))).toBe(false)
