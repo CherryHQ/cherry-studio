@@ -45,6 +45,25 @@ const logger = loggerService.withContext('MiniAppPreviewService')
 
 export const MINI_APP_PREVIEW_RUNTIME_PREFIX = 'preview-'
 
+/**
+ * Capabilities a tool-created preview NEVER receives, however the manifest declares
+ * them. The exfil pair is `clipboard.read` + `network.fetch`: a visible, focused
+ * preview whose package the model authored (and no human reviewed) could read the
+ * user's clipboard and post it to a manifest-allowed host, with every host gate
+ * passing — the artifact token proves only that the SESSION validated these bytes,
+ * not that a person authorized this artifact's privileged access. `clipboard.read`
+ * is the half that cannot be scoped by declaration (the network half already is, by
+ * `manifest.network`), so it is withheld: the install consent card is where a person
+ * authorizes the clipboard for a specific package, and a preview needing clipboard
+ * behavior is exercised after install instead.
+ */
+export const PREVIEW_WITHHELD_GRANTS: readonly string[] = ['clipboard.read']
+
+/** The preview's effective grant set: everything declared except the withheld privileged capabilities. */
+export function previewGrantKeys(manifest: MiniAppManifest): string[] {
+  return declaredGrantKeys(manifest).filter((key) => !PREVIEW_WITHHELD_GRANTS.includes(key))
+}
+
 export function previewRuntimeId(previewId: string): string {
   return `${MINI_APP_PREVIEW_RUNTIME_PREFIX}${previewId}`
 }
@@ -63,10 +82,13 @@ export interface MiniAppPreview {
   /** Manifest `entry` (package-relative); the pane navigates here, not to a fixed index.html. */
   readonly entry: string
   /**
-   * The preview's grants: the manifest's full DECLARED set, held in memory for the
-   * preview's life. A preview exists so its author can exercise the capabilities the
-   * app declares (AC3) — there is no consent UI behind it and no DB row to grant
-   * from, so the declared set IS the grant set, and it dies with the preview.
+   * The preview's grants: the manifest's DECLARED set minus PREVIEW_WITHHELD_GRANTS,
+   * held in memory for the preview's life. A preview exists so its author can
+   * exercise the capabilities the app declares (AC3) — there is no consent UI behind
+   * it and no DB row to grant from, so the declared set is the grant set, and it dies
+   * with the preview. The withheld set is the exception: a preview's package was
+   * authored by the model and never human-reviewed, so capabilities whose content is
+   * the USER'S (not the app's) never reach it — see PREVIEW_WITHHELD_GRANTS.
    */
   readonly grants: string[]
   /** The manifest's `network` allowlist — the bridge's host gate has no DB row to read. */
@@ -222,7 +244,7 @@ export class MiniAppPreviewService extends BaseService {
         appId: manifest.id,
         version: manifest.version,
         entry: manifest.entry,
-        grants: declaredGrantKeys(manifest),
+        grants: previewGrantKeys(manifest),
         networkHosts: [...manifest.network],
         dir,
         packageSha256: record.sha256,
