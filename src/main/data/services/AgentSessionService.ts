@@ -550,10 +550,23 @@ export class AgentSessionService {
     return (
       tx
         .update(sessionsTable)
-        .set({ taskId: params.taskScheduleId, isTaskReuseTarget: true, updatedAt: sql`${sessionsTable.updatedAt}` })
+        .set({
+          taskId: params.taskScheduleId,
+          isTaskReuseTarget: true,
+          isTaskOwned: sql`CASE WHEN ${sessionsTable.taskId} = ${params.taskScheduleId} THEN ${sessionsTable.isTaskOwned} ELSE 0 END`,
+          updatedAt: sql`${sessionsTable.updatedAt}`
+        })
         .where(eq(sessionsTable.id, params.sessionId))
         .run().changes > 0
     )
+  }
+
+  /** Schedule removal ends its deletion authority over retained conversations. */
+  releaseTaskOwnershipTx(tx: DbOrTx, taskScheduleId: string): void {
+    tx.update(sessionsTable)
+      .set({ isTaskOwned: false, updatedAt: sql`${sessionsTable.updatedAt}` })
+      .where(eq(sessionsTable.taskId, taskScheduleId))
+      .run()
   }
 
   clearTaskScheduleTx(tx: DbOrTx, taskScheduleId: string): boolean {

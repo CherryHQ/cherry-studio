@@ -259,6 +259,7 @@ export class AgentTaskService {
 
   deleteScheduleTx(tx: DbOrTx, taskId: string): boolean {
     agentSessionService.clearTaskScheduleTx(tx, taskId)
+    agentSessionService.releaseTaskOwnershipTx(tx, taskId)
     return jobScheduleService.deleteTx(tx, taskId)
   }
 
