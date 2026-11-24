@@ -3919,6 +3919,45 @@
       }
     },
     {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 1000000,
+      "id": "claude-fable-5-2",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Claude Fable 5.2",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "high",
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "defaultEffort": "high",
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
+        "wireDialect": "adaptive-always"
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
       "id": "claude-fable-latest",
@@ -24157,5 +24196,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "6a6a80c02c1f6a2c"
+  "version": "676797cfd819d8f8"
 }
