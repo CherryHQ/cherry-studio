@@ -24,20 +24,20 @@ describe('InputGroupAddon focus', () => {
     expect(screen.getByRole('textbox', { name: 'Value' })).toHaveFocus()
   })
 
-  it('leaves focus on an addon button when its child is clicked', async () => {
+  it.each(['text', 'SVG'] as const)('leaves focus on an addon button when its %s child is clicked', async (child) => {
     const user = userEvent.setup()
     render(
       <InputGroup>
         <InputGroupAddon>
-          <button type="button">
-            <span>Action</span>
+          <button type="button" aria-label="Action">
+            {child === 'text' ? <span>Action</span> : <svg role="img" aria-label="Action icon" />}
           </button>
         </InputGroupAddon>
         <InputGroupInput aria-label="Value" />
       </InputGroup>
     )
 
-    await user.click(screen.getByText('Action'))
+    await user.click(child === 'text' ? screen.getByText('Action') : screen.getByRole('img', { name: 'Action icon' }))
 
     expect(screen.getByRole('button', { name: 'Action' })).toHaveFocus()
   })

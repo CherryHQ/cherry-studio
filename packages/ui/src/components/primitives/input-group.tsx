@@ -78,10 +78,14 @@ function InputGroupAddon({
       data-align={align}
       className={cn(inputGroupAddonVariants({ align }), className)}
       onClick={(e) => {
-        const target = e.target as HTMLElement
+        const target = e.target
 
         // Portaled controls bubble through React without belonging to this addon's DOM.
-        if (!e.currentTarget.contains(target) || target.closest('button')) {
+        if (
+          !(target instanceof Node) ||
+          !e.currentTarget.contains(target) ||
+          (target instanceof Element && target.closest('button'))
+        ) {
           return
         }
 
