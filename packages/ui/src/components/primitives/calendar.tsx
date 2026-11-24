@@ -129,6 +129,7 @@ function CalendarDropdown({
 function handleCalendarDropdownChange(value: string | number, onChange: DropdownProps['onChange']) {
   if (!onChange) return
 
+  // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy value-only bridge: DayPicker 9.14 reads target.value; this is not a complete React event.
   const event = {
     target: {
       value: String(value)
