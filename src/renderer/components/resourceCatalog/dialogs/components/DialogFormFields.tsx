@@ -1,72 +1,9 @@
 import { ChevronDown } from 'lucide-react'
-import { type ComponentProps, type ComponentPropsWithoutRef, type FC, type ReactNode } from 'react'
+import { type ComponentProps, type ComponentPropsWithoutRef, type ReactNode } from 'react'
 
-import { Button, EmojiAvatar, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { EmojiPicker } from '@renderer/components/EmojiPicker'
-
-export const EmojiAvatarPicker: FC<{
-  value: string
-  fallback: string
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onChange: (emoji: string) => void
-  ariaLabel: string
-  disabled?: boolean
-  portalContainer: HTMLElement | null
-  size?: 'sm' | 'md'
-  avatarClassName?: string
-  avatarFontSize?: number
-}> = ({
-  value,
-  fallback,
-  open,
-  onOpenChange,
-  onChange,
-  ariaLabel,
-  disabled,
-  portalContainer,
-  size = 'md',
-  avatarClassName,
-  avatarFontSize
-}) => {
-  // 'md' matches the h-8 Input the avatar sits beside in the edit dialogs.
-  const avatarSize = size === 'sm' ? 36 : 32
-  const fontSize = avatarFontSize ?? (size === 'sm' ? 18 : 16)
-
-  return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          aria-label={ariaLabel}
-          disabled={disabled}
-          className={cn(
-            'min-h-0 rounded-lg p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:bg-transparent focus-visible:opacity-80',
-            size === 'sm' ? 'size-9' : 'size-8'
-          )}>
-          {/* Match the adjacent Input's rounded-lg + hairline border. */}
-          <EmojiAvatar
-            size={avatarSize}
-            fontSize={fontSize}
-            className={cn('rounded-lg border border-border', avatarClassName)}>
-            {value || fallback}
-          </EmojiAvatar>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent portalContainer={portalContainer} className="w-auto p-0">
-        <EmojiPicker
-          onEmojiClick={(emoji) => {
-            onChange(emoji)
-            onOpenChange(false)
-          }}
-        />
-      </PopoverContent>
-    </Popover>
-  )
-}
 
 export function DialogModelFrame({ invalid, children }: { invalid?: boolean; children: ReactNode }) {
   return (

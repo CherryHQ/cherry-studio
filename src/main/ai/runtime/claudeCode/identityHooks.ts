@@ -1,6 +1,6 @@
 import type { HookCallback, HookEvent, HookCallbackMatcher } from '@anthropic-ai/claude-agent-sdk'
 
-import { PromptBuilder } from '@main/ai/agents/prompt'
+import { PromptBuilder } from '@main/ai/agents/prompt/promptContext'
 
 /** Per-connection identity delivery; SessionStart also runs after native context compaction. */
 export function createClaudeCodeIdentityHooks(

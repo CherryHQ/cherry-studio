@@ -339,12 +339,34 @@ describe('FeishuAdapter', () => {
     const onCredentials = vi.fn()
     adapter.on('qr', onQr)
     adapter.on('credentials', onCredentials)
+    const onLogin = vi.fn()
+    adapter.on('qrLogin', onLogin)
 
     await adapter.connect()
 
     await vi.waitFor(() => {
       expect(onQr).toHaveBeenCalledWith('https://accounts.feishu.cn/device/qr')
       expect(onCredentials).toHaveBeenCalledWith({ appId: 'new-app-id', appSecret: 'new-app-secret' })
+      expect(onLogin).toHaveBeenCalledWith({
+        type: 'feishu',
+        data: {
+          channelId: 'ch-1',
+          url: 'https://accounts.feishu.cn/device/qr',
+          status: 'pending',
+          appId: undefined,
+          appSecret: undefined
+        }
+      })
+      expect(onLogin).toHaveBeenCalledWith({
+        type: 'feishu',
+        data: {
+          channelId: 'ch-1',
+          url: '',
+          status: 'confirmed',
+          appId: 'new-app-id',
+          appSecret: 'new-app-secret'
+        }
+      })
     })
     expect(mockConnect).not.toHaveBeenCalled()
   })
