@@ -68,7 +68,10 @@ default in multiple places.** The chooser is in
 - spread a row;
 - run `nullsToUndefined(row)` once at the SQLite NULL → TypeScript `undefined` boundary;
 - call `timestampToISO` / `timestampToISOOrUndefined` for `Date.now()` ↔ ISO conversion;
-- narrow string fields to literal-union types (e.g. `clean.type as McpServer['type']`).
+- preserve literal-union fields declared on the Drizzle column with `$type<…>()`.
+
+Column type annotations do not validate stored values. A literal union needs a matching SQL constraint
+or boundary validation; do not narrow an unconstrained historical string in the mapper.
 
 `row.x ?? someValue` is **forbidden**. If the impulse arises, the column is mis-designed:
 switch it to `NOT NULL` with a DB DEFAULT or `$defaultFn`, or accept that the entity field

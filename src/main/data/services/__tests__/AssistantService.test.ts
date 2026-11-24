@@ -813,6 +813,30 @@ describe('AssistantDataService', () => {
   })
 
   describe('duplicate', () => {
+    it('preserves a historical model reference when reading and duplicating an assistant', async () => {
+      const modelId = 'legacy-model-reference'
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: modelId,
+          providerId: 'openai',
+          modelId: 'legacy-wire-model',
+          name: 'Legacy model',
+          capabilities: [],
+          supportsStreaming: true,
+          orderKey: generateOrderKeySequence(6)[5]
+        })
+        .run()
+      await seedAssistantRow({ id: 'ast-legacy', name: 'Legacy', modelId })
+
+      expect(assistantDataService.getById('ast-legacy').modelId).toBe(modelId)
+      const duplicate = assistantDataService.duplicate('ast-legacy', { name: 'Legacy copy' })
+      expect(duplicate.modelId).toBe(modelId)
+      expect(dbh.db.select().from(assistantTable).where(eq(assistantTable.id, duplicate.id)).get()?.modelId).toBe(
+        modelId
+      )
+    })
+
     it('atomically copies Assistant state, relations, and contextual prompt order', async () => {
       const groupId = '11111111-1111-4111-8111-111111111111'
       await seedAssistantGroup(groupId, 'work')
@@ -960,6 +984,26 @@ describe('AssistantDataService', () => {
   })
 
   describe('update', () => {
+    it('ignores undefined columns while preserving empty values, null unbinding and partial settings', async () => {
+      const settings = { ...DEFAULT_ASSISTANT_SETTINGS, enableTemperature: true }
+      await seedAssistantRow({ id: 'ast-1', name: 'original', description: 'old', modelId: 'openai::gpt-4', settings })
+
+      const result = assistantDataService.update('ast-1', {
+        name: undefined,
+        description: '',
+        modelId: null,
+        settings: { temperature: 0, streamOutput: false }
+      })
+      expect(result).toMatchObject({ name: 'original', description: '', modelId: null })
+      expect(result.settings).toEqual({ ...settings, temperature: 0, streamOutput: false })
+      expect(dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1')).get()).toMatchObject({
+        name: 'original',
+        description: '',
+        modelId: null,
+        settings: result.settings
+      })
+    })
+
     it('should update and return assistant', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'original' })
 

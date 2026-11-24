@@ -328,6 +328,24 @@ describe('McpServerService', () => {
   })
 
   describe('update', () => {
+    it('ignores undefined fields and persists explicit false, zero and empty values', async () => {
+      await seedServer({ description: 'old', isActive: true, sortOrder: 10 })
+
+      const result = mcpServerService.update('srv-1', {
+        name: undefined,
+        description: '',
+        isActive: false,
+        sortOrder: 0
+      })
+      expect(result).toMatchObject({ name: 'test-server', description: '', isActive: false, sortOrder: 0 })
+      expect(dbh.db.select().from(mcpServerTable).get()).toMatchObject({
+        name: 'test-server',
+        description: '',
+        isActive: false,
+        sortOrder: 0
+      })
+    })
+
     it('should update and return server', async () => {
       await seedServer()
 

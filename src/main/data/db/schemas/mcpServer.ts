@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import type { McpConfigSample } from '@shared/data/types/mcpServer'
+import type { McpConfigSample, McpServerInstallSource, McpServerType } from '@shared/data/types/mcpServer'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
@@ -17,7 +17,7 @@ export const mcpServerTable = sqliteTable(
   {
     id: uuidPrimaryKey(),
     name: text().notNull(),
-    type: text(),
+    type: text().$type<McpServerType>(),
     description: text(),
     baseUrl: text(),
     command: text(),
@@ -41,7 +41,7 @@ export const mcpServerTable = sqliteTable(
     shouldConfig: integer({ mode: 'boolean' }),
     sortOrder: integer().default(0),
     isActive: integer({ mode: 'boolean' }).notNull().default(false),
-    installSource: text(),
+    installSource: text().$type<McpServerInstallSource>(),
     isTrusted: integer({ mode: 'boolean' }),
     trustedAt: integer(),
     installedAt: integer(),

@@ -7,6 +7,7 @@
  */
 
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
+import { omitBy } from 'es-toolkit'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
@@ -72,7 +73,7 @@ function rowToAssistant(
 
   return {
     ...clean,
-    // Preserve the T | null contract: `modelId` is legitimately nullable (R3 exception).
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Historical SQLite model IDs and null are preserved; current DTO validation does not establish the format of stored references.
     modelId: row.modelId as UniqueModelId | null,
     groupId: row.groupId,
     mcpServerIds: relations.mcpServerIds,
@@ -459,7 +460,10 @@ export class AssistantDataService {
   /**
    * Insert an assistant and its relations inside a caller-owned transaction.
    */
-  private createTx(tx: DbOrTx, dto: CreateAssistantDto): AssistantRowWithModelName {
+  private createTx(
+    tx: DbOrTx,
+    dto: Omit<CreateAssistantDto, 'modelId'> & Partial<Pick<AssistantRow, 'modelId'>>
+  ): AssistantRowWithModelName {
     // Resolve modelId: explicit values strictly validated; omission falls
     // back to `chat.default_model_id` preference (stale → null with a
     // logger.warn).
@@ -531,7 +535,7 @@ export class AssistantDataService {
         emoji: source.emoji,
         description: source.description,
         settings: source.settings,
-        modelId: source.modelId as UniqueModelId | null,
+        modelId: source.modelId,
         groupId: source.groupId,
         ...relations
       })
@@ -615,9 +619,7 @@ export class AssistantDataService {
     // Strip relation fields — these are synced to junction tables, not assistant columns
     const { mcpServerIds, knowledgeBaseIds, settings: settingsPatch, ...columnFields } = dto
 
-    const updates = Object.fromEntries(Object.entries(columnFields).filter(([, v]) => v !== undefined)) as Partial<
-      typeof assistantTable.$inferInsert
-    >
+    const updates: Partial<typeof assistantTable.$inferInsert> = omitBy(columnFields, (value) => value === undefined)
 
     if (settingsPatch !== undefined) {
       updates.settings = { ...current.settings, ...settingsPatch }

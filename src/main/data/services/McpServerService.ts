@@ -7,6 +7,7 @@
  */
 
 import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
+import { omitBy } from 'es-toolkit'
 import { isEqual } from 'es-toolkit/compat'
 
 import { application } from '@application'
@@ -30,8 +31,6 @@ function rowToMcpServer(row: typeof mcpServerTable.$inferSelect): McpServer {
 
   return {
     ...clean,
-    type: clean.type as McpServer['type'],
-    installSource: clean.installSource as McpServer['installSource'],
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -217,9 +216,7 @@ export class McpServerService {
       const existing = rowToMcpServer(existingRow)
       this.validateName(dto.name ?? existing.name)
 
-      const updates = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as Partial<
-        typeof mcpServerTable.$inferInsert
-      >
+      const updates = omitBy(dto, (value) => value === undefined)
 
       const [row] = tx.update(mcpServerTable).set(updates).where(eq(mcpServerTable.id, id)).returning().all()
 
