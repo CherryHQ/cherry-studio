@@ -73,13 +73,13 @@ function MenuItem({
 }: MenuItemProps) {
   const Comp = asChild ? Slot : 'button'
 
-  const descriptionStyle =
+  const descriptionStyle: React.CSSProperties | undefined =
     descriptionLines && descriptionLines > 0
-      ? ({
+      ? {
           display: '-webkit-box',
           WebkitBoxOrient: 'vertical',
           WebkitLineClamp: descriptionLines
-        } as React.CSSProperties)
+        }
       : undefined
 
   return (
