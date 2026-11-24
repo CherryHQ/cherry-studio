@@ -67,11 +67,9 @@ Open **Settings → Tools → Shared memory**, alongside MCP and Skills.
 - The page shows the last completed, failed or cancelled result. **Restore backup** and **Clear global memory** require confirmation.
 - Agent and Assistant **Basic** forms label their access switch **Shared memory**. The Agent switch precedes Heartbeat and defaults on; the Assistant switch defaults off. Presets carry this switch setting.
 
-The Agent configuration dialog also has a **Memory** tab for identity and legacy files. It displays `SOUL.md`, `USER.md`, `memory/FACT.md` and `memory/JOURNAL.jsonl` through `agent.memory.*` IPC.
+The agent editor's **Memory** tab has three views. **Persona** and **User profile** edit `SOUL.md` and `USER.md` with explicit Save/Cancel, version checks, and confirmation before discarding drafts. Truncated identity files are read-only.
 
-Its three Markdown files have explicit Save/Cancel, version-conflict checks, and a 1 MiB read/write limit. Truncated files and JOURNAL are read-only. Leaving an unsaved draft requires confirmation. These operations use the legacy editor's own protection.
-
-After successful migration, FACT becomes retained history; later edits in this tab affect only that legacy file. `SOUL.md` and `USER.md` retain their separate identity roles.
+**Private memory** opens the selected agent's migrated `MEMORY.md`. Users can select a topic from the file picker or follow a link in the entry. The main process authorizes each read for that agent. Browsing does not start a migration and remains available with shared memory disabled.
 
 ## Entry snapshots in model requests
 

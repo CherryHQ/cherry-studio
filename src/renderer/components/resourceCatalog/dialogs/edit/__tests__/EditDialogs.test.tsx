@@ -2793,7 +2793,10 @@ describe('Agent configuration memory', () => {
       if (route === 'memory.private.list') return { status: 'complete', files: ['MEMORY.md', '.memories/topic.md'] }
       if (route === 'memory.private.read')
         return {
-          content: (input as { path: string }).path === 'MEMORY.md' ? 'Private entry body' : 'Private topic body',
+          content:
+            (input as { path: string }).path === 'MEMORY.md'
+              ? 'Private entry body\n\n[View topic](.memories/topic.md)'
+              : 'Private topic body',
           truncated: false
         }
       if (route === 'agent.memory.write')
@@ -2830,7 +2833,7 @@ describe('Agent configuration memory', () => {
     expect(screen.queryByRole('tab', { name: 'Durable knowledge' })).toBeNull()
     await user.click(screen.getByRole('tab', { name: 'Private memory' }))
     expect(await screen.findByText('Private entry body')).toBeVisible()
-    await user.click(screen.getByRole('button', { name: '.memories/topic.md' }))
+    await user.click(screen.getByRole('link', { name: 'View topic' }))
     expect(await screen.findByText('Private topic body')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
   })

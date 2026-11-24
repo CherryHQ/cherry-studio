@@ -372,12 +372,14 @@ export function AgentMemoryPanel({
                       </DropdownMenuTrigger>
                     </Tooltip>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        disabled={!selected?.exists || !selected.content}
-                        onSelect={() => void copyContent()}>
-                        <Copy className="size-4" aria-hidden="true" />
-                        {t('agent.memory.copy')}
-                      </DropdownMenuItem>
+                      {selectedKey !== 'private' && (
+                        <DropdownMenuItem
+                          disabled={!selected?.exists || !selected.content}
+                          onSelect={() => void copyContent()}>
+                          <Copy className="size-4" aria-hidden="true" />
+                          {t('agent.memory.copy')}
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         disabled={loading}
                         onSelect={() =>
