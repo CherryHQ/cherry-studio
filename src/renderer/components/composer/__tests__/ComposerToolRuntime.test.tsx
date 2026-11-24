@@ -1,36 +1,33 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { type ReactNode, useEffect } from 'react'
+import userEvent from '@testing-library/user-event'
+import { type ReactNode, useEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetToolsForScope, mockQuickPanelValue, mockTranslate, mockUseQuickPanel } = vi.hoisted(() => {
-  const mockQuickPanelValue = {
-    close: vi.fn(),
-    initialSearchText: undefined as string | undefined,
-    isVisible: false,
-    open: vi.fn(),
-    symbol: '',
-    updateFooterActions: vi.fn(),
-    updateList: vi.fn()
-  }
+const { mockGetAllTools, mockGetToolsForScope, mockQuickPanelValue, mockTranslate, mockUseQuickPanel } = vi.hoisted(
+  () => {
+    const mockQuickPanelValue = {
+      close: vi.fn(),
+      initialSearchText: undefined as string | undefined,
+      isVisible: false,
+      open: vi.fn(),
+      symbol: '',
+      updateFooterActions: vi.fn(),
+      updateList: vi.fn()
+    }
 
-  return {
-    mockGetToolsForScope: vi.fn(),
-    mockQuickPanelValue,
-    mockTranslate: (key: string) => key,
-    mockUseQuickPanel: vi.fn(() => mockQuickPanelValue)
+    return {
+      mockGetAllTools: vi.fn(),
+      mockGetToolsForScope: vi.fn(),
+      mockQuickPanelValue,
+      mockTranslate: (key: string) => key,
+      mockUseQuickPanel: vi.fn(() => mockQuickPanelValue)
+    }
   }
-})
+)
 
 vi.mock('@renderer/components/composer/tools/builtinTools', () => ({
-  getAllTools: () => [],
+  getAllTools: () => mockGetAllTools(),
   getToolsForScope: (...args: unknown[]) => mockGetToolsForScope(...args)
-}))
-
-vi.mock('@renderer/components/composer/tools/types', () => ({
-  TopicType: {
-    Chat: 'chat',
-    Session: 'session'
-  }
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
@@ -52,16 +49,25 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
+
 import {
   ComposerActiveToolControls,
+  ComposerToolDerivedStateProvider,
   ComposerToolFooterActionsSync,
   ComposerToolMenu,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
+  useComposerTokenReconcile,
   useComposerToolDispatch,
   useComposerToolState
 } from '../ComposerToolRuntime'
-import { TopicType } from '../tools/types'
+import type { ComposerSerializedToken } from '../tokens'
+import { useComposerToolProviderLaunchers } from '../tools/ComposerToolProvider'
+import attachmentTool from '../tools/definitions/attachmentTool'
+import knowledgeBaseTool from '../tools/definitions/knowledgeBaseTool'
+import { type ComposerToolRegistration, defineTool, TopicType } from '../tools/types'
 
 const assistant = {
   id: 'assistant-1',
@@ -169,6 +175,7 @@ const RegisteredFooterActions = () => {
 }
 
 beforeEach(() => {
+  mockGetAllTools.mockReset().mockReturnValue([])
   mockGetToolsForScope.mockReset()
   mockUseQuickPanel.mockClear()
   mockQuickPanelValue.close.mockClear()
@@ -180,7 +187,7 @@ beforeEach(() => {
   mockQuickPanelValue.symbol = ''
 })
 
-const renderRuntime = (tools: any[], node: ReactNode) => {
+const renderRuntime = (tools: ComposerToolRegistration[], node: ReactNode) => {
   mockGetToolsForScope.mockReturnValue(tools)
 
   return render(
@@ -195,30 +202,184 @@ const renderRuntime = (tools: any[], node: ReactNode) => {
   )
 }
 
+const fileAttachment = (name: string): ComposerAttachment => ({
+  fileTokenSourceId: name,
+  name,
+  origin_name: name,
+  ext: '.txt',
+  size: 1,
+  type: 'text'
+})
+
+const LauncherLabels = () => {
+  const { getLaunchers } = useComposerToolProviderLaunchers()
+
+  return (
+    <output aria-label="Registered launchers">
+      {getLaunchers()
+        .map((entry) => entry.label)
+        .join(',')}
+    </output>
+  )
+}
+
+const ExpansionToggle = () => {
+  const { setIsExpanded } = useComposerToolDispatch()
+
+  return <button onClick={() => setIsExpanded((expanded) => !expanded)}>Toggle expansion</button>
+}
+
+describe('typed tool registration', () => {
+  it('updates declared dependencies and launchers without losing runtime hook state, and cleans up on unmount', async () => {
+    const user = userEvent.setup()
+    const filesTool = defineTool({
+      key: 'files',
+      label: 'Files',
+      dependencies: { state: ['files'], actions: ['setFiles'] },
+      composer: {
+        menuItems: {
+          createItems: ({ state }) => [
+            { id: 'files', kind: 'command', label: `Files: ${state.files.length}`, icon: 'files' }
+          ]
+        },
+        runtime: function FilesRuntime({ context }) {
+          const [draft, setDraft] = useState('')
+
+          return (
+            <>
+              <input aria-label="Tool draft" value={draft} onChange={(event) => setDraft(event.target.value)} />
+              <output aria-label="Attached files">{context.state.files.length}</output>
+              <button onClick={() => context.actions.setFiles([])}>Remove attachments</button>
+            </>
+          )
+        }
+      }
+    })
+    mockGetToolsForScope.mockReturnValue([filesTool])
+    const Harness = ({ mounted }: { mounted: boolean }) => (
+      <ComposerToolRuntimeProvider
+        initialState={{ files: [fileAttachment('report.txt')] }}
+        actions={{ addNewTopic: vi.fn(), onTextChange: vi.fn() }}>
+        {mounted && <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} />}
+        <LauncherLabels />
+        <ExpansionToggle />
+      </ComposerToolRuntimeProvider>
+    )
+    const view = render(<Harness mounted />)
+
+    expect(screen.getByLabelText('Registered launchers')).toHaveTextContent('Files: 1')
+    await user.type(screen.getByRole('textbox', { name: 'Tool draft' }), 'Keep this draft')
+    await user.click(screen.getByRole('button', { name: 'Toggle expansion' }))
+    expect(screen.getByRole('textbox', { name: 'Tool draft' })).toHaveValue('Keep this draft')
+    await user.click(screen.getByRole('button', { name: 'Remove attachments' }))
+    expect(screen.getByLabelText('Attached files')).toHaveTextContent('0')
+    expect(screen.getByLabelText('Registered launchers')).toHaveTextContent('Files: 0')
+    expect(screen.getByRole('textbox', { name: 'Tool draft' })).toHaveValue('Keep this draft')
+    view.rerender(<Harness mounted={false} />)
+    expect(screen.getByLabelText('Registered launchers')).toBeEmptyDOMElement()
+  })
+
+  it('reconciles real attachment and knowledge tools using the latest model-free provider state and scope', async () => {
+    const user = userEvent.setup()
+    const base: KnowledgeBase = {
+      id: '00000000-0000-4000-8000-000000000001',
+      name: 'Manual',
+      orderKey: 'a',
+      groupId: null,
+      dimensions: null,
+      embeddingModelId: null,
+      status: 'completed',
+      error: null,
+      chunkSize: 1024,
+      chunkOverlap: 200,
+      chunkStrategy: 'structured',
+      chunkSeparator: '\\n\\n',
+      createdAt: '2026-11-24T00:00:00.000Z',
+      updatedAt: '2026-11-24T00:00:00.000Z'
+    }
+    const tokens: ComposerSerializedToken[] = [
+      { id: 'file:latest.txt', kind: 'file', label: 'latest.txt', index: 0, textOffset: 0 },
+      { id: `knowledge:${base.id}`, kind: 'knowledge', label: base.name, index: 1, textOffset: 0 }
+    ]
+    const invisibleTool = defineTool({
+      key: 'invisible',
+      label: 'Invisible',
+      visibleInScopes: [TopicType.Chat],
+      dependencies: { actions: ['setFiles'] },
+      composer: { tokens: { reconcile: (_draft, { actions }) => actions.setFiles([]) } }
+    })
+    mockGetAllTools.mockReturnValue([
+      { ...attachmentTool, condition: () => false },
+      { ...knowledgeBaseTool, condition: () => false },
+      invisibleTool
+    ])
+    const ReconcileControls = ({ scope }: { scope: TopicType }) => {
+      const { files, selectedKnowledgeBases } = useComposerToolState()
+      const { setFiles } = useComposerToolDispatch()
+      const reconcile = useComposerTokenReconcile({ scope })
+      const [firstReconcile] = useState(() => reconcile)
+
+      return (
+        <>
+          <button onClick={() => setFiles([fileAttachment('latest.txt'), fileAttachment('removed.txt')])}>
+            Replace attachments
+          </button>
+          <button onClick={() => firstReconcile(tokens)}>Reconcile draft</button>
+          <output aria-label="Remaining attachments">{files.map((file) => file.name).join(',')}</output>
+          <output aria-label="Selected knowledge">{selectedKnowledgeBases.map((item) => item.name).join(',')}</output>
+        </>
+      )
+    }
+    const Harness = ({ selectableBases, scope }: { selectableBases: KnowledgeBase[]; scope: TopicType }) => (
+      <ComposerToolRuntimeProvider
+        initialState={{ files: [fileAttachment('old.txt')] }}
+        actions={{ addNewTopic: vi.fn(), onTextChange: vi.fn() }}>
+        <ComposerToolDerivedStateProvider
+          couldAddImageFile={false}
+          extensions={[]}
+          selectableKnowledgeBases={selectableBases}>
+          <ReconcileControls scope={scope} />
+        </ComposerToolDerivedStateProvider>
+      </ComposerToolRuntimeProvider>
+    )
+    const view = render(<Harness selectableBases={[]} scope={TopicType.Chat} />)
+
+    await user.click(screen.getByRole('button', { name: 'Replace attachments' }))
+    view.rerender(<Harness selectableBases={[base]} scope={TopicType.Session} />)
+    await user.click(screen.getByRole('button', { name: 'Reconcile draft' }))
+    expect(screen.getByLabelText('Remaining attachments')).toHaveTextContent(/^latest.txt$/)
+    expect(screen.getByLabelText('Selected knowledge')).toHaveTextContent(/^Manual$/)
+  })
+})
+
 describe('ComposerToolRuntimeHost', () => {
-  it('mounts only explicitly model-independent tools when no chat model is available', () => {
+  it('mounts only explicitly model-independent tools and forwards an absent assistant/model and the current session', () => {
     mockGetToolsForScope.mockReturnValue([
-      {
+      defineTool({
         key: 'model-dependent',
         label: 'Model dependent',
-        composer: { runtime: () => <div data-testid="model-dependent-runtime" /> }
-      },
-      {
+        composer: { runtime: () => <button>Requires model</button> }
+      }),
+      defineTool({
         key: 'model-independent',
         label: 'Model independent',
         availableWithoutModel: true,
-        composer: { runtime: () => <div data-testid="model-independent-runtime" /> }
-      }
+        composer: {
+          runtime: ({ context }) => (
+            <output aria-label="Model-free context">{`${context.assistant === undefined}:${context.model === undefined}:${context.session?.sessionId}`}</output>
+          )
+        }
+      })
     ])
 
     render(
       <ComposerToolRuntimeProvider actions={{ addNewTopic: vi.fn(), onTextChange: vi.fn() }}>
-        <ComposerToolRuntimeHost scope={TopicType.Chat} />
+        <ComposerToolRuntimeHost scope={TopicType.Session} session={{ sessionId: 'session-1' }} />
       </ComposerToolRuntimeProvider>
     )
 
-    expect(screen.getByTestId('model-independent-runtime')).toBeInTheDocument()
-    expect(screen.queryByTestId('model-dependent-runtime')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Model-free context')).toHaveTextContent('true:true:session-1')
+    expect(screen.queryByRole('button', { name: 'Requires model' })).not.toBeInTheDocument()
   })
 
   it('normalizes initial composer files with file token source ids', async () => {
@@ -403,7 +564,7 @@ describe('ComposerActiveToolControls', () => {
   it('does not pin disabled active launchers in the composer input', async () => {
     renderRuntime(
       [
-        {
+        defineTool({
           key: 'fake-menu-tool',
           label: 'Fake menu tool',
           composer: {
@@ -423,7 +584,7 @@ describe('ComposerActiveToolControls', () => {
               ])
             }
           }
-        }
+        })
       ],
       <ComposerActiveToolControls />
     )

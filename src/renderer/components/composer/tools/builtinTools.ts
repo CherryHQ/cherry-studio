@@ -10,7 +10,7 @@ import permissionModeTool from './definitions/permissionModeTool'
 import quickPhrasesTool from './definitions/quickPhrasesTool'
 import slashCommandsTool from './definitions/slashCommandsTool'
 import webSearchTool from './definitions/webSearchTool'
-import type { ComposerToolScope, ToolContext, ToolDefinition } from './types'
+import type { ComposerToolRegistration, ComposerToolScope, ToolContext } from './types'
 
 /**
  * The complete, explicit set of composer tools. Listing them here — instead of
@@ -18,7 +18,7 @@ import type { ComposerToolScope, ToolContext, ToolDefinition } from './types'
  * tool set deterministic and tree-shake-safe: a tool exists iff it appears in this
  * array. Order is the display order surfaced by `getAllTools`.
  */
-export const BUILTIN_COMPOSER_TOOLS: ToolDefinition<any, any>[] = [
+export const BUILTIN_COMPOSER_TOOLS: ComposerToolRegistration[] = [
   attachmentTool,
   dictationTool,
   quickPhrasesTool,
@@ -33,12 +33,12 @@ export const BUILTIN_COMPOSER_TOOLS: ToolDefinition<any, any>[] = [
   noteReferenceTool
 ]
 
-export const getAllTools = (): ToolDefinition<any, any>[] => BUILTIN_COMPOSER_TOOLS
+export const getAllTools = (): ComposerToolRegistration[] => BUILTIN_COMPOSER_TOOLS
 
 export const getToolsForScope = (
   scope: ComposerToolScope,
   context: Omit<ToolContext, 'scope'>
-): ToolDefinition<any, any>[] => {
+): ComposerToolRegistration[] => {
   const fullContext: ToolContext = { ...context, scope }
 
   return BUILTIN_COMPOSER_TOOLS.filter((tool) => {

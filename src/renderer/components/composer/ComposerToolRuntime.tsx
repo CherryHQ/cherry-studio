@@ -15,12 +15,11 @@ import {
 } from '@renderer/components/composer/tools/ComposerToolProvider'
 import type {
   ComposerToolScope,
-  ToolActionKey,
+  ComposerToolRegistration,
   ToolActionMap,
   ToolContext,
-  ToolDefinition,
-  ToolRenderContext,
-  ToolStateKey
+  ToolContextSource,
+  ToolLauncherApi
 } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
@@ -66,15 +65,11 @@ interface ComposerToolRuntimeBootstrapProps {
   session?: ToolContext['session']
 }
 
-type AnyToolDefinition = ToolDefinition<readonly ToolStateKey[], readonly ToolActionKey[]>
-
-type AnyToolRenderContext = ToolRenderContext<readonly ToolStateKey[], readonly ToolActionKey[]>
-
 interface ComposerToolRuntimeEntryProps extends ComposerToolRuntimeBootstrapProps {
-  tool: AnyToolDefinition
+  tool: ComposerToolRegistration
   toolState: ComposerToolState
   toolActions: ToolActionMap
-  launcher: AnyToolRenderContext['launcher']
+  launcher: ToolLauncherApi
   toolsRegistry: ComposerToolsRegistryApi
   t: ReturnType<typeof useTranslation>['t']
 }
@@ -91,40 +86,28 @@ const ComposerToolRuntimeEntry = ({
   session,
   t
 }: ComposerToolRuntimeEntryProps) => {
-  const context = useMemo<AnyToolRenderContext>(() => {
-    const state: Partial<AnyToolRenderContext['state']> = {}
-
-    for (const key of tool.dependencies?.state ?? []) Object.assign(state, { [key]: toolState[key] })
-
-    const actions: Partial<AnyToolRenderContext['actions']> = {}
-
-    for (const key of tool.dependencies?.actions ?? []) {
-      const action = toolActions[key]
-
-      if (action) Object.assign(actions, { [key]: action })
-    }
-
-    return {
-      scope,
-      assistant,
-      model,
-      session,
-      state,
-      actions,
-      launcher,
-      t
-    } as AnyToolRenderContext
-  }, [assistant, launcher, model, scope, session, t, tool, toolActions, toolState])
+  const prepared = useMemo(
+    () =>
+      tool.prepareRuntime({
+        scope,
+        assistant,
+        model,
+        session,
+        state: toolState,
+        actions: toolActions,
+        launcher,
+        t
+      }),
+    [assistant, launcher, model, scope, session, t, tool, toolActions, toolState]
+  )
 
   useEffect(() => {
-    if (!tool.composer?.menuItems) return
+    if (!prepared.createItems) return
 
-    return toolsRegistry.registerLaunchers(tool.key, tool.composer.menuItems.createItems(context))
-  }, [context, tool, toolsRegistry])
+    return toolsRegistry.registerLaunchers(tool.key, prepared.createItems())
+  }, [prepared, tool, toolsRegistry])
 
-  const Runtime = tool.composer?.runtime
-
-  return Runtime ? <Runtime context={context} /> : null
+  return prepared.render?.() ?? null
 }
 
 const MemoizedComposerToolRuntimeEntry = memo(ComposerToolRuntimeEntry, (previous, next) => {
@@ -159,7 +142,7 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   const { addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases, toolsRegistry } =
     useComposerToolProviderDispatch()
 
-  const launcherApiCacheRef = useRef(new Map<string, ToolRenderContext<any, any>['launcher']>())
+  const launcherApiCacheRef = useRef(new Map<string, ToolLauncherApi>())
 
   const toolActions = useMemo<ToolActionMap>(
     () => ({
@@ -177,7 +160,7 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   }, [assistant, model, scope, session])
 
   const getLauncherApiForTool = useCallback(
-    (toolKey: string): ToolRenderContext<any, any>['launcher'] => {
+    (toolKey: string): ToolLauncherApi => {
       const cache = launcherApiCacheRef.current
 
       if (!cache.has(toolKey)) {
@@ -238,7 +221,7 @@ export const ComposerToolFooterActionsSync = () => {
   return null
 }
 
-const NOOP_LAUNCHER: ToolRenderContext<any, any>['launcher'] = { registerLaunchers: () => () => undefined }
+const NOOP_LAUNCHER: ToolLauncherApi = { registerLaunchers: () => () => undefined }
 
 interface ReconcileContextInputs {
   toolState: ComposerToolState
@@ -248,32 +231,6 @@ interface ReconcileContextInputs {
   model?: Model
   session?: ToolContext['session']
   t: ReturnType<typeof useTranslation>['t']
-}
-
-/** Builds the (launcher-less) render context a tool's `tokens.reconcile` runs against. */
-const buildReconcileContext = (tool: AnyToolDefinition, inputs: ReconcileContextInputs): AnyToolRenderContext => {
-  const deps = tool.dependencies
-  const state: Partial<AnyToolRenderContext['state']> = {}
-
-  for (const key of deps?.state ?? []) Object.assign(state, { [key]: inputs.toolState[key] })
-  const actions: Partial<AnyToolRenderContext['actions']> = {}
-
-  for (const key of deps?.actions ?? []) {
-    const value = inputs.dispatch[key]
-
-    if (value) Object.assign(actions, { [key]: value })
-  }
-
-  return {
-    scope: inputs.scope,
-    assistant: inputs.assistant,
-    model: inputs.model as Model,
-    session: inputs.session,
-    state,
-    actions,
-    launcher: NOOP_LAUNCHER,
-    t: inputs.t
-  } as AnyToolRenderContext
 }
 
 interface ComposerTokenReconcileInputs {
@@ -306,12 +263,20 @@ export function useComposerTokenReconcile(
     const current = latestRef.current
 
     const tokenTools = getAllTools().filter(
-      (tool) => tool.composer?.tokens && (!tool.visibleInScopes || tool.visibleInScopes.includes(current.scope))
+      (tool) => tool.reconcileTokens && (!tool.visibleInScopes || tool.visibleInScopes.includes(current.scope))
     )
 
-    for (const tool of tokenTools) {
-      tool.composer?.tokens?.reconcile(draftTokens, buildReconcileContext(tool, current))
+    const source: ToolContextSource = {
+      scope: current.scope,
+      assistant: current.assistant,
+      model: current.model,
+      session: current.session,
+      state: current.toolState,
+      actions: current.dispatch,
+      launcher: NOOP_LAUNCHER,
+      t: current.t
     }
+    for (const tool of tokenTools) tool.reconcileTokens?.(draftTokens, source)
   }, [])
 }
 
