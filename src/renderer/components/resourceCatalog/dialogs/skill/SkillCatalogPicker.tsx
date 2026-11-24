@@ -21,7 +21,7 @@ import { SystemSkillDialog } from './SystemSkillDialog'
 
 type SkillCatalogPickerProps = {
   mode: 'create' | 'edit'
-  skills: InstalledSkill[]
+  skills: readonly InstalledSkill[]
   loading: boolean
   selectedIds: readonly string[]
   onSelectedIdsChange: (ids: string[]) => void

@@ -1196,7 +1196,7 @@ function AgentToolsFields({
   form: UseFormReturn<AgentEditFormValues>
   activeToolTab: ToolTab
   portalContainer: HTMLElement | null
-  skills: InstalledSkill[]
+  skills: readonly InstalledSkill[]
   skillsLoading: boolean
   skillsReady: boolean
   caps: AgentRuntimeCapabilities

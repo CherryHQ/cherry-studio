@@ -155,6 +155,7 @@ export function useInstalledSkills(agentId?: string, options: { enabled?: boolea
 
   if (agentId) Object.assign(queryOptions, { query: { agentId } })
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', queryOptions)
+  const skills: readonly InstalledSkill[] = data ?? EMPTY_SKILLS
   useDataChange(enabled ? '/skills' : [], () => refetch())
 
   const refresh = useCallback(async () => {
@@ -164,7 +165,7 @@ export function useInstalledSkills(agentId?: string, options: { enabled?: boolea
   }, [refetch])
 
   return {
-    skills: data ?? (EMPTY_SKILLS as InstalledSkill[]),
+    skills,
     loading: isLoading,
     refreshing: isRefreshing,
     error: error?.message ?? null,

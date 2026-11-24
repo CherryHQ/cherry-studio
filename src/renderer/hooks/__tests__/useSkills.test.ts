@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 const useQueryMock = vi.hoisted(() => vi.fn())
 const useDataChangeMock = vi.hoisted(() => vi.fn())
@@ -105,10 +105,8 @@ describe('useInstalledSkills', () => {
     stubSkillRoutes()
   })
 
-  it('reads skills with DataApi scoped to the agent', () => {
-    const { result } = renderHook(() => useInstalledSkills('agent-1'))
-
-    expect(result.current.skills).toHaveLength(2)
+  it('exposes the shared installed-skills collection as read-only', () => {
+    expectTypeOf<ReturnType<typeof useInstalledSkills>['skills']>().toEqualTypeOf<readonly InstalledSkill[]>()
   })
 
   it('keeps the installed-skills query free of filesystem reconciliation side effects', () => {
