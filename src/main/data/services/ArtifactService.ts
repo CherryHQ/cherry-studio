@@ -57,7 +57,7 @@ function fileSizeSync(filePath: string): number | null {
   }
 }
 
-const PAGE_EXTENSIONS = new Set(['html', 'htm', 'md', 'markdown'])
+const PAGE_EXTENSIONS = new Set(['html', 'htm', 'md', 'markdown', 'mdx'])
 const MEDIA_TYPES = new Set<string>([FILE_TYPE.IMAGE, FILE_TYPE.AUDIO, FILE_TYPE.VIDEO])
 
 /** HTML and Markdown are pages; images, audio and video are media; everything else is a file. */
@@ -66,7 +66,7 @@ export function getArtifactKind(fileName: string): ArtifactKind {
   const dot = name.lastIndexOf('.')
   const extension = dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
   if (PAGE_EXTENSIONS.has(extension)) return 'page'
-  return MEDIA_TYPES.has(getFileTypeByExt(extension)) ? 'media' : 'file'
+  return ['avif', 'ico', 'svg'].includes(extension) || MEDIA_TYPES.has(getFileTypeByExt(extension)) ? 'media' : 'file'
 }
 
 type StoredToolCall = { input?: unknown; output?: unknown }
@@ -298,7 +298,7 @@ export class ArtifactService {
             // Drop outputs whose managed file is gone; the row has no FK so it cannot pin the file.
             live: and(
               isNull(topicTable.deletedAt),
-              sql`EXISTS (SELECT 1 FROM ${fileEntryTable} WHERE ${fileEntryTable.id} = ${artifactTable.fileEntryId})`
+              sql`EXISTS (SELECT 1 FROM ${fileEntryTable} WHERE ${fileEntryTable.id} = ${artifactTable.fileEntryId} AND ${fileEntryTable.deletedAt} IS NULL AND ${fileEntryTable.origin} = 'internal')`
             ),
             id: topicTable.id,
             name: topicTable.name

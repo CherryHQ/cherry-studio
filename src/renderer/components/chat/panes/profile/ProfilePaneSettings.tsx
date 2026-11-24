@@ -1,4 +1,4 @@
-import { type FocusEvent, type ReactNode, useCallback, useState } from 'react'
+import { type ReactNode, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@cherrystudio/ui'
@@ -33,7 +33,7 @@ import { ProfilePaneSection, ProfilePaneSectionAction, ProfileSettingsRow } from
 const logger = loggerService.withContext('ProfilePaneSettings')
 
 const pillClassName =
-  'h-8 max-w-56 gap-1.5 rounded-lg border-0 bg-muted/50 px-2.5 text-[13px] text-foreground shadow-none hover:bg-muted aria-expanded:bg-muted dark:bg-muted/50'
+  'h-8 max-w-56 gap-1.5 rounded-lg border-0 bg-muted/50 px-2.5 text-[13px] text-foreground shadow-none hover:bg-muted focus-visible:bg-muted aria-expanded:bg-muted dark:bg-muted/50 dark:focus-visible:bg-muted'
 
 const assistantModelFilter: ModelSelectorFilter = (model) => !isNonChatModel(model)
 
@@ -229,37 +229,14 @@ function ReplyLanguageRow({
   value: ReplyLanguageValue
   onSave: (next: ReplyLanguageValue) => void
 }) {
-  // Remounting on a stored change picks up edits made in the edit dialog or another window.
-  return <ReplyLanguageDraft key={`${value.languageMode}:${value.languageCustom}`} value={value} onSave={onSave} />
-}
-
-function ReplyLanguageDraft({
-  value,
-  onSave
-}: {
-  value: ReplyLanguageValue
-  onSave: (next: ReplyLanguageValue) => void
-}) {
   const { t } = useTranslation()
-  const [draft, setDraft] = useState(value)
-
-  const handleChange = (patch: Partial<ReplyLanguageValue>) => {
-    const next = { ...draft, ...patch }
-    setDraft(next)
-    if (patch.languageMode) onSave(next)
-  }
-  const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
-    if (event.target instanceof HTMLInputElement) onSave(draft)
-  }
 
   return (
-    <div
-      onBlur={handleBlur}
-      className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2 py-1.5 [&>input]:mb-1 [&>input]:basis-full">
+    <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2 py-1.5 [&>input]:mb-1 [&>input]:basis-full">
       <div className="min-w-0 truncate text-foreground text-sm">{t('library.config.agent.field.language.label')}</div>
       <ReplyLanguageSelect
-        value={draft}
-        onChange={handleChange}
+        value={value}
+        onChange={(patch) => onSave({ ...value, ...patch })}
         triggerClassName={cn(pillClassName, 'w-auto justify-between font-normal')}
       />
     </div>

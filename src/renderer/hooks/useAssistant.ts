@@ -75,6 +75,13 @@ export function useAssistantApiById(id: string | undefined) {
     enabled: !!id,
     swrOptions: { keepPreviousData: false }
   })
+  useDataChange(
+    id ? '/assistants/:id' : [],
+    (effects) => {
+      if (effects.some((effect) => !effect.entityIds || (id && effect.entityIds.includes(id)))) void refetch()
+    },
+    { routeParams: id ? { id } : undefined }
+  )
 
   return {
     assistant: data,
@@ -251,13 +258,10 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
     const reasoning = reconcileReasoningEffortForModel(next, currentAssistant.settings.reasoning_effort)
     const nextProvider = providersRef.current.find((provider) => provider.id === next.providerId)
     const webSearch = reconcileWebSearchForModel(next, currentAssistant.settings, nextProvider)
-    const settingsPatch =
-      extraSettings || reasoning || webSearch
-        ? { ...currentAssistant.settings, ...reasoning, ...webSearch, ...extraSettings }
-        : undefined
+    const settingsPatch = { ...reasoning, ...webSearch, ...extraSettings }
     return patchAssistantRef.current(
       currentId,
-      settingsPatch ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id }
+      Object.keys(settingsPatch).length ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id }
     )
   }, [])
 

@@ -103,8 +103,8 @@ function registerBuiltinTools(server: McpServer, context: ReportArtifactsContext
   server.registerTool(
     REPORT_ARTIFACTS_TOOL_NAME,
     { description: REPORT_ARTIFACTS_DESCRIPTION, inputSchema: reportArtifactsInputSchema },
-    async ({ artifacts }) => {
-      await recordReportedArtifacts(context, { artifacts })
+    ({ artifacts }) => {
+      recordReportedArtifacts(context, { artifacts })
       return { content: [{ type: 'text', text: `Recorded ${artifacts.length} artifact(s).` }] }
     }
   )

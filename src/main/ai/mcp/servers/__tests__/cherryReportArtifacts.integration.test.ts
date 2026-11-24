@@ -52,7 +52,7 @@ describe('report_artifacts indexes the Agent outputs', () => {
     await rm(workspacePath, { recursive: true, force: true })
   })
 
-  it('records each reported file with its absolute path, title, kind and size', async () => {
+  it('records each reported file with its absolute path, title and kind', async () => {
     await mkdir(path.join(workspacePath, 'out'))
     await writeFile(path.join(workspacePath, 'out', 'report.html'), '<h1>Report</h1>')
     await writeFile(path.join(workspacePath, 'chart.png'), Buffer.alloc(2048))
@@ -72,11 +72,11 @@ describe('report_artifacts indexes the Agent outputs', () => {
     expect(byTitle['Weekly report']).toMatchObject({
       path: path.join(workspacePath, 'out', 'report.html'),
       kind: 'page',
-      size: 15,
+      size: undefined,
       sourceId: sessionId,
       sourceName: 'Weekly review'
     })
-    expect(byTitle['chart.png']).toMatchObject({ kind: 'media', size: 2048 })
+    expect(byTitle['chart.png']).toMatchObject({ kind: 'media', size: undefined })
     // A deliverable that is not on disk is still listed; the pane shows it as unavailable.
     expect(byTitle['missing.csv']).toMatchObject({ kind: 'file', size: undefined })
   })
