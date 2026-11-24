@@ -1,5 +1,5 @@
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentType, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ToastConfig } from '@cherrystudio/ui'
@@ -19,6 +19,7 @@ import type {
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
+import type { PermissionRequestComposerProps } from '@renderer/components/composer/variants/PermissionRequestComposer'
 import { cacheService } from '@renderer/data/CacheService'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -38,12 +39,12 @@ import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiSta
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { autoReadService } from '@renderer/services/voice'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_CLOSING_CACHE_KEY, agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentType } from '@shared/data/types/agent'
@@ -174,6 +175,8 @@ interface UseAgentChatRuntimeStateParams {
   sessionId: string
   modelId?: UniqueModelId
   agentType?: AgentType
+  agentName?: string
+  permissionRequestComponent?: ComponentType<PermissionRequestComposerProps>
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
@@ -183,6 +186,8 @@ export function useAgentChatRuntimeState({
   sessionId,
   modelId,
   agentType,
+  agentName,
+  permissionRequestComponent,
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
   reservedMessages
@@ -493,10 +498,13 @@ export function useAgentChatRuntimeState({
     [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionId, sessionTopicId]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
+    topicId: sessionTopicId,
     partsByMessageId,
     persistedPartsByMessageId,
     streamingLayers,
-    onRespond: respondToolApproval
+    onRespond: respondToolApproval,
+    agentName,
+    permissionRequestComponent
   })
   const { isPending } = useTopicStreamStatus(sessionTopicId)
   const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true

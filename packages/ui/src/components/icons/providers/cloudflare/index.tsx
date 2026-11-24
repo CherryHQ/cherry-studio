@@ -9,7 +9,7 @@ const Cloudflare = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const CloudflareIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Cloudflare, {
   Avatar: CloudflareAvatar,
-  colorPrimary: '#F3811A'
+  colorPrimary: '#fef4ea'
 })
 
 export default CloudflareIcon

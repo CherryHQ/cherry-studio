@@ -96,7 +96,7 @@ export async function loadClaudePluginsSkills(
   if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
     throw new Error('Invalid claude-plugins.dev pagination')
   }
-  const url = new URL('https://claude-plugins.dev/api/skills')
+  const url = new URL('https://api.claude-plugins.dev/api/skills/search')
   url.searchParams.set('limit', String(limit))
   url.searchParams.set('offset', String(offset))
   const data = ClaudePluginsSearchResponseSchema.parse(await fetchJson(url.toString()))

@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import type { McpServerSchemas } from '@shared/data/api/schemas/mcpServers'
@@ -7,6 +8,8 @@ import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
+import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import type { Message } from '../../../../src/shared/data/types/message'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
@@ -148,6 +151,9 @@ test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }, testInfo) =>
     await page.reload()
     await selectSidebarApp(page, 'Chat')
     const chat = page.locator('[data-ui~="chat.view"]:visible')
+    const topics = chat.locator('[data-ui~="chat.topic-list"]:visible')
+    if (!(await topics.isVisible())) await chat.getByRole('button', { name: 'Show Sidebar', exact: true }).click()
+    await expect(topics).toBeVisible()
     const group = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await group.hover()
     const expand = group.getByRole('button', { name: 'Expand', exact: true })
@@ -229,6 +235,9 @@ test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }, testInfo) =>
     const restartedEnabled = page.getByRole('switch').first()
     if ((await restartedEnabled.getAttribute('aria-checked')) !== 'true') await restartedEnabled.click()
     await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 2 * 60_000 })
+    const screenshot = testInfo.outputPath('MCP-01 reconnected.png')
+    await writeFile(screenshot, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach('MCP-01 reconnected', { path: screenshot, contentType: 'image/png' })
   } finally {
     await model.close()
     const restored = await page.evaluate(

@@ -1,6 +1,3 @@
-import { File, FileCode, FileText, Image as ImageIcon, Music, Video } from 'lucide-react'
-import type { FC } from 'react'
-
 import type { DanglingState, FileEntryOrigin } from '@shared/data/types/file'
 import type { FileType } from '@shared/types/file'
 
@@ -81,27 +78,11 @@ export function getFormatLabel(format: string): string {
   return map[format] || format.toUpperCase()
 }
 
-export function formatFileSize(bytes: number | null | undefined): string {
-  if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) return '—'
-  if (bytes < 1024) return `${bytes} B`
-
-  const units = ['KB', 'MB', 'GB', 'TB'] as const
-  let value = bytes / 1024
-  let unitIndex = 0
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024
-    unitIndex += 1
-  }
-  return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
-}
-
-export const typeIcons: Record<FileType, FC<{ size?: number; strokeWidth?: number; className?: string }>> = {
-  image: ImageIcon,
-  video: Video,
-  audio: Music,
-  text: FileCode,
-  document: FileText,
-  other: File
+export function getFileIconPath(file: { name: string; format: string }): string {
+  const name = file.name ?? ''
+  const format = (file.format ?? '').trim().replace(/^\./, '')
+  if (!format) return name
+  return name.toLowerCase().endsWith(`.${format.toLowerCase()}`) ? name : `${name}.${format}`
 }
 
 export const typeIconColors: Record<FileType, string> = {

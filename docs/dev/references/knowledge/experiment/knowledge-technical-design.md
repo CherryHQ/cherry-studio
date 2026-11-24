@@ -5,7 +5,6 @@ sources:
   - src/main/features/knowledge/pipeline/vectorstore/indexStore
   - src/main/features/knowledge/query
   - src/main/data/db/schemas/knowledge.ts
-  - src/main/data/migration/v2/migrators/KnowledgeVectorMigrator.ts
 ---
 
 # Knowledge Storage and Retrieval Implementation
@@ -201,14 +200,6 @@ existing table, CHECK, FTS binding, or trigger requires incrementing
 index. Main `knowledge_base`/`knowledge_item` changes still require an appended
 Drizzle migration because those rows are user business data.
 
-## 10. Migrated Index Verification
+## 10. Previously Migrated Indexes
 
-`KnowledgeVectorMigrator` writes the same current index layout through the same
-store factory. It validates material/unit/embedding counts and missing embedding
-coverage after the build. It also preserves the current Concept ID rule by
-mapping migrated materials to their final relative paths.
-
-When legacy directory vectors can be attributed to individual source paths, the
-migrators synthesize completed file children and remap those vectors. When that
-evidence is unavailable, the directory remains a failed
-`directory_not_migrated` item rather than inventing file ownership.
+V1 conversion runs only in the [intermediate upgrade release](../../data/v2-migration-guide.md). Existing migrated indexes retain the current material/unit/embedding layout. Historical `directory_not_migrated` failures remain visible and recoverable through re-indexing; removing conversion does not discard those records.

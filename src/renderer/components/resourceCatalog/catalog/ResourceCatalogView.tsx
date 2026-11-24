@@ -20,6 +20,7 @@ type ResourceCatalogViewType = Extract<ResourceType, 'assistant' | 'agent' | 'sk
 export type ResourceCatalogViewProps = {
   className?: string
   onOpenAssistantChat?: (assistantId: string) => void
+  onOpenAgentChat?: (agentId: string) => void
   onOpenSkill?: (skill: InstalledSkill) => void
   onLaunchSkill?: (skill: InstalledSkill) => Promise<void>
   resourceType: ResourceCatalogViewType
@@ -28,14 +29,15 @@ export type ResourceCatalogViewProps = {
   variant?: 'library' | 'settings'
   title?: ReactNode
   description?: ReactNode
+  headerActions?: ReactNode
   toolbarFooter?: ReactNode
-  allowColumnToggle?: boolean
   filterResource?: (resource: ResourceItem) => boolean
 }
 
 export function ResourceCatalogView({
   className,
   onOpenAssistantChat,
+  onOpenAgentChat,
   onOpenSkill,
   onLaunchSkill,
   resourceType,
@@ -43,8 +45,8 @@ export function ResourceCatalogView({
   variant = 'library',
   title,
   description,
+  headerActions,
   toolbarFooter,
-  allowColumnToggle,
   filterResource
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
@@ -110,8 +112,8 @@ export function ResourceCatalogView({
             {...gridProps}
             resources={visibleResources}
             hasHiddenResources={hasHiddenResources}
+            headerActions={headerActions}
             toolbarFooter={toolbarFooter}
-            allowColumnToggle={allowColumnToggle}
             onOpenSystemSkills={resourceType === 'skill' ? gridProps.onOpenSystemSkills : undefined}
             toolbarLeading={toolbarLeading}
             variant={variant}
@@ -127,6 +129,7 @@ export function ResourceCatalogView({
           <ResourceCatalogDialogs
             dialogs={dialogs}
             onOpenAssistantChat={onOpenAssistantChat}
+            onOpenAgentChat={onOpenAgentChat}
             onRefetch={refetch}
             resourceType={resourceType}
           />

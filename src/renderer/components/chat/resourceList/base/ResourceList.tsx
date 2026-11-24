@@ -703,7 +703,7 @@ function Body<T extends ResourceListItemBase>({
 type EmptyStateProps = ComponentProps<typeof UiEmptyState>
 
 function EmptyState(props: EmptyStateProps) {
-  return <UiEmptyState compact preset="no-resource" {...props} />
+  return <UiEmptyState compact {...props} />
 }
 
 type LoadingStateProps = ComponentProps<'div'> & {

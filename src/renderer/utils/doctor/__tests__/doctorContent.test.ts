@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { ERROR_CATEGORIES } from '@shared/utils/errorCategory'
 
+import { appLanguageOptions } from '../../../i18n/languages'
 import { doctorCheckDetailParams, resolveDoctorFixLabel } from '../doctorContent'
 
 describe('resolveDoctorFixLabel', () => {
@@ -51,13 +52,14 @@ describe('doctorCheckDetailParams', () => {
   })
 
   // Missing catalog entries expose machine tokens such as bad_request to users.
-  it('translates all 20 categories through every real renderer catalog', async () => {
+  it('translates every category through every supported renderer catalog', async () => {
     const catalogs = import.meta.glob<Record<string, string>>('../../../i18n/locales/*.json', {
       eager: true,
       import: 'default'
     })
-    expect(Object.keys(catalogs)).toHaveLength(15)
-    expect(ERROR_CATEGORIES).toHaveLength(20)
+    expect(Object.keys(catalogs).sort()).toEqual(
+      appLanguageOptions.map(({ value }) => `../../../i18n/locales/${value.toLowerCase()}.json`).sort()
+    )
     for (const [path, catalog] of Object.entries(catalogs)) {
       const i18n = createInstance()
       await i18n.init({

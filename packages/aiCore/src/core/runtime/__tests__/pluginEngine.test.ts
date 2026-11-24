@@ -14,7 +14,7 @@ import type { AiPlugin, GenerateTextParams, GenerateTextResult } from '../../plu
 import { PluginEngine } from '../pluginEngine'
 
 vi.mock('ai', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     wrapLanguageModel: vi.fn((config: any) => ({

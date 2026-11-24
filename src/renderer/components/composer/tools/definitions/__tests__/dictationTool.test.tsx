@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
@@ -122,6 +123,20 @@ describe('dictationTool', () => {
     mocks.startScoped.mockReturnValue({ result: Promise.resolve(), cancel: mocks.cancel })
     mocks.stop.mockClear()
     mocks.transcribeRecording.mockClear()
+  })
+
+  it('hides the launcher and shared microphone while Off and restores both on On', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'off')
+    const rendered = renderRuntime()
+    await waitFor(() => expect(latestLauncher(rendered)?.hidden).toBe(true))
+    expect(screen.queryByRole('button', { name: 'Start dictation' })).toBeNull()
+    act(() => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', '')
+      mocks.snapshot = { ...mocks.snapshot }
+      mocks.listener?.()
+    })
+    await waitFor(() => expect(latestLauncher(rendered)?.hidden).toBe(false))
+    expect(screen.getByRole('button', { name: 'Start dictation' })).toBeInTheDocument()
   })
 
   it('starts scoped dictation only after the user invokes the launcher and passes no preference overrides', async () => {

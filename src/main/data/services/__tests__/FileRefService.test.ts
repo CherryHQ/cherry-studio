@@ -1,4 +1,4 @@
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { setupTestDatabase, withRoot, seedSessionRoot } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
@@ -106,6 +106,7 @@ describe('FileRefService', () => {
     })
     await dbh.db.insert(agentSessionTable).values({ id: sessionId, name: sessionId, workspaceId, orderKey: sessionId })
     await dbh.db.insert(agentSessionMessageTable).values({
+      parentId: seedSessionRoot(dbh.db, sessionId),
       id: messageId,
       sessionId,
       role: 'user',

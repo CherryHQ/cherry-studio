@@ -18,7 +18,7 @@ export async function agentGlobalInstallApproval(app: RegressionApp, page: Page,
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   await testInfo.attach('MP-153 model source', {
-    body: 'Real configured provider; real Pi and Claude Agent runtimes and a real shell, no mocked permission decisions. No package is installed: npm install -g --help only displays help.',
+    body: 'Local mock model; real Pi and Claude Agent runtimes and a real shell, no mocked permission decisions. No package is installed: npm install -g --help only displays help.',
     contentType: 'text/plain'
   })
   for (const runtime of ['Pi', 'Claude Agent'] as const) {

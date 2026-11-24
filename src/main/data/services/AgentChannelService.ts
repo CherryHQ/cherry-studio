@@ -2,6 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { agentTable } from '@data/db/schemas/agent'
 import {
   type AgentChannelRow as ChannelRow,
   agentChannelSessionTable as channelSessionsTable,
@@ -13,6 +14,7 @@ import type { DbOrTx } from '@data/db/types'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import {
   ActiveAgentChannelConfigSchemasByType,
@@ -53,6 +55,21 @@ function validateChannelConfig(
   return parsed.data
 }
 
+type CreateChannelInput =
+  | CreateAgentChannelDto
+  | {
+      type: ChannelConfig['type']
+      name: string
+      agentId?: string | null
+      workspace: AgentSessionWorkspaceSource
+      config: ChannelConfig | Record<string, unknown>
+      isActive?: boolean
+      // Narrow, not `string`: with the DB CHECK constraint gone this parameter type is
+      // what stops an internal caller (one that bypasses the DataApi zod boundary) from
+      // persisting a mode the SDK will reject at run time.
+      permissionMode?: AgentPermissionMode | null
+    }
+
 export class AgentChannelService {
   private rowToEntity(row: ChannelRow): AgentChannelEntity {
     const clean = nullsToUndefined(row)
@@ -67,22 +84,14 @@ export class AgentChannelService {
     } as AgentChannelEntity
   }
 
-  createChannel(
-    data:
-      | CreateAgentChannelDto
-      | {
-          type: ChannelConfig['type']
-          name: string
-          agentId?: string | null
-          workspace: AgentSessionWorkspaceSource
-          config: ChannelConfig | Record<string, unknown>
-          isActive?: boolean
-          // Narrow, not `string`: with the DB CHECK constraint gone this parameter type is
-          // what stops an internal caller (one that bypasses the DataApi zod boundary) from
-          // persisting a mode the SDK will reject at run time.
-          permissionMode?: AgentPermissionMode | null
-        }
-  ): AgentChannelEntity {
+  createChannel(data: CreateChannelInput): AgentChannelEntity {
+    const channel = application.get('DbService').withWriteTx((tx) => this.createChannelTx(tx, data))
+    this.notifyReadModelChange(channel.id, 'membership')
+    return channel
+  }
+
+  /** Validates and inserts a channel inside the caller's write transaction; the caller notifies. */
+  createChannelTx(tx: DbOrTx, data: CreateChannelInput): AgentChannelEntity {
     const isActive = data.isActive ?? true
 
     const insertData: InsertChannelRow = {
@@ -94,20 +103,16 @@ export class AgentChannelService {
       isActive,
       permissionMode: data.permissionMode
     }
+    assertPermissionModeSupported(tx, data.agentId, data.permissionMode)
 
-    const result = application.get('DbService').withWriteTx((tx) => {
-      this.validateStreamBot(tx, data.type, insertData.config, isActive)
-      return tx.insert(channelsTable).values(insertData).returning().all()
-    })
-
-    if (!result[0]) {
+    this.validateStreamBot(tx, data.type, insertData.config, isActive)
+    const [row] = tx.insert(channelsTable).values(insertData).returning().all()
+    if (!row) {
       throw DataApiErrorFactory.invalidOperation('create channel', 'database insert returned no row')
     }
 
-    logger.info('Channel created', { channelId: result[0].id, type: data.type })
-    const channel = this.rowToEntity(result[0])
-    this.notifyReadModelChange(channel.id, 'membership')
-    return channel
+    logger.info('Channel created', { channelId: row.id, type: data.type })
+    return this.rowToEntity(row)
   }
 
   getChannel(id: string): AgentChannelEntity | null {
@@ -253,6 +258,13 @@ export class AgentChannelService {
         isActive
       )
       this.validateStreamBot(tx, existing.type, config, isActive, id)
+      const agentId = updates.agentId !== undefined ? updates.agentId : existing.agentId
+      if (updates.permissionMode !== undefined) {
+        assertPermissionModeSupported(tx, agentId, updates.permissionMode)
+      } else if (agentId !== existing.agentId && !supportsPermissionMode(tx, agentId, existing.permissionMode)) {
+        // Rebinding adopts the new Agent; an override its runtime cannot run falls back to that Agent's own mode.
+        fields.permissionMode = null
+      }
       const normalizedUpdates = {
         ...fields,
         ...(configPatch !== undefined || updates.config !== undefined || updates.isActive !== undefined
@@ -305,7 +317,7 @@ export class AgentChannelService {
       )
   }
 
-  private notifyReadModelChange(id: string, kind: 'membership' | 'projection'): void {
+  notifyReadModelChange(id: string, kind: 'membership' | 'projection'): void {
     notifyDataApiDataChange([
       { endpoint: '/agent-workspaces', kind: 'membership' },
       { endpoint: '/agent-channels', kind, entityIds: [id] },
@@ -375,3 +387,27 @@ export class AgentChannelService {
 }
 
 export const agentChannelService = new AgentChannelService()
+
+/** Whether the channel's Agent runtime can run this permission override; no override, or no Agent, always can. */
+function supportsPermissionMode(
+  tx: DbOrTx,
+  agentId: string | null | undefined,
+  mode: string | null | undefined
+): boolean {
+  if (!mode || !agentId) return true
+  const agent = tx.select({ type: agentTable.type }).from(agentTable).where(eq(agentTable.id, agentId)).get()
+  return !agent || AGENT_RUNTIME_CAPABILITIES[agent.type].permissionModes.some((supported) => supported === mode)
+}
+
+function assertPermissionModeSupported(
+  tx: DbOrTx,
+  agentId: string | null | undefined,
+  mode: string | null | undefined
+): void {
+  if (!supportsPermissionMode(tx, agentId, mode)) {
+    throw DataApiErrorFactory.invalidOperation(
+      'save channel',
+      `permission mode ${mode} is not supported by the Agent runtime`
+    )
+  }
+}

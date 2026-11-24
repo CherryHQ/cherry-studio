@@ -1,5 +1,7 @@
 import { createContext, use } from 'react'
 
+import type { FileLocation } from '@renderer/types/fileLocation'
+
 export interface MarkdownHost {
   /** Owning surface renders relative image destinations; returns input for non-relative sources, null if resolution fails. */
   resolveImageSrc?: (src: string) => string | null
@@ -12,7 +14,7 @@ export interface MarkdownHost {
   notifySuccess?: (message: string) => void
   notifyError?: (message: string) => void
   /** Opens a schemeless Markdown link as a local file in the owning surface. */
-  openFilePath?: (path: string) => void | Promise<void>
+  openFilePath?: (path: string, location?: FileLocation) => void | Promise<void>
 }
 
 export const MarkdownHostContext = createContext<MarkdownHost | null>(null)

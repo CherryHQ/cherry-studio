@@ -113,7 +113,8 @@ function toolResultImageAnchor(toolCallId: string, index: number): string {
  */
 function toolResultToOutput(
   toolCallId: string,
-  content: NonNullable<ToolResultBlockParam['content']>
+  content: NonNullable<ToolResultBlockParam['content']>,
+  toProviderToolName: (name: string) => string
 ): ToolResultConversion {
   if (typeof content === 'string') return { output: content, relocatedParts: [] }
   const lines: string[] = []
@@ -122,6 +123,8 @@ function toolResultToOutput(
   for (const block of content) {
     if (block.type === 'text') {
       lines.push(block.text)
+    } else if (block.type === 'tool_reference') {
+      lines.push(`Tool available: ${toProviderToolName(block.tool_name)}`)
     } else if (block.type === 'image') {
       const file = imageBlockToFilePart(block.source)
       if (file) {
@@ -212,7 +215,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       for (const block of msg.content) {
         if (block.type === 'tool_result') {
           toolResults.set(block.tool_use_id, {
-            ...toolResultToOutput(block.tool_use_id, block.content ?? ''),
+            ...toolResultToOutput(block.tool_use_id, block.content ?? '', (name) => this.toProviderToolName(name)),
             isError: block.is_error === true,
             providerMetadata: cacheProviderOptions(block) ?? {}
           })

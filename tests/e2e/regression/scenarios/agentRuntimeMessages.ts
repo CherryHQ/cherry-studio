@@ -85,7 +85,7 @@ export async function agentRuntimeMessages(app: RegressionApp, page: Page, testI
     }
     expect(new Set(labels).size).toBe(3)
     await testInfo.attach('MP-144 original shortcut bindings and model source', {
-      body: JSON.stringify({ original, displayed: labels, modelSource: 'real configured custom provider' }),
+      body: JSON.stringify({ original, displayed: labels, modelSource: 'local mock model' }),
       contentType: 'application/json'
     })
     await page.locator('#setting-appearance-send-shortcuts').scrollIntoViewIfNeeded()
