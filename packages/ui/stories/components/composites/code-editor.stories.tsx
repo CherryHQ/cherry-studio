@@ -14,14 +14,17 @@ const cmThemeNames = ['auto', 'light', 'dark']
   .filter((item) => typeof cmThemeExports.get(item) !== 'function')
   .filter((item) => !/^(defaultSettings)/.test(item) && !/(Style)$/.test(item))
 
-const resolveCmTheme = (name: string): CodeMirrorTheme => {
+const resolveCmTheme = (name: string | CodeMirrorTheme | undefined): CodeMirrorTheme => {
+  if (typeof name !== 'string') return 'light'
+
   if (name === 'light' || name === 'dark' || name === 'none') {
     return name
   }
 
   const candidate = cmThemeExports.get(name)
 
-  return cmThemeNames.includes(name) && candidate ? (candidate as CodeMirrorTheme) : 'light'
+  // SAFETY: The installed theme namespace exports Extensions after the name list excludes Init functions, defaultSettings and Style metadata.
+  return cmThemeNames.includes(name) && candidate ? (candidate as Exclude<CodeMirrorTheme, string>) : 'light'
 }
 
 // 示例语言配置 - 为 Storybook 提供更丰富的语言支持演示
@@ -121,7 +124,7 @@ export const Default: Story = {
         value={args.value}
         language={args.language}
         languageConfig={exampleLanguageConfig}
-        theme={resolveCmTheme((args as any).theme || 'light')}
+        theme={resolveCmTheme(args.theme)}
         fontSize={args.fontSize}
         editable={args.editable}
         readOnly={args.readOnly}
@@ -151,7 +154,7 @@ export const JSONLint: Story = {
       <CodeEditor
         value={args.value}
         language="json"
-        theme={resolveCmTheme((args as any).theme || 'light')}
+        theme={resolveCmTheme(args.theme)}
         options={{ lint: true }}
         wrapped
         onChange={action('change')}
@@ -175,7 +178,7 @@ export const SaveShortcut: Story = {
         value={args.value}
         language={args.language}
         languageConfig={exampleLanguageConfig}
-        theme={resolveCmTheme((args as any).theme || 'light')}
+        theme={resolveCmTheme(args.theme)}
         options={{ keymap: true }}
         onSave={action('save')}
         onChange={action('change')}
@@ -206,7 +209,7 @@ console.log(fibonacci(10));`,
         value={args.value}
         language={args.language}
         // 注意：这里没有传入 languageConfig，使用默认配置
-        theme={resolveCmTheme((args as any).theme || 'light')}
+        theme={resolveCmTheme(args.theme)}
         onChange={action('change')}
         wrapped
       />
