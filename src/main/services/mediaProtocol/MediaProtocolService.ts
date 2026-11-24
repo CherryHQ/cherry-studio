@@ -38,7 +38,8 @@ export class MediaProtocolService extends BaseService {
       { urls: [`${CHERRY_MEDIA_SCHEME}://*/*`] },
       (details, callback) => {
         const url = new URL(details.url)
-        const entry = this.stores.get(url.hostname as MediaKind)?.get(url.pathname.slice(1))
+        const kind = MEDIA_KINDS.find((kind) => kind === url.hostname)
+        const entry = kind === undefined ? undefined : this.stores.get(kind)?.get(url.pathname.slice(1))
         const access = entry?.access
         callback({
           cancel: Boolean(
@@ -91,9 +92,9 @@ export class MediaProtocolService extends BaseService {
     }
 
     const url = new URL(request.url)
-    const kind = url.hostname
+    const kind = MEDIA_KINDS.find((kind) => kind === url.hostname)
 
-    if (!MEDIA_KINDS.has(kind)) {
+    if (!kind) {
       return new Response('Unknown media kind', { status: 400 })
     }
 
@@ -104,7 +105,7 @@ export class MediaProtocolService extends BaseService {
       return new Response('Missing media id', { status: 400 })
     }
 
-    const entry = this.stores.get(kind as MediaKind)?.get(id)
+    const entry = this.stores.get(kind)?.get(id)
 
     if (!entry) {
       return new Response('Not found', { status: 404 })
