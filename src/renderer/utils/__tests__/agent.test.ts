@@ -4,7 +4,8 @@ import {
   getAgentAvatar,
   getAgentAvatarFromConfiguration,
   getAgentDescriptionForDisplay,
-  getPermissionModeCards
+  getPermissionModeCards,
+  permissionModeCards
 } from '../agent'
 
 describe('agent utilities', () => {
@@ -35,6 +36,13 @@ describe('agent utilities', () => {
 })
 
 describe('getPermissionModeCards', () => {
+  it.each(['constructor', 'toString', '__proto__', 'unknown-runtime', '', undefined])(
+    'keeps the full permission selection for an unrecognized runtime: %s',
+    (runtime) => {
+      expect(getPermissionModeCards(runtime)).toEqual(permissionModeCards)
+    }
+  )
+
   it('drops the unsupported plan mode for pi agents but keeps auto', () => {
     const modes = getPermissionModeCards('pi').map((card) => card.mode)
     expect(modes).not.toContain('plan')

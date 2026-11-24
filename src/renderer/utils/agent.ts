@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next'
 import type { PermissionModeCard } from '@renderer/types/agent'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
-import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import { AGENT_TYPES, type AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration, AgentType } from '@shared/data/types/agent'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
@@ -132,8 +132,9 @@ const PI_CARD_OVERRIDES: Partial<Record<AgentPermissionMode, Partial<PermissionM
 
 /** Permission-mode cards offered for an agent type. Unknown types keep the full set. */
 export function getPermissionModeCards(agentType: AgentType | string | undefined): PermissionModeCard[] {
-  if (!agentType || !(agentType in AGENT_RUNTIME_CAPABILITIES)) return permissionModeCards
-  const modes = new Set<AgentPermissionMode>(AGENT_RUNTIME_CAPABILITIES[agentType as AgentType].permissionModes)
+  const runtimeType = AGENT_TYPES.find((type) => type === agentType)
+  if (!runtimeType) return permissionModeCards
+  const modes = new Set<AgentPermissionMode>(AGENT_RUNTIME_CAPABILITIES[runtimeType].permissionModes)
 
   return permissionModeCards.flatMap((card) =>
     modes.has(card.mode)
