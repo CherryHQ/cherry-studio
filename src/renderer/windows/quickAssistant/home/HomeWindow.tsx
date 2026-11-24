@@ -26,7 +26,7 @@ import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 
 import ClipboardPreview from './components/ClipboardPreview'
@@ -150,8 +150,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const sentModelRef = useRef(failedModel)
   // The card shows a localized conclusion; the provider's raw text stays in Details.
   const summarizeFlowError = useCallback(
-    (cause: unknown) => {
-      const sentModel = sentModelRef.current
+    (cause: unknown, executionId?: UniqueModelId) => {
+      // Main may resolve the model itself, so the failed execution outranks the send-time snapshot.
+      const sentModel = executionId ? parseUniqueModelId(executionId) : sentModelRef.current
       const { category, i18nKey } = classifyError(serializeToastError(cause), sentModel.providerId)
       const message = category === 'unknown' ? t('error.diagnosis.unknown') : t(i18nKey)
       return { message, cause, ...sentModel }
@@ -164,9 +165,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     sendMessage,
     stop: stopChat,
     setMessages
-  } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (_err, cause) => {
+  } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (_err, cause, executionId) => {
     setIsPreparing(false)
-    setFlowError(summarizeFlowError(cause))
+    setFlowError(summarizeFlowError(cause, executionId))
   })
 
   // Local inputs and projected assistant messages share the existing message list.
