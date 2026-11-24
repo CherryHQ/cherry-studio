@@ -90,7 +90,7 @@ vi.mock('@renderer/components/Navbar', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   const React = await import('react')
 
   return {
@@ -404,7 +404,7 @@ vi.mock('../components/AddKnowledgeItemDialog', () => {
   }
 })
 
-vi.mock('../components/CreateKnowledgeBaseDialog', () => {
+vi.mock('@renderer/components/knowledge/CreateKnowledgeBaseDialog', () => {
   mockCreateBaseDialogModuleLoad()
   return {
     default: ({

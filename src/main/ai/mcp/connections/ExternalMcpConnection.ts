@@ -2,6 +2,7 @@ import { EventEmitter } from 'events'
 import { AsyncLocalStorage } from 'node:async_hooks'
 
 import {
+  SdkError,
   SdkErrorCode,
   SdkHttpError,
   SSEClientTransport,
@@ -19,7 +20,9 @@ import { t } from '@main/i18n'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
+import { McpConfigurationError, normalizeMcpTransportError } from '../failureFacts'
 import { buildStdioEnvironment } from '../mcpLaunch'
 import { resolveStdioLaunch } from '../mcpStdioLaunch'
 import { CallBackServer } from '../oauth/callback'
@@ -49,26 +52,27 @@ function transportCandidates(server: McpServer): McpServerType[] | null {
   return null
 }
 
+/**
+ * QVeris prefers OAuth sign-in; its static Bearer header (from QVERIS_API_KEY) is only a
+ * fallback credential, so the OAuth provider stays attached and a cached token overrides it.
+ */
+function prefersOAuth(server: Pick<McpServer, 'installSource' | 'name' | 'headers'>): boolean {
+  if (server.installSource === 'builtin' && server.name === BuiltinMcpServerNames.qveris) return true
+  // `headers` reaches here unnormalized, so match Authorization case-insensitively.
+  return !Object.keys(server.headers ?? {}).some((key) => key.toLowerCase() === 'authorization')
+}
+
 function isTransportFallbackError(error: unknown): boolean {
   if (error instanceof SseError) return error.code === 405
   if (error instanceof SdkHttpError) return error.status === 404 || error.status === 405
   return false
 }
 
-/**
- * `@modelcontextprotocol/client` verdicts every 5xx from the `server/discover`
- * probe as `EraNegotiationFailed` without reading the body. Gateways that
- * reject the unknown method with a bare 5xx (empty body, HTML, or a non-
- * protocol JSON envelope) therefore never reached the legacy fallback when we
- * required a JSON-RPC protocol error code in the body (#21709).
- *
- * Treat any probe `EraNegotiationFailed` with HTTP status >= 500 as grounds
- * for one legacy retry on URL transports. Outage safety stays intact: a real
- * outage also fails the legacy `initialize` handshake, and the caller rethrows
- * the original probe error (#21938).
- */
-function isLegacyProbeRejection(error: unknown): error is SdkHttpError {
-  return SdkHttpError.isInstance(error) && error.code === SdkErrorCode.EraNegotiationFailed && error.status >= 500
+// A probe failure without HTTP status also suggests a server predating server/discover.
+// The retry is single-shot and rethrows the original probe error if it fails.
+function isLegacyProbeRejection(error: unknown): error is SdkError {
+  if (!SdkError.isInstance(error) || error.code !== SdkErrorCode.EraNegotiationFailed) return false
+  return SdkHttpError.isInstance(error) ? error.status >= 500 : true
 }
 
 function createClient(
@@ -118,7 +122,12 @@ export async function createExternalMcpConnection({
     serverUrlHash: oauthServerUrlHash(server.baseUrl || '')
   })
   const headers = mergeHeaders(defaultAppHeaders(), server.headers)
-  const useOAuth = !('authorization' in headers)
+  const useOAuth = prefersOAuth(server)
+  const fallbackAuthorization = useOAuth ? headers.authorization : undefined
+  // Keep fallback Bearer out of `requestInit.headers` so the SDK's OAuth `/token` requests stay public-client.
+  const requestHeaders = useOAuth
+    ? Object.fromEntries(Object.entries(headers).filter(([key]) => key !== 'authorization'))
+    : headers
   const args = [...(server.args || [])]
   const lifetime = new AbortController()
   type AuthOperation = { signal: AbortSignal; lease?: McpAuthorizationLease }
@@ -153,21 +162,38 @@ export async function createExternalMcpConnection({
 
   const createTransport = async (typeOverride?: McpServerType): Promise<Transport> => {
     if (server.baseUrl) {
+      const serverUrl = new URL(server.baseUrl)
+      const fetchUrl = async (input: RequestInfo | URL, init?: RequestInit) => {
+        const target = input.toString()
+        let requestInit = init
+        if (fallbackAuthorization && target === serverUrl.href) {
+          const merged = new Headers(init?.headers)
+          if (!merged.has('authorization')) {
+            merged.set('authorization', fallbackAuthorization)
+            requestInit = { ...init, headers: merged }
+          }
+        }
+        try {
+          return await net.fetch(target, requestInit)
+        } catch (error) {
+          throw normalizeMcpTransportError(error)
+        }
+      }
       const type = typeOverride ?? server.type ?? 'sse'
       if (type === 'streamableHttp') {
         return wrapOAuthTransport(
-          new StreamableHTTPClientTransport(new URL(server.baseUrl), {
-            fetch: (input, init) => net.fetch(input.toString(), init),
-            requestInit: { headers },
+          new StreamableHTTPClientTransport(serverUrl, {
+            fetch: fetchUrl,
+            requestInit: { headers: requestHeaders },
             ...(useOAuth ? { authProvider } : {})
           })
         )
       }
       if (type === 'sse') {
         return wrapOAuthTransport(
-          new SSEClientTransport(new URL(server.baseUrl), {
-            fetch: (input, init) => net.fetch(input.toString(), init),
-            requestInit: { headers },
+          new SSEClientTransport(serverUrl, {
+            fetch: fetchUrl,
+            requestInit: { headers: requestHeaders },
             ...(useOAuth ? { authProvider } : {})
           })
         )
@@ -176,7 +202,7 @@ export async function createExternalMcpConnection({
     }
 
     if (!server.command) {
-      throw new Error('Either baseUrl or command must be provided')
+      throw new McpConfigurationError('Either baseUrl or command must be provided')
     }
 
     const { launch, loginShellEnv, serverEnv } = await resolveStdioLaunch({
@@ -184,7 +210,7 @@ export async function createExternalMcpConnection({
       args,
       logger: loggerService.withContext('ExternalMcpConnection', { serverId: server.id })
     })
-    if (launch.unavailableReason) throw new Error(launch.unavailableReason)
+    if (launch.unavailableReason) throw new McpConfigurationError(launch.unavailableReason)
     if (launch.resolution === 'unresolved') {
       log.warn('Could not resolve the stdio command; attempting the configured command', { command: launch.command })
     }
@@ -341,11 +367,12 @@ export async function createExternalMcpConnection({
         await connection.close().catch(() => undefined)
         if (
           isLegacyProbeRejection(error) &&
+          !initialAuthorization.signal.aborted &&
           (transport instanceof SSEClientTransport || transport instanceof StreamableHTTPClientTransport)
         ) {
           log.warn('Server rejected probe; retrying in legacy mode', {
-            status: error.status,
-            statusText: error.statusText
+            status: SdkHttpError.isInstance(error) ? error.status : undefined,
+            message: error.message
           })
           const legacy = createClient(appVersion, events, 'legacy')
           activeConnection = legacy
@@ -385,5 +412,6 @@ export async function createExternalMcpConnection({
 export const externalMcpConnectionInternals = {
   isLegacyProbeRejection,
   isTransportFallbackError,
-  transportCandidates
+  transportCandidates,
+  prefersOAuth
 }

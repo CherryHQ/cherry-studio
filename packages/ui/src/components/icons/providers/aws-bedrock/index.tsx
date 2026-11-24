@@ -9,7 +9,7 @@ const AwsBedrock = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const AwsBedrockIcon: CompoundIcon = /*#__PURE__*/ Object.assign(AwsBedrock, {
   Avatar: AwsBedrockAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#2e907b'
 })
 
 export default AwsBedrockIcon

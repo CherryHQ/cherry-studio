@@ -111,7 +111,14 @@ function PageSidePanel({
             aria-labelledby={headerContent ? headerId : undefined}
             tabIndex={-1}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') handleClose(e)
+              if (
+                e.key === 'Escape' &&
+                !e.defaultPrevented &&
+                e.target instanceof Element &&
+                e.target.closest('[role="dialog"]') === e.currentTarget
+              ) {
+                handleClose(e)
+              }
             }}
             initial={{ x: side === 'right' ? '100%' : '-100%' }}
             animate={{ x: 0 }}

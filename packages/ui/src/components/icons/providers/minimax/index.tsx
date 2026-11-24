@@ -17,7 +17,7 @@ const Minimax = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const MinimaxIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Minimax, {
   Avatar: MinimaxAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#FFF0F3'
 })
 
 export default MinimaxIcon

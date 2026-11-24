@@ -42,7 +42,9 @@ export function automationBootstrap(): string {
       performSecondaryAction: (ref, actionId) => invoke('computer', 'performSecondaryAction', {ref, actionId}, target)
     });
     globalThis.browser = Object.freeze({
-      getTab: async () => tab((await invoke('browser', 'getTab')).tabId),
+      getTab: async (options = {}) => tab((await invoke('browser', 'getTab', {}, options.tabId)).tabId),
+      listTabs: async () => (await invoke('browser', 'listTabs')).tabs,
+      newTab: async url => tab((await invoke('browser', 'newTab', {url})).tabId),
       documentation: () => invoke('browser', 'documentation')
     });
     globalThis.computer = Object.freeze({

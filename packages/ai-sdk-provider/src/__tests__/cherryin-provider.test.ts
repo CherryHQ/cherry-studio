@@ -215,6 +215,7 @@ describe('CherryIN Anthropic tool input examples', () => {
     const options = callOptions(tool)
     options.tools!.push(clean)
     options.providerOptions = { anthropic: { thinking: { type: 'disabled' } } }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(options)
     const tools = options.tools
     const spy = vi.spyOn(AnthropicMessagesLanguageModel.prototype, 'doGenerate')
@@ -259,6 +260,7 @@ describe('CherryIN Anthropic tool input examples', () => {
   it('keeps shared examples available for a subsequent official Anthropic call', async () => {
     const { requests, fetch } = captureRequest()
     const options = callOptions()
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(options)
     await expect(
       createCherryIn({ apiKey: 'test-key', endpointType: 'anthropic', fetch })('claude-haiku-5.5').doGenerate(options)
@@ -283,6 +285,7 @@ describe('CherryIN Anthropic tool input examples', () => {
     } as const
     const options = callOptions()
     options.tools!.push(providerTool)
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(options)
     const spy = vi.spyOn(AnthropicMessagesLanguageModel.prototype, 'doGenerate')
     try {
@@ -455,6 +458,7 @@ describe('CherryIN Anthropic strict tools', () => {
     delete tool.inputExamples
     tool.strict = true
     const options = callOptions(tool)
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(options)
     await expect(
       createCherryIn({ apiKey: 'test-key', endpointType: 'anthropic', fetch })('claude-fable-5').doGenerate(options)

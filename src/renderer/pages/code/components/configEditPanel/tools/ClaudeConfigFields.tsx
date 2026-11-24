@@ -339,6 +339,7 @@ const ClaudeRoleModelSelector: FC<{
     <div className="min-w-0 flex-1">
       <ModelSelector
         showSubscriptionOffers={false}
+        includeAgentOnlyModels
         multiple={false}
         selectionType="id"
         value={value}

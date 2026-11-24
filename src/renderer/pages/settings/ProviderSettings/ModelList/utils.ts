@@ -1,8 +1,6 @@
 import { getSearchMatchScore } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 
-export const isValidNewApiModel = (model: Model): boolean => !!(model.endpointTypes && model.endpointTypes.length > 0)
-
 export const filterProviderSettingModelsByKeywords = <T extends Model>(keywords: string, models: T[]): T[] => {
   if (!keywords.trim()) return models
 
