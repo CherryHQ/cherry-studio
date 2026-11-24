@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 
 export type AgentSessionStreamState = {

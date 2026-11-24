@@ -14,6 +14,7 @@ import type {
   ChatContextUsageSource,
   ChatConversationControlsChangeHandler
 } from '@renderer/components/composer/variants/ChatComposer'
+import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -244,6 +245,7 @@ const ChatContentInner: FC<InnerProps> = ({
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
             avatar={assistant?.avatarSrc ?? assistant?.emoji}
+            fallbackEmoji={assistant?.emoji}
             title={t('chat.home.welcome_title')}
           />
         </div>
@@ -319,6 +321,7 @@ const ChatContentInner: FC<InnerProps> = ({
               />
               <ConversationStageCenter placement={placement} main={main} composer={composer} />
             </div>
+            <ResourceEditDialogEventHost />
           </MessageEditingProvider>
         </RefreshProvider>
       </SiblingsProvider>
