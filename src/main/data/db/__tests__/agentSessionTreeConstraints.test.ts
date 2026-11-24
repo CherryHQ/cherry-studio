@@ -127,7 +127,9 @@ describe('Session tree populated branch upgrade', () => {
     const before = dbh.sqlite
       .prepare<[], { id: string; session_id: string }>('SELECT * FROM agent_session_message ORDER BY id')
       .all()
-    const sessionBefore = dbh.sqlite.prepare("SELECT * FROM agent_session WHERE id = 'branched'").get()
+    const sessionBefore = dbh.sqlite
+      .prepare<[], Record<string, unknown>>("SELECT * FROM agent_session WHERE id = 'branched'")
+      .get()
     applyMigrations(dbh.db, resolveMigrationsPath())
     expect(readAgentSessionPath(dbh.db, 'flat').map((row) => row.id)).toEqual(['a', 'b'])
     for (const row of before) {
@@ -135,7 +137,10 @@ describe('Session tree populated branch upgrade', () => {
         row.session_id === 'flat' ? { ...row, parent_id: expect.any(String) } : row
       )
     }
-    expect(dbh.sqlite.prepare("SELECT * FROM agent_session WHERE id = 'branched'").get()).toMatchObject(sessionBefore)
+    expect(dbh.sqlite.prepare("SELECT * FROM agent_session WHERE id = 'branched'").get()).toEqual({
+      ...sessionBefore,
+      is_task_owned: 0
+    })
     expect(dbh.db.select().from(sessions).where(eq(sessions.id, 'flat')).get()).toMatchObject({
       createdAt: 10,
       updatedAt: 20,
