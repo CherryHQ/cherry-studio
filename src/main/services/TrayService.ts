@@ -138,9 +138,9 @@ export class TrayService extends BaseService implements Activatable {
         label: t('tray.quit'),
         click: () => this.quit()
       }
-    ].filter(Boolean) as MenuItemConstructorOptions[]
+    ] satisfies (MenuItemConstructorOptions | false)[]
 
-    this.contextMenu = Menu.buildFromTemplate(template)
+    this.contextMenu = Menu.buildFromTemplate(template.filter((item) => !!item))
 
     if (isLinux) this.tray?.setContextMenu(this.contextMenu)
   }
