@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getModelDisplayTags } from '@renderer/components/tags/Model'
 import { useApiGatewayProvider } from '@renderer/hooks/useApiGatewayProvider'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -8,6 +9,7 @@ import { ipcApi } from '@renderer/ipc'
 import { getGatewayModelGroup, resolveCliConfigApplyContext } from '@renderer/services/codeCliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { getProviderDisplayName } from '@renderer/utils/naming'
 import { CodeCli, GATEWAY_CAPABLE_CLI_TOOLS, isApiGatewayProviderId } from '@shared/types/codeCli'
 
 import { useConfigMetadata } from './useConfigMetadata'
@@ -105,17 +107,25 @@ export function useManagedLocalAgentDetails(selectedCliTool: CodeCli.OPENCLAW | 
   const webUi = isDeepSeekHarnessTool ? deepSeekHarness : openClawGateway
   const providerActionsDisabled = modelSaving || webUi.running || webUi.starting || webUi.stopping
 
+  const providerById = new Map(providers.map((p) => [p.id, p]))
   const modelOptions = supportedProviders
     .filter((provider) => isApiGatewayProviderId(provider.id))
     .flatMap((provider) =>
-      [...modelById.values()].filter(makeModelFilter(provider.id)).map((model) => ({
-        id: JSON.stringify([provider.id, model.id]),
-        name: model.name || model.id,
-        group: getGatewayModelGroup(model) ?? t('models.group.ungrouped'),
-        source: 'gateway' as const,
-        provider,
-        model
-      }))
+      [...modelById.values()].filter(makeModelFilter(provider.id)).map((model) => {
+        const sourceProvider = providerById.get(model.providerId)
+        return {
+          id: JSON.stringify([provider.id, model.id]),
+          name: model.name || model.id,
+          group:
+            (sourceProvider ? getProviderDisplayName(sourceProvider) || undefined : undefined) ??
+            getGatewayModelGroup(model) ??
+            t('models.group.ungrouped'),
+          source: 'gateway' as const,
+          tags: getModelDisplayTags(model, undefined, sourceProvider),
+          provider,
+          model
+        }
+      })
     )
 
   return {

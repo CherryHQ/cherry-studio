@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -225,5 +225,59 @@ describe('local agent model search', () => {
     await user.keyboard('{ArrowDown}{Enter}')
     expect(onSelect).toHaveBeenCalledWith('beta')
     await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument())
+  })
+
+  it('shows gateway capability filter pills and full row tags, filtering gateway models and resetting across tabs', async () => {
+    HTMLElement.prototype.scrollIntoView = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <LocalAgentModelSelector
+        trigger={<button type="button">Models</button>}
+        models={[
+          { id: 'native', name: 'Native model', source: 'native' },
+          {
+            id: 'gw-reasoning',
+            name: 'DeepSeek R1',
+            source: 'gateway',
+            group: 'CherryIN',
+            tags: ['reasoning', 'function-call']
+          },
+          {
+            id: 'gw-vision',
+            name: 'Kimi VL',
+            source: 'gateway',
+            group: 'CherryAI',
+            tags: ['image-recognition', 'free']
+          }
+        ]}
+        value="gw-reasoning"
+        loaded
+        onLoad={async () => {}}
+        onSelect={async () => true}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: 'Models' }))
+    expect(screen.getByRole('tab', { name: '统一网关' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('CherryIN')).toBeVisible()
+    expect(screen.getByText('CherryAI')).toBeVisible()
+
+    const reasoningOption = screen.getByRole('option', { name: 'DeepSeek R1' })
+    expect(reasoningOption.querySelector('.lucide-lightbulb')).toBeInTheDocument()
+    expect(reasoningOption.querySelector('.lucide-wrench')).toBeInTheDocument()
+    const visionOption = screen.getByRole('option', { name: 'Kimi VL' })
+    expect(visionOption.querySelector('.lucide-eye')).toBeInTheDocument()
+    expect(within(visionOption).getByText('免费')).toBeVisible()
+
+    const filterBar = screen.getByTestId('model-selector-filter-tags')
+    await user.click(within(filterBar).getByText('视觉'))
+    expect(screen.getByRole('option', { name: 'Kimi VL' })).toBeVisible()
+    expect(screen.queryByRole('option', { name: 'DeepSeek R1' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: '官方订阅' }))
+    expect(screen.queryByTestId('model-selector-filter-tags')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: '统一网关' }))
+    expect(screen.getByRole('option', { name: 'DeepSeek R1' })).toBeVisible()
+    expect(screen.getByRole('option', { name: 'Kimi VL' })).toBeVisible()
   })
 })

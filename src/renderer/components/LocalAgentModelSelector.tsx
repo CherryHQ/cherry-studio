@@ -8,8 +8,11 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { LocalAgentModelTabList } from '@renderer/components/localAgent/LocalAgentModelTabList'
 import {
   MODEL_SELECTOR_CONTENT_HEIGHT,
+  MODEL_SELECTOR_TAGS,
   MODEL_SELECTOR_WIDTH,
+  ModelSelectorFilterTags,
   ModelSelectorRow,
+  type ModelSelectorTag,
   useModelListKeyboardNav
 } from '@renderer/components/ModelSelector'
 import { SelectorShell } from '@renderer/components/SelectorShell'
@@ -65,12 +68,31 @@ export function LocalAgentModelSelector({
   const [open, setOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [focusedKey, setFocusedKey] = useState('')
+  const [tagSelection, setTagSelection] = useState<Record<ModelSelectorTag, boolean>>(
+    () => Object.fromEntries(MODEL_SELECTOR_TAGS.map((tag) => [tag, false])) as Record<ModelSelectorTag, boolean>
+  )
   const listboxId = useId()
   const tabs = useLocalAgentModelTabs(models, value, showFollowCli)
   const source = tabs.sources.includes(tabs.source) ? tabs.source : ''
   const selectionDisabled = disabled || !!sourceRestrictions?.[tabs.source]
+  const availableTags =
+    tabs.source === 'gateway'
+      ? MODEL_SELECTOR_TAGS.filter((tag) => tabs.models.some((model) => model.tags?.includes(tag)))
+      : []
+  const selectedTags = availableTags.filter((tag) => tagSelection[tag])
+  const toggleTag = (tag: ModelSelectorTag) => {
+    setTagSelection((prev) => ({ ...prev, [tag]: !prev[tag] }))
+    setFocusedKey('')
+  }
+  const resetTags = () =>
+    setTagSelection(
+      Object.fromEntries(MODEL_SELECTOR_TAGS.map((tag) => [tag, false])) as Record<ModelSelectorTag, boolean>
+    )
   const options = tabs.source === 'native' && showFollowCli ? [undefined, ...tabs.models] : tabs.models
-  const items = options
+  const tagFiltered = selectedTags.length
+    ? options.filter((model) => model && selectedTags.every((tag) => model.tags?.includes(tag)))
+    : options
+  const items = tagFiltered
     .flatMap((model) => {
       const label = model ? model.name || model.id : t('local_agents.follow_cli')
       const score = getSearchMatchScore(searchText, [
@@ -115,6 +137,7 @@ export function LocalAgentModelSelector({
         tabs.setSource(source)
         setSearchText('')
         setFocusedKey('')
+        resetTags()
       }}
       className="contents">
       <SelectorShell
@@ -124,6 +147,7 @@ export function LocalAgentModelSelector({
           if (next) tabs.setSource()
           setSearchText('')
           setFocusedKey('')
+          resetTags()
           setOpen(next)
           if (next && !loaded && !loading && !disabled) void onLoad()
         }}
@@ -144,11 +168,16 @@ export function LocalAgentModelSelector({
           }
         }}
         filterContent={
-          <LocalAgentModelTabList
-            sources={tabs.sources}
-            sourceRestrictions={sourceRestrictions}
-            className="min-h-7 w-full p-0.5 [&_[data-slot=tabs-trigger]]:py-0.5"
-          />
+          <div className="flex w-full min-w-0 flex-col gap-2">
+            <LocalAgentModelTabList
+              sources={tabs.sources}
+              sourceRestrictions={sourceRestrictions}
+              className="min-h-7 w-full p-0.5 [&_[data-slot=tabs-trigger]]:py-0.5"
+            />
+            {availableTags.length > 0 && (
+              <ModelSelectorFilterTags tags={availableTags} tagSelection={tagSelection} onToggleTag={toggleTag} />
+            )}
+          </div>
         }
         bottomAction={
           onOpenSettings
@@ -207,6 +236,8 @@ export function LocalAgentModelSelector({
                     )}
                     {entries.map(({ key, model, label }) => {
                       const selected = model ? value === model.id : !value
+                      const rowTags =
+                        model?.tags ?? (model && /free/i.test(`${model.id} ${model.name}`) ? (['free'] as const) : [])
                       return (
                         <div key={key} className="px-1 py-0.5" onMouseEnter={() => setFocusedKey(key)}>
                           <ModelSelectorRow
@@ -224,15 +255,18 @@ export function LocalAgentModelSelector({
                               )
                             }
                             trailing={
-                              model && /free/i.test(`${model.id} ${model.name}`) ? (
-                                <div className="ml-2 flex h-[18px] shrink-0 items-center justify-end gap-1">
-                                  <ModelTag
-                                    tag="free"
-                                    size={9}
-                                    showLabel={false}
-                                    showTooltip
-                                    className="h-full items-center"
-                                  />
+                              rowTags.length > 0 ? (
+                                <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+                                  {rowTags.map((tag) => (
+                                    <ModelTag
+                                      key={`${key}-${tag}`}
+                                      tag={tag}
+                                      size={9}
+                                      showLabel={false}
+                                      showTooltip
+                                      className="h-full items-center"
+                                    />
+                                  ))}
                                 </div>
                               ) : undefined
                             }>

@@ -201,30 +201,44 @@ export function LocalAgentModelList({
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-1 p-1.5" contentClassName="text-foreground">
-                  {models.map((model) => (
-                    <Button
-                      key={model.id}
-                      variant="ghost"
-                      aria-pressed={value === model.id}
-                      disabled={selectionDisabled}
-                      className={rowClass}
-                      onClick={() => void onSelect(model.id)}>
-                      <ModelAvatar
-                        model={model}
-                        size={26}
-                        className="shrink-0 overflow-hidden rounded-full border border-border [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]"
-                      />
-                      <span className="min-w-0 flex-1 truncate text-left text-sm" title={model.name || model.id}>
-                        {model.name || model.id}
-                      </span>
-                      {/free/i.test(`${model.id} ${model.name}`) && (
-                        <ModelTag tag="free" size={9} showLabel={false} showTooltip className="[&_svg]:size-[9px]!" />
-                      )}
-                      <span className="flex size-[30px] shrink-0 items-center justify-center">
-                        {value === model.id && <Check className="size-4 text-primary" />}
-                      </span>
-                    </Button>
-                  ))}
+                  {models.map((model) => {
+                    const rowTags = model.tags ?? (/free/i.test(`${model.id} ${model.name}`) ? (['free'] as const) : [])
+                    return (
+                      <Button
+                        key={model.id}
+                        variant="ghost"
+                        aria-pressed={value === model.id}
+                        disabled={selectionDisabled}
+                        className={rowClass}
+                        onClick={() => void onSelect(model.id)}>
+                        <ModelAvatar
+                          model={model}
+                          size={26}
+                          className="shrink-0 overflow-hidden rounded-full border border-border [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]"
+                        />
+                        <span className="min-w-0 flex-1 truncate text-left text-sm" title={model.name || model.id}>
+                          {model.name || model.id}
+                        </span>
+                        {rowTags.length > 0 && (
+                          <div className="flex shrink-0 items-center gap-1">
+                            {rowTags.map((tag) => (
+                              <ModelTag
+                                key={`${model.id}-${tag}`}
+                                tag={tag}
+                                size={9}
+                                showLabel={false}
+                                showTooltip
+                                className="[&_svg]:size-[9px]!"
+                              />
+                            ))}
+                          </div>
+                        )}
+                        <span className="flex size-[30px] shrink-0 items-center justify-center">
+                          {value === model.id && <Check className="size-4 text-primary" />}
+                        </span>
+                      </Button>
+                    )
+                  })}
                 </AccordionContent>
               </AccordionItem>
             ))}

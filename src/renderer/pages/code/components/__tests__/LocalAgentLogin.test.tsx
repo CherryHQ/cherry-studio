@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ipcApi } from '@renderer/ipc'
 import { LocalAgentConfigurationSchema } from '@shared/ai/localAgent'
 
-import { LocalAgentLogin } from '../LocalAgentLogin'
+import { LocalAgentLogin, clearLocalAgentAuthStatusCache } from '../LocalAgentLogin'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/ipc', () => ({
@@ -27,6 +27,7 @@ const { request, statusRequest, ipcHandlers } = vi.hoisted(() => ({
 }))
 
 beforeEach(() => {
+  clearLocalAgentAuthStatusCache()
   request.mockReset()
   statusRequest.mockReset().mockResolvedValue('unsupported')
   ipcHandlers.clear()
@@ -414,6 +415,31 @@ describe('external authentication', () => {
     )
     expect(screen.getByRole('status')).toHaveTextContent('加载中')
     expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
+  })
+
+  it('reuses cached Antigravity signed-in status when revisiting while models refresh, and flips if auth fails', () => {
+    const antigravityProps = {
+      ...props,
+      config: { ...config, presetId: 'antigravity-acp' },
+      authMethods: [{ id: 'oauth-personal', name: 'Google', type: 'agent' as const }]
+    }
+    const { unmount } = render(<LocalAgentLogin {...antigravityProps} freshCatalog={{ models: [] }} />)
+    expect(screen.getByRole('button', { name: '已登录' })).toBeVisible()
+    unmount()
+
+    const { rerender } = render(<LocalAgentLogin {...antigravityProps} modelsLoading freshCatalog={undefined} />)
+    expect(screen.queryByText('加载中')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '已登录' })).toBeVisible()
+
+    rerender(
+      <LocalAgentLogin
+        {...antigravityProps}
+        modelsLoading={false}
+        freshCatalog={undefined}
+        authenticationError="Authentication required"
+      />
+    )
+    expect(screen.getByRole('button', { name: '登录' })).toBeVisible()
   })
 
   it('detects an existing login without authentication, rechecks on focus and clears stale success on failure', async () => {

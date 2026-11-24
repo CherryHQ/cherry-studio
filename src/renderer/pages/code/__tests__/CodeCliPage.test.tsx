@@ -93,7 +93,7 @@ describe('managed local Agent details', () => {
     expect(missing).toEqual([])
   })
 
-  it('groups gateway models across providers while preserving custom groups', async () => {
+  it('groups gateway models by provider', async () => {
     const tool = CodeCli.DEEPSEEK_HARNESS
     render(
       <ManagedLocalAgentDetails
@@ -108,12 +108,12 @@ describe('managed local Agent details', () => {
       />
     )
     const list = within(screen.getByRole('region', { name: '模型' }))
-    const family = list.getByRole('button', { name: 'deepseek', expanded: true })
-    expect(list.getAllByRole('button', { name: /DeepSeek Chat$/ })).toHaveLength(2)
-    await userEvent.click(family)
-    expect(list.queryByRole('button', { name: /DeepSeek Chat$/ })).toBeNull()
-    expect(list.getByRole('button', { name: 'My favorites', expanded: true })).toBeVisible()
-    expect(list.getByRole('button', { name: /DeepSeek Pro$/ })).toBeVisible()
+    const deepSeek = list.getByRole('button', { name: '深度求索', expanded: true })
+    expect(list.getAllByRole('button', { name: /DeepSeek Chat/ })).toHaveLength(2)
+    await userEvent.click(deepSeek)
+    expect(list.getByRole('button', { name: 'Team Gateway', expanded: true })).toBeVisible()
+    expect(list.getAllByRole('button', { name: /DeepSeek Chat/ })).toHaveLength(1)
+    expect(list.queryByRole('button', { name: /DeepSeek Pro/ })).toBeNull()
   })
 
   it.each([CodeCli.OPENCLAW, CodeCli.DEEPSEEK_HARNESS] as const)(

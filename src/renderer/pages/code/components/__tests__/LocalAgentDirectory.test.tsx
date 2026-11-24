@@ -14,6 +14,7 @@ import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 import { LocalAgentDirectory } from '../LocalAgentDirectory'
+import { clearLocalAgentAuthStatusCache } from '../LocalAgentLogin'
 
 function localAgent(
   name: string,
@@ -51,6 +52,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 vi.unmock('@cherrystudio/ui')
 
 beforeEach(() => {
+  clearLocalAgentAuthStatusCache()
   mockPreferenceState.set('feature.code_cli.configs', {})
   MockUseCacheUtils.resetMocks()
   MockUseDataApiUtils.resetMocks()
