@@ -222,7 +222,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       )
     : {
         tools: request.contextOwner === 'caller' && !request.disableTools ? request.callOverrides?.tools : undefined,
-        deferredEntries: [] as ToolEntry[],
+        deferredEntries: [],
         hasCitableTools: false,
         mcpToolIds: new Set<string>(),
         mcpResourceServerIds: new Set<string>(),
