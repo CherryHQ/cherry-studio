@@ -253,9 +253,7 @@ export class RootMessageProjection {
     return parts
   }
 
-  control(messageId: string, control: UIMessageChunk): void {
-    const chunk = control as CherryUIMessageChunk
-
+  control(messageId: string, chunk: UIMessageChunk): void {
     if (!this.extras.has(messageId)) this.extras.set(messageId, [])
 
     if (chunk.type === 'tool-input-available' || chunk.type === 'tool-approval-request') {
@@ -282,7 +280,8 @@ export class RootMessageProjection {
         ...pending,
         ...(chunk.type === 'tool-input-available' ? { input: chunk } : { approvalId: chunk.approvalId })
       })
-    } else if (chunk.type.startsWith('data-')) {
+    } else if ('data' in chunk) {
+      // SAFETY: Main emits typed compaction/task/error data controls; runtime drivers emit only metadata/tool controls.
       const part = chunk as Extract<CherryUIMessageChunk, { type: `data-${string}` }>
 
       if (part.transient) return
