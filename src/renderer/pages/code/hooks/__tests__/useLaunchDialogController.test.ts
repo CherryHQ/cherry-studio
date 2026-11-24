@@ -6,6 +6,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 const mocks = vi.hoisted(() => ({
+  cliConfigConnectionMatchesProvider: vi.fn(),
   availableTerminals: [] as { id: string; name: string }[],
   requestMock: vi.fn(),
   resolveCliConfigApplyContext: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock('react-i18next', () => ({
 // '../cliConfig' resolves to the same barrel. A '../cliConfig' here would point
 // at the non-existent hooks/cliConfig and silently mock nothing.
 vi.mock('../../cliConfig', () => ({
+  cliConfigConnectionMatchesProvider: mocks.cliConfigConnectionMatchesProvider,
   resolveCliConfigApplyContext: mocks.resolveCliConfigApplyContext,
   writeCliConfigDraft: mocks.writeCliConfigDraft,
   readCliConfigFiles: mocks.readCliConfigFiles,
@@ -61,6 +63,9 @@ describe('useLaunchDialogController', () => {
     vi.clearAllMocks()
     mocks.writeCliConfigDraft.mockReset()
     mocks.writeCliConfigDraft.mockResolvedValue(undefined)
+    mocks.readCliConfigFiles.mockResolvedValue([])
+    mocks.extractConnectionFromCliConfigDraft.mockReturnValue({ baseUrl: 'https://selected.example/v1' })
+    mocks.cliConfigConnectionMatchesProvider.mockReturnValue(true)
     mocks.availableTerminals = [
       { id: 'terminal', name: 'Terminal' },
       { id: 'iterm2', name: 'iTerm2' }
@@ -228,46 +233,56 @@ describe('useLaunchDialogController', () => {
     )
   })
 
-  it.each([false, true])('reconciles direct Codex credentials before launch (write fails: %s)', async (fails) => {
-    mocks.writeCliConfigDraft.mockImplementation(async () => {
-      if (fails) throw new Error('Bound key no longer available')
-    })
-    const { result } = renderHook(() =>
-      useLaunchDialogController({
-        selectedCliTool: CodeCli.OPENAI_CODEX,
-        toolName: 'Codex',
-        enabledProvider,
-        directory: '/tmp/project',
-        isOwnLoginSelected: false,
-        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
-        gatewayModelsById: new Map(),
-        modelById: new Map<UniqueModelId, Model>([
-          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
-        ]),
-        isModelsLoading: false,
-        upsertProviderConfig: vi.fn(),
-        setCurrentProvider: vi.fn(),
-        setTerminal: vi.fn(),
-        selectFolder: vi.fn()
+  it.each(['success', 'write-failure', 'endpoint-mismatch'] as const)(
+    'reconciles direct Codex credentials before launch (%s)',
+    async (scenario) => {
+      const fails = scenario === 'write-failure'
+      mocks.cliConfigConnectionMatchesProvider.mockReturnValue(scenario !== 'endpoint-mismatch')
+      mocks.writeCliConfigDraft.mockImplementation(async () => {
+        if (fails) throw new Error('Bound key no longer available')
       })
-    )
-    await act(async () => {
-      result.current.launchDialogProps.onLaunch()
-    })
-    expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith({
-      cliTool: CodeCli.OPENAI_CODEX,
-      modelId: 'anthropic::claude-sonnet-4-5',
-      configBlob: undefined,
-      writePrimaryModel: true
-    })
-    if (fails) {
-      expect(mocks.requestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
-    } else {
-      expect(mocks.writeCliConfigDraft.mock.invocationCallOrder[0]).toBeLessThan(
-        mocks.requestMock.mock.invocationCallOrder[0]
+      const { result } = renderHook(() =>
+        useLaunchDialogController({
+          selectedCliTool: CodeCli.OPENAI_CODEX,
+          toolName: 'Codex',
+          enabledProvider,
+          directory: '/tmp/project',
+          isOwnLoginSelected: false,
+          currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+          gatewayModelsById: new Map(),
+          modelById: new Map<UniqueModelId, Model>([
+            ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+          ]),
+          isModelsLoading: false,
+          upsertProviderConfig: vi.fn(),
+          setCurrentProvider: vi.fn(),
+          setTerminal: vi.fn(),
+          selectFolder: vi.fn()
+        })
       )
+      await act(async () => {
+        result.current.launchDialogProps.onLaunch()
+      })
+      if (scenario === 'endpoint-mismatch') {
+        expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+        expect(mocks.requestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
+        return
+      }
+      expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith({
+        cliTool: CodeCli.OPENAI_CODEX,
+        modelId: 'anthropic::claude-sonnet-4-5',
+        configBlob: undefined,
+        writePrimaryModel: true
+      })
+      if (fails) {
+        expect(mocks.requestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
+      } else {
+        expect(mocks.writeCliConfigDraft.mock.invocationCallOrder[0]).toBeLessThan(
+          mocks.requestMock.mock.invocationCallOrder[0]
+        )
+      }
     }
-  })
+  )
 
   // Reviewer: falling back to the raw id on a miss is only safe when the record exists and
   // simply has no apiModelId. A miss because the query is cold, or because the saved model was

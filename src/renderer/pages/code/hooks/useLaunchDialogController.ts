@@ -13,6 +13,7 @@ import { isFileConfiguredCli } from '@shared/utils/cliConfig'
 
 import {
   type CliConfigFileDraft,
+  cliConfigConnectionMatchesProvider,
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
   gatewayExpectedModel,
@@ -216,6 +217,15 @@ export function useLaunchDialogController({
         })
       }
       if (!isGatewayProvider && selectedCliTool === CodeCli.OPENAI_CODEX) {
+        const onDiskFiles = await readCliConfigFiles(selectedCliTool)
+        const connection = extractConnectionFromCliConfigDraft(selectedCliTool, onDiskFiles)
+        if (
+          !enabledProvider ||
+          !connection ||
+          !cliConfigConnectionMatchesProvider(selectedCliTool, connection, enabledProvider, undefined)
+        ) {
+          throw new Error('Codex endpoint differs from the selected provider; reapply configuration before launch')
+        }
         // Re-resolve the model binding at launch, not just when the provider was enabled.
         // The draft writer preserves unmanaged file fields and aborts on unavailable credentials.
         await writeCliConfigDraft({
