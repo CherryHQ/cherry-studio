@@ -6,6 +6,10 @@ sources:
   - src/main/ai/agentSession/persistence/AgentSessionMessageBackend.ts
   - src/main/data/services/AgentSessionForkService.ts
   - src/main/data/services/AgentSessionMessageService.ts
+  - src/main/data/db/schemas/agentSessionMessage.ts
+  - src/main/data/db/seeding/seeders/AgentSessionMessageTreeSeeder.ts
+  - migrations/sqlite-drizzle/0039_agent_session_tree_backfill.sql
+  - migrations/sqlite-drizzle/0040_agent_session_tree_constraints.sql
   - src/main/ai/runtime/fork
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
@@ -61,7 +65,11 @@ including outgoing cross-session deliveries. Failed preparation or publication p
 Pi Durable noninitial edits publish the native fork's allocated product context identity and remapped checkpoints in the replacement input transaction. First-input edits reserve a fresh empty backend/context and create native storage only on dispatch. Native numeric IDs are local to a store, so publication and recovery check the exact context rather than matching an unrelated backend's token.
 Neither edit/resend nor branch selection restores workspace files.
 
-The sibling navigator selects the chosen sibling's latest descendant. Selection
+Public message PATCH and DELETE reject in-flight deliveries (`accepted` or
+`delivering`), including messages without a native input binding yet.
+
+The sibling navigator follows the newest immediate child by `(createdAt, id)`
+at each level until it reaches a leaf beneath the chosen sibling. Selection
 only changes the stored view; it does not run the harness. The next send resolves
 that branch's native context. An idle connection on another branch is closed
 before connecting; an active connection prevents a cross-branch send.
@@ -73,10 +81,23 @@ history token from the captured branch; an allocated identity alone is not proof
 that native history exists. Other edits publish their verified native fork before
 startup, and switching the UI selection does not change the captured branch.
 
-The additive schema migration supplies parent/selection and binding fields.
-`AgentSessionMessageTreeSeeder` converts old flat archives into one selected
-path, preserving existing IDs and message facts. Previously deleted tails cannot
+SQLite enforces that only roots have a null parent, and every non-root parent
+exists in the same Session. Deleting a message with children requires reparenting
+those children first; deleting the whole Session still removes its entire archive.
+These constraints do not enforce acyclicity or native execution bindings.
+
+An appended data migration converts untouched flat archives, including empty
+Sessions, into one selected path before the constraint migration rebuilds the table. Existing branches and
+selections are preserved; invalid existing parent edges abort the upgrade without
+changing user rows. V1 conversion runs in the 2.2.2 bridge release; its v2
+archives follow the same appended migration path. Startup seeding only backfills
+legacy delivery reply anchors. Previously deleted tails cannot
 be recovered.
+
+Message pages select IDs before loading payloads. With `deferToolOutputs`, each
+assistant message is projected as it is loaded, so raw oversized outputs do not
+accumulate across the page. Default reads retain the complete stored payload,
+and cursor ordering and the 50/200 default/maximum limits are unchanged.
 
 ## Ownership and dependencies
 
@@ -148,7 +169,8 @@ all artifacts prepared or published by the operation.
 The public checkpoint envelope knows only `runtime`; all other checkpoint fields
 are opaque to the host and data layer. Native schemas live in each adapter's
 `forkCheckpoint.ts` and validate capture, fork input, and remapped results. Public
-message reads strip `runtimeAnchor`. The child uses the existing
+message reads strip `runtimeAnchor`. Remote MCP skills have no activation state to inherit;
+supporting files are read on demand against the current manifest. See [MCP Skills Client](./mcp-skills-client.md). The child uses the existing
 `runtimeResumeToken` persistence and normal runtime resume path.
 
 The message-list API composes Main-authored `historyActions` alongside the visible rows.
@@ -171,6 +193,8 @@ Fork publication uses existing session/message tables and native context binding
 without an `app_state` fork record. Cherry does not
 generate a summary, reconstruct model context from UI messages, or apply Chat
 compression settings to Agent forks.
+
+Legacy DeepSeek imports that prepared native history retain their native entry IDs. When reading such a Fork/Edit prefix, `AgentSessionMessageService` rebases their conversation ID to the selected product branch's native conversation in the same backend. This preserves the corresponding ancestor path without a quadratic checkpoint map. Current imports create no historical native checkpoints; answers produced after continuation use normal runtime checkpoints.
 
 ## Native adapter paths
 

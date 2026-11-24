@@ -21,13 +21,13 @@ import type { ResourceCreateWizardFormValues } from '../types'
 type SystemPromptStepProps = {
   form: UseFormReturn<ResourceCreateWizardFormValues>
   portalContainer: HTMLElement | null
+  /** Fill the step's height; off when other fields follow the editor. */
+  fill?: boolean
+  placeholder?: string
 }
 
-/**
- * Step 2 (shared by assistant + agent): the System Prompt editor.
- * Advanced settings stay in the edit dialog by design.
- */
-export function SystemPromptStep({ form, portalContainer }: SystemPromptStepProps) {
+/** The System Prompt editor: the Assistant's step 2, and the top of the advanced step for Agents not on Pi Durable. */
+export function SystemPromptStep({ form, portalContainer, fill = true, placeholder }: SystemPromptStepProps) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const [polishing, setPolishing] = useState(false)
@@ -42,7 +42,7 @@ export function SystemPromptStep({ form, portalContainer }: SystemPromptStepProp
       control={form.control}
       name="prompt"
       render={({ field }) => (
-        <FormItem className="flex h-full min-h-0 flex-col">
+        <FormItem className={fill ? 'flex h-full min-h-0 flex-col' : undefined}>
           <PromptEditorField
             actions={
               <PromptPolishActions
@@ -69,11 +69,11 @@ export function SystemPromptStep({ form, portalContainer }: SystemPromptStepProp
             onChange={field.onChange}
             previewValue={processedPrompt || prompt}
             resetPreviewKey={resetPreviewKey}
-            placeholder={t('library.config.prompt.placeholder')}
+            placeholder={placeholder ?? t('library.config.prompt.placeholder')}
             minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
             maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
             autoFocus
-            fill
+            fill={fill}
             disabled={polishing}
           />
         </FormItem>

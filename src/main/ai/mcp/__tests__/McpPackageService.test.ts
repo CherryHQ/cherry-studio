@@ -2,7 +2,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
-import AdmZip from 'adm-zip'
+import JSZip from 'jszip'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
@@ -341,13 +341,10 @@ describe('McpPackageService package upload collision guard', () => {
     server: { mcp_config: { command: 'node', args: [] } }
   }
 
-  function buildDxt(entries: Record<string, string | Buffer>): ArrayBuffer {
-    const zip = new AdmZip()
-    for (const [name, content] of Object.entries(entries)) {
-      zip.addFile(name, Buffer.isBuffer(content) ? content : Buffer.from(content))
-    }
-    const buffer = zip.toBuffer()
-    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer
+  function buildDxt(entries: Record<string, string | Buffer>): Promise<ArrayBuffer> {
+    const zip = new JSZip()
+    for (const [name, content] of Object.entries(entries)) zip.file(name, content)
+    return zip.generateAsync({ type: 'arraybuffer' })
   }
 
   // BaseService only allows one instance per test file, so reuse the shared service and
@@ -381,16 +378,16 @@ describe('McpPackageService package upload collision guard', () => {
       entries[name] = name === 'manifest.json' ? JSON.stringify(MANIFEST) : `// ${name}`
     }
 
-    const result = await withServiceRoot(() => sharedService.uploadDxt(buildDxt(entries), 'demo.dxt'))
+    const result = await withServiceRoot(async () => sharedService.uploadDxt(await buildDxt(entries), 'demo.dxt'))
 
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/collide once case and Unicode are normalized/)
   })
 
   it('installs a DXT with same-named files in different directories', async () => {
-    const result = await withServiceRoot(() =>
+    const result = await withServiceRoot(async () =>
       sharedService.uploadDxt(
-        buildDxt({
+        await buildDxt({
           'manifest.json': JSON.stringify(MANIFEST),
           'README.md': '# root',
           'docs/readme.md': '# docs'

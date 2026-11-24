@@ -31,7 +31,9 @@ import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runt
 import type * as ForkResourcesModule from '../fork/resources'
 import { RootMessageProjection } from '../RootMessageProjection'
 
-vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
+vi.mock('../recoverSessionDeliveries', () => ({
+  recoverSessionDeliveries: vi.fn(() => ({ affected: new Set(), resumable: new Set() }))
+}))
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
@@ -134,6 +136,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getNativeSessionId: vi.fn(),
     captureHead: () => 'branch-head',
     branchTip: (_sessionId: string, messageId: string) => messageId,
+    linkReply: vi.fn(),
     sharesBranch: mocks.sharesBranch,
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages,
@@ -368,8 +371,10 @@ describe('AgentSessionForkOperations recovery', () => {
       if (key === 'feature.agents.system_workspaces') return workspaceRoot
       throw new Error(`Unexpected recovery path: ${key}`)
     })
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     forkRecoveryMocks.journals.mockImplementation(() => [...journals.values()].map((value) => structuredClone(value)))
     forkRecoveryMocks.writeJournal.mockImplementation((journal) => {
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       journals.set(journal.operationId, structuredClone(journal))
     })
     forkRecoveryMocks.removeJournal.mockImplementation((operationId) => {
@@ -421,6 +426,7 @@ describe('AgentSessionForkOperations recovery', () => {
       workspaceIdentity: `${workspaceInfo.dev}:${workspaceInfo.ino}`,
       published: []
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     journals.set(operationId, structuredClone(journal))
     return { journal, workspace, artifactDirectory }
   }
@@ -599,6 +605,7 @@ describe('AgentSessionRuntimeService', () => {
           terminateHeldTopicStream: mocks.terminateHeldTopicStream
         }
       }
+      if (name === 'PreferenceService') return defaultServiceInstances.PreferenceService
       if (name === 'CacheService')
         return {
           setShared: mocks.cacheSetShared,
@@ -616,6 +623,123 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'WindowManager') return { getWindow: mocks.getWindow }
       throw new Error(`Unexpected application.get(${name})`)
     })
+  })
+
+  it.each(['run tests', '', 'first\nsecond', 'x'.repeat(121)])(
+    'only publishes a valid prediction: %s',
+    async (text) => {
+      await defaultServiceInstances.PreferenceService.set('agent.input.suggestions.enabled', true)
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, agentType: 'pi' })
+      getEntry(service).connection = { close: vi.fn(), send: vi.fn(), events: [], predictPrompt: async () => text }
+      service.markTurnTerminal('session-1', 'success')
+      expect(
+        await service.predictPrompt({
+          sessionId: 'session-1',
+          replyId: 'assistant-1',
+          modelId: baseTurnInput.modelId,
+          requestId: crypto.randomUUID()
+        })
+      ).toEqual({ supported: true, text: text === 'run tests' ? text : '' })
+      await service.closeSession('session-1')
+    }
+  )
+
+  it.each(['disabled', 'headless', 'failure', 'plan', 'unfocused'] as const)(
+    'does not generate a prediction for %s turns',
+    async (reason) => {
+      await defaultServiceInstances.PreferenceService.set('agent.input.suggestions.enabled', reason !== 'disabled')
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, agentType: 'pi', headless: reason === 'headless' })
+      const predictPrompt = vi.fn(async () => 'run tests')
+      getEntry(service).connection = { close: vi.fn(), send: vi.fn(), events: [], predictPrompt }
+      if (reason === 'plan')
+        mocks.getAgent.mockReturnValue({ id: 'agent-1', configuration: { permission_mode: 'plan' } })
+      if (reason === 'unfocused') {
+        getEntry(service).interactionWindowId = 1
+        mocks.getWindow.mockReturnValue({ isFocused: () => false })
+      }
+      service.markTurnTerminal('session-1', reason === 'failure' ? 'error' : 'success')
+      expect(
+        await service.predictPrompt({
+          sessionId: 'session-1',
+          replyId: 'assistant-1',
+          modelId: baseTurnInput.modelId,
+          requestId: crypto.randomUUID()
+        })
+      ).toEqual({ supported: true, text: '' })
+      expect(predictPrompt).not.toHaveBeenCalled()
+      await service.closeSession('session-1')
+    }
+  )
+
+  it.each(['claude-code', 'pi', 'pi-durable'] as const)(
+    'retains an in-flight %s prediction when the window loses focus',
+    async (agentType) => {
+      await defaultServiceInstances.PreferenceService.set('agent.input.suggestions.enabled', true)
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, agentType })
+      const entry = getEntry(service)
+      let focused = true
+      entry.interactionWindowId = 1
+      mocks.getWindow.mockReturnValue({ isFocused: () => focused })
+      let finish!: (text: string) => void
+      entry.connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        predictPrompt: () => new Promise<string>((resolve) => (finish = resolve))
+      }
+      service.markTurnTerminal('session-1', 'success')
+      const input = {
+        sessionId: 'session-1',
+        replyId: 'assistant-1',
+        modelId: baseTurnInput.modelId,
+        requestId: crypto.randomUUID()
+      }
+      const pending = service.predictPrompt(input)
+      await Promise.resolve()
+      focused = false
+      finish('run tests')
+      expect(await pending).toEqual({ supported: true, text: 'run tests' })
+      focused = true
+      expect(await service.predictPrompt(input)).toEqual({ supported: true, text: 'run tests' })
+      await service.closeSession('session-1')
+    }
+  )
+
+  it('binds predictions to the completed reply and cancels them when a new turn starts', async () => {
+    await defaultServiceInstances.PreferenceService.set('agent.input.suggestions.enabled', true)
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, agentType: 'pi' })
+    const entry = getEntry(service)
+    let finish!: (text: string) => void
+    let signal!: AbortSignal
+    const predictPrompt = vi.fn((value: AbortSignal) => {
+      signal = value
+      return new Promise<string>((resolve) => {
+        finish = resolve
+      })
+    })
+    entry.connection = { close: vi.fn(), send: vi.fn(), events: [], predictPrompt }
+    service.markTurnTerminal('session-1', 'success')
+    const input = {
+      sessionId: 'session-1',
+      replyId: 'assistant-1',
+      modelId: baseTurnInput.modelId,
+      requestId: crypto.randomUUID()
+    }
+    expect(await service.predictPrompt({ ...input, replyId: 'older-reply' })).toEqual({ supported: true, text: '' })
+    expect(predictPrompt).toHaveBeenCalledTimes(1)
+    const pending = service.predictPrompt(input)
+    const secondReader = service.predictPrompt({ ...input, requestId: crypto.randomUUID() })
+    expect(predictPrompt).toHaveBeenCalledTimes(1)
+    service.beginTurn({ ...baseTurnInput, agentType: 'pi', assistantMessageId: 'assistant-2' })
+    expect(signal.aborted).toBe(true)
+    finish('stale prediction')
+    expect(await pending).toEqual({ supported: true, text: '' })
+    expect(await secondReader).toEqual({ supported: true, text: '' })
+    await service.closeSession('session-1')
   })
 
   it('blocks edits only on the source session until its fork settles', async () => {
@@ -2915,15 +3039,12 @@ describe('AgentSessionRuntimeService', () => {
       expect(approvalRequestedEvents).toEqual([])
     })
 
-    it('keeps an in-turn approval on the live assistant stream', () => {
+    // Catches child approvals reaching the root stream without the tool input needed to render a prompt.
+    it('includes an unprojected child tool in its in-turn approval stream', async () => {
       const service = new AgentSessionRuntimeService()
-      const approvalRequestedEvents: unknown[] = []
-      service.onApprovalRequested((event) => approvalRequestedEvents.push(event))
-      service.beginTurn(baseTurnInput)
+      const handle = service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
-      const enqueue = vi.fn()
-      entry.currentTurn.controller = { enqueue } as never
-      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
+      entry.runtimeState.execution.reply.admission = 'admitted'
 
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'tool-approval-request',
@@ -2936,13 +3057,73 @@ describe('AgentSessionRuntimeService', () => {
         }
       })
 
-      expect(enqueue).toHaveBeenCalledWith({
-        type: 'tool-approval-request',
-        approvalId: 'approval-live',
-        toolCallId: 'tool-call-live'
+      const reader = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      }).getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+      await expect(reader.read()).resolves.toMatchObject({
+        value: {
+          type: 'tool-input-available',
+          toolName: 'Bash',
+          toolCallId: 'tool-call-live',
+          input: { command: 'pwd' }
+        }
       })
-      expect(mocks.saveMessage).not.toHaveBeenCalledWith(expect.anything(), { publishDataChange: true })
-      expect(approvalRequestedEvents).toEqual([])
+      await expect(reader.read()).resolves.toMatchObject({
+        value: { type: 'tool-approval-request', approvalId: 'approval-live', toolCallId: 'tool-call-live' }
+      })
+      await service.closeSession('session-1')
+    })
+
+    // Catch the original streamed input hiding the effective command and policy evidence at approval.
+    it('refreshes an already streamed tool input when command approval facts arrive', async () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.runtimeState.execution.reply.admission = 'admitted'
+      const metadata = { cherry: { commandPolicy: { cwd: '/work', revision: '1', reason: 'Risk', rules: [] } } }
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolName: 'bash',
+          toolCallId: 'policy-call',
+          input: { command: 'original' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'tool-approval-request',
+        request: {
+          approvalId: 'policy-approval',
+          toolCallId: 'policy-call',
+          toolName: 'bash',
+          input: { command: 'effective' },
+          presentation: 'stream',
+          providerMetadata: metadata
+        }
+      })
+      const reader = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      }).getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+      await expect(reader.read()).resolves.toMatchObject({
+        value: { type: 'tool-input-available', input: { command: 'original' } }
+      })
+      await expect(reader.read()).resolves.toMatchObject({
+        value: {
+          type: 'tool-input-available',
+          input: { command: 'effective' },
+          providerMetadata: metadata
+        }
+      })
+      await expect(reader.read()).resolves.toMatchObject({
+        value: { type: 'tool-approval-request', approvalId: 'policy-approval' }
+      })
+      await service.closeSession('session-1')
     })
 
     it('retains the tool input when an approval arrives before its message projection', () => {
@@ -2953,7 +3134,7 @@ describe('AgentSessionRuntimeService', () => {
       const control = vi.fn()
       const parts = vi.fn(() => undefined)
       entry.currentTurn.controller = { enqueue } as never
-      entry.currentTurn.projection = { control, parts } as never
+      entry.currentTurn.projection = { control, parts, toolCallMessageId: () => 'assistant-1' } as never
       entry.runtimeState.execution.reply.delivery = { kind: 'open' }
 
       ;(service as any).handleRuntimeEvent(entry, {
@@ -6991,13 +7172,13 @@ describe('AgentSessionRuntimeService', () => {
     const asSender = (fake: FakeWebContents) => fake as unknown as Electron.WebContents
 
     let service: InstanceType<typeof AgentSessionRuntimeService>
-    let prime: MockInstance<(sessionId: string) => Promise<void>>
+    let prime: MockInstance<(sessionId: string) => Promise<boolean>>
     let releaseIdle: MockInstance<(sessionId: string) => void>
 
     beforeEach(() => {
       vi.useFakeTimers()
       service = new AgentSessionRuntimeService()
-      prime = vi.spyOn(service, 'primeConnection').mockResolvedValue(undefined)
+      prime = vi.spyOn(service, 'primeConnection').mockResolvedValue(true)
       releaseIdle = vi.spyOn(service, 'releaseIdleConnection').mockImplementation(() => undefined)
     })
 

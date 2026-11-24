@@ -1,4 +1,3 @@
-import { Icon } from '@iconify/react'
 import type { EditorState } from '@uiw/react-codemirror'
 import dayjs from 'dayjs'
 import React, {
@@ -32,6 +31,7 @@ import {
   useWrapTool
 } from '@renderer/components/CodeToolbar'
 import CodeViewer from '@renderer/components/CodeViewer'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
@@ -39,7 +39,6 @@ import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { toast } from '@renderer/services/toast'
 import { getExtensionByLanguage } from '@renderer/utils/codeLanguage'
-import { getFileIconName } from '@renderer/utils/fileIconName'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { cn } from '@renderer/utils/style'
 
@@ -433,10 +432,9 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       )
     }
     const ext = getExtensionByLanguage(language)
-    const iconName = getFileIconName(`file${ext}`)
     return (
       <div className="code-block-header flex h-8 items-center border-b-[0.5px] border-border-subtle bg-background-subtle px-2.5 text-xs leading-none font-medium text-muted-foreground">
-        <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
+        <FileIcon path={`file${ext}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
         {language.toUpperCase()}
       </div>
     )

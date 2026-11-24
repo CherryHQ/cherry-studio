@@ -52,6 +52,7 @@ it('retains the public v1 fields, runtime provenance, and sanitized failure evid
       QA_SHA: 'application'
     })
     result.environment.appVersion = '2.1.7'
+    result.metadata.embeddingDataSource = 'Local mock vectors; no embedding quality evidence'
     result.steps.push({ step: 1, verb: 'fill', status: 'passed', seconds: 0 })
     addFailure(
       result,
@@ -77,7 +78,11 @@ it('retains the public v1 fields, runtime provenance, and sanitized failure evid
     expect(stored).toMatchObject({
       schemaVersion: 1,
       exitCode: 2,
-      metadata: { controllerSha: 'controller', applicationSha: 'application' },
+      metadata: {
+        controllerSha: 'controller',
+        applicationSha: 'application',
+        embeddingDataSource: 'Local mock vectors; no embedding quality evidence'
+      },
       environment: { appVersion: '2.1.7', imageOS: 'win22', imageVersion: '20261020.1' }
     })
     expect(stored.status).toBe('failed')
@@ -88,6 +93,7 @@ it('retains the public v1 fields, runtime provenance, and sanitized failure evid
       expect(output).not.toContain('secret-value')
       expect(output).not.toContain('configured-credential')
       expect(output).toContain('[REDACTED]')
+      expect(output).toContain('Local mock vectors; no embedding quality evidence')
     }
   } finally {
     rmSync(directory, { recursive: true, force: true })

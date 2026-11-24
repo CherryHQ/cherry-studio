@@ -1,121 +1,85 @@
+import type { EventEmitter } from 'node:events'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { NativeWatcher } from '../nativeWatcher'
+import type { WatcherMessage } from '../watcherProtocol'
 
-const mocks = vi.hoisted(() => {
-  type Handler = (...args: unknown[]) => void
-
-  const watchers: Array<{
-    close: ReturnType<typeof vi.fn<(...args: any[]) => any>>
-    emit: (event: string, ...args: unknown[]) => void
-    handlers: Map<string, Handler>
-    removeAllListeners: ReturnType<typeof vi.fn<(...args: any[]) => any>>
-  }> = []
-
-  const watch = vi.fn((_path: string, _options: { usePolling?: boolean }) => {
-    void _path
-    void _options
-    const handlers = new Map<string, Handler>()
-    const watcher = {
-      close: vi.fn().mockResolvedValue(undefined),
-      emit: (event: string, ...args: unknown[]) => handlers.get(event)?.(...args),
-      handlers,
-      on: vi.fn((event: string, handler: Handler) => {
-        handlers.set(event, handler)
-        return watcher
-      }),
-      removeAllListeners: vi.fn(() => handlers.clear())
-    }
-    watchers.push(watcher)
-    return watcher
-  })
-
-  return { watch, watchers }
-})
-
-vi.mock('chokidar', () => ({ watch: mocks.watch }))
-
-vi.mock('../danglingCache', () => ({
-  danglingCache: { onFsEvent: vi.fn() }
+const mocks = vi.hoisted(() => ({
+  watchers: [] as Array<EventEmitter & { close: () => Promise<void>; polling: boolean }>
 }))
 
-const loadCreateDirectoryWatcher = async (isWin: boolean) => {
-  vi.doMock('@main/core/platform', () => ({ isWin }))
-  const { createDirectoryWatcher } = await import('../watcher')
-  return createDirectoryWatcher
+vi.mock('chokidar', async () => {
+  const { EventEmitter } = await import('node:events')
+  return {
+    watch: (_root: string, options: { usePolling: boolean }) => {
+      const watcher = Object.assign(new EventEmitter(), {
+        close: () => Promise.resolve(),
+        polling: options.usePolling
+      })
+      mocks.watchers.push(watcher)
+      return watcher
+    }
+  }
+})
+
+const originalPlatform = process.platform
+let watcher: NativeWatcher
+let events: WatcherMessage[]
+
+beforeEach(() => {
+  mocks.watchers.length = 0
+  events = []
+  watcher = new NativeWatcher({ root: '/notes', options: {} }, (event) => events.push(event))
+})
+
+afterEach(async () => {
+  Object.defineProperty(process, 'platform', { value: originalPlatform })
+  await watcher.close()
+})
+
+function fail(code: string): void {
+  mocks.watchers.at(-1)?.emit('error', Object.assign(new Error(`${code}: watch failed`), { code }))
 }
 
-describe('DirectoryWatcher error recovery', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    vi.clearAllMocks()
-    mocks.watchers.length = 0
+// Catches loss of observation after recoverable native errors and false recovery after polling fails.
+describe('native watcher error recovery', () => {
+  it.each(['EPERM', 'EBUSY', 'EMFILE'])('restores event delivery through polling after Windows %s', (code) => {
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    fail(code)
+    const polling = mocks.watchers.find((candidate) => candidate.polling)
+    polling?.emit('ready')
+    polling?.emit('add', '/notes/restored.txt')
+    expect(events).toContainEqual({ kind: 'ready' })
+    expect(events).toContainEqual({ kind: 'add', path: '/notes/restored.txt' })
+    expect(events.some((event) => event.kind === 'error')).toBe(false)
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
+  it('reports permissions failure on non-Windows platforms', () => {
+    Object.defineProperty(process, 'platform', { value: 'linux' })
+    fail('EPERM')
+    expect(events).toContainEqual({ kind: 'error', message: 'EPERM: watch failed' })
   })
 
-  it('falls back to polling instead of reporting a fatal error after a native Windows EPERM', async () => {
-    const createDirectoryWatcher = await loadCreateDirectoryWatcher(true)
-    const watcher = createDirectoryWatcher('C:/Notes' as AbsoluteFilePath)
-    const events: string[] = []
-    watcher.onEvent((event) => events.push(event.kind))
-
-    const error = Object.assign(new Error('EPERM: operation not permitted, watch'), { code: 'EPERM' })
-    mocks.watchers[0].emit('error', error)
-
-    expect(mocks.watch).toHaveBeenCalledTimes(2)
-    expect(mocks.watch.mock.calls[1][1]).toMatchObject({ usePolling: true })
-    expect(events).not.toContain('error')
-
-    await watcher.close()
+  it('reports lost coverage when the polling watcher also fails', () => {
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    fail('EPERM')
+    fail('EPERM')
+    expect(events).toContainEqual({ kind: 'error', message: 'EPERM: watch failed' })
   })
 
-  it('falls back to polling instead of reporting a fatal error after a native Windows EBUSY', async () => {
-    const createDirectoryWatcher = await loadCreateDirectoryWatcher(true)
-    const watcher = createDirectoryWatcher('C:/Notes' as AbsoluteFilePath)
-    const events: string[] = []
-    watcher.onEvent((event) => events.push(event.kind))
-
-    const error = Object.assign(new Error('EBUSY: resource busy or locked, watch'), { code: 'EBUSY' })
-    mocks.watchers[0].emit('error', error)
-
-    expect(mocks.watch).toHaveBeenCalledTimes(2)
-    expect(mocks.watch.mock.calls[1][1]).toMatchObject({ usePolling: true })
-    expect(events).not.toContain('error')
-
-    await watcher.close()
-  })
-
-  it('reports EPERM as fatal on non-Windows platforms', async () => {
-    const createDirectoryWatcher = await loadCreateDirectoryWatcher(false)
-    const watcher = createDirectoryWatcher('/notes' as AbsoluteFilePath)
-    const events: string[] = []
-    watcher.onEvent((event) => events.push(event.kind))
-
-    const error = Object.assign(new Error('EPERM: operation not permitted, watch'), { code: 'EPERM' })
-    mocks.watchers[0].emit('error', error)
-
-    expect(mocks.watch).toHaveBeenCalledTimes(1)
-    expect(events).toContain('error')
-
-    await watcher.close()
-  })
-
-  it('reports a second EPERM as fatal after the Windows watcher has fallen back to polling', async () => {
-    const createDirectoryWatcher = await loadCreateDirectoryWatcher(true)
-    const watcher = createDirectoryWatcher('C:/Notes' as AbsoluteFilePath)
-    const events: string[] = []
-    watcher.onEvent((event) => events.push(event.kind))
-
-    const error = Object.assign(new Error('EPERM: operation not permitted, watch'), { code: 'EPERM' })
-    mocks.watchers[0].emit('error', error)
-    mocks.watchers[1].emit('error', error)
-
-    expect(mocks.watch).toHaveBeenCalledTimes(2)
-    expect(events).toContain('error')
-
-    await watcher.close()
+  it('waits for the retired native watcher as well as its polling replacement', async () => {
+    const nativeClose = Promise.withResolvers<void>()
+    mocks.watchers[0].close = () => nativeClose.promise
+    fail('EMFILE')
+    let completed = false
+    const closing = watcher.close().then(() => {
+      completed = true
+    })
+    await Promise.resolve()
+    expect(completed).toBe(false)
+    nativeClose.resolve()
+    await closing
+    expect(completed).toBe(true)
   })
 })

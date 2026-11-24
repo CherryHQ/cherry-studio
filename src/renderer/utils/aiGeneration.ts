@@ -1,12 +1,12 @@
-import { isFileUIPart } from 'ai'
-import { takeRight } from 'es-toolkit/compat'
-
 /**
  * Renderer helpers that call the AI (`ai.text.generate`) to produce short text:
  * generic text generation plus topic/note auto-naming. Stateless request/response.
  * Every request passes `reasoningEffort: 'none'`: short throwaway output never
  * benefits from provider-default thinking, which only adds latency and tokens.
  */
+import { isFileUIPart } from 'ai'
+import { takeRight } from 'es-toolkit/compat'
+
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
@@ -108,15 +108,19 @@ export async function fetchGenerate({
   content,
   model,
   throwOnError = false,
-  signal
+  signal,
+  onTextDelta
 }: {
   prompt: string
   content: string
   model?: Model
   throwOnError?: boolean
   signal?: AbortSignal
+  /** Streams the reply: each text delta as it arrives; the returned text is still the whole reply. */
+  onTextDelta?: (delta: string) => void
 }): Promise<string> {
   let stopAbortRelay: (() => void) | undefined
+  let stopDeltas: (() => void) | undefined
 
   try {
     signal?.throwIfAborted()
@@ -130,7 +134,13 @@ export async function fetchGenerate({
 
     // Cancellation is main-side: relay the abort to `ai.text.abort` and let the
     // in-flight `ai.text.generate` reject on its own.
-    const requestId = signal ? crypto.randomUUID() : undefined
+    const requestId = signal || onTextDelta ? crypto.randomUUID() : undefined
+    if (onTextDelta && requestId) {
+      // Subscribed before the request, so the first delta cannot arrive unheard.
+      stopDeltas = ipcApi.on('ai.text.delta', (event) => {
+        if (event.requestId === requestId) onTextDelta(event.delta)
+      })
+    }
     if (signal && requestId) {
       const relayAbort = () => void ipcApi.request('ai.text.abort', { requestId }).catch(() => undefined)
       signal.addEventListener('abort', relayAbort, { once: true })
@@ -139,6 +149,7 @@ export async function fetchGenerate({
 
     const { text } = await ipcApi.request('ai.text.generate', {
       ...(requestId ? { requestId } : {}),
+      ...(onTextDelta ? { streamDeltas: true } : {}),
       uniqueModelId: resolvedModel.id,
       reasoningEffort: 'none',
       system: prompt,
@@ -153,5 +164,6 @@ export async function fetchGenerate({
     return ''
   } finally {
     stopAbortRelay?.()
+    stopDeltas?.()
   }
 }

@@ -50,6 +50,7 @@ describe('normal chat corrupt image handling', () => {
         { id: 'old', role: 'user' as const, parts: [part] },
         { id: 'new', role: 'user' as const, parts: [{ type: 'text' as const, text: 'Next question without an image' }] }
       ]
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       const stored = structuredClone(messages)
       const out = await prepareChatMessages(messages, context)
       expect(out[0].parts).toEqual([{ type: 'text', text: 'Attached file "broken.png": [could not read this file].' }])

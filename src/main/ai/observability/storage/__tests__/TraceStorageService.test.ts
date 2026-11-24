@@ -192,6 +192,12 @@ describe('TraceStorageService', () => {
   // mark the entity ended, TraceSpanStore can never evict the trace and memory grows unbounded
   // while developer_mode is on. Drive a span through the real pipeline and confirm a fully-ended
   // trace IS evicted under a small cap. (Pre-fix: isEnd stays undefined → no eviction → fails.)
+  it('restores terminal status when retention removed a live span', async () => {
+    await service._doInit()
+    service.endSpan(readableSpan({ spanId: 'evicted', traceId: 'trace-evicted', ended: true }))
+    expect(service['store'].getSpan('evicted')).toMatchObject({ isEnd: true, status: 'OK' })
+  })
+
   it('marks createSpan/endSpan entities so a fully-ended trace becomes evictable (REGRESSION observability-eviction)', async () => {
     await service._doInit()
 
@@ -289,6 +295,31 @@ describe('TraceStorageService', () => {
 
     expect(service['store'].getSpan('live')?.events?.map((e) => e.name)).toEqual(['e'])
     expect(service['pendingEvents'].size).toBe(0)
+  })
+
+  it('keeps attribute occupancy charged after escaped events roll out', async () => {
+    await service._doInit()
+    Object.defineProperty(service, 'store', { value: new TraceSpanStore(1000, 11 * 1024 * 1024) })
+    service.saveEntity(
+      span({
+        id: 'active',
+        traceId: 'active-trace',
+        topicId: 'topic',
+        isEnd: false,
+        attributes: { body: 'x'.repeat(800_000) },
+        events: Array.from({ length: 200 }, (_, i) => ({
+          ...timedEvent(`old-${i}`),
+          attributes: { body: '\n'.repeat(1000) }
+        }))
+      })
+    )
+    for (let i = 0; i < 200; i++) service.addSpanEvent('active-trace', 'active', timedEvent(`new-${i}`))
+    expect(service['store'].getSpan('active')?.events).toHaveLength(200)
+    service.saveEntity(
+      span({ id: 'competitor', traceId: 'other', topicId: 'topic', attributes: { body: 'x'.repeat(1_200_000) } })
+    )
+    expect(service['store'].getSpan('competitor')).toBeUndefined()
+    expect(service['store'].getSpan('active')?.attributes?.body).toHaveLength(800_000)
   })
 
   it('appends a span event directly when the span is already stored', async () => {

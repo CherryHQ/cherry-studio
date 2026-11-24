@@ -1,12 +1,6 @@
 import { rm, writeFile } from 'node:fs/promises'
 
-import {
-  _electron as electron,
-  type ElectronApplication,
-  type Locator,
-  type Page,
-  type TestInfo
-} from '@playwright/test'
+import { type ElectronApplication, type Locator, type Page, type TestInfo } from '@playwright/test'
 import sharp from 'sharp'
 
 import { AgentEntitySchema } from '../../../src/shared/data/api/schemas/agents'
@@ -15,8 +9,8 @@ import { AgentSessionEntitySchema } from '../../../src/shared/data/api/schemas/a
 import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { type MockChatServer, startMockChatServer } from '../../helpers/http/mockChatServer'
-import { selectSidebarApp } from '../regression/helpers/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { openConversationListOptions, selectSidebarApp } from '../regression/helpers/navigation'
+import { expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 import { stickyWindow } from './utils/stickySmoke'
 
 type AvatarRuntime = { app?: ElectronApplication; pageErrors: string[]; consoleErrors: string[] }
@@ -24,7 +18,7 @@ type AvatarRuntime = { app?: ElectronApplication; pageErrors: string[]; consoleE
 async function launchProfile(profile: string, runtime: AvatarRuntime) {
   const env = { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }
   Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
-  const app = await electron.launch({ args: ['.'], env, timeout: 60_000 })
+  const app = await launchSmokeElectron({ args: ['.'], env, timeout: 60_000 })
   runtime.app = app
   const watch = (page: Page) => {
     page.on('pageerror', (error) => runtime.pageErrors.push(error.stack ?? error.message))
@@ -125,8 +119,8 @@ async function readAgent(page: Page, id: string) {
 
 async function catalog(page: Page, name: string) {
   const view = page.locator('[data-ui~="agent.view"]').filter({ visible: true }).first()
-  await view.getByRole('button', { name: 'Display mode', exact: true }).click()
-  await page.getByText('Manage Agents', { exact: true }).click()
+  await openConversationListOptions(view)
+  await page.getByRole('menuitem', { name: 'Manage Agents', exact: true }).click()
   const card = view
     .locator('[data-ui~="resource-catalog.card.button"]')
     .and(view.getByRole('button', { name, exact: true }))
@@ -201,7 +195,7 @@ async function sendTurn(page: Page, server: MockChatServer, sessionId: string, p
   return snapshot!
 }
 
-test('persists an uploaded agent avatar and freezes past message avatars after reset', async ({
+test('persists an uploaded agent avatar and updates past message avatars after reset', async ({
   electronApp,
   mainWindow,
   avatarRuntime,
@@ -333,13 +327,14 @@ test('persists an uploaded agent avatar and freezes past message avatars after r
   await expect(card).toContainText(emoji)
   await screenshot(page, testInfo, 'agent-avatar-after-reset')
   view = await openSession(page, agent.name, 'Avatar session')
-  await expectDecodedImage(messageAvatar(page, 'agent avatar turn').locator('img'))
+  await expect(messageAvatar(page, 'agent avatar turn').locator('img')).toHaveCount(0)
+  await expect(messageAvatar(page, 'agent avatar turn')).toContainText(emoji)
   const newSnapshot = await sendTurn(page, server, session.id, 'Check reset agent avatar', 'agent reset turn')
   expect(newSnapshot).toMatchObject({ id: agent.id, emoji })
   expect(newSnapshot?.avatarFileId).toBeUndefined()
   await expect(messageAvatar(page, 'agent reset turn').locator('img')).toHaveCount(0)
   await expect(messageAvatar(page, 'agent reset turn')).toContainText(emoji)
-  await expectDecodedImage(messageAvatar(page, 'agent avatar turn').locator('img'))
+  await expect(messageAvatar(page, 'agent avatar turn')).toContainText(emoji)
   await screenshot(page, testInfo, 'agent-avatar-old-and-new-messages')
 })
 

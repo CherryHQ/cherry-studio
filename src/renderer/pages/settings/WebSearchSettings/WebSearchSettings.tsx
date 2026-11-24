@@ -39,7 +39,12 @@ const WebSearchSettings: FC = () => {
     <SettingsContentColumn theme={theme} innerClassName={webSearchFieldClassName}>
       {featureSections.map((section) => {
         const defaultProvider =
-          section.capability === 'fetchUrls' ? defaultFetchUrlsProvider : defaultSearchKeywordsProvider
+          section.capability === 'fetchUrls'
+            ? defaultFetchUrlsProvider
+            : section.capability === 'searchImages'
+              ? // Image search is not wired into chat dispatch, so it has no persisted default provider.
+                undefined
+              : defaultSearchKeywordsProvider
         const selectedEntry =
           section.entries.find((entry) => entry.provider.id === defaultProvider?.id) ?? section.entries[0]
 
@@ -63,7 +68,12 @@ const WebSearchSettings: FC = () => {
               onSetBasicAuth={setBasicAuth}
               onSetCapabilityApiHost={setCapabilityApiHost}
               onSetDefaultProvider={
-                section.capability === 'fetchUrls' ? setDefaultFetchUrlsProvider : setDefaultSearchKeywordsProvider
+                section.capability === 'fetchUrls'
+                  ? setDefaultFetchUrlsProvider
+                  : section.capability === 'searchImages'
+                    ? // No persisted default exists for image search; the section configures credentials only.
+                      () => Promise.resolve()
+                    : setDefaultSearchKeywordsProvider
               }
               onUpdateProvider={updateProvider}>
               {section.capability === 'searchKeywords' ? <WebSearchGeneralSettings variant="plain" /> : null}

@@ -87,9 +87,7 @@ export async function networkProxySettings(app: RegressionApp, page: Page, testI
     }
     res.end('MP112 direct target')
   })
-  origin.listen(0, '0.0.0.0')
-  await once(origin, 'listening')
-  const originPort = (origin.address() as { port: number }).port
+  let originPort: number
   // Only external DNS is controlled; production routing and sockets remain real.
   const tunnels = new Set<Duplex>()
   const proxy = createServer((req, res) => {
@@ -117,12 +115,15 @@ export async function networkProxySettings(app: RegressionApp, page: Page, testI
     socket.on('error', () => upstream.destroy())
     socket.on('close', () => upstream.destroy())
   })
-  proxy.listen(0, '127.0.0.1')
-  await once(proxy, 'listening')
-  const proxyUrl = `http://127.0.0.1:${(proxy.address() as { port: number }).port}`
   const providerId = `mp112-${Date.now()}`
   let environmentPrepared = false
   try {
+    origin.listen(0, '0.0.0.0')
+    await once(origin, 'listening')
+    originPort = (origin.address() as { port: number }).port
+    proxy.listen(0, '127.0.0.1')
+    await once(proxy, 'listening')
+    const proxyUrl = `http://127.0.0.1:${(proxy.address() as { port: number }).port}`
     const seeded = await page.evaluate(
       async ({ providerId, baseUrl, modelId }) => {
         const provider = await window.api.dataApi.request({
@@ -260,25 +261,28 @@ export async function networkProxySettings(app: RegressionApp, page: Page, testI
     }
     await screenshot('MP-112 wildcard routing verified')
   } finally {
-    if (environmentPrepared)
-      await main(`
+    try {
+      if (environmentPrepared)
+        await main(`
       require('node:dns').lookup = globalThis.__mp112.lookup
       delete globalThis.__mp112
     `)
-    await page.evaluate(
-      async ({ previous, providerId }) => {
-        await window.api.preference.setMultiple(previous)
-        await window.api.dataApi.request({ id: 'mp112-cleanup', method: 'DELETE', path: '/providers/' + providerId })
-      },
-      { previous, providerId }
-    )
-    await mock.close()
-    for (const socket of tunnels) socket.destroy()
-    proxy.closeAllConnections()
-    origin.closeAllConnections()
-    await Promise.all([
-      new Promise<void>((resolve) => proxy.close(() => resolve())),
-      new Promise<void>((resolve) => origin.close(() => resolve()))
-    ])
+      await page.evaluate(
+        async ({ previous, providerId }) => {
+          await window.api.preference.setMultiple(previous)
+          await window.api.dataApi.request({ id: 'mp112-cleanup', method: 'DELETE', path: '/providers/' + providerId })
+        },
+        { previous, providerId }
+      )
+    } finally {
+      for (const socket of tunnels) socket.destroy()
+      proxy.closeAllConnections()
+      origin.closeAllConnections()
+      await Promise.all([
+        mock.close(),
+        new Promise<void>((resolve) => proxy.close(() => resolve())),
+        new Promise<void>((resolve) => origin.close(() => resolve()))
+      ])
+    }
   }
 }

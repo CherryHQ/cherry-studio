@@ -77,7 +77,7 @@ vi.mock('lucide-react', async (importOriginal) => ({
 }))
 vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsPopup', () => ({ default: mocks.HtmlArtifactsPopup }))
 vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     default: mocks.HtmlPreviewFrame
@@ -189,7 +189,7 @@ describe('HtmlArtifactView', () => {
     })
     Object.defineProperty(body, 'scrollHeight', {
       configurable: true,
-      get: () => Math.max(contentHeight, iframe.clientHeight)
+      get: () => contentHeight
     })
     Object.defineProperty(body.ownerDocument.documentElement, 'scrollHeight', {
       configurable: true,
@@ -830,6 +830,44 @@ describe('HtmlArtifactView', () => {
         })
       }
     }
+  })
+
+  it('keeps CSS-generated overflow visible after fitting the iframe and shrinks when the overflow disappears', () => {
+    render(<HtmlArtifactView html="<main>Weather</main>" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.cssText = 'margin:0;border-top:20px solid'
+    const content = frameDocument.createElement('main')
+    body.replaceChildren(content)
+    let overflowHeight = 290
+    Object.defineProperty(iframe, 'clientHeight', { get: () => Number.parseFloat(surface.style.height) })
+    Object.defineProperty(body, 'clientHeight', { value: 180 })
+    Object.defineProperty(body, 'clientTop', { value: 20 })
+    Object.defineProperty(body, 'scrollHeight', { get: () => overflowHeight })
+    Object.defineProperty(documentElement, 'scrollHeight', {
+      get: () => Math.max(overflowHeight + 20, iframe.clientHeight)
+    })
+    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue({ bottom: 200, height: 180, width: 100 } as DOMRect)
+
+    const notifyResize = () => {
+      act(() => {
+        for (const callback of mocks.resizeObserverCallbacks) callback([], {} as ResizeObserver)
+      })
+    }
+
+    fireEvent.load(iframe)
+    expect(surface).toHaveStyle({ height: '310px' })
+    notifyResize()
+    expect(surface).toHaveStyle({ height: '310px' })
+
+    overflowHeight = 180
+    notifyResize()
+    expect(surface).toHaveStyle({ height: '200px' })
   })
 
   it('drops a remembered overflow extent when the content shrinks', () => {

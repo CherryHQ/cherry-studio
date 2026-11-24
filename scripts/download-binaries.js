@@ -508,19 +508,40 @@ function download(url, dest) {
   }
 }
 
-function extract(archivePath, archive, outputDir, pkg) {
+/**
+ * Extract a zip in-process. On the windows-2022 runner image the
+ * PowerShell 7 Microsoft.PowerShell.Archive module is on PSModulePath, and
+ * loaded by Windows PowerShell 5.1 its -Force branch fails non-terminatingly
+ * while powershell still exits 0 — so Expand-Archive cannot be trusted to fail
+ * when extraction fails; the empty tree resurfaces later as a copy ENOENT.
+ */
+async function extractZipArchive(archivePath, destinationDir) {
+  const StreamZip = require('node-stream-zip')
+  fs.mkdirSync(destinationDir, { recursive: true })
+  const zip = new StreamZip.async({ file: archivePath })
+  try {
+    await zip.extract(null, destinationDir)
+  } catch (error) {
+    throw new Error(`failed to extract ${path.basename(archivePath)}: ${error.message}`, { cause: error })
+  } finally {
+    await zip.close().catch(() => {})
+  }
+}
+
+async function extract(archivePath, archive, outputDir, pkg) {
   if (archive === 'zip') {
     if (process.platform === 'win32') {
       const tmpExtract = path.join(outputDir, '__extract_tmp')
-      fs.mkdirSync(tmpExtract, { recursive: true })
       try {
-        execFileSync(
-          'powershell',
-          ['-NoProfile', '-Command', `Expand-Archive -Path '${archivePath}' -DestinationPath '${tmpExtract}' -Force`],
-          { stdio: 'inherit' }
-        )
+        await extractZipArchive(archivePath, tmpExtract)
         for (const b of pkg.binaries) {
-          const src = pkg.strip ? path.join(tmpExtract, pkg.strip, b) : path.join(tmpExtract, b)
+          const expected = pkg.strip ? `${pkg.strip}/${b}` : b
+          const src = path.join(tmpExtract, expected)
+          // A short extraction must fail here, named after the archive, not
+          // later as a copyFileSync ENOENT that points at nothing.
+          if (!fs.existsSync(src)) {
+            throw new Error(`archive ${path.basename(archivePath)} did not contain ${expected}`)
+          }
           fs.copyFileSync(src, path.join(outputDir, b))
         }
       } finally {
@@ -538,11 +559,7 @@ function extract(archivePath, archive, outputDir, pkg) {
     fs.rmSync(destDir, { recursive: true, force: true })
     fs.mkdirSync(destDir, { recursive: true })
     if (process.platform === 'win32') {
-      execFileSync(
-        'powershell',
-        ['-NoProfile', '-Command', `Expand-Archive -Path '${archivePath}' -DestinationPath '${destDir}' -Force`],
-        { stdio: 'inherit' }
-      )
+      await extractZipArchive(archivePath, destDir)
     } else {
       execFileSync('unzip', ['-o', '-q', archivePath, '-d', destDir], { stdio: 'inherit' })
     }
@@ -570,7 +587,7 @@ function extract(archivePath, archive, outputDir, pkg) {
  * binaries, which the flat bundle needs to tell versions apart and the cache
  * does not, since its directory name already carries the version.
  */
-function downloadTool(tool, platformKey, outputDir, { versionFile = null, assetPath = null } = {}) {
+async function downloadTool(tool, platformKey, outputDir, { versionFile = null, assetPath = null } = {}) {
   const pkg = tool.packages[platformKey]
   if (!pkg) {
     if (tool.required) {
@@ -615,7 +632,7 @@ function downloadTool(tool, platformKey, outputDir, { versionFile = null, assetP
     if (assetPath) fs.copyFileSync(assetPath, archivePath)
     else download(pkg.url, archivePath)
     verifyHash(archivePath, pkg.sha256)
-    extract(archivePath, pkg.archive, staging, pkg)
+    await extract(archivePath, pkg.archive, staging, pkg)
     fs.unlinkSync(archivePath)
   }
 
@@ -733,9 +750,10 @@ async function prepareTools(
 ) {
   const platformKey = `${platform}-${arch}`
   const bundleDir = path.join(resourcesDir, platformKey)
-  const pending = tools.filter((tool) => {
+  const pending = []
+  for (const tool of tools) {
     const pkg = tool.packages[platformKey]
-    if (!pkg) return false
+    if (!pkg) continue
     if (
       isUpToDate(
         pkg.binaries.map((name) => path.join(bundleDir, name)),
@@ -743,11 +761,11 @@ async function prepareTools(
         tool.version
       )
     ) {
-      downloadTool(tool, platformKey, bundleDir, { versionFile: tool.versionFile })
-      return false
+      await downloadTool(tool, platformKey, bundleDir, { versionFile: tool.versionFile })
+    } else {
+      pending.push(tool)
     }
-    return true
-  })
+  }
   if (pending.length === 0) {
     verifyBundledBinaries(platform, arch, { tools, resourcesDir })
     return
@@ -823,7 +841,7 @@ async function prepareTools(
     for (const [tool, assetPath] of assets) {
       const started = Date.now()
       try {
-        downloadTool(tool, platformKey, bundleDir, { versionFile: tool.versionFile, assetPath })
+        await downloadTool(tool, platformKey, bundleDir, { versionFile: tool.versionFile, assetPath })
         toolTiming(tool.name, 'extract-install', started)
       } catch (error) {
         errors.push(new Error(`[${tool.name}] ${error.message}`, { cause: error }))
@@ -859,7 +877,7 @@ async function main() {
   for (const tool of TOOLS) {
     const outputDir = cacheRoot ? cachedVersionDir(cacheRoot, platformKey, tool) : bundleDir
     try {
-      downloadTool(tool, platformKey, outputDir, { versionFile: cacheRoot ? null : tool.versionFile })
+      await downloadTool(tool, platformKey, outputDir, { versionFile: cacheRoot ? null : tool.versionFile })
       if (cacheRoot && tool.packages[platformKey]) touch(outputDir)
     } catch (error) {
       if (tool.required) throw error
@@ -980,6 +998,7 @@ module.exports = {
   download,
   downloadTool,
   extract,
+  extractZipArchive,
   materialize,
   sweepUnreferencedVersions,
   verifyBundledBinaries,

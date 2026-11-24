@@ -28,9 +28,9 @@ jobs:
           find "$RUNNER_TEMP/scf-dependencies" -name '_crcfunext*.so' -delete
       - name: Deploy function code to Shanghai
         env:
-          TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
-          TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
+          TENCENT_CLOUD_SECRET_ID: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
+          TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
         run: |
-          : "${TENCENT_SECRET_ID:?TENCENT_SECRET_ID is required}"
-          : "${TENCENT_SECRET_KEY:?TENCENT_SECRET_KEY is required}"
+          : "${TENCENT_CLOUD_SECRET_ID:?TENCENT_CLOUD_SECRET_ID is required}"
+          : "${TENCENT_CLOUD_SECRET_KEY:?TENCENT_CLOUD_SECRET_KEY is required}"
           python scripts/release/gitcode-scf.py deploy "$RUNNER_TEMP/scf-dependencies"

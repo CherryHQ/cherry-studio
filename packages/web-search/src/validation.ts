@@ -58,6 +58,10 @@ export function validateWebSearchCall(call: WebSearchCall): readonly WebSearchVa
     if (call.config.excludeDomains?.length && !['bocha', 'querit', 'yuanbao'].includes(call.providerId)) {
       add('option_unsupported', ['config', 'excludeDomains'], 'This provider does not support domain exclusions')
     }
+  } else if (call.capability === 'searchImages') {
+    if (!Number.isInteger(call.config.maxResults) || call.config.maxResults <= 0) {
+      add('input_invalid', ['config', 'maxResults'], 'maxResults must be a positive integer')
+    }
   } else if (call.config.maxCharacters !== undefined) {
     if (call.providerId !== 'exa-mcp')
       add('option_unsupported', ['config', 'maxCharacters'], 'Only Exa MCP supports maxCharacters')

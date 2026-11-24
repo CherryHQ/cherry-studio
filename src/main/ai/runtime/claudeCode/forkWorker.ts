@@ -33,6 +33,7 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
   let outputKey: SessionKey | undefined
   const store: SessionStore = {
     async load(key) {
+      // oxlint-disable-next-line no-restricted-globals -- Fork once: isolate selected source entries before the native worker imports them.
       return key.sessionId === checkpoint.runtimeSessionId ? structuredClone(input.entries) : null
     },
     async append(key, entries) {
@@ -40,6 +41,7 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
         throw new Error('history_corrupt')
       }
       outputKey = key
+      // oxlint-disable-next-line no-restricted-globals -- Fork once: detach exported native entries before the worker continues rewriting them.
       output.push(...structuredClone(entries))
     }
   }
@@ -69,6 +71,7 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
       includeSystemMessages: true,
       sessionStore: {
         async load(key) {
+          // oxlint-disable-next-line no-restricted-globals -- Fork once: isolate the worker-owned entries returned to the native session loader.
           return key.sessionId === sessionId ? structuredClone(entries) : null
         },
         async append() {

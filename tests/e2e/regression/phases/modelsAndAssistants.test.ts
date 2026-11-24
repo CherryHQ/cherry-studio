@@ -1,7 +1,10 @@
+import type { Page, TestInfo } from '@playwright/test'
+
 import { AssistantSchema } from '@shared/data/types/assistant'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { MessageSchema } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
@@ -10,11 +13,13 @@ import { hasOwnedAppActiveTasks } from '../../../../scripts/e2e/regression/debug
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
+import { startClaudeStreamFailureServer } from '../fixtures/claudeStreamFailureServer'
 import { customAssistantName, ensureCustomAssistant } from '../helpers/assistants'
 import { sendChatMarker } from '../helpers/chat'
 import { CUSTOM_CHAT_PROVIDER, ensureCustomChatProvider } from '../helpers/models'
 import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
 import { closeSettings, openSettingsSection } from '../helpers/settings'
+import type { RegressionApp } from '../RegressionApp'
 import { clearChatMessages } from '../scenarios/clearChatMessages'
 import { errorRecovery } from '../scenarios/errorRecovery'
 import { prepareScenario } from '../setup'
@@ -170,17 +175,28 @@ test(...caseDefinition('C-01'), async ({ app, mainWindow: page }) => {
   await expect(restarted.getByText('ASSISTANT_PROMPT_PASS').last()).toBeVisible()
 })
 
-test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
-  const server = await startMockChatServer()
-  testInfo.annotations.push({
-    type: 'data-source',
-    description:
-      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+for (const [caseId, endpoint] of [
+  ['C-03', 'openai-chat-completions'],
+  ['C-04', 'anthropic-messages']
+] as const) {
+  test(...caseDefinition(caseId), async ({ app, mainWindow }, testInfo) => {
+    await verifyStreamFailure(app, mainWindow, testInfo, caseId, endpoint)
   })
+}
+
+async function verifyStreamFailure(
+  app: RegressionApp,
+  mainWindow: Page,
+  testInfo: TestInfo,
+  caseId: 'C-03' | 'C-04',
+  endpoint: 'openai-chat-completions' | 'anthropic-messages'
+) {
   const providerId = `regression-stream-${Date.now()}`
   const assistantName = app.resourceName('Stream failure')
   const prompt = 'Explain how a rainbow forms.'
   const partialText = 'Sunlight enters a raindrop and separates into colors.'
+  const recoveryPrompt = 'What happens next?'
+  const recoveryText = 'The light leaves the raindrop.'
   let page = mainWindow
   let assistantId: string | undefined
   const diagnostics: Record<string, unknown> = { observations: [] }
@@ -250,11 +266,20 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
     }
   }
   const namingEnabled = await page.evaluate(() => window.api.preference.get('topic.naming.enabled'))
+  const fixture =
+    endpoint === 'anthropic-messages'
+      ? { endpoint, server: await startClaudeStreamFailureServer(prompt, partialText, recoveryPrompt, recoveryText) }
+      : { endpoint, server: await startMockChatServer() }
+  const { server } = fixture
+  testInfo.annotations.push({
+    type: 'data-source',
+    description: `Loopback ${endpoint} fixtures${endpoint === 'anthropic-messages' ? ' served by AIMock' : ''}; real Electron UI, IPC and persisted data.`
+  })
 
   try {
     await page.evaluate(() => window.api.preference.set('topic.naming.enabled', false))
     const provider = await page.evaluate(
-      ({ providerId, baseUrl }) =>
+      ({ providerId, baseUrl, endpoint }) =>
         window.api.dataApi.request({
           id: `${providerId}-create`,
           method: 'POST',
@@ -262,12 +287,12 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
           body: {
             providerId,
             name: 'Stream failure mock',
-            defaultChatEndpoint: 'openai-chat-completions',
-            endpointConfigs: { 'openai-chat-completions': { baseUrl } },
+            defaultChatEndpoint: endpoint,
+            endpointConfigs: { [endpoint]: { baseUrl } },
             apiKeys: [{ id: 'mock-key', key: 'mock-api-key', isEnabled: true }]
           }
         }),
-      { providerId, baseUrl: server.baseUrl }
+      { providerId, baseUrl: server.baseUrl, endpoint }
     )
     expect(provider.status).toBe(201)
     const enabled = await page.evaluate(
@@ -282,14 +307,14 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
     )
     expect(enabled.status).toBe(200)
     const models = await page.evaluate(
-      ({ providerId, modelId }) =>
+      ({ providerId, modelId, endpoint }) =>
         window.api.dataApi.request({
           id: `${providerId}-model`,
           method: 'POST',
           path: '/models',
-          body: [{ providerId, modelId, endpointTypes: ['openai-chat-completions'] }]
+          body: [{ providerId, modelId, endpointTypes: [endpoint] }]
         }),
-      { providerId, modelId: server.modelId }
+      { providerId, modelId: server.modelId, endpoint }
     )
     expect(models.status).toBe(201)
     const assistant = await page.evaluate(
@@ -304,27 +329,47 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
     )
     expect(assistant.status).toBe(201)
     assistantId = AssistantSchema.parse(assistant.data).id
+    const topic = await page.evaluate(
+      ({ assistantId, name }) =>
+        window.api.dataApi.request({
+          id: 'stream-failure-topic',
+          method: 'POST',
+          path: '/topics',
+          body: { assistantId, name }
+        }),
+      { assistantId, name: assistantName }
+    )
+    expect(topic.status).toBe(201)
+    const topicId = TopicSchema.parse(topic.data).id
     await page.reload()
-    await expect(page.locator('[data-ui~="chat.view"]:visible')).toBeVisible()
-    const assistantRow = page
-      .locator('[data-ui~="chat.view"]:visible')
-      .locator('[data-ui~="chat.group-header"]')
-      .filter({ hasText: assistantName })
-      .first()
-    await assistantRow.hover()
-    await assistantRow.getByRole('button', { name: 'New Chat', exact: true }).click()
+    await expect(page.locator('[data-ui~="app.tab-bar"]')).toBeVisible()
+    const opened = (await page.evaluate(
+      ({ conversationId, title }) =>
+        window.api.ipcApi.request('navigation.focus_or_open_conversation', {
+          target: { conversationType: 'assistant', conversationId },
+          title
+        }),
+      { conversationId: topicId, title: assistantName }
+    )) as IpcResult<void>
+    expect(opened.ok).toBe(true)
     await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText(server.modelId)
     await page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first().fill(prompt)
     await page.getByRole('button', { name: 'Send', exact: true }).click()
 
-    const request = await server.nextRequest()
-    expect(request.body).toMatchObject({
-      model: server.modelId,
-      stream: true,
-      messages: expect.arrayContaining([expect.objectContaining({ role: 'user', content: prompt })])
-    })
-    request.sendText('Sunlight enters a raindrop ')
-    request.sendText('and separates into colors.')
+    let disconnect: () => void
+    if (fixture.endpoint === 'openai-chat-completions') {
+      const request = await fixture.server.nextRequest()
+      expect(request.body).toMatchObject({
+        model: server.modelId,
+        stream: true,
+        messages: expect.arrayContaining([expect.objectContaining({ role: 'user', content: prompt })])
+      })
+      request.sendText('Sunlight enters a raindrop ')
+      request.sendText('and separates into colors.')
+      disconnect = request.disconnect
+    } else {
+      disconnect = fixture.server.disconnect
+    }
     const response = page
       .locator('[data-ui~="chat.message"][data-message-id]:visible')
       .filter({ hasText: partialText })
@@ -334,9 +379,8 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
     const messageId = await response.getAttribute('data-message-id')
     if (!messageId) throw new Error('Streaming response has no message ID')
 
-    // Disconnect only after the renderer has consumed the text, without a finish chunk or [DONE].
-    let topicId = ''
-    request.disconnect()
+    // Disconnect only after the renderer has consumed the text.
+    disconnect()
     await expect
       .poll(async () => {
         const stored = await page.evaluate(
@@ -344,12 +388,11 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
           messageId
         )
         expect(stored.status).toBe(200)
-        const message = MessageSchema.parse(stored.data)
-        topicId = message.topicId
-        return message
+        return MessageSchema.parse(stored.data)
       })
       .toMatchObject({
         id: messageId,
+        topicId,
         status: 'error',
         data: {
           parts: expect.arrayContaining([
@@ -360,6 +403,11 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
       })
     await expect(page.locator('[data-ui~="chat.composer.action.pause"]')).toBeHidden()
     await expect(response.getByText(partialText, { exact: true })).toBeVisible()
+    await expect(response).toContainText('Connection interrupted while receiving the response.')
+    await expect(response).not.toContainText('AI returned an invalid response')
+    const errorScreenshot = testInfo.outputPath(`${caseId} connection interrupted.png`)
+    await page.screenshot({ path: errorScreenshot })
+    await testInfo.attach('Connection interrupted', { path: errorScreenshot, contentType: 'image/png' })
 
     await expect
       .poll(
@@ -378,7 +426,7 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
         {
           timeout: 5_000,
           intervals: [100],
-          message: `C-03 serialized conversation selection did not catch up to topic ${topicId} before restart`
+          message: `${caseId} serialized conversation selection did not catch up to topic ${topicId} before restart`
         }
       )
       .toBe('ready')
@@ -459,12 +507,14 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
       }
     })
 
-    await page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first().fill('What happens next?')
+    await page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first().fill(recoveryPrompt)
     await page.getByRole('button', { name: 'Send', exact: true }).click()
-    const recoveryRequest = await server.nextRequest()
-    recoveryRequest.complete('The light leaves the raindrop.')
+    if (fixture.endpoint === 'openai-chat-completions') {
+      const recoveryRequest = await fixture.server.nextRequest()
+      recoveryRequest.complete(recoveryText)
+    }
     const recovery = page.locator('[data-ui~="chat.message"][data-message-id]:visible').last()
-    await expect(recovery.getByText('The light leaves the raindrop.', { exact: true })).toBeVisible()
+    await expect(recovery.getByText(recoveryText, { exact: true })).toBeVisible()
     const recoveryId = await recovery.getAttribute('data-message-id')
     if (!recoveryId) throw new Error('Recovery response has no message ID')
     await expect
@@ -476,6 +526,14 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
         return MessageSchema.parse(saved.data).status
       })
       .toBe('success')
+    if (fixture.endpoint === 'anthropic-messages') {
+      const requests = fixture.server.getRequests()
+      expect(requests).toMatchObject([
+        { path: '/v1/messages', response: { status: 200, interrupted: true } },
+        { path: '/v1/messages', response: { status: 200 } }
+      ])
+      expect(requests.every(({ response }) => response.fixture !== null)).toBe(true)
+    }
     await testInfo.attach('Restart persistence and recovery', {
       body: await page.screenshot(),
       contentType: 'image/png'
@@ -483,7 +541,7 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
   } catch (error) {
     diagnostics.failure = String(error)
     try {
-      await testInfo.attach('C-03 restart diagnostics', {
+      await testInfo.attach(`${caseId} restart diagnostics`, {
         body: JSON.stringify(diagnostics, null, 2),
         contentType: 'application/json'
       })
@@ -491,7 +549,7 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
       // Evidence failures must preserve the original assertion failure.
     }
     try {
-      await testInfo.attach('C-03 before cleanup', {
+      await testInfo.attach(`${caseId} before cleanup`, {
         body: await captureMaskedScreenshot(page, getSensitiveConfigValues()),
         contentType: 'image/png'
       })
@@ -522,7 +580,7 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
       { assistantId, providerId, namingEnabled }
     )
   }
-})
+}
 
 test(...caseDefinition('MP-42'), async ({ app, mainWindow }, testInfo) => {
   await clearChatMessages(app, mainWindow, testInfo)

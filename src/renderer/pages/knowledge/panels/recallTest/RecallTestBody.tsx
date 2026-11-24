@@ -59,7 +59,6 @@ const RecallEmptyState = () => {
   return (
     <div className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:hidden">
       <EmptyState
-        preset="no-result"
         title={t('knowledge.recall.empty_title')}
         description={t('knowledge.recall.empty_description')}
         className="h-full"
