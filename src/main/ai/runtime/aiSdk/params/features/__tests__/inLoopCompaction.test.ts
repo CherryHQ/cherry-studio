@@ -10,7 +10,7 @@ vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({
   ...(await importOriginal<typeof AiCore>()),
   compactModelMessages: (...args: unknown[]) => compactModelMessages(...args)
 }))
-vi.mock('@main/ai/agentSession/topic', () => ({
+vi.mock('@shared/ai/agentSessionTopic', () => ({
   isAgentSessionTopic: (id: string) => id.startsWith('agent-session:')
 }))
 vi.mock('@main/data/services/TemporaryChatService', () => ({

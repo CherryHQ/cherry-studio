@@ -34,9 +34,10 @@ import {
   toAISDK
 } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import { CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER } from '@main/ai/constants'
 import { resolveCompressionBudget } from '@main/ai/contextBuild/resolveCompressionBudget'
+import {
+  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
+} from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
@@ -46,6 +47,7 @@ import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 import { resolveRequestContextWindow } from '@main/ai/utils/ollamaRequestNumCtx'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
+import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
 
 import type { RequestFeature } from '../feature'

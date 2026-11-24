@@ -38,11 +38,19 @@ function probeDesktopAutomation(platform: Platform): CapabilityResult {
       }
     }
 
-    execFileSync(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', '$null = New-Object -ComObject WScript.Shell'],
-      { stdio: 'ignore', timeout: 10_000 }
-    )
+    const args = [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      '$null = New-Object -ComObject WScript.Shell -ErrorAction Stop'
+    ]
+    const options = { stdio: 'ignore', timeout: 10_000 } as const
+    try {
+      execFileSync('powershell.exe', args, options)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ETIMEDOUT') throw error
+      execFileSync('powershell.exe', args, options)
+    }
     return { available: true, detail: 'Windows desktop input automation is available' }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
