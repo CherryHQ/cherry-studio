@@ -1,8 +1,9 @@
 import { buildParamsSchema } from '@cherrystudio/provider-registry'
-import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { type FileMetadata } from '@renderer/types/file'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import { isSeedream5xTargetModel, sanitizeSeedreamImageParams } from '@shared/ai/seedreamImageContract'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
+import { FILE_TYPE } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
 import { checkProviderEnabled } from '../utils/checkProviderEnabled'

@@ -1,8 +1,8 @@
 import mime from 'mime'
 
 import { ipcApi } from '@renderer/ipc'
-import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { type FileMetadata } from '@renderer/types/file'
+import { AbsoluteFilePathSchema, FILE_TYPE, type FileType } from '@shared/types/file'
 import { audioExts, createFilePathHandle, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 
 /** Wildcard entry accepting every extension, matching the file dialog's all-files filter. */

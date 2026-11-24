@@ -8,9 +8,9 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolDisabledBySource, isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import { type Assistant, DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
+import type { Assistant, McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { isBrowserMcpServer } from '@shared/utils/mcp'
+import { getEffectiveMcpMode, isBrowserMcpServer } from '@shared/utils/mcp'
 
 const logger = loggerService.withContext('resolveAssistantMcpTools')
 
@@ -45,12 +45,6 @@ async function warmToolsCacheWithTimeout(serverId: string): Promise<boolean> {
   } finally {
     clearTimeout(timer)
   }
-}
-
-/** `settings.mcpMode` if set; else the shared default ('manual' — only linked
- *  servers; with zero links that resolves to no tools, same as 'disabled'). */
-export function getEffectiveMcpMode(assistant: Assistant): McpMode {
-  return assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE
 }
 
 export function resolveServersForAssistant(assistant: Assistant, mode: McpMode): McpServer[] {

@@ -4,9 +4,10 @@ import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
-import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { type FileMetadata } from '@renderer/types/file'
 import { anyFileExt } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { FILE_TYPE } from '@shared/types/file'
 
 import { getSingleDroppedPathFromText, useFileDragDrop } from '../useFileDragDrop'
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatVertexApiHost, routeToEndpoint, splitApiKeyString, validateApiHost } from '../api'
+import { formatVertexApiHost, splitApiKeyString, validateApiHost } from '../api'
 
 describe('api', () => {
   describe('splitApiKeyString', () => {
@@ -72,50 +72,6 @@ describe('api', () => {
     it('validates supported endpoint fragments when using hash suffix', () => {
       expect(validateApiHost('https://api.example.com/v1/chat/completions#')).toBe(true)
       expect(validateApiHost('https://api.example.com/v1/unknown#')).toBe(true)
-    })
-  })
-
-  describe('routeToEndpoint', () => {
-    it('returns host without endpoint when not using hash suffix', () => {
-      expect(routeToEndpoint(' https://api.example.com/v1 ')).toEqual({
-        baseURL: 'https://api.example.com/v1',
-        endpoint: ''
-      })
-    })
-
-    it('extracts known endpoint and base url when using hash suffix', () => {
-      expect(routeToEndpoint('https://api.example.com/v1/chat/completions#')).toEqual({
-        baseURL: 'https://api.example.com/v1',
-        endpoint: 'chat/completions'
-      })
-    })
-
-    it('returns empty endpoint when unsupported endpoint fragment is provided', () => {
-      expect(routeToEndpoint('https://api.example.com/v1/custom#')).toEqual({
-        baseURL: 'https://api.example.com/v1/custom',
-        endpoint: ''
-      })
-    })
-
-    it('prefers the most specific endpoint match when multiple matches exist', () => {
-      expect(routeToEndpoint('https://api.example.com/v1/streamGenerateContent#')).toEqual({
-        baseURL: 'https://api.example.com/v1',
-        endpoint: 'streamGenerateContent'
-      })
-    })
-
-    it('extract OpenAI images generations endpoint', () => {
-      expect(routeToEndpoint('https://open.cherryin.net/v1/images/generations#')).toEqual({
-        baseURL: 'https://open.cherryin.net/v1',
-        endpoint: 'images/generations'
-      })
-    })
-
-    it('extract Gemini images generation endpoint', () => {
-      expect(routeToEndpoint('https://open.cherryin.net/v1beta/models/imagen-4.0-generate-001:predict#')).toEqual({
-        baseURL: 'https://open.cherryin.net/v1beta/models/imagen-4.0-generate-001',
-        endpoint: 'predict'
-      })
     })
   })
 

@@ -3,9 +3,8 @@ import type { ReactNode } from 'react'
 
 import { loggerService } from '@logger'
 import { FileIcon } from '@renderer/components/icons/FileIcon'
-import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema, FILE_TYPE } from '@shared/types/file'
 import { fileUrlToPath, toSafeFileUrl } from '@shared/utils/file'
 
 const logger = loggerService.withContext('fileTokenPresentation')

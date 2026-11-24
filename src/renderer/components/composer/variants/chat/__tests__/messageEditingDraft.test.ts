@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { FILE_TYPE } from '@renderer/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { FILE_TYPE } from '@shared/types/file'
 
 import { createComposerDraftContent, serializeComposerDocument } from '../../../composerDraft'
 import type { ComposerSerializedToken } from '../../../tokens'

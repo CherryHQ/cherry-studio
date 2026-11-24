@@ -10,8 +10,8 @@ import { type HTMLAttributes, type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryUI from '@cherrystudio/ui'
-import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { COMPOSER_FILE_KIND, type FileMetadata } from '@renderer/types/file'
+import { type AbsoluteFilePath, FILE_TYPE } from '@shared/types/file'
 
 import { serializeComposerDocument } from '../composerDraft'
 import { createComposerEditorPreset } from '../composerPreset'

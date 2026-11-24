@@ -1,20 +1,5 @@
-import * as z from 'zod'
-
 import type OpenAI from '@cherrystudio/openai'
-import { objectValues } from '@renderer/utils/object'
-
-export const FILE_TYPE = {
-  IMAGE: 'image',
-  VIDEO: 'video',
-  AUDIO: 'audio',
-  TEXT: 'text',
-  DOCUMENT: 'document',
-  OTHER: 'other'
-} as const
-
-const FileTypeSchema = z.enum(objectValues(FILE_TYPE))
-
-export type FileType = z.infer<typeof FileTypeSchema>
+import type { FileType } from '@shared/types/file'
 
 export const COMPOSER_FILE_KIND = {
   PASTED_TEXT: 'pasted-text'

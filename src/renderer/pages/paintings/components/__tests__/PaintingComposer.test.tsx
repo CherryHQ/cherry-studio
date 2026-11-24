@@ -2,10 +2,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '@renderer/components/composer/ComposerSurface'
-import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileEntry } from '@shared/data/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, FILE_TYPE } from '@shared/types/file'
 
 import type { PaintingData } from '../../model/types/paintingData'
 

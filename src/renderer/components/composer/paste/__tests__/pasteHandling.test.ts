@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
-import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { COMPOSER_FILE_KIND, type FileMetadata } from '@renderer/types/file'
 import { anyFileExt } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { FILE_TYPE } from '@shared/types/file'
 
 import { LONG_TEXT_PASTE_THRESHOLD } from '../../composerPaste'
 import pasteHandling from '../pasteHandling'

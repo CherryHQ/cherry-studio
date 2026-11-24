@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { loggerService } from '@logger'
 import type { Assistant } from '@renderer/types/assistant'
 import type { SerializedError } from '@renderer/types/error'
-import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { type FileMetadata } from '@renderer/types/file'
 import type {
   BaseMessageBlock,
   ErrorMessageBlock,
@@ -22,6 +22,7 @@ import {
   UserMessageStatus
 } from '@renderer/types/newMessage'
 import type { Topic } from '@renderer/types/topic'
+import { FILE_TYPE } from '@shared/types/file'
 
 type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
 

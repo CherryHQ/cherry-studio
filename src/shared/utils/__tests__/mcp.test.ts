@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { isMcpContentBlock } from '@shared/utils/mcp'
+import type { Assistant } from '@shared/data/types/assistant'
+import { getEffectiveMcpMode, isMcpContentBlock } from '@shared/utils/mcp'
 
 describe('isMcpContentBlock', () => {
   it.each([
@@ -28,5 +29,12 @@ describe('isMcpContentBlock', () => {
     ['unknown type', { type: 'tool_use', id: 'x' }]
   ])('rejects %s', (_name, value) => {
     expect(isMcpContentBlock(value)).toBe(false)
+  })
+})
+
+describe('getEffectiveMcpMode', () => {
+  it('falls back to manual for a stored assistant whose settings predate mcpMode', () => {
+    const assistant = { settings: {} } as Pick<Assistant, 'settings'>
+    expect(getEffectiveMcpMode(assistant)).toBe('manual')
   })
 })
