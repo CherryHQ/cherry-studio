@@ -12,8 +12,8 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { CodeCli } from '@shared/types/codeCli'
 import { openExternalWebsite } from '@renderer/services/website'
+import { CodeCli } from '@shared/types/codeCli'
 
 import { AgentImportPopup } from './AgentImportPopup'
 import ImportPopup from './ImportPopup'
