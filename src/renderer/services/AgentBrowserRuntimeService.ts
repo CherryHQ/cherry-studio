@@ -2,7 +2,7 @@ import type { WebviewTag } from 'electron'
 
 import { cacheService } from '@renderer/data/CacheService'
 import { getBrowserStartPageUrl, rememberBrowserPageUrl } from '@renderer/services/browserStartPage'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { classifyTurn } from '@shared/ai/transport'
 import { normalizeBrowserEntryUrl } from '@shared/utils/browserUrl'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'

@@ -247,14 +247,20 @@ describe('cherry-tools autonomy tools', () => {
           {
             id: 'agent-a',
             name: 'Builder',
+            emoji: '',
             description: 'Builds things',
+            model: 'p::m',
+            readOnly: false,
             runtime: { type: 'claude-code', available: false },
             modelConfigured: true
           },
           {
             id: 'agent-b',
             name: 'Unconfigured',
+            emoji: '',
             description: '',
+            model: null,
+            readOnly: false,
             runtime: { type: 'pi', available: false },
             modelConfigured: false
           }
