@@ -1,5 +1,4 @@
 import { Icon } from '@iconify/react'
-import type { EditorState } from '@uiw/react-codemirror'
 import dayjs from 'dayjs'
 import React, {
   memo,
@@ -15,7 +14,7 @@ import React, {
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
-import { type CodeEditorHandles } from '@cherrystudio/ui'
+import { type CodeEditorHandles, type CodeEditorProps } from '@cherrystudio/ui'
 import { codeBlockHighlightStyle } from '@cherrystudio/ui/code-block'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -93,12 +92,10 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const { t } = useTranslation()
 
-  const [document, setDocument] = useState(() => ({
-    accepted: children,
-    language,
-    stateRef: { current: null as EditorState | null },
-    epoch: 0
-  }))
+  const [document, setDocument] = useState(() => {
+    const stateRef: NonNullable<CodeEditorProps['stateRef']> = { current: null }
+    return { accepted: children, language, stateRef, epoch: 0 }
+  })
 
   if (document.accepted !== children || document.language !== language) {
     const echoed = document.language === language && document.stateRef.current?.sliceDoc() === children
@@ -133,13 +130,14 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const canEdit = codeEditor.enabled && editable && !isStreaming
   const hasSpecialView = SPECIAL_VIEWS.includes(language)
 
+  // SAFETY: SPECIAL_VIEWS comes from Object.keys of this fixed map; only members that passed includes are indexed here.
   const specialViewDefinition = hasSpecialView
     ? SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
     : undefined
 
-  const [viewState, setViewState] = useState({
-    mode: 'special' as ViewMode,
-    previousMode: 'special' as ViewMode
+  const [viewState, setViewState] = useState<{ mode: ViewMode; previousMode: ViewMode }>({
+    mode: 'special',
+    previousMode: 'special'
   })
 
   const viewMode = useMemo<ViewMode>(() => {
