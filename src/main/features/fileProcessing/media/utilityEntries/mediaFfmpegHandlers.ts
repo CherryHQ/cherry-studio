@@ -313,7 +313,14 @@ async function probeJson(
   }
   const probe = await readProbe(false)
   if ((probe.streams ?? []).filter((stream) => stream.codec_type === 'audio').length < 2) return probe
-  return readProbe(true)
+  try {
+    return await readProbe(true)
+  } catch (error) {
+    signal.throwIfAborted()
+    // Packet counts only rank audio tracks; the first pass already classifies the media.
+    logger.warn(`audio packet count unavailable: ${error instanceof Error ? error.message : String(error)}`)
+    return probe
+  }
 }
 
 async function sourceAudioMap(

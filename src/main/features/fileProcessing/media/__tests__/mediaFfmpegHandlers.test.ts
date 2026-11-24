@@ -1990,6 +1990,45 @@ describe('mediaFfmpegHandlers frame destinations', () => {
       rmSync(outputDir, { recursive: true, force: true })
     }
   })
+  it('still probes a multi-track file when the packet-count pass times out', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-count-timeout-'))
+    const sourcePath = join(outputDir, 'source.mp4')
+    writeFileSync(sourcePath, 'source-video')
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = (...spawnArgs: unknown[]) => {
+      const commandArgs = spawnArgs[1]
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (Array.isArray(commandArgs) && commandArgs.includes('-count_packets')) {
+          child.emit('error', new Error('Media processing timed out'))
+          return
+        }
+        child.stdout.emit(
+          'data',
+          JSON.stringify({
+            format: { duration: '10', start_time: '0', format_name: 'mov,mp4' },
+            streams: [
+              { index: 0, codec_type: 'video', codec_name: 'h264', start_time: '0' },
+              { index: 1, codec_type: 'audio', channels: 2, start_time: '0', disposition: { default: 1 } },
+              { index: 2, codec_type: 'audio', channels: 1, start_time: '0', disposition: { default: 0 } }
+            ]
+          })
+        )
+        child.emit('close', 0)
+      })
+      return child
+    }
+
+    try {
+      await expect(
+        mediaFfmpegHandlers.probe({ filePath: sourcePath, fallbackExt: 'mp4' }, context())
+      ).resolves.toMatchObject({ hasAudio: true, hasVideo: true })
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
   it('maps extraction to the audio stream ffmpeg would select', async () => {
     const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-audio-map-'))
     const sourcePath = join(outputDir, 'source.bin')
