@@ -1130,6 +1130,7 @@
   "chat.topics.export.obsidian_title_required": "หัวเรื่องต้องไม่เว้นว่าง",
   "chat.topics.export.obsidian_vault": "Vault",
   "chat.topics.export.obsidian_vault_placeholder": "กรุณาเลือกชื่อ vault",
+  "chat.topics.export.share_image": "ส่งออกรูปภาพสำหรับแชร์",
   "chat.topics.export.siyuan": "ส่งออกไปยัง Siyuan Note",
   "chat.topics.export.title": "ส่งออก",
   "chat.topics.export.title_naming_failed": "ไม่สามารถสร้างหัวเรื่อง ใช้หัวเรื่องเริ่มต้น",
