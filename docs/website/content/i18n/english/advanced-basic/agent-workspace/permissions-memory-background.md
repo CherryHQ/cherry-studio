@@ -44,7 +44,7 @@ Open **Settings → Tools → Shared memory**, alongside MCP and Skills.
 * **Generate memory in chats** extracts information from newly completed, authorized conversations.
 * **Automatically organize memory** organizes existing files, including duplicates and topic structure.
 
-Both global switches default to on. They use the application's default model and may consume its quota. Generation and organization can be switched independently, and **Organize now** runs organization manually.
+Both global switches default to on. They use the application's default model and may consume its quota. Generation and organization can be switched independently.
 
 Also check **Shared memory** in each Agent or Assistant's **Basic** settings. Agents default to on, with the switch above **Heartbeat**; Assistants default to off. Shared conversation extraction applies to authorized desktop main sessions and persistent Assistant conversations.
 
@@ -84,7 +84,7 @@ Shared-memory settings show the latest run result and provide **Restore backup**
 Clearing nonempty memory retains forgetting markers. Conversations that may contain old memory remain blocked after restart or disabling shared access. You can start a new conversation to continue chatting with filtered memory. Ordinary corrections do not trigger forgetting protection; legacy protected or invalid states still require verification. If clearing was the latest operation and the shared memory still matches its version immediately after the clear, choose **Restore backup** to undo it. Content forgotten before the clear stays protected. If a file has a version conflict, recovery preserves its current contents.
 {% endhint %}
 
-The Agent's **Memory** tab shows the identity files `SOUL.md` and `USER.md`, legacy `memory/FACT.md`, and read-only `memory/JOURNAL.jsonl`. Active memory uses `MEMORY.md` and `.memories/` topics. After migration, the retained FACT file is read-only in this tab. JOURNAL is kept as history.
+In the agent editor, **Memory** lets you edit **Persona** (`SOUL.md`) and **User profile** (`USER.md`). After migration, open **Private memory** to read `MEMORY.md`. Select a topic from the **More** menu or follow its link in the entry. Private memory remains available when shared memory is off.
 
 ### Sub-agents, Workflows, and Background Commands
 

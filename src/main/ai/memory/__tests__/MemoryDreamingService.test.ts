@@ -142,6 +142,10 @@ describe('memory organization lifecycle and commit fences', () => {
     await removeFixture(fixture)
   })
 
+  function advanceToOrganizationDeadline() {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 7 * 24 * 60 * 60_000)
+  }
+
   async function save(content: string, target = 'MEMORY.md') {
     const read = await session.read(target)
     return session.commit([{ kind: 'write', receipt: read.receipt, content }], approve)
@@ -195,7 +199,7 @@ describe('memory organization lifecycle and commit fences', () => {
 
   it('keeps organization eligible for a bounded retry after a model timeout', async () => {
     await save('A durable fact')
-    dreaming.request(scope)
+    advanceToOrganizationDeadline()
     const controller = new AbortController()
     generate.mockImplementationOnce(async () => {
       controller.abort(Object.assign(new Error('Job timed out'), { name: 'JobHandlerTimeoutError' }))
@@ -227,7 +231,7 @@ describe('memory organization lifecycle and commit fences', () => {
     ])
     await extraction.commit([proposal], approve)
     extraction.dispose()
-    dreaming.request(scope)
+    advanceToOrganizationDeadline()
     generate.mockImplementationOnce(async (input) => {
       expect(input.callOverrides?.maxOutputTokens).toBe(2048)
       const file = JSON.parse(input.prompt!).files[0]
@@ -248,34 +252,28 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(await session.revisions()).toHaveLength(1)
   })
 
-  it.each(['automatic', 'manual'] as const)(
-    'resumes %s organization after repeated foreground interruptions',
-    async (mode) => {
-      let now = Date.now()
-      vi.spyOn(Date, 'now').mockImplementation(() => now)
-      for (let i = 0; i < 10; i++) await save(`Fact ${i}`)
-      if (mode === 'manual') dreaming.request(scope)
-      for (let i = 0; i < 3; i++) {
-        generate.mockImplementationOnce(async () => {
-          busy.mockReturnValue(true)
-          return { text: '{"writes":[],"deletes":[]}', finishReason: 'stop' }
-        })
-        await expect(dreaming.execute(job())).rejects.toMatchObject({ name: 'AbortError' })
-        const state = readDreamingState(scope)
-        expect(state.files['MEMORY.md']).toMatchObject({ attempts: 0, retryAt: now + 60_000 })
-        expect(state.manual).toBe(mode === 'manual')
-        expect(state.manualAttempts).toBe(0)
-        busy.mockReturnValue(false)
-        now += 60_000
-      }
-      await expect(dreaming.execute(job())).resolves.toMatchObject({ checked: 1 })
-      expect(readDreamingState(scope).files['MEMORY.md'].pendingSince).toBeUndefined()
+  it('resumes automatic organization after repeated foreground interruptions', async () => {
+    let now = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    for (let i = 0; i < 10; i++) await save(`Fact ${i}`)
+    for (let i = 0; i < 3; i++) {
+      generate.mockImplementationOnce(async () => {
+        busy.mockReturnValue(true)
+        return { text: '{"writes":[],"deletes":[]}', finishReason: 'stop' }
+      })
+      await expect(dreaming.execute(job())).rejects.toMatchObject({ name: 'AbortError' })
+      const state = readDreamingState(scope)
+      expect(state.files['MEMORY.md']).toMatchObject({ attempts: 0, retryAt: now + 60_000 })
+      busy.mockReturnValue(false)
+      now += 60_000
     }
-  )
+    await expect(dreaming.execute(job())).resolves.toMatchObject({ checked: 1 })
+    expect(readDreamingState(scope).files['MEMORY.md'].pendingSince).toBeUndefined()
+  })
 
   it('preserves concurrent file progress when foreground work interrupts organization', async () => {
     await save('Old fact')
-    dreaming.request(scope)
+    advanceToOrganizationDeadline()
     generate.mockImplementationOnce(async () => {
       busy.mockReturnValue(true)
       await new Promise((resolve) => setTimeout(resolve, 600))
@@ -335,37 +333,11 @@ describe('memory organization lifecycle and commit fences', () => {
       })
   })
 
-  it('retries the failed manual batch before deferred topics when automatic organization is enabled', async () => {
-    let now = Date.now()
-    vi.spyOn(Date, 'now').mockImplementation(() => now)
-    dbh.db.update(userModelTable).set({ maxOutputTokens: 4096 }).run()
-    MockMainPreferenceServiceUtils.setPreferenceValue('feature.memory.dreaming.enabled', true)
-    await save('Entry')
-    for (const target of ['.memories/a.md', '.memories/b.md']) await save('reason '.repeat(1000), target)
-    dreaming.request(scope)
-    generate.mockRejectedValueOnce(new Error('Temporary model failure'))
-    await expect(dreaming.execute(job())).rejects.toThrow()
-    now += 9 * 60_000
-    await expect(dreaming.execute(job())).resolves.toMatchObject({ deferred: true })
-    expect(generate).toHaveBeenCalledTimes(1)
-    expect(readDreamingState(scope).manual).toBe(true)
-    now += 60_000
-    await expect(dreaming.execute(job())).resolves.toMatchObject({ checked: 2 })
-    const prompts = generate.mock.calls.map(([input]) =>
-      JSON.parse(input.prompt!).files.map((file: { path: string }) => file.path)
-    )
-    expect(prompts).toEqual([
-      ['MEMORY.md', '.memories/a.md'],
-      ['MEMORY.md', '.memories/a.md']
-    ])
-    expect(readDreamingState(scope).manual).toBe(false)
-  })
-
-  it('keeps an unfit required entry intact and blocks repeated preflight until a fresh request', async () => {
+  it('keeps an unfit required entry intact and blocks repeated preflight on unchanged content', async () => {
     dbh.db.update(userModelTable).set({ maxOutputTokens: 4096 }).run()
     const original = 'reason '.repeat(3000)
     await save(original)
-    dreaming.request(scope)
+    advanceToOrganizationDeadline()
     await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'budget' })
     expect(readDreamingState(scope).files['MEMORY.md']).toMatchObject({ attempts: 2, reason: 'budget' })
     await expect(dreaming.execute(job())).resolves.toMatchObject({ deferred: true })
@@ -2329,10 +2301,12 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(needsDreaming(file, initial.pendingSince! + 7 * 24 * 60 * 60_000)).toBe(true)
   })
 
-  it('runs an explicit request with automatic organization off and persists no-op progress without file bodies', async () => {
+  it('skips organization while disabled and persists automatic no-op progress without file bodies', async () => {
     await save('Keep this complete fact')
     await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
-    dreaming.request(scope)
+    expect(await dreaming.execute(job())).toMatchObject({ idle: true })
+    await application.get('PreferenceService').set('feature.memory.dreaming.enabled', true)
+    advanceToOrganizationDeadline()
     expect(await dreaming.execute(job())).toMatchObject({ checked: 1, changed: 0 })
     expect((await session.read('MEMORY.md')).content).toBe('Keep this complete fact')
     expect(readDreamingState(scope).files['MEMORY.md']).toMatchObject({ changes: 0, processedAt: expect.any(Number) })
@@ -2347,7 +2321,7 @@ describe('memory organization lifecycle and commit fences', () => {
       await save('Original fact')
       const response = Promise.withResolvers<{ text: string; finishReason: string }>()
       generate.mockImplementationOnce(() => response.promise)
-      dreaming.request(scope)
+      advanceToOrganizationDeadline()
       const outcome = dreaming.execute(job()).catch((error: unknown) => error)
       await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
       if (action === 'cancel') dreaming.cancel(scope)
@@ -2374,13 +2348,9 @@ describe('memory organization lifecycle and commit fences', () => {
     }
   )
 
-  it.each(['automatic', 'manual'] as const)('allows %s organization while chat generation is off', async (mode) => {
+  it('allows automatic organization while chat generation is off', async () => {
     await application.get('PreferenceService').set('feature.memory.generation.enabled', false)
     for (let i = 0; i < 10; i++) await save(`Fact ${i}`)
-    if (mode === 'manual') {
-      await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
-      dreaming.request(scope)
-    }
     expect(await dreaming.execute(job())).toMatchObject({ checked: 1, changed: 0 })
     expect((await session.read('MEMORY.md')).content).toBe('Fact 9')
     expect(dreaming.status(scope).lastResult?.outcome).toBe('completed')
@@ -2390,7 +2360,7 @@ describe('memory organization lifecycle and commit fences', () => {
     await save('Original fact')
     const response = Promise.withResolvers<{ text: string; finishReason: string }>()
     generate.mockImplementationOnce(() => response.promise)
-    dreaming.request(scope)
+    advanceToOrganizationDeadline()
     const outcome = dreaming.execute(job())
     await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
     await application.get('PreferenceService').set('feature.memory.generation.enabled', false)
@@ -2402,14 +2372,14 @@ describe('memory organization lifecycle and commit fences', () => {
   it('keeps the last failed result after disabling organization instead of reporting idle as success', async () => {
     await save('A fact to retain')
     generate.mockResolvedValueOnce({ text: 'Invalid proposal', finishReason: 'stop' })
-    dreaming.request(scope)
+    advanceToOrganizationDeadline()
     await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'output' })
     const failed = dreaming.status(scope).lastResult
     expect(failed).toMatchObject({ outcome: 'failed', reason: 'output', finishedAt: expect.any(Number) })
     await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
     expect(dreaming.status(scope)).toMatchObject({ status: 'idle', lastResult: failed })
     await application.get('PreferenceService').set('feature.memory.dreaming.enabled', true)
-    dreaming.request(scope)
+    advanceToOrganizationDeadline()
     await dreaming.execute(job())
     expect(dreaming.status(scope).lastResult?.outcome).toBe('completed')
   })
@@ -2424,7 +2394,7 @@ describe('memory organization lifecycle and commit fences', () => {
       }),
       finishReason: 'stop'
     })
-    dreaming.request(scope)
+    advanceToOrganizationDeadline()
     await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'output' })
     expect((await session.read('.memories/old.md')).content).toBe('Fact with its exception')
     expect((await session.read('.memories/new.md')).content).toBeNull()
@@ -2443,7 +2413,7 @@ describe('memory organization lifecycle and commit fences', () => {
         }),
         finishReason: 'stop'
       })
-      dreaming.request(scope)
+      advanceToOrganizationDeadline()
       await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'output' })
       expect((await session.read('MEMORY.md')).content).toBe('[Details](.memories/old.md)')
       expect((await session.read('.memories/old.md')).content).toBe(original)
@@ -2464,7 +2434,7 @@ describe('memory organization lifecycle and commit fences', () => {
       }),
       finishReason: 'stop'
     })
-    dreaming.request(scope)
+    advanceToOrganizationDeadline()
     await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'output' })
     expect((await session.read('MEMORY.md')).content).toBe('[Details](.memories/old.md)')
     expect((await session.read('.memories/old.md')).content).toBe('Prefer concise answers, except when debugging.\n')
@@ -2484,7 +2454,7 @@ describe('memory organization lifecycle and commit fences', () => {
       }),
       finishReason: 'stop'
     })
-    dreaming.request(scope)
+    advanceToOrganizationDeadline()
     expect(await dreaming.execute(job())).toMatchObject({ changed: 3, checked: 3 })
     expect((await session.read('MEMORY.md')).content).toBe('[Details](.memories/new.md)')
     expect((await session.read('.memories/new.md')).content).toBe('Fact with its exception')
@@ -2508,7 +2478,8 @@ describe('memory organization lifecycle and commit fences', () => {
     await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
     controller.abort()
     dreaming.cancel(scope)
-    dreaming.request(scope)
+    await save('Updated fact')
+    advanceToOrganizationDeadline()
     const second = flushExtraction()
     await Promise.resolve()
     expect(generate).toHaveBeenCalledTimes(1)
@@ -2518,7 +2489,7 @@ describe('memory organization lifecycle and commit fences', () => {
     })
     expect(await first).toBeInstanceOf(Error)
     expect(await second).toMatchObject({ checked: 1, changed: 0 })
-    expect((await session.read('MEMORY.md')).content).toBe('Original fact')
+    expect((await session.read('MEMORY.md')).content).toBe('Updated fact')
   })
 
   it('preserves the seven-day deadline when external content changes without inventing edits', () => {
@@ -2536,11 +2507,23 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(needsDreaming(restored.files['MEMORY.md'], 1000 + 7 * 24 * 60 * 60_000)).toBe(true)
   })
 
-  it('abandons a queued generation on lifecycle restart', async () => {
-    dreaming.request(scope)
+  it('drops legacy queued manual requests on restart and preserves file progress', async () => {
+    await save('Existing fact')
+    const state = readDreamingState(scope)
+    dbh.db
+      .update(appStateTable)
+      .set({
+        value: { ...state, manual: true, manualAttempts: 1, manualBatch: ['MEMORY.md'], status: 'queued' }
+      })
+      .where(eq(appStateTable.key, 'memory:dreaming:shared'))
+      .run()
     const previous = readDreamingState(scope).generation
     await dreaming._doStop()
     await dreaming._doInit()
-    expect(readDreamingState(scope)).toMatchObject({ generation: previous + 1, manual: false, status: 'cancelled' })
+    expect(readDreamingState(scope)).toMatchObject({
+      generation: previous + 1,
+      files: state.files,
+      status: 'cancelled'
+    })
   })
 })
