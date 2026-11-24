@@ -281,6 +281,38 @@ describe('bashOutcomeHook', () => {
     )
   }
 
+  it('preserves opaque Bash arguments when rewriting the command', async () => {
+    vi.mocked(rtkRewrite).mockResolvedValueOnce('rtk git status')
+    const result = await rtkRewriteHook(
+      {
+        ...hookInput,
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Bash',
+        tool_use_id: 'tu-opaque-arguments',
+        tool_input: {
+          command: 'git status',
+          timeout: 250,
+          run_in_background: true,
+          ['__proto__']: { native: true }
+        }
+      },
+      'tu-opaque-arguments',
+      hookOptions
+    )
+
+    expect(result).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        updatedInput: {
+          command: 'rtk git status',
+          timeout: 250,
+          run_in_background: true,
+          ['__proto__']: { native: true }
+        }
+      }
+    })
+  })
+
   const recordedCommands = () =>
     (bashOutcomesOf(svc, SESSION) as { command: string }[] | undefined)?.map((e) => e.command)
 

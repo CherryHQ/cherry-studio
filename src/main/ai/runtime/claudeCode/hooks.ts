@@ -12,6 +12,7 @@
  */
 
 import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -34,6 +35,11 @@ import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeHooks')
 const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SDK tool arguments retain opaque values after container validation; consumers check their own fields.
+const ToolGuardInputSchema = z.custom<Readonly<Record<string, unknown>>>(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK hooks expose opaque tool input; validate its container without rewriting arguments forwarded to approval handlers.
+  (value: unknown) => typeof value === 'object' && value !== null && !Array.isArray(value)
+)
 
 // Tools whose successful completion mutates the workspace and therefore breaks a no-progress run:
 // the native edit tools, plus the assistant-files MCP tools (referenced by runtime name).
@@ -82,8 +88,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     const toolName = input.tool_name
 
     if (!toolName) return {}
-    // SAFETY: The shared guard contract retains opaque values; the selected guards check each field they consume.
-    const toolInput = input.tool_input as ToolGuardContext['input']
+    const parsedInput = ToolGuardInputSchema.safeParse(input.tool_input)
+    const toolInput = parsedInput.success ? parsedInput.data : undefined
     surfaceExitPlanModeInput(sessionId, toolName, toolInput, toolUseId)
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
@@ -157,8 +163,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
 
     if (input.tool_name !== SKILL_TOOL_NAME) return {}
-    // SAFETY: Only the skill field is consumed from the shared input contract and it is checked below.
-    const skillName = (input.tool_input as ToolGuardContext['input'])?.skill
+    const parsedInput = ToolGuardInputSchema.safeParse(input.tool_input)
+    const skillName = parsedInput.success ? parsedInput.data.skill : undefined
 
     if (typeof skillName !== 'string' || !skillName) return {}
 
@@ -175,9 +181,11 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     const toolName = input.tool_name
 
     if (toolName !== 'Bash') return {}
-    // SAFETY: The shared input contract keeps argument values opaque; the command is checked before rewriting.
-    const toolInput = input.tool_input as ToolGuardContext['input']
-    const command = toolInput?.command
+    const parsedInput = ToolGuardInputSchema.safeParse(input.tool_input)
+
+    if (!parsedInput.success) return {}
+    const toolInput = parsedInput.data
+    const command = toolInput.command
 
     if (typeof command !== 'string' || !command.trim()) return {}
 
@@ -239,7 +247,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       return {}
     }
 
-    const executedCommand = (input.tool_input as { command?: unknown } | undefined)?.command
+    const parsedInput = ToolGuardInputSchema.safeParse(input.tool_input)
+    const executedCommand = parsedInput.success ? parsedInput.data.command : undefined
 
     if (typeof executedCommand !== 'string') return {}
     const command = sessionState().takeBashRewriteOrigin(sessionId, input.tool_use_id) ?? executedCommand
@@ -261,7 +270,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (
       typeof response === 'object' &&
       response !== null &&
-      (response as { interrupted?: unknown }).interrupted === true
+      'interrupted' in response &&
+      response.interrupted === true
     ) {
       sessionState().recordBashRunBreak(sessionId, agentId)
 
