@@ -53,7 +53,7 @@ export const agentRequestSchemas = {
     output: z.void()
   }),
   'agent.memory.read': defineRoute({
-    input: AgentIdInputSchema.extend({ identityOnly: z.boolean().optional() }),
+    input: AgentIdInputSchema,
     output: AgentMemorySnapshotSchema
   }),
   'agent.memory.write': defineRoute({
