@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   cliConfigConnectionMatchesProvider: vi.fn(),
   availableTerminals: [] as { id: string; name: string }[],
   requestMock: vi.fn(),
+  toastError: vi.fn(),
   resolveCliConfigApplyContext: vi.fn(),
   writeCliConfigDraft: vi.fn(),
   readCliConfigFiles: vi.fn(),
@@ -29,7 +30,7 @@ vi.mock('@renderer/services/LoggerService', () => ({
 }))
 
 vi.mock('@renderer/services/toast', () => ({
-  toast: { success: vi.fn(), error: vi.fn() }
+  toast: { success: vi.fn(), error: mocks.toastError }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -264,6 +265,7 @@ describe('useLaunchDialogController', () => {
         result.current.launchDialogProps.onLaunch()
       })
       if (scenario === 'endpoint-mismatch') {
+        expect(mocks.toastError).toHaveBeenCalledWith('code.launch.reapply_provider')
         expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
         expect(mocks.requestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
         return

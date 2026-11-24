@@ -1368,6 +1368,7 @@
   "code.installing": "安装中…",
   "code.latest": "最新",
   "code.launch.error": "启动失败，请重试",
+  "code.launch.reapply_provider": "已保存的 Codex 连接与所选提供商不同。请重新应用提供商配置后再启动。",
   "code.launch.label": "启动",
   "code.launch.title": "启动 {{tool}}",
   "code.launch.validation_error": "请完成所有必填项：CLI 工具、模型和工作目录",

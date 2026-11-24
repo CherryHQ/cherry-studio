@@ -224,7 +224,8 @@ export function useLaunchDialogController({
           !connection ||
           !cliConfigConnectionMatchesProvider(selectedCliTool, connection, enabledProvider, undefined)
         ) {
-          throw new Error('Codex endpoint differs from the selected provider; reapply configuration before launch')
+          toast.error(t('code.launch.reapply_provider'))
+          return
         }
         // Re-resolve the model binding at launch, not just when the provider was enabled.
         // The draft writer preserves unmanaged file fields and aborts on unavailable credentials.
