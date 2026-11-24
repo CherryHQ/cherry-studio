@@ -1,12 +1,14 @@
 import { readdirSync } from 'node:fs'
 import path from 'node:path'
 
+import { getErrorCode } from '@main/utils/error'
+
 /**
  * Resolve a resume token to its on-disk pi session file. Returns `null` when the token is
  * format-valid but no matching file exists yet (pi persists the JSONL lazily, so a token can point
  * at a session that never flushed). The caller can initialize that ID through the SDK.
- * Throws only on a malformed token (path separators / traversal / illegal chars), which stays
- * fail-closed as the resume-dir attack-surface guard.
+ * Rejects malformed tokens (path separators / traversal / illegal chars) and propagates
+ * directory read failures other than ENOENT.
  */
 export function resolveResumeTokenSessionFile(resumeToken: string, sessionDir: string): string | null {
   if (
@@ -22,7 +24,7 @@ export function resolveResumeTokenSessionFile(resumeToken: string, sessionDir: s
   try {
     entries = readdirSync(sessionDir)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') entries = []
+    if (getErrorCode(error) === 'ENOENT') entries = []
     else throw error
   }
 
