@@ -311,10 +311,10 @@ export class MainNetworkDevtoolsService extends BaseService {
     this.originalHttpsGet = https.get
     this.originalHttpsRequest = https.request
 
-    this.monitoredHttpGet = this.wrapHttpMethod(this.originalHttpGet as RequestLike, 'http')
-    this.monitoredHttpRequest = this.wrapHttpMethod(this.originalHttpRequest as RequestLike, 'http')
-    this.monitoredHttpsGet = this.wrapHttpMethod(this.originalHttpsGet as RequestLike, 'https')
-    this.monitoredHttpsRequest = this.wrapHttpMethod(this.originalHttpsRequest as RequestLike, 'https')
+    this.monitoredHttpGet = this.wrapHttpMethod(this.originalHttpGet, 'http')
+    this.monitoredHttpRequest = this.wrapHttpMethod(this.originalHttpRequest, 'http')
+    this.monitoredHttpsGet = this.wrapHttpMethod(this.originalHttpsGet, 'https')
+    this.monitoredHttpsRequest = this.wrapHttpMethod(this.originalHttpsRequest, 'https')
 
     http.get = this.monitoredHttpGet
     http.request = this.monitoredHttpRequest
@@ -339,7 +339,14 @@ export class MainNetworkDevtoolsService extends BaseService {
     })
   }
 
-  private wrapHttpMethod(originalMethod: RequestLike, source: 'http' | 'https'): RequestLike {
+  private wrapHttpMethod(
+    originalMethod: typeof http.request | typeof https.request,
+    source: 'http' | 'https'
+  ): RequestLike {
+    // SAFETY: The saved Node method owns overload dispatch and validation;
+    // unchanged arguments either produce a ClientRequest or retain its thrown error.
+    const forward = originalMethod as RequestLike
+
     return (...args: unknown[]) => {
       const startedAt = performance.now()
       const description = describeHttpRequest(source, args)
@@ -347,7 +354,7 @@ export class MainNetworkDevtoolsService extends BaseService {
       let request: ClientRequest
 
       try {
-        request = originalMethod(...args)
+        request = forward(...args)
       } catch (error) {
         this.updateEvent(id, {
           state: 'error',

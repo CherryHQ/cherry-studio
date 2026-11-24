@@ -289,7 +289,14 @@ describe('MainNetworkDevtoolsService helpers', () => {
       let body = ''
       for await (const chunk of incoming) body += chunk
       outgoing.writeHead(200, { 'content-type': 'text/plain' })
-      outgoing.end(`received:${body}`)
+      outgoing.end(
+        JSON.stringify({
+          method: incoming.method,
+          path: incoming.url,
+          contentType: incoming.headers['content-type'],
+          body
+        })
+      )
     })
     server.listen(0, '127.0.0.1')
     await once(server, 'listening')
@@ -299,13 +306,11 @@ describe('MainNetworkDevtoolsService helpers', () => {
     try {
       const address = server.address()
       if (!address || typeof address === 'string') throw new Error('Expected a local HTTP listener')
-      const url = `http://127.0.0.1:${address.port}/`
+      const url = `http://127.0.0.1:${address.port}/upload?mode=test`
       const options = { method: 'POST', headers: { 'content-type': 'text/plain' } }
-      const originalRequest = createHttpRequest(url, options)
-      client = originalRequest
-      const wrappedRequest = service['wrapHttpMethod'](() => originalRequest, 'http')
+      const wrappedRequest = service['wrapHttpMethod'](createHttpRequest, 'http')
       const request = wrappedRequest(url, options)
-      expect(request).toBe(client)
+      client = request
       const responseReady = new Promise<IncomingMessage>((resolve, reject) => {
         request.once('response', resolve)
         request.once('error', reject)
@@ -327,7 +332,12 @@ describe('MainNetworkDevtoolsService helpers', () => {
       response.setEncoding('utf8')
       let body = ''
       for await (const chunk of response) body += chunk
-      expect(body).toBe('received:part-body')
+      expect(JSON.parse(body)).toEqual({
+        method: 'POST',
+        path: '/upload?mode=test',
+        contentType: 'text/plain',
+        body: 'part-body'
+      })
       expect(writeDone).toHaveBeenCalledTimes(1)
       expect(endDone).toHaveBeenCalledTimes(1)
     } finally {
