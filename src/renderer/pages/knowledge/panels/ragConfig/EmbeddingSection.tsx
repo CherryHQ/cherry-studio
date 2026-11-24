@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
-import { KnowledgeEmbeddingModelSelect } from '../../components/KnowledgeEmbeddingModelSelect'
+import { KnowledgeEmbeddingModelSelect } from '@renderer/components/knowledge/KnowledgeEmbeddingModelSelect'
+
 import { RagFieldLabel } from './panelPrimitives'
 
 interface EmbeddingSectionProps {

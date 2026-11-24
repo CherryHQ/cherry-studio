@@ -78,7 +78,7 @@ export function SkillsSettings() {
   }
   const [enabledOnly, setEnabledOnly] = usePersistCache('settings.skills.enabled_only')
   // The scope lives in the route search so it survives the round-trip through the detail route.
-  const search = useSearch({ strict: false }) as { scope?: SkillScopeTab }
+  const search: { scope?: SkillScopeTab } = useSearch({ strict: false })
   const scope = search.scope ?? 'all'
   const setScope = (next: string) => void navigate({ to: '/settings/skills', search: { scope: next as SkillScopeTab } })
   const filterResource = useCallback(

@@ -1,5 +1,5 @@
-import { isFunctionCallingModel } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
+import { isFunctionCallingModel } from '@shared/utils/model'
 
 /**
  * 是否启用工具使用 (function call)。v2 assistant 不再内嵌 model；调用方

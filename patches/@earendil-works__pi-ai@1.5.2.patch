@@ -1,7 +1,16 @@
 diff --git a/dist/api/anthropic-messages.js b/dist/api/anthropic-messages.js
-index 4f7052d2bb80b14c00ac3a1ef0684bbcac166a5b..740e41e73c08f96399c2c43e089c5720586ccd2f 100644
+index 4f7052d2bb80b14c00ac3a1ef0684bbcac166a5b..fc60d6aa0405750e20bd2e364abe9b10fe4e6c01 100644
 --- a/dist/api/anthropic-messages.js
 +++ b/dist/api/anthropic-messages.js
+@@ -3,7 +3,7 @@ import { ANTHROPIC_FEDERATION_RULE_ID_ENV, ANTHROPIC_IDENTITY_TOKEN_FILE_ENV, AN
+ import { calculateCost } from "../models.js";
+ import { registerSessionResourceCleanup } from "../session-resources.js";
+ import { appendAssistantMessageDiagnostic } from "../utils/diagnostics.js";
+-import { withCauseDetail } from "../utils/error-body.js";
++import { withCauseDetail, normalizeProviderError, formatProviderError } from "../utils/error-body.js";
+ import { AssistantMessageEventStream } from "../utils/event-stream.js";
+ import { shortHash } from "../utils/hash.js";
+ import { headersToRecord } from "../utils/headers.js";
 @@ -554,6 +554,9 @@ export const stream = (model, context, options) => {
      const stream = new AssistantMessageEventStream();
      const compat = getAnthropicCompat(model);
@@ -12,7 +21,51 @@ index 4f7052d2bb80b14c00ac3a1ef0684bbcac166a5b..740e41e73c08f96399c2c43e089c5720
      const currentTools = getCurrentTools(normalizedContext.messages);
      (async () => {
          const output = {
-@@ -1215,6 +1218,14 @@ function buildParams(model, context, isOAuthToken, options, flags) {
+@@ -573,6 +576,7 @@ export const stream = (model, context, options) => {
+             stopReason: "pending",
+             timestamp: Date.now(),
+         };
++        let objectResponse;
+         try {
+             let client;
+             let isOAuth;
+@@ -610,7 +614,10 @@ export const stream = (model, context, options) => {
+                 ...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
+                 maxRetries: 0,
+             };
+-            const send = (body) => retryProviderRequest(() => client.beta.messages.create(body, requestOptions).asResponse(), {
++            const objectTransport = options?.objectTransports?.["anthropic-messages"];
++            const send = (body) => objectTransport
++                ? objectTransport(body, { signal: options?.signal, timeoutMs: options?.timeoutMs }).then(response => { objectResponse = response; return response; })
++                : retryProviderRequest(() => client.beta.messages.create(body, requestOptions).asResponse(), {
+                 maxRetries: options?.maxRetries,
+                 maxRetryDelayMs: options?.maxRetryDelayMs,
+                 signal: options?.signal,
+@@ -673,7 +680,7 @@ export const stream = (model, context, options) => {
+                 const open = openBlocks.get(anthropicIndex);
+                 return open === undefined ? undefined : { ...open, block: output.content[open.contentIndex] };
+             };
+-            for await (const event of iterateAnthropicEvents(response, options?.signal)) {
++            for await (const event of objectTransport ? response.events : iterateAnthropicEvents(response, options?.signal)) {
+                 await options?.onProviderStreamEvent?.(event, model);
+                 if (event.type === "message_start") {
+                     output.responseId = event.message.id;
+@@ -898,10 +905,13 @@ export const stream = (model, context, options) => {
+         }
+         catch (error) {
+             output.stopReason = options?.signal?.aborted ? "aborted" : "error";
+-            output.errorMessage = error instanceof Error ? withCauseDetail(error) : JSON.stringify(error);
++            output.errorMessage = options?.objectTransports?.["anthropic-messages"] ? formatProviderError(normalizeProviderError(error)) : error instanceof Error ? withCauseDetail(error) : JSON.stringify(error);
+             stream.push({ type: "error", reason: output.stopReason, error: output });
+             stream.end();
+         }
++        finally {
++            objectResponse?.cancel?.();
++        }
+     })();
+     return stream;
+ };
+@@ -1215,6 +1225,14 @@ function buildParams(model, context, isOAuthToken, options, flags) {
      if (allowedFallbackModels && allowedFallbackModels.length > 0) {
          params.fallbacks = allowedFallbackModels.map((fallback) => ({ model: fallback.model }));
      }
@@ -75,12 +128,14 @@ index 2f4d57c12f029a46a731e6c26a1212300ae00019..4ca4f72497bdf411ee2fde7f59d1bcc0
  }
  function convertToolConfig(tools, toolChoice, supportsStrictMode, disablePreferredStrictTools) {
 diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
-index feb37cc3b55ab8011b12e316ee41203194d84fa6..329416f0280e101a22017688fbf3e914760f500e 100644
+index feb37cc3b55ab8011b12e316ee41203194d84fa6..30918c44ad781b4aa1773567a65e23592a56aa59 100644
 --- a/dist/api/google-generative-ai.js
 +++ b/dist/api/google-generative-ai.js
-@@ -33,14 +33,11 @@ export const stream = (model, context, options) => {
+@@ -32,21 +32,22 @@ export const stream = (model, context, options) => {
+             stopReason: "pending",
              timestamp: Date.now(),
          };
++        let objectResponse;
          try {
 -            if (options?.fetch && options.fetch !== globalThis.fetch) {
 -                throw new Error("Custom fetch is not supported by the Google Generative AI adapter");
@@ -94,7 +149,27 @@ index feb37cc3b55ab8011b12e316ee41203194d84fa6..329416f0280e101a22017688fbf3e914
              let params = buildParams(model, normalizedContext, options);
              const nextParams = await options?.onPayload?.(params, model);
              if (nextParams !== undefined) {
-@@ -261,8 +258,11 @@ export const streamSimple = (model, context, options) => {
+                 params = nextParams;
+             }
+-            const googleStream = await retryGoogleRequest(() => client.models.generateContentStream(params), options);
++            const objectTransport = options?.objectTransports?.["google-generative-ai"];
++            objectResponse = objectTransport ? await objectTransport(params, { signal: options?.signal, timeoutMs: options?.timeoutMs }) : undefined;
++            const googleStream = objectResponse?.events ?? await retryGoogleRequest(() => client.models.generateContentStream(params), options);
++            if (objectResponse) await options?.onResponse?.({ status: objectResponse.status, headers: Object.fromEntries(objectResponse.headers) }, model);
+             stream.push({ type: "start", partial: output });
+             let currentBlock = null;
+             const blocks = output.content;
+@@ -224,6 +225,9 @@ export const stream = (model, context, options) => {
+             stream.push({ type: "error", reason: output.stopReason, error: output });
+             stream.end();
+         }
++        finally {
++            objectResponse?.cancel?.();
++        }
+     })();
+     return stream;
+ };
+@@ -261,8 +265,11 @@ export const streamSimple = (model, context, options) => {
          },
      });
  };
@@ -108,7 +183,7 @@ index feb37cc3b55ab8011b12e316ee41203194d84fa6..329416f0280e101a22017688fbf3e914
          httpOptions.baseUrl = model.baseUrl;
          httpOptions.apiVersion = ""; // baseUrl already includes version path, don't append
 diff --git a/dist/api/google-shared.d.ts b/dist/api/google-shared.d.ts
-index 056b67d3bf5e0e9da2d4f7a895f8d0afebdf1bc4..d288abae6dc7846b246bd06d13bef9c03112ea1b 100644
+index 056b67d3bf5e0e9da2d4f7a895f8d0afebdf1bc4..ccfdf071e0e7aa78b9a4899c300bb1294b32c78b 100644
 --- a/dist/api/google-shared.d.ts
 +++ b/dist/api/google-shared.d.ts
 @@ -8,8 +8,8 @@ type GoogleApiType = "google-generative-ai" | "google-vertex";
@@ -132,7 +207,7 @@ index 056b67d3bf5e0e9da2d4f7a895f8d0afebdf1bc4..d288abae6dc7846b246bd06d13bef9c0
  /**
   * Determines whether a streamed Gemini `Part` should be treated as "thinking".
 diff --git a/dist/api/google-shared.js b/dist/api/google-shared.js
-index f344df5315c490ff03fa8f7c75a6cb14364f88da..81cbd4d414793a48e3fe65f01b15b85185485e47 100644
+index f344df5315c490ff03fa8f7c75a6cb14364f88da..9f7f73568333a573ae410acf634eedf119b132f7 100644
 --- a/dist/api/google-shared.js
 +++ b/dist/api/google-shared.js
 @@ -14,6 +14,7 @@ const GOOGLE_SDK_THINKING_LEVEL_MAP = {
@@ -161,7 +236,7 @@ index f344df5315c490ff03fa8f7c75a6cb14364f88da..81cbd4d414793a48e3fe65f01b15b851
  }
  export function toGoogleSdkThinkingLevel(level) {
 diff --git a/dist/api/openai-codex-responses.d.ts b/dist/api/openai-codex-responses.d.ts
-index 704476da084be53d6aa194a5f774fa3ad47f5e9a..7e187133abd4a9f1a635eb9d46f61bb41dbca285 100644
+index 704476da084be53d6aa194a5f774fa3ad47f5e9a..3f755ff8867a38268331f469fa834f97438caa86 100644
 --- a/dist/api/openai-codex-responses.d.ts
 +++ b/dist/api/openai-codex-responses.d.ts
 @@ -1,7 +1,7 @@
@@ -174,7 +249,7 @@ index 704476da084be53d6aa194a5f774fa3ad47f5e9a..7e187133abd4a9f1a635eb9d46f61bb4
      serviceTier?: ResponseCreateParamsStreaming["service_tier"];
      textVerbosity?: "low" | "medium" | "high";
 diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
-index c1b6038c2220633a8caf710288a8f6e6301f7a28..d394f60a366c69cf57e514b35182e2fb6797b62d 100644
+index c1b6038c2220633a8caf710288a8f6e6301f7a28..850633ea7ce8cd6563826d8dd0232e3d89d6515e 100644
 --- a/dist/api/openai-completions.js
 +++ b/dist/api/openai-completions.js
 @@ -152,6 +152,9 @@ function resolveCacheRetention(cacheRetention, env) {
@@ -187,7 +262,37 @@ index c1b6038c2220633a8caf710288a8f6e6301f7a28..d394f60a366c69cf57e514b35182e2fb
      (async () => {
          const output = {
              role: "assistant",
-@@ -598,6 +601,14 @@ function buildParams(model, context, options, compat = getCompat(model), cacheRe
+@@ -178,6 +181,7 @@ export const stream = (model, context, options) => {
+                 block.thinkingSignature = JSON.stringify(streamedReasoningDetails);
+             }
+         };
++        let objectResponse;
+         try {
+             const apiKey = getClientApiKey(model.provider, options?.apiKey, options?.headers);
+             const compat = getCompat(model);
+@@ -195,7 +199,10 @@ export const stream = (model, context, options) => {
+                 ...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
+                 maxRetries: 0,
+             };
+-            const { data: openaiStream, response } = await retryProviderRequest(() => client.chat.completions.create(params, requestOptions).withResponse(), {
++            const objectTransport = options?.objectTransports?.["openai-completions"];
++            const { data: openaiStream, response } = objectTransport
++                ? await objectTransport(params, { signal: options?.signal, timeoutMs: options?.timeoutMs }).then(response => { objectResponse = response; return { data: response.events, response }; })
++                : await retryProviderRequest(() => client.chat.completions.create(params, requestOptions).withResponse(), {
+                 maxRetries: options?.maxRetries,
+                 maxRetryDelayMs: options?.maxRetryDelayMs,
+                 signal: options?.signal,
+@@ -496,6 +503,9 @@ export const stream = (model, context, options) => {
+             stream.push({ type: "error", reason: output.stopReason, error: output });
+             stream.end();
+         }
++        finally {
++            objectResponse?.cancel?.();
++        }
+     })();
+     return stream;
+ };
+@@ -598,6 +608,14 @@ function buildParams(model, context, options, compat = getCompat(model), cacheRe
      }
      if (cacheControl) {
          applyAnthropicCacheControl(messages, params.tools, cacheControl);
@@ -203,7 +308,7 @@ index c1b6038c2220633a8caf710288a8f6e6301f7a28..d394f60a366c69cf57e514b35182e2fb
      if (options?.toolChoice) {
          params.tool_choice = options.toolChoice;
 diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
-index 41267bd50904069aa0879cc8634ea94bc1045236..9e84a73f04341ab3adc9647c8a953fd3b218a3f7 100644
+index 41267bd50904069aa0879cc8634ea94bc1045236..f29497be20dcb2ffce3662393738e5a82f18cf1a 100644
 --- a/dist/api/openai-responses.d.ts
 +++ b/dist/api/openai-responses.d.ts
 @@ -1,7 +1,7 @@
@@ -215,12 +320,49 @@ index 41267bd50904069aa0879cc8634ea94bc1045236..9e84a73f04341ab3adc9647c8a953fd3
      reasoningSummary?: "auto" | "detailed" | "concise" | null;
      serviceTier?: ResponseCreateParamsStreaming["service_tier"];
      toolChoice?: ResponseCreateParamsStreaming["tool_choice"];
+diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
+index 0977a46594d2caa8c92b90e267158ee5efb74938..3f53943d6a78bfb6029cc58b2d72e1f146d1d412 100644
+--- a/dist/api/openai-responses.js
++++ b/dist/api/openai-responses.js
+@@ -130,6 +130,7 @@ export const stream = (model, context, options) => {
+             stopReason: "pending",
+             timestamp: Date.now(),
+         };
++        let objectResponse;
+         try {
+             // Create OpenAI client
+             const apiKey = getClientApiKey(model.provider, options?.apiKey, options?.headers);
+@@ -147,7 +148,10 @@ export const stream = (model, context, options) => {
+                 ...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
+                 maxRetries: 0,
+             };
+-            const { data: openaiStream, response } = await retryProviderRequest(() => client.responses.create(params, requestOptions).withResponse(), {
++            const objectTransport = options?.objectTransports?.["openai-responses"];
++            const { data: openaiStream, response } = objectTransport
++                ? await objectTransport(params, { signal: options?.signal, timeoutMs: options?.timeoutMs }).then(response => { objectResponse = response; return { data: response.events, response }; })
++                : await retryProviderRequest(() => client.responses.create(params, requestOptions).withResponse(), {
+                 maxRetries: options?.maxRetries,
+                 maxRetryDelayMs: options?.maxRetryDelayMs,
+                 signal: options?.signal,
+@@ -189,6 +193,9 @@ export const stream = (model, context, options) => {
+             stream.push({ type: "error", reason: output.stopReason, error: output });
+             stream.end();
+         }
++        finally {
++            objectResponse?.cancel?.();
++        }
+     })();
+     return stream;
+ };
 diff --git a/dist/api/simple-options.js b/dist/api/simple-options.js
-index a119bf912008e77ec051af6d9701e24c9f2b468b..8c7758904d536e8fac4507dd3e99d1f98d3c03b6 100644
+index a119bf912008e77ec051af6d9701e24c9f2b468b..aadba476bcbb3abb8689089f8ee64e7a7d341504 100644
 --- a/dist/api/simple-options.js
 +++ b/dist/api/simple-options.js
-@@ -40,6 +40,9 @@ export function buildBaseOptions(model, context, options, apiKey) {
+@@ -38,8 +38,12 @@ export function buildBaseOptions(model, context, options, apiKey) {
+         telemetry: options?.telemetry,
+         apiKey: apiKey || options?.apiKey,
          fetch: options?.fetch,
++        objectTransports: options?.objectTransports,
          transport: options?.transport,
          cacheRetention: options?.cacheRetention,
 +        skipCacheWrite: options?.skipCacheWrite,
@@ -248,7 +390,7 @@ index a45b61643634b192fb41453b8869e1be3eaab658..c2489650e1f12845cfe6ea5d033f5bd4
  //# sourceMappingURL=index.js.map
 +export { retainNestedToolCall } from "./nested-tool-records.js";
 diff --git a/dist/models.js b/dist/models.js
-index c61de8788a8f8d1a5921823360cbfbbac7814921..cd460df300bf8e37757871b87d257866aee94632 100644
+index c61de8788a8f8d1a5921823360cbfbbac7814921..2a953e5bf246d590df96f9f2da60cd30adc9d03f 100644
 --- a/dist/models.js
 +++ b/dist/models.js
 @@ -698,7 +698,7 @@ export function calculateCost(model, usage) {
@@ -309,7 +451,7 @@ index 0000000000000000000000000000000000000000..5392b2fde2a1f64da50c215c3a671a96
 +    return { ...record, version: 1, calls, complete: !record.omittedCalls && calls.every((item) => item.status !== "unfinished" && item.arguments !== undefined && item.result !== undefined) };
 +}
 diff --git a/dist/providers/model-schema.d.ts b/dist/providers/model-schema.d.ts
-index f4015cafbe7585e47e7c835ec2322bd67f893045..7198677d35be664f8c540761f1f5f637a301bdc0 100644
+index f4015cafbe7585e47e7c835ec2322bd67f893045..f1f8dde92c08f447e93b89538d9f9bcde332fbf0 100644
 --- a/dist/providers/model-schema.d.ts
 +++ b/dist/providers/model-schema.d.ts
 @@ -1,11 +1,11 @@
@@ -337,7 +479,7 @@ index f4015cafbe7585e47e7c835ec2322bd67f893045..7198677d35be664f8c540761f1f5f637
  export declare const ModelPromptCacheSchema: import("@earendil-works/pi-schema").Schema<{
      short?: number | undefined;
 diff --git a/dist/providers/model-schema.js b/dist/providers/model-schema.js
-index 2aaea67495f5b684779092d404154c421ff8841d..3ebe1c1ef6d2c049954d72abb59123130346cd3b 100644
+index 2aaea67495f5b684779092d404154c421ff8841d..1d152b88d3cc7e2ae2f43910d9d79418673a6600 100644
 --- a/dist/providers/model-schema.js
 +++ b/dist/providers/model-schema.js
 @@ -1,6 +1,6 @@
@@ -357,10 +499,21 @@ index 2aaea67495f5b684779092d404154c421ff8841d..3ebe1c1ef6d2c049954d72abb5912313
      description: "Provider value sent for each thinking level. null marks a level unsupported. Levels the model does not map use the provider's default value through high; xhigh and max are unsupported.",
  });
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index b410a7bab16c395090ab63e362288306950dec64..aed4aff0dc2f5f59f711f7086ae044519546c4f5 100644
+index b410a7bab16c395090ab63e362288306950dec64..f35d417cdf38db81b1568f121efc0d15f4c471ca 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
-@@ -136,6 +136,12 @@ export interface StreamOptions extends ProviderRequestOptions<Model<Api>> {
+@@ -104,7 +104,10 @@ export interface ProviderRequestOptions<TModel = Model<Api>> {
+      */
+     maxRetryDelayMs?: number;
+ }
++export type { ObjectTransport, ObjectTransportResponse, ObjectTransports } from "./utils/object-transport.js";
+ export interface StreamOptions extends ProviderRequestOptions<Model<Api>> {
++    /** Bypass HTTP codecs while preserving each native protocol. */
++    objectTransports?: import("./utils/object-transport.js").ObjectTransports;
+     /**
+      * Optional callback invoked after an HTTP response is received and before
+      * its body stream is consumed.
+@@ -136,6 +139,12 @@ export interface StreamOptions extends ProviderRequestOptions<Model<Api>> {
       * Default: "short".
       */
      cacheRetention?: CacheRetention;
@@ -373,7 +526,7 @@ index b410a7bab16c395090ab63e362288306950dec64..aed4aff0dc2f5f59f711f7086ae04451
      /**
       * Optional session identifier for providers that support session-based caching.
       * Providers can use this to enable prompt caching, request routing, or other
-@@ -357,7 +363,18 @@ export interface DeferredHandle {
+@@ -357,7 +366,18 @@ export interface DeferredHandle {
   * accept system messages mid-conversation send each one in place; other providers
   * rebuild the leading system message from the replayed state.
   */
@@ -392,7 +545,7 @@ index b410a7bab16c395090ab63e362288306950dec64..aed4aff0dc2f5f59f711f7086ae04451
      role: "system";
      /** Instruction text. On the leading message this is the base prompt; later, additional instructions. */
      content: string | TextContent[];
-@@ -413,6 +430,11 @@ export interface AssistantMessage {
+@@ -413,6 +433,11 @@ export interface AssistantMessage {
  }
  /** A tool call that another tool made while it ran, for example from a codemode script. */
  export interface NestedToolCallRecord {
@@ -404,7 +557,7 @@ index b410a7bab16c395090ab63e362288306950dec64..aed4aff0dc2f5f59f711f7086ae04451
      id: string;
      name: string;
      /** Omitted when over the size limits; `argumentsBytes` then gives their size. */
-@@ -425,10 +447,12 @@ export interface NestedToolCallRecord {
+@@ -425,10 +450,12 @@ export interface NestedToolCallRecord {
      /** Error text, truncated. */
      error?: string;
  }
@@ -419,7 +572,7 @@ index b410a7bab16c395090ab63e362288306950dec64..aed4aff0dc2f5f59f711f7086ae04451
      complete: boolean;
  }
  export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails> extends true ? {
-@@ -437,6 +461,8 @@ export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails>
+@@ -437,6 +464,8 @@ export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails>
      toolName: string;
      content: (TextContent | ImageContent)[];
      details?: JsonRepresentation<TDetails>;
@@ -495,7 +648,7 @@ index 6dcca6eff16b95b83e047a6e27b65d9d7694bf2c..0b56a9ffff6251cadfaecea62a6d8c74
  //# sourceMappingURL=estimate.d.ts.map
 +export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
 diff --git a/dist/utils/estimate.js b/dist/utils/estimate.js
-index 45be26d820bb38ab85340e7afb8cb4682db2e6b7..90c1808089a5e8799693215fd8b3734a06e3d333 100644
+index 45be26d820bb38ab85340e7afb8cb4682db2e6b7..cfaf2b004031ddc6fe136b424b4d60c0a498612e 100644
 --- a/dist/utils/estimate.js
 +++ b/dist/utils/estimate.js
 @@ -20,6 +20,9 @@ function estimateTextAndImageContentChars(content) {
@@ -518,6 +671,30 @@ index 45be26d820bb38ab85340e7afb8cb4682db2e6b7..90c1808089a5e8799693215fd8b3734a
              estimateToolsTokens(message.toolsRemoved));
      }
      if (message.role === "user")
+diff --git a/dist/utils/object-transport.d.ts b/dist/utils/object-transport.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..9f3ea43b8fe51a27387bbff0edb976400041bb32
+--- /dev/null
++++ b/dist/utils/object-transport.d.ts
+@@ -0,0 +1,18 @@
++import type { MessageCreateParamsStreaming, RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages/messages.js";
++import type { GenerateContentParameters, GenerateContentResponse } from "@google/genai";
++import type { ChatCompletionChunk, ChatCompletionCreateParamsStreaming } from "openai/resources/chat/completions.js";
++import type { ResponseCreateParamsStreaming, ResponseStreamEvent } from "openai/resources/responses/responses.js";
++export interface ObjectTransportResponse<TEvent> {
++    status: number;
++    headers: Headers;
++    cancel?(): void;
++    events: AsyncIterable<TEvent>;
++}
++export type ObjectTransport<TRequest, TEvent> = (request: TRequest, options: { signal?: AbortSignal; timeoutMs?: number }) => Promise<ObjectTransportResponse<TEvent>>;
++/** Optional protocol-object transports; native request construction and event handling remain unchanged. */
++export interface ObjectTransports {
++    "anthropic-messages"?: ObjectTransport<MessageCreateParamsStreaming, RawMessageStreamEvent>;
++    "openai-completions"?: ObjectTransport<ChatCompletionCreateParamsStreaming, ChatCompletionChunk>;
++    "openai-responses"?: ObjectTransport<ResponseCreateParamsStreaming, ResponseStreamEvent>;
++    "google-generative-ai"?: ObjectTransport<GenerateContentParameters, GenerateContentResponse>;
++}
 diff --git a/dist/utils/query-fork.d.ts b/dist/utils/query-fork.d.ts
 new file mode 100644
 index 0000000000000000000000000000000000000000..9b0cb9bf3fe4357258e14d48f0401aab4d4cf3ad
@@ -579,7 +756,7 @@ index 0000000000000000000000000000000000000000..e0610ab42b9bdd37091f69346ae178df
 +    return tokens <= 10000 && tokens + last.usage.cacheWrite <= 10000;
 +}
 diff --git a/dist/utils/transcript.js b/dist/utils/transcript.js
-index ac638f499d0fa924fc5a468709f674940565f514..1ff99595287e37aa51d57e4ab609145d3392d9f1 100644
+index ac638f499d0fa924fc5a468709f674940565f514..b4d16a8c029ad06d49501842716b399a56ac899d 100644
 --- a/dist/utils/transcript.js
 +++ b/dist/utils/transcript.js
 @@ -58,11 +58,16 @@ export function getCurrentTools(messages) {
