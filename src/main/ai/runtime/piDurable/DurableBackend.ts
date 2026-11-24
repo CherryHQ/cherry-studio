@@ -37,6 +37,7 @@ export interface DurableRoot {
     event(event: AgentRuntimeEvent): void
     behavior(event: BehaviorEvent): void
     usage: Parameters<typeof createPiGatewayModelBinding>[3]
+    retry: Parameters<typeof createPiGatewayModelBinding>[5]
     placed(input: string | undefined): void
   }
 }
@@ -67,7 +68,7 @@ export class DurableBackend {
     try {
       for (const binding of contexts.roots(context.backendId)) {
         if (binding.id === context.id) {
-          await owner.prepare(input, binding)
+          if (binding.nativeThreadId) owner.nativeRoots.set(runtimeId(binding.nativeThreadId), binding.id)
           continue
         }
         const session = agentSessionService.getById(binding.sessionId)
@@ -108,11 +109,16 @@ export class DurableBackend {
         }
         taskCursor = page.next
       } while (taskCursor)
+      if (input.headless === undefined && root.nativeId && owner.pendingRoots.has(context.id)) {
+        input.permissionModeOverride = (await readDurableRequest(root.storage, root.nativeId))?.permissionModeOverride
+      }
+      await owner.prepare(input, context)
       storageOwned = false
       const created = await createPiDurableRuntime({
         backendId: runtimeId(context.backendId),
         openStorage: async () => root.storage,
         harness: {
+          settings: { retry: { enabled: false } },
           telemetry: createPiTelemetry({
             isEnabled: () => application.get('PreferenceService').get('app.developer_mode.enabled'),
             getParent: (attributes) => {
@@ -144,10 +150,8 @@ export class DurableBackend {
           }
         },
         onInputPlaced: (id, thread) => owner.forThread(thread).sink?.placed(id),
-        onError: (error) => {
-          logger.error('Durable backend failed', { backendId: context.backendId, error })
-          for (const host of owner.roots.values()) host.sink?.event({ type: 'error', error })
-        }
+        // A diagnostic only: Durable keeps its work and records a real failure as the input's outcome.
+        onError: (error) => logger.error('Durable backend failed', { backendId: context.backendId, error })
       })
       if (created.status !== 'confirmed') throw new Error(created.error.message)
       owner.runtime = created.value
@@ -188,7 +192,8 @@ export class DurableBackend {
         reasoningEffort: saved.reasoningEffort,
         serviceTier: saved.serviceTier,
         fastMode: saved.fastMode,
-        knowledgeBaseIds: saved.knowledgeBaseIds
+        knowledgeBaseIds: saved.knowledgeBaseIds,
+        permissionModeOverride: saved.permissionModeOverride
       })
     }
     if (previous?.input === input) return previous
@@ -203,7 +208,8 @@ export class DurableBackend {
         desktop.snapshot.provider,
         desktop.snapshot.model,
         (...args) => host.sink?.usage?.(...args),
-        this.models
+        this.models,
+        (...args) => host.sink?.retry?.(...args)
       )
       this.models = binding.modelRuntime
       const behavior = await createPiBehaviorHost({
@@ -219,7 +225,8 @@ export class DurableBackend {
             providerService.getByProviderId(model.providerId),
             model,
             (...args) => host.sink?.usage?.(...args),
-            this.models
+            this.models,
+            (...args) => host.sink?.retry?.(...args)
           ),
         emit: (event) => host.sink?.event(event),
         observe: (event) => host.sink?.behavior(event),
@@ -326,8 +333,7 @@ export class DurableBackend {
     return {
       approvals: {
         facts: (call, tool) => host(call.thread).approvals.facts(call, tool),
-        ask: (request, signal) => host(request.call.thread).approvals.ask(request, signal),
-        outcomes: (thread, calls) => host(thread).approvals.outcomes(thread, calls)
+        ask: (request, signal) => host(request.call.thread).approvals.ask(request, signal)
       },
       questions: { ask: (request, signal) => host(request.call.thread).questions.ask(request, signal) },
       models: {

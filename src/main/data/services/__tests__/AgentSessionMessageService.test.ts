@@ -1910,6 +1910,58 @@ describe('AgentSessionMessageService', () => {
     ])
   })
 
+  it('appends a saved batch after the branch tip of a message that already has descendants', async () => {
+    const [branch, older, newer, deeper, tipMessage, appended] = [
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e001',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e002',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e003',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e004',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e005',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e006'
+    ]
+    const text = (value: string) => ({ parts: [{ type: 'text' as const, text: value }] })
+    agentSessionMessageService.saveMessages({
+      sessionId: SESSION_ID,
+      messages: [
+        { id: branch, role: 'user', data: text('branch') },
+        { id: older, role: 'assistant', data: text('older sibling') }
+      ]
+    })
+    for (const [parentId, id] of [
+      [branch, newer],
+      [newer, deeper],
+      [deeper, tipMessage]
+    ])
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId,
+        message: { id, role: 'assistant', data: text(id) }
+      })
+    // The older sibling must not win the walk: the newest child of each level does.
+    dbh.db.update(agentSessionMessageTable).set({ createdAt: 1 }).where(eq(agentSessionMessageTable.id, older)).run()
+
+    const resolveTip = vi.spyOn(agentSessionMessageService, 'branchTip')
+    agentSessionMessageService.saveMessages({
+      sessionId: SESSION_ID,
+      messages: [
+        { id: branch, role: 'user', data: text('branch edited') },
+        { id: appended, role: 'assistant', data: text('appended') }
+      ]
+    })
+
+    const parentOf = (id: string) =>
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, id)).get()!.parentId
+    expect(parentOf(appended)).toBe(tipMessage)
+    // Only the following message of a batch needs the tip, and one statement resolves it.
+    expect(resolveTip).toHaveBeenCalledTimes(1)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      parentId: tipMessage,
+      message: { id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e007', role: 'user', data: text('single') }
+    })
+    expect(resolveTip).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps the session timestamp aligned with a newly saved message batch', async () => {
     vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_001_000).mockReturnValue(1_700_000_002_000)
 
@@ -1946,6 +1998,7 @@ describe('AgentSessionMessageService', () => {
       orderKey: 'a1',
       deletedAt: 250
     })
+    await seedSession({ id: 'live-range-session', name: 'Other live session', orderKey: 'a2' })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
         parentId: seedSessionRoot(dbh.db, SESSION_ID),
@@ -2002,6 +2055,16 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 300
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'live-range-session'),
+        id: 'other-live-range-middle',
+        sessionId: 'live-range-session',
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'other session' }] },
+        status: 'success',
+        createdAt: 250,
+        updatedAt: 250
+      },
+      {
         parentId: seedSessionRoot(dbh.db, 'archived-range-session'),
         id: 'archived-range-middle',
         sessionId: 'archived-range-session',
@@ -2036,7 +2099,7 @@ describe('AgentSessionMessageService', () => {
     const firstPage = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
       fromMs: 100,
       toMs: 300,
-      limit: 2
+      limit: 3
     })
     const secondPage = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
       fromMs: 100,
@@ -2045,9 +2108,20 @@ describe('AgentSessionMessageService', () => {
       cursor: firstPage.nextCursor
     })
 
-    expect(firstPage.items.map((message) => message.id)).toEqual(['range-end', 'range-tie-a'])
+    expect(firstPage.items.map((message) => message.id)).toEqual([
+      'range-end',
+      'other-live-range-middle',
+      'range-tie-a'
+    ])
     expect(secondPage.items.map((message) => message.id)).toEqual(['range-tie-z', 'range-start'])
     expect(secondPage.nextCursor).toBeUndefined()
+    const scopedPage = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
+      fromMs: 100,
+      toMs: 300,
+      sessionId: 'live-range-session',
+      limit: 10
+    })
+    expect(scopedPage.items.map((message) => message.id)).toEqual(['other-live-range-middle'])
     for (const metadata of [...firstPage.items, ...secondPage.items]) {
       const entity = agentSessionMessageService.getSessionMessage(metadata.sessionId, metadata.id)
       expect(metadata).not.toHaveProperty('data')

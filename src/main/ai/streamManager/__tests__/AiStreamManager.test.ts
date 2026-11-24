@@ -153,7 +153,7 @@ const fakeCacheService = {
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
-const mockCloseSession = vi.fn<(sessionId: string, interrupt?: boolean) => Promise<void>>(async () => undefined)
+const mockStopSession = vi.fn<(sessionId: string, reason: unknown) => Promise<void>>(async () => undefined)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -174,7 +174,7 @@ vi.mock('@application', async () => {
     AgentSessionRuntimeService: {
       willContinueTopic: mockWillContinueTopic,
       abortPendingTurn: mockAbortPendingTurn,
-      closeSession: mockCloseSession
+      stopSession: mockStopSession
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -2235,8 +2235,8 @@ describe('AiStreamManager', () => {
       mockStreamText.mockResolvedValueOnce(feed.stream)
       const topicId = 'agent-session:session-1'
       let backgroundRunning = true
-      mockCloseSession.mockImplementationOnce(async (_sessionId: string, interrupt?: boolean) => {
-        if (interrupt) backgroundRunning = false
+      mockStopSession.mockImplementationOnce(async (_sessionId: string, reason: unknown) => {
+        if (reason === 'user-requested') backgroundRunning = false
       })
       startSingle(mgr, {
         topicId,
@@ -2256,7 +2256,7 @@ describe('AiStreamManager', () => {
       expect(mgr.hasUnsettledTopicWork(topicId)).toBe(false)
     })
 
-    it('holds same-topic admission until paused persistence and runtime close settle', async () => {
+    it('holds same-topic admission until paused persistence and runtime stop settle', async () => {
       vi.useRealTimers()
       const listener = new FakeListener('persistence:agent')
       let releasePersistence!: () => void
@@ -2265,7 +2265,7 @@ describe('AiStreamManager', () => {
           releasePersistence = resolve
         })
       let releaseRuntimeClose!: () => void
-      mockCloseSession.mockImplementationOnce(
+      mockStopSession.mockImplementationOnce(
         () =>
           new Promise<void>((resolve) => {
             releaseRuntimeClose = resolve
@@ -2288,7 +2288,7 @@ describe('AiStreamManager', () => {
       expect(nextTurnAdmitted).toBe(false)
 
       releasePersistence()
-      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      await flushUntil(() => mockStopSession.mock.calls.length === 1)
       expect(nextTurnAdmitted).toBe(false)
 
       releaseRuntimeClose()
@@ -2322,7 +2322,7 @@ describe('AiStreamManager', () => {
       await admission
       await rejected
       expect(mgr.inspect(topicId)?.executions[0].abortSignal.aborted).toBe(false)
-      expect(mockCloseSession).not.toHaveBeenCalled()
+      expect(mockStopSession).not.toHaveBeenCalled()
     })
 
     it('drains an agent continuation launched during terminal handling before releasing admission', async () => {
@@ -2355,7 +2355,7 @@ describe('AiStreamManager', () => {
         nextTurnAdmitted = true
       })
 
-      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      await flushUntil(() => mockStopSession.mock.calls.length === 1)
       await flushUntil(() => continuationListener.pausedResults.length === 1)
       expect(nextTurnAdmitted).toBe(false)
 

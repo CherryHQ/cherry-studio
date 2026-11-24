@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-21-skill-unicode-folder-names.md
+2026-11-21-skill-unicode-folder-names.md: 1b9623f20468f14c1b6216e0534687b2feb2a79f
+2026-11-21-skill-unicode-folder-names.zh.md: 6a6c226af28b40862d59c448c47e2fc15ebf41e9

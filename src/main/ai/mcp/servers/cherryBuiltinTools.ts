@@ -63,6 +63,7 @@ import { type AutonomyToolsContext, registerAutonomyTools } from './cherryAutono
 import { registerCliTools } from './cherryCliTools'
 import { type KnowledgeToolsContext, registerKnowledgeTools } from './cherryKnowledgeTools'
 import { type MiniAppToolsContext, registerMiniAppTools } from './cherryMiniAppTools'
+import { recordReportedArtifacts, type ReportArtifactsContext } from './cherryReportArtifacts'
 
 export type CherryToolsOptions = AutonomyToolsContext &
   KnowledgeToolsContext &
@@ -93,7 +94,7 @@ async function readGeneratedImages(files: { id: string }[], signal: AbortSignal)
   return blocks
 }
 
-function registerBuiltinTools(server: McpServer): void {
+function registerBuiltinTools(server: McpServer, context: ReportArtifactsContext): void {
   server.registerTool(
     WEB_SEARCH_TOOL_NAME,
     { description: WEB_SEARCH_DESCRIPTION, inputSchema: webSearchInputSchema },
@@ -104,12 +105,15 @@ function registerBuiltinTools(server: McpServer): void {
     { description: WEB_FETCH_DESCRIPTION, inputSchema: webFetchInputSchema },
     async ({ urls }, ctx) => modelOutputToMcpResult(webLookupModelOutput(await fetchWeb(urls, ctx.mcpReq.signal)))
   )
-  // Pure declaration tool: the model reports its final deliverable file(s). The value lives in the
-  // tool *input* — a data contract for a renderer artifacts card; the handler only confirms.
+  // The model reports its final deliverable file(s). The tool *input* feeds the renderer artifacts
+  // card; the handler indexes them for the Agent's Outputs and confirms.
   server.registerTool(
     REPORT_ARTIFACTS_TOOL_NAME,
     { description: REPORT_ARTIFACTS_DESCRIPTION, inputSchema: reportArtifactsInputSchema },
-    async ({ artifacts }) => ({ content: [{ type: 'text', text: `Recorded ${artifacts.length} artifact(s).` }] })
+    ({ artifacts }) => {
+      recordReportedArtifacts(context, { artifacts })
+      return { content: [{ type: 'text', text: `Recorded ${artifacts.length} artifact(s).` }] }
+    }
   )
 
   const configuredModel = resolveConfiguredPaintingModel()
@@ -129,7 +133,7 @@ function registerBuiltinTools(server: McpServer): void {
 
 export function createCherryToolsServer(options: CherryToolsOptions): McpServer {
   const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
-  registerBuiltinTools(server)
+  registerBuiltinTools(server, options)
   registerKnowledgeTools(server, options)
   registerAutonomyTools(server, options)
   registerCliTools(server)

@@ -885,6 +885,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
           liveMessageIds={liveMessageIds}
           railOpacity={railGutterPx / RAIL_GUTTER_MAX_PX}
           scrollToMessageId={scrollToMessageById}
+          bottomInset={(bottomOverlayInsets?.contentBottomPadding ?? 0) + scrollerBottomMargin}
         />
       )}
       {activeOutline && activeOutlineMessage && (

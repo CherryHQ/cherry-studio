@@ -17,6 +17,7 @@ import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgro
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
@@ -78,6 +79,8 @@ export interface AgentRuntimeConnectInput {
    *  default and ignore session model overrides, which decides which resolution a captured
    *  connection model is compared against for stale-capture pinning. */
   headless?: boolean
+  /** Explicit channel policy for this turn, independent of the Agent's stored configuration. */
+  permissionModeOverride?: AgentPermissionMode
   /** Product position captured before asynchronous connection work. */
   branchHead?: string
   trace?: AgentRuntimeTraceContext
@@ -101,7 +104,10 @@ export interface AgentRuntimeUserInput {
   messageSnapshot?: MessageSnapshot
 }
 
-export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'systemReminder'>
+export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'systemReminder'> & {
+  /** Model-only context; the original product message remains unchanged. */
+  context?: CherryUIMessage['parts']
+}
 
 /**
  * Runtime-neutral approval request. Drivers emit this instead of writing directly to a live
@@ -124,6 +130,8 @@ export interface RuntimeMessageProjection {
   live: readonly string[]
   /** Display-only refreshes update existing owners without admitting historical sources into a new reply. */
   refresh?: readonly string[]
+  /** Product input IDs of native user messages in `messages`; their answers belong to that input's reply. */
+  inputs?: Readonly<Record<string, string>>
   replaces: Readonly<Record<string, string>>
   removed: readonly string[]
 }
@@ -162,15 +170,18 @@ export type AgentRuntimeEvent =
       }
     }
   | { type: 'resume-token'; token: string }
-  | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor }
+  /** `paused`: native evidence that the turn was aborted, such as a recorded user stop. */
+  | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor; status?: 'paused' }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
    *  as the next turn (the `steer_undelivered` fallback). */
   | { type: 'steer-undelivered'; inputIds: readonly string[] }
   /** A steer was injected mid-turn (PreToolUse/PostToolBatch hook) and the model is about to emit its post-steer
    *  assistant message. Marks where the host should roll the assistant message: finalise the
    *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
-   *  steer user message sorts between them instead of dangling after the whole turn. */
-  | { type: 'steer-boundary'; inputIds: readonly string[] }
+   *  steer user message sorts between them instead of dangling after the whole turn.
+   *  A runtime with `followUp()` also emits it when it places a queued input, after the content before it;
+   *  `followUp` marks that placement, which starts its own run and so never joins another reply. */
+  | { type: 'steer-boundary'; inputIds: readonly string[]; followUp?: true }
   | { type: 'input-submission'; contextId: string; result: SubmitResult }
   | { type: 'input-state'; contextId: string; input: InputState }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
@@ -202,8 +213,12 @@ export type AgentRuntimeEvent =
       state: 'started'
       origin: AutonomousTurnOrigin
       sourceToolCallIds?: readonly string[]
+      /** A placed product input that native recovery resumed; its existing reply continues. */
+      recoveredInputId?: string
     }
   | { type: 'autonomous-turn-state'; state: 'finished' }
+  /** A `retainOnStop` connection finished the requested stop; later input may start. */
+  | { type: 'stop-confirmed' }
   | { type: 'error'; error: unknown }
 
 /**
@@ -242,6 +257,12 @@ export interface AgentRuntimeConnection {
    */
   redirect?(input: AgentRuntimeCommand): boolean
   /**
+   * Submit a user message that waits behind running native work and persists natively at once.
+   * The connection emits `steer-boundary` when the runtime places it, so it gets its own reply;
+   * a refused submission reports `input-submission`. Returns false when no native work is running.
+   */
+  followUp?(input: AgentRuntimeCommand): boolean
+  /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts, permission mode included, are patched in place before the
    * rebuild verdict, even during an active turn: the change governs the turn's next tool call.
@@ -259,6 +280,7 @@ export interface AgentRuntimeConnection {
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
     headless?: boolean
+    permissionModeOverride?: AgentPermissionMode
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read passive, thread-scoped context usage from the harness. Unknown and unsupported
@@ -281,8 +303,16 @@ export interface AgentRuntimeConnection {
   messageChild?(contextId: string, text: string): Promise<void>
   /** Wait for admitted child execution and its archive writes; does not close the owner. */
   drainChildWrites?(): Promise<void>
-  /** Stop foreground work before retiring its owner; shutdown alone may preserve durable work. */
+  /**
+   * Stop foreground work for user Stop. Without `retainOnStop` the host then retires the owner;
+   * shutdown alone may preserve durable work.
+   */
   interrupt?(): Promise<void>
+  /**
+   * User Stop only interrupts: the owner and this connection stay open for later input. After each
+   * `interrupt()`, emit `stop-confirmed` once the stopped turn's terminal event has been emitted.
+   */
+  readonly retainOnStop?: boolean
   close(): void | Promise<void>
   /** Confirm native process exit before replacing this session's history. */
   closeForEdit?(): Promise<void>

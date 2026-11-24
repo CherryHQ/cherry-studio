@@ -76,6 +76,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('@iconify/react', () => ({
+  addCollection: vi.fn(),
   Icon: ({ icon }: { icon: string }) => <span data-icon={icon} />
 }))
 

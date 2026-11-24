@@ -44,10 +44,7 @@ import {
   type QuickPanelListItem,
   useOptionalQuickPanel
 } from '@renderer/components/QuickPanel'
-import {
-  openResourceEditDialog,
-  ResourceEditDialogEventHost
-} from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
+import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -60,6 +57,7 @@ import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useLatest } from '@renderer/hooks/useLatest'
+import { useMcpSkills } from '@renderer/hooks/useMcpSkills'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -70,7 +68,7 @@ import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { getPermissionModeCards } from '@renderer/utils/agent'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import {
   getComposerShortcutLabel,
   resolveNewlineShortcut,
@@ -79,6 +77,8 @@ import {
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -140,6 +140,7 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
+import { useComposerPrefill } from './shared/useComposerPrefill'
 import { useComposerSelectionReferenceInsertion } from './shared/useComposerSelectionReferenceInsertion'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
@@ -635,6 +636,7 @@ const AgentComposerInner = ({
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
+  const nativeFollowUp = !!agent && AGENT_RUNTIME_CAPABILITIES[agent.type].nativeFollowUp
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -682,6 +684,7 @@ const AgentComposerInner = ({
     error: availableSkillsError,
     refresh: refreshAvailableSkills
   } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled })
+  const remoteSkillCatalogs = useMcpSkills(agent?.mcps ?? [], rootPanelVisible || skillsPanelVisible)
   const skillByFilename = useMemo(
     () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
     [availableSkills]
@@ -968,14 +971,53 @@ const AgentComposerInner = ({
   }, [agentId, t])
 
   const skillLabel = t('plugins.skills')
-  const skillItems = useMemo<QuickPanelListItem[]>(
-    () =>
-      createSkillQuickPanelItems(availableSkills, {
-        skillLabel,
-        onInsertSkill: insertSkillToken
-      }),
-    [availableSkills, insertSkillToken, skillLabel]
-  )
+  const skillItems = useMemo<QuickPanelListItem[]>(() => {
+    const serverNameCounts = new Map<string, number>()
+    for (const { skills } of remoteSkillCatalogs) {
+      const name = skills[0]?.serverName
+      if (name !== undefined) serverNameCounts.set(name, (serverNameCounts.get(name) ?? 0) + 1)
+    }
+    return [
+      ...createSkillQuickPanelItems(availableSkills, { skillLabel, onInsertSkill: insertSkillToken }),
+      ...remoteSkillCatalogs.flatMap((catalog): QuickPanelListItem[] =>
+        catalog.error
+          ? [
+              {
+                id: `mcp-skill-error:${catalog.serverId}`,
+                label: t('mcp.skills.unavailable'),
+                icon: <McpLogo />,
+                description: `${catalog.serverId}: ${catalog.error}`,
+                disabled: true
+              }
+            ]
+          : catalog.skills.map((skill) => {
+              const description = `${skill.frontmatter.description} — ${skill.uri}`
+              return {
+                id: `mcp-skill:${JSON.stringify([skill.serverId, skill.uri])}`,
+                label: `${skill.frontmatter.name} · ${skill.serverName}`,
+                icon: <McpLogo />,
+                description:
+                  (serverNameCounts.get(skill.serverName) ?? 0) > 1
+                    ? `${skill.serverId} · ${description}`
+                    : description,
+                filterText: `${skill.frontmatter.name} ${skill.serverName} ${skill.serverId} ${skill.frontmatter.description} ${skill.uri}`,
+                searchAliases: [skillLabel],
+                action: ({ inputAdapter }) => {
+                  inputAdapter?.insertText(
+                    t('mcp.skills.use', {
+                      name: skill.frontmatter.name,
+                      server: skill.serverName,
+                      origin: JSON.stringify({ server_id: skill.serverId, skill_uri: skill.uri })
+                    }) + ' ',
+                    { tokenizeVariables: false }
+                  )
+                  inputAdapter?.focus()
+                }
+              }
+            })
+      )
+    ]
+  }, [availableSkills, insertSkillToken, remoteSkillCatalogs, skillLabel, t])
   const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
     return {
       id: AGENT_SKILLS_LAUNCHER_ID,
@@ -1029,6 +1071,19 @@ const AgentComposerInner = ({
 
   useComposerQuoteInsertion(actionsRef)
   useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
+  useComposerPrefill(actionsRef, {
+    topicId: sessionTopicId,
+    enabled: !launchOptions?.editing,
+    replaceDraft: (nextText) => {
+      releaseFollowupEditRef.current()
+      actionsRef.current.replaceDraft({ text: nextText, tokens: [] })
+      handleTextChange(nextText)
+      setFiles([])
+      setSelectedSkills([])
+      setDraftTokens([])
+      draftTokensRef.current = []
+    }
+  })
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })
@@ -1287,7 +1342,7 @@ const AgentComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload) => {
+    async (payload: ComposerQueuedMessagePayload, followUp = false) => {
       if (sendDisabled) return false
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
@@ -1311,7 +1366,8 @@ const AgentComposerInner = ({
               userMessageParts: [...payload.userMessageParts, ...fileParts],
               reasoningEffort: payload.reasoningEffort,
               serviceTier: payload.serviceTier,
-              ...(payload.fastMode ? { fastMode: true } : {})
+              ...(payload.fastMode ? { fastMode: true } : {}),
+              ...(followUp ? { followUp: true } : {})
             }
           }
         )
@@ -1450,6 +1506,34 @@ const AgentComposerInner = ({
     ]
   )
 
+  // A message the runtime withdrew before the agent received it: sent again as it was, or brought back to edit.
+  useEffect(() => {
+    if (!layerActive) return
+    return EventEmitter.on(EVENT_NAMES.RESTORE_AGENT_COMPOSER_MESSAGE, (payload) => {
+      const data = payload as { topicId?: string; messageId?: string; parts?: CherryMessagePart[]; send?: boolean }
+      if (!data?.messageId || !data.parts?.length || data.topicId !== sessionTopicId) return
+      if (data.send) {
+        void sendQueuedPayload({ text: getComposerHistoryText(data.parts), userMessageParts: data.parts }, isStreaming)
+        return
+      }
+      if (actionsRef.current.getDraft().text.trim() || filesRef.current.length > 0) {
+        toast.warning(t('agent.unsent_message.input_not_empty'))
+        return
+      }
+      const edited = createEditableMessageDraft(data.parts, data.messageId)
+      restoreFollowupDraft({
+        id: data.messageId,
+        draft: { text: edited.text, tokens: edited.draftTokens },
+        payload: {
+          text: edited.text,
+          userMessageParts: data.parts,
+          attachments: edited.files as unknown as Array<Record<string, unknown>>
+        }
+      })
+      actionsRef.current.focus('end')
+    })
+  }, [actionsRef, filesRef, isStreaming, layerActive, restoreFollowupDraft, sendQueuedPayload, sessionTopicId, t])
+
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => {
       if (sendDisabled) return
@@ -1468,7 +1552,9 @@ const AgentComposerInner = ({
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
-      if (isStreaming && !options?.steer && !steerWhileBusy) {
+      // A runtime with a durable native queue receives the follow-up at once so it survives a crash.
+      const followUp = isStreaming && !options?.steer && !steerWhileBusy
+      if (followUp && !nativeFollowUp) {
         enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
@@ -1477,7 +1563,7 @@ const AgentComposerInner = ({
       directSendInFlightRef.current = true
       setIsDirectSending(true)
       try {
-        const sent = await sendQueuedPayload(payload)
+        const sent = await sendQueuedPayload(payload, followUp)
         if (sent) clearCurrentDraft()
       } finally {
         directSendInFlightRef.current = false
@@ -1490,6 +1576,7 @@ const AgentComposerInner = ({
       enqueueFollowup,
       isStreaming,
       model,
+      nativeFollowUp,
       sendDisabled,
       sendQueuedPayload,
       steerWhileBusy,
@@ -1645,9 +1732,9 @@ const AgentComposerInner = ({
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
       <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />
-      <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface
+          focusOnTabActivation
           markdownLivePreview={renderInputMessageAsMarkdown}
           showAiDisclaimer
           voiceTarget={{ targetId: `composer:session:${sessionId}`, sourceEntityId: sessionId }}
