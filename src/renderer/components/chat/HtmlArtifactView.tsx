@@ -113,8 +113,9 @@ function getIframeContentHeight(
     const frameWindow = iframe.contentWindow
     if (!frameDocument || !body || !documentElement || !frameWindow) return { height: null, memory: null }
 
+    const bodyScrollHeight = body.scrollHeight
     const documentScrollHeight = Math.max(
-      body.scrollHeight,
+      bodyScrollHeight,
       documentElement.scrollHeight,
       frameDocument.scrollingElement?.scrollHeight ?? 0
     )
@@ -130,7 +131,14 @@ function getIframeContentHeight(
     }
 
     const scrollTop = frameWindow.scrollY || documentElement.scrollTop || body.scrollTop
-    let renderedContentBottom = 0
+    // Body overflow includes generated CSS boxes missed by the DOM sweep.
+    const hasBodyOverflow =
+      body !== frameDocument.scrollingElement &&
+      bodyScrollHeight > body.clientHeight &&
+      bodyScrollHeight <= iframe.clientHeight
+    let renderedContentBottom = hasBodyOverflow
+      ? body.getBoundingClientRect().top + scrollTop + body.clientTop + bodyScrollHeight
+      : 0
 
     for (const element of body.querySelectorAll('*')) {
       const bounds = element.getBoundingClientRect()
