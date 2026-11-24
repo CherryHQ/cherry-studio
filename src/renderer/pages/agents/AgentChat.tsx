@@ -40,8 +40,8 @@ import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -58,6 +58,7 @@ import {
   AgentTaskProgressCapsule,
   useAgentRightPaneActions
 } from './components/AgentRightPane'
+import { AgentSessionNameControl } from './components/AgentSessionNameControl'
 import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -100,12 +101,25 @@ function getNewSessionWorkspaceDefaults(
   return session.workspaceId ? { workspaceId: session.workspaceId } : {}
 }
 
-type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'>
+type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'> & {
+  session?: Pick<AgentSessionEntity, 'id' | 'name'>
+}
 
-function AgentTopBarControls(props: AgentTopBarControlsProps) {
+function AgentTopBarControls({ session, ...props }: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
 
-  return <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+  return (
+    <>
+      <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+      {session && !iconOnly ? (
+        <AgentSessionNameControl
+          sessionId={session.id}
+          sessionName={session.name}
+          onCloseAutoFocus={props.onAgentDialogCloseAutoFocus}
+        />
+      ) : null}
+    </>
+  )
 }
 
 interface AgentChatProps {
@@ -480,6 +494,7 @@ const AgentChat = ({
         conversationControls={
           activeAgent ? (
             <AgentTopBarControls
+              session={sessionSnapshot}
               agent={activeAgent}
               model={activeModel}
               workspace={sessionSnapshot.workspace}

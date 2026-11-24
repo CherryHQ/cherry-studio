@@ -20,6 +20,7 @@ import { createMcpManagerServer } from '@main/ai/mcp/servers/mcpManager'
 import { createSkillsServer } from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -72,7 +73,7 @@ export function buildAgentMcpServers(
   const modelId = effectiveModelId ?? session.model ?? agent.model ?? undefined
   const interactionContext = {
     sessionId: session.id,
-    topicId: `agent-session:${session.id}`,
+    topicId: buildAgentSessionTopicId(session.id),
     model: modelId,
     roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
   }
@@ -143,7 +144,7 @@ export function buildAgentMcpServers(
   if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
     servers.skills = {
       name: CHERRY_MCP_SERVER.SKILLS,
-      connect: serveAgentMcpServer(() => createSkillsServer(agent.id))
+      connect: serveAgentMcpServer(() => createSkillsServer(agent.id, session.id))
     }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.MCP_MANAGER)) {

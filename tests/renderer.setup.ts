@@ -104,6 +104,7 @@ vi.mock('uuid', () => ({
 vi.mock('@iconify/react', () => {
   const React = require('react')
   return {
+    addCollection: vi.fn(),
     Icon: ({ icon, ...props }: { icon?: string }) =>
       React.createElement('span', { ...props, 'data-icon': icon, 'data-testid': 'iconify-icon' })
   }
@@ -171,6 +172,9 @@ vi.mock('@cherrystudio/ui', async () => {
   const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
   const { createCodeHighlightPlugin } =
     await import('@cherrystudio/ui/components/composites/markdown/plugins/code-highlight')
+  const { BUTTON_HANDLE_DRAG_SENSORS, DragDropRoot } =
+    await import('@cherrystudio/ui/components/composites/sortable/drag-drop-root')
+  const { withManagerProbe } = await import('./__mocks__/dndDriver')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
@@ -199,7 +203,8 @@ vi.mock('@cherrystudio/ui', async () => {
     useMarkdownBlockContext: () => ({ content: '' }),
     createSlugger: () => ({ slug: (value) => String(value ?? '') }),
     extractTextFromNode: () => '',
-    BlurCancelPointerSensor: class BlurCancelPointerSensor {},
+    BUTTON_HANDLE_DRAG_SENSORS,
+    DragDropRoot: withManagerProbe(DragDropRoot),
     ReorderableList: ({ items, renderItem, getId }) =>
       React.createElement(
         React.Fragment,

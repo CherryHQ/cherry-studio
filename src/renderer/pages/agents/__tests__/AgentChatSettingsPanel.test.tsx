@@ -240,10 +240,6 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicOverlayHandoffOnTerminal: () => {}
 }))
 
-vi.mock('@renderer/utils/agentSession', () => ({
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
-}))
-
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({ t: (key: string) => key })
@@ -356,7 +352,7 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => {
 })
 
 describe('AgentChat settings panel', () => {
-  const defaultSession = { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any
+  const defaultSession = { id: 'session-1', name: '', agentId: 'agent-1', accessiblePaths: [] } as any
   const createConversationBootstrap = (
     session: ComponentProps<typeof AgentChat>['conversationBootstrap']['session'] = defaultSession
   ): ComponentProps<typeof AgentChat>['conversationBootstrap'] => ({
@@ -444,6 +440,7 @@ describe('AgentChat settings panel', () => {
     const onSessionWorkspaceChange = vi.fn()
     const session = {
       id: 'session-1',
+      name: '',
       agentId: 'agent-1',
       workspaceId: 'workspace-1',
       workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
@@ -468,7 +465,7 @@ describe('AgentChat settings panel', () => {
       })
     )
     activeAgentMock.value = undefined
-    const session = { id: 'session-unlinked', agentId: null, accessiblePaths: [] } as any
+    const session = { id: 'session-unlinked', name: '', agentId: null, accessiblePaths: [] } as any
 
     renderAgentChat({ conversationBootstrap: createConversationBootstrap(session) })
 
@@ -494,7 +491,7 @@ describe('AgentChat settings panel', () => {
       })
     )
     activeAgentMock.value = undefined
-    const session = { id: 'session-unlinked', agentId: null, accessiblePaths: [] } as any
+    const session = { id: 'session-unlinked', name: '', agentId: null, accessiblePaths: [] } as any
 
     renderAgentChat({ conversationBootstrap: createConversationBootstrap(session) })
 
@@ -510,6 +507,7 @@ describe('AgentChat settings panel', () => {
     topicStreamStatusMock.isPending = true
     const session = {
       id: 'session-1',
+      name: '',
       agentId: 'agent-1',
       workspaceId: 'workspace-1',
       workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
@@ -529,6 +527,7 @@ describe('AgentChat settings panel', () => {
     }
     const session = {
       id: 'session-1',
+      name: '',
       agentId: 'agent-1',
       workspaceId: 'workspace-1',
       workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }

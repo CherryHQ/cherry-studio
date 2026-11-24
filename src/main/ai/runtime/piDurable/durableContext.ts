@@ -47,6 +47,6 @@ export function prepareDurableBranch(sessionId: string, messageId?: string) {
       return existing
     }
     const backend = allocateDurableBackendTx(tx)
-    return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId: root })
+    return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId: messageId ?? root })
   })
 }

@@ -30,7 +30,8 @@ recovery; product reply identity and billing do not come from a common response 
 Interrupt, resume and shutdown return `OperationResult<void>`; success confirms the operation's
 native contract, not application-wide cancellation.
 
-`RuntimeMessage` specializes AI SDK `UIMessage` with native completeness and optional placed-input metadata.
+`RuntimeMessage` specializes AI SDK `UIMessage` with native completeness, optional placed-input metadata and
+message-local model-response errors in `metadata.error`.
 `ThreadSnapshot.messages`, `message.upsert`, and `message.remove` expose whole native messages.
 Ordered parts retain text, reasoning, files, and tools; results and preliminary output update the
 originating tool part. Activity, input outcomes, and child relationships remain separate facts.
@@ -41,11 +42,18 @@ The reader is not seeded from a partial snapshot: SDK parser state must come fro
 
 `ThreadFeed` is a protocol utility: one normalized snapshot, ordered per-observer delivery,
 bounded pending frames, explicit overflow gaps, and observer error isolation. It owns no native
-queue or execution lifecycle. `state` copies non-message state, `message(id)` copies one
-selected message, and `messageIds` / `messageInputId(id)` read scalar identities. Adapters
-use these selectors instead of copying the entire history for a narrow read; public snapshots
-and observer deliveries remain isolated copies. Adapters maintain source identity before publishing events. `observeCaptured`
-captures concrete metadata with each native revision and retains critical frames through overflow recovery.
+queue or execution lifecycle. Published values pass through `immutable()`: the publisher's containers
+are copied once and frozen, while values already frozen by an earlier publication are reused. The
+stored snapshot, `state`, `message(id)`, captured metadata and every observer delivery share those
+frozen values; mutating one throws instead of affecting other consumers. Adapters that republish
+unchanged messages from `snapshot` or their own `immutable()` cache therefore keep message identity,
+so pending frames and downstream comparisons do not multiply history. `messageIds` and
+`messageInputId(id)` read scalar identities. Adapters maintain source identity before publishing
+events. `observeCaptured` captures concrete metadata with each native revision and retains critical
+frames through overflow recovery. More than 100 pending frames replaces superseded ordinary delivery
+with a gap and a current recovery snapshot while retaining critical frames; more than 1,000 retained
+critical frames closes the observation with `source-lost`. History is never truncated to fit.
+The first baseline remains first even when overflow closes an observation before its callback starts.
 An unrecoverable control backlog closes the observation with a gap instead of inventing completion.
 `Observation.drain()` joins delivery and callbacks through the facts already published when it is called.
 Seal native production before the final drain and archive flush. `stop()` discards queued delivery; it is not

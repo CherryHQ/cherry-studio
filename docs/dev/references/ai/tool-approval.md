@@ -12,6 +12,7 @@ sources:
   - src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts
   - src/main/ai/runtime/claudeCode/hooks.ts
   - src/main/ai/toolApproval/ToolApprovalRegistry.ts
+  - src/main/ai/toolApproval/builtinToolPolicyRegistry.ts
   - src/main/ai/toolApproval/commandPolicy/index.ts
   - src/main/ai/toolApproval/commandPolicy/checkCommand.ts
   - src/main/ai/toolApproval/commandPolicy/policyEvaluator.ts
@@ -55,6 +56,11 @@ A card whose request is gone is never left answerable. When a connection or
 stream ends with an approval still pending, `ToolApprovalRegistry.onAborted`
 retires the persisted card to `output-error`, so the composer stops offering a
 question nothing can receive.
+
+MCP skill loading and file reads follow each Skill’s server-owned reading permission
+through ordinary tool approval. Unconfigured entries ask each time; Full Access skips
+prompts, and explicit disablement remains effective. Reading a skill adds no session
+activation or additional approval rules for later tools; see [MCP Skills Client](./mcp-skills-client.md).
 
 The composer identifies the requesting Agent or subagent. Child requests carry the
 spawning tool-call ID in provider metadata; the card uses that identity to show the

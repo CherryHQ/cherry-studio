@@ -382,6 +382,10 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 export interface MessageListActions {
   addGeneratedImageToComposer?: (image: { url: string; name: string }) => void | Promise<void>
   openForkSourceSession?: (sessionId: string) => Promise<void>
+  /** Sends again a user message (status `paused`) that the runtime withdrew before the agent received it. */
+  resendUnsentMessage?: (message: MessageListItem) => void
+  /** Moves such a withdrawn user message back into the composer. */
+  editUnsentMessage?: (message: MessageListItem) => void
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)
   bindMessageRuntime?: (messageId: string, runtime: MessageRuntime) => void | (() => void)
@@ -451,6 +455,8 @@ export interface MessageListActions {
     target: MessageExportTarget
   ) => void | Promise<void>
   deleteSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
+  /** Deletes every loaded, selectable message older than `messageId`, after confirmation. */
+  deleteMessagesBefore?: (messageId: string) => void | Promise<void>
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
   canEditMessage?: (message: MessageListItem) => boolean

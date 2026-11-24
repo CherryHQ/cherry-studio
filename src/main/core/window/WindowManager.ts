@@ -19,7 +19,6 @@ import {
 import { isDev, isMac } from '@main/core/platform'
 import { applyWindowBehavior, BehaviorController } from '@main/core/window/behavior'
 import { applyWindowQuirks } from '@main/core/window/quirks'
-import type { WindowType } from '@main/core/window/types'
 import {
   type ManagedWindow,
   type OpenWindowArgs,
@@ -28,7 +27,8 @@ import {
   type WarmupState,
   type WarmupStateInit,
   type WindowInfo,
-  type WindowOptions
+  type WindowOptions,
+  type WindowType
 } from '@main/core/window/types'
 import { clearSavedBounds, injectSavedBounds, peekSavedState, persistNow } from '@main/core/window/windowBoundsTracker'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
@@ -1384,6 +1384,8 @@ export class WindowManager extends BaseService {
     if (this.shouldRememberBounds(type)) {
       injectSavedBounds(type, config)
     }
+
+    args?.configureOptions?.(config)
 
     const showMode = metadata.showMode ?? 'auto'
 

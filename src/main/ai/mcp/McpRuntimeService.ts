@@ -20,7 +20,6 @@ import {
   ElicitResultSchema
 } from '@modelcontextprotocol/core'
 import { app } from 'electron'
-import { nanoid } from 'nanoid'
 import { v4 as uuidv4 } from 'uuid'
 import * as z from 'zod'
 
@@ -41,6 +40,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import type { InputFor, WindowId } from '@shared/ipc/types'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
+import type { McpSkillEntry } from '@shared/types/mcpSkills'
 import type { BuiltinMcpServerName } from '@shared/utils/mcp'
 import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
@@ -257,6 +257,20 @@ export class McpRuntimeService extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.stopping = false
+    this.registerDisposable(
+      mcpServerService.onChanged((serverId) => {
+        const server = mcpServerService.findByIdOrName(serverId)
+        const keys = [...this.connections.keys(), ...this.pendingConnections.keys()]
+        if (
+          server?.isActive &&
+          !keys.some((key) => this.isServerKeyForId(key, serverId) && key !== this.getServerKey(server))
+        )
+          return
+        void this.closeConnectionsForServer(serverId).catch((error) => {
+          logger.warn('Failed to close changed MCP server connection', { serverId, error })
+        })
+      })
+    )
   }
 
   protected async onStop(): Promise<void> {
@@ -311,10 +325,12 @@ export class McpRuntimeService extends BaseService {
       .createHash('sha256')
       .update(
         JSON.stringify({
+          type: server.type,
           baseUrl: server.baseUrl,
           command: server.command,
           args: Array.isArray(server.args) ? server.args : [],
           registryUrl: server.registryUrl,
+          dxtPath: server.dxtPath,
           env: server.env,
           headers: server.headers
         })
@@ -890,7 +906,7 @@ export class McpRuntimeService extends BaseService {
       const prompts = await (await this.getOrCreateConnection(server, null)).listPrompts(cacheMode)
       return prompts.map((prompt) => ({
         ...prompt,
-        id: `p${nanoid()}`,
+        id: `p${crypto.randomUUID()}`,
         serverId: server.id,
         serverName: server.name
       }))
@@ -930,6 +946,46 @@ export class McpRuntimeService extends BaseService {
         }),
       signal
     )
+  }
+
+  private async withSkillConnection<T>(
+    serverId: string,
+    signal: AbortSignal | undefined,
+    run: (connection: McpConnection, signal: AbortSignal) => Promise<T>
+  ): Promise<T> {
+    const server = this.getServerById(serverId)
+    if (!server.isActive) throw new Error('MCP server is disabled')
+    const key = this.getServerKey(server)
+    const connection = await this.getOrCreateConnection(server, null, signal)
+    const requestSignal = signal ?? new AbortController().signal
+    requestSignal.throwIfAborted()
+    const result = await run(connection, requestSignal)
+    requestSignal.throwIfAborted()
+    const current = this.getServerById(serverId)
+    if (!current.isActive || this.getServerKey(current) !== key || this.connections.get(key) !== connection)
+      throw new Error('MCP skill request was invalidated')
+    return result
+  }
+
+  public async listSkills(serverId: string, signal?: AbortSignal): Promise<McpSkillEntry[]> {
+    const server = this.getServerById(serverId)
+    return this.withSkillConnection(serverId, signal, async (connection, requestSignal) =>
+      (await connection.listSkills({ signal: requestSignal, timeoutMs: resolveMcpRequestOptions(server).timeout })).map(
+        (skill) => ({ ...skill, serverId, serverName: server.name })
+      )
+    )
+  }
+
+  public async getSkill(serverId: string, uri: string, signal?: AbortSignal): Promise<McpSkillEntry> {
+    const server = this.getServerById(serverId)
+    return this.withSkillConnection(serverId, signal, async (connection, requestSignal) => ({
+      ...(await connection.getSkill(uri, {
+        signal: requestSignal,
+        timeoutMs: resolveMcpRequestOptions(server).timeout
+      })),
+      serverId,
+      serverName: server.name
+    }))
   }
 
   public async listResourceTemplates(serverId: string, cacheMode: CacheMode = 'use') {
@@ -972,18 +1028,19 @@ export class McpRuntimeService extends BaseService {
     const server = this.getServerById(serverId)
     const policy = resolveMcpRequestOptions(server)
     const host = this.resolveInteractionContext(server.id, interactionContext)
+    const requestSignal = signal ?? new AbortController().signal
     const result = await this.runRequest(
       server,
       'mcp.resources.read',
       async () =>
-        (await this.getOrCreateConnection(server, host ?? null, signal)).readResource(uri, cacheMode, {
-          signal: signal ?? new AbortController().signal,
+        (await this.getOrCreateConnection(server, host ?? null, requestSignal)).readResource(uri, cacheMode, {
+          signal: requestSignal,
           timeoutMs: policy.timeout,
           resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
           maxTotalTimeoutMs: policy.maxTotalTimeout,
           interactionContext: host
         }),
-      signal
+      requestSignal
     )
     return {
       contents: result.contents.map((content) => ({

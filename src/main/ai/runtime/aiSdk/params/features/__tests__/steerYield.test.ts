@@ -4,7 +4,7 @@ const hasPendingSteer = vi.fn()
 vi.mock('@application', () => ({
   application: { get: vi.fn(() => ({ hasPendingSteer })) }
 }))
-vi.mock('../../../../agentSession/topic', () => ({
+vi.mock('@shared/ai/agentSessionTopic', () => ({
   isAgentSessionTopic: (id: string) => id.startsWith('agent-session:')
 }))
 

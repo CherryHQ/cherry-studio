@@ -37,6 +37,14 @@ export const deniedReason = (feedback?: string): string => {
     : `${REJECTED_HEADER} Wait for the user's instructions instead of retrying it.`
 }
 
+/** The approval answer the gate blocked `result`'s call for, read from its history; undefined for any other result. */
+export function blockedByApproval(
+  result: Extract<HistoryEntry, { kind: 'tool-result' }>
+): 'denied' | 'unavailable' | undefined {
+  if (result.blocked === NOBODY_TO_APPROVE) return 'unavailable'
+  return result.blocked?.startsWith(REJECTED_HEADER) ? 'denied' : undefined
+}
+
 /** Plan mode is the host's `plan` permission mode or an active `cherry.plan` record (PR-3d adds the tools that write it). */
 export const planActive = (mode: PermissionMode, plan: PlanState | undefined): boolean =>
   mode === 'plan' || plan?.active === true

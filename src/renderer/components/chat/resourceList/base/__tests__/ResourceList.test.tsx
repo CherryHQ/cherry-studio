@@ -1,9 +1,10 @@
-import type * as DndKitUtilities from '@dnd-kit/utilities'
+import { installDndDomStubs } from '@test-mocks/dndDomStubs'
+import { dragRow, dropRow, hoverRow, startRowDrag } from '@test-mocks/dndDriver'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { type ReactNode, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 type VirtualizerOptionsMock = {
   count: number
@@ -29,14 +30,6 @@ const virtualMocks = vi.hoisted(() => ({
   scrollToIndex: vi.fn()
 }))
 
-const dndMocks = vi.hoisted(() => ({
-  droppableData: new Map<string, unknown>(),
-  onDragEnd: undefined as undefined | ((event: any) => void),
-  onDragOver: undefined as undefined | ((event: any) => void),
-  onDragStart: undefined as undefined | ((event: any) => void),
-  sortableData: new Map<string, unknown>()
-}))
-
 // Return i18n keys verbatim so assertions on component-rendered copy (e.g. the default error
 // fallback) are deterministic regardless of the ambient i18next language. Readable labels in this
 // file are supplied as props, not via t(), so this only affects internal t() calls.
@@ -50,72 +43,6 @@ vi.mock('@tanstack/react-virtual', () => ({
   defaultRangeExtractor: vi.fn((range) =>
     Array.from({ length: range.endIndex - range.startIndex + 1 }, (_, i) => range.startIndex + i)
   )
-}))
-
-vi.mock('@dnd-kit/core', () => {
-  const React = require('react')
-  return {
-    DndContext: ({
-      children,
-      onDragEnd,
-      onDragOver,
-      onDragStart
-    }: {
-      children: ReactNode
-      onDragEnd?: any
-      onDragOver?: any
-      onDragStart?: any
-    }) => {
-      dndMocks.onDragEnd = onDragEnd
-      dndMocks.onDragOver = onDragOver
-      dndMocks.onDragStart = onDragStart
-      return React.createElement('div', { 'data-testid': 'dnd-context' }, children)
-    },
-    DragOverlay: ({ children }: { children: ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'drag-overlay' }, children),
-    KeyboardSensor: vi.fn(),
-    PointerSensor: vi.fn(),
-    useDroppable: ({ data, id }: { data: unknown; id: string }) => {
-      dndMocks.droppableData.set(id, data)
-      return { isOver: false, setNodeRef: vi.fn() }
-    },
-    useSensor: vi.fn((sensor, options) => ({ sensor, options })),
-    useSensors: vi.fn((...sensors) => sensors)
-  }
-})
-
-vi.mock('@dnd-kit/sortable', () => {
-  const React = require('react')
-  return {
-    SortableContext: ({ children }: { children: ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'sortable-context' }, children),
-    sortableKeyboardCoordinates: vi.fn(),
-    useSortable: ({ data, id }: { data?: unknown; id: string }) => {
-      if (data) {
-        dndMocks.sortableData.set(id, data)
-      }
-
-      return {
-        attributes: { 'data-sortable-id': id },
-        listeners: {},
-        setActivatorNodeRef: vi.fn(),
-        setNodeRef: vi.fn(),
-        transform: null,
-        transition: undefined,
-        isDragging: false
-      }
-    },
-    verticalListSortingStrategy: vi.fn(() => null)
-  }
-})
-
-vi.mock('@dnd-kit/utilities', async (importOriginal) => ({
-  ...(await importOriginal<typeof DndKitUtilities>()),
-  CSS: {
-    Transform: {
-      toString: () => undefined
-    }
-  }
 }))
 
 import type * as Commands from '@renderer/components/command'
@@ -136,12 +63,9 @@ import {
 } from '../ResourceList'
 import type { ResourceListContextValue, ResourceListItemBase } from '../ResourceListContext'
 
+beforeAll(installDndDomStubs)
+
 afterEach(() => {
-  dndMocks.droppableData.clear()
-  dndMocks.onDragEnd = undefined
-  dndMocks.onDragOver = undefined
-  dndMocks.onDragStart = undefined
-  dndMocks.sortableData.clear()
   virtualMocks.scrollToIndex.mockClear()
   vi.useRealTimers()
 })
@@ -196,21 +120,8 @@ function Inspector() {
   )
 }
 
-function sortableData(id: string) {
-  const data = dndMocks.sortableData.get(id)
-  if (!data) {
-    throw new Error(`Expected sortable data for ${id}`)
-  }
-  return { current: data }
-}
-
-function droppableData(id: string) {
-  const data = dndMocks.droppableData.get(id)
-  if (!data) {
-    throw new Error(`Expected droppable data for ${id}`)
-  }
-  return { current: data }
-}
+// A draggable row wrapper carries the drag-and-drop accessibility attributes.
+const draggableRowOf = (element: Element) => element.closest('[aria-roledescription]')
 
 type SectionedItem = ResourceListItemBase & { group: string; section: string }
 
@@ -245,18 +156,9 @@ function renderSectionedGroupDrag(sectionOnly = false) {
   return onReorder
 }
 
-function previewGroupDrag(activeId: string, overId: string) {
-  const event = {
-    active: {
-      data: sortableData(activeId),
-      id: activeId,
-      rect: { current: { initial: { height: 32, width: 180 }, translated: null } }
-    },
-    over: { data: sortableData(overId), id: overId }
-  }
-  act(() => dndMocks.onDragStart?.(event))
-  act(() => dndMocks.onDragOver?.(event))
-  return event
+async function previewGroupDrag(activeId: string, overId: string, side: 'before' | 'after') {
+  await startRowDrag(activeId)
+  await hoverRow(overId, side)
 }
 
 describe('ResourceList', () => {
@@ -1067,7 +969,7 @@ describe('ResourceList', () => {
     }
   })
 
-  it('combines virtualization and drag reorder for large resource lists', () => {
+  it('combines virtualization and drag reorder for large resource lists', async () => {
     const onReorder = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
 
@@ -1085,10 +987,7 @@ describe('ResourceList', () => {
       </Provider>
     )
 
-    dndMocks.onDragEnd?.({
-      active: { data: sortableData('item:beta'), id: 'item:beta' },
-      over: { data: sortableData('item:alpha'), id: 'item:alpha' }
-    })
+    await dragRow({ source: 'item:beta', target: 'item:alpha', side: 'before' })
     expect(onReorder).toHaveBeenCalledWith(
       expect.objectContaining({
         activeId: 'beta',
@@ -1102,7 +1001,7 @@ describe('ResourceList', () => {
     )
   })
 
-  it('maps grouped virtual item and group drops through resource reorder payloads', () => {
+  it('maps grouped virtual item and group drops through resource reorder payloads', async () => {
     const onReorder = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
 
@@ -1124,10 +1023,7 @@ describe('ResourceList', () => {
       </Provider>
     )
 
-    dndMocks.onDragEnd?.({
-      active: { data: sortableData('item:beta'), id: 'item:beta' },
-      over: { data: sortableData('item:alpha'), id: 'item:alpha' }
-    })
+    await dragRow({ source: 'item:beta', target: 'item:alpha', side: 'before' })
     expect(onReorder).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
@@ -1142,10 +1038,7 @@ describe('ResourceList', () => {
       })
     )
 
-    dndMocks.onDragEnd?.({
-      active: { data: sortableData('item:alpha'), id: 'item:alpha' },
-      over: { data: sortableData('item:gamma'), id: 'item:gamma' }
-    })
+    await dragRow({ source: 'item:alpha', target: 'item:gamma', side: 'after' })
     expect(onReorder).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
@@ -1160,16 +1053,15 @@ describe('ResourceList', () => {
       })
     )
 
-    dndMocks.onDragEnd?.({
-      active: { data: sortableData('item:beta'), id: 'item:beta' },
-      over: { data: droppableData('group:topic'), id: 'group:topic' }
-    })
+    await dragRow({ source: 'item:beta', target: 'group:topic', side: 'before' })
+    // A drop on the header appends after the group's last item.
     expect(onReorder).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
         activeId: 'beta',
-        overId: 'topic',
-        overType: 'group',
+        overId: 'gamma',
+        overType: 'item',
+        position: 'after',
         sourceGroupId: 'session',
         sourceIndex: 1,
         targetGroupId: 'topic',
@@ -1179,7 +1071,61 @@ describe('ResourceList', () => {
     )
   })
 
-  it('allows section drops only when the group guards explicitly opt in', () => {
+  it('drags a group from its header buttons but not from a header action', async () => {
+    const Provider = ResourceList.Provider<TestItem>
+    render(
+      <Provider
+        items={ITEMS}
+        dragCapabilities={{ groups: true, items: false }}
+        canDragGroup={() => true}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        groupHeaderClickBehavior="select-first-then-toggle"
+        getGroupHeaderAction={() => <button type="button">New in group</button>}
+        onReorder={vi.fn()}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualDraggableItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+    await waitFor(() => expect(draggableRowOf(screen.getByText('session'))).not.toBeNull())
+    const header = draggableRowOf(screen.getByText('session'))!
+    const startsDrag = async (target: Element) => {
+      const dispatch = (node: Element | Document, type: string, clientY: number) =>
+        act(() => {
+          node.dispatchEvent(
+            new PointerEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              isPrimary: true,
+              button: 0,
+              pointerType: 'mouse',
+              clientX: 10,
+              clientY
+            })
+          )
+        })
+      dispatch(target, 'pointerdown', 10)
+      dispatch(document, 'pointermove', 40)
+      await act(() => new Promise((resolve) => setTimeout(resolve, 10)))
+      const dragging = header.hasAttribute('data-dragging')
+      dispatch(document, 'pointerup', 40)
+      await act(() => new Promise((resolve) => setTimeout(resolve, 10)))
+      return dragging
+    }
+
+    expect(await startsDrag(header.querySelector('[aria-current], button[data-dnd-row-control]')!)).toBe(true)
+    expect(await startsDrag(header.querySelector('button[aria-hidden="true"]')!)).toBe(true)
+    expect(await startsDrag(screen.getAllByRole('button', { name: 'New in group' })[0])).toBe(false)
+    expect(await startsDrag(header.querySelector('button[aria-expanded]')!)).toBe(false)
+  })
+
+  it('allows section drops only when the group guards explicitly opt in', async () => {
     const onReorder = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
 
@@ -1207,22 +1153,8 @@ describe('ResourceList', () => {
       </Provider>
     )
 
-    expect(dndMocks.sortableData.has('group:section:session')).toBe(true)
-    expect(dndMocks.sortableData.has('group:section:topic')).toBe(true)
-    expect(dndMocks.sortableData.has('group:inner:session')).toBe(false)
-
-    const dragEvent = {
-      active: {
-        data: sortableData('group:section:session'),
-        id: 'group:section:session',
-        rect: { current: { initial: { height: 32, width: 180 }, translated: null } }
-      },
-      over: { data: sortableData('group:section:topic'), id: 'group:section:topic' }
-    }
-    act(() => {
-      dndMocks.onDragStart?.(dragEvent)
-      dndMocks.onDragOver?.(dragEvent)
-    })
+    await expect(startRowDrag('group:inner:session')).rejects.toThrow('cannot be dragged')
+    await previewGroupDrag('group:section:session', 'group:section:topic', 'after')
 
     const targetGroupRow = screen
       .getByRole('button', { name: 'topic' })
@@ -1230,7 +1162,7 @@ describe('ResourceList', () => {
     expect(targetGroupRow?.querySelector('[data-drop-indicator="after"]')).toBeInTheDocument()
     expect(document.querySelectorAll('[data-drop-indicator]')).toHaveLength(1)
 
-    act(() => dndMocks.onDragEnd?.(dragEvent))
+    await dropRow()
 
     expect(onReorder).toHaveBeenCalledWith({
       type: 'group',
@@ -1242,32 +1174,29 @@ describe('ResourceList', () => {
     })
   })
 
-  it('shows an inner-group insertion preview with visible sections when moving downward', () => {
+  it('shows an inner-group insertion preview with visible sections when moving downward', async () => {
     const onReorder = renderSectionedGroupDrag()
-    const event = previewGroupDrag('group:inner:a', 'group:inner:b')
+    await previewGroupDrag('group:inner:a', 'group:inner:b', 'after')
 
     const indicators = document.querySelectorAll('[data-drop-indicator]')
     expect(indicators).toHaveLength(1)
     expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'after')
-    expect(indicators[0].parentElement).toBe(screen.getByText('Item B1').closest('[data-sortable-id="item:b1"]'))
-    for (const [label, id] of [
-      ['B', 'inner:b'],
-      ['C', 'inner:c']
-    ]) {
-      const header = screen.getByRole('button', { name: label }).closest(`[data-sortable-id="group:${id}"]`)
+    expect(indicators[0].parentElement).toContainElement(screen.getByRole('option', { name: 'Item B1' }))
+    for (const label of ['B', 'C']) {
+      const header = draggableRowOf(screen.getByText(label))
       expect(header).toBeInTheDocument()
       expect(header?.querySelector('[data-drop-indicator]')).not.toBeInTheDocument()
     }
     expect(
-      screen.getByText('Item C1').closest('[data-sortable-id]')?.querySelector('[data-drop-indicator]')
-    ).not.toBeInTheDocument()
+      screen.getByRole('option', { name: 'Item C1' }).parentElement?.querySelector('[data-drop-indicator]')
+    ).toBeNull()
     for (const label of ['X', 'Y']) {
       const header = screen.getByRole('button', { name: label }).closest('[data-drop-blocked="true"]')
       expect(header).toBeInTheDocument()
       expect(header?.querySelector('[data-drop-indicator]')).not.toBeInTheDocument()
     }
 
-    act(() => dndMocks.onDragEnd?.(event))
+    await dropRow()
     expect(onReorder).toHaveBeenCalledExactlyOnceWith({
       type: 'group',
       activeGroupId: 'inner:a',
@@ -1279,18 +1208,16 @@ describe('ResourceList', () => {
     expect(document.querySelectorAll('[data-drop-indicator]')).toHaveLength(0)
   })
 
-  it('shows an inner-group insertion preview with visible sections when moving upward', () => {
+  it('shows an inner-group insertion preview with visible sections when moving upward', async () => {
     const onReorder = renderSectionedGroupDrag()
-    const event = previewGroupDrag('group:inner:c', 'group:inner:b')
+    await previewGroupDrag('group:inner:c', 'group:inner:b', 'before')
 
     const indicators = document.querySelectorAll('[data-drop-indicator]')
     expect(indicators).toHaveLength(1)
     expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'before')
-    expect(indicators[0].parentElement).toBe(
-      screen.getByRole('button', { name: 'B' }).closest('[data-sortable-id="group:inner:b"]')
-    )
+    expect(indicators[0].parentElement).toBe(draggableRowOf(screen.getByText('B')))
 
-    act(() => dndMocks.onDragEnd?.(event))
+    await dropRow()
     expect(onReorder).toHaveBeenCalledExactlyOnceWith({
       type: 'group',
       activeGroupId: 'inner:c',
@@ -1302,27 +1229,25 @@ describe('ResourceList', () => {
     expect(document.querySelectorAll('[data-drop-indicator]')).toHaveLength(0)
   })
 
-  it('keeps opted-in section insertion previews on the whole section extent', () => {
+  it('keeps opted-in section insertion previews on the whole section extent', async () => {
     renderSectionedGroupDrag(true)
-    const downward = previewGroupDrag('group:section:x', 'group:section:y')
+    await previewGroupDrag('group:section:x', 'group:section:y', 'after')
     let indicators = document.querySelectorAll('[data-drop-indicator]')
     expect(indicators).toHaveLength(1)
     expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'after')
-    expect(indicators[0].parentElement).toBe(screen.getByText('Item D1').closest('[data-sortable-id="item:d1"]'))
-    act(() => dndMocks.onDragEnd?.(downward))
+    expect(indicators[0].parentElement).toContainElement(screen.getByRole('option', { name: 'Item D1' }))
+    await dropRow()
 
-    const upward = previewGroupDrag('group:section:y', 'group:section:x')
+    await previewGroupDrag('group:section:y', 'group:section:x', 'before')
     indicators = document.querySelectorAll('[data-drop-indicator]')
     expect(indicators).toHaveLength(1)
     expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'before')
-    expect(indicators[0].parentElement).toBe(
-      screen.getByRole('button', { name: 'X' }).closest('[data-sortable-id="group:section:x"]')
-    )
-    act(() => dndMocks.onDragEnd?.(upward))
+    expect(indicators[0].parentElement).toBe(draggableRowOf(screen.getByText('X')))
+    await dropRow()
     expect(document.querySelectorAll('[data-drop-indicator]')).toHaveLength(0)
   })
 
-  it('keeps grouped virtual items stable during drag over and reorders only on drop', () => {
+  it('keeps grouped virtual items stable during drag over and reorders only on drop', async () => {
     const onReorder = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
 
@@ -1345,20 +1270,15 @@ describe('ResourceList', () => {
       </Provider>
     )
 
-    dndMocks.onDragOver?.({
-      active: { data: sortableData('item:alpha'), id: 'item:alpha' },
-      over: { data: sortableData('item:gamma'), id: 'item:gamma' }
-    })
+    await startRowDrag('item:alpha')
+    await hoverRow('item:gamma', 'after')
 
     expect(onReorder).not.toHaveBeenCalled()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       names: ['Alpha', 'Beta', 'Gamma']
     })
 
-    dndMocks.onDragEnd?.({
-      active: { data: sortableData('item:alpha'), id: 'item:alpha' },
-      over: { data: sortableData('item:gamma'), id: 'item:gamma' }
-    })
+    await dropRow()
 
     expect(onReorder).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1372,7 +1292,7 @@ describe('ResourceList', () => {
     )
   })
 
-  it('maps group drops with hidden items to the last visible item insertion point', () => {
+  it('maps group drops with hidden items to the last visible item insertion point', async () => {
     const onReorder = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
     const items: TestItem[] = [
@@ -1400,14 +1320,7 @@ describe('ResourceList', () => {
       </Provider>
     )
 
-    dndMocks.onDragOver?.({
-      active: { data: sortableData('item:alpha'), id: 'item:alpha' },
-      over: { data: droppableData('group:topic'), id: 'group:topic' }
-    })
-    dndMocks.onDragEnd?.({
-      active: { data: sortableData('item:alpha'), id: 'item:alpha' },
-      over: { data: droppableData('group:topic'), id: 'group:topic' }
-    })
+    await dragRow({ source: 'item:alpha', target: 'group:topic', side: 'before' })
 
     expect(onReorder).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1421,7 +1334,7 @@ describe('ResourceList', () => {
     )
   })
 
-  it('does not reorder grouped virtual items when the resource drop guard rejects the drop', () => {
+  it('does not reorder grouped virtual items when the resource drop guard rejects the drop', async () => {
     const canDropItem = vi.fn(() => false)
     const onReorder = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
@@ -1445,10 +1358,7 @@ describe('ResourceList', () => {
       </Provider>
     )
 
-    dndMocks.onDragEnd?.({
-      active: { data: sortableData('item:alpha'), id: 'item:alpha' },
-      over: { data: sortableData('item:gamma'), id: 'item:gamma' }
-    })
+    await dragRow({ source: 'item:alpha', target: 'item:gamma', side: 'after' })
 
     expect(canDropItem).toHaveBeenCalledWith(
       expect.objectContaining({

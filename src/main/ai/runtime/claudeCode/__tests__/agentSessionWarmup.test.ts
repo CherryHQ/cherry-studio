@@ -1248,7 +1248,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
-  it('bypasses the materialized API gateway host without making the rebuild baseline stale', async () => {
+  it('bypasses the materialized API gateway host and removes IPv6 CIDR without making the rebuild baseline stale', async () => {
     const proxyUrl = 'http://remote-proxy.example:7890'
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
     mocks.getProviderByProviderId.mockReturnValue({
@@ -1257,8 +1257,13 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main' })
     mocks.internalGateway = { baseUrl: 'http://127.0.0.2:23333', apiKey: 'gateway-key' }
-    mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: proxyUrl })
-    mocks.buildSessionSettings.mockResolvedValue({ env: { HTTP_PROXY: proxyUrl } })
+    mocks.getProxyEnvironment.mockReturnValue({
+      HTTP_PROXY: proxyUrl,
+      NO_PROXY: 'fe80::/10,::ffff:127.0.0.0/104'
+    })
+    mocks.buildSessionSettings.mockResolvedValue({
+      env: { HTTP_PROXY: proxyUrl, NO_PROXY: 'fe80::/10,::ffff:127.0.0.0/104' }
+    })
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
     const current = await deriveConnectionConfig('session-1')
@@ -1266,8 +1271,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     if (!request || !current.ok) throw new Error('expected materialized request and current config')
     expect(request.settings.env).toMatchObject({
       ANTHROPIC_BASE_URL: 'http://127.0.0.2:23333',
-      NO_PROXY: 'localhost,127.0.0.1,::1,[::1],127.0.0.2',
-      no_proxy: 'localhost,127.0.0.1,::1,[::1],127.0.0.2'
+      NO_PROXY: 'localhost,127.0.0.1,::1,127.0.0.2',
+      no_proxy: 'localhost,127.0.0.1,::1,127.0.0.2'
     })
     expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
   })
@@ -1782,6 +1787,17 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['language'])
   })
 
+  it('picks up a lower task threshold on the next warm connection reconcile', async () => {
+    mocks.getSessionById.mockReturnValue({ ...sessionWithWorkspace, isTaskReuseTarget: true })
+    let percent = 80
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'chat.context_settings.compress.threshold_percent' ? percent : undefined
+    )
+    const initial = await deriveSignature()
+    percent = 60
+    expect((await deriveSignature()).rebuildSignature).not.toBe(initial.rebuildSignature)
+  })
+
   it('changes only the prompt username rebuild fact when the user name changes', async () => {
     mocks.preferenceGet.mockImplementation((key: string) => (key === 'app.user.name' ? 'Alice' : undefined))
     const alice = await deriveSignature()
@@ -1869,7 +1885,7 @@ describe('deriveConnectionConfig', () => {
 
     mocks.getProxyEnvironment.mockReturnValue({
       HTTP_PROXY: proxyUrl,
-      NO_PROXY: 'service.internal,localhost,127.0.0.1,::1,[::1]'
+      NO_PROXY: 'service.internal,localhost,127.0.0.1,::1'
     })
     const fromUppercase = await deriveSignature()
 
@@ -1921,7 +1937,7 @@ describe('deriveConnectionConfig', () => {
       configuration: {
         env_vars: {
           HTTP_PROXY: proxyUrl,
-          NO_PROXY: 'service.internal,localhost,127.0.0.1,::1,[::1]'
+          NO_PROXY: 'service.internal,localhost,127.0.0.1,::1'
         }
       }
     })

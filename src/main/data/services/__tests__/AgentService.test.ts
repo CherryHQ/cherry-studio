@@ -311,7 +311,8 @@ describe('AgentService', () => {
       expect(customModel?.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high'] }])
       expect(customModel?.requestControls?.serviceTier).toEqual({
         default: 'standard',
-        options: ['standard', 'auto', 'fast', 'flex']
+        options: ['standard', 'auto', 'fast', 'flex'],
+        values: { standard: 'on_demand', auto: 'auto', fast: 'performance', flex: 'flex' }
       })
       expect(agentService.getAgent('startup-preset-agent')?.configuration?.reasoning_effort).toBe('high')
       expect(agentService.getAgent('startup-custom-agent')?.configuration?.reasoning_effort).toBe('low')

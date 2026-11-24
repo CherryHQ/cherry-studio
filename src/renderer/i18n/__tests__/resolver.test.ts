@@ -1,6 +1,8 @@
+import dayjs from 'dayjs'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import i18n, { initI18n } from '@renderer/i18n/resolver'
+import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
+import i18n, { initI18n, setDayjsLocale } from '@renderer/i18n/resolver'
 import { DOCTOR_CHECK_CATALOG, DOCTOR_CHECK_IDS } from '@shared/types/doctor'
 import { doctorCheckDetailKey, doctorCheckTitleKey } from '@shared/utils/doctor'
 
@@ -42,6 +44,24 @@ describe('renderer i18n lazy init', () => {
 
     expect(i18n.hasResourceBundle('it-IT', 'translation')).toBe(true)
     expect(i18n.t('common.copy')).toBe('Copia')
+  })
+
+  it('offers Korean and loads Korean text when selected', async () => {
+    expect(appLanguageOptions.find((option) => option.value === 'ko-KR')?.label).toBe('한국어')
+    expect(isAppLanguage('ko-KR')).toBe(true)
+    await i18n.changeLanguage('ko-KR')
+
+    expect(i18n.t('common.copy')).toBe('복사')
+  })
+
+  it('formats dates in Korean after switching the date locale', () => {
+    const originalLocale = dayjs.locale()
+    try {
+      setDayjsLocale('ko-KR')
+      expect(dayjs('2026-11-18').format('MMMM dddd')).toBe('11월 수요일')
+    } finally {
+      dayjs.locale(originalLocale)
+    }
   })
 
   it('lazy-loads the Turkish pack when switching language', async () => {

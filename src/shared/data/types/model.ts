@@ -420,7 +420,9 @@ export const ModelSchema = z.object({
       serviceTier: z
         .object({
           default: ServiceTierSelectionSchema,
-          options: z.array(ServiceTierSelectionSchema).min(1)
+          options: z.array(ServiceTierSelectionSchema).min(1),
+          /** Registry provider term per tier, for the UI's secondary detail line only — never a wire value. */
+          values: z.partialRecord(ServiceTierSelectionSchema, z.string().min(1)).optional()
         })
         .refine((control) => control.options.includes(control.default), {
           message: 'service tier default must be one of its options',
