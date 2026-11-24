@@ -162,6 +162,9 @@ export class AppUpdaterService extends BaseService {
   private retirements = 0
   // electron-updater installs whatever it cached last, so installation names the version it confirmed.
   private downloadedVersion: string | null = null
+  // Native install failures are dispatched synchronously and belong to the install attempt, not a check.
+  private installFailure: Error | null = null
+  private installing = false
   // Queued or running checks plus unsettled downloads; the read-only query must not add a feed request.
   private updaterActivity = 0
   // electron-updater returns its in-flight check promise. The next check waits
@@ -341,6 +344,10 @@ export class AppUpdaterService extends BaseService {
 
   private registerAutoUpdaterListeners(): void {
     const onError = (error: Error) => {
+      if (this.installing) {
+        this.installFailure = error
+        return
+      }
       if (this.listeningGeneration === 0 || this.listeningGeneration !== this.checkGeneration) return
       if (!this.acceptedRelease) this.failedGeneration = this.checkGeneration
       logFailure(logger, 'update error', error, 'update.run', classifyUpdateFailure(error))
@@ -350,6 +357,8 @@ export class AppUpdaterService extends BaseService {
     this.registerDisposable(() => autoUpdater.removeListener('error', onError))
 
     const onUpdateAvailable = (releaseInfo: UpdateInfo) => {
+      // The download that follows repoints electron-updater's installer before `update-downloaded`.
+      if (releaseInfo.version !== this.downloadedVersion) this.downloadedVersion = null
       if (this.listeningGeneration === 0 || this.listeningGeneration !== this.checkGeneration) return
       if (!this.acceptedRelease) {
         this.stagedAvailable = releaseInfo
@@ -700,13 +709,28 @@ export class AppUpdaterService extends BaseService {
     return Math.round(CHECK_INTERVAL_MS * (1 + (Math.random() * 2 - 1) * CHECK_JITTER_RATIO))
   }
 
-  /** @param version the release the install confirmation showed */
-  public quitAndInstall(version: string) {
+  /**
+   * @param version the release the install confirmation showed
+   * @throws IpcError when that release is no longer the downloaded one, or the native installer fails
+   */
+  public async quitAndInstall(version: string): Promise<void> {
     if (version !== this.downloadedVersion) {
       throw new IpcError(IpcErrorCode.VALIDATION_FAILED, 'The confirmed update is no longer the downloaded one')
     }
     application.markQuitting()
-    setImmediate(() => autoUpdater.quitAndInstall(true, true))
+    await new Promise((resolve) => setImmediate(resolve))
+    this.installFailure = null
+    this.installing = true
+    try {
+      autoUpdater.quitAndInstall(true, true)
+    } finally {
+      this.installing = false
+    }
+    const failure = this.installFailure as Error | null
+    if (failure) {
+      logFailure(logger, 'update install failed', failure, 'update.install', classifyUpdateFailure(failure))
+      throw new IpcError(IpcErrorCode.INTERNAL, 'The downloaded update could not be installed')
+    }
   }
 
   /**
