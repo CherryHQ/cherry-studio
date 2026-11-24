@@ -112,11 +112,16 @@ export default defineProvider({
     },
     {
       apiModelId: 'deepseek-v4-flash',
+      pricing: v4FlashPeakPricing,
       endpointTypes: ['openai-responses', 'openai-chat-completions'],
       reasoningContracts: {
         'openai-chat-completions': { wire: v4ChatEffortWire },
         'openai-responses': { wire: v4ResponsesEffortWire }
       }
+    },
+    {
+      apiModelId: 'deepseek-v4-flash-vision-exp',
+      pricing: v4FlashPeakPricing
     },
     {
       apiModelId: 'deepseek-v4-pro',

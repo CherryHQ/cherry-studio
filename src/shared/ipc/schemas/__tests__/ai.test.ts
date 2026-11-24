@@ -64,6 +64,18 @@ describe('ai.stream.open IPC schema', () => {
     ).toMatchObject({ targetMode: 'reserved-branch' })
   })
 
+  // Zod drops unknown keys, so a missing field would silently turn a follow-up back into a steer.
+  it('preserves the agent follow-up intent at the renderer-to-main boundary', () => {
+    expect(
+      openStream.parse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [{ type: 'text', text: 'after this' }],
+        followUp: true
+      })
+    ).toMatchObject({ followUp: true })
+  })
+
   it('rejects an unknown target mode', () => {
     expect(
       openStream.safeParse({

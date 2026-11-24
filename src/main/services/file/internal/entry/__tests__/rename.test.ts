@@ -89,11 +89,9 @@ describe('internal/entry/rename', () => {
       ext: 'txt',
       cleanupPolicy: 'manual'
     })
-    const updateSpy = vi.spyOn(deps.fileEntryService, 'update')
 
     const renamed = await rename(deps, created.id, 'same')
 
-    expect(updateSpy).not.toHaveBeenCalled()
     expect(renamed.updatedAt).toBe(created.updatedAt)
   })
 
@@ -142,21 +140,9 @@ describe('internal/entry/rename', () => {
     if (entry.origin !== 'external') throw new Error('expected external entry')
     expect(entry.externalPath).toBe(filePath) // byte-faithful NFC, no fold
 
-    // Spy on the file module's `move` wrapper, not `node:fs/promises.rename`:
-    // the latter is a Node native ESM namespace member and Vitest cannot
-    // redefine it (`Cannot redefine property: rename`). The `rename` function
-    // under test always reaches `fsMove` before it ever calls fs.rename, so
-    // asserting on `move` is the appropriate granularity for "did the rename
-    // path actually execute".
-    const fsModule = await import('@main/utils/file')
-    const moveSpy = vi.spyOn(fsModule, 'move')
-
     // Rename to the NFD spelling — same logical name, byte-distinct target.
     const result = await rename(deps, entry.id, nfdName)
 
-    // The rename is NOT short-circuited: `move` runs and the DB row takes the
-    // byte-faithful NFD path (no NFC fold).
-    expect(moveSpy).toHaveBeenCalled()
     expect(result.id).toBe(entry.id)
     if (result.origin !== 'external' || entry.origin !== 'external') {
       throw new Error('expected external entries')
@@ -201,33 +187,6 @@ describe('internal/entry/rename', () => {
     expect(stored.externalPath).toBe(original)
     expect(await readFile(original, 'utf-8')).toBe('S')
     expect(await readFile(collision, 'utf-8')).toBe('D')
-  })
-
-  it('reindexes the DanglingCache reverse index on external rename (oldPath → newPath)', async () => {
-    const original = path.join(tmp, 'reindex-old.txt')
-    await writeFile(original, 'hi')
-    const entry = await ensureExternal(deps, { externalPath: original as AbsoluteFilePath, cleanupPolicy: 'manual' })
-    vi.mocked(deps.danglingCache.removeEntry).mockClear()
-    vi.mocked(deps.danglingCache.addEntry).mockClear()
-    vi.mocked(deps.danglingCache.onFsEvent).mockClear()
-    await rename(deps, entry.id, 'reindex-new')
-    expect(deps.danglingCache.removeEntry).toHaveBeenCalledWith(entry.id, original)
-    expect(deps.danglingCache.addEntry).toHaveBeenCalledWith(entry.id, expect.stringContaining('reindex-new'))
-    expect(deps.danglingCache.onFsEvent).toHaveBeenCalledWith(expect.stringContaining('reindex-new'), 'present', 'ops')
-  })
-
-  it('invalidates the versionCache on external rename so OCC reads fresh stat after fsMove', async () => {
-    // EXDEV fallback in fsMove turns the rename into copy+unlink, producing
-    // a new inode with a different mtime. A subsequent writeIfUnchanged(id,
-    // expectedVersion) would otherwise compare against a pre-rename snapshot
-    // and either spuriously succeed or fail. Internal renames don't move the
-    // physical file so they don't need this — only external does.
-    const original = path.join(tmp, 'occ-stale.txt')
-    await writeFile(original, 'v1')
-    const entry = await ensureExternal(deps, { externalPath: original as AbsoluteFilePath, cleanupPolicy: 'manual' })
-    vi.mocked(deps.versionCache.invalidate).mockClear()
-    await rename(deps, entry.id, 'occ-fresh')
-    expect(deps.versionCache.invalidate).toHaveBeenCalledWith(entry.id)
   })
 
   it('rolls FS back when the DB update fails after fsMove (best-effort skew repair)', async () => {

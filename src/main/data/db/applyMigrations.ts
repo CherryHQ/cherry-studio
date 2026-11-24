@@ -53,6 +53,6 @@ export function applyMigrations(db: DbType, migrationsFolder: string): void {
 }
 
 function isForeignKeysEnforced(db: DbType): boolean {
-  const rows = db.all(sql.raw('PRAGMA foreign_keys')) as Array<{ foreign_keys?: number }>
+  const rows = db.all<{ foreign_keys?: number }>(sql.raw('PRAGMA foreign_keys'))
   return Number(rows[0]?.foreign_keys ?? 0) === 1
 }

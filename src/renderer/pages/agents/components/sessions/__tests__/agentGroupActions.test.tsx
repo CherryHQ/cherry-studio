@@ -21,6 +21,7 @@ describe('Agent group archive actions', () => {
       sidebarPinned: false,
       t: ((key: string) => key) as TFunction
     }
+    expect(resolveAgentGroupActions(context).some((action) => action.id === 'agent-group.import-deepseek')).toBe(false)
     expect(
       resolveAgentGroupActions(context)
         .filter((action) => action.group === 'danger')

@@ -1,16 +1,16 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
 import { fileTypeFromBuffer } from 'file-type'
 
-import { application } from '@application'
-import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import type { FeishuDomain } from '@shared/data/types/channel'
+import type { ChannelQrStatus } from '@shared/ipc/schemas/channel'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 
 import {
   ChannelAdapter,
   type ChannelAdapterConfig,
+  type ChannelQrLoginEvent,
   type ChannelStreamErrorOptions,
   type SendMessageOptions
 } from '../../ChannelAdapter'
@@ -158,6 +158,7 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   private channel: Lark.LarkChannel | null = null
+  private readonly channelSubscriptions = new Map<Lark.LarkChannel, () => void>()
   private appId: string
   private appSecret: string
   private readonly encryptKey: string
@@ -169,6 +170,16 @@ class FeishuAdapter extends ChannelAdapter {
   private readonly chatReactions = new Map<string, ChatReaction>()
   private readonly lastDropNotificationAt = new Map<string, number>()
   private static readonly DROP_NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000
+  // Initial-connect retry (offline-at-startup). Mirrors TelegramAdapter's backoff convention
+  // (Slack/Discord/QQ use the same shape). Unlike Telegram, Feishu's handshake *rejects* on
+  // failure before markConnected, so resetting the budget on a successful connect is safe:
+  // a persistent failure never reaches the reset and drains to the cap.
+  private shouldStop = false
+  private reconnectAttempts = 0
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private connectSignal: AbortSignal | null = null
+  private readonly reconnectDelays = [1000, 2000, 5000, 10000, 30000, 60000]
+  private readonly maxReconnectAttempts = 50
 
   constructor(config: ChannelAdapterConfig<'feishu'>) {
     super(config)
@@ -189,11 +200,19 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   protected override async performConnect(signal: AbortSignal): Promise<void> {
+    this.shouldStop = false
+    this.reconnectAttempts = 0
+    this.connectSignal = signal
+
     if (!this.appId || !this.appSecret) {
       this.startRegistrationInBackground(signal)
       return
     }
 
+    await this.startChannel(signal)
+  }
+
+  private async startChannel(signal: AbortSignal): Promise<void> {
     const sdkLogger: Lark.Logger = {
       error: (...args) => this.log.error('Feishu SDK error', { detail: args.map(String).join(' ') }),
       warn: (...args) => this.log.warn('Feishu SDK warning', { detail: args.map(String).join(' ') }),
@@ -228,9 +247,12 @@ class FeishuAdapter extends ChannelAdapter {
     })
     this.channel = channel
 
-    channel.on({
+    let active = true
+    const isCurrent = () => active && this.channel === channel && !signal.aborted && !this.shouldStop
+    const unsubscribe = channel.on({
       message: (message) => {
-        void this.handleMessage(message).catch((error) => {
+        if (!isCurrent()) return
+        void this.handleMessage(message, isCurrent).catch((error) => {
           this.log.error('Failed to handle Feishu message', {
             chatId: message.chatId,
             messageId: message.messageId,
@@ -239,50 +261,99 @@ class FeishuAdapter extends ChannelAdapter {
         })
       },
       reconnecting: () => {
+        if (!isCurrent()) return
         this.log.warn('Feishu WebSocket reconnecting')
       },
       reconnected: () => {
+        if (!isCurrent()) return
         this.markConnected()
         this.log.info('Feishu WebSocket reconnected')
       },
       reject: (event) => {
+        if (!isCurrent()) return
         this.log.warn('Feishu message rejected', { chatId: event.chatId, reason: event.reason })
         if (event.reason === 'no_mention' || event.reason === 'mention_all_blocked') return
         this.notifyDrop(event.chatId)
       },
       error: (error) => {
+        if (!isCurrent()) return
         this.log.error('Feishu channel error', { error: error.message, code: error.code })
       }
+    })
+
+    this.channelSubscriptions.set(channel, () => {
+      active = false
+      unsubscribe()
     })
 
     try {
       await channel.connect()
     } catch (error) {
+      const wasCurrent = this.channel === channel
+      if (wasCurrent) this.channel = null
       await this.disconnectChannel(channel)
-      if (signal.aborted || this.channel !== channel) return
-      this.channel = null
-      throw new Error(`Feishu WebSocket connection failed: ${error instanceof Error ? error.message : String(error)}`)
+      if (signal.aborted || this.shouldStop || !wasCurrent || this.channel) return
+      const message = `Feishu WebSocket connection failed: ${error instanceof Error ? error.message : String(error)}`
+      this.log.error(message)
+      this.markDisconnected(message)
+      this.scheduleReconnect()
+      return
     }
 
-    if (signal.aborted || this.channel !== channel) {
+    if (signal.aborted || this.shouldStop || this.channel !== channel) {
       await this.disconnectChannel(channel)
       return
     }
 
+    this.reconnectAttempts = 0
     this.markConnected()
     this.log.info('Feishu bot connected (WebSocket)')
   }
 
+  private scheduleReconnect(): void {
+    const signal = this.connectSignal
+    if (this.shouldStop || this.reconnectTimer || !signal || signal.aborted) return
+
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.log.error('Feishu max reconnect attempts reached, giving up')
+      return
+    }
+
+    const delay = this.reconnectDelays[Math.min(this.reconnectAttempts, this.reconnectDelays.length - 1)]
+    this.reconnectAttempts++
+    this.log.info(`Feishu reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      const retrySignal = this.connectSignal
+      if (this.shouldStop || !retrySignal || retrySignal.aborted) return
+      void this.startChannel(retrySignal).catch((error) => {
+        const msg = error instanceof Error ? error.message : String(error)
+        this.markDisconnected(msg)
+        this.log.error(`Feishu reconnect failed: ${msg}`)
+        this.scheduleReconnect()
+      })
+    }, delay)
+    this.reconnectTimer.unref?.()
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+  }
+
   private startRegistrationInBackground(signal: AbortSignal): void {
     this.log.info('Starting Feishu app registration flow (background)', { domain: this.domain })
-    this.sendQrToRenderer('', 'pending')
+    this.emitQrLogin('', 'pending')
 
     registrationBegin(this.domain)
       .then(({ deviceCode, verificationUri, interval, expiresIn }) => {
         if (signal.aborted) return
         this.pendingQrLogin = { url: verificationUri, expiresAt: Date.now() + expiresIn * 1000 }
         this.emit('qr', verificationUri)
-        this.sendQrToRenderer(verificationUri, 'pending')
+        this.emitQrLogin(verificationUri, 'pending')
         return registrationPoll(this.domain, deviceCode, { interval, expiresIn, signal })
       })
       .then((result) => {
@@ -290,34 +361,29 @@ class FeishuAdapter extends ChannelAdapter {
         this.appId = result.appId
         this.appSecret = result.appSecret
         this.emit('credentials', { appId: result.appId, appSecret: result.appSecret })
-        this.sendQrToRenderer('', 'confirmed', result.appId, result.appSecret)
+        this.emitQrLogin('', 'confirmed', result.appId, result.appSecret)
         this.log.info('Feishu app registration completed')
       })
       .catch((error) => {
         if (signal.aborted) return
         const errorMessage = error instanceof Error ? error.message : String(error)
-        this.sendQrToRenderer('', /expired|timed out/i.test(errorMessage) ? 'expired' : 'error')
+        this.emitQrLogin('', /expired|timed out/i.test(errorMessage) ? 'expired' : 'error')
         this.log.warn(`Registration failed: ${errorMessage}`)
       })
   }
 
-  private sendQrToRenderer(
-    url: string,
-    status: 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error',
-    appId?: string,
-    appSecret?: string
-  ): void {
+  private emitQrLogin(url: string, status: ChannelQrStatus, appId?: string, appSecret?: string): void {
     if (status !== 'pending' || !url) this.pendingQrLogin = null
-    application.get('IpcApiService').broadcastToType(WindowType.Main, 'channel.feishu.qr_login', {
-      channelId: this.channelId,
-      url,
-      status,
-      appId,
-      appSecret
-    })
+    this.emit('qrLogin', {
+      type: 'feishu',
+      data: { channelId: this.channelId, url, status, appId, appSecret }
+    } satisfies ChannelQrLoginEvent)
   }
 
   protected override async performDisconnect(): Promise<void> {
+    this.shouldStop = true
+    this.clearReconnectTimer()
+
     for (const stream of this.streams.values()) stream.dispose()
     this.streams.clear()
     this.chatReactions.clear()
@@ -327,7 +393,7 @@ class FeishuAdapter extends ChannelAdapter {
     if (channel) {
       await this.disconnectChannel(channel)
     }
-    this.sendQrToRenderer('', 'disconnected')
+    this.emitQrLogin('', 'disconnected')
     this.log.info('Feishu bot stopped')
   }
 
@@ -473,7 +539,8 @@ class FeishuAdapter extends ChannelAdapter {
     return true
   }
 
-  private async handleMessage(message: Lark.NormalizedMessage): Promise<void> {
+  private async handleMessage(message: Lark.NormalizedMessage, isCurrent: () => boolean): Promise<void> {
+    if (!isCurrent()) return
     if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(message.chatId)) {
       this.log.warn('Dropping message from unauthorized chat', { chatId: message.chatId })
       this.notifyDrop(message.chatId)
@@ -498,6 +565,7 @@ class FeishuAdapter extends ChannelAdapter {
     }
 
     const { images, files } = await this.downloadResources(message)
+    if (!isCurrent()) return
     if (!text && images.length === 0 && files.length === 0) {
       this.log.warn('Dropping message with no text and no resources', { chatId: message.chatId })
       return
@@ -601,8 +669,10 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   private async disconnectChannel(channel: Lark.LarkChannel): Promise<void> {
-    await channel.disconnect().catch(() => undefined)
+    this.channelSubscriptions.get(channel)?.()
+    this.channelSubscriptions.delete(channel)
     channel.rawWsClient?.close({ force: true })
+    await channel.disconnect().catch(() => undefined)
   }
 }
 

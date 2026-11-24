@@ -17,4 +17,8 @@ export class ExaProvider extends RemoteWebSearchProvider {
   ): Promise<WebSearchResponse> {
     return this.executeRemote('searchKeywords', input, config, httpOptions)
   }
+
+  fetchUrls(input: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+    return this.executeRemote('fetchUrls', input, config, httpOptions)
+  }
 }

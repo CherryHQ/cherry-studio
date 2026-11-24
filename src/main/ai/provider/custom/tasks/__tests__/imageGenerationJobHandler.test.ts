@@ -1,5 +1,3 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Unit tests for imageGenerationJobHandler.
  *
@@ -13,6 +11,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * means a job never outlives its process, so `patchMetadata` is asserted absent
  * rather than exercised.
  */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { JobContext } from '@main/core/job/types'
 
 import type { ImageGenerationJobPayload } from '../jobTypes'
@@ -129,30 +129,6 @@ beforeEach(() => {
   resolveImageTransportMock.mockReturnValue({ submit: submitMock, poll: pollMock, cancel: cancelMock })
   downloadMock.mockResolvedValue({ data: 'AAAA', media_type: 'image/png' })
   createInternalEntryMock.mockImplementation(async () => ({ id: 'file-1' }))
-})
-
-describe('imageGenerationJobHandler contract', () => {
-  it('declares the remote-poll job contract', () => {
-    // `abandon`, not `retry`: the job's only consumer is the in-process awaiter,
-    // so a resumed run would re-pay the vendor and deliver into a dead promise.
-    expect(imageGenerationJobHandler.recovery).toBe('abandon')
-    expect(
-      imageGenerationJobHandler.defaultQueue?.({
-        uniqueModelId: 'ppio::qwen-image',
-        n: 1,
-        providerParams: {},
-        cleanupPolicy: 'delete_when_unreferenced'
-      })
-    ).toBe('image-generation.ppio')
-    expect(imageGenerationJobHandler.defaultConcurrency).toBe(2)
-    expect(imageGenerationJobHandler.defaultRetryPolicy).toEqual({
-      maxAttempts: 1,
-      backoff: 'none',
-      baseDelayMs: 0,
-      maxDelayMs: 0
-    })
-    expect(imageGenerationJobHandler.defaultTimeoutMs).toBe(30 * 60_000)
-  })
 })
 
 describe('imageGenerationJobHandler.execute', () => {

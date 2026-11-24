@@ -3,12 +3,11 @@ import type {
   BuiltinOcrProviderId,
   OcrOvProvider,
   OcrPpocrProvider,
-  OcrProviderCapability,
   OcrSystemProvider,
   OcrTesseractProvider,
   TesseractLangCode
 } from '@renderer/types/ocr'
-import { isMac, isWin } from '@renderer/utils/platform'
+import { isWin } from '@renderer/utils/platform'
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
 const tesseract: OcrTesseractProvider = {
@@ -70,10 +69,6 @@ export const BUILTIN_OCR_PROVIDERS_MAP = {
 } as const satisfies Record<BuiltinOcrProviderId, BuiltinOcrProvider>
 
 export const BUILTIN_OCR_PROVIDERS: BuiltinOcrProvider[] = Object.values(BUILTIN_OCR_PROVIDERS_MAP)
-
-export const DEFAULT_OCR_PROVIDER = {
-  image: isWin || isMac ? systemOcr : tesseract
-} as const satisfies Record<OcrProviderCapability, BuiltinOcrProvider>
 
 export const TESSERACT_LANG_MAP: Partial<Record<string, TesseractLangCode>> = {
   'af-za': 'afr',

@@ -5,6 +5,7 @@ import type { ConversationView, EntryRecord, LiveState, SubmissionRecord } from 
 
 import { subagentResults, type HistoryEntry, type SubagentResults } from '@cherrystudio/agent-behavior'
 import {
+  projectNestedTool,
   runtimeId,
   ThreadFeed,
   type InputId,
@@ -12,6 +13,7 @@ import {
   type Observation,
   type ObservationPayload,
   type OperationResult,
+  type RuntimeMessage,
   type Thread
 } from '@cherrystudio/agent-runtime'
 
@@ -40,6 +42,7 @@ export class DurableProjection {
   private readonly cycle = new Set<string>()
   private completion?: DurableObservation['completion']
   private history: readonly HistoryEntry[] = []
+  private committed?: { readonly entries: readonly EntryRecord[]; readonly content: ContentProjection }
   private backgroundResults: DurableObservation['backgroundResults'] = {
     status: 'confirmed',
     value: { active: false, pending: [], notification: [] }
@@ -67,21 +70,34 @@ export class DurableProjection {
 
   observe(sink: (batch: DurableObservation) => void | Promise<void>): Observation {
     const active = this.preview?.id
+    const snapshot = this.feed.snapshot
+    const pending = snapshot.inputs.findLast((input) => !input.outcome && input.facts.includes('placed'))
+    const anchors = pending?.inputId
+      ? snapshot.messages.flatMap((message, index) =>
+          message.role === 'user' && message.metadata?.inputId === pending.inputId ? [index] : []
+        )
+      : []
+    const boundary = anchors.length === 1 ? anchors[0] : Infinity
+    const baseline = new Set(
+      snapshot.messages
+        .filter((message, index) => message.id === active || (index > boundary && message.role === 'assistant'))
+        .map((message) => message.id)
+    )
     const historical = new Set(
-      this.feed.snapshot.messages.filter((message) => message.id !== active).map((message) => message.id)
+      snapshot.messages.filter((message) => !baseline.has(message.id)).map((message) => message.id)
     )
     return this.feed.observeCaptured(sink, (event, delivery) => {
       for (const [committed, preview] of Object.entries(this.aliases))
         if (historical.has(preview)) historical.add(committed)
       const messages =
         event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
-      const completion = delivery === 'baseline' || event.type !== 'snapshot' ? undefined : this.completion
+      const completion = delivery === 'baseline' ? undefined : this.completion
       return {
         value: {
           events: [event],
           aliases: this.aliases,
           live: messages
-            .filter((message) => (delivery === 'baseline' ? message.id === active : !historical.has(message.id)))
+            .filter((message) => (delivery === 'baseline' ? baseline.has(message.id) : !historical.has(message.id)))
             .map((message) => message.id),
           completion,
           backgroundResults: this.backgroundResults
@@ -93,7 +109,7 @@ export class DurableProjection {
 
   input(input: InputState): void {
     if (!this.view) return
-    const known = this.feed.snapshot.inputs.find((value) => value.inputId && value.inputId === input.inputId)
+    const known = this.feed.state.inputs.find((value) => value.inputId && value.inputId === input.inputId)
     if (known && !input.nativeInput && (known.nativeInput || known.outcome)) return
     this.update(this.view, this.revision, [input])
   }
@@ -113,7 +129,8 @@ export class DurableProjection {
     this.view = view
     this.revision = revision
     this.history = history
-    let inputs = this.feed.snapshot.inputs
+    const previousState = this.feed.state
+    let inputs = previousState.inputs
     changed = changed.filter((input) => !inputs.some((known) => isDeepStrictEqual(known, input)))
     for (const input of changed) {
       inputs = [
@@ -131,8 +148,7 @@ export class DurableProjection {
         this.cycle.add(input.nativeInput?.id ?? input.inputId!)
     const unfinished = inputs.some((input) => !input.outcome && !input.facts.includes('locally-handled'))
     const live = view.docs['pi.live'] as LiveState | undefined
-    const content = new ContentProjection()
-    for (const entry of view.entries) content.entry(entry)
+    const content = this.committedContent(view.entries).fork()
     const after = view.entries.reduce((latest, entry) => Math.max(latest, entry.id), 0)
     const generation = live?.generation
     const previous = this.preview
@@ -153,7 +169,24 @@ export class DurableProjection {
         content.progress(slot.callId, slot.output)
       }
     }
+    for (const slot of live?.tools ?? [])
+      for (const record of slot.nestedCalls?.calls ?? []) content.nested(slot.callId, projectNestedTool(record))
+    for (const slot of live?.nestedTools ?? []) {
+      if (slot.summary) continue
+      const part = {
+        type: 'dynamic-tool' as const,
+        toolName: slot.name,
+        toolCallId: slot.callId,
+        state: 'input-available' as const,
+        input: slot.arguments,
+        callProviderMetadata: { pi: { parentToolCallId: slot.parentCallId, nested: true } }
+      }
+      content.nested(slot.parentCallId, part)
+      if (slot.output !== undefined) content.progress(slot.callId, slot.output)
+      for (const child of slot.nestedCalls?.calls ?? []) content.nested(slot.callId, projectNestedTool(child))
+    }
     const pending = Boolean(this.admitting.size || live?.run || live?.compactions?.length || unfinished)
+    const previousResults = this.backgroundResults
     const results = subagentResults(history, Boolean(live?.run))
     this.backgroundResults = results
       ? { status: 'confirmed', value: results }
@@ -165,14 +198,14 @@ export class DurableProjection {
             message: 'A Durable background result has no recorded triggering call'
           }
         }
-    this.completion =
+    const completion =
       !pending && (this.pending || this.cycle.size > 0) && revision !== undefined
         ? {
             inputs: inputs.filter((input) => this.cycle.has(input.nativeInput?.id ?? input.inputId!)),
             entryId: view.entries.at(-1)?.id.toString()
           }
         : undefined
-    if (this.completion) this.cycle.clear()
+    if (completion) this.cycle.clear()
     this.pending = pending
     let reset = false
     if (previous && previous !== preview) {
@@ -189,15 +222,86 @@ export class DurableProjection {
     }
     if (reset) this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
     this.preview = preview
-    this.feed.publish({
-      ...this.feed.snapshot,
-      messages: content.messages,
-      inputs,
-      activity: { state: live?.run ? 'active' : 'idle' }
+    const activity = { state: live?.run ? ('active' as const) : ('idle' as const) }
+    // A run start sends a snapshot so observers see its inputs and activity in one frame; so do the first
+    // publication and a reset. Other updates carry only changes.
+    const messages =
+      reset ||
+      (previousState.activity.state !== 'active' && activity.state === 'active') ||
+      previousState.activity.state === 'unknown'
+        ? undefined
+        : messageChanges(this.ref, this.feed.snapshot.messages, content.messages, this.aliases)
+    const events: ObservationPayload[] = [
+      ...(messages ?? [{ ...previousState, messages: content.messages, inputs, activity }]),
+      ...changed.map((input) => ({ type: 'input.changed' as const, input }))
+    ]
+    if (
+      messages &&
+      (previousState.activity.state !== activity.state ||
+        (!events.length && (completion || !isDeepStrictEqual(previousResults, this.backgroundResults))))
+    )
+      events.push({ type: 'activity.changed', activity })
+    // Completion rides the first frame after which an observer holds the whole update.
+    const carrier = messages ? events.length - 1 : 0
+    events.forEach((event, index) => {
+      this.completion = index === carrier ? completion : undefined
+      this.feed.publish(event)
     })
     this.completion = undefined
-    for (const input of changed) this.feed.publish({ type: 'input.changed', input })
   }
+
+  /** Native views append the same entry records; project only appended entries and share the rest. */
+  private committedContent(entries: readonly EntryRecord[]): ContentProjection {
+    const previous = this.committed
+    const extended =
+      previous !== undefined &&
+      previous.entries.length <= entries.length &&
+      previous.entries.every((entry, index) => entries[index] === entry)
+    const content = extended ? previous.content : new ContentProjection()
+    for (const entry of entries.slice(extended ? previous.entries.length : 0)) content.entry(entry)
+    content.seal()
+    this.committed = { entries, content }
+    return content
+  }
+}
+
+/**
+ * Upserts and removals that turn `previous` into `next` under feed semantics: a new message appends unless it replaces
+ * the preview it was committed from. Returns undefined when the order cannot follow, so the caller sends a snapshot.
+ */
+function messageChanges(
+  session: Thread,
+  previous: readonly RuntimeMessage[],
+  next: readonly RuntimeMessage[],
+  aliases: Readonly<Record<string, string>>
+): ObservationPayload[] | undefined {
+  const before = new Map(previous.map((message) => [message.id, message]))
+  const after = new Set(next.map((message) => message.id))
+  const replaced = new Map<string, string>()
+  for (const message of next) {
+    const preview = aliases[message.id]
+    if (!before.has(message.id) && preview && before.has(preview) && !after.has(preview))
+      replaced.set(message.id, preview)
+  }
+  const consumed = new Set(replaced.values())
+  const removed = previous.filter((message) => !after.has(message.id) && !consumed.has(message.id))
+  const events: ObservationPayload[] = removed.map((message) => ({
+    type: 'message.remove',
+    ref: { session, id: runtimeId(message.id) }
+  }))
+  let order = previous.flatMap((message) => (after.has(message.id) || consumed.has(message.id) ? [message.id] : []))
+  for (const message of next) {
+    const known = before.get(message.id)
+    const preview = replaced.get(message.id)
+    if (preview) {
+      events.push({ type: 'message.upsert', message, replaces: [{ session, id: runtimeId(preview) }] })
+      order = order.map((id) => (id === preview ? message.id : id))
+    } else if (!known) {
+      events.push({ type: 'message.upsert', message })
+      order.push(message.id)
+    } else if (known !== message && !isDeepStrictEqual(known, message)) events.push({ type: 'message.upsert', message })
+  }
+  return isDeepStrictEqual(order, [...after]) ? events : undefined
 }
 
 export function submissionState(

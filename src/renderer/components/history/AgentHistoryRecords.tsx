@@ -4,8 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { EmojiIcon } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { SessionActionContext } from '@renderer/components/chat/actions/sessionItemActions'
+import {
+  createSessionActionContext,
+  useSessionMenuPreset
+} from '@renderer/components/chat/actions/useSessionMenuActions'
 import { permanentDeletePopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
 import { dataApiService } from '@renderer/data/DataApiService'
@@ -13,7 +18,6 @@ import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
-import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useResolvedCommand } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -27,11 +31,11 @@ import {
 } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
 import { getErrorMessage } from '@renderer/utils/error'
 import { matchesSearchText } from '@renderer/utils/pinyin'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
@@ -436,10 +440,18 @@ const AgentHistoryRecords = ({
       renderAvatar: (session: SessionListItem) => {
         const agent = session.agentId ? agentById.get(session.agentId) : undefined
         return (
-          <EmojiIcon
-            emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
+          <AssistantAvatarImage
+            src={agent?.avatarSrc}
+            alt=""
             size={20}
-            className="text-foreground"
+            className="rounded-full object-cover"
+            fallback={
+              <EmojiIcon
+                emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
+                size={20}
+                className="text-foreground"
+              />
+            }
           />
         )
       },
@@ -505,10 +517,18 @@ const AgentHistoryRecords = ({
               source?.icon ? (
                 source.icon
               ) : (
-                <EmojiIcon
-                  emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
+                <AssistantAvatarImage
+                  src={agent?.avatarSrc}
+                  alt=""
                   size={16}
-                  className="text-foreground"
+                  className="rounded-full object-cover"
+                  fallback={
+                    <EmojiIcon
+                      emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
+                      size={16}
+                      className="text-foreground"
+                    />
+                  }
                 />
               )
             ) : undefined

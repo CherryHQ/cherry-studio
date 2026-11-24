@@ -103,7 +103,7 @@ describe('interaction and recall tools', () => {
     w.fake.script(t, [reply('noted'), callTool('vcc_recall', { query: 'redis' }), reply('found it')])
     await w.fake.sendUser(t, 'we picked redis for the cache')
     await w.fake.settle()
-    w.host.giveSummary('the person chose a cache')
+    w.fake.scriptSummary(t, reply('the person chose a cache'))
     await w.fake.compact(t)
     await w.fake.sendUser(t, 'what did we pick?')
     await w.fake.settle()

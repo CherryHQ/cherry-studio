@@ -253,8 +253,31 @@ function setupTooltipOrphanSweeper(): void {
   }
   ensureObserved(document)
 }
+// A menu restores focus to its trigger with a script focus(), which Chromium marks :focus-visible
+// when nothing was focused before it opened, even after a mouse pick; the last input settles it.
+let lastInputWasPointer = false
+
+// Shortcuts and app switching (Cmd/Alt+Tab) are not focus navigation; returning to the window
+// restores focus to the trigger, which must not count as keyboard focus.
+function isNavigationKey(e: KeyboardEvent): boolean {
+  return !(e.metaKey || e.ctrlKey || e.altKey || e.key === 'Shift')
+}
+
+function trackInputModality(): void {
+  const capture = { capture: true, passive: true }
+  document.addEventListener('pointerdown', () => (lastInputWasPointer = true), capture)
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      if (isNavigationKey(e)) lastInputWasPointer = false
+    },
+    capture
+  )
+}
+
 if (typeof document !== 'undefined' && typeof window !== 'undefined') {
   setupTooltipOrphanSweeper()
+  trackInputModality()
 }
 
 /** 由 TooltipRoot 提供，让低层 TooltipContent 走同一套挂载接管；无 Provider 时保持原行为。 */
@@ -305,7 +328,7 @@ function TooltipTrigger({ onFocus, ...props }: TooltipTriggerProps) {
       onFocus={(e) => {
         onFocus?.(e)
         // Radix composeEventHandlers respects defaultPrevented
-        if (!e.defaultPrevented && !e.target.matches(':focus-visible')) {
+        if (!e.defaultPrevented && (lastInputWasPointer || !e.target.matches(':focus-visible'))) {
           e.preventDefault()
         }
       }}
@@ -318,7 +341,7 @@ function TooltipTrigger({ onFocus, ...props }: TooltipTriggerProps) {
 // so hover/click reach the items instead of the window-drag hit test (Electron).
 // Radix Tooltip 的打开态 data-state 是 instant-open/delayed-open（非 open），选择器必须用子串匹配
 const contentStyles =
-  'z-[80] w-fit max-w-80 origin-(--radix-tooltip-content-transform-origin) rounded-md bg-neutral-900 px-3 py-1.5 text-neutral-50 text-xs leading-relaxed whitespace-normal break-words data-[state*=open]:animate-in data-[state*=open]:fade-in-0 data-[state*=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 dark:bg-neutral-100 dark:text-neutral-900 [-webkit-app-region:no-drag]'
+  'z-[80] w-fit max-w-80 origin-(--radix-tooltip-content-transform-origin) rounded-md bg-neutral-900 px-3 py-1.5 text-neutral-50 text-xs leading-relaxed whitespace-normal break-words data-[state*=open]:animate-in data-[state*=open]:fade-in-0 data-[state*=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fill-mode-forwards data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 dark:bg-neutral-100 dark:text-neutral-900 [-webkit-app-region:no-drag]'
 
 const arrowStyles =
   'z-[80] -translate-y-px fill-neutral-900 stroke-neutral-900 stroke-2 dark:fill-neutral-100 dark:stroke-neutral-100 [paint-order:stroke_fill]'

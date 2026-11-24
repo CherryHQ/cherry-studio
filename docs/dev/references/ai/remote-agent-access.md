@@ -400,7 +400,7 @@ including concurrency preconditions, is part of its idempotency identity.
 |---|---|---|
 | `agent.agents.list` | `PageParams` | `Page<AgentSummary>` |
 | `agent.workspaces.list` | `{ agentId, ...PageParams }` | `Page<WorkspaceSummary>` |
-| `agent.sessions.list` | `{ agentId?, workspaceId?, ...PageParams }` | `Page<SessionSummary>` |
+| `agent.sessions.list` | `{ agentId?, workspaceId?, taskId?, ...PageParams }` | `Page<SessionSummary>` |
 | `agent.sessions.get` | `{ sessionId }` | `{ session: SessionSummary }` |
 | `agent.sessions.create` | `{ commandId, agentId, workspace, title? }`; legacy `workspaceId` also accepted | `CommandReceipt` |
 | `agent.messages.list` | `{ sessionId, historyRevision, partsMode?: 'paged', ...PageParams }` | `Page<Message \| MessageSummary>` |
@@ -412,6 +412,11 @@ including concurrency preconditions, is part of its idempotency identity.
 | `agent.interactions.get` | `{ sessionId, interactionId }` | `{ interaction: Interaction }` |
 | `agent.interactions.respond` | `{ commandId, sessionId, interactionId, expectedRevision, expectedExecutionId, inputDigest, response }`; legacy `decision` also accepted | `CommandReceipt` |
 | `agent.commands.get` | `{ commandId }` | `CommandReceipt` |
+
+The optional session-list `taskId` filter reads task-owned conversations independently
+of retained run history. It intersects with Agent/workspace filters and preserves
+visibility and pinned-first pagination. See [Task queries](../../../../packages/remote-protocol/README.md#task-queries)
+for task visibility, empty-page and older-host semantics.
 
 The optional `agentMessageSummariesVersion: 1` hello capability permits
 `partsMode: 'paged'`. This mode returns metadata-only messages marked

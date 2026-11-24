@@ -42,9 +42,10 @@ Process-group shutdown retains each verified member's PID, command and start tim
 the runner exits. A reused PID or an unknown orphan cannot inherit that proof.
 After a normal development-app exit, cleanup allows its process group to finish naturally before
 rechecking ownership. A surviving unknown process still blocks termination.
-The explicit profile/restart operation prepares Windows connections by closing non-main windows before CDP attaches; simply locating a window does not perform this preparation. Both branch and installer launches enable the main-process inspector for this explicit compatibility step.
+Before each new CDP connection, including scenario reconnections, the controller prepares Windows targets by closing non-main windows. Both branch and installer launches enable the main-process inspector for this compatibility step.
 Pre-main restart dialogs can use that verified inspector owner before CDP is ready; command and
 runner ancestry checks still apply. Electron termination continues to require CDP ownership.
+After verified Windows processes exit, the controller waits up to 60 seconds for the CDP listener to disappear. If it remains, the error reports the listener PID.
 Windows native dialogs can expose their controls as UIA panes. The adapters match
 native classes and control IDs inside owned windows, and verify address-bar focus
 with Win32 `GetGUIThreadInfo` before sending the directory-navigation key.
@@ -53,6 +54,10 @@ pipe before falling back to verified process-tree termination.
 macOS multi-file selection uses the same version-aware panel driver as single-file
 selection. It accepts only the complete contents of one isolated fixture directory,
 so Select All cannot import an unrequested file. Native fixtures verify the returned paths.
+Both supported macOS panel layouts use bounded stage checks and one Enter to commit
+the path; the adapter waits for the sheet to close before accepting the panel.
+Once Open is enabled, the adapter verifies foreground ownership and sends Return once
+to activate the default button, then requires the panel window count to decrease.
 
 Windows development notification checks keep `APPDATA` isolated. The controller prepares
 the required shell directories and copies the SDK-generated shortcut into the real Start Menu
@@ -95,6 +100,8 @@ do not need it. Restarting preserves the owned application's profile. On Windows
 for normal shutdown so persistence tests do not simulate a forced crash. A shutdown
 timeout fails the stop or restart; it does not force termination and launch a replacement.
 An already-exited launch is cleaned up with the same ownership checks before its replacement starts.
+On macOS, unidentified shutdown helpers receive up to 30 seconds to exit naturally;
+the controller never signals an unverified process to make cleanup pass.
 Branch launches invoke the checkout's dotenv and electron-vite entry points through Node,
 so package-manager subprocesses cannot escape the owned process group. Each profile sets
 `CS_DEV_PROFILE_ROOT` inside the run directory to isolate boot configuration, migration
@@ -109,15 +116,27 @@ and settings rather than the developer's CLI configuration. Before each UI conne
 the controller verifies the owned process's home, temporary and CLI configuration paths
 and Windows AppData path. It rejects an older running instance whose paths escape the profile.
 
-For branch runs selecting `all`, the workflow closes the regression instance and reuses the same build
-for the standalone smoke suite with isolated per-test profiles and no retries. Each platform's
-smoke HTML/JSON report is bundled separately and its counts appear in the aggregate summary.
-A failed smoke run fails both platform and aggregate jobs; release-installer runs use the regression suite.
+For OpenClaw coverage, the disposable Windows runner puts the pinned Node.js directory first in the machine PATH.
+Cherry Studio discovers system CLIs from the registry PATH, so the workflow checks the Node version and executes
+`openclaw config schema` using that same PATH before launching the application.
+
+Manual branch runs select `suite=all` (default), `suite=regression`, or `suite=smoke`.
+`task` applies only to desktop regression. Select `suite=regression` for a focused
+run without standalone smoke. Scheduled branch runs select both suites.
+Branch runs build the application once per platform. The desktop regression and
+standalone smoke jobs independently restore the matching build and prepare native
+dependencies on their own runners. Standalone smoke uses isolated per-test profiles
+and no retries. Each desktop regression job uploads its sanitized report as soon
+as it finishes. The aggregate bundles the expected suite and platform reports,
+and blocks a passing verdict if a selected job fails or a required report is missing.
+Release tags use the installer
+for regression with `suite=all` or `suite=regression`. Standalone smoke requires a branch checkout.
 
 The workflow keeps one separately timed step per phase (21 today). Failed steps remain failed;
 explicit `!cancelled()` guards allow later phases to collect results. The GitHub reporter runs after
 credential redaction and annotates failed cases before the final report is available. Each phase calls
 `run-phase`; the controller intersects it with the selected task and returns immediately for unselected phases.
+The owned application remains available between phases; the workflow stops it after all phases, before uploading the regression report.
 `cases.ts` is the execution manifest. Each case declares `tasks`: the first entry is
 its module task, followed by any focused tasks. Module names follow the case library's
 modules, using English kebab-case without execution-order prefixes. For example,
@@ -127,10 +146,12 @@ only the create-and-save scenario. `knowledge` includes the library scenarios an
 and match `tests/e2e/regression/phases/<phaseId>.test.ts`. Their first occurrence in
 the manifest determines execution order; workflow steps must follow that order.
 
-The workflow task dropdown lists `all`, module tasks, then focused tasks. When adding a
-task, update the workflow options too; the manifest tests enforce that the lists stay
-in sync. Reports retain the selected task ID. Existing reports keep their recorded
-task names and outcomes.
+The workflow's string `task` input accepts comma-separated module or focused task IDs,
+such as `chat-core,browser,settings`. Whitespace and duplicate IDs are normalized;
+overlapping cases execute once in manifest order. Unknown or empty entries and mixing
+`all` with other IDs fail before desktop runners are allocated. `all` remains the full
+regression default. Reports retain the normalized comma-separated selection; existing
+reports keep their recorded task names and outcomes.
 `native-settings` selects native notification verification. The complete Settings phase allows 40 minutes on hosted runners.
 `native-recovery` groups notifications and backup-restore relaunch in one prepared
 runner per platform, preserving their normal manifest and phase order.
@@ -160,7 +181,7 @@ Capability probes are preflight checks, not evidence that a product interaction 
 
 ## Combined report
 
-Initialize with `--provider-mode real` (default) or `--provider-mode mock`. Mock runs
+Mock runs
 call `mock-start --run-dir ...` before preflight and launch. The controller uses the
 exact aiMock version in `package.json` and `pnpm-lock.yaml`, binds a free loopback
 port, and records PID, token, port and version in `mock.json`. It verifies the worker
@@ -168,12 +189,11 @@ command, listener and authenticated identity before reuse. `mock-stop` and `clea
 stop only the recorded worker, including when application cleanup fails. Workflow
 cleanup runs with `always()`; runner teardown remains the fallback on hard cancellation.
 
-JSON, Markdown and JUnit reports retain the configured provider mode and mock version.
+JSON, Markdown and JUnit reports retain the mock provider provenance and version.
 Mock verdicts use `mock_*`, including tag runs; they are not release acceptance.
-Aggregation blocks missing provider provenance, mixed real/mock platforms, or evidence
-that differs from the requested mode. Older reports without provider provenance must
-be rerun. Cases using their own fixtures record `data-source` annotations, retained in
-JSON and platform Markdown, even when the configured backend is real.
+Aggregation blocks missing mock provider provenance or service versions. Older reports
+without this provenance must be rerun. Cases using their own fixtures record `data-source` annotations, retained in
+JSON and platform Markdown.
 
 The aggregate job publishes `test-report`. Download and extract
 it, then open `index.html` to browse every platform and phase in one HTML

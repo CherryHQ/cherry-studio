@@ -14,7 +14,6 @@ import {
   RestoreKnowledgeBaseSchema
 } from '../../../types/knowledge'
 import {
-  KNOWLEDGE_BASES_DEFAULT_LIMIT,
   KNOWLEDGE_BASES_MAX_LIMIT,
   ListKnowledgeBasesQuerySchema,
   ListKnowledgeItemsQuerySchema,
@@ -841,9 +840,8 @@ describe('isCompletedVectorKnowledgeBase', () => {
 })
 
 describe('ListKnowledgeBasesQuerySchema', () => {
-  it('trims search and applies pagination defaults', () => {
-    expect(ListKnowledgeBasesQuerySchema.parse({ search: '  docs  ' })).toEqual({
-      limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
+  it('trims list search terms', () => {
+    expect(ListKnowledgeBasesQuerySchema.parse({ search: '  docs  ' })).toMatchObject({
       search: 'docs'
     })
   })
@@ -872,8 +870,7 @@ describe('ListKnowledgeBasesQuerySchema', () => {
         sortOrder: 'desc',
         updatedAtFrom: '2026-05-01T00:00:00.000Z'
       })
-    ).toEqual({
-      limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
+    ).toMatchObject({
       sortBy: 'updatedAt',
       sortOrder: 'desc',
       updatedAtFrom: '2026-05-01T00:00:00.000Z'

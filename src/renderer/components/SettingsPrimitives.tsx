@@ -1,10 +1,34 @@
 import React from 'react'
 
-import { Divider as SettingDivider, ScrollArea } from '@cherrystudio/ui'
+import { Divider as SettingDivider, HelpTooltip, PageHeader, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 export { SettingDivider }
+
+export const SettingsPageHeader = ({
+  title,
+  help,
+  action,
+  className
+}: {
+  title: React.ReactNode
+  help?: React.ReactNode
+  action?: React.ReactNode
+  className?: string
+}) => (
+  <div className={cn('mb-4 flex min-h-8 flex-wrap items-center justify-between gap-x-6 gap-y-3', className)}>
+    <div className="flex min-w-0 items-center gap-1.5">
+      <PageHeader
+        title={title}
+        className="m-0 min-w-0 shrink p-0"
+        titleClassName="flex items-center gap-2 text-[15px] leading-6 font-semibold"
+      />
+      {help && <HelpTooltip content={help} />}
+    </div>
+    {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+  </div>
+)
 
 export const SettingContainer = ({
   className,
@@ -18,28 +42,26 @@ export const SettingContainer = ({
   />
 )
 
-// Canonical settings page container — mirrors the model service (Provider Settings) detail column:
-// outer p-6 + inner mx-auto max-w-3xl. Use for "simple right-content" settings pages.
-// Pages with their own internal split layout (Data / Integration / MCP / Channels)
-// keep SettingContainer instead.
+// Shared settings content column; pages with internal split layouts own their containers.
 export const SettingsContentColumn = ({
   className,
   innerClassName,
   theme,
   children,
   viewportProps,
+  contentProps,
   ...rest
 }: React.ComponentPropsWithoutRef<typeof ScrollArea> & { theme?: ThemeMode; innerClassName?: string }) => (
   <ScrollArea
     className={cn('min-h-0 min-w-0 flex-1', className)}
-    viewportProps={{ ...viewportProps, className: cn('p-6', viewportProps?.className), 'data-theme-mode': theme }}
+    viewportProps={{ ...viewportProps, 'data-theme-mode': theme }}
+    contentProps={{ ...contentProps, className: cn('p-6', contentProps?.className) }}
     {...rest}>
-    <div className={cn('mx-auto w-full max-w-3xl shrink-0', innerClassName)}>{children}</div>
+    <div className={cn('mx-auto w-full max-w-5xl shrink-0', innerClassName)}>{children}</div>
   </ScrollArea>
 )
 
-// Body variant for pages that handle their own scrolling (e.g. ShortcutSettings).
-// Renders the same two-layer structure (outer p-6, inner mx-auto max-w-3xl) without owning the scroll.
+// Non-scrolling counterpart for pages that own their scroll boundary.
 export const SettingsContentBody = ({
   className,
   innerClassName,
@@ -47,7 +69,7 @@ export const SettingsContentBody = ({
   ...rest
 }: React.ComponentPropsWithoutRef<'div'> & { innerClassName?: string }) => (
   <div className={cn('flex min-h-full w-full flex-col p-6', className)} {...rest}>
-    <div className={cn('mx-auto w-full max-w-3xl', innerClassName)}>{children}</div>
+    <div className={cn('mx-auto w-full max-w-5xl', innerClassName)}>{children}</div>
   </div>
 )
 
@@ -76,7 +98,7 @@ export const SettingRow = ({ className, ...props }: React.ComponentPropsWithoutR
 
 export const SettingRowTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('flex min-w-0 flex-wrap items-center text-sm leading-4.5 text-foreground', className)}
+    className={cn('flex min-w-0 flex-wrap items-center gap-1.5 text-sm leading-4.5 text-foreground', className)}
     {...props}
   />
 )

@@ -41,6 +41,12 @@ describe('AssistantSchema', () => {
     modelName: null
   }
 
+  it('accepts optional read-only avatar projections while keeping emoji an emoji', () => {
+    const avatar = { avatarFileId: '019606a0-0000-7000-8000-00000000aa01', avatarSrc: 'file:///managed/avatar.webp' }
+    expect(AssistantSchema.parse({ ...baseAssistant, ...avatar })).toEqual({ ...baseAssistant, ...avatar })
+    expect(AssistantSchema.safeParse({ ...baseAssistant, emoji: 'file:' + avatar.avatarFileId }).success).toBe(false)
+  })
+
   it('requires the service-populated model name instead of defaulting it in Zod', () => {
     const { modelName, ...missingEmbed } = baseAssistant
 

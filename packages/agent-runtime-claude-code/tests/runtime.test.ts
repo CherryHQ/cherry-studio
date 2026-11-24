@@ -58,6 +58,9 @@ it('reconciles an archive read overlapping live output without losing the commit
     const request = await test.request()
     request.reply.block({ type: 'text', text: 'Before archive' })
     await expect.poll(() => textOf(view.snapshot)).toContain('Before archive')
+    await expect
+      .poll(() => readArchive(test.configDir, test.options.cwd, root.thread.id), { timeout: 15000 })
+      .not.toBeNull()
     const reading = root.claude.archive()
     request.reply.block({ type: 'text', text: 'Concurrent tail' })
     request.reply.finish()

@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
+import { preferenceTable } from '@data/db/schemas/preference'
 import { seeders } from '@data/db/seeding/seederRegistry'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { ISeeder } from '@data/db/types'
@@ -186,5 +187,25 @@ describe('SeedRunner', () => {
 
     const assistants = await dbh.db.select().from(assistantTable)
     expect(assistants).toHaveLength(1)
+  })
+
+  it('seeds a fresh database before DbService is available', () => {
+    const get = vi.mocked(application.get).getMockImplementation()!
+    vi.mocked(application.get).withImplementation(
+      (name) => {
+        if (name === 'DbService') throw new Error('DbService is not available during seeding')
+        return get(name)
+      },
+      () => {
+        expect(() => new SeedRunner(dbh.db).runAll(seeders)).not.toThrow()
+      }
+    )
+
+    const preference = dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(eq(preferenceTable.key, 'agent.skills.external_export.enabled'))
+      .get()
+    expect(preference?.value).toBe(false)
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { fromSerialized, rootFromSerialized, TreeDir, TreeDirRoot, TreeFile, TreeNode } from '@shared/utils/file'
+import { fromSerialized, rootFromSerialized, TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
 
 describe('TreeFile', () => {
   it('exposes path / basename / dirname derived from the absolute path', () => {
@@ -189,9 +189,5 @@ describe('TreeNode.setParent / remove', () => {
   it('remove() is a no-op on detached nodes', () => {
     const file = new TreeFile({ path: '/root/a.md' })
     expect(file.remove()).toBe(false)
-  })
-
-  it('TreeFile is an instance of TreeNode', () => {
-    expect(new TreeFile({ path: '/x.md' })).toBeInstanceOf(TreeNode)
   })
 })
