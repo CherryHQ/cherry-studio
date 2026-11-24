@@ -251,6 +251,7 @@
   "paintings.comfyui.workflow_failed": "ComfyUI iş akışı başarısız oldu:",
   "paintings.comfyui.workflow_rejected": "ComfyUI iş akışını reddetti (HTTP {{status}})",
   "paintings.generate_failed": "Görüntü oluşturulamadı",
+  "paintings.image_download_failed": "Görsel oluşturuldu ancak indirilemedi.",
   "paintings.image_mix_failed": "Görüntüler harmanlanamadı",
   "selection.name": "Seçim Asistanı",
   "settings.mcp.oauth.callback.listen_error": "127.0.0.1:{{port}} adresinde OAuth geri çağrısı dinlenemedi ({{reason}}). Bağlantı noktasının kullanılabilir olduğundan emin olup yeniden deneyin.",
