@@ -13,6 +13,13 @@
 
 ; https://github.com/electron-userland/electron-builder/issues/1122
 !ifndef BUILD_UNINSTALLER
+  ; Holds the $INSTDIR value that the electron-builder template creates with
+  ; `SetOutPath $INSTDIR` at the top of `.onInit`, before `initMultiUser` may
+  ; rewrite $INSTDIR. Saved in `preInit` so the abort path cleans up only the
+  ; directory the template created, never the final user-selected directory
+  ; (which may pre-exist empty and must not be deleted by this check).
+  Var osSupportInitialInstDir
+
   ; Check VC++ Redistributable based on architecture stored in $1
   Function checkVCRedist
     ${If} $1 == "arm64"
@@ -116,6 +123,16 @@
   FunctionEnd
 !endif
 
+!macro preInit
+  ; Capture the directory the template just created with `SetOutPath $INSTDIR`
+  ; before `initMultiUser` can rewrite $INSTDIR. The OS gate in `customInit`
+  ; must only attempt cleanup of this directory — never the final $INSTDIR,
+  ; which may be a pre-existing empty per-user directory this invocation did
+  ; not create. See `customInit` for the best-effort empty-dir cleanup and its
+  ; template-ordering limitation.
+  StrCpy $osSupportInitialInstDir $INSTDIR
+!macroend
+
 !macro customInit
   Push $0
   Push $1
@@ -127,12 +144,15 @@
   ; Windows 7/8/8.1 and earlier cannot run this build (Electron 23+ requires
   ; Windows 10+); third-party compatibility layers are not supported either.
   ; NOTE: the electron-builder template issues `SetOutPath $INSTDIR` in
-  ; `.onInit` before `customInit` runs, which creates $INSTDIR (including a
-  ; `/D=` destination that did not exist). `RMDir` below removes that
-  ; just-created empty directory so an aborted install leaves no trace.
-  ; `RMDir` only succeeds on empty directories, so an existing install is
-  ; never deleted; a packaged trace showing the `/D=` destination stays
-  ; absent confirms the no-change promise.
+  ; `.onInit` before `preInit`/`customInit` run, which creates $INSTDIR
+  ; (including a `/D=` destination that did not exist). There is no hook
+  ; before that first creation, so a perfect no-change abort is impossible.
+  ; Best effort below: leave the working directory before removing, and only
+  ; remove the template-created initial directory when it is empty — never
+  ; the final $INSTDIR selected by `initMultiUser`, which may pre-exist empty.
+  ; `RMDir` only succeeds on empty directories, so an existing install with
+  ; files is never deleted. The copy below promises "not installed" rather
+  ; than zero filesystem side effects for this reason.
   Call checkWindowsVersion
   ${If} $0 != "1"
     StrCpy $4 "https://cherryai.com/"
@@ -144,14 +164,20 @@
       Unsupported Windows Version$\r$\n$\r$\n\
       Cherry Studio requires Windows 10 1809 (build 17763, 64-bit) or later, including Windows 11.$\r$\n\
       Windows 7, 8 and 8.1 are not supported, including launches through third-party compatibility layers.$\r$\n\
-      No files were installed or changed.$\r$\n$\r$\n\
+      The application was not installed.$\r$\n$\r$\n\
       当前 Windows 版本不受支持，需要 Windows 10 1809（内部版本 17763，64 位）或更高版本（含 Windows 11）。$\r$\n\
-      Windows 7 / 8 / 8.1 不受支持，通过第三方兼容层启动也不属于官方支持。本次未安装或更改任何文件。$\r$\n$\r$\n\
+      Windows 7 / 8 / 8.1 不受支持，通过第三方兼容层启动也不属于官方支持。本次未安装应用。$\r$\n$\r$\n\
       Past installers remain available on GitHub Releases for reference only (no support or security updates).$\r$\n\
       Supported downloads and documents:$\r$\n\
       $4"
     ExecShell "open" "$4"
-    RMDir "$INSTDIR"
+    ; Best-effort cleanup of the template-created directory only. Leave the
+    ; working directory first: when $INSTDIR is the working directory Windows
+    ; refuses to remove it, leaving the `/D=` destination behind. Never clean
+    ; the final $INSTDIR here — after `initMultiUser` it may be a pre-existing
+    ; empty per-user directory this invocation did not create.
+    SetOutPath $TEMP
+    RMDir "$osSupportInitialInstDir"
     Abort
   ${EndIf}
 
