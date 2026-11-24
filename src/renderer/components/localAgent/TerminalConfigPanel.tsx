@@ -1,4 +1,4 @@
-import { Check, ChevronDown, FolderOpen, X } from 'lucide-react'
+import { ChevronDown, FolderOpen, X } from 'lucide-react'
 import { type FC, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -101,7 +101,6 @@ export const TerminalConfigPanel: FC<TerminalConfigPanelProps> = ({
                       <span className="min-w-0 flex-1 truncate text-left" title={path}>
                         {path}
                       </span>
-                      {directory === path && <Check size={14} />}
                     </Button>
                     <Tooltip content={t('code.directory_history.remove')}>
                       <Button
@@ -117,7 +116,7 @@ export const TerminalConfigPanel: FC<TerminalConfigPanelProps> = ({
               </ScrollArea>
             </PopoverContent>
           </Popover>
-          <Button variant="default" onClick={onSelectFolder} className="ml-2 shrink-0" disabled={disabled}>
+          <Button variant="default" onClick={onSelectFolder} className="ml-2 h-9 shrink-0" disabled={disabled}>
             <FolderOpen size={16} />
             {t('code.select_folder')}
           </Button>
@@ -130,7 +129,7 @@ export const TerminalConfigPanel: FC<TerminalConfigPanelProps> = ({
             {t('code.terminal')}
           </label>
           <Select value={effectiveTerminal} onValueChange={(value) => onSelectTerminal(value)} disabled={disabled}>
-            <SelectTrigger id={terminalId} size="sm" className="w-full">
+            <SelectTrigger id={terminalId} className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

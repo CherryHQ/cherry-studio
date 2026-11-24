@@ -119,6 +119,23 @@ describe('AgentProfilePane', () => {
 
     expect(screen.getByRole('heading', { name: 'Code Reviewer' })).toBeInTheDocument()
     expect(screen.getByText('Reviews changes and points out risks')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Choose avatar' })).toBeEnabled()
+  })
+
+  it('uses a fixed icon for a local Agent with a previously saved avatar', () => {
+    agent = {
+      ...createAgent({
+        avatar: '🍉',
+        localRuntime: { protocol: 'codex', presetId: 'codex', enabled: true, args: [], env: {} }
+      }),
+      type: 'local'
+    }
+    serveAgentData()
+    renderInRightPane(<AgentProfilePane agentId={agent.id} />)
+
+    expect(screen.getByRole('heading', { name: 'Code Reviewer' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Choose avatar' })).not.toBeInTheDocument()
+    expect(screen.queryByText('🍉')).not.toBeInTheDocument()
   })
 
   it('shows every supported platform in Channels for an Agent with no accounts', () => {
