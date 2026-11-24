@@ -1130,6 +1130,7 @@
   "chat.topics.export.obsidian_title_required": "Le titre ne peut pas être vide",
   "chat.topics.export.obsidian_vault": "Coffre-fort",
   "chat.topics.export.obsidian_vault_placeholder": "Veuillez choisir un nom de coffre-fort",
+  "chat.topics.export.share_image": "Exporter une image à partager",
   "chat.topics.export.siyuan": "Exporter vers Siyuan Notes",
   "chat.topics.export.title": "Exporter",
   "chat.topics.export.title_naming_failed": "Échec de génération du titre, utilisation du titre par défaut",
