@@ -34,7 +34,8 @@ export function buildCreateAssistantDto(values: AssistantCreateValues): CreateAs
     description: values.description,
     prompt: values.prompt,
     knowledgeBaseIds: values.knowledgeBaseIds,
-    ...(values.mcpServerIds?.length ? { mcpServerIds: values.mcpServerIds } : {}),
+    // An explicit selection is intentional even when empty: [] must not drop into default inheritance.
+    ...(values.mcpServerIds !== undefined ? { mcpServerIds: values.mcpServerIds } : {}),
     ...(values.reviewedMcpServerIds !== undefined ? { reviewedMcpServerIds: values.reviewedMcpServerIds } : {}),
     ...(Object.keys(settingsPatch).length ? { settings: { ...DEFAULT_ASSISTANT_SETTINGS, ...settingsPatch } } : {})
   }

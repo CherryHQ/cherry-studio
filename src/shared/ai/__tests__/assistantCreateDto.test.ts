@@ -33,6 +33,14 @@ describe('buildCreateAssistantDto', () => {
     expect(dto.settings).toEqual({ ...DEFAULT_ASSISTANT_SETTINGS, enableWebSearch: true })
   })
 
+  it('keeps an explicit empty MCP selection instead of dropping it into default inheritance', () => {
+    const dto = buildCreateAssistantDto({ ...values, mcpServerIds: [] })
+
+    expect(dto).toHaveProperty('mcpServerIds')
+    expect(dto.mcpServerIds).toEqual([])
+    expect(buildCreateAssistantDto(values)).not.toHaveProperty('mcpServerIds')
+  })
+
   it('keeps assistant settings at their defaults when web search is not selected', () => {
     expect(buildCreateAssistantDto({ ...values, enableWebSearch: false })).not.toHaveProperty('settings')
   })

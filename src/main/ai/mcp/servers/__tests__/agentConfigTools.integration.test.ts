@@ -388,6 +388,31 @@ describe('Agent create and configure tools', () => {
       expect(assistant.settings.replyLanguage).toBeUndefined()
     })
 
+    it('honors an explicit empty MCP selection while omission inherits the configured default', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('assistant.default_mcp_server_ids', ['mcp-1'])
+
+      const cleared = await callBuiltinTool(assistantServer, 'create_assistant', {
+        name: 'No tools',
+        prompt: 'Help.',
+        mcpServerIds: []
+      })
+      const inherited = await callBuiltinTool(assistantServer, 'create_assistant', {
+        name: 'Default tools',
+        prompt: 'Help.'
+      })
+
+      expect(cleared.isError, toolText(cleared)).not.toBe(true)
+      expect(inherited.isError, toolText(inherited)).not.toBe(true)
+      const clearedAssistant = assistantDataService.getById(
+        (cleared.structuredContent as { assistantId: string }).assistantId
+      )
+      const inheritedAssistant = assistantDataService.getById(
+        (inherited.structuredContent as { assistantId: string }).assistantId
+      )
+      expect(clearedAssistant.mcpServerIds).toEqual([])
+      expect(inheritedAssistant.mcpServerIds).toEqual(['mcp-1'])
+    })
+
     it.each([
       ['knowledge base', { knowledgeBaseIds: ['missing-kb'] }, 'Unknown knowledge base ID: missing-kb'],
       ['MCP server', { mcpServerIds: ['missing-mcp'] }, 'Unknown MCP server ID: missing-mcp']
