@@ -327,6 +327,20 @@ describe('attachment image downscaling', () => {
     expect(result?.mediaType).toBe('image/png')
   })
 
+  it.each([
+    [8300, 15, 8192, 15],
+    [15, 8300, 15, 8192],
+    [9000, 10, 8192, 15]
+  ])(
+    'downscales %i×%i without dropping the short edge below the minimum',
+    async (width, height, outWidth, outHeight) => {
+      const part = partFor(await input(width, height))
+      const result = await materializeNativeFilePart(part)
+      const output = Buffer.from(result!.url.split(',')[1], 'base64')
+      expect(await sharp(output).metadata()).toMatchObject({ width: outWidth, height: outHeight })
+    }
+  )
+
   it('drops the attachment through the failure-note path when downscaling fails', async () => {
     const part = partFor(await input(8400, 20))
     const resize = vi.spyOn(sharp.prototype, 'resize').mockImplementationOnce(() => {

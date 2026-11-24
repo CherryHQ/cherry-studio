@@ -157,6 +157,10 @@ async function validateImage(normalized: FileUIPart): Promise<FileUIPart | null>
       const width = metadata.width
       const height = metadata.pageHeight ?? metadata.height
       if (!width || !height) throw new Error('Image dimensions are unavailable')
+      let workingBytes = bytes
+      let workingWidth = width
+      let workingHeight = height
+      let resizedOversized = false
       if (width > MAX_ATTACHMENT_IMAGE_EDGE || height > MAX_ATTACHMENT_IMAGE_EDGE) {
         const scale = MAX_ATTACHMENT_IMAGE_EDGE / Math.max(width, height)
         // Pin the long edge to the exact limit; the short edge follows the ratio.
@@ -181,7 +185,12 @@ async function validateImage(normalized: FileUIPart): Promise<FileUIPart | null>
             resizedWidth,
             resizedHeight
           })
-          return { ...normalized, url: `data:${normalized.mediaType};base64,${resized.toString('base64')}` }
+          // A very thin original (e.g. 8300x15) can resize below the minimum
+          // edge; fall through so the padding pass restores it on the resized pixels.
+          workingBytes = resized
+          workingWidth = resizedWidth
+          workingHeight = resizedHeight
+          resizedOversized = true
         } catch (error) {
           // Drop through the per-file failure note, which names the attachment,
           // instead of letting the provider's 400 abort the whole turn.
@@ -194,28 +203,45 @@ async function validateImage(normalized: FileUIPart): Promise<FileUIPart | null>
           return null
         }
       }
-      const padW = Math.max(width, MIN_ATTACHMENT_IMAGE_EDGE)
-      const padH = Math.max(height, MIN_ATTACHMENT_IMAGE_EDGE)
-      if (padW === width && padH === height) return normalized
+      const padW = Math.max(workingWidth, MIN_ATTACHMENT_IMAGE_EDGE)
+      const padH = Math.max(workingHeight, MIN_ATTACHMENT_IMAGE_EDGE)
+      if (padW === workingWidth && padH === workingHeight) {
+        if (!resizedOversized) return normalized
+        return { ...normalized, url: `data:${normalized.mediaType};base64,${workingBytes.toString('base64')}` }
+      }
       if (padW * padH * (metadata.pages ?? 1) > MAX_ATTACHMENT_IMAGE_PIXELS) {
         throw new Error('Padded image exceeds the pixel budget')
       }
-      const horizontal = padW - width
-      const vertical = padH - height
-      const padded = await sharp(bytes, {
-        failOn: 'error',
-        limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS,
-        animated: true
-      })
-        .keepMetadata()
-        .extend({
-          left: Math.floor(horizontal / 2),
-          right: Math.ceil(horizontal / 2),
-          top: Math.floor(vertical / 2),
-          bottom: Math.ceil(vertical / 2),
-          background: { r: 255, g: 255, b: 255, alpha: 1 }
+      const horizontal = padW - workingWidth
+      const vertical = padH - workingHeight
+      let padded: Buffer
+      try {
+        padded = await sharp(workingBytes, {
+          failOn: 'error',
+          limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS,
+          animated: true
         })
-        .toBuffer()
+          .keepMetadata()
+          .extend({
+            left: Math.floor(horizontal / 2),
+            right: Math.ceil(horizontal / 2),
+            top: Math.floor(vertical / 2),
+            bottom: Math.ceil(vertical / 2),
+            background: { r: 255, g: 255, b: 255, alpha: 1 }
+          })
+          .toBuffer()
+      } catch (error) {
+        // A padding failure after a successful downscale must not re-expose the
+        // original oversized pixels; send the resized image instead.
+        if (resizedOversized) {
+          logger.warn('Could not pad a downscaled image attachment; sending the resized image', {
+            filename: normalized.filename,
+            reason: error instanceof Error ? error.message : String(error)
+          })
+          return { ...normalized, url: `data:${normalized.mediaType};base64,${workingBytes.toString('base64')}` }
+        }
+        throw error
+      }
       return { ...normalized, url: `data:${normalized.mediaType};base64,${padded.toString('base64')}` }
     } catch (error) {
       logger.warn('Failed to pad image attachment', {
