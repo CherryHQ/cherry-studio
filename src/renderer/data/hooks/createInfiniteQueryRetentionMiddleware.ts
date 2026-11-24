@@ -1,12 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import { type Key, type Middleware, unstable_serialize, useSWRConfig } from 'swr'
-import {
-  type SWRInfiniteConfiguration,
-  type SWRInfiniteKeyLoader,
-  unstable_serialize as serializeInfiniteKey
-} from 'swr/infinite'
-
-import type { CursorPaginationResponse } from '@shared/data/api/types'
+import { type SWRInfiniteKeyLoader, unstable_serialize as serializeInfiniteKey } from 'swr/infinite'
 
 import { InfiniteQueryCacheManager, type InfiniteQueryRetentionOptions } from '../InfiniteQueryCacheManager'
 
@@ -20,7 +14,7 @@ export function createInfiniteQueryRetentionMiddleware(options: InfiniteQueryRet
   return (useSWRNext) => {
     return function useInfiniteQueryRetention(key, fetcher, config) {
       const { cache } = useSWRConfig()
-      const getKey = typeof key === 'function' ? (key as SWRInfiniteKeyLoader) : undefined
+      const getKey: SWRInfiniteKeyLoader<unknown> | undefined = typeof key === 'function' ? key : undefined
       const getKeyRef = useRef(getKey)
       getKeyRef.current = getKey
       let enabled = false
@@ -38,11 +32,11 @@ export function createInfiniteQueryRetentionMiddleware(options: InfiniteQueryRet
 
       const managedFetcher =
         enabled && fetcher
-          ? (...args: unknown[]) => {
-              const finishRequest = manager.beginRequest(cache, infiniteKey, unstable_serialize(args[0] as Key))
+          ? (pageKey: Key) => {
+              const finishRequest = manager.beginRequest(cache, infiniteKey, unstable_serialize(pageKey))
 
               try {
-                return Promise.resolve(fetcher(...args)).then(
+                return Promise.resolve(fetcher(pageKey)).then(
                   (result) => {
                     finishRequest()
 
@@ -61,8 +55,10 @@ export function createInfiniteQueryRetentionMiddleware(options: InfiniteQueryRet
           : fetcher
 
       const result = useSWRNext(key, managedFetcher, config)
-      const pages = result.data as CursorPaginationResponse<unknown>[] | undefined
-      const isParallel = (config as SWRInfiniteConfiguration).parallel === true
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- This middleware wraps SWR infinite's page array; individual page values remain opaque and are passed back unchanged to its original loader.
+      const pages = result.data as readonly unknown[] | undefined
+      const infiniteConfig: typeof config & { parallel?: unknown } = config
+      const isParallel = infiniteConfig.parallel === true
 
       useLayoutEffect(() => {
         if (!enabled) return
@@ -76,7 +72,7 @@ export function createInfiniteQueryRetentionMiddleware(options: InfiniteQueryRet
         if (!enabled || !currentGetKey || !pages?.length) return
 
         const pageKeys: string[] = []
-        let previousPage: CursorPaginationResponse<unknown> | null = null
+        let previousPage: unknown = null
 
         for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
           const pageKey = currentGetKey(pageIndex, isParallel ? null : previousPage)
