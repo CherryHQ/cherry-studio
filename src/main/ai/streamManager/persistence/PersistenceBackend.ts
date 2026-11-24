@@ -8,22 +8,13 @@
  * never synthesise UIMessages or repeat projection logic.
  */
 
+import { isToolUIPart } from 'ai'
+
 import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import {
-  type AgentTaskEventPartData,
-  type CherryReasoningMeta,
-  readCherryMeta,
-  withCherryMeta
-} from '@shared/data/types/uiParts'
+import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 
 const TERMINAL_TOOL_STATES: ReadonlySet<string> = new Set(['output-available', 'output-error', 'output-denied'])
-
-function isToolPart(part: CherryMessagePart): boolean {
-  const t = part.type
-
-  return t.startsWith('tool-') || t === 'dynamic-tool'
-}
 
 /**
  * Drop transient status parts that must never reach storage. `data-retry`
@@ -46,7 +37,7 @@ export function finalizeInterruptedParts(
   const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
   const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
 
-  return parts.map((part) => {
+  return parts.map((part): CherryMessagePart => {
     // A `text` part left `streaming` by a mid-response failure renders as a still-typing
     // cursor instead of the truncated sentence the user actually received.
     if (part.type === 'text') {
@@ -82,29 +73,27 @@ export function finalizeInterruptedParts(
     }
 
     if (part.type === 'data-agent-task-event') {
-      const taskPart = part as CherryMessagePart & { data: AgentTaskEventPartData }
-
-      if (taskPart.data.status !== 'in_progress') return part
+      if (part.data.status !== 'in_progress') return part
 
       return {
-        ...taskPart,
+        ...part,
         data: {
-          ...taskPart.data,
+          ...part.data,
           status: 'error',
-          error: taskPart.data.error ?? taskError
+          error: part.data.error ?? taskError
         }
-      } as CherryMessagePart
+      }
     }
 
-    if (!isToolPart(part)) return part
-    const toolPart = part as CherryMessagePart & { state?: string; errorText?: string }
+    if (!isToolUIPart(part)) return part
 
-    if (toolPart.state && TERMINAL_TOOL_STATES.has(toolPart.state)) return part
+    if (part.state && TERMINAL_TOOL_STATES.has(part.state)) return part
 
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Interrupted approvals and historical fields survive; output-error deliberately exceeds the SDK union requiring approved:true.
     return {
-      ...toolPart,
+      ...part,
       state: 'output-error',
-      errorText: toolPart.errorText ?? toolError
+      errorText: part.errorText ?? toolError
     } as CherryMessagePart
   })
 }

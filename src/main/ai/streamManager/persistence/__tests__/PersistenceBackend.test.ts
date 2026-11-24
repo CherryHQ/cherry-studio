@@ -142,6 +142,32 @@ describe('finalizeInterruptedParts', () => {
     expect(denied).toMatchObject({ state: 'output-denied' })
   })
 
+  it.each(['paused', 'error'] as const)('retains interrupted approval data after a %s turn', (status) => {
+    const original = {
+      type: 'tool-search',
+      toolCallId: 'awaiting-approval',
+      state: 'approval-requested',
+      input: { q: 'keep this input' },
+      approval: { id: 'approval-1' },
+      extension: { audit: 'keep this metadata' }
+    }
+    const result = finalizeInterruptedParts(storedParts([original]), status)
+
+    expect(result[0]).toMatchObject({
+      type: 'tool-search',
+      toolCallId: 'awaiting-approval',
+      state: 'output-error',
+      errorText: status === 'paused' ? 'Interrupted by user' : 'Stream errored before tool completed',
+      input: { q: 'keep this input' },
+      approval: { id: 'approval-1' },
+      extension: { audit: 'keep this metadata' }
+    })
+    expect(original.state).toBe('approval-requested')
+    expect(result[0]).not.toHaveProperty('approval.approved')
+    expect(original.approval).toEqual({ id: 'approval-1' })
+    expect(original).not.toHaveProperty('errorText')
+  })
+
   it('preserves an earlier errorText on a historical in-progress tool record', () => {
     const parts = storedParts([
       {
