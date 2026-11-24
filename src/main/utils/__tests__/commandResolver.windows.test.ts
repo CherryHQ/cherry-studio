@@ -125,9 +125,65 @@ describe('findCommandInShellEnv on Windows', () => {
 describe('Windows mise lookup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    asyncExec.mockReset()
     vi.mocked(fs.existsSync).mockReturnValue(true)
     vi.mocked(which).mockResolvedValue(['C:\\tools\\mise.exe'] as never)
   })
+
+  it('treats only the numeric missing-runtime exit status as absent', async () => {
+    asyncExec.mockRejectedValueOnce(Object.assign(new Error('runtime not installed'), { code: 1 }))
+
+    await expect(findViaMise('node', { PATH: 'C:\\tools' })).resolves.toBeNull()
+  })
+
+  it.each([
+    ['string one', () => Object.assign(new Error('query failed'), { code: '1' })],
+    ['another exit status', () => Object.assign(new Error('query failed'), { code: 2 })],
+    ['null', () => null],
+    ['undefined', () => undefined],
+    [
+      'unreadable code',
+      () =>
+        Object.defineProperty({}, 'code', {
+          get() {
+            throw new Error('unreadable code')
+          }
+        })
+    ],
+    [
+      'revoked proxy',
+      () => {
+        const { proxy, revoke } = Proxy.revocable({}, {})
+        revoke()
+        return proxy
+      }
+    ]
+  ] as const)('preserves a %s mise query failure', async (_label, createFailure) => {
+    const failure = createFailure()
+    asyncExec.mockRejectedValueOnce(failure)
+    let rejected = false
+
+    try {
+      await findViaMise('node', { PATH: 'C:\\tools' })
+    } catch (error) {
+      rejected = true
+      expect(Object.is(error, failure)).toBe(true)
+    }
+
+    expect(rejected).toBe(true)
+  })
+
+  it('preserves cancellation even when the caught process status means runtime missing', async () => {
+    const controller = new AbortController()
+    const cancellation = Object.assign(new Error('lookup canceled'), { code: 1 })
+    asyncExec.mockImplementationOnce(async () => {
+      controller.abort(cancellation)
+      throw Object.assign(new Error('runtime not installed'), { code: 1 })
+    })
+
+    await expect(findViaMise('node', { PATH: 'C:\\tools' }, controller.signal)).rejects.toBe(cancellation)
+  })
+
   it('uses the asynchronous child API and preserves the lookup environment', async () => {
     asyncExec.mockImplementation(async (_file, _args, options) => {
       expect(options.env).toEqual({ PATH: 'C:\\tools' })

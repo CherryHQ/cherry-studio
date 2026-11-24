@@ -9,6 +9,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 
 import { getBundledGitPath } from './bundledGit'
+import { getErrorCode } from './error'
 import { getPathFromEnvironment, getShellEnv } from './shellEnv'
 
 /**
@@ -159,7 +160,7 @@ function resolveExistingAbsoluteCommand(command: string): string | null {
 
     fs.accessSync(resolved, isWin ? fs.constants.F_OK : fs.constants.X_OK)
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
+    const code = getErrorCode(error)
 
     if (code === 'ENOENT' || code === 'ENOTDIR') return null
     throw error
@@ -400,7 +401,18 @@ export async function findViaMise(
   } catch (error) {
     signal?.throwIfAborted()
 
-    if ((error as { code?: unknown }).code === 1) return null
+    let runtimeMissing = false
+
+    try {
+      if (error !== null && (typeof error === 'object' || typeof error === 'function')) {
+        // oxlint-disable-next-line anti-slop/no-reflect-get -- execFile uses numeric exit statuses and string system codes; only the numeric missing-runtime status is recoverable.
+        runtimeMissing = Reflect.get(error, 'code') === 1
+      }
+    } catch {
+      // An unreadable exit code must preserve the original failure.
+    }
+
+    if (runtimeMissing) return null
     throw error
   }
 }
