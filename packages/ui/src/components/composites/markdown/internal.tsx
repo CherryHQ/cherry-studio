@@ -23,7 +23,7 @@ import {
   type PluginConfig,
   Streamdown
 } from 'streamdown'
-import type { Pluggable } from 'unified'
+import type { Pluggable, Plugin } from 'unified'
 
 import { MarkdownBlockContext } from './context'
 import { FootnoteLink, FootnoteSection } from './footnotes'
@@ -44,14 +44,14 @@ import {
 } from './utils'
 import { rehypeNormalizeLinkScheme } from './utils/normalize-link-scheme'
 
-const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.entries(defaultRemarkPlugins).map(([name, plugin]) => {
+const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.entries(defaultRemarkPlugins).map<Pluggable>(([name, plugin]) => {
   if (name !== 'gfm' || !Array.isArray(plugin)) return plugin
 
   // Keep GFM extensions while treating single tildes as literal chat text.
   const [gfmPlugin, options] = plugin
 
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Streamdown supplies a GFM option object; preserve untyped plugin options while overriding only singleTilde.
-  return [gfmPlugin, { ...(options as Record<string, unknown>), singleTilde: false }] as Pluggable
+  return [gfmPlugin, { ...(options as Record<string, unknown>), singleTilde: false }]
 })
 
 function MarkdownBlock({ content, ...props }: BlockProps): ReactElement {
@@ -66,9 +66,9 @@ function MarkdownBlock({ content, ...props }: BlockProps): ReactElement {
 
 interface ResolvedDefaultRehypePlugins {
   raw: Pluggable
-  sanitizeFn: Pluggable
+  sanitizeFn: Plugin
   sanitizeSchema: MarkdownSanitizeSchema
-  hardenFn: Pluggable
+  hardenFn: Plugin
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Streamdown exposes only Pluggable, erasing harden option types; forward its option bag before overriding the two display policies.
   hardenOptions: Record<string, unknown>
 }
@@ -78,13 +78,13 @@ function resolveDefaultRehypePlugins(): ResolvedDefaultRehypePlugins {
   const sanitize = plugins.sanitize
   const harden = plugins.harden
 
-  if (!plugins.raw || !harden || !Array.isArray(sanitize) || sanitize.length < 2) {
-    throw new Error('Unexpected Streamdown defaultRehypePlugins shape')
-  }
-
   // Streamdown ships `harden` as [plugin, options]; tolerate a bare plugin so a minor
   // upstream release cannot turn this into a render-time throw.
   const [hardenFn, hardenOptions] = Array.isArray(harden) ? harden : [harden, undefined]
+
+  if (!plugins.raw || !Array.isArray(sanitize) || sanitize.length < 2 || typeof hardenFn !== 'function') {
+    throw new Error('Unexpected Streamdown defaultRehypePlugins shape')
+  }
 
   return {
     raw: plugins.raw,
@@ -113,7 +113,7 @@ function isSameComponents(a?: Partial<Components>, b?: Partial<Components>): boo
 
   if (keys.length !== Object.keys(b).length) return false
 
-  return keys.every((key) => a[key as keyof Components] === b[key as keyof Components])
+  return keys.every((key) => a[key] === b[key])
 }
 
 // A new-but-equal identity must not rebuild the plugin lists: Streamdown
@@ -184,12 +184,7 @@ export function MarkdownCore({
   const stableExtraRemarkPlugins = useStableReference(extraRemarkPlugins, isSamePluggableList)
 
   const remarkPlugins = useMemo(() => {
-    const list: Pluggable[] = [
-      ...STREAMDOWN_DEFAULT_REMARK_PLUGINS,
-      remarkDefinitionList as Pluggable,
-      remarkMark as Pluggable,
-      remarkAlert as Pluggable
-    ]
+    const list: Pluggable[] = [...STREAMDOWN_DEFAULT_REMARK_PLUGINS, remarkDefinitionList, remarkMark, remarkAlert]
 
     if (stableExtraRemarkPlugins?.length) list.push(...stableExtraRemarkPlugins)
 
@@ -215,26 +210,23 @@ export function MarkdownCore({
         }
       : extendedSchema
 
-    const result: Pluggable[] = [raw, ...(preserveFileLinkHrefs ? ([rehypePrepareFileLinks] as Pluggable[]) : [])]
+    const result: Pluggable[] = [raw, ...(preserveFileLinkHrefs ? [rehypePrepareFileLinks] : [])]
     result.push(
       // Sanitize compares protocols case-sensitively, but URI schemes are case-insensitive.
       // Normalize schemes instead of expanding the allow-list.
       rehypeNormalizeLinkScheme,
-      [sanitizeFn, effectiveSchema] as Pluggable,
-      rehypePreserveAnchorTargets as Pluggable,
-      ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
-      [rehypePrefixSvgReferences, (effectiveSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
-      ...(preserveRelativeImageSrcs ? ([relativeImages.prepare] as Pluggable[]) : []),
+      [sanitizeFn, effectiveSchema],
+      rehypePreserveAnchorTargets,
+      ...(hasSvgElement ? [rehypeScalableSvg] : []),
+      [rehypePrefixSvgReferences, effectiveSchema.clobberPrefix],
+      ...(preserveRelativeImageSrcs ? [relativeImages.prepare] : []),
       // Harden runs after sanitize, so every URL it rejects was already stripped or vetted there.
       // Keep the author's text/alt instead of defacing it with harden's "[blocked]" placeholders.
-      [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable,
-      ...(preserveRelativeImageSrcs ? ([relativeImages.restore] as Pluggable[]) : []),
-      ...(preserveFileLinkHrefs ? ([rehypeRestoreFileLinks] as Pluggable[]) : []),
-      [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable,
-      [
-        rehypeFootnotes,
-        { prefix: footnotePrefix, clobberPrefix: effectiveSchema.clobberPrefix ?? 'user-content-' }
-      ] as Pluggable
+      [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }],
+      ...(preserveRelativeImageSrcs ? [relativeImages.restore] : []),
+      ...(preserveFileLinkHrefs ? [rehypeRestoreFileLinks] : []),
+      [rehypeHeadingIds, { prefix: `heading-${id}` }],
+      [rehypeFootnotes, { prefix: footnotePrefix, clobberPrefix: effectiveSchema.clobberPrefix ?? 'user-content-' }]
     )
 
     if (stableExtraRehypePlugins?.length) result.push(...stableExtraRehypePlugins)

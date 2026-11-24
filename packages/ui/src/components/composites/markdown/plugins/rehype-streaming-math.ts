@@ -1,5 +1,4 @@
 import type { Element, ElementContent, Root } from 'hast'
-import type { ParseError } from 'katex'
 import { type Pluggable, type Plugin, unified } from 'unified'
 import { SKIP, visit } from 'unist-util-visit'
 
@@ -43,7 +42,10 @@ function closedBoundaries(source: string): number[] {
   return boundaries
 }
 
-/** Render only a closed, KaTeX-valid prefix while a math source is growing. */
+/**
+ * Render only a closed, KaTeX-valid prefix while a math source is growing.
+ * @param mathRenderer Rehype math renderer preserving the HAST root and producing element-content fragments.
+ */
 export const rehypeStreamingMath: Plugin<[Pluggable], Root> = function (mathRenderer) {
   const renderer = unified().use([mathRenderer])
 
@@ -80,18 +82,26 @@ export const rehypeStreamingMath: Plugin<[Pluggable], Root> = function (mathRend
         }
 
         const messageCount = file.messages.length
+        // SAFETY: withMath supplies rehype-katex, which mutates this HAST root; Pluggable erases the tree type.
         const rendered = renderer.runSync(root, file) as Root
         const messages = file.messages.splice(messageCount)
         const failure = messages.find((message) => message.source === 'rehype-katex')
 
         if (!failure) {
+          // SAFETY: rehype-katex emits KaTeX fragments without doctypes, valid inside a HAST element.
           output = rendered.children as ElementContent[]
           break
         }
 
         // KaTeX's error position skips suffixes that cannot repair an earlier invalid token.
-        const cause = failure.cause as ParseError | undefined
-        const limit = cause?.name === 'ParseError' && Number.isFinite(cause.position) ? cause.position : end
+        const cause = failure.cause
+        const limit =
+          cause?.name === 'ParseError' &&
+          'position' in cause &&
+          typeof cause.position === 'number' &&
+          Number.isFinite(cause.position)
+            ? cause.position
+            : end
 
         while (boundaries.length && (boundaries.at(-1)! >= end || boundaries.at(-1)! > limit)) boundaries.pop()
         end = boundaries.pop() ?? 0

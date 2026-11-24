@@ -22,6 +22,7 @@ export interface WithMathOptions {
 
 const cjkWithLiteralTildes: CjkPlugin = (() => {
   const remarkPluginsAfter = cjk.remarkPluginsAfter.map((plugin, index, plugins) =>
+    // SAFETY: @streamdown/cjk ends this list with the strikethrough plugin function, which accepts singleTilde.
     index === plugins.length - 1 ? ([plugin, { singleTilde: false }] as Pluggable) : plugin
   )
 
