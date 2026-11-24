@@ -15,6 +15,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
@@ -27,6 +28,51 @@ const findFaviconImage = async (container: HTMLElement, hostname: string) => {
 }
 
 describe('FallbackFavicon', () => {
+  it.each([
+    ['number-src', '{"src":42,"at":NOW}'],
+    ['string-timestamp', '{"src":"https://cached.example/icon.png","at":"NOW"}'],
+    ['object-timestamp', '{"src":"https://cached.example/icon.png","at":{}}'],
+    ['infinite-timestamp', '{"src":"https://cached.example/icon.png","at":1e999}']
+  ])('re-probes instead of displaying a malformed cached entry: %s', async (kind, template) => {
+    const hostname = `${kind}.example`
+    localStorage.setItem(`favicon_src_${hostname}`, template.replace('NOW', String(Date.now())))
+
+    const { container } = render(<FallbackFavicon hostname={hostname} alt="" />)
+    const image = await findFaviconImage(container, hostname)
+
+    expect(image.getAttribute('src')).toBe(`https://icon.horse/icon/${hostname}`)
+  })
+
+  it('still renders a usable favicon when malformed cache eviction is denied', async () => {
+    const hostname = 'denied-eviction.example'
+    localStorage.setItem(`favicon_src_${hostname}`, JSON.stringify({ src: 42, at: Date.now() }))
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new DOMException('Storage access denied', 'SecurityError')
+    })
+
+    const { container } = render(<FallbackFavicon hostname={hostname} alt="" />)
+    const image = await findFaviconImage(container, hostname)
+
+    expect(image.getAttribute('src')).toBe(`https://icon.horse/icon/${hostname}`)
+  })
+
+  it.each([
+    ['ttl-boundary', 7 * 24 * 60 * 60 * 1000, true],
+    ['expired', 7 * 24 * 60 * 60 * 1000 + 1, false],
+    ['future-clock', -1000, true]
+  ] as const)('preserves cached source TTL semantics: %s', async (kind, age, cached) => {
+    const now = Date.UTC(2026, 10, 24)
+    vi.spyOn(Date, 'now').mockReturnValue(now)
+    const hostname = `${kind}.example`
+    const storedSrc = `/cached/${hostname}.png`
+    localStorage.setItem(`favicon_src_${hostname}`, JSON.stringify({ src: storedSrc, at: now - age }))
+
+    const { container } = render(<FallbackFavicon hostname={hostname} alt="" />)
+    const image = await findFaviconImage(container, hostname)
+
+    expect(image.getAttribute('src')).toBe(cached ? storedSrc : `https://icon.horse/icon/${hostname}`)
+  })
+
   it.each([true, false])(
     'cancels stalled shared probes at the deadline (consumer remains: %s)',
     async (keepConsumer) => {

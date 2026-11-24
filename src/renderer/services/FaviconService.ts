@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('FaviconService')
@@ -7,6 +9,11 @@ const FAILED_FAVICON_CACHE_DURATION = 24 * 60 * 60 * 1000
 const RESOLVED_FAVICON_CACHE_PREFIX = 'favicon_src_'
 const RESOLVED_FAVICON_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000
 const FAVICON_PROBE_TIMEOUT_MS = 2000
+
+const resolvedFaviconCacheEntrySchema = z.object({
+  src: z.string().min(1),
+  at: z.number()
+})
 
 const faviconUrlsFor = (hostname: string): string[] => [
   `https://icon.horse/icon/${hostname}`,
@@ -92,9 +99,17 @@ class FaviconService {
 
       if (!raw) return undefined
 
-      const entry = JSON.parse(raw) as { src?: string; at?: number }
+      const result = resolvedFaviconCacheEntrySchema.safeParse(JSON.parse(raw))
 
-      if (!entry.src || !entry.at || Date.now() - entry.at > RESOLVED_FAVICON_CACHE_DURATION) {
+      if (!result.success) {
+        localStorage.removeItem(cacheKey)
+
+        return undefined
+      }
+
+      const entry = result.data
+
+      if (!entry.at || Date.now() - entry.at > RESOLVED_FAVICON_CACHE_DURATION) {
         localStorage.removeItem(cacheKey)
 
         return undefined
