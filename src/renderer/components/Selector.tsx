@@ -70,7 +70,7 @@ const Selector = <V extends string | number>({
   placeholder,
   style,
   disabled = false,
-  multiple = false
+  multiple
 }: SelectorProps<V>) => {
   const [open, setOpen] = useState(false)
   const { t } = useTranslation()
@@ -78,10 +78,10 @@ const Selector = <V extends string | number>({
 
   const selectedValues = useMemo(() => {
     if (multiple) {
-      return (value as V[]) || []
+      return value || []
     }
 
-    return value !== undefined ? [value as V] : []
+    return value !== undefined ? [value] : []
   }, [value, multiple])
 
   const label = useMemo(() => {
@@ -138,12 +138,12 @@ const Selector = <V extends string | number>({
         ? selectedValues.filter((selectedValue) => !isSameValue(selectedValue, option.value))
         : [...selectedValues, option.value]
 
-      ;(onChange as MultipleSelectorProps<V>['onChange'])(newValues)
+      onChange(newValues)
 
       return
     }
 
-    ;(onChange as SingleSelectorProps<V>['onChange'])(option.value)
+    onChange(option.value)
     setOpen(false)
   }
 
