@@ -5212,6 +5212,7 @@
   "settings.memory.failed": "L’opération n’a pas pu être terminée. Vérifiez les éléments restants et réessayez.",
   "settings.memory.generation": "Créer des souvenirs dans les discussions",
   "settings.memory.generation.tooltip": "Le modèle par défaut extrait les informations à retenir des chats avec mémoire partagée. Cela peut consommer quelques tokens.",
+  "settings.memory.global": "Mémoire globale",
   "settings.memory.no_recovery": "Aucune opération ne peut être restaurée.",
   "settings.memory.outcome.conflict": "Conflit",
   "settings.memory.outcome.pending": "Non terminé",

@@ -5212,6 +5212,7 @@
   "settings.memory.failed": "No se pudo completar la operación. Revisa los elementos pendientes e inténtalo de nuevo.",
   "settings.memory.generation": "Generar recuerdos en los chats",
   "settings.memory.generation.tooltip": "Usa el modelo predeterminado para extraer información que merezca recordarse de chats con memoria compartida. Puede consumir unos pocos tokens.",
+  "settings.memory.global": "Memoria global",
   "settings.memory.no_recovery": "No hay ninguna operación recuperable.",
   "settings.memory.outcome.conflict": "Conflicto",
   "settings.memory.outcome.pending": "Sin completar",

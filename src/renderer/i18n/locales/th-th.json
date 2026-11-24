@@ -5212,6 +5212,7 @@
   "settings.memory.failed": "ไม่สามารถดำเนินการให้เสร็จได้ โปรดตรวจสอบรายการที่เหลือแล้วลองอีกครั้ง",
   "settings.memory.generation": "สร้างความทรงจำในแชต",
   "settings.memory.generation.tooltip": "ใช้โมเดลเริ่มต้นดึงข้อมูลที่ควรจดจำจากแชตที่เปิดใช้ความจำร่วมกัน อาจใช้โทเค็นเล็กน้อย",
+  "settings.memory.global": "หน่วยความจำส่วนกลาง",
   "settings.memory.no_recovery": "ไม่มีการดำเนินการที่คืนค่าได้",
   "settings.memory.outcome.conflict": "ขัดแย้ง",
   "settings.memory.outcome.pending": "ยังไม่เสร็จ",

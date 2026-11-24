@@ -120,12 +120,18 @@ export function MemoryFileControls() {
       </SettingRow>
       <SettingDivider />
       <SettingRow className="flex-nowrap">
-        <SettingRowTitle className="flex-1">{t('settings.memory.clear')}</SettingRowTitle>
+        <SettingRowTitle className="flex-1">{t('settings.memory.global')}</SettingRowTitle>
         {!error && result && pending?.kind === 'clear' && (
           <p role="status" className="text-sm text-muted-foreground">
             {t('settings.memory.clear_success')}
           </p>
         )}
+        <Button
+          variant="outline"
+          disabled={busy || !editorId}
+          onClick={() => void run(() => ipcApi.request('memory.open_folder'))}>
+          {t('common.browse')}
+        </Button>
         <Button
           variant="destructive"
           aria-label={t('settings.memory.clear')}

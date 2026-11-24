@@ -5213,6 +5213,7 @@
   "settings.memory.failed": "Operaci se nepodařilo dokončit. Zkontrolujte zbývající položky a zkuste to znovu.",
   "settings.memory.generation": "Ukládat vzpomínky z chatů",
   "settings.memory.generation.tooltip": "Výchozí model vybere informace k zapamatování z chatů se zapnutou sdílenou pamětí. Může při tom spotřebovat malé množství tokenů.",
+  "settings.memory.global": "Globální paměť",
   "settings.memory.no_recovery": "Žádnou operaci nelze obnovit.",
   "settings.memory.outcome.conflict": "Konflikt",
   "settings.memory.outcome.pending": "Nedokončeno",

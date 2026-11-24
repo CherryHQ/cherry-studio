@@ -1,6 +1,11 @@
+import { mkdir } from 'node:fs/promises'
+
+import { shell } from 'electron'
+
 import { application } from '@application'
 import { editorMemoryAuthority } from '@main/ai/memory/memoryAuthority'
 import {
+  assertMemoryPath,
   MEMORY_MAX_BYTES,
   MEMORY_MAX_LINES,
   MEMORY_WARNING_BYTES,
@@ -46,6 +51,16 @@ export const memoryHandlers: IpcHandlersFor<typeof memoryRequestSchemas> = {
     operation(() => {
       editorMemoryAuthority(senderId, scope).assertAuthorized()
       application.get('MemoryDreamingService').cancel(scope)
+    }),
+  'memory.open_folder': (_, { senderId }) =>
+    operation(async () => {
+      const authority = editorMemoryAuthority(senderId, { kind: 'shared' })
+      const root = application.getPath('feature.memory.data')
+      await mkdir(root, { recursive: true, mode: 0o700 })
+      await assertMemoryPath(root, '')
+      authority.assertAuthorized()
+      const error = await shell.openPath(root)
+      if (error) throw new Error(error)
     }),
   'memory.editor.open': (scope, { senderId }) =>
     operation(() => ({
