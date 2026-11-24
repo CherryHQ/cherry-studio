@@ -1130,6 +1130,7 @@
   "chat.topics.export.obsidian_title_required": "제목은 비워 둘 수 없습니다",
   "chat.topics.export.obsidian_vault": "보관소",
   "chat.topics.export.obsidian_vault_placeholder": "보관소 이름을 선택하세요",
+  "chat.topics.export.share_image": "공유용 이미지 내보내기",
   "chat.topics.export.siyuan": "Siyuan Note로 내보내기",
   "chat.topics.export.title": "내보내기",
   "chat.topics.export.title_naming_failed": "제목을 생성하지 못해 기본 제목을 사용합니다",
