@@ -209,7 +209,7 @@ extra `data` field when given (Durable: `tx.appendEntry({ kind, data })`). A `Tu
 `data` laid out by the same encoder; when the harness stores one it merges its request key into `data` as `key`.
 
 `RawEntry.data` accepts unknown native extension data. Decoding checks the object container and the fields listed
-above without recursively validating JSON or removing unrelated extension fields.
+above without recursively validating JSON. Decoded record values retain unrelated extension fields.
 
 Read every stored entry of a custom kind with `decodeEntry({ id, kind, data, text })` and skip the entries for which
 it returns `undefined`. It returns `undefined` for a kind outside `ENTRY_KINDS`, for `data` that is not an object (a
