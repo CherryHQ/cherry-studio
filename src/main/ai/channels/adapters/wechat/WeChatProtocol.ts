@@ -15,6 +15,7 @@ import * as z from 'zod'
 
 import { loggerService } from '@logger'
 import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
+import { getErrorCode } from '@main/utils/error'
 
 const logger = loggerService.withContext('WeChatProtocol')
 
@@ -82,8 +83,6 @@ interface VideoItem {
   video_size?: number
 }
 
-type DownloadableFileItem = FileItem | VoiceItem | VideoItem
-
 interface RefMessage {
   title?: string
   message_item?: MessageItem
@@ -99,18 +98,6 @@ interface MessageItem {
   ref_msg?: RefMessage
 }
 
-interface WeixinMessage {
-  message_id: number
-  from_user_id: string
-  to_user_id: string
-  client_id: string
-  create_time_ms: number
-  message_type: MessageType
-  message_state: MessageState
-  context_token: string
-  item_list: MessageItem[]
-}
-
 export interface IncomingMessage {
   userId: string
   text: string
@@ -118,7 +105,7 @@ export interface IncomingMessage {
   _contextToken: string
   timestamp: Date
   /** Raw image items from WeChat CDN (encrypted, need download+decrypt). */
-  _imageItems?: ImageItem[]
+  _imageItems?: InboundImageItem[]
   /** Raw non-image media items from WeChat CDN, normalized as workspace files. */
   _fileItems?: Array<{ filename: string; mediaType: string; item: DownloadableFileItem }>
 }
@@ -131,6 +118,42 @@ const ApiErrorBodySchema = z.object({
   errmsg: z.string().optional()
 })
 
+const InboundCdnMediaSchema = z.looseObject({
+  encrypt_query_param: z.string().nullish(),
+  aes_key: z.string().nullish(),
+  full_url: z.string().nullish()
+})
+const InboundImageItemSchema = z.looseObject({ media: InboundCdnMediaSchema.nullish(), aeskey: z.string().nullish() })
+const InboundVoiceItemSchema = z.looseObject({
+  media: InboundCdnMediaSchema.nullish(),
+  aeskey: z.string().nullish(),
+  text: z.string().nullish(),
+  encode_type: z.number().nullish()
+})
+const InboundFileItemSchema = z.looseObject({
+  media: InboundCdnMediaSchema.nullish(),
+  aeskey: z.string().nullish(),
+  file_name: z.string().nullish()
+})
+const InboundVideoItemSchema = z.looseObject({ media: InboundCdnMediaSchema.nullish(), aeskey: z.string().nullish() })
+const InboundRefMessageSchema = z.looseObject({
+  title: z.string().nullish(),
+  get message_item(): z.ZodOptional<z.ZodNullable<typeof InboundMessageItemSchema>> {
+    return InboundMessageItemSchema.nullish()
+  }
+})
+const InboundMessageItemSchema = z.looseObject({
+  type: z.number().nullish(),
+  text_item: z.looseObject({ text: z.string().nullish() }).nullish(),
+  image_item: InboundImageItemSchema.nullish(),
+  voice_item: InboundVoiceItemSchema.nullish(),
+  file_item: InboundFileItemSchema.nullish(),
+  video_item: InboundVideoItemSchema.nullish(),
+  get ref_msg(): z.ZodOptional<z.ZodNullable<typeof InboundRefMessageSchema>> {
+    return InboundRefMessageSchema.nullish()
+  }
+})
+
 const WeixinMessageSchema = z.object({
   message_id: z.number(),
   from_user_id: z.string(),
@@ -140,7 +163,7 @@ const WeixinMessageSchema = z.object({
   message_type: z.number(),
   message_state: z.number(),
   context_token: z.string(),
-  item_list: z.array(z.unknown())
+  item_list: z.array(InboundMessageItemSchema)
 })
 
 const GetUpdatesRespSchema = z.object({
@@ -184,6 +207,15 @@ type GetConfigResp = z.infer<typeof GetConfigRespSchema>
 
 type Credentials = z.infer<typeof CredentialsSchema>
 
+type WeixinMessage = z.output<typeof WeixinMessageSchema>
+type InboundCdnMedia = z.output<typeof InboundCdnMediaSchema>
+type InboundImageItem = z.output<typeof InboundImageItemSchema>
+type InboundVoiceItem = z.output<typeof InboundVoiceItemSchema>
+type DownloadableFileItem = z.output<
+  typeof InboundFileItemSchema | typeof InboundVoiceItemSchema | typeof InboundVideoItemSchema
+>
+type InboundMessageItem = z.output<typeof InboundMessageItemSchema>
+
 interface SendTypingReq {
   ilink_user_id: string
   typing_ticket: string
@@ -217,7 +249,7 @@ function aesEcbEncrypt(data: Buffer, key: Buffer): Buffer {
  * Resolve the 16-byte AES key from an image_item.
  * Priority: image_item.aeskey (hex) > image_item.media.aes_key (base64)
  */
-function resolveImageAesKey(item: ImageItem): Buffer | null {
+function resolveImageAesKey(item: InboundImageItem): Buffer | null {
   if (item.aeskey) {
     return Buffer.from(item.aeskey, 'hex')
   }
@@ -231,7 +263,7 @@ function resolveImageAesKey(item: ImageItem): Buffer | null {
 
 // --------------- CDN download ---------------
 
-function resolveCdnDownloadUrl(media?: CDNMedia): string | null {
+function resolveCdnDownloadUrl(media?: InboundCdnMedia | null): string | null {
   const fullUrl = media?.full_url?.trim()
 
   if (fullUrl) {
@@ -250,7 +282,7 @@ function resolveCdnDownloadUrl(media?: CDNMedia): string | null {
   return `${CDN_BASE_URL}/download?encrypted_query_param=${encodeURIComponent(media.encrypt_query_param)}`
 }
 
-async function cdnDownloadImage(item: ImageItem): Promise<Buffer | null> {
+async function cdnDownloadImage(item: InboundImageItem): Promise<Buffer | null> {
   const url = resolveCdnDownloadUrl(item.media)
 
   if (!url) return null
@@ -576,7 +608,7 @@ async function getUpdates(
     signal
   )
 
-  return { msgs: parsed.msgs as WeixinMessage[], get_updates_buf: parsed.get_updates_buf }
+  return { msgs: parsed.msgs, get_updates_buf: parsed.get_updates_buf }
 }
 
 async function apiSendMessage(
@@ -687,7 +719,7 @@ async function loadCredentials(tokenPath: string): Promise<Credentials | undefin
 
     return result.data
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (getErrorCode(error) === 'ENOENT') {
       return undefined
     }
 
@@ -918,7 +950,7 @@ export class WeixinBot {
    * Returns a data URL (data:<mime>;base64,...) or null on failure.
    * Format conversion (to PNG) is handled downstream by ClaudeCodeService.
    */
-  async downloadImage(imageItem: ImageItem): Promise<string | null> {
+  async downloadImage(imageItem: InboundImageItem): Promise<string | null> {
     try {
       const data = await cdnDownloadImage(imageItem)
 
@@ -1205,7 +1237,7 @@ export class WeixinBot {
   private toIncomingMessage(message: WeixinMessage): IncomingMessage | null {
     if (message.message_type !== MessageType.USER) return null
 
-    const hasCdnMedia = (media?: CDNMedia) => Boolean(media?.encrypt_query_param || media?.full_url)
+    const hasCdnMedia = (media?: InboundCdnMedia | null) => Boolean(media?.encrypt_query_param || media?.full_url)
 
     const imageItems = message.item_list
       .filter((item) => item.type === MessageItemType.IMAGE && hasCdnMedia(item.image_item?.media))
@@ -1270,10 +1302,14 @@ export class WeixinBot {
     try {
       if (!fs.existsSync(this.contextTokenPath)) return
       const raw = fs.readFileSync(this.contextTokenPath, 'utf8')
-      const tokens = JSON.parse(raw) as Record<string, string>
+      const tokens: unknown = JSON.parse(raw)
+
+      if (tokens === null || typeof tokens !== 'object') throw new Error('Invalid context token map')
       let count = 0
 
-      for (const [userId, token] of Object.entries(tokens)) {
+      const entries: [string, unknown][] = Object.entries(tokens)
+
+      for (const [userId, token] of entries) {
         if (typeof token === 'string' && token) {
           this.contextTokens.set(userId, token)
           count++
@@ -1315,7 +1351,7 @@ export class WeixinBot {
 
 // --------------- Helpers ---------------
 
-function detectType(items: MessageItem[]): IncomingMessage['type'] {
+function detectType(items: InboundMessageItem[]): IncomingMessage['type'] {
   const first = items[0]
 
   switch (first?.type) {
@@ -1332,7 +1368,7 @@ function detectType(items: MessageItem[]): IncomingMessage['type'] {
   }
 }
 
-function extractText(items: MessageItem[]): string {
+function extractText(items: InboundMessageItem[]): string {
   return items
     .flatMap((item) => {
       const text = extractItemText(item)
@@ -1342,7 +1378,7 @@ function extractText(items: MessageItem[]): string {
     .join('\n')
 }
 
-function extractItemText(item: MessageItem): string {
+function extractItemText(item: InboundMessageItem): string {
   let text: string
 
   switch (item.type) {
@@ -1372,7 +1408,7 @@ function extractItemText(item: MessageItem): string {
   return quote ? `[quote: ${quote}]${text ? `\n${text}` : ''}` : text
 }
 
-function voiceExtension(item: VoiceItem): string {
+function voiceExtension(item: InboundVoiceItem): string {
   switch (item.encode_type) {
     case 7:
       return 'mp3'
@@ -1383,7 +1419,7 @@ function voiceExtension(item: VoiceItem): string {
   }
 }
 
-function voiceMediaType(item: VoiceItem): string {
+function voiceMediaType(item: InboundVoiceItem): string {
   switch (item.encode_type) {
     case 7:
       return 'audio/mpeg'

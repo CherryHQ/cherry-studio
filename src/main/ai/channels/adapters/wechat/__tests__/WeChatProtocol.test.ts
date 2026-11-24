@@ -17,7 +17,7 @@ vi.mock('electron', () => ({
   net: { fetch: netFetchMock }
 }))
 
-import { WeixinBot } from '../WeChatProtocol'
+import { type IncomingMessage, WeixinBot } from '../WeChatProtocol'
 
 const BASE_URL = 'https://ilink.example.com'
 let tokenDir: string
@@ -25,6 +25,20 @@ let tokenPath: string
 
 function jsonResponse(body: unknown, headers?: HeadersInit): Response {
   return new Response(JSON.stringify(body), { status: 200, headers })
+}
+
+function inboundMessage(item_list: unknown[]) {
+  return {
+    message_id: 1,
+    from_user_id: 'user-1',
+    to_user_id: 'bot-id',
+    client_id: 'message-1',
+    create_time_ms: 0,
+    message_type: 1,
+    message_state: 2,
+    context_token: 'context-1',
+    item_list
+  }
 }
 
 function requestBody(callIndex: number): JSONValue {
@@ -47,6 +61,117 @@ afterEach(async () => {
 })
 
 describe('WeixinBot API response validation', () => {
+  it('decodes consumed inbound fields through HTTP while preserving extensions and nullish fallbacks', async () => {
+    const image = {
+      media: { encrypt_query_param: 'image-param', aes_key: null, future: { value: true } },
+      thumb_width: 'future-shape'
+    }
+    const received: IncomingMessage[] = []
+    const errors: unknown[] = []
+    netFetchMock.mockImplementation((url: string) => {
+      if (url.endsWith('/notifystart') || url.endsWith('/notifystop')) return Promise.resolve(jsonResponse({ ret: 0 }))
+      if (url.endsWith('/getupdates'))
+        return Promise.resolve(
+          jsonResponse({
+            msgs: [
+              inboundMessage([
+                { type: 11, future: 'extension' },
+                {},
+                { type: 1, text_item: {} },
+                { type: null, text_item: null },
+                {
+                  type: 1,
+                  text_item: { text: 'hello' },
+                  ref_msg: { title: 'Earlier', message_item: { type: 1, text_item: { text: 'quoted' } } }
+                },
+                { type: 2, image_item: image },
+                { type: 4, file_item: { media: { encrypt_query_param: 'file-param' }, file_name: null } },
+                { type: 3, voice_item: { media: { encrypt_query_param: 'voice-param' }, text: null, encode_type: 77 } }
+              ])
+            ],
+            get_updates_buf: 'next'
+          })
+        )
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    const bot = new WeixinBot({
+      tokenPath,
+      onError(error) {
+        errors.push(error)
+        bot.stop()
+      }
+    })
+    bot.onMessage((message) => {
+      received.push(message)
+      bot.stop()
+    })
+
+    await bot.run()
+
+    expect(errors).toEqual([])
+    expect(received).toHaveLength(1)
+    expect(received[0].text).toContain('[quote: Earlier | quoted]\nhello')
+    expect(received[0].text).toContain('[voice]')
+    expect(received[0]._imageItems).toEqual([image])
+    expect(received[0]._fileItems).toMatchObject([
+      { filename: 'file', mediaType: 'application/octet-stream' },
+      { filename: 'voice-1.silk', mediaType: 'audio/silk' }
+    ])
+  })
+
+  it('retries malformed consumed fields without advancing the polling cursor or reauthenticating', async () => {
+    const cursors: string[] = []
+    const received: IncomingMessage[] = []
+    const errors: unknown[] = []
+    netFetchMock.mockImplementation((url: string, options?: RequestInit) => {
+      if (url.endsWith('/notifystart') || url.endsWith('/notifystop')) return Promise.resolve(jsonResponse({ ret: 0 }))
+      if (url.endsWith('/getupdates')) {
+        cursors.push(JSON.parse(String(options?.body)).get_updates_buf)
+        return Promise.resolve(
+          jsonResponse({
+            msgs: [inboundMessage([{ type: 1, text_item: { text: cursors.length === 1 ? 17 : 'after retry' } }])],
+            get_updates_buf: cursors.length === 1 ? 'must-not-commit' : 'valid-cursor'
+          })
+        )
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    const bot = new WeixinBot({
+      tokenPath,
+      onError(error) {
+        errors.push(error)
+        if (errors.length > 1) bot.stop()
+      }
+    })
+    bot.onMessage((message) => {
+      received.push(message)
+      bot.stop()
+    })
+
+    await bot.run()
+
+    expect(errors).toHaveLength(1)
+    expect(cursors).toEqual(['', ''])
+    expect(received.map((message) => message.text)).toEqual(['after retry'])
+    expect(await bot.hasCredentials()).toBe(true)
+  })
+
+  it('restores valid context tokens beside malformed values and prototype-named keys', async () => {
+    await writeFile(
+      tokenPath.replace(/\.json$/, '.context-tokens.json'),
+      '{"valid":"context-a","bad":17,"other":"context-b","__proto__":"literal-token"}'
+    )
+    netFetchMock.mockImplementation(() => Promise.resolve(jsonResponse({ ret: 0 })))
+    const bot = new WeixinBot({ tokenPath })
+
+    for (const userId of ['valid', 'other', '__proto__', 'bad']) await bot.send(userId, 'hello')
+
+    expect(requestBody(0)).toHaveProperty('msg.context_token', 'context-a')
+    expect(requestBody(1)).toHaveProperty('msg.context_token', 'context-b')
+    expect(requestBody(2)).toHaveProperty('msg.context_token', 'literal-token')
+    expect(requestBody(3)).toHaveProperty('msg.context_token', '')
+  })
+
   it('reports an unprintable message-handler rejection without replacing it or aborting the polling loop', async () => {
     const failure = { toString: null }
     const reported: unknown[] = []
