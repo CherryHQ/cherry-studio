@@ -27,8 +27,8 @@ export interface MessageConfig {
   /**
    * The loosely-validated gateway request body. Routes validate only the fields
    * the gateway needs (`model`, `messages`/`input`, …) and pass the rest through,
-   * so this is `unknown` at the boundary and narrowed to the format's SDK type
-   * below — the converters parse the full payload defensively.
+   * so this remains unvalidated here. Converters consume supported fields;
+   * the SDK interface bridge below does not establish complete payload validity.
    */
   params: unknown
   /**
@@ -57,7 +57,7 @@ export interface MessageConfig {
 /** Resolve the trusted routing envelope without converting the caller payload. */
 export async function resolveGatewayRequest(config: MessageConfig) {
   const { inputFormat = 'anthropic', outputFormat = 'anthropic' } = config
-  // Trust boundary: narrow the loosely-validated body to the format's SDK type once.
+  // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Routes validate a loose envelope, not the complete SDK payload; converters retain this legacy consumption contract and provider extension fields.
   const params = config.params as InputParams
 
   // Client-addressing mistakes are 400s, not 500s. Notably gemini-cli's internal
@@ -67,15 +67,12 @@ export async function resolveGatewayRequest(config: MessageConfig) {
   // gateway server errors in the logs.
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Gateway callbacks and address resolution may throw arbitrary JavaScript values; normalize failures before setting client-facing status.
   const asClientError = (error: unknown): Error & { status: number } => {
-    const err = (error instanceof Error ? error : new Error(String(error))) as Error & { status: number }
-    err.status = 400
-
-    return err
+    return Object.assign(error instanceof Error ? error : new Error(String(error)), { status: 400 })
   }
 
   // 1. Resolve the external "providerId:apiModelId" address from Gemini's URL-path
   // override or the request body, then map it to the internal model id.
-  const modelString = config.modelString ?? ('model' in params ? (params as { model?: string }).model : undefined)
+  const modelString = config.modelString ?? ('model' in params ? params.model : undefined)
 
   if (!modelString || typeof modelString !== 'string') {
     throw asClientError(new Error('Request is missing a "model" field'))
@@ -114,7 +111,7 @@ export async function resolveGatewayRequest(config: MessageConfig) {
   // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
   const logContext = agentSessionId ? { providerId, modelId, agentSessionId } : { providerId, modelId }
 
-  const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
+  const isStreaming = config.streaming ?? ('stream' in params && params.stream === true)
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     ...logContext,
