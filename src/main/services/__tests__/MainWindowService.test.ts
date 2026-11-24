@@ -1105,11 +1105,10 @@ describe('MainWindowService', () => {
 
       expect(applicationMock.quit).not.toHaveBeenCalled()
       expect(event.preventDefault).toHaveBeenCalledTimes(1)
-      expect(win.setOpacity).toHaveBeenCalledWith(0)
+      expect(win.setOpacity).not.toHaveBeenCalled()
       expect(win.setSkipTaskbar).toHaveBeenCalledWith(true)
       expect(win.minimize).toHaveBeenCalledTimes(1)
       expect(win.hide).toHaveBeenCalledTimes(1)
-      expect(win.setOpacity.mock.invocationCallOrder[0]).toBeLessThan(win.setSkipTaskbar.mock.invocationCallOrder[0])
       expect(win.setSkipTaskbar.mock.invocationCallOrder[0]).toBeLessThan(win.minimize.mock.invocationCallOrder[0])
       expect(win.minimize.mock.invocationCallOrder[0]).toBeLessThan(win.hide.mock.invocationCallOrder[0])
       expect(win.show).not.toHaveBeenCalled()
@@ -1187,11 +1186,10 @@ describe('MainWindowService', () => {
 
       expect(applicationMock.quit).not.toHaveBeenCalled()
       expect(firstEvent.preventDefault).toHaveBeenCalledTimes(1)
-      expect(win.setOpacity).toHaveBeenCalledWith(0)
+      expect(win.setOpacity).not.toHaveBeenCalled()
       expect(win.setSkipTaskbar).toHaveBeenCalledWith(true)
       expect(win.minimize).toHaveBeenCalledTimes(1)
       expect(win.hide).toHaveBeenCalledTimes(1)
-      expect(win.setOpacity.mock.invocationCallOrder[0]).toBeLessThan(win.setSkipTaskbar.mock.invocationCallOrder[0])
       expect(win.setSkipTaskbar.mock.invocationCallOrder[0]).toBeLessThan(win.minimize.mock.invocationCallOrder[0])
       expect(win.minimize.mock.invocationCallOrder[0]).toBeLessThan(win.hide.mock.invocationCallOrder[0])
       expect(win.show).not.toHaveBeenCalled()
@@ -1363,11 +1361,10 @@ describe('MainWindowService', () => {
       svc.toggleMainWindow()
 
       expect(applicationMock.quit).not.toHaveBeenCalled()
-      expect(win.setOpacity).toHaveBeenCalledWith(0)
+      expect(win.setOpacity).not.toHaveBeenCalled()
       expect(win.setSkipTaskbar).toHaveBeenCalledWith(true)
       expect(win.minimize).toHaveBeenCalledTimes(1)
       expect(win.hide).toHaveBeenCalledTimes(1)
-      expect(win.setOpacity.mock.invocationCallOrder[0]).toBeLessThan(win.setSkipTaskbar.mock.invocationCallOrder[0])
       expect(win.setSkipTaskbar.mock.invocationCallOrder[0]).toBeLessThan(win.minimize.mock.invocationCallOrder[0])
       expect(win.minimize.mock.invocationCallOrder[0]).toBeLessThan(win.hide.mock.invocationCallOrder[0])
       expect(win.show).not.toHaveBeenCalled()
@@ -1398,21 +1395,21 @@ describe('MainWindowService', () => {
     })
   })
 
-  describe('Windows tray appearance recovery', () => {
-    it.each(['restore', 'show'])('repairs appearance on %s events bypassing the service', (event) => {
+  describe('Windows taskbar recovery', () => {
+    it.each(['restore', 'show'])('restores the taskbar entry on %s events without changing opacity', (event) => {
       platformState.isWin = true
       ;(svc as any).setupWindowEvents(win)
 
       win.emit(event)
 
-      expect(win.setOpacity).toHaveBeenCalledExactlyOnceWith(1)
+      expect(win.setOpacity).not.toHaveBeenCalled()
       expect(win.setSkipTaskbar).toHaveBeenCalledExactlyOnceWith(false)
       expect(win.show).not.toHaveBeenCalled()
       expect(win.restore).not.toHaveBeenCalled()
       expect(win.focus).not.toHaveBeenCalled()
     })
 
-    it.each(['restore', 'show'])('skips appearance repair on %s events from a destroyed window', (event) => {
+    it.each(['restore', 'show'])('skips taskbar recovery on %s events from a destroyed window', (event) => {
       platformState.isWin = true
       ;(svc as any).setupWindowEvents(win)
       win.isDestroyed.mockReturnValue(true)
@@ -1426,7 +1423,7 @@ describe('MainWindowService', () => {
       expect(win.focus).not.toHaveBeenCalled()
     })
 
-    it('does not touch opacity off Windows', () => {
+    it('does not apply Windows taskbar recovery on other platforms', () => {
       ;(svc as any).setupWindowEvents(win)
 
       win.emit('restore')
@@ -1442,7 +1439,7 @@ describe('MainWindowService', () => {
       ['hidden + minimized', false, true],
       ['hidden + non-minimized', false, false],
       ['visible + minimized', true, true]
-    ] as const)('repairs appearance and exposes a %s window before focus', (_state, visible, minimized) => {
+    ] as const)('restores the taskbar entry and exposes a %s window before focus', (_state, visible, minimized) => {
       platformState.isWin = true
       ;(svc as any).mainWindow = win
       win.isVisible.mockReturnValue(visible)
@@ -1451,7 +1448,7 @@ describe('MainWindowService', () => {
 
       svc[action]()
 
-      expect(win.setOpacity).toHaveBeenCalledExactlyOnceWith(1)
+      expect(win.setOpacity).not.toHaveBeenCalled()
       expect(win.setSkipTaskbar).toHaveBeenCalledExactlyOnceWith(false)
       expect(win.show).toHaveBeenCalledTimes(1)
       expect(win.focus).toHaveBeenCalledTimes(1)
@@ -1459,12 +1456,10 @@ describe('MainWindowService', () => {
       expect(win.hide).not.toHaveBeenCalled()
       if (minimized) {
         expect(win.restore).toHaveBeenCalledTimes(1)
-        expect(win.setOpacity.mock.invocationCallOrder[0]).toBeLessThan(win.restore.mock.invocationCallOrder[0])
         expect(win.setSkipTaskbar.mock.invocationCallOrder[0]).toBeLessThan(win.restore.mock.invocationCallOrder[0])
         expect(win.restore.mock.invocationCallOrder[0]).toBeLessThan(win.show.mock.invocationCallOrder[0])
       } else {
         expect(win.restore).not.toHaveBeenCalled()
-        expect(win.setOpacity.mock.invocationCallOrder[0]).toBeLessThan(win.show.mock.invocationCallOrder[0])
         expect(win.setSkipTaskbar.mock.invocationCallOrder[0]).toBeLessThan(win.show.mock.invocationCallOrder[0])
       }
       expect(win.show.mock.invocationCallOrder[0]).toBeLessThan(win.focus.mock.invocationCallOrder[0])
