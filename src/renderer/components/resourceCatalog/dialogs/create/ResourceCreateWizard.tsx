@@ -823,13 +823,15 @@ export function ResourceCreateWizard({
                       {currentStep.id === 'system-prompt' ? (
                         <SystemPromptStep form={form} portalContainer={dialogContentElement} />
                       ) : null}
-                      {kind === 'assistant' && currentStep.id === 'mcp-review' ? (
-                        <AssistantMcpReviewStep
-                          form={form}
-                          active={open && currentStep.id === 'mcp-review'}
-                          disabled={submitting}
-                          portalContainer={dialogContentElement}
-                        />
+                      {kind === 'assistant' ? (
+                        <div hidden={currentStep.id !== 'mcp-review'}>
+                          <AssistantMcpReviewStep
+                            form={form}
+                            active={open && currentStep.id === 'mcp-review'}
+                            disabled={submitting}
+                            portalContainer={dialogContentElement}
+                          />
+                        </div>
                       ) : null}
                       {currentStep.id === 'knowledge' ? (
                         <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />

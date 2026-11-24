@@ -15,7 +15,7 @@ import type { Provider } from '@shared/data/types/provider'
 
 import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind } from '../types'
 
-const mcpStepState = vi.hoisted(() => ({ pending: false }))
+const mcpStepState = vi.hoisted(() => ({ pending: false, snapshotRead: vi.fn(() => ['Reviewed server']) }))
 
 const manualMcp = vi.hoisted(() => ({ install: vi.fn<() => Promise<McpServer>>() }))
 
@@ -110,7 +110,7 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
 // mapping) is exercised in isolation. BasicInfoStep fills the fields that gate
 // the Next button; SystemPromptStep fills the prompt.
 vi.mock('../steps/AssistantMcpReviewStep', async () => {
-  const { useEffect } = await import('react')
+  const { useEffect, useState } = await import('react')
   return {
     AssistantMcpReviewStep: ({
       form,
@@ -119,10 +119,11 @@ vi.mock('../steps/AssistantMcpReviewStep', async () => {
       form: { setValue: (name: string, value: unknown) => void }
       active: boolean
     }) => {
+      const [snapshot] = useState(() => mcpStepState.snapshotRead())
       useEffect(() => {
         if (active && !mcpStepState.pending) form.setValue('reviewedMcpServerIds', [])
       }, [form, active])
-      return null
+      return <span data-testid="review-catalog">{snapshot.join(',')}</span>
     }
   }
 })
@@ -454,6 +455,7 @@ afterEach(() => {
   cleanup()
   onSubmitSpy.mockReset()
   mcpStepState.pending = false
+  mcpStepState.snapshotRead.mockReturnValue(['Reviewed server'])
   modelHook.defaultModel = undefined
   modelHook.defaultProvider = { id: 'provider', name: 'Provider', isEnabled: true } as Provider
   modelHook.agentModelFilter.mockReset()
@@ -1849,7 +1851,33 @@ describe('ResourceCreateWizard result page', () => {
     expect(summaryValue(HEARTBEAT_ROW)).toHaveTextContent(`${RESULT}.heartbeat_every:30`)
   })
 
+  it('shows saved Assistant MCP bindings rather than the manual payload placeholder', async () => {
+    MockUseDataApiUtils.mockQueryData('/assistants/:id', { id: 'assistant-1', mcpServerIds: ['mcp-github'] } as never)
+    const user = userEvent.setup()
+    render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
+    await createManually(user)
+    await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.assistant_title' })
+    expect(summaryValue(MCP_ROW)).toHaveTextContent('GitHub')
+  })
+
+  it('retains the review catalog snapshot when navigating Back from Knowledge', async () => {
+    const user = userEvent.setup()
+    render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    expect(screen.getByTestId('review-catalog')).toBeVisible()
+    expect(screen.getByTestId('review-catalog')).toHaveTextContent('Reviewed server')
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    mcpStepState.snapshotRead.mockReturnValue([])
+    await user.click(screen.getByRole('button', { name: /settings\.mcp\.title$/ }))
+    expect(screen.getByTestId('review-catalog')).toBeVisible()
+    expect(screen.getByTestId('review-catalog')).toHaveTextContent('Reviewed server')
+  })
+
   it('says what an empty manual Assistant lacks in its own words', async () => {
+    MockUseDataApiUtils.mockQueryData('/assistants/:id', { id: 'assistant-1', mcpServerIds: [] } as never)
     const user = userEvent.setup()
     render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
 
