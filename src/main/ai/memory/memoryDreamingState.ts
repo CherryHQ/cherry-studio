@@ -36,9 +36,6 @@ const stateSchema = z.strictObject({
   generation: z.number().int().nonnegative(),
   files: z.record(z.string(), fileSchema),
   cursor: z.string(),
-  manual: z.boolean(),
-  manualBatch: z.array(z.string()).max(10).optional(),
-  manualAttempts: z.number().int().nonnegative(),
   cancelled: z.boolean(),
   lastScanAt: z.number(),
   scanRetryAt: z.number().optional(),
@@ -55,8 +52,17 @@ export function memoryScopeKey(scope: MemoryScope): string {
 }
 
 function parseState(value: unknown): DreamingState {
+  // Earlier v1 rows may still contain a manual request that was never run.
+  if (value && typeof value === 'object' && 'manual' in value) {
+    const legacy = { ...value } as Record<string, unknown>
+    delete legacy.manual
+    delete legacy.manualAttempts
+    delete legacy.manualBatch
+    if (legacy.status === 'queued') legacy.status = 'cancelled'
+    value = legacy
+  }
   const state = stateSchema.parse(value)
-  for (const target of [...Object.keys(state.files), ...(state.manualBatch ?? [])]) assertMemoryTarget(target)
+  for (const target of Object.keys(state.files)) assertMemoryTarget(target)
   return state
 }
 
@@ -91,8 +97,6 @@ export function readDreamingState(scope: MemoryScope): DreamingState {
     generation: 0,
     files: {},
     cursor: '',
-    manual: false,
-    manualAttempts: 0,
     cancelled: false,
     lastScanAt: 0,
     status: 'idle'
