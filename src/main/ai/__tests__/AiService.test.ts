@@ -3282,9 +3282,8 @@ describe('AiService.listModels', () => {
 
   it.each([
     { id: 'openai' },
-    { id: 'custom', modelListSource: 'api', supplementModelsFromRegistry: false },
-    { id: 'deepseek', modelListSource: 'api' },
-    { id: 'custom-deepseek', presetProviderId: 'deepseek', modelListSource: 'api' }
+    { id: 'custom', modelListSource: 'api' },
+    { id: 'custom', modelListSource: 'api', supplementModelsFromRegistry: false }
   ])('uses the API catalog without resurrecting registry-only models for $id', async (provider) => {
     const service = createService()
     const apiModels = ['deepseek-flash', 'deepseek-v4-pro', 'deepseek-future'].map((apiModelId) => ({
@@ -3307,6 +3306,41 @@ describe('AiService.listModels', () => {
 
     mockListModelsFromProvider.mockRejectedValue(new Error('Unauthorized'))
     await expect(service.listModels({ providerId: provider.id, throwOnError: true })).rejects.toThrow('Unauthorized')
+  })
+
+  it.each([
+    { id: 'deepseek', modelListSource: 'api', supplementModelsFromRegistry: true },
+    {
+      id: 'custom-deepseek',
+      presetProviderId: 'deepseek',
+      modelListSource: 'api',
+      supplementModelsFromRegistry: true
+    }
+  ])('appends registry-only models for a provider that opts in ($id)', async (provider) => {
+    const service = createService()
+    const apiModels = ['deepseek-flash', 'deepseek-v4-pro'].map((apiModelId) => ({
+      id: `${provider.id}::${apiModelId}`,
+      apiModelId
+    }))
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockResolvedValue({ models: apiModels })
+    mockListProviderRegistryModels.mockReturnValue(
+      ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'].map((apiModelId) => ({
+        id: `${provider.id}::${apiModelId}`,
+        apiModelId
+      }))
+    )
+
+    const { models } = await service.listModels({ providerId: provider.id })
+
+    expect(models.map((model) => model.apiModelId)).toEqual([
+      'deepseek-flash',
+      'deepseek-v4-pro',
+      'deepseek-v4-flash',
+      'deepseek-v4-flash-vision-exp'
+    ])
+    expect(models[0]).toBe(apiModels[0])
+    expect(models[1]).toBe(apiModels[1])
   })
 
   it('does not impose a service-level timeout on model listing', async () => {

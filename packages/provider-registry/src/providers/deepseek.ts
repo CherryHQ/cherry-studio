@@ -60,6 +60,9 @@ export default defineProvider({
   name: 'deepseek',
   availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
+  // `/models` omits deepseek-v4-flash and deepseek-v4-flash-vision-exp, though both still answer 200.
+  // The provider registry's four served ids exclude retired aliases.
+  supplementModelsFromRegistry: true,
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',
