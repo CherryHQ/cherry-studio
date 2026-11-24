@@ -20,7 +20,7 @@ import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { resolveEffectiveEndpoint } from '../endpoint'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
-import { AIHubMixModelsResponseSchema } from '../listModelsSchemas'
+import { AIHubMixModelsResponseSchema, ModelRushModelsResponseSchema } from '../listModelsSchemas'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
 // config + signed auth headers) off main-process singletons, then perform the
@@ -345,7 +345,7 @@ describe('listModels — ModelRush chat-completions filtering (#20010)', () => {
   function makeModelRushProvider(id = 'modelrush') {
     return makeProvider({
       id,
-      ...(id === 'modelrush' ? {} : { presetProviderId: 'modelrush' }),
+      presetProviderId: 'modelrush',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.modelrush.ai/v1' }
@@ -415,6 +415,62 @@ describe('listModels — ModelRush chat-completions filtering (#20010)', () => {
     expect(models.map((m) => m.apiModelId)).toEqual(['modelrush/glm-5.3', 'modelrush/papaya-1.0'])
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
     expect(call.url).toBe('https://api.modelrush.ai/v1/models')
+  })
+
+  it('excludes rows missing live status or chat-completions evidence (REGRESSION)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'modelrush/live-chat', api_types: ['chat-completions'], gateway_status: 'live' },
+          // Live image row with null api_types must not become a chat model.
+          { id: 'modelrush/live-image', api_types: null, gateway_status: 'live' },
+          // Chat row without gateway_status must not become a chat model.
+          { id: 'modelrush/unstaged-chat', api_types: ['chat-completions'] },
+          // Row with neither signal must not become a chat model.
+          { id: 'modelrush/bare' }
+        ]
+      }
+    })
+
+    const { models } = await listModels(makeModelRushProvider())
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['modelrush/live-chat'])
+  })
+
+  it('routes a pre-existing custom row with id modelrush and no preset through the generic fetcher (REGRESSION)', async () => {
+    const custom = makeProvider({
+      id: 'modelrush',
+      name: 'My Rush',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.modelrush.ai/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [{ id: 'modelrush/z-image', owned_by: 'custom' }]
+      }
+    })
+
+    const { models } = await listModels(custom)
+
+    // Generic OpenAI-compatible discovery keeps the row; the ModelRush
+    // chat-completions filter would have dropped it (no live/chat evidence).
+    expect(models.map((m) => m.apiModelId)).toEqual(['modelrush/z-image'])
+  })
+
+  it('keeps the valid live chat row when one item is malformed (REGRESSION)', () => {
+    const parsed = ModelRushModelsResponseSchema.parse({
+      data: [
+        { id: 'modelrush/live-chat', api_types: ['chat-completions'], gateway_status: 'live' },
+        // Matches OpenAI-compatible tolerance: a malformed row is skipped,
+        // not a whole-list failure surfaced as a Settings error.
+        { id: 42 }
+      ]
+    })
+
+    expect(parsed.data.map((m) => m.id)).toEqual(['modelrush/live-chat'])
+    expect(parsed.skippedModelCount).toBe(1)
   })
 })
 

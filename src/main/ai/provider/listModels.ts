@@ -694,7 +694,7 @@ const tokenDanceFetcher: ModelFetcher = {
 }
 
 const modelRushFetcher: ModelFetcher = {
-  match: (p) => matchesPreset(p, SystemProviderIds.modelrush),
+  match: (p) => p.presetProviderId === SystemProviderIds.modelrush,
   fetch: async (provider, signal) => {
     const response = await getFromApi({
       url: `${formatApiHost(getBaseUrl(provider))}/models`,
@@ -707,8 +707,8 @@ const modelRushFetcher: ModelFetcher = {
     return listing(
       dedup(response.data, (m) => m.id)
         .filter((m) => {
-          if (m.gateway_status !== undefined && m.gateway_status !== 'live') return false
-          if (m.api_types !== undefined && !m.api_types.includes('chat-completions')) return false
+          if (m.gateway_status !== 'live') return false
+          if (!m.api_types?.includes('chat-completions')) return false
           return true
         })
         .map((m) => toModel(m.id, provider, { name: m.name || m.id, ownedBy: m.owned_by }))
