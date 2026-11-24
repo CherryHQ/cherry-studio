@@ -60,7 +60,7 @@ function PageSidePanel({
   const hasHeader = !!headerContent || showCloseButton
   const headerId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
-  const triggerRef = useRef<HTMLElement | null>(null)
+  const restoreFocusRef = useRef<(() => void) | null>(null)
   const closedByPointerDownRef = useRef(false)
   const scopedContainer = usePortalContainer()
   const portalContainer = scopedContainer ?? (typeof document === 'undefined' ? null : document.body)
@@ -80,13 +80,20 @@ function PageSidePanel({
   useEffect(() => {
     if (open) {
       closedByPointerDownRef.current = false
-      triggerRef.current = document.activeElement as HTMLElement | null
+      const trigger = document.activeElement
+      const focus = trigger && 'focus' in trigger ? trigger.focus : undefined
+      restoreFocusRef.current =
+        typeof focus === 'function'
+          ? () => {
+              focus.call(trigger)
+            }
+          : null
       requestAnimationFrame(() => {
         panelRef.current?.focus()
       })
     } else {
-      triggerRef.current?.focus()
-      triggerRef.current = null
+      restoreFocusRef.current?.()
+      restoreFocusRef.current = null
     }
   }, [open])
 

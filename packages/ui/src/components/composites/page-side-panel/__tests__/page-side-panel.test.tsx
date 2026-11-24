@@ -120,14 +120,18 @@ describe('PageSidePanel', () => {
       expect(screen.getByRole('dialog', { name: 'Panel title' })).toBeInTheDocument()
     })
 
-    it('restores focus to the trigger when closed', () => {
+    it.each(['button', 'SVG'])('restores focus to the %s trigger when closed', async (triggerType) => {
       function TestPanel() {
         const [open, setOpen] = React.useState(false)
         return (
           <>
-            <button type="button" onClick={() => setOpen(true)}>
-              Open panel
-            </button>
+            {triggerType === 'SVG' ? (
+              <svg role="button" tabIndex={0} aria-label="Open panel" onClick={() => setOpen(true)} />
+            ) : (
+              <button type="button" onClick={() => setOpen(true)}>
+                Open panel
+              </button>
+            )}
             <PageSidePanel open={open} onClose={() => setOpen(false)} header={<span>Panel title</span>} />
           </>
         )
@@ -137,6 +141,7 @@ describe('PageSidePanel', () => {
       const trigger = screen.getByRole('button', { name: 'Open panel' })
       trigger.focus()
       fireEvent.click(trigger)
+      await waitFor(() => expect(screen.getByRole('dialog')).toHaveFocus())
 
       fireEvent.click(screen.getByLabelText('Close'))
 
