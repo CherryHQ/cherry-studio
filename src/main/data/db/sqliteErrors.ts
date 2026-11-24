@@ -97,7 +97,7 @@ function* walkCauseChain(err: unknown): Generator<Error> {
   for (let depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
     if (!(current instanceof Error)) return
     yield current
-    current = (current as { cause?: unknown }).cause
+    current = current.cause
   }
 }
 
@@ -155,7 +155,8 @@ function extractCheckName(message: string): string | undefined {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- DB operations also throw application failures; classify only recognized Error chains and leave other thrown values unclassified.
 export function classifySqliteError(e: unknown): SqliteConstraint | null {
   for (const err of walkCauseChain(e)) {
-    const code = (err as { code?: string }).code
+    const fields: Error & { code?: unknown } = err
+    const code = fields.code
     const message = err.message
 
     // PRIMARYKEY and ROWID constraints are semantically UNIQUE violations —
@@ -244,18 +245,22 @@ export function classifySqliteError(e: unknown): SqliteConstraint | null {
  *
  * For the common case use `defaultHandlersFor` which provides sensible
  * defaults for all four constraint kinds.
+ * Synchronous results are returned unchanged; thenables are adopted as native Promises.
  */
-export function withSqliteErrors<T>(operation: () => T, handlers: SqliteErrorHandlers): T {
+export function withSqliteErrors<T>(
+  operation: () => T,
+  handlers: SqliteErrorHandlers
+): T extends { then: (...args: infer _Args) => unknown } ? Promise<Awaited<T>> : T
+export function withSqliteErrors(operation: () => unknown, handlers: SqliteErrorHandlers): unknown {
   try {
     const result = operation()
 
-    // A thenable result defers its error past this synchronous try/catch — either a genuinely
-    // async operation or a not-yet-executed drizzle query builder (`DbService.withWriteTx` runs
-    // synchronously, so it is not a source). Adopt it as a promise so the same classification maps its
-    // rejection. A plain synchronous result (rows array, RunResult, mapped object) skips this.
-    if (result != null && typeof (result as { then?: unknown }).then === 'function') {
+    // SAFETY: This view only reads an unknown optional member; JavaScript boxes non-null primitives for property access without proving a PromiseLike contract.
+    const deferred = result as { then?: unknown } | null | undefined
+
+    if (deferred != null && typeof deferred.then === 'function') {
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Deferred Drizzle/thenable operations may reject with any value; use the same translation and unchanged-rethrow contract.
-      return Promise.resolve(result).catch((e: unknown) => mapSqliteError(e, handlers)) as T
+      return Promise.resolve(result).catch((e: unknown) => mapSqliteError(e, handlers))
     }
 
     return result

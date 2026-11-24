@@ -1,5 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
+import { setupTestDatabase } from '@test-helpers/db'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, type MockInstance, vi } from 'vitest'
 
+import { tagTable, type TagRow } from '@data/db/schemas/tagging'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 
@@ -271,6 +273,51 @@ describe('withSqliteErrors', () => {
     } satisfies SqliteErrorHandlers
 
     void valid
+  })
+})
+
+describe('withSqliteErrors deferred operations', () => {
+  const dbh = setupTestDatabase()
+
+  it('adopts a real Drizzle builder as a native Promise of rows', async () => {
+    const query = dbh.db.insert(tagTable).values({ name: 'deferred insert' }).returning()
+    const result = withSqliteErrors(() => query, {})
+
+    expectTypeOf(result).toEqualTypeOf<Promise<TagRow[]>>()
+    expect(result).toBeInstanceOf(Promise)
+    expect(result).not.toHaveProperty('run')
+    await expect(result).resolves.toMatchObject([{ name: 'deferred insert' }])
+  })
+
+  it('translates a constraint rejection from a deferred Drizzle insert', async () => {
+    dbh.db.insert(tagTable).values({ name: 'duplicate' }).run()
+    const query = dbh.db.insert(tagTable).values({ name: 'duplicate' }).returning()
+
+    await expect(withSqliteErrors(() => query, defaultHandlersFor('Tag', 'duplicate'))).rejects.toMatchObject({
+      code: ErrorCode.CONFLICT
+    })
+    expect(dbh.db.select().from(tagTable).all()).toHaveLength(1)
+  })
+
+  it('adopts a void-returning callable thenable without exposing its original type', async () => {
+    const thenable = Object.assign(() => undefined, {
+      then(resolve: (value: number) => void) {
+        resolve(7)
+      }
+    })
+    const result = withSqliteErrors(() => thenable, {})
+
+    expectTypeOf(result).toEqualTypeOf<Promise<number>>()
+    await expect(result).resolves.toBe(7)
+  })
+
+  it('returns synchronous values by identity and preserves unclassified rejections', async () => {
+    const value = { id: 'synchronous row' }
+    const result = withSqliteErrors(() => value, {})
+
+    expectTypeOf(result).toEqualTypeOf<typeof value>()
+    expect(result).toBe(value)
+    await expect(withSqliteErrors(() => Promise.reject(null), {})).rejects.toBe(null)
   })
 })
 
