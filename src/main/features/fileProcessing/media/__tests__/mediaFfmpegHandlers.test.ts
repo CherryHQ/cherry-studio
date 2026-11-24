@@ -899,6 +899,55 @@ describe('mediaFfmpegHandlers frame destinations', () => {
   })
 })
 
+describe('mediaFfmpegHandlers Windows kill failure', () => {
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    Object.defineProperty(process, 'platform', { ...platform, value: 'win32' })
+  })
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', platform)
+    vi.useRealTimers()
+    spawnControl.replacement = null
+    spawnControl.calls = 0
+  })
+
+  it('settles a timed-out command when taskkill cannot start', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-taskkill-'))
+    const pidRegistryPath = join(outputDir, 'active-child.pid')
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    const stuckChild = Object.assign(new EventEmitter(), {
+      pid: 424242,
+      kill: vi.fn(),
+      stdout: Object.assign(new EventEmitter(), { setEncoding: () => {} }),
+      stderr: Object.assign(new EventEmitter(), { setEncoding: () => {} })
+    })
+    spawnControl.replacement = (binary) => {
+      if (binary !== 'taskkill') return stuckChild
+      const killer = new EventEmitter()
+      queueMicrotask(() => killer.emit('error', Object.assign(new Error('spawn taskkill ENOENT'), { code: 'ENOENT' })))
+      return killer
+    }
+
+    try {
+      const result = expect(
+        mediaFfmpegHandlers.extractFrames(
+          { filePath: '/video.mp4', outputDir, timestampsMs: [0], maxEdgePx: 120, jpegQuality: 70, pidRegistryPath },
+          context()
+        )
+      ).rejects.toThrow('Media processing timed out')
+      await vi.advanceTimersByTimeAsync(120_000 + 5_000)
+      await result
+      // The child may still be alive, so main must still find its pid to kill it.
+      expect(readFileSync(pidRegistryPath, 'utf8').trim()).toBe('424242')
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+})
+
 async function waitForFile(filePath: string): Promise<void> {
   const deadline = Date.now() + 5_000
   while (!existsSync(filePath)) {

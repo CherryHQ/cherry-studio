@@ -33,6 +33,7 @@ type Logger = { warn: (message: string) => void }
 
 const MAX_STDIO_CHARS = 8_000
 const COMMAND_TIMEOUT_MS = 120_000
+const KILL_GRACE_MS = 5_000
 const WAV_HEADER_BUDGET_BYTES = 4_096
 const LOCAL_PROTOCOL_WHITELIST = 'file,pipe,crypto'
 
@@ -58,7 +59,16 @@ function killProcessTree(child: ChildProcess, logger?: Logger): void {
   if (pid == null) return
   try {
     if (process.platform === 'win32') {
-      spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+      const killer = spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+      const fallback = () => {
+        try {
+          child.kill()
+        } catch {
+          // The child already exited.
+        }
+      }
+      killer.once('error', fallback)
+      killer.once('close', (code) => code !== 0 && fallback())
     } else {
       process.kill(pid, 'SIGKILL')
     }
@@ -161,16 +171,18 @@ async function runCommand(
     let truncated = false
     let settled = false
     let killReason: unknown
+    let killGraceTimer: ReturnType<typeof setTimeout> | undefined
     const packetPts = options.maxPacketPts ? createPacketPtsTracker() : undefined
     const childStdout = child.stdout
     const childStderr = child.stderr
 
-    const finish = (error?: unknown) => {
+    const finish = (error?: unknown, childExited = true) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      clearTimeout(killGraceTimer)
       liveChildren.delete(child)
-      clearChildPid(child.pid, options.pidRegistryPath)
+      if (childExited) clearChildPid(child.pid, options.pidRegistryPath)
       signal.removeEventListener('abort', onAbort)
       if (error) reject(error instanceof Error ? error : new Error(String(error)))
       else resolve({ stdout, truncated, maxPacketPtsSeconds: packetPts?.maxSeconds() })
@@ -179,6 +191,8 @@ async function runCommand(
       if (killReason !== undefined || settled) return
       killReason = reason
       killProcessTree(child, logger)
+      // Keep the pid registered so main can still kill a child that never reports exit.
+      killGraceTimer = setTimeout(() => finish(reason, false), KILL_GRACE_MS)
     }
     const onAbort = () => requestKill(signal.reason ?? new Error('Aborted'))
     const timer = setTimeout(() => requestKill(new Error('Media processing timed out')), COMMAND_TIMEOUT_MS)
