@@ -108,6 +108,8 @@ export class ProviderRegistryUpdaterService extends BaseService {
         return
       }
 
+      // SAFETY: fetchAndValidate returns only after staging every REMOTE_REGISTRY_FILES entry;
+      // any download, schema, or manifest-digest failure discards the entire set.
       const files = Object.fromEntries(staged.map((s) => [s.file, s.body])) as Record<RemoteRegistryFileName, string>
       await writeProviderRegistrySnapshot(files, manifestBody)
       notifyDataApiDataChange(REGISTRY_DATA_CHANGE_EFFECTS)
