@@ -65,26 +65,26 @@ export class MessageConverterFactory {
    */
   static create(format: 'anthropic', options?: ConverterOptions): AnthropicConverter
   static create<T extends InputFormat>(format: T, options?: ConverterOptions): IMessageConverter<InputParamsMap[T]>
-  static create<T extends InputFormat>(
-    format: T,
+  static create(
+    format: InputFormat,
     options: ConverterOptions = {}
-  ): IMessageConverter<InputParamsMap[T]> {
+  ): OpenAiMessageConverter | OpenAiResponsesMessageConverter | GeminiMessageConverter | AnthropicMessageConverter {
     if (format === 'openai') {
-      return new OpenAiMessageConverter() as IMessageConverter<InputParamsMap[T]>
+      return new OpenAiMessageConverter()
     }
 
     if (format === 'openai-responses') {
-      return new OpenAiResponsesMessageConverter() as IMessageConverter<InputParamsMap[T]>
+      return new OpenAiResponsesMessageConverter()
     }
 
     if (format === 'gemini') {
-      return new GeminiMessageConverter() as IMessageConverter<InputParamsMap[T]>
+      return new GeminiMessageConverter()
     }
 
     return new AnthropicMessageConverter({
       googleReasoningCache: options.googleReasoningCache,
       openRouterReasoningCache: options.openRouterReasoningCache
-    }) as IMessageConverter<InputParamsMap[T]>
+    })
   }
 }
 
