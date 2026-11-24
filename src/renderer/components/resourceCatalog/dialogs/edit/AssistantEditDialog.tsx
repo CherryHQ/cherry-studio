@@ -41,6 +41,7 @@ import { toast } from '@renderer/services/toast'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
+  type AssistantSaveIntent,
   diffAssistantSaveIntent,
   initialAssistantFormState
 } from '@renderer/utils/resourceCatalog'
@@ -314,6 +315,35 @@ function AssistantEditDialogContent({
       savedResourceRef.current
     )
 
+  const windowInvalidMessage = t('settings.models.context_management.window_invalid')
+
+  // Validate the bounds pair the PATCH would actually write: each bound is the
+  // outgoing override when it changes, otherwise the assistant's own saved
+  // override, falling back to the global only when neither sets it. A PATCH
+  // that leaves the saved bounds untouched (an overflow-only toggle) has
+  // nothing to validate, so an unrelated invalid global pair must not block it.
+  const hasInvalidOutgoingContextPair = (intent: AssistantSaveIntent | null): boolean => {
+    const settings = intent?.payload.settings
+    if (!settings || !Object.hasOwn(settings, 'contextSettings')) return false
+    const outgoing = settings.contextSettings
+    if (!outgoing) return false
+    const savedContext = savedResourceRef.current?.settings.contextSettings
+    const recent = outgoing.maxMessages !== undefined ? outgoing.maxMessages : savedContext?.maxMessages
+    const total = outgoing.compressWindow !== undefined ? outgoing.compressWindow : savedContext?.compressWindow
+    if (recent === savedContext?.maxMessages && total === savedContext?.compressWindow) return false
+    return !isValidCompressionWindow(recent ?? globalMaxMessages, total ?? globalCompressWindow)
+  }
+
+  // A bounds pair rejected by the persist guard leaves its footer error behind
+  // when the draft is corrected or reverted without a new save, because the
+  // save intent disappears and autosave never runs. Clear the error once the
+  // current intent is valid again or gone.
+  useEffect(() => {
+    if (rootError !== windowInvalidMessage) return
+    if (!hasInvalidOutgoingContextPair(saveIntent)) form.clearErrors('root')
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- the pair check closes over refs and preferences only
+  }, [rootError, windowInvalidMessage, saveIntent, form])
+
   const persist = async () => {
     // oxlint-disable-next-line no-restricted-globals -- Capture one submitted form across async save while the user continues editing.
     const submittedValues = structuredClone(form.getValues())
@@ -321,15 +351,9 @@ function AssistantEditDialogContent({
     const submittedFormState = buildAssistantFormState(formBaselineRef.current, submittedValues)
     const pending = diffAssistantSaveIntent(submittedFormState, formBaselineRef.current, savedResourceRef.current)
     if (!pending) return
-    const outgoingContext = pending.payload.settings?.contextSettings
-    if (pending.payload.settings && Object.hasOwn(pending.payload.settings, 'contextSettings')) {
-      const recent = outgoingContext?.maxMessages === undefined ? globalMaxMessages : outgoingContext.maxMessages
-      const total =
-        outgoingContext?.compressWindow === undefined ? globalCompressWindow : outgoingContext.compressWindow
-      if (!isValidCompressionWindow(recent, total)) {
-        form.setError('root', { message: t('settings.models.context_management.window_invalid') })
-        return
-      }
+    if (hasInvalidOutgoingContextPair(pending)) {
+      form.setError('root', { message: windowInvalidMessage })
+      return
     }
     const attemptedKey = JSON.stringify(submittedValues)
 
