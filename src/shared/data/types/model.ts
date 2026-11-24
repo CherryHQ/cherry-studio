@@ -207,14 +207,14 @@ export function createUniqueModelId(providerId: string, modelId: string): Unique
 }
 
 /**
- * Parse a UniqueModelId into its components — splits on the FIRST separator.
+ * Parse an encoded model ID into its components — splits on the FIRST separator.
  * Same permissive semantics as `isUniqueModelId`: empty `providerId` or
  * `modelId` parts pass through, callers decide whether to reject them. For
  * strict, fully-formed validation use `UniqueModelIdSchema`.
  *
  * @throws Error if the value does not contain `${UNIQUE_MODEL_ID_SEPARATOR}`.
  */
-export function parseUniqueModelId(uniqueId: UniqueModelId) {
+export function parseUniqueModelId(uniqueId: string) {
   const idx = uniqueId.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
 
   if (idx === -1) {

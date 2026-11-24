@@ -6,7 +6,7 @@
  */
 
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
-import type { ModelMessage, UIMessage } from 'ai'
+import type { ModelMessage } from 'ai'
 
 import { application } from '@application'
 import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
@@ -577,10 +577,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
   private async prepareAssistantRetry(
     subscriber: StreamListener,
-    req: Extract<MainDispatchRequest, { trigger: 'regenerate-message' }>,
+    req: Extract<MainDispatchRequest, { trigger: 'regenerate-message'; retryMessageId: string }>,
     assistantId: string | undefined
   ): Promise<PreparedDispatch> {
-    const target = messageService.getById(req.retryMessageId as string)
+    const target = messageService.getById(req.retryMessageId)
 
     if (target.role !== 'assistant') {
       throw new Error(`'retryMessageId' must identify an assistant message (got '${target.role}')`)
@@ -596,7 +596,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error(`'regenerate-message' parentAnchorId must identify a user message in the topic`)
     }
 
-    const targetModelId = (target.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
+    const targetModelId = target.modelId ?? resolveAssistantModelId(assistantId).defaultModelId
 
     if (req.mentionedModelIds && (req.mentionedModelIds.length !== 1 || req.mentionedModelIds[0] !== targetModelId)) {
       throw new Error('In-place retry cannot change the assistant model')
@@ -605,13 +605,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const [model] = resolveModels([targetModelId], targetModelId)
     const compatibleSiblingsGroupId = target.siblingsGroupId > 0 ? target.siblingsGroupId : undefined
     const manager = application.get('AiStreamManager')
-    await manager.awaitExecutionRetry(
-      req.topicId,
-      targetModelId,
-      target.id,
-      req.parentAnchorId,
-      compatibleSiblingsGroupId
-    )
+    await manager.awaitExecutionRetry(req.topicId, model.id, target.id, req.parentAnchorId, compatibleSiblingsGroupId)
 
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort ?? target.data.turnOptions?.reasoningEffort,
@@ -659,7 +653,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // newer live turn cannot leave this historical row reset to pending without owning it.
       const admission = await manager.awaitExecutionRetry(
         req.topicId,
-        targetModelId,
+        model.id,
         target.id,
         req.parentAnchorId,
         compatibleSiblingsGroupId
@@ -745,8 +739,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const beforeParts = anchor.data.parts ?? []
     const updatedParts = applyApprovalDecisions(beforeParts, req.approvalDecisions)
     // Continue uses the original assistant's model — switching mid-approval invalidates approval semantics.
-    // `anchor.modelId` is nullable; coalesce null/undefined away first, then a single boundary cast.
-    const continueModelId = (anchor.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
+    const continueModelId = anchor.modelId ?? resolveAssistantModelId(assistantId).defaultModelId
     const [model] = resolveModels([continueModelId], continueModelId)
 
     // `ai.turn` span under the topic's container trace; end it explicitly if
@@ -838,7 +831,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error(`'steer-continuation' anchor does not belong to topic ${req.topicId}`)
     }
 
-    const steerModelId = (userMessage.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
+    const steerModelId = userMessage.modelId ?? resolveAssistantModelId(assistantId).defaultModelId
     const [model] = resolveModels([steerModelId], steerModelId)
     const messageSnapshot = buildAssistantMessageSnapshot(model, resolveAssistantIdentity(assistantId))
 
@@ -927,7 +920,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
   }
 
-  private toRow(m: SharedMessage): CompactionRow {
+  private toRow(m: SharedMessage) {
     return {
       id: m.id,
       role: m.role,
@@ -937,10 +930,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
   }
 
-  private toServed(row: CompactionRow): CherryUIMessage {
+  private toServed(row: Pick<CherryUIMessage, 'id' | 'parts'> & { role: MessageRole }): CherryUIMessage {
     // Route the role through toContentRole to keep the virtual-root guard that the
     // rest of this file relies on (a `root` row must never reach model history).
-    return { id: row.id, role: toContentRole(row.role as MessageRole), parts: row.parts } as CherryUIMessage
+    return { id: row.id, role: toContentRole(row.role), parts: row.parts }
   }
 
   private estimateTotal(rows: CompactionRow[], dialect: TokenDialect): number {
@@ -998,7 +991,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // fs_read for folded persisted outputs. `rawUI` is mapped ONCE and sliced
     // for the manifest prefixes below — handle dedup is a left-to-right fold,
     // so a slice's handles match the full pass only when both share this array.
-    const rawUI = rawMsgs.map((m) => ({ parts: m.data.parts ?? [] }) as UIMessage)
+    const rawUI = rawMsgs.map((m) => ({ parts: m.data.parts ?? [] }))
     const retainedContext = collectRetainedContext(rawUI)
     const rows = rawMsgs.map((m) => this.toRow(m))
     // Manifest handles cover ONLY the rows folded behind the boundary: live

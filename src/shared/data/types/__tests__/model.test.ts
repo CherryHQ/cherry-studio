@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
-import { createUniqueModelId, ModelSchema, UniqueModelIdSchema } from '../model'
+import { createUniqueModelId, ModelSchema, parseUniqueModelId, UniqueModelIdSchema } from '../model'
+
+describe('stored model ID parsing', () => {
+  it.each([
+    ['openai::gpt-4o', { providerId: 'openai', modelId: 'gpt-4o' }],
+    ['::model', { providerId: '', modelId: 'model' }],
+    ['provider::', { providerId: 'provider', modelId: '' }],
+    ['provider::model::variant', { providerId: 'provider', modelId: 'model::variant' }]
+  ] as const)('retains permissive first-separator parsing for %s', (storedId, expected) => {
+    expect(parseUniqueModelId(storedId)).toEqual(expected)
+  })
+
+  it.each(['', 'unencoded-model'])('rejects a stored ID without the separator: %s', (storedId) => {
+    expect(() => parseUniqueModelId(storedId)).toThrow(`Invalid UniqueModelId format: ${storedId}`)
+  })
+})
 
 describe('runtime model parameter support', () => {
   it('accepts persisted sparse support metadata without changing its range or adding defaults', () => {

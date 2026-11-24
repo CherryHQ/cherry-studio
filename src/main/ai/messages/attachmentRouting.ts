@@ -105,7 +105,7 @@ function uniqueHandle(base: string, used: Set<string>): string {
  * a **unique** model-facing `handle` (normalized + deduped) plus the original
  * `displayName`, so `read_file` can resolve a handle unambiguously.
  */
-export function collectFileAttachments(messages: UIMessage[] | undefined): FileAttachmentRef[] {
+export function collectFileAttachments(messages: readonly Pick<UIMessage, 'parts'>[] | undefined): FileAttachmentRef[] {
   const refs: FileAttachmentRef[] = []
   const used = new Set<string>()
 

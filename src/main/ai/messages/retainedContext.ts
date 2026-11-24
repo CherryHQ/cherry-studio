@@ -45,7 +45,7 @@ export interface RetainedContext {
 }
 
 /** Collect every kind of surviving context in one pass over `messages`. */
-export function collectRetainedContext(messages: UIMessage[]): RetainedContext {
+export function collectRetainedContext(messages: readonly Pick<UIMessage, 'parts'>[]): RetainedContext {
   return {
     fileAttachments: collectFileAttachments(messages),
     persistedOutputPaths: collectPersistedOutputPaths(messages)

@@ -148,6 +148,85 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
+  it('retries the exact assistant row while preserving descendants, siblings and the active branch', async () => {
+    aiStreamManager.awaitExecutionRetry.mockResolvedValue({ mode: 'start-new' })
+    const sibling = messageService.create('topic-1', {
+      role: 'assistant',
+      parentId: 'u1',
+      modelId: MODEL_ID,
+      data: { parts: [{ type: 'text', text: 'another response' }] },
+      status: 'success'
+    })
+    const descendant = messageService.create('topic-1', {
+      role: 'user',
+      parentId: 'a1',
+      data: { parts: [{ type: 'text', text: 'a later branch' }] },
+      status: 'success'
+    })
+    topicService.setActiveNode('topic-1', descendant.id)
+    const targetBefore = messageService.getById('a1')
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      { trigger: 'regenerate-message', topicId: 'topic-1', parentAnchorId: 'u1', retryMessageId: 'a1' },
+      { hasLiveStream: false }
+    )
+
+    expect(prepared.models[0].request.messageId).toBe('a1')
+    expect(prepared.models[0].modelId).toBe(MODEL_ID)
+    expect(prepared.reservedMessages?.map((message) => message.id)).toEqual(['a1'])
+    expect(new Set(messageService.getChildrenByParentId('u1').map((message) => message.id))).toEqual(
+      new Set(['a1', sibling.id])
+    )
+    expect(messageService.getById(sibling.id)).toMatchObject({
+      status: 'success',
+      data: { parts: [{ type: 'text', text: 'another response' }] }
+    })
+    expect(messageService.getById('a1')).toMatchObject({
+      parentId: targetBefore.parentId,
+      siblingsGroupId: targetBefore.siblingsGroupId,
+      status: 'pending',
+      data: { parts: [] }
+    })
+    expect(messageService.getById(descendant.id).parentId).toBe('a1')
+    expect(topicService.getById('topic-1').activeNodeId).toBe(descendant.id)
+  })
+
+  it('rejects an in-place retry that changes the model before resetting the assistant row', async () => {
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'regenerate-message',
+          topicId: 'topic-1',
+          parentAnchorId: 'u1',
+          retryMessageId: 'a1',
+          mentionedModelIds: [createUniqueModelId('openai', 'other-model')]
+        },
+        { hasLiveStream: false }
+      )
+    ).rejects.toThrow('In-place retry cannot change the assistant model')
+    expect(messageService.getById('a1')).toMatchObject({
+      status: 'paused',
+      data: { parts: [{ type: 'text', text: PARTIAL }] }
+    })
+  })
+
+  it.each([
+    { topicId: 'topic-1', parentAnchorId: 'a1' },
+    { topicId: 'topic-2', parentAnchorId: 'u1' }
+  ])('rejects retry ownership mismatches without resetting the row: %j', async (target) => {
+    dbh.db.insert(topicTable).values({ id: 'topic-2', activeNodeId: null, orderKey: 'a1' }).run()
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        { trigger: 'regenerate-message', ...target, retryMessageId: 'a1' },
+        { hasLiveStream: false }
+      )
+    ).rejects.toThrow('Retry target does not belong to the requested topic/user anchor')
+    expect(messageService.getById('a1').status).toBe('paused')
+  })
+
   it('rejects duplicate mentioned models before reserving any rows', async () => {
     const childrenBefore = messageService.getChildrenByParentId('a1')
 

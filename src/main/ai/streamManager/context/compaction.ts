@@ -55,7 +55,7 @@ export function summaryRow(
   summary: string,
   attachmentHandles?: readonly string[],
   persistedOutputPaths?: readonly string[]
-): CompactionRow {
+) {
   const attachments = attachmentHandles?.length
     ? `\n\n[Files attached in this conversation remain readable in full via the read_file tool: ${attachmentHandles.join(', ')}]`
     : ''
@@ -66,8 +66,8 @@ export function summaryRow(
 
   return {
     id: summaryMessageId(boundaryId),
-    role: 'user',
-    parts: [{ type: 'text', text: ContextPrompts.getCompactSummaryWrapper(summary) + attachments + persisted }]
+    role: 'user' as const,
+    parts: [{ type: 'text' as const, text: ContextPrompts.getCompactSummaryWrapper(summary) + attachments + persisted }]
   }
 }
 
@@ -123,11 +123,11 @@ export function findDeepestMarker(rows: CompactionRow[]): number {
  * Returns the rows unchanged when no row carries a marker. Otherwise returns
  * `[summary(deepest)] + rows after the deepest marker`.
  */
-export function applyDeepestMarker(
-  rows: CompactionRow[],
+export function applyDeepestMarker<Row extends CompactionRow>(
+  rows: Row[],
   attachmentHandles?: readonly string[],
   persistedOutputPaths?: readonly string[]
-): CompactionRow[] {
+): (Row | ReturnType<typeof summaryRow>)[] {
   const d = findDeepestMarker(rows)
 
   if (d < 0) return rows

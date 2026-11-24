@@ -107,7 +107,7 @@ function renderOutput(ref: PersistedToolOutputRef): ReconstructedToolOutput {
  * Unresolvable or foreign entries are skipped: their markers render path-less
  * too, so the model is never handed a path the allow-list would then deny.
  */
-export function collectPersistedOutputPaths(messages: UIMessage[]): Set<string> {
+export function collectPersistedOutputPaths(messages: readonly Pick<UIMessage, 'parts'>[]): Set<string> {
   const paths = new Set<string>()
 
   for (const message of messages) {

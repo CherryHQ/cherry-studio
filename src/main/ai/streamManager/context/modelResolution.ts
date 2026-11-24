@@ -2,7 +2,7 @@ import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
-import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 
 // Sub-ms tiebreaker for back-to-back regenerate clicks. Resets per process; only needs to be session-unique.
 let siblingsGroupCounter = 0
@@ -14,7 +14,7 @@ function nextSiblingsGroupId(): number {
 }
 
 /** Resolve the Model list from an optional selector-selected list, falling back to the assistant default. */
-export function resolveModels(mentionedModelIds: UniqueModelId[] | undefined, defaultModelId: UniqueModelId): Model[] {
+export function resolveModels(mentionedModelIds: readonly string[] | undefined, defaultModelId: string): Model[] {
   if (mentionedModelIds?.length) {
     return mentionedModelIds.map((uniqueModelId) => {
       const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
@@ -42,7 +42,7 @@ export function resolveAssistantModelId(assistantId: string | null | undefined) 
     return { assistantId, defaultModelId: assistant.modelId }
   }
 
-  const defaultModelId = application.get('PreferenceService').get('chat.default_model_id') as UniqueModelId | null
+  const defaultModelId = application.get('PreferenceService').get('chat.default_model_id')
 
   if (!defaultModelId) throw new Error('No default model configured for assistant-less topic')
 

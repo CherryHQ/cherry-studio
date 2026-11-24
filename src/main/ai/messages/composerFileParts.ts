@@ -3,7 +3,7 @@ import type { UIMessage } from 'ai'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
-export function collectComposerFileTokenIds(message: UIMessage): Set<string> {
+export function collectComposerFileTokenIds(message: Pick<UIMessage, 'parts'>): Set<string> {
   const tokenIds = new Set<string>()
 
   for (const part of message.parts ?? []) {
