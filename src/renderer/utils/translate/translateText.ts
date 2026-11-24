@@ -71,12 +71,8 @@ export const translateText = async (
       ipcApi.on('ai.stream.chunk', ({ topicId, chunk }) => {
         if (topicId !== streamId) return
 
-        if (
-          chunk &&
-          (chunk as { type?: string }).type === 'text-delta' &&
-          typeof (chunk as { delta?: unknown }).delta === 'string'
-        ) {
-          accumulated += (chunk as { delta: string }).delta
+        if (chunk && chunk.type === 'text-delta' && typeof chunk.delta === 'string') {
+          accumulated += chunk.delta
           onResponse?.(accumulated, false)
         }
       })
