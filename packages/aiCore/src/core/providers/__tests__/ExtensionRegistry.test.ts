@@ -4,7 +4,7 @@
 
 import type { ProviderV3 } from '@ai-sdk/provider'
 import { createMockProviderV3 } from '@test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { ExtensionRegistry } from '../core/ExtensionRegistry'
 import { ProviderExtension } from '../core/ProviderExtension'
@@ -213,6 +213,35 @@ describe('ExtensionRegistry', () => {
   })
 
   describe('getAllProviderIds', () => {
+    it('preserves dynamic names, aliases and variants outside the core ID set', () => {
+      registry.register(
+        new ProviderExtension({
+          name: 'custom-provider',
+          aliases: ['custom-alias'],
+          create: createMockProviderV3,
+          variants: [{ suffix: 'chat', name: 'Chat', transform: (provider: ProviderV3) => provider }]
+        })
+      )
+
+      expectTypeOf(registry.getAllProviderIds()).toEqualTypeOf<string[]>()
+      expectTypeOf(registry.parseProviderId('custom-alias')).toEqualTypeOf<{
+        baseId: string
+        mode?: string
+        isVariant: boolean
+      } | null>()
+      expectTypeOf(registry.getBaseProviderId('custom-provider-chat')).toEqualTypeOf<string | null>()
+      expect(registry.getAllProviderIds()).toEqual(
+        expect.arrayContaining(['custom-provider', 'custom-alias', 'custom-provider-chat'])
+      )
+      expect(registry.parseProviderId('custom-alias')).toEqual({ baseId: 'custom-provider', isVariant: false })
+      expect(registry.parseProviderId('custom-provider-chat')).toEqual({
+        baseId: 'custom-provider',
+        mode: 'chat',
+        isVariant: true
+      })
+      expect(registry.getBaseProviderId('custom-provider-chat')).toBe('custom-provider')
+    })
+
     it('should return all provider IDs including variants', () => {
       const ext1 = new ProviderExtension({
         name: 'openai',

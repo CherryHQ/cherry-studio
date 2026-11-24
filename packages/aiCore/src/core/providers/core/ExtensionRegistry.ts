@@ -179,9 +179,9 @@ export class ExtensionRegistry {
 
   /**
    * 获取所有已注册的 provider IDs（包含变体）
-   * 返回类型安全的 RegisteredProviderId 数组，自动去重
+   * 包含动态注册的名称，自动去重
    */
-  getAllProviderIds(): RegisteredProviderId[] {
+  getAllProviderIds(): string[] {
     const ids = new Set<string>()
 
     for (const extension of this.extensions.values()) {
@@ -190,8 +190,7 @@ export class ExtensionRegistry {
       }
     }
 
-    // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
-    return Array.from(ids) as RegisteredProviderId[]
+    return Array.from(ids)
   }
 
   /**
@@ -259,7 +258,7 @@ export class ExtensionRegistry {
    * parseProviderId('unknown')            // → null
    * ```
    */
-  parseProviderId(providerId: string): { baseId: RegisteredProviderId; mode?: string; isVariant: boolean } | null {
+  parseProviderId(providerId: string): { baseId: string; mode?: string; isVariant: boolean } | null {
     // 先遍历所有 extensions，查找匹配的变体（优先于别名检查）
     for (const ext of this.extensions.values()) {
       if (!ext.config.variants) {
@@ -272,7 +271,7 @@ export class ExtensionRegistry {
 
         if (variantId === providerId) {
           return {
-            baseId: ext.config.name as RegisteredProviderId,
+            baseId: ext.config.name,
             mode: variant.suffix,
             isVariant: true
           }
@@ -286,7 +285,7 @@ export class ExtensionRegistry {
     if (extension) {
       // 是基础 ID 或别名，不是变体
       return {
-        baseId: extension.config.name as RegisteredProviderId,
+        baseId: extension.config.name,
         isVariant: false
       }
     }
@@ -334,7 +333,7 @@ export class ExtensionRegistry {
    * getBaseProviderId('unknown')          // → null
    * ```
    */
-  getBaseProviderId(id: string): RegisteredProviderId | null {
+  getBaseProviderId(id: string): string | null {
     const parsed = this.parseProviderId(id)
 
     return parsed?.baseId ?? null

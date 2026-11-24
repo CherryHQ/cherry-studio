@@ -296,6 +296,8 @@ const executor = AiCore.create('openai', { apiKey: 'your-key' }, [customPlugin])
 
 动态导入注册继续支持 `import` 与 `creatorFunctionName`，只从模块自有导出中选择 creator。它依赖注册者提供正确的 SDK creator 契约，可调用性检查不验证 provider 子类型。默认配置与可省略输入可能仍缺少必填项，配置补全或拒绝由所选 SDK creator 负责。实例缓存继续共用一个 LRU；创建记录同时持有基础与最终 provider，这会让基础对象存活到相关记录被淘汰。
 
+`ExtensionRegistry.getAllProviderIds()` 返回 `string[]`，`parseProviderId()` 的 `baseId` 为 `string`，`getBaseProviderId()` 返回 `string | null`，因为动态扩展、别名和变体不限于静态 core `RegisteredProviderId` 联合。动态调用应保留字符串；只接受 core ID 的调用方需要先按 core 集合收窄，再索引 core settings 或调用对应 API。
+
 #### 基本用法示例
 
 ```typescript
