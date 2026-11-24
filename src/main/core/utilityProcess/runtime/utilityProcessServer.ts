@@ -116,21 +116,17 @@ interface ActiveRequest {
   hostReplies: Map<number, (outcome: { value: unknown } | { error: RemoteErrorShape }) => void>
 }
 
-const abortError = (code: string, message: string): Error => {
-  const error = new Error(message) as Error & { code: string }
-  error.name = 'AbortError'
-  error.code = code
-
-  return error
-}
+const abortError = (code: string, message: string): Error =>
+  Object.assign(new Error(message), { name: 'AbortError', code })
 
 export function createUtilityProcessServer<Contract extends UtilityProcessContract, InitData = void>(
   options: ServeUtilityProcessOptions<Contract, InitData>,
   io: UtilityProcessServerIo
 ): void {
-  // SAFETY: dispatch below validates own method names before using the declared handler map.
+  // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- The same-build Contract associates own callable handlers with opaque business payloads; envelope checks do not validate generic request/result schemas.
   const handlers = options.handlers as Record<string, UtilityProcessHandlers<Contract>[keyof Contract['methods']]>
 
+  // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Stream dispatch checks own callable methods and wire limits; metadata/result associations come from the same-build Contract, not runtime business-schema validation.
   const streams = options.streams as
     | Record<string, UtilityProcessStreamHandlers<Contract>[keyof UtilityProcessStreams<Contract>]>
     | undefined
@@ -488,6 +484,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Bootstrap envelopes contain definition-specific initialization data; the same-build definition supplies its contract.
   const start = async (initData: unknown): Promise<void> => {
     try {
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Host definition and child entry share InitData in the same build; bootstrap validates the envelope while initialization data remains definition-owned and opaque.
       await options.initialize?.(initData as InitData, { logger })
     } catch (error) {
       failed = true
