@@ -63,6 +63,7 @@ export interface MessageMenuBarActionContext {
   acquireMessageCaptureLease?: (messageId: string) => () => void
   getRenderedMessageElement?: (messageId: string) => HTMLElement | null
   mainTextContent: string
+  singleDollarMath?: boolean
   selection?: MessageListSelectionState
   menuConfig: MessageMenuConfig
   copied: boolean
@@ -329,6 +330,17 @@ registerCommand('message.exportImage', async (context) => {
       context.actions.notifyError?.(context.t('message.error.unknown'))
     }
   })
+})
+
+registerCommand('message.exportShareImage', async ({ actions, mainTextContent, singleDollarMath, t }) => {
+  const { captureMessageShareImage } = await import('./captureMessageShareImage')
+  const imageData = await captureMessageShareImage(mainTextContent, singleDollarMath ?? true)
+  const saved = imageData && (await actions.saveImage?.('share-image', imageData))
+  if (saved) {
+    actions.notifySuccess?.(t('chat.topics.export.image_saved'))
+  } else if (!imageData) {
+    actions.notifyError?.(t('message.error.unknown'))
+  }
 })
 
 registerCommand('message.exportMarkdown', async ({ actions, messageForExport }) => {
@@ -628,6 +640,19 @@ registerAction({
       group: 'file',
       order: 10,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.image && !!actions.saveImage
+    },
+    {
+      id: 'export.share-image',
+      commandId: 'message.exportShareImage',
+      label: ({ t }) => t('chat.topics.export.share_image'),
+      group: 'file',
+      order: 15,
+      availability: ({ actions, menuConfig, message, mainTextContent }) =>
+        menuConfig.exportMenuOptions.image &&
+        !!actions.saveImage &&
+        message.role === 'assistant' &&
+        message.status === 'success' &&
+        !!mainTextContent.trim()
     },
     ...messageExportTargets.map(({ target, commandId, labelKey, group, option, action }, index) => ({
       id: `export.${target}`,
