@@ -1530,10 +1530,10 @@ describe('ResourceCreateWizard auto create', () => {
         description: 'Review my GitHub PRs',
         prompt: '',
         knowledgeBaseIds: [],
-        mcpServerIds: [],
         enableWebSearch: false
       })
     )
+    expect(onSubmit.mock.calls.at(-1)![0]).not.toHaveProperty('mcpServerIds')
   })
 
   it('installs a picked featured MCP server before creating, and sends its new server ID', async () => {
