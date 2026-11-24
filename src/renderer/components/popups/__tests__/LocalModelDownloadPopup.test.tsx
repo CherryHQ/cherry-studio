@@ -1,11 +1,13 @@
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import { createPopup, POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
-const { toastError, localModel } = vi.hoisted(() => ({
+const { toastError, openErrorDetail, localModel } = vi.hoisted(() => ({
   toastError: vi.fn(),
+  openErrorDetail: vi.fn().mockResolvedValue('opened'),
   localModel: {
     status: 'not_downloaded',
     percent: 0,
@@ -16,6 +18,10 @@ const { toastError, localModel } = vi.hoisted(() => ({
 
 vi.mock('@renderer/services/toast', () => ({ toast: { error: toastError } }))
 vi.mock('@renderer/hooks/useLocalModel', () => ({ useLocalModel: () => localModel }))
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: openErrorDetail }
+}))
 
 // This suite exercises the real popup store + host, so opt out of the global mock.
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
@@ -38,6 +44,7 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
 
   return {
+    Alert: ({ children, role }: Record<string, any>) => React.createElement('div', { role: role ?? 'alert' }, children),
     Button: ({ children, ...props }: Record<string, any>) => React.createElement('button', props, children),
     Dialog: ({ children, open }: Record<string, any>) =>
       open ? React.createElement(React.Fragment, null, children) : null,
@@ -74,6 +81,7 @@ beforeEach(() => {
   localModel.download.mockReset()
   localModel.cancel.mockReset().mockResolvedValue(undefined)
   toastError.mockClear()
+  openErrorDetail.mockClear()
 })
 
 afterEach(() => {
@@ -136,7 +144,8 @@ describe('LocalModelDownloadPopup', () => {
     expect(localModel.cancel).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps itself open for a retry when the download fails', async () => {
+  // The dialog traps focus, so a Details entry that only lives in the window-level toast is unreachable by keyboard.
+  it('keeps a failed download inside the dialog with keyboard-reachable Details and a retry', async () => {
     const user = userEvent.setup()
     render(<PopupHost />)
 
@@ -158,20 +167,21 @@ describe('LocalModelDownloadPopup', () => {
     await user.click(screen.getByRole('button', { name: 'Download' }))
     await act(async () => {})
 
-    expect(toastError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cause: failure,
-        data: expect.objectContaining({
-          errorContext: expect.objectContaining({
-            message: 'network down',
-            operation: 'local_model.download',
-            recordId: OCR.id
-          }),
-          localizedErrorMessage: 'Download failed'
-        }),
-        title: 'Download failed'
-      })
-    )
+    const alert = within(screen.getByRole('dialog')).getByRole('alert')
+    expect(alert).toHaveTextContent('Download failed')
+    expect(alert).not.toHaveTextContent('network down')
+    const details = within(alert).getByRole('button', { name: 'common.detail' })
+    for (let step = 0; step < 10 && document.activeElement !== details; step++) await user.tab()
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(openErrorDetail.mock.calls[0][0].context).toMatchObject({
+      message: 'network down',
+      operation: 'local_model.download',
+      recordId: OCR.id,
+      source: 'local_model'
+    })
+    expect(toastError).not.toHaveBeenCalled()
     expect(settled).toBe(false)
     expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
 
