@@ -533,6 +533,10 @@ describe('pathRegistry.shouldAutoEnsure', () => {
   })
 
   describe('NO_ENSURE exact keys — read-only build artifacts', () => {
+    it('leaves snapshot root creation to the service after its workspace containment check', () => {
+      expect(shouldAutoEnsure('feature.agents.file_snapshots')).toBe(false)
+    })
+
     it('returns false for the system-workspace root so DataApi can store paths without creating directories', () => {
       expect(shouldAutoEnsure('feature.agents.system_workspaces')).toBe(false)
     })

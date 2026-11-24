@@ -54,6 +54,7 @@ export function createFileWriteSnapshotHooks(
           callId,
           runtime: 'claude-code',
           toolName: input.tool_name,
+          ...(input.agent_id ? { origin: 'subagent' as const } : {}),
           filePath: target,
           cwd,
           intent: { toolName: input.tool_name, input: toolInput }

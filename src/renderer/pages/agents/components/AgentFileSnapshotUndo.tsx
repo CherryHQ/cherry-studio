@@ -1,13 +1,15 @@
+import { Info } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import { Button, ConfirmDialog, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentFileSnapshotReason } from '@shared/ipc/schemas/agentFileSnapshot'
 import type { OutputFor } from '@shared/ipc/types'
 
 type State = OutputFor<'agent.file_snapshot.state'>
+const fileListClass = 'max-h-[min(16rem,40dvh)] overflow-y-auto wrap-anywhere'
 
 export const snapshotReasonKeys: Record<AgentFileSnapshotReason, string> = {
   'empty-write': 'agent.file_snapshot.unavailable',
@@ -70,6 +72,8 @@ export function AgentFileSnapshotUndo({ sessionId, pending }: { sessionId: strin
   }, [sessionId, pending])
   const reason = pending ? 'pending' : state?.reason
   const title = t(reason ? snapshotReasonKeys[reason] : 'agent.file_snapshot.unavailable')
+  const conflicts = state?.canUndo === false ? state.files.filter((file) => file.status === 'conflict') : []
+  const changes = confirmation?.files.filter((file) => file.status === 'changed')
   return (
     <>
       <span title={state?.canUndo && !pending ? undefined : title}>
@@ -84,6 +88,26 @@ export function AgentFileSnapshotUndo({ sessionId, pending }: { sessionId: strin
           {t('agent.file_snapshot.action')}
         </Button>
       </span>
+      {conflicts.length > 0 && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('agent.file_snapshot.conflict')}
+              title={t('agent.file_snapshot.conflict')}>
+              <Info />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent aria-label={t('agent.file_snapshot.conflict')}>
+            <ul className={fileListClass}>
+              {conflicts.map((file) => (
+                <li key={file.path}>{file.path}</li>
+              ))}
+            </ul>
+          </PopoverContent>
+        </Popover>
+      )}
       <ConfirmDialog
         open={open}
         onOpenChange={(next) => {
@@ -92,12 +116,10 @@ export function AgentFileSnapshotUndo({ sessionId, pending }: { sessionId: strin
         title={t('agent.file_snapshot.confirm_title')}
         description={changed ? t('agent.file_snapshot.state_changed') : t('agent.file_snapshot.confirm_description')}
         content={
-          <ul>
-            {confirmation?.files
-              .filter((file) => file.status !== 'already-restored')
-              .map((file) => (
-                <li key={file.path}>{file.path}</li>
-              ))}
+          <ul className={fileListClass}>
+            {changes?.map((file) => (
+              <li key={file.path}>{file.path}</li>
+            ))}
           </ul>
         }
         confirmText={t('agent.file_snapshot.action')}
@@ -115,12 +137,12 @@ export function AgentFileSnapshotUndo({ sessionId, pending }: { sessionId: strin
               expectedRevision: confirmation.revision
             })
             if (result.reason) {
-              const failed = result.files.filter(
-                (file) => !['restored', 'removed', 'already-restored'].includes(file.status)
+              const failed = result.files.filter((file) =>
+                ['failed', 'conflict', 'unknown', 'unverifiable'].includes(file.status)
               ).length
               toast.warning(
                 t('agent.file_snapshot.warning', {
-                  count: failed || confirmation.files.filter((file) => file.status !== 'already-restored').length
+                  count: result.files.length ? failed : (changes?.length ?? 0)
                 })
               )
             } else {

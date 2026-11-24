@@ -65,10 +65,12 @@ describe('Claude Code file write snapshots', () => {
     BaseService.resetInstances()
     await rm(testDir, { recursive: true, force: true })
   })
-  async function pre(tool: string, toolInput: object, id = 'call') {
-    return hooks.pre({ hook_event_name: 'PreToolUse', tool_name: tool, tool_input: toolInput } as never, id, {
-      signal: new AbortController().signal
-    })
+  async function pre(tool: string, toolInput: object, id = 'call', agentId?: string) {
+    return hooks.pre(
+      { hook_event_name: 'PreToolUse', tool_name: tool, tool_input: toolInput, agent_id: agentId } as never,
+      id,
+      { signal: new AbortController().signal }
+    )
   }
   const decision = (result: unknown) =>
     (result as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput?.permissionDecision
@@ -101,6 +103,16 @@ describe('Claude Code file write snapshots', () => {
     await hooks.post({ hook_event_name: 'PostToolUseFailure', tool_name: 'Write' } as never, 'call', {} as never)
     const manifest = JSON.parse(await readFile(path.join(testDir, 'snapshots/session/reply/manifest.json'), 'utf8'))
     expect(manifest.files[0].attempts[0].status).toBe('failed')
+  })
+  it('records the origin of a subagent write in the manifest', async () => {
+    expect(await pre('Write', { file_path: target, content: 'abcdefghijk' }, 'subagent-write', 'subagent-id')).toEqual(
+      {}
+    )
+    await writeFile(target, 'abcdefghijk')
+    await hooks.post({ hook_event_name: 'PostToolUse', tool_name: 'Write' } as never, 'subagent-write', {} as never)
+
+    const manifest = JSON.parse(await readFile(path.join(testDir, 'snapshots/session/reply/manifest.json'), 'utf8'))
+    expect(manifest.files[0].attempts[0]).toMatchObject({ origin: 'subagent', status: 'written' })
   })
   it('passes without a live round and creates no snapshot', async () => {
     liveRound = undefined

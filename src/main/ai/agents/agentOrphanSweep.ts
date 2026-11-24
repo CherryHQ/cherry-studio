@@ -134,7 +134,13 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
     }
   }
 
-  removed.push(...(await application.get('AgentFileSnapshotService').sweepOrphans(sessionIds, options, signal)))
+  signal?.throwIfAborted()
+  try {
+    removed.push(...(await application.get('AgentFileSnapshotService').sweepOrphans(sessionIds, options, signal)))
+  } catch (error) {
+    signal?.throwIfAborted()
+    logger.warn('File snapshot orphan cleanup retained for retry', { error })
+  }
 
   signal?.throwIfAborted()
   const { runtimeSessions, failedDrivers } = await reclaimRuntimeSessions(removed, options, signal)

@@ -1,4 +1,5 @@
 import { randomUUID, createHash } from 'node:crypto'
+import type { BigIntStats } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -19,6 +20,9 @@ import {
   parentIdentity,
   resolveExistingPath,
   safeSegment,
+  sameFileStats,
+  type Attempt,
+  type FileState,
   type Manifest
 } from './agentFileSnapshot'
 import type { SnapshotFile } from './agentFileSnapshot'
@@ -28,43 +32,24 @@ const logger = loggerService.withContext('AgentFileSnapshotService')
 type AttemptClassification = ReturnType<typeof classifyDestructiveWrite>
 type AttestRound = () => string | null
 
-async function currentFileState(
-  file: SnapshotFile,
-  maxFileBytes: number,
-  matchesParent: () => Promise<boolean>
-): Promise<'baseline' | 'after' | 'conflict'> {
-  try {
-    const state = (await inspectFile(file.path, maxFileBytes)).state
-    if (
-      state.exists === file.existedBefore &&
-      state.size === file.sizeBefore &&
-      state.sha256 === file.sha256Before &&
-      state.mode === file.modeBefore
-    )
-      return 'baseline'
-    if (
-      state.exists &&
-      state.size === file.afterSize &&
-      state.sha256 === file.afterHash &&
-      state.mode === (file.afterMode ?? file.modeBefore) &&
-      (await matchesParent())
-    )
-      return 'after'
-  } catch {
-    return 'conflict'
-  }
-  return 'conflict'
+function matchesBaseline(file: SnapshotFile, state: FileState): boolean {
+  return (
+    state.exists === file.existedBefore &&
+    state.size === file.sizeBefore &&
+    state.sha256 === file.sha256Before &&
+    state.mode === file.modeBefore
+  )
 }
 
-async function pendingMatchesBaseline(file: SnapshotFile, maxFileBytes: number): Promise<boolean> {
+async function pendingMatchesBaseline(file: SnapshotFile, attempt: Attempt, maxFileBytes: number): Promise<boolean> {
   try {
     const state = (await inspectFile(file.path, maxFileBytes)).state
+    const parent = attempt.beforeParent ?? file.parent
     return (
-      JSON.stringify(await parentIdentity(file.path, file.parent.anchorPath)) === JSON.stringify(file.parent) &&
-      state.exists === file.existedBefore &&
-      state.size === file.sizeBefore &&
-      state.sha256 === file.sha256Before &&
-      state.mode === file.modeBefore
+      JSON.stringify(await parentIdentity(file.path, parent.anchorPath)) === JSON.stringify(parent) &&
+      (attempt.beforeState
+        ? JSON.stringify(state) === JSON.stringify(attempt.beforeState)
+        : matchesBaseline(file, state))
     )
   } catch {
     return false
@@ -91,6 +76,9 @@ export type UndoFileResult = {
   status: 'restored' | 'removed' | 'already-restored' | 'conflict' | 'failed' | 'unknown' | 'skipped' | 'unverifiable'
   reason?: 'unverifiable'
 }
+type UndoEligibility =
+  | { status: 'changed'; stats: BigIntStats }
+  | { status: 'already-restored' | 'conflict' | 'unknown' | 'skipped' | 'unverifiable' }
 
 @Injectable('AgentFileSnapshotService')
 @ServicePhase(Phase.WhenReady)
@@ -172,8 +160,8 @@ export class AgentFileSnapshotService extends BaseService {
     manifest.revision = String(BigInt(manifest.revision) + 1n)
     await atomicWrite(path.join(this.roundDir(manifest), 'manifest.json'), JSON.stringify(manifest))
   }
-  async admitRound(round: SnapshotRound): Promise<void> {
-    await this.exclusive(round.sessionId, async () => {
+  async admitRound(round: SnapshotRound): Promise<(() => Promise<void>) | undefined> {
+    return this.exclusive(round.sessionId, async () => {
       try {
         safeSegment(round.sessionId)
         safeSegment(round.replyId)
@@ -183,9 +171,9 @@ export class AgentFileSnapshotService extends BaseService {
             throw new Error('Round ownership mismatch')
           return
         }
-        this.currentRounds.set(round.sessionId, {
+        const admitted = {
           manifest: {
-            formatVersion: 1,
+            formatVersion: 1 as const,
             sessionId: round.sessionId,
             replyId: round.replyId,
             inputMessageIds: [...round.inputMessageIds],
@@ -195,7 +183,14 @@ export class AgentFileSnapshotService extends BaseService {
             files: []
           },
           persisted: false
-        })
+        }
+        this.currentRounds.set(round.sessionId, admitted)
+        return () =>
+          this.exclusive(round.sessionId, async () => {
+            if (this.currentRounds.get(round.sessionId) !== admitted || admitted.persisted) return
+            if (current === undefined) this.currentRounds.delete(round.sessionId)
+            else this.currentRounds.set(round.sessionId, current)
+          })
       } catch (error) {
         this.currentRounds.set(round.sessionId, null)
         throw error
@@ -445,7 +440,7 @@ export class AgentFileSnapshotService extends BaseService {
         })())
       if (!matches) {
         attempt.preconditionConflict = true
-        attempt.status = 'written'
+        attempt.status = 'failed'
         await this.save(manifest)
       }
       return matches
@@ -499,9 +494,25 @@ export class AgentFileSnapshotService extends BaseService {
       const file = manifest.files.find((f) => f.attempts.some((a) => a.id === input.attemptId))
       if (!file) throw new Error('Unknown snapshot attempt')
       const attempt = file.attempts.find((a) => a.id === input.attemptId)!
-      if (attempt.status !== 'pending') return
+      if (attempt.status !== 'pending') {
+        if (attempt.status === 'failed' && attempt.preconditionConflict && input.outcome === 'cancelled') {
+          attempt.status = 'cancelled'
+          await this.save(manifest)
+        }
+        return
+      }
       if (input.outcome === 'success') {
         const observed = await inspectFile(file.path, this.maxFileBytes).catch(() => null)
+        if (!file.existedBefore && file.parent.anchorPath && observed?.state.exists) {
+          const parent = await parentIdentity(file.path).catch(() => null)
+          const anchor = await parentIdentity(file.path, file.parent.anchorPath).catch(() => null)
+          if (
+            parent?.resolvedPath === file.parent.resolvedPath &&
+            JSON.stringify(anchor) === JSON.stringify(file.parent)
+          )
+            file.parent = parent
+          else attempt.preconditionConflict = true
+        }
         if (attempt.afterSize !== null && Number(attempt.afterSize) > this.maxFileBytes) {
           attempt.status = 'unverifiable'
         } else if (attempt.preconditionConflict) {
@@ -560,9 +571,11 @@ export class AgentFileSnapshotService extends BaseService {
         const started = Date.parse(attempt.startedAt)
         return attempt.status === 'pending' && Date.now() - (Number.isFinite(started) ? started : lastSave) > 120_000
       })
-      if (stale.length && (await pendingMatchesBaseline(file, this.maxFileBytes))) {
-        for (const attempt of stale) attempt.status = 'cancelled'
-        changed = true
+      for (const attempt of stale) {
+        if (await pendingMatchesBaseline(file, attempt, this.maxFileBytes)) {
+          attempt.status = 'cancelled'
+          changed = true
+        }
       }
     }
     if (changed) {
@@ -572,21 +585,29 @@ export class AgentFileSnapshotService extends BaseService {
     return true
   }
 
-  private async undoEligibility(manifest: Manifest, file: SnapshotFile) {
-    const state = () => currentFileState(file, this.maxFileBytes, () => this.matchesParent(manifest, file, file.parent))
-    if (file.attempts.some((attempt) => attempt.status === 'unknown')) return 'unknown' as const
-    if (file.attempts.some((attempt) => attempt.status === 'unverifiable')) return 'unverifiable' as const
-    if (file.restoredAt) return 'already-restored' as const
-    if (file.attempts.some((attempt) => attempt.preconditionConflict && attempt.status === 'written'))
-      return 'conflict' as const
-    if (!file.afterHash && file.attempts.some((attempt) => attempt.status === 'written')) return 'unknown' as const
-    if (!file.afterHash) return 'skipped' as const
-    const current = await state()
-    return current === 'baseline'
-      ? ('already-restored' as const)
-      : current === 'after'
-        ? ('changed' as const)
-        : ('conflict' as const)
+  private async undoEligibility(manifest: Manifest, file: SnapshotFile): Promise<UndoEligibility> {
+    if (file.restoredAt) return { status: 'already-restored' }
+    if (file.attempts.some((attempt) => attempt.preconditionConflict && attempt.status !== 'cancelled'))
+      return { status: 'conflict' }
+    if (file.attempts.some((attempt) => attempt.status === 'unknown')) return { status: 'unknown' }
+    if (file.attempts.some((attempt) => attempt.status === 'unverifiable')) return { status: 'unverifiable' }
+    if (!file.afterHash)
+      return { status: file.attempts.some((attempt) => attempt.status === 'written') ? 'unknown' : 'skipped' }
+    try {
+      const { state, stats } = await inspectFile(file.path, this.maxFileBytes)
+      if (matchesBaseline(file, state)) return { status: 'already-restored' }
+      if (
+        stats &&
+        state.size === file.afterSize &&
+        state.sha256 === file.afterHash &&
+        state.mode === (file.afterMode ?? file.modeBefore) &&
+        (await this.matchesParent(manifest, file, file.parent))
+      )
+        return { status: 'changed', stats }
+    } catch {
+      return { status: 'conflict' }
+    }
+    return { status: 'conflict' }
   }
 
   async getUndoState(sessionId: string, attest?: AttestRound) {
@@ -614,22 +635,23 @@ export class AgentFileSnapshotService extends BaseService {
       const manifest = await this.read({ sessionId, replyId, inputMessageIds: [] })
       if (manifest.sessionId !== sessionId || manifest.replyId !== replyId) return stale
       if (!(await this.cancelStalePending(manifest, attest))) return stale
-      const pendingFiles = manifest.files.filter((f) => !f.restoredAt && f.attempts.some((a) => a.status === 'pending'))
-      const files = await Promise.all(
-        manifest.files.map(async (file) => {
-          const status =
-            pendingFiles.includes(file) && !(await pendingMatchesBaseline(file, this.maxFileBytes))
-              ? ('conflict' as const)
-              : await this.undoEligibility(manifest, file)
-          return { ...file, status }
-        })
-      )
+      let hasPending = false
+      const files: (SnapshotFile & { status: UndoEligibility['status'] })[] = []
+      for (const file of manifest.files) {
+        let { status } = await this.undoEligibility(manifest, file)
+        for (const attempt of file.attempts) {
+          if (file.restoredAt || attempt.status !== 'pending') continue
+          hasPending = true
+          if (!(await pendingMatchesBaseline(file, attempt, this.maxFileBytes))) status = 'conflict'
+        }
+        files.push({ ...file, status })
+      }
       if (!(await this.isAttested(sessionId, attest))) return stale
       const reason: AgentFileSnapshotReason | null = current?.failed
         ? 'failed'
         : !manifest.finishedAt
           ? 'turn-active'
-          : pendingFiles.length
+          : hasPending
             ? 'pending'
             : files.some((file) => file.status === 'conflict')
               ? 'conflict'
@@ -669,26 +691,37 @@ export class AgentFileSnapshotService extends BaseService {
       if (!(await this.cancelStalePending(manifest, attest))) return { files: [], reason: 'stale' }
       if (manifest.files.some((f) => f.attempts.some((a) => a.status === 'pending')))
         return { files: [], reason: 'pending' }
-      const eligibility = await Promise.all(manifest.files.map((file) => this.undoEligibility(manifest, file)))
+      const eligibility: UndoEligibility[] = []
+      for (const file of manifest.files) eligibility.push(await this.undoEligibility(manifest, file))
       if (!(await this.isAttested(input.sessionId, attest))) return { files: [], reason: 'stale' }
-      if (eligibility.includes('conflict'))
+      if (eligibility.some(({ status }) => status === 'conflict'))
         return {
           files: manifest.files.map((file, index) => ({
             path: file.path,
-            status: eligibility[index] === 'changed' ? 'unknown' : eligibility[index]
+            status: eligibility[index].status === 'changed' ? 'skipped' : eligibility[index].status
           })),
           reason: 'conflict'
         }
-      if (!eligibility.includes('changed') && eligibility.includes('unknown')) return { files: [], reason: 'unknown' }
+      if (
+        !eligibility.some(({ status }) => status === 'changed') &&
+        eligibility.some(({ status }) => status === 'unknown')
+      )
+        return { files: [], reason: 'unknown' }
       const files: UndoFileResult[] = []
-      for (const file of manifest.files) {
-        const status = await this.undoEligibility(manifest, file)
+      let conflict = false
+      for (const [index, file] of manifest.files.entries()) {
+        const eligible = eligibility[index]
+        const status = eligible.status
         if (status !== 'changed') {
           files.push({
             path: file.path,
             status,
             ...(status === 'unverifiable' ? { reason: 'unverifiable' as const } : {})
           })
+          continue
+        }
+        if (conflict) {
+          files.push({ path: file.path, status: 'skipped' })
           continue
         }
         try {
@@ -701,16 +734,29 @@ export class AgentFileSnapshotService extends BaseService {
               createHash('sha256').update(bytes).digest('hex') !== file.sha256Before)
           )
             throw new Error('Snapshot blob corrupt')
-          if (
-            (await currentFileState(file, this.maxFileBytes, () => this.matchesParent(manifest, file, file.parent))) !==
-            'after'
-          ) {
+          let stale = false
+          const canReplace = async () => {
+            stale = !(await this.isAttested(input.sessionId, attest))
+            if (stale) return false
+            try {
+              const parent = await parentIdentity(file.path, file.parent.anchorPath)
+              if (JSON.stringify(parent) !== JSON.stringify(file.parent)) return false
+              // Node has no conditional rename or unlink, so another writer can still race the final stat.
+              return sameFileStats(eligible.stats, await fs.lstat(file.path, { bigint: true }))
+            } catch {
+              return false
+            }
+          }
+          const ready = bytes
+            ? await atomicWrite(file.path, bytes, file.modeBefore ?? undefined, canReplace)
+            : await canReplace()
+          if (stale) return { files, reason: 'stale' }
+          if (!ready) {
+            conflict = true
             files.push({ path: file.path, status: 'conflict' })
             continue
           }
-          if (!(await this.isAttested(input.sessionId, attest))) return { files, reason: 'stale' }
-          if (bytes) await atomicWrite(file.path, bytes, file.modeBefore ?? undefined)
-          else await fs.unlink(file.path)
+          if (!bytes) await fs.unlink(file.path)
           file.restoredAt = new Date().toISOString()
           try {
             await this.save(manifest)
@@ -723,19 +769,13 @@ export class AgentFileSnapshotService extends BaseService {
           files.push({ path: file.path, status: 'failed' })
         }
       }
-      return {
-        files,
-        reason:
-          files.some((f) => f.status === 'failed' || f.status === 'conflict') ||
-          (files.some((f) => f.status === 'restored' || f.status === 'removed') &&
-            files.some((f) => f.status === 'unknown' || f.status === 'skipped' || f.status === 'unverifiable'))
-            ? 'partial'
-            : files.some((f) => f.status === 'unknown')
-              ? 'unknown'
-              : files.some((f) => f.status === 'unverifiable')
-                ? 'unverifiable'
-                : null
-      }
+      const restored = files.some((f) => f.status === 'restored' || f.status === 'removed')
+      const unknown = files.some((f) => f.status === 'unknown')
+      const unverifiable = files.some((f) => f.status === 'unverifiable')
+      if (conflict && !restored) return { files, reason: 'conflict' }
+      if (files.some((f) => f.status === 'failed') || (restored && (conflict || unknown || unverifiable)))
+        return { files, reason: 'partial' }
+      return { files, reason: unknown ? 'unknown' : unverifiable ? 'unverifiable' : null }
     })
   }
   async sweepOrphans(

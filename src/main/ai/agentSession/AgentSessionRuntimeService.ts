@@ -296,7 +296,7 @@ type AgentSessionRuntimeEntry = {
     controller: AbortController
     result: Promise<string>
   }
-  closing?: true
+  closing?: { snapshotReplyId?: string }
   /**
    * User Stop on a retained connection; `confirmed` runs on native confirmation, disconnect or close.
    * `input` records the stopped input's native outcome, which may differ from the paused reply.
@@ -520,7 +520,7 @@ export class AgentSessionRuntimeService extends BaseService {
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private runtimeActivity?: Disposable
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
-  private readonly snapshotRounds = new Map<string, { replyId: string; admittedAt: number }>()
+  private readonly snapshotRounds = new Map<string, { replyId: string; admittedAt: number; finishRequested?: true }>()
   private readonly closingSessions = new Map<
     string,
     { promise: Promise<void>; resumeToken?: string; branchHead?: string; entry?: AgentSessionRuntimeEntry }
@@ -671,12 +671,14 @@ export class AgentSessionRuntimeService extends BaseService {
     for (const id of sessionIds) this.snapshotRounds.delete(id)
   }
 
-  private finishSnapshotRound(sessionId: string, replyId: string): void {
+  private async finishSnapshotRound(sessionId: string, replyId: string): Promise<void> {
+    const round = this.snapshotRounds.get(sessionId)
+    if (round?.replyId === replyId) {
+      if (round.finishRequested) return
+      round.finishRequested = true
+    }
     try {
-      void application
-        .get('AgentFileSnapshotService')
-        .markRoundFinished(sessionId, replyId)
-        .catch((error) => logger.error('Failed to finish file snapshot round', { sessionId, replyId, error }))
+      await application.get('AgentFileSnapshotService').markRoundFinished(sessionId, replyId)
     } catch (error) {
       logger.error('Failed to finish file snapshot round', { sessionId, replyId, error })
     }
@@ -1525,7 +1527,7 @@ export class AgentSessionRuntimeService extends BaseService {
       !entry.stopping &&
       (!live || live === completedTurn || live.assistantMessageId !== completedTurn.assistantMessageId)
     )
-      this.finishSnapshotRound(sessionId, completedTurn.assistantMessageId)
+      void this.finishSnapshotRound(sessionId, completedTurn.assistantMessageId)
     this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
     if (status === 'success' && !isRowRoll) this.startPromptPrediction(entry)
     const terminal: AgentSessionTurnTerminalEvent = {
@@ -1552,10 +1554,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = entry && !entry.closing && !this.isShuttingDown ? this.currentConnection(entry) : undefined
     if (!entry || !connection?.retainOnStop || !connection.interrupt || !USER_STOP_REASONS.has(reason))
       // Durable shutdown preserves work; user Stop must record cancellation before closing.
-      return this.closeSession(sessionId, !this.isShuttingDown && reason !== 'app-shutdown').then(() => {
-        if (turn && !this.isShuttingDown && reason !== 'app-shutdown')
-          this.finishSnapshotRound(sessionId, turn.assistantMessageId)
-      })
+      return this.closeSession(sessionId, !this.isShuttingDown && reason !== 'app-shutdown', reason !== 'app-shutdown')
     if (entry.stopping) return entry.stopping.settled
     const confirmation = Promise.withResolvers<void>()
     const stopping: NonNullable<AgentSessionRuntimeEntry['stopping']> = {
@@ -1578,16 +1577,16 @@ export class AgentSessionRuntimeService extends BaseService {
     const interrupted = connection.interrupt().finally(() => (interruptSettled = true))
     stopping.settled = Promise.race([interrupted.then(() => confirmation.promise), unconfirmed])
       .then(
-        () => this.correctStoppedReply(entry, connection, stopping.input),
+        async () => {
+          await this.correctStoppedReply(entry, connection, stopping.input)
+          if (turn) await this.finishSnapshotRound(sessionId, turn.assistantMessageId)
+        },
         (error) => {
           logger.warn('Agent runtime stop failed; closing the session', { sessionId, error })
           // Closing waits for its interrupt, so a still-pending one would block the close as well.
           return this.closeSession(sessionId, interruptSettled)
         }
       )
-      .then(() => {
-        if (turn) this.finishSnapshotRound(sessionId, turn.assistantMessageId)
-      })
       .finally(() => {
         clearTimeout(timer)
         if (entry.stopping === stopping) delete entry.stopping
@@ -1621,7 +1620,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  closeSession(sessionId: string, interrupt = false): Promise<void> {
+  closeSession(sessionId: string, interrupt = false, finishSnapshots = true): Promise<void> {
     const attempt = this.connectionAttempts.get(sessionId)
     if (interrupt && attempt) attempt.interrupt = true
     const priorClosing = this.closingSessions.get(sessionId)
@@ -1629,7 +1628,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry?.prediction?.controller.abort()
     if (!entry) return priorClosing?.promise ?? Promise.resolve()
     if (priorClosing?.entry === entry) return priorClosing.promise
-    const closing = this.closeEntry(entry, interrupt)
+    const closing = this.closeEntry(entry, interrupt, finishSnapshots)
       .then(() => {
         entry.usageAttribution?.close()
         if (this.entries.get(sessionId) === entry && !entry.pendingInputs?.size) {
@@ -1830,7 +1829,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.forks.edits.has(sessionId)) return true
     const entry = this.entries.get(sessionId)
     if (!entry) return false
-    return entry.closing === true || isAgentSessionRuntimeBusy(entry.runtimeState)
+    return !!entry.closing || isAgentSessionRuntimeBusy(entry.runtimeState)
   }
 
   isSessionBusyForArchive(sessionId: string): boolean {
@@ -2879,7 +2878,7 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'turn-complete': {
         const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
         if (turn) {
-          if (!entry.stopping) this.finishSnapshotRound(entry.sessionId, turn.assistantMessageId)
+          if (!entry.stopping && !entry.closing) void this.finishSnapshotRound(entry.sessionId, turn.assistantMessageId)
           turn.forkAnchor = event.forkAnchor
             ? { ...event.forkAnchor, excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id) }
             : undefined
@@ -3751,13 +3750,31 @@ export class AgentSessionRuntimeService extends BaseService {
       headless: pending.headless,
       trustedNotifyChannels: pending.trustedNotifyChannels
     })
-    this.snapshotRounds.set(entry.sessionId, { replyId: turn.assistantMessageId, admittedAt: Date.now() })
+    const previousRound = this.snapshotRounds.get(entry.sessionId)
+    const round = { replyId: turn.assistantMessageId, admittedAt: Date.now() }
+    this.snapshotRounds.set(entry.sessionId, round)
+    let rollbackAdmission: (() => Promise<void>) | undefined
     try {
-      await application
+      rollbackAdmission = await application
         .get('AgentFileSnapshotService')
         .admitRound({ sessionId: entry.sessionId, replyId: turn.assistantMessageId, inputMessageIds: turn.taskIds })
     } catch (error) {
       logger.error('Failed to admit file snapshot round', { error })
+    }
+    if (
+      !this.isCurrentEntry(entry) ||
+      entry.closing ||
+      entry.stopping ||
+      entry.runtimeState.execution.kind !== 'idle' ||
+      entry.runtimeState.queue[0] !== pending ||
+      this.snapshotRounds.get(entry.sessionId) !== round
+    ) {
+      if (this.snapshotRounds.get(entry.sessionId) === round) {
+        if (previousRound) this.snapshotRounds.set(entry.sessionId, previousRound)
+        else this.snapshotRounds.delete(entry.sessionId)
+      }
+      await rollbackAdmission?.()
+      return
     }
     this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn, reserved: true })
@@ -4008,10 +4025,20 @@ export class AgentSessionRuntimeService extends BaseService {
     return Promise.allSettled(closings).then(() => undefined)
   }
 
-  private async closeEntry(entry: AgentSessionRuntimeEntry, interrupt = false): Promise<void> {
+  private async closeEntry(
+    entry: AgentSessionRuntimeEntry,
+    interrupt: boolean,
+    finishSnapshots: boolean
+  ): Promise<void> {
     this.clearIdleTimer(entry)
-    entry.closing = true
     const turns = getAgentSessionRuntimeTurns(entry.runtimeState)
+    const snapshot = this.snapshotRounds.get(entry.sessionId)
+    entry.closing ??= {
+      snapshotReplyId:
+        finishSnapshots && snapshot && turns.some((turn) => turn.assistantMessageId === snapshot.replyId)
+          ? snapshot.replyId
+          : undefined
+    }
     const streamDrain = Promise.allSettled(
       turns.map((turn) => application.get('AiStreamManager').drainRuntimeReply(entry.topicId, turn.assistantMessageId))
     )
@@ -4068,6 +4095,8 @@ export class AgentSessionRuntimeService extends BaseService {
         logger.warn('Failed to clear closed session cache', { sessionId: entry.sessionId, error })
       }
     }
+    if (entry.closing.snapshotReplyId && !this.isShuttingDown)
+      await this.finishSnapshotRound(entry.sessionId, entry.closing.snapshotReplyId)
     this.closeConnection(entry, false)
     this.applyRuntimeStateEvent(entry, { type: 'reset' })
     entry.stopping?.confirmed()
@@ -4138,8 +4167,12 @@ export class AgentSessionRuntimeService extends BaseService {
           const completedLate = failed?.delete(connection)
           this.failedClosureResumeTokens.delete(connection)
           if (failed?.size === 0) this.failedClosures.delete(sessionId)
-          if (completedLate && entry?.closing && this.isCurrentEntry(entry))
-            queueMicrotask(() => void this.closeSession(sessionId))
+          if (completedLate && entry?.closing && this.isCurrentEntry(entry)) {
+            const barrier = this.closingSessions.get(sessionId)?.promise ?? Promise.resolve()
+            void barrier.then(() => {
+              if (entry.closing && this.isCurrentEntry(entry)) void this.closeSession(sessionId)
+            })
+          }
           this.syncRuntimeActivity()
         }),
         new Promise<never>((_, reject) => {

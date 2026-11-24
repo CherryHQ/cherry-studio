@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { constants } from 'node:fs'
 import fs, {
   chmod,
   mkdir,
@@ -245,6 +246,69 @@ describe('AgentFileSnapshotService', () => {
       })
     ).toMatchObject({ reason: 'conflict' })
     expect(await readFile(target, 'utf8')).toBe('user save')
+  })
+  it.each([false, true])(
+    'blocks the whole round after Pi rejects a write with a recorded conflict (unknown: %s)',
+    async (unknown) => {
+      const a = path.join(root, 'a')
+      const b = path.join(root, 'b')
+      await writeFile(a, 'original a')
+      await writeFile(b, 'original b')
+      await write(a, 'agent a', 'first-a')
+      await write(b, 'agent b', 'first-b')
+      if (unknown) {
+        const attempt = await service.protectWrite(call(a, 'unconfirmed-a'))
+        await service.settleWrite({ round, attemptId: attempt.attemptId!, outcome: 'unknown' })
+      }
+      const attempt = await service.protectWrite({
+        ...call(a, 'approval'),
+        intent: { toolName: 'write', input: { content: '' } }
+      })
+      expect(attempt.classification).toBe('empty')
+      await writeFile(a, 'user save')
+      expect(await service.validateWrite(round, attempt.attemptId!)).toBe(false)
+      await service.settleWrite({ round, attemptId: attempt.attemptId!, outcome: 'failure' })
+      await service.markRoundFinished(round.sessionId, round.replyId)
+      expect(await service.getUndoState(round.sessionId)).toMatchObject({
+        canUndo: false,
+        reason: 'conflict',
+        files: [
+          { path: a, status: 'conflict' },
+          { path: b, status: 'changed' }
+        ]
+      })
+      const manifest = JSON.parse(await readFile(path.join(testDir, 'snapshots/session/reply/manifest.json'), 'utf8'))
+      expect(manifest.files[0].attempts.at(-1)).toMatchObject({ status: 'failed', preconditionConflict: true })
+      expect(await undo()).toEqual({
+        reason: 'conflict',
+        files: [
+          { path: a, status: 'conflict' },
+          { path: b, status: 'skipped' }
+        ]
+      })
+      expect(await readFile(a, 'utf8')).toBe('user save')
+      expect(await readFile(b, 'utf8')).toBe('agent b')
+    }
+  )
+  it('restores another file without counting a cancelled precondition conflict as a failure', async () => {
+    const a = path.join(root, 'a')
+    const b = path.join(root, 'b')
+    await writeFile(a, 'original a')
+    await writeFile(b, 'original b')
+    const attempt = await service.protectWrite(call(a, 'approval'))
+    await writeFile(a, 'user save')
+    expect(await service.validateWrite(round, attempt.attemptId!)).toBe(false)
+    await service.settleWrite({ round, attemptId: attempt.attemptId!, outcome: 'cancelled' })
+    await write(b, 'agent b', 'first-b')
+    expect(await undo()).toEqual({
+      reason: null,
+      files: [
+        { path: a, status: 'skipped' },
+        { path: b, status: 'restored' }
+      ]
+    })
+    expect(await readFile(a, 'utf8')).toBe('user save')
+    expect(await readFile(b, 'utf8')).toBe('original b')
   })
   it.each([false, true])('undoes a NotebookEdit with another verified write: %s', async (mixed) => {
     const notebook = path.join(root, 'notebook.ipynb')
@@ -554,6 +618,58 @@ describe('AgentFileSnapshotService', () => {
     await handle.close()
     await expect(service.protectWrite(call(target, '1'))).rejects.toThrow('size limit')
   })
+  it.skipIf(process.platform === 'win32')('rejects a FIFO without waiting for a writer', async () => {
+    const target = path.join(root, 'fifo')
+    execFileSync('mkfifo', [target])
+    const openFile = fs.open.bind(fs)
+    vi.spyOn(fs, 'open').mockImplementation(async (filePath, flags, mode) => {
+      if (filePath === target) expect(typeof flags === 'number' && (flags & constants.O_NONBLOCK) !== 0).toBe(true)
+      return openFile(filePath, flags, mode)
+    })
+    await expect(service.protectWrite(call(target, 'fifo'))).rejects.toThrow('regular file')
+  })
+  it('opens at most one target at a time while checking and undoing 64 writes', async () => {
+    const targets = Array.from({ length: 64 }, (_, index) => path.join(root, `file-${index}`))
+    for (const target of targets) {
+      await writeFile(target, 'before')
+      await write(target, 'after', target)
+    }
+    await service.markRoundFinished(round.sessionId, round.replyId)
+    const openFile = fs.open.bind(fs)
+    let active = 0
+    let peak = 0
+    vi.spyOn(fs, 'open').mockImplementation(async (filePath, flags, mode) => {
+      if (!String(filePath).startsWith(`${root}${path.sep}`)) return openFile(filePath, flags, mode)
+      peak = Math.max(peak, ++active)
+      const handle = await openFile(filePath, flags, mode)
+      const close = handle.close.bind(handle)
+      handle.close = async () => {
+        await close()
+        active--
+      }
+      return handle
+    })
+    const state = await service.getUndoState(round.sessionId)
+    expect(state.files.map(({ status }) => status)).toEqual(Array(64).fill('changed'))
+    expect(peak).toBe(1)
+    expect(active).toBe(0)
+    peak = 0
+    const result = await service.undoCurrentRound({ ...round, expectedRevision: state.revision! })
+    expect(result).toEqual({ reason: null, files: targets.map((path) => ({ path, status: 'restored' })) })
+    expect(peak).toBe(1)
+    expect(active).toBe(0)
+    for (const target of targets) expect(await readFile(target, 'utf8')).toBe('before')
+  })
+  it.skipIf(process.platform === 'win32')(
+    'restores a file with a 262-byte staging name under the old scheme',
+    async () => {
+      const target = path.join(root, 'x'.repeat(220))
+      await writeFile(target, 'before')
+      await write(target, 'after', 'long-name')
+      expect(await undo()).toEqual({ reason: null, files: [{ path: target, status: 'restored' }] })
+      expect(await readFile(target, 'utf8')).toBe('before')
+    }
+  )
   it('captures one baseline for concurrent calls', async () => {
     const target = path.join(root, 'file')
     await writeFile(target, 'original')
@@ -600,6 +716,66 @@ describe('AgentFileSnapshotService', () => {
     expect((await undo()).reason).toBe('conflict')
     expect(await readFile(a, 'utf8')).toBe('changed a')
     expect(await readFile(b, 'utf8')).toBe('replacement')
+  })
+  it('reports conflict and keeps other files intact when the target is replaced during staging', async () => {
+    const a = path.join(root, 'a')
+    const b = path.join(root, 'b')
+    await writeFile(a, 'original a')
+    await writeFile(b, 'original b')
+    await write(a, 'agent a', 'first-a')
+    await write(b, 'agent b', 'first-b')
+    const writeStagingFile = fs.writeFile.bind(fs)
+    vi.spyOn(fs, 'writeFile').mockImplementation(async (filePath, data, options) => {
+      await writeStagingFile(filePath, data, options)
+      if (path.dirname(String(filePath)) === root && String(filePath).endsWith('.tmp')) {
+        await rename(a, path.join(root, 'moved-a'))
+        await writeFile(a, 'agent a')
+      }
+    })
+    expect(await undo()).toEqual({
+      reason: 'conflict',
+      files: [
+        { path: a, status: 'conflict' },
+        { path: b, status: 'skipped' }
+      ]
+    })
+    expect(await readFile(a, 'utf8')).toBe('agent a')
+    expect(await readFile(b, 'utf8')).toBe('agent b')
+    expect((await readdir(root)).sort()).toEqual(['a', 'b', 'moved-a'])
+  })
+  it('does not unlink a newly created file replaced after preflight', async () => {
+    const target = path.join(root, 'created')
+    await write(target, 'agent file', 'create')
+    await service.markRoundFinished(round.sessionId, round.replyId)
+    const state = await service.getUndoState(round.sessionId)
+    const lstat = fs.lstat.bind(fs)
+    let targetChecks = 0
+    vi.spyOn(fs, 'lstat').mockImplementation(async (filePath, options) => {
+      if (filePath === target && ++targetChecks === 2) {
+        await rename(target, path.join(root, 'moved'))
+        await writeFile(target, 'user file')
+      }
+      return lstat(filePath, options)
+    })
+    expect(await service.undoCurrentRound({ ...round, expectedRevision: state.revision! })).toEqual({
+      reason: 'conflict',
+      files: [{ path: target, status: 'conflict' }]
+    })
+    expect(await readFile(target, 'utf8')).toBe('user file')
+  })
+  it('refuses to remove a nested creation after its immediate parent is replaced', async () => {
+    const dir = path.join(root, 'nested', 'parent')
+    const target = path.join(dir, 'file')
+    const attempt = await service.protectWrite(call(target, 'nested'))
+    await mkdir(dir, { recursive: true })
+    await writeFile(target, 'changed')
+    await service.settleWrite({ round, attemptId: attempt.attemptId!, outcome: 'success' })
+    const moved = path.join(root, 'moved-parent')
+    await rename(dir, moved)
+    await mkdir(dir)
+    await rename(path.join(moved, 'file'), target)
+    expect(await undo()).toEqual({ reason: 'conflict', files: [{ path: target, status: 'conflict' }] })
+    expect(await readFile(target, 'utf8')).toBe('changed')
   })
   it('does not undo an earlier round when the current round is empty', async () => {
     const target = path.join(root, 'file')
@@ -909,7 +1085,7 @@ describe('AgentFileSnapshotService', () => {
       replyId: round.replyId,
       expectedRevision: state.revision!
     })
-    expect(result.reason).toBe(age > 120 ? 'partial' : 'pending')
+    expect(result.reason).toBe(age > 120 ? null : 'pending')
     const updated = JSON.parse(await readFile(manifestPath, 'utf8'))
     expect(updated.files.find((file: { path: string }) => file.path === target).attempts[0].status).toBe(
       age > 120 ? 'cancelled' : 'pending'
@@ -937,13 +1113,33 @@ describe('AgentFileSnapshotService', () => {
       replyId: round.replyId,
       expectedRevision: manifest.revision
     })
-    expect(result.reason).toBe(changed ? 'pending' : 'partial')
+    expect(result.reason).toBe(changed ? 'pending' : null)
     const updated = JSON.parse(await readFile(manifestPath, 'utf8'))
     expect(updated.files.find((file: { path: string }) => file.path === target).attempts[0].status).toBe(
       changed ? 'pending' : 'cancelled'
     )
     expect(await readFile(target, 'utf8')).toBe(changed ? 'user edit' : 'baseline')
     expect(await readFile(other, 'utf8')).toBe(changed ? 'after' : 'before')
+  })
+  it('expires each pending attempt against its own saved state', async () => {
+    const target = path.join(root, 'file')
+    await writeFile(target, 'original')
+    const initial = await service.protectWrite(call(target, 'initial-pending'))
+    await write(target, 'after first write', 'written')
+    const retry = await service.protectWrite(call(target, 'retry-pending'))
+    await service.markRoundFinished(round.sessionId, round.replyId)
+    const manifestPath = path.join(testDir, 'snapshots/session/reply/manifest.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    for (const attempt of manifest.files[0].attempts) attempt.startedAt = new Date(Date.now() - 130_000).toISOString()
+    await writeFile(manifestPath, JSON.stringify(manifest))
+    expect(await service.getUndoState(round.sessionId)).toMatchObject({ canUndo: false, reason: 'pending' })
+    const updated = JSON.parse(await readFile(manifestPath, 'utf8'))
+    expect(updated.files[0].attempts).toMatchObject([
+      { id: initial.attemptId, status: 'pending' },
+      { status: 'written' },
+      { id: retry.attemptId, status: 'cancelled' }
+    ])
+    expect(await readFile(target, 'utf8')).toBe('after first write')
   })
   it.each([130, 5])('uses the last manifest save as a conservative age for legacy pending (%is)', async (age) => {
     const target = path.join(root, 'pending')
@@ -966,7 +1162,7 @@ describe('AgentFileSnapshotService', () => {
       replyId: round.replyId,
       expectedRevision: state.revision!
     })
-    expect(result.reason).toBe(age > 120 ? 'partial' : 'pending')
+    expect(result.reason).toBe(age > 120 ? null : 'pending')
     const updated = JSON.parse(await readFile(manifestPath, 'utf8'))
     expect(updated.files.find((file: { path: string }) => file.path === target).attempts[0].status).toBe(
       age > 120 ? 'cancelled' : 'pending'

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { constants } from 'node:fs'
+import { type BigIntStats, constants } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -64,13 +64,17 @@ export function safeSegment(value: string): string {
 export async function inspectFile(
   filePath: string,
   maxFileBytes = MAX_SNAPSHOT_BYTES
-): Promise<{ state: FileState; bytes: Buffer | null }> {
+): Promise<{ state: FileState; bytes: Buffer | null; stats: BigIntStats | null }> {
   let handle: fs.FileHandle
   try {
-    handle = await fs.open(filePath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0))
+    handle = await fs.open(filePath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0) | (constants.O_NONBLOCK || 0))
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT')
-      return { state: { exists: false, size: null, sha256: null, mode: null, dev: null, ino: null }, bytes: null }
+      return {
+        state: { exists: false, size: null, sha256: null, mode: null, dev: null, ino: null },
+        bytes: null,
+        stats: null
+      }
     throw error
   }
   try {
@@ -81,16 +85,7 @@ export async function inspectFile(
     const bytes = await handle.readFile()
     const after = await handle.stat({ bigint: true })
     const entry = await fs.lstat(filePath, { bigint: true })
-    if (
-      BigInt(bytes.length) !== before.size ||
-      before.size !== after.size ||
-      before.mtimeNs !== after.mtimeNs ||
-      before.ctimeNs !== after.ctimeNs ||
-      before.dev !== entry.dev ||
-      before.ino !== entry.ino ||
-      !entry.isFile() ||
-      entry.nlink !== 1n
-    )
+    if (BigInt(bytes.length) !== before.size || !sameFileStats(before, after) || !sameFileStats(before, entry))
       throw new Error('Snapshot target changed while reading')
     return {
       state: {
@@ -101,11 +96,25 @@ export async function inspectFile(
         dev: String(before.dev),
         ino: String(before.ino)
       },
-      bytes
+      bytes,
+      stats: entry
     }
   } finally {
     await handle.close()
   }
+}
+
+export function sameFileStats(expected: BigIntStats, actual: BigIntStats): boolean {
+  return (
+    actual.isFile() &&
+    actual.nlink === 1n &&
+    expected.dev === actual.dev &&
+    expected.ino === actual.ino &&
+    expected.size === actual.size &&
+    expected.mode === actual.mode &&
+    expected.mtimeNs === actual.mtimeNs &&
+    expected.ctimeNs === actual.ctimeNs
+  )
 }
 
 export async function resolveExistingPath(target: string): Promise<string> {
@@ -143,12 +152,19 @@ export async function parentIdentity(target: string, anchorPath?: string) {
   }
 }
 
-export async function atomicWrite(target: string, bytes: Buffer | string, mode?: number): Promise<void> {
-  const temporary = path.join(path.dirname(target), `.${path.basename(target)}.${randomUUID()}.tmp`)
+export async function atomicWrite(
+  target: string,
+  bytes: Buffer | string,
+  mode?: number,
+  beforeRename?: () => Promise<boolean>
+): Promise<boolean> {
+  const temporary = path.join(path.dirname(target), `.${randomUUID()}.tmp`)
   try {
     await fs.writeFile(temporary, bytes, { flag: 'wx', mode: mode ?? 0o600 })
     if (mode !== undefined && process.platform !== 'win32') await fs.chmod(temporary, mode)
+    if (beforeRename && !(await beforeRename())) return false
     await fs.rename(temporary, target)
+    return true
   } finally {
     await fs.rm(temporary, { force: true })
   }

@@ -479,6 +479,8 @@ const NO_ENSURE = [
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.
   'feature.agents.system_workspaces',
+  // The snapshot service checks workspace containment before creating its root.
+  'feature.agents.file_snapshots',
   // Claude Code owns materialization of its transcript store.
   'feature.agents.claude.projects'
 ] as const satisfies readonly NoEnsureEntry[]
