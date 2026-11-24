@@ -192,10 +192,19 @@ type ExtractedContent = {
 const extractPreviewContent = (response: unknown): ExtractedContent => {
   if (!response) return { text: '', images: [], links: [] }
 
+  // Agent results may already have been unwrapped by the message adapter.
+  const isUnwrapped = Array.isArray(response)
+  const candidate = isUnwrapped ? { content: response } : response
   const hasMcpContent =
-    typeof response === 'object' && response !== null && Object.prototype.hasOwnProperty.call(response, 'content')
-  const result = hasMcpContent ? CallToolResultSchema.safeParse(response) : null
-  if (result?.success) {
+    typeof candidate === 'object' && candidate !== null && Object.prototype.hasOwnProperty.call(candidate, 'content')
+  const result = hasMcpContent ? CallToolResultSchema.safeParse(candidate) : null
+  // Keep the JSON fallback for unwrapped results the image preview cannot fully display.
+  if (
+    result?.success &&
+    (!isUnwrapped ||
+      (result.data.content.some((item) => item.type === 'image') &&
+        result.data.content.every((item) => item.type === 'image' || item.type === 'text')))
+  ) {
     const contents = result.data.content
     if (contents.length === 0) return { text: '', images: [], links: [] }
 

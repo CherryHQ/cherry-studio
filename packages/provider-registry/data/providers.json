@@ -722,6 +722,7 @@
     {
       "authOptional": true,
       "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "ollama-chat",
       "description": "Ollama - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -3032,5 +3033,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "7667eedef47ea6ab"
+  "version": "6537d4f4cb894b31"
 }
