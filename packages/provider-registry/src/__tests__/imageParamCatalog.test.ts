@@ -1,15 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { CANONICAL_PARAM_KEY } from '../schemas/enums'
-import { IMAGE_PARAM_CATALOG_KEYS, imageParamsSchema, parseImageParamValue } from '../schemas/imageParamCatalog'
+import { imageParamsSchema, parseImageParamValue } from '../schemas/imageParamCatalog'
 import type { ImageGenerationSupport } from '../schemas/model'
 import { buildParamsSchema } from '../utils/buildParamsSchema'
 
 describe('IMAGE_PARAM_CATALOG', () => {
-  it('is exhaustive over CANONICAL_PARAM_KEY (no missing / extra keys)', () => {
-    expect([...IMAGE_PARAM_CATALOG_KEYS].sort()).toEqual(Object.values(CANONICAL_PARAM_KEY).sort())
-  })
-
   it('parses dynamic values through the canonical per-key value type', () => {
     expect(parseImageParamValue('numImages', '2')).toBe(2)
     expect(parseImageParamValue('numImages', '2.5')).toBeUndefined()
@@ -40,7 +35,7 @@ describe('imageParamsSchema (catalog-only IPC boundary schema)', () => {
 })
 
 describe('buildParamsSchema', () => {
-  const support = {
+  const support: ImageGenerationSupport = {
     modes: {
       generate: {
         supports: {
@@ -51,7 +46,7 @@ describe('buildParamsSchema', () => {
         }
       }
     }
-  } as unknown as ImageGenerationSupport
+  }
 
   const schema = buildParamsSchema(support, 'generate')
 
@@ -65,6 +60,21 @@ describe('buildParamsSchema', () => {
 
   it('drops an out-of-range value instead of failing the whole submit', () => {
     expect(schema.parse({ numImages: 9 }).numImages).toBeUndefined()
+  })
+
+  it('skips absent optional constraints while applying the remaining range and catalog coercion', () => {
+    const support: ImageGenerationSupport = {
+      modes: {
+        generate: { supports: { seed: undefined, numImages: { type: 'range', min: 1, max: 4 } } }
+      }
+    }
+    const schema = buildParamsSchema(support)
+
+    expect(schema.parse({ seed: '42', numImages: '2' })).toMatchObject({ seed: 42, numImages: 2 })
+    expect(schema.parse({ seed: 'bad', numImages: '9' })).toMatchObject({
+      seed: undefined,
+      numImages: undefined
+    })
   })
 
   it('enforces enum membership but allows the customSize "custom" sentinel', () => {
@@ -113,9 +123,9 @@ describe('buildParamsSchema', () => {
     // caught declared keys and `.loose()` let `seed` ride RAW into the strict IPC
     // schema (`imageParamsSchema`, no `.catch`), rejecting the whole submit. Now every
     // catalog key is base-coerced first, then the model's constraints overlay.
-    const onlyNumImages = {
+    const onlyNumImages: ImageGenerationSupport = {
       modes: { generate: { supports: { numImages: { type: 'range', min: 1, max: 4 } } } }
-    } as unknown as ImageGenerationSupport
+    }
     const s = buildParamsSchema(onlyNumImages, 'generate')
 
     const parsed = s.parse({ seed: 'abc', numImages: '2', legacyExtra: 'x' })
@@ -123,7 +133,7 @@ describe('buildParamsSchema', () => {
     expect(parsed.numImages).toBe(2) // supported key still coerced + range-constrained
     expect(parsed.legacyExtra).toBe('x') // genuinely non-catalog extra still passes via `.loose()`
     // a VALID stale value for an unsupported catalog key still coerces through (preserved)
-    expect((s.parse({ seed: '7' }) as { seed?: number }).seed).toBe(7)
+    expect(s.parse({ seed: '7' }).seed).toBe(7)
     // the cleaned bag now survives the strict IPC-boundary schema instead of rejecting
     expect(() => imageParamsSchema.parse(parsed)).not.toThrow()
   })

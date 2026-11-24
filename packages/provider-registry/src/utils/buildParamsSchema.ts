@@ -13,7 +13,7 @@
 import * as z from 'zod'
 
 import type { CanonicalParamKey } from '../schemas/enums'
-import { IMAGE_PARAM_CATALOG, normalizeImageParamNumber } from '../schemas/imageParamCatalog'
+import { IMAGE_PARAM_CATALOG, IMAGE_PARAM_CATALOG_KEYS, normalizeImageParamNumber } from '../schemas/imageParamCatalog'
 import type { ImageGenerationMode, ImageGenerationSupport, SupportSpec } from '../schemas/model'
 
 function resolveModeSupports(
@@ -62,7 +62,7 @@ export function buildParamsSchema(
   const shape: Record<string, z.ZodTypeAny> = {}
 
   for (const [key, entry] of Object.entries(IMAGE_PARAM_CATALOG)) {
-    shape[key] = (entry.schema as z.ZodTypeAny).catch(undefined)
+    shape[key] = entry.schema.catch(undefined)
   }
 
   const supports = resolveModeSupports(support, mode)
@@ -70,11 +70,13 @@ export function buildParamsSchema(
   if (!supports) return z.object(shape).loose()
 
   // Overlay this model's per-param constraints (options / range) on the base.
-  for (const [key, spec] of Object.entries(supports) as [CanonicalParamKey, SupportSpec][]) {
+  for (const key of IMAGE_PARAM_CATALOG_KEYS) {
+    const spec = supports[key]
+
+    if (!spec) continue
     const entry = IMAGE_PARAM_CATALOG[key]
 
-    if (!entry) continue
-    shape[key] = applyConstraints(entry.schema as z.ZodTypeAny, spec).catch(undefined)
+    shape[key] = applyConstraints(entry.schema, spec).catch(undefined)
 
     // The `customSize` widget stores typed width/height under synthetic
     // `<key>_width` / `<key>_height` keys (not canonical), bounded by the spec.

@@ -140,6 +140,7 @@ export type ParamValues = { [K in CanonicalParamKey]?: ParamValue<K> }
  * constraints stay in the renderer's `buildParamsSchema`.
  */
 export const imageParamsSchema = z.object(
+  // SAFETY: Each own catalog key is paired with its original schema; the exhaustive catalog fixes the mapped shape.
   Object.fromEntries(Object.entries(IMAGE_PARAM_CATALOG).map(([key, entry]) => [key, entry.schema])) as {
     [K in CanonicalParamKey]: (typeof IMAGE_PARAM_CATALOG)[K]['schema']
   }
@@ -167,5 +168,6 @@ export function wireName(key: CanonicalParamKey): string {
   return paramCatalogEntry(key).wire ?? autoSnakeCase(key)
 }
 
-/** Every canonical key the catalog covers (for the exhaustiveness lock test). */
+/** Canonical keys in catalog declaration order. */
+// SAFETY: The closed IMAGE_PARAM_CATALOG literal satisfies an exhaustive Record<CanonicalParamKey, ImageParamCatalogEntry>.
 export const IMAGE_PARAM_CATALOG_KEYS = Object.keys(IMAGE_PARAM_CATALOG) as CanonicalParamKey[]
