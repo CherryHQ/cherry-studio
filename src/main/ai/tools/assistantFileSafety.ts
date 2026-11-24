@@ -275,10 +275,12 @@ async function bestEffortUnlinkOwnedPath(
     await runUnlinkOwnedPathChild(parentPath, leafName, parentStat, expected)
   } catch (error) {
     if (isErrno(error, 'ENOENT')) return
-    const stderr = String((error as { stderr?: string | Buffer }).stderr ?? '').slice(0, CLEANUP_CHILD_MAX_BUFFER_BYTES)
+    const rawStderr = typeof error === 'object' && error !== null && 'stderr' in error ? error.stderr : undefined
+    const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+    const stderr = String(rawStderr ?? '').slice(0, CLEANUP_CHILD_MAX_BUFFER_BYTES)
     logger.warn(`${operation}: cleanup refused or failed; leaving path untouched`, {
       target,
-      code: (error as NodeJS.ErrnoException).code,
+      code,
       stderr,
       error
     })
@@ -337,7 +339,7 @@ async function fsyncDirectoryOf(target: AbsoluteFilePath): Promise<void> {
       await directoryHandle.close()
     }
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
+    const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
 
     if (code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP') return
     logger.warn('Failed to fsync Assistant artifact directory', { target, code, error })
@@ -415,7 +417,7 @@ export async function publishFileNoClobber(
       } catch (error) {
         logger.warn('Failed to clear an uncommitted Assistant artifact', {
           target,
-          code: (error as NodeJS.ErrnoException).code,
+          code: typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined,
           error
         })
       }

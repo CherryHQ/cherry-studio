@@ -87,6 +87,25 @@ describe('publishFileNoClobber', () => {
     await rm(temporaryDirectory, { recursive: true, force: true })
   })
 
+  it.each([null, undefined])('preserves the publication failure when cleanup rejects with %s', async (cleanupError) => {
+    const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
+    const target = path.join(temporaryDirectory, 'target.bin') as AbsoluteFilePath
+    const primaryError = new Error('target validation failed')
+    await writeFile(staged, 'original staging bytes')
+    vi.mocked(stat).mockRejectedValueOnce(cleanupError)
+    let validations = 0
+
+    await expect(
+      publishFileNoClobber(staged, target, {
+        validateTarget: async () => {
+          if (++validations === 2) throw primaryError
+        }
+      })
+    ).rejects.toBe(primaryError)
+    expect(await readFile(staged, 'utf8')).toBe('original staging bytes')
+    expect(await readFile(target, 'utf8')).toBe('')
+  })
+
   it('publishes a staging file and consumes it', async () => {
     const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
     const target = path.join(temporaryDirectory, 'target.bin') as AbsoluteFilePath
