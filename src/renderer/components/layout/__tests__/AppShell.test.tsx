@@ -85,7 +85,7 @@ vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
 }))
 
 vi.mock('../../../hooks/tab', async () => {
-  const actual = (await vi.importActual('../../../hooks/tab')) as Record<string, unknown>
+  const actual = await vi.importActual<Record<string, unknown>>('../../../hooks/tab')
   return {
     ...(actual as object),
     useMainWindowNavigation: vi.fn(),

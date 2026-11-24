@@ -87,7 +87,7 @@ export function ExportAssistantsDialog({
               {t('common.loading')}
             </p>
           ) : visible.length === 0 ? (
-            <EmptyState preset="no-result" title={t('common.no_results')} />
+            <EmptyState title={t('common.no_results')} />
           ) : (
             visible.map((assistant) => (
               <label

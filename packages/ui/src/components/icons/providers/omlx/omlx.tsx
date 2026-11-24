@@ -9,7 +9,7 @@ const Omlx = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const OmlxIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Omlx, {
   Avatar: OmlxAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#2d2d2d'
 })
 
 export default OmlxIcon

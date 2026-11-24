@@ -8,7 +8,6 @@ const {
   cacheCleanupRunMock,
   inspectTargetMock,
   requestDataResetMock,
-  requestV1RemigrationMock,
   requestRelocationMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
@@ -18,7 +17,6 @@ const {
   cacheCleanupRunMock: vi.fn(),
   inspectTargetMock: vi.fn(),
   requestDataResetMock: vi.fn(),
-  requestV1RemigrationMock: vi.fn(),
   requestRelocationMock: vi.fn()
 }))
 
@@ -30,8 +28,7 @@ vi.mock('@application', () => ({
   }
 }))
 vi.mock('@main/services/dataReset', () => ({
-  requestDataReset: requestDataResetMock,
-  requestV1Remigration: requestV1RemigrationMock
+  requestDataReset: requestDataResetMock
 }))
 vi.mock('@main/services/userDataRelocation', () => ({
   inspectUserDataRelocationTarget: inspectTargetMock,

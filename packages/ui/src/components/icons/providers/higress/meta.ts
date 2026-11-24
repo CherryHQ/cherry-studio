@@ -2,6 +2,7 @@ import { type IconMeta } from '../../types'
 
 export const meta: IconMeta = {
   id: 'higress',
-  colorPrimary: '#000000',
-  colorScheme: 'color'
+  colorPrimary: '#605bfb',
+  colorScheme: 'color',
+  artworkKind: 'tile'
 }

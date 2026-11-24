@@ -52,7 +52,7 @@ const AboutSettings: FC = () => {
   const showReleases = useOpenReleaseNotes()
   const location = useLocation()
   const navigate = useNavigate()
-  const search = useSearch({ strict: false }) as Partial<Record<typeof DOCTOR_OPEN_QUERY_PARAM, DoctorPanel>>
+  const search: Partial<Record<typeof DOCTOR_OPEN_QUERY_PARAM, DoctorPanel>> = useSearch({ strict: false })
   const consumedDoctorPanelRef = useRef<DoctorPanel | undefined>(undefined)
 
   const { appUpdateState, updateAppUpdateState, checkForUpdate } = useAppUpdateState(async (releaseInfo) => {

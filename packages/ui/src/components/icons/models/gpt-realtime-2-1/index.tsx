@@ -9,7 +9,7 @@ const GptRealtime21 = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const GptRealtime21Icon: CompoundIcon = /*#__PURE__*/ Object.assign(GptRealtime21, {
   Avatar: GptRealtime21Avatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#f4d6db'
 })
 
 export default GptRealtime21Icon

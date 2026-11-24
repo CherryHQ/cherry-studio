@@ -10,8 +10,8 @@ const PLATFORM_NAMES = {
   win32: 'windows'
 }
 
-function validateEditionArtifacts({ distDirectory, edition, platform, productName, version }) {
-  const expected = getExpectedReleaseArtifacts({ edition, platform, productName, version })
+function validateEditionArtifacts({ distDirectory, edition, platform, productName, version, architecture }) {
+  const expected = getExpectedReleaseArtifacts({ edition, platform, productName, version, architecture })
 
   for (const fileName of expected.files) {
     const filePath = path.join(distDirectory, fileName)

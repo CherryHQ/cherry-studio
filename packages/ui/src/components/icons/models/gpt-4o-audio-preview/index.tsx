@@ -9,7 +9,7 @@ const Gpt4oAudioPreview = ({ variant, className, ...props }: CompoundIconProps) 
 
 export const Gpt4oAudioPreviewIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gpt4oAudioPreview, {
   Avatar: Gpt4oAudioPreviewAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#30be90'
 })
 
 export default Gpt4oAudioPreviewIcon

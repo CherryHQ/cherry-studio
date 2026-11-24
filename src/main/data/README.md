@@ -22,7 +22,7 @@ src/main/data/
 │   ├── seeding/               # Database initialization
 │   └── DbService.ts           # Database connection management
 ├── bootConfig/                # Pre-lifecycle file-backed boot configuration
-├── migration/                 # Data migration system
+├── migration/                 # Legacy upgrade detection and historical migration status
 ├── CacheService.ts            # Cache management
 ├── DataApiService.ts          # API coordination
 ├── PreferenceService.ts       # User preferences

@@ -181,11 +181,17 @@ it('keeps unsupported harness history readable and rejects execution, including 
 
 it('refuses a missing edit parent without treating the input as a first message', async () => {
   const input = user('Disconnected input')
-  dbh.db
-    .update(agentSessionMessageTable)
-    .set({ parentId: randomUUID() })
-    .where(eq(agentSessionMessageTable.id, input.id))
-    .run()
+  // Deliberately corrupt the fixture to exercise the read-side refusal below the storage constraint.
+  dbh.sqlite.pragma('foreign_keys = OFF')
+  try {
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ parentId: randomUUID() })
+      .where(eq(agentSessionMessageTable.id, input.id))
+      .run()
+  } finally {
+    dbh.sqlite.pragma('foreign_keys = ON')
+  }
   expect(runtime.getHistoryActions(sessionId, [input.id]).get(input.id)?.edit).toBe('checkpoint_unsupported')
   await expect(runtime.getEditTarget(sessionId, input.id)).rejects.toMatchObject({ reason: 'checkpoint_unsupported' })
   const target = { messageId: input.id, version: messages.readEditSnapshotTx(dbh.db, sessionId, input.id).version }

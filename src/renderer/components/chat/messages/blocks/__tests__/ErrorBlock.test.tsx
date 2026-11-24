@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import type { SerializedError } from '@renderer/types/error'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -339,7 +340,7 @@ required service tier.`
       />
     )
 
-    expect(screen.getByText('models.detail.quota_exhausted')).toBeInTheDocument()
+    expect(screen.getByText('models.detail.quota_insufficient_for_request')).toBeInTheDocument()
     expect(screen.getByText(planText)).toBeInTheDocument()
     expect(screen.queryByText(/API Error|HTTP 429/)).toBeNull()
     expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
@@ -360,7 +361,7 @@ required service tier.`
     )
 
     expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
-    expect(screen.queryByText('models.detail.quota_exhausted')).toBeNull()
+    expect(screen.queryByText('models.detail.quota_insufficient_for_request')).toBeNull()
     expect(screen.getByText(/HTTP 429/)).toBeInTheDocument()
   })
 
@@ -377,6 +378,108 @@ required service tier.`
 
     expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
     expect(screen.getByText(GO_TO_SETTINGS_LABEL)).toBeInTheDocument()
+  })
+
+  const lowCreditText =
+    'Your credit balance is running low for account organization, please recharge immediately to avoid service disruption.'
+
+  it.each<[string, SerializedError]>([
+    [
+      'normalized quota',
+      {
+        name: 'AI_APICallError',
+        message: lowCreditText,
+        stack: null,
+        statusCode: 429,
+        providerErrorCategory: 'quota',
+        responseBody: null,
+        data: null
+      }
+    ],
+    [
+      'legacy JSON body',
+      {
+        name: 'AI_APICallError',
+        message: 'Too Many Requests',
+        stack: null,
+        statusCode: 429,
+        responseBody: JSON.stringify({ error: { message: lowCreditText } })
+      }
+    ]
+  ])('omits app-authored 429 wait advice for %s after each send', (_case, error) => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.translations.set('HTTP 429', enUS['error.http.429'])
+    const blocks = [1, 2].map((send) => (
+      <ErrorBlock
+        key={send}
+        partId={`message-${send}-part-0`}
+        error={error}
+        message={{ ...message, id: `message-${send}` }}
+      />
+    ))
+    const { rerender } = render(<>{blocks.slice(0, 1)}</>)
+
+    for (const send of [1, 2]) {
+      if (send === 2) rerender(<>{blocks}</>)
+      const headings = screen.getAllByText(enUS['error.diagnosis.quota'], { exact: true })
+      expect(headings).toHaveLength(send)
+      headings.forEach((heading) => expect(heading).toBeVisible())
+      const descriptions = screen.getAllByText(lowCreditText, { exact: false })
+      expect(descriptions).toHaveLength(send)
+      descriptions.forEach((description) => expect(description).toBeVisible())
+      expect.soft(screen.queryAllByText(enUS['error.http.429'], { exact: false })).toHaveLength(0)
+    }
+  })
+
+  it('keeps the ordinary 429 heading and HTTP wait description after each send', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.translations.set('HTTP 429', enUS['error.http.429'])
+    const providerMessage = 'Request throughput exceeded. Try again later.'
+    const error = { name: 'AI_APICallError', message: providerMessage, stack: null, statusCode: 429 }
+    const blocks = [1, 2].map((send) => (
+      <ErrorBlock
+        key={send}
+        partId={`message-${send}-part-0`}
+        error={error}
+        message={{ ...message, id: `message-${send}` }}
+      />
+    ))
+    const { rerender } = render(<>{blocks.slice(0, 1)}</>)
+
+    for (const send of [1, 2]) {
+      if (send === 2) rerender(<>{blocks}</>)
+      const headings = screen.getAllByText(enUS['error.diagnosis.rate_limit'], { exact: true })
+      expect(headings).toHaveLength(send)
+      headings.forEach((heading) => expect(heading).toBeVisible())
+      const descriptions = screen.getAllByText(enUS['error.http.429'], { exact: false })
+      expect(descriptions).toHaveLength(send)
+      descriptions.forEach((description) => {
+        expect(description).toBeVisible()
+        expect(description).toHaveTextContent(providerMessage)
+      })
+    }
+  })
+
+  it('keeps HTTP 402 payment guidance for a numeric quota error', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.translations.set('HTTP 402', enUS['error.http.402'])
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: lowCreditText,
+          stack: null,
+          statusCode: 402,
+          providerErrorCategory: 'quota'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['error.diagnosis.quota'], { exact: true })).toBeVisible()
+    expect(screen.getByText(enUS['error.http.402'], { exact: false })).toBeVisible()
   })
 
   it('offers provider settings recovery when Claude Code reports that the session is not logged in', () => {
@@ -419,6 +522,20 @@ required service tier.`
 
     expect(screen.getByText('error.diagnosis.quota')).toBeInTheDocument()
     expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
+  })
+
+  it('shows size guidance and the original status-less request buffer error', () => {
+    const providerMessage = '413 Failed to buffer the request body: length limit exceeded'
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: providerMessage, stack: null }}
+        message={message}
+      />
+    )
+    expect(screen.getByText('error.diagnosis.payload')).toBeInTheDocument()
+    expect(screen.getByText(providerMessage)).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.unknown')).toBeNull()
   })
 
   it('shows a useful status when a proxy returns an HTML 413 response', () => {
