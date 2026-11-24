@@ -1166,6 +1166,7 @@ export class AgentSessionService {
       agentId: string | null
       ownerSessionId?: string
       taskId?: string | null
+      isTaskOwned?: boolean
       name: string
       description?: string
       model?: UniqueModelId | null

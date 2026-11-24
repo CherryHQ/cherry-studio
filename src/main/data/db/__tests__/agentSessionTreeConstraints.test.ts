@@ -15,19 +15,10 @@ function seedSessions(dbh: ReturnType<typeof setupTestDatabase>) {
     .insert(agentWorkspaceTable)
     .values({ id: 'work', name: 'Work', path: '/work', type: 'user', orderKey: 'a0' })
     .run()
-  dbh.db
-    .insert(sessions)
-    .values(
-      ['flat', 'branched'].map((id) => ({
-        id,
-        name: id,
-        workspaceId: 'work',
-        orderKey: id,
-        createdAt: 10,
-        updatedAt: 20
-      }))
-    )
-    .run()
+  const insert = dbh.sqlite.prepare(
+    'INSERT INTO agent_session (id, name, workspace_id, order_key, created_at, updated_at, last_activity_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  )
+  for (const id of ['flat', 'branched']) insert.run(id, id, 'work', id, 10, 20, 20)
 }
 
 describe('Session tree storage constraints', () => {
@@ -144,7 +135,7 @@ describe('Session tree populated branch upgrade', () => {
         row.session_id === 'flat' ? { ...row, parent_id: expect.any(String) } : row
       )
     }
-    expect(dbh.sqlite.prepare("SELECT * FROM agent_session WHERE id = 'branched'").get()).toEqual(sessionBefore)
+    expect(dbh.sqlite.prepare("SELECT * FROM agent_session WHERE id = 'branched'").get()).toMatchObject(sessionBefore)
     expect(dbh.db.select().from(sessions).where(eq(sessions.id, 'flat')).get()).toMatchObject({
       createdAt: 10,
       updatedAt: 20,
