@@ -35,7 +35,7 @@ export function createContext<T extends ProviderId, TParams = unknown, TResult =
     extensions: new Map(),
     middlewares: [],
     // 占位递归调用函数，实际使用时会被 PluginEngine 替换
-    recursiveCall: () => Promise.resolve(null as any)
+    recursiveCall: () => Promise.resolve(null)
   }
 }
 

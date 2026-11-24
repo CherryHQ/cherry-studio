@@ -33,7 +33,7 @@ export interface AiRequestMetadata {
  * 递归调用函数类型
  * 泛型化以保持类型推导
  */
-type RecursiveCallFn<TParams = unknown, TResult = unknown> = (newParams: Partial<TParams>) => Promise<TResult>
+type RecursiveCallFn<TParams = unknown, TResult = unknown> = (newParams: Partial<TParams>) => Promise<TResult | null>
 
 /**
  * AI 请求上下文

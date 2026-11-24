@@ -5,3 +5,5 @@
 BREAKING: `AiPlugin.onError` receives `unknown` instead of `Error`. Narrow the original rejection before reading Error fields. Rejection values are forwarded without wrapping and rethrown when hooks complete normally; hook failures still propagate instead, and undefined rejections retain their existing notification suppression. `PluginManager.executeFirst` now infers its real result from the hook name instead of accepting an unchecked result type argument. Model resolvers must return the requested modality. Language middleware requires a V3 language model; V2 language models remain supported by text and stream execution without middleware.
 
 Image execution preserves native SDK V2/V3 compatibility, including V2 models returned by plugins. Provider-call observation retains receiver-dependent generation and dynamic batch limits through the SDK wrapper; it does not add V3-only image features to V2 models.
+
+`AiRequestContext.recursiveCall` now declares its existing `null` result for contexts not bound to request execution. Callers consuming the result must handle `TResult | null`; actual recursive execution and the unbound placeholder behavior are unchanged.
