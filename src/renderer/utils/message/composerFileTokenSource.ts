@@ -29,15 +29,20 @@ export function createComposerFileTokenSourceId(): string {
 }
 
 export function withComposerFileTokenSourceId<T extends FileMetadata>(file: T): T & ComposerFileMetadata {
+  // SAFETY: The getter validates the strengthened fileTokenSourceId field; all remaining metadata is already typed by T.
   if (getComposerFileTokenSourceId(file)) return file as T & ComposerFileMetadata
 
   return { ...file, fileTokenSourceId: createComposerFileTokenSourceId() }
 }
 
 /** Ensure each entry carries a valid `fileTokenSourceId`, minting one only when missing. */
+export function ensureComposerFileTokenSourceIds<T extends Pick<FileMetadata, 'fileTokenSourceId'>>(files: T[]): T[]
 export function ensureComposerFileTokenSourceIds<T extends Pick<FileMetadata, 'fileTokenSourceId'>>(
   files: readonly T[]
-): T[] {
+): readonly T[]
+export function ensureComposerFileTokenSourceIds<T extends Pick<FileMetadata, 'fileTokenSourceId'>>(
+  files: readonly T[]
+): readonly T[] {
   let changed = false
 
   const nextFiles = files.map((file) => {
@@ -47,7 +52,7 @@ export function ensureComposerFileTokenSourceIds<T extends Pick<FileMetadata, 'f
     return { ...file, fileTokenSourceId: createComposerFileTokenSourceId() }
   })
 
-  return changed ? nextFiles : (files as T[])
+  return changed ? nextFiles : files
 }
 
 export function composerFileTokenIdFromSourceId(sourceId: string) {

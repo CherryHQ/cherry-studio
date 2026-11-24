@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import type { FileMetadata } from '@renderer/types/file'
 
 import {
   createComposerFileTokenSourceId,
+  ensureComposerFileTokenSourceIds,
   getComposerFileTokenSourceId,
   isComposerFileTokenSourceId,
   withComposerFileTokenSourceId
@@ -53,5 +54,32 @@ describe('composer file token source', () => {
     const second = createComposerFileTokenSourceId()
     expect(isComposerFileTokenSourceId(first)).toBe(true)
     expect(first).not.toBe(second)
+  })
+
+  it('keeps mutable caller-owned arrays mutable without replacing an unchanged state', () => {
+    const files: { id: string; fileTokenSourceId?: string }[] = [{ id: 'existing', fileTokenSourceId: 'source-1' }]
+
+    const normalized = ensureComposerFileTokenSourceIds(files)
+
+    expectTypeOf(normalized).toEqualTypeOf<{ id: string; fileTokenSourceId?: string }[]>()
+    expect(normalized).toBe(files)
+  })
+
+  it('accepts frozen source arrays without exposing a mutable result or modifying stored file metadata', () => {
+    type SourceFile = { id: string; fileTokenSourceId?: string }
+    const existing: SourceFile = Object.freeze({ id: 'existing', fileTokenSourceId: 'source-1' })
+    const invalid: SourceFile = Object.freeze({ id: 'invalid', fileTokenSourceId: '/tmp/private.pdf' })
+    const files: readonly SourceFile[] = Object.freeze([existing, invalid])
+
+    const normalized = ensureComposerFileTokenSourceIds(files)
+
+    expectTypeOf(normalized).toEqualTypeOf<readonly SourceFile[]>()
+    expect(normalized).not.toBe(files)
+    expect(normalized[0]).toBe(existing)
+    expect(normalized[1]).not.toBe(invalid)
+    expect(normalized[1].id).toBe('invalid')
+    expect(getComposerFileTokenSourceId(normalized[1])).toEqual(expect.any(String))
+    expect(normalized[1].fileTokenSourceId).not.toBe('/tmp/private.pdf')
+    expect(invalid.fileTokenSourceId).toBe('/tmp/private.pdf')
   })
 })
