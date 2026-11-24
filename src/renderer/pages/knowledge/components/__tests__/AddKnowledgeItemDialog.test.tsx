@@ -1296,6 +1296,26 @@ describe('AddKnowledgeItemDialog', () => {
       })
     })
 
+    it('ignores a late file conflict from the previous knowledge base', async () => {
+      let resolve!: (value: unknown) => void
+      mockFileSelect.mockResolvedValueOnce([createSelectedFile('alpha.pdf')]).mockResolvedValueOnce(null)
+      mockSubmitKnowledgeItems.mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            resolve = done
+          })
+      )
+      const onOpenChange = vi.fn()
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      await waitFor(() => expect(mockSubmitKnowledgeItems).toHaveBeenCalledOnce())
+      const previous = mockUseKnowledgePage.getMockImplementation()!
+      mockUseKnowledgePage.mockImplementation(() => ({ ...previous(), selectedBaseId: 'base-b' }))
+      rerender(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      await act(async () => resolve({ status: 'conflicts', conflicts: [{ type: 'file', title: 'alpha.pdf' }] }))
+      expect(screen.queryByRole('button', { name: '替换' })).not.toBeInTheDocument()
+      expect(mockSubmitKnowledgeItems).toHaveBeenCalledOnce()
+    })
+
     it('resolves the conflict dialog with replace', async () => {
       mockFileSelect.mockResolvedValueOnce([createSelectedFile('alpha.pdf')])
       mockSubmitKnowledgeItems

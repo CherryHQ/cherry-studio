@@ -32,6 +32,7 @@ import type { NoteDraft, NoteItem, NoteSourceMode } from './addKnowledgeItemDial
 type ConflictResolution = 'rename' | 'replace'
 
 interface PendingConflictState {
+  session: number
   items: KnowledgeAddItemInput[]
   conflicts: KnowledgeAddItemConflict[]
   invalid?: KnowledgeUrlEntry[]
@@ -91,6 +92,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   useEffect(() => {
     sessionRef.current += 1
     directPickStartedRef.current = false
+    setPendingConflict(null)
+    setPendingResolution(null)
     finishPreflight(false)
     if (open && pendingAddSource === 'url') {
       setIsResolvingSubmit(false)
@@ -195,14 +198,14 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       items: KnowledgeAddItemInput[],
       conflictStrategy: 'detect' | ConflictResolution,
       invalid?: KnowledgeUrlEntry[],
-      session?: number
+      session: number = sessionRef.current
     ) => {
       const result = await submitKnowledgeItems(items, conflictStrategy)
       if (session !== undefined && session !== sessionRef.current) {
         return
       }
       if (result.status === 'conflicts') {
-        setPendingConflict({ items, invalid, conflicts: result.conflicts })
+        setPendingConflict({ items, invalid, conflicts: result.conflicts, session })
         return
       }
       if (invalid?.length) {
@@ -406,12 +409,13 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
           handleOpenChange(false)
           return
         }
-        await submitWithStrategy(items, 'detect')
+        await submitWithStrategy(items, 'detect', undefined, session)
       } catch (error) {
+        if (session !== sessionRef.current) return
         toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
         handleOpenChange(false)
       } finally {
-        setIsResolvingSubmit(false)
+        if (session === sessionRef.current) setIsResolvingSubmit(false)
       }
     }
 
@@ -436,7 +440,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         return
       }
 
-      const session = activeSource === 'url' ? sessionRef.current : undefined
+      const session = pendingConflict.session
+      if (session !== sessionRef.current) return
       setPendingResolution(resolution)
       void submitWithStrategy(pendingConflict.items, resolution, pendingConflict.invalid, session)
         .catch((error) => {
@@ -459,7 +464,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
           }
         })
     },
-    [activeSource, directPick, handleOpenChange, pendingConflict, submitWithStrategy, t]
+    [directPick, handleOpenChange, pendingConflict, submitWithStrategy, t]
   )
 
   const handleConflictCancel = useCallback(() => {
