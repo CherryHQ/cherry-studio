@@ -19,7 +19,6 @@ import {
   type SpeechPreferenceInput,
   type SpeechInput,
   type VoiceCommandEvent,
-  type VoiceOperation,
   type VoiceService,
   voiceService
 } from './VoiceService'
@@ -106,7 +105,7 @@ interface PlaybackRun {
   audioAttemptId?: number
   releasing: boolean
   stopped: boolean
-  operation?: VoiceOperation<unknown>
+  operation?: ReturnType<PlaybackVoiceService['generateSpeech']>
   audioFailureRevision: number
   playAttempt?: Promise<void>
   preparing?: Promise<void>
@@ -456,11 +455,11 @@ export class SpeechPlaybackService {
 
   private async finishGeneration(
     run: PlaybackRun,
-    operation: VoiceOperation<unknown>,
+    operation: ReturnType<PlaybackVoiceService['generateSpeech']>,
     claimVisibilityWith?: symbol
   ): Promise<void> {
     try {
-      const result = (await operation.result) as Awaited<ReturnType<PlaybackVoiceService['generateSpeech']>['result']>
+      const result = await operation.result
 
       if (run.operation === operation) run.operation = undefined
       this.assertCurrent(run)
@@ -986,6 +985,7 @@ export class SpeechPlaybackService {
     const state = this.voice.getSnapshot()
 
     if (state.phase === 'idle' || state.sessionId !== run.sessionId || !state.playback) return
+    // SAFETY: Matching session/playback ownership selects main's playback transitions, which emit only SpeechPlaybackPhase values.
     this.setSnapshot({
       phase: state.phase as Exclude<SpeechPlaybackPhase, 'idle'>,
       sourceLabel: run.sourceLabel,
