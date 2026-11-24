@@ -13,6 +13,7 @@ import { MiddlewareEngine } from './MiddlewareEngine'
 
 // Handler function type
 type HandlerFunction = (params: { params?: Record<string, string>; query?: any; body?: any }) => Promise<any>
+type RuntimeHandlers = Record<string, Partial<Record<HttpMethod, HandlerFunction>>>
 
 const logger = loggerService.withContext('DataApi:Server')
 const DATA_API_TIMING_ENABLED = isDev || DIAGNOSTICS_ENABLED
@@ -25,11 +26,12 @@ const DATA_API_HANDLER_TIMING_ENABLED = isDev
 export class ApiServer {
   private static instance: ApiServer
   private middlewareEngine: MiddlewareEngine
-  private handlers: ApiImplementation
+  private handlers: RuntimeHandlers
 
   private constructor(handlers: ApiImplementation) {
     this.middlewareEngine = new MiddlewareEngine()
-    this.handlers = handlers
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Runtime path dispatch erases endpoint-specific argument relationships; this view does not validate request payloads.
+    this.handlers = handlers as RuntimeHandlers
   }
 
   /**
@@ -163,7 +165,7 @@ export class ApiServer {
     method: HttpMethod
   ): { handler: HandlerFunction; params: Record<string, string> } | null {
     // Direct lookup first
-    const directHandler = (this.handlers as any)[path]?.[method]
+    const directHandler = this.handlers[path]?.[method]
 
     if (directHandler) {
       return { handler: directHandler, params: {} }
@@ -171,11 +173,13 @@ export class ApiServer {
 
     // Pattern matching for parameterized paths
     for (const [pattern, methods] of Object.entries(this.handlers)) {
-      if (pattern.includes(':') && (methods as any)[method]) {
+      if (!pattern.includes(':')) continue
+      const handler = methods[method]
+      if (handler) {
         const params = this.extractPathParams(pattern, path)
 
         if (params !== null) {
-          return { handler: (methods as any)[method], params }
+          return { handler, params }
         }
       }
     }
@@ -341,8 +345,8 @@ export class ApiServer {
   getSystemInfo() {
     const handlerPaths = Object.keys(this.handlers)
 
-    const handlerCount = handlerPaths.reduce((count, path) => {
-      return count + Object.keys((this.handlers as any)[path]).length
+    const handlerCount = Object.values(this.handlers).reduce((count, methods) => {
+      return count + Object.keys(methods).length
     }, 0)
 
     const middlewares = this.middlewareEngine.getMiddlewares()
