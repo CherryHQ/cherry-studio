@@ -6098,7 +6098,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Failed to load available processors",
   "settings.tool.file_processing.errors.save_failed": "Save failed",
   "settings.tool.file_processing.features.document_to_markdown.title": "Document Processing",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Default processor for documents and PDFs. Knowledge bases select their own processor and use that processor's options configured here.",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Default processor for documents and PDFs. Knowledge bases select their own processor and use that processor's options configured here. Agents use this processor only as a fallback for scanned PDFs when the built-in conversion returns no text.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Default processor and options for image text extraction. Screenshot overlay text recognition uses its own OCR.",
   "settings.tool.file_processing.fields.api_base_url": "API Base URL",

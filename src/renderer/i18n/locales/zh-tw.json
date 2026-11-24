@@ -6098,7 +6098,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "載入可用處理器失敗",
   "settings.tool.file_processing.errors.save_failed": "儲存失敗",
   "settings.tool.file_processing.features.document_to_markdown.title": "文件處理",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "用於文件和 PDF 的預設處理器。知識庫另行選擇處理器，並使用此處為該處理器設定的選項。",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "用於文件和 PDF 的預設處理器。知識庫另行選擇處理器，並使用此處為該處理器設定的選項。Agent 僅在內建轉換未傳回文字時，將此處理器作為掃描版 PDF 的備用處理器。",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "用於影像文字擷取的預設處理器和選項。螢幕擷取浮層的文字辨識使用獨立的 OCR。",
   "settings.tool.file_processing.fields.api_base_url": "API 位址",

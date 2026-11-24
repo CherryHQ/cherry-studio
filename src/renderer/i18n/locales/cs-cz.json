@@ -6099,7 +6099,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Nepodařilo se načíst dostupné procesory",
   "settings.tool.file_processing.errors.save_failed": "Uložení se nezdařilo",
   "settings.tool.file_processing.features.document_to_markdown.title": "Zpracování dokumentů",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Výchozí procesor pro dokumenty a PDF. Znalostní báze vybírají vlastní procesor a používají jeho možnosti nastavené zde.",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Výchozí procesor pro dokumenty a PDF. Znalostní báze vybírají vlastní procesor a používají jeho možnosti nastavené zde. Agenti tento procesor používají pouze jako záložní možnost pro naskenované PDF, pokud vestavěný převod nevrátí žádný text.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Výchozí procesor a možnosti pro extrakci textu z obrázků. Rozpoznávání textu v překryvné vrstvě snímku obrazovky používá vlastní OCR.",
   "settings.tool.file_processing.fields.api_base_url": "API adresa",

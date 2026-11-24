@@ -6098,7 +6098,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Falha ao carregar processadores disponíveis",
   "settings.tool.file_processing.errors.save_failed": "Falha ao guardar",
   "settings.tool.file_processing.features.document_to_markdown.title": "Processamento de Documentos",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Processador predefinido para documentos e PDF. As bases de conhecimento escolhem o seu próprio processador e utilizam as opções desse processador configuradas aqui.",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Processador predefinido para documentos e PDF. As bases de conhecimento escolhem o seu próprio processador e utilizam as opções desse processador configuradas aqui. Os Agents só usam este processador como alternativa para PDF digitalizados quando a conversão integrada não devolve texto.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Processador e opções predefinidos para extrair texto de imagens. A sobreposição de capturas de ecrã utiliza o seu próprio OCR.",
   "settings.tool.file_processing.fields.api_base_url": "URL Base da API",

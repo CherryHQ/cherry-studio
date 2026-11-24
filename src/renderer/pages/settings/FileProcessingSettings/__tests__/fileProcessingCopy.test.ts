@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import enUs from '@renderer/i18n/locales/en-us.json'
+import jaJp from '@renderer/i18n/locales/ja-jp.json'
 
 const catalogs = import.meta.glob<Record<string, string>>('../../../../i18n/locales/*.json', {
   eager: true,
@@ -18,6 +19,8 @@ describe('file-processing scope copy', () => {
     expect(enUs[scopeKeys[1]]).toContain('Screenshot overlay text recognition uses its own OCR')
     expect(enUs[scopeKeys[2]]).toContain('Knowledge bases select their own processor')
     expect(enUs[scopeKeys[2]]).toContain('options configured here')
+    expect(enUs[scopeKeys[2]]).toContain('Agents use this processor only as a fallback for scanned PDFs')
+    expect(jaJp['settings.tool.file_processing.reset_options_confirm']).toContain('そのキー')
   })
 
   it('translates reset labels and scope tooltips in every renderer locale', () => {

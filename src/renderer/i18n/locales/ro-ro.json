@@ -6099,7 +6099,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Nu s-au putut încărca procesoarele disponibile",
   "settings.tool.file_processing.errors.save_failed": "Salvarea a eșuat",
   "settings.tool.file_processing.features.document_to_markdown.title": "Procesarea documentelor",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Procesorul implicit pentru documente și PDF-uri. Bazele de cunoștințe își aleg propriul procesor și folosesc opțiunile acestuia configurate aici.",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Procesorul implicit pentru documente și PDF-uri. Bazele de cunoștințe își aleg propriul procesor și folosesc opțiunile acestuia configurate aici. Agenții folosesc acest procesor doar ca rezervă pentru PDF-uri scanate când conversia încorporată nu returnează text.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Procesorul și opțiunile implicite pentru extragerea textului din imagini. Recunoașterea textului din suprapunerea capturii de ecran folosește un OCR separat.",
   "settings.tool.file_processing.fields.api_base_url": "URL de bază API",

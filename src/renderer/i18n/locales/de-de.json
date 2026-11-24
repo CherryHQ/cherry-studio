@@ -6098,7 +6098,7 @@
   "settings.tool.file_processing.errors.load_processors_failed": "Fehler beim Laden der verfügbaren Prozessoren",
   "settings.tool.file_processing.errors.save_failed": "Speichern fehlgeschlagen",
   "settings.tool.file_processing.features.document_to_markdown.title": "Dokumentenverarbeitung",
-  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Standardprozessor für Dokumente und PDFs. Wissensdatenbanken wählen ihren eigenen Prozessor und verwenden dessen hier konfigurierte Optionen.",
+  "settings.tool.file_processing.features.document_to_markdown.tooltip": "Standardprozessor für Dokumente und PDFs. Wissensdatenbanken wählen ihren eigenen Prozessor und verwenden dessen hier konfigurierte Optionen. Agents verwenden diesen Prozessor nur als Rückfall für gescannte PDFs, wenn die integrierte Konvertierung keinen Text liefert.",
   "settings.tool.file_processing.features.image_to_text.title": "OCR",
   "settings.tool.file_processing.features.image_to_text.tooltip": "Standardprozessor und Optionen für die Texterkennung in Bildern. Die Texterkennung im Screenshot-Overlay verwendet eine eigene OCR.",
   "settings.tool.file_processing.fields.api_base_url": "API-Basis-URL",
