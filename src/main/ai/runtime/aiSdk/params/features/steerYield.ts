@@ -19,7 +19,7 @@ export const steerYieldFeature: RequestFeature = {
   applies: (scope) => {
     const topicId = scope.request.conversation.topicId
 
-    return Boolean(topicId) && !isAgentSessionTopic(topicId as string)
+    return !!topicId && !isAgentSessionTopic(topicId)
   },
   contributeStopConditions: (scope): StopCondition<ToolSet>[] => {
     const topicId = scope.request.conversation.topicId
