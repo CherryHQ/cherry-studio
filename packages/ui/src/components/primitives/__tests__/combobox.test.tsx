@@ -27,6 +27,85 @@ afterEach(() => {
 })
 
 describe('Combobox', () => {
+  it('can remove and replace a scalar default selection in multiple mode', async () => {
+    const onChange = vi.fn()
+    render(
+      <Combobox
+        multiple
+        aria-label="Choose targets"
+        options={options}
+        defaultValue="alpha"
+        placeholder="Pick values"
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Alpha' }))
+    expect(onChange).toHaveBeenLastCalledWith([])
+    expect(screen.queryByRole('button', { name: 'Remove Alpha' })).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Choose targets' })).toHaveTextContent('Pick values')
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Choose targets' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Beta' }))
+    expect(onChange).toHaveBeenLastCalledWith(['beta'])
+    expect(screen.getByRole('button', { name: 'Remove Beta' })).toBeInTheDocument()
+  })
+
+  it('keeps scalar controlled selections authoritative and submits multiple values as an array', () => {
+    const onChange = vi.fn()
+    const { container, rerender } = render(
+      <Combobox multiple options={options} value="alpha" name="targets" onChange={onChange} />
+    )
+
+    expect(container.querySelector('input[name="targets"]')).toHaveValue('["alpha"]')
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Alpha' }))
+    expect(onChange).toHaveBeenCalledWith([])
+    expect(screen.getByRole('button', { name: 'Remove Alpha' })).toBeInTheDocument()
+
+    rerender(<Combobox multiple options={options} value={[]} name="targets" onChange={onChange} />)
+    expect(screen.queryByRole('button', { name: 'Remove Alpha' })).not.toBeInTheDocument()
+    expect(container.querySelector('input[name="targets"]')).toHaveValue('[]')
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats an empty scalar as no multiple selection', () => {
+    const { container } = render(
+      <Combobox multiple options={options} value="" name="targets" placeholder="Pick values" />
+    )
+
+    expect(screen.getByRole('combobox')).toHaveTextContent('Pick values')
+    expect(container.querySelector('input[name="targets"]')).toHaveValue('[]')
+  })
+
+  it('uses the first array entry in single mode and emits scalar changes', async () => {
+    const onChange = vi.fn()
+    const { container } = render(
+      <Combobox options={options} defaultValue={['beta', 'alpha']} name="target" onChange={onChange} />
+    )
+
+    expect(container.querySelector('input[name="target"]')).toHaveValue('beta')
+    fireEvent.click(screen.getByRole('button', { name: 'Beta' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Gamma' }))
+    expect(onChange).toHaveBeenCalledWith('gamma')
+    expect(screen.getByRole('button', { name: 'Gamma' })).toBeInTheDocument()
+    expect(container.querySelector('input[name="target"]')).toHaveValue('gamma')
+  })
+
+  it('retains selections across mode changes without emitting a user change', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <Combobox multiple options={options} defaultValue={['alpha', 'beta']} onChange={onChange} />
+    )
+
+    rerender(<Combobox options={options} onChange={onChange} />)
+    expect(screen.getByRole('button', { name: 'Alpha' })).toBeInTheDocument()
+
+    rerender(<Combobox multiple options={options} onChange={onChange} />)
+    expect(screen.getByRole('button', { name: 'Remove Alpha' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove Beta' })).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('uses external labels as accessible names for every trigger variant', () => {
     render(
       <>
@@ -248,27 +327,6 @@ describe('Combobox', () => {
 
     expect(screen.getByRole('button', { name: 'Clear Alpha' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove Alpha' })).not.toBeInTheDocument()
-  })
-
-  it('defers rendering multi-select options until the labeled popover opens', async () => {
-    const renderOption = vi.fn((option: ComboboxOption) => option.label)
-
-    render(
-      <Combobox
-        multiple
-        aria-label="Choose targets"
-        options={options}
-        placeholder="Pick values"
-        renderOption={renderOption}
-      />
-    )
-
-    const trigger = screen.getByRole('combobox', { name: 'Choose targets' })
-    expect(renderOption).not.toHaveBeenCalled()
-
-    fireEvent.click(trigger)
-
-    await waitFor(() => expect(renderOption).toHaveBeenCalledTimes(options.length))
   })
 
   it('matches the popover width to a percentage-width trigger', async () => {

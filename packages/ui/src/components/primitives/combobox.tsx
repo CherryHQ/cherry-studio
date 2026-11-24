@@ -154,8 +154,14 @@ export interface ComboboxProps<TExtra extends object = Record<never, never>> ext
 > {
   // Data source
   options: ComboboxOption<TExtra>[]
+  /**
+   * In multiple mode, a non-empty scalar selects one item and an empty scalar selects none.
+   * Single mode uses the first array entry.
+   */
   value?: string | string[]
+  /** Initial uncontrolled selection, with the same conventions as value. */
   defaultValue?: string | string[]
+  /** Emits a scalar in single mode and an array in multiple mode. */
   onChange?: (value: string | string[]) => void
 
   // Mode
@@ -198,6 +204,12 @@ export interface ComboboxProps<TExtra extends object = Record<never, never>> ext
 
 // ==================== Component ====================
 
+function toSelectedValues(value: string | string[] | undefined): string[] {
+  if (typeof value === 'string') return value.length > 0 ? [value] : []
+
+  return value ?? []
+}
+
 export function Combobox<TExtra extends object = Record<never, never>>({
   options,
   value: controlledValue,
@@ -231,7 +243,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
 }: ComboboxProps<TExtra>) {
   // ==================== State ====================
   const [internalOpen, setInternalOpen] = React.useState(false)
-  const [internalValue, setInternalValue] = React.useState<string | string[]>(defaultValue ?? (multiple ? [] : ''))
+  const [internalValues, setInternalValues] = React.useState(() => toSelectedValues(defaultValue))
   const [triggerSearch, setTriggerSearch] = React.useState('')
   const [contentSearch, setContentSearch] = React.useState('')
   const [activeValue, setActiveValue] = React.useState('')
@@ -252,26 +264,27 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     [onOpenChange]
   )
 
-  const value = controlledValue ?? internalValue
+  const selectedValues = toSelectedValues(controlledValue ?? internalValues)
+  const singleValue = selectedValues[0] ?? ''
 
   const setValue = (newValue: string | string[]) => {
     if (controlledValue === undefined) {
-      setInternalValue(newValue)
+      setInternalValues(toSelectedValues(newValue))
     }
 
     onChange?.(newValue)
   }
 
-  const selectedOption = !multiple ? options.find((opt) => opt.value === value) : undefined
+  const selectedOption = !multiple ? options.find((opt) => opt.value === singleValue) : undefined
 
   // Seed cmdk's active (highlighted) descendant to the current selection each
   // time the list opens. Without this, cmdk defaults the highlight to the first
   // option, making it look selected even when another option is the real value.
   React.useEffect(() => {
-    if (open && !multiple && typeof value === 'string') {
-      setActiveValue(value)
+    if (open && !multiple) {
+      setActiveValue(singleValue)
     }
-  }, [open, multiple, value])
+  }, [open, multiple, singleValue])
 
   const triggerSearchEnabled = searchable && searchPlacement === 'trigger' && !multiple
   const contentSearchEnabled = searchable && !triggerSearchEnabled
@@ -320,15 +333,13 @@ export function Combobox<TExtra extends object = Record<never, never>>({
 
   const handleSelect = (selectedValue: string) => {
     if (multiple) {
-      const currentValues = (value as string[]) || []
-
-      const newValues = currentValues.includes(selectedValue)
-        ? currentValues.filter((v) => v !== selectedValue)
-        : [...currentValues, selectedValue]
+      const newValues = selectedValues.includes(selectedValue)
+        ? selectedValues.filter((v) => v !== selectedValue)
+        : [...selectedValues, selectedValue]
 
       setValue(newValues)
     } else {
-      if (selectedValue !== value) {
+      if (selectedValue !== singleValue) {
         setValue(selectedValue)
       }
 
@@ -341,8 +352,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     e.stopPropagation()
 
     if (multiple) {
-      const currentValues = (value as string[]) || []
-      setValue(currentValues.filter((v) => v !== tagValue))
+      setValue(selectedValues.filter((v) => v !== tagValue))
     }
   }
 
@@ -354,10 +364,10 @@ export function Combobox<TExtra extends object = Record<never, never>>({
 
   const isSelected = (optionValue: string): boolean => {
     if (multiple) {
-      return ((value as string[]) || []).includes(optionValue)
+      return selectedValues.includes(optionValue)
     }
 
-    return value === optionValue
+    return singleValue === optionValue
   }
 
   const handleTriggerInputFocus = (event: React.FocusEvent<HTMLInputElement>) => {
@@ -450,12 +460,10 @@ export function Combobox<TExtra extends object = Record<never, never>>({
 
   const renderTriggerContent = () => {
     if (renderValue) {
-      return renderValue(value, options)
+      return renderValue(multiple ? selectedValues : singleValue, options)
     }
 
     if (multiple) {
-      const selectedValues = (value as string[]) || []
-
       if (selectedValues.length === 0) {
         return <span className="text-muted-foreground">{placeholder}</span>
       }
@@ -488,7 +496,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
       )
     }
 
-    const selectedOption = options.find((opt) => opt.value === value)
+    const selectedOption = options.find((opt) => opt.value === singleValue)
 
     if (selectedOption) {
       return (
@@ -678,7 +686,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           />
         </Command>
       </PopoverContent>
-      {name && <input type="hidden" name={name} value={multiple ? JSON.stringify(value) : value} />}
+      {name && <input type="hidden" name={name} value={multiple ? JSON.stringify(selectedValues) : singleValue} />}
     </Popover>
   )
 }
