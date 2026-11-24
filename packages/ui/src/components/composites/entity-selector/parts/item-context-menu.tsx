@@ -51,7 +51,7 @@ export function ItemContextMenu({
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+      if (ref.current && (!(e.target instanceof Node) || !ref.current.contains(e.target))) onClose()
     }
 
     const onKey = (e: KeyboardEvent) => {

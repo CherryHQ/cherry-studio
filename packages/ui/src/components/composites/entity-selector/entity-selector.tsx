@@ -300,9 +300,9 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
           // from within our context-menu marker — Radix CustomEvents expose the real DOM target
           // on `detail.originalEvent`. Then delegate to the caller.
           onInteractOutside={(event) => {
-            const originalTarget = (event.detail?.originalEvent?.target ?? event.target) as Element | null
+            const originalTarget = event.detail?.originalEvent?.target ?? event.target
 
-            if (originalTarget?.closest?.('[data-entity-context-menu-root]')) {
+            if (originalTarget instanceof Element && originalTarget.closest('[data-entity-context-menu-root]')) {
               event.preventDefault()
             }
 
