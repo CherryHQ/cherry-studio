@@ -48,19 +48,18 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { AgentSessionImportMetadata } from '@shared/data/types/conversationImport'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { createNameComparator } from '@shared/utils/nameOrdering'
 
 import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
-import { decodeListCursor, keysetOrdering } from './utils/keysetCursor'
-import type { AgentSessionImportMetadata } from '@shared/data/types/conversationImport'
-
 import {
   deleteImportedHistoryTx,
   findImportedSessionTx,
   importedMetadataSql,
   setImportedMetadataTx
 } from './importedSessionHistory'
+import { decodeListCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
   decodePinnedListCursor,
