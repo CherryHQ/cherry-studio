@@ -508,6 +508,50 @@ describe('useChatWriteActions — regenerate', () => {
     )
   })
 
+  it('regenerates a grouped reply tab with its own model instead of the composer selection', async () => {
+    const firstReply = uiMsg('a1', 'assistant', 'u1')
+    firstReply.metadata.modelId = 'provider::model-a'
+    firstReply.parts = [{ type: 'text', text: 'answer a' }]
+    const secondReply = uiMsg('a2', 'assistant', 'u1')
+    secondReply.metadata.modelId = 'provider::model-b'
+    secondReply.parts = [{ type: 'text', text: 'answer b' }]
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { result, rerender } = renderActions([uiMsg('u1', 'user', 'vroot'), firstReply, secondReply])
+    rerender({ composerModelId: 'provider::model-a' })
+
+    await result.current.actions.regenerate('a2')
+
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      appendToLiveGroupMessageId: 'a2',
+      mentionedModelIds: ['provider::model-b']
+    })
+  })
+
+  it('retries a failed grouped reply in place with its own model', async () => {
+    const firstReply = uiMsg('a1', 'assistant', 'u1')
+    firstReply.metadata.modelId = 'provider::model-a'
+    firstReply.parts = [{ type: 'text', text: 'answer a' }]
+    const failedReply = uiMsg('a2', 'assistant', 'u1', false, 'error')
+    failedReply.metadata.modelId = 'provider::model-b'
+    failedReply.parts = [{ type: 'data-error', data: { message: 'failed' } }]
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { result, rerender } = renderActions([uiMsg('u1', 'user', 'vroot'), firstReply, failedReply])
+    rerender({ composerModelId: 'provider::model-a' })
+
+    await result.current.actions.regenerate('a2')
+
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      retryMessageId: 'a2',
+      mentionedModelIds: ['provider::model-b']
+    })
+  })
+
   it('retries a failed assistant in place through Main and seeds the fresh attempt identity', async () => {
     const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
     failedAssistant.metadata.modelId = 'provider::model-a'
@@ -690,8 +734,10 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
+  // A reply rendered as one tab of a grouped answer carries the model that produced it; the
+  // composer selection describes the group header, not the tab being regenerated.
   it.each(['default', undefined] as const)(
-    'uses the current model for %s replies with different-model siblings',
+    'regenerates a %s reply tab with its own model despite different-model siblings',
     async (modelSelection) => {
       const replyA = uiMsg('a1', 'assistant', 'u1', false, 'success')
       replyA.metadata.modelId = 'provider::model-a'
@@ -700,33 +746,29 @@ describe('useChatWriteActions — regenerate', () => {
       const replyB = uiMsg('a2', 'assistant', 'u1', false, 'success')
       replyB.metadata.modelId = 'provider::model-b'
       replyB.metadata.modelSelection = modelSelection
-      replyB.parts = [{ type: 'text', text: 'regenerated after switching models' }]
-      const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), replyA, replyB])
+      replyB.parts = [{ type: 'text', text: 'answer from the second tab' }]
+      streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+      const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), replyA, replyB])
 
       await actions.regenerate('a2')
 
-      expect(streamOpen).not.toHaveBeenCalled()
-      expect(regenerate).toHaveBeenCalledWith({
-        body: expect.objectContaining({ parentAnchorId: 'u1' })
+      expect(streamOpen).toHaveBeenCalledWith({
+        trigger: 'regenerate-message',
+        topicId: 't1',
+        parentAnchorId: 'u1',
+        appendToLiveGroupMessageId: 'a2',
+        mentionedModelIds: ['provider::model-b']
       })
-      expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
     }
   )
 
-  it.each([true, false])('uses the current model for explicit replies: %s', async (hasSibling) => {
-    const replyA = uiMsg('a1', 'assistant', 'u1', false, 'success')
-    replyA.metadata.modelId = 'provider::model-a'
-    replyA.metadata.modelSelection = 'explicit'
-    replyA.parts = [{ type: 'text', text: 'answer a' }]
-    const replyB = uiMsg('a2', 'assistant', 'u1', false, 'success')
-    replyB.metadata.modelId = 'provider::model-b'
-    replyB.parts = [{ type: 'text', text: 'answer b' }]
+  it('keeps the composer model for a lone explicit reply', async () => {
+    const reply = uiMsg('a1', 'assistant', 'u1', false, 'success')
+    reply.metadata.modelId = 'provider::model-a'
+    reply.metadata.modelSelection = 'explicit'
+    reply.parts = [{ type: 'text', text: 'answer a' }]
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
-    const { result, rerender, regenerate } = renderActions([
-      uiMsg('u1', 'user', 'vroot'),
-      replyA,
-      ...(hasSibling ? [replyB] : [])
-    ])
+    const { result, rerender, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), reply])
     rerender({ composerModelId: 'provider::model-c' })
 
     await result.current.actions.regenerate('a1')
@@ -738,6 +780,30 @@ describe('useChatWriteActions — regenerate', () => {
       parentAnchorId: 'u1',
       appendToLiveGroupMessageId: 'a1',
       mentionedModelIds: ['provider::model-c']
+    })
+  })
+
+  it('regenerates a grouped explicit reply tab with its own model', async () => {
+    const replyA = uiMsg('a1', 'assistant', 'u1', false, 'success')
+    replyA.metadata.modelId = 'provider::model-a'
+    replyA.metadata.modelSelection = 'explicit'
+    replyA.parts = [{ type: 'text', text: 'answer a' }]
+    const replyB = uiMsg('a2', 'assistant', 'u1', false, 'success')
+    replyB.metadata.modelId = 'provider::model-b'
+    replyB.parts = [{ type: 'text', text: 'answer b' }]
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { result, rerender, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), replyA, replyB])
+    rerender({ composerModelId: 'provider::model-c' })
+
+    await result.current.actions.regenerate('a1')
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      appendToLiveGroupMessageId: 'a1',
+      mentionedModelIds: ['provider::model-a']
     })
   })
 

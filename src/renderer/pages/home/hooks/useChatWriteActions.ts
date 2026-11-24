@@ -44,6 +44,22 @@ function getDirectAssistantModelIds(messages: CherryUIMessage[], userMessageId: 
   return Array.from(modelIds)
 }
 
+/**
+ * Whether `target` renders as one tab of a grouped answer — several assistant
+ * replies under the same user anchor (a multi-model turn or regenerated
+ * siblings). A tab owns its model: regenerating it must re-run that tab's model
+ * instead of the composer selection owned by the group header.
+ */
+function isGroupedAssistantReply(messages: CherryUIMessage[], target: CherryUIMessage | undefined): boolean {
+  if (target?.role !== 'assistant') return false
+  const parentId = target.metadata?.parentId
+  if (!parentId) return false
+
+  return messages.some(
+    (message) => message.role === 'assistant' && message.id !== target.id && message.metadata?.parentId === parentId
+  )
+}
+
 function getInheritedTurnOptions(
   messages: CherryUIMessage[],
   target: CherryUIMessage | undefined
@@ -299,8 +315,19 @@ export function useChatWriteActions(params: Params): Result {
         target?.role === 'assistant' &&
         targetStatus !== 'pending' &&
         (targetStatus === 'error' || targetStatus === 'paused' || (target.parts?.length ?? 0) === 0)
-      // Pending replies are not a regeneration target; otherwise use the current composer selection.
-      const regenerateModelId = options?.modelId ?? (targetStatus === 'pending' ? undefined : composerModelId)
+      // Pending replies are not a regeneration target; otherwise use the current composer
+      // selection.
+      //
+      // A grouped reply is one tab of a multi-model or multi-branch answer. It carries the
+      // model that produced it, and the composer selection belongs to the group header, so
+      // regenerating a non-main tab must not fall back to the assistant's model. Ungrouped
+      // replies keep the composer-driven behaviour, and an explicit `options.modelId` (the
+      // model picker) still wins everywhere.
+      const groupedReplyModelId = isGroupedAssistantReply(uiMessages, target)
+        ? resolveUniqueModelId(target?.metadata?.modelId, target?.metadata?.messageSnapshot?.model)
+        : undefined
+      const regenerateModelId =
+        options?.modelId ?? (targetStatus === 'pending' ? undefined : (groupedReplyModelId ?? composerModelId))
       const retryModelId =
         target?.role === 'assistant'
           ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
