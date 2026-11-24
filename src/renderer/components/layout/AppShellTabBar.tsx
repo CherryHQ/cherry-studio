@@ -1,7 +1,6 @@
 import { ArrowLeft, Plus, X } from 'lucide-react'
 import {
   cloneElement,
-  isValidElement,
   type ReactElement,
   useCallback,
   useEffect,
@@ -258,7 +257,7 @@ const NormalTabButton = ({
   const canClose = showClose
 
   const closeFromPointer = (e: React.MouseEvent<HTMLElement>) => {
-    const pointerType = (e.nativeEvent as MouseEvent & { pointerType?: string }).pointerType
+    const pointerType = 'pointerType' in e.nativeEvent ? e.nativeEvent.pointerType : undefined
 
     // Touch and pen devices without hover dispatch mouseleave before click, so
     // freezing on their synthetic click would leave the strip frozen forever.
@@ -268,7 +267,7 @@ const NormalTabButton = ({
       return
     }
 
-    const tabButton = e.currentTarget.closest('[data-tab-id]') as HTMLElement | null
+    const tabButton = e.currentTarget.closest('[data-tab-id]')
     // Fractional width: freezing to a rounded offsetWidth would shift every tab
     // boundary at the freeze snap (flexbox resolves fractional widths).
     onClose(tabButton?.getBoundingClientRect().width || undefined)
@@ -513,7 +512,7 @@ const TabRightClickMenu = ({
   onCloseToRight: () => void
   /** Mirrors the open state up to the bar, which counts an open menu as a lit tab. */
   onOpenChange?: (open: boolean) => void
-  children: React.ReactNode
+  children: ReactElement<{ 'data-menu-open'?: boolean }>
 }) => {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -600,11 +599,7 @@ const TabRightClickMenu = ({
       onOpenChange={handleOpenChange}>
       {/* data-menu-open drives the tab's menu-open highlight. Unlike Radix's
           data-state, it is also set when the menu shows as a native OS popup. */}
-      {isValidElement(children)
-        ? cloneElement(children as ReactElement<{ 'data-menu-open'?: boolean }>, {
-            'data-menu-open': menuOpen || undefined
-          })
-        : children}
+      {cloneElement(children, { 'data-menu-open': menuOpen || undefined })}
     </CommandContextMenu>
   )
 }
@@ -639,6 +634,7 @@ export const AppShellTabBar = ({
   useLayoutEffect(() => {
     if (!isMac) return
 
+    // SAFETY: This augments the installed DOM declarations with Chromium's optional native overlay API; no external payload is being validated.
     const overlay = (
       navigator as Navigator & {
         windowControlsOverlay?: EventTarget & { visible: boolean; getTitlebarAreaRect(): DOMRect }
