@@ -18,6 +18,7 @@ const ELIGIBLE_DECLARATIONS = new Map(
     providerId,
     new Map(
       Object.entries(tools).map(([tool, declarations]) => [
+        // SAFETY: The generated tools record declares only ServerTool keys; this entry preserves its generated ID.
         tool as ServerTool,
         declarations.map((declaration): EligibilityDeclaration => {
           const eligibility: EligibilityDeclaration = { ids: new Set(declaration.ids) }

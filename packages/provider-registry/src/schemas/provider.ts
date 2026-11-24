@@ -92,6 +92,7 @@ export const ServerToolConfigSchema = z.object({
    * the tool's model eligibility (e.g. Vertex url-context is Gemini-only: the
    * vertex-anthropic SDK exposes no webFetch tool). Absent ⇒ no narrowing.
    */
+  // SAFETY: The source-owned VENDOR_PATTERNS literal has declared vendor keys and is nonempty.
   vendors: looseArray(z.enum(Object.keys(VENDOR_PATTERNS) as [VendorKey, ...VendorKey[]])).optional()
 })
 
@@ -126,6 +127,7 @@ export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
  *  source of the format-type list (shared re-derives its zod enum from this). */
 export type ReasoningFormatType = z.infer<typeof ProviderReasoningFormatSchema>['type']
 
+// SAFETY: The discriminated union declares a nonempty option tuple; mapping each literal discriminator preserves that length.
 export const REASONING_FORMAT_TYPES = ProviderReasoningFormatSchema.options.map(
   (option) => option.shape.type.value
 ) as [ReasoningFormatType, ...ReasoningFormatType[]]

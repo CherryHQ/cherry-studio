@@ -112,6 +112,7 @@ function stripReasoningSummary(mode: ReasoningWireMode | undefined): ReasoningWi
   if (!mode) return undefined
   const operations = mode.operations.filter((operation) => operation.target !== 'reasoningSummary')
 
+  // SAFETY: Spreading retains any budget policy; filtering cannot introduce budget operations into a non-budget mode.
   return operations.length > 0 ? ({ ...mode, operations } as ReasoningWireMode) : undefined
 }
 
@@ -125,6 +126,7 @@ export function configureOpenAIResponsesSummary(profile: ReasoningWireProfile, e
     const mode = stripReasoningSummary(configured[key])
 
     if (enabled) {
+      // SAFETY: The spread retains budget metadata; every added summary operation is a NonBudgetOperation.
       configured[key] = {
         ...mode,
         operations: [...(mode?.operations ?? []), ...REASONING_SUMMARY_OPERATIONS]

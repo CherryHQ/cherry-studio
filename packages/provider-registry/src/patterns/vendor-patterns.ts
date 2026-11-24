@@ -101,6 +101,7 @@ export type VendorKey = keyof typeof VENDOR_PATTERNS
  * order) but not semantically important — patterns don't overlap.
  */
 export function matchVendor(normalizedId: string): VendorKey | undefined {
+  // SAFETY: VENDOR_PATTERNS is a closed source literal; its own entries retain the declared vendor keys and RegExp values.
   for (const [vendor, pattern] of Object.entries(VENDOR_PATTERNS) as [VendorKey, RegExp][]) {
     if (pattern.test(normalizedId)) return vendor
   }
