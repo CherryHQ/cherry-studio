@@ -1656,6 +1656,7 @@
   "error.diagnosis.bad_request": "La requête au fournisseur a échoué (HTTP 400)",
   "error.diagnosis.content": "Contenu bloqué par le système de sécurité, veuillez modifier et réessayer",
   "error.diagnosis.context_length": "Conversation trop longue, veuillez effacer l’historique ou commencer une nouvelle discussion",
+  "error.diagnosis.default_model_unavailable": "Le diagnostic IA n'a pas pu être exécuté avec votre modèle par défaut. Vérifiez le modèle dans les paramètres et réessayez.",
   "error.diagnosis.deprecated": "Ce modèle a été retiré, veuillez passer à un autre modèle",
   "error.diagnosis.free_model_unavailable": "Le diagnostic IA est temporairement indisponible",
   "error.diagnosis.go_to_settings": "Aller aux paramètres",
