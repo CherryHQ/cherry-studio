@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-24-rtk-rewrite-approval.md
+2026-11-24-rtk-rewrite-approval.md: a96850e15622576eff37f65d07f8f4c1c41d9be8
+2026-11-24-rtk-rewrite-approval.zh.md: 8fe633511ea0363615133d97f95fe25ce6ec4817

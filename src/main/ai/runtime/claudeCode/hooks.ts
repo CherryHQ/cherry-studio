@@ -24,6 +24,7 @@ import {
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
+import { t } from '@main/i18n'
 import { rtkRewrite } from '@main/utils/rtk'
 
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
@@ -163,14 +164,27 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (typeof command !== 'string' || !command.trim()) return {}
 
     // Register before yielding so an in-flight rewrite cannot recreate state after teardown.
-    sessionState().recordBashRewriteOrigin(sessionId, input.tool_use_id, command)
-    const rewritten = await rtkRewrite(command)
-    if (!rewritten) {
+    const origin = sessionState().recordBashRewriteOrigin(sessionId, input.tool_use_id, command)
+    const rewrite = await rtkRewrite(command)
+    if (!rewrite) {
       sessionState().takeBashRewriteOrigin(sessionId, input.tool_use_id)
       return {}
     }
-    logger.info('rtk rewrote Bash command', { original: command, rewritten })
-    return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
+    if (rewrite.approvalRequired) {
+      // Only canUseTool can return the rewritten input once the user approves it.
+      origin.approvalRewrite = rewrite.command
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'ask',
+          permissionDecisionReason: t('command_approval.permission_required')
+        }
+      }
+    }
+    logger.info('rtk rewrote Bash command', { original: command, rewritten: rewrite.command })
+    return {
+      hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewrite.command } }
+    }
   }
   const bashRewriteCleanupHook: HookCallback = async (input) => {
     if (input.hook_event_name !== 'PostToolBatch') return {}

@@ -146,7 +146,7 @@ describe('rtk utils', () => {
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(1)
       now += 1
 
-      await expect(rtkRewrite('find . -type f')).resolves.toBe('rg --files')
+      await expect(rtkRewrite('find . -type f')).resolves.toMatchObject({ command: 'rg --files' })
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(2)
       expect(executeCommandMock).toHaveBeenLastCalledWith(
         '/usr/local/bin/rtk',
@@ -164,7 +164,7 @@ describe('rtk utils', () => {
         executeCommandMock.mockImplementation(async (_path: string, args: string[]) =>
           args[0] === '--version' ? 'rtk 0.44.2' : 'rg --files'
         )
-        await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
+        await expect(rtkRewrite('ls -la')).resolves.toMatchObject({ command: 'rg --files' })
         now += 60_000
 
         if (failure === 'snapshot rejection') {
@@ -191,7 +191,7 @@ describe('rtk utils', () => {
         expect(executeCommandMock.mock.calls.filter(([, args]) => args[0] === 'rewrite')).toHaveLength(1)
 
         now += 1
-        await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
+        await expect(rtkRewrite('ls -la')).resolves.toMatchObject({ command: 'rg --files' })
         expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(3)
         vi.useRealTimers()
       }
@@ -214,7 +214,7 @@ describe('rtk utils', () => {
       expect(executeCommandMock).not.toHaveBeenCalled()
 
       now += 1
-      await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
+      await expect(rtkRewrite('ls -la')).resolves.toMatchObject({ command: 'rg --files' })
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(2)
     })
 
@@ -222,7 +222,7 @@ describe('rtk utils', () => {
       snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
       executeCommandMock.mockResolvedValueOnce('rtk 0.30.1').mockResolvedValueOnce('rg --files')
 
-      await expect(rtkRewrite('find . -type f')).resolves.toBe('rg --files')
+      await expect(rtkRewrite('find . -type f')).resolves.toMatchObject({ command: 'rg --files' })
       expect(executeCommandMock).toHaveBeenNthCalledWith(
         1,
         '/usr/local/bin/rtk',
@@ -272,7 +272,10 @@ describe('rtk utils', () => {
       await vi.waitFor(() => expect(executeCommandMock).toHaveBeenCalledTimes(1))
       resolveVersion({ stdout: 'rtk 0.30.1', stderr: '' })
 
-      await expect(Promise.all([first, second])).resolves.toEqual(['rewritten:first', 'rewritten:second'])
+      await expect(Promise.all([first, second])).resolves.toMatchObject([
+        { command: 'rewritten:first' },
+        { command: 'rewritten:second' }
+      ])
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(1)
       expect(executeCommandMock).toHaveBeenCalledTimes(3)
       for (const call of executeCommandMock.mock.calls) {
@@ -298,42 +301,35 @@ describe('rtk utils', () => {
       expect(result).toBeNull()
     })
 
-    it('should return null when rtk exits with error (no rewrite available)', async () => {
-      snapshotRef.value = {
-        name: 'rtk',
-        availability: { source: 'mise', path: '/managed/shims/rtk', version: '0.30.1' },
-        application: { status: 'applied', version: '0.30.1' }
-      }
+    it('returns an exit 0 rewrite without requiring approval', async () => {
+      snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
+      executeCommandMock.mockResolvedValueOnce('rtk 0.51.0').mockResolvedValueOnce('rtk git status\n')
 
-      executeCommandMock.mockResolvedValueOnce('rtk 0.30.1').mockRejectedValueOnce(new Error('exit code 1'))
-
-      const result = await rtkRewrite('some-command')
-
-      expect(result).toBeNull()
+      await expect(rtkRewrite('git status')).resolves.toEqual({ command: 'rtk git status', approvalRequired: false })
+      expect(loggerMock.warn).not.toHaveBeenCalled()
     })
 
-    it('accepts a rewrite that rtk reports via its non-standard exit code 3 (rtk-ai/rtk#3634)', async () => {
+    it('marks an exit 3 rewrite as requiring approval without warning', async () => {
       snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
 
       executeCommandMock
         .mockResolvedValueOnce('rtk 0.51.0')
-        .mockRejectedValueOnce(new CommandFailedError(3, 'rtk ls -la\n', ''))
+        .mockRejectedValueOnce(new CommandFailedError(3, 'rtk git status\n', ''))
 
-      await expect(rtkRewrite('ls -la /tmp')).resolves.toBe('rtk ls -la')
-      expect(loggerMock.warn).toHaveBeenCalledWith(
-        'rtk rewrite reported success via its non-standard exit code 3 (rtk-ai/rtk#3634)',
-        expect.objectContaining({ code: 3 })
-      )
+      await expect(rtkRewrite('git status')).resolves.toEqual({ command: 'rtk git status', approvalRequired: true })
+      expect(loggerMock.warn).not.toHaveBeenCalled()
+      expect(loggerMock.debug).toHaveBeenCalledWith('rtk rewrite requires approval', { code: 3 })
     })
 
-    it('treats an exit 3 without usable output as a failure', async () => {
+    it.each(['  \n', 'ls -la\n'])('skips an exit 3 without a usable rewrite (%j)', async (stdout) => {
       snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
 
       executeCommandMock
         .mockResolvedValueOnce('rtk 0.51.0')
-        .mockRejectedValueOnce(new CommandFailedError(3, '  \n', ''))
+        .mockRejectedValueOnce(new CommandFailedError(3, stdout, ''))
 
       await expect(rtkRewrite('ls -la')).resolves.toBeNull()
+      expect(loggerMock.warn).not.toHaveBeenCalled()
     })
 
     it('stays silent for the documented exit 1 "no rewrite" outcome', async () => {
@@ -347,12 +343,12 @@ describe('rtk utils', () => {
       expect(loggerMock.warn).not.toHaveBeenCalled()
     })
 
-    it('logs unexpected rewrite failures so they are distinguishable from "no rewrite"', async () => {
+    it('discards exit 2 stdout and preserves the failure warning', async () => {
       snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
 
       executeCommandMock
         .mockResolvedValueOnce('rtk 0.51.0')
-        .mockRejectedValueOnce(new CommandFailedError(2, '', 'rtk: internal error'))
+        .mockRejectedValueOnce(new CommandFailedError(2, 'rtk git status\n', 'denied by rtk'))
 
       await expect(rtkRewrite('some-command')).resolves.toBeNull()
       expect(loggerMock.warn).toHaveBeenCalledWith('rtk rewrite failed', expect.objectContaining({ code: 2 }))

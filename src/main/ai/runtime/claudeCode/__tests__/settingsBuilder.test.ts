@@ -2642,7 +2642,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('keeps RTK as the only Bash text rewrite', async () => {
-    mocks.rtkRewrite.mockResolvedValue('rtk eslint .')
+    mocks.rtkRewrite.mockResolvedValue({ command: 'rtk eslint .', approvalRequired: false })
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -2663,6 +2663,43 @@ describe('buildClaudeCodeSessionSettings', () => {
         updatedInput: { command: 'rtk eslint .' }
       }
     })
+  })
+
+  it.each([
+    { mode: 'auto', approved: true },
+    { mode: 'bypassPermissions', approved: false }
+  ] as const)('gates an RTK Ask rewrite in $mode (approved=$approved)', async ({ mode, approved }) => {
+    mocks.rtkRewrite.mockResolvedValueOnce({ command: 'rtk git status', approvalRequired: true })
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: () => ({ approval: 'auto' }),
+      isDisabled: () => false,
+      getPermissionMode: () => mode
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+    const hook = settings.hooks!.PreToolUse![0].hooks.find((callback) => callback.name === 'rtkRewriteHook')!
+    const signal = new AbortController().signal
+    const toolUseID = 'rtk-ask'
+    const input = { command: 'git status' }
+    const output = await hook(
+      { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: input, tool_use_id: toolUseID } as never,
+      toolUseID,
+      { signal }
+    )
+    expect(output).toMatchObject({ hookSpecificOutput: { permissionDecision: 'ask' } })
+    expect(output.hookSpecificOutput).not.toHaveProperty('updatedInput')
+
+    const emit = vi.fn()
+    settings.approvalEmitter!.emit = emit
+    const pending = settings.canUseTool!('Bash', input, { signal, toolUseID, requestId: 'rtk-ask-request' })
+    const rewritten = { command: 'rtk git status' }
+    await vi.waitFor(() => expect(emit).toHaveBeenCalledWith(expect.objectContaining({ input: rewritten })))
+    mocks.approvalRegister.mock.lastCall![0].resolve({ approved })
+    await expect(pending).resolves.toMatchObject(
+      approved ? { behavior: 'allow', updatedInput: rewritten } : { behavior: 'deny' }
+    )
   })
 
   it('does not inject an environment snapshot into the built-in Assistant prompt', async () => {

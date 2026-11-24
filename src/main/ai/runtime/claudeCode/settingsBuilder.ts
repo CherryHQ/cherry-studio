@@ -520,14 +520,14 @@ async function buildToolPermissions(
     conditionContext
   })
 
-  const canUseTool: CanUseTool = async (toolName, input, opts) => {
+  const canUseTool: CanUseTool = async (toolName, toolInput, opts) => {
     if (opts.signal.aborted) {
       return { behavior: 'deny', message: 'Tool request was cancelled' }
     }
 
     // ExitPlanMode's normalized plan arrives here after the raw streamed `{}` input. Surface it
     // while the tool row is live, before approval or a headless denial settles the call.
-    surfaceExitPlanModeInput(session.id, toolName, input, opts.toolUseID)
+    surfaceExitPlanModeInput(session.id, toolName, toolInput, opts.toolUseID)
 
     // Resolve the snapshot by id at fire-time — a warm-pooled query's baked `canUseTool` must read
     // the live session snapshot, not a per-build instance the running subprocess never sees.
@@ -536,6 +536,10 @@ async function buildToolPermissions(
       logger.warn('canUseTool fired with no live tool-policy snapshot — denying', { toolName })
       return { behavior: 'deny', message: 'Tool policy not ready' }
     }
+
+    const approvalRewrite =
+      toolName === 'Bash' ? sessionState().getBashApprovalRewrite(session.id, opts.toolUseID) : undefined
+    const input = approvalRewrite ? { ...toolInput, command: approvalRewrite } : toolInput
 
     const permissionMode = snapshot.getPermissionMode()
     const skillAccess = resolveMcpSkillToolAccess(toolName, input)
@@ -585,6 +589,7 @@ async function buildToolPermissions(
     // requires a user decision, even when matchedAskRule is absent.
     const approvalHoldsInThisMode =
       commandRequiresApproval ||
+      approvalRewrite !== undefined ||
       installApprovalHolds ||
       policy?.approval === 'delegation' ||
       (policy?.approval === 'required' &&

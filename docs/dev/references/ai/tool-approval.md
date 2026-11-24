@@ -132,6 +132,9 @@ An applicable `deny` blocks every mode, including Full Access, and exposes no ap
 The built-in Assistant, Support and Doctor retain their destructive-operation denial; role
 scope is independent of a rule's effect. Children use their root's mode and protected role.
 
+A Bash rewrite proposed by RTK with exit code `3` requires per-call approval, including in
+`auto` and Full Access. The approval shows the proposed command before it can be applied.
+
 Runtimes reach the policy only through the `commandPolicy` barrel's `checkCommand`. It takes
 the command, its dialect (from the tool name), cwd, built-in role and the root's permission
 mode, and returns `deny`, `ask` (only in `auto`) or `allow`, the localized policy reason, card
