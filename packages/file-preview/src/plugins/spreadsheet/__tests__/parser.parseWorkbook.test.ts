@@ -152,6 +152,22 @@ describe('parseWorkbook — styles: extraction + dedup', () => {
     expect(idA).toBe(idB)
   })
 
+  it('preserves supported border styles and colors while approximating unsupported styles', async () => {
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('Borders')
+    ws.getCell('A1').value = 'supported'
+    ws.getCell('A1').border = { left: { style: 'double', color: { argb: 'FF123456' } } }
+    ws.getCell('B1').value = 'approximated'
+    ws.getCell('B1').border = { right: { style: 'dashDot', color: { argb: 'FF654321' } } }
+
+    const result = await parseWorkbook(await toArrayBuffer(wb), 'borders.xlsx')
+    const supported = result.styles[result.sheets[0].cells['1:1'].styleId!]
+    const approximated = result.styles[result.sheets[0].cells['1:2'].styleId!]
+    expect(supported.borderLeft).toEqual({ style: 'double', color: '#123456' })
+    expect(approximated.borderRight).toEqual({ style: 'thin', color: '#654321' })
+    expect(result.warnings).toContain('border-style-unsupported-approximated-as-thin')
+  })
+
   it('fully default cell has no styleId', () => {
     expect(model.sheets[0].cells['1:3'].styleId).toBeUndefined()
   })
@@ -364,6 +380,8 @@ describe('parseWorkbook — formulas: three states', () => {
     ws.getCell('A4').value = { formula: 'A1*A2' }
     // an evaluator-unfriendly / unknown function should remain unevaluated
     ws.getCell('A5').value = { formula: 'NOTAREALFUNCTION(A1)' }
+    ws.getCell('A6').value = { formula: '1/0', result: { error: '#DIV/0!' } }
+    ws.getCell('A8').value = { formula: 'A1<A2', result: true }
 
     const buffer = await toArrayBuffer(wb)
     model = await parseWorkbook(buffer, 'formulas.xlsx')
@@ -374,6 +392,16 @@ describe('parseWorkbook — formulas: three states', () => {
     expect(cell.formula).toBe('A1+A2')
     expect(cell.formulaState).toBe('cached')
     expect(cell.text).toBe('30')
+  })
+
+  it('retains cached error and boolean results without treating them as missing formulas', () => {
+    expect(model.sheets[0].cells['6:1']).toMatchObject({
+      formula: '1/0',
+      formulaState: 'cached',
+      raw: '#DIV/0!',
+      text: '#DIV/0!'
+    })
+    expect(model.sheets[0].cells['8:1']).toMatchObject({ formulaState: 'cached', raw: true, text: 'TRUE' })
   })
 
   it('formula without cache: either evaluated correctly or unevaluated with formula text shown', () => {

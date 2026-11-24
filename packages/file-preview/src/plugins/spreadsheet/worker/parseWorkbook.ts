@@ -37,14 +37,14 @@ const FORMULA_BUDGET_MS = 5000
 const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
 const BORDER_STYLE_KEYS = ['borderTop', 'borderRight', 'borderBottom', 'borderLeft'] as const
 
-const SUPPORTED_BORDER_STYLES: ReadonlySet<BorderEdge['style']> = new Set([
-  'thin',
-  'medium',
-  'thick',
-  'dashed',
-  'dotted',
-  'double',
-  'hair'
+const BORDER_STYLE_MAP: ReadonlyMap<ExcelJS.BorderStyle, BorderEdge['style']> = new Map([
+  ['thin', 'thin'],
+  ['medium', 'medium'],
+  ['thick', 'thick'],
+  ['dashed', 'dashed'],
+  ['dotted', 'dotted'],
+  ['double', 'double'],
+  ['hair', 'hair']
 ])
 
 const HORIZONTAL_ALIGNMENT_MAP: ReadonlyMap<string, NonNullable<CellStyle['hAlign']>> = new Map([
@@ -81,13 +81,8 @@ interface PendingFormulaCell {
   numFmt: string | undefined
 }
 
-/** ExcelJS rich-text cell value. */
-interface RichTextCellValue {
-  richText: { text: string }[]
-}
-
-function isRichTextValue(value: unknown): value is RichTextCellValue {
-  return typeof value === 'object' && value !== null && Array.isArray((value as RichTextCellValue).richText)
+function isRichTextValue(value: ExcelJS.CellValue): value is ExcelJS.CellRichTextValue {
+  return typeof value === 'object' && value !== null && 'richText' in value
 }
 
 interface HyperlinkCellValue {
@@ -179,15 +174,6 @@ function parseMergeRef(ref: string): MergeRange | null {
   const bottom = Number(match[4])
 
   return { top, left, bottom, right }
-}
-
-/** Extract an error result string; formula.result may be a CellErrorValue object. */
-function errorResultToString(result: ExcelJS.CellFormulaValue['result']): string | undefined {
-  if (typeof result === 'object' && result !== null && 'error' in result) {
-    return result.error
-  }
-
-  return undefined
 }
 
 function colNameToIndex(name: string): number {
@@ -482,10 +468,11 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
   if (border) {
     BORDER_SIDES.forEach((side, i) => {
       const edge = border[side]
+      const mapped = edge?.style ? BORDER_STYLE_MAP.get(edge.style) : undefined
 
-      if (edge?.style && SUPPORTED_BORDER_STYLES.has(edge.style as BorderEdge['style'])) {
+      if (edge && mapped) {
         const color = resolveColor(edge.color, theme) ?? '#000000'
-        style[BORDER_STYLE_KEYS[i]] = { style: edge.style as BorderEdge['style'], color }
+        style[BORDER_STYLE_KEYS[i]] = { style: mapped, color }
         hasAny = true
       } else if (edge?.style) {
         warnings.add('border-style-unsupported-approximated-as-thin')
@@ -756,22 +743,17 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         }
 
         if (isFormulaValue(value)) {
-          const errorStr = errorResultToString(value.result)
-          const hasResult = value.result !== undefined
+          const result = value.result
           // ExcelJS value.formula exists only on regular formulas and shared-formula masters. Shared-formula
           // dependents only have sharedFormula (the master address). cell.formula returns the formula shifted to
           // the current position.
           const formulaText = cell.formula || value.formula
 
-          if (hasResult) {
-            const dateResult = value.result instanceof Date ? value.result : null
+          if (result !== undefined) {
+            const dateResult = result instanceof Date ? result : null
 
-            const rawResult: string | number | boolean | null =
-              errorStr !== undefined
-                ? errorStr
-                : dateResult
-                  ? dateResult.toISOString()
-                  : (value.result as string | number | boolean)
+            const rawResult =
+              result instanceof Date ? result.toISOString() : typeof result === 'object' ? result.error : result
 
             cellModel.raw = rawResult
             cellModel.formula = formulaText || undefined
@@ -884,6 +866,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     // Sparse row heights and column widths.
     const rowHeightsPx: Record<number, number> = {}
     const colWidthsPx: Record<number, number> = {}
+    // SAFETY: ExcelJS Worksheet.model adds sparse Column.toModel definitions as cols, omitted by its WorksheetModel declaration.
     const worksheetModel = worksheet.model as ExcelJS.WorksheetModel & WorksheetModelWithLayout
 
     // SAFETY: ExcelJS retains Row instances in _rows; public models omit empty hidden rows.
@@ -969,6 +952,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
 
       let width: number
       let height: number
+      // SAFETY: ExcelJS Image.range retains oneCellAnchor ext in pixels; its ImageRange declaration omits that runtime member.
       const ext = (img.range as ExcelJS.ImageRange & ImageRangeWithExt).ext
 
       if (img.range.br) {
