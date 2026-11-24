@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { Node, type ObjectLiteralExpression, Project, SyntaxKind } from 'ts-morph'
+import * as z from 'zod'
 
 import {
   COMPRESSION_MAX_OUTPUT_TOKENS,
@@ -11,6 +12,7 @@ import { appLanguageOptions } from '../../../src/renderer/i18n/languages'
 import { DEFAULT_CONTEXT_SETTINGS, MIN_TRUNCATE_THRESHOLD } from '../../../src/shared/data/types/contextSettings'
 import { McpServerInstallSourceSchema, McpServerTypeSchema } from '../../../src/shared/data/types/mcpServer'
 import { CodeCli } from '../../../src/shared/types/codeCli'
+import type { CommandDefinition } from '../../../src/shared/types/command'
 import { COMMAND_DEFINITIONS } from '../../../src/shared/utils/command/definitions'
 import { knowledgeFileProcessingExts, knowledgeSupportedFileExts } from '../../../src/shared/utils/file/fileExtensions'
 
@@ -22,40 +24,25 @@ const PROVIDERS_FILE = path.join(ROOT_DIR, 'packages/provider-registry/data/prov
 const AGENT_CHANNELS_FILE = path.join(ROOT_DIR, 'src/shared/data/api/schemas/agentChannels.ts')
 const JOBS_FILE = path.join(ROOT_DIR, 'src/shared/data/api/schemas/jobs.ts')
 
-interface PackageJson {
-  name: string
-  version: string
-  description: string
-  homepage: string
-}
-
-interface ProviderRegistryFile {
-  version: string
-  providers: Array<{ id: string; name: string }>
-}
+const packageMetadataSchema = z.object({
+  name: z.string(),
+  version: z.string(),
+  description: z.string(),
+  homepage: z.string()
+})
+const providerRegistrySchema = z.object({
+  version: z.string(),
+  providers: z.array(z.object({ id: z.string(), name: z.string() }))
+})
 
 export interface ProductManifest {
   schemaVersion: 1
-  package: Pick<PackageJson, 'name' | 'version' | 'description' | 'homepage'>
+  package: z.infer<typeof packageMetadataSchema>
   routes: {
     primary: Array<{ id: string; path: string }>
     all: string[]
   }
-  commands: Array<{
-    id: string
-    titleKey: string
-    categoryKey: string
-    scope: string
-    enablement?: string
-    keybinding?: {
-      defaultBinding: string[]
-      additionalBindings?: string[][]
-      editable?: boolean
-      global?: boolean
-      when?: string
-      supportedPlatforms?: string[]
-    }
-  }>
+  commands: readonly CommandDefinition[]
   providers: {
     version: string
     count: number
@@ -99,15 +86,11 @@ export interface ProductManifest {
 }
 
 function readPackageMetadata(): ProductManifest['package'] {
-  const { name, version, description, homepage } = JSON.parse(
-    fs.readFileSync(PACKAGE_JSON_FILE, 'utf-8')
-  ) as PackageJson
-
-  return { name, version, description, homepage }
+  return packageMetadataSchema.parse(JSON.parse(fs.readFileSync(PACKAGE_JSON_FILE, 'utf-8')))
 }
 
 function readProviders(): ProductManifest['providers'] {
-  const { version, providers } = JSON.parse(fs.readFileSync(PROVIDERS_FILE, 'utf-8')) as ProviderRegistryFile
+  const { version, providers } = providerRegistrySchema.parse(JSON.parse(fs.readFileSync(PROVIDERS_FILE, 'utf-8')))
 
   return {
     version,
@@ -276,7 +259,7 @@ export function generateProductManifest(): ProductManifest {
       primary: primaryRoutes,
       all: readAllRoutes()
     },
-    commands: JSON.parse(JSON.stringify(COMMAND_DEFINITIONS)) as ProductManifest['commands'],
+    commands: structuredClone(COMMAND_DEFINITIONS),
     providers: readProviders(),
     locales: [...appLanguageOptions],
     agents: readAgentCapabilities(primaryRoutes),

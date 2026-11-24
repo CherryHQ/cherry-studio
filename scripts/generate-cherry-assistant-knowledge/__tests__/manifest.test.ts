@@ -1,7 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import {
   COMPRESSION_MAX_OUTPUT_TOKENS,
@@ -11,6 +11,7 @@ import { appLanguageOptions } from '../../../src/renderer/i18n/languages'
 import { DEFAULT_CONTEXT_SETTINGS, MIN_TRUNCATE_THRESHOLD } from '../../../src/shared/data/types/contextSettings'
 import { McpServerInstallSourceSchema, McpServerTypeSchema } from '../../../src/shared/data/types/mcpServer'
 import { CodeCli } from '../../../src/shared/types/codeCli'
+import type { CommandDefinition, PlatformDefaultBinding } from '../../../src/shared/types/command'
 import { COMMAND_DEFINITIONS } from '../../../src/shared/utils/command/definitions'
 import { knowledgeFileProcessingExts, knowledgeSupportedFileExts } from '../../../src/shared/utils/file/fileExtensions'
 import { generateProductManifest, serializeProductManifest } from '../generators/manifest'
@@ -37,10 +38,19 @@ describe('generateProductManifest', () => {
     expect(manifest.routes.primary.every(({ path }) => manifest.routes.all.includes(path))).toBe(true)
   })
 
-  it('includes registered commands and their default keybindings', () => {
+  it('exposes the native command contract while isolating generated metadata', () => {
     const manifest = generateProductManifest()
-
-    expect(manifest.commands).toEqual(JSON.parse(JSON.stringify(COMMAND_DEFINITIONS)))
+    const tab = manifest.commands.find((command) => command.id === 'tab.open_1')!
+    const source = COMMAND_DEFINITIONS.find((command) => command.id === 'tab.open_1')!
+    expectTypeOf(manifest.commands).toEqualTypeOf<readonly CommandDefinition[]>()
+    expectTypeOf(tab.keybinding?.defaultBinding).toEqualTypeOf<PlatformDefaultBinding | undefined>()
+    expectTypeOf(tab.keybinding?.enableToggle).toEqualTypeOf<boolean | undefined>()
+    expect(tab).toEqual(source)
+    expect(tab).not.toBe(source)
+    expect(tab.keybinding).not.toBe(source.keybinding)
+    expect(tab.keybinding?.defaultBinding).not.toBe(source.keybinding.defaultBinding)
+    tab.titleKey = 'mutated title'
+    expect(source.titleKey).not.toBe('mutated title')
   })
 
   it('includes the shipped provider registry without a maintained category map', () => {
