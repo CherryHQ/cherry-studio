@@ -13,6 +13,7 @@ sources:
   - src/main/data/services/AgentPlanService.ts
   - src/main/data/api/handlers/agentPlans.ts
   - src/shared/data/api/schemas/agentPlans.ts
+  - src/renderer/pages/agents/components/AgentRightPane/AgentHostPlan.tsx
   - src/main/ai/agents/runAgentTask.ts
   - src/main/ai/agents/heartbeatSchedule.ts
   - src/shared/ai/agentHeartbeat.ts
@@ -141,6 +142,15 @@ protection; they do not demonstrate native progress mapping. Editing does not op
 turn, connect a driver, approve a tool or change native files. Native consumption,
 ordered execution and Electron/renderer acceptance remain follow-up, so the Spec
 stays proposed.
+
+The Agent status surface shows a read-only saved host snapshot, separate from native
+plan cards and spawned-task progress. It labels every step status as recorded, shows
+stable step/dependency IDs, revision, user-edit origin and last update, and explains
+that saving is not delivery or execution. There is no editor, restore or run control.
+Revision history loads only on request, five snapshots per page; older pages replace
+the displayed page. Refresh, scoped plan/history notifications and session switches
+clear stale content and pending history requests. Inaccessible or malformed records
+show generic errors rather than transport details or a previous session's plan.
 
 ## Context usage
 
