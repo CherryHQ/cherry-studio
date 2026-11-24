@@ -7,6 +7,7 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { newestMtimeMs } from '@main/ai/runtime/orphanSessionReclaim'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
+import { getErrorCode } from '@main/utils/error'
 import { createPathOverlapCheck, nearestExistingRealPathSync, type PathNameBehavior } from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
@@ -35,7 +36,7 @@ function probeNameBehavior(directory: string): PathNameBehavior {
 
         return stat.dev === other.dev && stat.ino === other.ino
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+        if (getErrorCode(error) === 'ENOENT') return false
         throw error
       }
     }
@@ -114,7 +115,7 @@ class AgentWorkspaceStorageService {
 
           if (!stat.isDirectory()) break
         } catch (error) {
-          if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error
+          if (!['ENOENT', 'ENOTDIR'].includes(getErrorCode(error) ?? '')) throw error
           break
         }
       }
@@ -129,7 +130,7 @@ class AgentWorkspaceStorageService {
 
           if (stat.isDirectory()) break
         } catch (error) {
-          if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error
+          if (!['ENOENT', 'ENOTDIR'].includes(getErrorCode(error) ?? '')) throw error
         }
 
         const next = path.dirname(parent)

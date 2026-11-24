@@ -6,6 +6,7 @@ import path from 'node:path'
 import { create, extract, list } from 'tar'
 import * as z from 'zod'
 
+import { getErrorCode } from '@main/utils/error'
 import { isPathInside, shouldSilenceFsyncDirError } from '@main/utils/file'
 
 import { assertAgentStorageDirectory, assertAgentStoragePath } from './agentDataDirectory'
@@ -59,7 +60,7 @@ export async function workspaceStat(target: string) {
   try {
     return await lstat(target)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    if (getErrorCode(error) === 'ENOENT') return undefined
     throw error
   }
 }
@@ -206,7 +207,7 @@ async function syncDirectory(directory: string): Promise<void> {
       await handle.close()
     }
   } catch (error) {
-    if (!shouldSilenceFsyncDirError((error as NodeJS.ErrnoException).code)) throw error
+    if (!shouldSilenceFsyncDirError(getErrorCode(error))) throw error
   }
 }
 
@@ -257,6 +258,6 @@ export async function removeEmptyWorkspaceStage(directory: string): Promise<void
   try {
     await rmdir(directory)
   } catch (error) {
-    if (!['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error
+    if (!['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(getErrorCode(error) ?? '')) throw error
   }
 }
