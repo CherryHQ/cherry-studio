@@ -6,7 +6,7 @@ import { runtimeId, type RuntimeMessage } from '@cherrystudio/agent-runtime'
 import type { ClaudeObservation } from '@cherrystudio/agent-runtime-claude-code'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 
-import { ClaudeMessageMetadata } from '../ClaudeMessageMetadata'
+import { ClaudeMessageMetadata, normalizeClaudeToolResult } from '../ClaudeMessageMetadata'
 import type { McpToolDisplayMetadata } from '../types'
 
 async function project(message: RuntimeMessage, native: ClaudeObservation['native'] = []) {
@@ -176,6 +176,102 @@ it('refreshes a late reminder without another native content update', async () =
     { type: 'dynamic-tool', toolCallId: 'call', state: 'input-available' }
   ])
 })
+
+it.each([
+  { isSynthetic: true, text: 'Visible ' },
+  { isSynthetic: false, text: 'Visible hidden reminder' }
+])('uses native text blocks as reminder evidence only when synthetic: $isSynthetic', async ({ isSynthetic, text }) => {
+  const messages = await project(
+    {
+      id: 'echo',
+      role: 'assistant',
+      metadata: { completeness: 'complete' },
+      parts: [{ type: 'text', text: 'Visible hidden reminder', state: 'done' }]
+    },
+    [
+      {
+        source: 'live',
+        message: {
+          type: 'user',
+          uuid: randomUUID(),
+          session_id: 'session',
+          parent_tool_use_id: null,
+          isSynthetic,
+          message: {
+            role: 'user',
+            content: [{ type: 'text', text: '<system-reminder>hidden reminder</system-reminder>' }]
+          }
+        }
+      }
+    ]
+  )
+
+  expect(messages[0].parts).toMatchObject([{ type: 'text', text }])
+})
+
+it('preserves opaque JSON fields when rendering rich MCP content', async () => {
+  const image = {
+    type: 'image',
+    data: 'AA==',
+    mimeType: 'image/png',
+    _meta: { native: { future: [1, 'two'] } },
+    future: { extension: true },
+    ['__proto__']: { native: true }
+  }
+  const messages = await project({
+    id: 'mcp-rich-result',
+    role: 'assistant',
+    metadata: { completeness: 'complete' },
+    parts: [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'mcp-rich-call',
+        toolName: 'mcp__server__read',
+        input: {},
+        state: 'output-available',
+        output: [image]
+      }
+    ]
+  })
+
+  expect(messages[0].parts[0]).toMatchObject({
+    output: { content: [image], metadata: { type: 'mcp', name: 'read', serverName: 'server' } }
+  })
+})
+
+it('renders an unrecognized rich-result entry as text rather than an undefined text field', async () => {
+  const messages = await project({
+    id: 'mcp-mixed-result',
+    role: 'assistant',
+    metadata: { completeness: 'complete' },
+    parts: [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'mcp-mixed-call',
+        toolName: 'mcp__server__read',
+        input: {},
+        state: 'output-available',
+        output: [{ type: 'image', data: 'AA==', mimeType: 'image/png' }, undefined]
+      }
+    ]
+  })
+
+  expect(messages[0].parts[0]).toMatchObject({
+    output: {
+      content: [
+        { type: 'image', data: 'AA==', mimeType: 'image/png' },
+        { type: 'text', text: 'undefined' }
+      ]
+    }
+  })
+})
+
+it.each([{ result: 'null' }, { result: [{ type: 'text', text: 'null' }] }])(
+  'decodes JSON null without inventing a non-null result: $result',
+  ({ result }) => {
+    expect(normalizeClaudeToolResult(result)).toBeNull()
+  }
+)
 
 it('refreshes a replaced MCP catalog and preserves completed reasoning timing', async () => {
   const catalog: Record<string, McpToolDisplayMetadata> = {

@@ -1,8 +1,7 @@
 import { isDeepStrictEqual } from 'node:util'
 
-import type { JSONObject, JSONValue } from '@ai-sdk/provider'
+import { isJSONObject, type JSONObject, type JSONValue } from '@ai-sdk/provider'
 import type {
-  BetaContentBlockParam,
   BetaToolUseBlock,
   BetaServerToolUseBlock,
   BetaMCPToolUseBlock
@@ -58,13 +57,19 @@ export class ClaudeMessageMetadata {
       }
 
       if (message.type === 'user' && 'isSynthetic' in message && message.isSynthetic) {
-        const body = message.message as { content?: string | BetaContentBlockParam[] }
+        const body = message.message
+
+        if (!isRecord(body)) continue
 
         const content =
-          typeof body.content === 'string' ? [{ type: 'text' as const, text: body.content }] : body.content
+          typeof body.content === 'string'
+            ? [{ type: 'text', text: body.content }]
+            : Array.isArray(body.content)
+              ? body.content
+              : []
 
-        for (const block of content ?? [])
-          if (block.type === 'text')
+        for (const block of content)
+          if (isRecord(block) && block.type === 'text' && typeof block.text === 'string')
             for (const body of extractSystemReminderBodies(block.text)) {
               if (!this.reminders.has(body)) refreshAll = true
               this.reminders.add(body)
@@ -260,11 +265,11 @@ export class ClaudeMessageMetadata {
   }
 
   private buildToolOutput(
-    result: NonNullable<JSONValue>,
+    result: JSONValue,
     state: ToolMetadata,
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime tool output includes native and archived tool-specific bodies; inspect raw non-text content before adding MCP display metadata.
     rawContent?: unknown
-  ): NonNullable<JSONValue> {
+  ): JSONValue {
     if (state.toolType !== 'mcp') return result
     const content = hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result
 
@@ -291,7 +296,7 @@ function stringifyJsonValue(value: unknown): string {
   if (typeof value === 'string') return value
 
   try {
-    return JSON.stringify(value)
+    return JSON.stringify(value) ?? String(value)
   } catch {
     return String(value)
   }
@@ -308,7 +313,13 @@ function getContentArray(value: unknown): unknown[] | undefined {
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Mixed native/archive blocks must pass MCP recognition or checked legacy base64-image fields; unrecognized blocks become text.
 function normalizeMcpContentBlock(block: unknown): JSONObject {
-  if (isMcpContentBlock(block)) return block as JSONObject
+  if (isMcpContentBlock(block)) {
+    try {
+      if (isJSONObject(block)) return block
+    } catch {
+      // Recursive SDK validation can exceed the stack on deeply nested metadata.
+    }
+  }
 
   if (!isRecord(block)) {
     return { type: 'text', text: stringifyJsonValue(block) }
@@ -354,7 +365,7 @@ function hasMcpNonTextContent(value: unknown): boolean {
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime ToolResult.output preserves SDK and archive tool-specific bodies; distinguish JSON/text strings, block arrays and object results here.
-export function normalizeClaudeToolResult(result: unknown): NonNullable<JSONValue> {
+export function normalizeClaudeToolResult(result: unknown): JSONValue {
   if (typeof result === 'string') {
     try {
       return JSON.parse(result)
