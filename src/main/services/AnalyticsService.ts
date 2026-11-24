@@ -6,7 +6,7 @@ import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-cl
 import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { getAppEdition } from '@main/utils/appEdition'
+import { getPackageEdition } from '@main/utils/appEdition'
 import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { AppEdition } from '@shared/types/appEdition'
@@ -25,7 +25,7 @@ const POSTHOG_HOST = 'https://us.i.posthog.com'
 function resolvePostHogKey(): string {
   const override = import.meta.env.MAIN_VITE_POSTHOG_KEY?.trim()
   if (override) return override
-  return import.meta.env.DEV ? '' : POSTHOG_PROJECT_KEYS[getAppEdition()]
+  return import.meta.env.DEV ? '' : POSTHOG_PROJECT_KEYS[getPackageEdition()]
 }
 
 // Distinct name so the SDK retry classifier treats it as non-retriable.
@@ -136,7 +136,7 @@ export class AnalyticsService extends BaseService implements Activatable {
         'Client-Id': clientId,
         'App-Name': APP_NAME,
         'App-Version': `v${app.getVersion()}`,
-        'X-App-Edition': getAppEdition(),
+        'X-App-Edition': getPackageEdition(),
         OS: process.platform
       }
     })
@@ -209,7 +209,7 @@ export class AnalyticsService extends BaseService implements Activatable {
       properties: {
         ...data,
         app_version: app.getVersion(),
-        app_edition: getAppEdition(),
+        app_edition: getPackageEdition(),
         os: process.platform,
         // Keep addresses out of usage insights, including anonymous events.
         $ip: '0.0.0.0',

@@ -4,7 +4,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Conditional, DependsOn, Injectable, Phase, ServicePhase, when } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
-import { getAppEdition } from '@main/utils/appEdition'
+import { getAppEdition, usesRuntimeAppEdition } from '@main/utils/appEdition'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 
 import {
@@ -137,7 +137,7 @@ async function errorCode(response: Response): Promise<string | null> {
 @Injectable('CherryCloudNotificationService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['CherryCloudService', 'NotificationService'])
-@Conditional(when(() => getAppEdition() === 'cn', 'China edition'))
+@Conditional(when(() => usesRuntimeAppEdition() || getAppEdition() === 'cn', 'Runtime region or China edition'))
 export class CherryCloudNotificationService extends BaseService {
   private connection: { accountId: string; scopeId: string; controller: AbortController } | null = null
   private readonly seenIds = new Set<string>()
@@ -151,7 +151,7 @@ export class CherryCloudNotificationService extends BaseService {
   }
 
   private follow(status: CherryCloudStatus): void {
-    const accountId = status.phase === 'signed-in' ? status.accountId : null
+    const accountId = status.phase === 'signed-in' && getAppEdition() === 'cn' ? status.accountId : null
     if (this.connection?.accountId === accountId && this.connection?.scopeId === status.scopeId) return
     this.disconnect()
     if (!accountId) return

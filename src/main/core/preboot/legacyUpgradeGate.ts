@@ -15,7 +15,7 @@ import { loggerService } from '@logger'
 import { isPortable } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
 import { resolveSystemLanguage, t } from '@main/i18n'
-import { getAppEdition } from '@main/utils/appEdition'
+import { getPackageEdition } from '@main/utils/appEdition'
 
 import { getNormalizedExecutablePath } from './userDataLocation'
 
@@ -54,7 +54,7 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
       arch: process.arch,
       translated: app.runningUnderARM64Translation,
       portable: isPortable,
-      edition: getAppEdition(),
+      edition: getPackageEdition(),
       linuxPackageType: getLegacyLinuxPackageType()
     }
     const eligibility = getLegacyBridgeEligibility(profile.path)

@@ -138,7 +138,7 @@ vi.mock('@renderer/ipc', () => ({
     }
   }
 }))
-vi.mock('@renderer/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
+vi.mock('@renderer/utils/appEdition', () => ({ getAppEdition: () => 'global', useAppEdition: () => 'global' }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, string | number>) => {

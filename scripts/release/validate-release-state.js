@@ -102,9 +102,7 @@ function validatePublishState({
     buildRun.path !== '.github/workflows/release.yml' ||
     buildRun.event !== 'workflow_dispatch' ||
     !jobResults ||
-    ['prepare', 'release', 'release-cn', 'finalize-build', 'approve'].some(
-      (job) => jobResults[job]?.result !== 'success'
-    )
+    ['prepare', 'finalize-build', 'approve'].some((job) => jobResults[job]?.result !== 'success')
   ) {
     throw new Error(`No successful all-platform Release build exists for ${workflowSha}`)
   }

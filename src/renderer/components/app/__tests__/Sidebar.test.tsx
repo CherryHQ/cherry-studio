@@ -36,7 +36,10 @@ vi.mock(import('@renderer/utils/platform'), async (importOriginal) => ({
   }
 }))
 
-vi.mock('@renderer/utils/appEdition', () => ({ getAppEdition: () => mocks.edition }))
+vi.mock('@renderer/utils/appEdition', () => ({
+  getAppEdition: () => mocks.edition,
+  useAppEdition: () => mocks.edition
+}))
 
 vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: (key: string) => [

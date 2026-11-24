@@ -21,6 +21,9 @@ on:
       draft-id:
         required: true
         type: string
+      unified:
+        default: false
+        type: boolean
       clean:
         default: false
         type: boolean
@@ -140,11 +143,16 @@ jobs:
         with:
           platforms: arm64
 
+      - name: Select desktop distribution config
+        if: inputs.unified
+        shell: bash
+        run: echo "CHERRY_BUILDER_CONFIG=electron-builder.unified.config.cjs" >> "$GITHUB_ENV"
+
       - name: Build Linux
         if: fromJSON(inputs.target).platform == 'linux'
         run: |
           sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm exec electron-builder --linux --${{ fromJSON(inputs.target).arch }} --publish never ${{ inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+          pnpm exec electron-builder --linux --${{ fromJSON(inputs.target).arch }} --publish never ${{ env.CHERRY_BUILDER_CONFIG && format('--config {0}', env.CHERRY_BUILDER_CONFIG) || inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
 
         env:
           CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
@@ -204,7 +212,7 @@ jobs:
       - name: Build Windows
         if: fromJSON(inputs.target).platform == 'windows'
         run: |
-          pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+          pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ env.CHERRY_BUILDER_CONFIG && format('--config {0}', env.CHERRY_BUILDER_CONFIG) || inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           ELECTRON_BUILDER_7Z_FILTER: BCJ

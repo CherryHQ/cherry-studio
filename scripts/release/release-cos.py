@@ -76,6 +76,8 @@ def merge_mac_manifests(client, prefix, edition, files):
 def assemble(client, base, prefix, platform, download="all"):
     distribution = {}
     sha = os.environ["RELEASE_SHA"]
+    unified = os.environ.get("UNIFIED_RELEASE") == "true"
+    distribution["unified"] = unified
     selected = PLATFORMS if platform == "all" else (platform,)
     mac_bridge = os.environ.get("MAC_CN_REGION_BRIDGE") == "true"
     distribution["macCnRegionBridge"] = mac_bridge
@@ -84,13 +86,15 @@ def assemble(client, base, prefix, platform, download="all"):
         baseline = read_json(client, f"{base}/baselines/{sha}.json", optional=True)
         if baseline is None or baseline.get("macCnRegionBridge", False) != mac_bridge:
             raise ValueError("No complete COS inventory for this commit. Run an all-platform build.")
+        if baseline.get("unified", False) != unified:
+            raise ValueError("COS inventory uses a different distribution. Run an all-platform build.")
         files = {
             relative: entry for relative, entry in baseline["files"].items()
             if relative.split("/")[1] != platform and not (
                 platform == "linux" and relative.startswith("common/")
             )
         }
-    for edition in EDITIONS:
+    for edition in (("global",) if unified else EDITIONS):
         for target in selected:
             for group in inventory_groups(target):
                 incoming = read_json(client, f"{prefix}/{edition}/{group}.json")

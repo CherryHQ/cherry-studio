@@ -35,7 +35,7 @@ import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/sett
 import { CHERRYIN_API_KEY_URL, oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
-import { getAppEdition } from '@renderer/utils/appEdition'
+import { useAppEdition } from '@renderer/utils/appEdition'
 import { isWin } from '@renderer/utils/platform'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
@@ -80,7 +80,7 @@ export default function OnboardingPage({
   enableCherryAccountLogin = ENABLE_CHERRY_ACCOUNT_LOGIN
 }: OnboardingPageProps) {
   const { t } = useTranslation()
-  const appEdition = getAppEdition()
+  const appEdition = useAppEdition()
   const [language, setLanguage] = usePreference('app.language')
   const [{ policyVersion }, updateOnboardingPreferences] = useMultiplePreferences(
     ONBOARDING_PREFERENCE_KEYS,

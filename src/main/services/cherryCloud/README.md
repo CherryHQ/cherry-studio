@@ -35,6 +35,17 @@ generic analytics retains consent and transport.
 The [ownership Spec](../../../../.agents/notes/proposed/architecture/2026-11-08-cherry-cloud-ownership-convergence.md)
 records the preservation boundary, deliberate fixes and offline verification limits.
 
+## Desktop region
+
+Unified builds derive the effective region from an existing account's trusted
+stored API origin. A signed request stays bound to that session's origin.
+An older session without an origin requires sign-in. Signed-out startup
+and sign-out infer the region from current system settings. Each sign-in asks
+Config Service to resolve the region and uses system settings if the request
+fails. The result updates the running app and determines the origin for that
+authorization and exchange. The credential file stores the origin at sign-in.
+
+
 ## AMD entry
 
 `openAmdEntry` signs in when required, then sends `POST` to the model's

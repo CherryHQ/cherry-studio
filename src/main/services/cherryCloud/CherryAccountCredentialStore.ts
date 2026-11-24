@@ -9,6 +9,17 @@ import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('CherryAccountCredentialStore')
 
+export const CLOUD_API_ORIGINS = {
+  cn: 'https://cloud.cherryai.com.cn',
+  global: 'https://cloud.cherryai.com'
+} as const
+
+export function getAccountEdition(origin: string | undefined): keyof typeof CLOUD_API_ORIGINS | undefined {
+  if (origin === CLOUD_API_ORIGINS.cn) return 'cn'
+  if (origin === CLOUD_API_ORIGINS.global) return 'global'
+  return undefined
+}
+
 const sessionSchema = z
   .object({
     apiOrigin: z.url().optional(),

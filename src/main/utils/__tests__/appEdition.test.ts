@@ -65,6 +65,15 @@ describe('getAppEdition', () => {
     expect(getAppEdition()).toBe('global')
   })
 
+  it('keeps the original CN product behavior in the Electron upgrade bridge', async () => {
+    setPackaged(true)
+    readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'cn', cherryRegionBridge: true }))
+    const edition = await import('../appEdition')
+
+    expect(edition.usesRuntimeAppEdition()).toBe(false)
+    expect(edition.getAppEdition()).toBe('cn')
+  })
+
   it('rejects an unsupported development edition', async () => {
     readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'global' }))
     vi.stubEnv('CHERRY_EDITION', 'enterprise')

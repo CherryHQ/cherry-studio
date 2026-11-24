@@ -31,7 +31,11 @@ import {
   type ResolvedReasoningProfile,
   type ResolvedServiceTierControl
 } from '@data/services/ProviderRegistryService'
-import { isProviderIdentityAvailable, providerService } from '@data/services/ProviderService'
+import {
+  isProviderIdentityAvailable,
+  providerAvailabilityColumns,
+  providerService
+} from '@data/services/ProviderService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -57,7 +61,7 @@ const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
 
 /**
- * Model rows joined to their provider's identity columns, so edition availability
+ * Model rows joined to their provider's identity columns, so retired provider filtering
  * is decided from this one query. Every `user_model` row has a provider row (FK,
  * ON DELETE CASCADE), so the inner join drops nothing.
  */
@@ -65,8 +69,7 @@ function selectWithProviderIdentity(tx: Pick<DbType, 'select'>) {
   return tx
     .select({
       model: userModelTable,
-      providerId: userProviderTable.providerId,
-      presetProviderId: userProviderTable.presetProviderId
+      ...providerAvailabilityColumns
     })
     .from(userModelTable)
     .innerJoin(userProviderTable, eq(userProviderTable.providerId, userModelTable.providerId))
@@ -880,8 +883,7 @@ class ModelService {
    *
    * Foreign services call this inside their own transaction when they need a
    * soft fallback instead of a thrown not-found error. The caller owns the
-   * domain-specific validation message. Providers unavailable in the current
-   * edition are treated as missing before the row is enriched.
+   * domain-specific validation message. Models from retired providers are treated as missing before the row is enriched.
    */
   findByIdTx(tx: Pick<DbType, 'select'>, id: string): Model | null {
     const [row] = selectWithProviderIdentity(tx).where(eq(userModelTable.id, id)).limit(1).all()
@@ -890,10 +892,10 @@ class ModelService {
     return this.enrichRowsFromRegistryTx(tx, [row.model])[0] ?? null
   }
 
-  /** Check model existence under a provider available in the current edition. */
+  /** Check model existence under an available provider. */
   existsByIdTx(tx: Pick<DbType, 'select'>, id: string): boolean {
     const [row] = selectWithProviderIdentity(tx).where(eq(userModelTable.id, id)).limit(1).all()
-    return row !== undefined && isProviderIdentityAvailable(row, tx)
+    return row !== undefined && isProviderIdentityAvailable(row)
   }
 
   /**

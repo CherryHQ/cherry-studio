@@ -98,6 +98,7 @@ vi.mock('electron', async () => {
       whenReady: vi.fn().mockResolvedValue(undefined),
       runningUnderARM64Translation: false,
       getLocale: vi.fn(() => 'en-US'),
+      getLocaleCountryCode: vi.fn(() => 'US'),
       getPreferredSystemLanguages: vi.fn(() => ['en-US']),
       // Explicit false (matching the previous `undefined` semantics) so the
       // dev-only logs diversion in core/paths/constants.ts stays exercised.
