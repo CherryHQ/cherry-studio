@@ -1,7 +1,7 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 import { type EditorState, EditorView } from '@uiw/react-codemirror'
 import { Edit, Eye } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
@@ -60,11 +60,11 @@ export function PromptEditorField({
   const previousResetPreviewKey = useRef(resetPreviewKey)
   const codeEditorRef = useRef<CodeEditorHandles | null>(null)
 
-  const [session, setSession] = useState(() => ({
-    accepted: value,
-    stateRef: { current: null as EditorState | null },
-    epoch: 0
-  }))
+  const [session, setSession] = useState(() => {
+    const stateRef: RefObject<EditorState | null> = { current: null }
+
+    return { accepted: value, stateRef, epoch: 0 }
+  })
 
   if (session.accepted !== value) {
     const echoed = session.stateRef.current?.sliceDoc() === value
@@ -98,7 +98,7 @@ export function PromptEditorField({
   const handleEditorAreaMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if (disabled || effectiveShowPreview) return
 
-    if ((event.target as HTMLElement).closest('.cm-content')) return
+    if (event.target instanceof Element && event.target.closest('.cm-content')) return
     event.preventDefault()
     codeEditorRef.current?.focus?.()
   }
