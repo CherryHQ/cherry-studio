@@ -516,7 +516,8 @@ required service tier.`
     expect(screen.queryByText('error.notice.rate_limit.title')).toBeNull()
   })
 
-  it('shows size guidance and the original status-less request buffer error', () => {
+  // From main #25160: a status-less request-buffer limit is a payload failure, not an unknown one.
+  it('shows size guidance for a status-less request buffer error', () => {
     const providerMessage = '413 Failed to buffer the request body: length limit exceeded'
     render(
       <ErrorBlock
@@ -525,8 +526,8 @@ required service tier.`
         message={message}
       />
     )
-    expect(screen.getByText('error.diagnosis.payload')).toBeInTheDocument()
-    expect(screen.getByText(providerMessage)).toBeInTheDocument()
+    expect(screen.getByText('error.notice.payload.title')).toBeInTheDocument()
+    expect(screen.getByText('error.notice.payload.info')).toBeInTheDocument()
     expect(screen.queryByText('error.diagnosis.unknown')).toBeNull()
   })
 
