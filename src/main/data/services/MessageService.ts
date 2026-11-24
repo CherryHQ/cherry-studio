@@ -168,9 +168,11 @@ function rowToMessage(row: MessageRow): Message {
     id: row.id,
     topicId: row.topicId,
     parentId: row.parentId,
+    // SAFETY: message_role_check and NOT NULL constrain this ORM column to MessageRole.
     role: row.role as Message['role'],
     data: parseJson(row.data)!,
     searchableText: row.searchableText,
+    // SAFETY: message_status_check and NOT NULL constrain this ORM column to MessageStatus.
     status: row.status as Message['status'],
     siblingsGroupId: row.siblingsGroupId,
     modelId: row.modelId ?? null,
@@ -237,6 +239,7 @@ function truncatePreview(text: string): string {
 function getStringField(value: unknown, key: string): string | undefined {
   if (!value || typeof value !== 'object') return undefined
 
+  // SAFETY: value is a non-null object; the selected property stays unknown until checked below.
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical part extensions are opaque; preview only the selected field after checking its value.
   const field = (value as Record<string, unknown>)[key]
 
@@ -247,6 +250,7 @@ function getStringField(value: unknown, key: string): string | undefined {
 function getObjectField(value: unknown, key: string): object | undefined {
   if (!value || typeof value !== 'object') return undefined
 
+  // SAFETY: value is a non-null object; the selected property stays unknown until checked below.
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical part extensions are opaque; check the selected container before reading nested preview fields.
   const field = (value as Record<string, unknown>)[key]
 
@@ -1758,15 +1762,17 @@ export class MessageService {
 
       const requestedIds = new Set(
         parts
-          .filter((p) => isToolUIPart(p) && p.state === 'approval-requested')
-          .map((p) => (p as { approval?: { id?: string } }).approval?.id)
+          .filter(isToolUIPart)
+          .filter((p) => p.state === 'approval-requested')
+          .map((p) => p.approval?.id)
           .filter((id): id is string => typeof id === 'string')
       )
 
       const settledIds = new Set(
         parts
-          .filter((p) => isToolUIPart(p) && p.state !== 'approval-requested')
-          .map((p) => (p as { approval?: { id?: string } }).approval?.id)
+          .filter(isToolUIPart)
+          .filter((p) => p.state !== 'approval-requested')
+          .map((p) => p.approval?.id)
           .filter((id): id is string => typeof id === 'string')
       )
 
