@@ -31,7 +31,9 @@ const YAML_PARSE_OPTIONS = { schema: 'failsafe' as const }
 function parseFrontmatterYaml(block: string): object {
   // gray-matter's delimiter slice leaves a bare terminal CR in CRLF files,
   // which YAML rejects after a quoted or flow scalar.
-  return parse(block.replace(/\r\n?/g, '\n'), YAML_PARSE_OPTIONS) as object
+  const parsed: unknown = parse(block.replace(/\r\n?/g, '\n'), YAML_PARSE_OPTIONS)
+
+  return typeof parsed === 'object' && parsed !== null ? parsed : {}
 }
 
 const FRONTMATTER_OPTIONS = {
@@ -433,12 +435,15 @@ export async function parseSkillMetadata(
   const description = rawDescription && rawDescription.trim() ? rawDescription.trim() : undefined
 
   // Validate version and author
-  const nestedMetadata =
-    typeof data.metadata === 'object' && data.metadata !== null && !Array.isArray(data.metadata)
-      ? (data.metadata as Record<string, unknown>) // oxlint-disable-line anti-slop/no-unsafe-dictionary-type -- Nested YAML/JSON metadata is unvalidated; version is checked as a string.
-      : undefined
-
-  const version = toString(data.version) ?? toString(nestedMetadata?.version)
+  const nestedMetadata = data.metadata
+  const version =
+    toString(data.version) ??
+    (typeof nestedMetadata === 'object' &&
+    nestedMetadata !== null &&
+    !Array.isArray(nestedMetadata) &&
+    'version' in nestedMetadata
+      ? toString(nestedMetadata.version)
+      : undefined)
   const author = toString(data.author)
 
   logger.debug('Successfully parsed skill metadata', {
