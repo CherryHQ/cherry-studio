@@ -12,11 +12,23 @@
  */
 import * as z from 'zod'
 
-import type { ImageGenerationSupport, ModelConfig, ReasoningSupport, SupportSpec } from '../src/schemas/model'
+import {
+  type ImageGenerationSupport,
+  type ModelConfig,
+  ReasoningEffortSchema,
+  type ReasoningSupport,
+  type SupportSpec
+} from '../src/schemas/model'
 import type { ProviderModelOverride } from '../src/schemas/provider-models'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 
-const MODALITY = new Set(['text', 'image', 'audio', 'video'])
+const UpstreamModalitySchema = z.enum(['text', 'image', 'audio', 'video'])
+const readModalities = (values: string[]) =>
+  values.flatMap((value) => {
+    const parsed = UpstreamModalitySchema.safeParse(value)
+
+    return parsed.success ? [parsed.data] : []
+  })
 const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'auto'])
 
 export const CAP_ORDER = [
@@ -54,10 +66,12 @@ type Caps = NonNullable<CherryMeta['capabilities']>[number]
 
 type Effort = NonNullable<NonNullable<CherryMeta['reasoning']>['supportedEfforts']>[number]
 
-const usd = (n?: number) => (n == null ? undefined : { currency: 'USD' as const, perMillionTokens: n })
+const usd = (n: number) => ({ currency: 'USD' as const, perMillionTokens: n })
 
-const dropUndef = <T extends Record<string, unknown>>(o: T): T =>
-  Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T
+const dropUndef = <T extends Record<string, unknown>>(o: T): Partial<T> => {
+  // SAFETY: Only own enumerable string entries are copied, with undefined values omitted; Partial reflects missing keys while native fromEntries loses key/value correlations.
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>
+}
 
 // ── models.dev ───────────────────────────────────────────────────────────────
 const MdEntry = z
@@ -152,18 +166,20 @@ export function parseMdEntry(raw: unknown): CherryMeta | null {
 
   const pricing =
     m.cost?.input != null && m.cost?.output != null
-      ? dropUndef({
+      ? {
           input: usd(m.cost.input),
           output: usd(m.cost.output),
-          cacheRead: usd(m.cost.cache_read),
-          cacheWrite: usd(m.cost.cache_write)
-        })
+          ...dropUndef({
+            cacheRead: m.cost.cache_read == null ? undefined : usd(m.cost.cache_read),
+            cacheWrite: m.cost.cache_write == null ? undefined : usd(m.cost.cache_write)
+          })
+        }
       : undefined
 
   return dropUndef({
     capabilities: caps.size ? [...caps] : undefined,
-    inputModalities: inp.filter((x) => MODALITY.has(x)),
-    outputModalities: out.filter((x) => MODALITY.has(x)),
+    inputModalities: readModalities(inp),
+    outputModalities: readModalities(out),
     contextWindow: m.limit?.context,
     maxOutputTokens: m.limit?.output,
     pricing,
@@ -171,7 +187,7 @@ export function parseMdEntry(raw: unknown): CherryMeta | null {
     openWeights: typeof m.open_weights === 'boolean' ? m.open_weights : undefined,
     family: m.family,
     name: m.name
-  }) as CherryMeta
+  })
 }
 
 // ── OpenRouter ───────────────────────────────────────────────────────────────
@@ -218,9 +234,8 @@ export function parseOpenRouterReasoning(raw: unknown): ReasoningSupport | null 
   const selectableEfforts = descriptor.mandatory ? efforts.filter((value) => value !== 'none') : efforts
   const controls: NonNullable<ReasoningSupport['controls']> = []
 
-  const defaultEffort = VALID_EFFORTS.has(descriptor.default_effort ?? '')
-    ? (descriptor.default_effort as Effort)
-    : undefined
+  const parsedDefaultEffort = ReasoningEffortSchema.safeParse(descriptor.default_effort)
+  const defaultEffort = parsedDefaultEffort.success ? parsedDefaultEffort.data : undefined
 
   if (selectableEfforts.length > 0) {
     const control: Extract<NonNullable<ReasoningSupport['controls']>[number], { kind: 'effort' }> = {
@@ -290,14 +305,14 @@ export function parseOrEntry(raw: unknown): CherryMeta | null {
 
   return dropUndef({
     capabilities: caps.size ? [...caps] : undefined,
-    inputModalities: inp.filter((x) => MODALITY.has(x)),
-    outputModalities: out.filter((x) => MODALITY.has(x)),
+    inputModalities: readModalities(inp),
+    outputModalities: readModalities(out),
     contextWindow: m.context_length,
     name: m.name,
     pricing: m.pricing?.prompt
-      ? { input: usd(+m.pricing.prompt * 1e6)!, output: usd(+(m.pricing.completion || 0) * 1e6)! }
+      ? { input: usd(+m.pricing.prompt * 1e6), output: usd(+(m.pricing.completion || 0) * 1e6) }
       : undefined
-  }) as CherryMeta
+  })
 }
 
 const OR_IMAGE_PARAM_KEYS = {
@@ -319,7 +334,10 @@ const OrParamDescriptor = z.discriminatedUnion('type', [
 
 type OrParamDescriptor = z.infer<typeof OrParamDescriptor>
 
-function toSupportSpec(key: keyof typeof OR_IMAGE_PARAM_KEYS, descriptor: OrParamDescriptor): SupportSpec {
+function toSupportSpec(
+  key: (typeof OR_IMAGE_PARAM_KEYS)[keyof typeof OR_IMAGE_PARAM_KEYS],
+  descriptor: OrParamDescriptor
+): SupportSpec {
   if (descriptor.type === 'enum') return { type: 'enum', options: descriptor.values }
 
   if (descriptor.type === 'range') return { type: 'range', min: descriptor.min, max: descriptor.max, step: 1 }
@@ -342,7 +360,7 @@ export function parseOrImageGeneration(raw: unknown): ImageGenerationSupport | n
   for (const [wireKey, canonicalKey] of Object.entries(OR_IMAGE_PARAM_KEYS)) {
     const parsed = OrParamDescriptor.safeParse(p.data.supported_parameters[wireKey])
 
-    if (parsed.success) supports[canonicalKey] = toSupportSpec(wireKey as keyof typeof OR_IMAGE_PARAM_KEYS, parsed.data)
+    if (parsed.success) supports[canonicalKey] = toSupportSpec(canonicalKey, parsed.data)
   }
 
   // OpenRouter rejects output_compression unless output_format is explicitly jpeg/webp. Some
@@ -390,16 +408,15 @@ export function parseOrImageGeneration(raw: unknown): ImageGenerationSupport | n
 }
 
 // ── merge across sources (the fix for the minimax-m3 video gap) ───────────────
-const uniqOrdered = (arr: string[]) => [
+const uniqOrdered = (arr: Caps[]): Caps[] => [
   ...CAP_ORDER.filter((x) => arr.includes(x)),
-  ...arr.filter((x) => !CAP_ORDER.includes(x as any))
+  ...arr.filter((x) => !CAP_ORDER.some((ordered) => ordered === x))
 ]
 
 export function mergeMeta(a: CherryMeta, b: CherryMeta): CherryMeta {
   const out: CherryMeta = { ...a }
 
-  if (b.capabilities)
-    out.capabilities = uniqOrdered([...new Set([...(a.capabilities ?? []), ...b.capabilities])]) as Caps[]
+  if (b.capabilities) out.capabilities = uniqOrdered([...new Set([...(a.capabilities ?? []), ...b.capabilities])])
 
   for (const k of ['inputModalities', 'outputModalities'] as const)
     if (b[k]?.length) out[k] = [...new Set([...(a[k] ?? []), ...b[k]])]

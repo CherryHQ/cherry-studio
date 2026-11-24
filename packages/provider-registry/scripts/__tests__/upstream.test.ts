@@ -1,8 +1,55 @@
 import { describe, expect, it } from 'vitest'
 
-import { mergeMeta, parseOrEntry, parseOrImageGeneration } from '../upstream'
+import { mergeMeta, parseMdEntry, parseOpenRouterReasoning, parseOrEntry, parseOrImageGeneration } from '../upstream'
+
+describe('upstream field decoding', () => {
+  it('keeps the existing four upstream modalities and omits unknown vocabularies', () => {
+    expect(
+      parseMdEntry({
+        modalities: { input: ['text', 'vector', 'image', 'future'], output: ['audio', 'video', 'vector'] }
+      })
+    ).toMatchObject({
+      inputModalities: ['text', 'image'],
+      outputModalities: ['audio', 'video']
+    })
+    expect(
+      parseOrEntry({ architecture: { input_modalities: ['vector', 'text'], output_modalities: ['image', 'future'] } })
+    ).toMatchObject({
+      inputModalities: ['text'],
+      outputModalities: ['image']
+    })
+    expect(parseMdEntry({ modalities: { input: [7] } })).toBeNull()
+  })
+
+  it('retains required zero prices and omits only missing cache prices', () => {
+    const result = parseMdEntry({ cost: { input: 0, output: 0, cache_read: 0 } })
+    expect(result?.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: 0 },
+      output: { currency: 'USD', perMillionTokens: 0 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0 }
+    })
+    expect(result?.pricing).not.toHaveProperty('cacheWrite')
+    expect(parseMdEntry({ cost: { input: 1 } })).not.toHaveProperty('pricing')
+  })
+
+  it('ignores an unknown default effort while retaining the advertised valid effort controls', () => {
+    const support = parseOpenRouterReasoning({
+      reasoning: { supported_efforts: ['low', 'future'], default_effort: 'future', mandatory: true }
+    })
+    expect(support?.controls).toEqual([{ kind: 'effort', values: ['low'] }])
+  })
+})
 
 describe('mergeMeta', () => {
+  it('orders known capabilities while preserving other valid capabilities in their original tail order', () => {
+    expect(
+      mergeMeta(
+        { capabilities: ['embedding', 'reasoning'] },
+        { capabilities: ['computer-use', 'function-call', 'embedding'] }
+      ).capabilities
+    ).toEqual(['function-call', 'reasoning', 'embedding', 'computer-use'])
+  })
+
   it('does not widen an earlier reasoning vocabulary with later source values', () => {
     const result = mergeMeta(
       {
