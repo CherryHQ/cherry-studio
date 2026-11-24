@@ -1517,8 +1517,9 @@ describe('edit dialogs', () => {
   })
 
   it('saves the stream output toggle from run settings', async () => {
+    const user = userEvent.setup()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
-    fireEvent.click(screen.getByRole('switch', { name: 'Stream output' }))
+    await user.click(screen.getByRole('switch', { name: 'Stream output' }))
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({ body: { configuration: { stream_output: false } } })
     )
