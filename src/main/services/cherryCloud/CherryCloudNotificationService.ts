@@ -12,6 +12,7 @@ import {
   cloudNotificationPageSchema,
   cloudNotificationSchema,
   notificationErrorFrameSchema,
+  notificationHttpErrorSchema,
   notificationReadySchema
 } from './contracts'
 
@@ -141,9 +142,9 @@ async function errorCode(response: Response): Promise<string | null> {
   if (header) return header
 
   try {
-    const body = (await response.json()) as { error?: { code?: unknown } }
+    const parsed = notificationHttpErrorSchema.safeParse(await response.json())
 
-    return typeof body.error?.code === 'string' ? body.error.code : null
+    return parsed.success ? parsed.data.error.code : null
   } catch {
     return null
   }

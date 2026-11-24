@@ -199,6 +199,31 @@ describe('CherryCloudNotificationService', () => {
     expect(storedCursor()).toBeNull()
   })
 
+  it.each([
+    {
+      source: 'header with an unreadable JSON body',
+      response: () => new Response('{', { status: 400, headers: { 'Cherry-Error-Code': 'INVALID_CURSOR' } })
+    },
+    {
+      source: 'JSON code with additional response metadata',
+      response: () =>
+        new Response(
+          JSON.stringify({ request_id: 'request-1', error: { code: 'INVALID_CURSOR', details: { retry: true } } }),
+          { status: 400 }
+        )
+    }
+  ])('recovers a rejected cursor from $source', async ({ response }) => {
+    application.get('CacheService').setPersist('cherry_cloud.notification_cursors', { 'account-1': 'stale' })
+    reply('/api/v1/notifications', response)
+
+    await start()
+
+    await vi.waitFor(() =>
+      expect(requestedPaths()).toEqual(['/api/v1/notifications?after=stale&limit=50', '/api/v1/notifications/stream'])
+    )
+    expect(storedCursor()).toBeNull()
+  })
+
   it('rebuilds the baseline when the stream ends with a cursor error frame, without advancing the cursor', async () => {
     application.get('CacheService').setPersist('cherry_cloud.notification_cursors', { 'account-1': 'c-5' })
     reply('/api/v1/notifications', page([], 'c-5'))
