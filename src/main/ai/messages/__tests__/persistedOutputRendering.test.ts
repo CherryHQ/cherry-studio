@@ -60,6 +60,20 @@ beforeEach(() => {
 })
 
 describe('renderPersistedToolOutputs', () => {
+  it.each([null, undefined, 'path lookup failed'])('keeps path-less fallback when path lookup throws %s', (failure) => {
+    getPhysicalPathMock.mockImplementation(() => {
+      throw failure
+    })
+
+    const [rendered] = renderPersistedToolOutputs([messageWith({ $persistedToolOutput: envelopeRef() })])
+    expect(rendered.parts[1]).toMatchObject({
+      state: 'output-available',
+      output: expect.stringContaining('Full output: context://vfs/')
+    })
+    expect(JSON.stringify(rendered)).not.toContain('Full output saved to:')
+    expect(collectPersistedOutputPaths([messageWith({ $persistedToolOutput: envelopeRef() })])).toEqual(new Set())
+  })
+
   it('renders the byte-identical marker the in-flight offloader produces for the same content', async () => {
     // The contract that keeps provider prefix caches warm across the
     // in-flight → persisted boundary: same content + same path ⇒ same bytes.

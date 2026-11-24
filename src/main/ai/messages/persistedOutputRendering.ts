@@ -65,7 +65,7 @@ function resolveOwnedBlobPath(blob: PersistedToolOutputBlobRef): string | null {
   } catch (error) {
     logger.warn('persisted output entry unresolvable; rendering marker without a path', {
       fileEntryId: blob.fileEntryId,
-      error: (error as Error).message
+      error
     })
 
     return null
