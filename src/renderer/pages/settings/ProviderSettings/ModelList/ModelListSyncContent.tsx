@@ -7,6 +7,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
+import { MODEL_LIST_CAPABILITY_FILTERS } from './modelListDerivedState'
 import ModelSyncPreviewPanel from './ModelSyncPreviewPanel'
 import { ModelTypeFilterTabs } from './ModelTypeFilterTabs'
 import type { ModelListSyncView } from './useModelListSyncView'
@@ -88,7 +89,11 @@ export default function ModelListSyncContent(props: ModelListSyncContentProps) {
 
         <ModelTypeFilterTabs
           value={view.actualFilter}
-          onValueChange={(next) => view.setActualFilter(next as typeof view.actualFilter)}
+          onValueChange={(next) => {
+            const filter = next === 'stale' ? next : MODEL_LIST_CAPABILITY_FILTERS.find((value) => value === next)
+
+            if (filter) view.setActualFilter(filter)
+          }}
           counts={view.typeCounts}
           hideEmptyFilters={hideEmptyFilters}
           extraTabs={
