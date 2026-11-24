@@ -1,4 +1,3 @@
-import { statSync } from 'node:fs'
 import path from 'node:path'
 
 import { and, count, desc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
@@ -46,15 +45,6 @@ type PastAgentReport = Omit<ReportedAgentArtifact, 'size'> & {
   sessionId: string
   /** When the reporting message was created. */
   reportedAt: number
-}
-
-function fileSizeSync(filePath: string): number | null {
-  try {
-    const stats = statSync(filePath)
-    return stats.isFile() ? stats.size : null
-  } catch {
-    return null
-  }
 }
 
 const PAGE_EXTENSIONS = new Set(['html', 'htm', 'md', 'markdown', 'mdx'])
@@ -157,7 +147,7 @@ export class ArtifactService {
   backfillPastOutputsTx(tx: DbOrTx): void {
     for (const report of this.findPastAgentReportsTx(tx)) {
       const { agentId, sessionId, path: filePath, title, reportedAt } = report
-      const values = { title, kind: getArtifactKind(filePath), size: fileSizeSync(filePath), reportedAt }
+      const values = { title, kind: getArtifactKind(filePath), size: null, reportedAt }
       tx.insert(artifactTable)
         .values({ agentId, sessionId, path: filePath, ...values })
         .onConflictDoUpdate({
