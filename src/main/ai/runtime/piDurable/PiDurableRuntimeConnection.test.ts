@@ -955,7 +955,12 @@ describe('desktop Pi Durable connection', () => {
     'restores a pending peer with cleared Agent default=%s and its frozen request settings',
     async (clearDefault) => {
       sharedHosts()
-      input = { ...input, reasoningEffort: 'high', fastMode: true }
+      input = {
+        ...input,
+        reasoningEffort: 'high',
+        fastMode: true,
+        channelContext: 'channel=feishu chat_id=oc_peer chat_type=p2p'
+      }
       const sourceInput = { ...input }
       const parent = await connect()
       await parent.connection.send({ message: message('initial boundary') })
@@ -995,11 +1000,12 @@ describe('desktop Pi Durable connection', () => {
           for await (const event of recovered.events) recoveredEvents.push(event)
         })()
       })
-      input = { ...input, sessionId: forkId, reasoningEffort: 'low', fastMode: false }
+      input = { ...input, sessionId: forkId, reasoningEffort: 'low', fastMode: false, channelContext: undefined }
       const fork = await connect()
       await expect.poll(() => recoveredEvents.some((event) => event.type === 'turn-complete')).toBe(true)
       expect(text(recoveredEvents)).toContain(`${sourceInput.sessionId}:high:true`)
       expect(recovered!['runtime']).toBe(fork.connection['runtime'])
+      expect(recovered!['input'].channelContext).toBe(sourceInput.channelContext)
       await fork.connection.send({ message: message('independent fork input') })
       await done(fork.events)
       expect(text(fork.events)).toContain(`${forkId}:low:false`)
@@ -1156,6 +1162,35 @@ describe('desktop Pi Durable connection', () => {
       .filter((message) => message.role === 'assistant')
       .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
+  it('restores the pending Feishu root identity in the model request after reopening', async () => {
+    const channelContext = 'channel=feishu chat_id=oc_recovered chat_type=group'
+    input = { ...input, channelContext, headless: true }
+    mocks.prompt.mockImplementation(async ({ channelContext }) => ({
+      base: { kind: 'custom', content: `You are Cherry. ${channelContext ?? ''}` },
+      blocks: []
+    }))
+    const held = gate()
+    script = respondingModel(() => held.wait(assistantReply('unfinished')))
+    const first = await connect()
+    await first.connection.send({ message: message('resume this channel input') })
+    await held.reached
+    await first.connection.close()
+    input = { sessionId: input.sessionId, agentId: input.agentId, modelId }
+    setScript([assistantReply('recovered')])
+    const reopened = await connect()
+    await done(reopened.events, 10_000)
+    expect(text(reopened.events)).toContain('recovered')
+    expect(script.calls[0].systemPrompt).toContain(channelContext)
+    expect(mocks.prompt).toHaveBeenLastCalledWith(expect.objectContaining({ channelContext }))
+    expect(reopened.events.filter((event) => event.type === 'error')).toEqual([])
+    await reopened.connection.close()
+    input = { sessionId: input.sessionId, agentId: input.agentId, modelId }
+    const idle = await connect()
+    expect(mocks.prompt).toHaveBeenLastCalledWith(expect.objectContaining({ channelContext: undefined }))
+    expect(idle.connection['input'].channelContext).toBeUndefined()
+    held.open()
+  })
+
   it('passes the source-chat identity through to the desktop prompt', async () => {
     input.channelContext = 'channel=feishu chat_id=oc_123 chat_type=group'
     await connect()

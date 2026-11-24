@@ -110,7 +110,9 @@ export class DurableBackend {
         taskCursor = page.next
       } while (taskCursor)
       if (input.headless === undefined && root.nativeId && owner.pendingRoots.has(context.id)) {
-        input.permissionModeOverride = (await readDurableRequest(root.storage, root.nativeId))?.permissionModeOverride
+        const saved = await readDurableRequest(root.storage, root.nativeId)
+        input.permissionModeOverride = saved?.permissionModeOverride
+        input.channelContext = saved?.channelContext
       }
       await owner.prepare(input, context)
       storageOwned = false
@@ -189,6 +191,7 @@ export class DurableBackend {
       const saved = previous.input
       Object.assign(input, {
         modelId: saved.modelId,
+        channelContext: saved.channelContext,
         reasoningEffort: saved.reasoningEffort,
         serviceTier: saved.serviceTier,
         fastMode: saved.fastMode,
