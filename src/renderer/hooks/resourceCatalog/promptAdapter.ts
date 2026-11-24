@@ -1,7 +1,6 @@
 import { useCallback } from 'react'
 
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
-import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type {
   CreatePromptDto,
@@ -74,10 +73,7 @@ export function usePromptMutationsById(id: string) {
 }
 
 function getPromptBindingCollectionPath(target: PromptBindingTarget) {
-  return resolveTemplate('/prompt-bindings/:targetType/:targetId', {
-    targetType: target.type,
-    targetId: target.id
-  }) as ConcreteApiPaths
+  return `/prompt-bindings/${target.type}/${target.id}` as const
 }
 
 function getPromptBindingRefreshPaths(params: PromptBindingParams): ConcreteApiPaths[] {

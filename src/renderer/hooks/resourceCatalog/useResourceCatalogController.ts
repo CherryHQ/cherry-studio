@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
-import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
@@ -21,7 +20,6 @@ import type {
 import { serializeAssistantForExport, serializeAssistantsForExport } from '@renderer/utils/assistantTransfer'
 import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
-import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import { ASSISTANTS_MAX_LIMIT } from '@shared/data/api/schemas/assistants'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -195,10 +193,7 @@ export function useResourceCatalogController(
       try {
         const groupName = assistant.groupId ? groupById.get(assistant.groupId)?.name : undefined
 
-        const bindingPath = resolveTemplate('/prompt-bindings/:targetType/:targetId', {
-          targetType: 'assistant',
-          targetId: assistant.id
-        }) as ConcreteApiPaths
+        const bindingPath = `/prompt-bindings/assistant/${assistant.id}` as const
 
         const contextualPrompts = await dataApiService.get(bindingPath)
         const content = serializeAssistantForExport(assistant, contextualPrompts, groupName)
@@ -288,10 +283,7 @@ export function useResourceCatalogController(
 
         const entries = await Promise.all(
           grouped.map(async (entry) => {
-            const path = resolveTemplate('/prompt-bindings/:targetType/:targetId', {
-              targetType: 'assistant',
-              targetId: entry.assistant.id
-            }) as ConcreteApiPaths
+            const path = `/prompt-bindings/assistant/${entry.assistant.id}` as const
 
             const prompts = await dataApiService.get(path)
 
