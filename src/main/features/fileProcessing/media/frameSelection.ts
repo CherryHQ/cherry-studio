@@ -168,17 +168,18 @@ function selectDistributedScenes(
     }
     if (nearestIndex >= 0) {
       const anchor = anchors[nearestIndex]
-      // Replacing 0 or the end drops an endpoint a caller still has budget to keep.
-      if ((anchor === 0 || anchor === lastMs) && anchor < timestampMs) {
-        if (!allowNewScene) return false
-        scenes.push(timestampMs)
-        return true
-      }
-      if (anchor >= timestampMs) {
+      // A later anchor can miss a brief scene, so only an anchor on the cut itself covers it.
+      if (anchor === timestampMs) {
         covered = true
         // A lower-ranked cut must not move an anchor that already covers a higher-ranked cut.
         if (anchor !== 0 && anchor !== lastMs) claimedAnchors.add(nearestIndex)
         return false
+      }
+      // Replacing 0 or the end drops an endpoint a caller still has budget to keep.
+      if (anchor === 0 || anchor === lastMs) {
+        if (!allowNewScene) return false
+        scenes.push(timestampMs)
+        return true
       }
       // Ranked order is score-descending, so the first valid snap keeps the anchor.
       if (claimedAnchors.has(nearestIndex)) return false

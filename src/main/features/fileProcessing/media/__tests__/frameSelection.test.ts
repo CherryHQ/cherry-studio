@@ -158,7 +158,7 @@ describe('planAnalysisFrameTimestamps', () => {
     ).toEqual(planFrameTimestamps(3_000, 24, 4_000))
   })
 
-  it('keeps both ends when a near-end cut is already covered by the backbone', () => {
+  it('keeps both ends and samples a near-end cut that the end anchor follows', () => {
     expect(
       planAnalysisFrameTimestamps({
         durationMs: 3_000,
@@ -166,7 +166,7 @@ describe('planAnalysisFrameTimestamps', () => {
         targetIntervalMs: 4_000,
         sceneChanges: [{ timestampMs: 2_875, score: 1 }]
       })
-    ).toEqual([0, 2_950])
+    ).toEqual([0, 2_875, 2_950])
   })
 
   it('retains the start, a cut one scan sample later, and the end of a six-second clip', () => {
@@ -190,6 +190,20 @@ describe('planAnalysisFrameTimestamps', () => {
 
     expect(timestamps).toContain(8_050)
     expect(timestamps).not.toContain(7_975)
+    expect(timestamps.length).toBeLessThanOrEqual(5)
+    expect(timestamps[0]).toBe(0)
+    expect(timestamps.at(-1)).toBeGreaterThan(15_000)
+  })
+
+  it('samples a cut just before a later uniform anchor instead of trusting the anchor to show it', () => {
+    const timestamps = planAnalysisFrameTimestamps({
+      durationMs: 16_000,
+      maxFrames: 5,
+      targetIntervalMs: 4_000,
+      sceneChanges: [{ timestampMs: 7_880, score: 1 }]
+    })
+
+    expect(timestamps).toContain(7_880)
     expect(timestamps.length).toBeLessThanOrEqual(5)
     expect(timestamps[0]).toBe(0)
     expect(timestamps.at(-1)).toBeGreaterThan(15_000)
@@ -263,7 +277,7 @@ describe('planAnalysisFrameTimestamps', () => {
     expect(timestamps.length).toBeLessThanOrEqual(9)
   })
 
-  it('retains a covered internal anchor when a higher-ranked cut is within one sample before it', () => {
+  it('moves an internal anchor back onto a higher-ranked cut and keeps it from a lower-ranked one', () => {
     expect(
       planAnalysisFrameTimestamps({
         durationMs: 60_000,
@@ -277,7 +291,7 @@ describe('planAnalysisFrameTimestamps', () => {
           { timestampMs: 12_050, score: 0.4 }
         ]
       })
-    ).toEqual([0, 5_000, 11_990, 23_980, 30_000, 35_970, 47_960, 50_000, 59_950])
+    ).toEqual([0, 5_000, 11_880, 23_980, 30_000, 35_970, 47_960, 50_000, 59_950])
   })
 
   it('keeps the opening frame when a cut lands one scan sample after it', () => {
