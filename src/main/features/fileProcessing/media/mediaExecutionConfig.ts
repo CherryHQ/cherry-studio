@@ -7,10 +7,14 @@ import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
 import type { AppProviderSettingsMap } from '@main/ai/types'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import { describeVoiceModel } from '@main/ai/voice/localAdapters'
-import { resolveDefaultAsrModel } from '@main/ai/voice/voicePlatform'
+import { describeVoiceModel, resolveTranscriptionConfiguration } from '@main/ai/voice/localAdapters'
 import { resolveProcessorConfigByFeature } from '@main/features/fileProcessing/config/resolveProcessorConfig'
-import { isTranscriptionModelId, type LocalTranscriptionModelId } from '@shared/ai/localVoice'
+import { getAppLanguage } from '@main/i18n'
+import {
+  isTranscriptionModelId,
+  TranscriptionLanguageSource,
+  type LocalTranscriptionModelId
+} from '@shared/ai/localVoice'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { parseUniqueModelId, UniqueModelIdSchema, type UniqueModelId } from '@shared/data/types/model'
 import { isVideoVisionSelectableModel } from '@shared/utils/model'
@@ -55,27 +59,31 @@ export interface MediaExecutionConfig {
   pipelineVersion: typeof MEDIA_PIPELINE_VERSION
 }
 
-function resolveAsrExecutionConfig(): MediaAsrExecutionConfig | null {
+/** Selects ASR the way dictation does, without installing anything. */
+async function resolveAsrExecutionConfig(signal?: AbortSignal): Promise<MediaAsrExecutionConfig | null> {
   const preferences = application.get('PreferenceService')
   const rawModelId = preferences.get('feature.voice.recognition.model_id').trim()
   const explicit = rawModelId ? (isTranscriptionModelId(rawModelId) ? rawModelId : null) : undefined
   if (explicit === null) return null
 
-  const modelId = resolveDefaultAsrModel(
+  const rawLanguage = preferences.get('feature.voice.recognition.language').trim()
+  const preferenceLanguage = rawLanguage.toLowerCase() === 'auto' ? '' : rawLanguage
+  // A stale language must not void an explicit model that cannot take one.
+  const acceptsLanguage = !explicit || describeVoiceModel(explicit).model?.localeSelection != null
+  const resolved = await resolveTranscriptionConfiguration(
     {
-      platform: process.platform,
-      arch: process.arch,
-      majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion(), 10) : undefined
+      ...(explicit && { modelId: explicit }),
+      language:
+        preferenceLanguage && acceptsLanguage
+          ? { source: TranscriptionLanguageSource.Explicit, locale: preferenceLanguage }
+          : { source: TranscriptionLanguageSource.Interface, locale: Intl.getCanonicalLocales(getAppLanguage())[0] }
     },
-    explicit
+    signal
   )
-  if (!modelId) return null
-
-  const language = preferences.get('feature.voice.recognition.language').trim()
-  const acceptsLanguage = describeVoiceModel(modelId).model?.localeSelection != null
+  if (!resolved.modelId || (!explicit && resolved.status.status !== 'ready')) return null
   return {
-    modelId,
-    ...(language && acceptsLanguage ? { language } : {})
+    modelId: resolved.modelId,
+    ...(resolved.language?.source === TranscriptionLanguageSource.Explicit && { language: resolved.language.locale })
   }
 }
 
@@ -155,9 +163,9 @@ async function resolveVisionExecutionConfig(): Promise<MediaVisionExecutionConfi
   }
 }
 
-export async function resolveMediaExecutionConfig(): Promise<MediaExecutionConfig> {
+export async function resolveMediaExecutionConfig(signal?: AbortSignal): Promise<MediaExecutionConfig> {
   return {
-    asr: resolveAsrExecutionConfig(),
+    asr: await resolveAsrExecutionConfig(signal),
     ocr: resolveOcrExecutionConfig(),
     vision: await resolveVisionExecutionConfig(),
     budget: { ...DEFAULT_MEDIA_FRAME_BUDGET },

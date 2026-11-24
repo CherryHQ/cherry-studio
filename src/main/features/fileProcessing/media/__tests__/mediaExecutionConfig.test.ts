@@ -1,6 +1,12 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID, QWEN3_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID } from '@shared/ai/localVoice'
+import {
+  APPLE_ASR_MODEL_ID,
+  FUNASR_MODEL_ID,
+  QWEN3_ASR_MODEL_ID,
+  VoiceModelSupport,
+  WINDOWS_ASR_MODEL_ID
+} from '@shared/ai/localVoice'
 
 import { MEDIA_PIPELINE_VERSION } from '../types'
 
@@ -31,6 +37,10 @@ vi.mock('@main/ai/provider/endpoint', () => ({ resolveEffectiveEndpoint: state.r
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { appleTranscriptionDefinition } from '@main/ai/voice/localAdapters/apple'
+import { funAsrTranscriptionDefinition } from '@main/ai/voice/localAdapters/funasr'
+import { qwen3AsrTranscriptionDefinition } from '@main/ai/voice/localAdapters/qwen3Asr'
+import { windowsTranscriptionDefinition } from '@main/ai/voice/localAdapters/windows'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import {
@@ -48,6 +58,15 @@ beforeEach(() => {
   state.preferences.set('feature.file_processing.default_video_vision_model', null)
   state.preferences.set('feature.voice.recognition.model_id', '')
   state.preferences.set('feature.voice.recognition.language', '')
+  state.preferences.set('app.language', 'en-US')
+  for (const definition of [
+    appleTranscriptionDefinition,
+    windowsTranscriptionDefinition,
+    funAsrTranscriptionDefinition,
+    qwen3AsrTranscriptionDefinition
+  ]) {
+    vi.spyOn(definition, 'status').mockResolvedValue({ status: 'ready' })
+  }
   state.resolveProcessor.mockReset().mockImplementation(() => {
     throw new Error('no OCR configured')
   })
@@ -56,11 +75,42 @@ beforeEach(() => {
   if (originalArch) Object.defineProperty(process, 'arch', originalArch)
 })
 
+afterEach(() => vi.restoreAllMocks())
+
 describe('resolveMediaExecutionConfig', () => {
   it('uses the platform default ASR without writing a temporary preference', async () => {
     const config = await resolveMediaExecutionConfig()
-    expect(config.asr).toEqual({ modelId: APPLE_ASR_MODEL_ID })
+    expect(config.asr).toEqual({ modelId: APPLE_ASR_MODEL_ID, language: 'en-US' })
     expect(state.preferences.get('feature.voice.recognition.model_id')).toBe('')
+  })
+
+  it('transcribes in the interface language when no recognition language is set', async () => {
+    state.preferences.set('app.language', 'ja-JP')
+
+    expect((await resolveMediaExecutionConfig()).asr).toEqual({ modelId: APPLE_ASR_MODEL_ID, language: 'ja-JP' })
+  })
+
+  it('falls back to a ready local recognizer when the system one lacks its language resource', async () => {
+    vi.spyOn(appleTranscriptionDefinition, 'status').mockResolvedValue({
+      status: 'not_installed',
+      reason: 'asset_required'
+    })
+    vi.spyOn(funAsrTranscriptionDefinition, 'support').mockReturnValue(VoiceModelSupport.Supported)
+
+    expect((await resolveMediaExecutionConfig()).asr).toEqual({ modelId: FUNASR_MODEL_ID })
+  })
+
+  it('skips automatic ASR when no recognizer is ready', async () => {
+    vi.spyOn(appleTranscriptionDefinition, 'status').mockResolvedValue({
+      status: 'not_installed',
+      reason: 'asset_required'
+    })
+    vi.spyOn(funAsrTranscriptionDefinition, 'status').mockResolvedValue({
+      status: 'not_installed',
+      reason: 'model_required'
+    })
+
+    expect((await resolveMediaExecutionConfig()).asr).toBeNull()
   })
 
   it('forwards language to Apple ASR and omits it for FunASR', async () => {
@@ -93,7 +143,7 @@ describe('resolveMediaExecutionConfig', () => {
   it('uses the Windows x64 and Linux x64 platform defaults', async () => {
     Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
     Object.defineProperty(process, 'arch', { configurable: true, value: 'x64' })
-    expect((await resolveMediaExecutionConfig()).asr).toEqual({ modelId: WINDOWS_ASR_MODEL_ID })
+    expect((await resolveMediaExecutionConfig()).asr).toEqual({ modelId: WINDOWS_ASR_MODEL_ID, language: 'en-US' })
 
     Object.defineProperty(process, 'platform', { configurable: true, value: 'linux' })
     expect((await resolveMediaExecutionConfig()).asr).toEqual({ modelId: FUNASR_MODEL_ID })
@@ -128,7 +178,7 @@ describe('resolveMediaExecutionConfig', () => {
     const config = await resolveMediaExecutionConfig()
 
     expect(config.vision).toBeNull()
-    expect(config.asr).toEqual({ modelId: APPLE_ASR_MODEL_ID })
+    expect(config.asr).toEqual({ modelId: APPLE_ASR_MODEL_ID, language: 'en-US' })
   })
 
   it('refreshes vision pricing per invocation while retaining the serving credential', async () => {

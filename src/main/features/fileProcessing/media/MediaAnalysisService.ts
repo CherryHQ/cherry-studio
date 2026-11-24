@@ -72,7 +72,7 @@ export class MediaAnalysisService extends BaseService {
 
   async analyze(file: FileHandle, signal?: AbortSignal): Promise<MediaAnalysis> {
     signal?.throwIfAborted()
-    const execution = await resolveMediaExecutionConfig()
+    const execution = await resolveMediaExecutionConfig(signal)
     const fileInfo = await resolveFileProcessingFileInfo(file)
     const fileIdentity =
       file.kind === 'entry'
