@@ -4,6 +4,7 @@ import { preferenceService } from '@data/PreferenceService'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
+import { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 
 import {
   exportMessageAsMarkdown,
@@ -105,7 +106,7 @@ function generateImageDeferredPart(toolCallId = 'call-1') {
     state: 'output-available',
     input: {},
     output: {
-      $deferredToolResult: { topicId: 'agent-session:s1', messageId: 'm1', toolCallId }
+      $deferredToolResult: { topicId: 'agent-session:s1', messageId: 'm1', toolCallId, revision: 'projection-1' }
     }
   }
 }
@@ -241,18 +242,21 @@ describe('collectExportableImages', () => {
     expect(refs.map((r) => r.key)).toEqual(['file:///data/Files/a.png', 'file:///data/Files/b.png'])
   })
 
-  it('recognizes the mcp-prefixed agent generate_image tool name', async () => {
-    mockPhysicalPaths({ 'gen-9': '/data/Files/gen-9.png' })
-    const part = {
-      ...generateImagePart([{ id: 'gen-9', name: 'a.png' }]),
-      type: 'tool-mcp__cherry-tools__generate_image'
+  it.each(['tool-mcp__cherry-tools__generate_image', 'tool-mcp__cherry_tools__generate_image'])(
+    'exports images from the supported agent tool %s',
+    async (type) => {
+      mockPhysicalPaths({ 'gen-9': '/data/Files/gen-9.png' })
+      const part = {
+        ...generateImagePart([{ id: 'gen-9', name: 'a.png' }]),
+        type
+      }
+      const message = view([part], 'assistant')
+
+      const { refs } = await collectExportableImages([message])
+
+      expect(refs).toEqual([{ key: 'gen-9', url: 'file:///data/Files/gen-9.png', filename: 'a.png' }])
     }
-    const message = view([part], 'assistant')
-
-    const { refs } = await collectExportableImages([message])
-
-    expect(refs).toEqual([{ key: 'gen-9', url: 'file:///data/Files/gen-9.png', filename: 'a.png' }])
-  })
+  )
 
   it('collects MCP inline generate_image payloads as data URLs (render parity)', async () => {
     const raw = PNG_1PX.slice('data:image/png;base64,'.length)
@@ -285,6 +289,27 @@ describe('collectExportableImages', () => {
 
     expect(unresolvedCount).toBe(0)
     expect(refs).toEqual([{ key: PNG_1PX, url: PNG_1PX, filename: undefined, mime: 'image/png' }])
+  })
+
+  it.each([undefined, '', 42])('keeps valid image siblings and the PNG fallback when MIME is %#', async (mimeType) => {
+    const part = {
+      ...generateImageInlinePart([]),
+      output: {
+        content: [
+          null,
+          { type: 'text', text: 'caption' },
+          { type: 'image', data: PNG_1PX_RAW, mimeType },
+          { type: 'image', data: '' },
+          { type: 'image', data: false },
+          { type: 'image', data: GIF_1PX.slice(GIF_1PX.indexOf(',') + 1), mimeType: 'image/gif' }
+        ]
+      }
+    }
+
+    const { refs, unresolvedCount } = await collectExportableImages([view([part], 'assistant')])
+
+    expect(refs.map((ref) => ref.url)).toEqual([PNG_1PX, GIF_1PX])
+    expect(unresolvedCount).toBe(0)
   })
 
   it('does not export an errored MCP inline result as an image', async () => {
@@ -326,25 +351,32 @@ describe('collectExportableImages', () => {
 // --- hydrateDeferredImageOutputs ---
 
 describe('hydrateDeferredImageOutputs', () => {
-  it('resolves a deferred generate_image ref into the stored output', async () => {
-    ipcApiRequest.mockResolvedValueOnce({
-      ok: true,
-      data: { found: true, output: { content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }] } }
-    })
-    const message = view([generateImageDeferredPart()], 'assistant')
+  it.each(['tool-mcp__cherry-tools__generate_image', 'tool-mcp__cherry_tools__generate_image'])(
+    'resolves a projected deferred image output for %s through the strict IPC contract',
+    async (type) => {
+      ipcApiRequest.mockImplementationOnce(async (_route, input) => {
+        aiRequestSchemas['ai.tool.get_result'].input.parse(input)
 
-    const { messages, unresolvedCount } = await hydrateDeferredImageOutputs([message])
+        return {
+          ok: true,
+          data: { found: true, output: { content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }] } }
+        }
+      })
+      const message = view([{ ...generateImageDeferredPart(), type }], 'assistant')
 
-    expect(unresolvedCount).toBe(0)
-    expect(ipcApiRequest).toHaveBeenCalledWith('ai.tool.get_result', {
-      topicId: 'agent-session:s1',
-      messageId: 'm1',
-      toolCallId: 'call-1'
-    })
-    expect(messages[0].parts?.[0]).toHaveProperty('output.content', [
-      { type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }
-    ])
-  })
+      const { messages, unresolvedCount } = await hydrateDeferredImageOutputs([message])
+
+      expect(unresolvedCount).toBe(0)
+      expect(ipcApiRequest).toHaveBeenCalledWith('ai.tool.get_result', {
+        topicId: 'agent-session:s1',
+        messageId: 'm1',
+        toolCallId: 'call-1'
+      })
+      expect(messages[0].parts?.[0]).toHaveProperty('output.content', [
+        { type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }
+      ])
+    }
+  )
 
   it('counts an unresolvable ref, keeps the marker part, and leaves other messages untouched', async () => {
     ipcApiRequest.mockResolvedValueOnce({ ok: true, data: { found: false } })

@@ -1,5 +1,6 @@
 import { type DynamicToolUIPart, getToolName, isToolUIPart, type ToolUIPart } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
+import * as z from 'zod'
 
 /**
  * Multimodal image support for Markdown file exports.
@@ -26,7 +27,7 @@ import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, fileUrlToPath, toFileUrl } from '@shared/utils/file'
 
 const logger = loggerService.withContext('MarkdownImageExport')
@@ -36,7 +37,19 @@ export type ImageExportMode = 'embed' | 'folder' | 'none'
 /** Base64 inline payloads beyond this size bloat the .md past ~13 MiB of text. */
 const MAX_EMBED_IMAGE_BYTES = 10 * 1024 * 1024
 
-const AGENT_GENERATE_IMAGE_TOOL_NAME = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAME}`
+const GENERATE_IMAGE_TOOL_NAMES = new Set([
+  GENERATE_IMAGE_TOOL_NAME,
+  `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAME}`,
+  `mcp__cherry_tools__${GENERATE_IMAGE_TOOL_NAME}`
+])
+
+type AvailableImageToolPart = Extract<ToolUIPart | DynamicToolUIPart, { state: 'output-available' }>
+
+const inlineImageSchema = z.object({
+  type: z.literal('image'),
+  data: z.string().min(1),
+  mimeType: z.string().optional().catch(undefined)
+})
 
 export type ExportableImageRef = {
   /** Dedup key: fileEntryId when known, else the part url. */
@@ -100,14 +113,15 @@ export async function hydrateDeferredImageOutputs(
       if (!isDeferredToolOutput(output)) continue
 
       try {
-        const response = await ipcApi.request('ai.tool.get_result', output.$deferredToolResult)
+        const { topicId, messageId, toolCallId } = output.$deferredToolResult
+        const response = await ipcApi.request('ai.tool.get_result', { topicId, messageId, toolCallId })
 
         if (!response.found) {
           throw new Error(`Tool result is no longer available: ${output.$deferredToolResult.toolCallId}`)
         }
 
         messageParts ??= [...parts]
-        messageParts[partIndex] = { ...part, output: response.output } as (typeof parts)[number]
+        messageParts[partIndex] = { ...part, output: response.output }
       } catch (error) {
         unresolvedCount += 1
         logger.warn('Failed to resolve a deferred generate_image output, skipping it', { error })
@@ -135,11 +149,11 @@ async function resolvePhysicalPath(id: string): Promise<AbsoluteFilePath> {
   return path
 }
 
-function isGenerateImageToolPart(part: CherryMessagePart): part is ToolUIPart | DynamicToolUIPart {
+function isGenerateImageToolPart(part: CherryMessagePart): part is AvailableImageToolPart {
   if (!isToolUIPart(part) || part.state !== 'output-available') return false
   const toolName = getToolName(part).trim()
 
-  return toolName === GENERATE_IMAGE_TOOL_NAME || toolName === AGENT_GENERATE_IMAGE_TOOL_NAME
+  return GENERATE_IMAGE_TOOL_NAMES.has(toolName)
 }
 
 /**
@@ -149,7 +163,7 @@ function isGenerateImageToolPart(part: CherryMessagePart): part is ToolUIPart | 
  */
 type GenerateImageItem = { key: string; entryId?: string; url?: string; filename?: string; mime?: string }
 
-function parseGenerateImageItems(part: ToolUIPart | DynamicToolUIPart): GenerateImageItem[] {
+function parseGenerateImageItems(part: AvailableImageToolPart): GenerateImageItem[] {
   const output = part.output
 
   // An error result carries its explanation as content — check before the unwrap,
@@ -158,7 +172,8 @@ function parseGenerateImageItems(part: ToolUIPart | DynamicToolUIPart): Generate
     typeof output === 'object' &&
     output !== null &&
     !Array.isArray(output) &&
-    (output as { isError?: unknown }).isError === true
+    'isError' in output &&
+    output.isError === true
   ) {
     return []
   }
@@ -172,19 +187,22 @@ function parseGenerateImageItems(part: ToolUIPart | DynamicToolUIPart): Generate
 
   // extractOutputMetadata unwraps `{content: [...]}` into the array itself unless
   // mcp metadata keeps the envelope — accept both shapes.
-  const content = Array.isArray(response) ? response : (response as { content?: unknown } | null | undefined)?.content
+  const content = Array.isArray(response)
+    ? response
+    : response && typeof response === 'object' && 'content' in response
+      ? response.content
+      : undefined
 
   if (!Array.isArray(content)) return []
 
   return content.flatMap((item) => {
-    if (item?.type === 'image' && typeof item.data === 'string' && item.data) {
-      const mime = typeof item.mimeType === 'string' && item.mimeType ? item.mimeType : 'image/png'
-      const url = `data:${mime};base64,${item.data}`
+    const parsed = inlineImageSchema.safeParse(item)
 
-      return [{ key: url, url, mime }]
-    }
+    if (!parsed.success) return []
+    const mime = parsed.data.mimeType || 'image/png'
+    const url = `data:${mime};base64,${parsed.data.data}`
 
-    return []
+    return [{ key: url, url, mime }]
   })
 }
 
@@ -310,8 +328,7 @@ function imageExtension(ref: ExportableImageRef, mime: string | undefined): stri
 // single-line link matcher in ExportService.
 const altText = (ref: ExportableImageRef): string => (ref.filename ?? 'image').replace(/[[\]\r\n]/g, '')
 
-const filePathOfUrl = (url: string): AbsoluteFilePath =>
-  AbsoluteFilePathSchema.parse(fileUrlToPath(url as FileUrlString))
+const filePathOfUrl = (url: string): AbsoluteFilePath => AbsoluteFilePathSchema.parse(fileUrlToPath(new URL(url)))
 
 // Stat file:// sources so an over-limit image skips without the full read; unknown
 // size falls through to the read path, whose blob.size check stays authoritative.
