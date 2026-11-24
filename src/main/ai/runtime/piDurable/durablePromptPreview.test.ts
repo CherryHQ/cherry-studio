@@ -162,12 +162,13 @@ describe('previewAgentSystemPrompt', () => {
       workspace: { type: 'user', workspaceId: workspace.id },
       model: sessionModel
     })
+    const device = ({ darwin: 'mac', win32: 'windows' } as Record<string, string>)[os.platform()] ?? 'linux'
     const instructions = 'Edit the draft for {{system}} on {{model_name}}.'
     const draft: AgentPromptInstructionsDraft = { instructions, agentId: agent.id, modelId: model }
     await expect(resolveAgentPromptInstructions({ ...draft, sessionId: session.id })).resolves.toBe(
-      `Edit the draft for ${os.platform()} on Session model.`
+      `Edit the draft for ${device} on Session model.`
     )
-    await expect(resolveAgentPromptInstructions(draft)).resolves.toBe(`Edit the draft for ${os.platform()} on Test.`)
+    await expect(resolveAgentPromptInstructions(draft)).resolves.toBe(`Edit the draft for ${device} on Test.`)
   })
 
   it.each(['pi', 'claude-code'] as const)('previews the editable guidance for %s', async (agentType) => {

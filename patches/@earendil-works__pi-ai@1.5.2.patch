@@ -378,8 +378,9 @@ index 9c19bb0fd38cc51e814d3680e8e06519908874b5..0fcbb1efce45f566ac45ab30d7287a70
 @@ -35,3 +35,4 @@ export { uuidv7 } from "./utils/uuid.ts";
  export * from "./utils/validation.ts";
  export { PI_AI_VERSION } from "./utils/version.ts";
- //# sourceMappingURL=index.d.ts.map
 +export { retainNestedToolCall } from "./nested-tool-records.js";
+ //# sourceMappingURL=index.d.ts.map
+\ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
 index a45b61643634b192fb41453b8869e1be3eaab658..c2489650e1f12845cfe6ea5d033f5bd4dd384943 100644
 --- a/dist/index.js
@@ -387,8 +388,9 @@ index a45b61643634b192fb41453b8869e1be3eaab658..c2489650e1f12845cfe6ea5d033f5bd4
 @@ -23,3 +23,4 @@ export { uuidv7 } from "./utils/uuid.js";
  export * from "./utils/validation.js";
  export { PI_AI_VERSION } from "./utils/version.js";
- //# sourceMappingURL=index.js.map
 +export { retainNestedToolCall } from "./nested-tool-records.js";
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file
 diff --git a/dist/models.js b/dist/models.js
 index c61de8788a8f8d1a5921823360cbfbbac7814921..2a953e5bf246d590df96f9f2da60cd30adc9d03f 100644
 --- a/dist/models.js
@@ -645,8 +647,9 @@ index 6dcca6eff16b95b83e047a6e27b65d9d7694bf2c..0b56a9ffff6251cadfaecea62a6d8c74
 @@ -15,3 +15,4 @@ export declare function estimateTextAndImageContentTokens(content: string | Arra
  export declare function estimateMessageTokens(message: Message): number;
  export declare function estimateContextTokens(context: TranscriptContext | readonly Message[]): ContextUsageEstimate;
- //# sourceMappingURL=estimate.d.ts.map
 +export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
+ //# sourceMappingURL=estimate.d.ts.map
+\ No newline at end of file
 diff --git a/dist/utils/estimate.js b/dist/utils/estimate.js
 index 45be26d820bb38ab85340e7afb8cb4682db2e6b7..cfaf2b004031ddc6fe136b424b4d60c0a498612e 100644
 --- a/dist/utils/estimate.js
