@@ -390,16 +390,19 @@ function modelName(id: string): string {
 
 /** Around the first difference, for two texts whose shortened forms read the same. */
 function differingExcerpts(before: string, after: string): [string, string] {
-  const a = before.replace(/\s+/g, ' ').trim()
-  const b = after.replace(/\s+/g, ' ').trim()
-  let index = 0
-  while (index < a.length && a[index] === b[index]) index++
-  const start = Math.max(0, index - 20)
-  const excerpt = (text: string) => {
-    const end = start + SUMMARY_TEXT_MAX_LENGTH
-    return `${start > 0 ? '…' : ''}${text.slice(start, end) || t('agent.config_tool.value.none')}${end < text.length ? '…' : ''}`
+  const excerpts = (a: string, b: string, show: (text: string) => string): [string, string] => {
+    let index = 0
+    while (index < a.length && a[index] === b[index]) index++
+    const start = Math.max(0, index - 20)
+    const excerpt = (text: string) => {
+      const end = start + SUMMARY_TEXT_MAX_LENGTH
+      return `${start > 0 ? '…' : ''}${show(text.slice(start, end)) || t('agent.config_tool.value.none')}${end < text.length ? '…' : ''}`
+    }
+    return [excerpt(a), excerpt(b)]
   }
-  return [excerpt(a), excerpt(b)]
+  const collapsed = excerpts(before.replace(/\s+/g, ' ').trim(), after.replace(/\s+/g, ' ').trim(), String)
+  // A whitespace-only edit collapses to the same text, so show the raw characters, escaped.
+  return collapsed[0] === collapsed[1] ? excerpts(before, after, (text) => JSON.stringify(text)) : collapsed
 }
 
 function displayValue(field: SummaryField, form: AgentFormState): string {
@@ -462,11 +465,14 @@ function describeChanges(before: AgentFormState, after: AgentFormState): string[
   })
 }
 
-/** Long texts in full, so an approval can be checked beyond the shortened summary line. */
+/** Texts in full whenever the summary line shortened or reflowed them, so an approval can compare the real values. */
 function fullTextChanges(before: AgentFormState, after: AgentFormState) {
-  return (['description', 'instructions'] as const)
+  return (['name', 'description', 'instructions'] as const)
     .filter((field) => before[field] !== after[field])
-    .filter((field) => Math.max(before[field].length, after[field].length) > SUMMARY_TEXT_MAX_LENGTH)
+    .filter((field) => {
+      const shownAsIs = (form: AgentFormState) => !form[field] || displayValue(field, form) === form[field]
+      return !shownAsIs(before) || !shownAsIs(after)
+    })
     .map((field) => ({ field: FIELD_LABEL[field](), from: before[field], to: after[field] }))
 }
 

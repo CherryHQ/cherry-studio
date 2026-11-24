@@ -460,6 +460,22 @@ describe('Agent create and configure tools', () => {
       expect(to).toContain('French')
     })
 
+    // Catches a whitespace-only edit whose summary reads the same on both sides and offers no full text to compare.
+    it('shows a whitespace-only prompt edit and offers both full texts', () => {
+      seedAgent('target', { instructions: 'Use:\n  print(1)' })
+
+      const preview = previewAgentConfigChange(
+        pendingApproval('mcp__assistant__update_agent', { agentId: 'target', instructions: 'Use:\nprint(1)' })
+      )
+
+      expect(preview).toMatchObject({
+        ok: true,
+        details: [{ field: 'System Prompt', from: 'Use:\n  print(1)', to: 'Use:\nprint(1)' }]
+      })
+      const [, from, to] = /^System Prompt: (.*) → (.*)$/.exec((preview as { summary: string[] }).summary[0]) ?? []
+      expect(from).not.toBe(to)
+    })
+
     // Catches a model switch that looks like a no-op because both models share a display name.
     it('tells apart two models that share a display name', () => {
       dbh.db
