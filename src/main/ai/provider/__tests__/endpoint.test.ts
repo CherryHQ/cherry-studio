@@ -369,7 +369,7 @@ describe('resolveEffectiveEndpoint', () => {
       const provider = makeProvider({
         id: preset.id,
         presetProviderId: preset.id,
-        defaultChatEndpoint: preset.defaultChatEndpoint,
+        defaultChatEndpoint: preset.defaultChatEndpoint ?? undefined,
         endpointConfigs: preset.endpointConfigs
       })
       const model = makeModel({ apiModelId, endpointTypes: offer.endpointTypes })
