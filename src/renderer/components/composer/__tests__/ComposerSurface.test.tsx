@@ -1,7 +1,8 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Editor } from '@tiptap/core'
+import { Editor, getSchema } from '@tiptap/core'
+import { NodeSelection } from '@tiptap/pm/state'
 import { Mapping } from '@tiptap/pm/transform'
 import type * as TiptapReact from '@tiptap/react'
 import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
@@ -3231,13 +3232,11 @@ describe('ComposerSurface', () => {
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
-    mocks.selection = {
-      empty: false,
-      from: 1,
-      to: 2,
-      node: { type: { name: 'composerToken' } },
-      $from: { nodeBefore: null }
-    }
+    const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+    const schema = getSchema(createComposerEditorPreset())
+    const token = schema.nodes.composerToken.create({ id: 'file:one', kind: 'file', label: 'one.txt' })
+    const doc = schema.nodes.doc.create(null, schema.nodes.paragraph.create(null, token))
+    mocks.selection = NodeSelection.create(doc, 1)
     const event = {
       key: 'Backspace',
       isComposing: false,

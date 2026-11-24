@@ -12,9 +12,8 @@ export const ACTIVE_COMPOSER_INPUT_TOKEN_KINDS = COMPOSER_INPUT_TOKEN_KINDS
 
 export type ActiveComposerInputTokenKind = ComposerInputTokenKind
 
-export interface ComposerDraftToken {
+interface ComposerTokenFields {
   id: string
-  kind: ComposerDraftTokenKind
   label: string
   icon?: string
   description?: string
@@ -22,11 +21,15 @@ export interface ComposerDraftToken {
   payload?: unknown
 }
 
-export type ActiveComposerInputToken = ComposerDraftToken & { kind: ActiveComposerInputTokenKind }
+export type ComposerDraftToken = {
+  [Kind in ComposerDraftTokenKind]: ComposerTokenFields & { kind: Kind }
+}[ComposerDraftTokenKind]
 
-export type PromptVariableComposerInputToken = ActiveComposerInputToken & { kind: 'promptVariable' }
+export type ActiveComposerInputToken = Extract<ComposerDraftToken, { kind: ActiveComposerInputTokenKind }>
 
-export interface ComposerSerializedToken extends ComposerDraftToken {
+export type PromptVariableComposerInputToken = Extract<ComposerDraftToken, { kind: 'promptVariable' }>
+
+export type ComposerSerializedToken = ComposerDraftToken & {
   index: number
   textOffset: number
 }

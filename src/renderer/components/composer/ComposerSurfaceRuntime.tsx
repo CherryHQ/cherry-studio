@@ -1,4 +1,4 @@
-import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
+import { isNodeSelection, type JSONContent, type TiptapEditorHTMLElement } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
@@ -395,9 +395,7 @@ function setComposerEditorContent(
 
 function hasComposerTokenBeforeSelection(editor: Editor) {
   const selection = editor.state.selection
-  const selectedNode = (selection as { node?: { type?: { name?: string } } }).node
-
-  if (selectedNode?.type?.name === COMPOSER_TOKEN_NODE_NAME) return true
+  if (isNodeSelection(selection) && selection.node.type.name === COMPOSER_TOKEN_NODE_NAME) return true
 
   if (!selection.empty) return false
 
@@ -467,17 +465,14 @@ function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
   editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertComposerLines(content).run()
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type -- File-token reconciliation preserves opaque extension fields; only the object container and path are checked here.
-function readComposerPayloadObject(payload: unknown): Record<string, unknown> | null {
-  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null
-
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The container guard leaves extension-owned values unknown until their consumers validate them.
-  return payload as Record<string, unknown>
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- File-token reconciliation preserves extension-owned fields; only the object container is checked here.
+function isComposerPayloadObject(payload: unknown): payload is Record<string, unknown> {
+  return typeof payload === 'object' && payload !== null && !Array.isArray(payload)
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted file-token payloads can drift; reconcile only an actual string path from the checked object.
 function readComposerPayloadPath(payload: unknown): string | undefined {
-  const payloadObject = readComposerPayloadObject(payload)
+  const payloadObject = isComposerPayloadObject(payload) ? payload : undefined
   const path = payloadObject?.path
 
   return typeof path === 'string' ? path : undefined
@@ -500,8 +495,8 @@ function mergeLiveFileTokenPayload(
   return {
     ...token,
     payload: {
-      ...readComposerPayloadObject(liveToken.payload),
-      ...readComposerPayloadObject(token.payload),
+      ...(isComposerPayloadObject(liveToken.payload) ? liveToken.payload : null),
+      ...(isComposerPayloadObject(token.payload) ? token.payload : null),
       path: livePath
     }
   }
@@ -1627,7 +1622,7 @@ export default function ComposerSurfaceRuntime({
 
       if (currentToken.kind !== 'file') return undefined
 
-      const fileToken = currentToken as ComposerDraftToken & { kind: 'file' }
+      const fileToken = currentToken
       const pastedTextToken = isPastedTextFileMetadata(fileToken.payload) ? fileToken : undefined
 
       return (
@@ -1986,7 +1981,8 @@ export default function ComposerSurfaceRuntime({
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
       const pastedHtml = event.clipboardData?.getData('text/html') || ''
       fitContentHeight()
-      const editor = (view.dom as TiptapEditorHTMLElement).editor
+      const editorDom: TiptapEditorHTMLElement = view.dom
+      const editor = editorDom.editor
       const shouldDelegateToFileHandler = shouldHandleClipboardFiles(event.clipboardData, supportedExts)
       const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
 

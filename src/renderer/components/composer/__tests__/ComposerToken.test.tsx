@@ -1315,10 +1315,41 @@ describe('ComposerToken', () => {
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
-  it('rejects unsupported token kinds', () => {
-    expect(() =>
-      render(<ComposerToken token={{ id: 'command:run', kind: 'command', label: 'Run' } as never} />)
-    ).toThrow()
+  it('preserves a command token through its custom renderer and draft serialization', async () => {
+    const command: ComposerDraftToken = {
+      id: 'command:audit',
+      kind: 'command',
+      label: 'Run audit',
+      promptText: '/audit',
+      payload: { commandId: 'audit', options: { mode: 'read-only' } }
+    }
+    let currentEditor: Editor | null = null
+
+    function CommandEditor() {
+      const editor = useEditor({
+        extensions: createComposerEditorPreset({
+          renderToken: (token) => (token.kind === 'command' ? <span>{token.label}</span> : undefined)
+        }),
+        content: {
+          type: 'doc',
+          content: [{ type: 'paragraph', content: [{ type: COMPOSER_TOKEN_NODE_NAME, attrs: command }] }]
+        }
+      })
+
+      useEffect(() => {
+        currentEditor = editor
+      }, [editor])
+
+      return <EditorContent editor={editor} />
+    }
+
+    render(<CommandEditor />)
+    expect(await screen.findByText('Run audit')).toBeVisible()
+    await waitFor(() => expect(currentEditor).not.toBeNull())
+
+    const draft = serializeComposerDocument(currentEditor!)
+    expect(draft.tokens).toHaveLength(1)
+    expect(draft.tokens[0]).toMatchObject(command)
   })
 
   it('does not render a prompt variable input unless the token is editing', () => {

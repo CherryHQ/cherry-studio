@@ -6,7 +6,7 @@ import { type ReactNode, useCallback, useLayoutEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type PromptVariableCommitReason, PromptVariableToken } from './PromptVariableToken'
-import type { ActiveComposerInputToken, ComposerDraftToken, PromptVariableComposerInputToken } from './tokens'
+import type { ActiveComposerInputToken, ComposerDraftToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 import { ComposerToken, FileComposerToken } from './tokenView'
 
@@ -16,6 +16,12 @@ export const COMPOSER_PROMPT_VARIABLE_EDIT_EVENT = 'composer-prompt-variable-edi
 export interface ComposerPromptVariableEditEventDetail {
   tokenId: string
   position?: number
+}
+
+declare global {
+  interface HTMLElementEventMap {
+    [COMPOSER_PROMPT_VARIABLE_EDIT_EVENT]: CustomEvent<ComposerPromptVariableEditEventDetail>
+  }
 }
 
 export function requestComposerPromptVariableEdit(
@@ -114,8 +120,8 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
   useLayoutEffect(() => {
     if (token.kind !== 'promptVariable') return
 
-    const handlePromptVariableEdit = (event: Event) => {
-      const detail = (event as CustomEvent<ComposerPromptVariableEditEventDetail>).detail
+    const handlePromptVariableEdit = (event: CustomEvent<ComposerPromptVariableEditEventDetail>) => {
+      const detail = event.detail
 
       if (isPromptVariableEditRequestForCurrentNode(detail)) setPromptVariableEditing(true)
     }
@@ -242,7 +248,7 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
     props.renderToken?.(token, { selected: props.selected, nodeViewProps: props }) ??
     (token.kind === 'promptVariable' ? (
       <PromptVariableToken
-        token={token as PromptVariableComposerInputToken}
+        token={token}
         selected={props.selected}
         editing={isPromptVariableEditing}
         onCommit={finishPromptVariableEdit}
@@ -254,14 +260,17 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
       />
     ) : token.kind === 'file' ? (
       <FileComposerToken
-        token={token as ActiveComposerInputToken}
+        token={token}
         selected={props.selected}
         onRemove={removeCurrentToken}
         removeLabel={t('common.delete')}
       />
     ) : (
       <ComposerToken
-        token={token as ActiveComposerInputToken}
+        token={
+          // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Custom renderers may handle command tokens; unhandled commands retain the existing unsupported default-renderer failure.
+          token as ActiveComposerInputToken
+        }
         selected={props.selected}
         onRemove={removeCurrentToken}
         removeLabel={t('common.delete')}
