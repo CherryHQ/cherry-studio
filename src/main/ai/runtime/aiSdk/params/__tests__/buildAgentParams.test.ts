@@ -81,7 +81,7 @@ describe('buildAgentParams provider resolution', () => {
     const model = makeModel({
       apiModelId: 'deepseek-v4-pro',
       endpointTypes: offer.endpointTypes,
-      capabilities: ['function-call', 'web-search']
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     })
     preferenceGetMock.mockImplementation((key) => (key === 'chat.web_search.model_tools_preferred' ? true : null))
     resolveProviderAiSdkConfigMock.mockResolvedValue({

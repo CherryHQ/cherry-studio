@@ -93,3 +93,13 @@ export function resolveEffectiveEndpointType(
     provider.defaultChatEndpoint
   return { endpointType, gatewayRoute }
 }
+
+/** Candidate protocol for enabled native search; callers retain the chat default for client-only search. */
+export function resolveSearchEndpointType(provider: Provider, model: Model): EndpointType | undefined {
+  const preferred =
+    (provider.presetProviderId ?? provider.id) === 'qwencloud' &&
+    model.endpointTypes?.[0] === ENDPOINT_TYPE.OPENAI_RESPONSES
+      ? ENDPOINT_TYPE.OPENAI_RESPONSES
+      : undefined
+  return resolveEffectiveEndpointType(provider, model, preferred).endpointType
+}

@@ -31,6 +31,7 @@ import {
 } from '@shared/data/types/assistant'
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { resolveSearchEndpointType } from '@shared/utils/endpointResolution'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import {
   finalizeWebToolRoutes,
@@ -139,10 +140,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const defaultEndpoint = resolveEffectiveEndpoint(provider, model)
   // Native search on these Qwen offers is Responses-only; ordinary chat keeps its configured default.
   const searchEndpoint =
-    assistant?.settings.enableWebSearch === true &&
-    (provider.presetProviderId ?? provider.id) === 'qwencloud' &&
-    model.endpointTypes?.[0] === ENDPOINT_TYPE.OPENAI_RESPONSES
-      ? resolveEffectiveEndpoint(provider, model, ENDPOINT_TYPE.OPENAI_RESPONSES)
+    assistant?.settings.enableWebSearch === true
+      ? resolveEffectiveEndpoint(provider, model, resolveSearchEndpointType(provider, model))
       : defaultEndpoint
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool

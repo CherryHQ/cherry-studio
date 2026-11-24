@@ -11,6 +11,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
+import { bundledCatalog } from '../../../../../../../packages/provider-registry/src/bundled-catalog'
 import WebSearchButton from '../WebSearchButton'
 
 const mocks = vi.hoisted(() => ({
@@ -243,6 +244,26 @@ describe('WebSearchButton', () => {
     confirmOptions.focusOnClose?.()
 
     expect(button).not.toHaveFocus()
+  })
+
+  it.each([null, 'exa-mcp'])('offers stock Qwen native search with client provider %s', async (client) => {
+    const preset = bundledCatalog.providers.providers.find((p) => p.id === 'qwencloud')!
+    mocks.provider = preset
+    mocks.model = {
+      ...mocks.model!,
+      id: 'qwencloud::deepseek-v4-pro',
+      providerId: 'qwencloud',
+      apiModelId: 'deepseek-v4-pro',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+      endpointTypes: ['openai-responses', 'openai-chat-completions']
+    }
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.model_tools_preferred', true)
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', client)
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.builtin')
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
+    await waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { enableWebSearch: true } }))
+    expect(popup.confirm).not.toHaveBeenCalled()
   })
 
   it('enables model-native search when configured services are preferred but unavailable', async () => {
