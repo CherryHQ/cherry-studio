@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { notificationHandlers } from '@data/api/handlers/notifications'
+import { appStateTable } from '@data/db/schemas/appState'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
@@ -55,8 +56,6 @@ const mocks = vi.hoisted(() => ({
   focusOrOpen: vi.fn(() => Promise.resolve()),
   isActiveInFocusedWindow: vi.fn(async () => false),
   getWindowInfosByType: vi.fn(),
-  loggerError: vi.fn(),
-  loggerWarn: vi.fn(),
   preferenceGet: vi.fn(),
   preferenceValues: {} as Record<string, boolean | number | string>,
   send: vi.fn(),
@@ -78,11 +77,6 @@ vi.mock('@data/services/TopicService', async (importOriginal) => {
   await importOriginal()
   return { topicService: { getById: mocks.topicGetById } }
 })
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({ error: mocks.loggerError, warn: mocks.loggerWarn, info: vi.fn(), debug: vi.fn() })
-  }
-}))
 vi.mock('@main/i18n', () => ({
   t: vi.fn(
     (key: string) =>
@@ -1279,7 +1273,7 @@ describe('NotificationService', () => {
   ])('records a terminal failure from the real stream manager: %s', async (topicId, message, active) => {
     mocks.isActiveInFocusedWindow.mockResolvedValue(active)
     mocks.getWindowInfosByType.mockReturnValue(active ? [mainWindowInfo({ isFocused: true })] : [])
-    const manager = new AiStreamManager({ gracePeriodMs: 1 })
+    const manager = new AiStreamManager(application.get('RuntimeActivityService'), { gracePeriodMs: 1 })
     const originalGet = vi.mocked(application.get).getMockImplementation()!
     vi.mocked(application.get).mockImplementation(((name: string) => {
       if (name === 'AiStreamManager') return manager
@@ -1438,6 +1432,25 @@ describe('NotificationService', () => {
         }
       })
       expect(notificationRecordService.list({}).items[0].target?.result).not.toHaveProperty('durationMs')
+    }
+  )
+
+  it.each([42, { legacy: true }, ['legacy']])(
+    'does not let a non-string stored budget cycle alter the daily deduplication key %#',
+    async (cycle) => {
+      await service._doStop()
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(2026, 9, 15, 12))
+      BaseService.resetInstances()
+      mocks.preferenceValues['app.notification.daily_budget.tokens'] = 100_000
+      await initService()
+      dbh.db.insert(appStateTable).values({ key: 'notification:daily-budget-cycle', value: cycle }).run()
+
+      recordUsage('crossing', 80_000)
+
+      expect(notificationRecordService.list({ category: 'usage' }).items).toMatchObject([
+        { kind: 'daily-budget', eventKey: 'daily-budget:2026-10-15' }
+      ])
     }
   )
 
@@ -1758,11 +1771,73 @@ describe('NotificationService', () => {
       title: 'Update',
       message: 'Ready',
       timestamp: 1,
-      source: 'update' as const
+      source: 'update' as const,
+      actionKey: 'update.ready',
+      meta: { conversationType: 'assistant', conversationId: 'topic-1' }
     }
     await service.sendNotification(notification)
 
     mocks.electronNotifications[0].click?.()
+    expect(mocks.showMainWindow).toHaveBeenCalledOnce()
+    expect(mocks.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'notification.clicked', notification)
+  })
+
+  it.each(['assistant', 'agent'] as const)(
+    'projects only the validated %s target into conversation navigation',
+    async (conversationType) => {
+      await service.sendNotification({
+        id: 'conversation-target',
+        type: 'warning',
+        title: 'Approval required',
+        message: 'Review tool access',
+        timestamp: 1,
+        source: 'assistant',
+        actionKey: 'conversation.open',
+        meta: {
+          conversationType,
+          conversationId: 'conversation-1',
+          requestingWindowId: 'untrusted-window',
+          messageId: 'untrusted-message'
+        }
+      })
+
+      mocks.electronNotifications[0].click?.()
+
+      expect(mocks.focusOrOpen).toHaveBeenCalledWith(
+        { conversationType, conversationId: 'conversation-1' },
+        conversationType === 'assistant' ? 'Research notes' : 'Refactor project'
+      )
+      expect(mocks.showMainWindow).not.toHaveBeenCalled()
+      expect(mocks.broadcastToType).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    undefined,
+    null,
+    42,
+    'conversation-1',
+    [],
+    {},
+    { conversationType: 'other', conversationId: 'conversation-1' },
+    { conversationType: 'assistant', conversationId: 42 },
+    { conversationType: 'agent', conversationId: '' }
+  ])('keeps malformed conversation metadata on the existing notification-click path (%j)', async (meta) => {
+    const notification = {
+      id: 'invalid-conversation-target',
+      type: 'warning' as const,
+      title: 'Approval required',
+      message: 'Review tool access',
+      timestamp: 1,
+      source: 'assistant' as const,
+      actionKey: 'conversation.open',
+      meta
+    }
+    await service.sendNotification(notification)
+
+    mocks.electronNotifications[0].click?.()
+
+    expect(mocks.focusOrOpen).not.toHaveBeenCalled()
     expect(mocks.showMainWindow).toHaveBeenCalledOnce()
     expect(mocks.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'notification.clicked', notification)
   })

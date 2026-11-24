@@ -9,7 +9,7 @@ import { t } from '@main/i18n'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { NotificationTaskResultSchema, type TaskResultNotificationInput } from '@shared/data/types/notification'
-import type { ConversationNavigationTarget } from '@shared/types/navigation'
+import { conversationNavigationTargetSchema } from '@shared/ipc/schemas/navigation'
 import {
   CONVERSATION_NOTIFICATION_ACTION_KEY,
   type ConversationNotification,
@@ -31,18 +31,6 @@ const OS_NOTIFICATION_PREF_KEYS = [
   'app.notification.mini_app.enabled',
   'app.notification.usage.os.enabled'
 ] as const satisfies readonly UnifiedPreferenceKeyType[]
-
-function isConversationTarget(meta: unknown): meta is ConversationNavigationTarget {
-  if (!meta || typeof meta !== 'object') return false
-
-  const candidate = meta as Partial<ConversationNavigationTarget>
-
-  return (
-    (candidate.conversationType === 'assistant' || candidate.conversationType === 'agent') &&
-    typeof candidate.conversationId === 'string' &&
-    candidate.conversationId.length > 0
-  )
-}
 
 @Injectable('NotificationService')
 @DependsOn(['ConversationNavigationService'])
@@ -210,13 +198,17 @@ export class NotificationService extends BaseService {
     const electronNotification = new ElectronNotification(options)
 
     electronNotification.on('click', () => {
-      if (notification.actionKey === CONVERSATION_NOTIFICATION_ACTION_KEY && isConversationTarget(notification.meta)) {
-        void application
-          .get('ConversationNavigationService')
-          .focusOrOpen(notification.meta, resolveNotificationConversationName(notification.meta))
-          .catch((error) => logger.error('Failed to open conversation from notification', error))
+      if (notification.actionKey === CONVERSATION_NOTIFICATION_ACTION_KEY) {
+        const target = conversationNavigationTargetSchema.safeParse(notification.meta)
 
-        return
+        if (target.success) {
+          void application
+            .get('ConversationNavigationService')
+            .focusOrOpen(target.data, resolveNotificationConversationName(target.data))
+            .catch((error) => logger.error('Failed to open conversation from notification', error))
+
+          return
+        }
       }
 
       application.get('MainWindowService').showMainWindow()

@@ -54,7 +54,7 @@ export class UsageBudgetNotificationService extends BaseService {
       const from = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
       const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - 1
       const day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`
-      const cycle = this.readState<string>('notification:daily-budget-cycle')
+      const cycle = this.readState('notification:daily-budget-cycle')
       const period = cycle ? `${day}:${cycle}` : day
 
       if (this.completedBudgetPeriod === period) return
@@ -85,14 +85,16 @@ export class UsageBudgetNotificationService extends BaseService {
     }
   }
 
-  private readState<T>(key: string): T | undefined {
-    return application
+  private readState(key: string): string | undefined {
+    const value = application
       .get('DbService')
       .getDb()
       .select({ value: appStateTable.value })
       .from(appStateTable)
       .where(eq(appStateTable.key, key))
-      .get()?.value as T | undefined
+      .get()?.value
+
+    return typeof value === 'string' ? value : undefined
   }
 
   private writeState(key: string, value: string): void {
