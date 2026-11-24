@@ -175,6 +175,7 @@ interface UseAgentChatRuntimeStateParams {
   sessionId: string
   modelId?: UniqueModelId
   agentType?: AgentType
+  agentId?: string
   agentName?: string
   permissionRequestComponent?: ComponentType<PermissionRequestComposerProps>
   sessionMessagesEnabled: boolean
@@ -186,6 +187,7 @@ export function useAgentChatRuntimeState({
   sessionId,
   modelId,
   agentType,
+  agentId,
   agentName,
   permissionRequestComponent,
   sessionMessagesEnabled,
@@ -503,6 +505,7 @@ export function useAgentChatRuntimeState({
     persistedPartsByMessageId,
     streamingLayers,
     onRespond: respondToolApproval,
+    agentId,
     agentName,
     permissionRequestComponent
   })

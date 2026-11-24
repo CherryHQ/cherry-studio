@@ -58,6 +58,7 @@ export type PermissionRequestComposerProps = {
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   className?: string
+  agentId?: string
   agentName?: string
   requiresAgentConfigPreview?: boolean
   onOpenSource?: (source: NonNullable<PermissionRequestComposerRequest['source']>) => void
@@ -67,6 +68,7 @@ type PermissionRequestComposerOverrideOptions = {
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   component?: ComponentType<PermissionRequestComposerProps>
+  agentId?: string
   agentName?: string
 }
 
@@ -108,13 +110,20 @@ export function createPermissionRequestComposerOverride({
   request,
   onRespond,
   component: Component = PermissionRequestComposer,
+  agentId,
   agentName
 }: PermissionRequestComposerOverrideOptions): ComposerOverride {
   return {
     id: `tool-permission:${request.approvalId}`,
     priority: 90,
     render: ({ className }) => (
-      <Component request={request} onRespond={onRespond} className={className} agentName={agentName} />
+      <Component
+        request={request}
+        onRespond={onRespond}
+        className={className}
+        agentId={agentId}
+        agentName={agentName}
+      />
     )
   }
 }
@@ -148,7 +157,7 @@ function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolRe
 }
 
 type ConfigPreviewProps = { data?: ConfigPreview; failed: boolean }
-type AvatarTarget = { id: string | null; name?: string }
+type AvatarTarget = { id: string; name: string }
 
 function McpPermissionPreview({
   toolResponse,
@@ -162,12 +171,11 @@ function McpPermissionPreview({
   const { t } = useTranslation()
   const args = normalizeArgs(toolResponse.arguments)
   const previewArgs =
-    args && !Array.isArray(args) && avatarTarget?.name
+    args && !Array.isArray(args) && avatarTarget
       ? {
           ...args,
-          ...(avatarTarget.id
-            ? { target_agent_id: `${avatarTarget.name} (${avatarTarget.id})` }
-            : { [t('common.agent')]: avatarTarget.name })
+          [typeof args.target_agent_id === 'string' ? 'target_agent_id' : t('common.agent')]:
+            `${avatarTarget.name} (${avatarTarget.id})`
         }
       : args
   const argsPreview = previewArgs ? (
@@ -288,6 +296,7 @@ export default function PermissionRequestComposer({
   request,
   onRespond,
   className,
+  agentId,
   agentName,
   requiresAgentConfigPreview = false,
   onOpenSource
@@ -314,16 +323,15 @@ export default function PermissionRequestComposer({
     toolResponse.tool.serverId.replaceAll('_', '-') === 'cherry-tools' &&
     toolResponse.tool.name === AGENT_AVATAR_TOOL_NAME
   const args = normalizeArgs(toolResponse.arguments)
-  const targetId =
-    isAvatarRequest && args && !Array.isArray(args) && typeof args.target_agent_id === 'string'
-      ? args.target_agent_id.trim()
-      : null
+  const inputTargetId =
+    args && !Array.isArray(args) && typeof args.target_agent_id === 'string' ? args.target_agent_id.trim() : undefined
+  const targetId = isAvatarRequest ? (inputTargetId ?? agentId ?? null) : null
   const { agent: targetAgent } = useAgent(targetId)
-  const avatarTarget = isAvatarRequest ? { id: targetId, name: targetId ? targetAgent?.name : agentName } : undefined
+  const avatarTarget = targetId && targetAgent?.name ? { id: targetId, name: targetAgent.name } : undefined
   const cannotApprove =
     isSubmitting ||
     (requiresAgentConfigPreview && !!configKind && !configPreview?.ok) ||
-    Boolean(targetId && !targetAgent?.name)
+    (isAvatarRequest && !avatarTarget)
 
   const respond = useCallback(
     async (input: MessageToolApprovalInput, action: 'approve' | 'deny') => {
