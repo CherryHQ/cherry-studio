@@ -59,6 +59,10 @@ export class MemoryMigrationService extends BaseService {
     )
   }
 
+  status(agentId: string) {
+    return this.failed.has(agentId) ? 'failed' : (this.readState(agentId)?.status ?? 'not_started')
+  }
+
   isMigrated(agentId: string): boolean {
     return this.readState(agentId)?.status === 'complete'
   }
