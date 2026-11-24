@@ -12,6 +12,7 @@ import { loggerService } from '@logger'
 import { computeBackoff } from '@main/core/job/runtime/backoff'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { logFailure } from '@main/core/logger/logFailure'
+import { isMacElectronBridgePackage } from '@main/core/macElectronBridge'
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getAppLanguage, t } from '@main/i18n'
@@ -397,7 +398,8 @@ export class AppUpdaterService extends BaseService {
 
   private async getUpdateRequest() {
     const currentVersion = app.getVersion()
-    const testPlan = application.get('PreferenceService').get('app.dist.test_plan.enabled')
+    const bridge = isMacElectronBridgePackage()
+    const testPlan = !bridge && application.get('PreferenceService').get('app.dist.test_plan.enabled')
     const requestedChannel = testPlan
       ? application.get('PreferenceService').get('app.dist.test_plan.channel') || UpgradeChannel.RC
       : UpgradeChannel.LATEST
@@ -407,7 +409,10 @@ export class AppUpdaterService extends BaseService {
     const edition = getAppEdition()
     const updateChannel = getEditionUpdateChannel(requestedChannel, edition)
 
-    const updateHeaders = getUpdateHeaders({ region, edition })
+    const updateHeaders = {
+      ...getUpdateHeaders({ region, edition }),
+      ...(bridge && { 'X-Desktop-Update-Bridge': 'cn-macos' })
+    }
 
     return { currentVersion, edition, ipCountry, region, testPlan, updateChannel, updateHeaders }
   }
