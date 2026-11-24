@@ -9,14 +9,23 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { DefaultMcpServersSettings } from '../DefaultMcpServersSettings'
 
+const ipcControl = vi.hoisted(() => ({ failNext: false }))
+
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: async (_route: string, input: { serverId: string; enabled: boolean }) => {
-      const current = mockPreferenceState.get('assistant.default_mcp_server_ids') as string[]
-      await mockPreferenceService.set(
-        'assistant.default_mcp_server_ids',
-        input.enabled ? [...new Set([...current, input.serverId])] : current.filter((id) => id !== input.serverId)
-      )
+      if (ipcControl.failNext) {
+        ipcControl.failNext = false
+        throw new Error('Disk full')
+      }
+      const current = (mockPreferenceState.get('assistant.default_mcp_server_ids') ?? []) as string[]
+      const next = input.enabled
+        ? [...new Set([...current, input.serverId])]
+        : current.filter((id) => id !== input.serverId)
+      // Persist in "main" without notifying listeners: the renderer only learns the
+      // result through the returned ids, as when the change subscription is down.
+      mockPreferenceState.set('assistant.default_mcp_server_ids', next)
+      return next
     }
   }
 }))
@@ -33,6 +42,7 @@ const servers = [
 beforeEach(async () => {
   await i18n.changeLanguage('en-US')
   mockPreferenceService._resetMockState()
+  ipcControl.failNext = false
   mockPreferenceState.set(key, ['a'])
   MockUseDataApiUtils.resetMocks()
   MockUseDataApiUtils.mockQueryData('/mcp-servers', { items: servers, total: 2, page: 1 })
@@ -76,7 +86,7 @@ describe('DefaultMcpServersSettings', () => {
     const user = userEvent.setup()
     render(<DefaultMcpServersSettings />)
     const files = await screen.findByRole('switch', { name: 'Files' })
-    mockPreferenceService.set.mockRejectedValueOnce(new Error('Disk full'))
+    ipcControl.failNext = true
     await user.click(files)
     expect(await screen.findByRole('alert')).toHaveTextContent('Save failed')
     expect(files).toBeChecked()
@@ -85,6 +95,19 @@ describe('DefaultMcpServersSettings', () => {
     await waitFor(() => expect(files).not.toBeChecked())
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(mockPreferenceState.get(key)).toEqual([])
+  })
+
+  it('reconciles the switch from the command result when no change push arrives', async () => {
+    const user = userEvent.setup()
+    render(<DefaultMcpServersSettings />)
+    const research = await screen.findByRole('switch', { name: 'Research' })
+    expect(research).not.toBeChecked()
+    await user.click(research)
+    await waitFor(() => expect(research).toBeChecked())
+    expect(mockPreferenceState.get(key)).toEqual(['a', 'b'])
+    await user.click(research)
+    await waitFor(() => expect(research).not.toBeChecked())
+    expect(mockPreferenceState.get(key)).toEqual(['a'])
   })
 
   it('does not expose editable fallback defaults after a failed initial read', async () => {

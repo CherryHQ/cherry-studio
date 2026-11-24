@@ -5248,6 +5248,7 @@
   "settings.mcp.command": "Comandă",
   "settings.mcp.copyLogs": "Copiază jurnalele",
   "settings.mcp.customRegistryPlaceholder": "Introdu URL registru privat, de ex.: https://npm.company.com",
+  "settings.mcp.catalog_load_failed": "Lista serverelor MCP nu a putut fi încărcată.",
   "settings.mcp.deleteError": "Nu s-a putut șterge serverul",
   "settings.mcp.deleteServer": "Șterge serverul",
   "settings.mcp.deleteServerConfirm": "Ești sigur că vrei să ștergi acest server?",

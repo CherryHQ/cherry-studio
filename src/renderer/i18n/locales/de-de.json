@@ -5244,6 +5244,7 @@
   "settings.mcp.command": "Befehl",
   "settings.mcp.copyLogs": "Logs kopieren",
   "settings.mcp.customRegistryPlaceholder": "Privates Repository-Adresse eingeben, z. B. https://npm.company.com",
+  "settings.mcp.catalog_load_failed": "Die MCP-Serverliste konnte nicht geladen werden.",
   "settings.mcp.deleteError": "Server löschen fehlgeschlagen",
   "settings.mcp.deleteServer": "Server löschen",
   "settings.mcp.deleteServerConfirm": "Diesen Server wirklich löschen?",

@@ -5244,6 +5244,7 @@
   "settings.mcp.command": "コマンド",
   "settings.mcp.copyLogs": "ログをコピー",
   "settings.mcp.customRegistryPlaceholder": "プライベート倉庫のアドレスを入力してください（例：https://npm.company.com）",
+  "settings.mcp.catalog_load_failed": "MCP サーバーリストを読み込めませんでした。",
   "settings.mcp.deleteError": "サーバーの削除に失敗しました",
   "settings.mcp.deleteServer": "サーバーを削除",
   "settings.mcp.deleteServerConfirm": "このサーバーを削除してもよろしいですか？",

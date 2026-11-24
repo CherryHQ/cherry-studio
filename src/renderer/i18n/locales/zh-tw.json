@@ -5244,6 +5244,7 @@
   "settings.mcp.command": "指令",
   "settings.mcp.copyLogs": "複製日誌",
   "settings.mcp.customRegistryPlaceholder": "請輸入私有儲存庫位址，如：https://npm.company.com",
+  "settings.mcp.catalog_load_failed": "無法載入 MCP 伺服器清單。",
   "settings.mcp.deleteError": "刪除伺服器失敗",
   "settings.mcp.deleteServer": "刪除伺服器",
   "settings.mcp.deleteServerConfirm": "確定要刪除此伺服器嗎？",

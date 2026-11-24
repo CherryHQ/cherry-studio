@@ -5244,6 +5244,7 @@
   "settings.mcp.command": "Command",
   "settings.mcp.copyLogs": "Copy logs",
   "settings.mcp.customRegistryPlaceholder": "Enter private registry URL, e.g.: https://npm.company.com",
+  "settings.mcp.catalog_load_failed": "Couldn't load the MCP server list.",
   "settings.mcp.deleteError": "Failed to delete server",
   "settings.mcp.deleteServer": "Delete Server",
   "settings.mcp.deleteServerConfirm": "Are you sure you want to delete this server?",

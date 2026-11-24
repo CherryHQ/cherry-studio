@@ -5244,6 +5244,7 @@
   "settings.mcp.command": "คำสั่ง",
   "settings.mcp.copyLogs": "คัดลอก log",
   "settings.mcp.customRegistryPlaceholder": "ป้อน URL รีจิสทรีส่วนตัว เช่น https://npm.company.com",
+  "settings.mcp.catalog_load_failed": "ไม่สามารถโหลดรายการเซิร์ฟเวอร์ MCP ได้",
   "settings.mcp.deleteError": "ลบเซิร์ฟเวอร์ไม่สำเร็จ",
   "settings.mcp.deleteServer": "ลบเซิร์ฟเวอร์",
   "settings.mcp.deleteServerConfirm": "แน่ใจหรือไม่ว่าต้องการลบเซิร์ฟเวอร์นี้?",

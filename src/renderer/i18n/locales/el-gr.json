@@ -5244,6 +5244,7 @@
   "settings.mcp.command": "Εντολή",
   "settings.mcp.copyLogs": "Αντιγραφή καταγραφών",
   "settings.mcp.customRegistryPlaceholder": "Παρακαλώ εισάγετε τη διεύθυνση του ιδιωτικού αποθετηρίου, π.χ.: https://npm.company.com",
+  "settings.mcp.catalog_load_failed": "Δεν ήταν δυνατή η φόρτωση της λίστας διακομιστών MCP.",
   "settings.mcp.deleteError": "Αποτυχία διαγραφής διακομιστή",
   "settings.mcp.deleteServer": "Διαγραφή διακομιστή",
   "settings.mcp.deleteServerConfirm": "Είστε σίγουρος ότι θέλετε να διαγράψετε αυτόν τον διακομιστή;",

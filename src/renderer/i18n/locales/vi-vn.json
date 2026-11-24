@@ -5244,6 +5244,7 @@
   "settings.mcp.command": "Lệnh",
   "settings.mcp.copyLogs": "Sao chép nhật ký",
   "settings.mcp.customRegistryPlaceholder": "Nhập URL của registry riêng, ví dụ: https://npm.company.com",
+  "settings.mcp.catalog_load_failed": "Không tải được danh sách máy chủ MCP.",
   "settings.mcp.deleteError": "Không xóa được máy chủ",
   "settings.mcp.deleteServer": "Xóa Máy chủ",
   "settings.mcp.deleteServerConfirm": "Bạn có chắc chắn muốn xóa máy chủ này không?",

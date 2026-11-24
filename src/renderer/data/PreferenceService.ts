@@ -556,6 +556,35 @@ export class PreferenceService {
   }
 
   /**
+   * Version of pushed change events seen for a key. Bumps on every main-process
+   * broadcast, so a caller can detect a cross-window update landing mid-command.
+   */
+  public getPushVersion(key: UnifiedPreferenceKeyType): number {
+    return this.pushVersions.get(key) ?? 0
+  }
+
+  /**
+   * Reconcile the local cache with a value returned by a main-process command.
+   * Commands like `assistant.toggle_default_mcp` return the saved value; when the
+   * change subscription is unavailable no push arrives, so adopt the returned value
+   * here. Skipped when a pushed update landed since `knownPushVersion`, because that
+   * push is newer than the command result.
+   */
+  public reconcileFromMain<K extends UnifiedPreferenceKeyType>(
+    key: K,
+    value: UnifiedPreferenceType[K],
+    knownPushVersion?: number
+  ): void {
+    if (knownPushVersion !== undefined && (this.pushVersions.get(key) ?? 0) !== knownPushVersion) {
+      return
+    }
+    if (!isEqual(this.cache[key], value)) {
+      this.cache[key] = value
+      this.notifyChangeListeners(key)
+    }
+  }
+
+  /**
    * Check if a preference is cached
    * @param key The preference key to check
    * @returns True if the key is cached, false otherwise

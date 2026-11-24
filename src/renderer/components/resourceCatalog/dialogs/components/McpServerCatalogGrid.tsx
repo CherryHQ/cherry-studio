@@ -67,10 +67,17 @@ export function McpServerCatalogGrid({
 }) {
   const { t } = useTranslation()
   const { data, isLoading, error, refetch } = useQuery('/mcp-servers', { swrOptions: { revalidateOnMount: true } })
-  const mcpServers = useMemo<McpServer[]>(
-    () => (data?.items ?? servers ?? []).filter((server) => !isBrowserMcpServer(server)),
-    [data, servers]
-  )
+  const mcpServers = useMemo<McpServer[]>(() => {
+    const live = data?.items
+    const seed = (servers ?? []).filter((server) => !isBrowserMcpServer(server))
+    const base = (live ?? servers ?? []).filter((server) => !isBrowserMcpServer(server))
+    if (!live) return base
+    // A stale cache can miss a server another window just attached as a default.
+    // Keep selected seed rows visible so the user can still review and clear them.
+    const liveIds = new Set(base.map((server) => server.id))
+    const hiddenSelected = seed.filter((server) => !liveIds.has(server.id) && enabledIds.has(server.id))
+    return hiddenSelected.length > 0 ? [...base, ...hiddenSelected] : base
+  }, [data, servers, enabledIds])
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
   const settingsLabel = title ? `${title} ${t('settings.title')}` : t('settings.mcp.title')
   const catalog = useMemo<CatalogItem[]>(
@@ -99,7 +106,7 @@ export function McpServerCatalogGrid({
     <div>
       {error ? (
         <div role="alert" className="space-y-2">
-          <p>{t('assistant.mcp_defaults.load_failed')}</p>
+          <p>{t('settings.mcp.catalog_load_failed')}</p>
           <Button type="button" variant="outline" onClick={() => void refetch()}>
             {t('common.retry')}
           </Button>

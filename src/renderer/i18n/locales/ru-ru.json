@@ -5252,6 +5252,7 @@
   "settings.mcp.command": "Команда",
   "settings.mcp.copyLogs": "Скопировать журналы",
   "settings.mcp.customRegistryPlaceholder": "Введите адрес частного склада, например: https://npm.company.com",
+  "settings.mcp.catalog_load_failed": "Не удалось загрузить список серверов MCP.",
   "settings.mcp.deleteError": "Не удалось удалить сервер",
   "settings.mcp.deleteServer": "Удалить сервер",
   "settings.mcp.deleteServerConfirm": "Вы уверены, что хотите удалить этот сервер?",

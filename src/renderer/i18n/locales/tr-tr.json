@@ -5244,6 +5244,7 @@
   "settings.mcp.command": "Komut",
   "settings.mcp.copyLogs": "Günlükleri kopyala",
   "settings.mcp.customRegistryPlaceholder": "Özel kayıt defteri URL'sini girin, ör.: https://npm.company.com",
+  "settings.mcp.catalog_load_failed": "MCP sunucu listesi yüklenemedi.",
   "settings.mcp.deleteError": "Sunucu silinemedi",
   "settings.mcp.deleteServer": "Sunucuyu Sil",
   "settings.mcp.deleteServerConfirm": "Bu sunucunun silinmesi onaylanıyor mu?",

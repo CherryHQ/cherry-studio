@@ -166,6 +166,15 @@ export const createMockPreferenceService = (
       return state.get(key)
     }),
 
+    getPushVersion: vi.fn((_key: string) => 0),
+
+    reconcileFromMain: vi.fn((key: string, value: any, _knownPushVersion?: number) => {
+      if (state.get(key) !== value && JSON.stringify(state.get(key)) !== JSON.stringify(value)) {
+        state.set(key, value)
+        listeners.get(key)?.forEach((listener) => listener())
+      }
+    }),
+
     isCached: vi.fn((key: string) => {
       return state.has(key)
     }),

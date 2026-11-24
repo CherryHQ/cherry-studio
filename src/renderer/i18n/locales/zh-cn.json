@@ -5244,6 +5244,7 @@
   "settings.mcp.command": "命令",
   "settings.mcp.copyLogs": "复制日志",
   "settings.mcp.customRegistryPlaceholder": "请输入私有仓库地址，如: https://npm.company.com",
+  "settings.mcp.catalog_load_failed": "无法加载 MCP 服务器列表。",
   "settings.mcp.deleteError": "删除服务器失败",
   "settings.mcp.deleteServer": "删除服务器",
   "settings.mcp.deleteServerConfirm": "确定要删除此服务器吗？",

@@ -5244,6 +5244,7 @@
   "settings.mcp.command": "Commande",
   "settings.mcp.copyLogs": "Copier les logs",
   "settings.mcp.customRegistryPlaceholder": "Veuillez entrer l'adresse du registre privé, par exemple : https://npm.company.com",
+  "settings.mcp.catalog_load_failed": "Impossible de charger la liste des serveurs MCP.",
   "settings.mcp.deleteError": "Échec de la suppression du serveur",
   "settings.mcp.deleteServer": "Supprimer le serveur",
   "settings.mcp.deleteServerConfirm": "Voulez-vous vraiment supprimer ce serveur ?",

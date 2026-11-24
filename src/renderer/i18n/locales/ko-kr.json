@@ -5244,6 +5244,7 @@
   "settings.mcp.command": "명령",
   "settings.mcp.copyLogs": "로그 복사",
   "settings.mcp.customRegistryPlaceholder": "사설 레지스트리 URL 입력. 예: https://npm.company.com",
+  "settings.mcp.catalog_load_failed": "MCP 서버 목록을 불러오지 못했습니다.",
   "settings.mcp.deleteError": "서버 삭제 실패",
   "settings.mcp.deleteServer": "서버 삭제",
   "settings.mcp.deleteServerConfirm": "이 서버를 삭제할까요?",

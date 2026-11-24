@@ -50,7 +50,11 @@ export function DefaultMcpServersSettings() {
     setSaving(true)
     setSaveFailed(false)
     try {
-      await ipcApi.request('assistant.toggle_default_mcp', { serverId: id, enabled })
+      // The change subscription may be unavailable, so adopt the saved ids main
+      // returns; reconcileFromMain skips the write if a newer push already landed.
+      const pushVersion = preferenceService.getPushVersion(DEFAULT_MCP_KEY)
+      const next = await ipcApi.request('assistant.toggle_default_mcp', { serverId: id, enabled })
+      preferenceService.reconcileFromMain(DEFAULT_MCP_KEY, next, pushVersion)
     } catch {
       setSaveFailed(true)
     } finally {
