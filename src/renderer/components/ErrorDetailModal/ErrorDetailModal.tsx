@@ -589,6 +589,8 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
     })
     return () => {
       active = false
+      // A later query displaces this answer in the shared cache, so returning to this channel waits for it again.
+      setAvailability(null)
     }
   }, [autoUpdateEnabled, updateChannel])
   const availableVersion = availability?.channel === updateChannel ? availability.version : null

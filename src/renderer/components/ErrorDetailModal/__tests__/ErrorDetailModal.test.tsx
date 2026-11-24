@@ -1507,6 +1507,18 @@ describe('ErrorDetailContent automatic update check', () => {
     await waitFor(() => expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(2))
     expect(screen.queryByText(UPDATE_AVAILABLE)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Update now' })).not.toBeInTheDocument()
+
+    // The RC lookup displaced the Beta answer, so switching back waits for the replacement Beta lookup.
+    MockUsePreferenceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+    view.rerender(
+      <Dialog open>
+        <DialogContent>
+          <ErrorDetailContent subject={{ kind: 'global' }} error={providerError} />
+        </DialogContent>
+      </Dialog>
+    )
+    await waitFor(() => expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(3))
+    expect(screen.queryByText(UPDATE_AVAILABLE)).not.toBeInTheDocument()
   })
 
   it('does not query the feed while an update is already downloading', () => {
