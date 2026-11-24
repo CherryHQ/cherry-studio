@@ -95,7 +95,7 @@ export const COMPOSER_SHORTCUTS: readonly ComposerShortcut[] = [
   ['Shift', 'Enter'],
   ['CommandOrControl', 'Enter'],
   ['Alt', 'Enter'],
-  ...(isMac ? [['Ctrl', 'Enter'] as ComposerShortcut] : [])
+  ...(isMac ? [['Ctrl', 'Enter'] satisfies ComposerShortcut] : [])
 ]
 
 // v1 (and pre-2.0 v2) stored one of five fixed strings instead of a binding.
