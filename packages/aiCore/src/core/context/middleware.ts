@@ -155,13 +155,6 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
   // Janitor at all: no budget checks and no token-usage capture.
   const budgeting = Boolean(options.onBeforeCompress)
 
-  if (budgeting && options.contextWindow == null) {
-    throw new Error(
-      '[context] `contextWindow` is required when `onBeforeCompress` is configured — ' +
-        'the budget check has nothing to compare against without it.'
-    )
-  }
-
   // Surface the in-flight-without-persistence footgun: if budget compression
   // keeps firing, each call re-expands the history (nothing is persisted), so
   // the payload grows unbounded (and compression effectively skips every
@@ -185,15 +178,26 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
     )
   }
 
-  const janitor = budgeting
-    ? new Janitor({
-        contextWindow: options.contextWindow as number,
-        // Installed so every compression is counted for the persistence warning.
-        onCompress: onCompressionFired,
-        onBeforeCompress: options.onBeforeCompress,
-        logger
-      })
-    : null
+  let janitor: Janitor | null = null
+
+  if (budgeting) {
+    const contextWindow = options.contextWindow
+
+    if (contextWindow == null) {
+      throw new Error(
+        '[context] `contextWindow` is required when `onBeforeCompress` is configured — ' +
+          'the budget check has nothing to compare against without it.'
+      )
+    }
+
+    janitor = new Janitor({
+      contextWindow,
+      // Installed so every compression is counted for the persistence warning.
+      onCompress: onCompressionFired,
+      onBeforeCompress: options.onBeforeCompress,
+      logger
+    })
+  }
 
   return {
     specificationVersion: 'v3',
@@ -251,7 +255,9 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
     },
 
     wrapStream: async ({ doStream }) => {
-      if (!janitor) return doStream()
+      const streamJanitor = janitor
+
+      if (!streamJanitor) return doStream()
 
       const { stream, ...rest } = await doStream()
 
@@ -261,7 +267,7 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
             const inputTokens = getContextInputTokens(chunk.usage?.inputTokens?.total, chunk.providerMetadata)
 
             if (inputTokens != null) {
-              janitor.feedTokenUsage(inputTokens)
+              streamJanitor.feedTokenUsage(inputTokens)
             } else if (!usageWarned) {
               usageWarned = true
               logger.warn(
@@ -282,30 +288,18 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
 
 /**
  * Prunes a LanguageModelV3Prompt via AI SDK's pruneMessages.
- *
- * LanguageModelV3Message (from @ai-sdk/provider) and ModelMessage
- * (from @ai-sdk/provider-utils) share identical runtime structure but
- * differ at the TypeScript level (e.g. ImagePart, FilePart.data).
- * Since pruneMessages only filters — never transforms — every content
- * part in the output is an original V3 part, making the casts safe.
  */
 function compactPrompt(
   prompt: LanguageModelV3Prompt,
   config: Omit<Parameters<typeof pruneMessages>[0], 'messages'>
 ): LanguageModelV3Prompt {
-  const messages = prompt.map(
-    (msg) =>
-      ({
-        role: msg.role,
-        content: msg.content,
-        providerOptions: msg.providerOptions
-      }) as ModelMessage
-  )
+  const messages: ModelMessage[] = prompt
 
   const pruned = pruneMessages({ messages, ...config })
 
   return pruned.map(
     (msg) =>
+      // SAFETY: pruneMessages only filters this V3 input's messages and parts; its wider return type cannot introduce a non-V3 part.
       ({
         role: msg.role,
         content: msg.content,
