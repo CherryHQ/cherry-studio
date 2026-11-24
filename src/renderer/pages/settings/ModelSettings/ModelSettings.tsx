@@ -6,6 +6,10 @@ import { useTranslation } from 'react-i18next'
 import { Button, PageSidePanel, Tooltip, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import {
+  type CherryCloudOfferFilter,
+  isCherryCloudChatOffer
+} from '@renderer/components/cherryCloud/useCherryCloudModelSelectorData'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import {
   SettingContainer,
@@ -25,7 +29,7 @@ import { toast } from '@renderer/services/toast'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import { isUniqueModelId, type Model } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel, isVideoVisionSelectableModel } from '@shared/utils/model'
 
 const TopicNamingSettings = lazy(() =>
@@ -113,6 +117,9 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
   </div>
 )
 
+const isVideoVisionOffer: CherryCloudOfferFilter = (offer) =>
+  isCherryCloudChatOffer(offer) && Boolean(offer.capabilities?.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION))
+
 interface VideoVisionModelSettingsProps {
   providers: ComponentProps<typeof DefaultModelSelector>['providers']
   showDescription: boolean
@@ -126,9 +133,12 @@ const VideoVisionModelSettings: FC<VideoVisionModelSettingsProps> = ({ providers
   const title = t('settings.tool.file_processing.video_vision.title')
   const handleSelect = useCallback(
     (selected: Model | undefined) => {
+      // A locked row resolved by sign-in reaches onSelect without passing the picker filter.
+      const provider = selected && providers.find((item) => item.id === selected.providerId)
+      if (selected && !isVideoVisionSelectableModel(selected, provider)) return
       void setModelId(selected?.id ?? null)
     },
-    [setModelId]
+    [providers, setModelId]
   )
 
   return (
@@ -142,6 +152,7 @@ const VideoVisionModelSettings: FC<VideoVisionModelSettingsProps> = ({ providers
         model={model}
         providers={providers}
         filter={isVideoVisionSelectableModel}
+        offerFilter={isVideoVisionOffer}
         noneOptionLabel={t('common.none')}
         onSelect={handleSelect}
         placeholder={t('settings.models.empty')}

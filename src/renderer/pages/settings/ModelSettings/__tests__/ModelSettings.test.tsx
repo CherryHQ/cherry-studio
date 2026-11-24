@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { CherryCloudPlanModel } from '@shared/ipc/schemas/cherryCloud'
 
 const harness = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
@@ -27,6 +28,8 @@ const harness = vi.hoisted(() => ({
   selectorFilters: [] as Array<
     ((model: Model, provider?: { id: string; presetProviderId?: string | null } | null) => boolean) | undefined
   >,
+  offerFilters: [] as Array<((offer: CherryCloudPlanModel) => boolean) | undefined>,
+  providers: [] as Array<{ id: string; presetProviderId?: string | null }>,
   preferenceValues: {} as Record<string, unknown>,
   preferenceSetters: {} as Record<string, ReturnType<typeof vi.fn>>,
   modelsById: {} as Record<string, Model | undefined>,
@@ -96,14 +99,17 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     onSelect,
     trigger,
-    filter
+    filter,
+    offerFilter
   }: {
     onSelect: (model: Model | undefined) => void
     trigger: ReactNode
     filter?: (model: Model, provider?: { id: string; presetProviderId?: string | null } | null) => boolean
+    offerFilter?: (offer: CherryCloudPlanModel) => boolean
   }) => {
     harness.selectorCallbacks.push(onSelect)
     harness.selectorFilters.push(filter)
+    harness.offerFilters.push(offerFilter)
     return trigger
   }
 }))
@@ -125,7 +131,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] })
+  useProviders: () => ({ providers: harness.providers })
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -189,6 +195,8 @@ describe('ModelSettings', () => {
     harness.translateModel = undefined
     harness.selectorCallbacks = []
     harness.selectorFilters = []
+    harness.offerFilters = []
+    harness.providers = [{ id: 'openai', presetProviderId: 'openai' }]
     harness.preferenceValues = {}
     harness.preferenceSetters = {}
     harness.modelsById = {}
@@ -395,6 +403,37 @@ describe('ModelSettings', () => {
 
     act(() => harness.selectorCallbacks[videoFilterIndex](undefined))
     await waitFor(() => expect(harness.preferenceSetters[preferenceKey]).toHaveBeenLastCalledWith(null))
+  })
+
+  it('keeps text-only models and offers out of the vision model, including ones resolved by sign-in', async () => {
+    const visionModel: Model = {
+      ...createModel('openai', 'gpt-4o'),
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    }
+    const textModel = createModel('openai', 'gpt-4o-mini')
+    const preferenceKey = 'feature.file_processing.default_video_vision_model'
+    const offer = (capabilities: string[]): CherryCloudPlanModel => ({
+      id: 'offer',
+      display_name: 'Offer',
+      capabilities,
+      available_features: ['chat']
+    })
+
+    render(<ModelSettings />)
+
+    const visionIndex = harness.selectorFilters.findIndex(
+      (filter) =>
+        filter?.(visionModel, harness.providers[0]) === true && filter?.(textModel, harness.providers[0]) === false
+    )
+    const offerFilter = harness.offerFilters[visionIndex]!
+    expect(offerFilter(offer([MODEL_CAPABILITY.IMAGE_RECOGNITION]))).toBe(true)
+    expect(offerFilter(offer([]))).toBe(false)
+    expect(offerFilter(offer([MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.IMAGE_GENERATION]))).toBe(false)
+
+    act(() => harness.selectorCallbacks[visionIndex](textModel))
+    act(() => harness.selectorCallbacks[visionIndex](visionModel))
+    await waitFor(() => expect(harness.preferenceSetters[preferenceKey]).toHaveBeenCalledWith(visionModel.id))
+    expect(harness.preferenceSetters[preferenceKey]).toHaveBeenCalledTimes(1)
   })
 
   it('renders the model already stored on the media preference', () => {
