@@ -24,7 +24,6 @@ type ToolApprovalComposerOverridesOptions = {
   streamingLayers?: MessageStreamingLayers
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   permissionRequestComponent?: ComponentType<PermissionRequestComposerProps>
-  agentId?: string
   agentName?: string
 }
 
@@ -35,7 +34,6 @@ export function useToolApprovalComposerOverrides({
   streamingLayers,
   onRespond,
   permissionRequestComponent,
-  agentId,
   agentName
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
   const computerUseApproval = useComputerUseApproval(topicId)
@@ -112,20 +110,11 @@ export function useToolApprovalComposerOverrides({
           request: permissionRequest,
           onRespond,
           component: permissionRequestComponent,
-          agentId,
           agentName
         })
       )
     }
 
     return overrides
-  }, [
-    askUserQuestionRequest,
-    onRespond,
-    permissionRequest,
-    permissionRequestComponent,
-    agentId,
-    agentName,
-    computerUseApproval
-  ])
+  }, [askUserQuestionRequest, onRespond, permissionRequest, permissionRequestComponent, agentName, computerUseApproval])
 }

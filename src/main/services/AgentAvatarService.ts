@@ -1,4 +1,5 @@
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { t } from '@main/i18n'
 import { transcodeToEntityWebp } from '@main/utils/image'
@@ -10,24 +11,35 @@ import { withCreatedImageEntry } from './entityImageBinding'
 class AgentAvatarService {
   private readonly mutex = new Mutex()
 
+  isToolEnabled(agentId: string): boolean {
+    return agentService.isAvatarToolEnabledTx(application.get('DbService').getDb(), agentId)
+  }
+
+  private requireEnabledCallerTx(tx: DbOrTx, callerId: string): void {
+    if (!agentService.isAvatarToolEnabledTx(tx, callerId)) throw new Error(t('agent.avatar_tool.unavailable'))
+  }
+
   requireToolTarget(agentId: string): void {
     agentService.requireAvatarToolTargetTx(application.get('DbService').getDb(), agentId)
   }
 
-  replaceWithBackup(agentId: string, image: Uint8Array, signal: AbortSignal): Promise<string> {
+  replaceWithBackup(callerId: string, agentId: string, image: Uint8Array, signal: AbortSignal): Promise<string> {
     return this.mutex.runExclusive(async () => {
       const dbService = application.get('DbService')
       signal.throwIfAborted()
       const name = await withCreatedImageEntry(image, 'delete_when_unreferenced', (fileId) => {
         signal.throwIfAborted()
-        return dbService.withWriteTx((tx) => agentService.replaceAvatarWithBackupTx(tx, agentId, fileId))
+        return dbService.withWriteTx((tx) => {
+          this.requireEnabledCallerTx(tx, callerId)
+          return agentService.replaceAvatarWithBackupTx(tx, agentId, fileId)
+        })
       })
       agentService.notifyReadModelChange([agentId], 'projection')
       return name
     })
   }
 
-  restoreBackup(agentId: string, signal: AbortSignal): Promise<string> {
+  restoreBackup(callerId: string, agentId: string, signal: AbortSignal): Promise<string> {
     return this.mutex.runExclusive(async () => {
       const dbService = application.get('DbService')
       const db = dbService.getDb()
@@ -44,7 +56,10 @@ class AgentAvatarService {
         }
       }
       signal.throwIfAborted()
-      const name = dbService.withWriteTx((tx) => agentService.restoreAvatarBackupTx(tx, agentId, backup.id))
+      const name = dbService.withWriteTx((tx) => {
+        this.requireEnabledCallerTx(tx, callerId)
+        return agentService.restoreAvatarBackupTx(tx, agentId, backup.id)
+      })
       agentService.notifyReadModelChange([agentId], 'projection')
       return name
     })

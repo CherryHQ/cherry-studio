@@ -413,7 +413,7 @@ function listAgents(): CallToolResult {
     emoji: agent.configuration?.avatar ?? '',
     description: agent.description ?? '',
     model: agent.model,
-    // Built-in Agents cannot be changed from a conversation.
+    // Built-in Agent settings cannot be changed through agent_update.
     readOnly: isProtectedBuiltinAgentRole(agent.configuration?.builtin_role),
     runtime: {
       type: agent.type,
@@ -1265,7 +1265,8 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
   server.registerTool(
     AGENT_LIST_TOOL_NAME,
     {
-      description: 'List available Cherry Agents with their public identity and runtime readiness.',
+      description:
+        'List available Cherry Agents with their public identity and runtime readiness. The readOnly flag describes Agent settings permissions.',
       inputSchema: z.object({})
     },
     () => runSessionTool(ctx, listAgents)

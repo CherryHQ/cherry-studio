@@ -27,6 +27,7 @@ import { clearSingleFileRefTx, insertSingleFileRefTx } from '@data/services/util
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
+import { isAgentAvatarToolId } from '@shared/ai/agentAvatarTool'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -341,6 +342,15 @@ export class AgentService {
       .get()
     if (!target) throw DataApiErrorFactory.notFound('Agent', agentId)
     return target
+  }
+
+  isAvatarToolEnabledTx(tx: DbOrTx, agentId: string): boolean {
+    const agent = tx
+      .select({ disabledTools: agentsTable.disabledTools })
+      .from(agentsTable)
+      .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
+      .get()
+    return !!agent && !agent.disabledTools?.some(isAgentAvatarToolId)
   }
 
   replaceAvatarWithBackupTx(tx: DbOrTx, agentId: string, fileId: FileEntryId): string {

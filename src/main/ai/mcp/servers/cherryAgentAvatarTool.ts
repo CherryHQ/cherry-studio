@@ -2,12 +2,11 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import { application } from '@application'
-import { agentService } from '@data/services/AgentService'
 import { generateImagePromptSchema } from '@main/ai/tools/generateImageTool'
 import { generateImageFromPrompt, isPaintingError, paintingModelOutput } from '@main/ai/tools/painting'
 import { t } from '@main/i18n'
 import { agentAvatarService } from '@main/services/AgentAvatarService'
-import { AGENT_AVATAR_TOOL_DESCRIPTION, AGENT_AVATAR_TOOL_NAME, isAgentAvatarToolId } from '@shared/ai/agentAvatarTool'
+import { AGENT_AVATAR_TOOL_DESCRIPTION, AGENT_AVATAR_TOOL_NAME } from '@shared/ai/agentAvatarTool'
 
 const inputSchema = z.strictObject({
   action: z.enum(['generate', 'restore']),
@@ -28,13 +27,12 @@ export function registerAgentAvatarTool(server: McpServer, currentAgentId: strin
       const signal = ctx.mcpReq.signal
       signal.throwIfAborted()
       // A live connection can dispatch an approval that was shown before the caller disabled the tool.
-      const caller = agentService.getAgent(currentAgentId)
-      if (!caller || caller.disabledTools?.some(isAgentAvatarToolId)) {
+      if (!agentAvatarService.isToolEnabled(currentAgentId)) {
         return { isError: true, content: [{ type: 'text', text: t('agent.avatar_tool.unavailable') }] }
       }
       const targetId = target_agent_id ?? currentAgentId
       if (action === 'restore') {
-        const name = await agentAvatarService.restoreBackup(targetId, signal)
+        const name = await agentAvatarService.restoreBackup(currentAgentId, targetId, signal)
         return { content: [{ type: 'text', text: t('agent.avatar_tool.restored', { name, id: targetId }) }] }
       }
       if (!prompt) {
@@ -59,7 +57,7 @@ export function registerAgentAvatarTool(server: McpServer, currentAgentId: strin
       const retained = files.retainTemporaryEntry(firstImage.id)
       try {
         const { content } = await files.read(firstImage.id, { encoding: 'binary' })
-        const name = await agentAvatarService.replaceWithBackup(targetId, content, signal)
+        const name = await agentAvatarService.replaceWithBackup(currentAgentId, targetId, content, signal)
         return {
           content: [{ type: 'text', text: t('agent.avatar_tool.applied', { name, id: targetId }) }]
         }

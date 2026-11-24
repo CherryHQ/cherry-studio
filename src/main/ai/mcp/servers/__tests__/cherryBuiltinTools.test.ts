@@ -26,16 +26,16 @@ const listRootItems = vi.fn()
 const getPreference = vi.fn()
 const generateImage = vi.fn()
 const fileRead = vi.fn()
-const getAgent = vi.fn()
+const isToolEnabled = vi.fn()
 const requireToolTarget = vi.fn()
 const replaceWithBackup = vi.fn()
 const restoreBackup = vi.fn()
 
 vi.mock('@main/services/AgentAvatarService', () => ({
-  agentAvatarService: { requireToolTarget, replaceWithBackup, restoreBackup }
+  agentAvatarService: { isToolEnabled, requireToolTarget, replaceWithBackup, restoreBackup }
 }))
 
-vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent } }))
+vi.mock('@data/services/AgentService', () => ({ agentService: {} }))
 
 vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: getModelByKey }
@@ -144,7 +144,7 @@ describe('cherry-tools builtin tools', () => {
     getPreference.mockReset()
     generateImage.mockReset()
     fileRead.mockReset()
-    getAgent.mockReset().mockReturnValue({ id: agentContext.agentId, type: 'pi', disabledTools: [] })
+    isToolEnabled.mockReset().mockReturnValue(true)
     requireToolTarget.mockReset()
     replaceWithBackup.mockReset()
     restoreBackup.mockReset()
@@ -164,8 +164,10 @@ describe('cherry-tools builtin tools', () => {
     generateImage.mockResolvedValue({ files: [{ id: 'generated-image', name: 'avatar.webp' }] })
     const bytes = new Uint8Array([1, 2, 3])
     fileRead.mockResolvedValue({ content: bytes, mime: 'image/webp' })
-    replaceWithBackup.mockImplementation(async (id: string, image: Uint8Array) => {
-      if (id !== 'other-agent' || image !== bytes) throw new Error('Wrong avatar target or image')
+    replaceWithBackup.mockImplementation(async (caller: string, id: string, image: Uint8Array) => {
+      if (caller !== agentContext.agentId || id !== 'other-agent' || image !== bytes) {
+        throw new Error('Wrong avatar caller, target or image')
+      }
       return 'Other Agent'
     })
 
@@ -178,8 +180,9 @@ describe('cherry-tools builtin tools', () => {
   })
 
   it('restores the current Agent without a painting model', async () => {
-    restoreBackup.mockImplementation(async (id: string) => {
-      if (id !== agentContext.agentId) throw new Error('Wrong avatar target')
+    restoreBackup.mockImplementation(async (caller: string, id: string) => {
+      if (caller !== agentContext.agentId || id !== agentContext.agentId)
+        throw new Error('Wrong avatar caller or target')
       return 'Current Agent'
     })
 
@@ -188,46 +191,39 @@ describe('cherry-tools builtin tools', () => {
     expect(generateImage).not.toHaveBeenCalled()
   })
 
-  it.each(['pi', 'pi-durable'] as const)(
-    'blocks generation and restore on a connected %s after the caller disables the tool',
-    async (type) => {
-      const caller = { id: agentContext.agentId, type, disabledTools: [] as string[] }
-      getAgent.mockImplementation((id) => (id === caller.id ? caller : { disabledTools: [] }))
-      getPreference.mockImplementation((key) =>
-        key === 'feature.paintings.default_model_id' ? 'provider::model' : null
-      )
-      generateImage.mockResolvedValue({ files: [{ id: 'generated-image', name: 'avatar.webp' }] })
-      fileRead.mockResolvedValue({ content: new Uint8Array([1, 2, 3]), mime: 'image/webp' })
-      replaceWithBackup.mockResolvedValue('Other Agent')
-      restoreBackup.mockResolvedValue('Other Agent')
-      const client = await connectCherryTools()
-      expect((await client.listTools()).tools.map(({ name }) => name)).toContain('agent_avatar')
+  it('blocks generation and restore on a connected client after the caller disables the tool', async () => {
+    getPreference.mockImplementation((key) => (key === 'feature.paintings.default_model_id' ? 'provider::model' : null))
+    generateImage.mockResolvedValue({ files: [{ id: 'generated-image', name: 'avatar.webp' }] })
+    fileRead.mockResolvedValue({ content: new Uint8Array([1, 2, 3]), mime: 'image/webp' })
+    replaceWithBackup.mockResolvedValue('Other Agent')
+    restoreBackup.mockResolvedValue('Other Agent')
+    const client = await connectCherryTools()
+    expect((await client.listTools()).tools.map(({ name }) => name)).toContain('agent_avatar')
 
-      caller.disabledTools = ['mcp__cherry_tools__agent_avatar']
-      const generated = (await client.callTool({
-        name: 'agent_avatar',
-        arguments: { action: 'generate', target_agent_id: 'other-agent', prompt: 'A watercolor fox' }
-      })) as Result
-      const restored = (await client.callTool({
-        name: 'agent_avatar',
-        arguments: { action: 'restore', target_agent_id: 'other-agent' }
-      })) as Result
+    isToolEnabled.mockImplementation((id) => id !== agentContext.agentId)
+    const generated = (await client.callTool({
+      name: 'agent_avatar',
+      arguments: { action: 'generate', target_agent_id: 'other-agent', prompt: 'A watercolor fox' }
+    })) as Result
+    const restored = (await client.callTool({
+      name: 'agent_avatar',
+      arguments: { action: 'restore', target_agent_id: 'other-agent' }
+    })) as Result
 
-      expect(generated.isError).toBe(true)
-      expect(restored.isError).toBe(true)
-      expect(generateImage).not.toHaveBeenCalled()
-      expect(replaceWithBackup).not.toHaveBeenCalled()
-      expect(restoreBackup).not.toHaveBeenCalled()
+    expect(generated.isError).toBe(true)
+    expect(restored.isError).toBe(true)
+    expect(generateImage).not.toHaveBeenCalled()
+    expect(replaceWithBackup).not.toHaveBeenCalled()
+    expect(restoreBackup).not.toHaveBeenCalled()
 
-      caller.disabledTools = []
-      const enabledResult = (await client.callTool({
-        name: 'agent_avatar',
-        arguments: { action: 'restore', target_agent_id: 'other-agent' }
-      })) as Result
-      expect(enabledResult.isError).toBeFalsy()
-      expect(restoreBackup).toHaveBeenCalledExactlyOnceWith('other-agent', expect.any(AbortSignal))
-    }
-  )
+    isToolEnabled.mockReturnValue(true)
+    const enabledResult = (await client.callTool({
+      name: 'agent_avatar',
+      arguments: { action: 'restore', target_agent_id: 'other-agent' }
+    })) as Result
+    expect(enabledResult.isError).toBeFalsy()
+    expect(restoreBackup).toHaveBeenCalledExactlyOnceWith(agentContext.agentId, 'other-agent', expect.any(AbortSignal))
+  })
 
   it('exposes every kb_* tool for unrestricted built-in Assistant access', async () => {
     const client = await connectCherryTools(() => ({ allKnowledgeBases: true, baseIds: [] }))

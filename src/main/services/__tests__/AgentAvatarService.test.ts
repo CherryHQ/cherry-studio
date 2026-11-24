@@ -113,7 +113,7 @@ describe('agent avatar', () => {
     const previousId = agentService.getAgent(agentId)!.avatarFileId!
     const signal = new AbortController().signal
 
-    await agentAvatarService.replaceWithBackup(agentId, image.data, signal)
+    await agentAvatarService.replaceWithBackup(agentId, agentId, image.data, signal)
     expect(agentService.getAgent(agentId)?.avatarFileId).not.toBe(previousId)
     expect(fileRefService.countByEntryIds([previousId]).get(previousId)).toBe(1)
     const source = { sourceType: 'agent_avatar_backup', sourceId: agentId } as const
@@ -122,37 +122,82 @@ describe('agent avatar', () => {
     expect(fileRefService.findBySource(source)).toEqual([backupRef])
     expect(fileEntryService.findCleanupCandidates({ graceMs: 0, limit: 10 })).toEqual([])
 
-    await expect(agentAvatarService.restoreBackup(agentId, signal)).resolves.toBe('Avatar')
+    await expect(agentAvatarService.restoreBackup(agentId, agentId, signal)).resolves.toBe('Avatar')
     expect(agentService.getAgent(agentId)?.avatarFileId).toBe(previousId)
-    await expect(agentAvatarService.restoreBackup(agentId, signal)).rejects.toThrow(t('agent.avatar_tool.no_backup'))
+    await expect(agentAvatarService.restoreBackup(agentId, agentId, signal)).rejects.toThrow(
+      t('agent.avatar_tool.no_backup')
+    )
   })
+
+  it.each(['replace', 'restore'] as const)(
+    'keeps both avatars when the caller disables an in-flight %s',
+    async (action) => {
+      const callerId = 'avatar-caller'
+      dbh.db
+        .insert(agentTable)
+        .values({
+          id: callerId,
+          name: 'Caller',
+          type: 'pi',
+          instructions: '',
+          orderKey: 'a1'
+        })
+        .run()
+      const signal = new AbortController().signal
+      await agentAvatarService.apply({ agentId, avatar: image })
+      const previousId = agentService.getAgent(agentId)?.avatarFileId
+      await agentAvatarService.replaceWithBackup(callerId, agentId, image.data, signal)
+      const currentId = agentService.getAgent(agentId)?.avatarFileId
+      expect(currentId).not.toBe(previousId)
+      expect(agentAvatarService.isToolEnabled(callerId)).toBe(true)
+
+      transcode.mockImplementationOnce(async (bytes: Uint8Array) => {
+        agentService.updateAgent(callerId, { disabledTools: ['mcp__cherry_tools__agent_avatar'] })
+        return bytes
+      })
+      const pending =
+        action === 'replace'
+          ? agentAvatarService.replaceWithBackup(callerId, agentId, image.data, signal)
+          : agentAvatarService.restoreBackup(callerId, agentId, signal)
+      await expect(pending).rejects.toThrow(t('agent.avatar_tool.unavailable'))
+      expect(agentAvatarService.isToolEnabled(callerId)).toBe(false)
+      expect(agentService.getAgent(agentId)?.avatarFileId).toBe(currentId)
+      expect(dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable).all()).toHaveLength(2)
+
+      agentService.updateAgent(callerId, { disabledTools: [] })
+      await agentAvatarService.restoreBackup(callerId, agentId, signal)
+      expect(agentService.getAgent(agentId)?.avatarFileId).toBe(previousId)
+    }
+  )
 
   it('preserves the current avatar and backup when the previous image can no longer be decoded', async () => {
     const signal = new AbortController().signal
     await agentAvatarService.apply({ agentId, avatar: image })
     const previousId = agentService.getAgent(agentId)?.avatarFileId
-    await agentAvatarService.replaceWithBackup(agentId, image.data, signal)
+    await agentAvatarService.replaceWithBackup(agentId, agentId, image.data, signal)
     const currentId = agentService.getAgent(agentId)?.avatarFileId
     transcode.mockRejectedValueOnce(new Error('Invalid WebP data'))
 
-    await expect(agentAvatarService.restoreBackup(agentId, signal)).rejects.toThrow(
+    await expect(agentAvatarService.restoreBackup(agentId, agentId, signal)).rejects.toThrow(
       t('agent.avatar_tool.unreadable_backup')
     )
     expect(agentService.getAgent(agentId)?.avatarFileId).toBe(currentId)
-    await agentAvatarService.restoreBackup(agentId, signal)
+    await agentAvatarService.restoreBackup(agentId, agentId, signal)
     expect(agentService.getAgent(agentId)?.avatarFileId).toBe(previousId)
   })
 
   it('restores the emoji fallback and lets a manual avatar edit supersede a later backup', async () => {
     const signal = new AbortController().signal
-    await agentAvatarService.replaceWithBackup(agentId, image.data, signal)
-    await agentAvatarService.restoreBackup(agentId, signal)
+    await agentAvatarService.replaceWithBackup(agentId, agentId, image.data, signal)
+    await agentAvatarService.restoreBackup(agentId, agentId, signal)
     expect(agentService.getAgent(agentId)).toMatchObject({ configuration: { avatar: '🌟' } })
     expect(agentService.getAgent(agentId)?.avatarFileId).toBeUndefined()
 
-    await agentAvatarService.replaceWithBackup(agentId, image.data, signal)
+    await agentAvatarService.replaceWithBackup(agentId, agentId, image.data, signal)
     await agentAvatarService.apply({ agentId, avatar: { kind: 'emoji', emoji: '🐈' } })
-    await expect(agentAvatarService.restoreBackup(agentId, signal)).rejects.toThrow(t('agent.avatar_tool.no_backup'))
+    await expect(agentAvatarService.restoreBackup(agentId, agentId, signal)).rejects.toThrow(
+      t('agent.avatar_tool.no_backup')
+    )
     expect(agentService.getAgent(agentId)).toMatchObject({ configuration: { avatar: '🐈' } })
   })
 
@@ -160,7 +205,7 @@ describe('agent avatar', () => {
     const signal = new AbortController().signal
     await agentAvatarService.apply({ agentId, avatar: image })
     const previousId = agentService.getAgent(agentId)?.avatarFileId
-    await agentAvatarService.replaceWithBackup(agentId, image.data, signal)
+    await agentAvatarService.replaceWithBackup(agentId, agentId, image.data, signal)
     const currentId = agentService.getAgent(agentId)?.avatarFileId
 
     const bindAvatar = agentService.setAvatarSlotTx.bind(agentService)
@@ -168,13 +213,13 @@ describe('agent avatar', () => {
       bindAvatar(...args)
       throw new Error('Avatar binding failed')
     })
-    await expect(agentAvatarService.replaceWithBackup(agentId, image.data, signal)).rejects.toThrow(
+    await expect(agentAvatarService.replaceWithBackup(agentId, agentId, image.data, signal)).rejects.toThrow(
       'Avatar binding failed'
     )
     binding.mockRestore()
     expect(dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable).all()).toHaveLength(2)
     expect(agentService.getAgent(agentId)?.avatarFileId).toBe(currentId)
-    await agentAvatarService.restoreBackup(agentId, signal)
+    await agentAvatarService.restoreBackup(agentId, agentId, signal)
     expect(agentService.getAgent(agentId)?.avatarFileId).toBe(previousId)
   })
 
