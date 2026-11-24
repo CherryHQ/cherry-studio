@@ -5,9 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useFileDragDrop } from '@renderer/components/composer/paste/useFileDragDrop'
 import { toast } from '@renderer/services/toast'
-import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import type { FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
+import { FILE_TYPE } from '@shared/types/file'
 
 import { useComposerFileCapabilities } from '../useComposerFileCapabilities'
 
