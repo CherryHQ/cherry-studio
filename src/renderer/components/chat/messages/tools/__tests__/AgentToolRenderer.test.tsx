@@ -9,6 +9,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
 import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
+import { AgentTool } from '../agent/AgentTool'
 import { AskUserQuestionOptimisticInputProvider } from '../agent/AskUserQuestionOptimisticContext'
 import MessageTool from '../MessageTool'
 import MessageTools from '../MessageTools'
@@ -286,6 +287,124 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('completed tool rendering', () => {
+    it('keeps valid Read text blocks beside malformed content without using the file fallback', async () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
+        status: 'done',
+        arguments: { file_path: '/test.ts' },
+        response: {
+          content: [
+            null,
+            { type: 'text', text: 42 },
+            { type: 'image' },
+            { type: 'text', text: '     1→keep<system-reminder>hidden</system-reminder>' },
+            { type: 'text', text: '\n     2→next' }
+          ],
+          file: { content: 'Unused fallback' }
+        }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect((await screen.findByTestId('code-viewer')).textContent).toBe('keep\nnext')
+      expect(screen.queryByText('Unused fallback')).not.toBeInTheDocument()
+    })
+
+    it('does not replace an empty Read content array with file content', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
+        status: 'done',
+        arguments: { file_path: '/test.ts' },
+        response: { content: [], file: { content: 'Unused fallback' } }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
+      expect(screen.queryByText('Unused fallback')).not.toBeInTheDocument()
+    })
+
+    it('keeps valid Agent statistics and zero values when sibling metrics are malformed', () => {
+      function AgentStats() {
+        const item = AgentTool({
+          output: { status: 'completed', totalTokens: { count: 10 }, totalToolUseCount: 0, totalDurationMs: Infinity }
+        })
+        return <>{item.label}</>
+      }
+
+      render(<AgentStats />)
+
+      expect(screen.getByText('0 items')).toBeInTheDocument()
+      expect(screen.queryByText(/NaN|Infinity/)).not.toBeInTheDocument()
+    })
+
+    it('keeps valid task rows and text when other output fields are malformed', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'TaskList', name: 'TaskList', description: 'List tasks', type: 'provider' },
+        status: 'done',
+        arguments: {},
+        response: {
+          tasks: [
+            null,
+            { subject: 'Keep partial task', status: { state: 'pending' } },
+            { id: '2', subject: 'Done task', status: 'completed' }
+          ]
+        }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      const content = screen.getByTestId('collapse-content-TaskList')
+      expect(content).toHaveTextContent('Keep partial task')
+      expect(content).toHaveTextContent('Done task')
+      expect(content).not.toHaveTextContent('Pending')
+    })
+
+    it('keeps a TaskGet subject when the returned identity is malformed', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'TaskGet', name: 'TaskGet', description: 'Get task', type: 'provider' },
+        status: 'done',
+        arguments: { taskId: 'requested-task' },
+        response: { task: { id: { value: 'invalid' }, subject: 'Keep task subject', status: 'in_progress' } }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.getByTestId('collapse-content-TaskGet')).toHaveTextContent('Keep task subject')
+    })
+
+    it('keeps a TaskStop returned identity when its message is malformed', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'TaskStop', name: 'TaskStop', description: 'Stop task', type: 'provider' },
+        status: 'done',
+        arguments: { task_id: 'requested-task' },
+        response: { message: { text: 'invalid message' }, task_id: 'returned-task' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Task returned-task')).toBeInTheDocument()
+      expect(screen.queryByText('Task requested-task')).not.toBeInTheDocument()
+    })
+
+    it('keeps the valid input plan when an ExitPlanMode result plan is malformed', async () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', description: 'Exit plan mode', type: 'provider' },
+        status: 'done',
+        arguments: { plan: 'Keep input plan' },
+        response: { plan: { text: 'invalid result plan' } }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(await screen.findByText('Keep input plan')).toBeVisible()
+    })
+
     it.each(['Read', 'Write', 'Edit', 'MultiEdit'])('shows the Windows filename in a completed %s card', (name) => {
       const toolResponse = createToolResponse({
         tool: { id: name, name, description: 'Access a file', type: 'provider' },
@@ -301,6 +420,21 @@ describe('AgentToolRenderer', () => {
       })
       render(<AgentToolRenderer toolResponse={toolResponse} />)
       expect(screen.getByText('qa-permission.txt', { exact: true })).toBeVisible()
+    })
+
+    it('keeps returned plan text when the streamed input plan is malformed', async () => {
+      const user = userEvent.setup()
+      const toolResponse = createToolResponse({
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', description: 'Exit plan mode', type: 'provider' },
+        status: 'done',
+        arguments: { plan: { content: 'invalid plan' } },
+        response: 'Keep returned plan'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      await user.click(screen.getByRole('button'))
+
+      expect(screen.getByTestId('collapse-content-ExitPlanMode')).toHaveTextContent('Keep returned plan')
     })
 
     it('does not duplicate an ExitPlanMode plan repeated in the tool result', () => {
@@ -333,6 +467,18 @@ describe('AgentToolRenderer', () => {
 
       expect(screen.getAllByText('Release plan')).toHaveLength(1)
       expect(screen.getAllByText('Run the focused tests')).toHaveLength(1)
+    })
+
+    it('keeps a valid task subject when a streamed description is malformed', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'TaskCreate', name: 'TaskCreate', description: 'Create task', type: 'provider' },
+        status: 'streaming',
+        arguments: { description: { text: 'invalid description' }, subject: 'Keep the valid subject' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByRole('button')).toHaveTextContent('Keep the valid subject')
     })
 
     it('should render newly supported structured agent tools', () => {
@@ -371,6 +517,27 @@ describe('AgentToolRenderer', () => {
 
       expect(screen.getByTestId('collapse-content-TaskList')).toHaveTextContent('Build launch deck')
       expect(screen.getByTestId('collapse-content-TaskList')).not.toHaveTextContent(/^1$/)
+    })
+
+    it('keeps valid partial todos beside malformed entries without inventing pending state', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'TodoWrite', name: 'TodoWrite', description: 'Update todos', type: 'provider' },
+        status: 'streaming',
+        arguments: {
+          todos: [
+            null,
+            { content: 'Keep partial task', status: { state: 'pending' } },
+            { content: 'Continue work', status: 'in_progress' }
+          ]
+        }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      const content = screen.getByTestId('collapse-content-TodoWrite')
+      expect(content).toHaveTextContent('Keep partial task')
+      expect(content).toHaveTextContent('Continue work')
+      expect(within(content).queryByText('Pending', { exact: true })).not.toBeInTheDocument()
     })
 
     it('renders a dsh todo snapshot with its task states', () => {
@@ -499,6 +666,24 @@ describe('AgentToolRenderer', () => {
       expect(await screen.findByText(errorText)).toBeVisible()
     })
 
+    it('retains the Write target when a malformed content field cannot be previewed', async () => {
+      const user = userEvent.setup()
+      const openArtifactFile = vi.fn()
+      mockMessageListActions.mockReturnValue({ openArtifactFile })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Write', name: 'Write', description: 'Write a file', type: 'provider' },
+        status: 'done',
+        arguments: { file_path: '/tmp/game.html', content: { text: 'invalid content' } },
+        response: 'File written'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      await user.click(screen.getByRole('button'))
+      await user.click(screen.getByRole('link', { name: 'game.html' }))
+
+      expect(openArtifactFile).toHaveBeenCalledWith('/tmp/game.html')
+    })
+
     it('renders the Write target path as a clickable link once the write completes', () => {
       const openArtifactFile = vi.fn()
       mockMessageListActions.mockReturnValue({ openArtifactFile })
@@ -569,6 +754,39 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('pending without streaming', () => {
+    it.each(['__proto__', 'constructor'])(
+      'shows an unanswered literal %s question without inherited answer data',
+      (question) => {
+        const toolResponse = createToolResponse({
+          tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+          status: 'done',
+          arguments: {
+            questions: [{ question, header: 'Logger', options: [{ label: 'Winston' }, { label: 'Pino' }] }]
+          }
+        })
+
+        render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+        expect(screen.getByText(question)).toBeInTheDocument()
+      }
+    )
+
+    it('shows the saved answer for a literal __proto__ question', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'done',
+        arguments: {
+          questions: [{ question: '__proto__', header: 'Logger', options: [{ label: 'Winston' }, { label: 'Pino' }] }],
+          answers: Object.fromEntries([['__proto__', 'Use JSON logs']])
+        }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getAllByRole('button')[0])
+
+      expect(screen.getByText('Use JSON logs')).toBeVisible()
+    })
+
     it('shows a completed AskUserQuestion message card when no answer was submitted', () => {
       const toolResponse = createToolResponse({
         tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
@@ -1111,6 +1329,54 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('Bash result presentation', () => {
+    it('keeps background output readable when its input ID is malformed', async () => {
+      const user = userEvent.setup()
+      const toolResponse = createToolResponse({
+        tool: { id: 'BashOutput', name: 'BashOutput', description: 'Read background output', type: 'provider' },
+        status: 'done',
+        arguments: { bash_id: { id: 'invalid id' } },
+        response: 'Background output is intact'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      await user.click(screen.getByRole('button'))
+
+      expect(screen.getByTestId('collapse-content-BashOutput')).toHaveTextContent('Background output is intact')
+    })
+
+    it.each([42, { text: 'pwd' }])('keeps valid output readable with a malformed command %j', async (command) => {
+      const user = userEvent.setup()
+      const toolResponse = createToolResponse({
+        tool: { id: 'Bash', name: 'Bash', description: 'Execute command', type: 'provider' },
+        status: 'done',
+        arguments: { command },
+        response: '/workspace'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      await user.click(screen.getByRole('button'))
+
+      const content = screen.getByTestId('collapse-content-Bash')
+      expect(content).toHaveTextContent('/workspace')
+      expect(within(content).queryByText('Command', { exact: true })).not.toBeInTheDocument()
+    })
+
+    it('preserves whitespace in the displayed command', async () => {
+      const user = userEvent.setup()
+      const command = '  printf "hello"\n'
+      const toolResponse = createToolResponse({
+        tool: { id: 'Bash', name: 'Bash', description: 'Execute command', type: 'provider' },
+        status: 'done',
+        arguments: { command },
+        response: 'hello'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      await user.click(screen.getByRole('button'))
+
+      expect(screen.getByTestId('collapse-content-Bash').textContent).toContain(command)
+    })
+
     it('labels successful Bash results as output', async () => {
       const user = userEvent.setup()
       const toolResponse = createToolResponse({
