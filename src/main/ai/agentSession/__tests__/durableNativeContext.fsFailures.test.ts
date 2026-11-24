@@ -103,6 +103,100 @@ describe('durable publication filesystem failures', () => {
     fs.rmSync(directory, { recursive: true, force: true })
   })
 
+  it('localizes a foreign failure while retaining its cause and filesystem diagnostics', async () => {
+    const reason = { code: 'EACCES', errno: -13, syscall: 'link', message: 'foreign storage failure' }
+    vi.mocked(fs.linkSync).mockImplementationOnce(() => {
+      throw reason
+    })
+
+    await expect(createDurableBackend(backend.id)).rejects.toMatchObject({
+      message: 'foreign storage failure',
+      code: 'EACCES',
+      errno: -13,
+      syscall: 'link',
+      i18nKey: 'durable_storage_failed',
+      cause: reason
+    })
+    expect(contexts.backend(backend.id).state).toBe('creating')
+    expect(fs.existsSync(target)).toBe(false)
+  })
+
+  it('retains the original Error when its code getter cannot be read', async () => {
+    const error = Object.assign(new Error('storage failure'), { errno: -13, syscall: 'link' })
+    Object.defineProperty(error, 'code', {
+      get() {
+        throw new Error('unreadable code')
+      }
+    })
+    vi.mocked(fs.linkSync).mockImplementationOnce(() => {
+      throw error
+    })
+
+    await expect(createDurableBackend(backend.id)).rejects.toBe(error)
+    expect(error).toHaveProperty('i18nKey', 'durable_storage_failed')
+    expect(contexts.backend(backend.id).state).toBe('creating')
+  })
+
+  it('reports a falsey cleanup failure and leaves the published store recoverable', async () => {
+    const reason = 0
+    const cleanup = vi.spyOn(fs, 'rmSync').mockImplementationOnce(() => {
+      throw reason
+    })
+
+    try {
+      await expect(createDurableBackend(backend.id)).rejects.toMatchObject({
+        i18nKey: 'durable_storage_failed',
+        cause: 0
+      })
+      expect(contexts.backend(backend.id).state).toBe('creating')
+      expect(fs.lstatSync(target).isFile()).toBe(true)
+      cleanup.mockRestore()
+      await markedStore()
+    } finally {
+      cleanup.mockRestore()
+    }
+  })
+
+  it('preserves the publication error when staging cleanup also fails', async () => {
+    const primary = failure('EACCES')
+    const secondary = failure('EPERM', 'rm')
+    vi.mocked(fs.linkSync).mockImplementationOnce(() => {
+      throw primary
+    })
+    const cleanup = vi.spyOn(fs, 'rmSync').mockImplementationOnce(() => {
+      throw secondary
+    })
+
+    try {
+      await expect(createDurableBackend(backend.id)).rejects.toBe(primary)
+      expect(primary).toHaveProperty('i18nKey', 'durable_storage_failed')
+      expect(secondary).toHaveProperty('i18nKey', 'durable_storage_failed')
+      expect(contexts.backend(backend.id).state).toBe('creating')
+    } finally {
+      cleanup.mockRestore()
+    }
+  })
+
+  it('keeps an unreadable storage marker terminal instead of treating it as a bare collision', async () => {
+    sentinel()
+    const error = failure('EEXIST')
+    Object.defineProperty(error, 'i18nKey', {
+      get() {
+        throw new Error('unreadable marker')
+      }
+    })
+    const actual = await real()
+    vi.mocked(fs.linkSync)
+      .mockImplementationOnce(actual.linkSync)
+      .mockImplementationOnce(() => {
+        throw error
+      })
+
+    await expect(prepareDurableRoot(contextId)).rejects.toBe(error)
+    preservedAside()
+    expect(contexts.backend(backend.id).state).toBe('creating')
+  })
+
   it.each(['EEXIST', 'EISDIR'])('repairs a real directory after initial %s', async (code) => {
     sentinel()
     if (code === 'EISDIR')

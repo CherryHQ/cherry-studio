@@ -9,9 +9,50 @@ import { application } from '@application'
 import type { AgentRuntimeBackendRow } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { loggerService } from '@logger'
+import { getErrorCode, toError } from '@main/utils/error'
 
 const DURABLE_STORAGE_ERROR_I18N_KEY = 'durable_storage_failed'
 const logger = loggerService.withContext('durableNativeContext')
+
+interface DurableErrorDetails {
+  code?: string
+  errno?: number
+  syscall?: string
+  storageMarker: 'absent' | 'present' | 'unreadable'
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native filesystem/storage failures are unparsed; retain only checked diagnostic fields and explicit storage-marker evidence.
+function readDurableErrorDetails(error: unknown): DurableErrorDetails {
+  const details: DurableErrorDetails = { code: getErrorCode(error), storageMarker: 'absent' }
+
+  if (error === null || (typeof error !== 'object' && typeof error !== 'function')) return details
+
+  for (const key of ['errno', 'syscall', 'i18nKey'] as const) {
+    try {
+      // oxlint-disable-next-line anti-slop/no-reflect-get -- Read virtual native error fields without a has trap; unreadable properties cannot replace the original failure.
+      const value: unknown = Reflect.get(error, key)
+
+      if (key === 'i18nKey') details.storageMarker = value === DURABLE_STORAGE_ERROR_I18N_KEY ? 'present' : 'absent'
+
+      if (key === 'errno' && typeof value === 'number') details.errno = value
+
+      if (key === 'syscall' && typeof value === 'string') details.syscall = value
+    } catch {
+      if (key === 'i18nKey') details.storageMarker = 'unreadable'
+    }
+  }
+
+  return details
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Storage failures need an Error for localized reporting; preserve native Error identity and retain foreign rejection values as cause.
+function tagStorageError(error: unknown, details: DurableErrorDetails): Error {
+  const failure = toError(error, 'Durable storage failed')
+
+  if (failure !== error) Object.assign(failure, { code: details.code, errno: details.errno, syscall: details.syscall })
+
+  return Object.assign(failure, { i18nKey: DURABLE_STORAGE_ERROR_I18N_KEY })
+}
 
 export async function durableContextIdentity() {
   const { defineDoc } = await import('@earendil-works/pi-durable')
@@ -91,7 +132,7 @@ export async function createDurableBackend(backendId: string) {
     try {
       linkSync(stagedPath, path)
     } catch (error) {
-      const { code } = error as NodeJS.ErrnoException
+      const code = getErrorCode(error)
 
       if (code !== 'EEXIST' && code !== 'EISDIR') throw error
       initialCollision = error
@@ -114,10 +155,11 @@ export async function createDurableBackend(backendId: string) {
       linkSync(stagedPath, path)
     }
   } catch (error) {
-    const { code, errno, syscall } = error as NodeJS.ErrnoException
+    const details = readDurableErrorDetails(error)
+    const { code, errno, syscall } = details
 
     if (operation !== 'link' || code !== 'EEXIST') {
-      Object.assign(error as Error, { i18nKey: DURABLE_STORAGE_ERROR_I18N_KEY })
+      const failure = tagStorageError(error, details)
       logger.error('Failed to publish durable store', {
         backendId,
         operation,
@@ -128,9 +170,11 @@ export async function createDurableBackend(backendId: string) {
         sourcePath: stagedPath,
         destinationPath: path,
         quarantinePath,
-        error,
+        error: failure,
         initialCollision
       })
+
+      throw failure
     }
 
     throw error
@@ -139,21 +183,22 @@ export async function createDurableBackend(backendId: string) {
       try {
         rmSync(staging, { recursive: true, force: true })
       } catch (error) {
-        Object.assign(error as Error, { i18nKey: DURABLE_STORAGE_ERROR_I18N_KEY })
+        const details = readDurableErrorDetails(error)
+        const failure = tagStorageError(error, details)
         logger.error('Failed to clean up durable store staging', {
           backendId,
           operation: 'cleanup',
           attempt,
-          code: (error as NodeJS.ErrnoException).code,
-          errno: (error as NodeJS.ErrnoException).errno,
-          syscall: (error as NodeJS.ErrnoException).syscall,
+          code: details.code,
+          errno: details.errno,
+          syscall: details.syscall,
           sourcePath: stagedPath,
           destinationPath: path,
           quarantinePath,
-          error,
+          error: failure,
           initialCollision
         })
-        cleanupError = error
+        cleanupError = failure
       }
     }
   }
@@ -174,7 +219,7 @@ export async function openDurableStorage(backend: AgentRuntimeBackendRow): Promi
   try {
     storage = await SqliteStorage.openExisting(new NodeSqliteDatabase(new DatabaseSync(uri, { timeout: 5000 })))
   } catch (error) {
-    throw Object.assign(error as Error, { i18nKey: DURABLE_STORAGE_ERROR_I18N_KEY })
+    throw tagStorageError(error, readDurableErrorDetails(error))
   }
 
   try {
@@ -222,11 +267,9 @@ export async function prepareDurableRoot(contextId: string) {
     try {
       await createDurableBackend(context.backendId)
     } catch (error) {
-      if (
-        (error as NodeJS.ErrnoException).code !== 'EEXIST' ||
-        (error as { i18nKey?: string }).i18nKey === DURABLE_STORAGE_ERROR_I18N_KEY
-      )
-        throw error
+      const details = readDurableErrorDetails(error)
+
+      if (details.code !== 'EEXIST' || details.storageMarker !== 'absent') throw error
     }
   }
 
