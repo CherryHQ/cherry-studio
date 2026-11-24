@@ -1,57 +1,95 @@
 import { QRCodeSVG } from 'qrcode.react'
-import { useEffect, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Spinner } from '@cherrystudio/ui'
-import { useIpcOn } from '@renderer/ipc'
-import type { EventPayload } from '@shared/ipc/types'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 
 type QrLoginStatus = 'starting' | 'pending' | 'confirmed' | 'expired' | 'error'
-type QrLoginEvent = EventPayload<'channel.wechat.qr_login'> | EventPayload<'channel.feishu.qr_login'>
 
 /**
- * Runs the adapter's own QR login for a saved, inactive WeChat or Feishu channel: switching it on
- * makes the adapter broadcast the QR code. Closing before the login completes switches it off again.
+ * Runs an attempt owned by this dialog. Main deactivates it if the owner cancels before confirmation.
  */
 export function ChannelQrLoginDialog({
   channel,
-  onActiveChange,
   onClose
 }: {
   channel: { id: string; type: 'wechat' | 'feishu' }
-  onActiveChange: (isActive: boolean) => Promise<unknown>
+  onActiveChange?: (isActive: boolean) => Promise<unknown>
   onClose: () => void
 }) {
   const { t } = useTranslation()
   const [status, setStatus] = useState<QrLoginStatus>('starting')
   const [url, setUrl] = useState<string | null>(null)
+  const login = useRef<{ requestId?: string; cancelled: boolean; confirmed: boolean } | null>(null)
   const copy =
     channel.type === 'wechat'
       ? { title: 'agent.channels.wechat.qrTitle', hint: 'agent.channels.wechat.qrHint' }
       : { title: 'agent.channels.feishu.qrTitle', hint: 'agent.channels.feishu.qrScanHint' }
 
-  const handleEvent = (data: QrLoginEvent) => {
-    if (data.channelId !== channel.id) return
+  useIpcOn('channel.qr_login.status', (data) => {
+    const attempt = login.current
+    if (
+      !attempt ||
+      attempt.cancelled ||
+      attempt.confirmed ||
+      data.channelId !== channel.id ||
+      data.requestId !== attempt.requestId
+    )
+      return
     if (data.status === 'confirmed' || data.status === 'expired' || data.status === 'error') {
+      attempt.confirmed = data.status === 'confirmed'
       setUrl(null)
       setStatus(data.status)
     } else if (data.status === 'pending' && data.url) {
       setUrl(data.url)
       setStatus('pending')
     }
-  }
-  useIpcOn('channel.wechat.qr_login', handleEvent)
-  useIpcOn('channel.feishu.qr_login', handleEvent)
+  })
 
-  const start = () => {
+  const start = async (retry: boolean) => {
+    const attempt = login.current
+    if (!attempt || attempt.cancelled || attempt.confirmed) return
     setStatus('starting')
-    void onActiveChange(true).then((result) => result === null && setStatus('error'))
+    setUrl(null)
+    try {
+      if (retry && attempt.requestId) {
+        await ipcApi.request('channel.qr_login.cancel', { channelId: channel.id, requestId: attempt.requestId })
+        if (attempt.cancelled) return
+      }
+      attempt.requestId = crypto.randomUUID()
+      const started = await ipcApi.request('channel.qr_login.begin', {
+        channelId: channel.id,
+        requestId: attempt.requestId
+      })
+      if (!attempt.cancelled && !attempt.confirmed && !started) setStatus('error')
+    } catch {
+      if (!attempt.cancelled && !attempt.confirmed) setStatus('error')
+    }
   }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- starts once per opened dialog
-  useEffect(start, [channel.id])
+
+  const cancel = () => {
+    const attempt = login.current
+    if (!attempt || attempt.cancelled) return
+    attempt.cancelled = true
+    if (!attempt.confirmed && attempt.requestId) {
+      void ipcApi
+        .request('channel.qr_login.cancel', { channelId: channel.id, requestId: attempt.requestId })
+        .catch(() => undefined)
+    }
+  }
+  const startOnMount = useEffectEvent(() => {
+    login.current = { cancelled: false, confirmed: false }
+    void start(false)
+  })
+  const cancelOnUnmount = useEffectEvent(cancel)
+  useEffect(() => {
+    startOnMount()
+    return () => cancelOnUnmount()
+  }, [])
 
   const close = () => {
-    if (status !== 'confirmed') void onActiveChange(false)
+    cancel()
     onClose()
   }
 
@@ -77,14 +115,18 @@ export function ChannelQrLoginDialog({
             {status === 'error' && t('agent.channels.qrSetup.error')}
           </p>
           {status === 'expired' || status === 'error' ? (
-            <Button type="button" variant="outline" size="sm" onClick={() => void onActiveChange(false).then(start)}>
+            <Button type="button" variant="outline" size="sm" onClick={() => void start(true)}>
               {t('common.retry')}
             </Button>
           ) : status === 'confirmed' ? (
-            <Button type="button" variant="emphasis" size="sm" onClick={onClose}>
+            <Button type="button" variant="emphasis" size="sm" onClick={close}>
               {t('library.config.dialogs.create.channels.done')}
             </Button>
-          ) : null}
+          ) : (
+            <Button type="button" variant="outline" size="sm" onClick={close}>
+              {t('common.cancel')}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

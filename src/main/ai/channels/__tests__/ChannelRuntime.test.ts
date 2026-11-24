@@ -87,6 +87,7 @@ function createHooks(
     onMessage: vi.fn(),
     onCommand: vi.fn(),
     onCredentials: vi.fn(),
+    onQrLogin: vi.fn(),
     onDynamicChatId: vi.fn(),
     onLog: vi.fn(),
     onStatus: vi.fn(),
