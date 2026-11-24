@@ -1,4 +1,4 @@
-import type { Element, Node, Root, Text } from 'hast'
+import type { Node, Root } from 'hast'
 import { visit } from 'unist-util-visit'
 
 /**
@@ -48,15 +48,20 @@ export function createSlugger(): HeadingSlugger {
   return { slug }
 }
 
-export function extractTextFromNode(node: Node | Text | Element | null | undefined): string {
+interface TextSourceNode extends Node {
+  value?: unknown
+  children?: readonly TextSourceNode[]
+}
+
+export function extractTextFromNode(node: TextSourceNode | null | undefined): string {
   if (!node) return ''
 
-  if (typeof (node as Text).value === 'string') {
-    return (node as Text).value
+  if (typeof node.value === 'string') {
+    return node.value
   }
 
-  if ((node as Element).children?.length) {
-    return (node as Element).children.map(extractTextFromNode).join('')
+  if (node.children?.length) {
+    return node.children.map(extractTextFromNode).join('')
   }
 
   return ''
