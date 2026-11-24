@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { useTreeDragAndDrop } from '../use-tree-drag-and-drop'
@@ -28,6 +28,46 @@ function makeDragEvent(overrides: Partial<{ clientY: number; rect: DOMRect; data
 }
 
 describe('useTreeDragAndDrop', () => {
+  it.each(['HTML', 'SVG'])('clones the %s drag image without mutating the source', async (kind) => {
+    const source =
+      kind === 'SVG' ? document.createElementNS('http://www.w3.org/2000/svg', 'svg') : document.createElement('div')
+    const content =
+      kind === 'SVG' ? document.createElementNS('http://www.w3.org/2000/svg', 'text') : document.createElement('span')
+    content.textContent = 'Tree row'
+    source.appendChild(content)
+    source.style.cssText = 'width: 11px !important; color: red'
+    document.body.appendChild(source)
+    const measure = vi.spyOn(source, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 240, 30))
+    let ghost: Element | undefined
+
+    try {
+      const { result } = renderHook(() => useTreeDragAndDrop({ onMove: vi.fn() }))
+      const event = makeDragEvent()
+      const setDragImage = vi.fn<DataTransfer['setDragImage']>()
+      event.currentTarget = source
+      event.dataTransfer.setDragImage = setDragImage
+
+      act(() => result.current.getDragHandleProps('row').onDragStart(event))
+
+      ghost = setDragImage.mock.calls[0]?.[0]
+      expect(ghost).not.toBe(source)
+      if (!(ghost instanceof HTMLElement) && !(ghost instanceof SVGElement)) {
+        throw new Error('Expected a cloned drag image')
+      }
+      expect(ghost.textContent).toBe('Tree row')
+      expect(ghost.style.width).toBe('240px')
+      expect(ghost.style.color).toBe('red')
+      expect(source.style.width).toBe('11px')
+      expect(source.style.getPropertyPriority('width')).toBe('important')
+      const image = ghost
+      await waitFor(() => expect(image.isConnected).toBe(false))
+    } finally {
+      ghost?.remove()
+      source.remove()
+      measure.mockRestore()
+    }
+  })
+
   it('returns no-op handlers when onMove is undefined', () => {
     const { result } = renderHook(() => useTreeDragAndDrop({}))
     const handles = result.current.getDragHandleProps('a')

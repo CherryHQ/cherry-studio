@@ -60,15 +60,19 @@ export function useTreeDragAndDrop(options: UseTreeDragAndDropOptions): UseTreeD
       e.dataTransfer.effectAllowed = 'move'
       e.dataTransfer.setData('text/plain', nodeId)
 
-      const el = e.currentTarget as HTMLElement
+      const el = e.currentTarget
 
       if (el?.parentElement) {
         const rect = el.getBoundingClientRect()
-        const ghost = el.cloneNode(true) as HTMLElement
-        ghost.style.width = `${rect.width}px`
-        ghost.style.opacity = '0.7'
-        ghost.style.position = 'absolute'
-        ghost.style.top = '-1000px'
+        // SAFETY: Native Element.cloneNode preserves the element node kind, but its return type is Node.
+        const ghost = el.cloneNode(true) as Element
+        const style = el.ownerDocument.createElement('div').style
+        style.cssText = ghost.getAttribute('style') ?? ''
+        style.width = `${rect.width}px`
+        style.opacity = '0.7'
+        style.position = 'absolute'
+        style.top = '-1000px'
+        ghost.setAttribute('style', style.cssText)
         document.body.appendChild(ghost)
         e.dataTransfer.setDragImage(ghost, 10, 10)
         setTimeout(() => {
@@ -88,7 +92,7 @@ export function useTreeDragAndDrop(options: UseTreeDragAndDropOptions): UseTreeD
 
       setDragOverId(nodeId)
 
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const rect = e.currentTarget.getBoundingClientRect()
       const mouseY = e.clientY
       const thresholdTop = rect.top + rect.height * 0.3
       const thresholdBottom = rect.bottom - rect.height * 0.3
