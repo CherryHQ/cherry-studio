@@ -1,6 +1,11 @@
+import { mkdir } from 'node:fs/promises'
+
+import { shell } from 'electron'
+
 import { application } from '@application'
 import { editorMemoryAuthority } from '@main/ai/memory/memoryAuthority'
 import {
+  assertMemoryPath,
   MEMORY_MAX_BYTES,
   MEMORY_MAX_LINES,
   MEMORY_WARNING_BYTES,
@@ -37,15 +42,50 @@ export const memoryHandlers: IpcHandlersFor<typeof memoryRequestSchemas> = {
       editorMemoryAuthority(senderId, scope).assertAuthorized()
       return application.get('MemoryDreamingService').status(scope)
     }),
-  'memory.dreaming.request': (scope, { senderId }) =>
-    operation(() => {
-      editorMemoryAuthority(senderId, scope).assertAuthorized()
-      application.get('MemoryDreamingService').request(scope)
-    }),
   'memory.dreaming.cancel': (scope, { senderId }) =>
     operation(() => {
       editorMemoryAuthority(senderId, scope).assertAuthorized()
       application.get('MemoryDreamingService').cancel(scope)
+    }),
+  'memory.private.list': ({ agentId }, { senderId }) =>
+    operation(async () => {
+      const authority = editorMemoryAuthority(senderId, { kind: 'private', agentId })
+      const status = application.get('MemoryMigrationService').status(agentId)
+      if (status !== 'complete') return { status, files: [] }
+      const session = application.get('MemoryService').open(authority)
+      try {
+        const files = await session.list()
+        authority.assertAuthorized()
+        return { status, files }
+      } finally {
+        session.dispose()
+      }
+    }),
+  'memory.private.read': ({ agentId, path }, { senderId }) =>
+    operation(async () => {
+      const authority = editorMemoryAuthority(senderId, { kind: 'private', agentId })
+      if (!application.get('MemoryMigrationService').isMigrated(agentId)) throw new Error('Private memory unavailable')
+      const session = application.get('MemoryService').open(authority)
+      try {
+        const { content } = await session.read(path)
+        authority.assertAuthorized()
+        const bytes = content === null ? null : Buffer.from(content)
+        const limit = 1_000_000
+        if (!bytes || bytes.length <= limit) return { content, truncated: false }
+        return { content: new TextDecoder().decode(bytes.subarray(0, limit), { stream: true }), truncated: true }
+      } finally {
+        session.dispose()
+      }
+    }),
+  'memory.open_folder': (_, { senderId }) =>
+    operation(async () => {
+      const authority = editorMemoryAuthority(senderId, { kind: 'shared' })
+      const root = application.getPath('feature.memory.data')
+      await mkdir(root, { recursive: true, mode: 0o700 })
+      await assertMemoryPath(root, '')
+      authority.assertAuthorized()
+      const error = await shell.openPath(root)
+      if (error) throw new Error(error)
     }),
   'memory.editor.open': (scope, { senderId }) =>
     operation(() => ({
