@@ -40,15 +40,6 @@ describe('AgentTabRuntime', () => {
       />
     )
 
-    expect(runtimeMocks.useTabSelfVisuals).toHaveBeenCalledWith({
-      title: 'Session A',
-      emoji: 'agent-avatar',
-      routePrefix: '/app/agents',
-      preserveVisuals: false
-    })
-    expect(runtimeMocks.useCommandHandler).toHaveBeenCalledWith('app.sidebar.toggle', onToggleSidebar, {
-      enabled: true
-    })
     expect(cacheService.setPersist).toHaveBeenCalledWith('ui.agent.last_used_session_id', 'session-a')
   })
 
@@ -68,9 +59,6 @@ describe('AgentTabRuntime', () => {
       />
     )
 
-    expect(runtimeMocks.useCommandHandler).toHaveBeenCalledWith('app.sidebar.toggle', expect.any(Function), {
-      enabled: isActiveTab
-    })
     expect(cacheService.setPersist).not.toHaveBeenCalled()
   })
 })

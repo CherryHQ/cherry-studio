@@ -40,9 +40,19 @@ export const WebSearchFetchUrlsCapabilitySchema = z
   })
   .strict()
 
+export const WebSearchSearchImagesCapabilitySchema = z
+  .object({
+    feature: z.literal('searchImages'),
+    requiresApiHost: z.boolean(),
+    requiresApiKey: z.boolean(),
+    apiHost: z.string().optional()
+  })
+  .strict()
+
 export const WebSearchProviderFeatureCapabilitySchema = z.discriminatedUnion('feature', [
   WebSearchSearchKeywordsCapabilitySchema,
-  WebSearchFetchUrlsCapabilitySchema
+  WebSearchFetchUrlsCapabilitySchema,
+  WebSearchSearchImagesCapabilitySchema
 ])
 
 export type WebSearchProviderFeatureCapability = z.infer<typeof WebSearchProviderFeatureCapabilitySchema>
@@ -75,6 +85,12 @@ export const WebSearchProviderOverrideSchema = z.object({
           apiHost: z.string().optional()
         })
         .strict()
+        .optional(),
+      searchImages: z
+        .object({
+          apiHost: z.string().optional()
+        })
+        .strict()
         .optional()
     })
     .strict()
@@ -98,7 +114,8 @@ export const WebSearchProviderCapabilityOverrideSchema: z.ZodType<WebSearchProvi
 export const WebSearchProviderCapabilityOverridesSchema: z.ZodType<WebSearchProviderCapabilityOverrides> = z
   .object({
     searchKeywords: WebSearchProviderCapabilityOverrideSchema.optional(),
-    fetchUrls: WebSearchProviderCapabilityOverrideSchema.optional()
+    fetchUrls: WebSearchProviderCapabilityOverrideSchema.optional(),
+    searchImages: WebSearchProviderCapabilityOverrideSchema.optional()
   })
   .strict()
 
@@ -110,9 +127,10 @@ const DESKTOP_REMOTE_CAPABILITIES: Record<RemoteProviderId, readonly WebSearchCa
   zhipu: ['searchKeywords'],
   tavily: ['searchKeywords'],
   searxng: ['searchKeywords'],
-  exa: ['searchKeywords'],
+  exa: ['searchKeywords', 'fetchUrls'],
   'exa-mcp': ['searchKeywords'],
   bocha: ['searchKeywords'],
+  stepfun: ['searchKeywords', 'searchImages'],
   querit: ['searchKeywords', 'fetchUrls'],
   jina: ['searchKeywords', 'fetchUrls'],
   firecrawl: ['searchKeywords', 'fetchUrls'],
@@ -122,7 +140,8 @@ const DESKTOP_REMOTE_CAPABILITIES: Record<RemoteProviderId, readonly WebSearchCa
   yuanbao: ['searchKeywords'],
   deepseek: ['searchKeywords', 'fetchUrls'],
   desearch: ['searchKeywords'],
-  searchapi: ['searchKeywords']
+  searchapi: ['searchKeywords'],
+  serpkite: ['searchKeywords']
 }
 
 const remotePresets = Object.fromEntries(
@@ -167,5 +186,6 @@ export const PRESETS_WEB_SEARCH_PROVIDERS: readonly WebSearchProviderPreset[] = 
 
 export const WEB_SEARCH_FALLBACK_PROVIDER_IDS_BY_CAPABILITY = {
   searchKeywords: ['exa-mcp'],
-  fetchUrls: ['fetch', 'jina']
+  fetchUrls: ['fetch', 'jina'],
+  searchImages: []
 } as const satisfies Record<WebSearchCapability, readonly WebSearchProviderId[]>

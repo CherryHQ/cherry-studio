@@ -119,7 +119,7 @@ export class ThreadMessageProjection {
       const invalidated = new Set(refresh === true ? this.entries.keys() : refresh)
       try {
         for (const item of 'type' in event ? [event] : event) {
-          for (const message of this.reduce(item)) changed.set(message.id, message)
+          for (const message of this.reduce(item, new Set(), invalidated)) changed.set(message.id, message)
           if (item.type === 'snapshot') invalidated.clear()
           else if (item.type === 'message.upsert') invalidated.delete(item.message.id)
         }
@@ -203,7 +203,11 @@ export class ThreadMessageProjection {
     return merged
   }
 
-  private reduce(event?: ObservationPayload, refresh: ReadonlySet<string> = new Set()): readonly CherryUIMessage[] {
+  private reduce(
+    event?: ObservationPayload,
+    refresh: ReadonlySet<string> = new Set(),
+    stale: ReadonlySet<string> = refresh
+  ): readonly CherryUIMessage[] {
     if (this.state.closed === 'consumer-error' && event?.type !== 'snapshot') return []
     if (event) this.validate(event)
     const state = this.state
@@ -259,7 +263,11 @@ export class ThreadMessageProjection {
       if (source) candidates.set(id, source)
     }
     // Decorators may throw; commit only after every affected message has been projected.
-    const projected = [...candidates.values()].map((source) => ({ source, view: this.project(source) }))
+    const projected = [...candidates.values()].map((source) => {
+      const previous = this.entries.get(source.id)
+      // Shared observation values keep identity while unchanged; skip their decoration unless invalidated.
+      return previous?.source === source && !stale.has(source.id) ? previous : { source, view: this.project(source) }
+    })
     const changed: CherryUIMessage[] = []
     for (const entry of projected) if (entry.view !== this.entries.get(entry.view.id)?.view) changed.push(entry.view)
     for (const id of removed) this.entries.delete(id)

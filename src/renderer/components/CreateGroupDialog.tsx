@@ -45,7 +45,7 @@ export function CreateGroupDialog({
   const submitting = isSubmitting || isSubmittingInternally
 
   useEffect(() => {
-    if (open) return
+    if (!open) return
 
     setName('')
     setHasAttemptedSubmit(false)
@@ -60,7 +60,7 @@ export function CreateGroupDialog({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (submitting) return
+    if (!open || submitting) return
 
     const normalizedName = name.trim()
     setHasAttemptedSubmit(true)

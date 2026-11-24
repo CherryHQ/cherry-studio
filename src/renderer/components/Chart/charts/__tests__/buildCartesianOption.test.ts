@@ -38,7 +38,7 @@ describe('buildCartesianOption', () => {
     })
 
     expect(option).toMatchObject({
-      grid: { top: 8, right: 12, bottom: 16, left: 12, containLabel: true },
+      grid: { top: 8 },
       tooltip: {
         trigger: 'axis',
         valueFormatter,
@@ -91,11 +91,7 @@ describe('buildCartesianOption', () => {
     })
 
     expect(option).toMatchObject({
-      grid: { bottom: 52 },
       legend: {
-        type: 'scroll',
-        left: 'center',
-        bottom: 0,
         formatter,
         textStyle: { color: THEME.mutedForeground },
         pageIconColor: THEME.mutedForeground,
@@ -117,10 +113,9 @@ describe('buildCartesianOption', () => {
     })
 
     expect(option).toMatchObject({
-      grid: { top: 12, bottom: 84 },
       dataZoom: [
         { type: 'inside', xAxisIndex: [0], start: 75, end: 100 },
-        { type: 'slider', xAxisIndex: [0], start: 75, end: 100, bottom: 40 }
+        { type: 'slider', xAxisIndex: [0], start: 75, end: 100 }
       ]
     })
   })

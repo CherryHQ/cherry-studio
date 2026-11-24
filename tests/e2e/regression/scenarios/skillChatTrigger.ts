@@ -13,7 +13,7 @@ import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
 import { openSettingsSection } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
 
-// Uses the configured real provider; the expected reply exists only in the installed SKILL.md.
+// Uses the local mock model; the expected reply exists only in the installed SKILL.md.
 export async function skillChatTrigger(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)

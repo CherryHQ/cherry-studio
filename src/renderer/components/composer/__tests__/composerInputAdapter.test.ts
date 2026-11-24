@@ -77,6 +77,24 @@ describe('createComposerInputAdapter', () => {
     ])
   })
 
+  it('writes multi-line text as one paragraph per line on every adapter path', () => {
+    const current = createEditor()
+    const adapter = createComposerInputAdapter(current)
+    const paragraphCount = () => current.getJSON().content?.length
+
+    adapter.insertText('one\ntwo', { tokenizeVariables: false })
+    expect(serializeComposerDocument(current).text).toBe('one\ntwo')
+    expect(paragraphCount()).toBe(2)
+
+    expect(appendComposerText(current, 'three\nfour')).toBe(true)
+    expect(serializeComposerDocument(current).text).toBe('one\ntwo\nthree\nfour')
+    expect(paragraphCount()).toBe(4)
+
+    expect(adapter.replaceRange!({ from: 2, to: 3 }, 'x\ny')).toBe(true)
+    expect(serializeComposerDocument(current).text).toBe('ox\nye\ntwo\nthree\nfour')
+    expect(paragraphCount()).toBe(5)
+  })
+
   it('appends text beyond the former input limit without truncating the draft', () => {
     const currentEditor = createEditor()
     const existingText = 'a'.repeat(40000)

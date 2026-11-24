@@ -14,6 +14,7 @@ import {
   ScrollArea
 } from '@cherrystudio/ui'
 import type { DoctorController } from '@renderer/hooks/doctor'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { DOCTOR_STATUS_LABEL_KEYS, formatDoctorReportForCopy } from '@renderer/utils/doctor'
@@ -32,6 +33,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
   const { t } = useTranslation()
   const { session, viewModel } = controller
   const [agentOpen, setAgentOpen] = useState(false)
+  const { isPresent: agentPresent } = useExitPresence(agentOpen ? true : null)
   const dataPath = viewModel.report?.basics.userDataPath
   const sortedRows = viewModel.rows.toSorted(
     (a, b) => CHECK_STATUS_PRIORITY[a.status] - CHECK_STATUS_PRIORITY[b.status]
@@ -73,7 +75,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
 
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
-      <ScrollArea viewportProps={{ className: 'px-6 py-2' }} className="min-h-0">
+      <ScrollArea contentProps={{ className: 'px-6 py-2' }} className="min-h-0">
         <div className="space-y-4 pb-2">
           {viewModel.status !== 'running' ? <DoctorCheckNotices controller={controller} /> : null}
 
@@ -160,7 +162,9 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
           {t('settings.doctor.agent.title')}
         </Button>
       </DialogFooter>
-      {agentOpen ? <DoctorAgentDialog subject={{ kind: 'global' }} open onOpenChange={setAgentOpen} /> : null}
+      {agentPresent ? (
+        <DoctorAgentDialog subject={{ kind: 'global' }} open={agentOpen} onOpenChange={setAgentOpen} />
+      ) : null}
     </div>
   )
 }

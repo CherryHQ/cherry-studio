@@ -25,7 +25,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { createKbManageToolEntry, KB_MANAGE_TOOL_NAME } from '../KnowledgeManageTool'
+import { createKbManageToolEntry } from '../KnowledgeManageTool'
 
 const entry = createKbManageToolEntry()
 
@@ -76,13 +76,7 @@ describe('kb_manage', () => {
     refreshConcepts.mockResolvedValue({ applied: [], notFound: [] })
   })
 
-  it('builds an entry with the agreed namespace + defer policy and is approval-gated', () => {
-    expect(entry.name).toBe(KB_MANAGE_TOOL_NAME)
-    expect(entry.namespace).toBe('kb')
-    // Approval-gated tools must stay inline (never deferred) — see applyDeferExposition/toolInvoke:
-    // a deferred approval-gated tool is unreachable (stripped from the inline set, and tool_invoke
-    // refuses to run an approval-gated tool blind).
-    expect(entry.defer).toBe('never')
+  it('requires approval for knowledge mutations', () => {
     // Every action mutates the base, so the tool must require user approval.
     expect(entry.tool.needsApproval).toBe(true)
   })

@@ -24,6 +24,8 @@ Status: implemented
 
 新增 URL 数据源必须使用绝对 HTTP 或 HTTPS URL。包含无效 URL 的混合选择整体被拒绝，用户纠正输入时不会因部分导入而重复创建数据源。这是语法校验，不是网络访问策略。
 
+[多链接对话框决策](../feature/2026-11-17-knowledge-multi-url-input.md) 在调用 IPC 前筛除非法 token，并在部分接受后仅保留未提交的 token；IPC 边界仍整批拒绝混合非法项的请求。
+
 ## Verification
 
 - Regression — `src/main/ipc/handlers/__tests__/knowledge.test.ts`：格式错误和非 HTTP URL 在导入前拒绝整个批次；有效 URL 被接受；已有无效实体和内部恢复输入仍可读取。

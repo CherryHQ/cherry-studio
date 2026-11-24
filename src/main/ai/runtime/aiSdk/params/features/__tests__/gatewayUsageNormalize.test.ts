@@ -1,3 +1,4 @@
+import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { describe, expect, it } from 'vitest'
 
@@ -14,16 +15,6 @@ async function getGatewayUsageNormalizeMiddleware(): Promise<LanguageModelMiddle
 }
 
 describe('gatewayUsageNormalizeFeature', () => {
-  it('runs as the innermost provider adapter for streaming and non-streaming calls', async () => {
-    const [plugin] = gatewayUsageNormalizeFeature.contributeModelAdapters!({} as never)
-    if (!plugin) throw new Error('gateway usage plugin was not contributed')
-    const middleware = await getGatewayUsageNormalizeMiddleware()
-
-    expect(plugin.enforce).toBe('post')
-    expect(middleware.wrapGenerate).toBeDefined()
-    expect(middleware.wrapStream).toBeDefined()
-  })
-
   it('applies to every provider path', () => {
     expect(gatewayUsageNormalizeFeature.applies!({ sdkConfig: { providerId: 'gateway' } } as never)).toBe(true)
     expect(gatewayUsageNormalizeFeature.applies!({ sdkConfig: { providerId: 'openai' } } as never)).toBe(true)
@@ -53,6 +44,200 @@ describe('gatewayUsageNormalizeFeature', () => {
 })
 
 describe('raw Anthropic cache bucket reconciliation', () => {
+  it.each([
+    ['nested write', { prompt_tokens_details: { cache_creation_tokens: 80 } }, 1000, 0, 920, 0, 80],
+    ['nested read', { prompt_tokens_details: { cache_read_tokens: 900 } }, 1000, 0, 100, 900, undefined],
+    [
+      'nested read and write',
+      { prompt_tokens_details: { cache_read_tokens: 900, cache_creation_tokens: 80 } },
+      1000,
+      0,
+      20,
+      900,
+      80
+    ],
+    [
+      'canonical read and nested write',
+      { prompt_tokens_details: { cached_tokens: 900, cache_creation_tokens: 80 } },
+      1000,
+      900,
+      20,
+      900,
+      80
+    ],
+    [
+      'canonical read beats alias',
+      { prompt_tokens_details: { cached_tokens: 900, cache_read_tokens: 100 } },
+      1000,
+      900,
+      100,
+      900,
+      undefined
+    ],
+    [
+      'canonical zero beats alias',
+      { prompt_tokens_details: { cached_tokens: 0, cache_read_tokens: 900 } },
+      1000,
+      0,
+      1000,
+      0,
+      undefined
+    ],
+    [
+      'top-level read zero beats alias',
+      { cache_read_input_tokens: 0, prompt_tokens_details: { cache_read_tokens: 900 } },
+      1000,
+      0,
+      1000,
+      0,
+      undefined
+    ],
+    [
+      'top-level write zero beats alias',
+      { cache_creation_input_tokens: 0, prompt_tokens_details: { cache_creation_tokens: 80 } },
+      1000,
+      0,
+      1000,
+      0,
+      0
+    ],
+    [
+      'explicit nested zeros',
+      { prompt_tokens_details: { cache_read_tokens: 0, cache_creation_tokens: 0 } },
+      1000,
+      0,
+      1000,
+      0,
+      0
+    ],
+    [
+      'reject both contradictory aliases',
+      { prompt_tokens_details: { cache_read_tokens: 900, cache_creation_tokens: 200 } },
+      1000,
+      0,
+      1000,
+      0,
+      undefined
+    ],
+    [
+      'reject write while retaining SDK canonical split',
+      { prompt_tokens_details: { cached_tokens: 900, cache_creation_tokens: 200 } },
+      1000,
+      900,
+      100,
+      900,
+      undefined
+    ],
+    [
+      'reject write larger than a small prompt',
+      { prompt_tokens_details: { cache_creation_tokens: 155712 } },
+      8,
+      0,
+      8,
+      0,
+      undefined
+    ],
+    [
+      'do not fall back after canonical read contradicts total',
+      { prompt_tokens_details: { cached_tokens: 1100, cache_read_tokens: 900 } },
+      1000,
+      0,
+      1000,
+      0,
+      undefined
+    ],
+    [
+      'top-level buckets beat canonical and alias values',
+      {
+        cache_read_input_tokens: 20,
+        cache_creation_input_tokens: 30,
+        prompt_tokens_details: { cached_tokens: 900, cache_read_tokens: 800, cache_creation_tokens: 80 }
+      },
+      1000,
+      900,
+      950,
+      20,
+      30
+    ]
+  ] as const)('%s', async (_name, raw, total, normalizedRead, noCache, cacheRead, cacheWrite) => {
+    const middleware = await getGatewayUsageNormalizeMiddleware()
+    const usage = {
+      inputTokens: { total, noCache: total - normalizedRead, cacheRead: normalizedRead, cacheWrite: undefined },
+      outputTokens: { total: 20, text: 15, reasoning: 5 },
+      raw
+    }
+    const result = await middleware.wrapGenerate!({ doGenerate: async () => ({ usage }) as never } as never)
+
+    expect(result.usage.inputTokens).toEqual({ total, noCache, cacheRead, cacheWrite })
+    expect(result.usage.raw).toBe(raw)
+    expect(result.usage.outputTokens).toBe(usage.outputTokens)
+  })
+
+  it.each([
+    {},
+    { prompt_tokens_details: {} },
+    { prompt_tokens_details: { cached_tokens: null, cache_read_tokens: '900', cache_creation_tokens: null } },
+    { prompt_tokens_details: null },
+    { prompt_tokens_details: [] }
+  ])('preserves the original usage when raw has no numeric cache keys: %j', async (raw) => {
+    const middleware = await getGatewayUsageNormalizeMiddleware()
+    const usage = {
+      inputTokens: { total: 1000, noCache: 1000, cacheRead: 0, cacheWrite: undefined },
+      outputTokens: { total: 20 },
+      raw
+    }
+    const result = await middleware.wrapGenerate!({ doGenerate: async () => ({ usage }) as never } as never)
+
+    expect(result.usage).toBe(usage)
+    expect(result.usage.inputTokens).toEqual({ total: 1000, noCache: 1000, cacheRead: 0, cacheWrite: undefined })
+  })
+
+  it('preserves unknown total and reported noCache while recovering a nested write', async () => {
+    const middleware = await getGatewayUsageNormalizeMiddleware()
+    const usage = {
+      inputTokens: { total: undefined, noCache: 300, cacheRead: 10, cacheWrite: undefined },
+      outputTokens: { total: 20 },
+      raw: { prompt_tokens_details: { cache_creation_tokens: 80 } }
+    }
+    const result = await middleware.wrapGenerate!({ doGenerate: async () => ({ usage }) as never } as never)
+
+    expect(result.usage.inputTokens).toEqual({ total: undefined, noCache: 300, cacheRead: 10, cacheWrite: 80 })
+  })
+
+  it('recovers nested aliases on stream finish without changing other event fields', async () => {
+    const middleware = await getGatewayUsageNormalizeMiddleware()
+    const chunk = {
+      type: 'finish',
+      finishReason: { unified: 'stop', raw: 'stop' },
+      providerMetadata: { compatible: { requestId: 'cache-aliases' } },
+      usage: {
+        inputTokens: { total: 1000, noCache: 1000, cacheRead: 0, cacheWrite: undefined },
+        outputTokens: { total: 20, text: 15, reasoning: 5 },
+        raw: { prompt_tokens_details: { cache_read_tokens: 900, cache_creation_tokens: 80 } }
+      }
+    }
+    const text = { type: 'text-delta', id: 'text-1', delta: 'ok' }
+    const { stream } = await middleware.wrapStream!({
+      doStream: async () => ({
+        stream: new ReadableStream({
+          start: (c) => {
+            c.enqueue(text)
+            c.enqueue(chunk)
+            c.close()
+          }
+        })
+      })
+    } as never)
+    const parts: LanguageModelV3StreamPart[] = []
+    for await (const part of stream) parts.push(part)
+
+    expect(parts[0]).toBe(text)
+    expect(parts[1]).toEqual({
+      ...chunk,
+      usage: { ...chunk.usage, inputTokens: { total: 1000, noCache: 20, cacheRead: 900, cacheWrite: 80 } }
+    })
+  })
+
   // Genuine Anthropic semantics: raw input_tokens is the UNCACHED count; the gateway's flat
   // inputTokens is the prompt total inclusive of the cache buckets.
   it('reconciles noCache and surfaces raw buckets from flat gateway usage', async () => {

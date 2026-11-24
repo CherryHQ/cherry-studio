@@ -16,9 +16,9 @@ afterEach(() => {
   command.mockReset()
 })
 
-it.each([true, false])(
-  'waits for a quitting app without signaling an unidentified orphan (exits: %s)',
-  async (exits) => {
+it.each([1_000, 20_000, null])(
+  'waits for a quitting app without signaling an unidentified orphan (exit delay: %s)',
+  async (exitDelay) => {
     vi.useFakeTimers()
     const directory = mkdtempSync(join(tmpdir(), 'cherry-mac-shutdown-'))
     const paths = getRunPaths(directory)
@@ -47,7 +47,7 @@ it.each([true, false])(
     const alive = new Set([42002, 99000])
     vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
       if (signal !== 0) throw new Error('An unidentified process must never be signaled')
-      if (!alive.has(Number(pid))) throw new Error('ESRCH')
+      if (!alive.has(Number(pid))) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' })
       return true
     })
     command.mockImplementation((file: string, args: string[]) => {
@@ -60,13 +60,14 @@ it.each([true, false])(
       if (args.includes('lstart=')) return 'Sat Nov 7 10:50:30 2026'
       throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
     })
-    if (exits) setTimeout(() => alive.delete(42002), 1_000)
+    if (exitDelay !== null) setTimeout(() => alive.delete(42002), exitDelay)
     try {
-      const outcome = exits
-        ? expect(stopOwnedApp(paths)).resolves.toBeUndefined()
-        : expect(stopOwnedApp(paths)).rejects.toThrow('orphaned process group does not match the owned application')
+      const outcome =
+        exitDelay !== null
+          ? expect(stopOwnedApp(paths)).resolves.toBeUndefined()
+          : expect(stopOwnedApp(paths)).rejects.toThrow('orphaned process group does not match the owned application')
       await Promise.all([vi.runAllTimersAsync(), outcome])
-      expect([...alive]).toEqual(exits ? [99000] : [42002, 99000])
+      expect([...alive]).toEqual(exitDelay !== null ? [99000] : [42002, 99000])
     } finally {
       rmSync(directory, { recursive: true, force: true })
     }

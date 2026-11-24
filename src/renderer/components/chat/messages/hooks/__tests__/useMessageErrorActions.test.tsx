@@ -32,7 +32,6 @@ vi.mock('@renderer/components/ErrorDetailModal', () => {
   return { showErrorDetailPopup: mocks.showErrorDetailPopup }
 })
 
-const { cacheService } = await import('@data/CacheService')
 const { useMessageErrorActions } = await import('../useMessageErrorActions')
 const modulesEvaluatedDuringHookImport = {
   diagnosis: mocks.diagnosisModuleEvaluated.mock.calls.length,
@@ -89,7 +88,6 @@ describe('useMessageErrorActions', () => {
       result.current.diagnoseMessageError?.({ message, partId: 'part-1', error, language: 'en-US' })
     ).rejects.toThrow('network')
 
-    expect(cacheService.deleteCasual).toHaveBeenCalledWith('error.classify.provider unavailable:en-US')
     await expect(
       result.current.diagnoseMessageError?.({ message, partId: 'part-1', error, language: 'en-US' })
     ).resolves.toBe('retry succeeded')

@@ -11,16 +11,16 @@ import {
   Button,
   ScrollArea
 } from '@cherrystudio/ui'
+import { KnowledgeDialogFooter } from '@renderer/components/knowledge/KnowledgeDialogLayout'
+import { useEmbeddingDimensions } from '@renderer/hooks/useEmbeddingDimensions'
 import { useEnableKnowledgeBaseEmbedding } from '@renderer/hooks/useKnowledgeBase'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getKnowledgeBaseFailureReason } from '@renderer/utils/knowledgeError'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
-import { KnowledgeDialogFooter } from '../../components/KnowledgeDialogLayout'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
-import { useEmbeddingDimensions } from '../../hooks/useEmbeddingDimensions'
 import { useKnowledgeRagConfig } from '../../hooks/useKnowledgeRagConfig'
-import { getKnowledgeBaseFailureReason } from '../../utils/error'
 import { buildKnowledgeRagConfigPatch } from '../../utils/rag'
 import { getKnowledgeRagConfigFormState } from '../../utils/validate'
 import ChunkingSection from './ChunkingSection'
@@ -167,7 +167,10 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
 
   return (
     <KnowledgePanelShell>
-      <ScrollArea viewportProps={{ className: 'px-6 py-5' }} className="min-h-0 flex-1">
+      <ScrollArea
+        contentProps={{ className: 'px-6 py-5' }}
+
+        className="min-h-0 flex-1">
         <div className="flex flex-col gap-4">
           <FileProcessingSection
             fileProcessorId={values.fileProcessorId}

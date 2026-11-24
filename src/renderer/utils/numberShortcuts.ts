@@ -33,9 +33,17 @@ export const TAB_NUMBER_COMMANDS = [
 
 export const NUMBER_COMMANDS = [...CONVERSATION_NUMBER_COMMANDS, ...TAB_NUMBER_COMMANDS]
 export const isNumberShortcut = (command: CommandId): boolean => NUMBER_COMMANDS.some((id) => id === command)
-export type NumberShortcutMode = 'conversation' | 'tab'
+export type NumberShortcutMode = 'conversation' | 'tab' | 'off'
 
 export function getNumberShortcutPreset(mode: NumberShortcutMode, platform?: SupportedPlatform) {
+  if (mode === 'off') {
+    return Object.fromEntries(
+      NUMBER_COMMANDS.map((command) => [
+        command,
+        { ...getCommandDefaultShortcutPreference(command, platform)!, enabled: false }
+      ])
+    ) as Partial<Record<CommandId, PreferenceShortcutType>>
+  }
   const secondary: ShortcutModifier = platform === 'darwin' ? 'Ctrl' : 'Alt'
   const preferences: Partial<Record<CommandId, PreferenceShortcutType>> = {}
   for (const [index, digit] of (['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const).entries()) {
@@ -55,15 +63,17 @@ export function getNumberShortcutMode(
   preferences: Partial<Record<CommandId, PreferenceShortcutType>>,
   platform?: SupportedPlatform
 ) {
-  for (const mode of ['conversation', 'tab'] as const) {
+  for (const mode of ['conversation', 'tab', 'off'] as const) {
     const preset = getNumberShortcutPreset(mode, platform)
     if (
       NUMBER_COMMANDS.every((command) => {
         const actual = preferences[command] ?? getCommandDefaultShortcutPreference(command, platform)
         const expected = preset[command]
         return (
-          actual?.enabled &&
-          actual.binding.length === expected?.binding.length &&
+          actual &&
+          expected &&
+          actual.enabled === expected.enabled &&
+          actual.binding.length === expected.binding.length &&
           actual.binding.every((token, index) => token === expected.binding[index])
         )
       })

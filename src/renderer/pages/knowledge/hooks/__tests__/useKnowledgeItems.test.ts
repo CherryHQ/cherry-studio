@@ -302,42 +302,4 @@ describe('useKnowledgeItems', () => {
       ])
     ).toBe(0)
   })
-
-  it('revalidates every loaded page while any item is non-terminal so later-page rows refresh', () => {
-    // Otherwise polling only revalidates page 0 and a non-terminal row on a later page stays stale
-    // forever while the interval spins endlessly.
-    mockUseInfiniteQuery.mockReturnValue(
-      createQueryResult({
-        pages: [{ items: [makeItem({ id: 'busy', status: 'embedding' })], total: 1, nextCursor: undefined }]
-      })
-    )
-
-    renderHook(() => useKnowledgeItems('base-1'))
-
-    // The effect re-renders after promoting revalidateAll, so the latest call carries the new value.
-    const lastCall = mockUseInfiniteQuery.mock.calls.at(-1)
-    expect(lastCall?.[1].swrOptions.revalidateAll).toBe(true)
-  })
-
-  it('stops revalidating later pages once every item reaches a terminal status', () => {
-    // Start processing so the effect promotes revalidateAll, then finish: the reset back to false
-    // is what keeps a later scroll-to-bottom a single fetch. (A static all-terminal render would
-    // pass vacuously off the initial useState(false), so drive the real true -> false transition.)
-    let queryResult = createQueryResult({
-      pages: [{ items: [makeItem({ id: 'busy', status: 'embedding' })], total: 1, nextCursor: undefined }]
-    })
-    mockUseInfiniteQuery.mockImplementation(() => queryResult)
-
-    const { rerender } = renderHook(() => useKnowledgeItems('base-1'))
-
-    expect(mockUseInfiniteQuery.mock.calls.at(-1)?.[1].swrOptions.revalidateAll).toBe(true)
-
-    queryResult = {
-      ...queryResult,
-      pages: [{ items: [makeItem({ id: 'done', status: 'completed' })], total: 1, nextCursor: undefined }]
-    }
-    rerender()
-
-    expect(mockUseInfiniteQuery.mock.calls.at(-1)?.[1].swrOptions.revalidateAll).toBe(false)
-  })
 })

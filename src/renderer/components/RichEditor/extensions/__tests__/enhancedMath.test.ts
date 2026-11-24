@@ -7,7 +7,10 @@ import { EnhancedMath } from '../enhancedMath'
 let editor: Editor | undefined
 
 const text = (value: string): JSONContent => ({ type: 'text', text: value })
-const math = (latex: string): JSONContent => ({ type: 'inlineMath', attrs: { latex } })
+const math = (latex: string): JSONContent => ({
+  type: 'inlineMath',
+  attrs: { latex, delimiter: null, markdownSource: null }
+})
 
 function make(content: JSONContent[], position: number, inList = false): Editor {
   const paragraph = { type: 'paragraph', content }

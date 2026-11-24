@@ -95,6 +95,10 @@ export function AgentToolCallCard({
           })
       : undefined
   if (openToolFlow) {
+    const requestedModel =
+      input && typeof input === 'object' && 'model' in input && typeof input.model === 'string'
+        ? input.model.trim()
+        : ''
     const title = getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
     const running = status === 'streaming' || status === 'invoking'
     const failed = hasError || status === 'error'
@@ -138,6 +142,11 @@ export function AgentToolCallCard({
             <Icon aria-hidden="true" className={cn('size-3.5', running && 'motion-safe:animate-spin')} />
           </span>
           <span className="min-w-0 flex-1 truncate text-left">{title}</span>
+          {requestedModel && (
+            <span className="max-w-[55%] truncate text-xs text-muted-foreground" title={requestedModel}>
+              {t('message.tools.subagent.requestedModel', { model: requestedModel })}
+            </span>
+          )}
           {status === 'done' && !failed ? (
             <span className="sr-only">{label}</span>
           ) : (

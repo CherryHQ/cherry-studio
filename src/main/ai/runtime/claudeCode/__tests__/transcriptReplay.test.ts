@@ -229,6 +229,7 @@ it.each(corpus)(
         } as SDKMessage)
         await pending
       }
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       const messages = structuredClone(projection.snapshot().messages)
       const content = verifyContent(source, messages)
       const replayMetadata = new ClaudeMessageMetadata()

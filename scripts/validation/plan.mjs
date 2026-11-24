@@ -91,7 +91,7 @@ const consumers = {
 function scopeFor(file) {
   if (file.startsWith('resources/')) return 'all'
   if (file.startsWith('docs/website/')) return 'docs'
-  if (file === '.github/website-docs-sync-plan.json') return 'docs'
+  if (file === 'docs/dev/sources-index.json' || file === '.github/website-docs-sync-plan.json') return 'docs'
   if (
     file === 'CONTRIBUTING.i18n.yaml' ||
     ((file.startsWith('docs/') || file.startsWith('.agents/notes/')) && file.endsWith('.i18n.yaml'))
@@ -136,11 +136,13 @@ function scopeFor(file) {
 export function createPlan(files, fullReason) {
   const reasons = {}
   const projects = new Set()
+  let platform = false
   const add = (task, reason) => {
     const entries = (reasons[task] ??= [])
     if (entries.length < 3 && !entries.includes(reason)) entries.push(reason)
   }
   const full = (reason) => {
+    platform = true
     for (const task of Object.keys(checkTasks)) add(task, reason)
     for (const project of testProjects) projects.add(project)
   }
@@ -166,6 +168,8 @@ export function createPlan(files, fullReason) {
     add('knowledge', file)
     if (file.startsWith('src/renderer/') && /\.(?:tsx?|css)$/.test(file)) add('theme', file)
     const affected = scope === 'preload' ? ['main', 'preload', 'renderer'] : consumers[scope]
+    if (affected.includes('main') && !/^packages\/(?:aiCore|ai-sdk-provider|web-search)\/src\/.*\.tsx?$/.test(file))
+      platform = true
     for (const project of affected) projects.add(project)
     if (affected.some((project) => ['main', 'shared', 'scripts', 'provider-registry'].includes(project)))
       add('types-node', file)
@@ -193,6 +197,7 @@ export function createPlan(files, fullReason) {
   return {
     tasks: Object.keys(checkTasks).filter((task) => reasons[task]),
     projects: testProjects.filter((project) => projects.has(project)),
+    platform,
     reasons
   }
 }
@@ -218,7 +223,7 @@ export function selectedGroups(plan) {
     types: plan.tasks.some((task) => checkTasks[task].group === 'types'),
     i18n: plan.tasks.some((task) => checkTasks[task].group === 'i18n'),
     main: plan.projects.includes('main'),
-    platform: plan.projects.includes('main'),
+    platform: plan.platform,
     renderer: plan.projects.includes('renderer'),
     packages: plan.projects.some((project) => !['main', 'preload', 'renderer'].includes(project))
   }

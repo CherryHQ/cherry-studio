@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-14-deepseek-default-billing.md
+2026-11-14-deepseek-default-billing.md: ac542aa6ec25e27eb524f22ac509b873235d1677
+2026-11-14-deepseek-default-billing.zh.md: 10669b519ddca48f1ea0b9ec1466c20933cf2c7f

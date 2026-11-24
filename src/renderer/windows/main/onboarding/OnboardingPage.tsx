@@ -32,8 +32,9 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
-import { oauthWithCherryIn } from '@renderer/services/oauth'
+import { CHERRYIN_API_KEY_URL, oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { isWin } from '@renderer/utils/platform'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
@@ -92,6 +93,7 @@ export default function OnboardingPage({
   const { defaultModel, quickModel, translateModel } = useDefaultModel()
   const [step, setStep] = useState<OnboardingStep>('welcome')
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [showCherryInKeySetup, setShowCherryInKeySetup] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
   const [isUpdatingPrivacy, setIsUpdatingPrivacy] = useState(false)
   const [privacyAccepted, setPrivacyAccepted] = useState(true)
@@ -347,7 +349,7 @@ export default function OnboardingPage({
     }, CHERRYIN_LOGIN_LOADING_TIMEOUT_MS)
 
     try {
-      await oauthWithCherryIn(
+      const apiKeys = await oauthWithCherryIn(
         async (apiKeys) => {
           if (loginAttemptRef.current !== attemptId) return
 
@@ -362,6 +364,8 @@ export default function OnboardingPage({
         { oauthServer: CHERRYIN_OAUTH_SERVER }
       )
       if (loginAttemptRef.current !== attemptId) return
+      setShowCherryInKeySetup(!apiKeys)
+      if (!apiKeys) return
 
       const cherryInModels = await syncProviderModels()
       if (loginAttemptRef.current !== attemptId) return
@@ -463,6 +467,16 @@ export default function OnboardingPage({
                       {!isPrimaryLoginPending && <LogIn size={16} />}
                       {primaryLoginLabel}
                     </Button>
+                    {!shouldUseCherryAccountLogin && showCherryInKeySetup ? (
+                      <div className="flex flex-col items-center gap-2 text-center">
+                        <p className="text-muted-foreground text-sm">
+                          {t('settings.provider.oauth.cherryIn.missing_keys')}
+                        </p>
+                        <Button variant="link" onClick={() => void openExternalWebsite(CHERRYIN_API_KEY_URL)}>
+                          {t('settings.provider.get_api_key')}
+                        </Button>
+                      </div>
+                    ) : null}
                     {shouldUseCherryAccountLogin && cloudStatus?.phase === 'authorizing' ? (
                       <Button
                         type="button"
@@ -533,8 +547,7 @@ export default function OnboardingPage({
                   padded
                 />
                 <ScrollArea
-                  viewportProps={{ className: 'px-6 py-8' }}
-                  contentProps={{ className: 'flex justify-center' }}
+                  contentProps={{ className: 'flex justify-center px-6 py-8' }}
                   className="min-h-0 flex-1 border-border border-t">
                   <div className="my-auto w-full max-w-[440px]">
                     <div className="w-full">

@@ -6,7 +6,6 @@ import { dirname, join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import type { TaskSelection } from './cases'
 import type { RunPaths } from './paths'
 import { findListeningPid, isAlive, processCommand, terminateExactProcess, waitForExit } from './process'
 import { readRun, updateRunMetadata, writeRun } from './state'
@@ -17,29 +16,12 @@ export const AIMOCK_VERSION: string = JSON.parse(
   readFileSync(join(dirname(require.resolve('@copilotkit/aimock')), '..', 'package.json'), 'utf8')
 ).version
 const worker = fileURLToPath(new URL('./mockWorker.ts', import.meta.url))
-const supportedTasks: TaskSelection[] = [
-  'startup-smoke',
-  'mini-app-smoke',
-  'notes-smoke',
-  'custom-provider-chat',
-  'provider-model-scroll',
-  'custom-assistant',
-  'chat-stream-failure',
-  'translation-smoke',
-  'translation-settings',
-  'quick-assistant'
-]
-
 export interface MockRecord {
   pid: number
   token: string
   port: number
   version: string
   platform: Platform
-}
-
-export function assertMockTask(task: TaskSelection): void {
-  if (!supportedTasks.includes(task)) throw new Error(`Task ${task} requires provider_mode=real`)
 }
 
 export function readMockRecord(paths: RunPaths): MockRecord {
@@ -69,15 +51,15 @@ export async function verifyMockProvider(paths: RunPaths): Promise<MockRecord> {
   return record
 }
 
-export async function startMockProvider(paths: RunPaths): Promise<MockRecord> {
-  const run = readRun(paths.runState)
-  if (run.metadata.providerMode !== 'mock') throw new Error('mock-start requires an initialized mock run')
-  assertMockTask(run.metadata.task)
+export async function startMockProvider(paths: RunPaths, platform?: Platform): Promise<MockRecord> {
+  const run = existsSync(paths.runState) ? readRun(paths.runState) : undefined
+  platform ??= run?.metadata.platform
+  if (!platform) throw new Error('Mock provider platform is required')
   if (existsSync(join(paths.root, 'mock.json'))) {
     const previous = readMockRecord(paths)
     if (isAlive(previous.pid)) {
       const record = await verifyMockProvider(paths)
-      writeRun(paths.runState, updateRunMetadata(run, { mockVersion: record.version }))
+      if (run) writeRun(paths.runState, updateRunMetadata(run, { mockVersion: record.version }))
       return record
     }
     rmSync(join(paths.root, 'mock.json'))
@@ -86,7 +68,7 @@ export async function startMockProvider(paths: RunPaths): Promise<MockRecord> {
   const log = openSync(join(paths.logs, 'aimock.log'), 'a', 0o600)
   const child = spawn(
     process.execPath,
-    ['--import', pathToFileURL(require.resolve('tsx')).href, worker, paths.root, token],
+    ['--import', pathToFileURL(require.resolve('tsx')).href, worker, paths.root, token, platform],
     {
       detached: true,
       stdio: ['ignore', log, log]
@@ -104,7 +86,7 @@ export async function startMockProvider(paths: RunPaths): Promise<MockRecord> {
       if (child.exitCode !== null || child.signalCode) throw new Error(`Mock worker exited; see aimock.log`)
       if (existsSync(join(paths.root, 'mock.json'))) {
         const record = await verifyMockProvider(paths)
-        writeRun(paths.runState, updateRunMetadata(readRun(paths.runState), { mockVersion: record.version }))
+        if (run) writeRun(paths.runState, updateRunMetadata(readRun(paths.runState), { mockVersion: record.version }))
         return record
       }
       await setTimeout(100)
@@ -112,8 +94,8 @@ export async function startMockProvider(paths: RunPaths): Promise<MockRecord> {
     throw new Error('Mock provider startup timed out; see aimock.log')
   } catch (error) {
     if (child.pid && isAlive(child.pid)) {
-      assertWorker({ pid: child.pid, token, platform: run.metadata.platform, port: 0, version: AIMOCK_VERSION })
-      terminateExactProcess(child.pid, run.metadata.platform)
+      assertWorker({ pid: child.pid, token, platform, port: 0, version: AIMOCK_VERSION })
+      terminateExactProcess(child.pid, platform)
     }
     throw error
   }
@@ -142,4 +124,14 @@ export async function stopMockProvider(paths: RunPaths): Promise<void> {
     }
   }
   rmSync(file, { force: true })
+}
+
+export async function assertMockRequests(paths: RunPaths): Promise<void> {
+  const record = await verifyMockProvider(paths)
+  const response = await fetch(`http://127.0.0.1:${record.port}/__cherry_mock`, {
+    headers: { Authorization: `Bearer ${record.token}` },
+    signal: AbortSignal.timeout(2_000)
+  })
+  const summary = await response.json()
+  if (summary.unmatched > 0) throw new Error(`Mock provider received ${summary.unmatched} unmatched requests`)
 }

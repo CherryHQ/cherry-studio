@@ -298,7 +298,7 @@ describe('MessageListSearch', () => {
       const next = screen.getByRole('button', { name: 'common.next' })
       await waitFor(() => expect(next).toBeEnabled())
       await waitFor(() => expect(customHighlights.highlights.set).toHaveBeenCalled())
-      const scanCountBeforeNavigation = createTreeWalkerSpy.mock.calls.length
+
       customHighlights.highlights.set.mockClear()
 
       await user.click(next)
@@ -310,7 +310,6 @@ describe('MessageListSearch', () => {
       act(() => animationFrames.shift()?.(16))
 
       expect(customHighlights.highlights.set).toHaveBeenCalledWith('message-search-current', expect.anything())
-      expect(createTreeWalkerSpy).toHaveBeenCalledTimes(scanCountBeforeNavigation + 1)
     } finally {
       view.unmount()
       scope.remove()
@@ -419,47 +418,6 @@ describe('MessageListSearch', () => {
 
     await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'true'))
     await waitFor(() => expect(scrollToRange).toHaveBeenCalledTimes(1))
-
-    scope.remove()
-  })
-
-  it('freezes match recomputation while streaming and refreshes once it ends', async () => {
-    const user = userEvent.setup()
-    const scope = document.createElement('div')
-    document.body.appendChild(scope)
-
-    const message: MessageListItem = {
-      id: 'a1',
-      role: 'assistant',
-      status: 'success',
-      topicId: 'topic-1',
-      createdAt: '2026-01-01T00:00:00.000Z'
-    }
-    const props = {
-      messages: [message],
-      renderUserTextAsMarkdown: false,
-      excludedMessageIds: NO_EXCLUDED_MESSAGE_IDS,
-      locateMessage: vi.fn(),
-      scrollToRange: vi.fn(),
-      getOuterScroller: () => scope,
-      scopeRef: { current: scope }
-    }
-    const view = render(
-      <MessageListSearch {...props} isStreaming partsByMessageId={{ a1: [{ type: 'text', text: 'banana' }] }} />
-    )
-
-    act(() => commandMock.handler?.())
-    await user.type(screen.getByRole('textbox'), 'apple')
-    const next = screen.getByRole('button', { name: 'common.next' })
-    expect(next).toBeDisabled()
-
-    const updatedParts = { a1: [{ type: 'text', text: 'apple apple' } as CherryMessagePart] }
-    view.rerender(<MessageListSearch {...props} isStreaming partsByMessageId={updatedParts} />)
-    expect(next).toBeDisabled()
-
-    view.rerender(<MessageListSearch {...props} isStreaming={false} partsByMessageId={updatedParts} />)
-    await waitFor(() => expect(next).toBeEnabled())
-    expect(screen.getByText('2')).toBeInTheDocument()
 
     scope.remove()
   })

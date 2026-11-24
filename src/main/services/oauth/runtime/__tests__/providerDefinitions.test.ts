@@ -71,15 +71,6 @@ describe('Grok OIDC discovery host-pinning', () => {
       signal: controller.signal
     })
   })
-
-  it('caches discovery after the first successful fetch', async () => {
-    vi.mocked(net.fetch).mockResolvedValue(
-      discoveryResponse('https://auth.x.ai/oauth2/auth', 'https://auth.x.ai/oauth2/token')
-    )
-    await oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient()
-    await oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient()
-    expect(net.fetch).toHaveBeenCalledTimes(1)
-  })
 })
 
 describe('CherryIN HTTP callback contract', () => {

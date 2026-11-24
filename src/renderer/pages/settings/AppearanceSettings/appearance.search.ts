@@ -22,31 +22,25 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.theme.title'
   },
   {
-    anchorId: 'display-language',
-    titleKey: 'common.language',
-    groupKey: 'settings.general.common.sections.display_language',
-    aliases: ['language', '语言']
-  },
-  {
     anchorId: 'zoom',
     titleKey: 'settings.zoom.title',
-    groupKey: 'settings.general.common.sections.display_language'
+    groupKey: 'settings.general.common.sections.display'
   },
   {
     anchorId: 'menu-presentation-mode',
     titleKey: 'settings.general.common.menu.presentation_mode.title',
-    groupKey: 'settings.general.common.sections.display_language'
+    groupKey: 'settings.general.common.sections.display'
   },
   {
     anchorId: 'chat-list-position',
     titleKey: 'settings.display.list_position.chat',
-    groupKey: 'settings.general.common.sections.display_language',
+    groupKey: 'settings.general.common.sections.display',
     aliases: ['sidebar', '侧边栏']
   },
   {
     anchorId: 'work-list-position',
     titleKey: 'settings.display.list_position.work',
-    groupKey: 'settings.general.common.sections.display_language'
+    groupKey: 'settings.general.common.sections.display'
   },
   {
     anchorId: 'font-global',
@@ -130,6 +124,12 @@ export const entries: SettingsSearchEntry[] = [
     anchorId: 'user-message-default-expanded',
     titleKey: 'settings.messages.user_content.default_expanded.label',
     descriptionKey: 'settings.messages.user_content.default_expanded.hint',
+    groupKey: messagesGroup
+  },
+  {
+    anchorId: 'scroll-to-bottom-on-send',
+    titleKey: 'settings.messages.scroll_to_bottom_on_send.label',
+    descriptionKey: 'settings.messages.scroll_to_bottom_on_send.hint',
     groupKey: messagesGroup
   },
   {
