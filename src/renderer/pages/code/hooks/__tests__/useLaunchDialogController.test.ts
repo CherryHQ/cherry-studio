@@ -58,6 +58,13 @@ const { useLaunchDialogController } = await import('../useLaunchDialogController
 
 const enabledProvider = { id: 'anthropic', name: 'Anthropic' } as Provider
 
+/** The snapshot the shared toast host records for the launch failure. */
+const reportedLaunchFailure = (key: string) =>
+  appErrorContextService.contextForHostError(
+    key,
+    vi.mocked(toast.error).mock.calls[0][0] as Parameters<typeof appErrorContextService.contextForHostError>[1]
+  )
+
 describe('useLaunchDialogController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -716,6 +723,28 @@ describe('useLaunchDialogController', () => {
       expect(getApiKey).not.toHaveBeenCalled()
       expect(mocks.requestMock).not.toHaveBeenCalled()
       expect(result.current.launching).toBe(false)
+      // The terminal was never asked to run, so Details must name the gateway step.
+      expect(reportedLaunchFailure('gateway-start-failed')).toMatchObject({
+        message: 'API gateway failed to start',
+        operation: 'api_gateway.ensure_running'
+      })
+    })
+
+    it('names the config step in Details when reconciliation fails before the run', async () => {
+      const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
+      mocks.writeCliConfigDraft.mockRejectedValueOnce(new Error('EROFS: read-only file system'))
+      const { result } = renderGatewayLaunch(getApiKey)
+
+      await act(async () => {
+        result.current.launchDialogProps.onLaunch()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(mocks.requestMock).not.toHaveBeenCalled()
+      expect(reportedLaunchFailure('config-write-failed')).toMatchObject({
+        message: 'EROFS: read-only file system',
+        operation: 'code_cli.write_config'
+      })
     })
 
     it('launches Antigravity after ensuring the gateway runs without reading its key or writing config', async () => {

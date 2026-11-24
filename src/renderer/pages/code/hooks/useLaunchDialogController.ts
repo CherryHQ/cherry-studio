@@ -165,6 +165,8 @@ export function useLaunchDialogController({
       return
     }
 
+    // The step in flight, so Details tells gateway startup and config writes apart from the terminal launch.
+    let operation = 'code_cli.resolve_model'
     try {
       setLaunching(true)
       // The gateway may have been stopped or re-keyed/re-ported since "enable" wrote the CLI
@@ -182,9 +184,11 @@ export function useLaunchDialogController({
         throw new Error(`Model is no longer available: ${cliConfigContext.modelId}`)
       }
       if (isGatewayProvider && apiGatewayProvider) {
+        operation = 'api_gateway.ensure_running'
         await apiGatewayProvider.ensureRunning()
       }
       if (isGatewayProvider && apiGatewayProvider && isFileConfiguredCli(selectedCliTool)) {
+        operation = 'code_cli.write_config'
         const apiKey = await apiGatewayProvider.getApiKey()
         let onDiskFiles: CliConfigFileDraft[] | undefined
         try {
@@ -230,6 +234,7 @@ export function useLaunchDialogController({
       // and a direct launch hands it straight to the provider's own API. A record without one
       // legitimately falls back to the raw id — unlike a missing record, rejected above.
       const launchModel = launchModelRecord.apiModelId ?? cliConfigContext.rawModelId
+      operation = 'code_cli.run'
       const runResult = await ipcApi.request('code_cli.run', {
         mode: 'normal',
         cliTool: selectedCliTool,
@@ -252,10 +257,7 @@ export function useLaunchDialogController({
       }
     } catch (err) {
       logger.error('Failed to launch CLI tool:', err as Error)
-      toastAppError(t('code.launch.error'), err, {
-        source: 'code.launch',
-        operation: 'code_cli.run'
-      })
+      toastAppError(t('code.launch.error'), err, { source: 'code.launch', operation })
     } finally {
       setLaunching(false)
     }
