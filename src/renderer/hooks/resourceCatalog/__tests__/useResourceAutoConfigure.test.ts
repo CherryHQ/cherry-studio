@@ -1,10 +1,11 @@
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useResourceAutoConfigure } from '../useResourceAutoConfigure'
 
 const fetchGenerate = vi.hoisted(() => vi.fn<(input: { content: string }) => Promise<string>>())
-const addMcpServer = vi.hoisted(() => vi.fn())
+const installPreset = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/utils/aiGeneration', () => ({ fetchGenerate }))
 vi.mock('@renderer/hooks/useSkills', () => ({
@@ -27,15 +28,22 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
       { id: 'mcp-github', name: 'GitHub', type: 'stdio', isActive: true },
       { id: 'mcp-inactive', name: 'Inactive', type: 'stdio', isActive: false },
       { id: 'mcp-browser', name: '@cherry/browser', type: 'inMemory', isActive: true },
-      { id: 'mcp-sequential', name: '@cherry/sequentialthinking', type: 'inMemory', isActive: true }
-    ],
-    addMcpServer
+      {
+        id: 'mcp-sequential',
+        name: '@cherry/sequentialthinking',
+        type: 'inMemory',
+        isActive: true,
+        installSource: 'builtin'
+      }
+    ]
   })
 }))
 
 describe('useResourceAutoConfigure', () => {
   beforeEach(() => {
-    addMcpServer.mockReset()
+    MockUseDataApiUtils.resetMocks()
+    installPreset.mockReset()
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/mcp-servers/install-preset', installPreset)
   })
 
   it('never links builtin or disabled skills, or inactive or browser MCP servers', async () => {
@@ -95,18 +103,17 @@ describe('useResourceAutoConfigure', () => {
   })
 
   it('installs picked featured servers once, active, and swaps in their new IDs', async () => {
-    addMcpServer.mockResolvedValue({ id: 'mcp-fetch-new', name: '@cherry/fetch' })
+    installPreset.mockResolvedValue({ id: 'mcp-fetch-new', name: '@cherry/fetch' })
     const { result } = renderHook(() => useResourceAutoConfigure('agent'))
 
     const ids = await result.current.installFeaturedMcpServers(['mcp-github', 'preset:@cherry/fetch'])
 
     expect(ids).toEqual(['mcp-github', 'mcp-fetch-new'])
-    expect(addMcpServer).toHaveBeenCalledTimes(1)
-    expect(addMcpServer.mock.calls[0][0]).toMatchObject({ name: '@cherry/fetch', isActive: true })
+    expect(installPreset).toHaveBeenCalledWith({ body: { name: '@cherry/fetch', activate: true } })
   })
 
   it('fails when a featured server cannot be installed', async () => {
-    addMcpServer.mockRejectedValue(new Error('npm offline'))
+    installPreset.mockRejectedValue(new Error('npm offline'))
     const { result } = renderHook(() => useResourceAutoConfigure('agent'))
 
     await expect(result.current.installFeaturedMcpServers(['preset:@cherry/fetch'])).rejects.toThrow('npm offline')

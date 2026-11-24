@@ -3,77 +3,75 @@ import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Button, FormField, FormItem, Textarea } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
+import { AgentChannels } from '@renderer/components/channel/AgentChannels'
+import { DiscardChangesDialog } from '@renderer/components/DiscardChangesDialog'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
-import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { useAgentTasks } from '@renderer/hooks/agent/useTasks'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
-import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import { useModelById } from '@renderer/hooks/useModel'
-import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getPermissionModeCards } from '@renderer/utils/agent'
-import type { AgentLanguageMode } from '@renderer/utils/agent/agentLanguage'
 import {
   type AgentFormState,
+  type AgentLanguageMode,
   applyAgentFormPatch,
   buildInitialAgentFormState,
-  diffAgentSaveIntent,
-  RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
-} from '@renderer/utils/resourceCatalog'
+  diffAgentSaveIntent
+} from '@shared/ai/agentForm'
+import type { AgentPromptOverrides } from '@shared/ai/agentPromptSections'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
-import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import type { AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { AgentMemoryFileKey } from '@shared/ipc/schemas/agent'
 import type { InstalledSkill } from '@shared/types/skill'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
 
 import { AgentAvatarPicker } from '../components/AgentAvatarPicker'
+import { getPromptBlockTitleKey, AgentPromptField } from '../components/AgentPromptField'
 import { getAgentBuiltinTools } from '../components/builtinTools'
 import { BuiltinToolsField } from '../components/BuiltinToolsField'
 import {
   EditDialogPageShell,
-  EditMainPage,
+  EditIdentityHeader,
   SettingsLinkButton,
+  settingsPillClassName,
   SettingsRow,
   SettingsSection
 } from '../components/EditDialogPages'
 import {
   CompactModelField,
-  EDIT_DIALOG_PROMPT_MAX_HEIGHT,
-  EDIT_DIALOG_PROMPT_MIN_HEIGHT,
   type EditDialogBaseProps,
-  FieldLabelWithHelp,
   type ModelLabels,
-  PromptVariablesPopover,
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
 import { HeartbeatCard } from '../components/HeartbeatCard'
 import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
 import { McpCapabilityList } from '../components/McpCapabilityList'
-import { PiPromptField } from '../components/PiPromptField'
-import { usePromptPolish } from '../components/PromptPolishActions'
 import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
-import { AgentChannelsPage } from './AgentChannelsPage'
-import { AgentMemoryPanel, type AgentMemoryPanelHandle } from './AgentMemoryPanel'
+import { AgentMemoryPanel, type AgentMemoryPanelHandle, MEMORY_FILE_LABEL_KEYS } from './AgentMemoryPanel'
 import { AgentTasksPage } from './AgentTasksPage'
-import { countSummary, type EditPage, type EditSubPage, parentEditPage, resolveInitialEditPage } from './editPages'
-import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
+import { countSummary, type EditPage, type EditSubPage, resolveInitialEditPage } from './editPages'
+import { HeartbeatTasksPage, type HeartbeatTasksPageHandle } from './HeartbeatTasksPage'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
   resource: AgentDetail | null
   isModelDisabled?: ModelSelectorFilter
+  sessionId?: string
 }
 
 type AgentEditFormValues = {
@@ -95,6 +93,8 @@ type AgentEditFormValues = {
   heartbeatTimeoutMinutes: number
   languageMode: AgentLanguageMode
   languageCustom: string
+  claudeCodeNativePromptEnabled: boolean
+  promptOverrides: AgentPromptOverrides
 }
 
 const logger = loggerService.withContext('AgentEditDialog')
@@ -109,6 +109,7 @@ function agentSubPages(resource: AgentDetail): Set<EditSubPage> {
     'memory',
     'channels',
     'tasks',
+    ...(caps.heartbeat ? (['heartbeat'] as const) : []),
     ...(caps.skills && !sealedSkills ? (['skills'] as const) : []),
     ...(caps.knowledgeBases ? (['knowledge'] as const) : []),
     ...(caps.mcp ? (['mcp'] as const) : [])
@@ -135,7 +136,9 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     heartbeatInterval: form.heartbeatInterval,
     heartbeatTimeoutMinutes: form.heartbeatTimeoutMinutes,
     languageMode: form.languageMode,
-    languageCustom: form.languageCustom
+    languageCustom: form.languageCustom,
+    claudeCodeNativePromptEnabled: form.claudeCodeNativePromptEnabled,
+    promptOverrides: form.promptOverrides
   }
 }
 
@@ -168,7 +171,9 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     heartbeatInterval: values.heartbeatInterval,
     heartbeatTimeoutMinutes: values.heartbeatTimeoutMinutes,
     languageMode: values.languageMode,
-    languageCustom: values.languageCustom
+    languageCustom: values.languageCustom,
+    claudeCodeNativePromptEnabled: values.claudeCodeNativePromptEnabled,
+    promptOverrides: values.promptOverrides
   }
 }
 
@@ -208,6 +213,9 @@ function advanceAgentFormBaseline(
       next.languageMode = submitted.languageMode
       next.languageCustom = submitted.languageCustom
     }
+    if (hasOwn(configuration, 'claude_code_native_prompt_enabled'))
+      next.claudeCodeNativePromptEnabled = submitted.claudeCodeNativePromptEnabled
+    if (hasOwn(configuration, 'prompt_overrides')) next.promptOverrides = { ...submitted.promptOverrides }
   }
 
   return next
@@ -235,6 +243,7 @@ export function AgentEditDialog({
   onOpenChange,
   modelFilter,
   isModelDisabled,
+  sessionId,
   initialTab
 }: AgentEditDialogProps) {
   if (!resource) return null
@@ -247,6 +256,7 @@ export function AgentEditDialog({
       modelFilter={modelFilter}
       isModelDisabled={isModelDisabled}
       initialTab={initialTab}
+      sessionId={sessionId}
     />
   )
 }
@@ -257,12 +267,18 @@ function AgentEditDialogContent({
   onOpenChange,
   modelFilter,
   isModelDisabled,
+  sessionId,
   initialTab
-}: EditDialogBaseProps & { resource: AgentDetail; isModelDisabled?: ModelSelectorFilter }) {
+}: Omit<AgentEditDialogProps, 'resource'> & { resource: AgentDetail }) {
   const { t } = useTranslation()
   const subPages = useMemo(() => agentSubPages(resource), [resource])
   const [page, setPage] = useState<EditPage>(() => resolveInitialEditPage('agent', initialTab, subPages))
+  // The System Prompt page opens one block of the prompt as a page of its own.
+  const [promptSection, setPromptSection] = useState<string | null>(null)
+  const [memoryFile, setMemoryFile] = useState<AgentMemoryFileKey | null>(null)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const memoryPanelRef = useRef<AgentMemoryPanelHandle>(null)
+  const heartbeatPageRef = useRef<HeartbeatTasksPageHandle>(null)
   const [avatarSrc, setAvatarSrc] = useState(resource.avatarSrc)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
@@ -274,9 +290,6 @@ function AgentEditDialogContent({
   // Validate as the user types so an emptied name shows its required message.
   const form = useForm<AgentEditFormValues>({ defaultValues, mode: 'onChange' })
   const values = form.watch()
-  const { model: selectedAgentModel } = useModelById(values.modelId)
-  const promptModelName =
-    selectedAgentModel?.name ?? (values.modelId === resource.model ? resource.modelName : undefined)
   const replaceFormBaseline = useCallback((next: AgentFormState) => {
     formBaselineRef.current = next
     setFormBaseline(next)
@@ -330,6 +343,9 @@ function AgentEditDialogContent({
     form.reset(defaultValues)
     form.clearErrors()
     setPage(resolveInitialEditPage('agent', initialTab, subPages))
+    setConfirmDiscard(false)
+    setPromptSection(null)
+    setMemoryFile(null)
     setAvatarSrc(resource.avatarSrc)
     setModelLabels(modelLabelsForAgent(resource))
     replaceFormBaseline(buildInitialAgentFormState(resource))
@@ -465,6 +481,7 @@ function AgentEditDialogContent({
       return true
     }
     if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return false
+    if (heartbeatPageRef.current && !(await heartbeatPageRef.current.confirmLeave())) return false
     const valuesBeforeSave = JSON.stringify(form.getValues())
     const pendingSave = getPendingSave()
     if (pendingSave) await pendingSave
@@ -472,16 +489,19 @@ function AgentEditDialogContent({
 
     const currentValues = form.getValues()
     const pending = getCurrentSaveIntent()
-    if (!pending || (!currentValues.name.trim() && allowDiscard)) {
+    if (!pending) {
       onOpenChange(false)
       return true
     }
-    if (!currentValues.name.trim()) return false
+    if (!currentValues.name.trim()) {
+      if (allowDiscard) setConfirmDiscard(true)
+      return false
+    }
     if (failedSaveKeyRef.current === serializeAgentSaveAttempt(currentValues, pending.payload)) {
       toast.error(saveFailedMessage)
       if (!allowDiscard || pendingSave) return false
-      onOpenChange(false)
-      return true
+      setConfirmDiscard(true)
+      return false
     }
     await flush()
     if (
@@ -494,10 +514,34 @@ function AgentEditDialogContent({
     return true
   }
   const closeBeforeAction = useCloseBeforeAction((next) => handleOpenChange(next, false))
+  const closeConversationTabs = useCloseConversationTabs()
+  const invalidateCache = useInvalidateCache()
+  // Opens an empty conversation with this Agent and leaves the request in its composer, unsent. Main hands the
+  // draft over, so it also lands when this dialog runs in a detached window.
+  const createTaskWithAgent = () =>
+    closeBeforeAction(() => {
+      void ipcApi
+        .request('ai.agent.session.reuse_or_create', {
+          agentId: resource.id,
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        })
+        .then(({ session, deletedDuplicateSessionIds }) => {
+          closeConversationTabs('agents', deletedDuplicateSessionIds)
+          void invalidateCache(['/agent-sessions', `/agent-sessions/${session.id}`])
+          return ipcApi.request('navigation.focus_or_open_conversation', {
+            target: { conversationType: 'agent', conversationId: session.id },
+            title: session.name || resource.name,
+            draft: { text: t('chat.profile_pane.tasks.new_prompt'), tokens: [], files: [], knowledgeBaseIds: [] }
+          })
+        })
+        .catch((error) => {
+          logger.error('Failed to open a conversation to create a task', error as Error)
+          toast.error(t('agent.session.create.error.failed'))
+        })
+    })
 
   const pageTitles: Record<EditPage, string> = {
-    main: t('library.config.dialogs.edit.agent_title'),
-    more: t('library.config.dialogs.edit.page.more'),
+    settings: t('library.config.dialogs.edit.agent_title'),
     prompt: t('library.config.prompt.label'),
     tools: t('library.config.agent.section.tools.tab.tools'),
     skills: t('library.config.agent.section.tools.tab.skills'),
@@ -505,15 +549,25 @@ function AgentEditDialogContent({
     mcp: t('library.config.dialogs.edit.page.mcp'),
     channels: t('library.config.dialogs.edit.page.channels'),
     tasks: t('settings.scheduledTasks.title'),
+    heartbeat: t('agent.heartbeat.tasks'),
     memory: t('agent.memory.button'),
     context: '',
     parameters: ''
   }
 
-  // Leaving Memory with an unsaved file edit asks first, as switching tabs did.
+  // Leaving Memory or the heartbeat tasks with an unsaved edit asks first, as switching tabs did.
   const goTo = async (next: EditPage) => {
     if (page === 'memory' && memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
+    if (page === 'heartbeat' && heartbeatPageRef.current && !(await heartbeatPageRef.current.confirmLeave())) return
+    setPromptSection(null)
+    setMemoryFile(null)
     setPage(next)
+  }
+  const promptSectionTitle = page === 'prompt' && promptSection ? getPromptBlockTitleKey(promptSection) : undefined
+  const memoryFileTitle = page === 'memory' && memoryFile ? MEMORY_FILE_LABEL_KEYS[memoryFile] : undefined
+  const leaveMemoryFile = async () => {
+    if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
+    setMemoryFile(null)
   }
 
   return (
@@ -521,91 +575,105 @@ function AgentEditDialogContent({
       form={form}
       open={open}
       onOpenChange={handleOpenChange}
-      page={page}
-      title={pageTitles[page]}
-      onBack={page === 'main' ? undefined : () => void goTo(parentEditPage(page))}
+      guardDismiss={Boolean(saveIntent)}
+      page={promptSectionTitle ? `prompt.${promptSection}` : memoryFileTitle ? `memory.${memoryFile}` : page}
+      title={promptSectionTitle ? t(promptSectionTitle) : memoryFileTitle ? t(memoryFileTitle) : pageTitles[page]}
+      onBack={
+        promptSectionTitle
+          ? () => setPromptSection(null)
+          : memoryFileTitle
+            ? () => void leaveMemoryFile()
+            : page === 'settings'
+              ? undefined
+              : () => void goTo('settings')
+      }
       fill={page === 'prompt' || page === 'memory'}
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}>
-      {page === 'main' ? (
-        <EditMainPage
-          form={form}
-          avatar={
-            open ? (
-              <AgentAvatarPicker
-                agentId={resource.id}
-                emoji={values.avatar}
-                avatarSrc={avatarSrc}
-                onChanged={(next) => {
-                  setAvatarSrc(next.avatarSrc)
-                  form.setValue('avatar', next.emoji)
-                  replaceFormBaseline({ ...formBaselineRef.current, avatar: next.emoji })
-                }}
-                ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+      {page === 'settings' ? (
+        <div className="flex flex-col gap-5">
+          <EditIdentityHeader
+            form={form}
+            avatar={
+              open ? (
+                <AgentAvatarPicker
+                  agentId={resource.id}
+                  emoji={values.avatar}
+                  avatarSrc={avatarSrc}
+                  onChanged={(next) => {
+                    setAvatarSrc(next.avatarSrc)
+                    form.setValue('avatar', next.emoji)
+                    replaceFormBaseline({ ...formBaselineRef.current, avatar: next.emoji })
+                  }}
+                  ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+                  portalContainer={dialogContentElement}
+                  size="lg"
+                />
+              ) : null
+            }
+            namePlaceholder={t('library.config.agent.field.name.placeholder')}
+            descriptionPlaceholder={t('library.config.agent.field.description.placeholder')}
+            model={
+              <CompactModelField
+                form={form}
+                name="modelId"
+                includeAgentOnlyModels
+                label={t('library.config.agent.field.model.label')}
+                filter={modelFilter}
+                isModelDisabled={isModelDisabled}
                 portalContainer={dialogContentElement}
-                size="lg"
+                modelLabels={modelLabels}
+                setModelLabels={setModelLabels}
+                onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
+                onSettingsNavigate={closeBeforeAction}
+                layout="chip"
+                triggerClassName="w-auto max-w-56"
               />
-            ) : null
-          }
-          namePlaceholder={t('library.config.agent.field.name.placeholder')}
-          descriptionPlaceholder={t('library.config.agent.field.description.placeholder')}
-          model={
-            <CompactModelField
-              form={form}
-              name="modelId"
-              includeAgentOnlyModels
-              label={t('library.config.agent.field.model.label')}
-              filter={modelFilter}
-              isModelDisabled={isModelDisabled}
-              portalContainer={dialogContentElement}
-              modelLabels={modelLabels}
-              setModelLabels={setModelLabels}
-              onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
-              onSettingsNavigate={closeBeforeAction}
-              layout="chip"
-              triggerClassName="w-auto max-w-56"
-            />
-          }
-          onOpenMore={() => setPage('more')}
-        />
+            }
+          />
+          <AgentSettingsCards
+            agent={resource}
+            form={form}
+            portalContainer={dialogContentElement}
+            skills={skills}
+            subPages={subPages}
+            patchAgentForm={patchAgentForm}
+            permissionAuthorityKey={`${resource.id}:${resource.configuration?.permission_mode ?? 'default'}`}
+            onOpen={setPage}
+            beforeHeartbeatOpen={async () => {
+              await flush()
+              return failedSaveKeyRef.current === null
+            }}
+          />
+        </div>
       ) : null}
-      {page === 'more' ? (
-        <AgentMoreSettings
-          agent={resource}
-          form={form}
-          portalContainer={dialogContentElement}
-          skills={skills}
-          subPages={subPages}
-          patchAgentForm={patchAgentForm}
-          permissionAuthorityKey={`${resource.id}:${resource.configuration?.permission_mode ?? 'default'}`}
-          onOpen={setPage}
-          beforeHeartbeatOpen={async () => {
-            await flush()
-            return failedSaveKeyRef.current === null
-          }}
-        />
-      ) : null}
-      {page === 'prompt' && resource.type === 'pi-durable' ? (
-        <PiPromptField
+      {open ? (
+        <AgentPromptField
+          visible={page === 'prompt'}
           value={values.instructions}
           onChange={(next) => form.setValue('instructions', next, { shouldDirty: true, shouldTouch: true })}
+          name={values.name}
+          modelId={values.modelId}
+          portalContainer={dialogContentElement}
+          onNativePromptEnabledChange={(enabled) =>
+            form.setValue('claudeCodeNativePromptEnabled', enabled, { shouldDirty: true })
+          }
+          overrides={values.promptOverrides}
+          onOverridesChange={(next) => form.setValue('promptOverrides', next, { shouldDirty: true, shouldTouch: true })}
+          section={promptSection}
+          onSectionChange={setPromptSection}
+          onEditIdentity={() => void goTo('memory')}
           draft={{
             agentId: resource.id,
+            sessionId,
+            agentType: resource.type,
+            claudeCodeNativePromptEnabled: values.claudeCodeNativePromptEnabled,
             skillIds: values.skillIds,
             disabledTools: values.disabledTools,
             knowledgeBaseIds: values.knowledgeBaseIds,
-            mcpServerIds: values.mcps,
             languageMode: values.languageMode,
             languageCustom: values.languageCustom
           }}
-        />
-      ) : null}
-      {open && resource.type !== 'pi-durable' ? (
-        <AgentSystemPromptField
-          visible={page === 'prompt'}
-          form={form}
-          modelName={promptModelName ?? null}
-          portalContainer={dialogContentElement}
         />
       ) : null}
       {page === 'tools' ? (
@@ -641,7 +709,7 @@ function AgentEditDialogContent({
       ) : null}
       {page === 'mcp' ? <AgentMcpPage form={form} portalContainer={dialogContentElement} /> : null}
       {page === 'channels' ? (
-        <AgentChannelsPage
+        <AgentChannels
           agentId={resource.id}
           agentType={resource.type}
           permissionMode={values.permissionMode as AgentPermissionMode}
@@ -649,14 +717,32 @@ function AgentEditDialogContent({
         />
       ) : null}
       {page === 'tasks' ? (
-        <AgentTasksPage agentId={resource.id} agentName={values.name.trim() || resource.name} />
+        <AgentTasksPage
+          agentId={resource.id}
+          agentName={values.name.trim() || resource.name}
+          onCreateWithAgent={createTaskWithAgent}
+        />
       ) : null}
-      {open && page === 'memory' ? <AgentMemoryPanel key={resource.id} ref={memoryPanelRef} agent={resource} /> : null}
+      {page === 'heartbeat' ? (
+        <HeartbeatTasksPage ref={heartbeatPageRef} agentId={resource.id} enabled={values.heartbeatEnabled} />
+      ) : null}
+      {open && page === 'memory' ? (
+        <AgentMemoryPanel
+          key={resource.id}
+          ref={memoryPanelRef}
+          agent={resource}
+          file={memoryFile}
+          onFileChange={setMemoryFile}
+        />
+      ) : null}
+      {confirmDiscard && (
+        <DiscardChangesDialog onCancel={() => setConfirmDiscard(false)} onDiscard={() => onOpenChange(false)} />
+      )}
     </EditDialogPageShell>
   )
 }
 
-function AgentMoreSettings({
+function AgentSettingsCards({
   agent,
   form,
   portalContainer,
@@ -700,7 +786,6 @@ function AgentMoreSettings({
     {
       page: 'skills',
       label: t('library.config.agent.section.tools.tab.skills'),
-      // Builtin skills are always on, so they count as enabled.
       summary: countSummary(
         t,
         'enabled',
@@ -732,7 +817,6 @@ function AgentMoreSettings({
     {
       page: 'tasks',
       label: t('settings.scheduledTasks.title'),
-      // Paused, completed, and missed tasks are not running, so only active ones count.
       summary: countSummary(t, 'enabled', activeTaskTotal, taskTotal)
     }
   ]
@@ -768,14 +852,14 @@ function AgentMoreSettings({
           agentId={agent.id}
           form={form}
           patchAgentForm={patchAgentForm}
-          beforeHeartbeatOpen={beforeHeartbeatOpen}
+          onEdit={async () => {
+            if (await beforeHeartbeatOpen()) onOpen('heartbeat')
+          }}
         />
       ) : null}
 
       <SettingsSection title={t('library.config.dialogs.edit.advanced_tab')}>
-        <SettingsRow
-          label={promptLabel}
-          hint={agent.type === 'pi-durable' ? t('library.config.agent.prompt.row_hint') : undefined}>
+        <SettingsRow label={promptLabel}>
           <SettingsLinkButton
             label={promptLabel}
             summary={
@@ -818,7 +902,7 @@ function PermissionModeRow({
         control={form.control}
         name="permissionMode"
         render={() => (
-          <FormItem className="w-44">
+          <FormItem>
             <PermissionModeSelect
               cards={permissionModeCards}
               value={selectedPermissionModeCard?.mode ?? 'default'}
@@ -826,6 +910,8 @@ function PermissionModeRow({
               portalContainer={portalContainer}
               ariaLabel={label}
               scopeName={agentName.trim() || undefined}
+              compact
+              triggerClassName={cn(settingsPillClassName, 'w-auto')}
               t={t}
             />
           </FormItem>
@@ -849,40 +935,38 @@ function ReplyLanguageRow({
 
   return (
     // The "Other language…" input spans the next grid row, under the name and the select.
-    <div className="grid grid-cols-[minmax(0,1fr)_10rem] items-center gap-x-4 py-1.5 [&>input]:col-span-2 [&>input]:mt-2">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 py-1.5 [&>input]:col-span-2 [&>input]:mt-2">
       <span className="text-foreground text-sm">{t('library.config.agent.field.language.label')}</span>
       <ReplyLanguageSelect
         value={{ languageMode, languageCustom }}
         onChange={patchAgentForm}
         portalContainer={portalContainer}
+        triggerClassName={cn(settingsPillClassName, 'w-auto')}
       />
     </div>
   )
 }
 
-/** Heartbeat switch, interval and run time, plus the heartbeat document's task count and editor. */
+/** Heartbeat switch, interval and run time, plus the heartbeat document's task count and its page. */
 function HeartbeatSection({
   agentId,
   form,
   patchAgentForm,
-  beforeHeartbeatOpen
+  onEdit
 }: {
   agentId: string
   form: UseFormReturn<AgentEditFormValues>
   patchAgentForm: (patch: Partial<AgentFormState>) => void
-  beforeHeartbeatOpen: () => Promise<boolean>
+  onEdit: () => void
 }) {
   const { t } = useTranslation()
   const [heartbeatEnabled, heartbeatInterval, heartbeatTimeoutMinutes] = useWatch({
     control: form.control,
     name: ['heartbeatEnabled', 'heartbeatInterval', 'heartbeatTimeoutMinutes']
   })
-  const [editorOpen, setEditorOpen] = useState(false)
-  const { isPresent: editorPresent } = useExitPresence(editorOpen ? true : null)
   const [taskCount, setTaskCount] = useState<number | null>(null)
 
   useEffect(() => {
-    if (editorOpen) return
     let cancelled = false
     ipcApi
       .request('ai.agent.heartbeat.read', { agentId })
@@ -893,7 +977,7 @@ function HeartbeatSection({
     return () => {
       cancelled = true
     }
-  }, [agentId, editorOpen])
+  }, [agentId])
 
   return (
     <section aria-label={t('library.config.dialogs.edit.section.heartbeat')}>
@@ -910,25 +994,11 @@ function HeartbeatSection({
                 ? t('library.config.dialogs.edit.heartbeat_tasks_count', { count: taskCount })
                 : t('library.config.dialogs.edit.heartbeat_tasks_none')
           }>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              if (await beforeHeartbeatOpen()) setEditorOpen(true)
-            }}>
+          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
             {t('agent.heartbeat.edit')}
           </Button>
         </SettingsRow>
       </HeartbeatCard>
-      {editorPresent ? (
-        <HeartbeatEditorDialog
-          agentId={agentId}
-          enabled={heartbeatEnabled}
-          open={editorOpen}
-          onOpenChange={setEditorOpen}
-        />
-      ) : null}
     </section>
   )
 }
@@ -963,74 +1033,6 @@ function EnvVarsRow({ form }: { form: UseFormReturn<AgentEditFormValues> }) {
               className="min-h-20 font-mono text-xs md:text-xs"
             />
           }
-        />
-      )}
-    />
-  )
-}
-
-/** The Agent's System Prompt sub-page for runtimes other than Pi Durable, which show the full prompt instead. */
-function AgentSystemPromptField({
-  visible,
-  form,
-  modelName,
-  portalContainer
-}: {
-  visible: boolean
-  form: UseFormReturn<AgentEditFormValues>
-  modelName: string | null
-  portalContainer: HTMLElement | null
-}) {
-  const { t } = useTranslation()
-  const [resetPreviewKey, setResetPreviewKey] = useState(0)
-  const instructions = form.watch('instructions')
-  const name = form.watch('name')
-  const processedInstructions = usePromptProcessor({
-    prompt: instructions,
-    modelName: modelName ?? undefined
-  })
-
-  const handlePromptChange = (nextInstructions: string) => {
-    form.setValue('instructions', nextInstructions, { shouldDirty: true, shouldTouch: true })
-  }
-
-  const handlePromptActionChange = (nextInstructions: string) => {
-    handlePromptChange(nextInstructions)
-    setResetPreviewKey((key) => key + 1)
-  }
-
-  const { actions, running: polishing } = usePromptPolish({
-    value: instructions,
-    fallbackSource: name,
-    emptyValueSystemPrompt: AGENT_PROMPT,
-    existingValueSystemPrompt: RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT,
-    onChange: handlePromptActionChange
-  })
-  if (!visible) return null
-
-  return (
-    <FormField
-      control={form.control}
-      name="instructions"
-      render={({ field }) => (
-        <PromptEditorField
-          label={
-            <FieldLabelWithHelp
-              label={t('library.config.prompt.label')}
-              helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
-              formLabel={false}
-            />
-          }
-          value={field.value}
-          onChange={handlePromptChange}
-          placeholder={t('library.config.agent.prompt.editor_placeholder')}
-          previewValue={processedInstructions || instructions}
-          resetPreviewKey={resetPreviewKey}
-          fill
-          actions={actions}
-          minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
-          maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
-          disabled={polishing}
         />
       )}
     />

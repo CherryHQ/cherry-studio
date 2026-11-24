@@ -1,4 +1,4 @@
-import { Database, HelpCircle, X } from 'lucide-react'
+import { Braces, Database, HelpCircle, X } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useRef } from 'react'
 import { type FieldValues, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -464,7 +464,14 @@ export function PromptVariablesPopover({ portalContainer }: { portalContainer: H
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <HelpIconButton ariaLabel={t('library.config.prompt.variables_title')} />
+        {/* A labelled chip, like the editor's own controls: a bare "?" hid that variables exist. */}
+        <Button
+          type="button"
+          variant="ghost"
+          className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0 font-normal text-muted-foreground! text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0">
+          <Braces className="size-3" aria-hidden="true" />
+          {t('library.config.prompt.variables_title')}
+        </Button>
       </PopoverTrigger>
       <PopoverContent
         portalContainer={portalContainer}

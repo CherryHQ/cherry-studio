@@ -25,6 +25,8 @@ The design prototype (`bot-profile-cherry`) settled on one entry page with avata
 
 The footer offers Cancel, **Manual create**, and **Auto create**.
 
+While a draft has changes, generation is running, or an image or MCP install is pending, the backdrop, Escape, and the tab-close shortcut keep the wizard open. The close button and Cancel ask before discarding. The wizard stays open while the create request is running.
+
 - **Manual create** switches to the steps at step 1. Avatar, name, model, and purpose (as the description) carry over because they share one form. For an Agent whose System Prompt is still empty, the purpose also prefills the System Prompt.
 - **Auto create** is enabled once the purpose and a model are set. It generates a configuration, merges it into the submitted values without rewriting the form, and calls the caller's existing `onSubmit`.
 - When a caller seeds `initialValues.prompt`, as already-configured templates do, the wizard opens directly on the steps.
@@ -40,7 +42,7 @@ The footer offers Cancel, **Manual create**, and **Auto create**.
 - **Input builder.** It sends the purpose, the optional name, and compact catalogs of what is actually installed:
   - non-builtin skills (Agents only);
   - knowledge bases;
-  - MCP servers, plus the featured marketplace servers (`PRESET_MCP_SERVERS`) that need no configuration and are not installed yet;
+  - MCP servers, plus the featured marketplace servers (`FEATURED_MCP_PRESETS`) that need no configuration or separate application setup and are not installed yet;
   - the runtime's allowed permission modes.
 - **Validating parser.** It does the following:
   - strips code fences and slices out the JSON object;
@@ -68,6 +70,8 @@ The Assistant steps stay basic → System Prompt → knowledge. The Agent steps 
 - **Basic.** Avatar and name, then permission mode for Agents, then one model. The description field is removed from this step; the purpose entered on the entry view remains the description.
 - **Tools (Agent).** Browser control and computer use rows, each with an inactive badge when the feature is off globally and a link to its settings. Then the runtime's built-in tools grouped by category, one switch each. Switching a tool off adds it to `disabledTools`.
 - **Skills, knowledge, and MCP.** One list component for all three, also used by the edit dialog. It has a search box, an "Add …" menu, "Enable all", and one row per item with icon, name, description, and switch. The add menus are: skills — online search, local import, system search; knowledge — new knowledge base; MCP — add manually, import JSON. Builtin skills are locked on. The add actions open in-dialog modals that reuse the existing settings-page dialogs. The MCP list also lists the featured marketplace servers that need no configuration and are not installed yet; switching one on installs it and enables it in place, with no dialog. Featured servers that need configuration are not offered.
+
+- **Channels (Agent).** A list of the channels this Agent will own, an "Add channel" menu with every supported platform, and a configuration dialog per channel: name, credentials, allowed chat IDs, mention-only where the platform supports it, and a permission mode that inherits the Agent's or overrides it. A channel override applies only to turns started by the channel. Desktop turns on the same session continue to use the Agent permission mode. The channels are sent with the create command and created in the same main-process transaction as the Agent. Platforms that log in by QR code (WeChat, and Feishu registration) are created bound and inactive, and their QR login runs from the result page or the edit dialog.
 - **Channels (Agent).** A list of the channels this Agent will own, an "Add channel" menu with every supported platform, and a configuration dialog per channel: name, credentials, allowed chat IDs, mention-only where the platform supports it, and a permission mode that inherits the Agent's or overrides it. The channels are sent with the create command and created in the same main-process transaction as the Agent. Platforms that log in by QR code (WeChat, and Feishu registration) are created bound and inactive, and their QR login runs from the result page or the edit dialog.
 - **Advanced (Agent).** The full System Prompt, reply language, heartbeat, and environment variables:
   - **Full System Prompt.** A main-process IpcApi route assembles the prompt the Pi Durable runtime would send, from the draft (instructions, language, skills, disabled tools, knowledge bases), using the same builders the runtime uses. The renderer shows it as read-only segments around one editable block, the Agent's own instructions, with an approximate token count. It refreshes when skills or language change. When the instructions are empty, the sections that depend on them are omitted, as the runtime already does.
@@ -90,7 +94,7 @@ The create values gain `mcpServerIds`, and `enableWebSearch` for Assistants. Age
 
 - Agents send `mcps` when the runtime supports MCP, plus the existing `disabledTools` and `configuration` fields.
 - Assistants send `mcpServerIds`. When MCP servers or web search are selected, they also send the matching `settings`.
-- Selected featured marketplace MCP servers that are not installed yet are installed first, through the same path as the marketplace page, and their new IDs are sent like any other selected server. A failed install fails the create before anything is saved.
+- Selected featured marketplace MCP servers that are not installed yet are installed first, through the same path as the marketplace page, and their new IDs are sent like any other selected server. The main process resolves the preset and returns one installed ID to concurrent callers. Manual create waits for its current draft’s pending installs before advancing, and closing the draft discards its pending bindings. A failed install prevents auto create from saving a resource.
 
 ## Alternatives considered
 

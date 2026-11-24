@@ -2,8 +2,6 @@ import { MessageSquare } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Switch } from '@cherrystudio/ui'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { requestComposerPrefill } from '@renderer/components/composer/variants/shared/useComposerPrefill'
 import { AssistantAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/AssistantAvatarPicker'
 import { KnowledgeBaseAvatar } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
@@ -13,15 +11,16 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import type { Assistant } from '@shared/data/types/assistant'
 
+import { AssistantOutputs } from './ProfileOutputs'
 import { ProfilePaneFrame } from './ProfilePaneFrame'
 import {
   ProfilePaneHeader,
   ProfilePaneSection,
   ProfilePaneSectionAction,
-  ProfileSettingButton,
-  ProfileSettingsRow,
+  ProfilePaneTabs,
   ProfileStartersSection
 } from './ProfilePaneParts'
+import { AssistantProfileSettings } from './ProfilePaneSettings'
 import { AssistantTopicsPage, ProfileStatTiles, RecentTopicsSection } from './ProfilePaneStats'
 import { useProfileStarters } from './useProfileStarters'
 
@@ -39,7 +38,7 @@ export function AssistantProfilePane({
   const { t } = useTranslation()
   const [topicsOpen, setTopicsOpen] = useState(false)
   const onShowAllTopics = () => setTopicsOpen(true)
-  const { assistant, model, updateAssistantSettings } = useAssistant(assistantId)
+  const { assistant } = useAssistant(assistantId)
 
   if (!assistant) return <ProfilePaneFrame />
   if (topicsOpen) {
@@ -54,8 +53,6 @@ export function AssistantProfilePane({
   }
 
   const openEdit = (initialTab?: string) => openResourceEditDialog({ kind: 'assistant', id: assistant.id, initialTab })
-  const modelLabel = t('common.model')
-  const browserLabel = t('settings.browser.title')
 
   return (
     <ProfilePaneFrame>
@@ -73,38 +70,22 @@ export function AssistantProfilePane({
         name={assistant.name}
         description={assistant.description}
       />
-      <AssistantUsage
-        assistantId={assistant.id}
-        activeTopicId={activeTopicId}
-        onOpenTopic={onOpenTopic}
-        onShowAllTopics={onShowAllTopics}
+      <ProfilePaneTabs
+        activity={
+          <>
+            <AssistantUsage
+              assistantId={assistant.id}
+              activeTopicId={activeTopicId}
+              onOpenTopic={onOpenTopic}
+              onShowAllTopics={onShowAllTopics}
+            />
+            <KnowledgeBasesSection assistant={assistant} onManage={() => openEdit('tools.knowledge')} />
+            <TryAskingSection assistant={assistant} topicId={activeTopicId} />
+            <AssistantProfileSettings assistant={assistant} />
+          </>
+        }
+        outputs={<AssistantOutputs assistantId={assistant.id} />}
       />
-      <KnowledgeBasesSection assistant={assistant} onManage={() => openEdit('tools.knowledge')} />
-      <TryAskingSection assistant={assistant} topicId={activeTopicId} />
-      <ProfilePaneSection
-        title={t('common.settings')}
-        action={
-          <ProfilePaneSectionAction withChevron onClick={() => openEdit()}>
-            {t('common.all')}
-          </ProfilePaneSectionAction>
-        }>
-        <ProfileSettingsRow label={modelLabel}>
-          <ProfileSettingButton
-            label={modelLabel}
-            value={model?.name ?? assistant.modelName ?? t('button.select_model')}
-            icon={model ? <ModelAvatar model={model} size={18} /> : undefined}
-            onClick={() => openEdit('basic')}
-          />
-        </ProfileSettingsRow>
-        <ProfileSettingsRow label={browserLabel}>
-          <Switch
-            size="sm"
-            aria-label={browserLabel}
-            checked={assistant.settings.enableBrowser !== false}
-            onCheckedChange={(enableBrowser) => void updateAssistantSettings({ enableBrowser })}
-          />
-        </ProfileSettingsRow>
-      </ProfilePaneSection>
     </ProfilePaneFrame>
   )
 }

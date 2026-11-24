@@ -14,8 +14,8 @@ import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 import type { Assistant } from '@renderer/types/assistant'
-import { buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import { buildCreateAssistantDto } from '@shared/ai/assistantCreateDto'
 import { isNonChatModel } from '@shared/utils/model'
 
 const logger = loggerService.withContext('AssistantConversationPickerDialog')

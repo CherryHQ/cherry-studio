@@ -517,7 +517,7 @@ describe('AgentSelector', () => {
     await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
   })
 
-  it('auto-selects the created agent when enabled', async () => {
+  it('keeps the result visible until the user starts the new conversation', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(
@@ -537,10 +537,10 @@ describe('AgentSelector', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
-    // The picker picks what it just created; the result page only closes.
-    expect(onChange).toHaveBeenCalledWith('created-agent')
-    await user.click(await screen.findByRole('button', { name: 'common.close' }))
-    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(await screen.findByRole('button', { name: 'library.config.dialogs.create.result.adjust' })).toBeVisible()
+    expect(onChange).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'library.config.dialogs.create.result.start' }))
+    expect(onChange).toHaveBeenCalledExactlyOnceWith('created-agent')
   })
 
   it('notifies when created agent cannot be refreshed into the selector', async () => {

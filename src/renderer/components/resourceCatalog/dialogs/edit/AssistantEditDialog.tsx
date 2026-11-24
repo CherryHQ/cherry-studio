@@ -29,6 +29,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
+import { DiscardChangesDialog } from '@renderer/components/DiscardChangesDialog'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
@@ -58,7 +59,7 @@ import { isNonChatModel } from '@shared/utils/model'
 import { AssistantAvatarPicker } from '../components/AssistantAvatarPicker'
 import {
   EditDialogPageShell,
-  EditMainPage,
+  EditIdentityHeader,
   SettingsLinkButton,
   settingsPillClassName,
   SettingsRow,
@@ -79,7 +80,8 @@ import { GroupSelector } from '../components/GroupSelector'
 import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
 import { McpCapabilityList } from '../components/McpCapabilityList'
 import { usePromptPolish } from '../components/PromptPolishActions'
-import { countSummary, type EditPage, type EditSubPage, parentEditPage, resolveInitialEditPage } from './editPages'
+import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
+import { countSummary, type EditPage, type EditSubPage, resolveInitialEditPage } from './editPages'
 
 export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
 
@@ -105,6 +107,8 @@ type AssistantEditFormValues = {
   customParameters: AssistantFormState['customParameters']
   enableBrowser: boolean
   mcpMode: AssistantFormState['mcpMode']
+  languageMode: AssistantFormState['languageMode']
+  languageCustom: string
   contextOverrideEnabled: boolean
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
@@ -145,6 +149,8 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
     enableBrowser: form.enableBrowser,
     mcpMode: form.mcpMode,
+    languageMode: form.languageMode,
+    languageCustom: form.languageCustom,
     contextOverrideEnabled: form.contextOverrideEnabled,
     contextCompressEnabled: form.contextCompressEnabled,
     contextTruncateThreshold: form.contextTruncateThreshold,
@@ -185,6 +191,8 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     customParameters: values.customParameters,
     enableBrowser: values.enableBrowser,
     mcpMode: values.mcpMode,
+    languageMode: values.languageMode,
+    languageCustom: values.languageCustom,
     contextOverrideEnabled: values.contextOverrideEnabled,
     contextCompressEnabled: values.contextCompressEnabled,
     contextTruncateThreshold: values.contextTruncateThreshold,
@@ -229,6 +237,7 @@ function AssistantEditDialogContent({
   const { t } = useTranslation()
   const [page, setPage] = useState<EditPage>(() => resolveInitialEditPage('assistant', initialTab, ASSISTANT_SUB_PAGES))
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
   const [formBaseline, setFormBaseline] = useState(() => initialAssistantFormState(resource))
@@ -265,6 +274,7 @@ function AssistantEditDialogContent({
     setFormBaseline(formBaselineRef.current)
     form.clearErrors()
     setPage(resolveInitialEditPage('assistant', initialTab, ASSISTANT_SUB_PAGES))
+    setConfirmDiscard(false)
     setCreateGroupDialogOpen(false)
     setModelLabels(modelLabelsForAssistant(resource))
     // A fresh open is a fresh editing session — a stale failure from a prior
@@ -335,16 +345,19 @@ function AssistantEditDialogContent({
 
     const currentValues = form.getValues()
     const pending = getCurrentSaveIntent()
-    if (!pending || (!currentValues.name.trim() && allowDiscard)) {
+    if (!pending) {
       onOpenChange(false)
       return true
     }
-    if (!currentValues.name.trim()) return false
+    if (!currentValues.name.trim()) {
+      if (allowDiscard) setConfirmDiscard(true)
+      return false
+    }
     if (failedSaveKeyRef.current === JSON.stringify(currentValues)) {
       toast.error(saveFailedMessage)
       if (!allowDiscard || pendingSave) return false
-      onOpenChange(false)
-      return true
+      setConfirmDiscard(true)
+      return false
     }
     await flush()
     if (
@@ -386,8 +399,7 @@ function AssistantEditDialogContent({
     setFormValues(form, patch)
   }
   const pageTitles: Record<EditPage, string> = {
-    main: t('library.config.dialogs.edit.assistant_title'),
-    more: t('library.config.dialogs.edit.page.more'),
+    settings: t('library.config.dialogs.edit.assistant_title'),
     prompt: t('library.config.prompt.label'),
     knowledge: t('library.config.dialogs.edit.knowledge_tab'),
     mcp: t('library.config.dialogs.edit.page.mcp'),
@@ -397,6 +409,7 @@ function AssistantEditDialogContent({
     skills: '',
     channels: '',
     tasks: '',
+    heartbeat: '',
     memory: ''
   }
 
@@ -405,58 +418,58 @@ function AssistantEditDialogContent({
       form={form}
       open={open}
       onOpenChange={handleOpenChange}
+      guardDismiss={Boolean(saveIntent)}
       page={page}
       title={pageTitles[page]}
-      onBack={page === 'main' ? undefined : () => setPage(parentEditPage(page))}
+      onBack={page === 'settings' ? undefined : () => setPage('settings')}
       fill={page === 'prompt'}
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}>
-      {page === 'main' ? (
-        <EditMainPage
-          form={form}
-          avatar={
-            <AssistantAvatarPicker
-              key={`${resource.id}:${open}`}
-              assistantId={resource.id}
-              emoji={resource.emoji}
-              avatarSrc={resource.avatarSrc}
-              ariaLabel={t('library.config.dialogs.create.avatar_aria')}
-              portalContainer={dialogContentElement}
-              size="lg"
-            />
-          }
-          namePlaceholder={t('library.config.basic.field.name.placeholder')}
-          descriptionPlaceholder={t('library.config.basic.field.description.placeholder')}
-          model={
-            <CompactModelField
-              form={form}
-              name="modelId"
-              label={t('common.model')}
-              allowClear
-              filter={modelFilter}
-              isModelDisabled={isModelDisabled}
-              portalContainer={dialogContentElement}
-              modelLabels={modelLabels}
-              setModelLabels={setModelLabels}
-              onModelChange={handleAssistantModelChange}
-              onSettingsNavigate={closeBeforeAction}
-              layout="chip"
-              triggerClassName="w-auto max-w-56"
-            />
-          }
-          onOpenMore={() => setPage('more')}
-        />
-      ) : null}
-      {page === 'more' ? (
-        <AssistantMoreSettings
-          form={form}
-          portalContainer={dialogContentElement}
-          groups={groups}
-          groupsLoading={isGroupsLoading}
-          groupsError={groupsError}
-          onCreateGroup={() => setCreateGroupDialogOpen(true)}
-          onOpen={setPage}
-        />
+      {page === 'settings' ? (
+        <div className="flex flex-col gap-5">
+          <EditIdentityHeader
+            form={form}
+            avatar={
+              <AssistantAvatarPicker
+                key={`${resource.id}:${open}`}
+                assistantId={resource.id}
+                emoji={resource.emoji}
+                avatarSrc={resource.avatarSrc}
+                ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+                portalContainer={dialogContentElement}
+                size="lg"
+              />
+            }
+            namePlaceholder={t('library.config.basic.field.name.placeholder')}
+            descriptionPlaceholder={t('library.config.basic.field.description.placeholder')}
+            model={
+              <CompactModelField
+                form={form}
+                name="modelId"
+                label={t('common.model')}
+                allowClear
+                filter={modelFilter}
+                isModelDisabled={isModelDisabled}
+                portalContainer={dialogContentElement}
+                modelLabels={modelLabels}
+                setModelLabels={setModelLabels}
+                onModelChange={handleAssistantModelChange}
+                onSettingsNavigate={closeBeforeAction}
+                layout="chip"
+                triggerClassName="w-auto max-w-56"
+              />
+            }
+          />
+          <AssistantSettingsCards
+            form={form}
+            portalContainer={dialogContentElement}
+            groups={groups}
+            groupsLoading={isGroupsLoading}
+            groupsError={groupsError}
+            onCreateGroup={() => setCreateGroupDialogOpen(true)}
+            onOpen={setPage}
+          />
+        </div>
       ) : null}
       {open ? (
         <AssistantPromptField
@@ -511,6 +524,9 @@ function AssistantEditDialogContent({
         onCreate={handleCreateGroup}
         onOpenChange={setCreateGroupDialogOpen}
       />
+      {confirmDiscard && (
+        <DiscardChangesDialog onCancel={() => setConfirmDiscard(false)} onDiscard={() => onOpenChange(false)} />
+      )}
     </EditDialogPageShell>
   )
 }
@@ -585,7 +601,7 @@ function AssistantPromptField({
   )
 }
 
-function AssistantMoreSettings({
+function AssistantSettingsCards({
   form,
   portalContainer,
   groups,
@@ -757,6 +773,16 @@ function AssistantMoreSettings({
             onCheckedChange={(checked) => set('streamOutput', checked)}
           />
         </SettingsRow>
+        {/* The "Other language…" input spans the next grid row, under the name and the select. */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 py-1.5 [&>input]:col-span-2 [&>input]:mt-2">
+          <span className="text-foreground text-sm">{t('library.config.agent.field.language.label')}</span>
+          <ReplyLanguageSelect
+            value={{ languageMode: values.languageMode, languageCustom: values.languageCustom }}
+            onChange={(patch) => setFormValues<AssistantEditFormValues>(form, patch)}
+            portalContainer={portalContainer}
+            triggerClassName={cn(settingsPillClassName, 'w-auto')}
+          />
+        </div>
         <SettingsRow
           label={labels.maxToolCalls}
           hint={

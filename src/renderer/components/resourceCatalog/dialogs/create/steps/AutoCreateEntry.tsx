@@ -24,8 +24,8 @@ type AutoCreateEntryProps = {
 }
 
 /**
- * First page of the create flow. The purpose is the `description` field, which only this page edits:
- * "Manual create" keeps it as typed, and "Auto create" turns it into a full configuration.
+ * First page of the create flow. The name is required; the purpose (the `description` field) is optional.
+ * "Manual create" keeps both as typed, and "Auto create" turns them into a full configuration.
  */
 export function AutoCreateEntry({
   kind,
@@ -56,6 +56,7 @@ export function AutoCreateEntry({
       <TextInputField
         form={form}
         name="name"
+        required
         label={t('common.name')}
         labelClassName={ENTRY_LABEL_CLASS}
         placeholder={

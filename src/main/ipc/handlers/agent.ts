@@ -6,7 +6,6 @@ import path from 'node:path'
 import { shell } from 'electron'
 
 import { application } from '@application'
-import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import {
   agentDataDirectoryPath,
@@ -15,10 +14,9 @@ import {
   ensureAgentStorageDirectory
 } from '@main/ai/agents/agentDataDirectory'
 import { withAgentMemoryFileLock } from '@main/ai/agents/agentMemoryFileLock'
-import { previewDurableSystemPrompt } from '@main/ai/runtime/piDurable/durablePromptPreview'
+import { previewAgentSystemPrompt, resolveAgentPromptInstructions } from '@main/ai/runtime/agentPromptPreview'
 import { logFailure } from '@main/core/logger/logFailure'
 import { agentAvatarService } from '@main/services/AgentAvatarService'
-import { replacePromptVariables } from '@main/utils/prompt'
 import type { AgentMemoryFile, agentRequestSchemas } from '@shared/ipc/schemas/agent'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -250,10 +248,6 @@ export const agentHandlers: IpcHandlersFor<typeof agentRequestSchemas> = {
     const errorMessage = await shell.openPath(directory)
     if (errorMessage) throw new Error(`Failed to open agent memory folder: ${errorMessage}`)
   },
-  'agent.system_prompt.resolve_instructions': ({ instructions, agentId }) =>
-    replacePromptVariables(
-      instructions,
-      agentId ? (agentService.getAgent(agentId)?.modelName ?? undefined) : undefined
-    ),
-  'agent.system_prompt.preview': (draft) => previewDurableSystemPrompt(draft)
+  'agent.system_prompt.preview': (draft) => previewAgentSystemPrompt(draft),
+  'agent.system_prompt.resolve_instructions': (draft) => resolveAgentPromptInstructions(draft)
 }
