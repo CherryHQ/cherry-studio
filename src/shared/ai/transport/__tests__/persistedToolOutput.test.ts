@@ -38,17 +38,53 @@ describe('isPersistedToolOutput', () => {
   it.each([
     ['v1 text', { $persistedToolOutput: singleRef }],
     ['v1 mcp-content', { $persistedToolOutput: { ...singleRef, shape: 'mcp-content', metadata: { serverId: 's' } } }],
-    ['v2 entities', { $persistedToolOutput: entitiesRef }]
+    ['v2 entities', { $persistedToolOutput: entitiesRef }],
+    ['v2 opaque undefined skeleton', { $persistedToolOutput: { ...entitiesRef, skeleton: undefined } }]
   ])('accepts %s envelopes', (_label, value) => {
     expect(isPersistedToolOutput(value)).toBe(true)
   })
 
   it.each([
     ['plain object without the sentinel key', { content: 'x' }],
+    ['incomplete reference', { $persistedToolOutput: {} }],
+    ['array reference', { $persistedToolOutput: [] }],
+    ['unknown shape', { $persistedToolOutput: { ...singleRef, shape: 'future' } }],
+    ['invalid excerpt', { $persistedToolOutput: { ...singleRef, head: 42 } }],
+    ['invalid blob', { $persistedToolOutput: { ...entitiesRef, blobRefs: [{ key: '/text' }] } }],
+    ['empty entity blobs', { $persistedToolOutput: { ...entitiesRef, blobRefs: [] } }],
+    ['missing entity skeleton', { $persistedToolOutput: { shape: 'entities', blobRefs: entitiesRef.blobRefs } }],
     ['null ref', { $persistedToolOutput: null }],
     ['string', 'plain output'],
     ['null', null]
   ])('rejects %s', (_label, value) => {
+    expect(isPersistedToolOutput(value)).toBe(false)
+  })
+
+  it('accepts opaque metadata and unknown sibling fields', () => {
+    const metadata = { nested: { owner: 'opaque' } }
+    const value = { $persistedToolOutput: { ...singleRef, shape: 'mcp-content', metadata }, extra: Symbol('opaque') }
+
+    expect(isPersistedToolOutput(value)).toBe(true)
+  })
+
+  it('does not interpret unrelated extension properties', () => {
+    const value = Object.defineProperty({ $persistedToolOutput: singleRef }, 'extra', {
+      enumerable: true,
+      get() {
+        throw new Error('opaque extension')
+      }
+    })
+
+    expect(isPersistedToolOutput(value)).toBe(true)
+  })
+
+  it('rejects an unreadable marker without replacing the original tool failure', () => {
+    const value = Object.defineProperty({}, '$persistedToolOutput', {
+      get() {
+        throw new Error('unreadable marker')
+      }
+    })
+
     expect(isPersistedToolOutput(value)).toBe(false)
   })
 })

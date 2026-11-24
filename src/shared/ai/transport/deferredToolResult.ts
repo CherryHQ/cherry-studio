@@ -1,4 +1,5 @@
 /** Cross-process wire contract for tool results resolved on demand through `ai.tool.get_result`. */
+import * as z from 'zod'
 
 /** Where a deferred tool result can be fetched from. */
 export interface DeferredToolResultRef {
@@ -28,19 +29,21 @@ export interface DeferredToolOutput {
   skeleton?: unknown
 }
 
-export function isDeferredToolOutput(value: unknown): value is DeferredToolOutput {
-  if (typeof value !== 'object' || value === null) return false
-  const ref = (value as DeferredToolOutput).$deferredToolResult
+const deferredToolOutputSchema: z.ZodType<DeferredToolOutput> = z.object({
+  $deferredToolResult: z.object({
+    topicId: z.string().min(1),
+    messageId: z.string().min(1),
+    toolCallId: z.string().min(1),
+    revision: z.string().optional()
+  }),
+  excerpt: z.object({ head: z.string(), tail: z.string(), totalChars: z.number(), totalLines: z.number() }).optional(),
+  skeleton: z.unknown().optional()
+})
 
-  return (
-    typeof ref === 'object' &&
-    ref !== null &&
-    typeof ref.topicId === 'string' &&
-    !!ref.topicId &&
-    typeof ref.messageId === 'string' &&
-    !!ref.messageId &&
-    typeof ref.toolCallId === 'string' &&
-    !!ref.toolCallId &&
-    (ref.revision === undefined || typeof ref.revision === 'string')
-  )
+export function isDeferredToolOutput(value: unknown): value is DeferredToolOutput {
+  try {
+    return deferredToolOutputSchema.safeParse(value).success
+  } catch {
+    return false
+  }
 }

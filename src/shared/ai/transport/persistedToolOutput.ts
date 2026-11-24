@@ -9,6 +9,7 @@
  * full output; the renderer refetches). Here the DB itself holds the excerpt.
  * Imported by both processes.
  */
+import * as z from 'zod'
 
 /** Excerpt sizes — must match the in-flight middleware (contextBuild.ts) so
  *  persisted excerpts are byte-identical to in-flight markers. */
@@ -54,6 +55,7 @@ export interface PersistedToolOutputSingleRef {
 export interface PersistedToolOutputEntitiesRef {
   shape: 'entities'
   skeleton: unknown
+  /** At least one persisted blob; empty entity envelopes are invalid. */
   blobRefs: PersistedToolOutputBlobRef[]
 }
 
@@ -65,13 +67,35 @@ export interface PersistedToolOutput {
   $persistedToolOutput: PersistedToolOutputRef
 }
 
-/** The `$persistedToolOutput` key is a sentinel only our own trimmer writes,
- *  so its presence is the whole discriminant — no field validation. */
-export function isPersistedToolOutput(value: unknown): value is PersistedToolOutput {
-  if (typeof value !== 'object' || value === null) return false
-  const ref = (value as PersistedToolOutput).$persistedToolOutput
+const singleRefSchema = z.object({
+  fileEntryId: z.string(),
+  vfsFilename: z.string(),
+  head: z.string(),
+  tail: z.string(),
+  totalChars: z.number(),
+  totalLines: z.number(),
+  shape: z.enum(['text', 'mcp-content']),
+  metadata: z.unknown().optional()
+})
 
-  return typeof ref === 'object' && ref !== null
+const persistedToolOutputSchema: z.ZodType<PersistedToolOutput> = z.object({
+  $persistedToolOutput: z.discriminatedUnion('shape', [
+    singleRefSchema,
+    z.object({
+      shape: z.literal('entities'),
+      skeleton: z.unknown(),
+      blobRefs: z.array(singleRefSchema.omit({ shape: true, metadata: true }).extend({ key: z.string() })).min(1)
+    })
+  ])
+})
+
+/** Validate the complete envelope before treating an arbitrary tool output as a persisted reference. */
+export function isPersistedToolOutput(value: unknown): value is PersistedToolOutput {
+  try {
+    return persistedToolOutputSchema.safeParse(value).success
+  } catch {
+    return false
+  }
 }
 
 /** Uniform blob view over both envelope generations (single-blob → one entry, key `""`). */
