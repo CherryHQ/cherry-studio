@@ -46,6 +46,21 @@ required service tier.`,
     expect(JSON.stringify(failure)).not.toMatch(/secret|private|stack/)
   })
 
+  it('keeps a timeout duration out of the provider HTTP status', () => {
+    const failure = toExecutionFailure({
+      name: 'Error',
+      message: 'Connection timed out after 500 ms',
+      stack: null
+    })
+
+    expect(failure.failure).toEqual({
+      version: 1,
+      reasonCode: 'network',
+      source: { layer: 'runtime' },
+      context: {}
+    })
+  })
+
   it('preserves an existing classification when provider payloads were already redacted', () => {
     expect(
       toExecutionFailure({

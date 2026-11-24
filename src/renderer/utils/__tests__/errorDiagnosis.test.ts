@@ -65,6 +65,19 @@ describe('ErrorDiagnosisService', () => {
   })
 
   describe('diagnoseError', () => {
+    it('selects request-size guidance for a status-less request buffer rejection', async () => {
+      const message = '413 Failed to buffer the request body: length limit exceeded'
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'Request too large', category: 'payload', explanation: 'Too large', steps: [] })
+      )
+      await diagnoseError(makeError({ message }), 'en')
+      const args = mockFetchGenerate.mock.calls[0][0]
+      const context = args.prompt.split('## Context\n')[1]?.split('\n')[0]
+      expect(context).toContain('request payload is too large')
+      expect(context).toContain('removing large attachments')
+      expect(JSON.parse(args.content).message).toBe(message)
+    })
+
     it.each([
       [
         `service_tier auto is not available for this org. You can check your plan at
