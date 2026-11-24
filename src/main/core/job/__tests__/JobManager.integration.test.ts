@@ -989,7 +989,7 @@ describe('JobManager integration', () => {
 
     it('does not claim queued work after shutdown begins', async () => {
       let executeCount = 0
-      const countingHandler: JobHandler<SlowInput> = {
+      const countingHandler: JobHandler = {
         recovery: 'retry',
         defaultConcurrency: 1,
         async execute() {

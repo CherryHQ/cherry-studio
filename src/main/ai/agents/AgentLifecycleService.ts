@@ -445,7 +445,7 @@ export class AgentLifecycleService extends BaseService {
     ids: string[],
     permanent: boolean,
     targetState: 'active' | 'trashed' = 'trashed'
-  ): Promise<{ deletedIds: string[] }> {
+  ): Promise<{ deletedIds: string[]; deferredWorkspacePaths: string[] }> {
     const deleteSessions = async () => {
       const workspaces = agentSessionService.listSystemWorkspaceSessions(ids)
       const tokensBySession = permanent
@@ -457,13 +457,13 @@ export class AgentLifecycleService extends BaseService {
         ...(targetState === 'active' ? { targetState } : {})
       })
       await this.finishDeletion(result.deletedIds, result.deliveryResults, [], !permanent)
-      await this.removePurgedSystemWorkspaces(
+      const deferredWorkspacePaths = await this.removePurgedSystemWorkspaces(
         workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
       )
       if (permanent) {
         await reclaimPurgedRuntimeSessions(resumeTokensForDeletedSessions(result.deletedIds, tokensBySession))
       }
-      return { deletedIds: result.deletedIds }
+      return { deletedIds: result.deletedIds, deferredWorkspacePaths }
     }
     if (permanent && targetState === 'trashed')
       return this.withOperationLocks(ids, async () => {

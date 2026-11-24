@@ -1587,7 +1587,7 @@ describe('JobManager pause / drainInFlight', () => {
 
       // maxAttempts 1: the shutdown abort settles terminally (budget
       // exhausted), so onSettled still runs inside the drain (issue #21645).
-      const handle = jobManager.enqueue('stop.settle' as never, { message: 'x' } as never, { maxAttempts: 1 } as never)
+      const handle = jobManager.enqueue('stop.settle' as never, { message: 'x' } as never, { maxAttempts: 1 })
       await pollUntil(() => jobService.getById(handle.id)?.status === 'running')
 
       await jobManager._doStop()
