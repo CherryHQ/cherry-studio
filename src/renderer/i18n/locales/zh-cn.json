@@ -1130,6 +1130,7 @@
   "chat.topics.export.obsidian_title_required": "标题不能为空",
   "chat.topics.export.obsidian_vault": "保管库",
   "chat.topics.export.obsidian_vault_placeholder": "请选择保管库名称",
+  "chat.topics.export.share_image": "导出分享图",
   "chat.topics.export.siyuan": "导出到思源笔记",
   "chat.topics.export.title": "导出",
   "chat.topics.export.title_naming_failed": "标题生成失败，使用默认标题",
