@@ -44,6 +44,7 @@ import {
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import { getPathBasename } from '@renderer/components/chat/panes/artifactPanePath'
+import { AgentProfilePane, PROFILE_PANE_ID } from '@renderer/components/chat/panes/profile'
 import {
   createResourcePaneCapability,
   RESOURCE_PANE_TAB,
@@ -90,12 +91,13 @@ import { openExternalWebsite } from '@renderer/services/website'
 import type { FileLocation } from '@renderer/types/fileLocation'
 import type { ComposerFileReference } from '@renderer/types/selectionReference'
 import { type Topic, TopicType } from '@renderer/types/topic'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import { expandHomeRelativePath } from '@renderer/utils/filePath'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -211,6 +213,8 @@ interface AgentRightPaneMeta {
   workspaceType?: AgentWorkspaceType
   /** Active model — supplies the context-usage denominator and guards against stale readings. */
   model?: Model
+  /** Switches the session's model, asking first when the session already has messages. */
+  onModelChange?: (model: Model) => void
 }
 
 interface AgentRightPaneRuntime {
@@ -285,6 +289,7 @@ interface AgentRightPanelScope {
   filePreviewSelection: ArtifactPaneFileSelection | null
   hasSystemWorkspaceEntries: boolean
   filesTitle: string
+  profileTitle: string
   flowTab: AgentFlowTab | null
   previousFlowTab: AgentFlowTab | null
   goBackFlow: () => void
@@ -610,6 +615,7 @@ function AgentRightPaneStateProvider({
   agentName,
   agentAvatar,
   model,
+  onModelChange,
   conversationState = 'ready',
   present = true,
   resourcePane = null,
@@ -971,7 +977,8 @@ function AgentRightPaneStateProvider({
       workspacePath,
       workspaceName,
       workspaceType,
-      model
+      model,
+      onModelChange
     }),
     [
       agentAvatar,
@@ -980,6 +987,7 @@ function AgentRightPaneStateProvider({
       agentName,
       conversationState,
       model,
+      onModelChange,
       sessionId,
       sessionName,
       traceId,
@@ -1000,6 +1008,7 @@ function AgentRightPaneStateProvider({
       previousFlowTab,
       goBackFlow,
       meta,
+      profileTitle: t('chat.profile_pane.title'),
       resourcePane,
       traceTitle: t('trace.label')
     }),
@@ -1654,6 +1663,7 @@ function AgentDetailsScope({ children, present }: { children: ReactNode; present
         sessionId={meta.sessionId}
         available={present && meta.conversationState === 'ready' && !!meta.sessionId && !panel.presentationMaximized}>
         <AgentRunTaskStopsProvider>
+          <ProfileDetailsExclusivity />
           {present && meta.conversationState === 'ready' && meta.sessionId && meta.workspacePath && (
             <AgentWorkspaceOpenShortcut workspacePath={meta.workspacePath} />
           )}
@@ -1662,6 +1672,53 @@ function AgentDetailsScope({ children, present }: { children: ReactNode; present
       </AgentSessionDetailsProvider>
     </DesktopControlsContext>
   )
+}
+
+/** The profile pane and the session details card never show together: opening either closes the other. */
+function ProfileDetailsExclusivity() {
+  const panel = useRightPanelState()
+  const panelActions = useRightPanelActions()
+  const details = useAgentSessionDetails()
+  const profileOpen = panel.isActive(PROFILE_PANE_ID)
+  const detailsOpen = details.available && (details.mode === 'inline' ? details.inlineOpen : details.popupOpen)
+  const previousRef = useRef({ profileOpen, detailsOpen })
+
+  useEffect(() => {
+    const previous = previousRef.current
+    previousRef.current = { profileOpen, detailsOpen }
+    if (!profileOpen || !detailsOpen) return
+    if (!previous.profileOpen) details.setOpen(false)
+    else if (!previous.detailsOpen) panelActions.close()
+  }, [details, detailsOpen, panelActions, profileOpen])
+
+  return null
+}
+
+function AgentProfileRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const actions = useRightPanelActions()
+  const paneActions = useAgentRightPaneActions()
+  const { agentId, sessionId, workspacePath, model, onModelChange } = scope.meta
+  const filesReady = actions.canOpen(FILES_PANE_ID)
+  const workspace = useMemo(
+    () =>
+      workspacePath
+        ? {
+            path: workspacePath,
+            open: filesReady ? () => actions.tryOpen(FILES_PANE_ID, { userInitiated: true }) : undefined
+          }
+        : undefined,
+    [actions, filesReady, workspacePath]
+  )
+  return agentId ? (
+    <AgentProfilePane
+      agentId={agentId}
+      sessionId={sessionId}
+      workspace={workspace}
+      onOpenOutput={paneActions.canOpenArtifactFile ? paneActions.openArtifactFile : undefined}
+      model={model}
+      onModelChange={onModelChange}
+    />
+  ) : null
 }
 
 function AgentDetailsContent() {
@@ -1793,6 +1850,19 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
         readiness: scope.meta.conversationState
       }
     }
+  },
+  // Last, so it never becomes the fallback the sidebar shortcut opens; the avatars are its entry.
+  {
+    component: AgentProfileRightPanel,
+    widthPreset: 'profile',
+    resolve: (scope) => ({
+      id: PROFILE_PANE_ID,
+      instanceKey: `profile:agent:${scope.meta.agentId ?? 'unavailable'}`,
+      title: scope.profileTitle,
+      readiness: scope.meta.agentId ? 'ready' : 'unavailable',
+      headerMode: 'content',
+      canMaximize: false
+    })
   }
 ] satisfies readonly RightPanelCapability<AgentRightPanelScope>[]
 

@@ -1,6 +1,5 @@
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
 import i18n from '@renderer/i18n/resolver'
-import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   composerFileTokenIdFromSourceId,
@@ -12,6 +11,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ComposerMessageTokenPayload } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { FILE_TYPE } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
 import { trimTextBoundaryBlankLines } from '../../composerDraft'

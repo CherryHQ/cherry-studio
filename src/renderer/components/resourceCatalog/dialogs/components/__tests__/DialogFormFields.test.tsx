@@ -23,34 +23,11 @@ vi.mock('@cherrystudio/ui', () => ({
         {children}
       </button>
     )
-  },
-  EmojiAvatar: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  Popover: ({ children }: { children?: ReactNode }) => <>{children}</>,
-  PopoverContent: ({
-    children,
-    portalContainer,
-    ...props
-  }: {
-    children?: ReactNode
-    portalContainer?: HTMLElement | null
-    [key: string]: unknown
-  }) => {
-    void portalContainer
-    return (
-      <div data-testid="popover-content" {...props}>
-        {children}
-      </div>
-    )
-  },
-  PopoverTrigger: ({ children }: { children?: ReactNode; asChild?: boolean }) => <>{children}</>
+  }
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: ({ size }: { size: number }) => <span data-size={size} data-testid="model-avatar" />
-}))
-
-vi.mock('@renderer/components/EmojiPicker', () => ({
-  EmojiPicker: () => <div data-testid="emoji-picker" />
 }))
 
 import { DialogModelTrigger } from '../DialogFormFields'
