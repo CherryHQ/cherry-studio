@@ -9,28 +9,6 @@ import {
   memoryLineCount
 } from './memoryFiles'
 
-/** Keep complete top-level Markdown sections intact; never split a fact or a fenced block to fit. */
-function sections(content: string): string[] {
-  const result: string[] = []
-  let current = ''
-  let fence: { character: string; length: number } | undefined
-  for (const line of content.match(/[^\n]*\n|[^\n]+$/g) ?? []) {
-    if (!fence && /^ {0,3}#(?:\s|$)/.test(line) && current) {
-      result.push(current)
-      current = ''
-    }
-    current += line
-    const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line.trimEnd())
-    if (marker) {
-      if (!fence) fence = { character: marker[1][0], length: marker[1].length }
-      else if (marker[1][0] === fence.character && marker[1].length >= fence.length && !marker[2].trim())
-        fence = undefined
-    }
-  }
-  if (current) result.push(current)
-  return result
-}
-
 export async function planLegacyMemory(
   source: string,
   currentEntry: string,
@@ -51,7 +29,8 @@ export async function planLegacyMemory(
       )
     if ('children' in node) for (const child of node.children) inspect(child)
   }
-  inspect(fromMarkdown(source))
+  const document = fromMarkdown(source)
+  inspect(document)
   const files = new Map<string, string>()
   const join = (left: string, right: string) => (left ? `${left}\n\n${right}` : right)
   if (!source.trim() || currentEntry.includes(source)) return new Map([[MEMORY_ENTRY, currentEntry]])
@@ -72,7 +51,17 @@ export async function planLegacyMemory(
     files.set(`.memories/${prefix}-${++topicNumber}.md`, topic)
     topic = ''
   }
-  for (const section of sections(source)) {
+  // Slice the original text at parsed headings so fenced code, comments and other blocks stay intact.
+  const boundaries = document.children.flatMap((node) =>
+    node.type === 'heading' && node.depth === 1 && node.position?.start.offset !== undefined
+      ? [node.position.start.offset]
+      : []
+  )
+  let start = 0
+  for (const end of [...boundaries, source.length]) {
+    if (end === start) continue
+    const section = source.slice(start, end)
+    start = end
     if (Buffer.byteLength(section, 'utf8') > MEMORY_MAX_BYTES)
       throw new MemoryError('limit', 'A legacy FACT section is too large to migrate without splitting its context')
     const candidate = join(entry, section)

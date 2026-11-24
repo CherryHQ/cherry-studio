@@ -76,13 +76,9 @@ ${content}
 </cherry_memory>`
 }
 
-export async function agentMemoryReference(
-  sessionId: string,
-  getInteraction: () => ToolGuardInteractionState,
-  signal?: AbortSignal
-): Promise<string> {
+export function agentMemoryTurn(getInteraction: () => ToolGuardInteractionState, signal?: AbortSignal): MemoryTurn {
   const interaction = getInteraction()
-  const turn: MemoryTurn = {
+  return {
     assertActive: () => {
       signal?.throwIfAborted()
       if (interaction.currentTurn === 'none' || getInteraction().currentTurn !== interaction.currentTurn)
@@ -91,6 +87,14 @@ export async function agentMemoryReference(
     },
     isHeadless: () => interaction.currentTurn !== 'interactive'
   }
+}
+
+export async function agentMemoryReference(
+  sessionId: string,
+  getInteraction: () => ToolGuardInteractionState,
+  signal?: AbortSignal
+): Promise<string> {
+  const turn = agentMemoryTurn(getInteraction, signal)
   const entries = await Promise.all([
     entry({ agentSessionId: sessionId }, () => agentMemoryAuthority(sessionId, 'shared', turn)),
     entry({ agentSessionId: sessionId }, () => agentMemoryAuthority(sessionId, 'private', turn))
