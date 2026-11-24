@@ -103,12 +103,11 @@ export function UserProfileEditor() {
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: unknown) {
-      // Image processing already throws a localized retry message. IPC failures do not.
-      const message =
-        error instanceof EntityImageProcessError ? error.message : t('settings.general.avatar.update_failed')
-      toastAppError(message, error, {
+      // Image processing fails before any write and already throws a localized retry message.
+      const preparing = error instanceof EntityImageProcessError
+      toastAppError(preparing ? error.message : t('settings.general.avatar.update_failed'), error, {
         source: 'profile',
-        operation: 'profile.set_avatar'
+        operation: preparing ? 'profile.prepare_avatar' : 'profile.set_avatar'
       })
     }
   }

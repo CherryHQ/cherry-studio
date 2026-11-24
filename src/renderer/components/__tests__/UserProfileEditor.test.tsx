@@ -5,6 +5,7 @@ import type ReactType from 'react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { appErrorContextService } from '@renderer/services/AppErrorContextService'
 import { toast } from '@renderer/services/toast'
 import type * as ImageUtils from '@renderer/utils/image'
 import { EntityImageProcessError, prepareEntityImageBytes } from '@renderer/utils/image'
@@ -230,6 +231,13 @@ describe('UserProfileEditor', () => {
       expect(toast.error).toHaveBeenCalledWith(expect.objectContaining({ title: failure.message, cause: failure }))
     )
     expect(mocks.ipcRequest).not.toHaveBeenCalledWith('profile.set_avatar', expect.objectContaining({ kind: 'image' }))
+    // No profile write was requested, so Details must not blame it.
+    expect(
+      appErrorContextService.contextForHostError(
+        'avatar-decode-failed',
+        vi.mocked(toast.error).mock.calls[0][0] as Parameters<typeof appErrorContextService.contextForHostError>[1]
+      )
+    ).toMatchObject({ operation: 'profile.prepare_avatar', source: 'profile' })
   })
 
   it('exposes avatar and nickname controls for the personal information page', () => {
