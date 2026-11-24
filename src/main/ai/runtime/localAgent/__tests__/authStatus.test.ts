@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { CommandFailedError, executeCommand } from '@main/utils/processRunner'
 
-import { getLocalAgentAuthStatus, parseCursorAuthStatus } from '../authStatus'
+import { getLocalAgentAuthStatus, parseCursorAuthStatus, parseOpenCodeAuthStatus } from '../authStatus'
 import { resolveLocalAgentLaunch } from '../launch'
 
 vi.mock('../launch', () => ({ resolveLocalAgentLaunch: vi.fn() }))
@@ -46,7 +46,15 @@ describe('native authentication status', () => {
     ['claude', 'claude', ['auth', 'status', '--json'], '{"loggedIn":true}', 'signed-in'],
     ['claude', 'claude', ['auth', 'status', '--json'], '{"loggedIn":"false"}', 'unknown'],
     ['qoder', 'acp', ['status', '-o', 'json'], '{"logged_in":false}', 'signed-out'],
-    ['qoder', 'acp', ['status', '-o', 'json'], '{"logged_in":true}', 'signed-in']
+    ['qoder', 'acp', ['status', '-o', 'json'], '{"logged_in":true}', 'signed-in'],
+    ['opencode', 'acp', ['auth', 'list', '--format', 'json'], '[]', 'signed-out'],
+    [
+      'opencode',
+      'acp',
+      ['auth', 'list', '--format', 'json'],
+      '[{"id":"opencode-go","name":"OpenCode Go","connections":[{"type":"credential","id":"cred_1"}]}]',
+      'signed-in'
+    ]
   ] as const)(
     'reads %s account status from its configured CLI: %s %j %s',
     async (presetId, protocol, args, output, expected) => {
@@ -98,5 +106,14 @@ describe('native authentication status', () => {
     })
     expect(await getLocalAgentAuthStatus(config)).toBe('unsupported')
     expect(executeCommand).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['[]', 'signed-out'],
+    ['[{"id":"empty","connections":[]}]', 'signed-out'],
+    ['\u001b[32m[{"id":"opencode-go","connections":[{"id":"cred_1"}]}]\u001b[0m\n', 'signed-in'],
+    ['not json at all', 'unknown']
+  ])('parses OpenCode auth list JSON status cleanly: %s', (output, expected) => {
+    expect(parseOpenCodeAuthStatus(output)).toBe(expected)
   })
 })

@@ -522,7 +522,16 @@ export const aiRequestSchemas = {
     output: z.enum(['signed-in', 'signed-out', 'unknown', 'unsupported'])
   }),
   'ai.local_agents.authenticate': defineRoute({
-    input: z.strictObject({ requestId: z.uuid(), config: LocalAgentConfigurationSchema, methodId: z.string().min(1) }),
+    input: z.strictObject({
+      requestId: z.uuid(),
+      config: LocalAgentConfigurationSchema,
+      methodId: z.string().min(1),
+      secret: z.string().min(1).optional(),
+      provider: z
+        .string()
+        .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/)
+        .optional()
+    }),
     output: z.void()
   }),
   'ai.local_agents.cancel_auth': defineRoute({ input: z.strictObject({ requestId: z.uuid() }), output: z.void() }),
@@ -733,6 +742,7 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
+  'ai.local_agents.auth_prompt': { requestId: string; url?: string; code?: string }
   'ai.local_agents.notice': { sessionId: string; notice: LocalAgentNotice }
   'ai.local_agents.session_updated': { sessionId: string; info: LocalAgentSessionInfo | null; clearSnapshots?: boolean }
   'ai.agent.import.progress': AgentImportSnapshot

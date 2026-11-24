@@ -111,6 +111,9 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'opencode',
+    authStatusArgs: ['auth', 'list', '--format', 'json'],
+    loginArgs: ['auth', 'login'],
+    externalCredentialMethods: ['opencode-login'],
     terminalArgs: [],
     name: 'OpenCode',
     protocol: 'acp',

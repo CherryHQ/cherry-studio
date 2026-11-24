@@ -54,7 +54,12 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('local agent settings navigation', () => {
-  it.each(['codex', 'claude', 'kimi', 'pi-acp'])('starts sign-in from the installed %s card', async (presetId) => {
+  it.each([
+    { presetId: 'codex', optionLabel: /ChatGPT 账号/, methodId: 'codex-browser' },
+    { presetId: 'claude', optionLabel: /Claude 订阅账号/, methodId: 'claude-subscription' },
+    { presetId: 'kimi', optionLabel: /Kimi 国内版/, methodId: 'kimi-cn' },
+    { presetId: 'pi-acp', methodId: 'pi-browser' }
+  ])('starts in-app browser sign-in from the installed $presetId card', async ({ presetId, optionLabel, methodId }) => {
     navigation.search = { id: presetId }
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
       if (route === 'ai.local_agents.detect') return [{ presetId, path: '/test/cli' }] as never
@@ -62,19 +67,22 @@ describe('local agent settings navigation', () => {
     })
     render(<LocalAgentSettingsPage />)
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    const dialog = within(screen.getByRole('dialog'))
     if (presetId === 'pi-acp') {
-      const dialog = within(screen.getByRole('dialog'))
       await userEvent.type(dialog.getByRole('combobox'), 'openai-codex')
       await userEvent.click(dialog.getByRole('button', { name: '登录' }))
+    } else if (optionLabel) {
+      await userEvent.click(dialog.getByRole('button', { name: optionLabel }))
     }
     expect(ipcApi.request).toHaveBeenCalledWith(
-      'ai.local_agents.open_terminal',
+      'ai.local_agents.authenticate',
       expect.objectContaining({
-        presetId,
-        login: presetId === 'pi-acp' ? { provider: 'openai-codex' } : true
+        methodId,
+        ...(presetId === 'pi-acp' ? { provider: 'openai-codex' } : {}),
+        config: expect.objectContaining({ presetId })
       })
     )
-    expect(screen.queryByRole('button', { name: /已登录/ })).not.toBeInTheDocument()
+    expect(ipcApi.request).not.toHaveBeenCalledWith('ai.local_agents.open_terminal', expect.anything())
   })
 
   it('keeps sign-in as an action when a background model refresh proves session readiness', async () => {
@@ -94,6 +102,42 @@ describe('local agent settings navigation', () => {
     expect(screen.queryByRole('button', { name: '会话就绪' })).not.toBeInTheDocument()
   })
 
+  it('launches terminal auth login and reports native signed-in status for opencode', async () => {
+    navigation.search = { id: 'opencode' }
+    let nativeStatus: 'signed-out' | 'signed-in' = 'signed-out'
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [{ presetId: 'opencode', path: '/test/opencode' }] as never
+      if (route === 'ai.local_agents.models')
+        return {
+          models: [{ id: 'opencode/model', name: 'Native test model' }],
+          authMethods: [{ id: 'opencode-login', name: 'Login with opencode', type: 'agent' }]
+        } as never
+      if (route === 'ai.local_agents.auth_status') return nativeStatus as never
+      if (route === 'ai.local_agents.open_terminal') return { success: true } as never
+      return { ok: true, protocolInfo: { authMethods: [{ id: 'opencode-login', type: 'agent' }] } } as never
+    })
+
+    render(<LocalAgentSettingsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByRole('button', { name: /OpenCode Console/ })).toBeVisible()
+    await userEvent.click(dialog.getByRole('button', { name: /在终端中配置 OpenCode Go 或其他服务/ }))
+
+    expect(ipcApi.request).toHaveBeenCalledWith(
+      'ai.local_agents.open_terminal',
+      expect.objectContaining({ presetId: 'opencode', login: true })
+    )
+    expect(ipcApi.request).not.toHaveBeenCalledWith('ai.local_agents.authenticate', expect.anything())
+
+    nativeStatus = 'signed-in'
+    fireEvent(window, new Event('focus'))
+    const signedInButton = await screen.findByRole('button', { name: '已登录' })
+    expect(signedInButton).toBeVisible()
+    vi.mocked(ipcApi.request).mockClear()
+    await userEvent.click(signedInButton)
+    expect(ipcApi.request).not.toHaveBeenCalledWith('ai.local_agents.open_terminal', expect.anything())
+  })
+
   it('recognizes an existing Antigravity session and clears its status after authentication is rejected', async () => {
     navigation.search = { id: 'antigravity-acp' }
     const methods = [{ id: 'oauth-personal', name: 'Google', type: 'agent' }]
@@ -108,8 +152,10 @@ describe('local agent settings navigation', () => {
       return { protocolInfo: { authMethods: methods } } as never
     })
     render(<LocalAgentSettingsPage />)
-    expect(await screen.findByRole('button', { name: /已登录.*重新登录/ })).toBeVisible()
-    await userEvent.click(screen.getByRole('button', { name: /已登录.*重新登录/ }))
+    expect(await screen.findByRole('button', { name: '已登录' })).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: '已登录' }))
+    expect(screen.queryByRole('heading', { name: /重新登录/ })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('menuitem', { name: '重新登录' }))
     expect(screen.getByRole('heading', { name: /重新登录/ })).toBeVisible()
     await userEvent.click(screen.getByRole('button', { name: '取消' }))
     failure = 'Authentication required'
@@ -137,7 +183,7 @@ describe('local agent settings navigation', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(await screen.findByText(/拉取模型失败/)).toBeVisible()
     expect(await screen.findByText('catalog offline')).toBeVisible()
-    expect(screen.getByRole('button', { name: /已登录.*重新登录/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: '已登录' })).toBeVisible()
     expect(toast.success).toHaveBeenCalledWith('已登录')
   })
 

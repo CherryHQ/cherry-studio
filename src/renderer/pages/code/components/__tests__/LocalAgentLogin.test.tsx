@@ -15,13 +15,21 @@ vi.mock('@renderer/ipc', () => ({
         ? statusRequest(LocalAgentConfigurationSchema.parse(args[0]))
         : request(...args)
     )
-  }
+  },
+  useIpcOn: vi.fn((event: string, handler: (payload: unknown) => void) => {
+    ipcHandlers.set(event, handler)
+  })
 }))
-const { request, statusRequest } = vi.hoisted(() => ({ request: vi.fn(), statusRequest: vi.fn() }))
+const { request, statusRequest, ipcHandlers } = vi.hoisted(() => ({
+  request: vi.fn(),
+  statusRequest: vi.fn(),
+  ipcHandlers: new Map<string, (payload: unknown) => void>()
+}))
 
 beforeEach(() => {
   request.mockReset()
   statusRequest.mockReset().mockResolvedValue('unsupported')
+  ipcHandlers.clear()
   vi.mocked(ipcApi.request).mockClear()
 })
 
@@ -242,7 +250,7 @@ const props = {
 }
 
 describe('external authentication', () => {
-  it('shows an existing Codex account for terminal login and updates when returning to Cherry', async () => {
+  it('shows an existing Codex account, opens the in-app dialog to reauthenticate, and refreshes status on focus', async () => {
     statusRequest.mockResolvedValue('signed-in')
     const onTerminalLogin = vi.fn().mockResolvedValue(undefined)
     render(
@@ -254,13 +262,141 @@ describe('external authentication', () => {
       />
     )
     expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
-    const button = await screen.findByRole('button', { name: /已登录.*重新登录/ })
+    const signedInTrigger = await screen.findByRole('button', { name: '已登录' })
     expect(onTerminalLogin).not.toHaveBeenCalled()
-    await userEvent.click(button)
+    await userEvent.click(signedInTrigger)
+    expect(onTerminalLogin).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('menuitem', { name: '重新登录' }))
+    expect(await screen.findByRole('button', { name: /ChatGPT 账号/ })).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: '改用终端登录' }))
     expect(onTerminalLogin).toHaveBeenCalledOnce()
     statusRequest.mockResolvedValue('signed-out')
     fireEvent(window, new Event('focus'))
     expect(await screen.findByRole('button', { name: '登录' })).toBeVisible()
+  })
+
+  it('supports Codex in-app API key sign-in without launching a terminal', async () => {
+    request.mockResolvedValue(undefined)
+    const onAuthenticated = vi.fn().mockResolvedValue(undefined)
+    render(
+      <LocalAgentLogin
+        {...props}
+        config={{ ...config, protocol: 'codex', presetId: 'codex' }}
+        authMethods={[]}
+        onTerminalLogin={vi.fn()}
+        onAuthenticated={onAuthenticated}
+      />
+    )
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    await userEvent.click(screen.getByRole('button', { name: /OpenAI API 密钥/ }))
+    const input = screen.getByLabelText('API 密钥')
+    await userEvent.type(input, '  sk-codex-123  ')
+    await userEvent.click(screen.getAllByRole('button', { name: '登录' }).at(-1)!)
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith(
+        'ai.local_agents.authenticate',
+        expect.objectContaining({ methodId: 'codex-api-key', secret: 'sk-codex-123' })
+      )
+    )
+    expect(onAuthenticated).toHaveBeenCalledOnce()
+  })
+
+  it('displays live browser sign-in link and one-time verification code for OpenCode device flow', async () => {
+    const pending = Promise.withResolvers<void>()
+    request.mockReturnValueOnce(pending.promise)
+    const onAuthenticated = vi.fn().mockResolvedValue(undefined)
+    const onTerminalLogin = vi.fn().mockResolvedValue(undefined)
+    render(
+      <LocalAgentLogin
+        {...props}
+        config={{ ...config, protocol: 'acp', presetId: 'opencode' }}
+        authMethods={[{ id: 'opencode-login', name: 'OpenCode', type: 'agent' }]}
+        onTerminalLogin={onTerminalLogin}
+        onAuthenticated={onAuthenticated}
+      />
+    )
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    expect(screen.getByRole('button', { name: /在终端中配置 OpenCode Go 或其他服务/ })).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: /OpenCode Console/ }))
+
+    const authCall = vi.mocked(ipcApi.request).mock.calls.find(([route]) => route === 'ai.local_agents.authenticate')
+    const requestId = (authCall?.[1] as { requestId: string } | undefined)?.requestId
+    expect(requestId).toBeTruthy()
+    expect(onTerminalLogin).not.toHaveBeenCalled()
+    expect(await screen.findByRole('status')).toHaveTextContent('正在等待浏览器授权')
+
+    await act(async () => {
+      ipcHandlers.get('ai.local_agents.auth_prompt')?.({
+        requestId,
+        url: 'https://opencode.ai/console/device?user_code=GZNF-ZXWC',
+        code: 'GZNF-ZXWC'
+      })
+    })
+    expect(screen.getByText('GZNF-ZXWC')).toBeVisible()
+    expect(screen.getByRole('link', { name: '打开浏览器登录' })).toHaveAttribute(
+      'href',
+      'https://opencode.ai/console/device?user_code=GZNF-ZXWC'
+    )
+
+    await act(async () => pending.resolve())
+    await waitFor(() => expect(onAuthenticated).toHaveBeenCalledOnce())
+  })
+
+  it('supports Claude, Kimi, and Pi browser sign-in without popping a terminal', async () => {
+    request.mockResolvedValue(undefined)
+    const onTerminalLogin = vi.fn().mockResolvedValue(undefined)
+    const { rerender } = render(
+      <LocalAgentLogin
+        {...props}
+        config={{ ...config, protocol: 'claude', presetId: 'claude' }}
+        authMethods={[]}
+        onTerminalLogin={onTerminalLogin}
+      />
+    )
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    await userEvent.click(screen.getByRole('button', { name: /Claude 订阅账号/ }))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith(
+        'ai.local_agents.authenticate',
+        expect.objectContaining({ methodId: 'claude-subscription' })
+      )
+    )
+
+    rerender(
+      <LocalAgentLogin
+        {...props}
+        config={{ ...config, protocol: 'acp', presetId: 'kimi' }}
+        authMethods={[]}
+        onTerminalLogin={onTerminalLogin}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: '登录' }))
+    await userEvent.click(screen.getByRole('button', { name: /Kimi 国内版/ }))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith(
+        'ai.local_agents.authenticate',
+        expect.objectContaining({ methodId: 'kimi-cn' })
+      )
+    )
+
+    rerender(
+      <LocalAgentLogin
+        {...props}
+        config={{ ...config, protocol: 'acp', presetId: 'pi-acp' }}
+        authMethods={[]}
+        onTerminalLogin={onTerminalLogin}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: '登录' }))
+    await userEvent.click(screen.getByRole('button', { name: 'github-copilot' }))
+    await userEvent.click(screen.getAllByRole('button', { name: '登录' }).at(-1)!)
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith(
+        'ai.local_agents.authenticate',
+        expect.objectContaining({ methodId: 'pi-browser', provider: 'github-copilot' })
+      )
+    )
+    expect(onTerminalLogin).not.toHaveBeenCalled()
   })
 
   it('opens an explicitly supported native terminal login without reporting authentication success', async () => {
@@ -342,10 +478,12 @@ describe('external authentication', () => {
         authMethods={[{ id: 'cursor_login', name: 'Cursor', type: 'agent' }]}
       />
     )
-    const signInAgain = await screen.findByRole('button', { name: /已登录.*重新登录/ })
-    expect(signInAgain).toHaveTextContent(/已登录.*重新登录/)
+    const signedInTrigger = await screen.findByRole('button', { name: '已登录' })
+    expect(signedInTrigger).toHaveTextContent('已登录')
     expect(request).not.toHaveBeenCalled()
-    await userEvent.click(signInAgain)
+    await userEvent.click(signedInTrigger)
+    expect(screen.queryByRole('heading', { name: '重新登录' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('menuitem', { name: '重新登录' }))
     expect(screen.getByRole('heading', { name: '重新登录' })).toBeVisible()
     expect(request).not.toHaveBeenCalled()
     await userEvent.click(screen.getByRole('button', { name: '取消' }))
@@ -372,7 +510,7 @@ describe('external authentication', () => {
       />
     )
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
-    expect(await screen.findByRole('button', { name: /已登录.*重新登录/ })).toBeVisible()
+    expect(await screen.findByRole('button', { name: '已登录' })).toBeVisible()
   })
 
   it('refreshes the ACP session when returning from external login without launching authentication', async () => {

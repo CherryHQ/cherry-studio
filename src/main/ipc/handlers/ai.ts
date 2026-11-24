@@ -252,8 +252,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.local_agents.check': checkLocalAgent,
   'ai.local_agents.models': listLocalAgentModels,
   'ai.local_agents.auth_status': getLocalAgentAuthStatus,
-  'ai.local_agents.authenticate': ({ requestId, config, methodId }) =>
-    application.get('LocalAgentAuthService').authenticate(requestId, config, methodId),
+  'ai.local_agents.authenticate': ({ requestId, config, methodId, secret, provider }) =>
+    application.get('LocalAgentAuthService').authenticate(requestId, config, methodId, { secret, provider }),
   'ai.local_agents.cancel_auth': ({ requestId }) => application.get('LocalAgentAuthService').cancel(requestId),
   'ai.local_agents.select_model': ({ agentId, nativeModel, ...selection }) =>
     selectLocalAgentModel(agentId, nativeModel, selection),

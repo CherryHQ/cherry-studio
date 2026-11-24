@@ -17,8 +17,25 @@ export function parseCursorAuthStatus(output: string): AuthStatus {
   return 'unknown'
 }
 
+export function parseOpenCodeAuthStatus(output: string): AuthStatus {
+  const text = stripVTControlCharacters(output).trim()
+  try {
+    const parsed: unknown = JSON.parse(text)
+    if (!Array.isArray(parsed)) return 'unknown'
+    const hasConnection = parsed.some((entry) => {
+      if (!entry || typeof entry !== 'object') return false
+      const connections = (entry as { connections?: unknown }).connections
+      return Array.isArray(connections) ? connections.length > 0 : true
+    })
+    return hasConnection ? 'signed-in' : 'signed-out'
+  } catch {
+    return 'unknown'
+  }
+}
+
 function parseNativeStatus(presetId: string, output: string): AuthStatus {
   if (presetId === 'cursor') return parseCursorAuthStatus(output)
+  if (presetId === 'opencode') return parseOpenCodeAuthStatus(output)
   if (presetId === 'codex') {
     const text = stripVTControlCharacters(output)
     if (/^Not logged in$/m.test(text.trim())) return 'signed-out'

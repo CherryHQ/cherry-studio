@@ -374,6 +374,7 @@ agent_servers:
     ['codex', 'codex', 'codex', ['login']],
     ['claude', 'claude', 'claude', ['auth', 'login']],
     ['kimi', 'acp', 'kimi', ['login']],
+    ['opencode', 'acp', 'opencode', ['auth', 'login']],
     ['qoder', 'acp', 'qodercli', ['login']],
     ['pi-acp', 'acp', 'pi', ['auth', 'login', 'openai-codex']],
     ['poolside', 'acp', 'pool', ['login']]
