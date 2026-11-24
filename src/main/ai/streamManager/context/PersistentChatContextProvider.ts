@@ -1096,12 +1096,29 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     assistantId: string | undefined
   ): AssistantTurnOptions['modelPrompts'] {
     let pairs = req.modelPrompts
-    // Old callers regenerate from the reply's stored association, not today's assistant settings.
-    if (!pairs && req.trigger === 'regenerate-message' && req.parentAnchorId) {
-      const children = messageService.getChildrenByParentId(req.parentAnchorId)
-      pairs = children.find((row) => row.data.turnOptions?.modelPrompts)?.data.turnOptions?.modelPrompts
+    if (req.trigger === 'regenerate-message' && req.parentAnchorId) {
+      // Recover the full stored comparison map across sibling replies: a
+      // single-model regeneration stores only that model's entry, so an
+      // explicit resend map can be narrower than the original selection.
+      // Stored entries fill the gaps; explicit entries win.
+      const stored = messageService
+        .getChildrenByParentId(req.parentAnchorId)
+        .flatMap((row) => row.data.turnOptions?.modelPrompts ?? [])
+      if (stored.length) {
+        const merged = new Map(stored.map((pair) => [pair.modelId, pair.systemPrompt] as const))
+        for (const pair of pairs ?? []) merged.set(pair.modelId, pair.systemPrompt)
+        pairs = [...merged].map(([modelId, systemPrompt]) => ({ modelId, systemPrompt }))
+      }
     }
-    if (!pairs?.length) return undefined
+    const fallback = assistantId ? (assistantDataService.getById(assistantId).prompt ?? '') : ''
+    if (!pairs?.length) {
+      // A comparison submit with every override unchecked sends an explicit
+      // empty map. Snapshot each selected model's inherited prompt so both
+      // replies can show it and later regeneration is immune to assistant edits.
+      if (req.trigger === 'submit-message' && req.modelPrompts && models.length > 1)
+        return models.map((model) => ({ modelId: model.id, systemPrompt: fallback }))
+      return undefined
+    }
     const selected = new Set(models.map((model) => model.id))
     const seen = new Set<string>()
     // Stored maps may include sibling models; explicit new-submit maps must match the selected set.
@@ -1111,7 +1128,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       if (req.trigger === 'submit-message' && req.modelPrompts && !selected.has(pair.modelId))
         throw new Error('Prompt belongs to an unselected model')
     }
-    const fallback = assistantId ? (assistantDataService.getById(assistantId).prompt ?? '') : ''
     return models.map((model) => ({
       modelId: model.id,
       systemPrompt: pairs.find((pair) => pair.modelId === model.id)?.systemPrompt ?? fallback

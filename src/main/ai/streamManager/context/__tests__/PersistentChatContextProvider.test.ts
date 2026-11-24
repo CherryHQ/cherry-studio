@@ -262,6 +262,118 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     vi.mocked(resolveAssistantModelId).mockReturnValue({ assistantId: undefined, defaultModelId: MODEL_ID })
   })
 
+  it('snapshots every selected fallback when a comparison submit sends an empty override list', async () => {
+    const assistant = assistantDataService.create({
+      name: 'Prompt owner',
+      modelId: MODEL_ID,
+      prompt: 'Inherited assistant prompt'
+    })
+    topicService.update('topic-1', { assistantId: assistant.id })
+    vi.mocked(resolveAssistantModelId).mockReturnValue({ assistantId: assistant.id, defaultModelId: MODEL_ID })
+    const second = { id: createUniqueModelId('openai', 'gpt-4.1'), providerId: 'openai', name: 'GPT-4.1' }
+    await dbh.db.insert(userModelTable).values({
+      id: second.id,
+      providerId: 'openai',
+      modelId: 'gpt-4.1',
+      presetModelId: 'gpt-4.1',
+      name: 'GPT-4.1',
+      orderKey: 'z1'
+    })
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      { id: MODEL_ID, providerId: 'openai', name: 'GPT-4o' },
+      second
+    ] as any)
+    const result = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        mentionedModelIds: [MODEL_ID, second.id],
+        modelPrompts: [],
+        userMessageParts: [{ type: 'text', text: 'compare' }]
+      },
+      { hasLiveStream: false }
+    )
+    expect(result.models.map((entry) => entry.request.systemPromptOverride)).toEqual([
+      'Inherited assistant prompt',
+      'Inherited assistant prompt'
+    ])
+    const replies = result.reservedMessages!.filter((message) => message.role === 'assistant')
+    expect(replies).toHaveLength(2)
+    for (const reply of replies) {
+      expect(reply.metadata?.turnOptions?.modelPrompts).toEqual([
+        { modelId: MODEL_ID, systemPrompt: 'Inherited assistant prompt' },
+        { modelId: second.id, systemPrompt: 'Inherited assistant prompt' }
+      ])
+    }
+    // An assistant edit after the snapshot must not reach the comparison's regeneration.
+    assistantDataService.update(assistant.id, { prompt: 'Edited assistant prompt' })
+    const user = result.reservedMessages!.find((message) => message.role === 'user')!
+    const again = await provider.prepareDispatch(
+      makeSubscriber(),
+      { trigger: 'regenerate-message', topicId: 'topic-1', parentAnchorId: user.id, mentionedModelIds: [MODEL_ID] },
+      { hasLiveStream: false }
+    )
+    expect(again.models[0].request.systemPromptOverride).toBe('Inherited assistant prompt')
+    vi.mocked(resolveAssistantModelId).mockReturnValue({ assistantId: undefined, defaultModelId: MODEL_ID })
+  })
+
+  it('recovers stored sibling prompts for selected models missing from a narrowed resend map', async () => {
+    const second = {
+      id: createUniqueModelId('openai', 'gpt-4.1'),
+      providerId: 'openai',
+      name: 'GPT-4.1',
+      apiModelId: 'gpt-4.1'
+    }
+    await dbh.db.insert(userModelTable).values({
+      id: second.id,
+      providerId: 'openai',
+      modelId: 'gpt-4.1',
+      presetModelId: 'gpt-4.1',
+      name: 'GPT-4.1',
+      orderKey: 'z1'
+    })
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      { id: MODEL_ID, providerId: 'openai', name: 'GPT-4o' },
+      second
+    ] as any)
+    const result = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        mentionedModelIds: [MODEL_ID, second.id],
+        modelPrompts: [
+          { modelId: MODEL_ID, systemPrompt: 'Prompt A' },
+          { modelId: second.id, systemPrompt: 'Prompt B' }
+        ],
+        userMessageParts: [{ type: 'text', text: 'compare' }]
+      },
+      { hasLiveStream: false }
+    )
+    const user = result.reservedMessages!.find((message) => message.role === 'user')!
+    // A single-model regeneration narrowed the active map, then an edit-and-resend
+    // selects both models again with only A's entry explicit.
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      { id: MODEL_ID, providerId: 'openai', name: 'GPT-4o' },
+      second
+    ] as any)
+    const again = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: user.id,
+        mentionedModelIds: [MODEL_ID, second.id],
+        modelPrompts: [{ modelId: MODEL_ID, systemPrompt: 'Prompt A' }]
+      },
+      { hasLiveStream: false }
+    )
+    expect(again.models.map((entry) => entry.request.systemPromptOverride)).toEqual(['Prompt A', 'Prompt B'])
+  })
+
   it('rejects prompts for unselected models and duplicate pairs before writing user messages', async () => {
     const count = messageService.getChildrenByParentId('a1').length
     for (const modelPrompts of [
