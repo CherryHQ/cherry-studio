@@ -101,7 +101,10 @@ function getEditionUpdateChannel(channel: UpgradeChannel, edition: AppEdition): 
 function isCurrentOsUnsupportedForUpdate(): boolean {
   if (!isWin) return false
   try {
-    return !isSupportedWindowsRelease(os.release(), process.platform)
+    // isWin is the mocked/testable Windows signal — pass 'win32' explicitly
+    // instead of process.platform so the gate holds when isWin is mocked
+    // (e.g. Linux CI simulating a Windows 7 release string).
+    return !isSupportedWindowsRelease(os.release(), 'win32')
   } catch {
     return false
   }

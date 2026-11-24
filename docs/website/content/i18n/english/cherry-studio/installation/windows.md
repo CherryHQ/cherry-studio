@@ -17,7 +17,7 @@ If you are unsure of your device architecture, open Windows "Settings → System
 
 Open the [official download page](https://cherryai.com/download), select **Windows**.
 
-![Cherry Studio official download page Windows options](../../../assets/7e7db39828c20e3db5210008.jpg)
+![Cherry Studio official download page Windows options](../../../../assets/7e7db39828c20e3db5210008.jpg)
 
 _The Windows download options on the official website._
 
