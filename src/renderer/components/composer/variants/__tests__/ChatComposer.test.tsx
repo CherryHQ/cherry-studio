@@ -2015,6 +2015,27 @@ describe('ChatComposer', () => {
     expect(effortCalls.at(-1)).toEqual([{ reasoning_effort: 'high' }, model.id])
   })
 
+  it('keeps recalled multi-model effort on the draft without writing another model preference', async () => {
+    mocks.topicPending = true
+    mocks.mentionedModels = [model, modelB]
+    mocks.updateAssistantSettings.mockReturnValue(new Promise(() => undefined))
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('low'))
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'multi-model queued', tokens: [] })
+    })
+    const dock = (mocks.surfaceProps?.queueContent as any).props
+    expect(dock.items[0].payload.mentionedModels).toHaveLength(2)
+    dock.items[0].payload.reasoningEffort = 'low'
+    mocks.updateAssistantSettings.mockClear()
+    await act(async () => dock.onEdit(dock.items[0].id))
+    expect(mocks.updateAssistantSettings.mock.calls.filter(([settings]) => 'reasoning_effort' in settings)).toEqual([])
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'restored', tokens: [] })
+    })
+    expect((mocks.surfaceProps?.queueContent as any).props.items[0].payload.reasoningEffort).toBe('low')
+  })
+
   it('consumes queued items without swapping the edited message into the queue', async () => {
     mocks.topicPending = true
     const message = { id: 'msg-1', topicId: topic.id }

@@ -836,6 +836,8 @@ const ChatComposerInner = ({
         value: option,
         version
       })
+      // A recalled multi-model draft has no single preference owner. Keep its effort local.
+      if (owner && !ownerModel) return
       void updateAssistantSettings({ reasoning_effort: option }, ownerModel?.id)
         .then(() => {
           setReasoningOverride((current) => (current?.version === version ? null : current))
