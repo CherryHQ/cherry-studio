@@ -405,6 +405,31 @@ describe('MiniAppDetailPanel', () => {
     expect(screen.getByRole('checkbox', { name: 'Sandbox data · Write' })).toBeEnabled()
   })
 
+  // A generic cause such as "permission denied" says nothing about which command failed; the operation must.
+  it('names the failed command in Details for each refused action', async () => {
+    await open()
+    request.mockRejectedValueOnce(new Error('permission denied'))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Sandbox data · Write' }))
+    await userEvent.click(
+      within(await screen.findByRole('alert')).getByRole('button', { name: i18n.t('common.detail') })
+    )
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+
+    await userEvent.click(screen.getByRole('button', { name: /uninstall|卸载/i }))
+    request.mockRejectedValueOnce(new Error('permission denied'))
+    await userEvent.click(await screen.findByRole('button', { name: /confirm|确认/i }))
+    await waitFor(() => expect(request).toHaveBeenCalledWith('mini_app.uninstall', { appId: detail.appId }))
+    await userEvent.click(
+      within(await screen.findByRole('alert')).getByRole('button', { name: i18n.t('common.detail') })
+    )
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(2))
+
+    expect(mocks.openErrorDetail.mock.calls.map(([request]) => request.context.operation)).toEqual([
+      'miniapp.grant.revoke',
+      'miniapp.uninstall'
+    ])
+  })
+
   it('shows how much disk the app itself takes', async () => {
     await open()
 
