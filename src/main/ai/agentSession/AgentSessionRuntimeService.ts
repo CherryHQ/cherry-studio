@@ -19,6 +19,7 @@ import { AgentSessionForkOperations, getEditFailure, resolveForkBoundary } from 
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { assertAgentImageInput } from '@main/ai/streamManager/context/agentImageInputGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -3356,6 +3357,9 @@ export class AgentSessionRuntimeService extends BaseService {
       this.currentConnection(entry) !== connection
     )
       return
+    assertAgentImageInput(entry.agentType, turn.modelId, turn.userMessage.data.parts, (providerId, modelId) =>
+      modelService.getByKey(providerId, modelId)
+    )
     await connection.send({
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true,

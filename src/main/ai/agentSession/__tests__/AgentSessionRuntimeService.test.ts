@@ -71,6 +71,7 @@ const mocks = vi.hoisted(() => ({
   closeWarmSession: vi.fn().mockResolvedValue(undefined),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
+  getModel: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn(),
   trackTokenUsage: vi.fn()
@@ -549,7 +550,10 @@ describe('AgentSessionForkOperations recovery', () => {
 })
 
 vi.mock('@data/services/ModelService', () => ({
-  modelService: { getNamesByUniqueIdsTx: (_tx, ids) => new Map(ids.map((id) => [id, 'Override model'])) }
+  modelService: {
+    getByKey: mocks.getModel,
+    getNamesByUniqueIdsTx: (_tx, ids) => new Map(ids.map((id) => [id, 'Override model']))
+  }
 }))
 
 describe('AgentSessionRuntimeService', () => {
@@ -4807,6 +4811,44 @@ describe('AgentSessionRuntimeService', () => {
       },
       { publishDataChange: true }
     )
+  })
+
+  it('rejects a queued Pi image before sending it after the model changes to non-vision', async () => {
+    const events = createAsyncQueue<AgentRuntimeEvent>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      reconcile: async () => 'current' as const,
+      close: async () => events.end()
+    }
+    runtimeDriverRegistry.register({ type: 'pi', connect: async () => connection, validateSession: vi.fn() })
+    const visionModel = 'openai::vision-model'
+    const nonVisionModel = 'deepseek::deepseek-flash'
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'pi', model: visionModel })
+    mocks.getModel.mockReturnValueOnce({ capabilities: [], inputModalities: ['text'] })
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, agentType: 'pi', modelId: visionModel })
+    service.enqueueUserMessage('session-1', {
+      ...userMessage('user-2'),
+      data: { parts: [{ type: 'file', mediaType: 'image/png', url: 'file:///attachment.png' }] }
+    })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'pi', model: nonVisionModel })
+    service.markTurnTerminal('session-1', 'success')
+
+    const entry = getEntry(service)
+    await vi.waitFor(() => expect(entry.currentTurn.modelId).toBe(nonVisionModel))
+    const reader = openChunkStream(service, {
+      sessionId: 'session-1',
+      turnId: entry.currentTurn.turnId,
+      signal: new AbortController().signal
+    }).getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+    await expect(reader.read()).rejects.toMatchObject({
+      name: 'UnsupportedAgentImageInputError',
+      modelId: 'deepseek-flash'
+    })
+    expect(connection.send).not.toHaveBeenCalled()
+    await service.closeSession('session-1')
   })
 
   it('routes runtime events from the selected driver into the active turn', async () => {

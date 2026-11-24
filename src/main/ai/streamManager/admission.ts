@@ -30,3 +30,15 @@ export class AiStreamAdmissionError extends Error {
     this.name = 'AiStreamAdmissionError'
   }
 }
+
+export class UnsupportedAgentImageInputError extends Error {
+  readonly providerErrorCategory = 'model' as const
+
+  constructor(
+    readonly modelId: string,
+    message: string
+  ) {
+    super(message)
+    this.name = 'UnsupportedAgentImageInputError'
+  }
+}

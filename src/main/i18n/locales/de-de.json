@@ -48,6 +48,7 @@
   "agent.session.fork.execution_not_inherited": "Die Ausführung wurde nicht in diesen Sitzungszweig übernommen.",
   "agent.session.new": "Neue Aufgabe",
   "agent.session.pi.legacy_tool_policy_unresolved": "Einige deaktivierte Werkzeuge der vorherigen Laufzeit konnten nicht zugeordnet werden. Konfigurieren Sie den Werkzeugzugriff dieses Agenten vor dem Start neu.",
+  "agent.session.pi.unsupported_image_input": "Das Modell „{{model}}“ kann keine Bilder lesen. Wechseln Sie zu einem Modell mit Bildunterstützung oder entfernen Sie die Bilder und versuchen Sie es erneut.",
   "agent.session.run_status.busy": "Die Agent-Sitzung ist beschäftigt. Bitte versuchen Sie es in Kürze erneut.",
   "agent.session.run_status.unavailable": "Die Agent-Sitzung ist nicht mehr verfügbar.",
   "agent.session.workspace_status.inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",

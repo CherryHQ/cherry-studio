@@ -1,3 +1,4 @@
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   runtimeValidateSession: vi.fn(),
   setEditRuntimeTx: vi.fn(),
   reserveDurableBranchTx: vi.fn(),
+  getModel: vi.fn(),
   getModelNames: vi.fn(() => new Map<string, string>())
 }))
 
@@ -69,7 +71,7 @@ vi.mock('@main/services/TopicNamingService', () => ({
 }))
 
 vi.mock('@data/services/ModelService', () => ({
-  modelService: { getNamesByUniqueIdsTx: () => mocks.getModelNames() }
+  modelService: { getByKey: mocks.getModel, getNamesByUniqueIdsTx: () => mocks.getModelNames() }
 }))
 
 vi.mock('@application', () => ({
@@ -167,6 +169,7 @@ describe('AgentChatContextProvider', () => {
         }
       }
       if (name === 'DbService') return { getDb: () => ({}), withWriteTx: (fn) => fn({}) }
+      if (name === 'PreferenceService') return defaultServiceInstances.PreferenceService
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.runtimeBeginTurn.mockReturnValue({
@@ -179,6 +182,49 @@ describe('AgentChatContextProvider', () => {
     // clearAllMocks preserves return values: re-seed the name map so override
     // tests can't leak state into later cases.
     mocks.getModelNames.mockReturnValue(new Map())
+  })
+
+  it.each(['pi', 'pi-durable'] as const)(
+    'rejects an image before admitting a non-vision %s turn with switch-model and remove-image guidance',
+    async (type) => {
+      runtimeDriverRegistry.register({ type, connect: vi.fn(), validateSession: mocks.runtimeValidateSession })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type,
+        model: 'deepseek::deepseek-flash'
+      })
+      mocks.getModel.mockReturnValueOnce({ capabilities: [], inputModalities: ['text'] })
+
+      await expect(
+        provider.prepareDispatch(
+          makeSubscriber(),
+          openReq({ userMessageParts: [{ type: 'file', mediaType: 'image/png', url: 'file:///attachment.png' }] })
+        )
+      ).rejects.toMatchObject({
+        name: 'UnsupportedAgentImageInputError',
+        modelId: 'deepseek-flash',
+        message:
+          'Model "deepseek-flash" cannot read images. Switch to a model that supports images or remove the images and try again.'
+      })
+      expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps the image when the session override supports image input', async () => {
+    runtimeDriverRegistry.register({ type: 'pi', connect: vi.fn(), validateSession: mocks.runtimeValidateSession })
+    mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', model: 'openai::vision-model' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'pi', model: 'deepseek::deepseek-flash' })
+    mocks.getModel.mockImplementationOnce((providerId, modelId) => ({
+      capabilities: [],
+      inputModalities: providerId === 'openai' && modelId === 'vision-model' ? ['text', 'image'] : ['text']
+    }))
+    const image = { type: 'file', mediaType: 'image/png', url: 'file:///attachment.png' } as const
+
+    const dispatch = await provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: [image] }))
+
+    expect(dispatch.models[0].modelId).toBe('openai::vision-model')
+    expect(dispatch.reservedMessages?.find((message) => message.role === 'user')?.parts).toEqual([image])
   })
 
   it('keeps the captured branch when the user changes selection during validation', async () => {

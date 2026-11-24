@@ -48,6 +48,7 @@
   "agent.session.fork.execution_not_inherited": "この分岐セッションには実行状態が引き継がれていません。",
   "agent.session.new": "新しいタスク",
   "agent.session.pi.legacy_tool_policy_unresolved": "以前のランタイムで無効にした一部のツールを対応付けできませんでした。実行する前に、このエージェントのツールへのアクセス権限を再設定してください。",
+  "agent.session.pi.unsupported_image_input": "モデル「{{model}}」は画像を読み取れません。画像に対応するモデルに切り替えるか、画像を削除して再試行してください。",
   "agent.session.run_status.busy": "Agent セッションは処理中です。しばらくしてからもう一度お試しください。",
   "agent.session.run_status.unavailable": "Agent セッションは利用できなくなりました。",
   "agent.session.workspace_status.inaccessible": "ワークスペースパスにアクセスできません: {{path}}",

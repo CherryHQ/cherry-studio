@@ -1,3 +1,4 @@
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { APICallError, RetryError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -5,7 +6,7 @@ import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkServ
 import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionForkError } from '@main/ai/runtime/fork/checkpoint'
-import { AiStreamAdmissionError } from '@main/ai/streamManager'
+import { AiStreamAdmissionError, UnsupportedAgentImageInputError } from '@main/ai/streamManager'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
@@ -146,6 +147,8 @@ beforeEach(() => {
         return fileManager
       case 'IpcApiService':
         return ipcApiService
+      case 'PreferenceService':
+        return defaultServiceInstances.PreferenceService
       default:
         throw new Error(`Unexpected application.get(${name})`)
     }
@@ -514,6 +517,29 @@ describe('aiHandlers — streaming', () => {
       data: { reason: aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP }
     })
   })
+
+  it.each(['ai.stream.open', 'ai.agent.session.edit_resend'] as const)(
+    '%s preserves actionable model guidance for unsupported image input',
+    async (route) => {
+      aiStreamManager.dispatchCommand.mockRejectedValueOnce(
+        new UnsupportedAgentImageInputError(
+          'deepseek-flash',
+          (await import('@main/i18n/locales/en-us.json')).default['agent.session.pi.unsupported_image_input'].replace(
+            '{{model}}',
+            'deepseek-flash'
+          )
+        )
+      )
+
+      await expect(
+        aiHandlers[route]({ topicId: 't', sessionId: 'session-1' } as never, { senderId: 'w1' })
+      ).rejects.toMatchObject({
+        code: aiErrorCodes.AI_REQUEST_FAILED,
+        message: expect.stringContaining('Switch to a model that supports images or remove the images'),
+        data: { modelId: 'deepseek-flash', providerErrorCategory: 'model' }
+      })
+    }
+  )
 
   it('stream_attach delegates to AiStreamManager.attach and returns its response', async () => {
     aiStreamManager.attach.mockReturnValue({ status: 'not-found' })

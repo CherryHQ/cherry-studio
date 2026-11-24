@@ -1,4 +1,4 @@
-export { AiStreamAdmissionError } from './admission'
+export { AiStreamAdmissionError, UnsupportedAgentImageInputError } from './admission'
 export { AiStreamManager } from './AiStreamManager'
 export { startAgentSessionRun } from './api/startAgentSessionRun'
 export { agentChatContextProvider } from './context/AgentChatContextProvider'

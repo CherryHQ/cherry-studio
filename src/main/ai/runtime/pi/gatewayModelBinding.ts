@@ -7,11 +7,11 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { getPiTraceContext } from '@main/ai/observability'
 import { isPiCompatibleModel, mapEndpointToPiApi } from '@shared/ai/piModelCompatibility'
-import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { getRawModelId } from '@shared/utils/model'
+import { getRawModelId, isVisionModel } from '@shared/utils/model'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { resolveAgentContextWindow } from '../agentContextWindow'
@@ -42,13 +42,7 @@ export async function createPiGatewayModelBinding(
   const api = mapEndpointToPiApi(endpointType, adapterFamily) ?? 'openai-completions'
   const gateway = application.get('ApiGatewayService')
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
-  const modalities: ('text' | 'image')[] = ['text']
-  if (
-    model.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ||
-    model.inputModalities?.includes(MODALITY.IMAGE)
-  ) {
-    modalities.push('image')
-  }
+  const modalities: ('text' | 'image')[] = isVisionModel(model) ? ['text', 'image'] : ['text']
   const [{ InMemoryCredentialStore }, { ModelRuntime }, streamSimple] = await Promise.all([
     loadPiAi(),
     loadPiSdk(),

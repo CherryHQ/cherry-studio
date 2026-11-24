@@ -48,6 +48,7 @@
   "agent.session.fork.execution_not_inherited": "Execution was not inherited by this session fork.",
   "agent.session.new": "New task",
   "agent.session.pi.legacy_tool_policy_unresolved": "Some disabled tools from the previous runtime could not be mapped. Reconfigure this agent's tool access before running it.",
+  "agent.session.pi.unsupported_image_input": "Model \"{{model}}\" cannot read images. Switch to a model that supports images or remove the images and try again.",
   "agent.session.run_status.busy": "The Agent Session is busy. Please try again shortly.",
   "agent.session.run_status.unavailable": "The Agent Session is no longer available.",
   "agent.session.workspace_status.inaccessible": "Workspace path is not accessible: {{path}}",

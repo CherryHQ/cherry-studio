@@ -48,6 +48,7 @@
   "agent.session.fork.execution_not_inherited": "Trạng thái thực thi không được kế thừa trong nhánh phiên này.",
   "agent.session.new": "Nhiệm vụ mới",
   "agent.session.pi.legacy_tool_policy_unresolved": "Không thể ánh xạ một số công cụ đã tắt của môi trường chạy trước. Hãy cấu hình lại quyền truy cập công cụ của tác tử này trước khi chạy.",
+  "agent.session.pi.unsupported_image_input": "Mô hình “{{model}}” không thể đọc hình ảnh. Hãy chuyển sang mô hình hỗ trợ hình ảnh hoặc xóa hình ảnh rồi thử lại.",
   "agent.session.run_status.busy": "Phiên Agent đang bận. Vui lòng thử lại sau ít phút.",
   "agent.session.run_status.unavailable": "Phiên Agent không còn khả dụng.",
   "agent.session.workspace_status.inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",

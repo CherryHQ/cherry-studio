@@ -219,6 +219,8 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
    - an effective model must be configured: interactive turns use `session.model ?? agent.model`,
      while headless turns use the Agent default and ignore the session override. See
      [Agent Prompt Layers](./agent-prompt-layers.md#update-and-variable-lifecycle).
+   - Pi and Pi Durable reject a submission with image attachments when the effective model cannot
+     read images. The message names the model and asks the user to switch models or remove the images.
 3. The provider atomically saves:
    - a `user` message with the submitted parts;
    - a pending `assistant` message with the selected model id.
@@ -238,7 +240,8 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
    detects the runtime metadata and calls `openTurnStream()` instead of
    building a generic `Agent`.
 8. `openTurnStream()` ensures there is a runtime connection and admits
-   the turn by calling `connection.send({ message })`.
+   the turn by calling `connection.send({ message })`. It rechecks Pi and Pi Durable image attachments
+   against the model that will run the turn, including after a queued turn's model changes.
 
 ## Live follow-up
 
