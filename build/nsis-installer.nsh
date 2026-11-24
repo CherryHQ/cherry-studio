@@ -117,6 +117,44 @@
 !endif
 
 !macro customInit
+  Push $0
+  Push $1
+  Push $2
+  Push $3
+  Push $4
+
+  ; Check minimum Windows version FIRST, before elevation/arch/VC++ work.
+  ; Windows 7/8/8.1 and earlier cannot run this build (Electron 23+ requires
+  ; Windows 10+); third-party compatibility layers are not supported either.
+  ; NOTE: the electron-builder template issues `SetOutPath $INSTDIR` in
+  ; `.onInit` before `customInit` runs, which creates $INSTDIR (including a
+  ; `/D=` destination that did not exist). `RMDir` below removes that
+  ; just-created empty directory so an aborted install leaves no trace.
+  ; `RMDir` only succeeds on empty directories, so an existing install is
+  ; never deleted; a packaged trace showing the `/D=` destination stays
+  ; absent confirms the no-change promise.
+  Call checkWindowsVersion
+  ${If} $0 != "1"
+    StrCpy $4 "https://cherryai.com/"
+    ${If} $LANGUAGE == ${LANG_SIMPCHINESE}
+    ${OrIf} $LANGUAGE == ${LANG_TRADCHINESE}
+      StrCpy $4 "https://cherryai.com.cn/"
+    ${EndIf}
+    MessageBox MB_ICONSTOP "\
+      Unsupported Windows Version$\r$\n$\r$\n\
+      Cherry Studio requires Windows 10 1809 (build 17763, 64-bit) or later, including Windows 11.$\r$\n\
+      Windows 7, 8 and 8.1 are not supported, including launches through third-party compatibility layers.$\r$\n\
+      No files were installed or changed.$\r$\n$\r$\n\
+      当前 Windows 版本不受支持，需要 Windows 10 1809（内部版本 17763，64 位）或更高版本（含 Windows 11）。$\r$\n\
+      Windows 7 / 8 / 8.1 不受支持，通过第三方兼容层启动也不属于官方支持。本次未安装或更改任何文件。$\r$\n$\r$\n\
+      Past installers remain available on GitHub Releases for reference only (no support or security updates).$\r$\n\
+      Supported downloads and documents:$\r$\n\
+      $4"
+    ExecShell "open" "$4"
+    RMDir "$INSTDIR"
+    Abort
+  ${EndIf}
+
   ; If a per-machine (all users) installation exists, ensure we have admin privileges.
   ; Without elevation, the installer cannot close the running app or manage the
   ; per-machine installation, causing "cannot close app" errors during both
@@ -137,12 +175,6 @@
     ${EndIf}
   ${EndIf}
 
-  Push $0
-  Push $1
-  Push $2
-  Push $3
-  Push $4
-
   ; Check architecture compatibility first
   Call checkArchitectureCompatibility
   ${If} $0 != "1"
@@ -157,30 +189,6 @@
       Your system: $1$\r$\n\
       App architecture: $3$\r$\n$\r$\n\
       Please download the correct version from:$\r$\n\
-      $4"
-    ExecShell "open" "$4"
-    Abort
-  ${EndIf}
-
-  ; Check minimum Windows version before installing or changing anything.
-  ; Windows 7/8/8.1 and earlier cannot run this build (Electron 23+ requires
-  ; Windows 10+); third-party compatibility layers are not supported either.
-  Call checkWindowsVersion
-  ${If} $0 != "1"
-    StrCpy $4 "https://cherryai.com/"
-    ${If} $LANGUAGE == ${LANG_SIMPCHINESE}
-    ${OrIf} $LANGUAGE == ${LANG_TRADCHINESE}
-      StrCpy $4 "https://cherryai.com.cn/"
-    ${EndIf}
-    MessageBox MB_ICONSTOP "\
-      Unsupported Windows Version$\r$\n$\r$\n\
-      Cherry Studio requires Windows 10 1809 (build 17763, 64-bit) or later, including Windows 11.$\r$\n\
-      Windows 7, 8 and 8.1 are not supported, including launches through third-party compatibility layers.$\r$\n\
-      No files were installed or changed.$\r$\n$\r$\n\
-      当前 Windows 版本不受支持，需要 Windows 10 1809（内部版本 17763，64 位）或更高版本（含 Windows 11）。$\r$\n\
-      Windows 7 / 8 / 8.1 不受支持，通过第三方兼容层启动也不属于官方支持。本次未安装或更改任何文件。$\r$\n$\r$\n\
-      Past installers remain available on GitHub Releases for reference only (no support or security updates).$\r$\n\
-      Supported downloads and documents:$\r$\n\
       $4"
     ExecShell "open" "$4"
     Abort

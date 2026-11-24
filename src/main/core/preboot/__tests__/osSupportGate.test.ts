@@ -2,26 +2,16 @@ import type os from 'node:os'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { dialogMock, quitMock, getLocaleMock, osReleaseMock } = vi.hoisted(() => ({
+const { dialogMock, quitMock, getPreferredLanguagesMock, osReleaseMock } = vi.hoisted(() => ({
   dialogMock: { showErrorBox: vi.fn() },
   quitMock: vi.fn(),
-  getLocaleMock: vi.fn(() => 'en-US'),
+  getPreferredLanguagesMock: vi.fn(() => ['en-US']),
   osReleaseMock: vi.fn(() => '10.0.19044')
 }))
 
 vi.mock('electron', () => ({
-  app: { getLocale: getLocaleMock },
+  app: { getPreferredSystemLanguages: getPreferredLanguagesMock, quit: quitMock },
   dialog: dialogMock
-}))
-
-vi.mock('@application', () => ({
-  application: { quit: quitMock }
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })
-  }
 }))
 
 vi.mock('node:os', async (importOriginal) => {
@@ -44,7 +34,7 @@ async function loadModule() {
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
-  getLocaleMock.mockReturnValue('en-US')
+  getPreferredLanguagesMock.mockReturnValue(['en-US'])
   osReleaseMock.mockReturnValue('10.0.19044')
   setPlatform('win32')
 })
@@ -88,6 +78,47 @@ describe('runOsSupportGate', () => {
     try {
       const { runOsSupportGate } = await loadModule()
       expect(runOsSupportGate()).toBe('handled')
+    } finally {
+      exitSpy.mockRestore()
+    }
+  })
+
+  it('shows Chinese-first bilingual guidance for a Chinese system locale', async () => {
+    osReleaseMock.mockReturnValue('6.1.7601')
+    getPreferredLanguagesMock.mockReturnValue(['zh-CN'])
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as unknown as never)
+    try {
+      const { runOsSupportGate } = await loadModule()
+      expect(runOsSupportGate()).toBe('handled')
+      expect(dialogMock.showErrorBox).toHaveBeenCalledOnce()
+      const [title, message] = dialogMock.showErrorBox.mock.calls[0] as [string, string]
+      // Bilingual by construction: a locale-lookup failure can never leave a
+      // non-English user with English-only guidance.
+      expect(title).toContain('当前 Windows 版本不受支持')
+      expect(title).toContain('Windows version not supported')
+      expect(message).toContain('当前系统报告为')
+      expect(message).toContain('This device reports')
+      expect(message).toContain('github.com/CherryHQ/cherry-studio/releases')
+    } finally {
+      exitSpy.mockRestore()
+    }
+  })
+
+  it('falls back to bilingual guidance when the locale lookup throws', async () => {
+    osReleaseMock.mockReturnValue('6.1.7601')
+    getPreferredLanguagesMock.mockImplementation(() => {
+      throw new Error('locale unavailable pre-ready')
+    })
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as unknown as never)
+    try {
+      const { runOsSupportGate } = await loadModule()
+      expect(runOsSupportGate()).toBe('handled')
+      expect(dialogMock.showErrorBox).toHaveBeenCalledOnce()
+      const [title, message] = dialogMock.showErrorBox.mock.calls[0] as [string, string]
+      expect(title).toContain('Windows version not supported')
+      expect(title).toContain('当前 Windows 版本不受支持')
+      expect(message).toContain('This device reports')
+      expect(message).toContain('当前系统报告为')
     } finally {
       exitSpy.mockRestore()
     }

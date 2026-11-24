@@ -10,7 +10,10 @@
  */
 
 // BootConfig must load before any other import (configures userData path)
-
+// Exception: the OS support gate runs even earlier — it exits on unsupported
+// Windows before any profile-backed import (bootConfig/logger) is evaluated,
+// so a rejected launch touches no profile file. See osSupportEarlyGate.ts.
+import '@main/core/preboot/osSupportEarlyGate'
 import '@main/data/bootConfig'
 import { app, protocol } from 'electron'
 
@@ -37,7 +40,9 @@ import { registerIpc } from './ipc'
 import { versionService } from './services/VersionService'
 
 // Unsupported Windows releases exit here, before userData is resolved or
-// any profile file is touched.
+// any profile file is touched. The early import above already exited during
+// module evaluation (before logger construction); this body call is the second
+// line of defense and keeps the ordering explicit for tests.
 if (runOsSupportGate() === 'handled') {
   // runOsSupportGate already quit; this return only matters under test mocks.
 } else {
