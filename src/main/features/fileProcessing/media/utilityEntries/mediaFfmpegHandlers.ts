@@ -494,6 +494,9 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
             if (!(error instanceof Error) || !error.message.startsWith('Media tool failed (exit ')) {
               throw error
             }
+            // A nonzero exit can leave a truncated JPEG; never accept it over a later seek.
+            rmSync(outputPath, { force: true })
+            continue
           }
           if (existsSync(outputPath)) {
             extractedSeekMs = attempt.seekMs

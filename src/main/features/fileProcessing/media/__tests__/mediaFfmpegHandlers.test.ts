@@ -721,6 +721,46 @@ describe('mediaFfmpegHandlers frame destinations', () => {
     }
   })
 
+  it('discards a partial JPEG left by a failed seek instead of returning it', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-failed-partial-'))
+    const framePath = join(outputDir, 'frame-0000.jpg')
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = (_binary, args) => {
+      const call = spawnControl.calls
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (call === 1) {
+          child.stdout.emit('data', '{"format":{"duration":"2.000000"},"streams":[]}')
+          child.emit('close', 0)
+          return
+        }
+        if (call === 2) writeFileSync(String((args as string[]).at(-1)), Buffer.from([0xff, 0xd8]))
+        child.emit('close', 1)
+      })
+      return child
+    }
+
+    try {
+      const result = await mediaFfmpegHandlers.extractFrames(
+        {
+          filePath: '/video.mp4',
+          outputDir,
+          timestampsMs: [1_000],
+          maxEdgePx: 120,
+          jpegQuality: 70
+        },
+        context()
+      )
+
+      expect(result.frames).toEqual([])
+      expect(existsSync(framePath)).toBe(false)
+      expect(spawnControl.calls).toBe(7)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
   it('reports the successful fallback seek timestamp', async () => {
     const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-fallback-timestamp-'))
     applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
