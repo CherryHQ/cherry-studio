@@ -20,6 +20,7 @@ import { usePaintingModelSwitch } from './hooks/usePaintingModelSwitch'
 import { usePaintingProviderOptions } from './hooks/usePaintingProviderOptions'
 import { usePaintingResultSync } from './hooks/usePaintingResultSync'
 import { usePaintingTemplateCatalog } from './hooks/usePaintingTemplateCatalog'
+import { usePromptDockAutoHide } from './hooks/usePromptDockAutoHide'
 import { createDefaultPainting } from './model/paintingPipeline'
 import type { PaintingData } from './model/types/paintingData'
 import { cacheToPaintingGenerationState } from './model/utils/paintingGenerationParams'
@@ -126,6 +127,15 @@ const PaintingPage: FC = () => {
   saveCurrentRef.current = list.saveCurrent
   const hasGeneratedImages = composerPainting.files.length > 0
   const canCollapsePromptDock = hasGeneratedImages && !showTemplateShowcase
+  // Dim the expanded dock after idle so it never permanently obscures the
+  // generated image (#20647). Collapsed, generating, and blank-draft states
+  // stay fully visible. The dock keeps its solid strip background — only its
+  // opacity changes, restored on hover/focus.
+  const promptDockAutoHide = usePromptDockAutoHide({
+    enabled: canCollapsePromptDock && !promptDockCollapsed,
+    paused: generating || submitting
+  })
+  const promptDockIdle = promptDockAutoHide.idle
 
   useEffect(() => {
     return () => {
@@ -215,9 +225,16 @@ const PaintingPage: FC = () => {
                   </div>
                 ) : (
                   <div
-                    className={paintingClasses.promptDock}
+                    ref={promptDockAutoHide.dockRef}
+                    className={`${paintingClasses.promptDock} ${promptDockIdle ? paintingClasses.promptDockIdle : ''}`}
                     data-composer-dock-surface=""
-                    data-testid="painting-prompt-dock">
+                    data-testid="painting-prompt-dock"
+                    data-dock-idle={promptDockIdle ? 'true' : undefined}
+                    onPointerMove={promptDockAutoHide.markActive}
+                    onPointerDown={promptDockAutoHide.markActive}
+                    onPointerEnter={promptDockAutoHide.markActive}
+                    onFocusCapture={promptDockAutoHide.markActive}
+                    onBlurCapture={promptDockAutoHide.scheduleIdle}>
                     {canCollapsePromptDock && (
                       <div className="mx-auto mb-1 flex w-full max-w-5xl justify-center">
                         <button

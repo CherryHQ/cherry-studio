@@ -11,9 +11,13 @@ export const paintingClasses = {
   /** Fills space between mode tabs and prompt; keeps canvas in the flex-shrink chain. */
   centerStage: 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
   /** Pins the prompt visually to the bottom of the middle column. */
-  promptDock: 'relative z-20 shrink-0 px-2 pt-2 pb-2',
+  promptDock:
+    'relative z-20 shrink-0 border-t border-border-subtle bg-background px-2 pt-2 pb-2 transition-opacity duration-300',
+  /** Dimmed state after idle so the generated image stays visually unobstructed (#20647). */
+  promptDockIdle: 'opacity-40 hover:opacity-100 focus-within:opacity-100',
   /** Collapsed prompt dock after generate — frees artboard space (#20739). */
-  promptDockCollapsed: 'relative z-20 flex shrink-0 items-center justify-center gap-2 px-2 pt-1 pb-2',
+  promptDockCollapsed:
+    'relative z-20 flex shrink-0 items-center justify-center gap-2 border-t border-border-subtle bg-background px-2 pt-1 pb-2',
   promptDockToggle:
     'inline-flex h-8 items-center gap-1.5 rounded-full border border-border-subtle bg-background/90 px-3 text-xs text-muted-foreground shadow-sm backdrop-blur-xl hover:bg-secondary-hover hover:text-foreground',
   historyStrip:
