@@ -65,7 +65,6 @@ import {
 import { subagentCall, gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type * as AgentMcpServers from '../agentMcpServers'
 import type { buildAgentMcpServers } from '../agentMcpServers'
-import type * as AgentPrompt from '../agentPrompt'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import { runtimeDriverRegistry } from '../registry'
