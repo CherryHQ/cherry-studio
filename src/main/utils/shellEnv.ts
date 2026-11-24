@@ -291,6 +291,17 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
   })
 }
 
+/** Preserve the raw PATH layout while removing bytes rejected by child_process. */
+function sanitizePathValues(env: Record<string, string>): Record<string, string> {
+  const sanitized = { ...env }
+  for (const key of Object.keys(sanitized)) {
+    if (key.toLowerCase() === 'path') {
+      sanitized[key] = sanitized[key].replaceAll('\u0000', '')
+    }
+  }
+  return sanitized
+}
+
 let cachedEnv: Record<string, string> | null = null
 let inflight: Promise<Record<string, string>> | null = null
 
@@ -322,8 +333,8 @@ function loadShellEnv(): Promise<Record<string, string>> {
   // is always populated and `inflight` always cleared.
   inflight = fetchShellEnv()
     .then((env) => {
-      cachedEnv = env
-      return env
+      cachedEnv = sanitizePathValues(env)
+      return cachedEnv
     })
     .finally(() => {
       inflight = null
@@ -342,7 +353,7 @@ function loadShellEnv(): Promise<Record<string, string>> {
 export async function getRawShellEnv(signal?: AbortSignal): Promise<Record<string, string>> {
   signal?.throwIfAborted()
   // A cancellable cold query owns its shell; aborting it must not poison the shared app cache.
-  const env = cachedEnv ?? (await (signal ? getLoginShellEnvironment(signal) : loadShellEnv()))
+  const env = cachedEnv ?? (await (signal ? getLoginShellEnvironment(signal).then(sanitizePathValues) : loadShellEnv()))
   signal?.throwIfAborted()
   cachedEnv ??= env
   return { ...env }
