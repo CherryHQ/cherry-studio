@@ -73,7 +73,13 @@ vi.mock('../steps/KnowledgeStep', () => ({
 vi.mock('../steps/AssistantMcpReviewStep', async () => {
   const { useEffect } = await import('react')
   return {
-    AssistantMcpReviewStep: ({ form, active }: { form: { setValue: (name: string, value: unknown) => void }; active: boolean }) => {
+    AssistantMcpReviewStep: ({
+      form,
+      active
+    }: {
+      form: { setValue: (name: string, value: unknown) => void }
+      active: boolean
+    }) => {
       useEffect(() => {
         if (active) form.setValue('reviewedMcpServerIds', [])
       }, [form, active])

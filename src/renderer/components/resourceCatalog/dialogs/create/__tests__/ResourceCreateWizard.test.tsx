@@ -112,7 +112,13 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
 vi.mock('../steps/AssistantMcpReviewStep', async () => {
   const { useEffect } = await import('react')
   return {
-    AssistantMcpReviewStep: ({ form, active }: { form: { setValue: (name: string, value: unknown) => void }; active: boolean }) => {
+    AssistantMcpReviewStep: ({
+      form,
+      active
+    }: {
+      form: { setValue: (name: string, value: unknown) => void }
+      active: boolean
+    }) => {
       useEffect(() => {
         if (active && !mcpStepState.pending) form.setValue('reviewedMcpServerIds', [])
       }, [form, active])
@@ -538,7 +544,6 @@ describe('ResourceCreateWizard', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(onSubmit).not.toHaveBeenCalled()
   })
-
 
   it('asks before discarding a typed draft', async () => {
     const user = userEvent.setup()

@@ -38,12 +38,12 @@ import {
 } from '../components/EditDialogShared'
 import { type CreatedResource, ResourceCreateResultView, ResourceCreateWorkingView } from './ResourceCreateResult'
 import { AdvancedStep } from './steps/AdvancedStep'
+import { AssistantMcpReviewStep } from './steps/AssistantMcpReviewStep'
 import { AutoCreateEntry } from './steps/AutoCreateEntry'
 import { BasicInfoStep } from './steps/BasicInfoStep'
 import { CapabilityStep } from './steps/CapabilityStep'
 import { ChannelsStep } from './steps/ChannelsStep'
 import { KnowledgeStep } from './steps/KnowledgeStep'
-import { AssistantMcpReviewStep } from './steps/AssistantMcpReviewStep'
 import { McpStep } from './steps/McpStep'
 import { SystemPromptStep } from './steps/SystemPromptStep'
 import { ToolsStep } from './steps/ToolsStep'
@@ -74,7 +74,16 @@ type ResourceCreateWizardProps = {
   initialValues?: Partial<Pick<ResourceCreateWizardFormValues, 'name' | 'description' | 'avatar' | 'prompt'>>
 }
 
-type StepId = 'basic' | 'system-prompt' | 'tools' | 'capability' | 'knowledge' | 'mcp' | 'mcp-review' | 'channels' | 'advanced'
+type StepId =
+  | 'basic'
+  | 'system-prompt'
+  | 'tools'
+  | 'capability'
+  | 'knowledge'
+  | 'mcp'
+  | 'mcp-review'
+  | 'channels'
+  | 'advanced'
 type WizardView = 'entry' | 'steps' | 'working' | 'result'
 
 const AUTO_CREATE_TIMEOUT_MS = 60_000
