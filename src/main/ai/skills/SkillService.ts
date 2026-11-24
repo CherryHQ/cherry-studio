@@ -1491,19 +1491,16 @@ export class SkillService {
             if (remoteHash === currentHash) {
               // fall through to healing
             } else {
-              // The legacy fingerprint is mode-blind, so a source-only executable-bit change
-              // is invisible to `remoteLegacyHash === baseline` when the managed tree is also
-              // edited. Compare executable bits directly: any same-path mode difference means
-              // the source may have changed modes, so fall through to `available` with
-              // `localChanges:true` (explicit overwrite still required) instead of hiding the
-              // update as `up_to_date`.
-              const hasModeDifference = await this.hasSourceModeDifferences(
-                fetched.skillDir,
-                this.getSkillStoragePath(skill.folderName)
-              )
-              if (!hasModeDifference) {
-                return { state: 'up_to_date', localChanges: true, remoteVersion: metadata.version ?? null }
-              }
+              // The legacy `directory-sha256:` fingerprint records no mode history, so a
+              // source-vs-managed executable-bit difference cannot tell which copy changed.
+              // A managed bytes+mode edit with unchanged upstream would otherwise be offered
+              // as an `available` update that replaces the edit with the original files.
+              // Require evidence of a source bytes change (remoteLegacy != baseline) before
+              // offering an update over managed edits: stay `up_to_date` with explicit
+              // overwrite protection. A source-only mode change on a legacy install with
+              // managed edits stays hidden until the baseline heals to v2 (next clean
+              // update or re-import), when modes are tracked again.
+              return { state: 'up_to_date', localChanges: true, remoteVersion: metadata.version ?? null }
             }
           }
         } catch (error) {
@@ -1571,61 +1568,6 @@ export class SkillService {
       baselineHash.startsWith(SKILL_DIRECTORY_CONTENT_HASH_PREFIX) &&
       !baselineHash.startsWith(SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2)
     )
-  }
-
-  /**
-   * Detect executable-bit differences hidden by a mode-blind legacy baseline. The old
-   * `directory-sha256:` fingerprint ignores POSIX modes, so a source-only `chmod` is
-   * invisible to the legacy comparison when the managed tree is also edited. Walk both
-   * trees and compare `mode & 0o111` for the same canonical relative paths (top-level
-   * `skill.md`/`SKILL.md` canonicalized like the v2 hash). Any same-path difference
-   * means the source may have changed modes and the update must stay `available` with
-   * explicit overwrite protection instead of hiding as `up_to_date`. Best-effort: on
-   * read errors return false to preserve the previous `up_to_date` behavior. Windows
-   * modes are not meaningful, so always return false there.
-   */
-  private async hasSourceModeDifferences(sourceDir: string, managedDir: string): Promise<boolean> {
-    if (isWin) return false
-    try {
-      const [sourceModes, managedModes] = await Promise.all([
-        this.collectExecBits(sourceDir),
-        this.collectExecBits(managedDir)
-      ])
-      for (const [relativePath, execBits] of sourceModes) {
-        const managedBits = managedModes.get(relativePath)
-        if (managedBits !== undefined && managedBits !== execBits) return true
-      }
-      return false
-    } catch (error) {
-      logger.warn('Failed to compare skill executable bits for legacy baseline', {
-        sourceDir,
-        managedDir,
-        error: error instanceof Error ? error.message : String(error)
-      })
-      return false
-    }
-  }
-
-  private async collectExecBits(root: string): Promise<Map<string, number>> {
-    const result = new Map<string, number>()
-    const walk = async (directory: string, relativeDirectory: string): Promise<void> => {
-      const entries = await fs.promises.readdir(directory, { withFileTypes: true })
-      for (const entry of entries) {
-        const fullPath = path.join(directory, entry.name)
-        const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name
-        const stats = await fs.promises.lstat(fullPath)
-        if (stats.isSymbolicLink()) continue
-        if (stats.isDirectory()) {
-          await walk(fullPath, relativePath)
-        } else if (stats.isFile()) {
-          const canonicalPath =
-            relativeDirectory === '' && entry.name.toLowerCase() === 'skill.md' ? 'SKILL.md' : relativePath
-          result.set(canonicalPath, stats.mode & 0o111)
-        }
-      }
-    }
-    await walk(root, '')
-    return result
   }
 
   /**
@@ -1724,15 +1666,13 @@ export class SkillService {
             const legacyCurrentHash = await this.installer.computeLegacyContentHash(destination)
             if (legacyCurrentHash !== currentSkill.contentHash) {
               // Mirror the Check logic: a casing-only rename leaves v2 digests agreeing while
-              // legacy digests differ — don't treat that as stale. A source-only mode change is
-              // invisible to the legacy fingerprint but visible as executable-bit differences:
-              // don't hide it as stale either; let the explicit-overwrite guard below protect
-              // the managed edit while still offering the permission-only update.
+              // legacy digests differ — don't treat that as stale. Otherwise the legacy
+              // fingerprint is mode-blind with no mode history, so a source-vs-managed mode
+              // difference cannot prove the source changed. A managed bytes+mode edit with
+              // unchanged upstream must stay stale (up_to_date) instead of allowing a
+              // destructive apply over the edit, even with explicit overwrite.
               if (remoteHash !== currentHash) {
-                const hasModeDifference = await this.hasSourceModeDifferences(fetched.skillDir, destination)
-                if (!hasModeDifference) {
-                  throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update check is stale')
-                }
+                throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update check is stale')
               }
             }
           }

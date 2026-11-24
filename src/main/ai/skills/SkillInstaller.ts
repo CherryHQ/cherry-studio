@@ -230,6 +230,10 @@ export class SkillInstaller {
    * `up_to_date` with local changes while the old version is installed. Comparing
    * both trees to the baseline keeps the matching one: a new tree matching a new
    * baseline completes the commit, an old backup matching an old baseline rolls back.
+   * Baselines are compared in their own format: a `directory-sha256:` baseline never
+   * equals a `directory-sha256-v2:` hash, so legacy installs use the legacy digest;
+   * otherwise an untouched legacy backup would never match and fall through to the
+   * obsolete-cleanup path that deletes the only complete copy.
    */
   async recoverInterruptedInstallWithBaseline(destPath: string, baselineHash: string | null): Promise<void> {
     const backupPath = this.getBackupPath(destPath)
@@ -244,11 +248,14 @@ export class SkillInstaller {
       return
     }
 
+    const baselineIsLegacy =
+      baselineHash.startsWith(SKILL_DIRECTORY_CONTENT_HASH_PREFIX) &&
+      !baselineHash.startsWith(SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2)
     const hashOf = async (target: string): Promise<string | null> => {
       try {
         const stats = await fs.promises.lstat(target)
         if (!stats.isDirectory()) return null
-        return await this.computeContentHash(target)
+        return baselineIsLegacy ? await this.computeLegacyContentHash(target) : await this.computeContentHash(target)
       } catch {
         return null
       }
@@ -321,21 +328,56 @@ export class SkillInstaller {
     // existing destination instead of restoring an obsolete `.bak` over it: the generic
     // restore would erase the intervening edit. Only restore when the destination is
     // missing entirely, to avoid pruning the catalog row and its per-agent enablement.
-    // Obsolete markers that don't match the baseline are best-effort cleaned up; a partial
-    // cleanup leaves a `.bak` that future baseline-aware sweeps will again preserve (not
-    // restore) since it still won't match, and catalogued folders are skipped by the
-    // generic sweep.
+    // A crash before SQLite commits can also land here when the backup holds managed
+    // edits or the baseline is legacy (neither tree matches): the replacement may be
+    // partial while `.bak` is the only complete tree. Never delete a complete backup
+    // while the replacement is partial — restore the backup instead so the complete
+    // old tree and its edits survive. Obsolete markers that don't match the baseline
+    // are best-effort cleaned up only when the destination is verified complete; a
+    // partial cleanup leaves a `.bak` that future baseline-aware sweeps will again
+    // preserve (not restore) since it still won't match, and catalogued folders are
+    // skipped by the generic sweep.
     if (!(await pathExists(destPath))) {
       await this.recoverInterruptedInstall(destPath)
+    } else {
+      const destState = await this.getBackupDescriptorState(destPath).catch(() => 'error' as const)
+      if (destState !== 'found') {
+        // Partial or unreadable replacement with no baseline match: the backup may be
+        // the only complete copy (interrupted copy before the database commit). Restore
+        // it via the generic path instead of keeping the partial tree and deleting the
+        // backup below.
+        await this.recoverInterruptedInstall(destPath)
+      }
     }
-    if (backupExists && backupHash !== baselineHash) {
-      await this.safeRemoveDirectory(backupPath, 'obsolete skill backup')
+    const destComplete = (await this.getBackupDescriptorState(destPath).catch(() => 'error' as const)) === 'found'
+    // The generic restore above may have renamed `.bak` → dest (backup no longer exists);
+    // re-check before best-effort cleanup so a successful restore isn't logged as a removal failure.
+    const [backupStillExists, cleanupStillExists] = await Promise.all([
+      backupExists ? pathExists(backupPath) : Promise.resolve(false),
+      cleanupExists ? pathExists(cleanupPath) : Promise.resolve(false)
+    ])
+    if (backupStillExists && backupHash !== baselineHash) {
+      if (destComplete) {
+        await this.safeRemoveDirectory(backupPath, 'obsolete skill backup')
+      } else {
+        logger.warn('Preserving skill backup: replacement incomplete and no tree matches baseline', {
+          destPath,
+          backupPath
+        })
+      }
     }
-    if (cleanupExists && cleanupHash !== baselineHash) {
-      try {
-        await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
-      } catch {
-        // Best-effort: the destination (with any intervening edit) is already preserved.
+    if (cleanupStillExists && cleanupHash !== baselineHash) {
+      if (destComplete) {
+        try {
+          await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+        } catch {
+          // Best-effort: the destination (with any intervening edit) is already preserved.
+        }
+      } else {
+        logger.warn('Preserving committed skill backup: replacement incomplete and no tree matches baseline', {
+          destPath,
+          cleanupPath
+        })
       }
     }
   }

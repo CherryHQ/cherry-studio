@@ -1036,42 +1036,73 @@ describe('SkillService authoring and remote updates', () => {
     expect(healed?.contentHash).toBe(await installer.computeContentHash(installedDir))
   })
 
-  it.skipIf(isWin)(
-    'offers a permission-only source update when the managed tree is edited on a legacy baseline',
-    async () => {
-      const originDir = path.join(root, 'origin', 'writer')
-      await writeSkill(originDir, { supportingContent: 'echo baseline\n' })
-      const helperPath = path.join(originDir, 'scripts', 'run.sh')
-      await fs.promises.chmod(helperPath, 0o644)
-      const canonicalOrigin = await fs.promises.realpath(originDir)
-      const installedDir = path.join(skillsRoot, 'writer')
-      await fs.promises.cp(canonicalOrigin, installedDir, { recursive: true })
-      const legacyBaseline = await installer.computeLegacyContentHash(canonicalOrigin)
-      await seedSkill(SKILL_ID, 'writer', {
-        source: 'system',
-        sourceUrl: pathToFileURL(canonicalOrigin).href,
-        contentHash: legacyBaseline
-      })
-      // Edit a managed file, then change only the execute bits of the source script.
-      await fs.promises.writeFile(path.join(installedDir, 'scripts', 'run.sh'), 'echo local\n', 'utf-8')
-      await fs.promises.chmod(helperPath, 0o755)
+  it.skipIf(isWin)('hides a source mode-only change when the managed tree is edited on a legacy baseline', async () => {
+    const originDir = path.join(root, 'origin', 'writer')
+    await writeSkill(originDir, { supportingContent: 'echo baseline\n' })
+    const helperPath = path.join(originDir, 'scripts', 'run.sh')
+    await fs.promises.chmod(helperPath, 0o644)
+    const canonicalOrigin = await fs.promises.realpath(originDir)
+    const installedDir = path.join(skillsRoot, 'writer')
+    await fs.promises.cp(canonicalOrigin, installedDir, { recursive: true })
+    const legacyBaseline = await installer.computeLegacyContentHash(canonicalOrigin)
+    await seedSkill(SKILL_ID, 'writer', {
+      source: 'system',
+      sourceUrl: pathToFileURL(canonicalOrigin).href,
+      contentHash: legacyBaseline
+    })
+    // Edit a managed file, then change only the execute bits of the source script.
+    // The legacy `directory-sha256:` baseline records no mode history, so a
+    // source-vs-managed mode difference cannot prove the source changed. A managed
+    // bytes+mode edit with unchanged upstream must stay `up_to_date` instead of
+    // offering a destructive update that would replace the edit.
+    await fs.promises.writeFile(path.join(installedDir, 'scripts', 'run.sh'), 'echo local\n', 'utf-8')
+    await fs.promises.chmod(helperPath, 0o755)
 
-      const service = new SkillService()
-      const check = await service.checkRemoteUpdate(SKILL_ID)
-      expect(check).toMatchObject({ state: 'available', localChanges: true })
-      if (check.state !== 'available') throw new Error('Expected an available permission-only update')
-      await expect(
-        service.applyRemoteUpdate({ skillId: SKILL_ID, revision: check.revision, overwriteLocalChanges: false })
-      ).rejects.toMatchObject({ code: skillErrorCodes.REMOTE_LOCAL_CHANGES })
-      const updated = await service.applyRemoteUpdate({
-        skillId: SKILL_ID,
-        revision: check.revision,
-        overwriteLocalChanges: true
-      })
-      expect(updated).toMatchObject({ id: SKILL_ID })
-      expect((await fs.promises.stat(path.join(installedDir, 'scripts', 'run.sh'))).mode & 0o111).not.toBe(0)
-    }
-  )
+    const service = new SkillService()
+    const check = await service.checkRemoteUpdate(SKILL_ID)
+    expect(check).toMatchObject({ state: 'up_to_date', localChanges: true })
+  })
+
+  it.skipIf(isWin)('keeps a managed-only bytes+mode edit up_to_date on a legacy baseline', async () => {
+    const originDir = path.join(root, 'origin', 'writer')
+    await writeSkill(originDir, { supportingContent: 'echo baseline\n' })
+    const helperPath = path.join(originDir, 'scripts', 'run.sh')
+    await fs.promises.chmod(helperPath, 0o644)
+    const canonicalOrigin = await fs.promises.realpath(originDir)
+    const installedDir = path.join(skillsRoot, 'writer')
+    await fs.promises.cp(canonicalOrigin, installedDir, { recursive: true })
+    const legacyBaseline = await installer.computeLegacyContentHash(canonicalOrigin)
+    await seedSkill(SKILL_ID, 'writer', {
+      source: 'marketplace',
+      sourceUrl: SOURCE_URL,
+      contentHash: legacyBaseline
+    })
+    fetchRemoteSkillMock.mockImplementation(() => createFetchedSkill('1.0.0', 'echo baseline\n'))
+    // Leave upstream unchanged; edit managed bytes and flip its mode 0644 -> 0755.
+    await fs.promises.writeFile(path.join(installedDir, 'scripts', 'run.sh'), 'echo local\n', 'utf-8')
+    await fs.promises.chmod(path.join(installedDir, 'scripts', 'run.sh'), 0o755)
+
+    const service = new SkillService()
+    const check = await service.checkRemoteUpdate(SKILL_ID)
+    expect(check).toMatchObject({ state: 'up_to_date', localChanges: true })
+    // A stale revision built from the same unchanged source must be rejected instead
+    // of allowing a destructive apply over the managed edit.
+    const staleRevision = (service as unknown as { createRemoteRevision: (input: unknown) => string })[
+      'createRemoteRevision'
+    ]({
+      skillId: SKILL_ID,
+      sourceUrl: SOURCE_URL,
+      baselineHash: legacyBaseline,
+      currentHash: await installer.computeContentHash(installedDir),
+      remoteHash: await installer.computeContentHash(canonicalOrigin)
+    })
+    await expect(
+      service.applyRemoteUpdate({ skillId: SKILL_ID, revision: staleRevision, overwriteLocalChanges: true })
+    ).rejects.toMatchObject({ code: skillErrorCodes.REMOTE_STALE })
+    await expect(fs.promises.readFile(path.join(installedDir, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo local\n'
+    )
+  })
 
   it('preserves an intervening edit when obsolete-backup staging failed before the next sweep', async () => {
     const destPath = path.join(skillsRoot, 'writer')
@@ -1107,6 +1138,62 @@ describe('SkillService authoring and remote updates', () => {
     await installer.recoverInterruptedInstallWithBaseline(destPath, newHash)
 
     await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo edited\n')
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('restores the only complete copy when the replacement is partial and no tree matches the baseline', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const oldDir = path.join(root, 'old')
+    const newDir = path.join(root, 'new')
+    await writeSkill(oldDir, { supportingContent: 'echo old\n' })
+    await writeSkill(newDir, { supportingContent: 'echo new\n' })
+    // Old tree holds managed edits, so neither tree matches the persisted old baseline.
+    await fs.promises.writeFile(path.join(oldDir, 'scripts', 'run.sh'), 'echo old-edited\n', 'utf-8')
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    // Simulate a crash mid-copy: replacement exists but its descriptor is missing (partial),
+    // while `.bak` is the only complete tree.
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.rm(path.join(destPath, 'SKILL.md'))
+    await fs.promises.cp(oldDir, backupPath, { recursive: true })
+    const oldBaseline = await installer.computeContentHash(oldDir)
+    // Corrupt the baseline view: backup has edits so it doesn't match either; use the clean
+    // old hash to emulate the pre-commit baseline (neither partial dest nor edited backup matches).
+    const cleanOldDir = path.join(root, 'clean-old')
+    await writeSkill(cleanOldDir, { supportingContent: 'echo old\n' })
+    const cleanOldHash = await installer.computeContentHash(cleanOldDir)
+
+    await installer.recoverInterruptedInstallWithBaseline(destPath, cleanOldHash)
+
+    // The complete backup (with edits) must survive instead of being deleted as obsolete.
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo old-edited\n'
+    )
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(oldBaseline).not.toBe(cleanOldHash)
+  })
+
+  it('matches a legacy baseline in its own format during recovery', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const oldDir = path.join(root, 'old')
+    const newDir = path.join(root, 'new')
+    await writeSkill(oldDir, { supportingContent: 'echo old\n' })
+    await writeSkill(newDir, { supportingContent: 'echo new\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.cp(oldDir, backupPath, { recursive: true })
+    const legacyOldHash = await installer.computeLegacyContentHash(oldDir)
+
+    // Crash before the database commit with an untouched legacy install: the old backup
+    // matches the legacy baseline, so recovery must roll the partial replacement back.
+    // (v2 hashes would never equal the legacy baseline, which previously forced the
+    // no-match path that deleted the only complete copy.)
+    await installer.recoverInterruptedInstallWithBaseline(destPath, legacyOldHash)
+
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo old\n')
     await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
