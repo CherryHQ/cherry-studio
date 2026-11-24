@@ -754,10 +754,18 @@ const ChatComposerInner = ({
   const selectSubscriptionModel = useCallback(
     (nextModel: Model | undefined) => {
       if (!nextModel) return
-      if (useMentionedModelSelector) handleMentionedModelsSelect([nextModel])
-      else void handleModelSelect(nextModel)
+      if (!useMentionedModelSelector) return void handleModelSelect(nextModel)
+      // Multi-select only mentions models per turn; leave it so the switch reaches the assistant model.
+      if (mentionedModelMultiSelectModeRef.current) changeMentionedModelMultiSelectMode(false)
+      handleMentionedModelsSelect([nextModel])
     },
-    [handleMentionedModelsSelect, handleModelSelect, useMentionedModelSelector]
+    [
+      changeMentionedModelMultiSelectMode,
+      handleMentionedModelsSelect,
+      handleModelSelect,
+      mentionedModelMultiSelectModeRef,
+      useMentionedModelSelector
+    ]
   )
   const handleMentionedModelMultiSelectModeChange = useCallback(
     (enabled: boolean) => {
@@ -1975,7 +1983,7 @@ const ChatComposerInner = ({
               <>
                 {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
                 <SubscriptionModelNotice
-                  providerFailed={suggestSubscriptionModel}
+                  providerFailed={suggestSubscriptionModel && !isMentionedModelSelectorLocked}
                   currentModel={effectiveSubmittedModel}
                   filter={isChatModel}
                   onSelect={selectSubscriptionModel}
