@@ -8,6 +8,7 @@ import {
   Info,
   Loader2,
   MessageSquare,
+  MoreVertical,
   Plus,
   PlugZap,
   RefreshCw,
@@ -33,6 +34,7 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import {} from '@renderer/components/icons/CliIcon'
 import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { AgentServiceCard } from '@renderer/components/localAgent/AgentServiceCard'
@@ -131,9 +133,9 @@ const logger = loggerService.withContext('LocalAgentDirectory')
 export function LocalAgentDirectory({
   renderCliConfig,
   renderDetails = (props) => <LocalAgentDetails key={props.preset?.id ?? props.agent?.id ?? 'custom-new'} {...props} />,
-  renderContextMenu
+  getRowMenuItems
 }: {
-  renderContextMenu?: (id: string, tool: CodeCli | undefined, name: string, row: ReactNode) => ReactNode
+  getRowMenuItems?: (id: string, tool: CodeCli | undefined, name: string) => readonly CommandContextMenuExtraItem[]
   renderCliConfig?: (tool: string) => ReactNode
   renderDetails?: (props: ComponentProps<typeof LocalAgentDetails>) => ReactNode
 }) {
@@ -156,6 +158,7 @@ export function LocalAgentDirectory({
         `cli:${search.tool}`))
   const [selected, setSelected] = useState(requestedId ?? 'claude')
   const [pendingSelection, setPendingSelection] = useState<string>()
+  const [openMenuId, setOpenMenuId] = useState<string>()
   const [installingAgents, setInstallingAgents] = useState<Map<string, string | undefined>>(() => new Map())
   const installAgent = useCallback(async (presetId: string, targetVersion?: string, systemOnly?: boolean) => {
     setInstallingAgents((current) => new Map(current).set(presetId, targetVersion))
@@ -328,7 +331,7 @@ export function LocalAgentDirectory({
                   await setAgentOrder(reordered.map((entry) => entry.id))
                 }}
                 onReorderError={() => toast.error(t('common.error'))}
-                renderItem={(e, _index, { dragHandleProps }) => {
+                renderItem={(e, _index, { dragging, dragHandleProps }) => {
                   const enabled = !e.agent?.deletedAt && e.agent?.configuration?.localRuntime?.enabled
                   const detection = detections.find((d) => d.presetId === e.id)
                   const executableOverride = e.agent?.configuration?.localRuntime?.executableOverride
@@ -344,12 +347,18 @@ export function LocalAgentDirectory({
                           : detection
                             ? t('local_agents.not_installed')
                             : t('settings.provider.not_checked')
+                  const tool = e.preset
+                    ? codeCliForLocalAgent(e.preset.id)
+                    : CODE_CLI_TOOL_PRESETS.find((tool) => e.id === `cli:${tool.id}`)?.id
+                  const menuItems = getRowMenuItems?.(e.id, tool, e.name)
+                  const menuOpen = openMenuId === e.id
                   const row = (
-                    <div className="group relative">
+                    <div className={cn('group/row relative', dragging && 'opacity-65')}>
                       <Button
                         variant="ghost"
                         className={cn(
                           'h-8 w-full justify-between gap-0 rounded-[10px] border border-transparent py-0 pr-2.5 pl-3 text-left font-normal text-foreground shadow-none hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:ring-0',
+                          menuItems && 'pr-8',
                           entry?.id === e.id && 'bg-muted font-medium'
                         )}
                         aria-pressed={entry?.id === e.id}
@@ -360,6 +369,7 @@ export function LocalAgentDirectory({
                             presetId={e.preset?.id}
                             cliId={e.id.startsWith('cli:') ? e.id.slice(4) : undefined}
                             size={26}
+                            variant="card"
                           />
                           <span className="min-w-0 truncate text-sm leading-[1.35] text-foreground">{e.name}</span>
                         </span>
@@ -368,7 +378,8 @@ export function LocalAgentDirectory({
                             {t('local_agents.not_installed')}
                           </span>
                         ) : (
-                          enabled && (
+                          enabled &&
+                          !menuItems && (
                             <span aria-hidden className="mr-0.5 ml-1 size-1.5 shrink-0 rounded-full bg-success" />
                           )
                         )}
@@ -378,17 +389,50 @@ export function LocalAgentDirectory({
                           ref={dragHandleProps.ref}
                           variant="ghost"
                           size="icon-sm"
-                          className="absolute top-0 left-[3px] h-8 w-2.5 cursor-grab rounded-none p-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-transparent focus-visible:bg-muted focus-visible:opacity-100 focus-visible:ring-0"
+                          data-dragging={dragging ? 'true' : undefined}
+                          className="absolute top-0 left-[3px] h-8 w-2.5 cursor-grab rounded-none p-0 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 hover:bg-transparent focus-visible:bg-muted focus-visible:opacity-100 focus-visible:ring-0 data-[dragging=true]:opacity-100"
                           aria-label={t('local_agents.drag.handle', { name: e.name })}>
-                          <GripVertical className="lucide-custom size-4 text-muted-foreground" />
+                          <GripVertical className="lucide-custom size-4 w-2.5 text-muted-foreground" />
                         </Button>
+                      )}
+                      {menuItems && (
+                        <div className="absolute top-1/2 right-[7px] size-5 -translate-y-1/2">
+                          {enabled && !notInstalled && !menuOpen && (
+                            <span
+                              aria-hidden
+                              className="pointer-events-none absolute top-1/2 right-1.5 size-1.5 -translate-y-1/2 rounded-full bg-success transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0"
+                            />
+                          )}
+                          <CommandPopupMenu
+                            location="webcontents.context"
+                            extraItems={menuItems}
+                            open={menuOpen}
+                            onOpenChange={(open) =>
+                              setOpenMenuId((current) => (open ? e.id : current === e.id ? undefined : current))
+                            }
+                            align="end"
+                            contentClassName="w-fit min-w-32 rounded-xl p-1.5">
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`${e.name} · ${t('common.more')}`}
+                              aria-haspopup="menu"
+                              aria-expanded={menuOpen}
+                              className="size-5 rounded-md p-0 text-muted-foreground opacity-0 transition-[color,opacity,background-color] group-hover/row:opacity-100 group-focus-within/row:opacity-100 hover:bg-accent/40 hover:text-foreground focus-visible:bg-accent/40 focus-visible:text-foreground focus-visible:opacity-100 focus-visible:ring-0 aria-expanded:opacity-100">
+                              <MoreVertical className="size-3.5" />
+                            </Button>
+                          </CommandPopupMenu>
+                        </div>
                       )}
                     </div>
                   )
-                  const tool = e.preset
-                    ? codeCliForLocalAgent(e.preset.id)
-                    : CODE_CLI_TOOL_PRESETS.find((tool) => e.id === `cli:${tool.id}`)?.id
-                  return renderContextMenu ? renderContextMenu(e.id, tool, e.name, row) : row
+                  return menuItems ? (
+                    <CommandContextMenu location="webcontents.context" extraItems={menuItems}>
+                      {row}
+                    </CommandContextMenu>
+                  ) : (
+                    row
+                  )
                 }}
               />
             )
@@ -928,10 +972,10 @@ export function LocalAgentDetails({
                     target="_blank"
                     rel="noreferrer"
                     aria-label={agent?.name ?? preset.name}>
-                    <LocalAgentIcon presetId={preset.id} size={36} />
+                    <LocalAgentIcon presetId={preset.id} size={36} variant="card" />
                   </a>
                 ) : (
-                  <LocalAgentIcon size={36} />
+                  <LocalAgentIcon size={36} variant="card" />
                 )
               }
               version={initial.executableOverride ? connection?.version : (version?.current ?? detection?.version)}

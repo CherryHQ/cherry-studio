@@ -80,7 +80,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
           <div className="mx-auto w-full max-w-3xl">
             <AgentServiceCard
               title={activeMeta.label}
-              icon={<LocalAgentIcon cliId={selectedCliTool} size={36} />}
+              icon={<LocalAgentIcon cliId={selectedCliTool} size={36} variant="card" />}
               version={versionStatus.current}
               versionAction={
                 (versionStatus.canUpgrade || upgradingTools.has(selectedCliTool)) && (

@@ -959,6 +959,26 @@ describe('local agent settings navigation', () => {
     expect(screen.getAllByRole('button', { name: /^Codex ·/ })).toHaveLength(1)
   })
 
+  it('opens another agent’s actions from the keyboard without selecting its row', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+    render(
+      <LocalAgentDirectory
+        getRowMenuItems={(id) =>
+          id === 'codex' ? [{ type: 'item', id: 'pin-codex', label: '固定 Codex', onSelect }] : []
+        }
+      />
+    )
+
+    const menuButton = await screen.findByRole('button', { name: 'Codex · 更多' })
+    menuButton.focus()
+    await user.keyboard('{Enter}')
+    await user.click(await screen.findByRole('menuitem', { name: '固定 Codex' }))
+
+    await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Claude Code')
+  })
+
   it('ignores stale discovery results after a newer availability update', async () => {
     vi.mocked(useIpcOn).mockClear()
     navigation.search = { id: 'cli:openclaw' }

@@ -11,11 +11,15 @@ export function LocalAgentIcon({
   presetId,
   cliId,
   size = 20,
+  glyphSize,
+  variant = 'avatar',
   className
 }: {
   presetId?: string
   cliId?: string
   size?: number
+  glyphSize?: number
+  variant?: 'avatar' | 'card'
   className?: string
 }) {
   const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
@@ -25,17 +29,29 @@ export function LocalAgentIcon({
       ? (CODE_CLI_TOOL_PRESETS.find((tool) => tool.executable === preset.executable)?.id ?? preset.id)
       : undefined)
   if (iconId) {
-    return <CliIcon id={iconId} size={size} variant="card" className={className} />
+    return (
+      <CliIcon
+        id={iconId}
+        size={size}
+        glyphSize={glyphSize}
+        shape="circle"
+        variant={variant === 'card' ? 'card' : 'tile'}
+        className={className}
+      />
+    )
   }
 
   return (
     <Avatar
       className={cn(
-        'items-center justify-center rounded-[22%] bg-background text-foreground ring-1 ring-inset ring-foreground/10 dark:bg-card',
+        'items-center justify-center text-foreground',
+        variant === 'card'
+          ? 'rounded-[22%] bg-background ring-1 ring-inset ring-foreground/10 dark:bg-card'
+          : 'rounded-full bg-muted',
         className
       )}
       style={{ width: size, height: size }}>
-      <Terminal size={size * 0.55} />
+      <Terminal size={glyphSize ?? size * 0.55} />
     </Avatar>
   )
 }

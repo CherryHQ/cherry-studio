@@ -6,6 +6,7 @@ import { Button, EmojiIcon, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
@@ -111,13 +112,17 @@ function AgentControl({
         aria-pressed={avatarActive}
         onClick={onAvatarClick}
         className={COMPOSER_PROFILE_AVATAR_BUTTON_CLASS}>
-        <AssistantAvatarImage
-          src={agent.avatarSrc}
-          alt=""
-          size={20}
-          className="max-w-none rounded-full object-cover"
-          fallback={<EmojiIcon emoji={getAgentAvatarFromConfiguration(agent.configuration)} size={20} />}
-        />
+        {agent.configuration?.localRuntime ? (
+          <LocalAgentIcon presetId={agent.configuration.localRuntime.presetId} size={20} />
+        ) : (
+          <AssistantAvatarImage
+            src={agent.avatarSrc}
+            alt=""
+            size={20}
+            className="max-w-none rounded-full object-cover"
+            fallback={<EmojiIcon emoji={getAgentAvatarFromConfiguration(agent.configuration)} size={20} />}
+          />
+        )}
       </button>
     ) : null
 

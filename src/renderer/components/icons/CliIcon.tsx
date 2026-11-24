@@ -90,8 +90,8 @@ const OPTICAL_VIEWBOXES: Partial<Record<CodeCli, string>> = {
   [CodeCli.MINIMAX_CODE]: '24 24 72 72'
 }
 
-// Strip baked full-bleed provider tile fills in card mode so glyphs sit cleanly on the neutral card.
-const CARD_ARTWORK_CLASSES: Partial<Record<CodeCli, string>> = {
+// Strip baked tile fills from artwork rendered as an inset glyph.
+const INSET_ARTWORK_CLASSES: Partial<Record<CodeCli, string>> = {
   [CodeCli.OPENCLAW]: '[&>path:first-child]:hidden',
   [CodeCli.MINIMAX_CODE]: '[&>path:first-child]:hidden [&>path:nth-child(2)]:fill-current'
 }
@@ -146,7 +146,7 @@ export const CliIcon: FC<CliIconProps> = ({
           ) : (
             <Icon
               {...opticalViewBox}
-              className={cn('size-[70%]', CARD_ARTWORK_CLASSES[id as CodeCli])}
+              className={cn('size-[70%]', INSET_ARTWORK_CLASSES[id as CodeCli])}
               style={glyphSize === undefined ? undefined : { width: glyphSize, height: glyphSize }}
             />
           )
@@ -159,7 +159,8 @@ export const CliIcon: FC<CliIconProps> = ({
     )
   }
 
-  const artworkSize = hasTileArtwork ? 'size-full' : 'size-[72%]'
+  // Full-bleed artwork must reach the frame so its corners are clipped.
+  const artworkSize = hasTileArtwork ? size : (glyphSize ?? size * 0.72)
 
   return (
     <span
@@ -176,8 +177,8 @@ export const CliIcon: FC<CliIconProps> = ({
       {Icon ? (
         <Icon
           {...opticalViewBox}
-          className={artworkSize}
-          style={hasTileArtwork || glyphSize === undefined ? undefined : { width: glyphSize, height: glyphSize }}
+          className={shape === 'circle' ? INSET_ARTWORK_CLASSES[id as CodeCli] : undefined}
+          style={{ width: artworkSize, height: artworkSize }}
         />
       ) : (
         <span className="font-medium text-muted-foreground" style={{ fontSize: size * 0.4 }}>

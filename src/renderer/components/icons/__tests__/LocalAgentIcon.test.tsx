@@ -33,7 +33,7 @@ describe('LocalAgentIcon', () => {
   ])(
     'renders transparent glyph artwork ($label) inside a rounded square card',
     ({ props, expectedViewBox, expectedClasses }) => {
-      const { container } = render(<LocalAgentIcon {...props} size={36} />)
+      const { container } = render(<LocalAgentIcon {...props} size={36} variant="card" />)
 
       const slots = container.querySelectorAll('[data-slot="cli-icon"]')
       expect(slots).toHaveLength(1)
@@ -63,7 +63,7 @@ describe('LocalAgentIcon', () => {
     { label: 'kimi preset via kimi-code', props: { presetId: 'kimi' }, expectedViewBox: '20 23 77 77' },
     { label: 'codex preset via openai-codex', props: { presetId: 'codex' } }
   ])('frames full-bleed tile artwork ($label) in a matching rounded square card', ({ props, expectedViewBox }) => {
-    const { container } = render(<LocalAgentIcon {...props} size={32} />)
+    const { container } = render(<LocalAgentIcon {...props} size={32} variant="card" />)
 
     const slots = container.querySelectorAll('[data-slot="cli-icon"]')
     expect(slots).toHaveLength(1)
@@ -84,7 +84,7 @@ describe('LocalAgentIcon', () => {
   })
 
   it('renders a Terminal fallback card when no preset or cli id is provided', () => {
-    const { container } = render(<LocalAgentIcon size={28} />)
+    const { container } = render(<LocalAgentIcon size={28} variant="card" />)
 
     expect(container.querySelector('[data-slot="cli-icon"]')).toBeNull()
     expect(container.querySelector('.blur-sm')).toBeNull()
@@ -94,5 +94,16 @@ describe('LocalAgentIcon', () => {
     expect(avatar).not.toHaveClass('bg-muted')
     expect(avatar).toHaveStyle({ width: '28px', height: '28px' })
     expect(avatar.querySelector('svg')).not.toBeNull()
+  })
+
+  it('uses a circular frame for a named agent and for the generic local avatar', () => {
+    const { container, rerender } = render(<LocalAgentIcon presetId="codex" size={24} />)
+    // Avatar call sites share the circular frame even for full-tile artwork.
+    expect(container.querySelector('[data-slot="cli-icon"]')).toHaveClass('rounded-full', 'overflow-hidden')
+    expect(container.querySelector('svg')).toHaveStyle({ width: '24px', height: '24px' })
+
+    rerender(<LocalAgentIcon size={24} />)
+    expect(screen.getByTestId('avatar')).toHaveClass('rounded-full')
+    expect(container.querySelector('svg.lucide-terminal')).toBeInTheDocument()
   })
 })

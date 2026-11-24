@@ -1,5 +1,5 @@
 import { renderAgentEntityIcon, renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
-import { CLI_TOOLS, CliIcon } from '@renderer/components/icons/CliIcon'
+import { CLI_TOOLS } from '@renderer/components/icons/CliIcon'
 import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
 import { dataApiService } from '@renderer/data/DataApiService'
@@ -183,6 +183,17 @@ const miniAppProvider: SidebarShortcutProvider = {
   isActive: (target, navigation) => miniAppIdFromTabUrl(navigation.url) === target.locator.resourceId
 }
 
+const renderLocalAgentShortcutIcon =
+  (identity: { cliId?: string; presetId?: string }): ResolvedShortcut['renderIcon'] =>
+  ({ slotSize, glyphSize, active }) => (
+    <LocalAgentIcon
+      {...identity}
+      size={slotSize}
+      glyphSize={glyphSize}
+      className={active ? 'bg-transparent' : 'bg-background-subtle'}
+    />
+  )
+
 const agentProvider: SidebarShortcutProvider = {
   id: SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT,
   validate: (target) => validates(SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT, target),
@@ -198,8 +209,10 @@ const agentProvider: SidebarShortcutProvider = {
       (agent) => agent.id,
       (agent) => ({
         label: agent.name,
-        renderIcon: ({ slotSize }) =>
-          renderAgentEntityIcon(iconType === 'none' ? 'emoji' : iconType, agent, defaultModelId, slotSize),
+        renderIcon: agent.configuration?.localRuntime
+          ? renderLocalAgentShortcutIcon({ presetId: agent.configuration.localRuntime.presetId })
+          : ({ slotSize }) =>
+              renderAgentEntityIcon(iconType === 'none' ? 'emoji' : iconType, agent, defaultModelId, slotSize),
         supportsNewTab: true
       })
     )
@@ -397,15 +410,7 @@ const codeCliProvider: SidebarShortcutProvider = {
       (tool) => tool.value,
       (tool) => ({
         label: i18n.t(tool.label),
-        renderIcon: ({ slotSize, glyphSize, active }) => (
-          <CliIcon
-            id={tool.value}
-            size={slotSize}
-            glyphSize={glyphSize}
-            shape="circle"
-            className={active ? 'bg-transparent' : 'bg-background-subtle'}
-          />
-        ),
+        renderIcon: renderLocalAgentShortcutIcon({ cliId: tool.value }),
         supportsNewTab: false
       })
     )
@@ -437,7 +442,7 @@ const localAgentProvider: SidebarShortcutProvider = {
       (preset) => preset.id,
       (preset) => ({
         label: preset.name,
-        renderIcon: ({ slotSize }) => <LocalAgentIcon presetId={preset.id} size={slotSize} />,
+        renderIcon: renderLocalAgentShortcutIcon({ presetId: preset.id }),
         supportsNewTab: false
       })
     )
@@ -449,9 +454,7 @@ const localAgentProvider: SidebarShortcutProvider = {
       (agent) => (agent.type === 'local' ? agent.id : ''),
       (agent) => ({
         label: agent.name,
-        renderIcon: ({ slotSize }) => (
-          <LocalAgentIcon presetId={agent.configuration?.localRuntime?.presetId} size={slotSize} />
-        ),
+        renderIcon: renderLocalAgentShortcutIcon({ presetId: agent.configuration?.localRuntime?.presetId }),
         supportsNewTab: false
       })
     )
