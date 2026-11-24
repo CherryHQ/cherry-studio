@@ -1,9 +1,9 @@
-import type { ComposerFileKind, FileMetadata, FileType } from '@renderer/types/file'
+import type { ComposerFileKind, FileMetadata } from '@renderer/types/file'
 import {
   createComposerFileTokenSourceId,
   getComposerFileTokenSourceId
 } from '@renderer/utils/message/composerFileTokenSource'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileType } from '@shared/types/file'
 
 /**
  * Lean, composer-owned v2 attachment descriptor. Replaces legacy `FileMetadata`

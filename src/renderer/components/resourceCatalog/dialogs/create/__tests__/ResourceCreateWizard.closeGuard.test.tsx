@@ -18,6 +18,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 // Capture the close-control props the wizard hands to the UI dialog so the test can
 // drive overlay / Esc / pointer-down-outside deterministically (radix's real Esc
 // wiring doesn't fire onOpenChange reliably under jsdom).
+const ipc = vi.hoisted(() => ({ request: vi.fn() }))
+
 const dialog = vi.hoisted(() => ({
   onOpenChange: undefined as ((open: boolean) => void) | undefined,
   closeOnOverlayClick: undefined as boolean | undefined,
@@ -29,7 +31,10 @@ const dialog = vi.hoisted(() => ({
   unmountCount: 0,
   settingsNavigate: vi.fn()
 }))
-const ipc = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipc.request }
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -37,7 +42,8 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ defaultModel: undefined }),
-  useModels: () => ({ models: [] })
+  useModels: () => ({ models: [] }),
+  useModelById: () => ({ model: undefined })
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
@@ -48,27 +54,26 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => () => true
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: ipc.request }
-}))
-
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShared', () => ({
   resourceDialogCloseButtonClassName: '',
   resourceDialogHeaderClassName: '',
   resourceDialogRailItemClassName: '',
-  resourceDialogTitleClassName: '',
-  KnowledgeBaseField: ({ disabled, onOpenKnowledgePage }: { disabled?: boolean; onOpenKnowledgePage?: () => void }) => (
-    <button type="button" disabled={disabled} onClick={onOpenKnowledgePage}>
-      open knowledge
+  resourceDialogTitleClassName: ''
+}))
+
+vi.mock('../steps/KnowledgeStep', () => ({
+  KnowledgeStep: ({ isSubmitting }: { isSubmitting?: boolean }) => (
+    <button type="button" disabled={isSubmitting}>
+      add knowledge
     </button>
   )
 }))
 
 // Only BasicInfoStep needs behavior — it fills the fields that gate navigation.
-vi.mock('../steps/McpStep', async () => {
+vi.mock('../steps/AssistantMcpReviewStep', async () => {
   const { useEffect } = await import('react')
   return {
-    McpStep: ({ form, active }: { form: { setValue: (name: string, value: unknown) => void }; active: boolean }) => {
+    AssistantMcpReviewStep: ({ form, active }: { form: { setValue: (name: string, value: unknown) => void }; active: boolean }) => {
       useEffect(() => {
         if (active) form.setValue('reviewedMcpServerIds', [])
       }, [form, active])
@@ -108,6 +113,10 @@ vi.mock('../steps/SystemPromptStep', () => ({
   )
 }))
 vi.mock('../steps/CapabilityStep', () => ({ CapabilityStep: () => <div /> }))
+vi.mock('../steps/AutoCreateEntry', () => ({ AutoCreateEntry: () => <div /> }))
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useResourceAutoConfigure: () => ({ ready: true, generate: vi.fn() })
+}))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' ')
@@ -203,7 +212,8 @@ import { ResourceCreateWizard } from '../ResourceCreateWizard'
 
 const NEXT = 'library.config.dialogs.create.next'
 const CREATE = 'library.config.dialogs.create.submit'
-const OPEN_KNOWLEDGE = 'open knowledge'
+const ADD_KNOWLEDGE = 'add knowledge'
+const MANUAL = 'library.config.dialogs.create.auto.manual'
 
 afterEach(() => {
   cleanup()
@@ -211,10 +221,10 @@ afterEach(() => {
   dialog.closeOnOverlayClick = undefined
   dialog.onPointerDownOutside = undefined
   dialog.renderCount = 0
-  ipc.request.mockReset()
   dialog.mountCount = 0
   dialog.unmountCount = 0
   dialog.settingsNavigate.mockReset()
+  ipc.request.mockReset()
   vi.restoreAllMocks()
 })
 
@@ -243,31 +253,38 @@ function mockDeferredAnimationFrames() {
 describe('ResourceCreateWizard close protection', () => {
   it('blocks overlay / Esc close while a submit is in flight, then releases once it settles', async () => {
     const user = userEvent.setup()
-    let resolveSubmit: () => void = () => {}
-    const submitPromise = new Promise<void>((resolve) => {
+    let resolveSubmit: (id: string) => void = () => {}
+    const submitPromise = new Promise<string>((resolve) => {
       resolveSubmit = resolve
     })
     const onSubmit = vi.fn(() => submitPromise)
     const onOpenChange = vi.fn()
 
-    render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={onOpenChange}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
 
     // Walk to the final step and start the (still pending) submit.
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
+    expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: CREATE }))
     expect(onSubmit).toHaveBeenCalledTimes(1)
 
     // In flight: overlay click is disabled, pointer-down-outside is prevented, and the
-    // dialog and knowledge-page entry refuse to close it — even though the parent's
+    // dialog refuses to close and the knowledge step is locked — even though the parent's
     // isSubmitting is still false.
     expect(dialog.closeOnOverlayClick).toBe(false)
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: OPEN_KNOWLEDGE }))
-    expect(ipc.request).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeDisabled()
     expect(onOpenChange).not.toHaveBeenCalled()
     let prevented = false
     dialog.onPointerDownOutside?.({ defaultPrevented: false, preventDefault: () => (prevented = true) })
@@ -275,74 +292,72 @@ describe('ResourceCreateWizard close protection', () => {
     dialog.onOpenChange?.(false)
     expect(onOpenChange).not.toHaveBeenCalled()
 
-    // Once the submit settles, close protection releases.
+    // Once the submit settles, close protection releases on the result page.
     await act(async () => {
-      resolveSubmit()
+      resolveSubmit('assistant-1')
       await submitPromise
     })
     expect(dialog.closeOnOverlayClick).toBe(true)
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
+    expect(screen.getByRole('heading', { name: 'library.config.dialogs.create.result.assistant_title' })).toBeVisible()
     dialog.onOpenChange?.(false)
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('blocks knowledge-page navigation while the parent reports a submit in flight', async () => {
+  it('locks the knowledge step while the parent reports a submit in flight', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     const onSubmit = vi.fn()
     const { rerender } = render(
-      <ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={onOpenChange}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
     )
 
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
+    expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeEnabled()
 
     rerender(
-      <ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} isSubmitting />
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={onOpenChange}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+        isSubmitting
+      />
     )
 
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: OPEN_KNOWLEDGE }))
-    expect(onOpenChange).not.toHaveBeenCalled()
-    expect(ipc.request).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeDisabled()
 
     rerender(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
-  })
-
-  it('opens a standalone knowledge window and keeps the wizard open', async () => {
-    const user = userEvent.setup()
-    const onOpenChange = vi.fn()
-
-    render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={vi.fn()} />)
-
-    await user.click(screen.getByRole('button', { name: 'fill basic' }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: OPEN_KNOWLEDGE }))
-
-    expect(ipc.request).toHaveBeenCalledTimes(1)
-    const [channel, payload] = ipc.request.mock.calls[0] as [string, Record<string, unknown>]
-    expect(channel).toBe('tab.detach')
-    expect(payload).toMatchObject({ url: '/app/knowledge', type: 'route' })
-    expect(typeof payload.id).toBe('string')
-    expect(onOpenChange).not.toHaveBeenCalled()
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
+    expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeEnabled()
   })
 
   it('closes and recreates the dialog before running model settings navigation', async () => {
     function Host() {
       const [open, setOpen] = useState(true)
 
-      return <ResourceCreateWizard kind="assistant" open={open} onOpenChange={setOpen} onSubmit={vi.fn()} />
+      return (
+        <ResourceCreateWizard
+          kind="assistant"
+          open={open}
+          onOpenChange={setOpen}
+          onStartConversation={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      )
     }
 
     render(<Host />)
+    await userEvent.click(screen.getByRole('button', { name: MANUAL }))
     const frames = mockDeferredAnimationFrames()
 
     await userEvent.click(screen.getByRole('button', { name: 'open model settings' }))

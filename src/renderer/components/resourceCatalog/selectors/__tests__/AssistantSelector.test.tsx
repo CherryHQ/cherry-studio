@@ -93,10 +93,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return actual
 })
 
-vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptBindingTab', () => ({
-  PromptBindingTab: () => <div data-testid="prompt-binding-tab" />
-}))
-
 vi.mock('@renderer/data/hooks/useDataApi', async () => {
   const { MockUseDataApi } = await import('@test-mocks/renderer/useDataApi')
 
@@ -185,7 +181,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'selector.common.unpin': 'Unpin',
           'library.config.dialogs.create.assistant_title': 'New Assistant',
           'library.config.dialogs.create.avatar_aria': 'Pick avatar',
-          'library.config.dialogs.create.description_placeholder': 'Describe this resource',
           'library.config.dialogs.create.name_placeholder': 'Name this resource',
           'library.config.dialogs.create.submit': 'Create',
           'library.config.dialogs.create.submit_failed': 'Create failed',
@@ -196,7 +191,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.create.step.knowledge': 'Knowledge',
           'library.config.dialogs.edit.assistant_description': 'Edit the essentials for this assistant.',
           'library.config.dialogs.edit.assistant_title': 'Edit Assistant',
-          'library.config.dialogs.edit.basic_tab': 'Basic',
           'library.config.dialogs.edit.prompt_tab': 'System Prompt',
           'library.config.dialogs.edit.save_failed': 'Save failed',
           'selector.create_dialog.refresh_failed': 'Created, but refresh failed',
@@ -311,6 +305,9 @@ beforeEach(() => {
   mockPreferenceState.set('assistant.default_mcp_server_ids', ['mcp-a'])
   MockDataApiUtils.setCustomResponse('/mcp-servers', 'GET', MCP_RESPONSE)
   useQueryMock.mockImplementation((path: string, options?: { enabled?: boolean }) => {
+    if (path === '/skills') {
+      return { data: [], isLoading: false, isRefreshing: false, error: undefined, refetch: vi.fn(), mutate: vi.fn() }
+    }
     const enabled = path !== '/assistants' || options?.enabled !== false
     if (path === '/assistants' && enabled) assistantReadMock()
     const data =
@@ -420,10 +417,17 @@ function openPopover() {
   fireEvent.click(screen.getByRole('button', { name: 'Open' }))
 }
 
-async function openCreateDialog() {
+async function openCreateDialog(purpose?: string) {
   openPopover()
   fireEvent.click(screen.getByRole('button', { name: 'Create assistant' }))
   await screen.findByRole('dialog')
+  if (purpose) {
+    fireEvent.change(screen.getByPlaceholderText('library.config.dialogs.create.auto.assistant_purpose_placeholder'), {
+      target: { value: purpose }
+    })
+  }
+  // These cases cover the selector's create flow, so step past the auto-create entry.
+  fireEvent.click(screen.getByRole('button', { name: 'library.config.dialogs.create.auto.manual' }))
 }
 
 describe('AssistantSelector', () => {
@@ -519,13 +523,10 @@ describe('AssistantSelector', () => {
     render(
       <AssistantSelector trigger={<button type="button">Open</button>} multi={false} value={null} onChange={onChange} />
     )
-    await openCreateDialog()
+    await openCreateDialog('Created from selector')
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Assistant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    fireEvent.change(screen.getByPlaceholderText('Describe this resource'), {
-      target: { value: 'Created from selector' }
-    })
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))
     expect(await screen.findByRole('switch', { name: 'MCP tools' })).toBeChecked()
@@ -544,6 +545,7 @@ describe('AssistantSelector', () => {
     )
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
     expect(onChange).not.toHaveBeenCalled()
+    await user.click(await screen.findByRole('button', { name: 'common.close' }))
     await waitFor(() => expect(screen.getByPlaceholderText('Search assistants')).toBeInTheDocument())
   })
 
@@ -570,7 +572,10 @@ describe('AssistantSelector', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
+    // The picker picks what it just created; the result page only closes.
     expect(onChange).toHaveBeenCalledWith('created-assistant')
+    await user.click(await screen.findByRole('button', { name: 'common.close' }))
+    expect(onChange).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the selector closed and the edit dialog open after auto-saving an assistant', async () => {
@@ -652,6 +657,7 @@ describe('AssistantSelector', () => {
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
 
     expect(toast.error).toHaveBeenCalledWith('Created, but refresh failed')
+    await user.click(await screen.findByRole('button', { name: 'common.close' }))
     await waitFor(() => expect(screen.getByPlaceholderText('Search assistants')).toBeInTheDocument())
   })
 })

@@ -6,7 +6,9 @@ import { Button, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
 
 import type { ResourceCreateWizardFormValues } from './types'
 
-const McpStep = lazy(() => import('./steps/McpStep').then((module) => ({ default: module.McpStep })))
+const AssistantMcpReviewStep = lazy(() =>
+  import('./steps/AssistantMcpReviewStep').then((module) => ({ default: module.AssistantMcpReviewStep }))
+)
 
 /** Preset shortcuts must review inherited tools before they create an assistant. */
 export function usePresetMcpReview() {
@@ -40,7 +42,7 @@ export function usePresetMcpReview() {
         <div className="min-h-0 overflow-y-auto">
           {open ? (
             <Suspense fallback={<p role="status">{t('common.loading')}</p>}>
-              <McpStep key="preset-review" form={form} active disabled={false} portalContainer={null} />
+              <AssistantMcpReviewStep key="preset-review" form={form} active disabled={false} portalContainer={null} />
             </Suspense>
           ) : null}
         </div>

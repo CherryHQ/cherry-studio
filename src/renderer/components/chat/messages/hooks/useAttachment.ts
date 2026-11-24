@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
-import { FILE_TYPE, type FileType } from '@renderer/types/file'
+import { FILE_TYPE, type FileType } from '@shared/types/file'
 
 const logger = loggerService.withContext('FileAction')
 
