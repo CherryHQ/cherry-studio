@@ -36,7 +36,7 @@ const MIN_ATTACHMENT_IMAGE_EDGE = 15
 const MAX_ATTACHMENT_IMAGE_EDGE = 8192
 const MAX_IMAGE_VALIDATIONS = 512
 /** Decisions by data URL digest: `null` rejects, `url` replaces the image with its padded form. */
-const imageValidations = new Map<string, { url?: string } | null>()
+const imageValidations = new Map<string, { url?: string; failure?: string } | null>()
 const MAX_ATTACHMENT_IMAGE_PIXELS = 100_000_000
 
 // `type/subtype`, per RFC 6838; `*` in the subtype allows the `image/*`
@@ -109,7 +109,10 @@ async function fileUrlToDataUrl(fileUrl: string) {
  * same signature. Add the provider/model strategy input then — callers won't
  * need to change.
  */
-export async function materializeNativeFilePart(part: FileUIPart): Promise<FileUIPart | null> {
+export async function materializeNativeFilePart(
+  part: FileUIPart,
+  onFailure?: (reason: string | null) => void
+): Promise<FileUIPart | null> {
   const materialized = await materializeInner(part)
   if (materialized === null) return null
   const normalized = sanitizeFilePartMediaType(materialized)
@@ -123,15 +126,29 @@ export async function materializeNativeFilePart(part: FileUIPart): Promise<FileU
   if (known !== undefined) {
     imageValidations.delete(key)
     imageValidations.set(key, known)
-    return known && (known.url ? { ...normalized, url: known.url } : normalized)
+    if (!known || known.failure) {
+      onFailure?.(known?.failure ?? null)
+      return null
+    }
+    return known.url ? { ...normalized, url: known.url } : normalized
   }
-  const validated = await validateImage(normalized)
-  imageValidations.set(key, validated && (validated === normalized ? {} : { url: validated.url }))
+  let failure: string | null = null
+  const validated = await validateImage(normalized, (reason) => {
+    failure = reason
+  })
+  imageValidations.set(
+    key,
+    validated === null ? (failure ? { failure } : null) : validated === normalized ? {} : { url: validated.url }
+  )
   if (imageValidations.size > MAX_IMAGE_VALIDATIONS) imageValidations.delete(imageValidations.keys().next().value!)
+  if (validated === null) onFailure?.(failure)
   return validated
 }
 
-async function validateImage(normalized: FileUIPart): Promise<FileUIPart | null> {
+async function validateImage(
+  normalized: FileUIPart,
+  onFailure?: (reason: string | null) => void
+): Promise<FileUIPart | null> {
   try {
     const comma = normalized.url.indexOf(',')
     if (comma < 0) return null
@@ -200,6 +217,7 @@ async function validateImage(normalized: FileUIPart): Promise<FileUIPart | null>
             limit: MAX_ATTACHMENT_IMAGE_EDGE,
             reason: error instanceof Error ? error.message : String(error)
           })
+          onFailure?.(`image exceeds the ${MAX_ATTACHMENT_IMAGE_EDGE} px provider limit and could not be resized`)
           return null
         }
       }
@@ -244,6 +262,7 @@ async function validateImage(normalized: FileUIPart): Promise<FileUIPart | null>
               reason: error instanceof Error ? error.message : String(error)
             }
           )
+          onFailure?.(`image exceeds the ${MAX_ATTACHMENT_IMAGE_EDGE} px provider limit and could not be resized`)
           return null
         }
         throw error
