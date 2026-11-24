@@ -2,7 +2,6 @@ import path from 'node:path'
 
 import { artifactService } from '@data/services/ArtifactService'
 import { loggerService } from '@logger'
-import { isOutsidePath } from '@main/utils/file'
 import type { ReportArtifactsInput } from '@shared/ai/builtinTools'
 
 const logger = loggerService.withContext('McpServer:CherryReportArtifacts')
@@ -10,7 +9,6 @@ const logger = loggerService.withContext('McpServer:CherryReportArtifacts')
 export interface ReportArtifactsContext {
   agentId: string
   sessionId: string
-  workspacePath: string
 }
 
 /**
@@ -25,12 +23,11 @@ export function recordReportedArtifacts(
     artifactService.recordAgentArtifacts(
       context.agentId,
       context.sessionId,
-      artifacts.flatMap(({ path: reportedPath, description }) => {
-        const filePath = path.resolve(context.workspacePath, reportedPath)
-        const relativePath = path.relative(context.workspacePath, filePath)
-        if (!relativePath || isOutsidePath(relativePath)) return []
-        return [{ path: filePath, title: description ?? path.basename(filePath), size: null }]
-      })
+      artifacts.map(({ path: reportedPath, description }) => ({
+        path: reportedPath,
+        title: description ?? path.basename(reportedPath),
+        size: null
+      }))
     )
   } catch (error) {
     logger.warn('Failed to index reported artifacts', { sessionId: context.sessionId, error })

@@ -25,7 +25,7 @@ import {
 
 /** The pill look shared by the settings page's drill-in links and compact selects. */
 export const settingsPillClassName =
-  'h-8 max-w-56 justify-between gap-1.5 rounded-lg border-0 bg-muted/50 px-2.5 font-normal text-[13px] text-foreground shadow-none hover:bg-muted aria-expanded:bg-muted dark:bg-muted/50'
+  'h-8 max-w-56 justify-between gap-1.5 rounded-lg border-0 bg-muted/50 px-2.5 font-normal text-[13px] text-foreground shadow-none hover:bg-muted focus-visible:bg-muted aria-expanded:bg-muted dark:bg-muted/50 dark:focus-visible:bg-muted'
 
 const inlineInputClassName =
   'h-auto rounded-lg border-transparent bg-transparent px-2 text-center shadow-none hover:bg-muted/50 focus-visible:border-transparent focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:hover:bg-muted/50 dark:focus-visible:bg-muted/50'
@@ -43,6 +43,7 @@ export function EditDialogPageShell<TValues extends FieldValues>({
   onBack,
   rootError,
   setDialogContentElement,
+  guardDismiss,
   fill = false,
   children
 }: {
@@ -55,6 +56,7 @@ export function EditDialogPageShell<TValues extends FieldValues>({
   onBack?: () => void
   rootError?: string
   setDialogContentElement: (element: HTMLDivElement | null) => void
+  guardDismiss?: boolean
   fill?: boolean
   children: ReactNode
 }) {
@@ -69,8 +71,11 @@ export function EditDialogPageShell<TValues extends FieldValues>({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={setDialogContentElement}
+        guardDismiss={guardDismiss}
+        size="xl"
         className={cn(
-          'flex max-h-[min(720px,88vh)] flex-col gap-0 p-0 sm:max-w-120',
+          // Narrows with the window instead of filling a small one edge to edge.
+          'flex max-h-[min(720px,88vh)] flex-col gap-0 p-0 sm:max-w-[min(720px,85vw)]',
           fill && 'h-[min(720px,88vh)]',
           resourceDialogCloseButtonClassName
         )}>

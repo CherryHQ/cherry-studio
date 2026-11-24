@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 
-import { toCreateMcpServerDto } from '@renderer/utils/mcpServerDraft'
-import { PRESET_MCP_SERVERS, type McpServerPreset } from '@shared/data/presets/mcpServers'
+import { useMutation } from '@data/hooks/useDataApi'
+import { FEATURED_MCP_PRESETS, PRESET_MCP_SERVERS, type McpServerPreset } from '@shared/data/presets/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
 
@@ -12,19 +12,19 @@ const presets = PRESET_MCP_SERVERS.filter((server) => !isBrowserMcpServer(server
 )
 
 export function useBuiltinMcpCatalog() {
-  const { mcpServers, addMcpServer, isLoading, error, refetch } = useMcpServers()
+  const { mcpServers, isLoading, error, refetch } = useMcpServers()
+  const { trigger: installPreset } = useMutation('POST', '/mcp-servers/install-preset', { refresh: ['/mcp-servers'] })
   const pending = useRef(new Map<string, Promise<McpServer>>())
   const [adding, setAdding] = useState<ReadonlySet<string>>(() => new Set())
   const findInstalled = useCallback(
-    (preset: McpServerPreset) => mcpServers.find((server) => server.name === preset.name),
+    (preset: McpServerPreset) =>
+      mcpServers.find((server) => server.name === preset.name && server.installSource === 'builtin'),
     [mcpServers]
   )
-  const add = async (preset: McpServerPreset): Promise<McpServer> => {
-    const existing = findInstalled(preset)
-    if (existing) return existing
+  const install = (preset: McpServerPreset, activate: boolean): Promise<McpServer> => {
     const running = pending.current.get(preset.name)
     if (running) return running
-    const task = addMcpServer(toCreateMcpServerDto(preset)).finally(() => {
+    const task = installPreset({ body: { name: preset.name, activate } }).finally(() => {
       pending.current.delete(preset.name)
       setAdding(new Set(pending.current.keys()))
     })
@@ -33,19 +33,14 @@ export function useBuiltinMcpCatalog() {
     return task
   }
   // Featured: ready to use without configuration and not installed yet.
-  const featured = useMemo(
-    () => presets.filter((preset) => !preset.shouldConfig && !findInstalled(preset)),
-    [findInstalled]
-  )
-  // Picked for a resource, so install it running; an inactive server would be bound but never used.
-  const installFeatured = (preset: McpServerPreset) => add({ ...preset, isActive: true })
+  const featured = useMemo(() => FEATURED_MCP_PRESETS.filter((preset) => !findInstalled(preset)), [findInstalled])
   return {
     presets,
     featured,
     mcpServers,
     findInstalled,
-    add,
-    installFeatured,
+    add: (preset: McpServerPreset) => install(preset, false),
+    installFeatured: (preset: McpServerPreset) => install(preset, true),
     adding,
     isLoading,
     error,

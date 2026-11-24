@@ -403,6 +403,7 @@ describe('AgentService', () => {
       }
 
       it('creates the channels bound to the new Agent in the system workspace', async () => {
+        notifyDataApiDataChangeMock.mockClear()
         const agent = createAgentForTest({
           type: 'claude-code',
           name: 'With Channels',
@@ -411,6 +412,16 @@ describe('AgentService', () => {
         })
 
         const channels = await dbh.db.select().from(agentChannelTable).where(eq(agentChannelTable.agentId, agent.id))
+        expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+          { endpoint: '/agents', kind: 'membership', entityIds: [agent.id] },
+          { endpoint: '/agent-workspaces', kind: 'membership' },
+          { endpoint: '/agent-channels', kind: 'membership', entityIds: channels.map(({ id }) => id) },
+          ...channels.map(({ id }) => ({
+            endpoint: '/agent-channels/:channelId',
+            routeParams: { channelId: id },
+            entityIds: [id]
+          }))
+        ])
         expect(
           channels.map(({ name, type, isActive, permissionMode, workspace, config }) => ({
             name,
@@ -854,6 +865,28 @@ describe('AgentService', () => {
       })
 
       expect(updated?.configuration).toEqual({ avatar: '🤖' })
+    })
+
+    // Catches two settings windows saving different prompt blocks, where the second save dropped the first.
+    it('applies prompt overrides block by block, with null restoring a block', async () => {
+      const created = await insertAgent({ configuration: { avatar: '🤖' } })
+
+      agentService.updateAgent(created.id, { configuration: { prompt_overrides: { skills: 'My skills.' } } })
+      agentService.updateAgent(created.id, {
+        configuration: { prompt_overrides: { workspace_system: 'My workspace.' } }
+      })
+      expect(agentService.getAgent(created.id)?.configuration?.prompt_overrides).toEqual({
+        skills: 'My skills.',
+        workspace_system: 'My workspace.'
+      })
+
+      agentService.updateAgent(created.id, { configuration: { prompt_overrides: { skills: null } } })
+      expect(agentService.getAgent(created.id)?.configuration?.prompt_overrides).toEqual({
+        workspace_system: 'My workspace.'
+      })
+
+      agentService.updateAgent(created.id, { configuration: { prompt_overrides: { workspace_system: null } } })
+      expect(agentService.getAgent(created.id)?.configuration).toEqual({ avatar: '🤖' })
     })
   })
 

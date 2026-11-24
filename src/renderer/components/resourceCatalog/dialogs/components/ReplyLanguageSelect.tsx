@@ -15,8 +15,8 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
 import { AGENT_LANGUAGE_MAX_LENGTH, AGENT_LANGUAGE_PRESETS } from '@renderer/utils/agent/agentLanguage'
-import type { AgentFormState } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import type { AgentFormState } from '@shared/ai/agentForm'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 
 type ReplyLanguageValue = Pick<AgentFormState, 'languageMode' | 'languageCustom'>

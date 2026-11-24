@@ -1,31 +1,37 @@
+import { useState } from 'react'
 import { type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { FormControl, FormField, FormItem, FormLabel, Label, Textarea } from '@cherrystudio/ui'
+import { FormControl, FormField, FormItem, FormLabel, Textarea } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { AgentPromptField } from '@renderer/components/resourceCatalog/dialogs/components/AgentPromptField'
+import { settingsPillClassName } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogPages'
 import { HeartbeatCard } from '@renderer/components/resourceCatalog/dialogs/components/HeartbeatCard'
-import { PiPromptField } from '@renderer/components/resourceCatalog/dialogs/components/PiPromptField'
 import { ReplyLanguageSelect } from '@renderer/components/resourceCatalog/dialogs/components/ReplyLanguageSelect'
-import type { AgentCreateSettings } from '@renderer/types/resourceCatalog'
+import { type AgentCreateSettings, normalizeAgentLanguageInput } from '@shared/ai/agentForm'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 
 import type { ResourceCreateWizardFormValues } from '../types'
-import { SystemPromptStep } from './SystemPromptStep'
 
 type AdvancedStepProps = {
   form: UseFormReturn<ResourceCreateWizardFormValues>
   portalContainer: HTMLElement | null
 }
 
-/** Agent's last step: System Prompt (the full assembled prompt on Pi Durable), reply language, heartbeat (when the runtime has one), and env vars. */
+/** Agent's last step: System Prompt, reply language, heartbeat (when the runtime has one), and env vars. */
 export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
   const { t } = useTranslation()
+  const [replyLanguageDraft, setReplyLanguageDraft] = useState<string>()
+  const previewLanguage = replyLanguageDraft === '' ? '' : normalizeAgentLanguageInput(replyLanguageDraft)
   const [
     agentType,
+    modelId,
+    name,
     prompt,
     skillIds,
     disabledTools,
     knowledgeBaseIds,
-    mcpServerIds,
+    claudeCodeNativePromptEnabled,
     languageMode,
     languageCustom,
     heartbeatEnabled,
@@ -35,11 +41,13 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
     control: form.control,
     name: [
       'agentType',
+      'modelId',
+      'name',
       'prompt',
       'skillIds',
       'disabledTools',
       'knowledgeBaseIds',
-      'mcpServerIds',
+      'claudeCodeNativePromptEnabled',
       'languageMode',
       'languageCustom',
       'heartbeatEnabled',
@@ -55,26 +63,33 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
 
   return (
     <div className="flex flex-col gap-5">
-      {agentType === 'pi-durable' ? (
-        <PiPromptField
-          value={prompt}
-          onChange={(value) => form.setValue('prompt', value, { shouldDirty: true })}
-          draft={{ skillIds, disabledTools, knowledgeBaseIds, mcpServerIds, languageMode, languageCustom }}
-        />
-      ) : (
-        <SystemPromptStep
-          form={form}
-          portalContainer={portalContainer}
-          fill={false}
-          placeholder={t('library.config.agent.prompt.editor_placeholder')}
-        />
-      )}
-      <div className="grid gap-2">
-        <Label>{t('library.config.agent.field.language.label')}</Label>
+      <AgentPromptField
+        value={prompt}
+        onChange={(value) => form.setValue('prompt', value, { shouldDirty: true })}
+        name={name}
+        modelId={modelId}
+        portalContainer={portalContainer}
+        onNativePromptEnabledChange={(enabled) => patch({ claudeCodeNativePromptEnabled: enabled })}
+        draft={{
+          agentType,
+          claudeCodeNativePromptEnabled,
+          skillIds,
+          disabledTools,
+          knowledgeBaseIds,
+          languageMode: previewLanguage === null ? languageMode : 'custom',
+          languageCustom: previewLanguage ?? languageCustom
+        }}
+        heading={<h3 className="-mb-2 font-medium text-foreground text-sm">{t('library.config.prompt.label')}</h3>}
+      />
+      {/* Same row as the edit window: name left, compact select right, "Other language…" input below. */}
+      <div className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-xl border border-border-subtle px-3 py-2.5 [&>input]:col-span-2 [&>input]:mt-2">
+        <span className="text-foreground text-sm">{t('library.config.agent.field.language.label')}</span>
         <ReplyLanguageSelect
           value={{ languageMode, languageCustom }}
           onChange={patch}
+          onDraftChange={setReplyLanguageDraft}
           portalContainer={portalContainer}
+          triggerClassName={cn(settingsPillClassName, 'w-auto')}
         />
       </div>
       {AGENT_RUNTIME_CAPABILITIES[agentType].heartbeat ? (

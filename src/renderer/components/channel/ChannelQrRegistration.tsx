@@ -21,6 +21,11 @@ export function ChannelQrRegistration({ channel }: { channel: ChannelData }) {
     attempt.current = null
     if (requestId) void ipcApi.request('channel.registration.cancel', { requestId }).catch(() => {})
   }
+  const close = () => {
+    cancel()
+    setUrl(null)
+    setStatus('cancelled')
+  }
   useEffect(() => cancel, [channel.id])
 
   const start = async () => {
@@ -66,16 +71,8 @@ export function ChannelQrRegistration({ channel }: { channel: ChannelData }) {
         {status === 'cancelled' && t('agent.channels.qrSetup.cancelled')}
         {status === 'error' && t('agent.channels.qrSetup.error')}
       </p>
-      <Dialog
-        open={!!url}
-        onOpenChange={(open) => {
-          if (!open) {
-            cancel()
-            setUrl(null)
-            setStatus('cancelled')
-          }
-        }}>
-        <DialogContent closeLabel={t('common.close')} className="max-w-90">
+      <Dialog open={!!url} onOpenChange={(open) => !open && close()}>
+        <DialogContent guardDismiss closeLabel={t('common.close')} className="max-w-90">
           <DialogHeader>
             <DialogTitle>{t('agent.channels.qrSetup.start')}</DialogTitle>
           </DialogHeader>
@@ -84,6 +81,9 @@ export function ChannelQrRegistration({ channel }: { channel: ChannelData }) {
               <QRCodeSVG value={url} size={240} level="M" marginSize={4} title={t('agent.channels.qrSetup.start')} />
             )}
             <p className="text-center text-xs text-muted-foreground">{t('agent.channels.qrSetup.pending')}</p>
+            <Button type="button" variant="outline" size="sm" onClick={close}>
+              {t('common.cancel')}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

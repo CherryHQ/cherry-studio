@@ -5,12 +5,14 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { ipcApi } from '@renderer/ipc'
+import type { ProfileStarterMode } from '@shared/ai/profileStarters'
 import type { ProfileStarter } from '@shared/data/cache/cacheValueTypes'
 
 const logger = loggerService.withContext('useProfileStarters')
 
 const GENERATE_TIMEOUT_MS = 30_000
 const MAX_PROMPT_CHARS = 6000
+const AGENT_SUGGESTIONS_VERSION = 2
 // Entries are keyed by Agent or Assistant ID and never pruned on delete, so only the newest are kept.
 const MAX_CACHED_OWNERS = 50
 
@@ -26,7 +28,8 @@ const SYSTEM_PROMPTS = {
     '',
     'Rules:',
     "- 4 to 6 items, the most useful first, tailored to the Agent's role.",
-    '- "kind" is one of: channel-feishu (connect Feishu), channel-wechat (connect WeChat), schedule (create a scheduled task), github (connect GitHub), skills (find and install skills), memory (remember the user\'s habits), knowledge (link a knowledge base), generic (any other task the Agent can do right now).',
+    '- "kind" is one of: schedule (create a scheduled task), github (connect GitHub), skills (find and install skills), memory (remember the user\'s habits), knowledge (link a knowledge base), generic (any other task the Agent can do right now).',
+    '- Exclude anything related to messaging channels, including setup, management, and tasks that send or receive messages through them. This applies to every kind, including generic.',
     '- Never suggest what is already set up, and never a capability marked as not supported.',
     '- "title": a short action, at most 30 characters.',
     '- "hint": one short line on what it brings.',
@@ -48,8 +51,6 @@ const SYSTEM_PROMPTS = {
     KIND_RULE
   ].join('\n')
 } as const
-
-export type ProfileStarterMode = keyof typeof SYSTEM_PROMPTS
 
 // FNV-1a: the cache only needs to notice that the identity changed.
 function hashText(text: string): string {
@@ -73,7 +74,7 @@ export type ProfileStarters = {
 
 /**
  * Agent suggestions or Assistant opening questions, generated once per identity by the default
- * model and cached until the name, description, prompt or UI language changes.
+ * model and cached for the current identity, UI language, and generation rules.
  */
 export function useProfileStarters({
   ownerId,
@@ -102,14 +103,16 @@ export function useProfileStarters({
   const [cache, setCache] = usePersistCache('ui.chat.profile_pane.starters')
   const locale = i18n.language
   const kind = t(mode === 'agent' ? 'library.type.agent' : 'library.type.assistant')
+  const cacheIdentity = [identity.name, identity.description ?? '', identity.prompt ?? '', locale, kind]
   const hash = hashText(
-    JSON.stringify([identity.name, identity.description ?? '', identity.prompt ?? '', locale, kind])
+    JSON.stringify(mode === 'agent' ? [...cacheIdentity, AGENT_SUGGESTIONS_VERSION] : cacheIdentity)
   )
   const entry = cache[ownerId]
   const cached = entry?.hash === hash ? entry.items : undefined
   const requestKey = `${ownerId}:${hash}`
   // Settled result of this mount's request; `null` means it failed and the fallback shows.
   const [result, setResult] = useState<{ key: string; items: ProfileStarter[] | null }>()
+  const [lastShown, setLastShown] = useState<{ scope: string; items: ProfileStarter[] | null }>()
   const settled = result?.key === requestKey ? result.items : undefined
   const shouldGenerate = active && ready && !cached && settled === undefined && Boolean(defaultModel)
 
@@ -168,8 +171,15 @@ export function useProfileStarters({
     }
   }, [hash, mode, ownerId, shouldGenerate])
 
-  const items = cached ?? settled
-  const unavailable = !active || settled === null || (!items && !defaultModel && !isDefaultModelLoading)
+  const currentItems = cached ?? settled
+  const displayScope = JSON.stringify([ownerId, locale, kind])
+  const previousItems = lastShown?.scope === displayScope ? lastShown.items : undefined
+  // Retain the Agent's displayed cards during regeneration, including the built-in fallback.
+  const items = mode === 'agent' && !currentItems && previousItems !== undefined ? previousItems : currentItems
+  if (mode === 'agent' && items !== undefined && items !== previousItems) {
+    setLastShown({ scope: displayScope, items })
+  }
+  const unavailable = !active || items === null || (!items && !defaultModel && !isDefaultModelLoading)
   return {
     status: items ? 'ready' : unavailable ? 'unavailable' : 'loading',
     items: items ?? [],

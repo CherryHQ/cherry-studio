@@ -9,16 +9,17 @@ import { AssistantTopicsSourceContext, deriveAssistantTopicsView } from '@render
 import i18n from '@renderer/i18n/resolver'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import { parseProfileStarters } from '@shared/ai/profileStarters'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Topic } from '@shared/data/types/topic'
+import { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 
 import { AssistantProfilePane } from '../AssistantProfilePane'
 import { recordEditDialogRequests, renderInRightPane, serveQueries } from './profilePaneTestUtils'
 
 const fetchGenerate = vi.hoisted(() => vi.fn<(input: { prompt: string; content: string }) => Promise<string>>())
-vi.mock('@renderer/utils/aiGeneration', () => ({ fetchGenerate }))
 
 const nextModel = vi.hoisted(
   () => ({ id: 'openai::gpt-5.2', providerId: 'openai', name: 'GPT-5.2', capabilities: [] }) as unknown as Model
@@ -59,6 +60,11 @@ describe('AssistantProfilePane', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.resetMocks()
     fetchGenerate.mockReset()
+    vi.spyOn(window.api.ipcApi, 'request').mockImplementation(async (route, input) => {
+      if (route !== 'ai.profile_starters.generate') return undefined
+      const { mode, system, prompt } = aiRequestSchemas['ai.profile_starters.generate'].input.parse(input)
+      return { ok: true, data: parseProfileStarters(await fetchGenerate({ prompt: system, content: prompt }), mode) }
+    })
     await i18n.changeLanguage('en-US')
     serveQueries({ '/assistants/:id': ({ params }) => (params?.id === assistant.id ? assistant : undefined) })
     dialog = recordEditDialogRequests()
@@ -147,6 +153,20 @@ describe('AssistantProfilePane', () => {
       expect(patches[0]).toMatchObject({ modelId: 'openai::gpt-5.2' })
       expect(patches[1]).toEqual({ settings: { enableBrowser: false } })
       expect(dialog.requests).toEqual([])
+    })
+
+    it('only changes settings that must be reconciled when switching model', async () => {
+      serveQueries({
+        '/assistants/:id': () => ({
+          ...assistant,
+          settings: { ...assistant.settings, enableWebSearch: true }
+        })
+      })
+      fireEvent.click(within(settingsRegion()).getByRole('button', { name: 'Pick GPT-5.2' }))
+
+      await waitFor(() =>
+        expect(patches).toEqual([{ modelId: 'openai::gpt-5.2', settings: { enableWebSearch: false } }])
+      )
     })
 
     it('saves the reply language chosen from the list, starting from no constraint', async () => {

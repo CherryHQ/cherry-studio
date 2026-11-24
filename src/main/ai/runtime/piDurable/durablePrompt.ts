@@ -1,72 +1,52 @@
 import type { PromptSection } from '@earendil-works/pi-durable'
 
 import { application } from '@application'
-import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import { PromptBuilder } from '@main/ai/agents/prompt'
-import {
-  KB_READ_TOOL_NAME,
-  KB_SEARCH_TOOL_NAME,
-  WEB_FETCH_TOOL_NAME,
-  WEB_SEARCH_TOOL_NAME
-} from '@shared/ai/builtinTools'
+import { PromptBuilder } from '@main/ai/agents/prompt/promptContext'
+import { isEditablePromptSection } from '@shared/ai/agentPromptSections'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
-import { buildAgentRuntimePrompt } from '../agentPrompt'
-import { buildCitationsGuidance } from '../citationsGuidance'
-import { buildPiMcpToolName } from '../pi/piMcpExtension'
+import { buildPiAgentPrompt } from '../pi/piPrompt'
 import type { loadPiSdk } from '../pi/piSdk'
 
 type PiSdk = Awaited<ReturnType<typeof loadPiSdk>>
 
-/** A Cherry-owned section; it needs no harness input, so a preview can render it directly. */
-export type DurablePromptSection = Pick<PromptSection, 'key'> & {
-  render(): ReturnType<PromptSection['render']>
-}
-
-export interface DurablePromptOptions {
-  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName'>
+interface DurablePromptOptions {
+  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName' | 'type'>
   cwd: string
   agentDataPath: string
   effectiveLanguage: string | null
   /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
   modelName?: string | null
+  channelLinked: boolean
   /** Normalized disabled tool IDs. */
   disabledTools: ReadonlySet<string>
   knowledgeBaseScope: readonly string[]
   skillPaths: readonly string[]
   mcpInstructions?: string
-  /** Preview only; see `BuildAgentRuntimePromptOptions.instructionsSlot`. */
+  /** Preview only; see `BuildAgentPromptOptions.instructionsSlot`. */
   instructionsSlot?: string
 }
 
-export interface DurablePrompt {
-  sections: DurablePromptSection[]
-  /** The agent's `instructions`, which the harness renders after every extension section. */
-  instructions: string
-}
-
 /** Cherry's part of a Pi Durable system prompt, shared by the runtime and the prompt preview. */
-export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOptions): Promise<DurablePrompt> {
+export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOptions) {
   const { agent, cwd, agentDataPath } = options
-  const enabled = (name: string) => !options.disabledTools.has(buildPiMcpToolName('cherry-tools', name))
-  const prompt = await buildAgentRuntimePrompt({
-    agent,
+  const overrides = agent.configuration?.prompt_overrides
+  const prompt = await buildPiAgentPrompt({
     workspacePath: cwd,
     agentDataPath,
+    agent,
     effectiveLanguage: options.effectiveLanguage,
     modelName: options.modelName,
     instructionsSlot: options.instructionsSlot,
-    citationsGuidance: buildCitationsGuidance({
-      web: enabled(WEB_SEARCH_TOOL_NAME) || enabled(WEB_FETCH_TOOL_NAME),
-      kb:
-        (resolveAgentCapabilities(agent).allKnowledgeBases || options.knowledgeBaseScope.length > 0) &&
-        (enabled(KB_SEARCH_TOOL_NAME) || enabled(KB_READ_TOOL_NAME))
-    })
+    channelLinked: options.channelLinked,
+    toolSearchLoadsMcp: true,
+    disabledTools: options.disabledTools,
+    knowledgeBaseScope: options.knowledgeBaseScope
   })
   const agentDir = application.getPath('feature.agents.pi.root')
   const skills = pi.loadSkills({ cwd, agentDir, skillPaths: [...options.skillPaths], includeDefaults: false })
   const builder = new PromptBuilder()
-  const sections: DurablePromptSection[] = [
+  const sections = [
     {
       key: 'agent_identity',
       async render() {
@@ -108,26 +88,29 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
       key: 'mcp_instructions',
       render: () =>
         options.mcpInstructions ? { text: options.mcpInstructions, source: { kind: 'mcp-instructions' } } : undefined
+    },
+    { key: 'cwd', render: () => cwd.replaceAll('\\', '/') }
+  ] satisfies PromptSection[]
+
+  // An Agent's text replaces a section only when the section renders. It keeps the section's kind for Context
+  // Usage but none of the files it displaced, which were not sent.
+  const resolvedSections = sections.map((section) => {
+    const text = isEditablePromptSection(section.key) ? overrides?.[section.key] : undefined
+    if (text === undefined) return section
+    return {
+      key: section.key,
+      async render() {
+        const content = await section.render()
+        if (content === undefined) return undefined
+        return typeof content === 'object' ? { text, source: { kind: content.source.kind } } : text
+      }
     }
-  ]
+  }) satisfies PromptSection[]
   return {
-    sections,
+    sections: resolvedSections,
     instructions: [prompt.base.kind === 'custom' ? prompt.base.content : undefined, prompt.append]
       .filter(Boolean)
-      .join('\n\n')
+      .join('\n\n'),
+    blocks: prompt.blocks
   }
-}
-
-/**
- * The system prompt text these parts produce, rendered the way pi-durable renders sections (`<key>` tags, the
- * instructions last) and pi-ai joins them. Other extensions' sections, such as codemode's tool catalog, are not included.
- */
-export async function renderDurablePrompt({ sections, instructions }: DurablePrompt): Promise<string> {
-  const parts: string[] = []
-  for (const section of [...sections, { key: 'instructions', render: () => instructions }]) {
-    const content = await section.render()
-    const text = typeof content === 'object' ? content.text : content
-    if (text !== undefined) parts.push(`<${section.key}>\n${text}\n</${section.key}>`)
-  }
-  return parts.join('\n\n')
 }

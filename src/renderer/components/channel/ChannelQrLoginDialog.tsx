@@ -15,7 +15,6 @@ export function ChannelQrLoginDialog({
   onClose
 }: {
   channel: { id: string; type: 'wechat' | 'feishu' }
-  onActiveChange?: (isActive: boolean) => Promise<unknown>
   onClose: () => void
 }) {
   const { t } = useTranslation()
@@ -93,9 +92,10 @@ export function ChannelQrLoginDialog({
     onClose()
   }
 
+  const pending = status === 'starting' || status === 'pending'
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
-      <DialogContent closeOnOverlayClick={false} className="max-w-90" closeLabel={t('common.close')}>
+      <DialogContent guardDismiss={pending} className="max-w-90" closeLabel={t('common.close')}>
         <DialogHeader>
           <DialogTitle>{t(copy.title)}</DialogTitle>
         </DialogHeader>

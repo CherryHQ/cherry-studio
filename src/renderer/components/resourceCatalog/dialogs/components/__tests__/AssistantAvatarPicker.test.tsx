@@ -24,6 +24,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(), prepareEntityImageBytes: vi.fn() }))
+const cropAvatar = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/components/Avatar/AvatarCropPopup', () => ({ AvatarCropPopup: { show: cropAvatar } }))
 vi.mock('@renderer/components/EmojiPicker', () => ({
   EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
     <button type="button" onClick={() => onEmojiClick('🎓')}>
@@ -44,12 +46,14 @@ const props = {
 }
 const file = new File(['image'], 'avatar.png', { type: 'image/png' })
 const bytes = new Uint8Array([1, 2, 3])
+const framed = { x: 10, y: 20, width: 64, height: 64 }
 const uploadLabel = 'Image Upload'
 
 beforeEach(() => {
   vi.mocked(ipcApi.request).mockReset().mockResolvedValue(undefined)
   vi.mocked(checkEntityImageSize).mockReset().mockReturnValue(null)
   vi.mocked(prepareEntityImageBytes).mockReset().mockResolvedValue(bytes)
+  cropAvatar.mockReset().mockResolvedValue(framed)
   invalidate.mockReset().mockResolvedValue(undefined)
   vi.mocked(dataApiService.get).mockResolvedValue({ emoji: '🤖', avatarSrc: 'file:///new.webp' })
 })
@@ -72,7 +76,7 @@ describe('AssistantAvatarPicker persistence', () => {
     await user.upload(screen.getByLabelText(uploadLabel, { selector: 'input' }), file)
     await waitFor(() => expect(onChanged).toHaveBeenCalledWith({ emoji: '🤖', avatarSrc: 'file:///new.webp' }))
     expect(checkEntityImageSize).toHaveBeenCalledWith(file)
-    expect(prepareEntityImageBytes).toHaveBeenCalledWith(file)
+    expect(prepareEntityImageBytes).toHaveBeenCalledWith(file, framed)
     expect(ipcApi.request).toHaveBeenCalledWith('assistant.set_avatar', {
       assistantId: 'assistant-1',
       avatar: { kind: 'image', data: bytes }

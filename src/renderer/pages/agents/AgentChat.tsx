@@ -32,6 +32,7 @@ import PermissionRequestComposer, {
   type PermissionRequestComposerProps
 } from '@renderer/components/composer/variants/PermissionRequestComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
+import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
@@ -73,6 +74,7 @@ function AgentPermissionRequestComposer(props: PermissionRequestComposerProps) {
   return (
     <PermissionRequestComposer
       {...props}
+      requiresAgentConfigPreview
       onOpenSource={
         canOpenAgentToolFlow
           ? (source) => openAgentToolFlow({ toolCallId: source.toolCallId, title: source.title })
@@ -600,6 +602,7 @@ const AgentChat = ({
   return (
     <>
       <AgentChatLayout {...layoutProps} />
+      <ResourceEditDialogEventHost />
       <ConfirmDialog
         open={modelSwitchConfirmOpen}
         onOpenChange={setModelSwitchConfirmOpen}

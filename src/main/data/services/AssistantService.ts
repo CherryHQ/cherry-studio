@@ -484,7 +484,11 @@ export class AssistantDataService {
   /**
    * Insert an assistant and its relations inside a caller-owned transaction.
    */
-  private createTx(tx: DbOrTx, dto: CreateAssistantDto): AssistantRowWithModelName {
+  private createTx(
+    tx: DbOrTx,
+    dto: CreateAssistantDto,
+    position: 'first' | 'last' = 'last'
+  ): AssistantRowWithModelName {
     // Resolve modelId: explicit values strictly validated; omission falls
     // back to `chat.default_model_id` preference (stale → null with a
     // logger.warn).
@@ -505,7 +509,8 @@ export class AssistantDataService {
 
     const inserted = insertWithOrderKey(tx, assistantTable, insertValues, {
       pkColumn: assistantTable.id,
-      scope: isNull(assistantTable.deletedAt)
+      scope: isNull(assistantTable.deletedAt),
+      position
     }) as AssistantRow
 
     this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
@@ -519,11 +524,14 @@ export class AssistantDataService {
    * `mcpServerIds` and `knowledgeBaseIds` land inside the same
    * transaction as the insert — one failed binding rolls the assistant row
    * back so callers never observe a half-written record.
+   * @param options.position where the new row lands in the list order; defaults to the end
    */
-  create(dto: CreateAssistantDto): Assistant {
+  create(dto: CreateAssistantDto, options: { position?: 'first' | 'last' } = {}): Assistant {
     this.validateName(dto.name)
 
-    const { assistant: row, modelName } = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
+    const { assistant: row, modelName } = application
+      .get('DbService')
+      .withWriteTx((tx) => this.createTx(tx, dto, options.position))
 
     logger.info('Created assistant', { id: row.id, name: row.name })
 

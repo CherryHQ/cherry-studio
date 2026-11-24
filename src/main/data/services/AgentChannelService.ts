@@ -2,6 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { agentTable } from '@data/db/schemas/agent'
 import {
   type AgentChannelRow as ChannelRow,
   agentChannelSessionTable as channelSessionsTable,
@@ -13,6 +14,7 @@ import type { DbOrTx } from '@data/db/types'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import {
   ActiveAgentChannelConfigSchemasByType,
@@ -101,6 +103,7 @@ export class AgentChannelService {
       isActive,
       permissionMode: data.permissionMode
     }
+    assertPermissionModeSupported(tx, data.agentId, data.permissionMode)
 
     this.validateStreamBot(tx, data.type, insertData.config, isActive)
     const [row] = tx.insert(channelsTable).values(insertData).returning().all()
@@ -255,6 +258,13 @@ export class AgentChannelService {
         isActive
       )
       this.validateStreamBot(tx, existing.type, config, isActive, id)
+      const agentId = updates.agentId !== undefined ? updates.agentId : existing.agentId
+      if (updates.permissionMode !== undefined) {
+        assertPermissionModeSupported(tx, agentId, updates.permissionMode)
+      } else if (agentId !== existing.agentId && !supportsPermissionMode(tx, agentId, existing.permissionMode)) {
+        // Rebinding adopts the new Agent; an override its runtime cannot run falls back to that Agent's own mode.
+        fields.permissionMode = null
+      }
       const normalizedUpdates = {
         ...fields,
         ...(configPatch !== undefined || updates.config !== undefined || updates.isActive !== undefined
@@ -377,3 +387,27 @@ export class AgentChannelService {
 }
 
 export const agentChannelService = new AgentChannelService()
+
+/** Whether the channel's Agent runtime can run this permission override; no override, or no Agent, always can. */
+function supportsPermissionMode(
+  tx: DbOrTx,
+  agentId: string | null | undefined,
+  mode: string | null | undefined
+): boolean {
+  if (!mode || !agentId) return true
+  const agent = tx.select({ type: agentTable.type }).from(agentTable).where(eq(agentTable.id, agentId)).get()
+  return !agent || AGENT_RUNTIME_CAPABILITIES[agent.type].permissionModes.some((supported) => supported === mode)
+}
+
+function assertPermissionModeSupported(
+  tx: DbOrTx,
+  agentId: string | null | undefined,
+  mode: string | null | undefined
+): void {
+  if (!supportsPermissionMode(tx, agentId, mode)) {
+    throw DataApiErrorFactory.invalidOperation(
+      'save channel',
+      `permission mode ${mode} is not supported by the Agent runtime`
+    )
+  }
+}

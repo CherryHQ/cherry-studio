@@ -14,13 +14,20 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as UseModelModule from '@renderer/hooks/useModel'
+import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
+import { AGENT_INSTRUCTIONS_SLOT } from '@shared/ai/agentPromptSections'
 import type { Assistant } from '@shared/data/types/assistant'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(() => null), prepareEntityImageBytes: vi.fn() }))
+// An upload now opens the crop dialog; the test confirms it with a fixed frame.
+const FRAMED = { x: 10, y: 20, width: 64, height: 64 }
+vi.mock('@renderer/components/Avatar/AvatarCropPopup', () => ({
+  AvatarCropPopup: { show: vi.fn(async () => FRAMED) }
+}))
 // The real picker's `:has()` styles break jsdom's selector engine for later pointer checks.
 vi.mock('@renderer/components/EmojiPicker', () => ({
   EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
@@ -127,6 +134,9 @@ vi.mock('@renderer/components/ModelSelector', () => ({
       <button type="button" onClick={() => onSelect(MODEL.id)}>
         Pick model
       </button>
+      <button type="button" onClick={() => onSelect('provider::old-model')}>
+        Pick original model
+      </button>
       <button type="button" onClick={() => onSettingsNavigate?.(settingsNavigateMock)}>
         Open model settings
       </button>
@@ -144,8 +154,18 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/components/PromptEditorField', () => ({
+  PromptEditorIconButton: ({
+    label,
+    disabled,
+    onClick
+  }: {
+    label: string
+    disabled?: boolean
+    onClick: () => void
+  }) => <button type="button" aria-label={label} disabled={disabled} onClick={onClick} />,
   default: ({
     actions,
+    inlineActions,
     label,
     labelAddon,
     value,
@@ -154,9 +174,12 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     previewValue,
     resetPreviewKey,
     minHeight,
-    maxHeight
+    maxHeight,
+    editorLabel,
+    error
   }: {
     actions?: ReactNode
+    inlineActions?: ReactNode
     label?: ReactNode
     labelAddon?: ReactNode
     value: string
@@ -166,6 +189,8 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     resetPreviewKey?: number
     minHeight?: string
     maxHeight?: string
+    editorLabel?: string
+    error?: string
   }) => (
     <div>
       <div>
@@ -173,8 +198,9 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
         {labelAddon}
         {actions}
       </div>
+      {inlineActions}
       <textarea
-        aria-label="Prompt editor"
+        aria-label={editorLabel ?? 'Prompt editor'}
         placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -182,6 +208,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
       />
       <output aria-label="Prompt preview">{previewValue}</output>
       <output data-testid="prompt-preview-reset-key">{resetPreviewKey}</output>
+      {error ? <p role="alert">{error}</p> : null}
     </div>
   )
 }))
@@ -335,6 +362,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.confirm': 'Confirm',
           'common.delete': 'Delete',
           'common.description': 'Description',
+          'common.discard_changes': 'Discard changes',
+          'common.discard_changes_title': 'Discard unsaved changes?',
           'common.edit': 'Edit',
           'common.help': 'Help',
           'common.group.create': 'New Group',
@@ -614,7 +643,11 @@ beforeAll(() => {
 beforeEach(() => {
   promptProcessorMock.mockReset().mockImplementation(({ prompt }: { prompt: string }) => prompt)
   // The settings page reads the heartbeat document on open; IPC always answers with a promise.
-  ipcRequestMock.mockReset().mockResolvedValue({ content: '' })
+  ipcRequestMock
+    .mockReset()
+    .mockImplementation(async (route: string) =>
+      route === 'agent.system_prompt.preview' ? { blocks: [] } : { content: '' }
+    )
   installedSkillsState.current = {
     skills: [
       {
@@ -1086,6 +1119,7 @@ describe('edit dialogs', () => {
         expect(screen.getByLabelText('Description')).toHaveValue('Unsaved description')
         expect(screen.getByLabelText('Name')).toHaveValue('')
         await user.click(screen.getByRole('button', { name: 'Close' }))
+        await user.click(await screen.findByRole('button', { name: 'Discard changes' }))
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
         expect(settingsNavigateMock).not.toHaveBeenCalled()
       } finally {
@@ -1139,6 +1173,7 @@ describe('edit dialogs', () => {
       })
     )
     expect(checkEntityImageSize).toHaveBeenCalledWith(file)
+    expect(prepareEntityImageBytes).toHaveBeenCalledWith(file, FRAMED)
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
     await user.click(screen.getByRole('button', { name: 'Close' }))
     rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={onOpenChange} />)
@@ -1250,8 +1285,14 @@ describe('edit dialogs', () => {
 
   it('submits agent instructions and model changes as a PATCH', async () => {
     const user = userEvent.setup()
-    promptProcessorMock.mockImplementation(({ prompt, modelName }: { prompt: string; modelName?: string }) =>
-      prompt.replaceAll('{{model_name}}', modelName ?? '')
+    const baseRequest = ipcRequestMock.getMockImplementation()
+    ipcRequestMock.mockImplementation(
+      async (route: string, input: { instructions: string; modelId: string | null }) => {
+        if (route === 'agent.system_prompt.resolve_instructions') {
+          return input.instructions.replaceAll('{{model_name}}', input.modelId === MODEL.id ? MODEL.name : 'Old Model')
+        }
+        return baseRequest?.(route, input)
+      }
     )
     render(
       <AgentEditDialog
@@ -1262,16 +1303,21 @@ describe('edit dialogs', () => {
       />
     )
 
+    await user.click(screen.getByRole('button', { name: 'library.config.agent.prompt.block.instructions' }))
     expect(screen.getByRole('button', { name: 'System variables' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Original instructions Old Model')
-    fireEvent.change(screen.getByLabelText('Prompt editor'), {
+    await waitFor(() =>
+      expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Original instructions Old Model')
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'library.config.agent.prompt.instructions_label' }), {
       target: { value: 'Updated instructions {{model_name}}' }
     })
+    await back(user)
     await back(user)
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
     expect(modelTrigger).toHaveTextContent('Old Model')
     await user.click(screen.getByRole('button', { name: 'Pick model' }))
     await openSubPage(user, 'System Prompt')
+    await user.click(screen.getByRole('button', { name: 'library.config.agent.prompt.block.instructions' }))
 
     await waitFor(() =>
       expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Updated instructions Updated Model')
@@ -1284,22 +1330,59 @@ describe('edit dialogs', () => {
     )
   })
 
-  it("shows a Pi Durable Agent's full prompt for that Agent and saves edits to its instructions", async () => {
+  it('preserves saved tier models when the primary model is switched back before saving', async () => {
+    const user = userEvent.setup()
+    render(
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, planModel: 'provider::plan', smallModel: 'provider::small' }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    const name = screen.getByLabelText('Name')
+    await user.clear(name)
+    await user.click(screen.getByRole('button', { name: 'Pick model' }))
+    await user.click(screen.getByRole('button', { name: 'Pick original model' }))
+    await user.type(name, 'Renamed Agent')
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledWith({ body: { name: 'Renamed Agent' } }))
+    expect(updateAgentMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("shows a Pi Durable Agent's full prompt and saves edits to its instructions and guidance", async () => {
+    const onOpenChange = vi.fn()
     ipcRequestMock.mockImplementation(async (route: string) =>
       route === 'agent.system_prompt.preview'
-        ? { before: '<agent_identity>Cedar</agent_identity>\n<agent_instructions>\n', after: '\n</agent_instructions>' }
+        ? {
+            blocks: [
+              { key: 'agent_identity', kind: 'live', text: '<soul>Cedar</soul>' },
+              { key: 'report_artifacts', kind: 'guidance', text: '## Reporting deliverables' },
+              { key: 'instructions', kind: 'instructions', text: AGENT_INSTRUCTIONS_SLOT }
+            ]
+          }
         : undefined
     )
     render(
-      <AgentEditDialog open resource={{ ...AGENT, type: 'pi-durable' }} onOpenChange={vi.fn()} initialTab="prompt" />
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, type: 'pi-durable' }}
+        onOpenChange={onOpenChange}
+        initialTab="prompt"
+      />
     )
 
-    expect(await screen.findByText(/<agent_identity>Cedar<\/agent_identity>/)).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /^library\.config\.agent\.prompt\.block\.agent_identity$/ })
+    ).toBeInTheDocument()
     expect(ipcRequestMock).toHaveBeenCalledWith(
       'agent.system_prompt.preview',
       expect.objectContaining({ agentId: AGENT.id, instructions: 'Original instructions' })
     )
 
+    // The Agent's own prompt opens on its own page too, titled in the dialog header.
+    fireEvent.click(screen.getByRole('button', { name: 'library.config.agent.prompt.block.instructions' }))
+    expect(screen.getByRole('heading', { name: 'library.config.agent.prompt.block.instructions' })).toBeInTheDocument()
     fireEvent.change(screen.getByRole('textbox', { name: 'library.config.agent.prompt.instructions_label' }), {
       target: { value: 'Review pull requests.' }
     })
@@ -1309,28 +1392,71 @@ describe('edit dialogs', () => {
         body: expect.objectContaining({ instructions: 'Review pull requests.' })
       })
     )
-  })
 
-  it('marks the System Prompt row as the full prompt only for Pi Durable Agents', () => {
-    const { unmount } = render(
-      <AgentEditDialog open resource={{ ...AGENT, type: 'pi-durable' }} onOpenChange={vi.fn()} initialTab="advanced" />
+    // Guidance opens on its own page, titled with the block, inside the dialog.
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    fireEvent.click(screen.getByRole('button', { name: /^library\.config\.agent\.prompt\.block\.report_artifacts$/ }))
+    expect(
+      screen.getByRole('heading', { name: 'library.config.agent.prompt.block.report_artifacts' })
+    ).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: 'library.config.agent.prompt.block.report_artifacts' }), {
+      target: { value: 'Report your own way.' }
+    })
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          configuration: expect.objectContaining({ prompt_overrides: { report_artifacts: 'Report your own way.' } })
+        })
+      })
     )
-    expect(screen.getByText('library.config.agent.prompt.row_hint')).toBeInTheDocument()
-    unmount()
 
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="advanced" />)
-    expect(screen.queryByText('library.config.agent.prompt.row_hint')).not.toBeInTheDocument()
+    // A saved override must count as saved, or the dialog refuses to close.
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
-  it("keeps the plain editor with the Agent's own placeholder on other runtimes", () => {
+  it.each(['pi', 'pi-durable', 'claude-code'] as const)('opens the same prompt editor on %s', (type) => {
+    render(<AgentEditDialog open resource={{ ...AGENT, type }} onOpenChange={vi.fn()} initialTab="prompt" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'library.config.agent.prompt.block.instructions' }))
+    expect(screen.getByRole('textbox', { name: 'library.config.agent.prompt.instructions_label' })).toHaveValue(
+      'Original instructions'
+    )
+  })
+
+  it('saves the Claude Code native prompt switch independently of the Agent prompt', async () => {
     render(
-      <AgentEditDialog open resource={{ ...AGENT, instructions: '' }} onOpenChange={vi.fn()} initialTab="prompt" />
+      <AgentEditDialog open resource={{ ...AGENT, type: 'claude-code' }} onOpenChange={vi.fn()} initialTab="prompt" />
     )
+    const toggle = screen.getByRole('switch', { name: 'library.config.agent.prompt.claude_code_native' })
+    expect(toggle).toBeChecked()
+    fireEvent.click(toggle)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: { configuration: { claude_code_native_prompt_enabled: false } }
+      })
+    )
+  })
 
-    expect(screen.getByLabelText('Prompt editor')).toHaveAttribute(
-      'placeholder',
-      'library.config.agent.prompt.editor_placeholder'
-    )
+  // The heartbeat tasks opened as a second, wider modal stacked on this dialog.
+  it('edits the heartbeat tasks on a sub-page, and Back with an unsaved draft asks before leaving', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'agent.heartbeat.edit' }))
+    const editor = await screen.findByRole('textbox', { name: 'agent.heartbeat.tasks' })
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    await waitFor(() => expect(editor).toBeEnabled())
+    await user.type(editor, 'Check the inbox')
+
+    vi.mocked(popup.confirm).mockResolvedValueOnce(false)
+    await back(user)
+    expect(editor).toHaveValue('Check the inbox')
+
+    await back(user)
+    expect(await screen.findByRole('button', { name: 'agent.heartbeat.edit' })).toBeVisible()
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.agent.heartbeat.write', expect.anything())
   })
 
   it('persists a heartbeat timeout edit independently of the interval', async () => {
@@ -1414,7 +1540,7 @@ describe('edit dialogs', () => {
     expect(configuration).toHaveProperty('language', undefined)
   })
 
-  it('saves an "Other language" only once the user has typed one', async () => {
+  it('saves an "Other language" after editing and leaving the field', async () => {
     const user = userEvent.setup()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="advanced" />)
 
@@ -1430,6 +1556,9 @@ describe('edit dialogs', () => {
     expect(screen.getByLabelText('Custom reply language')).toHaveValue('Deutsch')
     await user.clear(input)
     await user.type(input, 'Svenska')
+    await act(() => new Promise((resolve) => setTimeout(resolve, 600)))
+    expect(updateAgentMock).not.toHaveBeenCalled()
+    fireEvent.blur(input)
 
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { configuration: { language: 'Svenska' } } })
@@ -1558,13 +1687,19 @@ describe('edit dialogs', () => {
     })
   })
 
-  it('polishes agent instructions and auto-saves the polished value', async () => {
+  it('keeps Agent prompt undo after saving and leaving the prompt page', async () => {
+    const user = userEvent.setup()
     fetchGenerateMock.mockResolvedValue('Polished agent instructions')
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="prompt" />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'library.config.agent.prompt.block.instructions' }))
     fireEvent.click(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON }))
 
-    await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished agent instructions'))
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'library.config.agent.prompt.instructions_label' })).toHaveValue(
+        'Polished agent instructions'
+      )
+    )
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.any(String),
       content: 'Original instructions',
@@ -1578,6 +1713,14 @@ describe('edit dialogs', () => {
         body: expect.objectContaining({ instructions: 'Polished agent instructions' })
       })
     )
+    await back(user)
+    await back(user)
+    await openSubPage(user, 'System Prompt')
+    await user.click(screen.getByRole('button', { name: 'library.config.agent.prompt.block.instructions' }))
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { instructions: 'Original instructions' } })
+    )
   })
 
   it('generates agent instructions from the agent name when instructions are blank', async () => {
@@ -1586,6 +1729,7 @@ describe('edit dialogs', () => {
       <AgentEditDialog open resource={{ ...AGENT, instructions: '' }} onOpenChange={vi.fn()} initialTab="prompt" />
     )
 
+    fireEvent.click(screen.getByRole('button', { name: 'library.config.agent.prompt.block.instructions' }))
     const generateButton = screen.getByRole('button', { name: GENERATE_PROMPT_BUTTON })
     expect(generateButton).toBeEnabled()
     fireEvent.click(generateButton)
@@ -1600,7 +1744,9 @@ describe('edit dialogs', () => {
         })
       )
     )
-    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated agent instructions')
+    expect(screen.getByRole('textbox', { name: 'library.config.agent.prompt.instructions_label' })).toHaveValue(
+      'Generated agent instructions'
+    )
   })
 
   it('allows closing and page navigation while an agent prompt action is in flight', async () => {
@@ -1608,8 +1754,10 @@ describe('edit dialogs', () => {
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} initialTab="prompt" />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'library.config.agent.prompt.block.instructions' }))
     fireEvent.click(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON }))
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
     fireEvent.click(screen.getByRole('button', { name: 'Back' }))
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
@@ -1717,6 +1865,34 @@ describe('edit dialogs', () => {
     fireEvent.click(overrideSwitch)
 
     expect(await screen.findByLabelText('Tool-output truncation threshold')).toBeInTheDocument()
+  })
+
+  it('restores the same custom context settings after turning them off and reopening the page', async () => {
+    const user = userEvent.setup()
+    const contextSettings = {
+      truncateThreshold: 8000,
+      compress: { enabled: false, modelId: 'provider::compression', thresholdPercent: 67 }
+    }
+    render(
+      <AssistantEditDialog
+        open
+        resource={{ ...ASSISTANT, settings: { ...ASSISTANT.settings, contextSettings } }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    await openSubPage(user, 'Custom context')
+    await user.click(screen.getByRole('switch', { name: 'Customize context management' }))
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { contextSettings: null } } })
+    )
+    await back(user)
+    await openSubPage(user, 'Custom context')
+    await user.click(screen.getByRole('switch', { name: 'Customize context management' }))
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: { settings: { contextSettings } } })
+    )
   })
 
   // The compression trigger is a three-state override: empty means inherit, and the
@@ -1849,16 +2025,23 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('polishes and restores assistant prompts through the shared action', async () => {
-    fetchGenerateMock.mockResolvedValueOnce('Polished assistant prompt')
+  it('finishes polishing off-page and restores the Assistant prompt when returning', async () => {
+    const user = userEvent.setup()
+    const generation = Promise.withResolvers<string>()
+    fetchGenerateMock.mockReturnValueOnce(generation.promise)
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} initialTab="prompt" />)
 
     await expectVariablesHelpOnOpen()
     const polishButton = screen.getByRole('button', { name: POLISH_PROMPT_BUTTON })
 
-    fireEvent.click(polishButton)
-
-    await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished assistant prompt'))
+    await user.click(polishButton)
+    await back(user)
+    generation.resolve('Polished assistant prompt')
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({ body: { prompt: 'Polished assistant prompt' } })
+    )
+    await openSubPage(user, 'System Prompt')
+    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished assistant prompt')
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.any(String),
       content: 'Original prompt',
@@ -2075,7 +2258,9 @@ describe('edit dialogs', () => {
                 { id: 't1', status: 'active' },
                 { id: 't2', status: 'paused' },
                 { id: 't3', status: 'completed' }
-              ]
+              ],
+              total: 3,
+              activeTotal: 1
             })
           : path === '/mcp-servers'
             ? {
@@ -2106,7 +2291,7 @@ describe('edit dialogs', () => {
     }
     const withKnowledge = toolCount()
     expect(withKnowledge.on).toBe(withKnowledge.total - 1)
-    expect(screen.getByRole('button', { name: '技能: Enabled 2 / 3' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '技能: Enabled 1 / 3' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Knowledge: Linked 1 / 2' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'MCP servers: Enabled 1 / 2' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Channels: Enabled 1 / 2' })).toBeInTheDocument()
@@ -2118,6 +2303,28 @@ describe('edit dialogs', () => {
     await user.click(screen.getByRole('switch', { name: 'Knowledge One' }))
     await back(user)
     expect(toolCount().total).toBeLessThan(withKnowledge.total)
+  })
+
+  // Catches a request queued in this window, which a detached window's main-window composer never receives.
+  it('hands Create with Agent to the conversation through main, with the request as its draft', async () => {
+    ipcRequestMock.mockImplementation(async (route: string) =>
+      route === 'ai.agent.session.reuse_or_create'
+        ? { session: { id: 'session-1', name: 'Session' }, deletedDuplicateSessionIds: [] }
+        : undefined
+    )
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="tasks" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create with Agent' }))
+
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith(
+        'navigation.focus_or_open_conversation',
+        expect.objectContaining({
+          target: { conversationType: 'agent', conversationId: 'session-1' },
+          draft: expect.objectContaining({ text: 'chat.profile_pane.tasks.new_prompt' })
+        })
+      )
+    )
   })
 
   // AC4: an emptied Agent name says it is required and is never sent.
@@ -2483,7 +2690,7 @@ describe('edit dialogs', () => {
     expect(screen.getByLabelText('Name')).toHaveValue('Draft Agent')
   })
 
-  it('shows an auto-save error and still allows the dialog to close', async () => {
+  it('lets the user explicitly discard after a background auto-save fails', async () => {
     updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
     const user = userEvent.setup()
@@ -2498,6 +2705,8 @@ describe('edit dialogs', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
 
     await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    await user.click(await screen.findByRole('button', { name: 'Discard changes' }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
@@ -2576,8 +2785,11 @@ describe('edit dialogs', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
     const saveAttemptsAfterFailure = updateAssistantMock.mock.calls.length
 
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Discard unsaved changes?' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Close' }))
-    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    await user.click(await screen.findByRole('button', { name: 'Discard changes' }))
 
     expect(toast.error).toHaveBeenCalledTimes(2)
     expect(updateAssistantMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
@@ -2681,7 +2893,8 @@ describe('edit dialogs', () => {
     const saveAttemptsAfterFailure = updateAgentMock.mock.calls.length
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard changes' }))
 
     expect(toast.error).toHaveBeenCalledTimes(2)
     expect(updateAgentMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
@@ -2747,13 +2960,13 @@ describe('Agent configuration memory', () => {
     const user = userEvent.setup()
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: 'Memory' }))
-    await user.click(await screen.findByRole('button', { name: 'Edit' }))
-    const editor = screen.getByRole('textbox', { name: 'Edit SOUL.md' })
+    await user.click(await screen.findByRole('button', { name: 'Persona' }))
+    const editor = await screen.findByRole('textbox', { name: 'Edit SOUL.md' })
     await user.clear(editor)
     await user.type(editor, 'Updated persona')
     expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'agent.memory.write')).toEqual([])
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Edit SOUL.md' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument())
     expect(ipcRequestMock).toHaveBeenCalledWith('agent.memory.write', {
       agentId: AGENT.id,
       key: 'soul',
@@ -2761,40 +2974,162 @@ describe('Agent configuration memory', () => {
       expectedVersion: 'v1'
     })
     expect(updateAgentMock).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('tab', { name: 'Event log' }))
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    await user.click(await screen.findByRole('button', { name: /^Event log/ }))
+    expect(screen.queryByRole('textbox', { name: 'Edit JOURNAL.jsonl' })).not.toBeInTheDocument()
     expect(screen.getByText('{"event":"remembered"}')).toBeVisible()
   })
 
-  it('keeps copy and folder actions available through the memory menu', async () => {
+  // Catches the identity page of a Pi Durable System Prompt offering a second place to edit the memory files.
+  it('shows the identity block read-only and sends its edits to the Memory page', async () => {
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'agent.system_prompt.preview')
+        return {
+          blocks: [
+            { key: 'agent_identity', kind: 'live', text: '<soul>Original persona</soul>' },
+            { key: 'instructions', kind: 'instructions', text: AGENT_INSTRUCTIONS_SLOT }
+          ]
+        }
+      if (route === 'agent.memory.read') return { directory: '/agents/agent-1', files }
+      return undefined
+    })
+    const user = userEvent.setup()
+    render(
+      <AgentEditDialog open resource={{ ...AGENT, type: 'pi-durable' }} onOpenChange={vi.fn()} initialTab="prompt" />
+    )
+    await user.click(
+      await screen.findByRole('button', { name: /^library\.config\.agent\.prompt\.block\.agent_identity$/ })
+    )
+
+    expect(await screen.findByText('<soul>Original persona</soul>')).toBeVisible()
+    expect(screen.queryByRole('textbox', { name: 'Edit SOUL.md' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'library.config.agent.prompt.edit_in_memory' }))
+    expect(await screen.findByRole('button', { name: 'Persona' })).toBeVisible()
+    expect(screen.getByRole('button', { name: /^Event log/ })).toBeVisible()
+  })
+
+  it('shows refresh and open folder as buttons on the memory file list', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="memory" />)
+    await screen.findByRole('button', { name: 'Persona' })
+    const reads = ipcRequestMock.mock.calls.filter(([route]) => route === 'agent.memory.read').length
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    await waitFor(() =>
+      expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'agent.memory.read').length).toBe(reads + 1)
+    )
+    await user.click(screen.getByRole('button', { name: 'Open folder' }))
+    expect(ipcRequestMock).toHaveBeenCalledWith('agent.memory.open_folder', { agentId: AGENT.id })
+    expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
+  })
+
+  it('shows copy and folder actions as buttons on a memory file page', async () => {
     const user = userEvent.setup()
     const writeClipboard = vi.spyOn(navigator.clipboard, 'writeText')
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="memory" />)
-    await screen.findByRole('tab', { name: 'Persona' })
-    await user.click(screen.getByRole('button', { name: 'More' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Copy content' }))
+    await user.click(await screen.findByRole('button', { name: 'Persona' }))
+    await user.click(screen.getByRole('button', { name: 'Copy content' }))
     expect(writeClipboard).toHaveBeenCalledWith('Original persona')
-    await user.click(screen.getByRole('button', { name: 'More' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Open folder' }))
+    await user.click(screen.getByRole('button', { name: 'Open folder' }))
     expect(ipcRequestMock).toHaveBeenCalledWith('agent.memory.open_folder', { agentId: AGENT.id })
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
     writeClipboard.mockRestore()
   })
 
-  // AC11: catches losing an unsaved memory draft when switching files, going back, or closing configuration.
-  it.each(['file', 'back', 'close'] as const)(
+  // Catches a Refresh that read the file before a Save and resolves after it, putting the old revision back.
+  it('keeps the saved revision when a refresh started before the save resolves after it', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="memory" />)
+    await user.click(await screen.findByRole('button', { name: 'Persona' }))
+    const editor = await screen.findByRole('textbox', { name: 'Edit SOUL.md' })
+    await user.clear(editor)
+    await user.type(editor, 'Saved persona')
+
+    const staleRead = createDeferred<{ directory: string; files: typeof files }>()
+    const respond = ipcRequestMock.getMockImplementation()!
+    ipcRequestMock.mockImplementation(async (route: string, input: unknown) => {
+      if (route !== 'agent.memory.read') return respond(route, input)
+      ipcRequestMock.mockImplementation(respond)
+      return staleRead.promise
+    })
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument())
+
+    await act(async () => staleRead.resolve({ directory: '/agents/agent-1', files }))
+    expect(screen.getByRole('textbox', { name: 'Edit SOUL.md' })).toHaveValue('Saved persona')
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled()
+
+    await user.type(screen.getByRole('textbox', { name: 'Edit SOUL.md' }), '!')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenLastCalledWith('agent.memory.write', {
+        agentId: AGENT.id,
+        key: 'soul',
+        content: 'Saved persona!',
+        expectedVersion: 'v2'
+      })
+    )
+  })
+
+  // Catches Save submitting a draft the write route rejects for length, which only surfaced as a generic failure.
+  it('blocks saving a draft longer than the write limit and says why', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="memory" />)
+    await user.click(await screen.findByRole('button', { name: 'Persona' }))
+    const editor = await screen.findByRole('textbox', { name: 'Edit SOUL.md' })
+
+    fireEvent.change(editor, { target: { value: 'a'.repeat(1_000_001) } })
+    expect(screen.getByRole('alert')).toHaveTextContent('1,000,001 / 1,000,000')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+
+    fireEvent.change(editor, { target: { value: 'a'.repeat(1_000_000) } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+  })
+
+  // Catches Copy putting the saved revision on the clipboard while the editor shows an unsaved draft.
+  it('copies the text the editor is showing, including a draft of a new file', async () => {
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'agent.memory.read')
+        return {
+          directory: '/agents/agent-1',
+          files: files.map((file) =>
+            file.key === 'user' ? { ...file, exists: false, size: 0, content: '', version: 'missing' } : file
+          )
+        }
+      return undefined
+    })
+    const user = userEvent.setup()
+    const writeClipboard = vi.spyOn(navigator.clipboard, 'writeText')
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Memory' }))
+    await user.click(await screen.findByRole('button', { name: 'Persona' }))
+    await user.type(await screen.findByRole('textbox', { name: 'Edit SOUL.md' }), ' draft')
+    await user.click(screen.getByRole('button', { name: 'Copy content' }))
+    expect(writeClipboard).toHaveBeenLastCalledWith('Original persona draft')
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    await user.click(await screen.findByRole('button', { name: 'User profile' }))
+    expect(screen.getByRole('button', { name: 'Copy content' })).toBeDisabled()
+    await user.type(await screen.findByRole('textbox', { name: 'Edit USER.md' }), 'New profile')
+    await user.click(screen.getByRole('button', { name: 'Copy content' }))
+    expect(writeClipboard).toHaveBeenLastCalledWith('New profile')
+    writeClipboard.mockRestore()
+  })
+
+  // AC11: catches losing an unsaved memory draft when going back to the file list or closing configuration.
+  it.each(['back', 'close'] as const)(
     'protects memory drafts on %s and leaves only after explicit discard',
     async (destination) => {
       const user = userEvent.setup()
       render(<Harness />)
       await user.click(screen.getByRole('button', { name: 'Memory' }))
-      await user.click(await screen.findByRole('button', { name: 'Edit' }))
-      await user.type(screen.getByRole('textbox', { name: 'Edit SOUL.md' }), ' unsaved')
+      await user.click(await screen.findByRole('button', { name: 'Persona' }))
+      await user.type(await screen.findByRole('textbox', { name: 'Edit SOUL.md' }), ' unsaved')
       const leave = () =>
-        destination === 'file'
-          ? user.click(screen.getByRole('tab', { name: 'User profile' }))
-          : destination === 'back'
-            ? user.click(screen.getByRole('button', { name: 'Back' }))
-            : user.keyboard('{Escape}')
+        destination === 'back' ? user.click(screen.getByRole('button', { name: 'Back' })) : user.keyboard('{Escape}')
       await leave()
       const confirmation = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })
       await user.click(within(confirmation).getByRole('button', { name: 'Cancel' }))
@@ -2806,9 +3141,7 @@ describe('Agent configuration memory', () => {
         })
       )
       await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Edit SOUL.md' })).not.toBeInTheDocument())
-      if (destination === 'back') expect(screen.getByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
-      else if (destination === 'file')
-        expect(screen.getByRole('tab', { name: 'User profile' })).toHaveAttribute('aria-selected', 'true')
+      if (destination === 'back') expect(screen.getByRole('button', { name: 'User profile' })).toBeInTheDocument()
       else expect(screen.queryByRole('dialog', { name: 'Edit Agent' })).not.toBeInTheDocument()
       expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'agent.memory.write')).toEqual([])
     }

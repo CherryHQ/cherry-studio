@@ -136,12 +136,24 @@ export function ProfileStartersSection({
   )
 }
 
-type ProfilePaneTab = 'activity' | 'outputs'
+type ProfilePaneTab = 'activity' | 'outputs' | 'channels'
 
-/** The Activity and Outputs tabs below the header; Activity shows first. */
-export function ProfilePaneTabs({ activity, outputs }: { activity: ReactNode; outputs: ReactNode }) {
+export function ProfilePaneTabs({
+  activity,
+  outputs,
+  channels
+}: {
+  activity: ReactNode
+  outputs: ReactNode
+  channels?: ReactNode
+}) {
   const { t } = useTranslation()
   const [tab, setTab] = useState<ProfilePaneTab>('activity')
+  const options: { value: ProfilePaneTab; label: string }[] = [
+    { value: 'activity', label: t('chat.profile_pane.tabs.activity') },
+    { value: 'outputs', label: t('chat.profile_pane.tabs.outputs') }
+  ]
+  if (channels) options.push({ value: 'channels', label: t('settings.channels.title') })
 
   return (
     <>
@@ -151,12 +163,9 @@ export function ProfilePaneTabs({ activity, outputs }: { activity: ReactNode; ou
         aria-label={t('chat.profile_pane.tabs.label')}
         value={tab}
         onValueChange={setTab}
-        options={[
-          { value: 'activity', label: t('chat.profile_pane.tabs.activity') },
-          { value: 'outputs', label: t('chat.profile_pane.tabs.outputs') }
-        ]}
+        options={options}
       />
-      {tab === 'activity' ? activity : outputs}
+      {{ activity, outputs, channels }[tab]}
     </>
   )
 }

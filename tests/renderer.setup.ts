@@ -584,6 +584,7 @@ vi.mock('@cherrystudio/ui', async () => {
     DialogContent: ({
       children,
       closeOnOverlayClick: _closeOnOverlayClick,
+      guardDismiss: _guardDismiss,
       onEscapeKeyDown: _onEscapeKeyDown,
       showCloseButton = true,
       size,

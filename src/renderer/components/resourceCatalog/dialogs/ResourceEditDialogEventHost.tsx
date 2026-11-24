@@ -17,9 +17,7 @@ export function openResourceEditDialog(target: ResourceEditDialogTarget) {
 }
 
 /**
- * Listens for {@link openResourceEditDialog} requests and hosts the edit dialog. Mount one per
- * surface that should be able to open it (e.g. each composer variant); it renders nothing until a
- * request arrives.
+ * Mount once in the conversation page so requests keep working as composer modes change.
  */
 export function ResourceEditDialogEventHost() {
   const [target, setTarget] = useState<ResourceEditDialogTarget | null>(null)

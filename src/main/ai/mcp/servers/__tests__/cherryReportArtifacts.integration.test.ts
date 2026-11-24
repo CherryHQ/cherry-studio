@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -7,10 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
-import { PastOutputsBackfillSeeder } from '@data/db/seeding/seeders/PastOutputsBackfillSeeder'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { artifactService } from '@data/services/ArtifactService'
+import { backfillPastOutputs } from '@main/ai/agents/ArtifactBackfillService'
 
 import { createCherryToolsServer } from '../cherryBuiltinTools'
 import { callBuiltinTool, toolText } from './builtinMcpClient'
@@ -52,7 +52,7 @@ describe('report_artifacts indexes the Agent outputs', () => {
     await rm(workspacePath, { recursive: true, force: true })
   })
 
-  it('records each reported file with its absolute path, title and kind', async () => {
+  it('indexes the declarations without reading file metadata', async () => {
     await mkdir(path.join(workspacePath, 'out'))
     await writeFile(path.join(workspacePath, 'out', 'report.html'), '<h1>Report</h1>')
     await writeFile(path.join(workspacePath, 'chart.png'), Buffer.alloc(2048))
@@ -77,8 +77,29 @@ describe('report_artifacts indexes the Agent outputs', () => {
       sourceName: 'Weekly review'
     })
     expect(byTitle['chart.png']).toMatchObject({ kind: 'media', size: undefined })
-    // A deliverable that is not on disk is still listed; the pane shows it as unavailable.
     expect(byTitle['missing.csv']).toMatchObject({ kind: 'file', size: undefined })
+  })
+
+  it('excludes paths outside the workspace without following links in reported declarations', async () => {
+    const outside = await mkdtemp(path.join(os.tmpdir(), 'cherry-outside-artifacts-'))
+    try {
+      const outsideFile = path.join(await realpath(outside), 'private.md')
+      await writeFile(outsideFile, 'not a deliverable')
+      await symlink(outsideFile, path.join(workspacePath, 'escape.md'))
+      await writeFile(path.join(workspacePath, 'inside.md'), 'deliverable')
+
+      const result = await callBuiltinTool(createServer, 'report_artifacts', {
+        artifacts: [{ path: 'escape.md' }, { path: outsideFile }, { path: 'inside.md' }]
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      expect(artifactService.list({ agentId: 'reporter' }).items).toMatchObject([
+        { title: 'inside.md', size: undefined },
+        { title: 'escape.md', size: undefined }
+      ])
+    } finally {
+      await rm(outside, { recursive: true, force: true })
+    }
   })
 
   it('still confirms the report when the outputs cannot be indexed', async () => {
@@ -115,16 +136,20 @@ describe('report_artifacts indexes the Agent outputs', () => {
         .run()
     }
 
-    it('indexes deliverables reported before outputs were indexed, sized from the files still on disk', async () => {
+    it('indexes historical declarations without reading metadata from disk', async () => {
       await writeFile(path.join(workspacePath, 'summary.md'), '# Summary')
       pastReport([{ path: 'summary.md', description: 'Summary' }, { path: 'deleted.pdf' }])
 
-      new PastOutputsBackfillSeeder().run(dbh.db)
+      await backfillPastOutputs()
 
       const byTitle = Object.fromEntries(
         artifactService.list({ agentId: 'reporter' }).items.map((item) => [item.title, item])
       )
-      expect(byTitle.Summary).toMatchObject({ path: path.join(workspacePath, 'summary.md'), kind: 'page', size: 9 })
+      expect(byTitle.Summary).toMatchObject({
+        path: path.join(workspacePath, 'summary.md'),
+        kind: 'page',
+        size: undefined
+      })
       expect(byTitle['deleted.pdf']).toMatchObject({ kind: 'file', size: undefined })
     })
   })

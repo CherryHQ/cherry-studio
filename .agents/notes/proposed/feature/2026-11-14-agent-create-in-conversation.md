@@ -75,7 +75,7 @@ No new list tool is added. The existing read-only `agent_list` also returns each
 
 Every create and update tool asks for approval, even under Full Access.
 
-For `update_agent` and `config_update`, main computes the change without writing anything, and the approval card shows one current → new line per changed field. Main reads the call from the pending approval itself, so the preview matches what approving runs. When it cannot build a preview, for example for a refused `bypassPermissions`, the card shows the raw arguments instead, and the tool reports the refusal when it runs.
+Main prepares the creation or update plan when presenting approval. The creation plan fixes the resolved model. The update plan fixes the write and the Agent version. Desktop and remote decisions share one settlement path. A missing or outdated plan refuses the write and lets the model request approval again. The update transaction checks the version again before it writes.
 
 ### Default model
 
@@ -87,7 +87,7 @@ When the call gives no `model`, the tools use:
 
 ### Runtime prompt note
 
-Agents that have the create or settings tools get one short line in their prompt: they can create Agents and Assistants and change their own settings, each with user approval.
+The system prompt includes configuration instructions for the tools available in the session. The shared Agent prompt describes when to create or change a resource. Each runtime provides the callable tool references, and argument hints come from the model-facing schemas. Creating or changing a resource requires approval.
 
 ### Identity card
 
