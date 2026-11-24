@@ -64,7 +64,7 @@ import {
   useMessageRenderConfig
 } from '../MessageListProvider'
 import {
-  buildLocalWrittenArtifactResponses,
+  getLocalWrittenFilePaths,
   isCherrySessionToolResponse,
   isReportArtifactsToolResponse,
   MessageReportArtifacts,
@@ -1050,18 +1050,6 @@ function buildToolRenderItems(
   })
 }
 
-function getReportArtifactToolResponses(entries: readonly PartEntry[], messageId: string) {
-  const explicit = entries.flatMap((entry) => {
-    const toolResponse = getCachedToolProjection(entry.part, `${messageId}-part-${entry.index}`).toolResponse
-    return toolResponse && isReportArtifactsToolResponse(toolResponse) ? [toolResponse] : []
-  })
-  if (explicit.length > 0) return explicit
-  return buildLocalWrittenArtifactResponses(
-    entries.map((entry) => entry.part),
-    messageId
-  )
-}
-
 function isReportArtifactEntry(entry: PartEntry, messageId: string): boolean {
   const toolResponse = getCachedToolProjection(entry.part, `${messageId}-part-${entry.index}`).toolResponse
   return !!toolResponse && isReportArtifactsToolResponse(toolResponse)
@@ -1746,11 +1734,14 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     })
   }, [messageParts])
   const placeholderStatus = useMemo(() => getProcessingPlaceholderStatus(partEntries), [partEntries])
-  const nextReportArtifactToolResponses = useMemo(
-    () => getReportArtifactToolResponses(partEntries, message.id),
-    [partEntries, message.id]
-  )
-  const reportArtifactToolResponses = useStableItemArray(nextReportArtifactToolResponses)
+  const { reportArtifactToolResponses, changedPaths } = useMemo(() => {
+    const reportArtifactToolResponses = partEntries.flatMap((entry) => {
+      const toolResponse = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse
+      return toolResponse && isReportArtifactsToolResponse(toolResponse) ? [toolResponse] : []
+    })
+    const changedPaths = getLocalWrittenFilePaths(partEntries.map(({ part }) => part))
+    return { reportArtifactToolResponses, changedPaths }
+  }, [partEntries, message.id])
   const sessionToolResponses = useMemo(
     () =>
       isActiveTurnProcessing
@@ -1891,7 +1882,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     ]
   )
   const canRenderReportArtifacts =
-    !isActiveTurnProcessing && unsettledTextPlayoutPartIds.size === 0 && reportArtifactToolResponses.length > 0
+    !isActiveTurnProcessing &&
+    unsettledTextPlayoutPartIds.size === 0 &&
+    (reportArtifactToolResponses.length > 0 || changedPaths.length > 0)
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder.
@@ -1951,7 +1944,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       )}
       {canRenderReportArtifacts && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={false} animation="fade">
-          <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
+          <MessageReportArtifacts toolResponses={reportArtifactToolResponses} changedPaths={changedPaths} />
         </AnimatedBlockWrapper>
       )}
       {subagentEntries.length > 0 && (

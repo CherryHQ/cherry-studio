@@ -69,7 +69,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
-import { getPermissionModeCards } from '@renderer/utils/agent'
 import {
   classifyNativePermissionMode,
   findLocalDefaultNonPlanOption,
@@ -325,6 +324,13 @@ const AgentComposerRoot = ({
         workspaceKey,
         agentId,
         shouldValidateSkills: false
+      }
+    }
+    if (agent?.type === 'local') {
+      draft = {
+        ...draft,
+        ...excludeComposerDraftTokens(draft, (token) => token.kind === 'skill' || token.kind === 'knowledge'),
+        knowledgeBaseIds: []
       }
     }
     initialDraftRef.current = { instanceKey: scopedComposerInstanceKey, draft }
@@ -666,15 +672,18 @@ const AgentComposerInner = ({
   const activeServiceTierOverride = serviceTierOverride?.agentId === agent?.id ? serviceTierOverride : null
   const serviceTier = activeServiceTierOverride?.value ?? canonicalServiceTier
   const [fastMode, setFastMode] = useState(false)
+  const capabilities = agent ? AGENT_RUNTIME_CAPABILITIES[agent.type] : undefined
+  const supportsCherrySkills = capabilities?.skills !== false
+  const supportsCherryMcp = capabilities?.mcp !== false
+  const supportsKnowledgeBases = capabilities?.knowledgeBases !== false
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
-    getCachedSkillTokens(initialDraft.tokens).map(getSkillFromCachedToken)
+    supportsCherrySkills ? getCachedSkillTokens(initialDraft.tokens).map(getSkillFromCachedToken) : []
   )
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
-  const usesCherryPermissionMode = !!agent && agent.type !== 'local'
-  const supportsPlan =
-    usesCherryPermissionMode && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
+  const usesCherryPermissionMode = (capabilities?.permissionModes.length ?? 0) > 0
+  const supportsPlan = capabilities?.permissionModes.some((mode) => mode === 'plan') ?? false
   const localPresetId = agent?.configuration?.localRuntime?.presetId
   const localMode = agent?.type === 'local' ? localOptions?.mode : undefined
   const localExtraOptions = useMemo(() => {
@@ -708,7 +717,7 @@ const AgentComposerInner = ({
       lastNonPlanLocalModeRef.current = { sessionId, value: localPermissionSelection.currentValue }
     }
   }, [localPermissionSelection, localPlanOption, sessionId])
-  const nativeFollowUp = !!agent && AGENT_RUNTIME_CAPABILITIES[agent.type].nativeFollowUp
+  const nativeFollowUp = capabilities?.nativeFollowUp ?? false
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -787,22 +796,27 @@ const AgentComposerInner = ({
     layerActive && quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
   )
   const skillsDataEnabled =
-    selectedSkills.length > 0 ||
-    getAgentComposerTokenIds(draftTokens, 'skill').size > 0 ||
-    rootPanelVisible ||
-    skillsPanelVisible
+    supportsCherrySkills &&
+    (selectedSkills.length > 0 ||
+      getAgentComposerTokenIds(draftTokens, 'skill').size > 0 ||
+      rootPanelVisible ||
+      skillsPanelVisible)
   const knowledgeBasesDataEnabled =
-    selectedKnowledgeBases.length > 0 ||
-    getAgentComposerTokenIds(draftTokens, 'knowledge').size > 0 ||
-    rootPanelVisible ||
-    knowledgeBasePanelVisible
+    supportsKnowledgeBases &&
+    (selectedKnowledgeBases.length > 0 ||
+      getAgentComposerTokenIds(draftTokens, 'knowledge').size > 0 ||
+      rootPanelVisible ||
+      knowledgeBasePanelVisible)
   const {
     skills: availableSkills,
     loading: isAvailableSkillsLoading,
     error: availableSkillsError,
     refresh: refreshAvailableSkills
   } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled })
-  const remoteSkillCatalogs = useMcpSkills(agent?.mcps ?? [], rootPanelVisible || skillsPanelVisible)
+  const remoteSkillCatalogs = useMcpSkills(
+    agent?.mcps ?? [],
+    supportsCherryMcp && (rootPanelVisible || skillsPanelVisible)
+  )
   const skillByFilename = useMemo(
     () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
     [availableSkills]
@@ -935,13 +949,13 @@ const AgentComposerInner = ({
     knowledgeBaseIdsRef,
     syncKnowledgeBaseIds
   } = useComposerKnowledgeBaseScope({
-    configuredKnowledgeBaseIds: agent?.knowledgeBaseIds,
+    configuredKnowledgeBaseIds: supportsKnowledgeBases ? agent?.knowledgeBaseIds : undefined,
     allKnowledgeBases,
     isKnowledgeBasesLoading,
     scopeKey: selectedKnowledgeBasesScopeKey,
     selectedKnowledgeBases,
     setSelectedKnowledgeBases,
-    initialKnowledgeBaseIds: initialDraft.knowledgeBaseIds,
+    initialKnowledgeBaseIds: supportsKnowledgeBases ? initialDraft.knowledgeBaseIds : [],
     // The tool provider above is keyed by agent + session + workspace, so this hook remounts with the scope.
     remountsOnScopeChange: true
   })
@@ -1178,8 +1192,11 @@ const AgentComposerInner = ({
   }, [refreshAvailableSkills, skillItems, skillLabel])
 
   useEffect(
-    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction]),
-    [skillManageFooterAction, skillsLauncher, toolsRegistry]
+    () =>
+      supportsCherrySkills
+        ? toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction])
+        : undefined,
+    [skillManageFooterAction, skillsLauncher, supportsCherrySkills, toolsRegistry]
   )
 
   // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
@@ -1197,10 +1214,11 @@ const AgentComposerInner = ({
   )
 
   const handleRootPanelOpen = useCallback(() => {
+    if (!supportsCherrySkills) return
     void refreshAvailableSkills().catch((error) => {
       logger.warn('Failed to refresh available skills when opening root panel', { error })
     })
-  }, [refreshAvailableSkills])
+  }, [refreshAvailableSkills, supportsCherrySkills])
 
   useComposerQuoteInsertion(actionsRef)
   useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
@@ -1473,7 +1491,12 @@ const AgentComposerInner = ({
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
-      const payload = buildComposerQueuedPayload(draft, {
+      const supportedDraft = excludeComposerDraftTokens(
+        draft,
+        (token) =>
+          (!supportsCherrySkills && token.kind === 'skill') || (!supportsKnowledgeBases && token.kind === 'knowledge')
+      )
+      const payload = buildComposerQueuedPayload(supportedDraft, {
         files,
         fileTokenId: agentComposerTokenId.file,
         extra: () => ({
@@ -1484,7 +1507,7 @@ const AgentComposerInner = ({
       })
       if (!payload) return null
 
-      const tokenIds = getAgentComposerTokenIds(draft.tokens)
+      const tokenIds = getAgentComposerTokenIds(supportedDraft.tokens)
       const knowledgeBaseIds = selectedKnowledgeBasesInScope
         .filter((base) => tokenIds.has(agentComposerTokenId.knowledge(base)))
         .map((base) => base.id)
@@ -1493,7 +1516,16 @@ const AgentComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [fastMode, files, model, reasoningEffort, selectedKnowledgeBasesInScope, serviceTier]
+    [
+      fastMode,
+      files,
+      model,
+      reasoningEffort,
+      selectedKnowledgeBasesInScope,
+      serviceTier,
+      supportsCherrySkills,
+      supportsKnowledgeBases
+    ]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1518,7 +1550,12 @@ const AgentComposerInner = ({
             body: {
               agentId,
               sessionId,
-              userMessageParts: [...payload.userMessageParts, ...fileParts],
+              userMessageParts: [
+                ...(supportsKnowledgeBases
+                  ? payload.userMessageParts
+                  : withKnowledgeScopePart(payload.userMessageParts, [])),
+                ...fileParts
+              ],
               reasoningEffort: payload.reasoningEffort,
               serviceTier: payload.serviceTier,
               ...(payload.fastMode ? { fastMode: true } : {}),
@@ -1546,7 +1583,8 @@ const AgentComposerInner = ({
       launchOptions,
       saveHistory,
       sessionId,
-      sessionTopicId
+      sessionTopicId,
+      supportsKnowledgeBases
     ]
   )
 
@@ -1824,7 +1862,12 @@ const AgentComposerInner = ({
         onResetPinnedIds={resetPinnedToolIds}
         isDefault={pinnedToolsAtDefault}
         customTools={toolbarCustomTools}
-        hiddenIds={showsPermissionModeToolbar ? undefined : ['permission-mode']}
+        hiddenIds={[
+          ...(showsPermissionModeToolbar ? [] : ['permission-mode']),
+          ...(supportsKnowledgeBases ? [] : ['knowledge-base']),
+          ...(supportsCherrySkills ? [] : ['skills']),
+          ...(supportsCherryMcp ? [] : [ComposerPanelSymbol.McpStatus])
+        ]}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
         isModelUnavailable={isModelUnavailable}
@@ -1841,6 +1884,9 @@ const AgentComposerInner = ({
       setCustomizeToolbarOpen,
       setPinnedToolIds,
       showsPermissionModeToolbar,
+      supportsCherryMcp,
+      supportsCherrySkills,
+      supportsKnowledgeBases,
       toolbarCustomTools
     ]
   )

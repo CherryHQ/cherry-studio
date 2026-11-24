@@ -619,6 +619,24 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ shouldAutoName: false }))
   })
 
+  it('rejects a local turn with a Cherry knowledge scope before saving messages', async () => {
+    runtimeDriverRegistry.register({ type: 'local', connect: vi.fn(), validateSession: mocks.runtimeValidateSession })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'local', model: null, configuration: {} })
+
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        openReq({
+          userMessageParts: [
+            { type: 'text', text: 'search the selected base' },
+            { type: 'data-knowledge-scope', data: { baseIds: ['base-1'] } }
+          ]
+        })
+      )
+    ).rejects.toThrow('knowledge bases are not supported by the agent runtime')
+    expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+  })
+
   it('rejects agent sessions without a registered runtime driver', async () => {
     runtimeDriverRegistry.clearForTest()
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'custom-runtime', model: 'anthropic::claude-sonnet' })

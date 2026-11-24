@@ -3,6 +3,7 @@ import * as toml from 'smol-toml'
 import { parseDocument } from 'yaml'
 
 import { t } from '@main/i18n'
+import { getEnvironmentValue } from '@main/utils/env'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
 import { POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
 
@@ -25,6 +26,32 @@ function tomlTable(value: unknown): toml.TomlTable {
   return value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)
     ? { ...(value as toml.TomlTable) }
     : {}
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
+}
+
+export function resolveClineProvider(config: Record<string, unknown> | undefined) {
+  const lastUsed = config?.lastUsedProvider
+  const id = typeof lastUsed === 'string' && lastUsed ? lastUsed : 'openai-compatible'
+  const entry = asRecord(asRecord(config?.providers)?.[id])
+  const legacy = id.startsWith('cherry-')
+  const settings = legacy ? entry : asRecord(entry?.settings)
+  const provider = typeof settings?.provider === 'string' && settings.provider ? settings.provider : id
+  return {
+    id,
+    provider,
+    settings,
+    managed: entry?.cherryManaged === true,
+    legacy
+  }
+}
+
+export function usesGlobalClineProfile(env: NodeJS.ProcessEnv, shellEnv: NodeJS.ProcessEnv): boolean {
+  return ['CLINE_DATA_DIR', 'CLINE_DIR', 'HOME', 'USERPROFILE'].every(
+    (key) => getEnvironmentValue(env, key) === getEnvironmentValue(shellEnv, key)
+  )
 }
 
 /** Changes only the native default, preserving credentials and unrelated settings. */
@@ -113,10 +140,8 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
       ]
       break
     case 'cline-providers': {
-      const lastUsed =
-        typeof config.lastUsedProvider === 'string' && config.lastUsedProvider ? config.lastUsedProvider : undefined
-      const activeProvider = lastUsed ?? 'openai-compatible'
-      updates = [[['providers', activeProvider, 'settings', 'model'], model]]
+      const { id, legacy } = resolveClineProvider(config)
+      updates = [[['providers', id, ...(legacy ? [] : ['settings']), 'model'], model]]
       break
     }
     case 'factory-settings':
@@ -188,21 +213,8 @@ export function readNativeModelConfig(target: CliConfigTarget, content: string):
   if (errors.length || !config || typeof config !== 'object' || Array.isArray(config))
     throw new Error(t('code_cli.model.invalid_config', { format: 'JSON' }))
   if (target === 'cline-providers') {
-    const providers =
-      config.providers && typeof config.providers === 'object' && !Array.isArray(config.providers)
-        ? (config.providers as Record<string, unknown>)
-        : undefined
-    const lastUsed =
-      typeof config.lastUsedProvider === 'string' && config.lastUsedProvider ? config.lastUsedProvider : undefined
-    const entry = (lastUsed ? providers?.[lastUsed] : undefined) ?? providers?.['openai-compatible']
-    const settings =
-      entry && typeof entry === 'object' && !Array.isArray(entry)
-        ? (entry as Record<string, unknown>).settings
-        : undefined
-    const model =
-      settings && typeof settings === 'object' && !Array.isArray(settings)
-        ? (settings as Record<string, unknown>).model
-        : undefined
+    const { settings } = resolveClineProvider(config)
+    const model = settings?.model
     return typeof model === 'string' && model ? model : undefined
   }
   if (target === 'snow-config') {

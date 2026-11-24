@@ -184,6 +184,18 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new Error('Invalid durable agent delivery message')
     }
 
+    const userMessageParts = deliveryMessage?.data.parts ?? req.userMessageParts ?? []
+    if (
+      !deliveryMessage &&
+      !AGENT_RUNTIME_CAPABILITIES[agent.type].knowledgeBases &&
+      userMessageParts.some((part) => part.type === 'data-knowledge-scope')
+    ) {
+      throw DataApiErrorFactory.invalidOperation(
+        'dispatch agent turn',
+        'knowledge bases are not supported by the agent runtime'
+      )
+    }
+
     const uniqueModelId: ExecutionId = providerUniqueModelId ?? `runtime:${agent.id}`
     const providerModel = providerUniqueModelId ? parseUniqueModelId(providerUniqueModelId) : undefined
     const modelName =
@@ -236,7 +248,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           : { nativeModel: { runtime: agent.configuration?.localRuntime?.protocol ?? 'local' } })
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
-      userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
+      userMessageParts,
       ...(deliveryMessage ? { deliveryMessage } : {}),
       shouldAutoNameInitialTurn
     }

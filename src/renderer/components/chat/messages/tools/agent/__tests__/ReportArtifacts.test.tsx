@@ -12,7 +12,7 @@ import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { MessageListProvider } from '../../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../../types'
 import {
-  buildLocalWrittenArtifactResponses,
+  getLocalWrittenFilePaths,
   getReportArtifactsViewModel,
   isReportArtifactsToolResponse,
   MessageReportArtifacts
@@ -439,154 +439,137 @@ it('keeps foreign artifact-named calls in the generic tool stream', () => {
   ).toBe(false)
 })
 
-describe('buildLocalWrittenArtifactResponses', () => {
+describe('getLocalWrittenFilePaths', () => {
   it('collects deduplicated completed written files across localAcpTool, ACP: Write, and Codex fileChange while skipping deletes and failures', () => {
-    const responses = buildLocalWrittenArtifactResponses(
-      [
-        {
-          type: 'dynamic-tool',
-          toolCallId: 'acp-edit',
-          toolName: 'Edit',
-          state: 'output-available',
-          input: {
-            localAcpTool: {
-              title: 'Edit HTML',
-              kind: 'edit',
-              status: 'completed',
-              locations: [{ path: 'out/pelican.html' }],
-              content: [{ type: 'diff', path: 'out/extra.css', newText: 'body{}' }]
-            }
-          },
-          output: {}
+    const paths = getLocalWrittenFilePaths([
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'acp-edit',
+        toolName: 'Edit',
+        state: 'output-available',
+        input: {
+          localAcpTool: {
+            title: 'Edit HTML',
+            kind: 'edit',
+            status: 'completed',
+            locations: [{ path: 'out/pelican.html' }],
+            content: [{ type: 'diff', path: 'out/extra.css', newText: 'body{}' }]
+          }
         },
-        {
-          type: 'dynamic-tool',
-          toolCallId: 'acp-write-dup',
-          toolName: 'ACP: Write',
-          state: 'output-available',
-          input: { path: 'out/pelican.html', content: '<html />' },
-          output: {}
+        output: {}
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'acp-write-dup',
+        toolName: 'ACP: Write',
+        state: 'output-available',
+        input: { path: 'out/pelican.html', content: '<html />' },
+        output: {}
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'acp-failed',
+        toolName: 'Edit',
+        state: 'output-available',
+        input: {
+          localAcpTool: {
+            title: 'Failed edit',
+            kind: 'edit',
+            status: 'failed',
+            locations: [{ path: 'out/failed.html' }]
+          }
         },
-        {
-          type: 'dynamic-tool',
-          toolCallId: 'acp-failed',
-          toolName: 'Edit',
-          state: 'output-available',
-          input: {
-            localAcpTool: {
-              title: 'Failed edit',
-              kind: 'edit',
-              status: 'failed',
-              locations: [{ path: 'out/failed.html' }]
-            }
-          },
-          output: {}
+        output: {}
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'codex-fc',
+        toolName: 'fileChange',
+        state: 'output-available',
+        input: {
+          changes: [
+            { path: 'src/created.ts', kind: { type: 'add' } },
+            { path: 'src/deleted.ts', kind: { type: 'delete' } },
+            { path: 'src/removed.ts', kind: 'delete' },
+            { path: 'src/updated.ts', kind: 'update' }
+          ]
         },
-        {
-          type: 'dynamic-tool',
-          toolCallId: 'codex-fc',
-          toolName: 'fileChange',
-          state: 'output-available',
-          input: {
-            changes: [
-              { path: 'src/created.ts', kind: { type: 'add' } },
-              { path: 'src/deleted.ts', kind: { type: 'delete' } },
-              { path: 'src/removed.ts', kind: 'delete' },
-              { path: 'src/updated.ts', kind: 'update' }
-            ]
-          },
-          output: { status: 'completed' }
-        },
-        {
-          type: 'dynamic-tool',
-          toolCallId: 'codex-declined',
-          toolName: 'fileChange',
-          state: 'output-available',
-          input: { changes: [{ path: 'src/declined.ts', kind: 'add' }] },
-          output: { status: 'declined' }
-        },
-        {
-          type: 'dynamic-tool',
-          toolCallId: 'pending-write',
-          toolName: 'ACP: Write',
-          state: 'input-available',
-          input: { path: 'out/in-progress.html' }
-        }
-      ] as any,
-      'msg-1'
-    )
+        output: { status: 'completed' }
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'codex-declined',
+        toolName: 'fileChange',
+        state: 'output-available',
+        input: { changes: [{ path: 'src/declined.ts', kind: 'add' }] },
+        output: { status: 'declined' }
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'pending-write',
+        toolName: 'ACP: Write',
+        state: 'input-available',
+        input: { path: 'out/in-progress.html' }
+      }
+    ] as any)
 
-    expect(responses).toHaveLength(1)
-    expect(getReportArtifactsViewModel(responses)?.artifacts).toEqual([
-      { path: 'out/extra.css', description: undefined },
-      { path: 'out/pelican.html', description: undefined },
-      { path: 'src/created.ts', description: undefined },
-      { path: 'src/updated.ts', description: undefined }
-    ])
+    expect(paths).toEqual(['out/extra.css', 'out/pelican.html', 'src/created.ts', 'src/updated.ts'])
   })
 
   it('extracts ACP rawInput fallback paths and local Claude Code writes while ignoring non-local or failed writes', () => {
-    const responses = buildLocalWrittenArtifactResponses(
-      [
-        {
-          type: 'dynamic-tool',
-          toolCallId: 'acp-raw-only',
-          toolName: 'Edit',
-          state: 'output-available',
-          input: {
-            localAcpTool: {
-              title: 'Edit HTML',
-              kind: 'edit',
-              status: 'completed',
-              rawInput: { TargetFile: 'out/raw-only.html' }
-            }
-          },
-          output: {}
+    const paths = getLocalWrittenFilePaths([
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'acp-raw-only',
+        toolName: 'Edit',
+        state: 'output-available',
+        input: {
+          localAcpTool: {
+            title: 'Edit HTML',
+            kind: 'edit',
+            status: 'completed',
+            rawInput: { TargetFile: 'out/raw-only.html' }
+          }
         },
-        {
-          type: 'dynamic-tool',
-          toolCallId: 'claude-write',
-          toolName: 'Write',
-          state: 'output-available',
-          input: { file_path: 'claude/index.html', content: '<h1>hi</h1>' },
-          output: { ok: true },
-          callProviderMetadata: { cherry: { localAgentProtocol: 'claude' } }
-        },
-        {
-          type: 'dynamic-tool',
-          toolCallId: 'claude-notebook',
-          toolName: 'NotebookEdit',
-          state: 'output-available',
-          input: { notebook_path: 'claude/analysis.ipynb' },
-          output: { ok: true },
-          providerMetadata: { cherry: { localAgentProtocol: 'claude' } }
-        },
-        {
-          type: 'dynamic-tool',
-          toolCallId: 'claude-failed',
-          toolName: 'Write',
-          state: 'output-available',
-          input: { file_path: 'claude/failed.html' },
-          output: { isError: true },
-          callProviderMetadata: { cherry: { localAgentProtocol: 'claude' } }
-        },
-        {
-          type: 'dynamic-tool',
-          toolCallId: 'non-local-write',
-          toolName: 'Write',
-          state: 'output-available',
-          input: { file_path: 'ignored/non-local.html' },
-          output: { ok: true }
-        }
-      ] as any,
-      'msg-2'
-    )
+        output: {}
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'claude-write',
+        toolName: 'Write',
+        state: 'output-available',
+        input: { file_path: 'claude/index.html', content: '<h1>hi</h1>' },
+        output: { ok: true },
+        callProviderMetadata: { cherry: { localAgentProtocol: 'claude' } }
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'claude-notebook',
+        toolName: 'NotebookEdit',
+        state: 'output-available',
+        input: { notebook_path: 'claude/analysis.ipynb' },
+        output: { ok: true },
+        providerMetadata: { cherry: { localAgentProtocol: 'claude' } }
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'claude-failed',
+        toolName: 'Write',
+        state: 'output-available',
+        input: { file_path: 'claude/failed.html' },
+        output: { isError: true },
+        callProviderMetadata: { cherry: { localAgentProtocol: 'claude' } }
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'non-local-write',
+        toolName: 'Write',
+        state: 'output-available',
+        input: { file_path: 'ignored/non-local.html' },
+        output: { ok: true }
+      }
+    ] as any)
 
-    expect(responses).toHaveLength(1)
-    expect(getReportArtifactsViewModel(responses)?.artifacts).toEqual([
-      { path: 'out/raw-only.html', description: undefined },
-      { path: 'claude/index.html', description: undefined },
-      { path: 'claude/analysis.ipynb', description: undefined }
-    ])
+    expect(paths).toEqual(['out/raw-only.html', 'claude/index.html', 'claude/analysis.ipynb'])
   })
 })

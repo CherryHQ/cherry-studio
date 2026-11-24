@@ -29,7 +29,7 @@ describe('connection-local gateway attribution', () => {
     }
   })
   beforeEach(() => {
-    mocks.read.mockResolvedValue([{ content: saved }])
+    mocks.read.mockReset().mockResolvedValue([{ content: saved }])
     mocks.create.mockReset().mockImplementation(async ({ agentSessionId }) => ({
       baseUrl: 'http://127.0.0.1:12345',
       apiKey: agentSessionId,
@@ -101,6 +101,36 @@ describe('connection-local gateway attribution', () => {
     expect(env).toEqual(before)
     expect(mocks.create.mock.calls).toEqual([])
   })
+
+  it.each([
+    { lastUsedProvider: 'anthropic', env: {} },
+    { lastUsedProvider: 'openai-compatible', env: { CLINE_DATA_DIR: '/custom/data' } },
+    { lastUsedProvider: 'openai-compatible', env: { CLINE_API_KEY: 'user-key' } }
+  ])(
+    'does not attribute Cline through an inactive route ($lastUsedProvider, $env)',
+    async ({ lastUsedProvider, env }) => {
+      mocks.read.mockResolvedValueOnce([
+        {
+          target: 'cline-providers',
+          content: JSON.stringify({
+            lastUsedProvider,
+            providers: {
+              'openai-compatible': {
+                cherryManaged: true,
+                settings: { model: 'provider:model', baseUrl: 'http://127.0.0.1:23333', apiKey: 'public' }
+              },
+              anthropic: { settings: { model: 'provider:model' } },
+              'cherry-legacy': { model: 'provider:model', baseUrl: 'http://127.0.0.1:23333', apiKey: 'public' }
+            }
+          })
+        }
+      ])
+      const clineConfig = { ...config('cline'), nativeModel: 'provider:model' }
+
+      expect(await bindLocalGatewayUsage(clineConfig, 'session-cline', env)).toBeUndefined()
+      expect(mocks.create).not.toHaveBeenCalled()
+    }
+  )
 
   it('binds grok-build, pi-acp, poolside, and cline gateway routes to the session', async () => {
     mocks.read.mockResolvedValueOnce([

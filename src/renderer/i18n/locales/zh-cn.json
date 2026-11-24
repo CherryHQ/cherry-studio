@@ -822,6 +822,7 @@
   "chat.alerts.select_agent": "请选择智能体",
   "chat.artifacts.button.openExternal": "外部浏览器打开",
   "chat.artifacts.button.preview": "预览",
+  "chat.artifacts.file_changes": "文件改动",
   "chat.artifacts.preview.openExternal.error.content": "外部浏览器打开出错",
   "chat.artifacts.show_remaining": "展开其余 {{count}} 个文件",
   "chat.assistant.search.placeholder": "搜索",

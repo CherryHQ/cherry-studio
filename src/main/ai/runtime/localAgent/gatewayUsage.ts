@@ -5,13 +5,15 @@ import { parse as parseYaml } from 'yaml'
 
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
+import { getEnvironmentValue, mergeEnvironment } from '@main/utils/env'
+import { getRawShellEnv } from '@main/utils/shellEnv'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { type CliConfigTarget, getCliConfigTargets, POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
 
-import { readNativeModelConfig } from './nativeModelConfig'
+import { readNativeModelConfig, resolveClineProvider, usesGlobalClineProfile } from './nativeModelConfig'
 
 const paths: Record<string, string> = {
   '@ai-sdk/openai-compatible': '/v1/chat/completions',
@@ -270,26 +272,27 @@ function extractGatewayRoute(
     }
     case 'cline': {
       const doc = parseJsonObject(fileContent(files, 'cline-providers') ?? primaryContent)
-      const providers = asRecord(doc?.providers)
-      const lastUsed = typeof doc?.lastUsedProvider === 'string' ? doc.lastUsedProvider : undefined
-      const compat = asRecord(providers[lastUsed ?? 'openai-compatible'])
-      if (compat.cherryManaged === true) {
-        const settings = asRecord(compat.settings)
-        return {
-          baseUrl: settings.baseUrl,
-          apiKey: settings.apiKey,
-          model: settings.model,
-          path: '/v1/chat/completions'
-        }
+      const { provider, managed, legacy, settings } = resolveClineProvider(doc)
+      if (!settings || (!managed && !legacy)) return undefined
+      const overrides = {
+        CLINE_PROVIDER: provider,
+        CLINE_API_KEY: settings.apiKey,
+        CLINE_BASE_URL: settings.baseUrl,
+        OPENAI_BASE_URL: settings.baseUrl,
+        CLINE_MODEL: settings.model
       }
-      const legacyKey = Object.keys(providers).find((key) => key.startsWith('cherry-'))
-      if (!legacyKey) return undefined
-      const legacyEntry = asRecord(providers[legacyKey])
+      if (
+        Object.entries(overrides).some(([key, value]) => {
+          const override = getEnvironmentValue(env, key)
+          return override !== undefined && override !== value
+        })
+      )
+        return undefined
       return {
-        baseUrl: legacyEntry.baseUrl,
-        apiKey: legacyEntry.apiKey,
-        model: legacyEntry.model,
-        path: pathForOpenAiOrAnthropic(legacyEntry.api)
+        baseUrl: settings.baseUrl,
+        apiKey: settings.apiKey,
+        model: settings.model,
+        path: legacy ? pathForOpenAiOrAnthropic(settings.api) : '/v1/chat/completions'
       }
     }
     case 'zcode': {
@@ -421,6 +424,11 @@ export async function bindLocalGatewayUsage(
 
   if (config.presetId === 'opencode' || config.presetId === 'kilo') {
     return bindOpenCodeOrKilo(config.presetId, config.nativeModel, wireModel, sessionId, env)
+  }
+
+  if (config.presetId === 'cline') {
+    const shellEnv = await getRawShellEnv()
+    if (!usesGlobalClineProfile(mergeEnvironment(shellEnv, env), shellEnv)) return
   }
 
   const files = await application.get('CodeCliService').readConfigFiles(getCliConfigTargets(native.tool))

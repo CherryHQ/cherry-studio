@@ -69,6 +69,36 @@ describe('local agent installation resolution', () => {
     await rm(directory, { recursive: true, force: true })
   })
 
+  it.each<{ lastUsedProvider: string; env: Record<string, string> }>([
+    { lastUsedProvider: 'anthropic', env: {} },
+    { lastUsedProvider: 'openai-compatible', env: { CLINE_DATA_DIR: '/custom/data' } },
+    { lastUsedProvider: 'openai-compatible', env: { CLINE_PROVIDER: 'anthropic' } }
+  ])(
+    'keeps inactive Cherry credentials out of the Cline environment ($lastUsedProvider, $env)',
+    async ({ lastUsedProvider, env }) => {
+      inventory.snapshots.cline = { name: 'cline', availability: { source: 'system', path: '/user/bin/cline' } }
+      inventory.readConfigFiles.mockResolvedValue([
+        {
+          target: 'cline-providers',
+          content: JSON.stringify({
+            lastUsedProvider,
+            providers: {
+              'openai-compatible': {
+                cherryManaged: true,
+                settings: { apiKey: 'inactive', baseUrl: 'http://127.0.0.1:23334/v1', model: 'inactive-model' }
+              }
+            }
+          })
+        }
+      ])
+      const launch = await resolveLocalAgentLaunch({ ...config, presetId: 'cline', protocol: 'acp', env })
+      expect(launch.env.CLINE_API_KEY).toBeUndefined()
+      expect(launch.env.CLINE_BASE_URL).toBeUndefined()
+      expect(launch.env.CLINE_MODEL).toBeUndefined()
+      expect(launch.env).toMatchObject(env)
+    }
+  )
+
   it.each(LOCAL_AGENT_PRESETS)('selects the current installation for $id over a legacy shim', async (preset) => {
     const name = preset.executable
     const entry = systemAgentEntry(name)

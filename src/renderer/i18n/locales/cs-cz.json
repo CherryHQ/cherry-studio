@@ -822,6 +822,7 @@
   "chat.alerts.select_agent": "Vyberte agenta",
   "chat.artifacts.button.openExternal": "Otevřít v externím prohlížeči",
   "chat.artifacts.button.preview": "Náhled",
+  "chat.artifacts.file_changes": "Změny souborů",
   "chat.artifacts.preview.openExternal.error.content": "Chyba při otevírání externího prohlížeče.",
   "chat.artifacts.show_remaining": "Zobrazit zbývající soubory ({{count}})",
   "chat.assistant.search.placeholder": "Hledat",

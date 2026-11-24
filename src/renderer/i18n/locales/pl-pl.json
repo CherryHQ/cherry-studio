@@ -836,6 +836,7 @@
   "chat.alerts.select_agent": "Wybierz agenta",
   "chat.artifacts.button.openExternal": "Otwórz w zewnętrznej przeglądarce",
   "chat.artifacts.button.preview": "Podgląd",
+  "chat.artifacts.file_changes": "Zmiany w plikach",
   "chat.artifacts.preview.openExternal.error.content": "Błąd podczas otwierania zewnętrznej przeglądarki.",
   "chat.artifacts.show_remaining": "Pokaż pozostałe pliki ({{count}})",
   "chat.assistant.search.placeholder": "Szukaj",

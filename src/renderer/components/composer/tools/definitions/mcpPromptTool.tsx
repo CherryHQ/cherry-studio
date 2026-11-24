@@ -11,6 +11,7 @@ import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useScopedMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { DEFAULT_MCP_MODE } from '@shared/data/types/assistant'
 import type { McpPrompt } from '@shared/types/mcp'
 
@@ -292,6 +293,7 @@ const mcpPromptTool = defineTool({
   key: 'mcp_prompts',
   label: (t) => t('chat.input.mcp_prompts.title'),
   visibleInScopes: [TopicType.Chat, TopicType.Session],
+  condition: ({ session }) => !session?.agentType || AGENT_RUNTIME_CAPABILITIES[session.agentType].mcp,
 
   dependencies: {
     actions: ['onTextChange'] as const

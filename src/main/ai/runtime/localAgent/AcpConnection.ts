@@ -205,10 +205,14 @@ export class AcpConnection extends LocalConnection {
     if (!probe && !this.gatewayLease)
       this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
     this.launchNativeModel = launch.nativeModel
-    this.defaultModel =
-      this.config.presetId === 'deepseek-harness'
-        ? (launch.nativeModel ?? this.config.nativeModel)
-        : (this.config.nativeModel ?? launch.nativeModel)
+    if (this.config.presetId === 'cline') {
+      this.defaultModel = launch.env.CLINE_MODEL || undefined
+    } else {
+      this.defaultModel =
+        this.config.presetId === 'deepseek-harness'
+          ? (launch.nativeModel ?? this.config.nativeModel)
+          : (this.config.nativeModel ?? launch.nativeModel)
+    }
     this.abort.signal.throwIfAborted()
     const child = crossPlatformSpawn(launch.executable, launch.args, {
       cwd,

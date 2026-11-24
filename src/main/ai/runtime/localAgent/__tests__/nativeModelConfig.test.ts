@@ -207,6 +207,17 @@ describe('extra CLI nativeModelConfig targets', () => {
     expect(JSON.parse(cleared).keep).toBe(true)
   })
 
+  it('does not fall back to an inactive Cline provider when the active provider has no saved model', () => {
+    const content = JSON.stringify({
+      lastUsedProvider: 'anthropic',
+      providers: { 'openai-compatible': { settings: { model: 'inactive-model' } } }
+    })
+    expect(readNativeModelConfig('cline-providers', content)).toBeUndefined()
+    const changed = updateNativeModelConfig('cline-providers', content, 'active-model')
+    expect(readNativeModelConfig('cline-providers', changed)).toBe('active-model')
+    expect(JSON.parse(changed).providers['openai-compatible'].settings.model).toBe('inactive-model')
+  })
+
   it('updates and reads cline-providers active provider settings model', () => {
     const updated = updateNativeModelConfig(
       'cline-providers',

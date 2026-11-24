@@ -13,7 +13,7 @@ import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment } from '@main/services
 import { appendBundledGitPathTail, mergeBinaryExecutionEnv, mergePathPrefixes } from '@main/utils/binaryEnv'
 import { isManagedBinaryPath } from '@main/utils/binaryResolver'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
-import { mergeEnvironment } from '@main/utils/env'
+import { getEnvironmentValue, mergeEnvironment } from '@main/utils/env'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import {
   LOCAL_AGENT_PRESETS,
@@ -26,6 +26,7 @@ import type { BinaryAvailability, BinaryToolSnapshot } from '@shared/types/binar
 import { POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
 
 import { readInstalledPackageVersion, resolveInstalledExecutable } from './installedVersion'
+import { resolveClineProvider, usesGlobalClineProfile } from './nativeModelConfig'
 import { resolveRequiredRuntime } from './runtimeDependency'
 
 type AgentCommand = Pick<LocalAgentPreset, 'executable' | 'aliases'> & Partial<Pick<LocalAgentPreset, 'protocol'>>
@@ -138,7 +139,8 @@ async function readCliConfigFilesSafe(
 async function injectPresetConfigEnv(
   presetId: string | undefined,
   env: Record<string, string>,
-  mode: boolean | 'models'
+  mode: boolean | 'models',
+  lookupEnv: NodeJS.ProcessEnv
 ): Promise<string | undefined> {
   let nativeModel: string | undefined
   if (presetId === 'poolside') {
@@ -216,27 +218,17 @@ async function injectPresetConfigEnv(
 
   if (presetId === 'cline') {
     const [file] = await readCliConfigFilesSafe(['cline-providers'])
-    const doc = parseJsonRecord(file?.content)
-    const providers =
-      doc?.providers && typeof doc.providers === 'object' && !Array.isArray(doc.providers)
-        ? (doc.providers as Record<string, unknown>)
-        : undefined
-    const entry = providers?.['openai-compatible']
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return undefined
-    const record = entry as Record<string, unknown>
-    if (record.cherryManaged !== true) return undefined
-    const settings =
-      record.settings && typeof record.settings === 'object' && !Array.isArray(record.settings)
-        ? (record.settings as Record<string, unknown>)
-        : undefined
-    if (typeof settings?.apiKey === 'string' && settings.apiKey) env.CLINE_API_KEY = settings.apiKey
-    env.CLINE_PROVIDER =
-      typeof settings?.provider === 'string' && settings.provider ? settings.provider : 'openai-compatible'
-    if (typeof settings?.baseUrl === 'string' && settings.baseUrl) {
+    const { provider, managed, settings } = resolveClineProvider(parseJsonRecord(file?.content))
+    if (!managed || !settings) return undefined
+    const providerOverride = getEnvironmentValue(lookupEnv, 'CLINE_PROVIDER')
+    if (providerOverride && providerOverride !== provider) return undefined
+    if (typeof settings.apiKey === 'string' && settings.apiKey) env.CLINE_API_KEY = settings.apiKey
+    env.CLINE_PROVIDER = provider
+    if (typeof settings.baseUrl === 'string' && settings.baseUrl) {
       env.OPENAI_BASE_URL = settings.baseUrl
       env.CLINE_BASE_URL = settings.baseUrl
     }
-    if (typeof settings?.model === 'string' && settings.model) {
+    if (typeof settings.model === 'string' && settings.model) {
       env.CLINE_MODEL = settings.model
       nativeModel = settings.model
     }
@@ -422,7 +414,10 @@ export async function resolveLocalAgentLaunch(
     env.OPENCLAW_CONFIG_PATH = application.getPath('external.openclaw.config', 'openclaw.json')
     env.OPENCLAW_NO_AUTO_UPDATE = '1'
   }
-  const nativeModel = !terminal ? await injectPresetConfigEnv(config.presetId, env, mode) : undefined
+  const nativeModel =
+    !terminal && (config.presetId !== 'cline' || usesGlobalClineProfile(lookupEnv, shellEnv))
+      ? await injectPresetConfigEnv(config.presetId, env, mode, lookupEnv)
+      : undefined
   if (config.presetId === 'pi-acp' && !terminal && !config.executableOverride) {
     const nativeExecutable = executable
     const finalEnv = mergeEnvironment(env, preset?.env, config.env)

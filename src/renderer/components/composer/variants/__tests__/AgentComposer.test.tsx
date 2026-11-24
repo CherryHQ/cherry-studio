@@ -1675,8 +1675,8 @@ describe('AgentComposer', () => {
     }
   })
 
-  it('enables cached local modes after the idle connection expires', () => {
-    mocks.pinnedToolIds = ['permission-mode']
+  it('keeps cached native modes usable while hiding pinned Cherry resource controls', () => {
+    mocks.pinnedToolIds = ['permission-mode', 'knowledge-base', 'skills', 'mcp-status']
     mocks.toolLaunchers = [
       { id: 'permission-mode', kind: 'group', sources: ['popover'], label: 'Permission Mode', icon: null, submenu: [] }
     ]
@@ -1706,6 +1706,9 @@ describe('AgentComposer', () => {
     )
     expect(mocks.runtimeHostProps?.session?.localPermission?.disabled).toBe(false)
     expect(screen.getByRole('button', { name: /agent\.settings\.permissionMode\.title/ })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'chat.input.knowledge_base' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'plugins.skills' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'MCP' })).not.toBeInTheDocument()
   })
 
   it('routes non-permission local modes such as pi thinking levels into LocalAgentThoughtControl', async () => {

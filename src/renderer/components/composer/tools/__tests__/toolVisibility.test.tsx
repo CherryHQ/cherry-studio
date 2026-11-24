@@ -43,23 +43,28 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
 }))
 
 describe('composer tool visibility', () => {
-  it('offers local attachments, native commands, and Cherry composer operations for local sessions', () => {
+  it('keeps composer operations available while omitting Cherry resources for local sessions', () => {
     const tools = getToolsForScope(TopicType.Session, { session: { agentId: 'local', agentType: 'local' } }).map(
       (tool) => tool.key
     )
     expect(tools).toContain('attachment')
     expect(tools).toContain('dictation')
-    expect(tools).toContain('knowledge_base')
-    expect(tools).toContain('mcp_status')
-    expect(tools).toContain('mcp_prompts')
-    expect(tools).toContain('mcp_resources')
+    expect(tools).not.toContain('knowledge_base')
+    expect(tools).not.toContain('mcp_status')
+    expect(tools).not.toContain('mcp_prompts')
+    expect(tools).not.toContain('mcp_resources')
     expect(tools).toContain('note-reference')
     expect(tools).not.toContain('permission_mode')
     expect(tools).toContain('slash_commands')
   })
 
-  it.each(['pi', 'claude-code'])('keeps Cherry permission controls available to the %s runtime', (agentType) => {
-    const tools = getToolsForScope(TopicType.Session, { session: { agentId: 'agent', agentType } })
-    expect(tools.map((tool) => tool.key)).toContain('permission_mode')
-  })
+  it.each(['pi', 'claude-code'] as const)(
+    'keeps Cherry permission controls available to the %s runtime',
+    (agentType) => {
+      const tools = getToolsForScope(TopicType.Session, { session: { agentId: 'agent', agentType } })
+      expect(tools.map((tool) => tool.key)).toEqual(
+        expect.arrayContaining(['permission_mode', 'knowledge_base', 'mcp_status'])
+      )
+    }
+  )
 })

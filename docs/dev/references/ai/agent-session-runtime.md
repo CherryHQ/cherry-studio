@@ -438,8 +438,8 @@ are checked against the owning request and dispatched with the target's original
 Stopping the parent reply leaves work running; explicit cancellation, parent deletion or target
 disablement stops owned work. Cancellation checks the recorded assistant turn under the dispatch
 lock so a stale request cannot stop a later turn. Timeout results are failures and retain partial
-output; existing recovery reconciles interrupted turns without replay. Bundled Code Mate skills
-remain until real CLI replacement acceptance passes.
+output; existing recovery reconciles interrupted turns without replay.
+See [Local Agent Runtime](./local-agent-runtime.md) for the retired Code Mate wrappers.
 
 ### Deliberate security ceiling
 

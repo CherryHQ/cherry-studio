@@ -158,7 +158,9 @@ provider is required. “Local” refers to the CLI process, not an offline mode
   Existing direct-provider CLI configurations are not rewritten automatically;
   their current model appears under native models. Choosing another model or
   following the CLI clears the previous Cherry-managed provider configuration.
-  No Cherry prompts, knowledge bases or tools are injected.
+  Local sessions use CLI-native resources and controls. The composer omits Cherry
+  knowledge bases, MCP and Skills, and Main rejects a Cherry knowledge scope on
+  a new local turn. The profile points to Agent settings for configuration.
 - Native default persistence currently supports Claude, Codex, OpenCode, Qwen,
   Kimi, Pi, Hermes, MiniMax, CodeBuddy, Kilo, Factory Droid, Mistral Vibe and
   GitHub Copilot. These defaults apply
@@ -168,6 +170,9 @@ provider is required. “Local” refers to the CLI process, not an offline mode
 - Antigravity saves the selected ACP model on the Cherry Agent and applies it when
   opening or resuming a session. Its interactive terminal keeps its own default.
   Other presets and custom ACP agents show a limitation when model selection is unavailable.
+- Cline uses the active provider in its CLI profile for model sync, launch and
+  Gateway attribution. A per-Agent profile or provider override takes precedence
+  over the shared Cherry-managed entry.
 - Kilo shares OpenCode's provider configuration format. Droid uses `customModels`
   and `sessionDefaultSettings.model`; Vibe uses model aliases in `config.toml`
   with a Cherry-owned key in `.env`; Copilot uses `providers.json` and
@@ -404,10 +409,8 @@ terminal snapshots remain readable after process release.
 
 Enabled local sessions generally prewarm on opening so their options are
 available before the first message. Config notifications refresh the controls, including when a model
-change removes thought levels. On reconnect, native session configuration is the
-source of truth: Cherry does not reselect an already-matching model and thereby
-reset the restored effort. Persistence of unused settings depends on the CLI; Cherry
-does not store a second copy of native thought settings.
+change removes thought levels. On reconnect, Cherry leaves a matching model in place
+and reapplies saved per-session effort when the CLI still exposes that option and value.
 
 The composer remembers up to 100 sessions' configuration display snapshots in
 renderer memory. Returning to a session shows its previous options immediately;
@@ -435,40 +438,14 @@ available in error details.
 Known native provider-adapter and model-catalog failures use localized diagnostics
 without calling a diagnosis model or treating them as missing Cherry models.
 
-ACP `session/prompt.usage` is stored as a typed, Main-authored
-`agent_session_message.data.localTurnUsage` turn summary. It does not create a
-synthetic invocation. Message details and Settings > Usage display it separately
-from provider calls, including historical synthetic local summaries. Main strips
-renderer-authored values and forks drop the original turn's observation. See
-[AI Usage Records](./ai-usage-records.md#local-agent-observations) for gateway
-correlation and counting boundaries.
+ACP captures turn usage from `session/prompt.usage` and cumulative session cost
+from `usage_update.cost`. Codex accepts `thread/tokenUsage/updated` for the active
+thread and turn. The first update establishes the pre-turn baseline (`total - last`);
+later updates measure the difference from that baseline, covering multiple requests
+without counting repeated notifications or previous turns.
 
-Codex `thread/tokenUsage/updated` notifications use the same native-turn summary
-surface. The first update establishes the pre-turn total from `total - last`;
-subsequent updates report the difference from that baseline, so multiple model
-requests are included without adding duplicate notifications or earlier turns.
-Only updates for the active thread and turn are accepted. Cache and reasoning
-counts are details within input and output totals. Missing or invalid usage stays
-unknown; native counters do not create provider invocations or model throughput.
-Native-only messages reuse the standard details card with input, output, and total
-Token metrics, followed by nonzero cache/reasoning details and runtime timing.
-Messages with provider usage retain the provider metrics and a separate native
-summary; the two observations are never added together.
-
-ACP `usage_update.cost` is a cumulative native-session snapshot. The usage details
-show its original currency and latest reported amount, including an explicit zero;
-missing costs stay hidden and tiny positive costs are not rounded to zero. Updates
-replace the previous amount rather than adding to it. They do not create
-`ai_usage_record` entries or contribute to per-message billing totals.
-
-Main stores the typed snapshot in existing `agent_session_message.data.localSessionCost`
-JSON, with the native session ID and report time. Shared cache supplies live updates;
-`GET /agent-sessions/:sessionId/cost` reads history without starting the CLI. The
-snapshot survives connection release and app restarts. A new native session records
-an unknown-cost marker, preventing the preceding session's amount from reappearing.
-Forked history does not inherit this snapshot. Before any message exists, the value
-is runtime-only and is attached when the first assistant reply is persisted.
-Renderer message writes cannot overwrite Main-authored snapshots.
+See [AI Usage Records](./ai-usage-records.md#local-agent-observations) for persistence,
+display, counting, and gateway correlation.
 
 ACP image attachments send base64 content only when the agent advertises image
 input; unsupported images fail explicitly instead of becoming path text. Agent-wide
@@ -497,6 +474,10 @@ turn cancellation. Permission, form, Cursor extension, file and terminal handler
 observe it; cancelled approvals cannot authorize later writes or process starts.
 Cancelling a terminal wait releases the wait without terminating the terminal.
 ACP initialization reports Cherry's actual application version.
+
+Completed local writes can appear under **File changes** in the message.
+Explicit artifact reports appear under **Outputs** and feed the existing output
+index.
 
 ## Compatibility record
 

@@ -68,19 +68,29 @@ invoices remain authoritative.
 from existing message JSON and historical synthetic local records. It does not
 create invocation records or change the SQLite schema.
 
-- ACP prompt usage is Main-authored `MessageData.localTurnUsage`: a native session
+- Native turn usage is Main-authored `MessageData.localTurnUsage`: a native session
   ID, optional actual model identity, report time, attribution status and reported
   token counters. It is a turn summary, not a provider request count. Missing
-  summaries remain unknown; explicit reported zero remains zero.
+  summaries remain unknown; explicit reported zero remains zero. Cache and reasoning
+  counters are details within input and output totals.
 - Provider list, statistics and timeline exclude historical `local-agent:*`
   synthetic records. Those records remain immutable and appear separately as
   legacy turn summaries. Existing message projections are not rewritten.
 - Native session costs use the latest reported snapshot per Agent/native session
   within the selected report window. They retain their original currency, may
   include activity before that window and are not period spending or invocation
-  cost deltas. No mixed-currency total is produced.
+  cost deltas. Updates replace the amount, including downward corrections and
+  explicit zero. No mixed-currency total is produced.
 - Settings > Usage and message details present the separate observation scopes.
-  Native summaries are never added to provider-token or billing totals.
+  Native summaries are never added to provider-token or billing totals. Message
+  details hide unknown costs and keep tiny positive costs distinguishable from zero.
+
+Main stores cost snapshots in `MessageData.localSessionCost`. Shared cache supplies
+live updates, and `GET /agent-sessions/:sessionId/cost` reads the last persisted
+snapshot without starting the CLI. Costs reported before a message row exists
+are initially live-only. A new native session clears the previous amount with an
+unknown-cost marker. Renderer message writes cannot replace either observation,
+and forks do not inherit the source turn usage or session cost.
 
 Gateway-configured Local Agents bind a session credential lease on connection
 start while the saved native default matches Cherry's gateway configuration;

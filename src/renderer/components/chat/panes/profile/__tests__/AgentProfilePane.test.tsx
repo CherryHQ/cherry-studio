@@ -158,6 +158,15 @@ describe('AgentProfilePane', () => {
       await waitFor(() => expect(dialog.requests).toEqual([{ kind: 'agent', id: agent.id }]))
     })
 
+    it('leaves native model and permission controls to the local Agent', () => {
+      agent = { ...agent, type: 'local' }
+      const settings = settingsRegion(vi.fn())
+
+      expect(within(settings).queryByRole('button', { name: 'Model' })).not.toBeInTheDocument()
+      expect(within(settings).queryByRole('button', { name: 'Permission' })).not.toBeInTheDocument()
+      expect(within(settings).getByRole('button', { name: 'All' })).toBeEnabled()
+    })
+
     it("hands a model choice to the conversation's confirmed switch instead of saving it directly", () => {
       const chosen: Model[] = []
       const settings = settingsRegion((model) => chosen.push(model))

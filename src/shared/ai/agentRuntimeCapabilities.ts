@@ -15,6 +15,7 @@ export interface AgentRuntimeCapabilities {
   /** i18n key for runtime selector option. */
   labelKey: string
   labelFallback: string
+  /** Cherry permission modes. Native controls come from the connected CLI. */
   permissionModes: readonly AgentPermissionMode[]
   /** plan/small model fields. */
   modelTiers: boolean
@@ -115,17 +116,17 @@ export const AGENT_RUNTIME_CAPABILITIES = {
   local: {
     labelKey: 'local_agents.title',
     labelFallback: 'Local agents',
-    permissionModes: ALL_PERMISSION_MODES,
+    permissionModes: [],
     modelTiers: false,
     heartbeat: false,
-    knowledgeBases: true,
-    mcp: true,
-    skills: true,
+    knowledgeBases: false,
+    mcp: false,
+    skills: false,
     claudeRegistryTools: false,
     slashCommands: LOCAL_BUILTIN_COMMANDS,
     nativeFollowUp: false,
     createDefaults: { permissionMode: 'default' },
-    isModelCompatible: null,
+    isModelCompatible: () => false,
     transport: 'local-agent',
     builtinTools: () => []
   },

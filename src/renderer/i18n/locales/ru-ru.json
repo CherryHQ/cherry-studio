@@ -822,6 +822,7 @@
   "chat.alerts.select_agent": "Выберите агента",
   "chat.artifacts.button.openExternal": "Открыть во внешнем браузере",
   "chat.artifacts.button.preview": "Предпросмотр",
+  "chat.artifacts.file_changes": "Изменения файлов",
   "chat.artifacts.preview.openExternal.error.content": "Внешний браузер открылся с ошибкой",
   "chat.artifacts.show_remaining": "Показать остальные файлы ({{count}})",
   "chat.assistant.search.placeholder": "Поиск",

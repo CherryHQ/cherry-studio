@@ -822,6 +822,7 @@
   "chat.alerts.select_agent": "Chọn Agent",
   "chat.artifacts.button.openExternal": "Mở trong trình duyệt ngoài",
   "chat.artifacts.button.preview": "Xem trước",
+  "chat.artifacts.file_changes": "Thay đổi tệp",
   "chat.artifacts.preview.openExternal.error.content": "Lỗi khi mở trình duyệt ngoài.",
   "chat.artifacts.show_remaining": "Hiện các tệp còn lại ({{count}})",
   "chat.assistant.search.placeholder": "Tìm kiếm",

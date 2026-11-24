@@ -822,6 +822,7 @@
   "chat.alerts.select_agent": "เลือกเอเจนต์",
   "chat.artifacts.button.openExternal": "เปิดในเบราว์เซอร์ภายนอก",
   "chat.artifacts.button.preview": "พรีวิว",
+  "chat.artifacts.file_changes": "การเปลี่ยนแปลงไฟล์",
   "chat.artifacts.preview.openExternal.error.content": "เกิดข้อผิดพลาดในการเปิดเบราว์เซอร์ภายนอก",
   "chat.artifacts.show_remaining": "แสดงไฟล์ที่เหลือ ({{count}})",
   "chat.assistant.search.placeholder": "ค้นหา",

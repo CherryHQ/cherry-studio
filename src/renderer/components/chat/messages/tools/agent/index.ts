@@ -7,11 +7,7 @@ export { AskUserQuestionCard } from './AskUserQuestionCard'
 export { AskUserQuestionOptimisticInputProvider } from './AskUserQuestionOptimisticContext'
 export { MessageChannelConfigTool } from './MessageChannelConfigTool'
 export { isKnownNavigationPath, NavigateToolInline } from './NavigateTool'
-export {
-  buildLocalWrittenArtifactResponses,
-  isReportArtifactsToolResponse,
-  MessageReportArtifacts
-} from './ReportArtifacts'
+export { getLocalWrittenFilePaths, isReportArtifactsToolResponse, MessageReportArtifacts } from './ReportArtifacts'
 export { ResourceIdentityRow } from './ResourceIdentityRow'
 export { SessionResultCards } from './SessionResultCards'
 export { isCherrySessionToolResponse, parseSessionCreateResult, parseSessionSendResult } from './sessionToolResult'

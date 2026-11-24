@@ -822,6 +822,7 @@
   "chat.alerts.select_agent": "エージェントを選択してください",
   "chat.artifacts.button.openExternal": "外部ブラウザで開く",
   "chat.artifacts.button.preview": "プレビュー",
+  "chat.artifacts.file_changes": "ファイルの変更",
   "chat.artifacts.preview.openExternal.error.content": "外部ブラウザの起動に失敗しました。",
   "chat.artifacts.show_remaining": "残りのファイルを表示（{{count}}）",
   "chat.assistant.search.placeholder": "検索",

@@ -1936,39 +1936,48 @@ describe('local protocol processes', () => {
     await drained
   })
 
-  it('allows Cline to select unlisted custom gateway models via session/set_config_option', async () => {
-    MockApplicationUtils.setService('CodeCliService', {
-      readConfigFiles: async () => [
-        {
-          target: 'cline-providers',
-          content: JSON.stringify({
-            providers: {
-              'openai-compatible': {
-                cherryManaged: true,
-                settings: {
-                  provider: 'openai-compatible',
-                  apiKey: 'test-key',
-                  baseUrl: 'http://127.0.0.1:23334/v1',
-                  model: 'cherryin:agent/deepseek-v4-pro'
+  it.each([
+    ['openai-compatible', true],
+    ['anthropic', false]
+  ])(
+    'uses the Cline provider %s without replaying another provider’s saved model',
+    async (lastUsedProvider, usesCherry) => {
+      MockApplicationUtils.setService('CodeCliService', {
+        readConfigFiles: async () => [
+          {
+            target: 'cline-providers',
+            content: JSON.stringify({
+              lastUsedProvider,
+              providers: {
+                'openai-compatible': {
+                  cherryManaged: true,
+                  settings: {
+                    provider: 'openai-compatible',
+                    apiKey: 'test-key',
+                    baseUrl: 'http://127.0.0.1:23334/v1',
+                    model: 'cherryin:agent/deepseek-v4-pro'
+                  }
                 }
               }
-            }
-          })
-        }
-      ]
-    })
-    const { connection, drained } = create('acp', 'normal', 'cherryin:agent/deepseek-v4-pro', 'cline')
-    await connection.start(cwd)
-    expect(connection.localSessionInfo.activeModel).toEqual({ id: 'cherryin:agent/deepseek-v4-pro' })
-    const wire = await readWire()
-    expect(wire.find((m) => m.method === 'session/set_config_option')?.params).toEqual({
-      sessionId: 'native-session',
-      configId: 'model',
-      value: 'cherryin:agent/deepseek-v4-pro'
-    })
-    await connection.close()
-    await drained
-  })
+            })
+          }
+        ]
+      })
+      const { connection, drained } = create('acp', 'normal', 'cherryin:agent/deepseek-v4-pro', 'cline')
+      await connection.start(cwd)
+      const wire = await readWire()
+      const selection = wire.find((m) => m.method === 'session/set_config_option')
+      if (usesCherry) {
+        expect(connection.localSessionInfo.activeModel?.id).toBe('cherryin:agent/deepseek-v4-pro')
+        expect(selection?.params.value).toBe('cherryin:agent/deepseek-v4-pro')
+      } else {
+        expect(connection.localSessionInfo.activeModel?.id).not.toBe('cherryin:agent/deepseek-v4-pro')
+        expect(selection).toBeUndefined()
+      }
+      await connection.close()
+      await drained
+    }
+  )
 
   it('accepts config-file-only Snow sessions without ACP model selectors while still rejecting arbitrary overrides', async () => {
     MockApplicationUtils.setService('CodeCliService', {

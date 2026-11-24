@@ -66,14 +66,7 @@ function getCodexFileChangeKind(kind: unknown): string | undefined {
   return undefined
 }
 
-/**
- * Fallback deliverable extractor for local agent turns that mutated files via ACP or Codex tools
- * without invoking `cherry-tools` `report_artifacts`.
- */
-export function buildLocalWrittenArtifactResponses(
-  parts: readonly CherryMessagePart[],
-  messageId: string
-): ReportArtifactsToolResponse[] {
+export function getLocalWrittenFilePaths(parts: readonly CherryMessagePart[]): string[] {
   const seen = new Set<string>()
   const paths: string[] = []
   const addPath = (raw: unknown) => {
@@ -133,18 +126,7 @@ export function buildLocalWrittenArtifactResponses(
     }
   }
 
-  if (paths.length === 0) return []
-  return [
-    {
-      id: `${messageId}-local-artifacts`,
-      toolCallId: `${messageId}-local-artifacts`,
-      tool: { id: 'local-artifacts', name: REPORT_ARTIFACTS_TOOL_NAME, type: 'builtin' },
-      status: 'done',
-      arguments: {
-        artifacts: paths.map((path) => ({ path }))
-      }
-    }
-  ]
+  return paths
 }
 
 export function getReportArtifactsViewModel(
@@ -389,24 +371,40 @@ const COLLAPSED_ARTIFACT_LIMIT = 3
  * inline tool stream; this card is appended after the complete message content so deliverables stay
  * visually anchored to the final answer instead of the tool-call position.
  */
-export const MessageReportArtifacts = ({
-  toolResponses
+export function MessageReportArtifacts({
+  toolResponses,
+  changedPaths = []
 }: {
   toolResponses: readonly ReportArtifactsToolResponse[]
-}) => {
+  changedPaths?: readonly string[]
+}) {
+  const { t } = useTranslation()
+  const outputs = useMemo(() => getReportArtifactsViewModel(toolResponses), [toolResponses])
+  const reportedPaths = new Set(outputs?.artifacts.map((file) => file.path))
+  const changedFiles = changedPaths.filter((path) => !reportedPaths.has(path)).map((path) => ({ path }))
+  return (
+    <>
+      {outputs && <MessageFileCards files={outputs.artifacts} label={t('chat.profile_pane.tabs.outputs')} />}
+      {changedFiles.length > 0 && <MessageFileCards files={changedFiles} label={t('chat.artifacts.file_changes')} />}
+    </>
+  )
+}
+
+function MessageFileCards({ files, label }: { files: readonly ReportArtifactView[]; label: string }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const listId = useId()
-  const viewModel = useMemo(() => getReportArtifactsViewModel(toolResponses), [toolResponses])
-  if (!viewModel) return null
-
-  const hiddenCount = viewModel.artifacts.length - COLLAPSED_ARTIFACT_LIMIT
-  const visibleArtifacts = expanded ? viewModel.artifacts : viewModel.artifacts.slice(0, COLLAPSED_ARTIFACT_LIMIT)
+  const labelId = useId()
+  const hiddenCount = files.length - COLLAPSED_ARTIFACT_LIMIT
+  const visibleFiles = expanded ? files : files.slice(0, COLLAPSED_ARTIFACT_LIMIT)
 
   return (
-    <div className="my-1 flex w-full flex-col gap-1.5">
+    <section aria-labelledby={labelId} className="my-1 flex w-full flex-col gap-1.5">
+      <p id={labelId} className="font-medium text-muted-foreground">
+        {label}
+      </p>
       <div id={listId} className="flex min-w-0 flex-col gap-1.5">
-        {visibleArtifacts.map((artifact) => (
+        {visibleFiles.map((artifact) => (
           <ReportArtifactFileCard key={artifact.path} artifact={artifact} />
         ))}
       </div>
@@ -423,6 +421,6 @@ export const MessageReportArtifacts = ({
           {expanded ? t('common.collapse') : t('chat.artifacts.show_remaining', { count: hiddenCount })}
         </Button>
       )}
-    </div>
+    </section>
   )
 }

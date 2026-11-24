@@ -12,6 +12,7 @@ import { useScopedMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { isSupportedToolUse } from '@renderer/utils/assistant'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { DEFAULT_MCP_MODE } from '@shared/data/types/assistant'
 import type { McpResource } from '@shared/types/mcp'
 
@@ -285,6 +286,7 @@ const mcpResourceTool = defineTool({
   key: 'mcp_resources',
   label: (t) => t('chat.input.mcp_resources.title'),
   visibleInScopes: [TopicType.Chat, TopicType.Session],
+  condition: ({ session }) => !session?.agentType || AGENT_RUNTIME_CAPABILITIES[session.agentType].mcp,
 
   dependencies: {
     actions: ['onTextChange'] as const
