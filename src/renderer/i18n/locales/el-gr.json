@@ -1130,6 +1130,7 @@
   "chat.topics.export.obsidian_title_required": "Ο τίτλος δεν μπορεί να είναι κενός",
   "chat.topics.export.obsidian_vault": "Αποθήκη Obsidian",
   "chat.topics.export.obsidian_vault_placeholder": "Επιλέξτε το όνομα της αποθήκης",
+  "chat.topics.export.share_image": "Εξαγωγή εικόνας για κοινή χρήση",
   "chat.topics.export.siyuan": "Εξαγωγή στο Siyuan Notepad",
   "chat.topics.export.title": "Εξαγωγή",
   "chat.topics.export.title_naming_failed": "Η δημιουργία του τίτλου απέτυχε, θα χρησιμοποιηθεί ο προεπιλεγμένος τίτλος",
