@@ -254,6 +254,10 @@ export const aiRequestSchemas = {
     output: z.custom<AgentAttachmentSelection[]>()
   }),
   // ── One-shot model calls, grouped by output modality (AiService) ──
+  'ai.handoff.generate': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), modelId: UniqueModelIdSchema, requestId: z.string().min(1) }),
+    output: z.string()
+  }),
   'ai.text.generate': defineRoute({
     input: z.strictObject({
       // Optional request identity pairs this one-shot call with `ai.text.abort`.

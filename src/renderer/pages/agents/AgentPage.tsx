@@ -11,6 +11,10 @@ import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer
 import { AgentResourceList } from '@renderer/components/chat/resourceList/AgentResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
+import {
+  getAgentDraftCacheKey,
+  writeAgentDraftCache
+} from '@renderer/components/composer/variants/agent/agentDraftCache'
 import type { AgentComposerLaunchOptions } from '@renderer/components/composer/variants/AgentComposer'
 import {
   createRecentSessionEntryFromSession,
@@ -487,7 +491,13 @@ const AgentPage = () => {
   const resolveEmptySession = useCallback(
     async (agentId: string, defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity> => {
       const workspaceSource = await resolveCreateWorkspaceSource(defaults, visibleSession)
-      const result = await reuseOrCreateSession(agentId, workspaceSource)
+      const result = defaults.handoffDraft
+        ? {
+            session: await dataApiService.post('/agent-sessions', { body: { agentId, workspace: workspaceSource } }),
+            created: true,
+            deletedDuplicateSessionIds: []
+          }
+        : await reuseOrCreateSession(agentId, workspaceSource)
 
       closeConversationTabs('agents', result.deletedDuplicateSessionIds)
       if (result.created || result.deletedDuplicateSessionIds.length > 0) {
@@ -526,6 +536,12 @@ const AgentPage = () => {
         }
 
         const session = await resolveEmptySession(agentId, defaults)
+        if (defaults.handoffDraft)
+          writeAgentDraftCache(getAgentDraftCacheKey(session.id), {
+            ...defaults.handoffDraft,
+            agentId,
+            workspaceKey: `${session.workspaceId ?? ''}\0${session.workspace?.path ?? ''}`
+          })
         activateSession(session, agentId)
         return session
       } catch (err) {

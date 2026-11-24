@@ -72,6 +72,7 @@ import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
+import { buildHandoff, HANDOFF_SYSTEM_PROMPT, readHandoffSource } from './messages/handoffNote'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { applyHttpTrace } from './observability'
 import { resolveProviderAiSdkConfig } from './provider/config'
@@ -865,6 +866,35 @@ export class AiService extends BaseService {
   // ── Non-streaming text generation (agent.generate) ──
 
   /** Cancellable variant of {@link generateText}, paired with the `ai.text.abort` route. */
+  async generateHandoff(requestId: string, sessionId: string, uniqueModelId: UniqueModelId): Promise<string> {
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    const model = modelService.getByKey(providerId, modelId)
+    if (!model.contextWindow) throw new Error('Set the selected model context window before generating a handoff')
+    const source = readHandoffSource(sessionId)
+    return this.runWithAbort(requestId, (signal) =>
+      buildHandoff(
+        source,
+        model.contextWindow!,
+        async (prompt) => {
+          const result = await this.generateText({
+            conversation: { id: `handoff:${requestId}` },
+            uniqueModelId,
+            reasoningEffort: 'none',
+            disableTools: true,
+            system: HANDOFF_SYSTEM_PROMPT,
+            prompt,
+            maxTokens: 4096,
+            requestOptions: { signal }
+          })
+          if (result.finishReason === 'length')
+            throw new Error('The handoff exceeded the output limit. Try a larger-context model.')
+          return result.text
+        },
+        signal
+      )
+    )
+  }
+
   async runTextRequest(requestId: string, request: AsInProcess<AiGenerateRequest>): Promise<AiGenerateResult> {
     return this.runWithAbort(requestId, (signal) =>
       this.generateText({ ...request, requestOptions: { ...request.requestOptions, signal } })

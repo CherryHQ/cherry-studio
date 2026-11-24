@@ -1,5 +1,7 @@
 import type { ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 
+import type { ChatComposerDraftCache } from '../chat/chatDraftCache'
+
 /**
  * Payload for "start a new topic" from the composer. Owned here (composer layer)
  * rather than `pages/home/types` so the composer doesn't import upward into pages;
@@ -7,6 +9,7 @@ import type { ComposerSurfaceActions } from '@renderer/components/composer/Compo
  */
 export interface AddNewTopicPayload {
   assistantId?: string | null
+  handoffDraft?: ChatComposerDraftCache
 }
 
 /**

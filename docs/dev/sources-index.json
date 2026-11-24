@@ -186,6 +186,10 @@
       "sources": ["src/renderer/components/chat/messages","src/renderer/components/composer","src/renderer/utils/message/composerClipboard.ts"]
     },
     {
+      "path": "docs/dev/references/chat/conversation-handoff.md",
+      "sources": ["src/main/ai/AiService.ts","src/main/ai/messages/handoffNote.ts","src/main/ipc/handlers/ai.ts","src/renderer/components/chat/shell/ConversationHandoff.tsx","src/renderer/pages/agents/AgentChat.tsx","src/renderer/pages/agents/AgentPage.tsx","src/renderer/pages/home/ChatContent.tsx","src/renderer/pages/home/HomePage.tsx","src/shared/ipc/schemas/ai.ts"]
+    },
+    {
       "path": "docs/dev/references/chat/message-tree.md",
       "sources": ["src/main/data/db/schemas/message.ts","src/main/data/services/MessageService.ts","src/renderer/components/chat/flow"]
     },

@@ -92,6 +92,7 @@
 |----------|-------------|
 | [Chat Reference](./references/chat/README.md) | Current chat-domain map covering shared renderer modules, page-owned adapters, rich clipboard, the message tree, and ordinary-chat context handling |
 | [Composer Rich Clipboard](./references/chat/composer-rich-clipboard.md) | Private clipboard format that preserves composer tokens across copy/paste between message surfaces and the composer |
+| [Conversation Handoff Note](./references/chat/conversation-handoff.md) | Reusable conversation handoff note - threshold offer, editable review, explicit save, and new-conversation attachment |
 | [Message Tree](./references/chat/message-tree.md) | Message-tree model for topic chat: adjacency list, virtual root, sibling groups, invariants, delete semantics |
 
 ### Command

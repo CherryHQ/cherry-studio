@@ -7,6 +7,7 @@ import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { RefreshProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { MessageListActions, MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
+import { ConversationHandoff } from '@renderer/components/chat/shell/ConversationHandoff'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import type {
   ChatComposerResolvedContext,
@@ -15,6 +16,7 @@ import type {
 } from '@renderer/components/composer/variants/ChatComposer'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
+import { useModelById } from '@renderer/hooks/useModel'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
@@ -201,6 +203,8 @@ const ChatContentInner: FC<InnerProps> = ({
     return { contextTokens, modelId }
   }, [activeNodeId, isHistoryStale, uiMessages])
 
+  const { model: handoffModel } = useModelById(contextUsage?.modelId ?? composerModelId)
+
   useEffect(() => {
     if (!locateMessageId && !locateToEnd) {
       locateLoadRequestRef.current = undefined
@@ -299,7 +303,22 @@ const ChatContentInner: FC<InnerProps> = ({
       <SiblingsProvider value={siblingsContextValue}>
         <RefreshProvider value={refresh}>
           <MessageEditingProvider>
-            <ConversationStageCenter placement={placement} main={main} composer={composer} />
+            <div className="flex h-full min-h-0 flex-col">
+              <ConversationHandoff
+                key={topic.id}
+                sessionId={topic.id}
+                assistantId={topic.assistantId}
+                onNewTopic={onCreateEmptyTopic ?? onNewTopic}
+                modelId={handoffModel?.id ?? composerModelId}
+                hasMessages={Boolean(topic.activeNodeId)}
+                percentage={
+                  contextUsage && handoffModel?.contextWindow
+                    ? (contextUsage.contextTokens / handoffModel.contextWindow) * 100
+                    : null
+                }
+              />
+              <ConversationStageCenter placement={placement} main={main} composer={composer} />
+            </div>
           </MessageEditingProvider>
         </RefreshProvider>
       </SiblingsProvider>
