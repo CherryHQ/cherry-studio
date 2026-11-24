@@ -295,6 +295,7 @@
   "paintings.comfyui.workflow_failed": "Pracovní postup ComfyUI selhal:",
   "paintings.comfyui.workflow_rejected": "ComfyUI odmítl pracovní postup (HTTP {{status}})",
   "paintings.generate_failed": "Generování obrázku selhalo",
+  "paintings.image_download_failed": "Obrázek byl vygenerován, ale nepodařilo se ho stáhnout.",
   "paintings.image_mix_failed": "Míchání obrázků selhalo",
   "selection.name": "Asistent výběru textu",
   "settings.mcp.oauth.callback.listen_error": "Nelze naslouchat na zpětném volání OAuth na adrese 127.0.0.1:{{port}} ({{reason}}). Zkontrolujte, zda je port volný, a zkuste to znovu.",
