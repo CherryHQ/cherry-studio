@@ -473,6 +473,7 @@ const MCP_TOOL_LABELS = new Map([
  * `internal` / condition-gated / `disabled` tools are intentionally hidden from the UI.
  */
 export function claudeUserFacingTools(): ClaudeUserFacingTool[] {
+  // SAFETY: This private literal owns every entry; its values satisfy ClaudeToolDescriptorDef and its keys define ClaudeToolKey.
   return (Object.entries(CLAUDE_TOOL_REGISTRY) as [ClaudeToolKey, ClaudeToolDescriptorDef][])
     .filter(([, def]) => def.exposure === 'user')
     .map(([key, def]) => ({
