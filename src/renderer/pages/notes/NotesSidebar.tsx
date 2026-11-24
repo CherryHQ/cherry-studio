@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, FilePlus, FileText, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, FilePlus, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,8 +34,6 @@ interface NotesSidebarProps {
   sortType: NotesSortType
   selectedFolderId?: string | null
 }
-
-const renderNoteFileIcon = () => <FileText size={16} className="shrink-0" />
 
 const COLLAPSED_MATCH_COUNT = 3
 
@@ -445,7 +443,6 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 selectedId={selectedId}
                 onSelectedChange={handleFileTreeSelectedChange}
                 onMove={handleMove}
-                fileIcon={renderNoteFileIcon}
                 renameSlot={renameSlot}
                 animationSlot={animationSlot}
                 renderRowExtras={renderRowExtras}

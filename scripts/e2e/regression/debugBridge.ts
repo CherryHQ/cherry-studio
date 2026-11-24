@@ -13,6 +13,8 @@ interface InspectorTarget {
 
 const MAIN_WINDOW_PATH = '/windows/main/index.html'
 
+export const CHERRYIN_CALLBACK = 'http://127.0.0.1:29873/oauth/callback'
+
 async function ownedMainInspectorUrl(record: AppRecord): Promise<string> {
   if (findListeningPid(record.platform, MAIN_INSPECTOR_PORT) !== record.electronPid) {
     throw new Error('Owned Cherry Studio instance does not own the main-process inspector')
@@ -35,6 +37,62 @@ async function ownedMainInspectorUrl(record: AppRecord): Promise<string> {
     throw new Error('Main-process inspector target is not loopback-owned')
   }
   return debuggerUrl.toString()
+}
+
+export async function captureCherryInAuthorizationUrl(
+  record: AppRecord,
+  authorize: () => Promise<void>
+): Promise<string> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const debuggerUrl = await ownedMainInspectorUrl(record)
+  await evaluateCdpExpression(
+    debuggerUrl,
+    `(() => {
+      const { shell } = process.mainModule.require('electron')
+      const original = shell.openExternal
+      const capture = { original, url: undefined }
+      globalThis.__regressionCherryInAuth = capture
+      shell.openExternal = async (url, ...args) => {
+        const target = new URL(url)
+        if (target.origin !== 'https://open.cherryin.ai' || target.pathname !== '/oauth2/auth') {
+          return original.call(shell, url, ...args)
+        }
+        capture.url = target.href
+        shell.openExternal = original
+      }
+    })()`
+  )
+  try {
+    await authorize()
+    const deadline = Date.now() + 20_000
+    while (Date.now() < deadline) {
+      const url = await evaluateCdpExpression<string | undefined>(
+        debuggerUrl,
+        'globalThis.__regressionCherryInAuth.url'
+      )
+      if (url) {
+        const callback = new URL(CHERRYIN_CALLBACK)
+        if (
+          new URL(url).searchParams.get('redirect_uri') !== callback.href ||
+          findListeningPid(record.platform, Number(callback.port)) !== record.electronPid
+        ) {
+          throw new Error('CherryIN OAuth callback does not target the owned Electron process')
+        }
+        return url
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+    throw new Error('Cherry Studio did not open the CherryIN authorization page')
+  } finally {
+    await evaluateCdpExpression(
+      debuggerUrl,
+      `(() => {
+        const { shell } = process.mainModule.require('electron')
+        shell.openExternal = globalThis.__regressionCherryInAuth.original
+        delete globalThis.__regressionCherryInAuth
+      })()`
+    )
+  }
 }
 
 export async function inspectOwnedAppEnvironment(record: AppRecord): Promise<{

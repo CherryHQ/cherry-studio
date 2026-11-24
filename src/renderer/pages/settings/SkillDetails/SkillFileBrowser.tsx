@@ -7,6 +7,7 @@ import { Button, ConfirmDialog, EmptyState, SegmentedControl, Skeleton } from '@
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { ipcApi } from '@renderer/ipc'
@@ -321,7 +322,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
   const previewHeader = (
     <>
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        <FileIcon path={selectedFileName} className="size-3.5 shrink-0" aria-hidden />
         <span className="truncate text-sm font-medium text-foreground">
           {selectedFileName || t('library.skill_detail.select_file')}
         </span>

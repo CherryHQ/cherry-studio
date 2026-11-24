@@ -28,7 +28,11 @@ import { logAiFailure } from '@main/ai/errorReporting'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
+import {
+  appendAgentAttachmentPaths,
+  withAgentContext,
+  wrapAgentSessionDeliveryContent
+} from '@main/ai/runtime/agentUserContent'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -182,7 +186,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.fastMode === true,
       this.input.knowledgeBaseIds,
       this.input.serviceTier,
-      this.input.headless === true
+      this.input.headless === true,
+      this.input.permissionModeOverride
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
@@ -266,6 +271,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
     this.bindApprovalEmitter()
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
+    this.toolPolicySnapshot?.setPermissionMode(request.connectionConfig?.live.toolPolicy.permissionMode ?? undefined)
     registerMcpSessionCatalogSync(
       this.input.sessionId,
       this.input.agentId,
@@ -306,10 +312,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
-    const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
-      supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
-    })
+    const sdkMessage = await toSdkUserMessage(
+      withAgentContext(input.message, input.context),
+      this.resumeToken,
+      input.systemReminder,
+      {
+        supportsAttachmentReads: this.assistantFileToolsEnabled,
+        supportsImages: resolveModelImageSupport(this.input.modelId)
+      }
+    )
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'follow-up', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -337,10 +348,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async submitSteer(input: AgentRuntimeCommand): Promise<void> {
-    const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
-      supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
-    })
+    const sdkMessage = await toSdkUserMessage(
+      withAgentContext(input.message, input.context),
+      this.resumeToken,
+      input.systemReminder,
+      {
+        supportsAttachmentReads: this.assistantFileToolsEnabled,
+        supportsImages: resolveModelImageSupport(this.input.modelId)
+      }
+    )
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'steer', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -353,14 +369,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
   }
 
-  async reconcile(input: {
-    modelId: UniqueModelId
-    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
-    serviceTier?: AgentRuntimeConnectInput['serviceTier']
-    knowledgeBaseIds?: readonly string[]
-    fastMode?: boolean
-    headless?: boolean
-  }): Promise<AgentRuntimeReconcileResult> {
+  async reconcile(input: Parameters<AgentRuntimeConnection['reconcile']>[0]): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
     // gate and the subprocess on different policies.
@@ -372,14 +381,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return run
   }
 
-  private async reconcileOnce(input: {
-    modelId: UniqueModelId
-    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
-    serviceTier?: AgentRuntimeConnectInput['serviceTier']
-    knowledgeBaseIds?: readonly string[]
-    fastMode?: boolean
-    headless?: boolean
-  }): Promise<AgentRuntimeReconcileResult> {
+  private async reconcileOnce(
+    input: Parameters<AgentRuntimeConnection['reconcile']>[0]
+  ): Promise<AgentRuntimeReconcileResult> {
     if (!this.handle) return 'rebuild'
     const derived = await deriveConnectionConfig(
       this.input.sessionId,
@@ -388,7 +392,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.fastMode === true,
       input.knowledgeBaseIds,
       input.serviceTier,
-      input.headless === true
+      input.headless === true,
+      input.permissionModeOverride
     )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig
@@ -408,7 +413,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           const changed = await this.handle.claude.setPermissionMode(permissionMode)
           if (changed.status !== 'confirmed') throw new Error(changed.error.message)
           // Approval must use the confirmed mode while the tool catalog is refreshing.
-          this.toolPolicySnapshot?.setPermissionMode(permissionMode)
+          this.toolPolicySnapshot?.setPermissionMode(fresh.live.toolPolicy.permissionMode ?? undefined)
         }
         await this.toolPolicySnapshot?.update(agent)
       } catch (error) {

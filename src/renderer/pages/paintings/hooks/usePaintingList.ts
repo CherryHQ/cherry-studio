@@ -60,7 +60,12 @@ export function usePaintingList({
     }
 
     try {
-      await updatePainting(current.id, omit(paintingDataToUpdateDto(current), ['files']))
+      const dto = paintingDataToUpdateDto(current)
+      // The record's model attributes its existing output; generation rewrites it.
+      await updatePainting(
+        current.id,
+        current.files.length > 0 ? omit(dto, ['files', 'providerId', 'modelId']) : omit(dto, ['files'])
+      )
       return true
     } catch (error) {
       presentPaintingGenerateError(error)

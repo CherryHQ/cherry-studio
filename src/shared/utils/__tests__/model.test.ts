@@ -7,6 +7,7 @@ import {
   isAudioModel,
   isEmbeddingModel,
   isFunctionCallingModel,
+  isClaudeFixedSamplingModel,
   isGatewayRoutableModel,
   isGenerateImageModel,
   isNonChatModel,
@@ -180,5 +181,23 @@ describe('shared model capability helpers', () => {
     ])('classifies %s as %s', (modelId, expected) => {
       expect(supportsDynamicallyLoadedTools(modelId)).toBe(expected)
     })
+  })
+})
+
+describe('isClaudeFixedSamplingModel', () => {
+  const classify = (apiModelId: string) =>
+    isClaudeFixedSamplingModel({ ...createModel(), apiModelId, name: apiModelId })
+
+  it.each([
+    ['claude-opus-4-8', true],
+    ['claude-opus-4-8[1m]', true],
+    ['claude-sonnet-5', true],
+    ['claude-sonnet-5[1m]', true],
+    ['claude-haiku-5-1', true],
+    ['claude-haiku-5-1[1m]', true],
+    ['claude-3-5-sonnet', false],
+    ['gpt-4o', false]
+  ])('classifies %s as %s', (apiModelId, expected) => {
+    expect(classify(apiModelId)).toBe(expected)
   })
 })

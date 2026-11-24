@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('react-i18next', () => ({
@@ -81,6 +82,42 @@ describe('UnknownToolRenderer', () => {
       'https://example.com/docs'
     )
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+  it.each([
+    {
+      toolName: 'deepseek_search',
+      output: {
+        type: 'TOOL_SEARCH',
+        queries: ['historical question'],
+        results: [
+          { url: 'https://example.com/history', title: 'Historical source', snippet: 'Preserved evidence' },
+          { url: 'javascript:alert(1)', title: 'Unsafe source' }
+        ],
+        status: 'FINISHED'
+      }
+    },
+    {
+      toolName: 'deepseek_open',
+      output: {
+        type: 'TOOL_OPEN',
+        url: 'https://example.com/history',
+        title: 'Historical source',
+        snippet: 'Preserved evidence',
+        status: 'FINISHED'
+      }
+    }
+  ])('opens safe links from $toolName while retaining the complete record', async ({ toolName, output }) => {
+    const user = userEvent.setup()
+    render(<Harness toolName={toolName} output={output} />)
+    const link = screen.getByRole('link', { name: 'Historical source' })
+    expect(link).toHaveAttribute('href', 'https://example.com/history')
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+    expect(screen.getByText(/Preserved evidence/)).toBeInTheDocument()
+    await user.click(link)
+    expect(window.api.ipcApi.request).toHaveBeenCalledWith(
+      'system.shell.open_external_website',
+      'https://example.com/history'
+    )
   })
   it('previews a large URL array inside an MCP text block without exceeding the argument limit', () => {
     const urls = Array.from({ length: 200000 }, (_, index) => `https://example.com/large-agent/${index}`)
