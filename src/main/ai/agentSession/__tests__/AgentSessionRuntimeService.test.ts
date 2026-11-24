@@ -5130,6 +5130,100 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('persists and replays generic permission config option IDs across reconnect while leaving non-permission configs ephemeral', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'local',
+      model: baseTurnInput.modelId,
+      configuration: { localRuntime: { protocol: 'acp', enabled: true, args: [], env: {} } }
+    })
+
+    const service = new AgentSessionRuntimeService()
+    const replayedInfo = {
+      models: [],
+      images: false,
+      resume: true,
+      configOptions: [
+        {
+          id: 'permission_mode',
+          name: 'Permission Mode',
+          type: 'select' as const,
+          currentValue: 'default',
+          options: [
+            { value: 'default', name: 'Default' },
+            { value: 'bypassPermissions', name: 'Bypass Permissions' }
+          ]
+        },
+        {
+          id: 'approval_mode',
+          name: 'Approval Mode',
+          type: 'select' as const,
+          currentValue: 'ask',
+          options: [
+            { value: 'ask', name: 'Ask' },
+            { value: 'yolo', name: 'YOLO' }
+          ]
+        },
+        {
+          id: 'permissions',
+          name: 'Permissions',
+          type: 'select' as const,
+          currentValue: 'default',
+          options: [
+            { value: 'default', name: 'Default' },
+            { value: 'accept-edits', name: 'Accept Edits' }
+          ]
+        },
+        {
+          id: 'verbosity',
+          name: 'Verbosity',
+          type: 'select' as const,
+          currentValue: 'brief',
+          options: [
+            { value: 'brief', name: 'Brief' },
+            { value: 'verbose', name: 'Verbose' }
+          ]
+        }
+      ]
+    }
+    const connection = {
+      ...createAsyncQueue<any>(),
+      send: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current'),
+      localSessionInfo: replayedInfo,
+      setConfigOption: vi.fn(async (configId: string, value: string | boolean) => {
+        const option = replayedInfo.configOptions.find((item) => item.id === configId)
+        if (option) option.currentValue = String(value)
+        return replayedInfo
+      })
+    }
+    runtimeDriverRegistry.register({
+      type: 'local',
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn()
+    })
+
+    await service.primeConnection('session-1')
+    await service.setLocalConfigOption('session-1', 'permission_mode', 'bypassPermissions')
+    await service.setLocalConfigOption('session-1', 'approval_mode', 'yolo')
+    await service.setLocalConfigOption('session-1', 'permissions', 'accept-edits')
+    await service.setLocalConfigOption('session-1', 'verbosity', 'verbose')
+    await service.closeSession('session-1')
+
+    connection.setConfigOption.mockClear()
+    replayedInfo.configOptions[0].currentValue = 'default'
+    replayedInfo.configOptions[1].currentValue = 'ask'
+    replayedInfo.configOptions[2].currentValue = 'default'
+    replayedInfo.configOptions[3].currentValue = 'brief'
+
+    await service.primeConnection('session-1')
+    expect(connection.setConfigOption).toHaveBeenCalledWith('permission_mode', 'bypassPermissions')
+    expect(connection.setConfigOption).toHaveBeenCalledWith('approval_mode', 'yolo')
+    expect(connection.setConfigOption).toHaveBeenCalledWith('permissions', 'accept-edits')
+    expect(connection.setConfigOption).not.toHaveBeenCalledWith('verbosity', expect.anything())
+  })
+
   it('surfaces the underlying CLI reconnect error instead of unavailable/busy when priming a disconnected ACP session fails', async () => {
     runtimeDriverRegistry.register({
       type: 'local',

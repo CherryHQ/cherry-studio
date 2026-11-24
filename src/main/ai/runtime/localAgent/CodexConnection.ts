@@ -151,6 +151,7 @@ export class CodexConnection extends LocalConnection {
   private gatewayLease?: { dispose: () => void }
   private modeOverride?: CodexModeValue
   private thoughtLevelOverride?: string
+  private sessionPermissionsGranted = false
   private readonly turnHistory: string[] = []
   private usageBaseline?: z.infer<typeof TokenUsageSchema>
   private lastTokenUsage?: z.infer<typeof TokenUsageSchema>
@@ -333,6 +334,9 @@ export class CodexConnection extends LocalConnection {
     this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
     return this.localSessionInfo
   }
+  private isFullAccess(): boolean {
+    return (this.modeOverride ?? this.localSessionInfo.mode?.currentValue) === 'fullAccess'
+  }
   private write(message: unknown) {
     if (!this.process?.stdin?.writable) throw new Error('Codex connection is closed')
     this.process.stdin.write(JSON.stringify(message) + '\n')
@@ -421,6 +425,17 @@ export class CodexConnection extends LocalConnection {
                   ? 'allow_once'
                   : 'reject_once'
         }))
+        const fullAccessDecision = this.isFullAccess()
+          ? decisions.includes('accept')
+            ? 'accept'
+            : decisions.includes('acceptForSession')
+              ? 'acceptForSession'
+              : undefined
+          : undefined
+        if (fullAccessDecision) {
+          this.write({ id: message.id, result: { decision: fullAccessDecision } })
+          return
+        }
         const answer = await this.approve(
           String(params.itemId),
           message.method.includes('command') ? 'Codex: Command' : 'Codex: File change',
@@ -439,12 +454,39 @@ export class CodexConnection extends LocalConnection {
               : 'decline'
         this.write({ id: message.id, result: { decision } })
       } else if (message.method === 'item/permissions/requestApproval') {
-        const answer = await this.approve(String(params.itemId), 'Codex: Permissions', params)
+        if (this.isFullAccess() || this.sessionPermissionsGranted) {
+          this.write({
+            id: message.id,
+            result: {
+              permissions: !this.abort.signal.aborted ? params.permissions : {},
+              scope: 'session'
+            }
+          })
+          return
+        }
+        const localPermissionOptions = [
+          { optionId: 'accept', name: 'Allow', label: 'allow' as const, kind: 'allow_once' as const },
+          {
+            optionId: 'acceptForSession',
+            name: 'Allow for session',
+            label: 'allow_session' as const,
+            kind: 'allow_always' as const
+          },
+          { optionId: 'decline', name: 'Deny', label: 'deny' as const, kind: 'reject_once' as const }
+        ]
+        const answer = await this.approve(String(params.itemId), 'Codex: Permissions', {
+          ...params,
+          localPermissionOptions
+        })
+        const allowForSession = answer.approved && answer.updatedInput?.localPermissionOption === 'acceptForSession'
+        if (allowForSession && !this.abort.signal.aborted) {
+          this.sessionPermissionsGranted = true
+        }
         this.write({
           id: message.id,
           result: {
             permissions: answer.approved && !this.abort.signal.aborted ? params.permissions : {},
-            scope: 'turn'
+            scope: allowForSession ? 'session' : 'turn'
           }
         })
       } else this.write({ id: message.id, error: { code: -32601, message: 'Unsupported client request' } })

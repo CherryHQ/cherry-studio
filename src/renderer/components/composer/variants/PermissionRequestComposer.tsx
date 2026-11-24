@@ -106,10 +106,20 @@ export function createPermissionRequestComposerOverride({
   }
 }
 
+function stripLocalPermissionEnvelope(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !('localPermissionOptions' in value)) {
+    return value
+  }
+  const rest = { ...(value as Record<string, unknown>) }
+  delete rest.localPermissionOptions
+  return rest
+}
+
 function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const toolName = toolResponse.tool.name
-  const input = toolResponse.arguments as Record<string, unknown> | string | undefined
-  const acp = LocalAcpToolSchema.safeParse(input && typeof input === 'object' ? input.localAcpTool : undefined)
+  const rawInput = toolResponse.arguments as Record<string, unknown> | string | undefined
+  const acp = LocalAcpToolSchema.safeParse(rawInput && typeof rawInput === 'object' ? rawInput.localAcpTool : undefined)
+  const input = stripLocalPermissionEnvelope(rawInput) as Record<string, unknown> | string | undefined
   const renderedItem = acp.success
     ? AcpTool({ tool: acp.data })
     : isValidAgentToolsType(toolName)
@@ -139,7 +149,7 @@ function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolRe
 
 function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse }) {
   const { t } = useTranslation()
-  const args = normalizeArgs(toolResponse.arguments)
+  const args = normalizeArgs(stripLocalPermissionEnvelope(toolResponse.arguments) as ToolResponseLike['arguments'])
 
   return (
     <div className="px-3 py-2">

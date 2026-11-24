@@ -11,7 +11,7 @@ import { application } from '@application'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService } from '@main/core/lifecycle'
 import type * as ShellEnv from '@main/utils/shellEnv'
-import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
+import { type LocalAgentConfiguration, LocalPermissionOptionsSchema } from '@shared/ai/localAgent'
 
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
 import { AcpConnection } from '../AcpConnection'
@@ -1992,5 +1992,191 @@ describe('local protocol processes', () => {
     await expect(overridden.connection.start(cwd)).rejects.toThrow('This agent does not support model selection')
     await overridden.connection.close()
     await overridden.drained
+  })
+
+  it('advertises writeTextFile: false and terminal: false for antigravity-acp while keeping defaults for other ACP agents', async () => {
+    const anti = create('acp', 'normal', undefined, 'antigravity-acp')
+    await anti.connection.start(cwd)
+    await anti.connection.close()
+    await anti.drained
+    const antiInit = (await readWire()).find((message) => message.method === 'initialize')
+    expect(antiInit.params.clientCapabilities.fs).toEqual({ readTextFile: true, writeTextFile: false })
+    expect(antiInit.params.clientCapabilities.terminal).toBe(false)
+
+    await writeFile(path.join(cwd, 'wire.jsonl'), '')
+    const standard = create('acp', 'normal')
+    await standard.connection.start(cwd)
+    await standard.connection.close()
+    await standard.drained
+    const standardInit = (await readWire()).find((message) => message.method === 'initialize')
+    expect(standardInit.params.clientCapabilities.fs).toEqual({ readTextFile: true, writeTextFile: true })
+    expect(standardInit.params.clientCapabilities.terminal).toBe(true)
+  })
+
+  it('auto-approves ACP permission requests, writes, and terminals in yolo mode using allow_once', async () => {
+    const { connection, events, text, drained } = create('acp', 'acp-policy-yolo')
+    await connection.start(cwd)
+    await connection.setMode?.('agent-mode', 'yolo')
+    await connection.send(input)
+
+    expect(events.some((event) => event.type === 'tool-approval-request')).toBe(false)
+    expect(JSON.parse(text())).toEqual({
+      perm: { outcome: { outcome: 'selected', optionId: 'once' } },
+      wrote: true,
+      term: 'term-ok'
+    })
+    expect(await readFile(path.join(cwd, 'yolo.txt'), 'utf8')).toBe('yolo ok')
+    await connection.close()
+    await drained
+  })
+
+  it('keeps ACP permission prompts active when native mode is auto', async () => {
+    const { connection, events, text, drained } = create('acp', 'acp-policy-auto')
+    await connection.start(cwd)
+    await connection.setMode?.('agent-mode', 'auto')
+    const sending = connection.send(input)
+    const approval = await waitForApproval(events)
+    toolApprovalRegistry.dispatch(approval.request.approvalId, {
+      approved: true,
+      updatedInput: { localPermissionOption: 'once' }
+    })
+    await sending
+    expect(JSON.parse(text())).toEqual({ outcome: { outcome: 'selected', optionId: 'once' } })
+    await connection.close()
+    await drained
+  })
+
+  it('suppresses duplicate ACP: Terminal in a turn approved for execute and honors allow_always across turns while still prompting outside workspace', async () => {
+    const { connection, events, text, drained } = create('acp', 'acp-policy-session-grants')
+    await connection.start(cwd)
+
+    // Turn 1: allow_once on execute authorizes terminal/create in the same turn without a second prompt.
+    const turn1 = connection.send(input)
+    const execApproval = await waitForApproval(events)
+    toolApprovalRegistry.dispatch(execApproval.request.approvalId, {
+      approved: true,
+      updatedInput: { localPermissionOption: 'once' }
+    })
+    await turn1
+    expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(1)
+    expect(text()).toBe('turn1-done')
+
+    // Turn 2: turnApprovedExecute reset -> terminal/create prompts again (select allow_always),
+    // edit allows always -> in-workspace fs/write_text_file auto-approves, out-of-workspace still prompts.
+    events.length = 0
+    const turn2 = connection.send(input)
+    const termApproval = await waitForApproval(events)
+    expect(termApproval.request.toolName).toBe('ACP: Terminal')
+    toolApprovalRegistry.dispatch(termApproval.request.approvalId, {
+      approved: true,
+      updatedInput: { localPermissionOption: 'allow_session' }
+    })
+
+    await vi.waitFor(() => expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(2))
+    const editApproval = events.filter((event) => event.type === 'tool-approval-request')[1]
+    if (editApproval.type !== 'tool-approval-request') throw new Error('Missing edit approval')
+    toolApprovalRegistry.dispatch(editApproval.request.approvalId, {
+      approved: true,
+      updatedInput: { localPermissionOption: 'always' }
+    })
+
+    await vi.waitFor(() => expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(3))
+    const outsideWriteApproval = events.filter((event) => event.type === 'tool-approval-request')[2]
+    if (outsideWriteApproval.type !== 'tool-approval-request') throw new Error('Missing outside write approval')
+    expect(outsideWriteApproval.request.toolName).toBe('ACP: Write')
+    toolApprovalRegistry.dispatch(outsideWriteApproval.request.approvalId, { approved: false })
+    await turn2
+    expect(await readFile(path.join(cwd, 'in2.txt'), 'utf8')).toBe('inside-ok')
+    expect(JSON.parse(text())).toEqual({ outsideRejected: true })
+
+    // Turn 3: both execute session/request_permission and terminal/create run with zero prompts.
+    events.length = 0
+    await connection.send(input)
+    expect(events.some((event) => event.type === 'tool-approval-request')).toBe(false)
+    expect(text()).toBe('turn3-done')
+
+    await connection.close()
+    await drained
+  })
+
+  it('auto-approves Codex command, fileChange, and permissions requests under fullAccess without prompting', async () => {
+    const { connection, events, text, drained } = create('codex', 'codex-full-access-approvals')
+    await connection.start(cwd)
+    await connection.send(input)
+    await vi.waitFor(() => expect(events).toContainEqual({ type: 'turn-complete' }))
+
+    expect(events.some((event) => event.type === 'tool-approval-request')).toBe(false)
+    expect(JSON.parse(text())).toEqual({
+      cmd: { decision: 'accept' },
+      fc: { decision: 'accept' },
+      perms: { permissions: { fileSystem: { write: [cwd] } }, scope: 'session' }
+    })
+    await connection.close()
+    await drained
+  })
+
+  it('supports allow_session on Codex item/permissions/requestApproval and skips subsequent permission prompts', async () => {
+    const { connection, events, text, drained } = create('codex', 'codex-item-permissions')
+    await connection.start(cwd)
+    await connection.send(input)
+
+    const approval = await waitForApproval(events)
+    expect(approval.request.toolName).toBe('Codex: Permissions')
+    expect(approval.request.input.localPermissionOptions).toContainEqual(
+      expect.objectContaining({ optionId: 'acceptForSession', kind: 'allow_always', label: 'allow_session' })
+    )
+    toolApprovalRegistry.dispatch(approval.request.approvalId, {
+      approved: true,
+      updatedInput: { localPermissionOption: 'acceptForSession' }
+    })
+
+    await vi.waitFor(() => expect(events).toContainEqual({ type: 'turn-complete' }))
+    expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(1)
+    expect(JSON.parse(text())).toEqual([
+      { permissions: { fileSystem: { write: [cwd] } }, scope: 'session' },
+      { permissions: { network: { allowedHosts: ['example.com'] } }, scope: 'session' }
+    ])
+    await connection.close()
+    await drained
+  })
+
+  it('synthesizes host-managed allow_session when an ACP server only offers allow_once (like agy acp)', async () => {
+    const { connection, events, text, drained } = create('acp', 'acp-policy-allow-once-only')
+    await connection.start(cwd)
+    const sending = connection.send(input)
+
+    const writeApproval = await waitForApproval(events)
+    const writeOptions = LocalPermissionOptionsSchema.parse(writeApproval.request.input).localPermissionOptions
+    const writeSessionOpt = writeOptions.find((option) => option.label === 'allow_session')
+    expect(writeSessionOpt).toMatchObject({ kind: 'allow_always', label: 'allow_session' })
+    if (!writeSessionOpt) throw new Error('Missing allow_session option')
+    toolApprovalRegistry.dispatch(writeApproval.request.approvalId, {
+      approved: true,
+      updatedInput: { localPermissionOption: writeSessionOpt.optionId }
+    })
+
+    // Second write auto-approves on the host; execute still prompts once with synthesized allow_session.
+    await vi.waitFor(() => expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(2))
+    const execApproval = events.filter((event) => event.type === 'tool-approval-request')[1]
+    if (execApproval.type !== 'tool-approval-request') throw new Error('Missing execute approval')
+    const execOptions = LocalPermissionOptionsSchema.parse(execApproval.request.input).localPermissionOptions
+    const execSessionOpt = execOptions.find((option) => option.label === 'allow_session')
+    expect(execSessionOpt).toBeDefined()
+    if (!execSessionOpt) throw new Error('Missing execute allow_session option')
+    toolApprovalRegistry.dispatch(execApproval.request.approvalId, {
+      approved: true,
+      updatedInput: { localPermissionOption: execSessionOpt.optionId }
+    })
+
+    await sending
+    expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(2)
+    expect(JSON.parse(text())).toEqual([
+      { outcome: { outcome: 'selected', optionId: 'allow' } },
+      { outcome: { outcome: 'selected', optionId: 'allow' } },
+      { outcome: { outcome: 'selected', optionId: 'allow' } },
+      { outcome: { outcome: 'selected', optionId: 'allow' } }
+    ])
+    await connection.close()
+    await drained
   })
 })

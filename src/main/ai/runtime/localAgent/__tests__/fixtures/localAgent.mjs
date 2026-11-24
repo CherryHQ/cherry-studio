@@ -36,11 +36,18 @@ const piBanner = 'pi v0.84.2\nUpdate available\n'
 let turn = 0
 let cwd
 let terminalId
-let modeValue = 'ask'
-const modeOptions = [
-  { value: 'ask', name: 'Ask', description: 'Ask before changes' },
-  { value: 'plan', name: 'Plan', description: 'Plan before executing' }
-]
+let modeValue = scenario.startsWith('acp-policy-') ? 'default' : 'ask'
+const modeOptions = scenario.startsWith('acp-policy-')
+  ? [
+      { value: 'default', name: 'Default', description: 'Ask before changes' },
+      { value: 'accept-edits', name: 'Accept Edits', description: 'Auto-approve workspace edits' },
+      { value: 'auto', name: 'Auto', description: 'Model-managed permissions' },
+      { value: 'yolo', name: 'Full Access', description: 'Bypass all permissions' }
+    ]
+  : [
+      { value: 'ask', name: 'Ask', description: 'Ask before changes' },
+      { value: 'plan', name: 'Plan', description: 'Plan before executing' }
+    ]
 const mode = () => ({
   id: 'agent-mode',
   name: 'Mode',
@@ -378,7 +385,9 @@ createInterface({ input: process.stdin }).on('line', (line) => {
                 : scenario === 'mode-legacy-empty' || scenario === 'no-models' || scenario === 'legacy-models'
                   ? []
                   : [
-                      ...((scenario.startsWith('mode') && scenario !== 'mode-legacy') || scenario.startsWith('resume')
+                      ...((scenario.startsWith('mode') && scenario !== 'mode-legacy') ||
+                      scenario.startsWith('resume') ||
+                      scenario.startsWith('acp-policy-')
                         ? [mode()]
                         : []),
                       ...(scenario.startsWith('thought') || scenario.startsWith('resume') ? [thought()] : []),
@@ -457,12 +466,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       return emit({ id, error: { code: -32600, message: `no rollout found for thread id ${message.params.threadId}` } })
     }
     cwd = message.params.cwd
-    const threadMode =
-      scenario === 'codex-full-access'
-        ? { approvalPolicy: 'never', sandbox: { type: 'dangerFullAccess' } }
-        : scenario === 'codex-readonly'
-          ? { approvalPolicy: 'on-request', sandbox: { type: 'readOnly', networkAccess: false } }
-          : {}
+    const threadMode = scenario.startsWith('codex-full-access')
+      ? { approvalPolicy: 'never', sandbox: { type: 'dangerFullAccess' } }
+      : scenario === 'codex-readonly'
+        ? { approvalPolicy: 'on-request', sandbox: { type: 'readOnly', networkAccess: false } }
+        : {}
     reply(id, { thread: { id: 'native-session' }, model: 'fixture-model', ...threadMode })
   } else if (method === 'thread/name/set' || method === 'thread/fork') {
     if (scenario === 'no-rollout' && turn === 0) {
@@ -672,6 +680,207 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     if (protocol === 'codex') {
       reply(id, { turn: { id: 'turn', status: 'inProgress' } })
       emit({ method: 'turn/started', params: { threadId: 'native-session', turn: { id: 'turn' } } })
+    }
+    if (scenario === 'acp-policy-yolo') {
+      void (async () => {
+        const perm = await requestClient('session/request_permission', {
+          sessionId: 'native-session',
+          toolCall: { toolCallId: 'yolo-perm', kind: 'execute', title: 'Run check' },
+          options: [
+            { optionId: 'always', name: 'Always', kind: 'allow_always' },
+            { optionId: 'once', name: 'Once', kind: 'allow_once' },
+            { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+          ]
+        })
+        const writeRes = await requestClient('fs/write_text_file', {
+          sessionId: 'native-session',
+          path: `${cwd}/yolo.txt`,
+          content: 'yolo ok'
+        })
+        const created = await requestClient('terminal/create', {
+          sessionId: 'native-session',
+          command: process.execPath,
+          args: ['-e', 'process.stdout.write("term-ok")']
+        })
+        const termId = created.result.terminalId
+        await requestClient('terminal/wait_for_exit', { sessionId: 'native-session', terminalId: termId })
+        const out = await requestClient('terminal/output', { sessionId: 'native-session', terminalId: termId })
+        await requestClient('terminal/release', { sessionId: 'native-session', terminalId: termId })
+        text(JSON.stringify({ perm: perm.result, wrote: !writeRes.error, term: out.result.output }))
+        finish()
+      })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
+    }
+    if (scenario === 'acp-policy-auto') {
+      void (async () => {
+        const perm = await requestClient('session/request_permission', {
+          sessionId: 'native-session',
+          toolCall: { toolCallId: 'auto-edit', kind: 'edit', locations: [{ path: `${cwd}/auto.txt` }] },
+          options: [
+            { optionId: 'once', name: 'Allow once', kind: 'allow_once' },
+            { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+          ]
+        })
+        text(JSON.stringify(perm.result))
+        finish()
+      })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
+    }
+    if (scenario === 'acp-policy-session-grants') {
+      void (async () => {
+        if (turn === 1) {
+          await requestClient('session/request_permission', {
+            sessionId: 'native-session',
+            toolCall: { toolCallId: 'exec-1', kind: 'execute', title: 'Run build' },
+            options: [
+              { optionId: 'once', name: 'Allow once', kind: 'allow_once' },
+              { optionId: 'always', name: 'Allow always', kind: 'allow_always' },
+              { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+            ]
+          })
+          const created = await requestClient('terminal/create', {
+            sessionId: 'native-session',
+            command: process.execPath,
+            args: ['-e', 'process.stdout.write("turn1-term")']
+          })
+          const termId = created.result.terminalId
+          await requestClient('terminal/wait_for_exit', { sessionId: 'native-session', terminalId: termId })
+          await requestClient('terminal/release', { sessionId: 'native-session', terminalId: termId })
+          text('turn1-done')
+        } else if (turn === 2) {
+          const created = await requestClient('terminal/create', {
+            sessionId: 'native-session',
+            command: process.execPath,
+            args: ['-e', 'process.stdout.write("turn2-term")']
+          })
+          const termId = created.result.terminalId
+          await requestClient('terminal/wait_for_exit', { sessionId: 'native-session', terminalId: termId })
+          await requestClient('terminal/release', { sessionId: 'native-session', terminalId: termId })
+          await requestClient('session/request_permission', {
+            sessionId: 'native-session',
+            toolCall: { toolCallId: 'edit-1', kind: 'edit', locations: [{ path: `${cwd}/in.txt` }] },
+            options: [
+              { optionId: 'once', name: 'Allow once', kind: 'allow_once' },
+              { optionId: 'always', name: 'Allow always', kind: 'allow_always' },
+              { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+            ]
+          })
+          await requestClient('fs/write_text_file', {
+            sessionId: 'native-session',
+            path: `${cwd}/in2.txt`,
+            content: 'inside-ok'
+          })
+          const outside = await requestClient('fs/write_text_file', {
+            sessionId: 'native-session',
+            path: `${cwd}/../escape.txt`,
+            content: 'outside'
+          })
+          text(JSON.stringify({ outsideRejected: Boolean(outside.error) }))
+        } else {
+          await requestClient('session/request_permission', {
+            sessionId: 'native-session',
+            toolCall: { toolCallId: 'exec-3', kind: 'execute', title: 'Run test' },
+            options: [
+              { optionId: 'always', name: 'Allow always', kind: 'allow_always' },
+              { optionId: 'once', name: 'Allow once', kind: 'allow_once' },
+              { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+            ]
+          })
+          const created = await requestClient('terminal/create', {
+            sessionId: 'native-session',
+            command: process.execPath,
+            args: ['-e', 'process.stdout.write("turn3-term")']
+          })
+          const termId = created.result.terminalId
+          await requestClient('terminal/wait_for_exit', { sessionId: 'native-session', terminalId: termId })
+          await requestClient('terminal/release', { sessionId: 'native-session', terminalId: termId })
+          text('turn3-done')
+        }
+        finish()
+      })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
+    }
+    if (scenario === 'acp-policy-allow-once-only') {
+      void (async () => {
+        const w1 = await requestClient('session/request_permission', {
+          sessionId: 'native-session',
+          toolCall: { toolCallId: 'w1', kind: 'edit', rawInput: { Path: `${cwd}/one.html` } },
+          options: [
+            { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+            { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+          ]
+        })
+        const w2 = await requestClient('session/request_permission', {
+          sessionId: 'native-session',
+          toolCall: { toolCallId: 'w2', kind: 'edit', rawInput: { Path: `${cwd}/two.html` } },
+          options: [
+            { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+            { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+          ]
+        })
+        const e1 = await requestClient('session/request_permission', {
+          sessionId: 'native-session',
+          toolCall: { toolCallId: 'e1', kind: 'execute', title: 'echo one' },
+          options: [
+            { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+            { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+          ]
+        })
+        const e2 = await requestClient('session/request_permission', {
+          sessionId: 'native-session',
+          toolCall: { toolCallId: 'e2', kind: 'execute', title: 'echo two' },
+          options: [
+            { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+            { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+          ]
+        })
+        text(JSON.stringify([w1.result, w2.result, e1.result, e2.result]))
+        finish()
+      })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
+    }
+    if (scenario === 'codex-full-access-approvals') {
+      void (async () => {
+        const cmd = await requestClient('item/commandExecution/requestApproval', {
+          threadId: 'native-session',
+          turnId: 'turn',
+          itemId: 'cmd-1',
+          command: 'echo hi'
+        })
+        const fc = await requestClient('item/fileChange/requestApproval', {
+          threadId: 'native-session',
+          turnId: 'turn',
+          itemId: 'fc-1'
+        })
+        const perms = await requestClient('item/permissions/requestApproval', {
+          threadId: 'native-session',
+          turnId: 'turn',
+          itemId: 'perm-1',
+          permissions: { fileSystem: { write: [cwd] } }
+        })
+        text(JSON.stringify({ cmd: cmd.result, fc: fc.result, perms: perms.result }))
+        finish()
+      })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
+    }
+    if (scenario === 'codex-item-permissions') {
+      void (async () => {
+        const first = await requestClient('item/permissions/requestApproval', {
+          threadId: 'native-session',
+          turnId: 'turn',
+          itemId: 'perm-1',
+          permissions: { fileSystem: { write: [cwd] } }
+        })
+        const second = await requestClient('item/permissions/requestApproval', {
+          threadId: 'native-session',
+          turnId: 'turn',
+          itemId: 'perm-2',
+          permissions: { network: { allowedHosts: ['example.com'] } }
+        })
+        text(JSON.stringify([first.result, second.result]))
+        finish()
+      })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
     }
     if (protocol === 'codex' && scenario.startsWith('codex-usage')) {
       const counts = (input, output) => ({

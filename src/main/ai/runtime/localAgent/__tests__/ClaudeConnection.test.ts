@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import type { SDKMessage, SDKPartialAssistantMessage } from '@anthropic-ai/claude-agent-sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
 import { ClaudeConnection } from '../ClaudeConnection'
 
@@ -314,5 +316,210 @@ describe('native Claude protocol mapping', () => {
       await connection.close()
       await drained
     }
+  })
+
+  it('auto-allows tools in bypassPermissions while still prompting for AskUserQuestion', async () => {
+    sdk.messages = [result()]
+    let release!: () => void
+    sdk.returnGate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const connection = new ClaudeConnection('session', 'agent', {
+      protocol: 'claude',
+      enabled: true,
+      args: [],
+      env: {}
+    })
+    const events: AgentRuntimeEvent[] = []
+    const drained = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+    try {
+      await connection.start('/tmp')
+      await connection.setMode('claude-mode', 'bypassPermissions')
+      const sending = connection.send(input)
+      await vi.waitFor(() => expect(sdk.returning).toBe(true))
+
+      const canUseTool = sdk.queryOptions.at(-1)?.canUseTool as (
+        name: string,
+        toolInput: Record<string, unknown>,
+        opts: { toolUseID: string; signal: AbortSignal; suggestions?: Array<Record<string, unknown>> }
+      ) => Promise<Record<string, unknown>>
+      const controller = new AbortController()
+
+      await expect(
+        canUseTool('Bash', { command: 'pwd' }, { toolUseID: 'bash-1', signal: controller.signal })
+      ).resolves.toEqual({ behavior: 'allow', updatedInput: { command: 'pwd' } })
+      expect(events.some((event) => event.type === 'tool-approval-request')).toBe(false)
+
+      const questionPromise = canUseTool(
+        'AskUserQuestion',
+        { questions: [{ id: 'q1', header: 'Choice', question: 'Proceed?' }] },
+        { toolUseID: 'ask-1', signal: controller.signal }
+      )
+      const approval = await vi.waitFor(() => {
+        const req = events.find((event) => event.type === 'tool-approval-request')
+        expect(req).toBeDefined()
+        return req!
+      })
+      if (approval.type !== 'tool-approval-request') throw new Error('Missing approval')
+      expect(approval.request.toolName).toBe('AskUserQuestion')
+      toolApprovalRegistry.dispatch(approval.request.approvalId, {
+        approved: true,
+        updatedInput: { answers: { q1: 'yes' } }
+      })
+      await expect(questionPromise).resolves.toEqual({
+        behavior: 'allow',
+        updatedInput: { answers: { q1: 'yes' } }
+      })
+      release()
+      await sending
+    } finally {
+      release()
+      await connection.close()
+      await drained
+    }
+  })
+
+  it('persists session-scoped Claude tool approvals from allow_session, rewrites suggestion destinations to session, and avoids leaking localPermissionOption', async () => {
+    sdk.messages = [result()]
+    let release!: () => void
+    sdk.returnGate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const connection = new ClaudeConnection('session', 'agent', {
+      protocol: 'claude',
+      enabled: true,
+      args: [],
+      env: {}
+    })
+    const events: AgentRuntimeEvent[] = []
+    const drained = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+    try {
+      await connection.start('/tmp')
+      const sending = connection.send(input)
+      await vi.waitFor(() => expect(sdk.returning).toBe(true))
+
+      const canUseTool = sdk.queryOptions.at(-1)?.canUseTool as (
+        name: string,
+        toolInput: Record<string, unknown>,
+        opts: { toolUseID: string; signal: AbortSignal; suggestions?: Array<Record<string, unknown>> }
+      ) => Promise<Record<string, unknown>>
+      const controller = new AbortController()
+
+      const bashPromise = canUseTool(
+        'Bash',
+        { command: 'echo 1' },
+        {
+          toolUseID: 'bash-1',
+          signal: controller.signal,
+          suggestions: [
+            { type: 'addRules', rules: [{ toolName: 'Bash' }], behavior: 'allow', destination: 'userSettings' }
+          ]
+        }
+      )
+      const bashApproval = await vi.waitFor(() => {
+        const req = events.find((event) => event.type === 'tool-approval-request')
+        expect(req).toBeDefined()
+        return req!
+      })
+      if (bashApproval.type !== 'tool-approval-request') throw new Error('Missing approval')
+      expect(bashApproval.request.input.localPermissionOptions).toContainEqual(
+        expect.objectContaining({ optionId: 'allow_session', label: 'allow_session', kind: 'allow_always' })
+      )
+      toolApprovalRegistry.dispatch(bashApproval.request.approvalId, {
+        approved: true,
+        updatedInput: { command: 'echo 1', localPermissionOption: 'allow_session' }
+      })
+      await expect(bashPromise).resolves.toEqual({
+        behavior: 'allow',
+        updatedInput: { command: 'echo 1' },
+        updatedPermissions: [
+          { type: 'addRules', rules: [{ toolName: 'Bash' }], behavior: 'allow', destination: 'session' }
+        ]
+      })
+
+      // Subsequent calls to Bash auto-approve with zero extra prompts.
+      await expect(
+        canUseTool('Bash', { command: 'echo 2' }, { toolUseID: 'bash-2', signal: controller.signal })
+      ).resolves.toEqual({ behavior: 'allow', updatedInput: { command: 'echo 2' } })
+      expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(1)
+
+      // Different tools still prompt and preserve denial.
+      const writePromise = canUseTool(
+        'Write',
+        { file_path: '/tmp/out.txt', content: 'hi' },
+        { toolUseID: 'write-1', signal: controller.signal }
+      )
+      await vi.waitFor(() => expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(2))
+      const writeApproval = events.filter((event) => event.type === 'tool-approval-request')[1]
+      if (writeApproval.type !== 'tool-approval-request') throw new Error('Missing write approval')
+      toolApprovalRegistry.dispatch(writeApproval.request.approvalId, {
+        approved: false,
+        reason: 'User declined'
+      })
+      await expect(writePromise).resolves.toEqual({ behavior: 'deny', message: 'User declined' })
+
+      release()
+      await sending
+    } finally {
+      release()
+      await connection.close()
+      await drained
+    }
+  })
+
+  it('stamps localAgentProtocol: claude on tool chunks while preserving claude-code parent metadata', async () => {
+    sdk.messages = [
+      {
+        type: 'assistant',
+        parent_tool_use_id: 'parent-tool',
+        message: {
+          model: 'native-model',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'write-1',
+              name: 'Write',
+              input: { file_path: '/tmp/a.html', content: '<h1>hi</h1>' }
+            }
+          ]
+        }
+      } as SDKMessage,
+      {
+        type: 'user',
+        parent_tool_use_id: 'parent-tool',
+        message: {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'write-1', content: 'Wrote file' }]
+        }
+      },
+      result()
+    ]
+
+    const { chunks } = await run()
+    expect(chunks).toContainEqual(
+      expect.objectContaining({
+        type: 'tool-input-available',
+        toolCallId: 'write-1',
+        toolName: 'Write',
+        providerMetadata: expect.objectContaining({
+          'claude-code': expect.objectContaining({ parentToolCallId: 'parent-tool' }),
+          cherry: expect.objectContaining({ localAgentProtocol: 'claude' })
+        })
+      })
+    )
+    expect(chunks).toContainEqual(
+      expect.objectContaining({
+        type: 'tool-output-available',
+        toolCallId: 'write-1',
+        providerMetadata: expect.objectContaining({
+          'claude-code': expect.objectContaining({ parentToolCallId: 'parent-tool' }),
+          cherry: expect.objectContaining({ localAgentProtocol: 'claude' })
+        })
+      })
+    )
   })
 })

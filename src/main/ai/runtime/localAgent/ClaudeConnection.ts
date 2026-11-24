@@ -80,6 +80,7 @@ export class ClaudeConnection extends LocalConnection {
   private dynamicCommandsLoaded = false
   private permissionModeOverride?: ClaudePermissionModeValue
   private thoughtLevelOverride?: ClaudeThoughtLevelValue
+  private readonly sessionAllowedTools = new Set<string>()
 
   override async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
     if (!this.dynamicCommandsLoaded && !this.closed && this.launch) {
@@ -198,10 +199,52 @@ export class ClaudeConnection extends LocalConnection {
         resume: this.resume,
         includePartialMessages: true,
         canUseTool: async (name, input, options) => {
-          const answer = await this.approve(options.toolUseID, name, input, options.signal)
-          return answer.approved
-            ? { behavior: 'allow' as const, updatedInput: answer.updatedInput ?? input }
-            : { behavior: 'deny' as const, message: answer.reason ?? 'Denied by user' }
+          if (name === 'AskUserQuestion') {
+            const answer = await this.approve(options.toolUseID, name, input, options.signal)
+            return answer.approved
+              ? { behavior: 'allow' as const, updatedInput: answer.updatedInput ?? input }
+              : { behavior: 'deny' as const, message: answer.reason ?? 'Denied by user' }
+          }
+
+          const effectiveMode = this.permissionModeOverride ?? this.localSessionInfo.mode?.currentValue
+          if (effectiveMode === 'bypassPermissions' || this.sessionAllowedTools.has(name)) {
+            return { behavior: 'allow' as const, updatedInput: input }
+          }
+
+          const answer = await this.approve(
+            options.toolUseID,
+            name,
+            {
+              ...input,
+              localPermissionOptions: [
+                { optionId: 'allow', name: 'Allow', label: 'allow' as const, kind: 'allow_once' as const },
+                {
+                  optionId: 'allow_session',
+                  name: 'Allow for session',
+                  label: 'allow_session' as const,
+                  kind: 'allow_always' as const
+                },
+                { optionId: 'deny', name: 'Deny', label: 'deny' as const, kind: 'reject_once' as const }
+              ]
+            },
+            options.signal
+          )
+          if (!answer.approved) {
+            return { behavior: 'deny' as const, message: answer.reason ?? 'Denied by user' }
+          }
+          if (answer.updatedInput?.localPermissionOption === 'allow_session') {
+            this.sessionAllowedTools.add(name)
+            const updatedPermissions = options.suggestions?.map((rule) => ({
+              ...rule,
+              destination: 'session' as const
+            }))
+            return {
+              behavior: 'allow' as const,
+              updatedInput: input,
+              ...(updatedPermissions?.length ? { updatedPermissions } : {})
+            }
+          }
+          return { behavior: 'allow' as const, updatedInput: input }
         }
       }
     })
@@ -246,6 +289,24 @@ export class ClaudeConnection extends LocalConnection {
                 type: 'chunk',
                 chunk: { type: 'message-metadata', messageMetadata: chunk.messageMetadata }
               })
+          } else if (chunk.type === 'tool-input-available' || chunk.type === 'tool-output-available') {
+            const existingMeta = chunk.providerMetadata
+            const existingCherry =
+              typeof existingMeta?.cherry === 'object' &&
+              existingMeta.cherry !== null &&
+              !Array.isArray(existingMeta.cherry)
+                ? existingMeta.cherry
+                : undefined
+            this.events.push({
+              type: 'chunk',
+              chunk: {
+                ...chunk,
+                providerMetadata: {
+                  ...existingMeta,
+                  cherry: { ...existingCherry, localAgentProtocol: 'claude' }
+                }
+              }
+            })
           } else this.events.push({ type: 'chunk', chunk })
         }
       },

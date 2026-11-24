@@ -2,6 +2,14 @@ import type { TFunction } from 'i18next'
 
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
+import {
+  classifyNativePermissionMode,
+  isHighRiskLocalOption,
+  type LocalCanonicalPermissionMode,
+  PERMISSION_CONFIG_OPTION_IDENTIFIERS
+} from '@shared/ai/localAgentPermission'
+
+export { classifyNativePermissionMode, isHighRiskLocalOption, type LocalCanonicalPermissionMode }
 
 const modeNameKeys = new Map(
   Object.entries({
@@ -23,28 +31,6 @@ const modeNameKeys = new Map(
     plan: 'local_agents.modes.plan'
   })
 )
-
-const HIGH_RISK_MODE_IDENTIFIERS = new Set([
-  'bypass permissions',
-  'bypass all permissions',
-  'full access',
-  'bypasspermissions',
-  'bypass_permissions',
-  'bypass-permissions',
-  'fullaccess',
-  'bypass',
-  'yolo',
-  'autopilot',
-  'auto-approve',
-  'auto_approve',
-  'allow_all',
-  'danger-full-access'
-])
-
-const UNSANDBOXED_VALUES = new Set(['false', 'off', 'disabled', 'none', 'local', 'local_environment'])
-const UNSANDBOXED_NAMES = new Set(['local environment', 'local'])
-
-export type LocalCanonicalPermissionMode = 'plan' | 'default' | 'acceptEdits' | 'auto' | 'bypassPermissions'
 
 export interface UnifiedLocalPermissionOption {
   canonicalMode: LocalCanonicalPermissionMode
@@ -110,95 +96,6 @@ const CANONICAL_PERMISSION_MODE_SPECS: Record<
   }
 }
 
-const NATIVE_PERMISSION_CLASSIFIERS: ReadonlyArray<{
-  canonicalMode: LocalCanonicalPermissionMode
-  identifiers: ReadonlyMap<string, number>
-}> = [
-  {
-    canonicalMode: 'bypassPermissions',
-    identifiers: new Map([
-      ['bypasspermissions', 0],
-      ['bypass_permissions', 0],
-      ['bypass-permissions', 0],
-      ['bypass permissions', 0],
-      ['bypass all permissions', 0],
-      ['fullaccess', 1],
-      ['full access', 1],
-      ['danger-full-access', 2],
-      ['bypass', 3],
-      ['yolo', 4],
-      ['autopilot', 5],
-      ['auto-approve', 5],
-      ['auto_approve', 5],
-      ['allow_all', 6]
-    ])
-  },
-  {
-    canonicalMode: 'plan',
-    identifiers: new Map([
-      ['plan', 0],
-      ['readonly', 1],
-      ['read only', 1],
-      ['read-only', 1],
-      ['read_only', 1],
-      ['ask', 2]
-    ])
-  },
-  {
-    canonicalMode: 'auto',
-    identifiers: new Map([
-      ['auto', 0],
-      ['smart_approve', 1],
-      ['smart approve', 1],
-      ['smart-approve', 1]
-    ])
-  },
-  {
-    canonicalMode: 'acceptEdits',
-    identifiers: new Map([
-      ['acceptedits', 0],
-      ['accept_edits', 0],
-      ['accept-edits', 0],
-      ['accept edits', 0],
-      ['auto-approve edits', 0],
-      ['auto-edit', 1],
-      ['auto edit', 1],
-      ['autoedit', 1],
-      ['auto_edit', 1],
-      ['workspace-write', 2],
-      ['workspace_session', 2],
-      ['workspace', 3],
-      ['edit', 4],
-      ['build', 5],
-      ['code', 6],
-      ['agent', 7]
-    ])
-  },
-  {
-    canonicalMode: 'default',
-    identifiers: new Map([
-      ['default', 0],
-      ['always ask', 1],
-      ['alwaysask', 1],
-      ['always-ask', 1],
-      ['always_ask', 1],
-      ['guarded', 2],
-      ['approve', 2],
-      ['manual', 3],
-      ['supervised', 4]
-    ])
-  }
-]
-
-const PERMISSION_CONFIG_OPTION_IDENTIFIERS = new Set([
-  'permission_mode',
-  'permission mode',
-  'permissionmode',
-  'permissions',
-  'approval_mode',
-  'approval mode'
-])
-
 const THOUGHT_CONFIG_OPTION_IDENTIFIERS = new Set([
   'thought_level',
   'thoughtlevel',
@@ -225,53 +122,6 @@ const THOUGHT_CHOICE_IDENTIFIERS = new Set([
   'auto',
   'default'
 ])
-
-export function classifyNativePermissionMode(
-  option: { value: string; name: string },
-  presetId?: string
-): { canonicalMode: LocalCanonicalPermissionMode; priority: number } | undefined {
-  // Pi uses ACP `mode` exclusively to carry thinking levels rather than permission policies.
-  if (presetId === 'pi-acp') return undefined
-  const value = option.value.trim().toLowerCase()
-  const name = option.name.trim().toLowerCase()
-
-  if (presetId === 'goose' && (value === 'auto' || name === 'auto')) {
-    return { canonicalMode: 'bypassPermissions', priority: 1 }
-  }
-  if (presetId === 'minimax' && (value === 'ask' || name === 'ask')) {
-    return { canonicalMode: 'default', priority: 1 }
-  }
-  if (presetId === 'copilot' && (value === 'agent' || name === 'agent')) {
-    return { canonicalMode: 'default', priority: 1 }
-  }
-  if (presetId === 'cursor' && (value === 'agent' || name === 'agent')) {
-    return { canonicalMode: 'acceptEdits', priority: 1 }
-  }
-  if (name === 'default' && value !== 'plan') {
-    return { canonicalMode: 'default', priority: 0 }
-  }
-  if (presetId === 'hermes' && value === 'session') {
-    return { canonicalMode: 'auto', priority: 0 }
-  }
-  if (presetId === 'cline' && value === 'act') {
-    return { canonicalMode: 'default', priority: 1 }
-  }
-
-  for (const classifier of NATIVE_PERMISSION_CLASSIFIERS) {
-    const valuePriority = classifier.identifiers.get(value)
-    const namePriority = classifier.identifiers.get(name)
-    if (valuePriority !== undefined && namePriority !== undefined) {
-      return { canonicalMode: classifier.canonicalMode, priority: Math.min(valuePriority, namePriority) }
-    }
-    if (valuePriority !== undefined) {
-      return { canonicalMode: classifier.canonicalMode, priority: valuePriority }
-    }
-    if (namePriority !== undefined) {
-      return { canonicalMode: classifier.canonicalMode, priority: namePriority }
-    }
-  }
-  return undefined
-}
 
 export function isUnifiedLocalPermissionMode(mode?: LocalAgentSelection, presetId?: string): boolean {
   if (!mode || mode.options.length < 2) return false
@@ -410,40 +260,6 @@ const DEFAULT_NON_PLAN_IDENTIFIERS = [
   'code',
   'build'
 ]
-
-export function isHighRiskLocalOption({
-  kind,
-  optionId,
-  value,
-  name
-}: {
-  kind: 'mode' | 'thought' | 'config'
-  optionId: string
-  value: string | boolean
-  name?: string
-}): boolean {
-  if (kind === 'mode') {
-    const normalizedValue = String(value).trim().toLowerCase()
-    const normalizedName = name?.trim().toLowerCase()
-    return (
-      HIGH_RISK_MODE_IDENTIFIERS.has(normalizedValue) ||
-      (!!normalizedName && HIGH_RISK_MODE_IDENTIFIERS.has(normalizedName))
-    )
-  }
-  if (kind === 'config' && optionId === 'allow_all') {
-    return value === true || ['true', 'on'].includes(String(value).trim().toLowerCase())
-  }
-  if (kind === 'config' && optionId === 'sandbox') {
-    const normalizedValue = String(value).trim().toLowerCase()
-    const normalizedName = name?.trim().toLowerCase()
-    return (
-      value === false ||
-      UNSANDBOXED_VALUES.has(normalizedValue) ||
-      (!!normalizedName && UNSANDBOXED_NAMES.has(normalizedName))
-    )
-  }
-  return false
-}
 
 export function getLocalOptionRiskLevel(params: {
   kind: 'mode' | 'thought' | 'config'

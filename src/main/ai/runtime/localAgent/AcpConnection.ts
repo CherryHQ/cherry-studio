@@ -36,11 +36,26 @@ import {
   elicitationValidator,
   type ElicitationContent
 } from '@shared/ai/elicitation'
-import { DSH_LOCAL_MODE_ID, DSH_LOCAL_MODE_OPTIONS, type LocalAcpTool } from '@shared/ai/localAgent'
+import {
+  DSH_LOCAL_MODE_ID,
+  DSH_LOCAL_MODE_OPTIONS,
+  type LocalAcpTool,
+  type LocalPermissionOption
+} from '@shared/ai/localAgent'
+import { resolveEffectiveLocalPermissionMode } from '@shared/ai/localAgentPermission'
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 
 import type { AgentRuntimeUserInput } from '../types'
 import { acpError } from './acpError'
+import {
+  classifyAcpToolKind,
+  createAcpSessionPermissionGrants,
+  evaluateAcpClientTerminal,
+  evaluateAcpClientWrite,
+  evaluateAcpPermissionRequest,
+  recordAcpAlwaysAllowGrant,
+  selectAutoAllowPermissionOption
+} from './acpPermissionPolicy'
 import { registerCursorExtension } from './cursorExtension'
 import { bindLocalGatewayUsage } from './gatewayUsage'
 import { resolveLocalAgentLaunch } from './launch'
@@ -49,6 +64,7 @@ import { acpContent } from './localContent'
 import { resolveConfiguredAcpModel } from './nativeModelConfig'
 
 const logger = loggerService.withContext('AcpConnection')
+const HOST_ALLOW_SESSION_OPTION_ID = '__cherry_allow_session__'
 const LegacyModelsSchema = z.object({
   currentModelId: z.string(),
   availableModels: z.array(z.object({ modelId: z.string(), name: z.string() }))
@@ -109,7 +125,13 @@ export class AcpConnection extends LocalConnection {
   private turnUsage?: NonNullable<PromptResponse['usage']>
   private pendingUpdates: Array<{ sessionId: string; update: SessionUpdate }> = []
   private readonly approvedWrites: Array<{ path: string; content: string }> = []
+  private readonly permissionGrants = createAcpSessionPermissionGrants()
+  private turnApprovedExecute = false
   private readonly toolInputs = new Map<string, LocalAcpTool>()
+
+  private effectivePermissionMode() {
+    return resolveEffectiveLocalPermissionMode(this.localSessionInfo, this.config.presetId)
+  }
 
   /** A non-resumable ACP session cannot be restored after reaping, so the process outlives the idle TTL. */
   get retainWhileIdle(): boolean {
@@ -298,34 +320,74 @@ export class AcpConnection extends LocalConnection {
         const knownTool = this.tools.has(id)
         const options = params.options
         const tool = { ...this.toolInputs.get(id), ...params.toolCall }
-        const answer = await this.approve(
-          id,
-          `ACP: ${tool.title ?? 'Tool'}`,
-          {
-            localAcpTool: tool,
-            localPermissionOptions: options
-          },
-          signal
-        )
-        const requested = answer.updatedInput?.localPermissionOption
-        const selected =
-          this.abort.signal.aborted || signal.aborted
-            ? undefined
-            : typeof requested === 'string'
-              ? options.find(
-                  (o) => o.optionId === requested && o.kind.startsWith(answer.approved ? 'allow_' : 'reject_')
+        const policyDecision = evaluateAcpPermissionRequest({
+          mode: this.effectivePermissionMode(),
+          tool,
+          cwd,
+          grants: this.permissionGrants
+        })
+        const autoSelected = policyDecision === 'allow' ? selectAutoAllowPermissionOption(options) : undefined
+        let selected: (typeof options)[number] | undefined
+        let grantedSession = false
+        if (autoSelected) {
+          selected = autoSelected
+        } else {
+          const allowOnceOption = options.find((o) => o.kind === 'allow_once')
+          // Agents such as `agy acp` v1.5.13 omit `allow_always` in default mode; synthesize a host-enforced grant.
+          const promptOptions: LocalPermissionOption[] =
+            !options.some((o) => o.kind === 'allow_always') && allowOnceOption
+              ? options.flatMap((o) =>
+                  o === allowOnceOption
+                    ? [
+                        o,
+                        {
+                          optionId: HOST_ALLOW_SESSION_OPTION_ID,
+                          name: 'Allow for session',
+                          label: 'allow_session' as const,
+                          kind: 'allow_always' as const
+                        }
+                      ]
+                    : [o]
                 )
-              : options.find((o) => o.kind === (answer.approved ? 'allow_once' : 'reject_once'))
+              : options
+          const answer = await this.approve(
+            id,
+            `ACP: ${tool.title ?? 'Tool'}`,
+            {
+              localAcpTool: tool,
+              localPermissionOptions: promptOptions
+            },
+            signal
+          )
+          const requested = answer.updatedInput?.localPermissionOption
+          if (this.abort.signal.aborted || signal.aborted) {
+            selected = undefined
+          } else if (answer.approved && requested === HOST_ALLOW_SESSION_OPTION_ID && allowOnceOption) {
+            selected = allowOnceOption
+            grantedSession = true
+          } else {
+            selected =
+              typeof requested === 'string'
+                ? options.find(
+                    (o) => o.optionId === requested && o.kind.startsWith(answer.approved ? 'allow_' : 'reject_')
+                  )
+                : options.find((o) => o.kind === (answer.approved ? 'allow_once' : 'reject_once'))
+          }
+        }
         const outcome = selected
           ? { outcome: 'selected' as const, optionId: selected.optionId }
           : { outcome: 'cancelled' as const }
         if (selected?.kind.startsWith('allow_')) {
+          if (classifyAcpToolKind(tool) === 'execute') this.turnApprovedExecute = true
+          if (!autoSelected && (grantedSession || selected.kind === 'allow_always')) {
+            recordAcpAlwaysAllowGrant(this.permissionGrants, tool)
+          }
           for (const content of params.toolCall.content ?? []) {
             if (content.type === 'diff')
               this.approvedWrites.push({ path: path.resolve(cwd, content.path), content: content.newText })
           }
         }
-        if (!knownTool && this.active) this.result(id, outcome)
+        if (!autoSelected && !knownTool && this.active) this.result(id, outcome)
         return { outcome }
       })
       .onRequest('fs/read_text_file', async ({ params, signal }) => {
@@ -353,17 +415,46 @@ export class AcpConnection extends LocalConnection {
           (write) => write.path === path.resolve(cwd, params.path) && write.content === params.content
         )
         if (grant >= 0) this.approvedWrites.splice(grant, 1)
+        const decision = evaluateAcpClientWrite({
+          mode: this.effectivePermissionMode(),
+          targetPath: params.path,
+          cwd,
+          hasExactApprovedWrite: grant >= 0,
+          grants: this.permissionGrants
+        })
+        const needsPrompt = decision === 'ask'
         try {
-          if (grant < 0) {
-            const answer = await this.approve(id, 'ACP: Write', { path: params.path, content: params.content }, signal)
+          if (needsPrompt) {
+            const answer = await this.approve(
+              id,
+              'ACP: Write',
+              {
+                path: params.path,
+                content: params.content,
+                localPermissionOptions: [
+                  { optionId: 'allow', name: 'Allow', label: 'allow', kind: 'allow_once' },
+                  {
+                    optionId: 'allow_session',
+                    name: 'Allow for session',
+                    label: 'allow_session',
+                    kind: 'allow_always'
+                  },
+                  { optionId: 'deny', name: 'Deny', label: 'deny', kind: 'reject_once' }
+                ]
+              },
+              signal
+            )
             if (!answer.approved || this.abort.signal.aborted || signal.aborted) throw new Error('File write denied')
+            if (answer.updatedInput?.localPermissionOption === 'allow_session') {
+              this.permissionGrants.allowWrite = true
+            }
           }
           if (signal.aborted) throw RequestError.requestCancelled()
           await fs.writeFile(params.path, params.content, { signal })
-          if (grant < 0) this.result(id, { path: params.path })
+          if (needsPrompt) this.result(id, { path: params.path })
           return {}
         } catch (error) {
-          if (grant < 0) this.result(id, String(error), true)
+          if (needsPrompt) this.result(id, String(error), true)
           if (signal.aborted) throw RequestError.requestCancelled()
           throw error
         }
@@ -372,16 +463,38 @@ export class AcpConnection extends LocalConnection {
         this.requireSession(params.sessionId)
         const id = randomUUID()
         const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
-        const answer = await this.approve(
-          id,
-          'ACP: Terminal',
-          { command: params.command, args: params.args, cwd: params.cwd ?? cwd, env: params.env ?? [] },
-          signal
-        )
-        if (!answer.approved || this.abort.signal.aborted || signal.aborted) {
-          this.result(id, 'Terminal execution denied', true)
-          if (signal.aborted) throw RequestError.requestCancelled()
-          throw new Error('Terminal execution denied')
+        const decision = evaluateAcpClientTerminal({
+          mode: this.effectivePermissionMode(),
+          grants: this.permissionGrants,
+          turnApprovedExecute: this.turnApprovedExecute
+        })
+        const needsPrompt = decision === 'ask'
+        if (needsPrompt) {
+          const answer = await this.approve(
+            id,
+            'ACP: Terminal',
+            {
+              command: params.command,
+              args: params.args,
+              cwd: params.cwd ?? cwd,
+              env: params.env ?? [],
+              localPermissionOptions: [
+                { optionId: 'allow', name: 'Allow', label: 'allow', kind: 'allow_once' },
+                { optionId: 'allow_session', name: 'Allow for session', label: 'allow_session', kind: 'allow_always' },
+                { optionId: 'deny', name: 'Deny', label: 'deny', kind: 'reject_once' }
+              ]
+            },
+            signal
+          )
+          if (!answer.approved || this.abort.signal.aborted || signal.aborted) {
+            this.result(id, 'Terminal execution denied', true)
+            if (signal.aborted) throw RequestError.requestCancelled()
+            throw new Error('Terminal execution denied')
+          }
+          this.turnApprovedExecute = true
+          if (answer.updatedInput?.localPermissionOption === 'allow_session') {
+            this.permissionGrants.allowExecute = true
+          }
         }
         const terminalId = randomUUID()
         const terminalCwd = params.cwd ?? cwd
@@ -432,7 +545,7 @@ export class AcpConnection extends LocalConnection {
           terminal.exitStatus = status
           this.publishTerminal(terminalId)
         })
-        this.result(id, { terminalId })
+        if (needsPrompt) this.result(id, { terminalId })
         return { terminalId }
       })
       .onRequest('terminal/output', async ({ params }) => {
@@ -479,12 +592,14 @@ export class AcpConnection extends LocalConnection {
     this.connection = app.connect(
       ndJsonStream(Writable.toWeb(child.stdin), Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>)
     )
+    const isAntigravity = this.config.presetId === 'antigravity-acp'
     const response = await this.connection.agent.request('initialize', {
       protocolVersion: 1,
       clientInfo: { name: 'cherry-studio', version: electronApp.getVersion() },
       clientCapabilities: {
-        fs: { readTextFile: true, writeTextFile: true },
-        terminal: true,
+        // Advertising client writes/terminals to Antigravity downgrades native diff edits into whole-file fs/write_text_file calls.
+        fs: { readTextFile: true, writeTextFile: !isAntigravity },
+        terminal: !isAntigravity,
         elicitation: { form: {} },
         session: { configOptions: { boolean: {} }, notices: {}, compaction: {} }
       }
@@ -967,6 +1082,7 @@ export class AcpConnection extends LocalConnection {
   }
   protected override finish(error?: unknown, finishReason: FinishReason | 'cancelled' = 'stop') {
     this.approvedWrites.length = 0
+    this.turnApprovedExecute = false
     if (this.active) {
       for (const [id, tool] of this.toolInputs) {
         if (tool.status !== 'completed' && tool.status !== 'failed') {

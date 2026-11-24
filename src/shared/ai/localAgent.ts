@@ -501,7 +501,20 @@ export function getDefaultLocalAgentThoughtLevel(
   return undefined
 }
 
-export const LOCAL_PERMISSION_CONFIG_OPTION_IDS = new Set(['allow_all', 'sandbox'])
+export const LOCAL_PERMISSION_CONFIG_OPTION_IDS = new Set([
+  'allow_all',
+  'sandbox',
+  'permission_mode',
+  'permission mode',
+  'permissionmode',
+  'permissions',
+  'approval_mode',
+  'approval mode'
+])
+
+export function isLocalPermissionConfigOptionId(configId: string): boolean {
+  return LOCAL_PERMISSION_CONFIG_OPTION_IDS.has(configId.trim().toLowerCase())
+}
 
 export interface LocalAgentSessionOverrides {
   mode?: { configId: string; value: string }
@@ -534,7 +547,7 @@ export type LocalAgentConfigOption = {
 )
 
 export function isLocalPermissionConfigOption(option: Pick<LocalAgentConfigOption, 'id' | 'category'>): boolean {
-  return option.category === 'mode' || LOCAL_PERMISSION_CONFIG_OPTION_IDS.has(option.id)
+  return option.category === 'mode' || isLocalPermissionConfigOptionId(option.id)
 }
 
 export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
@@ -557,6 +570,7 @@ export const LocalPermissionOptionsSchema = z.object({
     })
   )
 })
+export type LocalPermissionOption = z.infer<typeof LocalPermissionOptionsSchema>['localPermissionOptions'][number]
 
 export const LocalAgentCheckResultSchema = z.object({
   ok: z.boolean(),
@@ -632,3 +646,21 @@ export const LocalAcpToolSchema = z.object({
     .optional()
 })
 export type LocalAcpTool = z.infer<typeof LocalAcpToolSchema>
+
+const LOCAL_ACP_RAW_INPUT_PATH_KEYS = ['path', 'Path', 'file_path', 'filePath', 'TargetFile', 'target_file'] as const
+
+export function extractLocalAcpRawInputPaths(rawInput: unknown): string[] {
+  if (typeof rawInput !== 'object' || rawInput === null || Array.isArray(rawInput)) return []
+  const record = rawInput as Record<string, unknown>
+  const seen = new Set<string>()
+  const paths: string[] = []
+  for (const key of LOCAL_ACP_RAW_INPUT_PATH_KEYS) {
+    const value = record[key]
+    if (typeof value !== 'string') continue
+    const trimmed = value.trim()
+    if (!trimmed || seen.has(trimmed)) continue
+    seen.add(trimmed)
+    paths.push(trimmed)
+  }
+  return paths
+}

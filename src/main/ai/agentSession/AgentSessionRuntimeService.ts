@@ -67,7 +67,8 @@ import {
   DSH_LOCAL_MODE_OPTIONS,
   getDefaultLocalAgentMode,
   getDefaultLocalAgentThoughtLevel,
-  LOCAL_PERMISSION_CONFIG_OPTION_IDS,
+  isLocalPermissionConfigOption,
+  isLocalPermissionConfigOptionId,
   type LocalAgentConfiguration,
   type LocalAgentSessionInfo,
   type LocalAgentSessionOverrides
@@ -4202,7 +4203,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
   async setLocalConfigOption(sessionId: string, configId: string, value: string | boolean) {
     const info = await this.changeLocalOption(sessionId, (connection) => connection.setConfigOption?.(configId, value))
-    if (LOCAL_PERMISSION_CONFIG_OPTION_IDS.has(configId)) {
+    const option = info.configOptions?.find((item) => item.id === configId)
+    if (isLocalPermissionConfigOptionId(configId) || (option && isLocalPermissionConfigOption(option))) {
       this.saveLocalSessionOverride(sessionId, { configOption: { configId, value } })
     }
     return info

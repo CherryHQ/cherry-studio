@@ -149,6 +149,18 @@ describe('PermissionRequestComposer', () => {
     )
   })
 
+  it('strips localPermissionOptions from generic tool previews outside native ACP payloads', () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      command: 'pnpm build',
+      localPermissionOptions: [{ optionId: 'session', kind: 'allow_always', name: 'Allow for session' }]
+    }
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByText(/pnpm build/)).toBeVisible()
+    expect(screen.queryByText(/localPermissionOptions/)).not.toBeInTheDocument()
+  })
+
   it('shows the native ACP operation without its protocol envelope and returns the original grant ID', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     const request = makeRequest()
