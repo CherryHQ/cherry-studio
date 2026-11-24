@@ -25,7 +25,7 @@ export function AgentAvatarPermissionRequest({
     'serverId' in tool &&
     tool.serverId.replaceAll('_', '-') === 'cherry-tools' &&
     tool.name === AGENT_AVATAR_TOOL_NAME
-  const args = input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : null
+  const args = input && typeof input === 'object' && !Array.isArray(input) ? input : null
   const explicitId = typeof args?.target_agent_id === 'string' ? args.target_agent_id.trim() : undefined
   const targetId = isAvatarRequest ? (explicitId ?? agentId ?? null) : null
   const { agent: target } = useAgent(targetId)
