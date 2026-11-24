@@ -8,7 +8,6 @@ import { loggerService } from '@logger'
 import PromptEditorField, { PromptEditorIconButton } from '@renderer/components/PromptEditorField'
 import { useDataChange } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
-import { containsSupportedVariables } from '@renderer/utils/prompt'
 import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import { type AgentLanguageMode, normalizeAgentLanguageInput } from '@shared/ai/agentForm'
 import {
@@ -17,6 +16,7 @@ import {
   isEditablePromptSection
 } from '@shared/ai/agentPromptSections'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
+import { containsSupportedVariables } from '@shared/ai/promptVariables'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type {
   AgentPromptBlockPreview,
