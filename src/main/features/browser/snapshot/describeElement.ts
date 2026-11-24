@@ -29,7 +29,7 @@ export const ANNOTATION_EXPORT_LIMITS = {
   pageUrl: 2_048
 } as const
 
-const ACCESSIBILITY_STATE_NAMES = new Set<AccessibilityState['name']>([
+const ACCESSIBILITY_STATE_NAMES: readonly AccessibilityState['name'][] = [
   'disabled',
   'expanded',
   'checked',
@@ -38,7 +38,7 @@ const ACCESSIBILITY_STATE_NAMES = new Set<AccessibilityState['name']>([
   'required',
   'invalid',
   'readonly'
-])
+]
 
 const FORM_CONTROL_TAG_NAMES = new Set(['input', 'option', 'select', 'textarea'])
 const VALUE_BEARING_ACCESSIBILITY_ROLES = new Set(['combobox', 'searchbox', 'slider', 'spinbutton', 'textbox'])
@@ -62,13 +62,15 @@ const normalizeAccessibilityText = (value: unknown): string | null => {
 }
 
 const normalizeAccessibilityState = (property: CdpAccessibilityProperty): AccessibilityState | null => {
-  if (!ACCESSIBILITY_STATE_NAMES.has(property.name as AccessibilityState['name'])) return null
+  const name = ACCESSIBILITY_STATE_NAMES.find((name) => name === property.name)
+
+  if (!name) return null
   const value = property.value?.value
 
   if (typeof value !== 'boolean' && typeof value !== 'string') return null
 
   return {
-    name: property.name as AccessibilityState['name'],
+    name,
     value: typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, 64) : value
   }
 }
