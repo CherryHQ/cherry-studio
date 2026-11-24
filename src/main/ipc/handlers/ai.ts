@@ -283,17 +283,23 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
-  'ai.agent.session.delete': ({ sessionIds, permanent }) =>
-    exposeAgentSessionArchiveError(() =>
+  'ai.agent.session.delete': async ({ sessionIds, permanent }) => {
+    // Project the public shape: workspace cleanup details travel with the main-process
+    // result for Empty Archive, but the strict output schema publishes deletedIds only.
+    const result = await exposeAgentSessionArchiveError(() =>
       permanent
         ? application.get('AgentLifecycleService').purgeSessions(sessionIds)
         : application.get('AgentLifecycleService').archiveSessions(sessionIds)
-    ),
+    )
+    return { deletedIds: result.deletedIds }
+  },
   'ai.agent.session.restore': ({ sessionId }) => restoreAgentSession(sessionId),
-  'ai.agent.session.delete_permanently': ({ sessionIds }) =>
-    exposeAgentSessionArchiveError(() =>
+  'ai.agent.session.delete_permanently': async ({ sessionIds }) => {
+    const result = await exposeAgentSessionArchiveError(() =>
       application.get('AgentLifecycleService').deleteActiveSessionsPermanently(sessionIds)
-    ),
+    )
+    return { deletedIds: result.deletedIds }
+  },
   'ai.agent.session.reuse_or_create': (input) => application.get('AgentLifecycleService').reuseOrCreateSession(input),
   'ai.agent.session.fork': async ({ sourceSessionId, messageId }) => {
     try {

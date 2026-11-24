@@ -91,6 +91,7 @@ const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSes
 const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn(), forkSession: vi.fn() }
 const agentLifecycleService = {
   archiveSessions: vi.fn(),
+  deleteActiveSessionsPermanently: vi.fn(),
   restoreSession: vi.fn(),
   restoreAgent: vi.fn(),
   reuseOrCreateSession: vi.fn(),
@@ -196,12 +197,27 @@ describe('aiHandlers', () => {
   })
 
   it('delegates mixed-effect Session deletion to the delivery owner', async () => {
-    agentLifecycleService.archiveSessions.mockResolvedValue({ deletedIds: ['session-1'] })
+    agentLifecycleService.archiveSessions.mockResolvedValue({
+      deletedIds: ['session-1'],
+      deferredWorkspacePaths: ['/data/feature.agents.system_workspaces/session-1']
+    })
 
     await expect(aiHandlers['ai.agent.session.delete']({ sessionIds: ['session-1'] }, ctx)).resolves.toEqual({
       deletedIds: ['session-1']
     })
     expect(agentLifecycleService.archiveSessions).toHaveBeenCalledWith(['session-1'])
+  })
+
+  it('projects internal cleanup details out of permanent Session deletion', async () => {
+    agentLifecycleService.deleteActiveSessionsPermanently.mockResolvedValue({
+      deletedIds: ['session-1'],
+      deferredWorkspacePaths: ['/data/feature.agents.system_workspaces/session-1']
+    })
+
+    await expect(
+      aiHandlers['ai.agent.session.delete_permanently']({ sessionIds: ['session-1'] }, ctx)
+    ).resolves.toEqual({ deletedIds: ['session-1'] })
+    expect(agentLifecycleService.deleteActiveSessionsPermanently).toHaveBeenCalledWith(['session-1'])
   })
 
   it('delegates Session restoration to the delivery owner', async () => {
