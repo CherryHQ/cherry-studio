@@ -34,10 +34,8 @@ import {
   toAISDK
 } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import { CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER } from '@main/ai/constants'
 import { resolveCompressionBudget } from '@main/ai/contextBuild/resolveCompressionBudget'
-import {
-  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
-} from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
