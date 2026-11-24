@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
 
+import type { aiCapability } from '../../capabilities/ai'
+
 const resolveAppIdBySender = vi.fn()
 const beginCapabilityCall = vi.fn()
 const assertMethodAllowed = vi.fn()
@@ -24,7 +26,7 @@ vi.mock('../../capabilities/storage', () => ({
 vi.mock('../../capabilities/file', () => ({
   fileCapability: { save: vi.fn(), load: vi.fn(), list: vi.fn(), delete: vi.fn(), usage: vi.fn() }
 }))
-const aiChat = vi.fn()
+const aiChat = vi.fn<typeof aiCapability.chat>()
 vi.mock('../../capabilities/ai', () => ({ aiCapability: { chat: aiChat, getCapabilities: vi.fn() } }))
 vi.mock('../../capabilities/notification', () => ({ notificationCapability: { show: vi.fn() } }))
 
@@ -201,15 +203,75 @@ describe('handleBridgeRequest', () => {
     ).resolves.toMatchObject({ ok: false, error: { name: 'Internal', message: 'Internal error' } })
   })
 
-  it('hands the guest webContents id to the streaming capability', async () => {
-    // The bug this guards: `ai.chat` binds its stream to the guest, so a route that
-    // drops `senderId` produces a stream the runtime can never abort.
+  it('binds stream chunks to the validated request id while retaining guest cancellation ownership', async () => {
     resolveAppIdBySender.mockReturnValue('com.example.real')
+    aiChat.mockImplementationOnce(async (_appId, _params, emit) => {
+      emit('answer chunk')
+      return { ok: true }
+    })
+    const chunks: Array<{ requestId: string; chunk: string }> = []
 
-    await handleBridgeRequest(77, { method: 'ai.chat', params: { messages: [] } }, noopEmit)
+    const result = await handleBridgeRequest(
+      77,
+      {
+        method: 'ai.chat',
+        params: { messages: [{ role: 'user', content: 'hi' }] },
+        requestId: 'request-1',
+        callId: 'cancel-1'
+      },
+      (requestId, chunk) => chunks.push({ requestId, chunk })
+    )
 
-    expect(aiChat).toHaveBeenCalledWith('com.example.real', { messages: [] }, noopEmit, 77, undefined)
+    expect(result).toEqual({ ok: true, value: { ok: true } })
+    expect(chunks).toEqual([{ requestId: 'request-1', chunk: 'answer chunk' }])
+    expect(aiChat).toHaveBeenCalledWith(
+      'com.example.real',
+      { messages: [{ role: 'user', content: 'hi' }] },
+      expect.any(Function),
+      77,
+      'cancel-1'
+    )
   })
+
+  it.each([undefined, ''])(
+    'keeps streams without a routing request id out of the transport (%s)',
+    async (requestId) => {
+      resolveAppIdBySender.mockReturnValue('com.example.real')
+      aiChat.mockImplementationOnce(async (_appId, _params, emit) => {
+        emit('unrouted chunk')
+        return { ok: true }
+      })
+      const transport = vi.fn()
+
+      await expect(
+        handleBridgeRequest(
+          77,
+          { method: 'ai.chat', params: { messages: [{ role: 'user', content: 'hi' }] }, requestId },
+          transport
+        )
+      ).resolves.toEqual({
+        ok: true,
+        value: { ok: true }
+      })
+      expect(transport).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([42, {}, 'x'.repeat(65)])(
+    'rejects an invalid stream routing request id before starting a capability (%j)',
+    async (requestId) => {
+      resolveAppIdBySender.mockReturnValue('com.example.real')
+      aiChat.mockClear()
+      const transport = vi.fn()
+
+      await expect(handleBridgeRequest(77, { method: 'ai.chat', requestId }, transport)).resolves.toMatchObject({
+        ok: false,
+        error: { name: 'InvalidArgument' }
+      })
+      expect(aiChat).not.toHaveBeenCalled()
+      expect(transport).not.toHaveBeenCalled()
+    }
+  )
 
   it('refuses a malformed payload', async () => {
     resolveAppIdBySender.mockReturnValue('com.example.real')

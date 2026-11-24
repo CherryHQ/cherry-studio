@@ -77,6 +77,7 @@ export class UtilityProcessManager extends BaseService {
 
     const cached = this.clients.get(definition)
 
+    // SAFETY: this WeakMap is keyed by the registered definition object and stores only the client built for its Contract.
     if (cached !== undefined) return cached as UtilityProcessClient<Contract>
 
     const client: UtilityProcessClient<Contract> = {

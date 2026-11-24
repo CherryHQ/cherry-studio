@@ -30,7 +30,8 @@ import {
   type JobContext,
   type JobHandle,
   type JobHandler,
-  type JobScheduleRegistrationInput
+  type JobScheduleRegistrationInput,
+  type TerminalJobSnapshot
 } from './types'
 
 const logger = loggerService.withContext('JobManager')
@@ -86,8 +87,12 @@ class JobHandlerTimeoutError extends Error {
 }
 
 interface FinishedResolver {
-  resolve: (snapshot: JobSnapshot) => void
-  promise: Promise<JobSnapshot>
+  resolve: (snapshot: TerminalJobSnapshot) => void
+  promise: Promise<TerminalJobSnapshot>
+}
+
+function isTerminalSnapshot(snapshot: JobSnapshot): snapshot is TerminalJobSnapshot {
+  return isTerminalStatus(snapshot.status)
 }
 
 /**
@@ -2057,8 +2062,8 @@ export class JobManager extends BaseService {
     try {
       written = jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
     } catch (err) {
-      txFailed = err as Error
-      logger.error('finalizeJob: tx failed — synthesizing failed snapshot to release slot', { jobId, status, err })
+      txFailed = err instanceof Error ? err : new Error('Job terminal write failed', { cause: err })
+      logger.error('finalizeJob: terminal persistence failed', { jobId, status, err })
     }
 
     const persisted = jobService.getById(jobId)
@@ -2090,7 +2095,7 @@ export class JobManager extends BaseService {
     }
 
     if (!txFailed) this.publishState(snapshot)
-    this.resolveAndDispatch(jobId, snapshot)
+    this.resolveAndDispatch(jobId, snapshot, txFailed)
 
     const handler = this.handlers.get(snapshot.type)
 
@@ -2117,12 +2122,14 @@ export class JobManager extends BaseService {
     }
   }
 
-  /** Resolve any waiting `JobHandle.finished` and kick the freed queue slot. */
-  private resolveAndDispatch(jobId: string, snapshot: JobSnapshot): void {
+  private resolveAndDispatch(jobId: string, snapshot: JobSnapshot, persistenceError?: Error): void {
     const resolver = this.finishedResolvers.get(jobId)
 
     if (resolver) {
-      resolver.resolve(snapshot)
+      const completion = isTerminalSnapshot(snapshot)
+        ? snapshot
+        : this.synthesizeFailedSnapshot(jobId, persistenceError ?? new Error('Job terminal state was not persisted'))
+      resolver.resolve(completion)
       this.finishedResolvers.delete(jobId)
     }
 
@@ -2139,13 +2146,8 @@ export class JobManager extends BaseService {
     }
   }
 
-  /**
-   * Build an in-memory failed snapshot for callers awaiting `handle.finished`
-   * when the DB write or row-fetch failed. The DB row may still claim
-   * `running` until recovery — that's expected; the synthesis only exists to
-   * unblock awaiters and free the in-memory slot.
-   */
-  private synthesizeFailedSnapshot(jobId: string, cause: Error): JobSnapshot {
+  /** Keep terminal completion separate from an uncommitted or missing database row. */
+  private synthesizeFailedSnapshot(jobId: string, cause: Error): TerminalJobSnapshot {
     const nowIso = new Date().toISOString()
 
     return {
@@ -2559,23 +2561,19 @@ export class JobManager extends BaseService {
       return { id: snapshot.id, snapshot, finished: existing.promise }
     }
 
-    if (this.isTerminal(snapshot.status)) {
+    if (isTerminalSnapshot(snapshot)) {
       return { id: snapshot.id, snapshot, finished: Promise.resolve(snapshot) }
     }
 
-    let resolve!: (s: JobSnapshot) => void
+    let resolve!: (s: TerminalJobSnapshot) => void
 
-    const promise = new Promise<JobSnapshot>((res) => {
+    const promise = new Promise<TerminalJobSnapshot>((res) => {
       resolve = res
     })
 
     this.finishedResolvers.set(snapshot.id, { resolve, promise })
 
     return { id: snapshot.id, snapshot, finished: promise }
-  }
-
-  private isTerminal(status: JobSnapshot['status']): boolean {
-    return status === 'completed' || status === 'failed' || status === 'cancelled'
   }
 
   private notifyEnqueued(handler: JobHandler, snapshot: JobSnapshot): void {

@@ -13,7 +13,7 @@ export const MediaKind = {
 
 export type MediaKind = (typeof MediaKind)[keyof typeof MediaKind]
 
-export const MEDIA_KINDS = new Set<string>(Object.values(MediaKind))
+export const MEDIA_KINDS: readonly MediaKind[] = Object.values(MediaKind)
 
 /** In-memory media entry served by the protocol handler. */
 export interface MediaEntry {

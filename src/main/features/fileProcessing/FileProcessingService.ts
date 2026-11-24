@@ -1,8 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { TerminalJobStatus } from '@shared/data/api/schemas/jobs'
-import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 
@@ -121,10 +119,7 @@ export class FileProcessingService extends BaseService {
     const task = toQueuedTask(id, payload)
     this.publishTask(task)
 
-    const done = handle.finished.then((snapshot) =>
-      // `finished` resolves only with a terminal snapshot.
-      toSettledTask(id, payload, { ...snapshot, status: snapshot.status as TerminalJobStatus })
-    )
+    const done = handle.finished.then((snapshot) => toSettledTask(id, payload, snapshot))
 
     return { task, done }
   }
@@ -182,7 +177,7 @@ export class FileProcessingService extends BaseService {
   listAvailableProcessors(): ListAvailableFileProcessorsResult {
     const processorIds = Object.entries(processorRegistry)
       .filter(([, processor]) => processor.isSupported())
-      .map(([processorId]) => processorId as FileProcessorId)
+      .map(([processorId]) => processorId)
 
     return ListAvailableFileProcessorsResultSchema.parse({ processorIds })
   }
