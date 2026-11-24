@@ -45,6 +45,30 @@ describe('portable registry', () => {
     })
   })
 
+  it('ships ModelRush as an OpenAI-compatible preset on https://api.modelrush.ai/v1', () => {
+    const provider = createRegistry(bundledCatalog).findProvider('modelrush')
+
+    expect(provider).toMatchObject({
+      name: 'ModelRush',
+      availableInEditions: ['global', 'cn'],
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://api.modelrush.ai/v1'
+        }
+      },
+      metadata: {
+        website: {
+          apiKey: 'https://modelrush.ai/dashboard',
+          docs: 'https://modelrush.ai/docs',
+          models: 'https://modelrush.ai/models',
+          official: 'https://modelrush.ai'
+        }
+      }
+    })
+  })
+
   it('preserves parameter size across namespaced and registry-tag IDs', () => {
     const registry = createRegistry(catalog())
 

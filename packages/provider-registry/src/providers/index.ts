@@ -34,6 +34,7 @@ import p_mimo from './mimo'
 import p_minimax from './minimax'
 import p_minimax_global from './minimax-global'
 import p_mistral from './mistral'
+import p_modelrush from './modelrush'
 import p_modelscope from './modelscope'
 import p_moonshot from './moonshot'
 import p_moonshot_global from './moonshot-global'
@@ -137,5 +138,6 @@ export const PROVIDERS: Provider[] = [
   p_comfyui,
   p_mimo,
   p_zai,
-  p_minimax_global
+  p_minimax_global,
+  p_modelrush
 ]

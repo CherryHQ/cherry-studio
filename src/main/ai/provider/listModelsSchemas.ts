@@ -244,6 +244,25 @@ export const TokenDanceModelsResponseSchema = z.object({
   )
 })
 
+// === ModelRush ===
+
+export const ModelRushModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      name: z.string().optional(),
+      owned_by: z.string().optional(),
+      modality: z.string().optional(),
+      gateway_status: z.string().optional(),
+      api_types: z
+        .array(z.string())
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined)
+    })
+  )
+})
+
 // === OVMS (OpenVINO Model Server) ===
 
 export const OVMSConfigResponseSchema = z.record(

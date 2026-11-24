@@ -341,6 +341,83 @@ describe('listModels — TokenDance protocol routing', () => {
   })
 })
 
+describe('listModels — ModelRush chat-completions filtering (#20010)', () => {
+  function makeModelRushProvider(id = 'modelrush') {
+    return makeProvider({
+      id,
+      ...(id === 'modelrush' ? {} : { presetProviderId: 'modelrush' }),
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.modelrush.ai/v1' }
+      }
+    })
+  }
+
+  it('keeps only live chat-completions operations from the public discovery shape', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'modelrush/deepseek-v4.1-flash',
+            owned_by: 'modelrush',
+            api_types: ['chat-completions'],
+            gateway_status: 'live'
+          },
+          { id: 'modelrush/grok-4.5', owned_by: 'modelrush', api_types: ['chat-completions'], gateway_status: 'live' },
+          {
+            id: 'modelrush/wan2.7-image',
+            owned_by: 'modelrush',
+            api_types: ['image-generation', 'image-editing'],
+            gateway_status: 'live'
+          },
+          { id: 'modelrush/wan3', owned_by: 'modelrush', api_types: ['video-generation'], gateway_status: 'live' },
+          {
+            id: 'modelrush/qwen3-asr-flash',
+            owned_by: 'modelrush',
+            api_types: ['audio-transcription'],
+            gateway_status: 'live'
+          },
+          {
+            id: 'modelrush/qwen3-tts-flash',
+            owned_by: 'modelrush',
+            api_types: ['text-to-speech'],
+            gateway_status: 'live'
+          },
+          {
+            id: 'modelrush/staged-chat',
+            owned_by: 'modelrush',
+            api_types: ['chat-completions'],
+            gateway_status: 'deploying'
+          }
+        ]
+      }
+    })
+
+    const { models } = await listModels(makeModelRushProvider())
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['modelrush/deepseek-v4.1-flash', 'modelrush/grok-4.5'])
+    expect(models[0]).toMatchObject({ ownedBy: 'modelrush', capabilities: [] })
+  })
+
+  it('routes copied ModelRush providers through the ModelRush fetcher (REGRESSION)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'modelrush/glm-5.3', api_types: ['chat-completions'], gateway_status: 'live' },
+          { id: 'modelrush/papaya-1.0', api_types: ['chat-completions'], gateway_status: 'live' },
+          { id: 'modelrush/z-image', api_types: ['image-generation'], gateway_status: 'live' }
+        ]
+      }
+    })
+
+    const { models } = await listModels(makeModelRushProvider('550e8400-e29b-41d4-a716-446655440000'))
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['modelrush/glm-5.3', 'modelrush/papaya-1.0'])
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://api.modelrush.ai/v1/models')
+  })
+})
+
 describe('listModels — LM Studio', () => {
   const fetchMock = vi.fn<typeof fetch>()
 

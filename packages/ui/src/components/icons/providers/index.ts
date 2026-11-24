@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-11-14T13:47:05.390Z
- * Total icons: 175
+ * Total icons: 176
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -107,6 +107,7 @@ export { MinimaxIcon as Minimax } from './minimax'
 export { MinimaxAgentIcon as MinimaxAgent } from './minimax-agent'
 export { MistralIcon as Mistral } from './mistral'
 export { MixedbreadIcon as Mixedbread } from './mixedbread'
+export { ModelrushIcon as Modelrush } from './modelrush/modelrush'
 export { ModelscopeIcon as Modelscope } from './modelscope'
 export { MonicaIcon as Monica } from './monica'
 export { MoonshotIcon as Moonshot } from './moonshot'

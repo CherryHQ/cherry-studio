@@ -3494,6 +3494,7 @@
   "provider.minimax": "MiniMax CN",
   "provider.minimax-global": "MiniMax",
   "provider.mistral": "Mistral",
+  "provider.modelrush": "ModelRush",
   "provider.modelscope": "ModelScope",
   "provider.moonshot": "Moonshot CN",
   "provider.moonshot-global": "Moonshot AI",

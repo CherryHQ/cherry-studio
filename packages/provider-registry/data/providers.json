@@ -2967,7 +2967,28 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "ModelRush - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.modelrush.ai/v1"
+        }
+      },
+      "id": "modelrush",
+      "metadata": {
+        "website": {
+          "apiKey": "https://modelrush.ai/dashboard",
+          "docs": "https://modelrush.ai/docs",
+          "models": "https://modelrush.ai/models",
+          "official": "https://modelrush.ai"
+        }
+      },
+      "name": "ModelRush"
     }
   ],
-  "version": "5179a16fddc562d9"
+  "version": "eeb11089527a0cb9"
 }
