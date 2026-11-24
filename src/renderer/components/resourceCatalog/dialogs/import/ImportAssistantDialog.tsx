@@ -363,7 +363,12 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
         </div>
 
         {/* TabsList keeps a11y/keyboard navigation while the content area owns the animated transitions. */}
-        <Tabs value={tab} onValueChange={(v) => setTab(v as ImportTab)}>
+        <Tabs
+          value={tab}
+          onValueChange={(value) => {
+            const next = tabs.find((item) => item.id === value)
+            if (next) setTab(next.id)
+          }}>
           <TabsList className="h-auto w-auto justify-start gap-1 bg-transparent p-0">
             {tabs.map((tabDef) => {
               const Icon = tabDef.icon
