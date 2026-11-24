@@ -3,6 +3,39 @@ import { describe, expect, it } from 'vitest'
 import { jsonSchemaToTypeScript, toolsToTypeScript, toolToTypeScript } from '../codeMode/schemaToTypeScript'
 
 describe('jsonSchemaToTypeScript', () => {
+  it('resolves local pointers through array containers', () => {
+    expect(jsonSchemaToTypeScript({ $ref: '#/anyOf/0', anyOf: [{ type: 'string' }, { type: 'null' }] })).toBe('string')
+  })
+
+  it('keeps valid required names among malformed entries and ignores non-string descriptions', () => {
+    expect(
+      jsonSchemaToTypeScript({
+        type: 'object',
+        required: [null, 42, 'query'],
+        properties: { query: { type: 'string', description: { text: 'not a description' } }, optional: true }
+      })
+    ).toBe('{ optional?: unknown; query: string }')
+  })
+
+  it.each([true, false])('keeps unsupported boolean schemas as unknown: %s', (schema) => {
+    expect(jsonSchemaToTypeScript(schema)).toBe('unknown')
+  })
+
+  it('preserves scalar literal and composition declarations while bounding unsupported enum values', () => {
+    expect(jsonSchemaToTypeScript({ const: false })).toBe('false')
+    expect(jsonSchemaToTypeScript({ enum: [null, 2, { nested: 'value' }] })).toBe('null | 2 | unknown')
+    expect(jsonSchemaToTypeScript({ anyOf: [{ type: 'string' }, { type: 'null' }] })).toBe('string | null')
+    expect(jsonSchemaToTypeScript({ allOf: [{ type: 'string' }, { const: 'fixed' }] })).toBe('string & "fixed"')
+    expect(jsonSchemaToTypeScript({ type: ['integer', 'null'] })).toBe('number | null')
+  })
+
+  it('retains additional-property fallback without requiring a complete schema dialect', () => {
+    expect(jsonSchemaToTypeScript({ type: 'object', additionalProperties: { type: 'boolean' } })).toBe(
+      'Record<string, boolean>'
+    )
+    expect(jsonSchemaToTypeScript({ type: 'object', additionalProperties: false })).toBe('Record<string, unknown>')
+  })
+
   it('preserves required fields, nested collections, enums, and unsafe property names', () => {
     const output = jsonSchemaToTypeScript({
       type: 'object',
