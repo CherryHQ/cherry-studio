@@ -171,7 +171,7 @@ export class TopicNamingService {
       logger.warn('Failed to auto-rename topic from first user message', {
         topicId,
         userMessageId,
-        error: error as Error
+        error
       })
     }
   }
@@ -239,7 +239,7 @@ export class TopicNamingService {
         topicId,
         assistantId,
         userMessageId,
-        error: error as Error
+        error
       })
     } finally {
       summaryLocks.delete(topicId)
@@ -280,7 +280,7 @@ export class TopicNamingService {
     } catch (error) {
       logger.warn('Failed to auto-rename agent session from first user message', {
         sessionId,
-        error: error as Error
+        error
       })
     }
   }
@@ -364,7 +364,7 @@ export class TopicNamingService {
       logger.warn('Failed to auto-rename agent session', {
         agentId,
         sessionId,
-        error: error as Error
+        error
       })
     } finally {
       agentSessionRenameLocks.delete(sessionId)
@@ -383,7 +383,7 @@ export class TopicNamingService {
     try {
       return topicService.getById(topicId)
     } catch (error) {
-      logger.debug('Failed to read topic for auto-rename', { topicId, error: error as Error })
+      logger.debug('Failed to read topic for auto-rename', { topicId, error })
 
       return null
     }
@@ -393,7 +393,7 @@ export class TopicNamingService {
     try {
       return agentSessionService.getById(sessionId)
     } catch (error) {
-      logger.debug('Failed to read agent session for auto-rename', { sessionId, phase, error: error as Error })
+      logger.debug('Failed to read agent session for auto-rename', { sessionId, phase, error })
 
       return null
     }
