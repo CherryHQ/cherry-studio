@@ -4,8 +4,14 @@ import { isDeepStrictEqual } from 'node:util'
 import { parentPort, workerData } from 'node:worker_threads'
 
 import type { SessionKey, SessionStore, SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
+import * as z from 'zod'
 
 import type { ClaudeForkCheckpoint } from './forkCheckpoint'
+
+const ForkedFromSchema = z.object({
+  sessionId: z.string(),
+  messageUuid: z.string()
+})
 
 export interface ClaudeForkWorkerInput {
   entries: SessionStoreEntry[]
@@ -68,11 +74,11 @@ async function run(input: ClaudeForkWorkerInput) {
   const mapping = new Map<string, string>()
 
   for (const entry of output) {
-    const from = entry.forkedFrom as { sessionId?: string; messageUuid?: string } | undefined
+    const from = ForkedFromSchema.safeParse(entry.forkedFrom)
 
-    if (from?.sessionId === checkpoint.runtimeSessionId && from.messageUuid && entry.uuid) {
-      if (mapping.has(from.messageUuid)) throw new Error('history_corrupt')
-      mapping.set(from.messageUuid, entry.uuid)
+    if (from.success && from.data.sessionId === checkpoint.runtimeSessionId && from.data.messageUuid && entry.uuid) {
+      if (mapping.has(from.data.messageUuid)) throw new Error('history_corrupt')
+      mapping.set(from.data.messageUuid, entry.uuid)
     }
   }
 
@@ -184,17 +190,11 @@ function containsSourceUuid(value: unknown, sourceIds: ReadonlySet<string>): boo
   return false
 }
 
+// SAFETY: claudeFork.ts supplies typed production workerData after validating checkpoints and native entry envelopes.
 void run(workerData as ClaudeForkWorkerInput).then(
   (result) => parentPort?.postMessage({ result }),
   (error) =>
     parentPort?.postMessage({
-      error:
-        (error as NodeJS.ErrnoException)?.code === 'ENOENT'
-          ? 'history_missing'
-          : error instanceof SyntaxError
-            ? 'history_corrupt'
-            : error instanceof Error
-              ? error.message
-              : 'history_corrupt'
+      error: Error.isError(error) ? error.message : 'history_corrupt'
     })
 )

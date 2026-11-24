@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RuntimeForkResult } from '../../fork'
 import { forkClaudeSession } from '../claudeFork'
+import * as forkWorkerFactory from '../forkWorker?nodeWorker'
 
 vi.mock('../forkWorker?nodeWorker', () => ({
   default: (options: ConstructorParameters<typeof Worker>[1]) =>
@@ -115,6 +116,30 @@ describe('Claude native forks', () => {
     const input = forkInput()
     input.checkpoint.messageUuid = 'not-a-uuid'
     await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+  })
+
+  it.each([
+    {
+      source: 'throw Object.assign(new Error("Worker dependency missing"), { code: "ENOENT" })',
+      failure: { name: 'Error', code: 'ENOENT', message: 'Worker dependency missing' }
+    },
+    {
+      source: 'throw new SyntaxError("Worker dependency is invalid")',
+      failure: { name: 'SyntaxError', message: 'Worker dependency is invalid' }
+    }
+  ])('preserves a worker failure after reading valid source history: $failure.message', async ({ source, failure }) => {
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(file, entry + '\n')
+    const factory = vi
+      .spyOn(forkWorkerFactory, 'default')
+      .mockImplementationOnce(() => new Worker(source, { eval: true }))
+
+    try {
+      await expect(forkClaudeSession(forkInput())).rejects.toMatchObject(failure)
+      expect(await readFile(file, 'utf8')).toBe(entry + '\n')
+    } finally {
+      factory.mockRestore()
+    }
   })
 
   it('preserves the SDK-selected context when a parent appears later in the file', async () => {
@@ -694,7 +719,8 @@ describe('Claude native forks', () => {
   it.each([
     ['missing', '', 'history_missing'],
     ['unflushed', entry, 'history_missing'],
-    ['corrupt', 'invalid-json\n' + entry + '\n', 'history_corrupt']
+    ['corrupt', 'invalid-json\n' + entry + '\n', 'history_corrupt'],
+    ['invalid envelope', '42\n' + entry + '\n', 'history_corrupt']
   ])('reports %s history instead of selecting another boundary', async (_name, content, reason) => {
     await mkdir(path.dirname(file), { recursive: true })
     await writeFile(file, content)

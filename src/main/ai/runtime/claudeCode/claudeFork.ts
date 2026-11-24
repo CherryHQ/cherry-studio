@@ -9,6 +9,7 @@ import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } 
 import { runForkWorker } from '../fork'
 import { ClaudeForkResultSchema, parseClaudeForkCheckpoint } from './forkCheckpoint'
 import type { ClaudeForkWorkerInput } from './forkWorker'
+import { SessionStoreEntrySchema } from './sessionStoreEntry'
 
 async function findSession(configDir: string, sessionId: string): Promise<string> {
   if (!/^[a-f0-9-]{36}$/i.test(sessionId)) throw new AgentSessionForkError('history_corrupt')
@@ -29,32 +30,35 @@ async function findSession(configDir: string, sessionId: string): Promise<string
 }
 
 export async function forkClaudeSession(input: RuntimeForkInput): Promise<RuntimeForkResult> {
-  return readNativeForkHistory(() => prepareClaudeFork(input))
-}
-
-async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkResult> {
   const checkpoint = parseClaudeForkCheckpoint(input.checkpoint)
-  const file = await findSession(checkpoint.configDir, checkpoint.runtimeSessionId)
-  const bytes = await readForkPrefix(file)
-  const entries: SessionStoreEntry[] = []
-  let start = 0
-  let end = 0
+  const entries = await readNativeForkHistory(async () => {
+    const file = await findSession(checkpoint.configDir, checkpoint.runtimeSessionId)
+    const bytes = await readForkPrefix(file)
+    const prefix: SessionStoreEntry[] = []
+    let start = 0
+    let end = 0
 
-  for (end = bytes.indexOf(10); end >= 0; end = bytes.indexOf(10, start)) {
-    const line = bytes.toString('utf8', start, end)
-    start = end + 1
+    for (end = bytes.indexOf(10); end >= 0; end = bytes.indexOf(10, start)) {
+      const line = bytes.toString('utf8', start, end)
+      start = end + 1
 
-    if (line.trim().length === 0) continue
-    const entry = JSON.parse(line) as SessionStoreEntry
-    entries.push(entry)
+      if (line.trim().length === 0) continue
+      const parsed = SessionStoreEntrySchema.safeParse(JSON.parse(line))
 
-    if (entry.uuid === checkpoint.messageUuid && entry.type === 'assistant' && !entry.isSidechain) break
-  }
+      if (!parsed.success) throw new AgentSessionForkError('history_corrupt')
+      const entry = parsed.data
+      prefix.push(entry)
 
-  if (end < 0) throw new AgentSessionForkError('history_missing')
+      if (entry.uuid === checkpoint.messageUuid && entry.type === 'assistant' && !entry.isSidechain) break
+    }
 
-  if (!bytes.subarray(0, start).equals(await readForkPrefix(file, start)))
-    throw new AgentSessionForkError('history_changed')
+    if (end < 0) throw new AgentSessionForkError('history_missing')
+
+    if (!bytes.subarray(0, start).equals(await readForkPrefix(file, start)))
+      throw new AgentSessionForkError('history_changed')
+
+    return prefix
+  })
 
   const checkpoints = input.checkpoints
     .map((value) => parseClaudeForkCheckpoint(value))
