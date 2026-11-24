@@ -28,7 +28,7 @@ const createAnthropicHeadersPlugin = ({
 
       if (betas.length === 0) return params
 
-      const existingHeaders = (params.headers ?? {}) as Record<string, string>
+      const existingHeaders = params.headers ?? {}
 
       return {
         ...params,
