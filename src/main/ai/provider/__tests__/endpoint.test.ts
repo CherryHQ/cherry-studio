@@ -4,6 +4,7 @@ import { appProviderIds } from '@main/ai/types'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import { bundledCatalog } from '../../../../../packages/provider-registry/src/bundled-catalog'
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import {
   resolveAiSdkProviderId,
@@ -357,6 +358,24 @@ describe('resolveEffectiveEndpoint', () => {
     expect(endpointType).toBe(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
     expect(baseUrl).toBe('https://api.minimax.io/anthropic')
   })
+
+  it.each(['kimi-k3', 'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4.1-flash', 'glm-5.2'])(
+    'preserves the Responses-first native search route for Qwen Cloud %s',
+    (apiModelId) => {
+      const preset = bundledCatalog.providers.providers.find((provider) => provider.id === 'qwencloud')!
+      const offer = bundledCatalog.providerModels.overrides.find(
+        (model) => model.providerId === preset.id && (model.apiModelId ?? model.modelId) === apiModelId
+      )!
+      const provider = makeProvider({
+        id: preset.id,
+        presetProviderId: preset.id,
+        defaultChatEndpoint: preset.defaultChatEndpoint,
+        endpointConfigs: preset.endpointConfigs
+      })
+      const model = makeModel({ apiModelId, endpointTypes: offer.endpointTypes })
+      expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+    }
+  )
 
   it('honors the existing OpenAI default when both openai and gemini are listed (#21443)', () => {
     const provider = makeProvider({

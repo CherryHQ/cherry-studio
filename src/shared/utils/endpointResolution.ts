@@ -80,6 +80,11 @@ export function resolveEffectiveEndpointType(
       : undefined
   const userPreference =
     intent === 'chat' &&
+    // Qwen Cloud declares Responses-first models to keep native search reachable.
+    !(
+      (provider.presetProviderId ?? provider.id) === 'qwencloud' &&
+      model.endpointTypes?.[0] === ENDPOINT_TYPE.OPENAI_RESPONSES
+    ) &&
     provider.defaultChatEndpoint &&
     model.endpointTypes?.includes(provider.defaultChatEndpoint) &&
     provider.endpointConfigs?.[provider.defaultChatEndpoint]
