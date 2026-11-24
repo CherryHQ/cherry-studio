@@ -516,6 +516,20 @@ required service tier.`
     expect(screen.queryByText('error.notice.rate_limit.title')).toBeNull()
   })
 
+  it('shows size guidance and the original status-less request buffer error', () => {
+    const providerMessage = '413 Failed to buffer the request body: length limit exceeded'
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: providerMessage, stack: null }}
+        message={message}
+      />
+    )
+    expect(screen.getByText('error.diagnosis.payload')).toBeInTheDocument()
+    expect(screen.getByText(providerMessage)).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.unknown')).toBeNull()
+  })
+
   it('shows a useful status when a proxy returns an HTML 413 response', () => {
     render(
       <ErrorBlock
