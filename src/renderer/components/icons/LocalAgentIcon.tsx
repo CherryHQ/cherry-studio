@@ -6,6 +6,7 @@ import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 
 import { CliIcon } from './CliIcon'
+import { SETTINGS_LIST_ICON_FRAME_CLASS } from './iconDisplayConfig'
 
 export function LocalAgentIcon({
   presetId,
@@ -45,9 +46,7 @@ export function LocalAgentIcon({
     <Avatar
       className={cn(
         'items-center justify-center text-foreground',
-        variant === 'card'
-          ? 'rounded-[22%] bg-background ring-1 ring-inset ring-foreground/10 dark:bg-card'
-          : 'rounded-full bg-muted',
+        variant === 'card' ? cn(SETTINGS_LIST_ICON_FRAME_CLASS, 'bg-background') : 'rounded-full bg-muted',
         className
       )}
       style={{ width: size, height: size }}>

@@ -38,6 +38,8 @@ import { Minimax, Nousresearch, Openclaw } from '@cherrystudio/ui/icons/provider
 import { cn } from '@renderer/utils/style'
 import { CodeCli } from '@shared/types/codeCli'
 
+import { SETTINGS_LIST_ICON_FRAME_CLASS, SETTINGS_LIST_TILE_RADIUS } from './iconDisplayConfig'
+
 /** `label` is an i18n key; resolve it with `t()` before rendering. */
 export const CLI_TOOLS = [
   { value: CodeCli.CLAUDE_CODE, label: 'code.cli_tools.claude_code', icon: ClaudeCode },
@@ -135,14 +137,25 @@ export const CliIcon: FC<CliIconProps> = ({
         data-slot="cli-icon"
         data-variant="card"
         className={cn(
-          'relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[22%] text-foreground after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-1 after:ring-inset after:ring-foreground/10',
-          !hasTileArtwork && 'bg-background dark:bg-card [--icon-neutral-background:transparent]',
+          SETTINGS_LIST_ICON_FRAME_CLASS,
+          'inline-flex items-center justify-center overflow-hidden bg-background text-foreground',
+          !hasTileArtwork && '[--icon-neutral-background:transparent]',
           className
         )}
         style={{ width: size, height: size }}>
         {Icon ? (
           hasTileArtwork ? (
-            <Icon {...opticalViewBox} className="size-full" />
+            <Icon
+              {...(id === CodeCli.KIMI_CODE ? { viewBox: '20 20 81 81' } : opticalViewBox)}
+              className={cn(
+                'size-full overflow-hidden [&_[data-slot=cli-icon-mark]]:origin-center [&_[data-slot=cli-icon-mark]]:scale-[0.8]',
+                // Center the K on the tile and keep the blue accent in place relative to it.
+                id === CodeCli.KIMI_CODE
+                  ? '[&_[data-slot=cli-icon-mark]]:[transform-box:fill-box] [&_[data-slot=cli-icon-mark]]:translate-x-[9%] [&_[data-slot=cli-icon-mark]]:-translate-y-[1.5%]'
+                  : '[&_[data-slot=cli-icon-mark]]:[transform-box:view-box]'
+              )}
+              style={{ borderRadius: SETTINGS_LIST_TILE_RADIUS }}
+            />
           ) : (
             <Icon
               {...opticalViewBox}

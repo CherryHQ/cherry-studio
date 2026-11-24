@@ -41,7 +41,7 @@ describe('LocalAgentIcon', () => {
 
       const slot = slots[0] as HTMLElement
       expect(slot).toHaveAttribute('data-variant', 'card')
-      expect(slot).toHaveClass('rounded-[22%]', 'overflow-hidden', 'bg-background', 'dark:bg-card', 'text-foreground')
+      expect(slot).toHaveClass('rounded-md', 'border', 'border-border-subtle', 'overflow-hidden', 'bg-background')
       expect(slot).not.toHaveClass('bg-muted', 'rounded-full')
       expect(slot).toHaveStyle({ width: '36px', height: '36px' })
 
@@ -60,7 +60,7 @@ describe('LocalAgentIcon', () => {
     { label: 'snow preset', props: { presetId: 'snow' } },
     { label: 'kiro preset', props: { presetId: 'kiro' } },
     { label: 'codebuddy-code preset', props: { presetId: 'codebuddy-code' } },
-    { label: 'kimi preset via kimi-code', props: { presetId: 'kimi' }, expectedViewBox: '20 23 77 77' },
+    { label: 'kimi preset via kimi-code', props: { presetId: 'kimi' }, expectedViewBox: '20 20 81 81' },
     { label: 'codex preset via openai-codex', props: { presetId: 'codex' } }
   ])('frames full-bleed tile artwork ($label) in a matching rounded square card', ({ props, expectedViewBox }) => {
     const { container } = render(<LocalAgentIcon {...props} size={32} variant="card" />)
@@ -71,13 +71,14 @@ describe('LocalAgentIcon', () => {
 
     const slot = slots[0] as HTMLElement
     expect(slot).toHaveAttribute('data-variant', 'card')
-    expect(slot).toHaveClass('rounded-[22%]', 'overflow-hidden')
-    expect(slot).not.toHaveClass('bg-background', 'bg-muted', 'rounded-full')
+    expect(slot).toHaveClass('rounded-md', 'border', 'border-border-subtle', 'overflow-hidden', 'bg-background')
+    expect(slot).not.toHaveClass('bg-muted', 'rounded-full')
     expect(slot).toHaveStyle({ width: '32px', height: '32px' })
 
     const svg = slot.querySelector('svg')
     expect(svg).not.toBeNull()
     expect(svg).toHaveClass('size-full')
+    expect(svg).toHaveStyle({ borderRadius: '5px' })
     if (expectedViewBox) {
       expect(svg).toHaveAttribute('viewBox', expectedViewBox)
     }
@@ -90,7 +91,7 @@ describe('LocalAgentIcon', () => {
     expect(container.querySelector('.blur-sm')).toBeNull()
 
     const avatar = screen.getByTestId('avatar')
-    expect(avatar).toHaveClass('rounded-[22%]', 'bg-background', 'dark:bg-card', 'text-foreground', 'ring-1')
+    expect(avatar).toHaveClass('rounded-md', 'border', 'border-border-subtle', 'bg-background', 'text-foreground')
     expect(avatar).not.toHaveClass('bg-muted')
     expect(avatar).toHaveStyle({ width: '28px', height: '28px' })
     expect(avatar.querySelector('svg')).not.toBeNull()
