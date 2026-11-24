@@ -5212,6 +5212,7 @@
   "settings.memory.failed": "操作未能完成，請檢查未完成的內容後重試。",
   "settings.memory.generation": "聊天中產生記憶",
   "settings.memory.generation.tooltip": "使用預設模型從開啟共享記憶的對話中擷取值得記憶的資訊，可能會消耗少量 token。",
+  "settings.memory.global": "全域記憶",
   "settings.memory.no_recovery": "目前沒有可還原的操作。",
   "settings.memory.outcome.conflict": "衝突",
   "settings.memory.outcome.pending": "未完成",

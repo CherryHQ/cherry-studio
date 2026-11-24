@@ -17,6 +17,7 @@ export const memoryRequestSchemas = {
   'memory.dreaming.status': defineRoute({ input: MemoryScopeSchema, output: MemoryDreamingStatusSchema }),
   'memory.dreaming.request': defineRoute({ input: MemoryScopeSchema, output: z.void() }),
   'memory.dreaming.cancel': defineRoute({ input: MemoryScopeSchema, output: z.void() }),
+  'memory.open_folder': defineRoute({ input: z.void(), output: z.void() }),
   'memory.editor.open': defineRoute({
     input: z.object({ kind: z.literal('shared') }),
     output: z.object({

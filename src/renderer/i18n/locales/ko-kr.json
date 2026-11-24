@@ -5212,6 +5212,7 @@
   "settings.memory.failed": "작업을 완료하지 못했습니다. 남은 항목을 확인한 뒤 다시 시도하세요.",
   "settings.memory.generation": "채팅에서 메모리 생성",
   "settings.memory.generation.tooltip": "기본 모델이 공유 메모리를 켠 채팅에서 기억할 정보를 추출합니다. 이 과정에서 소량의 토큰을 사용할 수 있습니다.",
+  "settings.memory.global": "전역 메모리",
   "settings.memory.no_recovery": "복원할 수 있는 작업이 없습니다.",
   "settings.memory.outcome.conflict": "충돌",
   "settings.memory.outcome.pending": "미완료",

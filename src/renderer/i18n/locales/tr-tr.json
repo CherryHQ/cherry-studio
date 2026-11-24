@@ -5212,6 +5212,7 @@
   "settings.memory.failed": "İşlem tamamlanamadı. Kalan öğeleri inceleyip yeniden deneyin.",
   "settings.memory.generation": "Sohbetlerde anı oluştur",
   "settings.memory.generation.tooltip": "Varsayılan model, paylaşılan belleğin etkin olduğu sohbetlerden hatırlanmaya değer bilgileri çıkarır. Az miktarda token tüketebilir.",
+  "settings.memory.global": "Genel bellek",
   "settings.memory.no_recovery": "Geri yüklenebilir işlem yok.",
   "settings.memory.outcome.conflict": "Çakışma",
   "settings.memory.outcome.pending": "Tamamlanmadı",

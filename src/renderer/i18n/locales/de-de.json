@@ -5212,6 +5212,7 @@
   "settings.memory.failed": "Der Vorgang konnte nicht abgeschlossen werden. Prüfe die verbleibenden Einträge und versuche es erneut.",
   "settings.memory.generation": "Erinnerungen in Chats erstellen",
   "settings.memory.generation.tooltip": "Das Standardmodell extrahiert merkenswerte Informationen aus Chats mit gemeinsamem Gedächtnis. Dabei können wenige Tokens verbraucht werden.",
+  "settings.memory.global": "Globaler Speicher",
   "settings.memory.no_recovery": "Kein wiederherstellbarer Vorgang vorhanden.",
   "settings.memory.outcome.conflict": "Konflikt",
   "settings.memory.outcome.pending": "Nicht abgeschlossen",

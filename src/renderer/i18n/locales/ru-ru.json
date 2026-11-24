@@ -5214,6 +5214,7 @@
   "settings.memory.failed": "Не удалось завершить операцию. Проверьте оставшиеся элементы и повторите попытку.",
   "settings.memory.generation": "Создавать воспоминания в чатах",
   "settings.memory.generation.tooltip": "Модель по умолчанию извлекает полезную для запоминания информацию из чатов с общей памятью. Возможен небольшой расход токенов.",
+  "settings.memory.global": "Глобальная память",
   "settings.memory.no_recovery": "Нет операций для восстановления.",
   "settings.memory.outcome.conflict": "Конфликт",
   "settings.memory.outcome.pending": "Не завершено",
