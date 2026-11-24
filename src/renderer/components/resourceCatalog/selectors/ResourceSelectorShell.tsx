@@ -290,6 +290,7 @@ function ResourceSelectorOptionRowComponent<T extends ResourceSelectorShellItem>
   )
 }
 
+// SAFETY: React memo forwards props unchanged; this restores the generic props signature erased by its typings.
 const ResourceSelectorOptionRow = memo(ResourceSelectorOptionRowComponent) as typeof ResourceSelectorOptionRowComponent
 
 export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props: ResourceSelectorShellProps<T>) {
