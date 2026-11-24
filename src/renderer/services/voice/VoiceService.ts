@@ -125,6 +125,7 @@ export interface SpeechPreferenceInput {
   readonly speed: number
 }
 
+// SAFETY: voiceErrorCodes is the source literal whose keys define VoiceErrorReason; entries retain that key/code pairing.
 const reasonByCode = new Map<string, VoiceErrorReason>(
   Object.entries(voiceErrorCodes).map(([reason, code]) => [code, reason as VoiceErrorReason])
 )
@@ -241,9 +242,9 @@ export class VoiceService {
 
   async readSpeechPreferenceInput(): Promise<SpeechPreferenceInput> {
     const preferences = await this.readSpeechPreferences()
-    const modelId = preferences.modelId.trim()
+    const modelId = preferences.modelId.trim() || undefined
 
-    if (modelId && !isSpeechModelId(modelId)) throw new VoiceDomainError('unsupported')
+    if (modelId !== undefined && !isSpeechModelId(modelId)) throw new VoiceDomainError('unsupported')
 
     if (
       !Number.isFinite(preferences.speed) ||
@@ -259,7 +260,7 @@ export class VoiceService {
       this.optionalLanguage(preferences.language) ?? getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language)
 
     return {
-      ...(modelId && { modelId: modelId as LocalSpeechModelId }),
+      ...(modelId && { modelId }),
       ...(voice && { voice }),
       language,
       speed: preferences.speed
