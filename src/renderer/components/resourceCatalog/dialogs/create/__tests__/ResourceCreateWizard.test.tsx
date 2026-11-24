@@ -127,55 +127,6 @@ vi.mock('../steps/AssistantMcpReviewStep', async () => {
   }
 })
 
-vi.mock('../steps/BasicInfoStep', async () => {
-  const { useWatch } = await vi.importActual<typeof ReactHookForm>('react-hook-form')
-
-  return {
-    BasicInfoStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => {
-      const modelId = useWatch({ control: form.control, name: 'modelId' })
-      const name = useWatch({ control: form.control, name: 'name' })
-
-      return (
-        <>
-          <div data-testid="model-id">{modelId ?? 'empty'}</div>
-          <div data-testid="name">{name || 'empty'}</div>
-          <DraftValues form={form} />
-          <input aria-label="draft name" {...form.register('name')} />
-          <input aria-label="draft description" {...form.register('description')} />
-          <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
-            fill name
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              form.setValue('name', 'My Resource')
-              form.setValue('modelId', 'provider::model')
-            }}>
-            fill basic
-          </button>
-          {(['pi', 'claude-code'] as const).map((runtime) => (
-            <button
-              key={runtime}
-              type="button"
-              onClick={() => {
-                form.setValue('agentType', runtime)
-                form.setValue('modelId', null)
-              }}>
-              switch to {runtime}
-            </button>
-          ))}
-          <button type="button" onClick={() => form.setValue('permissionMode', 'plan')}>
-            use plan mode
-          </button>
-          <button type="button" onClick={() => form.setValue('avatarImage', new Uint8Array([7, 8, 9]))}>
-            choose draft image
-          </button>
-        </>
-      )
-    }
-  }
-})
-
 vi.mock('../steps/BasicInfoStep', () => ({ BasicInfoStep: StepHarness }))
 // The entry shares the basic step's fields (one form), so it gets the same harness.
 vi.mock('../steps/AutoCreateEntry', () => ({ AutoCreateEntry: StepHarness }))
