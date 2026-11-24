@@ -145,7 +145,7 @@ Scheduled tasks distinguish a reuse association (`taskId` and `isTaskReuseTarget
 from deletion ownership (`isTaskOwned`). Only sessions created for a task are
 owned and included in task deletion. Picking a pre-existing conversation borrows
 it; clearing or replacing that pick restores ordinary discovery without deleting
-its history. Migration 0042 retains ambiguous earlier history rather than
+its history. Migration 0043 retains ambiguous earlier history rather than
 assuming that task association grants deletion ownership. Explicit picks survive
 workspace-only edits; the task workspace applies when a future session is created.
 
@@ -1149,7 +1149,7 @@ Native file and shell tools remain available both directly and from scripts.
 Every nested call emits its own tool events and passes Cherry's approval gate,
 including disabled-tool, SQLite, global-install approval, direct-mise mutation, and
 permission-mode policies. Global-install decisions use the root session's effective
-permission mode, including for child sessions. The script itself needs no separate
+permission mode, including for child sessions. The script itself normally needs no separate
 approval because its file and shell operations pass through those tool calls.
 
 Pi and Pi Durable project nested calls as ordinary tool parts with native call and
@@ -1161,6 +1161,10 @@ failure does not erase an earlier successful child. Retention is limited to 256 
 total); over-budget fields are omitted whole with byte counts and omission metadata.
 Legacy sessions cannot recover results that were never recorded. These presentation
 records do not change the model-facing codemode output or native approval checks.
+
+Reading an MCP skill does not change code-mode approval policy;
+the builtin skills server is directly exposed for verified on-demand reads.
+See [MCP Skills Client](./mcp-skills-client.md).
 
 Scripts have no default time limit. An explicit `timeout_ms` includes time spent
 waiting for tool approval and cancels pending calls when it expires. Native MCP

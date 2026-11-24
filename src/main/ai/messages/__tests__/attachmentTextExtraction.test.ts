@@ -112,7 +112,6 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
     getByIdMock.mockResolvedValueOnce({ ext: 'docx' })
     parseOfficeAsyncMock.mockResolvedValueOnce(' office body ')
     expect(await extractDocumentText('e1')).toBe('office body')
-    expect(parseOfficeAsyncMock).toHaveBeenCalledWith(expect.any(Buffer), { tempFilesLocation: '/tmp' })
   })
 
   it('decodes text/code files with auto encoding', async () => {

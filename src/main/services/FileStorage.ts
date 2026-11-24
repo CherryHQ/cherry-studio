@@ -321,9 +321,7 @@ class FileStorage {
 
         // Delayed loading: officeparser (and the pdf stack it drags in) stays out of the boot path.
         const { default: officeParser } = await import('officeparser')
-        const data = await officeParser.parseOfficeAsync(filePath, {
-          tempFilesLocation: this.tempDir
-        })
+        const data = await officeParser.parseOfficeAsync(filePath)
         return data
       } catch (error) {
         logger.error('Failed to read document file:', error as Error)
