@@ -221,6 +221,14 @@ describe('ChannelDetail', () => {
     available: true,
     defaultConfig: { token_path: '', allowed_chat_ids: [] }
   }
+  const qqChannelDef: AvailableChannel = {
+    type: 'qq',
+    name: 'QQ',
+    titleKey: 'agent.channels.qq.title',
+    description: 'agent.channels.qq.description',
+    available: true,
+    defaultConfig: { app_id: '', client_secret: '', allowed_chat_ids: [] }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -438,6 +446,27 @@ describe('ChannelDetail', () => {
         await pendingSave
       })
     }
+  })
+
+  it('preserves a QQ allowlist saved just before changing mention-only in the same stale dialog', async () => {
+    const user = userEvent.setup()
+    let saved = { app_id: 'app-id', client_secret: 'secret', allowed_chat_ids: [] as string[], mention_only: true }
+    channelMocks.channels = [{ ...channelMocks.channels[0], type: 'qq', config: saved }]
+    const applyUpdate = async (
+      _id: string,
+      { config, configPatch }: { config?: typeof saved; configPatch?: Partial<typeof saved> }
+    ) => {
+      saved = config ?? { ...saved, ...configPatch }
+      return { ...channelMocks.channels[0], config: saved }
+    }
+    channelMocks.updateChannel.mockImplementationOnce(applyUpdate).mockImplementationOnce(applyUpdate)
+    render(<ChannelDetail channelDef={qqChannelDef} />)
+    await user.click(await screen.findByRole('button', { name: 'common.edit' }))
+
+    await user.type(screen.getByPlaceholderText('agent.channels.qq.chatIdsPlaceholder'), 'chat-1')
+    await user.click(screen.getByRole('switch', { name: 'agent.channels.qq.mentionOnlyLabel' }))
+
+    await waitFor(() => expect(saved).toMatchObject({ allowed_chat_ids: ['chat-1'], mention_only: false }))
   })
 
   it('keeps the mention toggle when a companion Feishu field is saved while updates are pending', async () => {

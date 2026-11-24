@@ -183,15 +183,20 @@ describe('Profile Outputs tab', () => {
     expect(screen.getByText('1 item')).toBeInTheDocument()
   })
 
-  it('shows an output whose file is gone as unavailable', async () => {
+  it('does not fetch metadata for an Agent-reported path before the user opens it', () => {
     serveIpc({ missingIds: [NOTES.id] })
     serveOutputs('/agents/:agentId/artifacts', [REPORT, NOTES])
-    renderInRightPane(<AgentProfilePane agentId={agent.id} onOpenOutput={vi.fn()} />)
+    const openOutput = vi.fn()
+    renderInRightPane(<AgentProfilePane agentId={agent.id} onOpenOutput={openOutput} />)
     openOutputsTab()
 
-    const row = await screen.findByRole('button', { name: /notes\.txt.*Unavailable/ })
-    expect(row).toBeDisabled()
-    expect(screen.getByRole('button', { name: /PR review report/ })).toBeEnabled()
+    const row = screen.getByRole('button', { name: /notes\.txt/ })
+    expect(row).toBeEnabled()
+    expect(vi.mocked(window.api.ipcApi.request).mock.calls.some(([route]) => route === 'file.batch_get_metadata')).toBe(
+      false
+    )
+    fireEvent.click(row)
+    expect(openOutput).toHaveBeenCalledWith(NOTES.path)
   })
 
   it('says what will show up when the Agent has no outputs yet', () => {

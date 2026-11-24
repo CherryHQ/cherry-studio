@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { AGENT_INSTRUCTIONS_SLOT, type AgentPromptOverrides } from '@shared/ai/agentPromptSections'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { AgentSystemPromptDraft } from '@shared/ipc/schemas/agent'
 
 import { AgentPromptField, type AgentPromptDraft } from '../AgentPromptField'
@@ -72,30 +73,36 @@ const baseDraft: AgentPromptDraft = {
 
 /** Echoes the draft into the live blocks so a test can see which draft a preview came from. */
 function answerWithDraft(builtinInstructions?: string) {
-  request.mockImplementation(async (_route: string, input: AgentSystemPromptDraft) => ({
-    blocks: [
-      { key: 'skills', kind: 'live', text: `skills=${input.skillIds.join(',')}` },
-      { key: 'report_artifacts', kind: 'guidance', text: GENERATED_REPORT },
-      {
-        key: 'instructions',
-        kind: 'instructions',
-        text: `<agent_instructions>\n${AGENT_INSTRUCTIONS_SLOT}\n</agent_instructions>`
-      },
-      { key: 'language', kind: 'setting', text: `language=${String(input.language)}` }
-    ],
-    ...(builtinInstructions ? { builtinInstructions } : {})
-  }))
+  request.mockImplementation(async (route: string, input: AgentSystemPromptDraft) => {
+    if (route === 'agent.system_prompt.resolve_instructions')
+      return input.instructions.replaceAll('{{system}}', 'darwin')
+    return {
+      blocks: [
+        { key: 'skills', kind: 'live', text: `skills=${input.skillIds.join(',')}` },
+        { key: 'report_artifacts', kind: 'guidance', text: GENERATED_REPORT },
+        {
+          key: 'instructions',
+          kind: 'instructions',
+          text: `<agent_instructions>\n${AGENT_INSTRUCTIONS_SLOT}\n</agent_instructions>`
+        },
+        { key: 'language', kind: 'setting', text: `language=${String(input.language)}` }
+      ],
+      ...(builtinInstructions ? { builtinInstructions } : {})
+    }
+  })
 }
 
 function Harness({
   draft = baseDraft,
   initial = '',
   name = '',
+  modelId = null,
   withOverrides = false
 }: {
   draft?: AgentPromptDraft
   initial?: string
   name?: string
+  modelId?: UniqueModelId | null
   withOverrides?: boolean
 }) {
   const [value, setValue] = useState(initial)
@@ -107,6 +114,7 @@ function Harness({
         value={value}
         onChange={setValue}
         name={name}
+        modelId={modelId}
         draft={draft}
         {...(withOverrides ? { overrides, onOverridesChange: setOverrides } : {})}
       />
@@ -346,6 +354,30 @@ describe('AgentPromptField', () => {
     answerWithDraft()
     const instructions = "Price: $& $` $' $$ ".repeat(20)
     render(<Harness initial={instructions} />)
+    const sent = [
+      'skills=',
+      GENERATED_REPORT,
+      `<agent_instructions>\n${instructions}\n</agent_instructions>`,
+      'language=undefined'
+    ].join('\n\n')
+
+    expect(await screen.findByText(`约 ${estimateTokenCount(sent).toLocaleString()} tokens`)).toBeInTheDocument()
+  })
+
+  it('counts the system value resolved by Main in the assembled prompt', async () => {
+    answerWithDraft()
+    const preview = request.getMockImplementation()
+    const resolution = Promise.withResolvers<string>()
+    request.mockImplementation((route: string, input: AgentSystemPromptDraft) =>
+      route === 'agent.system_prompt.resolve_instructions' ? resolution.promise : preview?.(route, input)
+    )
+    const draft = 'Use {{system}}. '.repeat(8)
+    render(<Harness initial={draft} />)
+    await screen.findByRole('button', { name: '技能: 只读' })
+    expect(screen.queryByText(/^约 .* tokens$/)).not.toBeInTheDocument()
+
+    const instructions = 'Use darwin. '.repeat(8)
+    resolution.resolve(instructions)
     const sent = [
       'skills=',
       GENERATED_REPORT,

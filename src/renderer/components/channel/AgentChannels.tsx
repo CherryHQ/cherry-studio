@@ -339,7 +339,6 @@ export function AgentChannels({
         <ChannelQrLoginDialog
           key={login.id}
           channel={{ id: login.id, type: login.type }}
-          onActiveChange={(isActive) => updateChannel(login.id, { isActive })}
           onClose={() => setLoginId(null)}
         />
       ) : null}

@@ -2,6 +2,7 @@ import * as z from 'zod'
 
 import { AGENT_MEMORY_MAX_WRITE_CHARS } from '@shared/ai/agentMemory'
 import { AgentTypeSchema } from '@shared/data/api/schemas/agents'
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 
 import { defineRoute } from '../define'
 import { ImageBytesSchema } from './entityImage'
@@ -54,6 +55,13 @@ export const AgentSystemPromptDraftSchema = z.strictObject({
 })
 export type AgentSystemPromptDraft = z.infer<typeof AgentSystemPromptDraftSchema>
 
+const AgentPromptInstructionsDraftSchema = AgentSystemPromptDraftSchema.pick({
+  agentId: true,
+  sessionId: true,
+  instructions: true
+}).extend({ modelId: UniqueModelIdSchema.nullable() })
+export type AgentPromptInstructionsDraft = z.infer<typeof AgentPromptInstructionsDraftSchema>
+
 /** `guidance` blocks may be replaced per Agent; `live` and `setting` blocks follow data and settings. */
 export const AgentPromptBlockSchema = z.object({
   key: z.string(),
@@ -103,5 +111,9 @@ export const agentRequestSchemas = {
   'agent.system_prompt.preview': defineRoute({
     input: AgentSystemPromptDraftSchema,
     output: AgentSystemPromptPreviewSchema
+  }),
+  'agent.system_prompt.resolve_instructions': defineRoute({
+    input: AgentPromptInstructionsDraftSchema,
+    output: z.string()
   })
 }

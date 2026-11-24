@@ -7,6 +7,7 @@ import { AgentConfigChangePreviewSchema } from '@shared/ai/agentConfigToolOutput
 import { agentImportSnapshotSchema, type AgentImportSnapshot } from '@shared/ai/agentImport'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import type { MessageProjectionUpdate, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
+import { ProfileStarterModeSchema, ProfileStartersSchema } from '@shared/ai/profileStarters'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -277,6 +278,16 @@ export const aiRequestSchemas = {
       messages: z.array(z.custom<ModelMessage>()).optional()
     }),
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
+  }),
+  'ai.profile_starters.generate': defineRoute({
+    input: z.strictObject({
+      ownerId: z.string().min(1),
+      mode: ProfileStarterModeSchema,
+      identityHash: z.string().min(1).max(64),
+      system: z.string(),
+      prompt: z.string()
+    }),
+    output: ProfileStartersSchema.nullable()
   }),
   'ai.text.abort': defineRoute({
     input: z.strictObject({ requestId: z.string().min(1) }),

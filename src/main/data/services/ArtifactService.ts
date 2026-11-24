@@ -41,15 +41,11 @@ export interface ReportedAgentArtifact {
 
 export type ArtifactOwner = { agentId: string } | { assistantId: string }
 
-export interface PastAgentReport {
+interface PastAgentReport extends ReportedAgentArtifact {
   sessionId: string
-  workspacePath: string
-  path: string
-  title?: string
   reportedAt: number
 }
 
-export type PreparedPastAgentReport = Pick<PastAgentReport, 'sessionId' | 'reportedAt'> & ReportedAgentArtifact
 interface PastAssistantImage {
   fileEntryId: string
   topicId: string
@@ -68,11 +64,16 @@ function workspaceRelativePath(workspacePath: string, filePath: string): string 
   return relativePath && !isOutsidePath(relativePath) ? relativePath.split(path.sep).join('/') : undefined
 }
 
-const PAGE_EXTENSIONS = ['html', 'htm', 'md', 'markdown']
+const PAGE_EXTENSIONS = ['html', 'htm', 'md', 'markdown', 'mdx']
 const MEDIA_TYPES = new Set<string>([FILE_TYPE.IMAGE, FILE_TYPE.AUDIO, FILE_TYPE.VIDEO])
-const MEDIA_EXTENSIONS = Object.entries(fileTypeMap)
-  .filter(([, type]) => MEDIA_TYPES.has(type))
-  .map(([extension]) => extension)
+const MEDIA_EXTENSIONS = [
+  ...Object.entries(fileTypeMap)
+    .filter(([, type]) => MEDIA_TYPES.has(type))
+    .map(([extension]) => extension),
+  'avif',
+  'ico',
+  'svg'
+]
 
 function getArtifactKind(fileName: SQL): SQL<ArtifactKind> {
   const lowerName = sql`lower(${fileName})`
@@ -185,7 +186,7 @@ export class ArtifactService {
     )
   }
 
-  commitPastOutputs(reports: readonly PreparedPastAgentReport[], images: readonly PastAssistantImage[]): void {
+  commitPastOutputs(reports: readonly PastAgentReport[], images: readonly PastAssistantImage[]): void {
     const changed = application.get('DbService').withWriteTx((tx) => {
       if (this.hasBackfilledPastOutputsTx(tx)) return false
       for (const report of reports) {
@@ -334,9 +335,9 @@ export class ArtifactService {
           if ((reports.get(key)?.reportedAt ?? -1) > message.createdAt) continue
           reports.set(key, {
             sessionId: message.sessionId,
-            workspacePath: message.workspacePath,
             path: relativePath,
-            title: artifact.description,
+            title: artifact.description ?? path.posix.basename(relativePath),
+            size: null,
             reportedAt: message.createdAt
           })
         }
@@ -427,13 +428,13 @@ export class ArtifactService {
             table: topicTable,
             join: eq(topicTable.id, artifactTable.topicId),
             // Drop outputs whose managed file is gone; the row has no FK so it cannot pin the file.
-            live: and(isNull(topicTable.deletedAt), isNotNull(fileEntryTable.id)),
+            live: and(isNull(topicTable.deletedAt), isNotNull(fileEntryTable.id), isNull(fileEntryTable.deletedAt)),
             id: topicTable.id,
             name: topicTable.name,
             workspacePath: sql<null>`NULL`
           }
     const where = (...extra: (SQL | undefined)[]) => and(source.owned, source.live, ...extra)
-    const fileJoin = eq(fileEntryTable.id, artifactTable.fileEntryId)
+    const fileJoin = and(eq(fileEntryTable.id, artifactTable.fileEntryId), eq(fileEntryTable.origin, 'internal'))
     const kind = getArtifactKind(
       sql`coalesce(${artifactTable.path}, ${fileEntryTable.name} || '.' || nullif(${fileEntryTable.ext}, ''), ${fileEntryTable.name})`
     )

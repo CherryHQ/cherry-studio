@@ -17,9 +17,13 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { createAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { AGENT_INSTRUCTIONS_SLOT } from '@shared/ai/agentPromptSections'
-import type { AgentSystemPromptDraft, AgentSystemPromptPreview } from '@shared/ipc/schemas/agent'
+import type {
+  AgentPromptInstructionsDraft,
+  AgentSystemPromptDraft,
+  AgentSystemPromptPreview
+} from '@shared/ipc/schemas/agent'
 
-import { previewAgentSystemPrompt } from '../agentPromptPreview'
+import { previewAgentSystemPrompt, resolveAgentPromptInstructions } from '../agentPromptPreview'
 import { loadPiSdk } from '../pi/piSdk'
 import { buildDurablePrompt } from './durablePrompt'
 
@@ -134,6 +138,36 @@ describe('previewAgentSystemPrompt', () => {
     await expect(previewAgentSystemPrompt(draft({ agentId: otherAgent.id, sessionId: first.id }))).rejects.toThrow(
       'Session does not belong to the Agent'
     )
+  })
+
+  it('expands draft instructions using the operating system and the interactive session model', async () => {
+    const sessionModel = 'preview-test::session-model'
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: sessionModel,
+        providerId: 'preview-test',
+        modelId: 'session-model',
+        name: 'Session model',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'a1'
+      })
+      .run()
+    const agent = agentService.createAgentWithId(randomUUID(), { type: 'pi-durable', name: 'Reviewer', model })
+    const workspace = agentWorkspaceService.findOrCreateByPath(root)
+    const session = agentSessionService.create({
+      agentId: agent.id,
+      name: 'Interactive',
+      workspace: { type: 'user', workspaceId: workspace.id },
+      model: sessionModel
+    })
+    const instructions = 'Edit the draft for {{system}} on {{model_name}}.'
+    const draft: AgentPromptInstructionsDraft = { instructions, agentId: agent.id, modelId: model }
+    await expect(resolveAgentPromptInstructions({ ...draft, sessionId: session.id })).resolves.toBe(
+      `Edit the draft for ${os.platform()} on Session model.`
+    )
+    await expect(resolveAgentPromptInstructions(draft)).resolves.toBe(`Edit the draft for ${os.platform()} on Test.`)
   })
 
   it.each(['pi', 'claude-code'] as const)('previews the editable guidance for %s', async (agentType) => {

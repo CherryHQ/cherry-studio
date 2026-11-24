@@ -52,7 +52,7 @@ describe('report_artifacts indexes the Agent outputs', () => {
     await rm(workspacePath, { recursive: true, force: true })
   })
 
-  it('records each reported file with its absolute path, title, kind and size', async () => {
+  it('indexes the declarations without reading file metadata', async () => {
     await mkdir(path.join(workspacePath, 'out'))
     await writeFile(path.join(workspacePath, 'out', 'report.html'), '<h1>Report</h1>')
     await writeFile(path.join(workspacePath, 'chart.png'), Buffer.alloc(2048))
@@ -72,16 +72,15 @@ describe('report_artifacts indexes the Agent outputs', () => {
     expect(byTitle['Weekly report']).toMatchObject({
       path: path.join(workspacePath, 'out', 'report.html'),
       kind: 'page',
-      size: 15,
+      size: undefined,
       sourceId: sessionId,
       sourceName: 'Weekly review'
     })
-    expect(byTitle['chart.png']).toMatchObject({ kind: 'media', size: 2048 })
-    // A deliverable that is not on disk is still listed; the pane shows it as unavailable.
+    expect(byTitle['chart.png']).toMatchObject({ kind: 'media', size: undefined })
     expect(byTitle['missing.csv']).toMatchObject({ kind: 'file', size: undefined })
   })
 
-  it('excludes paths outside the session workspace, including symlink targets', async () => {
+  it('excludes paths outside the workspace without following links in reported declarations', async () => {
     const outside = await mkdtemp(path.join(os.tmpdir(), 'cherry-outside-artifacts-'))
     try {
       const outsideFile = path.join(await realpath(outside), 'private.md')
@@ -94,7 +93,10 @@ describe('report_artifacts indexes the Agent outputs', () => {
       })
 
       expect(result.isError, toolText(result)).not.toBe(true)
-      expect(artifactService.list({ agentId: 'reporter' }).items.map((item) => item.title)).toEqual(['inside.md'])
+      expect(artifactService.list({ agentId: 'reporter' }).items).toMatchObject([
+        { title: 'inside.md', size: undefined },
+        { title: 'escape.md', size: undefined }
+      ])
     } finally {
       await rm(outside, { recursive: true, force: true })
     }
@@ -134,7 +136,7 @@ describe('report_artifacts indexes the Agent outputs', () => {
         .run()
     }
 
-    it('indexes deliverables reported before outputs were indexed, sized from the files still on disk', async () => {
+    it('indexes historical declarations without reading metadata from disk', async () => {
       await writeFile(path.join(workspacePath, 'summary.md'), '# Summary')
       pastReport([{ path: 'summary.md', description: 'Summary' }, { path: 'deleted.pdf' }])
 
@@ -143,7 +145,11 @@ describe('report_artifacts indexes the Agent outputs', () => {
       const byTitle = Object.fromEntries(
         artifactService.list({ agentId: 'reporter' }).items.map((item) => [item.title, item])
       )
-      expect(byTitle.Summary).toMatchObject({ path: path.join(workspacePath, 'summary.md'), kind: 'page', size: 9 })
+      expect(byTitle.Summary).toMatchObject({
+        path: path.join(workspacePath, 'summary.md'),
+        kind: 'page',
+        size: undefined
+      })
       expect(byTitle['deleted.pdf']).toMatchObject({ kind: 'file', size: undefined })
     })
   })

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -7,8 +8,7 @@ import { AgentPromptField } from '@renderer/components/resourceCatalog/dialogs/c
 import { settingsPillClassName } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogPages'
 import { HeartbeatCard } from '@renderer/components/resourceCatalog/dialogs/components/HeartbeatCard'
 import { ReplyLanguageSelect } from '@renderer/components/resourceCatalog/dialogs/components/ReplyLanguageSelect'
-import { useModelById } from '@renderer/hooks/useModel'
-import type { AgentCreateSettings } from '@shared/ai/agentForm'
+import { type AgentCreateSettings, normalizeAgentLanguageInput } from '@shared/ai/agentForm'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 
 import type { ResourceCreateWizardFormValues } from '../types'
@@ -21,6 +21,8 @@ type AdvancedStepProps = {
 /** Agent's last step: System Prompt, reply language, heartbeat (when the runtime has one), and env vars. */
 export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
   const { t } = useTranslation()
+  const [replyLanguageDraft, setReplyLanguageDraft] = useState<string>()
+  const previewLanguage = replyLanguageDraft === '' ? '' : normalizeAgentLanguageInput(replyLanguageDraft)
   const [
     agentType,
     modelId,
@@ -53,7 +55,6 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
       'heartbeatTimeoutMinutes'
     ]
   })
-  const { model } = useModelById(modelId)
   const patch = (values: Partial<AgentCreateSettings>) => {
     for (const [key, value] of Object.entries(values)) {
       form.setValue(key as keyof AgentCreateSettings, value, { shouldDirty: true })
@@ -66,7 +67,7 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
         value={prompt}
         onChange={(value) => form.setValue('prompt', value, { shouldDirty: true })}
         name={name}
-        modelName={model?.name}
+        modelId={modelId}
         portalContainer={portalContainer}
         onNativePromptEnabledChange={(enabled) => patch({ claudeCodeNativePromptEnabled: enabled })}
         draft={{
@@ -75,8 +76,8 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
           skillIds,
           disabledTools,
           knowledgeBaseIds,
-          languageMode,
-          languageCustom
+          languageMode: previewLanguage === null ? languageMode : 'custom',
+          languageCustom: previewLanguage ?? languageCustom
         }}
         heading={<h3 className="-mb-2 font-medium text-foreground text-sm">{t('library.config.prompt.label')}</h3>}
       />
@@ -86,6 +87,7 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
         <ReplyLanguageSelect
           value={{ languageMode, languageCustom }}
           onChange={patch}
+          onDraftChange={setReplyLanguageDraft}
           portalContainer={portalContainer}
           triggerClassName={cn(settingsPillClassName, 'w-auto')}
         />

@@ -87,7 +87,11 @@ describe('ArtifactService', () => {
       recordAt(NOW, 'reviewer', 's-1', [
         '/ws/report.HTML',
         '/ws/notes.md',
+        '/ws/guide.mdx',
         '/ws/shot.png',
+        '/ws/icon.svg',
+        '/ws/photo.avif',
+        '/ws/favicon.ico',
         '/ws/voice.mp3',
         '/ws/clip.mp4',
         '/ws/data.csv',
@@ -101,7 +105,11 @@ describe('ArtifactService', () => {
       expect(kinds).toEqual({
         'report.HTML': 'page',
         'notes.md': 'page',
+        'guide.mdx': 'page',
         'shot.png': 'media',
+        'icon.svg': 'media',
+        'photo.avif': 'media',
+        'favicon.ico': 'media',
         'voice.mp3': 'media',
         'clip.mp4': 'media',
         'data.csv': 'file',
@@ -457,6 +465,23 @@ describe('ArtifactService', () => {
       dbh.sqlite.prepare('DELETE FROM file_entry WHERE id = ?').run(IMAGE_1)
 
       expect(artifactService.list({ assistantId: 'writer' }).items.map((item) => item.fileEntryId)).toEqual([IMAGE_2])
+    })
+
+    it('hides a trashed image from both the list and the count until the image is restored', () => {
+      seed()
+      artifactService.recordTopicFiles('t-1', [IMAGE_1, IMAGE_2])
+      dbh.db.update(fileEntryTable).set({ deletedAt: NOW }).where(eq(fileEntryTable.id, IMAGE_1)).run()
+
+      const owner = { assistantId: 'writer' }
+      const trashed = artifactService.list(owner, { kind: 'media' })
+      expect(trashed.items.map((item) => item.fileEntryId)).toEqual([IMAGE_2])
+      expect(trashed.counts.media).toBe(1)
+      expect(trashed.counts.all).toBe(1)
+
+      dbh.db.update(fileEntryTable).set({ deletedAt: null }).where(eq(fileEntryTable.id, IMAGE_1)).run()
+      const restored = artifactService.list(owner)
+      expect(restored.items.some((item) => item.fileEntryId === IMAGE_1)).toBe(true)
+      expect(restored.counts.media).toBe(2)
     })
 
     it('lists the images generated in past topics, once, at the time of their message', async () => {

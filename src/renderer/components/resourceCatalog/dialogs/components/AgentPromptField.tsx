@@ -1,13 +1,14 @@
 import { ChevronLeft, ChevronRight, RotateCcw, SquarePen } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount } from 'tokenx'
 
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import PromptEditorField, { PromptEditorIconButton } from '@renderer/components/PromptEditorField'
-import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
+import { useDataChange } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
+import { containsSupportedVariables } from '@renderer/utils/prompt'
 import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import { type AgentLanguageMode, normalizeAgentLanguageInput } from '@shared/ai/agentForm'
 import {
@@ -16,14 +17,16 @@ import {
   isEditablePromptSection
 } from '@shared/ai/agentPromptSections'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type {
   AgentPromptBlockPreview,
+  AgentPromptInstructionsDraft,
   AgentSystemPromptDraft,
   AgentSystemPromptPreview
 } from '@shared/ipc/schemas/agent'
 
 import { PromptVariablesPopover } from './EditDialogShared'
-import { PromptPolishActions } from './PromptPolishActions'
+import { PromptPolishActions, usePromptPolish } from './PromptPolishActions'
 
 const logger = loggerService.withContext('AgentPromptField')
 const PREVIEW_DEBOUNCE_MS = 300
@@ -66,7 +69,8 @@ type AgentPromptFieldProps = {
   name: string
   draft: AgentPromptDraft
   portalContainer: HTMLElement | null
-  modelName?: string | null
+  modelId: UniqueModelId | null
+  visible?: boolean
   onNativePromptEnabledChange?: (enabled: boolean) => void
   /** Given only where the Agent exists: guidance blocks are then editable and saved here. */
   overrides?: AgentPromptOverrides
@@ -87,7 +91,7 @@ function draftLanguage({ languageMode, languageCustom }: AgentPromptDraft): stri
   return undefined
 }
 
-function useAgentPromptPreview(draft: AgentPromptDraft, instructions: string, listShown: boolean) {
+function useAgentPromptPreview(draft: AgentPromptDraft, instructions: string, listShown: boolean, visible: boolean) {
   const [preview, setPreview] = useState<AgentSystemPromptPreview | null>(null)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -113,6 +117,7 @@ function useAgentPromptPreview(draft: AgentPromptDraft, instructions: string, li
 
   // Re-read on each switch between the list and a page: a page may save files the prompt is built from.
   useEffect(() => {
+    if (!visible) return
     let cancelled = false
     const [nextRequest] = JSON.parse(requestKey) as [Omit<AgentSystemPromptDraft, 'instructions'>]
     const timer = setTimeout(() => {
@@ -133,9 +138,51 @@ function useAgentPromptPreview(draft: AgentPromptDraft, instructions: string, li
       cancelled = true
       clearTimeout(timer)
     }
-  }, [requestKey, attempt, listShown])
+  }, [requestKey, attempt, listShown, visible])
 
   return { preview, failed, retry: () => setAttempt((count) => count + 1) }
+}
+
+function useResolvedAgentInstructions(
+  { agentId, sessionId, instructions, modelId }: AgentPromptInstructionsDraft,
+  visible: boolean
+) {
+  const [revision, setRevision] = useState(0)
+  const [resolved, setResolved] = useState<{ request: AgentPromptInstructionsDraft; revision: number; text: string }>()
+  const request = useMemo(
+    () => (visible && containsSupportedVariables(instructions) ? { agentId, sessionId, instructions, modelId } : null),
+    [agentId, sessionId, instructions, modelId, visible]
+  )
+  useDataChange(
+    request && sessionId && instructions.includes('{{model_name}}') ? '/agent-sessions/:sessionId' : [],
+    (effects) => {
+      if (sessionId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId))) {
+        setRevision((previous) => previous + 1)
+      }
+    }
+  )
+
+  useEffect(() => {
+    if (!request) return
+    let cancelled = false
+    const timer = setTimeout(() => {
+      void ipcApi.request('agent.system_prompt.resolve_instructions', request).then(
+        (text) => {
+          if (!cancelled) setResolved({ request, revision, text })
+        },
+        (error: unknown) => {
+          if (!cancelled) logger.warn('Failed to resolve Agent prompt instructions', error as Error)
+        }
+      )
+    }, PREVIEW_DEBOUNCE_MS)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [request, revision])
+
+  if (!request) return instructions
+  return resolved?.request === request && resolved.revision === revision ? resolved.text : undefined
 }
 
 /** The title key of a prompt block, for a page header that shows one block. */
@@ -153,7 +200,8 @@ export function AgentPromptField({
   name,
   draft,
   portalContainer,
-  modelName,
+  modelId,
+  visible = true,
   onNativePromptEnabledChange,
   overrides,
   onOverridesChange,
@@ -165,17 +213,36 @@ export function AgentPromptField({
   const { t } = useTranslation()
   const [localSection, setLocalSection] = useState<string | null>(null)
   const section = onSectionChange ? (controlledSection ?? null) : localSection
-  const { preview, failed, retry } = useAgentPromptPreview(draft, value, section === null)
+  const { preview, failed, retry } = useAgentPromptPreview(draft, value, section === null, visible)
   const setSection = onSectionChange ?? setLocalSection
   const instructions = value || preview?.builtinInstructions || ''
+  const resolvedInstructions = useResolvedAgentInstructions(
+    { agentId: draft.agentId, sessionId: draft.sessionId, instructions, modelId },
+    visible
+  )
+  const { actions: polishActions } = usePromptPolish({
+    value: instructions,
+    fallbackSource: name,
+    emptyValueSystemPrompt: AGENT_PROMPT,
+    existingValueSystemPrompt: RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT,
+    onChange
+  })
+  if (!visible) return null
+
   const nativePromptLabel = t('library.config.agent.prompt.claude_code_native')
   const overrideOf = (key: string) => (isEditablePromptSection(key) ? overrides?.[key] : undefined)
-  // The callback keeps `$&`-style sequences in the Agent prompt literal.
-  const sentText = (block: AgentPromptBlockPreview) =>
-    block.kind === 'instructions'
-      ? block.text.replace(AGENT_INSTRUCTIONS_SLOT, () => instructions)
-      : (overrideOf(block.key) ?? block.text)
-  const tokens = preview ? estimateTokenCount(preview.blocks.map(sentText).join('\n\n')) : null
+  const tokens =
+    preview && resolvedInstructions !== undefined
+      ? estimateTokenCount(
+          preview.blocks
+            .map((block) =>
+              block.kind === 'instructions'
+                ? block.text.replace(AGENT_INSTRUCTIONS_SLOT, () => resolvedInstructions)
+                : (overrideOf(block.key) ?? block.text)
+            )
+            .join('\n\n')
+        )
+      : null
 
   const setOverride = (key: string, next: string | undefined) => {
     if (!overrides || !onOverridesChange || !isEditablePromptSection(key)) return
@@ -211,8 +278,8 @@ export function AgentPromptField({
           value={instructions}
           builtin={preview?.builtinInstructions}
           overridden={Boolean(value)}
-          name={name}
-          modelName={modelName}
+          resolvedInstructions={resolvedInstructions ?? instructions}
+          polishActions={polishActions}
           portalContainer={portalContainer}
           onChange={onChange}
           fill={Boolean(onSectionChange)}
@@ -432,8 +499,8 @@ function InstructionsEditor({
   value,
   builtin,
   overridden,
-  name,
-  modelName,
+  resolvedInstructions,
+  polishActions,
   portalContainer,
   onChange,
   fill
@@ -443,15 +510,14 @@ function InstructionsEditor({
   builtin: string | undefined
   /** A saved prompt, even one equal to the built-in, keeps the Agent from following later built-in updates. */
   overridden: boolean
-  name: string
-  modelName?: string | null
+  resolvedInstructions: string
+  polishActions: ReactNode
   portalContainer: HTMLElement | null
   onChange: (next: string) => void
   /** Fills a dialog page; in a scrolling step it takes a fixed tall height instead. */
   fill: boolean
 }) {
   const { t } = useTranslation()
-  const processed = usePromptProcessor({ prompt: value, modelName: modelName ?? undefined })
   return (
     <PromptEditorField
       label={
@@ -460,20 +526,14 @@ function InstructionsEditor({
           <PromptVariablesPopover portalContainer={portalContainer} />
         </div>
       }
-      previewValue={processed || value}
+      previewValue={resolvedInstructions}
       editorLabel={t('library.config.agent.prompt.instructions_label')}
       value={value}
       onChange={onChange}
       placeholder={t('library.config.agent.prompt.placeholder')}
       actions={
         <>
-          <PromptPolishActions
-            value={value}
-            fallbackSource={name}
-            emptyValueSystemPrompt={AGENT_PROMPT}
-            existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
-            onChange={onChange}
-          />
+          {polishActions}
           {builtin ? (
             <RestoreButton
               label={t('library.config.agent.prompt.restore_builtin')}

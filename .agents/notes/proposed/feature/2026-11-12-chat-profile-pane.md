@@ -50,7 +50,7 @@ In both kinds, the Settings rows are inline controls that change the value direc
 
 **Channels, Agent:** Added channels are listed by account with their platform, name, and status. Manage opens the account configuration even while the account is waiting for QR login. Those accounts also have a scan action. Closing an unfinished QR login or leaving its host cancels the attempt and leaves the channel disabled. Platforms with no account are listed directly under Available platforms. WeChat, Feishu, WeCom, DingTalk, QQ, Telegram, Discord, and Slack are all accessible in this tab.
 
-**Outputs, Agent:** every deliverable the Agent reported across its sessions, filtered by All, Pages, Media, and Files with counts, and grouped by Today, This week, and Earlier. Each row shows a type thumbnail, title, type with source or size, and time. A click opens HTML in the browser pane and other files in the Files pane; a deleted file shows as unavailable.
+**Outputs, Agent:** every deliverable the Agent reported across its sessions, filtered by All, Pages, Media, and Files with counts, and grouped by Today, This week, and Earlier. Each row shows a type thumbnail, title, type with source or size when known, and time. A click opens HTML in the browser pane and other files in the Files pane.
 
 **Outputs, Assistant:** images the Assistant generated with `generate_image` in its topics, with the same filters, groups, and row layout. A click opens the image preview; a deleted file is not listed.
 
@@ -58,7 +58,7 @@ In both kinds, the Settings rows are inline controls that change the value direc
 
 - **Usage.** The usage stats endpoint accepts a source filter (Assistant or Agent ID). Topic, message, session, and task-run counts come from small DataApi count queries. "Last 7 days" is a rolling window. Task runs remain attributable to the Agent after its schedule is deleted.
 - **Recent topics.** The topics endpoint accepts an Assistant filter and sorts by last activity.
-- **Outputs.** One `artifact` table indexes Agent and Assistant outputs with title, size, and time. Queries classify HTML and Markdown as pages, images, audio, and video as media, and other files as files. Historical outputs are indexed after startup. File checks run before the database transaction, and the transaction writes the index and completion marker together. Backup capture and restore staging pause new backfill work and wait for any running backfill before fingerprinting the live database. Restored sessions and topics retain their outputs. Agent paths are workspace-relative and resolve against the current workspace.
+- **Outputs.** One `artifact` table indexes Agent and Assistant outputs with title, size when known, and time. Queries classify HTML and Markdown as pages, images, audio, and video as media, and other files as files. Historical outputs are indexed after startup. Recording, backfilling, and listing Agent reports use declarations without inspecting the reported files. File access begins when the user opens an output. The backfill transaction writes the index and completion marker together. Backup capture and restore staging pause new backfill work and wait for any running backfill before fingerprinting the live database. Restored sessions and topics retain their outputs. Agent paths are workspace-relative and resolve against the current workspace.
   - Agent rows come from the `report_artifacts` tool; the owner is the Agent, session, and path.
   - Assistant rows link `generate_image` outputs in a saved topic to the topic and managed file ID. The topic's current Assistant determines where those outputs are listed.
   - The file ID has no foreign key, so an output never keeps its file from cleanup.
@@ -98,7 +98,7 @@ In both kinds, the Settings rows are inline controls that change the value direc
 
 ## Risks
 
-- Generating opening questions costs one default-model call per Assistant change, and fails without a default model; the section then stays hidden.
+- Concurrent profile requests for the same identity share one default-model call in Main. Main retains validated results for reuse when a window closes before persisting them. Generation requires an enabled default model and provider. A failed generation leaves Try asking hidden and uses the existing fallback for Agent suggestions.
 - The outputs index may be incomplete until background backfill finishes. A failed backfill retries at the next startup.
 - Usage and count queries run on every profile open; they need indexes on the filtered columns to stay fast with large histories.
 - Assistant reply language is a new persisted setting. Existing Assistants must default to no constraint; if the setting needs a new column rather than a settings field, it ships with an appended migration.

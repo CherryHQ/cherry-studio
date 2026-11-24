@@ -3,6 +3,7 @@ import { mkdir, stat } from 'node:fs/promises'
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { modelService } from '@data/services/ModelService'
 import { agentDataDirectoryPath } from '@main/ai/agents/agentDataDirectory'
 import { resolveAutomationAccess } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { loadBuiltinAgentDefinition } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
@@ -10,10 +11,12 @@ import { isAutomationSkillAvailable } from '@main/ai/skills/automationSkills'
 import { skillService } from '@main/ai/skills/SkillService'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { replacePromptVariables } from '@main/utils/prompt'
 import { AGENT_INSTRUCTIONS_SLOT } from '@shared/ai/agentPromptSections'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import type {
   AgentPromptBlockPreview,
+  AgentPromptInstructionsDraft,
   AgentSystemPromptDraft,
   AgentSystemPromptPreview
 } from '@shared/ipc/schemas/agent'
@@ -26,12 +29,34 @@ import { buildDurablePrompt } from './piDurable/durablePrompt'
 /** A new Agent has no ID yet; its data directory is shown with this placeholder. */
 const NEW_AGENT_ID = '{agent-id}'
 
-async function resolvePreviewWorkspace(agentId: string | undefined, sessionId: string | undefined): Promise<string> {
-  if (sessionId) {
-    const session = agentSessionService.getById(sessionId)
-    if (!agentId || session.agentId !== agentId) throw new Error('Session does not belong to the Agent')
-    return session.workspace.path
+function getPreviewSession(agentId: string | undefined, sessionId: string) {
+  const session = agentSessionService.getById(sessionId)
+  if (!agentId || session.agentId !== agentId) throw new Error('Session does not belong to the Agent')
+  return session
+}
+
+/** Resolve raw draft text without assembling workspace, skill, or runtime sections. */
+export function resolveAgentPromptInstructions({
+  agentId,
+  sessionId,
+  instructions,
+  modelId
+}: AgentPromptInstructionsDraft) {
+  let modelName: string | undefined
+  if (instructions.includes('{{model_name}}')) {
+    const sessionModel = sessionId ? getPreviewSession(agentId, sessionId).model : undefined
+    const effectiveModel = sessionModel ?? modelId
+    if (effectiveModel) {
+      modelName = modelService
+        .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [effectiveModel])
+        .get(effectiveModel)
+    }
   }
+  return replacePromptVariables(instructions, modelName)
+}
+
+async function resolvePreviewWorkspace(agentId: string | undefined, sessionId: string | undefined): Promise<string> {
+  if (sessionId) return getPreviewSession(agentId, sessionId).workspace.path
 
   const latest = agentId ? agentSessionService.getLatestActive({ agentId })?.workspace.path : undefined
   if (latest && (await stat(latest).catch(() => undefined))?.isDirectory()) return latest

@@ -522,6 +522,7 @@ vi.mock('../components/TopicRightPane', () => {
     children,
     defaultOpen,
     onOpenChange,
+    onOpenTopic,
     present,
     resourcePane,
     userOpenIntentSeq
@@ -529,6 +530,7 @@ vi.mock('../components/TopicRightPane', () => {
     children: ReactNode
     defaultOpen?: boolean
     onOpenChange?: (open: boolean) => void
+    onOpenTopic?: (topicId: string) => void
     present?: boolean
     resourcePane?: { node?: ReactNode; label?: string } | null
     userOpenIntentSeq?: number
@@ -544,6 +546,9 @@ vi.mock('../components/TopicRightPane', () => {
           Close topic right pane
         </button>
       )}
+      <button type="button" onClick={() => onOpenTopic?.('recent-topic-not-in-sidebar')}>
+        Open recent profile topic
+      </button>
       {resourcePane?.node}
       {children}
     </div>
@@ -1473,6 +1478,18 @@ describe('HomePage', () => {
       replace: true
     })
     expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
+  })
+
+  it('opens a recent profile topic before the sidebar has loaded it', () => {
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open recent profile topic' }))
+
+    expect(homeMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/chat',
+      search: { topicId: 'recent-topic-not-in-sidebar' },
+      replace: true
+    })
   })
 
   it('toggles the left sidebar off with the left sidebar shortcut', () => {

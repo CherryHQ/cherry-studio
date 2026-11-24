@@ -79,7 +79,7 @@ function SummaryRow({ label, children }: { label: string; children: ReactNode })
 /** The new Agent's channels, read back so a pending QR login can start from here. */
 function ChannelsSummary({ agentId }: { agentId: string }) {
   const { t } = useTranslation()
-  const { channels, updateChannel } = useChannels({ agentId })
+  const { channels } = useChannels({ agentId })
   const [loginId, setLoginId] = useState<string | null>(null)
   const login = channels.find((channel) => channel.id === loginId)
 
@@ -112,7 +112,6 @@ function ChannelsSummary({ agentId }: { agentId: string }) {
         <ChannelQrLoginDialog
           key={login.id}
           channel={{ id: login.id, type: login.type }}
-          onActiveChange={(isActive) => updateChannel(login.id, { isActive })}
           onClose={() => setLoginId(null)}
         />
       ) : null}

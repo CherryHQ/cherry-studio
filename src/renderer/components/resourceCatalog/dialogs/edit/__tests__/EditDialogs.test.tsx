@@ -134,6 +134,9 @@ vi.mock('@renderer/components/ModelSelector', () => ({
       <button type="button" onClick={() => onSelect(MODEL.id)}>
         Pick model
       </button>
+      <button type="button" onClick={() => onSelect('provider::old-model')}>
+        Pick original model
+      </button>
       <button type="button" onClick={() => onSettingsNavigate?.(settingsNavigateMock)}>
         Open model settings
       </button>
@@ -1282,8 +1285,14 @@ describe('edit dialogs', () => {
 
   it('submits agent instructions and model changes as a PATCH', async () => {
     const user = userEvent.setup()
-    promptProcessorMock.mockImplementation(({ prompt, modelName }: { prompt: string; modelName?: string }) =>
-      prompt.replaceAll('{{model_name}}', modelName ?? '')
+    const baseRequest = ipcRequestMock.getMockImplementation()
+    ipcRequestMock.mockImplementation(
+      async (route: string, input: { instructions: string; modelId: string | null }) => {
+        if (route === 'agent.system_prompt.resolve_instructions') {
+          return input.instructions.replaceAll('{{model_name}}', input.modelId === MODEL.id ? MODEL.name : 'Old Model')
+        }
+        return baseRequest?.(route, input)
+      }
     )
     render(
       <AgentEditDialog
@@ -1296,7 +1305,9 @@ describe('edit dialogs', () => {
 
     await user.click(screen.getByRole('button', { name: 'library.config.agent.prompt.block.instructions' }))
     expect(screen.getByRole('button', { name: 'System variables' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Original instructions Old Model')
+    await waitFor(() =>
+      expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Original instructions Old Model')
+    )
     fireEvent.change(screen.getByRole('textbox', { name: 'library.config.agent.prompt.instructions_label' }), {
       target: { value: 'Updated instructions {{model_name}}' }
     })
@@ -1317,6 +1328,26 @@ describe('edit dialogs', () => {
         instructions: 'Updated instructions {{model_name}}'
       })
     )
+  })
+
+  it('preserves saved tier models when the primary model is switched back before saving', async () => {
+    const user = userEvent.setup()
+    render(
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, planModel: 'provider::plan', smallModel: 'provider::small' }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    const name = screen.getByLabelText('Name')
+    await user.clear(name)
+    await user.click(screen.getByRole('button', { name: 'Pick model' }))
+    await user.click(screen.getByRole('button', { name: 'Pick original model' }))
+    await user.type(name, 'Renamed Agent')
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledWith({ body: { name: 'Renamed Agent' } }))
+    expect(updateAgentMock).toHaveBeenCalledTimes(1)
   })
 
   it("shows a Pi Durable Agent's full prompt and saves edits to its instructions and guidance", async () => {
@@ -1509,7 +1540,7 @@ describe('edit dialogs', () => {
     expect(configuration).toHaveProperty('language', undefined)
   })
 
-  it('saves an "Other language" only once the user has typed one', async () => {
+  it('saves an "Other language" after editing and leaving the field', async () => {
     const user = userEvent.setup()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="advanced" />)
 
@@ -1525,6 +1556,9 @@ describe('edit dialogs', () => {
     expect(screen.getByLabelText('Custom reply language')).toHaveValue('Deutsch')
     await user.clear(input)
     await user.type(input, 'Svenska')
+    await act(() => new Promise((resolve) => setTimeout(resolve, 600)))
+    expect(updateAgentMock).not.toHaveBeenCalled()
+    fireEvent.blur(input)
 
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { configuration: { language: 'Svenska' } } })
@@ -1653,7 +1687,8 @@ describe('edit dialogs', () => {
     })
   })
 
-  it('polishes agent instructions and auto-saves the polished value', async () => {
+  it('keeps Agent prompt undo after saving and leaving the prompt page', async () => {
+    const user = userEvent.setup()
     fetchGenerateMock.mockResolvedValue('Polished agent instructions')
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="prompt" />)
 
@@ -1677,6 +1712,14 @@ describe('edit dialogs', () => {
       expect(updateAgentMock).toHaveBeenCalledWith({
         body: expect.objectContaining({ instructions: 'Polished agent instructions' })
       })
+    )
+    await back(user)
+    await back(user)
+    await openSubPage(user, 'System Prompt')
+    await user.click(screen.getByRole('button', { name: 'library.config.agent.prompt.block.instructions' }))
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { instructions: 'Original instructions' } })
     )
   })
 
@@ -1824,6 +1867,34 @@ describe('edit dialogs', () => {
     expect(await screen.findByLabelText('Tool-output truncation threshold')).toBeInTheDocument()
   })
 
+  it('restores the same custom context settings after turning them off and reopening the page', async () => {
+    const user = userEvent.setup()
+    const contextSettings = {
+      truncateThreshold: 8000,
+      compress: { enabled: false, modelId: 'provider::compression', thresholdPercent: 67 }
+    }
+    render(
+      <AssistantEditDialog
+        open
+        resource={{ ...ASSISTANT, settings: { ...ASSISTANT.settings, contextSettings } }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    await openSubPage(user, 'Custom context')
+    await user.click(screen.getByRole('switch', { name: 'Customize context management' }))
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { contextSettings: null } } })
+    )
+    await back(user)
+    await openSubPage(user, 'Custom context')
+    await user.click(screen.getByRole('switch', { name: 'Customize context management' }))
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: { settings: { contextSettings } } })
+    )
+  })
+
   // The compression trigger is a three-state override: empty means inherit, and the
   // unit is a standing label on the field rather than part of any value.
   it('offers the compression trigger as an inheritable field carrying its unit', async () => {
@@ -1954,16 +2025,23 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('polishes and restores assistant prompts through the shared action', async () => {
-    fetchGenerateMock.mockResolvedValueOnce('Polished assistant prompt')
+  it('finishes polishing off-page and restores the Assistant prompt when returning', async () => {
+    const user = userEvent.setup()
+    const generation = Promise.withResolvers<string>()
+    fetchGenerateMock.mockReturnValueOnce(generation.promise)
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} initialTab="prompt" />)
 
     await expectVariablesHelpOnOpen()
     const polishButton = screen.getByRole('button', { name: POLISH_PROMPT_BUTTON })
 
-    fireEvent.click(polishButton)
-
-    await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished assistant prompt'))
+    await user.click(polishButton)
+    await back(user)
+    generation.resolve('Polished assistant prompt')
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({ body: { prompt: 'Polished assistant prompt' } })
+    )
+    await openSubPage(user, 'System Prompt')
+    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished assistant prompt')
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.any(String),
       content: 'Original prompt',
@@ -2180,7 +2258,9 @@ describe('edit dialogs', () => {
                 { id: 't1', status: 'active' },
                 { id: 't2', status: 'paused' },
                 { id: 't3', status: 'completed' }
-              ]
+              ],
+              total: 3,
+              activeTotal: 1
             })
           : path === '/mcp-servers'
             ? {
@@ -2211,7 +2291,7 @@ describe('edit dialogs', () => {
     }
     const withKnowledge = toolCount()
     expect(withKnowledge.on).toBe(withKnowledge.total - 1)
-    expect(screen.getByRole('button', { name: '技能: Enabled 2 / 3' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '技能: Enabled 1 / 3' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Knowledge: Linked 1 / 2' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'MCP servers: Enabled 1 / 2' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Channels: Enabled 1 / 2' })).toBeInTheDocument()

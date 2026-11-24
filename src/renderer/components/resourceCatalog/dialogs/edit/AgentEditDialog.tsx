@@ -18,7 +18,6 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import { useModelById } from '@renderer/hooks/useModel'
 import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -291,17 +290,20 @@ function AgentEditDialogContent({
   // Validate as the user types so an emptied name shows its required message.
   const form = useForm<AgentEditFormValues>({ defaultValues, mode: 'onChange' })
   const values = form.watch()
-  const { model: selectedAgentModel } = useModelById(values.modelId)
-  const promptModelName =
-    selectedAgentModel?.name ?? (values.modelId === resource.model ? resource.modelName : undefined)
   const replaceFormBaseline = useCallback((next: AgentFormState) => {
     formBaselineRef.current = next
     setFormBaseline(next)
   }, [])
   const patchAgentForm = useCallback(
     (patch: Partial<AgentFormState>) => {
-      const current = buildAgentFormState(formBaselineRef.current, form.getValues())
-      syncAgentFormState(form, applyAgentFormPatch(current, patch))
+      const baseline = formBaselineRef.current
+      const current = buildAgentFormState(baseline, form.getValues())
+      const next = applyAgentFormPatch(current, patch)
+      if (patch.model === baseline.model) {
+        next.planModel = baseline.planModel
+        next.smallModel = baseline.smallModel
+      }
+      syncAgentFormState(form, next)
     },
     [form]
   )
@@ -645,12 +647,13 @@ function AgentEditDialogContent({
           />
         </div>
       ) : null}
-      {page === 'prompt' ? (
+      {open ? (
         <AgentPromptField
+          visible={page === 'prompt'}
           value={values.instructions}
           onChange={(next) => form.setValue('instructions', next, { shouldDirty: true, shouldTouch: true })}
           name={values.name}
-          modelName={promptModelName}
+          modelId={values.modelId}
           portalContainer={dialogContentElement}
           onNativePromptEnabledChange={(enabled) =>
             form.setValue('claudeCodeNativePromptEnabled', enabled, { shouldDirty: true })
@@ -769,7 +772,7 @@ function AgentSettingsCards({
   const { bases } = useKnowledgeBases()
   const { mcpServers } = useMcpServers()
   const { channels } = useChannels({ agentId: agent.id })
-  const { tasks } = useAgentTasks(agent.id)
+  const { total: taskTotal = 0, activeTotal: activeTaskTotal = 0 } = useAgentTasks(agent.id)
 
   const tools = getAgentBuiltinTools(agent.type, knowledgeBaseIds.length > 0)
   const availableSkills = skills.filter((skill) => skill.isGlobalEnabled)
@@ -783,11 +786,10 @@ function AgentSettingsCards({
     {
       page: 'skills',
       label: t('library.config.agent.section.tools.tab.skills'),
-      // Builtin skills are always on, so they count as enabled.
       summary: countSummary(
         t,
         'enabled',
-        availableSkills.filter((skill) => skill.source === 'builtin' || skillIds.includes(skill.id)).length,
+        availableSkills.filter((skill) => skillIds.includes(skill.id)).length,
         availableSkills.length
       )
     },
@@ -815,8 +817,7 @@ function AgentSettingsCards({
     {
       page: 'tasks',
       label: t('settings.scheduledTasks.title'),
-      // Paused, completed, and missed tasks are not running, so only active ones count.
-      summary: countSummary(t, 'enabled', tasks.filter((task) => task.status === 'active').length, tasks.length)
+      summary: countSummary(t, 'enabled', activeTaskTotal, taskTotal)
     }
   ]
   const promptLabel = t('library.config.prompt.label')

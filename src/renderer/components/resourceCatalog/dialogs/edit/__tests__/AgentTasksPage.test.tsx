@@ -19,6 +19,9 @@ vi.mock('@renderer/ipc', () => ({
   useIpcOn: vi.fn()
 }))
 
+let completed = false
+let manyTasks = false
+
 const task = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
   id,
   agentId: 'agent-1',
@@ -48,15 +51,25 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  completed = false
+  manyTasks = false
   MockUseDataApiUtils.resetMocks()
   ipcRequest.mockReset().mockResolvedValue({})
-  mockUseQuery.mockImplementation((path: string) => ({
+  mockUseQuery.mockImplementation((path, options) => ({
     data:
       path === '/agents/:agentId/tasks'
-        ? { items: [task('t1', 'Daily review'), task('t2', 'Weekly report', { enabled: false, status: 'paused' })] }
-        : path === '/agents/:agentId/tasks/:taskId/logs'
-          ? { items: [{ id: 'run-1', scheduleId: 't1', startedAt: '2026-01-02T09:00:00.000Z', status: 'completed' }] }
-          : undefined,
+        ? {
+            items:
+              manyTasks && options?.query && 'page' in options.query && options.query.page === 2
+                ? [task('t51', 'On the second page')]
+                : [task('t1', 'Daily review'), task('t2', 'Weekly report', { enabled: false, status: 'paused' })],
+            total: manyTasks ? 51 : 2
+          }
+        : path === '/agent-tasks/:taskId'
+          ? task('t1', 'Daily review', { status: completed ? 'completed' : 'active' })
+          : path === '/agents/:agentId/tasks/:taskId/logs'
+            ? { items: [{ id: 'run-1', scheduleId: 't1', startedAt: '2026-01-02T09:00:00.000Z', status: 'completed' }] }
+            : undefined,
     isLoading: false,
     isRefreshing: false,
     error: undefined,
@@ -106,6 +119,29 @@ describe('AgentTasksPage', () => {
     const agentPicker = await screen.findByRole('button', { name: '绑定智能体' })
     expect(agentPicker).toHaveTextContent('Reviewer')
     expect(agentPicker).toBeDisabled()
+  })
+
+  it('can reach the next page of this Agent’s tasks', async () => {
+    manyTasks = true
+    const user = userEvent.setup()
+    render(<AgentTasksPage agentId="agent-1" agentName="Reviewer" onCreateWithAgent={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: '下一页' }))
+    expect(screen.getByText('On the second page')).toBeInTheDocument()
+    expect(screen.queryByText('Daily review')).not.toBeInTheDocument()
+  })
+
+  it('removes Run now when the open edit form’s task completes', async () => {
+    const user = userEvent.setup()
+    const view = render(<AgentTasksPage agentId="agent-1" agentName="Reviewer" onCreateWithAgent={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: /Daily review/ }))
+    const form = await screen.findByRole('dialog')
+    expect(within(form).getByRole('button', { name: /立即执行/ })).toBeInTheDocument()
+
+    completed = true
+    view.rerender(<AgentTasksPage agentId="agent-1" agentName="Reviewer" onCreateWithAgent={vi.fn()} />)
+    expect(within(form).queryByRole('button', { name: /立即执行/ })).not.toBeInTheDocument()
   })
 
   it('offers run history, Run now, and Delete when editing a task', async () => {

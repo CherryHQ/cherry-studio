@@ -1,24 +1,16 @@
-import { artifactService, type PreparedPastAgentReport } from '@data/services/ArtifactService'
+import { artifactService } from '@data/services/ArtifactService'
 import { loggerService } from '@logger'
 import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase, toDisposable } from '@main/core/lifecycle'
 
-import { prepareAgentArtifact } from './agentArtifactFile'
-
 const logger = loggerService.withContext('ArtifactBackfillService')
 const STARTUP_DELAY_MS = 5_000
 
-/** Prepares historical files without holding a DB transaction. The index and journal commit together. */
+/** Rebuilds the index from stored declarations. The index and journal commit together. */
 export async function backfillPastOutputs(signal?: AbortSignal): Promise<void> {
   if (artifactService.hasBackfilledPastOutputs()) return
-  const reports: PreparedPastAgentReport[] = []
-  for (const { sessionId, workspacePath, path, title, reportedAt } of artifactService.readPastAgentReports()) {
-    signal?.throwIfAborted()
-    const artifact = await prepareAgentArtifact(workspacePath, path, title)
-    if (artifact) reports.push({ ...artifact, sessionId, reportedAt })
-  }
   signal?.throwIfAborted()
-  artifactService.commitPastOutputs(reports, artifactService.readPastAssistantImages())
+  artifactService.commitPastOutputs(artifactService.readPastAgentReports(), artifactService.readPastAssistantImages())
 }
 
 @Injectable('ArtifactBackfillService')

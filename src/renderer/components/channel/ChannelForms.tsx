@@ -401,6 +401,7 @@ export const QQForm: FC<ChannelFormProps> = (props) => {
   return (
     <ChannelFieldsForm
       {...props}
+      patchConfig
       fields={[
         {
           key: 'app_id',
@@ -424,7 +425,8 @@ export const QQForm: FC<ChannelFormProps> = (props) => {
         <div className="col-span-2 flex items-center gap-3 pt-1">
           <Switch
             checked={mentionOnly}
-            onCheckedChange={(checked) => onConfigChange({ config: { ...cfg, mention_only: checked } })}
+            aria-label={t('agent.channels.qq.mentionOnlyLabel')}
+            onCheckedChange={(checked) => onConfigChange({ configPatch: { mention_only: checked } })}
           />
           <div className="flex flex-col gap-0.5">
             <span className="text-sm">{t('agent.channels.qq.mentionOnlyLabel')}</span>

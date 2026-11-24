@@ -5,19 +5,21 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+import { AssistantTopicsSourceContext, deriveAssistantTopicsView } from '@renderer/hooks/resourceViewSources'
 import i18n from '@renderer/i18n/resolver'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import { parseProfileStarters } from '@shared/ai/profileStarters'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Topic } from '@shared/data/types/topic'
+import { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 
 import { AssistantProfilePane } from '../AssistantProfilePane'
 import { recordEditDialogRequests, renderInRightPane, serveQueries } from './profilePaneTestUtils'
 
 const fetchGenerate = vi.hoisted(() => vi.fn<(input: { prompt: string; content: string }) => Promise<string>>())
-vi.mock('@renderer/utils/aiGeneration', () => ({ fetchGenerate }))
 
 const nextModel = vi.hoisted(
   () => ({ id: 'openai::gpt-5.2', providerId: 'openai', name: 'GPT-5.2', capabilities: [] }) as unknown as Model
@@ -58,6 +60,11 @@ describe('AssistantProfilePane', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.resetMocks()
     fetchGenerate.mockReset()
+    vi.spyOn(window.api.ipcApi, 'request').mockImplementation(async (route, input) => {
+      if (route !== 'ai.profile_starters.generate') return undefined
+      const { mode, system, prompt } = aiRequestSchemas['ai.profile_starters.generate'].input.parse(input)
+      return { ok: true, data: parseProfileStarters(await fetchGenerate({ prompt: system, content: prompt }), mode) }
+    })
     await i18n.changeLanguage('en-US')
     serveQueries({ '/assistants/:id': ({ params }) => (params?.id === assistant.id ? assistant : undefined) })
     dialog = recordEditDialogRequests()
@@ -146,6 +153,20 @@ describe('AssistantProfilePane', () => {
       expect(patches[0]).toMatchObject({ modelId: 'openai::gpt-5.2' })
       expect(patches[1]).toEqual({ settings: { enableBrowser: false } })
       expect(dialog.requests).toEqual([])
+    })
+
+    it('only changes settings that must be reconciled when switching model', async () => {
+      serveQueries({
+        '/assistants/:id': () => ({
+          ...assistant,
+          settings: { ...assistant.settings, enableWebSearch: true }
+        })
+      })
+      fireEvent.click(within(settingsRegion()).getByRole('button', { name: 'Pick GPT-5.2' }))
+
+      await waitFor(() =>
+        expect(patches).toEqual([{ modelId: 'openai::gpt-5.2', settings: { enableWebSearch: false } }])
+      )
     })
 
     it('saves the reply language chosen from the list, starting from no constraint', async () => {
@@ -243,21 +264,31 @@ describe('AssistantProfilePane', () => {
       })
     })
     // Six topics of this Assistant, more than the recent list shows, plus one of another Assistant.
-    MockUseDataApiUtils.seedInfiniteQuery(
-      '/topics',
-      [
-        {
-          items: [
-            ...[3, 1, 6, 2, 5, 4].map((days) => topic(`topic-${days}`, `Topic ${days}`, assistant.id, days)),
-            topic('other', 'Someone else', 'assistant-2', 0)
-          ]
-        }
-      ],
-      { limit: 200 }
-    )
+    const topics = [
+      ...[3, 1, 6, 2, 5, 4].map((days) => topic(`topic-${days}`, `Topic ${days}`, assistant.id, days)),
+      topic('other', 'Someone else', 'assistant-2', 0)
+    ]
     const opened: string[] = []
     renderInRightPane(
-      <AssistantProfilePane assistantId={assistant.id} activeTopicId="topic-2" onOpenTopic={(id) => opened.push(id)} />
+      <AssistantTopicsSourceContext
+        value={{
+          ...deriveAssistantTopicsView(topics),
+          topics,
+          isLoadingAll: false,
+          isFullyLoaded: true,
+          isRefreshing: false,
+          error: undefined,
+          refreshError: undefined,
+          refetch: vi.fn(),
+          loadLatestTopic: vi.fn(),
+          reuseOrCreateTopic: vi.fn()
+        }}>
+        <AssistantProfilePane
+          assistantId={assistant.id}
+          activeTopicId="topic-2"
+          onOpenTopic={(id) => opened.push(id)}
+        />
+      </AssistantTopicsSourceContext>
     )
 
     fireEvent.click(within(screen.getByRole('region', { name: 'Recent topics' })).getByRole('button', { name: 'All' }))

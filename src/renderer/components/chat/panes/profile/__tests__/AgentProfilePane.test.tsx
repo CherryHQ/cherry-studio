@@ -8,16 +8,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '@renderer/i18n/resolver'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { parseProfileStarters } from '@shared/ai/profileStarters'
 import type { AgentEntity, ScheduledTaskEntity } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
+import { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 
 import { AgentProfilePane } from '../AgentProfilePane'
 import { recordEditDialogRequests, renderInRightPane, serveQueries } from './profilePaneTestUtils'
 
-const fetchGenerate = vi.hoisted(() =>
-  vi.fn<(input: { prompt: string; content: string; signal?: AbortSignal }) => Promise<string>>()
-)
-vi.mock('@renderer/utils/aiGeneration', () => ({ fetchGenerate }))
+const fetchGenerate = vi.hoisted(() => vi.fn<(input: { prompt: string; content: string }) => Promise<string>>())
 
 const DEFAULT_MODEL_ID = 'openai::gpt-5'
 
@@ -98,6 +97,11 @@ describe('AgentProfilePane', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.resetMocks()
     fetchGenerate.mockReset()
+    vi.spyOn(window.api.ipcApi, 'request').mockImplementation(async (route, input) => {
+      if (route !== 'ai.profile_starters.generate') return undefined
+      const { mode, system, prompt } = aiRequestSchemas['ai.profile_starters.generate'].input.parse(input)
+      return { ok: true, data: parseProfileStarters(await fetchGenerate({ prompt: system, content: prompt }), mode) }
+    })
     await i18n.changeLanguage('en-US')
     agent = createAgent({ permission_mode: 'acceptEdits' })
     serveAgentData()
@@ -387,10 +391,7 @@ describe('AgentProfilePane', () => {
       it('shows a loading state, then the rule-based suggestions when generation times out', async () => {
         vi.useFakeTimers()
         try {
-          fetchGenerate.mockImplementation(
-            ({ signal }) =>
-              new Promise((_resolve, reject) => signal?.addEventListener('abort', () => reject(new Error('aborted'))))
-          )
+          fetchGenerate.mockReturnValue(Promise.withResolvers<string>().promise)
           renderPane()
           expect(screen.getByRole('region', { name: 'Suggestions' })).toHaveTextContent('Loading...')
           expect(suggestions().queryByText('Connect GitHub')).toBeNull()

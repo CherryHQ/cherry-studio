@@ -357,9 +357,15 @@ const HomePage: FC = () => {
   const openProfileTopic = useCallback(
     (topicId: string) => {
       const topic = rendererTopics.find((item) => item.id === topicId)
-      if (topic) setActiveTopicAndCloseResourceView(topic)
+      if (topic) {
+        setActiveTopicAndCloseResourceView(topic)
+      } else {
+        closeSurface()
+        clearLocate()
+        setActiveTopicId(topicId)
+      }
     },
-    [rendererTopics, setActiveTopicAndCloseResourceView]
+    [clearLocate, closeSurface, rendererTopics, setActiveTopicAndCloseResourceView, setActiveTopicId]
   )
   const clearActiveTopicAndCloseResourceView = useCallback(() => {
     closeSurface()

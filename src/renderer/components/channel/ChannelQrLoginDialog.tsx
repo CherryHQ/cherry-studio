@@ -3,37 +3,39 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Spinner } from '@cherrystudio/ui'
-import { useIpcOn } from '@renderer/ipc'
-import type { EventPayload } from '@shared/ipc/types'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 
 type QrLoginStatus = 'starting' | 'pending' | 'confirmed' | 'expired' | 'error'
-type QrLoginEvent = EventPayload<'channel.wechat.qr_login'> | EventPayload<'channel.feishu.qr_login'>
 
 /**
- * Runs the adapter's own QR login for a saved, inactive WeChat or Feishu channel: switching it on
- * makes the adapter broadcast the QR code. Closing before the login completes switches it off again.
+ * Runs an attempt owned by this dialog. Main deactivates it if the owner cancels before confirmation.
  */
 export function ChannelQrLoginDialog({
   channel,
-  onActiveChange,
   onClose
 }: {
   channel: { id: string; type: 'wechat' | 'feishu' }
-  onActiveChange: (isActive: boolean) => Promise<unknown>
   onClose: () => void
 }) {
   const { t } = useTranslation()
   const [status, setStatus] = useState<QrLoginStatus>('starting')
   const [url, setUrl] = useState<string | null>(null)
-  const login = useRef<{ cancelled: boolean; confirmed: boolean } | null>(null)
+  const login = useRef<{ requestId?: string; cancelled: boolean; confirmed: boolean } | null>(null)
   const copy =
     channel.type === 'wechat'
       ? { title: 'agent.channels.wechat.qrTitle', hint: 'agent.channels.wechat.qrHint' }
       : { title: 'agent.channels.feishu.qrTitle', hint: 'agent.channels.feishu.qrScanHint' }
 
-  const handleEvent = (data: QrLoginEvent) => {
+  useIpcOn('channel.qr_login.status', (data) => {
     const attempt = login.current
-    if (!attempt || attempt.cancelled || attempt.confirmed || data.channelId !== channel.id) return
+    if (
+      !attempt ||
+      attempt.cancelled ||
+      attempt.confirmed ||
+      data.channelId !== channel.id ||
+      data.requestId !== attempt.requestId
+    )
+      return
     if (data.status === 'confirmed' || data.status === 'expired' || data.status === 'error') {
       attempt.confirmed = data.status === 'confirmed'
       setUrl(null)
@@ -42,32 +44,38 @@ export function ChannelQrLoginDialog({
       setUrl(data.url)
       setStatus('pending')
     }
-  }
-  useIpcOn('channel.wechat.qr_login', handleEvent)
-  useIpcOn('channel.feishu.qr_login', handleEvent)
+  })
 
   const start = async (retry: boolean) => {
     const attempt = login.current
     if (!attempt || attempt.cancelled || attempt.confirmed) return
     setStatus('starting')
     setUrl(null)
-    if (retry) {
-      const stopped = await onActiveChange(false)
-      if (attempt.cancelled) return
-      if (stopped === null) {
-        setStatus('error')
-        return
+    try {
+      if (retry && attempt.requestId) {
+        await ipcApi.request('channel.qr_login.cancel', { channelId: channel.id, requestId: attempt.requestId })
+        if (attempt.cancelled) return
       }
+      attempt.requestId = crypto.randomUUID()
+      const started = await ipcApi.request('channel.qr_login.begin', {
+        channelId: channel.id,
+        requestId: attempt.requestId
+      })
+      if (!attempt.cancelled && !attempt.confirmed && !started) setStatus('error')
+    } catch {
+      if (!attempt.cancelled && !attempt.confirmed) setStatus('error')
     }
-    const started = await onActiveChange(true)
-    if (!attempt.cancelled && !attempt.confirmed && started === null) setStatus('error')
   }
 
   const cancel = () => {
     const attempt = login.current
     if (!attempt || attempt.cancelled) return
     attempt.cancelled = true
-    if (!attempt.confirmed) void onActiveChange(false)
+    if (!attempt.confirmed && attempt.requestId) {
+      void ipcApi
+        .request('channel.qr_login.cancel', { channelId: channel.id, requestId: attempt.requestId })
+        .catch(() => undefined)
+    }
   }
   const startOnMount = useEffectEvent(() => {
     login.current = { cancelled: false, confirmed: false }
