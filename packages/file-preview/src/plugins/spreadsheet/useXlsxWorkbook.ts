@@ -53,7 +53,11 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
         if (!isCurrent()) return
         const normalized = error instanceof Error ? error : new Error(String(error))
         failDocument?.(normalized)
-        setState({ status: 'error', message: normalized.message })
+        setState(
+          normalized instanceof PreviewError && normalized.code === 'too_large'
+            ? { status: 'oversize', sizeBytes: document.size }
+            : { status: 'error', message: normalized.message }
+        )
         return
       }
 

@@ -23,6 +23,7 @@ import {
 } from '@main/utils/screenCapturePermission'
 import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
+import type { AppErrorContext } from '@shared/types/appError'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
 import { createAppErrorContext } from '@shared/utils/appError'
 
@@ -926,17 +927,32 @@ export class ScreenshotOverlayService extends BaseService {
   }
 
   /**
-   * Keep this capture's own cause on the ready main window.
+   * An overlay renderer failed. The session comes down and the source is restored before
+   * either surface is shown, so nothing covers it and the failing renderer is not needed.
+   * Only an overlay of the live session may end it; the fault is presented either way.
+   */
+  public async failFromOverlay(windowId: WindowId, context: AppErrorContext): Promise<void> {
+    if (this.isSessionOverlay(windowId)) this.dismiss()
+    await this.presentFault(context)
+  }
+
+  private async showCaptureFailedDialog(error: unknown): Promise<void> {
+    await this.presentFault(
+      createAppErrorContext({
+        source: 'screenshot',
+        operation: 'screenshot.capture',
+        message: error instanceof Error ? error.message : String(error),
+        ...(error instanceof Error && error.name ? { name: error.name } : {}),
+        ...(error instanceof Error && error.stack ? { stack: error.stack } : {})
+      })
+    )
+  }
+
+  /**
+   * Keep the fault's own cause on the ready main window.
    * The native dialog is only the fallback and copies that same cause.
    */
-  private async showCaptureFailedDialog(error: unknown): Promise<void> {
-    const context = createAppErrorContext({
-      source: 'screenshot',
-      operation: 'screenshot.capture',
-      message: error instanceof Error ? error.message : String(error),
-      ...(error instanceof Error && error.name ? { name: error.name } : {}),
-      ...(error instanceof Error && error.stack ? { stack: error.stack } : {})
-    })
+  private async presentFault(context: AppErrorContext): Promise<void> {
     try {
       if (deliverToReadyMain('app.error.open', context)) return
     } catch (handoffError) {

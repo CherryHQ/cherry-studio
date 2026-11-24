@@ -11,6 +11,19 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import {
+  buildMcpSchema,
+  McpEndpointField,
+  McpFormGrid,
+  type McpFormValues,
+  McpIdentityFields,
+  McpRuntimeFields,
+  McpTransportFields,
+  resolveMcpConfigInstallSource,
+  toMcpFormDefaultValues,
+  toMcpServerFields,
+  useMcpRegistryState
+} from '@renderer/components/mcp/McpServerFields'
 import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
@@ -36,19 +49,6 @@ import McpLogsTab from './McpLogsTab'
 import McpPromptsSection from './McpPrompt'
 import McpResourcesSection from './McpResource'
 import McpResourceTemplateView from './McpResourceTemplate'
-import {
-  buildMcpSchema,
-  McpEndpointField,
-  McpFormGrid,
-  type McpFormValues,
-  McpIdentityFields,
-  McpRuntimeFields,
-  McpTransportFields,
-  resolveMcpConfigInstallSource,
-  toMcpFormDefaultValues,
-  toMcpServerFields,
-  useMcpRegistryState
-} from './McpServerFields'
 import McpSkillsSection from './McpSkill'
 import McpToolsSection from './McpTool'
 import { useMcpServerTrust } from './useMcpServerTrust'

@@ -7,7 +7,7 @@ import { createMockWorkbookModel } from '../plugins/spreadsheet/mockModel'
 import type { XlsxParseRequest, XlsxParseResponse } from '../plugins/spreadsheet/renderModel'
 import { Preview } from '../Preview'
 import type { PreviewSelection } from '../selection'
-import type { PreviewSource } from '../source'
+import { PreviewError, type PreviewSource } from '../source'
 import type { PreviewResources } from '../types'
 
 vi.unmock('@cherrystudio/ui')
@@ -97,5 +97,26 @@ describe('spreadsheet host integration', () => {
     expect(footer).toContainElement(screen.getByRole('tab', { name: 'Sales' }))
     expect(footer).toContainElement(screen.getByRole('button', { name: 'Zoom In' }))
     expect(screen.getByRole('grid', { name: 'Sales' }).style.paddingBottom).toBe('')
+  })
+
+  // The package contract excludes errorDetail from too-large states, including a host read-time size policy.
+  it('shows the too-large state without the host Details when the workbook read rejects as too large', async () => {
+    const { resources } = workbookSource()
+    const source: PreviewSource = {
+      id: 'workbook',
+      name: 'report.xlsx',
+      open: async () => ({
+        size: 1,
+        revision: 'v1',
+        readRange: async () => {
+          throw new PreviewError('too_large', 'Read exceeds the host limit')
+        },
+        close: async () => {}
+      })
+    }
+    render(<Preview source={source} resources={resources} errorDetail={<a href="#detail">Details</a>} />)
+
+    await screen.findByRole('heading', { name: 'File too large to preview' })
+    expect(screen.queryByRole('link', { name: 'Details' })).not.toBeInTheDocument()
   })
 })
