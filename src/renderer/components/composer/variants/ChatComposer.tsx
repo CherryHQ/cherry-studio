@@ -62,7 +62,7 @@ import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpe
 import { isOpenAIWebSearchModel, resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { ModelPromptPair, CherryMessagePart } from '@shared/data/types/message'
 import {
   type Model,
   type ReasoningSummary,
@@ -173,7 +173,7 @@ export interface ChatComposerProps {
   onSend: (
     text: string,
     options?: {
-      modelPrompts?: import('@shared/data/types/message').ModelPromptPair[]
+      modelPrompts?: ModelPromptPair[]
       mentionedModels?: UniqueModelId[]
       userMessageParts?: CherryMessagePart[]
       reasoningEffort?: ReasoningEffortOption
@@ -198,7 +198,7 @@ interface SavedComposerDraft {
   mentionedModels: Model[]
   mentionedModelSelectorValue: Model[]
   mentionedModelMultiSelectMode: boolean
-  modelPrompts?: import('@shared/data/types/message').ModelPromptPair[]
+  modelPrompts?: ModelPromptPair[]
   mentionedModelSelectionWasPending: boolean
   selectedKnowledgeBases: KnowledgeBase[]
   knowledgeBaseIds: string[]

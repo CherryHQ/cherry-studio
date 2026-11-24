@@ -19,7 +19,7 @@ import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import { FileEntryIdSchema } from './file'
-import { type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
+import { type UniqueModelId, type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
 import type { CherryDataPartTypes } from './uiParts'
 
 /**
@@ -142,7 +142,7 @@ export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
 
 /** Request controls frozen when an assistant turn is created. */
 export interface ModelPromptPair {
-  modelId: import('./model').UniqueModelId
+  modelId: UniqueModelId
   systemPrompt: string
 }
 

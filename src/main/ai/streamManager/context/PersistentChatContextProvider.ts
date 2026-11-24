@@ -34,7 +34,7 @@ import {
   type MessageSnapshot,
   toContentRole
 } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import type { UniqueModelId, Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
 
@@ -1092,7 +1092,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
   private resolveModelPrompts(
     req: Extract<MainDispatchRequest, { trigger: 'submit-message' | 'regenerate-message' }>,
-    models: Array<{ id: import('@shared/data/types/model').UniqueModelId }>,
+    models: Array<{ id: UniqueModelId }>,
     assistantId: string | undefined
   ): AssistantTurnOptions['modelPrompts'] {
     let pairs = req.modelPrompts

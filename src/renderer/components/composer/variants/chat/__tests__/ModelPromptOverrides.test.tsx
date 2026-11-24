@@ -38,10 +38,10 @@ describe('ModelPromptOverrides', () => {
       target: { value: 'Explain for B' }
     })
     fireEvent.click(screen.getByText('Reverse'))
-    expect((screen.getByRole('textbox', { name: /Model A:/, hidden: true }) as HTMLTextAreaElement).value).toBe(
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: /Model A:/, hidden: true }).value).toBe(
       'Explain for A'
     )
-    expect((screen.getByRole('textbox', { name: /Model B:/, hidden: true }) as HTMLTextAreaElement).value).toBe(
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: /Model B:/, hidden: true }).value).toBe(
       'Explain for B'
     )
     fireEvent.click(screen.getAllByRole('checkbox', { hidden: true })[0])

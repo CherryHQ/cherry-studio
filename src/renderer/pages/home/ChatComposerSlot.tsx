@@ -11,7 +11,7 @@ import {
 } from '@renderer/components/composer/variants/ChatComposer'
 import type { Topic } from '@renderer/types/topic'
 import type { ComposerChatTarget } from '@shared/ai/transport'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { ModelPromptPair, CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -23,7 +23,7 @@ interface ChatComposerSlotBaseProps {
   onSend: (
     text: string,
     options?: {
-      modelPrompts?: import('@shared/data/types/message').ModelPromptPair[]
+      modelPrompts?: ModelPromptPair[]
       mentionedModels?: UniqueModelId[]
       userMessageParts?: CherryMessagePart[]
       chatTarget?: ComposerChatTarget

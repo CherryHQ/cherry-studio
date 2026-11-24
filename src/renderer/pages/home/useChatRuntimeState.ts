@@ -35,7 +35,7 @@ import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
 import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { ModelPromptPair, CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -49,7 +49,7 @@ const logger = loggerService.withContext('useChatRuntimeState')
 export interface ChatTurnInput {
   text: string
   options?: {
-    modelPrompts?: import('@shared/data/types/message').ModelPromptPair[]
+    modelPrompts?: ModelPromptPair[]
     mentionedModels?: UniqueModelId[]
     userMessageParts?: CherryMessagePart[]
     reasoningEffort?: ReasoningEffortOption

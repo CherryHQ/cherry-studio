@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import type { CacheChatComposerDraft } from '@shared/data/cache/cacheValueTypes'
+import type { ModelPromptPair } from '@shared/data/types/message'
 import { isUniqueModelId } from '@shared/data/types/model'
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
@@ -36,7 +37,7 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
     ...(Array.isArray(cached.modelPrompts)
       ? {
           modelPrompts: cached.modelPrompts.filter(
-            (pair): pair is import('@shared/data/types/message').ModelPromptPair =>
+            (pair): pair is ModelPromptPair =>
               isRecord(pair) && isUniqueModelId(pair.modelId) && typeof pair.systemPrompt === 'string'
           )
         }
