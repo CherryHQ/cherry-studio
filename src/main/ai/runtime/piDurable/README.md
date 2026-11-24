@@ -38,6 +38,11 @@ transaction, without opening native storage. `durableNativeContext.ts` resolves
 backend files through the central path registry. Its strict loader verifies native
 identity without changing Cherry's binding state; explicit recovery confirms the
 corresponding database binding.
+A bound root's ID must exactly match an ownerless native conversation and its version-1
+product-context marker. Numeric aliases, malformed markers and task-owned conversations
+fail reopening; an ownerless fork may still retain native history ancestry. Frozen sibling
+request settings are read only after this identity check. An unbound sibling is not
+implicitly bound, and an initial empty context marker remains unassociated.
 `agent_runtime_backend` and `agent_session_context` bind product sessions to native
 SQLite storage and conversations. Native backend and conversation markers repair an
 interrupted association write without guessing by history or replacing a missing store.

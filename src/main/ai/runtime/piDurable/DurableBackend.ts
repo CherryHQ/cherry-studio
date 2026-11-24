@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import type { ConversationId, AgentChange, Registry } from '@earendil-works/pi-durable'
+import type { AgentChange, Registry } from '@earendil-works/pi-durable'
 
 import { application } from '@application'
 import type { HostPorts, BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
@@ -66,7 +66,7 @@ export class DurableBackend {
     ])
 
     const owner = new DurableBackend(createRegistry())
-    const root = await prepareDurableRoot(context.id)
+    const { storage, nativeId, init, conversations: records, resolveNativeId } = await prepareDurableRoot(context.id)
     let storageOwned = true
 
     try {
@@ -79,25 +79,14 @@ export class DurableBackend {
         const session = agentSessionService.getById(binding.sessionId)
         const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
 
-        const saved = binding.nativeThreadId
-          ? await readDurableRequest(root.storage, binding.nativeThreadId)
-          : undefined
+        const conversationId = binding.nativeThreadId !== null ? resolveNativeId(binding) : undefined
+        const saved = conversationId === undefined ? undefined : await readDurableRequest(storage, conversationId)
 
         const modelId = saved?.modelId ?? session.model ?? agent?.model
 
         if (!agent || !modelId) continue
         await owner.prepare({ sessionId: binding.sessionId, agentId: agent.id, modelId, ...saved }, binding)
       }
-
-      const records = new Map<number, Awaited<ReturnType<typeof root.storage.scanConversations>>['items'][number]>()
-      let cursor: Parameters<typeof root.storage.scanConversations>[2]
-
-      do {
-        const page = await root.storage.scanConversations({}, 256, cursor, BACKGROUND_CONTEXT)
-
-        for (const record of page.items) records.set(record.id, record)
-        cursor = page.next
-      } while (cursor)
 
       const resolve = (id: number): string | undefined => {
         const thread = runtimeId<'thread'>(String(id))
@@ -113,10 +102,10 @@ export class DurableBackend {
       }
 
       for (const id of records.keys()) resolve(id)
-      let taskCursor: Parameters<typeof root.storage.scanTasks>[2]
+      let taskCursor: Parameters<typeof storage.scanTasks>[2]
 
       do {
-        const page = await root.storage.scanTasks({}, 256, taskCursor, BACKGROUND_CONTEXT)
+        const page = await storage.scanTasks({}, 256, taskCursor, BACKGROUND_CONTEXT)
 
         for (const task of page.items) {
           const rootId = owner.nativeRoots.get(runtimeId(String(task.conversationId)))
@@ -136,7 +125,7 @@ export class DurableBackend {
 
       const created = await createPiDurableRuntime({
         backendId: runtimeId(context.backendId),
-        openStorage: async () => root.storage,
+        openStorage: async () => storage,
         harness: {
           telemetry: createPiTelemetry({
             isEnabled: () => application.get('PreferenceService').get('app.developer_mode.enabled'),
@@ -183,24 +172,24 @@ export class DurableBackend {
       owner.runtime = created.value
       const host = owner.roots.get(context.id)!
 
-      const opened = root.nativeId
-        ? await owner.runtime.open({ backendId: runtimeId(context.backendId), id: runtimeId(root.nativeId) })
+      const opened = nativeId
+        ? await owner.runtime.open({ backendId: runtimeId(context.backendId), id: runtimeId(nativeId) })
         : await owner.runtime.create({
             ownership: { kind: 'ownerless' },
             agent: host.agent,
             init: async (tx, id) => {
-              await root.init(tx, id)
+              await init(tx, id)
               owner.nativeRoots.set(runtimeId(String(id)), host.context.id)
             }
           })
 
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
-      owner.bind(host, Number(opened.value.thread.id) as ConversationId)
+      owner.bind(host, opened.value.thread.id)
       await opened.value.release()
 
       return owner
     } catch (error) {
-      if (storageOwned) await root.storage.close(BACKGROUND_CONTEXT)
+      if (storageOwned) await storage.close(BACKGROUND_CONTEXT)
 
       if (owner.runtime) await owner.runtime.shutdown()
       await owner.closeHosts()
@@ -208,9 +197,9 @@ export class DurableBackend {
     }
   }
 
-  private bind(root: DurableRoot, id: ConversationId) {
-    root.context = contexts.bindContext(root.context.id, String(id))
-    this.nativeRoots.set(runtimeId(String(id)), root.context.id)
+  private bind(root: DurableRoot, id: ThreadId) {
+    root.context = contexts.bindContext(root.context.id, id)
+    this.nativeRoots.set(id, root.context.id)
   }
 
   async prepare(input: AgentRuntimeConnectInput, context: AgentSessionContextRow): Promise<DurableRoot> {

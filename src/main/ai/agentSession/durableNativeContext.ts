@@ -4,15 +4,20 @@ import { DatabaseSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 
 import type { Storage, Tx, ConversationId } from '@earendil-works/pi-durable'
+import * as z from 'zod'
 
 import { application } from '@application'
 import type { AgentRuntimeBackendRow } from '@data/db/schemas/agentRuntimeBackend'
+import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { loggerService } from '@logger'
 import { getErrorCode, toError } from '@main/utils/error'
 
 const DURABLE_STORAGE_ERROR_I18N_KEY = 'durable_storage_failed'
 const logger = loggerService.withContext('durableNativeContext')
+
+const contextIdentitySchema = z.object({ contextId: z.string() })
+type NativeConversation = Awaited<ReturnType<Storage['scanConversations']>>['items'][number]
 
 interface DurableErrorDetails {
   code?: string
@@ -262,6 +267,7 @@ export async function reconcileDurableBackend(backendId: string): Promise<Storag
 /** Recover the native identity from the same commit that created the root conversation. */
 export async function prepareDurableRoot(contextId: string) {
   const context = contexts.context(contextId)
+  if (context.parentContextId !== null) throw new Error('Durable context is not a product root')
 
   if (contexts.backend(context.backendId).state === 'creating') {
     try {
@@ -278,13 +284,15 @@ export async function prepareDurableRoot(contextId: string) {
   const identity = await durableContextIdentity()
 
   try {
-    const matches: string[] = []
+    const conversations = new Map<number, NativeConversation>()
+    const identities = new Map<string, { conversation: NativeConversation; version: number }[]>()
     let cursor: Parameters<Storage['scanConversations']>[2]
 
     do {
       const page = await storage.scanConversations({}, 256, cursor, nativeContext)
 
       for (const conversation of page.items) {
+        conversations.set(conversation.id, conversation)
         const address = await storage.findDocument(
           { kind: identity.definition.kind, scope: { kind: 'conversation', conversationId: conversation.id } },
           'current',
@@ -293,21 +301,39 @@ export async function prepareDurableRoot(contextId: string) {
 
         const doc = address && (await storage.document(address.id, 'current', nativeContext))
 
-        if (doc?.value.contextId === contextId) matches.push(String(conversation.id))
+        if (!doc) continue
+        const marker = contextIdentitySchema.parse(doc.value)
+        const matches = identities.get(marker.contextId) ?? []
+        matches.push({ conversation, version: doc.version })
+        identities.set(marker.contextId, matches)
       }
 
       cursor = page.next
     } while (cursor)
 
-    if (matches.length > 1 || (context.nativeThreadId && matches[0] !== context.nativeThreadId))
-      throw new Error('Durable context identity does not match')
-    const nativeId = matches[0]
+    const resolveNativeId = (binding: AgentSessionContextRow): ConversationId | undefined => {
+      if (binding.backendId !== context.backendId || binding.parentContextId !== null)
+        throw new Error('Durable context is not a root of this backend')
+      const matches = identities.get(binding.id) ?? []
+      if (matches.length > 1) throw new Error('Durable context identity does not match')
+      const match = matches[0]
+      if (match && (match.version !== 1 || match.conversation.owner !== undefined))
+        throw new Error('Durable context identity does not match')
+      const nativeId = match?.conversation.id
+      if (binding.nativeThreadId !== null && (nativeId === undefined || String(nativeId) !== binding.nativeThreadId))
+        throw new Error('Durable context identity does not match')
+      return nativeId
+    }
 
-    if (nativeId && context.bindingState === 'pending') contexts.bindContext(contextId, nativeId)
+    const recoveredId = resolveNativeId(context)
+    const nativeId = recoveredId === undefined ? undefined : String(recoveredId)
+    if (nativeId !== undefined && context.bindingState === 'pending') contexts.bindContext(contextId, nativeId)
 
     return {
       storage,
       nativeId,
+      conversations,
+      resolveNativeId,
       init: async (tx: Tx, id: ConversationId) => {
         const doc = await tx.doc(identity, id)
         doc.contextId = contextId

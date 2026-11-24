@@ -30,12 +30,12 @@ async function requestDocument() {
   })
 }
 
-export async function readDurableRequest(storage: Storage, thread: string) {
+export async function readDurableRequest(storage: Storage, conversationId: ConversationId) {
   const { BACKGROUND_CONTEXT } = await import('@earendil-works/chord/context')
   const token = await requestDocument()
 
   const address = await storage.findDocument(
-    { kind: token.definition.kind, scope: { kind: 'conversation', conversationId: Number(thread) as ConversationId } },
+    { kind: token.definition.kind, scope: { kind: 'conversation', conversationId } },
     'current',
     BACKGROUND_CONTEXT
   )

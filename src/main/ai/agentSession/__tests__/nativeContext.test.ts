@@ -15,7 +15,7 @@ import { join } from 'node:path'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { createModels, fauxAssistantMessage, fauxProvider, InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import { ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent'
-import { createRegistry } from '@earendil-works/pi-durable'
+import { createRegistry, createSession, defineTask } from '@earendil-works/pi-durable'
 import { SqliteStorage } from '@earendil-works/pi-durable/storage/sqlite'
 import { NodeSqliteDatabase, openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -54,6 +54,7 @@ import { allocateDurableBackendTx, prepareDurableBranch } from '@main/ai/runtime
 import { createTestBehavior } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import {
   reconcileDurableBackend,
+  durableContextIdentity,
   createDurableBackend as initializeDurableBackend,
   openDurableStorage,
   prepareDurableRoot
@@ -286,6 +287,135 @@ describe('native context storage and reconciliation', () => {
       }
     }
   )
+
+  it.each(['duplicate', 'version', 'payload', 'owned', 'empty-binding'] as const)(
+    'rejects %s Durable root identity evidence without repairing the product binding',
+    async (kind) => {
+      const intent = prepareDurableBranch(sessionId)
+      const prepared = await prepareDurableRoot(intent.id)
+      const session = createSession(prepared.storage)
+      const nativeId = await session.commit(async (tx) => {
+        let conversation = await tx.createConversation({ ownership: { kind: 'ownerless' } })
+        if (kind === 'owned') {
+          const task = defineTask({
+            name: 'test.owner',
+            version: 1,
+            initial: () => ({ phase: 'waiting' as const }),
+            phases: {
+              waiting: async () => {
+                throw new Error('Fixture task must not execute')
+              }
+            },
+            abort: async () => {
+              throw new Error('Fixture task must not execute')
+            }
+          })
+          const taskId = await tx.createTask(task, null, {
+            ownership: { kind: 'conversation' },
+            conversationId: conversation.id
+          })
+          conversation = await tx.createConversation({ ownership: { kind: 'task', taskId } })
+        }
+        await prepared.init(tx, conversation.id)
+        if (kind === 'duplicate') {
+          const duplicate = await tx.createConversation({ ownership: { kind: 'ownerless' } })
+          await prepared.init(tx, duplicate.id)
+        }
+        return conversation.id
+      }, BACKGROUND_CONTEXT)
+      await session.close(BACKGROUND_CONTEXT)
+
+      if (kind === 'version' || kind === 'payload') {
+        const storage = await openDurableStorage(contexts.backend(intent.backendId))
+        try {
+          const marker = await storage.findDocument(
+            {
+              kind: 'cherry.product-context',
+              scope: { kind: 'conversation', conversationId: nativeId }
+            },
+            'current',
+            BACKGROUND_CONTEXT
+          )
+          if (!marker) throw new Error('Fixture identity marker is missing')
+          const written = await storage.commit(
+            [
+              [
+                {
+                  type: 'document.change',
+                  id: marker.id,
+                  content: {
+                    kind: 'base',
+                    version: kind === 'version' ? 2 : 1,
+                    value: { contextId: kind === 'payload' ? 42 : intent.id }
+                  }
+                }
+              ]
+            ],
+            () => {},
+            BACKGROUND_CONTEXT
+          )
+          expect(written.stored).toBe(1)
+        } finally {
+          await storage.close(BACKGROUND_CONTEXT)
+        }
+      }
+      if (kind === 'empty-binding')
+        dbh.db
+          .update(agentSessionContextTable)
+          .set({ nativeThreadId: '', bindingState: 'bound' })
+          .where(eq(agentSessionContextTable.id, intent.id))
+          .run()
+      const before = contexts.context(intent.id)
+      await expect(prepareDurableRoot(intent.id)).rejects.toThrow()
+      expect(contexts.context(intent.id)).toEqual(before)
+      const storage = await openDurableStorage(contexts.backend(intent.backendId))
+      try {
+        const page = await storage.scanConversations({}, 100, undefined, BACKGROUND_CONTEXT)
+        expect(page.items).toHaveLength(kind === 'owned' || kind === 'duplicate' ? 2 : 1)
+      } finally {
+        await storage.close(BACKGROUND_CONTEXT)
+      }
+    }
+  )
+
+  it('rejects a product child before creating or binding its backend', async () => {
+    const root = prepareDurableBranch(sessionId)
+    const childId = uuid()
+    dbh.db
+      .insert(agentSessionContextTable)
+      .values({
+        id: childId,
+        parentContextId: root.id,
+        sessionId,
+        backendId: root.backendId
+      })
+      .run()
+    const backend = contexts.backend(root.backendId)
+    if (backend.locator.kind !== 'pi-durable') throw new Error('Fixture requires a Durable backend')
+    await expect(prepareDurableRoot(childId)).rejects.toThrow('not a product root')
+    expect(contexts.backend(root.backendId).state).toBe('creating')
+    expect(existsSync(application.getPath('feature.agents.durable.stores', backend.locator.fileName))).toBe(false)
+  })
+
+  it('leaves an initially unassociated native context marker unbound', async () => {
+    const intent = prepareDurableBranch(sessionId)
+    const prepared = await prepareDurableRoot(intent.id)
+    const session = createSession(prepared.storage)
+    const identity = await durableContextIdentity()
+    await session.commit(async (tx) => {
+      const conversation = await tx.createConversation({ ownership: { kind: 'ownerless' } })
+      await tx.doc(identity, conversation.id)
+    }, BACKGROUND_CONTEXT)
+    await session.close(BACKGROUND_CONTEXT)
+    const reopened = await prepareDurableRoot(intent.id)
+    try {
+      expect(reopened.nativeId).toBeUndefined()
+      expect(contexts.context(intent.id).nativeThreadId).toBeNull()
+      expect((await reopened.storage.scanConversations({}, 100, undefined, BACKGROUND_CONTEXT)).items).toHaveLength(1)
+    } finally {
+      await reopened.storage.close(BACKGROUND_CONTEXT)
+    }
+  })
 
   it.each(['schema', 'identity'] as const)(
     'retries a Durable %s initialization failure on the same branch',

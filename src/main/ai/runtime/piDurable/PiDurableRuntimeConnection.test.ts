@@ -18,6 +18,7 @@ import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
 import type { DurableObservation, PiDurableThreadHandle } from '@cherrystudio/agent-runtime-pi-durable'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -821,12 +822,14 @@ describe('desktop Pi Durable connection', () => {
         dbh.db.update(agentTable).set({ model: null }).where(eq(agentTable.id, input.agentId)).run()
       }
       const recoveredEvents: AgentRuntimeEvent[] = []
+      const recoveredProviderCalls: string[] = []
       let recovered: PiDurableRuntimeConnection | undefined
       mocks.binding.mockImplementation(async (next: AgentRuntimeConnectInput, _provider, _model, _usage, shared) => {
         const model = { ...MODEL, provider: next.sessionId }
-        const stream = respondingModel(() =>
-          assistantReply(`${next.sessionId}:${next.reasoningEffort}:${next.fastMode}`)
-        ).model
+        const stream = respondingModel(() => {
+          recoveredProviderCalls.push(next.sessionId)
+          return assistantReply(`${next.sessionId}:${next.reasoningEffort}:${next.fastMode}`)
+        }).model
         if (!shared) return createTestBinding({ model, stream })
         shared.registerProvider(model.provider, {
           api: model.api,
@@ -845,6 +848,46 @@ describe('desktop Pi Durable connection', () => {
         })()
       })
       input = { ...input, sessionId: forkId, reasoningEffort: 'low', fastMode: false }
+      const sourceContext = contexts.context(parent.connection.contextId!)
+      const forkContext = prepareDurableBranch(forkId)
+      if (sourceContext.nativeThreadId === null || forkContext.nativeThreadId === null)
+        throw new Error('Fixture requires two bound native roots')
+      const bindings = () =>
+        contexts.roots(sourceContext.backendId).map(({ id, nativeThreadId, bindingState }) => ({
+          id,
+          nativeThreadId,
+          bindingState
+        }))
+      const nativeCount = async () => {
+        const storage = await openDurableStorage(contexts.backend(sourceContext.backendId))
+        try {
+          return (await storage.scanConversations({}, 100, undefined, BACKGROUND_CONTEXT)).items.length
+        } finally {
+          await storage.close(BACKGROUND_CONTEXT)
+        }
+      }
+      const conversationsBefore = await nativeCount()
+      for (const malformed of [`0${sourceContext.nativeThreadId}`, '', forkContext.nativeThreadId]) {
+        dbh.db
+          .update(agentSessionContextTable)
+          .set({ nativeThreadId: malformed })
+          .where(eq(agentSessionContextTable.id, sourceContext.id))
+          .run()
+        const before = bindings()
+        const providerCalls = recoveredProviderCalls.length
+        try {
+          await expect(connect()).rejects.toThrow('Durable context identity does not match')
+          expect(bindings()).toEqual(before)
+          expect(recoveredProviderCalls).toHaveLength(providerCalls)
+          expect(await nativeCount()).toBe(conversationsBefore)
+        } finally {
+          dbh.db
+            .update(agentSessionContextTable)
+            .set({ nativeThreadId: sourceContext.nativeThreadId })
+            .where(eq(agentSessionContextTable.id, sourceContext.id))
+            .run()
+        }
+      }
       const fork = await connect()
       await expect.poll(() => recoveredEvents.some((event) => event.type === 'turn-complete')).toBe(true)
       expect(text(recoveredEvents)).toContain(`${sourceInput.sessionId}:high:true`)
