@@ -13,6 +13,7 @@ import {
   getOrderedLaunchpadApps,
   getSidebarShortcutResourceIds,
   getVisibleSidebarShortcutItems,
+  isSidebarShortcutItem,
   normalizeSidebarShortcutItems,
   removeSidebarShortcut,
   reorderSidebarShortcuts
@@ -24,6 +25,23 @@ const shortcut = (providerId: string, resourceId: string, activationId?: string)
 }
 
 describe('sidebar shortcut storage transforms', () => {
+  it.each([undefined, null, {}, 7, 'not-an-array', false])(
+    'does not crash while reading a non-array persisted preference: %j',
+    (stored) => {
+      expect(normalizeSidebarShortcutItems(stored)).toEqual([])
+      expect(getVisibleSidebarShortcutItems(stored)).toEqual([])
+    }
+  )
+
+  it.each([{ id: undefined }, { id: 7 }, { fallbackLabel: 42 }])(
+    'rejects malformed shortcut fields instead of certifying the complete item: %j',
+    (fields) => {
+      const value = { ...shortcut('core.agent', 'agent-1'), ...fields }
+
+      expect(isSidebarShortcutItem(value)).toBe(false)
+    }
+  )
+
   it('inserts a new marketplace after paintings without resetting a saved launchpad order', () => {
     const order = getOrderedLaunchpadApps(['files', 'paintings', 'translate', 'agents'])
     expect(order.slice(0, 5)).toEqual(['files', 'paintings', 'marketplace', 'translate', 'agents'])
@@ -54,6 +72,13 @@ describe('sidebar shortcut storage transforms', () => {
     expect(normalized).toEqual(future)
     expect(visible).toEqual([])
   })
+
+  it('drops invalid legacy app entries instead of preserving them as future formats', () => {
+    const invalid = ['unknown-app', 'constructor', '__proto__'].map((id) => ({ type: 'app', id }))
+
+    expect(normalizeSidebarShortcutItems(invalid)).toEqual([])
+  })
+
   it('migrates legacy leaves, deduplicates them, and preserves future top-level items', () => {
     const future = { type: 'group', id: 'future', children: ['x'] }
     const result = normalizeSidebarShortcutItems([

@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 import {
   createSidebarShortcutId,
@@ -113,17 +115,10 @@ export type SidebarApp = SidebarAppDefinition<SidebarAppId>
 
 export const SIDEBAR_APPS: readonly SidebarApp[] = SIDEBAR_APP_DEFINITIONS
 
-const SIDEBAR_APP_BY_ID: Record<SidebarAppId, SidebarApp> = SIDEBAR_APPS.reduce(
-  (acc, app) => {
-    acc[app.id] = app
-
-    return acc
-  },
-  {} as Record<SidebarAppId, SidebarApp>
-)
+const SIDEBAR_APP_BY_ID = new Map<SidebarAppId, SidebarApp>(SIDEBAR_APPS.map((app) => [app.id, app]))
 
 export function getSidebarApp(id: SidebarAppId): SidebarApp | undefined {
-  return SIDEBAR_APP_BY_ID[id]
+  return SIDEBAR_APP_BY_ID.get(id)
 }
 
 /**
@@ -141,7 +136,7 @@ export function tabBelongsToApp(app: SidebarApp, url: string): boolean {
  */
 export const SIDEBAR_FAVORITE_ORDER: SidebarAppId[] = SIDEBAR_APPS.map((app) => app.id)
 
-const sidebarFavoriteSet = new Set<SidebarAppId>(SIDEBAR_FAVORITE_ORDER)
+const sidebarFavoriteSet: ReadonlySet<string> = new Set(SIDEBAR_FAVORITE_ORDER)
 
 export function getSidebarMenuPath(favorite: SidebarAppId, defaultPaintingProvider: string): string {
   const app = getSidebarApp(favorite)
@@ -158,7 +153,7 @@ export function resolveSidebarActiveItem(url: string): SidebarAppId | '' {
 }
 
 export function isSidebarAppId(value: string): value is SidebarAppId {
-  return sidebarFavoriteSet.has(value as SidebarAppId)
+  return sidebarFavoriteSet.has(value)
 }
 
 export const SIDEBAR_SHORTCUT_PROVIDER_IDS = {
@@ -190,12 +185,12 @@ export function createSidebarShortcutTarget(
   return target
 }
 
-const LEGACY_PROVIDER_BY_TYPE = {
-  app: SIDEBAR_SHORTCUT_PROVIDER_IDS.APP,
-  mini_app: SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP,
-  agent: SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT,
-  assistant: SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT
-} as const
+const LEGACY_PROVIDER_BY_TYPE: ReadonlyMap<string, string> = new Map([
+  ['app', SIDEBAR_SHORTCUT_PROVIDER_IDS.APP],
+  ['mini_app', SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP],
+  ['agent', SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT],
+  ['assistant', SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT]
+])
 
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stored sidebar items may belong to future versions; validate known fields and preserve uninterpreted fields on forward-compatible items.
 type SidebarCandidate = Record<string, unknown>
@@ -217,8 +212,16 @@ export function isSidebarShortcutTarget(value: unknown): value is SidebarShortcu
   )
 }
 
+const sidebarShortcutFieldsSchema = z.object({
+  type: z.literal('shortcut'),
+  id: z.string(),
+  fallbackLabel: z.string().optional()
+}) satisfies z.ZodType<Pick<SidebarShortcutItem, 'type' | 'id' | 'fallbackLabel'>>
+
 export function isSidebarShortcutItem(value: unknown): value is SidebarShortcutItem {
-  return isRecord(value) && value.type === 'shortcut' && isSidebarShortcutTarget(value.target)
+  return (
+    isRecord(value) && sidebarShortcutFieldsSchema.safeParse(value).success && isSidebarShortcutTarget(value.target)
+  )
 }
 
 function normalizeKnownSidebarShortcut(value: SidebarCandidate): SidebarShortcutItem | undefined {
@@ -239,13 +242,15 @@ function normalizeKnownSidebarShortcut(value: SidebarCandidate): SidebarShortcut
     return item
   }
 
-  if (typeof value.type !== 'string' || !Object.hasOwn(LEGACY_PROVIDER_BY_TYPE, value.type)) return undefined
+  if (typeof value.type !== 'string') return undefined
+
+  const providerId = LEGACY_PROVIDER_BY_TYPE.get(value.type)
+  if (providerId === undefined) return undefined
 
   if (typeof value.id !== 'string' || value.id.length === 0) return undefined
 
   if (value.type === 'app' && !isSidebarAppId(value.id)) return undefined
 
-  const providerId = LEGACY_PROVIDER_BY_TYPE[value.type as keyof typeof LEGACY_PROVIDER_BY_TYPE]
   const target = createSidebarShortcutTarget(providerId, value.id)
 
   const item: SidebarShortcutItem = {
@@ -264,18 +269,21 @@ function isForwardCompatibleSidebarItem(value: SidebarCandidate): value is Sideb
   return (
     typeof value.type === 'string' &&
     value.type !== 'shortcut' &&
-    !Object.hasOwn(LEGACY_PROVIDER_BY_TYPE, value.type) &&
+    !LEGACY_PROVIDER_BY_TYPE.has(value.type) &&
     typeof value.id === 'string' &&
     value.id.length > 0
   )
 }
 
 /** Normalize storage, migrate legacy leaves, and preserve future items. */
-export function normalizeSidebarShortcutItems(values: readonly unknown[] | undefined): SidebarStoredItem[] {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preference JSON has no runtime value schema; check the array before normalizing items and preserving future variants.
+export function normalizeSidebarShortcutItems(values: unknown): SidebarStoredItem[] {
+  if (!Array.isArray(values)) return []
+
   const items: SidebarStoredItem[] = []
   const seen = new Set<string>()
 
-  for (const value of values ?? []) {
+  for (const value of values) {
     if (!isRecord(value)) continue
     const shortcut = normalizeKnownSidebarShortcut(value)
 
@@ -298,7 +306,8 @@ export function normalizeSidebarShortcutItems(values: readonly unknown[] | undef
   return items
 }
 
-export function getVisibleSidebarShortcutItems(values: readonly unknown[] | undefined): SidebarShortcutItem[] {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Reads unvalidated preference JSON; normalization checks the array and item boundaries before selecting visible shortcuts.
+export function getVisibleSidebarShortcutItems(values: unknown): SidebarShortcutItem[] {
   return normalizeSidebarShortcutItems(values).filter(isSidebarShortcutItem)
 }
 
