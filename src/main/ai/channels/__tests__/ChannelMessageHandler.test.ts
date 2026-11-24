@@ -78,7 +78,8 @@ vi.mock('@data/services/AgentService', () => ({
       id: 'agent-1',
       configuration: {},
       model: 'openai::gpt-4'
-    })
+    }),
+    getLifecycleState: vi.fn().mockReturnValue('active')
   }
 }))
 
@@ -1090,6 +1091,150 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('group-1', 'thread:two', {
       replyToMessageId: 'thread:two:message',
       replyInThread: true
+    })
+  })
+
+  describe('forum topic routing', () => {
+    const topicMessage = (threadId: string): ChannelMessageEvent => ({
+      chatId: 'group-1',
+      threadId,
+      userId: 'user-1',
+      userName: 'User',
+      text: 'hello'
+    })
+
+    it('dispatches a mapped topic to its agent in its own conversation and replies into the topic', async () => {
+      const adapter = createMockAdapter({ channelType: 'telegram' })
+      simulateStream([{ type: 'text-delta', delta: 'research done' }])
+
+      await handleIncomingAndFlush(adapter, {
+        ...topicMessage('7'),
+        conversationId: 'group-1:7',
+        dispatchAgentId: 'agent-research'
+      })
+
+      expect(agentSessionService.createTx).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.any(String),
+        expect.objectContaining({ agentId: 'agent-research' })
+      )
+      expect(channelService.activateSessionTx).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ conversationId: 'group-1:7' })
+      )
+      expect(adapter.sendMessage).toHaveBeenCalledWith('group-1', 'research done', { threadId: '7' })
+    })
+
+    it('keeps an unmapped topic on the channel agent but replies into its thread', async () => {
+      const adapter = createMockAdapter({ channelType: 'telegram' })
+      simulateStream([{ type: 'text-delta', delta: 'ok' }])
+
+      await handleIncomingAndFlush(adapter, topicMessage('9'))
+
+      expect(agentSessionService.createTx).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.any(String),
+        expect.objectContaining({ agentId: 'agent-1' })
+      )
+      expect(adapter.sendMessage).toHaveBeenCalledWith('group-1', 'ok', { threadId: '9' })
+    })
+
+    it('does not share sessions between topics bound to different agents', async () => {
+      const adapter = createMockAdapter({ channelType: 'telegram' })
+
+      for (const [threadId, agentId] of [
+        ['7', 'agent-research'],
+        ['8', 'agent-cooking']
+      ] as const) {
+        simulateStream([{ type: 'text-delta', delta: agentId }])
+        await handleIncomingAndFlush(adapter, {
+          ...topicMessage(threadId),
+          conversationId: `group-1:${threadId}`,
+          dispatchAgentId: agentId
+        })
+      }
+
+      const sessionIds = mockStartAgentSessionRun.mock.calls.map(([input]) => input.sessionId)
+      expect(sessionIds[0]).not.toBe(sessionIds[1])
+    })
+
+    it('falls back to the channel agent when the topic agent is no longer active', async () => {
+      vi.mocked(agentService.getLifecycleState).mockReturnValueOnce('trashed')
+      const adapter = createMockAdapter({ channelType: 'telegram' })
+      simulateStream([{ type: 'text-delta', delta: 'ok' }])
+
+      await handleIncomingAndFlush(adapter, {
+        ...topicMessage('7'),
+        conversationId: 'group-1:7',
+        dispatchAgentId: 'agent-trashed'
+      })
+
+      expect(agentSessionService.createTx).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.any(String),
+        expect.objectContaining({ agentId: 'agent-1' })
+      )
+    })
+  })
+
+  describe('/topics command', () => {
+    const telegramChannel = (topicAgents: Record<string, string>) =>
+      ({
+        id: 'channel-1',
+        sessionId: null,
+        permissionMode: null,
+        workspace: { type: 'system' },
+        type: 'telegram',
+        config: { bot_token: 'token', topic_agents: topicAgents }
+      }) as any
+
+    it("lists only the requesting chat's topic agents, shown by thread suffix", async () => {
+      vi.mocked(channelService.getChannel).mockReturnValueOnce(
+        telegramChannel({ 'group-1:7': 'agent-research', 'group-1:9': 'agent-cooking', 'other-chat:3': 'agent-x' })
+      )
+      const adapter = createMockAdapter({ channelType: 'telegram' })
+
+      await channelMessageHandler.handleCommand(adapter, {
+        chatId: 'group-1',
+        conversationId: 'group-1:7',
+        threadId: '7',
+        userId: 'user-1',
+        userName: 'User',
+        command: 'topics'
+      })
+
+      expect(adapter.sendMessage).toHaveBeenCalledWith(
+        'group-1',
+        'Topic agents:\n#7 → agent-research\n#9 → agent-cooking',
+        expect.objectContaining({ threadId: '7' })
+      )
+    })
+
+    it('reports no topic agents when the requesting chat has none mapped', async () => {
+      vi.mocked(channelService.getChannel).mockReturnValueOnce(telegramChannel({ 'other-chat:3': 'agent-x' }))
+      const adapter = createMockAdapter({ channelType: 'telegram' })
+
+      await channelMessageHandler.handleCommand(adapter, {
+        chatId: 'group-1',
+        userId: 'user-1',
+        userName: 'User',
+        command: 'topics'
+      })
+
+      expect(adapter.sendMessage).toHaveBeenCalledWith('group-1', "No topic agents are configured. Every topic uses this channel's agent.", expect.anything())
+    })
+
+    it('reports no topic agents for a non-telegram channel', async () => {
+      const adapter = createMockAdapter()
+
+      await channelMessageHandler.handleCommand(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        command: 'topics'
+      })
+
+      expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', "No topic agents are configured. Every topic uses this channel's agent.", expect.anything())
     })
   })
 

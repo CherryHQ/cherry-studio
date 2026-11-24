@@ -1,4 +1,4 @@
-import { type ApiCallFn, Bot, InputFile, type Transformer } from 'grammy'
+import { type ApiCallFn, Bot, type Context, InputFile, type Transformer } from 'grammy'
 import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
 
 import {
@@ -9,13 +9,32 @@ import {
   MAX_FILE_SIZE_BYTES
 } from '@main/utils/downloadAsBase64'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  type ChannelMessageEvent,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { splitMessage } from '../../utils'
 
 const TELEGRAM_MAX_LENGTH = 4096
 const TELEGRAM_LONG_POLL_TIMEOUT_SECONDS = 30
 const TELEGRAM_GET_UPDATES_TIMEOUT_MS = 45_000
 type GrammyAbortSignal = NonNullable<Parameters<ApiCallFn>[2]>
+type TopicSource = Pick<NonNullable<Context['message']>, 'is_topic_message' | 'message_thread_id'>
+type TopicRouting = Pick<ChannelMessageEvent, 'threadId' | 'conversationId' | 'dispatchAgentId'>
+
+/** `message_thread_id` is only set on forum-topic messages; General and plain chats have none. */
+function topicThreadIdOf(source: TopicSource | undefined): string | undefined {
+  return source?.is_topic_message && source.message_thread_id !== undefined
+    ? String(source.message_thread_id)
+    : undefined
+}
+
+function messageThreadParams(threadId: string | undefined): { message_thread_id: number } | undefined {
+  return threadId ? { message_thread_id: Number(threadId) } : undefined
+}
+
 /**
  * Plain-text chunk budget under MarkdownV2. We split the *plain* text (so each
  * chunk has an index-aligned plain fallback) and then escape it; escaping only
@@ -49,6 +68,8 @@ class TelegramAdapter extends ChannelAdapter {
   private pollingPromise: Promise<void> | null = null
   private readonly botToken: string
   private readonly allowedChatIds: string[]
+  /** Forum topic → dispatch agent, keyed `<chatId>:<threadId>`. */
+  private readonly topicAgents: Record<string, string>
 
   // Long-polling reconnect with backoff. grammY rethrows fatal polling errors (401/409) out of
   // `bot.start()`; without this a recoverable 409/Conflict left the bot permanently down.
@@ -69,10 +90,20 @@ class TelegramAdapter extends ChannelAdapter {
 
   constructor(config: ChannelAdapterConfig<'telegram'>) {
     super(config)
-    const { bot_token, allowed_chat_ids } = config.channelConfig
+    const { bot_token, allowed_chat_ids, topic_agents } = config.channelConfig
     this.botToken = bot_token
     this.allowedChatIds = allowed_chat_ids ?? []
+    this.topicAgents = topic_agents ?? {}
     this.notifyChatIds = [...this.allowedChatIds]
+  }
+
+  /** Routing fields for an inbound message. Mapped topics also get their own conversation and agent. */
+  private topicRouting(chatId: string, source: TopicSource | undefined): TopicRouting {
+    const threadId = topicThreadIdOf(source)
+    if (!threadId) return {}
+    const key = `${chatId}:${threadId}`
+    const agentId = this.topicAgents[key]
+    return agentId ? { threadId, conversationId: key, dispatchAgentId: agentId } : { threadId }
   }
 
   protected override async checkReady(): Promise<boolean> {
@@ -115,7 +146,8 @@ class TelegramAdapter extends ChannelAdapter {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
-        command: 'new'
+        command: 'new',
+        ...this.topicRouting(ctx.chat.id.toString(), ctx.message)
       })
     })
 
@@ -124,7 +156,8 @@ class TelegramAdapter extends ChannelAdapter {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
-        command: 'compact'
+        command: 'compact',
+        ...this.topicRouting(ctx.chat.id.toString(), ctx.message)
       })
     })
 
@@ -133,7 +166,8 @@ class TelegramAdapter extends ChannelAdapter {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
-        command: 'help'
+        command: 'help',
+        ...this.topicRouting(ctx.chat.id.toString(), ctx.message)
       })
     })
 
@@ -142,7 +176,18 @@ class TelegramAdapter extends ChannelAdapter {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
-        command: 'whoami'
+        command: 'whoami',
+        ...this.topicRouting(ctx.chat.id.toString(), ctx.message)
+      })
+    })
+
+    bot.command('topics', (ctx) => {
+      this.emit('command', {
+        chatId: ctx.chat.id.toString(),
+        userId: ctx.from?.id?.toString() ?? '',
+        userName: ctx.from?.first_name ?? '',
+        command: 'topics',
+        ...this.topicRouting(ctx.chat.id.toString(), ctx.message)
       })
     })
 
@@ -152,7 +197,8 @@ class TelegramAdapter extends ChannelAdapter {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
-        text: ctx.message.text
+        text: ctx.message.text,
+        ...this.topicRouting(ctx.chat.id.toString(), ctx.message)
       })
     })
 
@@ -173,7 +219,8 @@ class TelegramAdapter extends ChannelAdapter {
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
         text,
-        ...(images.length > 0 ? { images } : {})
+        ...(images.length > 0 ? { images } : {}),
+        ...this.topicRouting(ctx.chat.id.toString(), ctx.message)
       })
     })
 
@@ -198,7 +245,8 @@ class TelegramAdapter extends ChannelAdapter {
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
         text,
-        ...(files.length > 0 ? { files } : {})
+        ...(files.length > 0 ? { files } : {}),
+        ...this.topicRouting(ctx.chat.id.toString(), ctx.message)
       })
     })
 
@@ -207,7 +255,8 @@ class TelegramAdapter extends ChannelAdapter {
       { command: 'new', description: 'Start a new conversation' },
       { command: 'compact', description: 'Compact conversation history' },
       { command: 'help', description: 'Show help information' },
-      { command: 'whoami', description: 'Show the current chat ID' }
+      { command: 'whoami', description: 'Show the current chat ID' },
+      { command: 'topics', description: 'Show topic agent assignments' }
     ])
 
     // Error handler — err is a BotError wrapping the original cause in err.error
@@ -399,11 +448,13 @@ class TelegramAdapter extends ChannelAdapter {
         typeof opts?.replyToMessageId === 'number' && i === 0
           ? { reply_parameters: { message_id: opts.replyToMessageId } }
           : {}
+      const threadParams = messageThreadParams(opts?.threadId)
 
       try {
         await this.bot.api.sendMessage(chatId, formatted, {
           parse_mode: parseMode,
-          ...replyParams
+          ...replyParams,
+          ...threadParams
         })
       } catch (error) {
         // Fallback to plain text if MarkdownV2 parsing fails — same chunk content.
@@ -412,7 +463,7 @@ class TelegramAdapter extends ChannelAdapter {
             chatId,
             error: error instanceof Error ? error.message : String(error)
           })
-          await this.bot.api.sendMessage(chatId, plain, replyParams)
+          await this.bot.api.sendMessage(chatId, plain, { ...replyParams, ...threadParams })
         } else {
           throw error
         }
@@ -434,19 +485,22 @@ class TelegramAdapter extends ChannelAdapter {
     this.log.info('Sent file', { chatId, filename: file.filename, size: file.size })
   }
 
-  override async onTextUpdate(chatId: string, fullText: string): Promise<void> {
+  override async onTextUpdate(chatId: string, fullText: string, opts?: SendMessageOptions): Promise<void> {
     if (!this.bot) return
     // Telegram's sendMessageDraft edits the message in-place. The bot library
     // handles its own throttle internally.
-    await this.bot.api.sendMessageDraft(Number(chatId), 0, fullText)
+    await this.bot.api.sendMessageDraft(Number(chatId), 0, fullText, messageThreadParams(opts?.threadId) ?? {})
   }
 
-  async sendTypingIndicator(chatId: string): Promise<void> {
+  async sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void> {
     if (!this.bot) {
       throw new Error('Bot is not connected')
     }
 
-    await this.bot.api.sendChatAction(chatId, 'typing')
+    const threadParams = messageThreadParams(opts?.threadId)
+    await (threadParams
+      ? this.bot.api.sendChatAction(chatId, 'typing', threadParams)
+      : this.bot.api.sendChatAction(chatId, 'typing'))
   }
 }
 

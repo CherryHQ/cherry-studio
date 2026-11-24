@@ -1,6 +1,10 @@
 import * as z from 'zod'
 
-import { DingTalkChannelConfigSchema, WeComChannelConfigSchema } from '@shared/data/types/channel'
+import {
+  DingTalkChannelConfigSchema,
+  TelegramTopicKeySchema,
+  WeComChannelConfigSchema
+} from '@shared/data/types/channel'
 
 import { AgentPermissionModeSchema } from './agents'
 import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
@@ -19,7 +23,8 @@ export type AgentChannelType = z.infer<typeof AgentChannelTypeSchema>
 
 export const TelegramAgentChannelConfigSchema = z.strictObject({
   bot_token: z.string(),
-  allowed_chat_ids: z.array(z.string()).optional()
+  allowed_chat_ids: z.array(z.string()).optional(),
+  topic_agents: z.record(TelegramTopicKeySchema, z.string().min(1)).optional()
 })
 
 export const FeishuDomainSchema = z.enum(['feishu', 'lark'])

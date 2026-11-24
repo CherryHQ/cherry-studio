@@ -193,7 +193,8 @@ export class ChannelManager extends BaseService {
       adapter
         .sendMessage(event.chatId, t('common.channel_message_processing_error'), {
           replyToMessageId: event.messageId,
-          ...(event.replyInThread && { replyInThread: true })
+          ...(event.replyInThread && { replyInThread: true }),
+          ...(event.threadId && { threadId: event.threadId })
         })
         .catch(() => undefined)
     })
@@ -217,7 +218,8 @@ export class ChannelManager extends BaseService {
       adapter
         .sendMessage(event.chatId, t('common.channel_command_processing_error'), {
           replyToMessageId: event.messageId,
-          ...(event.replyInThread && { replyInThread: true })
+          ...(event.replyInThread && { replyInThread: true }),
+          ...(event.threadId && { threadId: event.threadId })
         })
         .catch(() => undefined)
     })
