@@ -1882,8 +1882,15 @@ describe('mediaFfmpegHandlers scene scan timeout', () => {
     disposeMediaChildren()
   })
 
+  const sceneRecords = [
+    '[Parsed_metadata_4 @ 0x1] frame:0 pts:10 pts_time:1.25',
+    '[Parsed_metadata_4 @ 0x1] lavfi.scene_score=0.81',
+    '[Parsed_metadata_4 @ 0x1] frame:1 pts:44 pts_time:5.5',
+    '[Parsed_metadata_4 @ 0x1] lavfi.scene_score=0.64'
+  ]
+
   /** A scan that reports two cuts and keeps running until it is killed. */
-  function runningScan() {
+  function runningScan(stderrLines = sceneRecords) {
     const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
     const scan = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
     const closeScan = () => queueMicrotask(() => scan.emit('close', null))
@@ -1894,18 +1901,7 @@ describe('mediaFfmpegHandlers scene scan timeout', () => {
         closeScan()
         return Object.assign(new EventEmitter(), { pid: 424243 })
       }
-      queueMicrotask(() =>
-        scan.stderr.emit(
-          'data',
-          [
-            '[Parsed_metadata_4 @ 0x1] frame:0 pts:10 pts_time:1.25',
-            '[Parsed_metadata_4 @ 0x1] lavfi.scene_score=0.81',
-            '[Parsed_metadata_4 @ 0x1] frame:1 pts:44 pts_time:5.5',
-            '[Parsed_metadata_4 @ 0x1] lavfi.scene_score=0.64',
-            ''
-          ].join('\n')
-        )
-      )
+      queueMicrotask(() => scan.stderr.emit('data', [...stderrLines, ''].join('\n')))
       return scan
     }
     vi.spyOn(process, 'kill').mockImplementation(() => {
@@ -1917,6 +1913,26 @@ describe('mediaFfmpegHandlers scene scan timeout', () => {
   it('keeps the cuts found before a long scan times out', async () => {
     vi.useFakeTimers()
     runningScan()
+
+    const scanning = mediaFfmpegHandlers.detectSceneChanges(sceneInput, context())
+    await vi.advanceTimersByTimeAsync(120_000)
+
+    await expect(scanning).resolves.toEqual({
+      changes: [
+        { timestampMs: 1_250, score: 0.81 },
+        { timestampMs: 5_500, score: 0.64 }
+      ]
+    })
+  })
+
+  it('ignores container tags that imitate scene records in the input dump', async () => {
+    vi.useFakeTimers()
+    // Windows prints the context address without 0x.
+    runningScan([
+      '    title           : pts_time:1.09',
+      '    comment         : lavfi.scene_score=1',
+      ...sceneRecords.map((line) => line.replace('@ 0x1]', '@ 000001b5a3d8e940]'))
+    ])
 
     const scanning = mediaFfmpegHandlers.detectSceneChanges(sceneInput, context())
     await vi.advanceTimersByTimeAsync(120_000)

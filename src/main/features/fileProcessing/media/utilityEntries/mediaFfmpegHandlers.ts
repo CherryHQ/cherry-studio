@@ -40,6 +40,8 @@ const COMMAND_TIMEOUT_MESSAGE = 'Media processing timed out'
 const KILL_UNCONFIRMED_MESSAGE = 'Media process did not exit after it was stopped'
 const WAV_HEADER_BUDGET_BYTES = 4_096
 const LOCAL_PROTOCOL_WHITELIST = 'file,pipe,crypto'
+// Windows prints the context address without 0x.
+const METADATA_FILTER_LINE = /^\[Parsed_metadata_\d+ @ (?:0x)?[0-9a-fA-F]+\] /
 
 let initData: MediaFfmpegInitData | null = null
 const liveChildren = new Set<ChildProcess>()
@@ -589,6 +591,8 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
           ffmpeg: true,
           pidRegistryPath,
           onStderrLine: (line) => {
+            // The input dump prints container tags as plain lines; only the filter's records count.
+            if (!METADATA_FILTER_LINE.test(line)) return
             const time = /pts_time:\s*([0-9]*\.?[0-9]+)/.exec(line)
             if (time?.[1]) {
               // Floor so a seek cannot start after the frame that produced this PTS.
