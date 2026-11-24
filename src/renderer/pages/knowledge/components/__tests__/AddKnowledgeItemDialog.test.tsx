@@ -16,6 +16,7 @@ const mockGetPathForFile = vi.fn()
 const mockReadExternal = vi.fn()
 const mockUseDirectoryTree = vi.fn()
 const mockProjectNotesTree = vi.fn()
+const preflightControl = { autoContinue: true }
 
 const createNoteNode = (name: string, externalPath: string) => ({
   id: externalPath,
@@ -42,9 +43,16 @@ vi.mock('../addKnowledgeItemDialog/KnowledgeFilePreflightDialog', async () => {
   return {
     KnowledgeFilePreflightDialog: ({ results, onContinue }: { results: unknown; onContinue: () => void }) => {
       useEffect(() => {
-        if (results) onContinue()
+        if (results && preflightControl.autoContinue) onContinue()
       }, [results, onContinue])
-      return null
+      return results && !preflightControl.autoContinue ? (
+        <div data-testid="manual-preflight">
+          <pre>{JSON.stringify(results)}</pre>
+          <button type="button" onClick={onContinue}>
+            Continue preflight
+          </button>
+        </div>
+      ) : null
     }
   }
 })
@@ -334,6 +342,7 @@ vi.mock('react-i18next', () => {
 describe('AddKnowledgeItemDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    preflightControl.autoContinue = true
     mockUseKnowledgePage.mockReturnValue({ selectedBaseId: 'base-1', pendingAddSource: 'file' })
     mockUseAddKnowledgeItems.mockReturnValue({
       submit: mockSubmitKnowledgeItems,
@@ -624,6 +633,7 @@ describe('AddKnowledgeItemDialog', () => {
       const slow = Promise.withResolvers<unknown>()
       const request = vi.mocked(ipcApi.request)
       const original = request.getMockImplementation()!
+      preflightControl.autoContinue = false
       // Drop A: its file metadata hangs.
       request.mockImplementationOnce(() => slow.promise as never)
       mockUseKnowledgePage.mockReturnValue({
@@ -633,7 +643,7 @@ describe('AddKnowledgeItemDialog', () => {
       })
       const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
       await waitFor(() => expect(request).toHaveBeenCalledWith('file.get_metadata', expect.anything()))
-      // Base switch opens drop B's session and review; B completes.
+      // Base switch opens drop B's session; keep its review awaiting Continue.
       request.mockImplementation(original)
       mockUseKnowledgePage.mockReturnValue({
         selectedBaseId: 'base-2',
@@ -641,13 +651,17 @@ describe('AddKnowledgeItemDialog', () => {
         pendingAddFiles: [createMockFile('fresh.md', 10)]
       })
       rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() => expect(screen.getByTestId('manual-preflight')).toHaveTextContent('/external/fresh.md'))
+      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+      await act(async () => slow.resolve({ kind: 'file', size: 10, createdAt: 0, modifiedAt: 0 }))
+      expect(screen.getByTestId('manual-preflight')).toHaveTextContent('/external/fresh.md')
+      expect(screen.getByTestId('manual-preflight')).not.toHaveTextContent('/external/slow.md')
+      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Continue preflight' }))
       await waitFor(() => expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1))
       expect(mockSubmitKnowledgeItems.mock.calls[0][0]).toEqual([
         { type: 'file', data: expect.objectContaining({ source: '/external/fresh.md' }) }
       ])
-      // A's metadata arrives late; A exits as stale and B's review stands.
-      await act(async () => slow.resolve(undefined))
-      expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
     })
     it.each([
       { label: '全部保留', strategy: 'rename' },

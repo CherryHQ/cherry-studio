@@ -278,71 +278,83 @@ describe('KnowledgeService integration', () => {
     })
   })
 
-  it('restores a healthy root beside a previously failed scanned PDF without a processor', async () => {
-    // Regression: a readable, previously failed scanned PDF (no processed
-    // artifact, no configured processor) must not abort the whole restore and
-    // delete the destination base — restore copies the healthy roots and
-    // records the scan's failure on that item during indexing.
-    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises')
-    const { tmpdir } = await import('node:os')
-    const nodePath = await import('node:path')
-    const { application } = await import('@application')
-    const { getKnowledgeBaseFilePath } = await import('../pathStorage')
-    // The shared `/mock/<key>` getPath stub is not writable; point the feature
-    // data root at a real temp dir so restore can read and copy raw sources.
-    const dataRoot = await mkdtemp(nodePath.join(tmpdir(), 'knowledge-restore-'))
-    const originalGetPath = application.getPath
-    application.getPath = (key: string, filename?: string) => nodePath.resolve(dataRoot, key, filename ?? '')
-    try {
-      for (const name of ['healthy.md', 'scan.pdf']) {
-        const target = getKnowledgeBaseFilePath(SOURCE_BASE_ID, name)
-        await mkdir(nodePath.dirname(target), { recursive: true })
-        await writeFile(target, name === 'scan.pdf' ? Buffer.from([0x25, 0x50, 0x44, 0x46]) : '# healthy')
-      }
-      await dbh.db.insert(knowledgeItemTable).values([
-        {
-          id: '0198f3f2-7d1d-7abc-8def-123456789abc',
-          baseId: SOURCE_BASE_ID,
-          groupId: null,
-          type: 'file',
-          data: { source: '/original/healthy.md', relativePath: 'healthy.md' as PosixRelativeFilePath },
-          status: 'completed',
-          error: null
-        },
-        {
-          id: '0198f3f2-7d1e-7abc-8def-123456789abc',
-          baseId: SOURCE_BASE_ID,
-          groupId: null,
-          type: 'file',
-          data: { source: '/original/scan.pdf', relativePath: 'scan.pdf' as PosixRelativeFilePath },
-          status: 'failed',
-          error: 'scanned PDF requires a file processor'
+  it.each([false, true])(
+    'restores healthy and failed PDF roots, cleaning temp files (forced failure: %s)',
+    async (forceFailure) => {
+      // Regression: a readable, previously failed scanned PDF (no processed
+      // artifact, no configured processor) must not abort the whole restore and
+      // delete the destination base — restore copies the healthy roots and
+      // records the scan's failure on that item during indexing.
+      const { access, mkdtemp, mkdir, rm, writeFile } = await import('node:fs/promises')
+      const { tmpdir } = await import('node:os')
+      const nodePath = await import('node:path')
+      const { application } = await import('@application')
+      const { getKnowledgeBaseFilePath } = await import('../pathStorage')
+      // The shared `/mock/<key>` getPath stub is not writable; point the feature
+      // data root at a real temp dir so restore can read and copy raw sources.
+      const dataRoot = await mkdtemp(nodePath.join(tmpdir(), 'knowledge-restore-'))
+      const originalGetPath = application.getPath
+      application.getPath = (key: string, filename?: string) => nodePath.resolve(dataRoot, key, filename ?? '')
+      const restore = (async () => {
+        try {
+          for (const name of ['healthy.md', 'scan.pdf']) {
+            const target = getKnowledgeBaseFilePath(SOURCE_BASE_ID, name)
+            await mkdir(nodePath.dirname(target), { recursive: true })
+            await writeFile(target, name === 'scan.pdf' ? Buffer.from([0x25, 0x50, 0x44, 0x46]) : '# healthy')
+          }
+          await dbh.db.insert(knowledgeItemTable).values([
+            {
+              id: '0198f3f2-7d1d-7abc-8def-123456789abc',
+              baseId: SOURCE_BASE_ID,
+              groupId: null,
+              type: 'file',
+              data: { source: '/original/healthy.md', relativePath: 'healthy.md' as PosixRelativeFilePath },
+              status: 'completed',
+              error: null
+            },
+            {
+              id: '0198f3f2-7d1e-7abc-8def-123456789abc',
+              baseId: SOURCE_BASE_ID,
+              groupId: null,
+              type: 'file',
+              data: { source: '/original/scan.pdf', relativePath: 'scan.pdf' as PosixRelativeFilePath },
+              status: 'failed',
+              error: 'scanned PDF requires a file processor'
+            }
+          ])
+
+          const service = new KnowledgeService()
+
+          const { base: restoredBase, skippedMissingSourceCount } = await service.restoreBase({
+            sourceBaseId: SOURCE_BASE_ID,
+            name: 'Legacy KB_bak',
+            embeddingModelId,
+            dimensions: 1536
+          })
+
+          expect(skippedMissingSourceCount).toBe(0)
+          const restoredItems = await dbh.db
+            .select()
+            .from(knowledgeItemTable)
+            .where(eq(knowledgeItemTable.baseId, restoredBase.id))
+          // The healthy file restores beside the failed scan; the destination base survives.
+          expect(restoredItems.filter((item) => item.type === 'file')).toHaveLength(2)
+          const restoredScan = restoredItems.find(
+            (item) => item.type === 'file' && item.data.relativePath === 'scan.pdf'
+          )
+          expect(restoredScan).toBeDefined()
+          expect(knowledgeBaseService.getById(restoredBase.id)).toBeDefined()
+          if (forceFailure) expect('actual').toBe('forced assertion failure')
+        } finally {
+          application.getPath = originalGetPath
+          await rm(dataRoot, { recursive: true, force: true })
         }
-      ])
-
-      const service = new KnowledgeService()
-
-      const { base: restoredBase, skippedMissingSourceCount } = await service.restoreBase({
-        sourceBaseId: SOURCE_BASE_ID,
-        name: 'Legacy KB_bak',
-        embeddingModelId,
-        dimensions: 1536
-      })
-
-      expect(skippedMissingSourceCount).toBe(0)
-      const restoredItems = await dbh.db
-        .select()
-        .from(knowledgeItemTable)
-        .where(eq(knowledgeItemTable.baseId, restoredBase.id))
-      // The healthy file restores beside the failed scan; the destination base survives.
-      expect(restoredItems.filter((item) => item.type === 'file')).toHaveLength(2)
-      const restoredScan = restoredItems.find((item) => item.type === 'file' && item.data.relativePath === 'scan.pdf')
-      expect(restoredScan).toBeDefined()
-      expect(knowledgeBaseService.getById(restoredBase.id)).toBeDefined()
-    } finally {
-      application.getPath = originalGetPath
+      })()
+      if (forceFailure) await expect(restore).rejects.toThrow('forced assertion failure')
+      else await restore
+      await expect(access(dataRoot)).rejects.toMatchObject({ code: 'ENOENT' })
     }
-  })
+  )
 
   it.each([
     { scenario: 'disabling embeddings', targetModelId: null, dimensions: null },
