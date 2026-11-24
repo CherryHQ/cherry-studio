@@ -327,6 +327,10 @@ export class MediaAnalysisService extends BaseService {
           const unanswered = distinctFrames.filter((frame) => !answered.has(frame.timestampMs))
           await summarizeFrames(execution.vision, unanswered, answered, signal)
         } finally {
+          // An overlapping analysis may have stored frames it paid for since this snapshot was read.
+          for (const [timestampMs, summary] of readAnsweredFrames(visionCacheKey)) {
+            if (!answered.has(timestampMs)) answered.set(timestampMs, summary)
+          }
           application.get('CacheService').set(visionCacheKey, Object.fromEntries(answered), CACHE_TTL_MS)
         }
         for (const frame of distinctFrames) {

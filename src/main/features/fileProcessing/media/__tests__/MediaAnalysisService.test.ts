@@ -945,6 +945,51 @@ describe('MediaAnalysisService', () => {
       expect(recovered.warnings).not.toContain('vision_failed')
       expect(recovered.visuals?.every((frame) => frame.summary === 'kept')).toBe(true)
     })
+
+    it('keeps the frames each overlapping analysis paid for', async () => {
+      runtime.config = {
+        ...runtime.config,
+        budget: { maxFrames: 7, targetIntervalMs: 1_000, maxEdgePx: 640, jpegQuality: 70 }
+      }
+      let extractCalls = 0
+      runtime.extractFrames.mockImplementation(async ({ outputDir, timestampsMs }) => {
+        const run = extractCalls++
+        return {
+          frames: await Promise.all(
+            timestampsMs.map(async (timestampMs: number) => {
+              const path = join(outputDir, `frame-${timestampMs}.jpg`)
+              await writeFile(path, Buffer.from(`run-${run}`))
+              return { path, timestampMs }
+            })
+          )
+        }
+      })
+      // Both runs hold their vision call until the other has sent one, so both start from the same snapshot.
+      const waiting: Array<() => void> = []
+      runtime.generateText.mockImplementation(async (_provider, _settings, request) => {
+        const call = runtime.generateText.mock.calls.length - 1
+        await new Promise<void>((resolve) => {
+          waiting.push(resolve)
+          if (waiting.length === 2) waiting.splice(0).forEach((release) => release())
+        })
+        const parts: Array<{ type: string; image?: Buffer }> = request.messages[0].content
+        const run = parts.find((part) => part.type === 'image')?.image?.toString()
+        const frames = requestedFrames(call)
+        // Run 0 answers only the first batch and run 1 only the second, so neither alone covers every frame.
+        if ((run === 'run-0') !== frames.length > 1) throw new Error('vision provider rejected the batch')
+        return { text: frames.map((frame) => `${frame}: kept`).join('\n') }
+      })
+
+      await Promise.all([service.analyze(file), service.analyze(file)])
+      expect(runtime.generateText).toHaveBeenCalledTimes(4)
+
+      runtime.generateText.mockImplementation(async () => ({ text: '' }))
+      const third = await service.analyze(file)
+
+      expect(runtime.generateText).toHaveBeenCalledTimes(4)
+      expect(third.warnings).not.toContain('vision_failed')
+      expect(third.visuals?.every((frame) => frame.summary === 'kept')).toBe(true)
+    })
   })
 
   it('retries frame extraction after a recoverable visual failure instead of caching it', async () => {
