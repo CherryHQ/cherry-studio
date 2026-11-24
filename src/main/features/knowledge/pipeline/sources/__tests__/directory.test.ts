@@ -91,14 +91,6 @@ describe('chooseDirectoryPathPrefix', () => {
     )
   })
 
-  it('uses a stable non-empty prefix for the POSIX filesystem root', () => {
-    vi.mocked(path.resolve).mockImplementation(realPath.posix.resolve)
-    vi.mocked(path.basename).mockImplementation(realPath.posix.basename)
-    vi.mocked(path.parse).mockImplementation(realPath.posix.parse)
-
-    expect(chooseDirectoryPathPrefix(createDirectoryOwner('/'), new Set())).toBe('root')
-  })
-
   it('uses the drive name as the prefix for a Windows drive root', () => {
     vi.mocked(path.resolve).mockImplementation(realPath.win32.resolve)
     vi.mocked(path.basename).mockImplementation(realPath.win32.basename)

@@ -9,7 +9,7 @@ const ArceeAi = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const ArceeAiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(ArceeAi, {
   Avatar: ArceeAiAvatar,
-  colorPrimary: '#008C8C'
+  colorPrimary: '#e8f5f5'
 })
 
 export default ArceeAiIcon

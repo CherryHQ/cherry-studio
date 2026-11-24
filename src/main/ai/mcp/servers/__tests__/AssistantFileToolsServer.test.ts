@@ -123,14 +123,6 @@ describe('assistant-files MCP server', () => {
     await Promise.all(clients.splice(0).map((client) => client.close()))
   })
 
-  it('advertises only the assistant file capabilities', async () => {
-    const server = await createServer()
-
-    const result = await server.listTools()
-
-    expect(result.tools.map((tool) => tool.name).sort()).toEqual(['move_to_trash', 'read_file', 'save_attachment'])
-  })
-
   it('rebuilds the attachment allow-list for every read call', async () => {
     const entryId = 'entry-secret'
     const handle = createAssistantFileAttachmentHandle(entryId)

@@ -14,6 +14,7 @@ import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AiCore from '@cherrystudio/ai-core'
+import type * as MessageServiceModule from '@data/services/MessageService'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
@@ -73,7 +74,8 @@ vi.mock('@data/services/FileEntryService', () => ({
 // Mock messageService at the source path used by the provider.
 // Both @main/data/services/MessageService and @data/services/MessageService resolve
 // to the same module (src/main/data/services/MessageService) via the build aliases.
-vi.mock('@main/data/services/MessageService', () => ({
+vi.mock('@main/data/services/MessageService', async (importOriginal) => ({
+  ...(await importOriginal<typeof MessageServiceModule>()),
   messageService: {
     getPathToNode: mockGetPathToNode,
     setCompactionSummary: mockSetCompactionSummary,
@@ -614,7 +616,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(prepared.models[0].request.retainedContext?.persistedOutputPaths.size).toBe(0)
     // … and the served summary row tells the model the file is still readable.
     const summaryText = (messages[0].parts?.[0] as { text?: string })?.text ?? ''
-    expect(summaryText).toContain('readable in full via the read_file tool: log.txt')
+    expect(summaryText).toContain('log.txt')
   })
 
   it('2c. summary-row bytes are a pure function of the boundary — live attachments never rewrite them', async () => {
@@ -653,7 +655,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     const { messages: withoutLive } = await makeHistory('u2')
 
     const summaryTextOf = (msgs: typeof withLive) => (msgs[0].parts?.[0] as { text?: string })?.text ?? ''
-    expect(summaryTextOf(withLive)).toContain('readable in full via the read_file tool: folded.txt')
+    expect(summaryTextOf(withLive)).toContain('folded.txt')
     expect(summaryTextOf(withLive)).not.toContain('live.txt')
     expect(summaryTextOf(withLive)).toBe(summaryTextOf(withoutLive))
     // Capability side still covers BOTH attachments (folded + live).

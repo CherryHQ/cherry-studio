@@ -1,7 +1,7 @@
 ---
 description: Comparison of the three memory mechanisms in Cherry Studio — Agent File Memory, Knowledge Base, and MCP Memory — plus the status of the v1 Global Memory feature
 sources:
-  - src/main/ai/agents/prompt.ts
+  - src/main/ai/agents/prompt/promptContext.ts
   - src/main/ai/mcp/servers/agentMemory.ts
   - src/main/ai/mcp/servers/memory.ts
   - src/main/features/knowledge
@@ -50,7 +50,7 @@ there is still no app-wide Global Memory setting.
   - `memory/FACT.md` — durable knowledge and decisions (6+ months)
   - `memory/JOURNAL.jsonl` — append-only event log
 - Loaded into the system prompt at session start; updated by the agent autonomously via `mcp__agent-memory__memory` (FACT/JOURNAL) and Read/Edit tools (SOUL/USER).
-- Scoped to a single agent. See `src/main/ai/agents/prompt.ts` and `src/main/ai/mcp/servers/agentMemory.ts`.
+- Scoped to a single agent. See `src/main/ai/agents/prompt/promptContext.ts` and `src/main/ai/mcp/servers/agentMemory.ts`.
 
 ### Knowledge Base (Assistant + Agent)
 

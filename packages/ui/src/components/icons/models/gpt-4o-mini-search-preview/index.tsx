@@ -9,7 +9,7 @@ const Gpt4oMiniSearchPreview = ({ variant, className, ...props }: CompoundIconPr
 
 export const Gpt4oMiniSearchPreviewIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gpt4oMiniSearchPreview, {
   Avatar: Gpt4oMiniSearchPreviewAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#00c7e0'
 })
 
 export default Gpt4oMiniSearchPreviewIcon

@@ -50,4 +50,8 @@ export interface AutomationOwner {
 export interface AutomationAccess {
   browser: boolean
   computer: boolean
+  computerApproval?: {
+    bypass: boolean
+    windowId?: string
+  }
 }

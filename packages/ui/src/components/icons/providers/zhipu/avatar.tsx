@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
+import { ZhipuDark } from './dark'
 import { ZhipuLight } from './light'
 
 export function ZhipuAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -9,8 +10,9 @@ export function ZhipuAvatar({ size = 32, shape = 'circle', className }: Omit<Ico
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
-        <ZhipuLight style={{ width: size, height: size }} />
+      <AvatarFallback className="text-foreground">
+        <ZhipuLight className="dark:hidden" style={{ width: size, height: size }} />
+        <ZhipuDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

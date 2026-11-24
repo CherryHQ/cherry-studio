@@ -260,7 +260,7 @@ const NormalTabButton = ({
       onClose()
       return
     }
-    const tabButton = e.currentTarget.closest('[data-tab-id]') as HTMLElement | null
+    const tabButton = e.currentTarget.closest<HTMLElement>('[data-tab-id]')
     // Fractional width: freezing to a rounded offsetWidth would shift every tab
     // boundary at the freeze snap (flexbox resolves fractional widths).
     onClose(tabButton?.getBoundingClientRect().width || undefined)

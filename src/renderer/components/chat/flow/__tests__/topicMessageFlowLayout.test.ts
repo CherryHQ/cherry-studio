@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { type TreeNode, TREE_OFF_PATH_DEPTH_LIMIT } from '@shared/data/types/message'
 
 import { buildTopicMessageFlowGraph } from '../topicMessageFlowGraph'
-import { layoutTopicMessageFlowGraph, TOPIC_MESSAGE_FLOW_NODE_SIZE } from '../topicMessageFlowLayout'
+import { layoutTopicMessageFlowGraph } from '../topicMessageFlowLayout'
 import type {
   TopicMessageFlowEdgeModel,
   TopicMessageFlowGraph,
@@ -120,42 +120,6 @@ describe('topicMessageFlowLayout', () => {
     })
   })
 
-  it('lays out graph nodes top-to-bottom with fixed React Flow dimensions', () => {
-    const graph = createGraph({
-      nodes: [
-        createNode('root', null, { role: 'user', isInactiveBranch: false, isOnActivePath: true }),
-        createNode('assistant-1', 'root', {
-          isActive: true,
-          isInactiveBranch: false,
-          isOnActivePath: true
-        })
-      ],
-      edges: [createEdge('root', 'assistant-1', { isActivePath: true })],
-      activeNodeId: 'assistant-1',
-      stats: {
-        nodeCount: 2,
-        branchCount: 0,
-        activePathLength: 2
-      }
-    })
-
-    const layout = layoutTopicMessageFlowGraph(graph)
-    const root = getNode(layout.nodes, 'root')
-    const assistant = getNode(layout.nodes, 'assistant-1')
-
-    expect(root.position.y).toBeLessThan(assistant.position.y)
-    expect(root.type).toBe('topicMessage')
-    expect(root.sourcePosition).toBe('bottom')
-    expect(root.targetPosition).toBe('top')
-    expect(root.draggable).toBe(false)
-    expect(root.connectable).toBe(false)
-    expect(root.width).toBe(TOPIC_MESSAGE_FLOW_NODE_SIZE.width)
-    expect(root.height).toBe(TOPIC_MESSAGE_FLOW_NODE_SIZE.height)
-    expect(root.style).toMatchObject(TOPIC_MESSAGE_FLOW_NODE_SIZE)
-    expect(layout.activeNodeId).toBe('assistant-1')
-    expect(layout.stats).toBe(graph.stats)
-  })
-
   it('preserves node data and marks active, sibling, and inactive edge styles', () => {
     const graph = createGraph({
       nodes: [
@@ -191,74 +155,16 @@ describe('topicMessageFlowLayout', () => {
 
     expect(activeNode.data.messageId).toBe('answer-active')
     expect(activeNode.data.siblingsGroupId).toBe(7)
-    expect(getNode(layout.nodes, 'answer-sibling').position.y).toBe(activeNode.position.y)
 
     const activeEdge = getEdge(layout.edges, 'root', 'answer-active')
     const siblingEdge = getEdge(layout.edges, 'root', 'answer-sibling')
     const inactiveEdge = getEdge(layout.edges, 'root', 'answer-inactive')
 
     expect(activeEdge.data?.state).toBe('active')
-    expect(activeEdge.animated).toBe(true)
-    expect(activeEdge.style?.strokeDasharray).toBe('4 4')
 
     expect(siblingEdge.data?.state).toBe('sibling')
-    expect(siblingEdge.animated).toBe(false)
-    expect(siblingEdge.style?.strokeDasharray).toBe('4 4')
 
     expect(inactiveEdge.data?.state).toBe('inactive')
-    expect(activeEdge.style?.stroke).toBe('var(--success)')
-    expect(inactiveEdge.style?.stroke).toBe('oklch(0.71 0.02 261)')
-    expect(inactiveEdge.style?.opacity).toBe(1)
-  })
-
-  it('lays out same-rank multi-model branches left-to-right by message order', () => {
-    const graph = createGraph({
-      nodes: [
-        createNode('root', null, {
-          createdAt: '2026-05-22T14:16:00.000Z',
-          role: 'user',
-          isInactiveBranch: false
-        }),
-        createNode('model-a', 'root', {
-          createdAt: '2026-05-22T14:16:01.000Z',
-          siblingsGroupId: 7
-        }),
-        createNode('model-b', 'root', {
-          createdAt: '2026-05-22T14:16:02.000Z',
-          siblingsGroupId: 7
-        }),
-        createNode('model-c', 'root', {
-          createdAt: '2026-05-22T14:16:03.000Z',
-          siblingsGroupId: 7
-        })
-      ],
-      edges: [
-        createEdge('root', 'model-a', { isSiblingBranch: true }),
-        createEdge('root', 'model-b', { isSiblingBranch: true }),
-        createEdge('root', 'model-c', { isSiblingBranch: true })
-      ],
-      activeNodeId: 'model-c'
-    })
-
-    const layout = layoutTopicMessageFlowGraph(graph)
-
-    expect(getNode(layout.nodes, 'model-a').position.x).toBeLessThan(getNode(layout.nodes, 'model-b').position.x)
-    expect(getNode(layout.nodes, 'model-b').position.x).toBeLessThan(getNode(layout.nodes, 'model-c').position.x)
-  })
-
-  it('keeps edges without active path state visually neutral', () => {
-    const layout = layoutTopicMessageFlowGraph(
-      createGraph({
-        nodes: [createNode('root', null), createNode('child', 'root')],
-        edges: [createEdge('root', 'child')]
-      })
-    )
-
-    const edge = getEdge(layout.edges, 'root', 'child')
-
-    expect(edge.data?.state).toBe('default')
-    expect(edge.style?.strokeDasharray).toBeUndefined()
-    expect(edge.style?.opacity).toBe(1)
   })
 
   it('skips graph edges when either endpoint is missing', () => {

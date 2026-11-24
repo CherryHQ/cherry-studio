@@ -9,6 +9,7 @@ const logger = loggerService.withContext('ToolApprovalRegistry')
  * `tool_call` block/mutation) so no SDK type leaks into this shared path.
  */
 export type DispatchDecision = {
+  applicationScope?: 'always' | 'session' | 'reject'
   approved: boolean
   reason?: string
   /** Marks a reason the user actually supplied, so drivers can attribute it to the user rather
@@ -23,7 +24,7 @@ type PendingApproval = {
   toolCallId: string
   toolName: string
   originalInput: Record<string, unknown>
-  presentation: 'stream' | 'message'
+  presentation: 'stream' | 'message' | 'application'
   resolve: (decision: DispatchDecision) => void
   signal?: AbortSignal
   abortListener?: () => void
@@ -86,6 +87,13 @@ class ToolApprovalRegistry {
 
     this.pending.set(approvalId, stored)
     return true
+  }
+
+  /** The pending call itself, so main can preview what approving it would do. */
+  peekCall(approvalId: string): Pick<PendingApproval, 'sessionId' | 'toolName' | 'originalInput'> | undefined {
+    const entry = this.pending.get(approvalId)
+    if (!entry) return undefined
+    return { sessionId: entry.sessionId, toolName: entry.toolName, originalInput: entry.originalInput }
   }
 
   /** Returns `undefined` for unknown ids (already dispatched / session expired). */

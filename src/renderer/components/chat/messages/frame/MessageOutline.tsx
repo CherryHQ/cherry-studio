@@ -112,10 +112,12 @@ const MessageOutline: FC<MessageOutlineProps> = ({
         data-ui="part:message-outline"
         type="hover"
         viewportProps={{
-          className: 'overflow-y-hidden! pt-2.5 pb-2.5 pl-2.5 group-hover/outline:overflow-y-auto!'
+          className: 'overflow-y-hidden! group-hover/outline:overflow-y-auto!'
         }}
-        contentProps={{ className: 'inline-flex flex-col gap-1' }}
-        className="group group/outline pointer-events-auto max-h-[min(70vh,100%)] max-w-1/2 rounded-[10px] border border-transparent hover:border-border-subtle hover:bg-popover hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
+        contentProps={{
+          className: 'inline-flex flex-col gap-1 py-2.5 pl-2.5 group-hover/outline:pl-5 group-hover/outline:pr-2.5'
+        }}
+        className="group group/outline pointer-events-auto max-h-[min(70vh,100%)] max-w-1/2 rounded-[10px] border border-transparent hover:border-border-subtle hover:bg-popover hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
         {headings.map((heading, index) => (
           <div
             key={index}

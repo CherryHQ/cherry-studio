@@ -61,7 +61,7 @@ vi.mock('@renderer/components/VirtualList', () => ({
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const React = await import('react')
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   const PopoverContext = React.createContext<{ open: boolean; onOpenChange?: (open: boolean) => void }>({
     open: false
   })

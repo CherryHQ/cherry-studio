@@ -438,7 +438,7 @@ function ConfirmationPanel({
 
   return (
     <div ref={focusRef} tabIndex={-1} className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto]">
-      <ScrollArea viewportProps={{ className: 'px-6 py-4' }} className="min-h-0">
+      <ScrollArea contentProps={{ className: 'px-6 py-4' }} className="min-h-0">
         <Alert type="warning" showIcon message={title} description={description} />
       </ScrollArea>
       <DialogFooter className="border-t border-border px-6 py-4">

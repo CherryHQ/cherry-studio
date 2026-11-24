@@ -32,6 +32,7 @@ export interface FileEditSession {
   readOnly: boolean
   savedContent: string
   savedSizeBytes?: number
+  saveCount: number
   draft: string
   isDirty: boolean
   isSaving: boolean
@@ -43,9 +44,9 @@ export interface FileEditSession {
   setDraft(next: string): void
   discard(): Promise<void>
   reload(): Promise<void>
+  refresh(): Promise<void>
   keepDraft(): Promise<void>
   flush(): Promise<void>
-  notifyExternalChange(): void
   prepareMutation(): Promise<PreparedFileMutation>
 }
 
@@ -69,24 +70,30 @@ export function useFileEditSession(
   const key = stableHandle ? keyOf(stableHandle) : undefined
   const request = useMemo(() => ({ key, manager, ownerId }), [key, manager, ownerId])
   const [acquired, setAcquired] = useState<{ request: typeof request; lease?: SessionLease; error?: Error }>()
+  const retryAcquisition = useRef<(() => Promise<void>) | undefined>(undefined)
   useLayoutEffect(() => {
     if (!stableHandle || !key) return
     let cancelled = false
     let lease: SessionLease | undefined
-    void manager.acquire(ownerId, stableHandle).then(
-      (result) => {
+    const acquire = async () => {
+      setAcquired({ request })
+      try {
+        const result = await manager.acquire(ownerId, stableHandle)
         if (cancelled) result.release()
         else {
           lease = result
           setAcquired({ request, lease })
         }
-      },
-      (error: unknown) => {
+      } catch (error) {
         if (!cancelled) setAcquired({ request, error: error instanceof Error ? error : new Error(String(error)) })
+        throw error
       }
-    )
+    }
+    retryAcquisition.current = acquire
+    void acquire().catch(() => {})
     return () => {
       cancelled = true
+      if (retryAcquisition.current === acquire) retryAcquisition.current = undefined
       lease?.release()
     }
   }, [manager, ownerId, key, stableHandle, request])
@@ -94,24 +101,6 @@ export function useFileEditSession(
   const lease = acquired?.request === request ? acquired?.lease : undefined
   const acquisitionError = acquired?.request === request ? acquired?.error : undefined
   const snapshot = useSyncExternalStore(lease?.subscribe ?? emptySubscription, lease?.getSnapshot ?? emptySnapshot)
-  const activatedLease = useRef<SessionLease | undefined>(undefined)
-  useEffect(() => {
-    if (!lease) return
-    const refresh = () => {
-      void lease.invalidate()
-    }
-    const visible = () => {
-      if (document.visibilityState === 'visible') refresh()
-    }
-    window.addEventListener('focus', refresh)
-    document.addEventListener('visibilitychange', visible)
-    if (activatedLease.current === lease) refresh()
-    activatedLease.current = lease
-    return () => {
-      window.removeEventListener('focus', refresh)
-      document.removeEventListener('visibilitychange', visible)
-    }
-  }, [lease])
   useEffect(() => {
     lease?.setAutoSave(autoSave)
   }, [lease, autoSave])
@@ -138,11 +127,12 @@ export function useFileEditSession(
     () => ({
       discard: () => invoke('discard'),
       reload: () => invoke('reload'),
+      refresh: () =>
+        lease
+          ? lease.refresh()
+          : (retryAcquisition.current?.() ?? Promise.reject(new Error('File session is not ready'))),
       keepDraft: () => invoke('keepLocal'),
       flush: () => invoke('flush'),
-      notifyExternalChange: () => {
-        void lease?.invalidate()
-      },
       prepareMutation: () => manager.prepareMutation()
     }),
     [invoke, manager, lease]
@@ -163,6 +153,7 @@ export function useFileEditSession(
       readOnly: !lease?.writable || !!snapshot?.sealed || !!snapshot?.readError,
       savedContent: snapshot?.savedContent ?? '',
       savedSizeBytes: snapshot?.savedSizeBytes,
+      saveCount: snapshot?.saveCount ?? 0,
       draft: snapshot?.draft ?? '',
       isDirty: snapshot?.isDirty ?? false,
       isSaving: snapshot?.isSaving ?? false,

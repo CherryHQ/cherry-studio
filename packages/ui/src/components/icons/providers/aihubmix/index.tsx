@@ -9,7 +9,7 @@ const Aihubmix = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const AihubmixIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Aihubmix, {
   Avatar: AihubmixAvatar,
-  colorPrimary: '#006FFB'
+  colorPrimary: '#006ffb'
 })
 
 export default AihubmixIcon

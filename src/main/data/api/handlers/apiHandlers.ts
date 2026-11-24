@@ -21,6 +21,7 @@ import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { aiUsageRecordHandlers } from './aiUsageRecords'
 import { apiGatewayPairedDeviceHandlers } from './apiGatewayPairedDevices'
 import { archiveHandlers } from './archives'
+import { artifactHandlers } from './artifacts'
 import { assistantHandlers } from './assistants'
 import { browserVisitHandlers } from './browserVisits'
 import { diagnosticReportHandlers } from './diagnosticReports'
@@ -41,7 +42,6 @@ import { providerHandlers } from './providers'
 import { searchHandlers } from './search'
 import { skillHandlers } from './skills'
 import { tagHandlers } from './tags'
-import { temporaryChatHandlers } from './temporaryChats'
 import { topicHandlers } from './topics'
 import { translateHandlers } from './translate'
 
@@ -55,6 +55,7 @@ import { translateHandlers } from './translate'
 export const apiHandlers: ApiImplementation = {
   ...apiGatewayPairedDeviceHandlers,
   ...agentHandlers,
+  ...artifactHandlers,
   ...archiveHandlers,
   ...assistantHandlers,
   ...agentChannelHandlers,
@@ -63,7 +64,6 @@ export const apiHandlers: ApiImplementation = {
   ...topicHandlers,
   ...messageHandlers,
   ...fileHandlers,
-  ...temporaryChatHandlers,
   ...modelHandlers,
   ...paintingHandlers,
   ...providerHandlers,

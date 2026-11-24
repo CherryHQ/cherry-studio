@@ -63,9 +63,7 @@ export function SkillSubscriptionBar({
           size="sm"
           variant={sourceId === null ? 'default' : 'ghost'}
           className="shrink-0 rounded-full focus-visible:underline"
-          style={
-            sourceId === null ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined
-          }
+          style={sourceId === null ? { backgroundColor: 'var(--primary)' } : undefined}
           aria-pressed={sourceId === null}
           onClick={() => onSelect(null)}>
           {t('marketplace.curated')}
