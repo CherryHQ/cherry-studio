@@ -1009,6 +1009,46 @@ describe('MediaAnalysisService', () => {
       expect(recovered.visuals?.every((frame) => frame.summary === 'kept')).toBe(true)
     })
 
+    it('reads frame summaries from markdown-formatted reply lines', async () => {
+      runtime.config = {
+        ...runtime.config,
+        budget: { maxFrames: 3, targetIntervalMs: 1_000, maxEdgePx: 640, jpegQuality: 70 }
+      }
+      const formats = [
+        (frame: string) => `**${frame}:** slide`,
+        (frame: string) => `- ${frame}: slide`,
+        (frame: string) => `**${frame}**: slide`
+      ]
+      runtime.generateText.mockImplementation(async () => ({
+        text: requestedFrames(0)
+          .map((frame, index) => formats[index % formats.length](frame))
+          .join('\n')
+      }))
+
+      const analysis = await service.analyze(file)
+
+      expect(analysis.visuals).toHaveLength(3)
+      expect(analysis.visuals?.every((frame) => frame.summary === 'slide')).toBe(true)
+      expect(analysis.warnings).not.toContain('vision_failed')
+    })
+
+    it('asks again when a reply names none of its frames', async () => {
+      const answer = async () => ({
+        text: requestedFrames(runtime.generateText.mock.calls.length - 1)
+          .map((frame) => `${frame}: slide`)
+          .join('\n')
+      })
+      runtime.generateText.mockResolvedValueOnce({ text: 'Here are the frames you sent.' }).mockImplementation(answer)
+
+      await expect(service.analyze(file)).rejects.toMatchObject({ code: 'unusable_media_analysis' })
+      const recovered = await service.analyze(file)
+
+      expect(runtime.generateText).toHaveBeenCalledTimes(2)
+      expect(recovered.visuals?.length).toBeGreaterThan(0)
+      expect(recovered.visuals?.every((frame) => frame.summary === 'slide')).toBe(true)
+      expect(recovered.warnings).not.toContain('vision_failed')
+    })
+
     it('keeps the frames each overlapping analysis paid for', async () => {
       runtime.config = {
         ...runtime.config,

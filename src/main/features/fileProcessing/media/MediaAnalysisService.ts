@@ -369,7 +369,7 @@ function readAnsweredFrames(key: string): Map<number, string | null> {
   )
 }
 
-/** Records every frame of a successful batch in `answered`; a failed batch leaves its frames for a retry. */
+/** Records every frame of an understood batch in `answered`; a failed or unparseable batch leaves its frames for a retry. */
 async function summarizeFrames(
   vision: MediaVisionExecutionConfig,
   frames: Array<{ path: string; timestampMs: number }>,
@@ -419,10 +419,12 @@ function assignSummaries(
 ): void {
   const parsed = new Map<number, string>()
   for (const line of text.split('\n')) {
-    const match = /^\s*FRAME_(\d+)\s*:\s*(.+)\s*$/i.exec(line)
+    const match = /^[\s*_>#-]*FRAME_(\d+)[\s*_]*:[\s*_]*(.+?)\s*$/i.exec(line)
     const summary = match?.[2]?.trim()
     if (match && summary) parsed.set(Number(match[1]), summary)
   }
+  // A reply that names none of its frames was not understood; leave them for a retry.
+  if (!batch.some((frame) => parsed.has(frame.timestampMs))) return
   // A paid reply that skips a frame still answers it; asking again would bill the same frame.
   for (const frame of batch) answered.set(frame.timestampMs, parsed.get(frame.timestampMs) ?? null)
 }
