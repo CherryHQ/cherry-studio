@@ -4,6 +4,9 @@ sources:
   - tests
   - src/renderer
   - packages/ui
+  - vitest.config.ts
+  - scripts/download-binaries.js
+  - src/main/services/file/tree/__tests__/ripgrepTestUtils.ts
 ---
 
 # Testing Reference
@@ -15,6 +18,14 @@ Testing policy and harnesses for Cherry Studio: what makes a test worth writing 
 | [Frontend Testing Guidelines](./frontend-testing.md) | Normative rules for renderer, packages/ui, and E2E tests — layer choice, mocking, and review gates |
 | [Database Testing Guide](./database-testing.md) | The setupTestDatabase harness for SQLite-backed main-process code, with migration recipes and anti-patterns |
 | [Remote Agent Testing Specification](../ai/remote-agent-testing.md) | Target local WebSocket client acceptance through the real Desktop execution and persistence chain |
+
+## File-tree test dependencies
+
+In CI, the main Vitest project's global setup prepares only ripgrep through the repository's
+binary downloader, using its pinned version and archive checksum. File-tree tests use that
+binary for real scans; a missing binary fails collection instead of silently skipping the suite.
+Local runs can use a downloaded repository binary or a system ripgrep and may skip when neither
+is available. `pnpm download:binaries` prepares the repository's development binaries.
 
 ## Do not write behavior-pinning tests
 

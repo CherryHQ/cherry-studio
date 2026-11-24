@@ -21,8 +21,8 @@ process.stdout.setMaxListeners(64)
 
 process.stderr.setMaxListeners(64)
 
-const mainConfig = (electronViteConfig as any).main
-const rendererConfig = (electronViteConfig as any).renderer
+const mainConfig = electronViteConfig.main
+const rendererConfig = electronViteConfig.renderer
 
 export default defineConfig({
   test: {
@@ -51,6 +51,7 @@ export default defineConfig({
           // which is `forks` for native-addon safety; the global config below overrides it back
           // to the faster `threads` for the non-native projects.)
           pool: 'forks',
+          globalSetup: ['tests/main.global-setup.mjs'],
           setupFiles: ['tests/main.setup.ts'],
           include: [
             'src/main/**/*.{test,spec}.{ts,tsx}',

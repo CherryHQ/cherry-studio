@@ -7,7 +7,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
-import { defineConfig } from 'electron-vite'
+import type { UserConfig } from 'electron-vite'
 import { visualizer } from 'rollup-plugin-visualizer'
 import type { Plugin } from 'vite'
 import { parse } from 'yaml'
@@ -199,7 +199,7 @@ export const mainResolveAlias = {
   '@test-helpers': resolve('tests/helpers')
 }
 
-export default defineConfig({
+export default {
   main: {
     define: {
       __APP_EDITION__: JSON.stringify(rendererEdition),
@@ -419,4 +419,4 @@ export default defineConfig({
       }
     }
   }
-})
+} satisfies UserConfig

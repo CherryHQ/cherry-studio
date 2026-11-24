@@ -515,7 +515,7 @@
     },
     {
       "path": "docs/dev/references/testing/README.md",
-      "sources": ["packages/ui","src/renderer","tests"]
+      "sources": ["packages/ui","scripts/download-binaries.js","src/main/services/file/tree/__tests__/ripgrepTestUtils.ts","src/renderer","tests","vitest.config.ts"]
     },
     {
       "path": "docs/dev/references/utility-process/README.md",
