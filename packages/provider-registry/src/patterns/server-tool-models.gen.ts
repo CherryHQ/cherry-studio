@@ -21,6 +21,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
         ids: [
           'claude-fable-5',
           'claude-fable-5-1',
+          'claude-fable-5-2',
           'claude-haiku-4-5',
           'claude-opus-4',
           'claude-opus-4-1',
@@ -119,6 +120,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
         ids: [
           'claude-fable-5',
           'claude-fable-5-1',
+          'claude-fable-5-2',
           'claude-haiku-4-5',
           'claude-opus-4',
           'claude-opus-4-1',

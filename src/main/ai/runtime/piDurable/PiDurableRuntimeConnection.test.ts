@@ -29,6 +29,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import type * as AgentPrompt from '@main/ai/agents/prompt/buildAgentPrompt'
 import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
@@ -44,7 +45,7 @@ import { serializeError } from '@main/ai/utils/serializeError'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { McpServerSchema } from '@shared/data/types/mcpServer'
-import { ModelSchema } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 import type { SpanEntity } from '@shared/data/types/trace'
 import type { RetryPartData } from '@shared/data/types/uiParts'
@@ -59,7 +60,6 @@ import {
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { subagentCall, gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type * as AgentMcpServers from '../agentMcpServers'
-import type * as AgentPrompt from '../agentPrompt'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
@@ -125,7 +125,7 @@ vi.mock('@cherrystudio/agent-runtime-pi-durable', async (importOriginal) => {
   }
 })
 vi.mock('../pi/gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks.binding }))
-vi.mock('@main/ai/runtime/agentPrompt', () => ({ buildAgentRuntimePrompt: mocks.prompt }))
+vi.mock('@main/ai/agents/prompt/buildAgentPrompt', () => ({ buildAgentPrompt: mocks.prompt }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
   buildAgentMcpServers: mocks.mcpServers
@@ -218,7 +218,7 @@ describe('desktop Pi Durable connection', () => {
     mocks.capture.mockImplementation(async () => snapshot)
     mocks.mcpServers.mockReset().mockReturnValue({})
     mocks.catalog.mockReset().mockReturnValue([])
-    mocks.prompt.mockReset().mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' } })
+    mocks.prompt.mockReset().mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' }, blocks: [] })
     setScript([assistantReply('Hello world')])
     mocks.binding.mockImplementation(async () => createTestBinding({ model: MODEL, stream: script.model }))
   })
@@ -344,8 +344,8 @@ describe('desktop Pi Durable connection', () => {
     expect(resumedRequest.match(/Previous conversation history/g)).toHaveLength(1)
   })
   it.each([false, true])('materializes the captured model name for headless=%s', async (headless) => {
-    const { buildAgentRuntimePrompt } = await vi.importActual<typeof AgentPrompt>('../agentPrompt')
-    mocks.prompt.mockImplementation(buildAgentRuntimePrompt)
+    const { buildAgentPrompt } = await vi.importActual<typeof AgentPrompt>('@main/ai/agents/prompt/buildAgentPrompt')
+    mocks.prompt.mockImplementation(buildAgentPrompt)
     snapshot.agent.instructions = 'My model is {{model_name}}.'
     snapshot.agent.modelName = 'Agent default'
     snapshot.session.model = 'test::later-selection'
@@ -380,6 +380,21 @@ describe('desktop Pi Durable connection', () => {
       .set({ model: 'test::later-selection' })
       .where(eq(agentSessionTable.id, input.sessionId))
       .run()
+    // A created Agent runs on Pi Durable, so the captured model must be one it can route.
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        isEnabled: true,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://openai.test/v1' } },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      })
+      .where(eq(userProviderTable.providerId, 'test'))
+      .run()
+    dbh.db
+      .update(userModelTable)
+      .set({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+      .where(eq(userModelTable.id, modelId))
+      .run()
     snapshot.agent.configuration = { ...snapshot.agent.configuration, builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT }
     input.headless = headless
     const { buildAgentMcpServers } = await vi.importActual<typeof AgentMcpServers>('../agentMcpServers')
@@ -396,7 +411,7 @@ describe('desktop Pi Durable connection', () => {
         BACKGROUND_CONTEXT
       )
       expect(result.isError).toBe(false)
-      expect(result.details).toMatchObject({ ok: true, model: modelId })
+      expect(result.details).toMatchObject({ ok: true, kind: 'agent', name: 'Created Agent' })
       const created = dbh.db
         .select()
         .from(agentTable)
@@ -1572,6 +1587,31 @@ describe('desktop Pi Durable connection', () => {
     expect(readFileSync(join(directory, 'after-switch.txt'), 'utf8')).toBe('written')
   })
 
+  it('applies a channel override for its turn and restores Agent permissions for the next turn', async () => {
+    input.permissionModeOverride = 'default'
+    input.headless = true
+    mocks.interaction.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+    setScript([
+      assistantReply([toolCallPart('channel-write', 'write', { path: 'channel.txt', content: 'channel' })], 'toolUse'),
+      assistantReply('finished channel turn'),
+      assistantReply([toolCallPart('desktop-write', 'write', { path: 'desktop.txt', content: 'desktop' })], 'toolUse'),
+      assistantReply('finished desktop turn')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('write from channel') })
+    await done(events)
+    expect(text(events)).toContain('finished channel turn')
+    expect(existsSync(join(directory, 'channel.txt'))).toBe(false)
+
+    events.length = 0
+    mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+    await connection.send({ message: message('write from desktop') })
+    await done(events)
+    expect(readFileSync(join(directory, 'desktop.txt'), 'utf8')).toBe('desktop')
+    expect(agentService.getAgent(input.agentId)?.configuration?.permission_mode).toBe('bypassPermissions')
+  })
+
   // Catches a parked approval card outliving owner shutdown while reopen must still ask again.
   it('reports a pending approval as aborted on close and asks again after reopen', async () => {
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
@@ -1588,8 +1628,12 @@ describe('desktop Pi Durable connection', () => {
     subscription.dispose()
     expect(aborted).toEqual(approvals(first.events))
 
+    const toolCalls = (events: AgentRuntimeEvent[]) =>
+      events.flatMap((event) => (event.type === 'tool-approval-request' ? [event.request.toolCallId] : []))
     const second = await connect()
-    await expect.poll(() => approvals(second.events), APPROVAL_WAIT).toEqual(approvals(first.events))
+    // The same call is asked again, under a new approval ID since the first one was retired.
+    await expect.poll(() => toolCalls(second.events), APPROVAL_WAIT).toEqual(toolCalls(first.events))
+    expect(approvals(second.events)).not.toEqual(approvals(first.events))
     expect(existsSync(join(directory, 'a.txt'))).toBe(false)
   })
 
