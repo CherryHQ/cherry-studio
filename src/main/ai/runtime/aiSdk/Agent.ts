@@ -84,7 +84,11 @@ function boundProviderDetail(text: string): string {
   return safe.length > MAX_PROVIDER_DETAIL_CHARS ? `${safe.slice(0, MAX_PROVIDER_DETAIL_CHARS)}…` : safe
 }
 
-async function aggregateStreamResult(streamed: StreamTextResult<ToolSet, never>) {
+async function aggregateStreamResult(
+  streamed: StreamTextResult<ToolSet, never>,
+  signal?: AbortSignal,
+  onTextDelta?: (delta: string) => void
+) {
   // Provider failures surface on the stream, not the aggregation promises: a failed
   // continuation request resolves them (empty text, finishReason "other", a tool-calls-only
   // step) with the failure only in a trailing `error` part; a mid-stream reader rejection
@@ -100,6 +104,8 @@ async function aggregateStreamResult(streamed: StreamTextResult<ToolSet, never>)
   const watchTerminalStreamError = (async () => {
     try {
       for await (const part of streamed.fullStream) {
+        signal?.throwIfAborted()
+        if (part.type === 'text-delta') onTextDelta?.(part.text)
         // First error wins: a later error part with an undefined payload must not erase it.
         if (part.type === 'error' && terminalStreamError === undefined && part.error !== undefined) {
           terminalStreamError = part.error
@@ -288,7 +294,9 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   async generate(
     input: { prompt: string } | { messages: ModelMessage[] },
     signal?: AbortSignal,
-    mode: 'generate' | 'stream' = 'generate'
+    mode: 'generate' | 'stream' = 'generate',
+    /** Stream mode only: each text delta as it arrives, before the result resolves. */
+    onTextDelta?: (delta: string) => void
   ): Promise<{ text: string; usage: LanguageModelUsage; finishReason: FinishReason; rawFinishReason?: string }> {
     const hooks = this.composedHooks()
     try {
@@ -316,8 +324,11 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
             'prompt' in generateInput ? [{ role: 'user', content: generateInput.prompt }] : generateInput.messages,
           ...(signal && { abortSignal: signal })
         })
-        const { text, usage, finishReason, rawFinishReason, steps, sawFinish, sawAbort } =
-          await aggregateStreamResult(stream)
+        const { text, usage, finishReason, rawFinishReason, steps, sawFinish, sawAbort } = await aggregateStreamResult(
+          stream,
+          signal,
+          onTextDelta
+        )
         signal?.throwIfAborted()
         if (sawAbort) throw signal?.reason ?? new Error('Model check aborted')
         const finished = sawFinish

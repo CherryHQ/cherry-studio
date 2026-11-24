@@ -15,7 +15,6 @@ const digest = (value: string) => createHash('sha256').update(value).digest('hex
 export default async function fileEditor(context: ScenarioContext): Promise<void> {
   const { page } = context
   await context.ensureChinese()
-  const fixture = await mkdtemp(join(tmpdir(), 'cherry-file-editor-'))
   const name = `file-editor-${Date.now()}`
   const original = '\uFEFFconst greeting = "你好 🥟";\r\nconst answer = 42;  \r\n\r\n'
   const addition = '// verified 中文 🥟'
@@ -27,20 +26,21 @@ export default async function fileEditor(context: ScenarioContext): Promise<void
   ).join('')
   const interactionsSource = Array.from({ length: 1_000 }, (_, index) => `const row${index} = "original";`).join('\r\n')
   const largeDigest = digest(largeSource)
-  await writeFile(
-    join(fixture, 'SKILL.md'),
-    `---\nname: ${name}\ndescription: File editor E2E fixture\n---\n# Fixture\n`
-  )
-  await writeFile(join(fixture, 'sample.ts'), original)
-  await writeFile(join(fixture, 'paste.ts'), pasteSource)
-  await writeFile(join(fixture, 'large.ts'), largeSource)
-  await writeFile(join(fixture, 'interactions.ts'), interactionsSource)
   let skillId: string | undefined
   const originalTheme = await page.evaluate(() => window.api.preference.get('ui.theme_mode'))
   const originalLightTheme = await page.evaluate(() => window.api.preference.get('chat.code.viewer.theme_light'))
   const originalClipboard = await page.evaluate(() => navigator.clipboard.readText())
 
+  const fixture = await mkdtemp(join(tmpdir(), 'cherry-file-editor-'))
   try {
+    await writeFile(
+      join(fixture, 'SKILL.md'),
+      `---\nname: ${name}\ndescription: File editor E2E fixture\n---\n# Fixture\n`
+    )
+    await writeFile(join(fixture, 'sample.ts'), original)
+    await writeFile(join(fixture, 'paste.ts'), pasteSource)
+    await writeFile(join(fixture, 'large.ts'), largeSource)
+    await writeFile(join(fixture, 'interactions.ts'), interactionsSource)
     await page.evaluate((theme) => window.api.preference.set('ui.theme_mode', theme), ThemeMode.dark)
     const installed = await page.evaluate(async (directoryPath) => {
       const response = (await window.api.ipcApi.request('skill.install_from_directory', {
@@ -323,17 +323,23 @@ export default async function fileEditor(context: ScenarioContext): Promise<void
     await context.screenshot('file-editor-failure')
     throw error
   } finally {
-    const back = page.getByRole('button', { name: '返回', exact: true }).last()
-    if (await back.isVisible()) await back.click()
-    await expect(page.locator('[data-ui~="skill-file-workspace"]')).toHaveCount(0)
-    await page.evaluate((theme) => window.api.preference.set('ui.theme_mode', theme), originalTheme)
-    await page.evaluate((theme) => window.api.preference.set('chat.code.viewer.theme_light', theme), originalLightTheme)
-    await page.evaluate((value) => navigator.clipboard.writeText(value), originalClipboard)
-    if (skillId) {
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible()
-      await page.evaluate((id) => window.api.ipcApi.request('skill.uninstall', { skillId: id }), skillId)
+    try {
+      const back = page.getByRole('button', { name: '返回', exact: true }).last()
+      if (await back.isVisible()) await back.click()
+      await expect(page.locator('[data-ui~="skill-file-workspace"]')).toHaveCount(0)
+      await page.evaluate((theme) => window.api.preference.set('ui.theme_mode', theme), originalTheme)
+      await page.evaluate(
+        (theme) => window.api.preference.set('chat.code.viewer.theme_light', theme),
+        originalLightTheme
+      )
+      await page.evaluate((value) => navigator.clipboard.writeText(value), originalClipboard)
+      if (skillId) {
+        await page.reload({ waitUntil: 'domcontentloaded' })
+        await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible()
+        await page.evaluate((id) => window.api.ipcApi.request('skill.uninstall', { skillId: id }), skillId)
+      }
+    } finally {
+      await rm(fixture, { recursive: true, force: true })
     }
-    await rm(fixture, { recursive: true, force: true })
   }
 }

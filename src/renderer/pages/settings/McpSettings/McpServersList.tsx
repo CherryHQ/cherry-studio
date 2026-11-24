@@ -22,6 +22,8 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import AddMcpServerModal from '@renderer/components/mcp/AddMcpServerModal'
+import QuickCreateMcpServerDialog from '@renderer/components/mcp/QuickCreateMcpServerDialog'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
@@ -40,10 +42,8 @@ import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolIn
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
 
-import AddMcpServerModal from './AddMcpServerModal'
 import McpProtocolInstallDialog from './McpProtocolInstallDialog'
 import McpServerCard from './McpServerCard'
-import QuickCreateMcpServerDialog from './QuickCreateMcpServerDialog'
 
 const logger = loggerService.withContext('McpServersList')
 const mcpServersRouteApi = getRouteApi('/settings/mcp/servers')
