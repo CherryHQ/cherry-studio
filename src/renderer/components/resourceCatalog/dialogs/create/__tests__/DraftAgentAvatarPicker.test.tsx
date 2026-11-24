@@ -113,6 +113,20 @@ describe('draft Agent avatar', () => {
     expect(screen.getByRole('status')).toHaveTextContent('image draft')
   })
 
+  it('recovers when image preparation rejects with a non-Error value', async () => {
+    vi.mocked(prepareEntityImageBytes).mockRejectedValueOnce(null)
+    render(<Harness />)
+    const { user, input } = await openUpload()
+
+    await user.upload(input, file)
+    expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/\S/))
+    expect(screen.getByRole('status')).toHaveTextContent('🤖')
+    expect(screen.getByRole('button', { name: label })).toBeEnabled()
+
+    await user.upload(input, file)
+    expect(screen.getByRole('status')).toHaveTextContent('image draft')
+  })
+
   it('discards preparation from a closed session even after the picker is reopened', async () => {
     let finish!: (value: Uint8Array<ArrayBuffer>) => void
     vi.mocked(prepareEntityImageBytes).mockReturnValueOnce(

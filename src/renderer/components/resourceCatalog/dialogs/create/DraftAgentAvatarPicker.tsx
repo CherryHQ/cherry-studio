@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, ColFlex, EmojiAvatar, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { EmojiPicker } from '@renderer/components/EmojiPicker'
 import { toast } from '@renderer/services/toast'
+import { getErrorMessage } from '@renderer/utils/error'
 
 import { prepareAvatarImage } from '../components/prepareAvatarImage'
 
@@ -78,7 +79,7 @@ export function DraftAgentAvatarPicker({
       onChange(emoji, data)
       setOpen(false)
     } catch (error) {
-      if (session.active) toast.error((error as Error).message)
+      if (session.active) toast.error(getErrorMessage(error))
     } finally {
       session.pending = false
 
