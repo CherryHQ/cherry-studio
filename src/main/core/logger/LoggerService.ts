@@ -101,11 +101,11 @@ export class LoggerService {
     // only affect console output, not affect file output
     if (DEV_LOGGING) {
       // load env level if exists
-      if (
-        process.env.CSLOGGER_MAIN_LEVEL &&
-        Object.values(LEVEL).includes(process.env.CSLOGGER_MAIN_LEVEL as LogLevel)
-      ) {
-        this.envLevel = process.env.CSLOGGER_MAIN_LEVEL as LogLevel
+      const configuredLevel = process.env.CSLOGGER_MAIN_LEVEL
+      const envLevel = Object.values(LEVEL).find((level) => level === configuredLevel)
+
+      if (envLevel) {
+        this.envLevel = envLevel
 
         console.log(colorText(`[LoggerService] env CSLOGGER_MAIN_LEVEL loaded: ${this.envLevel}`, 'BLUE'))
       }
@@ -452,8 +452,8 @@ export class LoggerService {
    * Get the current log level
    * @returns The current log level
    */
-  public getLevel(): LogLevel {
-    return this.logger.level as LogLevel
+  public getLevel(): string {
+    return this.logger.level
   }
 
   /**

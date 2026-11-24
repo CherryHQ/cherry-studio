@@ -100,11 +100,11 @@ export class LoggerService {
     this.derivedWindow = resolveWindowSourceFromMeta(typeof document === 'undefined' ? undefined : document)
 
     if (DEV_LOGGING) {
-      if (
-        window.electron?.process?.env?.CSLOGGER_RENDERER_LEVEL &&
-        Object.values(LEVEL).includes(window.electron?.process?.env?.CSLOGGER_RENDERER_LEVEL as LogLevel)
-      ) {
-        this.envLevel = window.electron?.process?.env?.CSLOGGER_RENDERER_LEVEL as LogLevel
+      const configuredLevel = window.electron?.process?.env?.CSLOGGER_RENDERER_LEVEL
+      const envLevel = Object.values(LEVEL).find((level) => level === configuredLevel)
+
+      if (envLevel) {
+        this.envLevel = envLevel
 
         console.log(
           `%c[LoggerService] env CSLOGGER_RENDERER_LEVEL loaded: ${this.envLevel}`,
