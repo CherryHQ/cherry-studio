@@ -24,20 +24,25 @@ export function LocalAgentIcon({
     (preset
       ? (CODE_CLI_TOOL_PRESETS.find((tool) => tool.executable === preset.executable)?.id ?? preset.id)
       : undefined)
+  if (iconId) {
+    return (
+      <CliIcon
+        id={iconId}
+        size={size}
+        shape="circle"
+        className={cn('ring-1 ring-inset ring-foreground/10', className)}
+      />
+    )
+  }
+
   return (
     <Avatar
-      className={cn('items-center justify-center bg-background-subtle', className)}
-      style={{ width: size, height: size }}>
-      {iconId ? (
-        <>
-          <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center opacity-40 blur-sm">
-            <CliIcon id={iconId} size={size * 1.8} className="shrink-0" />
-          </span>
-          <CliIcon id={iconId} size={size * 0.7} className="relative shrink-0" />
-        </>
-      ) : (
-        <Terminal size={size * 0.7} />
+      className={cn(
+        'items-center justify-center bg-muted text-foreground ring-1 ring-inset ring-foreground/10',
+        className
       )}
+      style={{ width: size, height: size }}>
+      <Terminal size={size * 0.55} />
     </Avatar>
   )
 }

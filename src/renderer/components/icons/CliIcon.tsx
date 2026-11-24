@@ -90,6 +90,8 @@ const OPTICAL_VIEWBOXES: Partial<Record<CodeCli, string>> = {
   [CodeCli.MINIMAX_CODE]: '26 26 68 68'
 }
 
+const TILE_ARTWORK_IDS = new Set<string>([CodeCli.OPENAI_CODEX, CodeCli.KIMI_CODE, 'kiro', 'zcode', 'snow'])
+
 interface CliIconProps {
   id: string
   size?: number
@@ -100,8 +102,8 @@ interface CliIconProps {
 
 export const CliIcon: FC<CliIconProps> = ({ id, size = 28, glyphSize, shape = 'rounded', className }) => {
   const Icon = CLI_ICONS[id]
-  const hasTileArtwork = Icon && ('Avatar' in Icon || id === CodeCli.OPENAI_CODEX || id === CodeCli.KIMI_CODE)
-  const artworkSize = hasTileArtwork ? 'size-full' : 'size-[70%]'
+  const hasTileArtwork = Boolean(Icon && ('Avatar' in Icon || TILE_ARTWORK_IDS.has(id)))
+  const artworkSize = hasTileArtwork ? 'size-full' : 'size-[68%]'
 
   const croppedViewBox = OPTICAL_VIEWBOXES[id as CodeCli]
   const opticalViewBox = croppedViewBox ? { viewBox: croppedViewBox } : {}
@@ -111,10 +113,9 @@ export const CliIcon: FC<CliIconProps> = ({ id, size = 28, glyphSize, shape = 'r
       aria-hidden="true"
       data-slot="cli-icon"
       className={cn(
-        'inline-flex shrink-0 items-center justify-center overflow-hidden [--icon-neutral-background:var(--muted)] dark:[--icon-neutral-background:initial]',
+        'inline-flex shrink-0 items-center justify-center overflow-hidden text-foreground [--icon-neutral-background:var(--muted)] dark:[--icon-neutral-background:initial]',
         shape === 'circle' ? 'rounded-full' : 'rounded-[32%]',
         !hasTileArtwork && 'bg-muted',
-        id === CodeCli.OPEN_CODE && 'text-foreground',
         className
       )}
       style={{ width: size, height: size }}>
