@@ -99,6 +99,47 @@ describe('KnowledgeItemService', () => {
   }
 
   describe('list', () => {
+    it('accepts cursor extensions and a finite fractional timestamp without restarting pagination', async () => {
+      await seedItem({ id: ITEM_1_ID, createdAt: 3000, data: { source: 'newer', content: 'newer' } })
+      await seedItem({ id: ITEM_2_ID, createdAt: 2000, data: { source: 'older', content: 'older' } })
+      const first = service.list(KNOWLEDGE_BASE_ID, { limit: 1 })
+      if (!first.nextCursor) throw new Error('Expected a continuation cursor')
+      const cursor = Buffer.from(
+        JSON.stringify({
+          ...JSON.parse(Buffer.from(first.nextCursor, 'base64url').toString('utf8')),
+          createdAt: 2500.5,
+          extension: { retained: true }
+        })
+      ).toString('base64url')
+
+      expect(service.list(KNOWLEDGE_BASE_ID, { limit: 1, cursor }).items.map((item) => item.id)).toEqual([ITEM_2_ID])
+    })
+
+    it.each([
+      null,
+      [],
+      { directoryRank: 2, createdAt: 2000, id: ITEM_1_ID },
+      { directoryRank: 1, createdAt: '2000', id: ITEM_1_ID },
+      { directoryRank: 1, createdAt: 2000, id: '' }
+    ])('falls back to the first page for malformed cursor fields: %s', async (fields) => {
+      await seedItem({ id: ITEM_1_ID, createdAt: 3000 })
+      const cursor = Buffer.from(JSON.stringify(fields)).toString('base64url')
+
+      expect(service.list(KNOWLEDGE_BASE_ID, { limit: 1, cursor }).items.map((item) => item.id)).toEqual([ITEM_1_ID])
+    })
+
+    it('keeps an empty name cursor key valid in descending order', async () => {
+      await seedItem({ id: ITEM_1_ID, data: { source: 'alpha', content: 'alpha' } })
+      await seedItem({ id: ITEM_2_ID, data: { source: 'beta', content: 'beta' } })
+      const cursor = Buffer.from(
+        JSON.stringify({ sortBy: 'name', sortOrder: 'desc', key: '', id: ITEM_1_ID, extension: true })
+      ).toString('base64url')
+
+      expect(service.list(KNOWLEDGE_BASE_ID, { limit: 20, sortBy: 'name', sortOrder: 'desc', cursor }).items).toEqual(
+        []
+      )
+    })
+
     it('returns items for a knowledge base', async () => {
       await seedItem()
 

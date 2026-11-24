@@ -5,6 +5,7 @@
  */
 
 import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
@@ -12,7 +13,11 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { KnowledgeItemListResponse, ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
+import {
+  type KnowledgeItemListResponse,
+  KnowledgeItemSortBySchema,
+  type ListKnowledgeItemsQuery
+} from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
@@ -51,18 +56,22 @@ type FailedKnowledgeItemStatusUpdate = {
   error: string
 }
 
-type KnowledgeItemListCursor = {
-  directoryRank: number
-  createdAt: number
-  id: string
-}
+const KnowledgeItemListCursorSchema = z.looseObject({
+  directoryRank: z.union([z.literal(0), z.literal(1)]),
+  createdAt: z.number(),
+  id: z.string().min(1)
+})
 
-type SortedKnowledgeItemCursor = {
-  sortBy: NonNullable<ListKnowledgeItemsQuery['sortBy']>
-  sortOrder: 'asc' | 'desc'
-  key: string | number
-  id: string
-}
+type KnowledgeItemListCursor = z.infer<typeof KnowledgeItemListCursorSchema>
+
+const SortedKnowledgeItemCursorSchema = z.looseObject({
+  sortBy: KnowledgeItemSortBySchema,
+  sortOrder: z.enum(['asc', 'desc']),
+  key: z.union([z.string(), z.number()]),
+  id: z.string().min(1)
+})
+
+type SortedKnowledgeItemCursor = z.infer<typeof SortedKnowledgeItemCursorSchema>
 
 function decodeSortedKnowledgeItemCursor(
   raw: string | undefined,
@@ -72,13 +81,11 @@ function decodeSortedKnowledgeItemCursor(
   if (!raw) return null
 
   try {
-    const value = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as SortedKnowledgeItemCursor
+    const value = SortedKnowledgeItemCursorSchema.parse(JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')))
 
     if (
       value.sortBy !== sortBy ||
       value.sortOrder !== sortOrder ||
-      !value.id ||
-      typeof value.id !== 'string' ||
       (sortBy === 'name' ? typeof value.key !== 'string' : typeof value.key !== 'number' || !Number.isFinite(value.key))
     ) {
       throw new Error('Invalid knowledge item sort cursor')
@@ -108,7 +115,7 @@ export type DeletingKnowledgeItemRootGroup = {
 }
 
 function rowToKnowledgeItem(row: KnowledgeItemRowLike): KnowledgeItem {
-  const data = typeof row.data === 'string' ? (JSON.parse(row.data) as KnowledgeItemData) : row.data
+  const data: unknown = typeof row.data === 'string' ? JSON.parse(row.data) : row.data
 
   return KnowledgeItemSchema.parse({
     id: row.id,
@@ -131,18 +138,7 @@ function decodeKnowledgeItemListCursor(raw: string | undefined): KnowledgeItemLi
   if (!raw) return null
 
   try {
-    const value = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<KnowledgeItemListCursor>
-
-    if (
-      (value.directoryRank !== 0 && value.directoryRank !== 1) ||
-      !Number.isFinite(value.createdAt) ||
-      typeof value.id !== 'string' ||
-      value.id.length === 0
-    ) {
-      throw new Error('Invalid knowledge item cursor fields')
-    }
-
-    return value as KnowledgeItemListCursor
+    return KnowledgeItemListCursorSchema.parse(JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')))
   } catch {
     logger.warn('Knowledge item cursor is unparseable; falling back to the first page', { cursor: raw })
 
