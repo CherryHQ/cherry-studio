@@ -73,9 +73,8 @@ export interface FootprintOptions {
  * calls this directly with no measurements.
  *
  * Media payload bytes are NEVER handed to the tokenizer — that is the #17837 bug (a 13 MB
- * MP3 scored ~3.7 M tokens against the provider's real 20 k). Never throws: content comes
- * from our own converter, but each access is guarded so a malformed part still yields a
- * best-effort number.
+ * MP3 scored ~3.7 M tokens against the provider's real 20 k). Message parts follow the
+ * converter's typed contract; unreadable inline media falls back to the dialect constant.
  */
 export function estimateModelMessagesSync(messages: ModelMessage[], options: FootprintOptions): number {
   let total = 0
@@ -89,7 +88,7 @@ export function estimateModelMessagesSync(messages: ModelMessage[], options: Foo
       continue
     }
 
-    for (const part of content as ContentPart[]) total += partTokens(part, options)
+    for (const part of content) total += partTokens(part, options)
   }
 
   return total
@@ -204,7 +203,7 @@ function* mediaNodes(messages: ModelMessage[]): Generator<MediaNode> {
   for (const message of messages) {
     if (typeof message.content === 'string') continue
 
-    for (const part of message.content as ContentPart[]) {
+    for (const part of message.content) {
       if (part.type === 'image') {
         yield { owner: part, kind: 'image', data: part.image }
       } else if (part.type === 'file') {
@@ -284,16 +283,18 @@ export function countToolDefs(rawTools: unknown, tokenizer: TextTokenizer): numb
   if (!Array.isArray(rawTools)) return 0
   let total = 0
 
-  for (const tool of rawTools) {
-    if (!tool || typeof tool !== 'object') continue
+  for (const entry of rawTools) {
+    if (!entry || typeof entry !== 'object') continue
 
-    const { name, description, input_schema } = tool as {
+    const tool: {
       name?: unknown
       description?: unknown
       input_schema?: unknown
-    }
+    } = entry
 
-    total += TOOL_OVERHEAD + countToolTokens({ name, description, schema: input_schema }, tokenizer)
+    total +=
+      TOOL_OVERHEAD +
+      countToolTokens({ name: tool.name, description: tool.description, schema: tool.input_schema }, tokenizer)
   }
 
   return total
@@ -329,7 +330,8 @@ function imageBytesWithinBudget(value: DataContent | URL, maxBytes: number): Buf
   }
 
   if (value instanceof Uint8Array || value instanceof ArrayBuffer || Buffer.isBuffer(value)) {
-    const buf = Buffer.isBuffer(value) ? value : Buffer.from(value as Uint8Array)
+    // Native overloads preserve ArrayBuffer sharing and copy only the selected Uint8Array bytes.
+    const buf = Buffer.isBuffer(value) ? value : value instanceof ArrayBuffer ? Buffer.from(value) : Buffer.from(value)
 
     return buf.length > maxBytes ? undefined : buf
   }

@@ -15,6 +15,26 @@ const FILE_OVERHEAD = 5
 const PNG_1x1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
 describe('estimateModelMessagesFootprint', () => {
+  it.each(['array-buffer', 'typed-slice'] as const)(
+    'measures the selected native image bytes: %s',
+    async (representation) => {
+      const bytes = Buffer.from(PNG_1x1, 'base64')
+      let image: ArrayBuffer | Uint8Array
+      if (representation === 'array-buffer') {
+        image = new ArrayBuffer(bytes.length)
+        new Uint8Array(image).set(bytes)
+      } else {
+        const padded = new Uint8Array(bytes.length + 4)
+        padded.set(bytes, 2)
+        image = padded.subarray(2, bytes.length + 2)
+      }
+      const part = { type: 'image' as const, image }
+
+      const measurements = await measureMedia([{ role: 'user', content: [part] }])
+      expect(measurements.get(part)?.dims).toEqual({ width: 1, height: 1 })
+    }
+  )
+
   it('counts a plain-text tool_result output as TEXT (defensive path)', async () => {
     // The converter now emits structured image content, but a text output must still be
     // counted as text — a data-URL string here would ride as its full length.
