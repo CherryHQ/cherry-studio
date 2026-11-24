@@ -17,6 +17,7 @@ import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgro
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
@@ -78,6 +79,8 @@ export interface AgentRuntimeConnectInput {
    *  default and ignore session model overrides, which decides which resolution a captured
    *  connection model is compared against for stale-capture pinning. */
   headless?: boolean
+  /** Explicit channel policy for this turn, independent of the Agent's stored configuration. */
+  permissionModeOverride?: AgentPermissionMode
   /** Product position captured before asynchronous connection work. */
   branchHead?: string
   trace?: AgentRuntimeTraceContext
@@ -277,6 +280,7 @@ export interface AgentRuntimeConnection {
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
     headless?: boolean
+    permissionModeOverride?: AgentPermissionMode
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read passive, thread-scoped context usage from the harness. Unknown and unsupported

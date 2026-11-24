@@ -3,6 +3,7 @@ import { EventEmitter } from 'events'
 import { loggerService } from '@logger'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { AgentChannelEntity, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
+import type { ChannelEventSchemas } from '@shared/ipc/schemas/channel'
 
 import type { ChannelLogEntry, ChannelLogLevel, ChannelStatusEvent } from './types'
 
@@ -51,6 +52,10 @@ export type SendMessageOptions = {
 
 export type ChannelStreamOutcome = { status: 'success' | 'paused' }
 export type ChannelStreamErrorOptions = { suppressDelivery: boolean }
+
+export type ChannelQrLoginEvent =
+  | { type: 'wechat'; data: ChannelEventSchemas['channel.wechat.qr_login'] }
+  | { type: 'feishu'; data: ChannelEventSchemas['channel.feishu.qr_login'] }
 
 /** Channel type → its config payload, projected from the `AgentChannelEntity` discriminated union. */
 type ChannelConfigByType = {
@@ -288,6 +293,7 @@ export abstract class ChannelAdapter extends EventEmitter {
   override emit(event: 'message', data: ChannelMessageEvent): boolean
   override emit(event: 'command', data: ChannelCommandEvent): boolean
   override emit(event: 'qr', url: string): boolean
+  override emit(event: 'qrLogin', data: ChannelQrLoginEvent): boolean
   override emit(event: 'credentials', data: { appId: string; appSecret: string }): boolean
   override emit(event: 'log', data: ChannelLogEntry): boolean
   override emit(event: 'statusChange', data: ChannelStatusEvent): boolean
@@ -298,6 +304,7 @@ export abstract class ChannelAdapter extends EventEmitter {
   override on(event: 'message', listener: (data: ChannelMessageEvent) => void): this
   override on(event: 'command', listener: (data: ChannelCommandEvent) => void): this
   override on(event: 'qr', listener: (url: string) => void): this
+  override on(event: 'qrLogin', listener: (data: ChannelQrLoginEvent) => void): this
   override on(event: 'credentials', listener: (data: { appId: string; appSecret: string }) => void): this
   override on(event: 'log', listener: (data: ChannelLogEntry) => void): this
   override on(event: 'statusChange', listener: (data: ChannelStatusEvent) => void): this
