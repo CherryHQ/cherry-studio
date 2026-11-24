@@ -12,6 +12,7 @@ const result = z.object({
 })
 
 export const memoryRequestSchemas = {
+  'memory.open_folder': defineRoute({ input: z.void(), output: z.void() }),
   'memory.editor.open': defineRoute({
     input: z.object({ kind: z.literal('shared') }),
     output: z.object({
