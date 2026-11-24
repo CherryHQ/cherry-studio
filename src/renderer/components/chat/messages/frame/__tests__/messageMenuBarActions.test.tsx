@@ -832,9 +832,31 @@ describe('messageMenuBarActions', () => {
     })
 
     await expect(executeMessageMenuBarAction('export.share-image', context)).resolves.toBe(true)
-    expect(captureMessageShareImage).toHaveBeenLastCalledWith('Share **this reply**.', false)
-    expect(saveImage).toHaveBeenCalledWith('share-image', 'data:image/png;base64,AAAA')
+    expect(captureMessageShareImage).toHaveBeenLastCalledWith('Share **this reply**.', false, context.messageForExport)
+    expect(saveImage).toHaveBeenCalledWith('share-image', 'data:image/png;base64,AAAA', { rejectOnFailure: true })
     expect(context.actions.notifySuccess).toHaveBeenCalledWith('chat.topics.export.image_saved')
+  })
+
+  it('reports a failed image write and stays silent when the user cancels', async () => {
+    const saveImage = vi.fn().mockRejectedValueOnce(new Error('Failed to save image')).mockResolvedValueOnce(false)
+    captureMessageShareImage.mockResolvedValueOnce('data:image/png;base64,AAAA')
+    const context = createActionContext({
+      actions: { saveImage },
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    await executeMessageMenuBarAction('export.share-image', context)
+    expect(context.actions.notifyError).toHaveBeenCalledExactlyOnceWith('common.save_failed')
+    expect(context.actions.notifySuccess).not.toHaveBeenCalled()
+
+    vi.mocked(context.actions.notifyError!).mockClear()
+    captureMessageShareImage.mockResolvedValueOnce('data:image/png;base64,AAAA')
+    await executeMessageMenuBarAction('export.share-image', context)
+    expect(context.actions.notifyError).not.toHaveBeenCalled()
+    expect(context.actions.notifySuccess).not.toHaveBeenCalled()
   })
 
   it.each([

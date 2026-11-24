@@ -332,16 +332,24 @@ registerCommand('message.exportImage', async (context) => {
   })
 })
 
-registerCommand('message.exportShareImage', async ({ actions, mainTextContent, singleDollarMath, t }) => {
-  const { captureMessageShareImage } = await import('./captureMessageShareImage')
-  const imageData = await captureMessageShareImage(mainTextContent, singleDollarMath ?? true)
-  const saved = imageData && (await actions.saveImage?.('share-image', imageData))
-  if (saved) {
-    actions.notifySuccess?.(t('chat.topics.export.image_saved'))
-  } else if (!imageData) {
-    actions.notifyError?.(t('message.error.unknown'))
+registerCommand(
+  'message.exportShareImage',
+  async ({ actions, mainTextContent, singleDollarMath, messageForExport, t }) => {
+    const { captureMessageShareImage } = await import('./captureMessageShareImage')
+    const imageData = await captureMessageShareImage(mainTextContent, singleDollarMath ?? true, messageForExport)
+    if (!imageData) {
+      actions.notifyError?.(t('message.error.unknown'))
+      return
+    }
+    try {
+      if (await actions.saveImage?.('share-image', imageData, { rejectOnFailure: true })) {
+        actions.notifySuccess?.(t('chat.topics.export.image_saved'))
+      }
+    } catch {
+      actions.notifyError?.(t('common.save_failed'))
+    }
   }
-})
+)
 
 registerCommand('message.exportMarkdown', async ({ actions, messageForExport }) => {
   await actions.exportMessageAsMarkdown?.(messageForExport)

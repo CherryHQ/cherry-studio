@@ -3,6 +3,8 @@ import type { Components } from 'streamdown'
 
 import { AppMarkdown } from '@renderer/components/markdown'
 import { exportService } from '@renderer/services/ExportService'
+import type { MessageExportView } from '@renderer/types/messageExport'
+import { toExportableCitations } from '@renderer/utils/message/citations'
 
 import './messageShareImage.css'
 
@@ -10,7 +12,12 @@ const shareComponents = {
   code: ({ className, children }) => <code className={className}>{children}</code>
 } satisfies Partial<Components>
 
-export async function captureMessageShareImage(markdown: string, singleDollarMath: boolean) {
+export async function captureMessageShareImage(
+  markdown: string,
+  singleDollarMath: boolean,
+  { parts, priorCitationParts }: Pick<MessageExportView, 'parts' | 'priorCitationParts'>
+) {
+  const { content } = toExportableCitations(markdown, parts, priorCitationParts)
   const host = document.createElement('div')
   host.className = 'pointer-events-none fixed top-0 -left-[10000px]'
   host.setAttribute('aria-hidden', 'true')
@@ -28,7 +35,7 @@ export async function captureMessageShareImage(markdown: string, singleDollarMat
         className="message-share-image w-[672px] min-w-min p-6">
         <div className="rounded-xl border border-border bg-background p-8">
           <AppMarkdown singleDollarMath={singleDollarMath} components={shareComponents}>
-            {markdown}
+            {content}
           </AppMarkdown>
         </div>
       </div>
