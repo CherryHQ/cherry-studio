@@ -34,7 +34,7 @@
  * Caller-owned gateway tools remain the caller's validation responsibility.
  */
 
-import type { JSONSchema7, JSONSchema7Definition, LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { JSONSchema7, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
@@ -90,14 +90,21 @@ const SCHEMA_VALUES = new Set([
   'else'
 ])
 
+/* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns, anti-slop/no-unsafe-dictionary-type -- Schema traversal preserves uninterpreted third-party values; it validates only containers and fields consumed by each rewrite. */
+type SchemaNode = Record<string, unknown>
+
+function isObjectRecord(value: unknown): value is SchemaNode {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 /**
  * Recurses only through schema-bearing keys, applying `mapNode` to every
  * schema node bottom-up — so a *property named* `minimum` survives while the
  * `minimum` **keyword** is only ever seen as a plain value. Returns the same
  * reference when nothing changed.
  */
-function mapSchemas(schema: JSONSchema7Definition, mapNode: (node: JSONSchema7) => JSONSchema7): JSONSchema7Definition {
-  if (typeof schema !== 'object' || schema === null) return schema
+function mapSchemas(schema: unknown, mapNode: (node: SchemaNode) => SchemaNode): unknown {
+  if (!isObjectRecord(schema)) return schema
 
   const entries: [string, unknown][] = []
   let changed = false
@@ -105,8 +112,8 @@ function mapSchemas(schema: JSONSchema7Definition, mapNode: (node: JSONSchema7) 
   for (const [key, value] of Object.entries(schema)) {
     let next = value
 
-    if (SCHEMA_MAPS.has(key) && typeof value === 'object' && value !== null) {
-      next = mapSchemaMap(value as Record<string, JSONSchema7Definition>, mapNode)
+    if (SCHEMA_MAPS.has(key) && isObjectRecord(value)) {
+      next = mapSchemaMap(value, mapNode)
     } else if (SCHEMA_LISTS.has(key) && Array.isArray(value)) {
       next = mapSchemaList(value, mapNode)
     } else if (SCHEMA_VALUES.has(key)) {
@@ -117,7 +124,7 @@ function mapSchemas(schema: JSONSchema7Definition, mapNode: (node: JSONSchema7) 
     entries.push([key, next])
   }
 
-  const result: JSONSchema7 = Object.fromEntries(entries)
+  const result: SchemaNode = Object.fromEntries(entries)
   const mapped = mapNode(result)
 
   if (mapped !== result) changed = true
@@ -125,11 +132,11 @@ function mapSchemas(schema: JSONSchema7Definition, mapNode: (node: JSONSchema7) 
   return changed ? mapped : schema
 }
 
-function mapSchemaList(list: unknown[], mapNode: (node: JSONSchema7) => JSONSchema7): unknown[] {
+function mapSchemaList(list: unknown[], mapNode: (node: SchemaNode) => SchemaNode): unknown[] {
   let changed = false
 
   const next = list.map((item) => {
-    const mapped = mapSchemas(item as JSONSchema7Definition, mapNode)
+    const mapped = mapSchemas(item, mapNode)
 
     if (mapped !== item) changed = true
 
@@ -139,12 +146,9 @@ function mapSchemaList(list: unknown[], mapNode: (node: JSONSchema7) => JSONSche
   return changed ? next : list
 }
 
-function mapSchemaMap(
-  map: Record<string, JSONSchema7Definition>,
-  mapNode: (node: JSONSchema7) => JSONSchema7
-): Record<string, JSONSchema7Definition> {
+function mapSchemaMap(map: SchemaNode, mapNode: (node: SchemaNode) => SchemaNode): SchemaNode {
   let changed = false
-  const entries: [string, JSONSchema7Definition][] = []
+  const entries: [string, unknown][] = []
 
   for (const [key, value] of Object.entries(map)) {
     const next = mapSchemas(value, mapNode)
@@ -156,7 +160,7 @@ function mapSchemaMap(
   return changed ? Object.fromEntries(entries) : map
 }
 
-function dropKeywords(node: JSONSchema7, keywords: ReadonlySet<string>): JSONSchema7 {
+function dropKeywords(node: SchemaNode, keywords: ReadonlySet<string>): SchemaNode {
   let changed = false
   const kept: [string, unknown][] = []
 
@@ -172,7 +176,7 @@ function dropKeywords(node: JSONSchema7, keywords: ReadonlySet<string>): JSONSch
   return changed ? Object.fromEntries(kept) : node
 }
 
-function stripKeywords(schema: JSONSchema7Definition, keywords: ReadonlySet<string>): JSONSchema7Definition {
+function stripKeywords(schema: unknown, keywords: ReadonlySet<string>): unknown {
   return mapSchemas(schema, (node) => dropKeywords(node, keywords))
 }
 
@@ -188,8 +192,8 @@ function stripKeywords(schema: JSONSchema7Definition, keywords: ReadonlySet<stri
  * merge root siblings over the referenced definition, so an empty `properties`
  * map would erase the referenced parameters.
  */
-function addMissingProperties(node: JSONSchema7Definition): JSONSchema7Definition {
-  if (typeof node !== 'object' || Array.isArray(node)) return node
+function addMissingProperties(node: unknown): unknown {
+  if (!isObjectRecord(node)) return node
 
   if (node.type !== 'object' || node.$ref !== undefined || Object.hasOwn(node, 'properties')) return node
 
@@ -215,13 +219,13 @@ function uniformEnumType(values: unknown[]): 'integer' | 'number' | 'boolean' | 
  * (TYPE_STRING)`, e.g. zod `z.union([z.literal(1), z.literal(2)])`). Replaces
  * it with the bare type; the original zod schema still validates locally.
  */
-function stripNonStringEnums(node: JSONSchema7): JSONSchema7 {
+function stripNonStringEnums(node: SchemaNode): SchemaNode {
   const values = node.enum !== undefined ? node.enum : node.const !== undefined ? [node.const] : undefined
   const kind = Array.isArray(values) ? uniformEnumType(values) : undefined
 
   if (kind === undefined) return node
 
-  const replacement: JSONSchema7 = { ...node }
+  const replacement = { ...node }
   delete replacement.enum
   delete replacement.const
 
@@ -241,14 +245,14 @@ function stripNonStringEnums(node: JSONSchema7): JSONSchema7 {
  * into `nullable` + a typed schema. Nullability survives as its own branch;
  * the original zod schema still validates locally.
  */
-function expandTypeArrays(node: JSONSchema7): JSONSchema7 {
+function expandTypeArrays(node: SchemaNode): SchemaNode {
   const type = node.type
 
   if (!Array.isArray(type) || type.length === 0 || type.some((entry) => typeof entry !== 'string')) return node
 
   if (node.anyOf !== undefined) return node
 
-  const rest: JSONSchema7 = { ...node }
+  const rest = { ...node }
   delete rest.type
 
   if (type.length === 1) return { ...rest, type: type[0] }
@@ -258,45 +262,46 @@ function expandTypeArrays(node: JSONSchema7): JSONSchema7 {
   return { ...rest, anyOf: branches }
 }
 
-function isGeminiArraySchema(schema: JSONSchema7): boolean {
+function isGeminiArraySchema(schema: SchemaNode): boolean {
   return schema.type === 'array' || (Array.isArray(schema.type) && schema.type.includes('array'))
 }
 
-function hasGeminiArrayItems(items: JSONSchema7['items']): boolean {
+function hasGeminiArrayItems(items: unknown): boolean {
   // @ai-sdk/google serializes the `true` schema as a typed boolean schema.
   if (items === true) return true
 
-  if (typeof items !== 'object' || items === null || Array.isArray(items)) return false
+  if (!isObjectRecord(items)) return false
 
   return typeof items.type === 'string' || (Array.isArray(items.type) && items.type.length > 0)
 }
 
 /** Gemini's Schema requires every array declaration to carry a typed items schema. */
-function hasIncompatibleGeminiArray(schema: JSONSchema7Definition): boolean {
-  if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) return false
+function hasIncompatibleGeminiArray(schema: unknown): boolean {
+  if (!isObjectRecord(schema)) return false
 
   const objectSchema = schema
 
   if (isGeminiArraySchema(objectSchema) && !hasGeminiArrayItems(objectSchema.items)) return true
 
   return Object.entries(objectSchema).some(([key, value]) => {
-    if (SCHEMA_MAPS.has(key) && typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      return Object.values(value).some((entry) => hasIncompatibleGeminiArray(entry as JSONSchema7Definition))
+    if (SCHEMA_MAPS.has(key) && isObjectRecord(value)) {
+      return Object.values(value).some((entry) => hasIncompatibleGeminiArray(entry))
     }
 
     if (SCHEMA_LISTS.has(key) && Array.isArray(value)) {
-      return value.some((entry) => hasIncompatibleGeminiArray(entry as JSONSchema7Definition))
+      return value.some((entry) => hasIncompatibleGeminiArray(entry))
     }
 
     if (SCHEMA_VALUES.has(key)) {
       return Array.isArray(value)
-        ? value.some((entry) => hasIncompatibleGeminiArray(entry as JSONSchema7Definition))
-        : hasIncompatibleGeminiArray(value as JSONSchema7Definition)
+        ? value.some((entry) => hasIncompatibleGeminiArray(entry))
+        : hasIncompatibleGeminiArray(value)
     }
 
     return false
   })
 }
+/* oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns, anti-slop/no-unsafe-dictionary-type */
 
 function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: RequestScope): LanguageModelV3CallOptions {
   const tools = params.tools
@@ -348,6 +353,7 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     else {
       changed = true
 
+      // SAFETY: the SDK supplies an object inputSchema; these rewrites keep that root and only delete keywords or build replacement schema fields.
       const transformed = {
         ...tool,
         inputSchema: inputSchema as JSONSchema7
