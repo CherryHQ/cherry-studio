@@ -1,3 +1,4 @@
+import { isUtf8 } from 'node:buffer'
 import { stat } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -89,8 +90,8 @@ export async function acpContent(
           resource: {
             uri,
             mimeType,
-            ...(isText
-              ? { text: new TextDecoder('utf-8', { fatal: true }).decode(bytes) }
+            ...(isText && isUtf8(bytes)
+              ? { text: new TextDecoder().decode(bytes) }
               : { blob: bytes.toString('base64') })
           }
         })

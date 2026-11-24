@@ -604,8 +604,8 @@ export const aiRequestSchemas = {
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
   'ai.agent.session.prewarm': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1) }),
-    output: z.void()
+    input: z.strictObject({ sessionId: z.string().min(1), checkLocalRestore: z.literal(true).optional() }),
+    output: z.boolean().optional()
   }),
   'ai.agent.session.fork': defineRoute({
     input: z.strictObject({

@@ -147,6 +147,33 @@ describe('AgentTaskService active-Agent read contract', () => {
     })
   })
 
+  it.each(['skipped', 'executed', 'legacy'] as const)(
+    'restores the status of a missed one-shot after a %s catch-up',
+    (outcome) => {
+      seedAgent('owner')
+      const taskId = seedTask('task', 'owner')
+      const job = jobService.create({
+        type: 'agent.task',
+        scheduleId: taskId,
+        queue: 'agent:owner',
+        status: 'completed',
+        scheduledAt: 1000,
+        input: {},
+        finishedAt: 2000,
+        output: outcome === 'legacy' ? { result: 'Done' } : { kind: outcome }
+      })
+      jobScheduleService.update(taskId, {
+        trigger: { kind: 'once', at: 1000 },
+        enabled: false,
+        metadata: { missed: { reason: 'agent_archived', at: 1000, jobId: job.id } }
+      })
+
+      dbh.db.transaction((tx) => agentTaskService.reconcileOwnerStatesTx(tx, 3000))
+
+      expect(agentTaskService.getTaskDetail(taskId)?.status).toBe(outcome === 'skipped' ? 'missed' : 'completed')
+    }
+  )
+
   it('validates the public status query and returns only the requested group', async () => {
     seedAgent('owner')
     seedTask('active', 'owner')

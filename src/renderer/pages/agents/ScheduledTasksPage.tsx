@@ -271,6 +271,7 @@ export default function ScheduledTasksPage() {
         onPaneAutoCollapseChange={shell.handlePaneAutoCollapseChange}
         paneManualToggle={shell.paneManualToggle}
         showResourceListControls={false}
+        onStartNewTaskConversation={(agentId) => void navigate({ to: '/app/agents', search: { agentId } })}
         conversationToolbar={toolbar}
         centerSurface={!conversation.session ? { content: storedResult } : null}
       />

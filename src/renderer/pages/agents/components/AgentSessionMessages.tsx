@@ -60,6 +60,7 @@ type Props = {
   editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
   navigateToForkSource?: NavigateToForkSource
+  onLocalRestoreChecked?: (unavailable: boolean) => void
 }
 
 const AgentSessionMessages = ({
@@ -90,7 +91,8 @@ const AgentSessionMessages = ({
   startEditing,
   editBusy,
   respondToolApproval,
-  navigateToForkSource
+  navigateToForkSource,
+  onLocalRestoreChecked
 }: Props) => {
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
@@ -199,15 +201,26 @@ const AgentSessionMessages = ({
   // <Activity> hide/show of a tab switch costs two cheap IPC messages, not a connection cycle —
   // and a lease held by another window keeps the shared connection alive.
   useEffect(() => {
-    void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
-      logger.warn('Failed to acquire agent session warm lease', error as Error)
-    })
+    let disposed = false
+    void ipcApi
+      .request('ai.agent.session.prewarm', {
+        sessionId,
+        ...(onLocalRestoreChecked ? { checkLocalRestore: true } : {})
+      })
+      .then((unavailable) => {
+        if (!disposed) onLocalRestoreChecked?.(unavailable === true)
+      })
+      .catch((error) => {
+        logger.warn('Failed to acquire agent session warm lease', error as Error)
+        if (!disposed) onLocalRestoreChecked?.(false)
+      })
     return () => {
+      disposed = true
       void ipcApi.request('ai.agent.session.close_warm', { sessionId }).catch((error) => {
         logger.warn('Failed to release agent session warm lease', error as Error)
       })
     }
-  }, [sessionId])
+  }, [sessionId, onLocalRestoreChecked])
 
   return (
     <AskUserQuestionOptimisticInputProvider value={optimisticAskUserQuestionInputsByToolCallId}>

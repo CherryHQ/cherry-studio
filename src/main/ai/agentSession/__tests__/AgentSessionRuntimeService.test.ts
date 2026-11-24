@@ -19,6 +19,7 @@ import type * as SessionModule from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import type * as UsageRecordModule from '@data/services/AiUsageRecordService'
 import type { AgentSessionForkResources } from '@main/ai/agentSession/fork/resources'
+import { LocalAgentSessionRestoreError } from '@main/ai/runtime/localAgent/LocalAgentSessionRestoreError'
 import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime/types'
 import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '@main/ai/streamManager'
@@ -7570,7 +7571,7 @@ describe('AgentSessionRuntimeService', () => {
     const asSender = (fake: FakeWebContents) => fake as unknown as Electron.WebContents
 
     let service: InstanceType<typeof AgentSessionRuntimeService>
-    let prime: MockInstance<(sessionId: string) => Promise<boolean>>
+    let prime: MockInstance<InstanceType<typeof AgentSessionRuntimeService>['primeConnection']>
     let releaseIdle: MockInstance<(sessionId: string) => void>
 
     beforeEach(() => {
@@ -7582,6 +7583,15 @@ describe('AgentSessionRuntimeService', () => {
 
     afterEach(() => {
       vi.useRealTimers()
+    })
+
+    it('reports a failed native restore without treating temporary connection failures as read-only history', async () => {
+      const sender = asSender(createWebContents())
+      prime.mockRejectedValueOnce(new LocalAgentSessionRestoreError('No native resume'))
+      prime.mockRejectedValueOnce(new Error('Temporary startup failure'))
+
+      await expect(service.acquireWarmLease('session-1', sender, true)).resolves.toBe(true)
+      await expect(service.acquireWarmLease('session-1', sender, true)).resolves.toBe(false)
     })
 
     it('keeps the shared connection while another window still holds the session', () => {

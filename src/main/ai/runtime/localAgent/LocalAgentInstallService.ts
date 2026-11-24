@@ -459,6 +459,12 @@ export class LocalAgentInstallService extends BaseService {
         return { ok: false, reason: 'changed' }
       remaining = components.map(({ executable }) => executable)
       const env = await getRawShellEnv(this.abort.signal)
+      const actions: Array<{ component: (typeof components)[number]; action: () => Promise<void> }> = []
+      for (const component of components) {
+        const action = await this.removalAction(component.target, component.path, env)
+        if (!action) return { ok: false, reason: 'unsupported' }
+        actions.push({ component, action })
+      }
       const agents = LOCAL_AGENT_PRESETS.filter((agent) =>
         components.some(({ executable }) => executable === agent.executable || executable === agent.terminalExecutable)
       )
@@ -470,15 +476,9 @@ export class LocalAgentInstallService extends BaseService {
         if (agent.id === 'hermes') await application.get('HermesDashboardService').stop()
         if (agent.id === 'deepseek-harness') await application.get('DeepSeekHarnessService').stop()
         if (agent.id === 'openclaw') {
-          const stopped = await application.get('OpenClawService').stopGateway()
+          const stopped = await application.get('OpenClawService').stopGateway({ requirePortFree: true })
           if (!stopped.success) return { ok: false, reason: 'busy' }
         }
-      }
-      const actions: Array<{ component: (typeof components)[number]; action: () => Promise<void> }> = []
-      for (const component of components) {
-        const action = await this.removalAction(component.target, component.path, env)
-        if (!action) return { ok: false, reason: 'unsupported' }
-        actions.push({ component, action })
       }
       for (const { component, action } of actions) {
         this.abort.signal.throwIfAborted()

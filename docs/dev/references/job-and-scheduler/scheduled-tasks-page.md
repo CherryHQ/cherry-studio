@@ -17,7 +17,7 @@ English | [中文](scheduled-tasks-page.zh.md)
 
 ## Use the page
 
-Open Scheduled tasks from the global sidebar. Select a task in Active, Paused, or Completed to read and continue its associated conversation. Paused includes missed tasks, identified by “Missed scheduled time” on the row. Each group has its own pagination, total, loading state, and retry action. Settings no longer has a Scheduled tasks entry. Old settings links redirect here and preserve the selected task and notification. A run notification opens the run that produced it. The error summary belongs to that run.
+Open Scheduled tasks from the global sidebar. Select a task in Active, Paused, or Completed to read its associated conversation. If the ACP agent cannot restore the session, the page keeps the history visible and offers to start a new conversation with that agent. Paused includes missed tasks, identified by “Missed scheduled time” on the row. Each group has its own pagination, total, loading state, and retry action. Settings no longer has a Scheduled tasks entry. Old settings links redirect here and preserve the selected task and notification. A run notification opens the run that produced it. The error summary belongs to that run.
 
 Add scheduled task opens the shared creation form in the current window. Successful creation selects the returned task without an extra run command. An active or ordinary paused task with no execution shows a waiting state. A completed or missed task without an available conversation shows the unavailable-conversation feedback. Pausing affects future scheduling; it does not cancel an execution already in progress.
 
@@ -31,7 +31,7 @@ The sidebar follows the Agents page's surface, spacing, and list interaction pat
 
 Each task row shows its name, followed by its owning Agent and schedule. The secondary line shares the available width according to content instead of forcing equal halves. Long text stays on one line with an ellipsis; hovering exposes the full value. The task and its three-dot control share one hover and selection background. Actions appear on hover or keyboard focus and remain visible on touch devices.
 
-The right-side header contains the task name, execution summary, run selector, and applicable history actions. It replaces the Agent, model, and workspace controls on this page only. Message sender information and the conversation composer remain unchanged. Selecting a task or collapsing a group does not start an execution.
+The right-side header contains the task name, execution summary, run selector, and applicable history actions. It replaces the Agent, model, and workspace controls on this page only. Conversations that can continue use the standard Agent composer. Selecting a task or collapsing a group does not start an execution.
 
 Task conversations stay out of desktop ordinary Agent topic lists and recent-topic restoration. Remote session discovery includes them so existing mobile clients can open scheduled results. The internal session-list query requires an explicit `ordinary` or `all-conversations` scope. After deleting a task, restoring one of its conversations from the Recycle Bin returns it to its owning Agent as an ordinary topic. Restoring a conversation does not recreate the task or change its historical run records.
 
@@ -44,7 +44,7 @@ Task conversations stay out of desktop ordinary Agent topic lists and recent-top
 - A new execution offers an explicit switch; it does not replace the conversation being read or edited. Switching tasks invalidates the previous lookup.
 - Conversation messages, tools, approvals, and busy-state protection use the existing Agent chat runtime. Leaving the page does not stop scheduling.
 
-A task that reuses a session reads the General Settings compression threshold when it runs. Native compaction keeps the same session. If a reused run ends with a context-limit error or the local Agent cannot restore the conversation, the next fire can start fresh. Earlier run records still open their original sessions. A scheduled Claude tool permission denial or ACP output limit is recorded as a failed run, with any reply preserved in the conversation. A run that cannot start because its reused session is busy is shown as skipped.
+A task that reuses a session reads the General Settings compression threshold when it runs. Native compaction keeps the same session. If a reused run ends with a context-limit error or the local Agent cannot restore the conversation, the next fire can start fresh. Earlier run records still open their original sessions. A scheduled Claude tool permission denial or ACP output limit is recorded as a failed run, with any reply preserved in the conversation. A run that cannot start because its reused session is busy is shown as skipped. If this was a manual catch-up for a missed task, Run now remains available.
 
 ## Read and command boundaries
 

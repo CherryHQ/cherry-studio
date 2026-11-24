@@ -95,6 +95,7 @@ import { AsyncEventQueue } from '@shared/utils/async'
 
 import { prepareAgentConfigApproval } from '../agents/agentConfigTool'
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
+import { LocalAgentSessionRestoreError } from '../runtime/localAgent/LocalAgentSessionRestoreError'
 import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
@@ -1728,7 +1729,17 @@ export class AgentSessionRuntimeService extends BaseService {
    * WebContents) cannot be tracked as a holder — it still primes, and the idle TTL reaps the
    * connection if nothing else holds it.
    */
-  acquireWarmLease(sessionId: string, sender: Electron.WebContents | undefined): void {
+  acquireWarmLease(sessionId: string, sender: Electron.WebContents | undefined): void
+  acquireWarmLease(
+    sessionId: string,
+    sender: Electron.WebContents | undefined,
+    checkLocalRestore: true
+  ): Promise<boolean>
+  acquireWarmLease(
+    sessionId: string,
+    sender: Electron.WebContents | undefined,
+    checkLocalRestore?: true
+  ): Promise<boolean> | undefined {
     const pendingTeardown = this.pendingWarmTeardowns.get(sessionId)
     if (pendingTeardown) {
       clearTimeout(pendingTeardown)
@@ -1743,11 +1754,17 @@ export class AgentSessionRuntimeService extends BaseService {
       holders.add(sender)
       this.trackWarmLeaseSender(sessionId, sender)
     }
+    if (checkLocalRestore) {
+      return this.primeConnection(sessionId, { rethrow: true })
+        .then((connected) => connected && this.getLocalSessionInfo(sessionId)?.resume === false)
+        .catch((error) => error instanceof LocalAgentSessionRestoreError)
+    }
     // A canceled pending teardown means the backend is still warm and its catalog cache intact —
     // skip the redundant re-prime.
     if (!pendingTeardown) {
       void this.primeConnection(sessionId)
     }
+    return undefined
   }
 
   /**

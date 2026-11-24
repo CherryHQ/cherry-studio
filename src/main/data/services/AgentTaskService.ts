@@ -223,7 +223,8 @@ export class AgentTaskService {
     }
   }
 
-  completeMissedRunTx(tx: DbOrTx, taskId: string, jobId: string, finishedAt: number): boolean {
+  completeMissedRunTx(tx: DbOrTx, taskId: string, jobId: string, finishedAt: number, output: unknown): boolean {
+    if (isPlainRecord(output) && output.kind === 'skipped') return false
     const schedule = jobScheduleService.getByIdTx(tx, taskId)
     if (
       !schedule ||
@@ -269,7 +270,12 @@ export class AgentTaskService {
       missedJobs.length === 0
         ? []
         : tx
-            .select({ id: jobTable.id, status: jobTable.status, finishedAt: jobTable.finishedAt })
+            .select({
+              id: jobTable.id,
+              status: jobTable.status,
+              finishedAt: jobTable.finishedAt,
+              output: jobTable.output
+            })
             .from(jobTable)
             .where(inArray(jobTable.id, missedJobs))
             .all()
@@ -313,7 +319,7 @@ export class AgentTaskService {
       if (
         job?.status === 'completed' &&
         job.finishedAt !== null &&
-        this.completeMissedRunTx(tx, schedule.id, job.id, job.finishedAt)
+        this.completeMissedRunTx(tx, schedule.id, job.id, job.finishedAt, job.output)
       ) {
         changedIds.push(schedule.id)
       }

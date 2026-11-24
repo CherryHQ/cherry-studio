@@ -412,10 +412,11 @@ describe('local protocol processes', () => {
     ])
   })
 
-  it('embeds binary documents and empty text without corrupting their bytes', async () => {
+  it('embeds binary documents and GBK text without corrupting their bytes, and keeps empty text', async () => {
     const { connection } = create('acp', 'embedded-files')
     await connection.start(cwd)
     const bytes = Buffer.from([0, 255, 128, 37, 80, 68, 70])
+    const gbk = Buffer.from('c4e3bac3', 'hex').toString('base64')
     await connection.send({
       message: {
         data: {
@@ -426,7 +427,8 @@ describe('local protocol processes', () => {
               url: `data:application/pdf;base64,${bytes.toString('base64')}`,
               filename: 'report.pdf'
             },
-            { type: 'file', mediaType: 'text/plain', url: 'data:text/plain;base64,', filename: 'empty.txt' }
+            { type: 'file', mediaType: 'text/plain', url: 'data:text/plain;base64,', filename: 'empty.txt' },
+            { type: 'file', mediaType: 'text/plain', url: `data:text/plain;base64,${gbk}`, filename: 'gbk.txt' }
           ]
         }
       }
@@ -437,7 +439,8 @@ describe('local protocol processes', () => {
         type: 'resource',
         resource: { uri: 'urn:cherry:attachment:0', mimeType: 'application/pdf', blob: bytes.toString('base64') }
       },
-      { type: 'resource', resource: { uri: 'urn:cherry:attachment:1', mimeType: 'text/plain', text: '' } }
+      { type: 'resource', resource: { uri: 'urn:cherry:attachment:1', mimeType: 'text/plain', text: '' } },
+      { type: 'resource', resource: { uri: 'urn:cherry:attachment:2', mimeType: 'text/plain', blob: gbk } }
     ])
   })
 

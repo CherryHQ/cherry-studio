@@ -128,8 +128,8 @@ own executable names, arguments and package sources.
   the confirmed installation and ownership of each component, verifies removal
   and reports partial failures. Shared runtimes, credentials, settings and
   conversations are preserved. Source-installed Hermes uses its native updater
-  and data-preserving uninstaller. Installations with unverified ownership require
-  the original installer or manual cleanup.
+  and data-preserving uninstaller. Installations with unverified ownership leave
+  running sessions and WebUIs open and require the original installer or manual cleanup.
 
 Passive discovery never starts the CLI. Check/enable performs a bounded handshake
 without prompting the model or starting login. `protocolInfo` records handshake,
@@ -210,7 +210,8 @@ reconnecting, with edits and attachment capability gated on live session data.
   after the process exits. Completed writes can appear under **File changes** and
   explicit artifacts under **Outputs**.
 - ACP sends images only when the Agent advertises image input. File attachments
-  use encoded resource links or embedded text/blob content when advertised.
+  use encoded resource links or embedded content when advertised. Embedded
+  non-UTF-8 text files are sent as blobs with their original bytes.
   Missing files fail before prompting. The CLI still governs native file access.
 
 ### Failure, cancellation and usage

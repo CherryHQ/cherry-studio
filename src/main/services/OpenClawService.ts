@@ -1,4 +1,4 @@
-import { type ChildProcess, execFileSync } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
@@ -1026,29 +1026,16 @@ export class OpenClawService extends BaseService {
       const runtime = await this.resolveOpenClawRuntime()
       await this.ensureFormalConfigValid(runtime)
 
-      // Check if the port is already in use
       const isPortOpen = await this.checkPortOpen(this.gatewayPort)
       if (isPortOpen) {
-        // Check if this is our gateway already running on this port
         const { status } = await this.checkGatewayHealth()
         if (status === 'healthy') {
-          // Stop the stale gateway (e.g. respawned orphan from a previous session)
-          logger.info('Detected stale gateway on port, stopping before restart...')
-          await this.stopGateway()
-
-          // Verify port is now free
-          const stillOpen = await this.checkPortOpen(this.gatewayPort)
-          if (stillOpen) {
-            return {
-              success: false,
-              message: `Port ${this.gatewayPort} is still in use after stopping the old gateway.`
-            }
-          }
-        } else {
-          return {
-            success: false,
-            message: `Port ${this.gatewayPort} is already in use by another application. Please choose a different port.`
-          }
+          this.setGatewayStatus('running')
+          return { success: true }
+        }
+        return {
+          success: false,
+          message: `Port ${this.gatewayPort} is already in use by another application. Please choose a different port.`
         }
       }
 
@@ -1069,12 +1056,12 @@ export class OpenClawService extends BaseService {
   }
 
   /**
-   * Start gateway via `openclaw gateway run --force` and wait for it to become ready.
+   * Start gateway via `openclaw gateway run` and wait for it to become ready.
    * Spawns the gateway as a detached process so its lifecycle is independent.
    * Uses process termination to stop it later.
    */
   private async startAndWaitForGateway(openclawPath: string, shellEnv: Record<string, string>): Promise<void> {
-    const args = ['gateway', 'run', '--force']
+    const args = ['gateway', 'run']
 
     logger.info(`Starting gateway: ${openclawPath} ${args.join(' ')}`)
 
@@ -1100,6 +1087,7 @@ export class OpenClawService extends BaseService {
       windowsHide: true
     })
     this.gatewayProcess = { child: proc, port: this.gatewayPort }
+    application.get('CacheService').setShared('feature.openclaw.gateway_owned', true)
     proc.unref()
 
     // Collect early exit errors (e.g. binary crash on startup)
@@ -1116,7 +1104,10 @@ export class OpenClawService extends BaseService {
       earlyExitError = err.message
     })
     proc.on('exit', (code) => {
-      if (this.gatewayProcess?.child === proc) this.gatewayProcess = undefined
+      if (this.gatewayProcess?.child === proc) {
+        this.gatewayProcess = undefined
+        application.get('CacheService').setShared('feature.openclaw.gateway_owned', false)
+      }
       // Capture output from both streams for diagnostics
       const combinedOutput = [stderrOutput.trim(), stdoutOutput.trim()].filter(Boolean).join('\n')
       const detail = combinedOutput.split('\n').filter(Boolean).slice(0, 5).join('\n')
@@ -1167,18 +1158,17 @@ export class OpenClawService extends BaseService {
     throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
   }
 
-  /**
-   * Stop the OpenClaw Gateway.
-   * Stops verified OpenClaw listeners on the configured gateway port.
-   */
-  public async stopGateway(): Promise<OperationResult> {
+  /** Stop a Cherry-owned gateway. Uninstall also requires the port to be free. */
+  public async stopGateway({ requirePortFree = false } = {}): Promise<OperationResult> {
     const transitionBefore = this.gatewayTransitionId
     try {
       const owned = this.gatewayProcess
       if (owned?.port === this.gatewayPort && owned.child.exitCode === null && owned.child.signalCode === null) {
         await terminateProcessTree(owned.child, true, 'OpenClaw gateway')
-      } else {
-        this.killGatewayProcesses()
+      } else if (await this.checkPortOpen(this.gatewayPort)) {
+        return requirePortFree
+          ? { success: false, message: 'Gateway is running outside Cherry Studio' }
+          : { success: true }
       }
 
       const stillRunning = await this.waitForGatewayStop()
@@ -1197,73 +1187,6 @@ export class OpenClawService extends BaseService {
       logger.error('Failed to stop gateway:', error as Error)
       this.setGatewayStatus('error')
       return { success: false, message: errorMessage }
-    }
-  }
-
-  private killGatewayProcesses(): void {
-    try {
-      const output = isWin
-        ? execFileSync('netstat', ['-ano'], { encoding: 'utf8', windowsHide: true })
-        : execFileSync('lsof', ['-t', `-iTCP:${this.gatewayPort}`, '-sTCP:LISTEN'], { encoding: 'utf8' })
-      const candidates = isWin
-        ? output.split(/\r?\n/).flatMap((line) => {
-            const [protocol, local, , state, pid] = line.trim().split(/\s+/)
-            return protocol === 'TCP' && local.endsWith(`:${this.gatewayPort}`) && state === 'LISTENING' ? [pid] : []
-          })
-        : output.trim().split(/\s+/)
-      const pids = new Set(candidates.filter((value) => /^\d+$/.test(value)).map(Number))
-      for (const pid of pids) {
-        if (pid <= 0 || pid === process.pid) continue
-        if (!this.isOpenClawGatewayProcess(pid)) {
-          logger.debug('Preserving an unverified gateway-port listener', { pid, port: this.gatewayPort })
-          continue
-        }
-        try {
-          if (isWin) execFileSync('taskkill', ['/PID', String(pid), '/F'], { stdio: 'ignore', windowsHide: true })
-          else process.kill(pid, 'SIGKILL')
-          logger.info('Stopped gateway listener', { pid, port: this.gatewayPort })
-        } catch (error) {
-          logger.debug('Gateway listener already exited or could not be stopped', { pid, error })
-        }
-      }
-    } catch {
-      logger.debug('No gateway listeners found on the configured port', { port: this.gatewayPort })
-    }
-  }
-
-  private isOpenClawGatewayProcess(pid: number): boolean {
-    try {
-      const command = (
-        isWin
-          ? execFileSync(
-              'powershell.exe',
-              [
-                '-NoProfile',
-                '-NonInteractive',
-                '-Command',
-                `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").CommandLine`
-              ],
-              { encoding: 'utf8', windowsHide: true, timeout: 2000 }
-            )
-          : execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8', timeout: 2000 })
-      ).trim()
-      // OpenClaw sets this title after entering its gateway command on POSIX.
-      if (!isWin && command === 'openclaw-gateway') return true
-      const args = (command.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map((arg) =>
-        arg.replace(/^["']|["']$/g, '').replaceAll('\\', '/')
-      )
-      const executable = path.posix
-        .basename(args[0] ?? '')
-        .toLowerCase()
-        .replace(/\.exe$/, '')
-      if (executable === 'openclaw') return args[1] === 'gateway'
-      return (
-        (executable === 'node' || executable === 'bun') &&
-        /\/openclaw\/(?:openclaw\.mjs|dist\/(?:index|entry)\.js)$/.test(args[1] ?? '') &&
-        args[2] === 'gateway'
-      )
-    } catch {
-      return false
     }
   }
 

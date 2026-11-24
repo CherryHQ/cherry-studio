@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
+import { Button, Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
@@ -149,6 +149,7 @@ interface AgentChatProps {
   paneManualToggle?: PaneManualToggleSignal
   missingAgentSelection?: boolean
   onCreateEmptySession?: (defaults?: CreateAgentSessionDefaults) => void | Promise<unknown>
+  onStartNewTaskConversation?: (agentId: string) => void
   onMissingAgentSelectionAgentChange?: (agentId: string | null) => void | Promise<void>
   onSessionWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   onVisibleAgentChange?: (agentId: string) => void
@@ -217,6 +218,7 @@ const AgentChat = ({
   paneManualToggle,
   missingAgentSelection = false,
   onCreateEmptySession,
+  onStartNewTaskConversation,
   onMissingAgentSelectionAgentChange,
   onSessionWorkspaceChange,
   onVisibleAgentChange,
@@ -556,6 +558,7 @@ const AgentChat = ({
         agentChanging={sessionAgentChanging}
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onCreateEmptySession={sessionAgentId && onCreateEmptySession ? handleCreateEmptySession : undefined}
+        onStartNewTaskConversation={onStartNewTaskConversation}
         composerLaunchOptions={composerLaunchOptions}
         openDiagnosticReport={canReviewDiagnosticReport ? openDiagnosticReport : undefined}
       />
@@ -660,6 +663,7 @@ interface AgentChatSessionCenterProps {
   agentChanging?: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onCreateEmptySession?: () => void | Promise<unknown>
+  onStartNewTaskConversation?: (agentId: string) => void
   composerLaunchOptions?: AgentComposerLaunchOptions
   openDiagnosticReport?: (description?: string) => void
 }
@@ -680,35 +684,63 @@ const AgentChatSessionCenter = ({
   agentChanging,
   onOpenCitationsPanel,
   onCreateEmptySession,
+  onStartNewTaskConversation,
   composerLaunchOptions,
   openDiagnosticReport
 }: AgentChatSessionCenterProps) => {
+  const { t } = useTranslation()
+  const [localRestoreUnavailable, setLocalRestoreUnavailable] = useState<boolean>()
+  const checkLocalRestore =
+    !!onStartNewTaskConversation &&
+    activeAgent?.type === 'local' &&
+    activeAgent.configuration?.localRuntime?.protocol === 'acp'
+  const historyOnly = checkLocalRestore && localRestoreUnavailable === true
+  const checkingRestore = checkLocalRestore && localRestoreUnavailable === undefined
   const composer = (
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}
-      <AgentComposerSlot
-        editBusy={runtime.editBusy}
-        agentId={agentId}
-        activeAgent={activeAgent}
-        activeModel={activeModel}
-        workspaceWarning={workspaceWarning}
-        isMultiSelectMode={isMultiSelectMode}
-        session={session}
-        sessionId={runtime.sessionId}
-        sendMessage={runtime.sendMessage}
-        stop={runtime.stop}
-        isStreaming={runtime.isPending}
-        messages={runtime.uiMessages}
-        sendDisabled={composerPending}
-        onAgentChange={onAgentChange}
-        agentChanging={agentChanging}
-        onCreateEmptySession={onCreateEmptySession}
-        composerContext={runtime.composerContext}
-        composerLaunchOptions={composerLaunchOptions}
-        editing={runtime.editing}
-        cancelEditing={runtime.cancelEditing}
-        resendEditedMessage={runtime.resendEditedMessage}
-      />
+      {checkingRestore ? (
+        <p className="px-4 py-3 text-center text-sm text-muted-foreground" role="status">
+          {t('common.loading')}
+        </p>
+      ) : historyOnly ? (
+        <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+          <p>{t('local_agents.no_resume')}</p>
+          {agentId && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="pointer-events-auto"
+              onClick={() => onStartNewTaskConversation?.(agentId)}>
+              {t('chat.add.topic.title')}
+            </Button>
+          )}
+        </div>
+      ) : (
+        <AgentComposerSlot
+          editBusy={runtime.editBusy}
+          agentId={agentId}
+          activeAgent={activeAgent}
+          activeModel={activeModel}
+          workspaceWarning={workspaceWarning}
+          isMultiSelectMode={isMultiSelectMode}
+          session={session}
+          sessionId={runtime.sessionId}
+          sendMessage={runtime.sendMessage}
+          stop={runtime.stop}
+          isStreaming={runtime.isPending}
+          messages={runtime.uiMessages}
+          sendDisabled={composerPending}
+          onAgentChange={onAgentChange}
+          agentChanging={agentChanging}
+          onCreateEmptySession={onCreateEmptySession}
+          composerContext={runtime.composerContext}
+          composerLaunchOptions={composerLaunchOptions}
+          editing={runtime.editing}
+          cancelEditing={runtime.cancelEditing}
+          resendEditedMessage={runtime.resendEditedMessage}
+        />
+      )}
     </div>
   )
   const messageList = (
@@ -736,6 +768,8 @@ const AgentChatSessionCenter = ({
       startEditing={runtime.startEditing}
       editBusy={runtime.editBusy}
       respondToolApproval={runtime.respondToolApproval}
+      readOnly={checkingRestore || historyOnly}
+      onLocalRestoreChecked={checkLocalRestore ? setLocalRestoreUnavailable : undefined}
     />
   )
   const main = (

@@ -310,8 +310,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // turn must not reuse — a trace-less warm query — is refused by the driver itself.
   // The per-session connection is shared across windows, so the runtime service aggregates leases
   // by (session × sender WebContents) and tears down only once no window holds the session.
-  'ai.agent.session.prewarm': async ({ sessionId }, { senderId }) => {
-    application.get('AgentSessionRuntimeService').acquireWarmLease(sessionId, senderWebContents(senderId))
+  'ai.agent.session.prewarm': async ({ sessionId, checkLocalRestore }, { senderId }) => {
+    const runtime = application.get('AgentSessionRuntimeService')
+    const sender = senderWebContents(senderId)
+    if (checkLocalRestore) return runtime.acquireWarmLease(sessionId, sender, checkLocalRestore)
+    runtime.acquireWarmLease(sessionId, sender)
+    return undefined
   },
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))

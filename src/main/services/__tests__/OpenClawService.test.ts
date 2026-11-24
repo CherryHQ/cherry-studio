@@ -1378,7 +1378,7 @@ describe('OpenClawService gateway status state machine', () => {
       await expect(started).resolves.toEqual({ success: true })
       expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
         resolvePath('/usr/local/bin/openclaw'),
-        ['gateway', 'run', '--force'],
+        ['gateway', 'run'],
         expect.objectContaining({
           env: {
             PATH: [resolvePath('/usr/local/bin'), resolvePath('/usr/bin')].join(path.delimiter),
@@ -1409,7 +1409,7 @@ describe('OpenClawService gateway status state machine', () => {
       await expect(started).resolves.toEqual({ success: true })
       expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
         resolvePath('/mock/bin/openclaw'),
-        ['gateway', 'run', '--force'],
+        ['gateway', 'run'],
         expect.objectContaining({
           env: {
             PATH: [resolvePath('/mock/bin'), resolvePath('/usr/bin')].join(path.delimiter),
@@ -1445,7 +1445,7 @@ describe('OpenClawService gateway status state machine', () => {
       await expect(started).resolves.toBeUndefined()
       expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
         'C:\\Users\\V\\AppData\\Roaming\\npm\\openclaw.cmd',
-        ['gateway', 'run', '--force'],
+        ['gateway', 'run'],
         expect.objectContaining({
           detached: false,
           env: {
@@ -1500,12 +1500,11 @@ describe('OpenClawService gateway status state machine', () => {
       expect(shellEnv).toEqual(sourceSnapshot)
     })
 
-    it('stops stale gateway and restarts when port is in use by our gateway', async () => {
-      // First call: port occupied; after stop: port free
-      checkPortOpenSpy.mockResolvedValueOnce(true).mockResolvedValue(false)
-      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 }) // startGateway detects our gateway
+    it('reuses a healthy externally started gateway', async () => {
+      checkPortOpenSpy.mockResolvedValue(true)
+      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
       findBinarySpy.mockResolvedValue({ source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' })
-      startAndWaitSpy.mockResolvedValue(undefined)
+      startAndWaitSpy.mockRejectedValue(new Error('Cannot bind an occupied port'))
 
       const result = await service.startGateway()
 
@@ -1665,7 +1664,7 @@ describe('OpenClawService gateway status state machine', () => {
       const stopped = service.stopGateway()
       await vi.runAllTimersAsync()
 
-      await expect(stopped).resolves.toMatchObject({ success: state === 'active' })
+      await expect(stopped).resolves.toMatchObject({ success: true })
       expect([...listeners]).toEqual(
         state === 'active'
           ? [[12342, 18790]]
@@ -1687,12 +1686,16 @@ describe('OpenClawService gateway status state machine', () => {
       [true, 'C:\\tools\\bun.exe C:\\tools\\node_modules\\openclaw\\openclaw.mjs gateway run'],
       [true, 'C:\\tools\\openclaw.exe gateway run']
     ] as const)(
-      'stops only the verified gateway on its configured port (Windows: %s, %s)',
+      'keeps external gateways listening when stopping or preparing to uninstall (Windows: %s, %s)',
       async (windows, commandLine) => {
         const listeners = mockGatewayListeners(windows, commandLine)
 
         await expect(service.stopGateway()).resolves.toEqual({ success: true })
-        expect([...listeners]).toEqual([[12342, 18790]])
+        await expect(service.stopGateway({ requirePortFree: true })).resolves.toMatchObject({ success: false })
+        expect([...listeners]).toEqual([
+          [12341, 1879],
+          [12342, 18790]
+        ])
       }
     )
 
@@ -1713,7 +1716,7 @@ describe('OpenClawService gateway status state machine', () => {
           const result = service.stopGateway()
           await vi.runAllTimersAsync()
 
-          await expect(result).resolves.toMatchObject({ success: false })
+          await expect(result).resolves.toMatchObject({ success: true })
           expect([...listeners]).toEqual([
             [12341, 1879],
             [12342, 18790]
@@ -1823,6 +1826,10 @@ describe('OpenClawService gateway status state machine', () => {
     it('transitions to error when gateway fails to stop', async () => {
       vi.useFakeTimers()
       ;(service as any).gatewayStatus = 'running'
+      ;(service as any).gatewayProcess = {
+        port: (service as any).gatewayPort,
+        child: Object.assign(createSpawnChild(), { exitCode: null, signalCode: null })
+      }
       checkPortOpenSpy.mockResolvedValue(true)
 
       const resultPromise = service.stopGateway()

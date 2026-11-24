@@ -75,6 +75,7 @@ vi.mock('../runAgentTask', () => ({ runAgentTask: vi.fn(async () => ({})) }))
 
 import { AgentJobsService } from '../AgentJobsService'
 import { AgentLifecycleService } from '../AgentLifecycleService'
+import { runAgentTask } from '../runAgentTask'
 
 const AGENT_ID = 'agent-1'
 const OTHER_AGENT_ID = 'agent-2'
@@ -374,7 +375,7 @@ describe('AgentJobsService', () => {
     }
   })
 
-  it('keeps an overdue once missed until a deduplicated explicit run completes', async () => {
+  it('keeps an overdue one-shot eligible for a deduplicated retry after its first catch-up is skipped', async () => {
     vi.useFakeTimers()
     try {
       const task = service.createTask(AGENT_ID, { ...form, trigger: { kind: 'once', at: Date.now() + 60_000 } })
@@ -387,14 +388,23 @@ describe('AgentJobsService', () => {
       expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
 
       const hold = jobManager.pause('test manual admission')
+      vi.mocked(runAgentTask).mockResolvedValueOnce({ kind: 'skipped', result: 'Skipped (session busy)' })
       await Promise.all([service.runTask(AGENT_ID, task.id), service.runTask(AGENT_ID, task.id)])
       expect(jobService.list({ scheduleId: task.id })).toHaveLength(1)
       expect(agentTaskService.getTask(AGENT_ID, task.id)?.status).toBe('missed')
       hold.dispose()
+      await vi.waitFor(() =>
+        expect(agentTaskService.getTaskDetail(task.id)).toMatchObject({
+          status: 'missed',
+          runSummary: { status: 'skipped' }
+        })
+      )
+
+      expect(await service.runTask(AGENT_ID, task.id)).toBe(true)
       await vi.waitFor(() => expect(agentTaskService.getTask(AGENT_ID, task.id)?.status).toBe('completed'))
       expect(jobScheduleService.getById(task.id)?.metadata).not.toHaveProperty('missed')
       expect(await service.runTask(AGENT_ID, task.id)).toBe(false)
-      expect(jobService.list({ scheduleId: task.id })).toHaveLength(1)
+      expect(jobService.list({ scheduleId: task.id })).toHaveLength(2)
     } finally {
       clearScheduleDisposables()
       vi.useRealTimers()

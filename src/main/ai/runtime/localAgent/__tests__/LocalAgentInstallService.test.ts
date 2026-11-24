@@ -646,8 +646,16 @@ else process.exit(1);
     expect(await readFile(config, 'utf8')).toBe('model: existing-model')
   })
 
-  it('does not remove Hermes source installs or user data through the legacy package uninstaller', async () => {
+  it('preserves sessions, Dashboard and user data when a Hermes source install cannot be uninstalled', async () => {
     state.name = 'hermes'
+    const sessionId = createLocalSession('hermes-source', 'hermes')
+    state.openSessions = [sessionId]
+    let dashboardRunning = true
+    MockApplicationUtils.setService('HermesDashboardService', {
+      stop: async () => {
+        dashboardRunning = false
+      }
+    })
     const executable = path.join(state.root, 'hermes')
     const config = path.join(state.root, 'config.yaml')
     await writeFile(executable, 'source launcher')
@@ -658,23 +666,26 @@ else process.exit(1);
     })
     expect(await readFile(executable, 'utf8')).toBe('source launcher')
     expect(await readFile(config, 'utf8')).toBe('model: existing-model')
-    expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
+    expect(state.openSessions).toEqual([sessionId])
+    expect(dashboardRunning).toBe(true)
   })
 
-  it('preserves the OpenClaw installation when its Gateway cannot be safely stopped', async () => {
-    state.name = 'openclaw'
-    const executable = path.join(state.root, state.name)
-    await writeFile(executable, 'installed')
-    MockApplicationUtils.setService('OpenClawService', {
-      stopGateway: async () => ({ success: false, message: 'external Gateway' })
-    })
-    expect(await new LocalAgentInstallService().uninstall('openclaw', executable)).toEqual({
-      ok: false,
-      reason: 'busy'
-    })
-    expect(await readFile(executable, 'utf8')).toBe('installed')
-    expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
-  })
+  it.skipIf(process.platform === 'win32')(
+    'preserves the OpenClaw installation when its Gateway cannot be safely stopped',
+    async () => {
+      state.name = 'openclaw'
+      const executable = await npmEntry('openclaw', 'openclaw')
+      MockApplicationUtils.setService('OpenClawService', {
+        stopGateway: async () => ({ success: false, message: 'external Gateway' })
+      })
+      expect(await new LocalAgentInstallService().uninstall('openclaw', executable)).toEqual({
+        ok: false,
+        reason: 'busy'
+      })
+      expect(await readFile(executable, 'utf8')).toBe('installed')
+      expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
+    }
+  )
 
   it('refuses to remove a different installation than the one confirmed', async () => {
     await writeFile(path.join(state.root, 'kilo'), 'keep')
@@ -688,12 +699,13 @@ else process.exit(1);
   it('blocks removal during an active agent session', async () => {
     state.openSessions = [createLocalSession('busy-kilo', 'kilo')]
     state.busy = true
-    await writeFile(path.join(state.root, 'kilo'), 'keep')
-    expect(await new LocalAgentInstallService().uninstall('kilo', path.join(state.root, 'kilo'))).toEqual({
+    state.existing = path.join(state.root, 'managed-kilo')
+    await writeFile(state.existing, 'keep')
+    expect(await new LocalAgentInstallService().uninstall('kilo', state.existing)).toEqual({
       ok: false,
       reason: 'busy'
     })
-    expect(await readFile(path.join(state.root, 'kilo'), 'utf8')).toBe('keep')
+    expect(await readFile(state.existing, 'utf8')).toBe('keep')
     expect(state.openSessions).toHaveLength(1)
   })
 
