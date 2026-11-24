@@ -79,6 +79,7 @@ import {
   isUnifiedLocalPermissionMode
 } from '@renderer/utils/agent/localAgentLabels'
 import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
+import { anyFileExt, excludeFileExt, isSupportedExtension } from '@renderer/utils/file'
 import {
   getComposerShortcutLabel,
   resolveNewlineShortcut,
@@ -826,7 +827,9 @@ const AgentComposerInner = ({
   })
 
   const fileCapabilities = useComposerFileCapabilities(model)
+  const isAcpLocalAgent = agent?.type === 'local' && agent.configuration?.localRuntime?.protocol === 'acp'
   const canAddImageFile = agent?.type === 'local' ? localInfo?.images !== false : fileCapabilities.canAddImageFile
+  const canAddAudioFile = !isAcpLocalAgent || localInfo?.audio === true
   const supportedExts = useMemo(
     () =>
       agent?.type === 'local'
@@ -835,12 +838,14 @@ const AgentComposerInner = ({
             ...documentExts,
             ...archiveExts,
             ...videoExts,
-            ...(localInfo?.images !== false ? imageExts : []),
-            ...(localInfo?.audio ? audioExts : [])
+            ...(canAddImageFile ? imageExts : imageExts.map(excludeFileExt)),
+            ...(canAddAudioFile ? audioExts : audioExts.map(excludeFileExt)),
+            anyFileExt
           ]
         : fileCapabilities.supportedExts,
-    [agent?.type, localInfo?.images, localInfo?.audio, fileCapabilities.supportedExts]
+    [agent?.type, canAddAudioFile, canAddImageFile, fileCapabilities.supportedExts]
   )
+  const supportedExtsRef = useLatest(supportedExts)
 
   useEffect(() => {
     if (model?.supportsFastMode !== true) setFastMode(false)
@@ -1075,10 +1080,14 @@ const AgentComposerInner = ({
       const parsed = AbsoluteFilePathSchema.safeParse(data.path)
       if (!parsed.success || filesRef.current.some((file) => file.path === parsed.data)) return
       const attachment = { ...createAttachmentFromPath(parsed.data), ...(data.name && { origin_name: data.name }) }
+      if (supportedExtsRef.current.length > 0 && !isSupportedExtension(attachment.ext, supportedExtsRef.current)) {
+        toast.info(t('chat.input.file_not_supported'))
+        return
+      }
       actionsRef.current.insertToken(agentFileToComposerToken(attachment))
       setFiles((prev) => (prev.some((file) => file.path === attachment.path) ? prev : [...prev, attachment]))
     })
-  }, [actionsRef, filesRef, layerActive, sessionTopicId, setFiles])
+  }, [actionsRef, filesRef, layerActive, sessionTopicId, setFiles, supportedExtsRef, t])
 
   useEffect(() => {
     if (!launchOptions?.initialDraft) return
@@ -1787,6 +1796,7 @@ const AgentComposerInner = ({
     accessiblePaths,
     files,
     setFiles,
+    supportedExts,
     enabled: enableResourceMention,
     getAdditionalItems: getEntityReferenceItems
   })

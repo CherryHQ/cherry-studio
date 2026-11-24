@@ -97,8 +97,7 @@ describe('locked conversation workspace', () => {
     expect(window.api.ipcApi.request).not.toHaveBeenCalled()
   })
 
-  it('labels a local agent system workspace as no work directory while keeping the directory opener', async () => {
-    const user = userEvent.setup()
+  it('labels a local agent system workspace as no work directory without a user-folder opener', () => {
     renderControls({ id: 'system-workspace', type: 'system', name: 'Internal workspace', path: '/internal/system' }, {
       id: 'local-agent-1',
       name: 'Claude Code',
@@ -106,15 +105,11 @@ describe('locked conversation workspace', () => {
     } as NonNullable<AgentConversationControlsProps['agent']>)
 
     const noProject = screen.getByRole('button', { name: 'No work directory' })
-    expect(noProject.querySelector('svg.lucide-folder')).toBeInTheDocument()
-    await waitFor(() => expect(noProject).toBeEnabled())
-    await user.click(noProject)
-
-    expect(window.api.ipcApi.request).toHaveBeenCalledWith('external_app.target.open', {
-      targetPath: '/internal/system',
-      pathKind: 'directory',
-      targetId: 'file_manager'
-    })
+    expect(noProject).toBeDisabled()
+    expect(noProject.querySelector('svg.lucide-circle-slash')).toBeInTheDocument()
+    expect(noProject.querySelector('svg.lucide-folder')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('clear-workspace-button')).not.toBeInTheDocument()
+    expect(window.api.ipcApi.request).not.toHaveBeenCalled()
   })
 
   it('renders the local CLI’s artwork on the avatar that opens the conversation profile', async () => {

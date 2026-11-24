@@ -34,7 +34,6 @@ import PermissionRequestComposer, {
 import { DoctorPopup } from '@renderer/components/doctor'
 import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
-import { dataApiService } from '@renderer/data/DataApiService'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
@@ -345,14 +344,12 @@ const AgentChat = ({
       if (sessionAgentChanging || !sessionSnapshot || !nextAgentId || nextAgentId === sessionSnapshot.agentId) return
       setSessionAgentChanging(true)
       try {
-        const nextAgent = await dataApiService.get(`/agents/${nextAgentId}`)
         await updateSession({ id: sessionSnapshot.id, agentId: nextAgentId }, { showSuccessToast: false })
-        if (nextAgent.type === 'local' && isEmptyConversation) await onSessionWorkspaceChange?.(null)
       } finally {
         setSessionAgentChanging(false)
       }
     },
-    [isEmptyConversation, onSessionWorkspaceChange, sessionAgentChanging, sessionSnapshot, updateSession]
+    [sessionAgentChanging, sessionSnapshot, updateSession]
   )
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {

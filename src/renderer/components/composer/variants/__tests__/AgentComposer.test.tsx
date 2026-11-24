@@ -22,6 +22,7 @@ import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import { anyFileExt, excludeFileExt, isSupportedExtension } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -159,16 +160,23 @@ const createSerializedFolderToken = (folderPath: string): ComposerSerializedToke
 /** Fixture helper — these are shape-valid absolute paths, so the brand is safe to assert. */
 const ps = (...values: string[]) => values as AbsoluteFilePath[]
 
-const renderAgentResourceMentionSource = (accessiblePaths: readonly string[] = ['/workspace']) =>
-  renderHook(
-    ({ paths }) =>
+const renderAgentResourceMentionSource = (
+  accessiblePaths: readonly string[] = ['/workspace'],
+  supportedExts?: readonly string[]
+) =>
+  renderHook<
+    ReturnType<typeof useAgentResourceMentionSource>,
+    { paths: readonly AbsoluteFilePath[]; exts?: readonly string[] }
+  >(
+    ({ paths, exts }) =>
       useAgentResourceMentionSource({
         accessiblePaths: paths,
         files: mocks.files as unknown as ComposerAttachment[],
         setFiles: mocks.setFiles,
+        supportedExts: exts,
         enabled: true
       }),
-    { initialProps: { paths: accessiblePaths as readonly AbsoluteFilePath[] } }
+    { initialProps: { paths: accessiblePaths as readonly AbsoluteFilePath[], exts: supportedExts } }
   )
 
 const requireFirstResourceMentionSource = (
@@ -1809,6 +1817,67 @@ describe('AgentComposer', () => {
     expect(getControls().queryByRole('menuitemradio', { name: 'High' })).not.toBeInTheDocument()
   })
 
+  it('allows arbitrary workspace files for local agents while honoring ACP image/audio capability exclusions', async () => {
+    mocks.ipcApiRequest.mockImplementation(async (route) =>
+      route === 'ai.local_agents.session_info' ? { images: false, audio: false, supportsEmbeddedContext: false } : null
+    )
+
+    const { rerender } = render(
+      <AgentComposer
+        sessionId="session-acp-caps"
+        agentId="agent-acp"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          configuration: { localRuntime: { protocol: 'acp', presetId: 'pi-acp', enabled: true } } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => expect(mocks.derivedToolState?.couldAddImageFile).toBe(false))
+    const acpExts = mocks.surfaceProps?.supportedExts ?? []
+    expect(acpExts).toContain(anyFileExt)
+    expect(isSupportedExtension('.sqlite', acpExts)).toBe(true)
+    expect(isSupportedExtension('.png', acpExts)).toBe(false)
+    expect(isSupportedExtension('.mp3', acpExts)).toBe(false)
+
+    // File-pane attach respects ACP image exclusion instead of letting unsupported files reach send.
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, {
+        topicId: 'agent-session:session-acp-caps',
+        path: '/ws/photo.png',
+        kind: 'file'
+      })
+    })
+    expect(mocks.files).toEqual([])
+    expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+
+    // Native protocols (Claude/Codex) attach arbitrary files including audio by path.
+    rerender(
+      <AgentComposer
+        sessionId="session-claude-files"
+        agentId="agent-claude"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          configuration: { localRuntime: { protocol: 'claude', presetId: 'claude-code', enabled: true } } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const claudeExts = mocks.surfaceProps?.supportedExts ?? []
+    expect(claudeExts).toContain(anyFileExt)
+    expect(isSupportedExtension('.mp3', claudeExts)).toBe(true)
+    expect(isSupportedExtension('.sqlite', claudeExts)).toBe(true)
+  })
+
   it('uses the controlled session, agent, and model context', () => {
     const resolvedAgent = {
       id: 'agent-1',
@@ -3431,6 +3500,28 @@ describe('AgentComposer', () => {
 
     expect(chain.insertComposerToken).not.toHaveBeenCalled()
     expect(chain.insertContent).not.toHaveBeenCalled()
+  })
+
+  it('disables excluded extensions in @ resource mentions while keeping arbitrary wildcard files selectable', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([
+      { path: '/workspace/photo.png', isDirectory: false },
+      { path: '/workspace/data.sqlite', isDirectory: false }
+    ])
+    const { result } = renderAgentResourceMentionSource(['/workspace'], [anyFileExt, excludeFileExt('.png')])
+    const source = requireFirstResourceMentionSource(result.current)
+    const { editor, chain } = buildComposerEditorMock()
+
+    const items = await source.items({ query: '', editor })
+    const pngItem = items.find((item) => item.label === 'photo.png')
+    const sqliteItem = items.find((item) => item.label === 'data.sqlite')
+    expect(pngItem?.disabled).toBe(true)
+    expect(sqliteItem?.disabled).toBe(false)
+
+    pngItem?.command?.({ editor, range: { from: 0, to: 0 }, item: pngItem, query: '' })
+    expect(chain.insertComposerToken).not.toHaveBeenCalled()
+
+    sqliteItem?.command?.({ editor, range: { from: 0, to: 0 }, item: sqliteItem, query: '' })
+    expect(chain.insertComposerToken).toHaveBeenCalledTimes(1)
   })
 
   it('inserts the reference chip at once, blocks sending, then fills it when the transcript lands', async () => {

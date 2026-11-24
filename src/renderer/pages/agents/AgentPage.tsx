@@ -449,8 +449,6 @@ const AgentPage = () => {
       if (defaults.workspace) return defaults.workspace
       if (defaults.workspaceMode === 'system') return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
       if (defaults.workspaceId) return { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: defaults.workspaceId }
-      if (agents.some((agent) => agent.id === defaults.agentId && agent.type === 'local'))
-        return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
       if (fallbackSession && (!defaults.agentId || defaults.agentId === fallbackSession.agentId)) {
         return getWorkspaceSourceFromSession(fallbackSession)
       }
@@ -468,7 +466,7 @@ const AgentPage = () => {
         return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
       }
     },
-    [agents, lastUsedWorkspaceId, setLastUsedWorkspaceId]
+    [lastUsedWorkspaceId, setLastUsedWorkspaceId]
   )
 
   const activateSession = useCallback(

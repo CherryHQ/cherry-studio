@@ -258,7 +258,6 @@ function ModelControl({
 }
 
 function WorkspaceControl({
-  agent,
   workspace,
   workspaceId,
   workspaceChanging,
@@ -269,7 +268,6 @@ function WorkspaceControl({
   onWorkspaceChange
 }: Pick<
   AgentConversationControlsProps,
-  | 'agent'
   | 'workspace'
   | 'workspaceId'
   | 'workspaceChanging'
@@ -289,7 +287,7 @@ function WorkspaceControl({
     ? t('agent.session.workspace_selector.no_project')
     : (workspace?.name ?? selectWorkspaceLabel)
   const canQuickClearWorkspace = Boolean(onWorkspaceChange && workspace && !iconOnly)
-  if (!onWorkspaceChange && workspace?.path && (workspace.type === 'user' || agent?.type === 'local')) {
+  if (!onWorkspaceChange && workspace?.type === 'user' && workspace.path) {
     const openButtonContent = (
       <>
         {hasWarning ? (
