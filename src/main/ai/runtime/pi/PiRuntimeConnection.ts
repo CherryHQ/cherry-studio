@@ -881,7 +881,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private async reconcileOnce(
     input: Parameters<AgentRuntimeConnection['reconcile']>[0]
   ): Promise<AgentRuntimeReconcileResult> {
-    if ((input.channelContext ?? undefined) !== this.input.channelContext) return 'rebuild'
     let snapshot: PiConnectionSnapshot
     try {
       snapshot = await capturePiConnectionSnapshot(
@@ -905,6 +904,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.disabledTools = disabled
     if (
       this.failure ||
+      (input.channelContext ?? undefined) !== this.input.channelContext ||
       snapshot.signature !== this.connectionSignature ||
       (input.reasoningEffort ?? 'default') !== (this.input.reasoningEffort ?? 'default') ||
       (input.serviceTier ?? 'standard') !== (this.input.serviceTier ?? 'standard') ||
