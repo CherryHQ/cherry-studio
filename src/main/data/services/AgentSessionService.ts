@@ -390,6 +390,7 @@ export class AgentSessionService {
       description: dto.description,
       model: dto.model,
       taskId,
+      isTaskOwned: taskId !== null,
       workspaceId,
       createdAt,
       updatedAt: createdAt
@@ -467,7 +468,7 @@ export class AgentSessionService {
       .getDb()
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
-      .where(eq(sessionsTable.taskId, taskScheduleId))
+      .where(and(eq(sessionsTable.taskId, taskScheduleId), eq(sessionsTable.isTaskOwned, true)))
       .all()
       .map((row) => row.id)
   }
@@ -649,7 +650,11 @@ export class AgentSessionService {
       tx
         .update(sessionsTable)
         // Explicit self-assignment suppresses updatedAt's table-level $onUpdateFn.
-        .set({ isTaskReuseTarget: false, updatedAt: sql`${sessionsTable.updatedAt}` })
+        .set({
+          isTaskReuseTarget: false,
+          taskId: sql`CASE WHEN ${sessionsTable.isTaskOwned} THEN ${sessionsTable.taskId} ELSE NULL END`,
+          updatedAt: sql`${sessionsTable.updatedAt}`
+        })
         .where(where)
         .run().changes > 0
     )
@@ -1387,7 +1392,7 @@ export class AgentSessionService {
 
     const [row] = db
       .update(sessionsTable)
-      .set({ deletedAt: null, taskId: null, isTaskReuseTarget: false })
+      .set({ deletedAt: null, taskId: null, isTaskOwned: false, isTaskReuseTarget: false })
       .where(
         and(or(eq(sessionsTable.id, id), eq(sessionsTable.ownerSessionId, id)), isNotNull(sessionsTable.deletedAt))
       )

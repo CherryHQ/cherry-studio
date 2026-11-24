@@ -7,7 +7,7 @@
  */
 
 import '@data/services/AgentSessionMessageService'
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
@@ -17,6 +17,7 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
@@ -629,11 +630,15 @@ describe('AgentJobsService', () => {
   describe('session reuse', () => {
     /** Simulate a fire having bound its sticky session, plus an unrelated metadata key. */
     function bindSession(taskId: string): string {
-      const session = agentSessionService.create({
-        agentId: AGENT_ID,
-        name: 'Scheduled task',
-        workspace: { type: 'system' }
-      })
+      const session = agentSessionService.create(
+        {
+          agentId: AGENT_ID,
+          name: 'Scheduled task',
+          workspace: { type: 'system' }
+        },
+        'conversation',
+        taskId
+      )
       dbh.db.transaction((tx) =>
         agentSessionService.bindTaskScheduleTx(tx, {
           sessionId: session.id,
@@ -745,11 +750,15 @@ describe('AgentJobsService', () => {
         metadata: { reuse: { enabled: true, revision: 0 }, unrelated: 'keep-me' }
       })
 
-      const session = agentSessionService.create({
-        agentId: AGENT_ID,
-        name: 'Scheduled task',
-        workspace: { type: 'system' }
-      })
+      const session = agentSessionService.create(
+        {
+          agentId: AGENT_ID,
+          name: 'Scheduled task',
+          workspace: { type: 'system' }
+        },
+        'conversation',
+        task.id
+      )
       notifyDataApiDataChangeMock.mockClear()
       runtime.isSessionBusyForArchive.mockReturnValue(false)
       runtime.closeSessionForArchive.mockResolvedValue(undefined)
@@ -896,6 +905,71 @@ describe('AgentJobsService', () => {
         const updated = service.updateTask(AGENT_ID, task.id, { reuseSessionId: null })
 
         expect(updated?.reuseSessionId).toBeNull()
+        expect(readReuse(task.id)).toEqual({ enabled: true, revision: 1 })
+      })
+
+      it('returns a cleared picked conversation outside task deletion ownership', async () => {
+        const sessionId = createOrdinarySession('borrowed')
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+        service.updateTask(AGENT_ID, task.id, { reuseSessionId: null })
+
+        expect(agentSessionService.listTaskSessionIds(task.id)).not.toContain(sessionId)
+        expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((session) => session.id)).toContain(
+          sessionId
+        )
+        await lifecycle.deleteTaskWithSessions(task.id)
+        expect(agentSessionService.getById(sessionId)?.id).toBe(sessionId)
+      })
+
+      it('preserves a selected pre-existing conversation and its history when the task is deleted', async () => {
+        const sessionId = createOrdinarySession('history')
+        dbh.db
+          .insert(agentSessionMessageTable)
+          .values({
+            id: 'pre-existing-message',
+            sessionId,
+            parentId: seedSessionRoot(dbh.db, sessionId),
+            role: 'user',
+            data: { parts: [{ type: 'text', text: 'keep my history' }] },
+            status: 'success'
+          })
+          .run()
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+
+        await lifecycle.deleteTaskWithSessions(task.id)
+        expect(agentSessionService.getById(sessionId)?.id).toBe(sessionId)
+        expect(
+          dbh.db
+            .select()
+            .from(agentSessionMessageTable)
+            .where(eq(agentSessionMessageTable.id, 'pre-existing-message'))
+            .get()?.data
+        ).toMatchObject({ parts: [{ type: 'text', text: 'keep my history' }] })
+        expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((session) => session.id)).toContain(
+          sessionId
+        )
+      })
+
+      it('keeps an explicit binding when only the future-run workspace changes', () => {
+        const sessionId = createOrdinarySession('stable workspace')
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+        const updated = service.updateTask(AGENT_ID, task.id, { workspace: { type: 'user', workspaceId: 'ws-next' } })
+
+        expect(updated).toMatchObject({
+          reuseSessionId: sessionId,
+          workspace: { type: 'user', workspaceId: 'ws-next' }
+        })
+        expect(readReuse(task.id)).toMatchObject({ boundKind: 'explicit', revision: 0 })
+      })
+
+      it('recovers a lost binding with an explicit reset to first-fire automatic selection', () => {
+        const sessionId = createOrdinarySession('lost')
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+        dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, [sessionId], { requireAll: true }))
+        expect(agentTaskService.getTask(AGENT_ID, task.id)?.reuseBindingLost).toBe(true)
+
+        const updated = service.updateTask(AGENT_ID, task.id, { reuseSessionId: null })
+        expect(updated).toMatchObject({ reuseSessionId: null, reuseBindingLost: false })
         expect(readReuse(task.id)).toEqual({ enabled: true, revision: 1 })
       })
 
@@ -1126,7 +1200,7 @@ describe('AgentJobsService', () => {
           'conversation',
           scheduleId
         )
-      const sticky = create('sticky')
+      const sticky = create('sticky', task.id)
       const fresh = create('fresh', task.id)
       const legacy = create('legacy', task.id)
       const ordinary = create('ordinary')
@@ -1825,11 +1899,15 @@ describe('AgentJobsService', () => {
 
     it('detaches a sticky task session trashed with its Agent', async () => {
       const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
-      const session = agentSessionService.create({
-        agentId: AGENT_ID,
-        name: 'Scheduled task',
-        workspace: { type: 'system' }
-      })
+      const session = agentSessionService.create(
+        {
+          agentId: AGENT_ID,
+          name: 'Scheduled task',
+          workspace: { type: 'system' }
+        },
+        'conversation',
+        task.id
+      )
       expect(
         service.bindTaskSessionReuse({
           scheduleId: task.id,
@@ -1918,11 +1996,15 @@ describe('AgentJobsService', () => {
       const enabledTask = service.createTask(AGENT_ID, { ...form, reuseSession: true })
       const pausedTask = service.createTask(AGENT_ID, { ...form, name: 'paused-task' })
       await service.pauseTask(AGENT_ID, pausedTask.id)
-      const session = agentSessionService.create({
-        agentId: AGENT_ID,
-        name: 'Scheduled task',
-        workspace: { type: 'system' }
-      })
+      const session = agentSessionService.create(
+        {
+          agentId: AGENT_ID,
+          name: 'Scheduled task',
+          workspace: { type: 'system' }
+        },
+        'conversation',
+        enabledTask.id
+      )
       dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
 
       expect(service.updateTask(AGENT_ID, enabledTask.id, { name: 'must-not-update' })).toBeNull()

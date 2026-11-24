@@ -331,13 +331,15 @@ export class AgentJobsService extends BaseService {
     // Picker rebind: a changed selection re-points the binding; the unchanged
     // selection is never sent, so editing other fields leaves the binding as is.
     const pickerSessionId = nextReuseEnabled ? patch.reuseSessionId : undefined
-    const reuseSessionIdChanged = pickerSessionId !== undefined && pickerSessionId !== existing.reuseSessionId
-    // A bound session keeps its OWN workspace, so re-pointing the task at a
-    // different workspace would otherwise be silently ignored while the form
-    // still displays the new one. Drop the pointer instead: the next fire
-    // creates a session in the workspace the user actually picked.
+    const reuseSessionIdChanged =
+      pickerSessionId !== undefined &&
+      (pickerSessionId !== existing.reuseSessionId || (pickerSessionId === null && existing.reuseBindingLost))
+    // Explicit picks retain their own workspace; the task workspace applies to future sessions.
     const workspaceChanged =
-      nextReuseEnabled && patch.workspace !== undefined && !workspacesEqual(patch.workspace, existing.workspace)
+      nextReuseEnabled &&
+      readTaskSessionReuse(jobScheduleService.getById(taskId)?.metadata).boundKind !== 'explicit' &&
+      patch.workspace !== undefined &&
+      !workspacesEqual(patch.workspace, existing.workspace)
     const reuseConfigChanged = reuseChanged || workspaceChanged || reuseSessionIdChanged
 
     const jobManager = application.get('JobManager')

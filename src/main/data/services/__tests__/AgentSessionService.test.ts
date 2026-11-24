@@ -1251,7 +1251,11 @@ describe('AgentSessionService', () => {
 
   it('retains every owned session when the reuse target changes', async () => {
     const task = createTaskSchedule()
-    const first = await createSession('First task run')
+    const first = agentSessionService.create(
+      { agentId: 'agent-session-test', name: 'First task run', workspace: { type: 'system' } },
+      'conversation',
+      task.id
+    )
     const second = agentSessionService.create(
       { agentId: 'agent-session-test', name: 'Second task run', workspace: { type: 'system' } },
       'conversation',
@@ -1307,7 +1311,7 @@ describe('AgentSessionService', () => {
       dbh.db.update(agentSessionTable).set({ isTaskReuseTarget: true }).where(eq(agentSessionTable.id, second.id)).run()
     ).toThrow()
     expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(first.id)
-    expect(agentSessionService.listTaskSessionIds(task.id)).toEqual([first.id])
+    expect(agentSessionService.listTaskSessionIds(task.id)).toEqual([])
   })
 
   it('clears the task relation atomically when a session is reassigned', async () => {
@@ -1953,6 +1957,7 @@ describe('AgentSessionService', () => {
                 name: id,
                 workspaceId: workspace.id,
                 taskId: task.id,
+                isTaskOwned: true,
                 orderKey: `a${String(i + offset).padStart(6, '0')}`
               }))
             )
@@ -2265,17 +2270,22 @@ describe('task session ownership migration', () => {
       owner_session_id: 'sticky'
     })
     expect(dbh.sqlite.prepare('SELECT task_id, is_task_reuse_target FROM agent_session ORDER BY id').all()).toEqual([
-      { task_id: 'task', is_task_reuse_target: 0 },
       { task_id: null, is_task_reuse_target: 0 },
-      { task_id: 'task', is_task_reuse_target: 0 },
+      { task_id: null, is_task_reuse_target: 0 },
+      { task_id: null, is_task_reuse_target: 0 },
       { task_id: 'task', is_task_reuse_target: 1 }
     ])
     expect(
       dbh.sqlite.prepare('SELECT DISTINCT created_at, updated_at, last_activity_at FROM agent_session').all()
     ).toEqual([{ created_at: 1, updated_at: 1, last_activity_at: 1 }])
     dbh.db.delete(jobTable).run()
-    expect(agentSessionService.listTaskSessionIds('task').sort()).toEqual(['metadata', 'output', 'sticky'])
-    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((s) => s.id)).toEqual(['ordinary'])
+    expect(agentSessionService.listTaskSessionIds('task')).toEqual([])
+    expect(
+      agentSessionService
+        .listByCursor({ scope: 'ordinary' })
+        .items.map((s) => s.id)
+        .sort()
+    ).toEqual(['metadata', 'ordinary', 'output'])
     expect(agentSessionService.getByTaskScheduleId('task')?.id).toBe('sticky')
     dbh.db.transaction((tx) => agentTaskService.deleteScheduleTx(tx, 'task'))
     expect(agentSessionService.listTaskSessionIds('task')).toEqual([])
