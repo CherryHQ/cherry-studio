@@ -1,7 +1,8 @@
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), apply: vi.fn(), list: vi.fn() }))
+const mocks = vi.hoisted(() => ({ get: vi.fn(), apply: vi.fn(), list: vi.fn(), provider: vi.fn() }))
+vi.mock('@data/services/ProviderService', () => ({ providerService: { getByProviderId: mocks.provider } }))
 vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: mocks.get, applyProviderMetadata: mocks.apply }
 }))
@@ -10,6 +11,12 @@ import { refreshCustomModelMetadata, resetCustomModelMetadata } from '../modelMe
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.get.mockReturnValue({ endpointTypes: ['openai-chat-completions'] })
+  mocks.provider.mockReturnValue({
+    id: 'provider',
+    defaultChatEndpoint: 'openai-chat-completions',
+    endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://chat.example/v1' } }
+  })
   MockApplicationUtils.setService('AiService', { listModels: mocks.list })
 })
 afterEach(() => MockApplicationUtils.resetServices())
@@ -26,6 +33,13 @@ describe('explicit custom model metadata actions', () => {
     expect(mocks.get).toHaveBeenCalledWith('provider', 'wanted')
     expect(mocks.list).toHaveBeenCalledWith({ providerId: 'provider', throwOnError: true })
     expect(mocks.apply).toHaveBeenCalledWith('provider', 'wanted', { contextWindow: 1000 })
+  })
+
+  it('declines non-default model endpoints before listing or writing any metadata', async () => {
+    mocks.get.mockReturnValueOnce({ endpointTypes: ['openai-responses'] })
+    await expect(refreshCustomModelMetadata('provider', 'wanted')).rejects.toThrow('non-default endpoint')
+    expect(mocks.list).not.toHaveBeenCalled()
+    expect(mocks.apply).not.toHaveBeenCalled()
   })
 
   it('does not write on failed, missing or unsupported provider results', async () => {

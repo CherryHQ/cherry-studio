@@ -1188,7 +1188,7 @@ const omlxFetcher: ModelFetcher = {
             // The server reports the window it serves and its output cap; a
             // discovered model would otherwise carry no limits at all.
             ...(m.max_context_window ? { contextWindow: m.max_context_window } : {}),
-            ...(m.max_tokens ? { maxOutputTokens: m.max_tokens } : {}),
+            ...(Number.isSafeInteger(m.max_tokens) && m.max_tokens! > 0 ? { maxOutputTokens: m.max_tokens } : {}),
             // A VLM takes text and images; the image modality has to be stated
             // explicitly, or exported configurations read it as text-only even
             // though the capability says otherwise.

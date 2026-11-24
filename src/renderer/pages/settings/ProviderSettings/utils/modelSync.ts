@@ -70,8 +70,12 @@ export function toCreateModelDto(
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Discovered rather than registry-supplied for local providers — Ollama's window comes from
     // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
-    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
-    ...(model.maxOutputTokens ? { maxOutputTokens: model.maxOutputTokens } : {})
+    ...(Number.isSafeInteger(model.contextWindow) && model.contextWindow! > 0
+      ? { contextWindow: model.contextWindow }
+      : {}),
+    ...(Number.isSafeInteger(model.maxOutputTokens) && model.maxOutputTokens! > 0
+      ? { maxOutputTokens: model.maxOutputTokens }
+      : {})
   }
 }
 

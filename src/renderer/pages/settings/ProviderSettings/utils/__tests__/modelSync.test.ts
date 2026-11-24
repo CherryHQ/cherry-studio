@@ -258,6 +258,22 @@ describe('resolveCreateModelEndpointTypes', () => {
 })
 
 describe('toCreateModelDto', () => {
+  it('omits invalid discovered caps without rejecting valid sibling create inputs', () => {
+    const invalid = toCreateModelDto('omlx', {
+      id: 'omlx::invalid',
+      apiModelId: 'invalid',
+      name: 'Invalid',
+      maxOutputTokens: -1
+    } as any)
+    const valid = toCreateModelDto('omlx', {
+      id: 'omlx::valid',
+      apiModelId: 'valid',
+      name: 'Valid',
+      maxOutputTokens: 4096
+    } as any)
+    expect(invalid).not.toHaveProperty('maxOutputTokens')
+    expect(valid.maxOutputTokens).toBe(4096)
+  })
   it('writes resolved endpoint types into the create payload', () => {
     expect(
       toCreateModelDto(

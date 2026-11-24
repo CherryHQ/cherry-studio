@@ -640,7 +640,10 @@ class ModelService {
     const editedMetadata = MODEL_METADATA_FIELDS.filter((field) => dto[field] !== undefined)
     if (editedMetadata.length) {
       const sources = getModelMetadataSources(existing, this.enrichRowsFromRegistryTx(tx, [existing])[0])
-      for (const field of editedMetadata) sources[field] = 'user'
+      const effective = this.enrichRowsFromRegistryTx(tx, [existing])[0]
+      for (const field of editedMetadata) {
+        if (JSON.stringify(dto[field]) !== JSON.stringify(effective[field])) sources[field] = 'user'
+      }
       updates.metadataSources = sources
     }
     return updates

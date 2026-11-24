@@ -610,6 +610,19 @@ describe('ModelService provider metadata', () => {
     })
   })
 
+  it('preserves provider provenance on unchanged field blur and permits a later refresh', () => {
+    seed()
+    modelService.update('custom-channel', 'model', { contextWindow: 64000, maxOutputTokens: 4000 })
+    const updated = modelService.applyProviderMetadata('custom-channel', 'model', {
+      contextWindow: 128000,
+      maxOutputTokens: 8000
+    })
+    expect(updated.contextWindow).toBe(128000)
+    expect(updated.maxOutputTokens).toBe(8000)
+    expect(updated.metadataSources?.contextWindow).toBe('provider')
+    expect(updated.metadataSources?.maxOutputTokens).toBe('provider')
+  })
+
   it('refreshes provider and unknown fields but keeps user edits (AC5)', () => {
     seed()
     modelService.update('custom-channel', 'model', { contextWindow: 32000 })

@@ -1937,6 +1937,22 @@ describe('listModels — Rapid-MLX', () => {
 })
 
 describe('listModels — oMLX', () => {
+  it('omits a negative output cap while retaining valid sibling models', async () => {
+    const provider = makeProvider({ id: 'omlx' })
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: {
+        models: [
+          { id: 'invalid-cap', model_type: 'llm', max_tokens: -1 },
+          { id: 'valid', model_type: 'llm', max_tokens: 4096 }
+        ]
+      }
+    })
+    const { models } = await listModels(provider, undefined, { throwOnError: true })
+    expect(models.map((model) => model.apiModelId)).toEqual(['invalid-cap', 'valid'])
+    expect(models[0].maxOutputTokens).toBeUndefined()
+    expect(models[1].maxOutputTokens).toBe(4096)
+  })
+
   it('lists only chat models, dropping the diffusion and non-chat families', async () => {
     const provider = makeProvider({
       id: 'omlx',
