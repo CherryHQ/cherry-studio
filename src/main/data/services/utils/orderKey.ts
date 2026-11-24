@@ -14,6 +14,7 @@ import { and, type AnyColumn, asc, desc, eq, getTableName, gt, inArray, lt, ne, 
 import type { AnySQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing'
 
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -41,7 +42,7 @@ type TxLike = any
  * reference rather than assuming a field name.
  */
 interface TableWithOrderKey extends SQLiteTable {
-  orderKey: AnyColumn
+  orderKey: AnySQLiteColumn<{ data: string; notNull: true }>
 }
 
 interface InsertWithOrderKeyOptions {
@@ -262,7 +263,7 @@ export function applyMoves(
  * Empty `moves` is a no-op (no DB access).
  */
 export function applyScopedMoves<T extends TableWithOrderKey>(
-  tx: TxLike,
+  tx: Pick<DbOrTx, 'select' | 'update'>,
   table: T,
   moves: Array<{ id: string; anchor: OrderRequest }>,
   options: { pkColumn: AnySQLiteColumn; scopeColumn: AnySQLiteColumn }
@@ -272,11 +273,7 @@ export function applyScopedMoves<T extends TableWithOrderKey>(
   const { pkColumn, scopeColumn } = options
   const ids = moves.map((m) => m.id)
 
-  const rows = tx
-    .select({ id: pkColumn, scope: scopeColumn })
-    .from(table)
-    .where(inArray(pkColumn, ids))
-    .all() as Array<{ id: string; scope: unknown }>
+  const rows = tx.select({ id: pkColumn, scope: scopeColumn }).from(table).where(inArray(pkColumn, ids)).all()
 
   // All requested ids are missing — drizzle would reject `eq(scopeColumn, undefined)`
   // at the driver layer before applyMoves can issue its own NOT_FOUND. Surface
@@ -427,7 +424,12 @@ function assertAnchorNotSelf(moveId: string, anchor: OrderRequest): void {
  * Select the first (smallest) or last (largest) `orderKey` in scope.
  * Returns `null` when the scope is empty.
  */
-function selectBoundaryKey(tx: TxLike, table: TableWithOrderKey, which: 'first' | 'last', scope?: SQL): string | null {
+function selectBoundaryKey(
+  tx: Pick<DbOrTx, 'select'>,
+  table: TableWithOrderKey,
+  which: 'first' | 'last',
+  scope?: SQL
+): string | null {
   const orderExpr = which === 'first' ? asc(table.orderKey) : desc(table.orderKey)
 
   const rows = tx
@@ -438,7 +440,7 @@ function selectBoundaryKey(tx: TxLike, table: TableWithOrderKey, which: 'first' 
     .limit(1)
     .all()
 
-  const first = rows[0] as { orderKey: string | null } | undefined
+  const first = rows[0]
 
   return first?.orderKey ?? null
 }
@@ -533,7 +535,7 @@ function selectRepairedBoundaryKey(
  * match the intended total order.
  */
 function selectAdjacentKey(
-  tx: TxLike,
+  tx: Pick<DbOrTx, 'select'>,
   table: TableWithOrderKey,
   side: 'predecessor' | 'successor',
   anchorKey: string,
@@ -545,7 +547,7 @@ function selectAdjacentKey(
   const orderExpr = side === 'predecessor' ? desc(column) : asc(column)
 
   const rows = tx.select({ orderKey: column }).from(table).where(where).orderBy(orderExpr).limit(1).all()
-  const first = rows[0] as { orderKey: string | null } | undefined
+  const first = rows[0]
 
   return first?.orderKey ?? null
 }
@@ -571,7 +573,7 @@ function requireOrderKey(
 }
 
 function selectRowByPk(
-  tx: TxLike,
+  tx: Pick<DbOrTx, 'select'>,
   table: TableWithOrderKey,
   pkColumn: AnyColumn,
   id: string,
@@ -579,7 +581,7 @@ function selectRowByPk(
 ): { orderKey: string } | null {
   const where = scope ? and(eq(pkColumn, id), scope) : eq(pkColumn, id)
   const rows = tx.select({ orderKey: table.orderKey }).from(table).where(where).limit(1).all()
-  const first = rows[0] as { orderKey: string } | undefined
+  const first = rows[0]
 
   return first ?? null
 }
