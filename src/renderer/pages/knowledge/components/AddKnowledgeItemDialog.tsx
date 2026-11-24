@@ -95,9 +95,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setPendingConflict(null)
     setPendingResolution(null)
     finishPreflight(false)
-    if (open && pendingAddSource === 'url') {
-      setIsResolvingSubmit(false)
-    }
+    setIsResolvingSubmit(false)
   }, [open, pendingAddSource, selectedBaseId, finishPreflight])
 
   const handleOpenChange = useCallback(

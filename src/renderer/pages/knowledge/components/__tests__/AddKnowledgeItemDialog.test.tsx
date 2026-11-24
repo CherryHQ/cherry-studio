@@ -839,6 +839,32 @@ describe('AddKnowledgeItemDialog', () => {
   describe('note source — create mode', () => {
     const switchToCreateMode = () => fireEvent.click(screen.getByRole('radio', { name: '新建笔记' }))
 
+    it('can submit a note after switching away from an unfinished file inspection', async () => {
+      const pending = Promise.withResolvers<unknown>()
+      const request = vi.mocked(ipcApi.request)
+      const original = request.getMockImplementation()!
+      request.mockImplementation((route, ...args) =>
+        route === 'knowledge.preflight_files' ? (pending.promise as never) : original(route, ...args)
+      )
+      mockUseKnowledgePage.mockReturnValue({
+        selectedBaseId: 'base-1',
+        pendingAddSource: 'file',
+        pendingAddFiles: [createMockFile('pending.md', 10)]
+      })
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() => expect(request).toHaveBeenCalledWith('knowledge.preflight_files', expect.anything()))
+      setPendingAddSource('note')
+      rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      switchToCreateMode()
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: 'Ideas' } })
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: 'body' } })
+      await act(async () => pending.resolve([]))
+      request.mockImplementation(original)
+      expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+      await userEvent.setup().click(screen.getByRole('button', { name: '添加' }))
+      await waitFor(() => expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1))
+    })
+
     it('starts on the import list and swaps to the draft form on demand', () => {
       setPendingAddSource('note')
       mockProjectNotesTree.mockReturnValue([createNoteNode('Meeting notes', '/notes/Meeting notes.md')])
