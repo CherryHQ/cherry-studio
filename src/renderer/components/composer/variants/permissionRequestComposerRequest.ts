@@ -1,5 +1,6 @@
-import type { UIMessagePart } from 'ai'
+import type { DynamicToolUIPart, ToolUIPart, UITools } from 'ai'
 import { isToolUIPart } from 'ai'
+import * as z from 'zod'
 
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { getPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
@@ -23,14 +24,20 @@ export type PermissionRequestComposerRequest = {
   source?: { toolCallId: string; title?: string; isBackgrounded?: boolean }
 }
 
-type PermissionToolPart = CherryMessagePart & {
-  type: string
-  toolName?: string
-  toolCallId: string
-  state?: string
-  input?: unknown
-  approval?: { id?: string; approved?: boolean }
-}
+type PermissionToolPart = ToolUIPart<UITools> | DynamicToolUIPart
+
+const commandPolicyRuleSchema = z.object({ ruleId: z.string(), reasonCode: z.string(), evidence: z.string() })
+const commandPolicySchema = z.object({
+  cwd: z.string().optional(),
+  reason: z.string(),
+  revision: z.string(),
+  rules: z.array(z.unknown()).transform((rules) =>
+    rules.flatMap((rule) => {
+      const parsed = commandPolicyRuleSchema.safeParse(rule)
+      return parsed.success ? [parsed.data] : []
+    })
+  )
+})
 
 /** States in which a call is already decided or finished, so it must never prompt again. */
 const RESOLVED_TOOL_STATES: ReadonlySet<string> = new Set([
@@ -41,7 +48,10 @@ const RESOLVED_TOOL_STATES: ReadonlySet<string> = new Set([
 ])
 
 function getToolName(part: PermissionToolPart): string {
-  if (part.toolName?.trim()) return part.toolName
+  // oxlint-disable-next-line anti-slop/no-reflect-get -- Historical static tool parts can expose a toolName extension; retain its original inherited/virtual read without claiming it is an SDK field.
+  const toolName: unknown = Reflect.get(part, 'toolName')
+
+  if (typeof toolName === 'string' && toolName.trim()) return toolName
 
   if (part.type.startsWith('tool-')) return part.type.replace(/^tool-/, '')
 
@@ -56,11 +66,9 @@ function getToolDisplayName(toolResponse: ToolResponseLike): string {
 function getStringField(value: unknown, fields: string[]): string | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
 
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Runtime-defined permission inputs have no shared field schema; only checked nonblank strings become display titles.
-  const record = value as Record<string, unknown>
-
   for (const field of fields) {
-    const candidate = record[field]
+    // oxlint-disable-next-line anti-slop/no-reflect-get -- Runtime-defined title fields retain inherited and virtual property reads; only nonblank strings are consumed.
+    const candidate: unknown = Reflect.get(value, field)
 
     if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
   }
@@ -74,42 +82,27 @@ function getPermissionTitle(part: PermissionToolPart, fallback: string): string 
 
 /** Return the FIFO head from the newest reply that has pending tool permissions. */
 function getCommandPolicy(part: PermissionToolPart): CommandApprovalDetails | undefined {
-  for (const field of ['providerMetadata', 'callProviderMetadata', 'resultProviderMetadata'] as const) {
-    const metadata = part[field]
+  const source: {
+    readonly providerMetadata?: unknown
+    readonly callProviderMetadata?: unknown
+    readonly resultProviderMetadata?: unknown
+  } = part
 
-    if (!metadata || typeof metadata !== 'object') continue
+  for (const field of ['providerMetadata', 'callProviderMetadata', 'resultProviderMetadata'] as const) {
+    const metadata = source[field]
+
+    if (!metadata || typeof metadata !== 'object' || !('cherry' in metadata)) continue
     const cherry = metadata.cherry
 
-    if (!cherry || typeof cherry !== 'object') continue
+    if (!cherry || typeof cherry !== 'object' || !('commandPolicy' in cherry)) continue
     const policy = cherry.commandPolicy
 
-    if (!policy || typeof policy !== 'object' || Array.isArray(policy)) continue
+    const parsed = commandPolicySchema.safeParse(policy)
 
-    if (
-      (policy.cwd !== undefined && typeof policy.cwd !== 'string') ||
-      typeof policy.reason !== 'string' ||
-      typeof policy.revision !== 'string' ||
-      !Array.isArray(policy.rules)
-    )
-      continue
-    const details: Pick<CommandApprovalDetails, 'cwd'> = {}
-
-    if (typeof policy.cwd === 'string') details.cwd = policy.cwd
-
-    return Object.assign(details, {
-      reason: policy.reason,
-      revision: policy.revision,
-      rules: policy.rules.flatMap((rule) =>
-        rule &&
-        typeof rule === 'object' &&
-        !Array.isArray(rule) &&
-        typeof rule.ruleId === 'string' &&
-        typeof rule.reasonCode === 'string' &&
-        typeof rule.evidence === 'string'
-          ? [{ ruleId: rule.ruleId, reasonCode: rule.reasonCode, evidence: rule.evidence }]
-          : []
-      )
-    })
+    if (parsed.success) {
+      const { cwd, ...details } = parsed.data
+      return cwd === undefined ? details : { cwd, ...details }
+    }
   }
 
   return undefined
@@ -125,9 +118,9 @@ export function findNextPendingPermissionRequest(
     const [messageId, parts] = messages[messageIndex]
 
     for (const part of parts) {
-      if (!isToolUIPart(part as UIMessagePart<never, never>)) continue
+      if (!isToolUIPart(part)) continue
 
-      const toolPart = part as PermissionToolPart
+      const toolPart = part
       const toolName = getToolName(toolPart)
       const approvalId = toolPart.approval?.id
 

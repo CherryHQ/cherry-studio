@@ -24,6 +24,41 @@ function makePart(overrides: Partial<Record<string, unknown>> = {}): CherryMessa
 }
 
 describe('findNextPendingPermissionRequest', () => {
+  it('keeps valid display rules while omitting an explicitly undefined cwd', () => {
+    const rule = { ruleId: 'deletion', reasonCode: 'permanent-deletion', evidence: 'rm file' }
+    const part = makePart({
+      callProviderMetadata: {
+        cherry: {
+          commandPolicy: {
+            cwd: undefined,
+            revision: '1',
+            reason: 'Risky command',
+            rules: [null, rule, { ruleId: 17 }]
+          }
+        }
+      }
+    })
+    const result = findNextPendingPermissionRequest({ live: [part] })
+    expect(result?.approvalId).toBe('approval-1')
+    expect(result?.commandPolicy).toEqual({ revision: '1', reason: 'Risky command', rules: [rule] })
+    expect(Object.hasOwn(result!.commandPolicy!, 'cwd')).toBe(false)
+    expect(result?.match.part).toBe(part)
+  })
+
+  it('retains legacy static tool names and inherited input titles without replacing the input', () => {
+    const input = Object.create({
+      get description() {
+        return 'Inspect inherited title'
+      }
+    })
+    const part = makePart({ type: 'tool-Read', toolName: 'AskUserQuestion', input })
+    expect(findNextPendingPermissionRequest({ live: [part] })).toBeNull()
+    const requestPart = makePart({ input })
+    const result = findNextPendingPermissionRequest({ live: [requestPart] })
+    expect(result?.title).toBe('Inspect inherited title')
+    expect(result?.match.input).toBe(input)
+  })
+
   // Catch metadata being dropped when approvals are projected from a background child.
   it.each(['providerMetadata', 'callProviderMetadata', 'resultProviderMetadata'])(
     'retains authoritative command evidence from %s',
