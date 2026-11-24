@@ -1,4 +1,3 @@
-import type { JsonValue } from '@earendil-works/chord/json'
 import type { TextContent, ImageContent } from '@earendil-works/pi-ai'
 import type { ToolRegistration } from '@earendil-works/pi-durable'
 import type { Schema } from '@earendil-works/pi-schema'
@@ -12,6 +11,7 @@ import { buildPiMcpToolName } from '../pi/piMcpExtension'
 /** Native Durable tools retain replay policy; MCP remains a desktop transport. */
 export async function createDurableMcp(servers: Record<string, AgentMcpServer>) {
   const { defineTool, defineExtension } = await import('@earendil-works/pi-durable')
+  const { copyJson } = await import('@earendil-works/chord/json')
   const clients: Client[] = []
   const metadata = new Map<string, { type: 'mcp'; name: string; serverId: string; serverName: string }>()
   const close = () => Promise.all(clients.map((client) => client.close())).then(() => undefined)
@@ -76,11 +76,11 @@ export async function createDurableMcp(servers: Record<string, AgentMcpServer>) 
 
               const output = { output: content, isError: result.isError === true }
 
-              if (result.structuredContent) {
-                Object.assign(output, { details: result.structuredContent as JsonValue })
+              if (result.structuredContent !== undefined) {
+                const details = copyJson(result.structuredContent, { omitUndefinedProperties: true })
+                Object.assign(output, { details })
 
-                if (tool.outputSchema)
-                  Object.assign(output, { structuredOutput: result.structuredContent as JsonValue })
+                if (tool.outputSchema) Object.assign(output, { structuredOutput: details })
               }
 
               return output

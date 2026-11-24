@@ -72,6 +72,64 @@ describe('Durable desktop MCP', () => {
     }
   })
 
+  it.each([
+    { label: 'null', value: null, expected: null },
+    { label: 'false', value: false, expected: false },
+    { label: 'zero', value: 0, expected: 0 },
+    { label: 'empty string', value: '', expected: '' },
+    {
+      label: 'opaque object keys',
+      value: { keep: 'native', ['__proto__']: { retained: true }, omit: undefined },
+      expected: { keep: 'native', ['__proto__']: { retained: true } }
+    }
+  ])('preserves structured result $label through the native loop', async ({ value, expected }) => {
+    const bridge = await createDurableMcp({
+      automation: {
+        name: 'automation',
+        async connect(transport) {
+          const server = new McpServer({ name: 'structured-fixture', version: '1' })
+          server.registerTool('structured', { inputSchema: z.object({}) }, async () => ({
+            content: [{ type: 'text', text: 'RESULT' }],
+            structuredContent: value
+          }))
+          return serveStdio(() => server, { transport })
+        }
+      }
+    })
+    const registry = createRegistry()
+    registry.install(bridge.extension)
+    const fake = fauxProvider({ tokensPerSecond: 10000 })
+    fake.setResponses([
+      fauxAssistantMessage(fauxToolCall('mcp__automation__structured', {}), { stopReason: 'toolUse' }),
+      fauxAssistantMessage('complete')
+    ])
+    const models = createModels()
+    models.setProvider(fake.provider)
+    const native = await Harness.open(new MemoryStorage(), { registry, models }, BACKGROUND_CONTEXT)
+
+    try {
+      const root = await native.createConversation(
+        { ownership: { kind: 'ownerless' }, agent: { model: { provider: 'faux', modelId: 'faux-1' } } },
+        BACKGROUND_CONTEXT
+      )
+      const submission = await root.submit(
+        { type: 'input', content: 'run structured MCP', requestId: 'test' },
+        BACKGROUND_CONTEXT
+      )
+      native.resume()
+      await submission.wait(BACKGROUND_CONTEXT)
+      const entries = await root.entries({ order: 'ascending' }, 100, undefined, BACKGROUND_CONTEXT)
+      const result = entries.items
+        .flatMap((entry) => entry.model ?? [])
+        .find((message) => message.role === 'toolResult')
+
+      expect(result).toMatchObject({ isError: false, content: [{ type: 'text', text: 'RESULT' }], details: expected })
+    } finally {
+      await native.close(BACKGROUND_CONTEXT)
+      await bridge.close()
+    }
+  })
+
   // Catches missing discovery/loading and script access that incorrectly depends on loading.
   it('discovers non-automation MCP memory tools through tool_search while preserving codemode calls', async () => {
     const bridge = await createDurableMcp({
