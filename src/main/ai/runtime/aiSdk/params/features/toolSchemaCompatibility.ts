@@ -18,8 +18,8 @@
  * Native Gemini drops tools with untyped array items: no safe type can be inferred.
  * It drops `propertyNames` / `additionalProperties`, absent from its proto (#20939).
  *
- * Chat completions also drops only `propertyNames` for recognizable Gemini raw
- * model identities; an opaque upstream alias stays unrecognized.
+ * Chat completions normalizes incompatible enums and drops `propertyNames` for
+ * recognizable Gemini raw model identities; opaque upstream aliases stay unrecognized.
  *
  * Model recognition is a heuristic, not proof of endpoint schema support.
  * Removal intentionally relaxes key constraints instead of converting them losslessly.
@@ -90,15 +90,13 @@ const SCHEMA_VALUES = new Set([
   'else'
 ])
 
-type SchemaMapper = (node: JSONSchema7, path: string[]) => JSONSchema7
-
 /**
  * Recurses only through schema-bearing keys, applying `mapNode` to every
  * schema node bottom-up — so a *property named* `minimum` survives while the
  * `minimum` **keyword** is only ever seen as a plain value. Returns the same
  * reference when nothing changed.
  */
-function mapSchemas(schema: JSONSchema7Definition, mapNode: SchemaMapper, path: string[] = []): JSONSchema7Definition {
+function mapSchemas(schema: JSONSchema7Definition, mapNode: (node: JSONSchema7) => JSONSchema7): JSONSchema7Definition {
   if (typeof schema !== 'object' || schema === null) return schema
 
   const result: Record<string, unknown> = {}
@@ -106,26 +104,24 @@ function mapSchemas(schema: JSONSchema7Definition, mapNode: SchemaMapper, path: 
   for (const [key, value] of Object.entries(schema)) {
     let next = value
     if (SCHEMA_MAPS.has(key) && typeof value === 'object' && value !== null) {
-      next = mapSchemaMap(value as Record<string, JSONSchema7Definition>, mapNode, [...path, key])
+      next = mapSchemaMap(value as Record<string, JSONSchema7Definition>, mapNode)
     } else if (SCHEMA_LISTS.has(key) && Array.isArray(value)) {
-      next = mapSchemaList(value, mapNode, [...path, key])
+      next = mapSchemaList(value, mapNode)
     } else if (SCHEMA_VALUES.has(key)) {
-      next = Array.isArray(value)
-        ? mapSchemaList(value, mapNode, [...path, key])
-        : mapSchemas(value, mapNode, [...path, key])
+      next = Array.isArray(value) ? mapSchemaList(value, mapNode) : mapSchemas(value, mapNode)
     }
     if (next !== value) changed = true
     result[key] = next
   }
-  const mapped = mapNode(result, path)
+  const mapped = mapNode(result)
   if (mapped !== (result as JSONSchema7)) changed = true
   return changed ? mapped : schema
 }
 
-function mapSchemaList(list: unknown[], mapNode: SchemaMapper, path: string[]): unknown[] {
+function mapSchemaList(list: unknown[], mapNode: (node: JSONSchema7) => JSONSchema7): unknown[] {
   let changed = false
-  const next = list.map((item, index) => {
-    const mapped = mapSchemas(item as JSONSchema7Definition, mapNode, [...path, String(index)])
+  const next = list.map((item) => {
+    const mapped = mapSchemas(item as JSONSchema7Definition, mapNode)
     if (mapped !== item) changed = true
     return mapped
   })
@@ -134,13 +130,12 @@ function mapSchemaList(list: unknown[], mapNode: SchemaMapper, path: string[]): 
 
 function mapSchemaMap(
   map: Record<string, JSONSchema7Definition>,
-  mapNode: SchemaMapper,
-  path: string[]
+  mapNode: (node: JSONSchema7) => JSONSchema7
 ): Record<string, JSONSchema7Definition> {
   let changed = false
   const next: Record<string, JSONSchema7Definition> = {}
   for (const [key, value] of Object.entries(map)) {
-    next[key] = mapSchemas(value, mapNode, [...path, key])
+    next[key] = mapSchemas(value, mapNode)
     if (next[key] !== value) changed = true
   }
   return changed ? next : map
@@ -364,21 +359,13 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     let inputSchema = stripKeywords(tool.inputSchema, keywords)
     inputSchema = addMissingProperties(inputSchema)
     if (isGeminiEndpoint) inputSchema = stripKeywords(inputSchema, GEMINI_UNSUPPORTED)
-    if (isGeminiEndpoint) {
-      inputSchema = mapSchemas(inputSchema, (node, path) => {
+    if (isGeminiEndpoint || isChatGeminiModel) {
+      inputSchema = mapSchemas(inputSchema, (node) => {
         const normalized = normalizeGeminiEnum(node)
-        if (normalized !== node) {
-          logger.debug('Normalized Gemini tool schema enum', {
-            providerId: scope.sdkConfig.providerId,
-            toolName: tool.name,
-            path: [...path, 'enum'],
-            action: normalized.enum ? 'typed' : normalized.anyOf !== node.anyOf ? 'split' : 'described'
-          })
-        }
-        return expandTypeArrays(normalized)
+        return isGeminiEndpoint ? expandTypeArrays(normalized) : normalized
       })
-      inputSchema = mapSchemas(inputSchema, stripNonStringEnums)
     }
+    if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, stripNonStringEnums)
     if (isChatGeminiModel) inputSchema = stripKeywords(inputSchema, CHAT_GEMINI_UNSUPPORTED)
     const optOutOfStrict = isResponsesEndpoint && tool.strict === undefined
     if (inputSchema === tool.inputSchema && !optOutOfStrict) transformedTools.push(tool)

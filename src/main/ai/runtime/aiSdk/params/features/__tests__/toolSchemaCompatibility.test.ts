@@ -200,6 +200,48 @@ const CHAT_MAP_PARAMETERS = {
 
 describe('toolSchemaCompatibilityFeature', () => {
   describe.each(CHAT_PROVIDER_CASES)('Gemini chat completions via $provider', ({ provider, createModel }) => {
+    it('normalizes mixed enum values in the outgoing declaration and preserves MCP validation', async () => {
+      const original: JSONSchema7 = {
+        type: 'object',
+        properties: {
+          mode: { type: 'string', enum: ['auto', 1] },
+          level: { enum: ['auto', 1] },
+          count: { type: 'integer', enum: [1, 2] }
+        },
+        required: ['mode', 'level', 'count']
+      }
+      const before = JSON.parse(JSON.stringify(original))
+      const inputSchema = createMcpInputSchema(original)
+      const { requests, captureFetch } = captureChatRequest()
+      const model = wrapLanguageModel({
+        model: createModel(captureFetch),
+        middleware: await getMiddleware({
+          runtimeProviderId: provider,
+          endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          model: GEMINI_MODEL
+        })
+      })
+
+      await generateText({ model, prompt: 'Use lookup', tools: { lookup: tool({ inputSchema }) }, maxRetries: 0 })
+
+      expect(requests[0].body.tools[0].function.parameters).toEqual({
+        ...before,
+        properties: {
+          mode: { type: 'string', enum: ['auto'] },
+          level: {
+            anyOf: [
+              { type: 'string', enum: ['auto'] },
+              { type: 'number', description: 'Allowed values (JSON): [1].' }
+            ]
+          },
+          count: { type: 'integer', enum: [1, 2] }
+        }
+      })
+      expect(original).toEqual(before)
+      expect(await inputSchema.validate!({ mode: 'auto', level: 1, count: 1 })).toMatchObject({ success: true })
+      expect(await inputSchema.validate!({ mode: 'auto', level: 2, count: 1 })).toMatchObject({ success: false })
+    })
+
     it.each([
       { variant: 'plain', key: z.string(), expectedKey: { type: 'string' } },
       { variant: 'regex', key: z.string().regex(/^[a-z]+$/), expectedKey: { type: 'string', pattern: '^[a-z]+$' } }
