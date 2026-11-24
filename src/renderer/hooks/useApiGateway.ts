@@ -6,6 +6,7 @@ import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { readErrorMessage } from '@renderer/utils/errorDetails'
 
 const API_GATEWAY_PREFERENCE_KEYS = {
   enabled: 'feature.api_gateway.enabled',
@@ -67,8 +68,8 @@ export const useApiGateway = () => {
       toast.error({ title: t('apiGateway.messages.startError').trim(), description: result.error })
 
       return false
-    } catch (error: any) {
-      toast.error({ title: t('apiGateway.messages.startError').trim(), description: error.message || String(error) })
+    } catch (error) {
+      toast.error({ title: t('apiGateway.messages.startError').trim(), description: readErrorMessage(error) })
 
       return false
     } finally {
@@ -88,8 +89,8 @@ export const useApiGateway = () => {
       } else {
         toast.error(t('apiGateway.messages.stopError') + result.error)
       }
-    } catch (error: any) {
-      toast.error(t('apiGateway.messages.stopError') + (error.message || error))
+    } catch (error) {
+      toast.error(t('apiGateway.messages.stopError') + readErrorMessage(error))
     } finally {
       setApiGatewayLoading(false)
     }
@@ -108,7 +109,7 @@ export const useApiGateway = () => {
         toast.error(t('apiGateway.messages.restartError') + result.error)
       }
     } catch (error) {
-      toast.error(t('apiGateway.messages.restartFailed') + (error as Error).message)
+      toast.error(t('apiGateway.messages.restartFailed') + readErrorMessage(error))
     } finally {
       setApiGatewayLoading(false)
     }

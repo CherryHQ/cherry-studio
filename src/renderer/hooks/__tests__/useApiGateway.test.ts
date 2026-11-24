@@ -1,7 +1,9 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 
@@ -20,6 +22,33 @@ describe('useApiGateway', () => {
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
     ipcRequestMock.mockReset()
+  })
+
+  describe.each([
+    ['startApiGateway', 'apiGateway.messages.startError'],
+    ['stopApiGateway', 'apiGateway.messages.stopError'],
+    ['restartApiGateway', 'apiGateway.messages.restartFailed']
+  ] as const)('%s rejection handling', (command, errorKey) => {
+    it.each([
+      { failure: null, text: 'null' },
+      { failure: 'IPC rejected', text: 'IPC rejected' },
+      { failure: new Error('gateway unavailable'), text: 'gateway unavailable' },
+      { failure: Object.create(null), text: '[Unserializable]' }
+    ])('shows readable failure text and releases the loading state: $text', async ({ failure, text }) => {
+      ipcRequestMock.mockRejectedValueOnce(failure)
+      const { result } = renderHook(() => useApiGateway())
+
+      await act(async () => {
+        const outcome = await result.current[command]()
+        if (command === 'startApiGateway') expect(outcome).toBe(false)
+      })
+
+      expect(result.current.apiGatewayLoading).toBe(false)
+      expect(result.current.apiGatewayRunning).toBe(false)
+      expect(toast.error).toHaveBeenCalledWith(
+        command === 'startApiGateway' ? { title: errorKey, description: text } : errorKey + text
+      )
+    })
   })
 
   it('does not promote `enabled` when the gateway is only running (e.g. under a transient lease)', () => {
