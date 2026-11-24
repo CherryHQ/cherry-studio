@@ -1,9 +1,11 @@
 import * as z from 'zod'
 
 import type { AppErrorContext } from '../types/appError'
+import { isSafeErrorCode } from './appErrorSnapshot'
 
 export {
   createAppErrorContext,
+  isSafeErrorCode,
   projectAppErrorContext,
   summarizeErrorParams,
   summarizeProviderResponse
@@ -23,6 +25,7 @@ export const appErrorContextSchema = z
     message: z.string(),
     name: z.string().optional(),
     stack: z.string().optional(),
+    code: z.string().refine(isSafeErrorCode).optional(),
     statusCode: z.number().int().nonnegative().max(999).optional(),
     responseBody: z.string().min(1).max(MESSAGE_LIMIT).optional(),
     providerId: z.string().trim().min(1).optional(),

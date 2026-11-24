@@ -11,6 +11,8 @@ export interface AppErrorContext {
   readonly name?: string
   /** Present only when the producer supplied a stack. Never synthesized. */
   readonly stack?: string
+  /** Allowlist-shaped machine code such as `FILE_EDIT_NO_SPACE`; never a path or free text. */
+  readonly code?: string
   /** HTTP status from the failed call, when the producer had one. */
   readonly statusCode?: number
   /**
