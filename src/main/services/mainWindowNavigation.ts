@@ -1,3 +1,5 @@
+import type { BrowserWindow } from 'electron'
+
 import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
@@ -155,7 +157,10 @@ export function deliverToReadyMain<E extends IpcEventName>(event: E, payload: Ev
   const mainWindow = windowManager.getWindowsByType(WindowType.Main).find((win) => !win.isDestroyed())
   if (!mainWindow) return false
   const windowId = windowManager.getWindowId(mainWindow)
-  if (!windowId || !isTabDeliveryReady(windowId) || !isSurfaceReceiverReady(event)) return false
+  // Refusing a handoff must not clear tab readiness: only a tab attach re-queues across a reload.
+  if (!windowId || !isMainRendererReadyForTabAttach || isMainFrameBusy(mainWindow) || !isSurfaceReceiverReady(event)) {
+    return false
+  }
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
   mainWindow.focus()
@@ -173,11 +178,15 @@ function isSurfaceReceiverReady(event: IpcEventName): boolean {
   return true
 }
 
+function isMainFrameBusy(win: BrowserWindow): boolean {
+  return win.webContents.isLoadingMainFrame() || win.webContents.isCrashed()
+}
+
 function isTabDeliveryReady(windowId: string): boolean {
   if (!isMainRendererReadyForTabAttach) return false
   const win = application.get('WindowManager').getWindow(windowId)
   if (!win || win.isDestroyed()) return false
-  if (win.webContents.isLoadingMainFrame() || win.webContents.isCrashed()) {
+  if (isMainFrameBusy(win)) {
     isMainRendererReadyForTabAttach = false
     return false
   }

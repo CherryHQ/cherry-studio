@@ -333,6 +333,25 @@ describe('mainWindowNavigation', () => {
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'app.error.open', fault)
     })
 
+    it('leaves tab delivery ready when a handoff is refused during a main-frame load', () => {
+      const tab = { id: 'returned-tab' } as Parameters<typeof openTabInMainWindow>[0]
+      const loadingWindow = {
+        ...focusedWindow,
+        webContents: { isLoadingMainFrame: () => true, isCrashed: () => false }
+      }
+      windowManagerMock.getWindowsByType.mockReturnValue([loadingWindow])
+      windowManagerMock.getWindow.mockReturnValue(loadingWindow)
+      markMainRendererReadyForTabAttach('main-1')
+      setMainSurfaceReceiver('error', true)
+
+      expect(deliverToReadyMain('app.error.open', fault)).toBe(false)
+
+      windowManagerMock.getWindowsByType.mockReturnValue([focusedWindow])
+      windowManagerMock.getWindow.mockReturnValue(focusedWindow)
+      openTabInMainWindow(tab)
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'tab.attached', tab)
+    })
+
     it('presents a queued renderer crash when the error receiver becomes ready', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([focusedWindow])
       markMainRendererReadyForTabAttach('main-1')
