@@ -58,8 +58,8 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
-import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
+import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
