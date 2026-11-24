@@ -150,7 +150,7 @@ export function ChannelsStep({ form, portalContainer }: ChannelsStepProps) {
         <div className="flex min-w-0 flex-col gap-1.5">
           {channels.map((channel) => {
             const qrPending = isQrLoginChannel(channel)
-            const valid = toAgentChannelDraft(channel) !== null
+            const valid = toAgentChannelDraft(channel, channels) !== null
             return (
               <div
                 key={channel.id}
