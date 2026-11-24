@@ -159,12 +159,14 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskListItem }) {
                 {task.status === 'active' ? t('agent.tasks.pause') : t('agent.tasks.resume')}
               </DropdownMenuItem>
             ) : null}
-            <DropdownMenuItem
-              disabled={isRunning}
-              onSelect={() => void runExclusive(() => runTask(task.agentId, task.id))}>
-              <Play aria-hidden="true" />
-              {t('agent.tasks.run')}
-            </DropdownMenuItem>
+            {!isCompleted ? (
+              <DropdownMenuItem
+                disabled={isRunning}
+                onSelect={() => void runExclusive(() => runTask(task.agentId, task.id))}>
+                <Play aria-hidden="true" />
+                {t('agent.tasks.run')}
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={() => setDeleteConfirmOpen(true)}>
               <Trash2 aria-hidden="true" />

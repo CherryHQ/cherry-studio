@@ -218,7 +218,7 @@ function WizardFooter({
   const rootError = form.formState.errors.root?.message
   const basicValid = (name?.trim().length ?? 0) > 0 && Boolean(modelId)
   // A channel the main process would reject fails the whole create, so it blocks here instead.
-  const channelsValid = channels.every((channel) => toAgentChannelDraft(channel) !== null)
+  const channelsValid = channels.every((channel) => toAgentChannelDraft(channel, channels) !== null)
   const canProceed = (stepIndex !== 0 || basicValid) && (stepId !== 'channels' || channelsValid)
 
   return (
@@ -466,7 +466,7 @@ export function ResourceCreateWizard({
   const submitValues = async (values: ResourceCreateWizardFormValues, generated = false): Promise<boolean> => {
     if (!values.modelId) return false
     form.clearErrors('root')
-    const channels = values.channels.map(toAgentChannelDraft)
+    const channels = values.channels.map((channel) => toAgentChannelDraft(channel, values.channels))
     if (channels.some((channel) => channel === null)) {
       form.setError('root', { message: t('library.config.dialogs.create.channels.invalid') })
       return false

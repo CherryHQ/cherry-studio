@@ -321,6 +321,8 @@ describe('AgentJobsService', () => {
       hold.dispose()
       await vi.waitFor(() => expect(agentTaskService.getTask(AGENT_ID, task.id)?.status).toBe('completed'))
       expect(jobScheduleService.getById(task.id)?.metadata).not.toHaveProperty('missed')
+      expect(await service.runTask(AGENT_ID, task.id)).toBe(false)
+      expect(jobService.list({ scheduleId: task.id })).toHaveLength(1)
     } finally {
       clearScheduleDisposables()
       vi.useRealTimers()

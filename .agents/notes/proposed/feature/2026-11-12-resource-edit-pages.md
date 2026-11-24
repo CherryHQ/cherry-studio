@@ -35,7 +35,7 @@ Cards, each with rows that show the name on the left and the control or a summar
 - **Heartbeat.** The heartbeat switch; when on, interval and maximum run time; and "Edit heartbeat tasks", which shows how many tasks the heartbeat document holds.
 - **Advanced.** System Prompt › (filled or not filled), Memory ›, and environment variables.
 
-Counting rules: built-in tools count the runtime's tools after knowledge-tool gating and exclude browser control and computer use; skills count builtin skills as enabled; MCP excludes the browser server; scheduled tasks count only active tasks.
+Counting rules: built-in tools count the runtime's tools after knowledge-tool gating and exclude browser control and computer use; skills count the globally available skills enabled for this Agent; MCP excludes the browser server; scheduled tasks count only active tasks.
 
 ### Settings page: Assistant
 
@@ -45,15 +45,17 @@ Counting rules: built-in tools count the runtime's tools after knowledge-tool ga
 
 ### Sub-pages
 
-- **System Prompt.** For Agents on Pi Durable, the full System Prompt page defined in the [Agent prompt sections](2026-11-15-agent-prompt-sections.md) Spec, where the Agent's instructions and every other block are editable. For other runtimes and for Assistants, the existing prompt editor with generate, polish, preview, and variables.
-- **Built-in tools, Skills, Knowledge bases, MCP servers.** The shared capability lists from the create flow Spec. Builtin skills are locked on.
+- **System Prompt.** For Agents on Pi Durable, the full System Prompt page defined in the [Agent prompt sections](2026-11-15-agent-prompt-sections.md) Spec, where the Agent's instructions and every other block are editable. For other runtimes and for Assistants, the existing prompt editor with generate, polish, preview, and variables. Generation and Undo for the resource’s own instructions survive navigation within the edit dialog.
+- **Built-in tools, Skills, Knowledge bases, MCP servers.** The shared capability lists from the create flow Spec. Builtin skills default to on. A saved opt-out appears off and can be restored.
 - **Channels (Agent).** The channels bound to this Agent, each with platform icon, name, connection state, a one-line summary, edit, delete, and an active switch. "Add channel" lists every supported platform. The configuration dialog reuses the existing channel forms, binds the channel to this Agent, and hides the Agent picker. QR login runs inside the dialog. Settings › Channels stays as the global view.
-- **Scheduled tasks (Agent).** This Agent's tasks with a pause switch, schedule summary, and last run. "New task" and each row open the existing task form with the Agent fixed; editing also shows run history, Run now, and Delete.
+- **Scheduled tasks (Agent).** Paginated tasks for this Agent with a pause switch, schedule summary, and last run. The capabilities counts cover every page. "New task" and each row open the existing task form with the Agent fixed. Editing shows run history and Delete. Run now is available until a one-shot task completes.
 - **Memory (Agent).** The existing memory panel. Leaving it with unsaved edits asks for confirmation, as switching tabs does today.
+
+Turning off the Assistant context override keeps its draft values for re-enabling during the same edit session.
 
 ### Reply language
 
-One select replaces the segmented control and combobox: follow the global setting (showing its value, or "Follow conversation language" when the global value is empty), no constraint, the preset languages, and "Other language…", which reveals a single-line input of 1–50 characters. It writes the existing `languageMode` / `languageCustom` mapping. The same component is used in the create flow.
+One select replaces the segmented control and combobox: follow the global setting (showing its value, or "Follow conversation language" when the global value is empty), no constraint, the preset languages, and "Other language…", which reveals a single-line input of 1–50 characters. It writes the existing `languageMode` / `languageCustom` mapping. Custom text commits on blur. Clearing it and leaving the input restores the global setting. The same component is used in the create flow.
 
 ### Removed
 
@@ -82,9 +84,9 @@ The existing `initialTab` IDs keep working and open the matching page: `basic` a
 - AC2 — The settings page shows the grouped cards for each kind, sub-pages open from their rows, and back returns to the settings page without closing the dialog (verification: renderer; owner: implementer)
 - AC3 — Capability rows show `Enabled X / Y` (`Linked X / Y` for knowledge bases) computed with the counting rules in this Spec (verification: renderer; owner: implementer)
 - AC4 — Edits on any page except Memory autosave, closing the dialog flushes pending edits, and an empty name is never saved; Memory file edits save explicitly, as AC11 describes (verification: renderer; owner: implementer)
-- AC5 — Changing an Agent's model clears its plan and small models (verification: unit; owner: implementer)
+- AC5 — Saving a new Agent model clears its plan and small models. Returning to the saved model before saving preserves both overrides (verification: unit and renderer; owner: implementer)
 - AC6 — The Channels page lists only this Agent's channels, a channel added there is bound to this Agent, and toggling or deleting it updates the global Settings › Channels view (verification: renderer and Electron; owner: implementer)
-- AC7 — The Scheduled tasks page lists only this Agent's tasks, pausing and resuming updates the task, and the task form opened there has the Agent fixed and offers run history, Run now, and Delete when editing (verification: renderer; owner: implementer)
+- AC7 — The Scheduled tasks page lists only this Agent's tasks, pausing and resuming updates the task, and the task form opened there has the Agent fixed and offers run history, Run now, and Delete when editing. Every page is reachable, counts include all pages, and completed one-shot tasks cannot run again (verification: renderer; owner: implementer)
 - AC8 — The reply language select writes inherit, off, a preset, or a custom language, and the custom input appears only for "Other language…" (verification: renderer; owner: implementer)
 - AC9 — The prompt bindings tab is gone, and the composer offers no "manage current" entry while its "manage all" entry opens Settings › Prompts (verification: renderer; owner: implementer)
 - AC10 — Every existing `initialTab` ID and the new `channels` and `tasks` IDs open the page this Spec maps them to (verification: renderer; owner: implementer)

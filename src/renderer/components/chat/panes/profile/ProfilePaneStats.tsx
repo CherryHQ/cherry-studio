@@ -1,7 +1,7 @@
 import { MessageSquare } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { useTopics } from '@renderer/hooks/useTopic'
+import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { AssistantRecentTopic } from '@shared/data/api/schemas/assistants'
@@ -72,8 +72,7 @@ export function AssistantTopicsPage({
   onBack: () => void
 }) {
   const { t } = useTranslation()
-  // The same full list the topic sidebar loads, so the two share one cache entry.
-  const { topics, isLoadingAll } = useTopics({ loadAll: true })
+  const { topics, isLoadingAll } = useAssistantTopicsSource()
   const own = topics
     .filter((topic) => topic.assistantId === assistantId)
     .sort((a, b) => Date.parse(b.lastActivityAt) - Date.parse(a.lastActivityAt))
