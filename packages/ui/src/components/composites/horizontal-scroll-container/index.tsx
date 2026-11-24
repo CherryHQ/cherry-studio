@@ -47,9 +47,9 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
       return
     }
 
-    const target = event.target as HTMLElement
+    const target = event.target
 
-    if (!target.closest('[data-no-expand]')) {
+    if (!(target instanceof Element) || !target.closest('[data-no-expand]')) {
       setIsExpanded((value) => !value)
     }
   }

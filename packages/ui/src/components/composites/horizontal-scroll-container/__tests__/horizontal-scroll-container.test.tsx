@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import HorizontalScrollContainer from '../index'
@@ -129,5 +130,30 @@ describe('HorizontalScrollContainer', () => {
     })
 
     expect(await screen.findByRole('button', { name: 'Scroll right' })).toBeInTheDocument()
+  })
+
+  it('keeps SVG controls inside data-no-expand clickable without expanding the items', async () => {
+    const user = userEvent.setup()
+    render(
+      <HorizontalScrollContainer {...accessibleLabels} expandable>
+        <span data-testid="scroll-item">Expand items</span>
+        <button type="button" data-no-expand aria-label="Keep collapsed">
+          <svg role="img" aria-label="Protected icon">
+            <circle cx="5" cy="5" r="4" />
+          </svg>
+        </button>
+      </HorizontalScrollContainer>
+    )
+    setElementSize(getScrollElement(), { clientWidth: 100, scrollLeft: 0, scrollWidth: 300 })
+    triggerResizeObserver()
+
+    await user.click(screen.getByRole('img', { name: 'Protected icon' }))
+    expect(screen.getByRole('button', { name: 'Scroll right' })).toBeInTheDocument()
+
+    await user.click(screen.getByText('Expand items'))
+    expect(screen.queryByRole('button', { name: 'Scroll right' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByText('Expand items'))
+    expect(screen.getByRole('button', { name: 'Scroll right' })).toBeInTheDocument()
   })
 })
