@@ -1,23 +1,14 @@
 import { useTranslation } from 'react-i18next'
 
-import {
-  AgentToolsType,
-  type GlobToolInput as GlobToolInputType,
-  type GlobToolOutput as GlobToolOutputType
-} from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
 import { ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayProps } from '../shared/toolDisplay'
 import { countLines, truncateOutput } from '../shared/truncateOutput'
 import { TerminalContainer } from './TerminalOutput'
 
-export function GlobTool({
-  input,
-  output
-}: {
-  input?: GlobToolInputType
-  output?: GlobToolOutputType
-}): ToolDisclosureItem {
+export function GlobTool({ input, output }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
   // 如果有输出，计算文件数量
   const lineCount = countLines(output)

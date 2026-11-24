@@ -1,26 +1,16 @@
 import { useTranslation } from 'react-i18next'
 
-import {
-  AgentToolsType,
-  type BashToolInput as BashToolInputType,
-  type BashToolOutput as BashToolOutputType
-} from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { readToolStringArgument } from '../shared/toolArgumentObject'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayProps } from '../shared/toolDisplay'
 import { truncateOutput } from '../shared/truncateOutput'
 import { TerminalOutput } from './TerminalOutput'
 
-export function BashTool({
-  input,
-  output,
-  hasError
-}: {
-  input?: BashToolInputType
-  output?: BashToolOutputType
-  hasError?: boolean
-}): ToolDisclosureItem {
+export function BashTool({ input, output, hasError }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
-  const command = input?.command
+  const command = readToolStringArgument(input, 'command')
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {

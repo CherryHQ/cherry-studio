@@ -250,7 +250,8 @@ function normalizeErrorOutput(part: ToolResponsePart): z.infer<typeof CallToolRe
 
 function normalizePiFileInput(
   name: string,
-  input: Exclude<NormalToolResponse['arguments'], string | unknown[] | undefined>
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The caller proves the object container; PI aliases preserve other unparsed tool-owned fields.
+  input: Record<string, unknown>
 ) {
   if (name !== 'read' && name !== 'write' && name !== 'edit') return input
 
@@ -328,7 +329,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     const mcpResponse: McpToolResponse = {
       id: toolCallId,
       tool,
-      arguments: toolPart.input as McpToolResponse['arguments'],
+      arguments: toolPart.input,
       status,
       response: mcpResult.success ? mcpResult.data : response,
       ...approvalFields,
@@ -349,7 +350,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const normalResponse: NormalToolResponse = {
     id: toolCallId,
     tool,
-    arguments: normalizedInput as NormalToolResponse['arguments'],
+    arguments: normalizedInput,
     status,
     response,
     ...approvalFields,

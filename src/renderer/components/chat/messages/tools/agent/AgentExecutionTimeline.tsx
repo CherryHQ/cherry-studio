@@ -34,7 +34,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
 
   const deferredPartialArguments = useDeferredValue(partialArguments)
 
-  const parsedPartialArgs = useMemo(() => {
+  const parsedPartialArgs = useMemo<unknown>(() => {
     if (!deferredPartialArguments) return undefined
 
     try {

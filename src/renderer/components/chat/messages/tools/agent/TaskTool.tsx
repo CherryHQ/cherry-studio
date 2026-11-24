@@ -1,48 +1,32 @@
 import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
 
 import { StaticMarkdown } from '@renderer/components/markdown'
 
-import { AgentToolsType, type ToolRendererProps } from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { readToolStringArgument } from '../shared/toolArgumentObject'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayProps } from '../shared/toolDisplay'
 import { truncateOutput } from '../shared/truncateOutput'
 
-type TaskStatus = 'pending' | 'in_progress' | 'completed'
+const TaskStatusSchema = z.enum(['pending', 'in_progress', 'completed'])
 
-export interface TaskListItem {
-  id: string
-  subject: string
-  status: TaskStatus
-  owner?: string
-}
+type TaskStatus = z.infer<typeof TaskStatusSchema>
 
-type TaskGetOutputObject = Exclude<NonNullable<ToolRendererProps<typeof AgentToolsType.TaskGet>['output']>, string>
+const TaskDisplaySchema = z.object({
+  id: z.string().optional().catch(undefined),
+  subject: z.string().optional().catch(undefined),
+  status: TaskStatusSchema.optional().catch(undefined),
+  owner: z.string().optional().catch(undefined)
+})
 
-type TaskListOutputObject = Exclude<NonNullable<ToolRendererProps<typeof AgentToolsType.TaskList>['output']>, string>
+export type TaskListItem = z.infer<typeof TaskDisplaySchema>
 
-type TaskStopOutputObject = Exclude<NonNullable<ToolRendererProps<typeof AgentToolsType.TaskStop>['output']>, string>
-
-function isObject<T>(value: T): value is T & object {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isTaskGetOutputObject(
-  output: ToolRendererProps<typeof AgentToolsType.TaskGet>['output']
-): output is TaskGetOutputObject {
-  return isObject(output) && 'task' in output
-}
-
-function isTaskListOutputObject(
-  output: ToolRendererProps<typeof AgentToolsType.TaskList>['output']
-): output is TaskListOutputObject {
-  return isObject(output) && 'tasks' in output
-}
-
-function isTaskStopOutputObject(
-  output: ToolRendererProps<typeof AgentToolsType.TaskStop>['output']
-): output is TaskStopOutputObject {
-  return isObject(output) && 'message' in output
-}
+const TaskStopDisplaySchema = z.object({
+  message: z.string().optional().catch(undefined),
+  task_id: z.string().optional().catch(undefined)
+})
 
 function getStatusLabel(status: TaskStatus | undefined, t: ReturnType<typeof useTranslation>['t']): string {
   switch (status) {
@@ -75,8 +59,8 @@ function getTaskTargetLabel(taskId: string | undefined, t: ReturnType<typeof use
 export function TaskListView({ tasks, t }: { tasks: TaskListItem[]; t: ReturnType<typeof useTranslation>['t'] }) {
   return (
     <div className="space-y-1.5">
-      {tasks.map((task) => (
-        <div key={task.id} className="flex min-w-0 items-start gap-2 rounded-md bg-muted/30 p-2">
+      {tasks.map((task, index) => (
+        <div key={task.id ?? index} className="flex min-w-0 items-start gap-2 rounded-md bg-muted/30 p-2">
           <div className="min-w-0 flex-1">
             <div className="truncate text-foreground">{task.subject}</div>
             {task.owner && <div className="mt-0.5 truncate text-muted-foreground text-xs">{task.owner}</div>}
@@ -101,14 +85,19 @@ function TaskTextOutput({ text, t }: { text: string; t: ReturnType<typeof useTra
   )
 }
 
-export function TaskCreateTool({ input }: ToolRendererProps<typeof AgentToolsType.TaskCreate>): ToolDisclosureItem {
+export function TaskCreateTool({ input }: ToolDisplayProps): ToolDisclosureItem {
   return {
     key: AgentToolsType.TaskCreate,
     label: (
       <ToolHeader
         toolName={AgentToolsType.TaskCreate}
         args={input}
-        params={<SkeletonValue value={input?.description ?? input?.subject} width="150px" />}
+        params={
+          <SkeletonValue
+            value={readToolStringArgument(input, 'description') ?? readToolStringArgument(input, 'subject')}
+            width="150px"
+          />
+        }
         variant="collapse-label"
         showStatus={false}
       />
@@ -116,10 +105,17 @@ export function TaskCreateTool({ input }: ToolRendererProps<typeof AgentToolsTyp
   }
 }
 
-export function TaskGetTool({ input, output }: ToolRendererProps<typeof AgentToolsType.TaskGet>): ToolDisclosureItem {
+export function TaskGetTool({ input, output }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
-  const task = isTaskGetOutputObject(output) ? output.task : undefined
-  const taskTarget = getTaskTargetLabel(input?.taskId, t)
+
+  const rawTask =
+    output !== null && typeof output === 'object' && !Array.isArray(output) && 'task' in output
+      ? output.task
+      : undefined
+
+  const decodedTask = TaskDisplaySchema.safeParse(rawTask)
+  const task = decodedTask.success ? decodedTask.data : undefined
+  const taskTarget = getTaskTargetLabel(readToolStringArgument(input, 'taskId'), t)
 
   return {
     key: AgentToolsType.TaskGet,
@@ -138,9 +134,9 @@ export function TaskGetTool({ input, output }: ToolRendererProps<typeof AgentToo
   }
 }
 
-export function TaskUpdateTool({ input }: ToolRendererProps<typeof AgentToolsType.TaskUpdate>): ToolDisclosureItem {
+export function TaskUpdateTool({ input }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
-  const taskTarget = getTaskTargetLabel(input?.taskId, t)
+  const taskTarget = getTaskTargetLabel(readToolStringArgument(input, 'taskId'), t)
 
   return {
     key: AgentToolsType.TaskUpdate,
@@ -148,7 +144,14 @@ export function TaskUpdateTool({ input }: ToolRendererProps<typeof AgentToolsTyp
       <ToolHeader
         toolName={AgentToolsType.TaskUpdate}
         args={input}
-        params={<SkeletonValue value={input?.description ?? input?.subject ?? taskTarget} width="150px" />}
+        params={
+          <SkeletonValue
+            value={
+              readToolStringArgument(input, 'description') ?? readToolStringArgument(input, 'subject') ?? taskTarget
+            }
+            width="150px"
+          />
+        }
         variant="collapse-label"
         showStatus={false}
       />
@@ -156,9 +159,21 @@ export function TaskUpdateTool({ input }: ToolRendererProps<typeof AgentToolsTyp
   }
 }
 
-export function TaskListTool({ output }: ToolRendererProps<typeof AgentToolsType.TaskList>): ToolDisclosureItem {
+export function TaskListTool({ output }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
-  const tasks = isTaskListOutputObject(output) ? output.tasks : []
+
+  const rawTasks =
+    output !== null && typeof output === 'object' && !Array.isArray(output) && 'tasks' in output
+      ? output.tasks
+      : undefined
+
+  const tasks = Array.isArray(rawTasks)
+    ? rawTasks.flatMap((task) => {
+        const decodedTask = TaskDisplaySchema.safeParse(task)
+
+        return decodedTask.success ? [decodedTask.data] : []
+      })
+    : []
 
   return {
     key: AgentToolsType.TaskList,
@@ -170,27 +185,14 @@ export function TaskListTool({ output }: ToolRendererProps<typeof AgentToolsType
         showStatus={false}
       />
     ),
-    children: tasks.length ? (
-      <TaskListView
-        tasks={tasks.map((task) => ({
-          id: task.id,
-          subject: task.subject,
-          status: task.status,
-          owner: task.owner
-        }))}
-        t={t}
-      />
-    ) : undefined
+    children: tasks.length ? <TaskListView tasks={tasks} t={t} /> : undefined
   }
 }
 
-export function TaskOutputTool({
-  input,
-  output
-}: ToolRendererProps<typeof AgentToolsType.TaskOutput>): ToolDisclosureItem {
+export function TaskOutputTool({ input, output }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
   const { data: truncatedText, isTruncated, originalLength } = truncateOutput(output)
-  const taskTarget = getTaskTargetLabel(input?.task_id, t)
+  const taskTarget = getTaskTargetLabel(readToolStringArgument(input, 'task_id'), t)
 
   return {
     key: AgentToolsType.TaskOutput,
@@ -212,10 +214,18 @@ export function TaskOutputTool({
   }
 }
 
-export function TaskStopTool({ input, output }: ToolRendererProps<typeof AgentToolsType.TaskStop>): ToolDisclosureItem {
+export function TaskStopTool({ input, output }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
-  const outputData = isTaskStopOutputObject(output) ? output : undefined
-  const taskId = outputData?.task_id ?? input?.task_id ?? input?.shell_id
+
+  const rawOutput =
+    output !== null && typeof output === 'object' && !Array.isArray(output) && 'message' in output ? output : undefined
+
+  const decodedOutput = TaskStopDisplaySchema.safeParse(rawOutput)
+  const outputData = decodedOutput.success ? decodedOutput.data : undefined
+
+  const taskId =
+    outputData?.task_id ?? readToolStringArgument(input, 'task_id') ?? readToolStringArgument(input, 'shell_id')
+
   const taskTarget = getTaskTargetLabel(taskId, t)
 
   return {

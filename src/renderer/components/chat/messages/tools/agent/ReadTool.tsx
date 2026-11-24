@@ -5,15 +5,12 @@ import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { formatFileSize } from '@renderer/utils/file'
 import { getFilePreviewFileName } from '@renderer/utils/filePreview'
 
-import type {
-  ReadToolInput as ReadToolInputType,
-  ReadToolOutput as ReadToolOutputType,
-  TextOutput
-} from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { readToolStringArgument } from '../shared/toolArgumentObject'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayProps } from '../shared/toolDisplay'
 import { truncateOutput } from '../shared/truncateOutput'
 import { extractToolErrorText } from '../toolError'
 
@@ -30,16 +27,26 @@ const stripLineNumbers = (text: string): string => {
   return text.replace(/^ *\d+→/gm, '')
 }
 
-const normalizeOutputString = (output?: ReadToolOutputType): string | null => {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Read results include SDK files, raw text and mixed runtime content; retain only verified text without discarding valid sibling blocks.
+const normalizeOutputString = (output: unknown): string | null => {
   if (!output) return null
 
-  const toText = (item: TextOutput) => removeSystemReminderTags(item.text)
   const content = typeof output === 'object' && 'content' in output ? output.content : output
 
   if (Array.isArray(content)) {
-    return content
-      .filter((item): item is TextOutput => item.type === 'text')
-      .map(toText)
+    const items: unknown[] = content
+
+    return items
+      .flatMap((item) =>
+        item !== null &&
+        typeof item === 'object' &&
+        'type' in item &&
+        item.type === 'text' &&
+        'text' in item &&
+        typeof item.text === 'string'
+          ? [removeSystemReminderTags(item.text)]
+          : []
+      )
       .join('')
   }
 
@@ -65,21 +72,14 @@ const getOutputStats = (outputString: string | null) => {
   }
 }
 
-export function ReadTool({
-  input,
-  output,
-  hasError
-}: {
-  input?: ReadToolInputType
-  output?: ReadToolOutputType
-  hasError?: boolean
-}): ToolDisclosureItem {
+export function ReadTool({ input, output, hasError }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
   const errorText = hasError ? extractToolErrorText(output) : undefined
   const outputString = errorText ?? normalizeOutputString(output)
   const stats = errorText ? null : getOutputStats(outputString)
-  const filename = input?.file_path ? getFilePreviewFileName(input.file_path) : undefined
-  const language = getLanguageByFilePath(input?.file_path ?? '')
+  const filePath = readToolStringArgument(input, 'file_path')
+  const filename = filePath ? getFilePreviewFileName(filePath) : undefined
+  const language = getLanguageByFilePath(filePath ?? '')
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(outputString)
   const strippedOutput = truncatedOutput ? (errorText ? truncatedOutput : stripLineNumbers(truncatedOutput)) : null
 
@@ -91,7 +91,7 @@ export function ReadTool({
         args={input}
         params={
           <SkeletonValue
-            value={input?.file_path ? <ClickableFilePath path={input.file_path} displayName={filename} /> : undefined}
+            value={filePath ? <ClickableFilePath path={filePath} displayName={filename} /> : undefined}
             width="120px"
           />
         }

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 
 import { safeToString } from '@renderer/utils/error'
 
-import { AgentToolsType, type ToolSearchToolInput, ToolSearchToolOutputSchema } from '../shared/agentToolTypes'
+import { AgentToolsType, ToolSearchToolOutputSchema } from '../shared/agentToolTypes'
 import { ToolArgsTable } from '../shared/ArgsTable'
 import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
@@ -19,17 +19,11 @@ function parseOutput(output: unknown) {
   return { matches: result.data.map((item) => item.tool_name) }
 }
 
-export function ToolSearchTool({
-  input,
-  output
-}: {
-  input?: ToolSearchToolInput
-  output?: unknown
-}): ToolDisclosureItem {
+export function ToolSearchTool({ input, output }: { input?: unknown; output?: unknown }): ToolDisclosureItem {
   const { t } = useTranslation()
   const { matches, message } = parseOutput(output)
 
-  const normalizedInput = input ? { ...input } : null
+  const normalizedInput = input ? Object.fromEntries<unknown>(Object.entries(input)) : null
   const normalizedOutput = matches.length > 0 ? { matches: matches.join(', ') } : message ? { value: message } : null
 
   return {

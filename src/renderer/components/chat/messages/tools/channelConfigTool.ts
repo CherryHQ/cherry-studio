@@ -24,11 +24,11 @@ function isChannelAuthQrRequest(toolResponse: ChannelConfigToolResponse): boolea
 
   const args = toolResponse.arguments
 
-  if (!args || Array.isArray(args) || typeof args !== 'object') return false
+  if (!args || Array.isArray(args) || typeof args !== 'object' || !('action' in args)) return false
 
   if (args.action === 'reconnect_channel') return true
 
-  return args.action === 'add_channel' && args.auth_mode === 'qr'
+  return args.action === 'add_channel' && 'auth_mode' in args && args.auth_mode === 'qr'
 }
 
 export function getChannelAuthQrResult(toolResponse: ChannelConfigToolResponse) {

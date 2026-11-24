@@ -107,7 +107,8 @@ export interface ToolMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.TOOL
   toolId: string
   toolName?: string
-  arguments?: Exclude<NormalToolResponse['arguments'], string | unknown[] | undefined>
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Legacy tool blocks retain an object-only argument contract; tool-specific readers validate individual fields.
+  arguments?: Record<string, unknown>
   content?: string | object
   metadata?: BaseMessageBlock['metadata'] & {
     rawMcpToolResponse?: McpToolResponse | NormalToolResponse

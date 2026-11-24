@@ -3,11 +3,9 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge, Button, Tooltip } from '@cherrystudio/ui'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
-import type { ToolInput, ToolOutput } from '../shared/agentToolTypes'
 import type { ToolStatus } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
@@ -19,13 +17,15 @@ interface SessionCreateInput {
   title?: string
 }
 
-function getInput(input: ToolInput | NormalToolResponse['arguments']): SessionCreateInput {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical and streamed arguments are opaque; project only the string fields used by this card.
+function getInput(input: unknown): SessionCreateInput {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) return {}
-  const record = input as { message?: unknown; title?: unknown }
+  const message = 'message' in input ? input.message : undefined
+  const title = 'title' in input ? input.title : undefined
 
   return {
-    message: typeof record.message === 'string' ? record.message : undefined,
-    title: typeof record.title === 'string' ? record.title : undefined
+    message: typeof message === 'string' ? message : undefined,
+    title: typeof title === 'string' ? title : undefined
   }
 }
 
@@ -36,8 +36,8 @@ export function SessionCreateTool({
   isStreaming = false,
   status
 }: {
-  input?: ToolInput | NormalToolResponse['arguments']
-  output?: ToolOutput
+  input?: unknown
+  output?: unknown
   hasError?: boolean
   isStreaming?: boolean
   status?: ToolStatus

@@ -1,14 +1,29 @@
 import { useTranslation } from 'react-i18next'
 
-import { AgentToolsType, type ToolRendererProps } from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
 import { SkeletonValue, ToolHeader } from '../shared/GenericTools'
+import { isToolArgumentObject, readToolStringArgument } from '../shared/toolArgumentObject'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayProps } from '../shared/toolDisplay'
 import { TaskListView } from './TaskTool'
 
-export function TodoWriteTool({ input }: ToolRendererProps<typeof AgentToolsType.TodoWrite>): ToolDisclosureItem {
+export function TodoWriteTool({ input }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
-  const todos = input?.todos ?? []
-  const activeTodo = todos.find((todo) => todo.status === 'in_progress')
+  const rawTodos = isToolArgumentObject(input) ? input.todos : undefined
+  const todos = Array.isArray(rawTodos)
+    ? rawTodos.map((todo) => {
+        const rawStatus = isToolArgumentObject(todo) ? todo.status : undefined
+        const status =
+          rawStatus === 'pending' || rawStatus === 'in_progress' || rawStatus === 'completed' ? rawStatus : undefined
+
+        return {
+          content: readToolStringArgument(todo, 'content'),
+          activeForm: readToolStringArgument(todo, 'activeForm'),
+          status
+        }
+      })
+    : []
+  const activeTodo = todos.find((todo) => todo?.status === 'in_progress')
 
   return {
     key: AgentToolsType.TodoWrite,

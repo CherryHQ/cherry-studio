@@ -1,13 +1,16 @@
 import { useTranslation } from 'react-i18next'
 
-import { AgentToolsType, type SkillToolInput, type SkillToolOutput } from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { readToolStringArgument } from '../shared/toolArgumentObject'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayProps } from '../shared/toolDisplay'
 import { truncateOutput } from '../shared/truncateOutput'
 
-export function SkillTool({ input, output }: { input?: SkillToolInput; output?: SkillToolOutput }): ToolDisclosureItem {
+export function SkillTool({ input, output }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
-  const skillName = input?.skill ?? input?.name
+  const skillName = readToolStringArgument(input, 'skill') ?? readToolStringArgument(input, 'name')
+  const args = readToolStringArgument(input, 'args')
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
@@ -24,11 +27,11 @@ export function SkillTool({ input, output }: { input?: SkillToolInput; output?: 
     children: (
       <div className="flex flex-col gap-3">
         {/* Args 输入区域 */}
-        {input?.args && (
+        {args && (
           <div>
             <div className="mb-1 text-xs font-medium text-muted-foreground">{t('message.tools.sections.args')}</div>
             <div className="max-h-40 overflow-y-auto rounded-md bg-muted/50 p-2">
-              <code className="font-mono text-xs break-all whitespace-pre-wrap">{input.args}</code>
+              <code className="font-mono text-xs break-all whitespace-pre-wrap">{args}</code>
             </div>
           </div>
         )}

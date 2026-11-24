@@ -1,21 +1,12 @@
 import { useTranslation } from 'react-i18next'
 
-import {
-  AgentToolsType,
-  type SearchToolInput as SearchToolInputType,
-  type SearchToolOutput as SearchToolOutputType
-} from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
 import { StringInputTool, StringOutputTool, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayProps } from '../shared/toolDisplay'
 import { countLines, truncateOutput } from '../shared/truncateOutput'
 
-export function SearchTool({
-  input,
-  output
-}: {
-  input?: SearchToolInputType
-  output?: SearchToolOutputType
-}): ToolDisclosureItem {
+export function SearchTool({ input, output }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
   // 如果有输出，计算结果数量
   const resultCount = countLines(output)

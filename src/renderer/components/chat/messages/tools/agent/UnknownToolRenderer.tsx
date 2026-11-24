@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { ToolArgsTable } from '../shared/ArgsTable'
 import { ToolHeader } from '../shared/GenericTools'
+import { isToolArgumentObject } from '../shared/toolArgumentObject'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { ToolResultLinkList } from '../shared/ToolResultLinkList'
 import { getToolResultLinks, type ToolResultLinkData } from '../shared/toolResultLinks'
@@ -85,7 +86,7 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
   const normalizeArgs = (value: unknown): Exclude<Parameters<typeof ToolArgsTable>[0]['args'], undefined> => {
     if (value === undefined || value === null) return null
 
-    if (typeof value === 'object') return value as NonNullable<Parameters<typeof ToolArgsTable>[0]['args']>
+    if (Array.isArray(value) || isToolArgumentObject(value)) return value
 
     // Wrap primitive values
     return { value }

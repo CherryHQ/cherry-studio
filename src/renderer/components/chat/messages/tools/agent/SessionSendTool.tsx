@@ -2,10 +2,8 @@ import { Send } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@cherrystudio/ui'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 
-import type { ToolInput, ToolOutput } from '../shared/agentToolTypes'
 import type { ToolStatus } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
@@ -16,12 +14,13 @@ interface SessionSendInput {
   message?: string
 }
 
-function getInput(input: ToolInput | NormalToolResponse['arguments']): SessionSendInput {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical and streamed arguments are opaque; only a checked string becomes the message preview.
+function getInput(input: unknown): SessionSendInput {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) return {}
-  const record = input as { message?: unknown }
+  const message = 'message' in input ? input.message : undefined
 
   return {
-    message: typeof record.message === 'string' ? record.message : undefined
+    message: typeof message === 'string' ? message : undefined
   }
 }
 
@@ -32,8 +31,8 @@ export function SessionSendTool({
   isStreaming = false,
   status
 }: {
-  input?: ToolInput | NormalToolResponse['arguments']
-  output?: ToolOutput
+  input?: unknown
+  output?: unknown
   hasError?: boolean
   isStreaming?: boolean
   status?: ToolStatus

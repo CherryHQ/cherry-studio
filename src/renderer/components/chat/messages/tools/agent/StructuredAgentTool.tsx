@@ -1,25 +1,24 @@
-import type { ReactNode } from 'react'
-
-import type { AgentToolsType, ToolInput, ToolOutput, ToolRendererFn } from '../shared/agentToolTypes'
+import type { AgentToolsType } from '../shared/agentToolTypes'
 import { ToolHeader } from '../shared/GenericTools'
+import { isToolArgumentObject } from '../shared/toolArgumentObject'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayRenderer } from '../shared/toolDisplay'
 
 type StructuredAgentToolProps = {
   toolName: AgentToolsType
-  input?: ToolInput | string
-  output?: ToolOutput | unknown
+  input?: unknown
 }
 
 const PRIMARY_PARAM_KEYS = ['description', 'subject', 'taskId', 'task_id', 'name', 'path', 'action', 'server', 'uri']
 
-function getPrimaryParam(value: StructuredAgentToolProps['input']): ReactNode {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Generic previews accept raw streamed arguments; only strings or individually checked display fields become labels.
+function getPrimaryParam(value: unknown): string | undefined {
   if (typeof value === 'string') return value
 
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  if (!isToolArgumentObject(value)) return undefined
 
   for (const key of PRIMARY_PARAM_KEYS) {
-    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical tool inputs retain unvalidated fields; only checked strings from the primary-key list become labels.
-    const fieldValue = (value as Record<string, unknown>)[key]
+    const fieldValue = value[key]
 
     if (typeof fieldValue === 'string' && fieldValue.length > 0) return fieldValue
   }
@@ -42,6 +41,6 @@ function StructuredAgentTool({ toolName, input }: StructuredAgentToolProps): Too
   }
 }
 
-export function createStructuredAgentTool(toolName: AgentToolsType): ToolRendererFn {
-  return ({ input, output }) => StructuredAgentTool({ toolName, input, output })
+export function createStructuredAgentTool(toolName: AgentToolsType): ToolDisplayRenderer {
+  return ({ input }) => StructuredAgentTool({ toolName, input })
 }

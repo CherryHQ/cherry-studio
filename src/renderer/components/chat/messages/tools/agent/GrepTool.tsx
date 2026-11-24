@@ -1,15 +1,16 @@
 import { useTranslation } from 'react-i18next'
 
-import { AgentToolsType, type GrepToolInput, type GrepToolOutput } from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
 import { ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayProps } from '../shared/toolDisplay'
 import { countLines, truncateOutput } from '../shared/truncateOutput'
 import { TerminalContainer } from './TerminalOutput'
 
 const FILE_PATH_RE = /^(\/[\w./@+-][^:]*[^:])(:.*)?$/
 
-export function GrepTool({ input, output }: { input?: GrepToolInput; output?: GrepToolOutput }): ToolDisclosureItem {
+export function GrepTool({ input, output }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
   // 如果有输出，计算结果行数
   const resultLines = countLines(output)

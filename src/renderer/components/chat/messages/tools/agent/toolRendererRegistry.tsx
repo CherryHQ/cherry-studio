@@ -1,5 +1,6 @@
 import { AgentToolsType, type ToolInputMap, type ToolOutputMap, type ToolRenderersMap } from '../shared/agentToolTypes'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayProps, ToolDisplayRenderer } from '../shared/toolDisplay'
 import { AgentTool } from './AgentTool'
 import { BashOutputTool } from './BashOutputTool'
 import { BashTool } from './BashTool'
@@ -23,7 +24,7 @@ import { WriteTool } from './WriteTool'
 
 const AGENT_TOOL_VALUES = new Set<string>(Object.values(AgentToolsType))
 
-export const toolRenderers: ToolRenderersMap = {
+const rawToolRenderers: Partial<Record<AgentToolsType, ToolDisplayRenderer>> = {
   [AgentToolsType.Agent]: AgentTool,
   [AgentToolsType.Read]: ReadTool,
   [AgentToolsType.Task]: createStructuredAgentTool(AgentToolsType.Task),
@@ -58,17 +59,21 @@ export const toolRenderers: ToolRenderersMap = {
   [AgentToolsType.Workflow]: WorkflowTool
 }
 
+export const toolRenderers: ToolRenderersMap = rawToolRenderers
+
+export function renderRawTool(toolName: AgentToolsType, props: ToolDisplayProps): ToolDisclosureItem {
+  const renderer = rawToolRenderers[toolName]
+
+  return renderer ? renderer(props) : { key: toolName, label: null }
+}
+
 export function renderTool<T extends AgentToolsType>(
   toolName: T,
   input?: ToolInputMap[T],
   output?: ToolOutputMap[T],
   hasError?: boolean
 ): ToolDisclosureItem {
-  const renderer = toolRenderers[toolName]
-
-  if (!renderer) return { key: toolName, label: null }
-
-  return renderer({ input, output, hasError })
+  return renderRawTool(toolName, { input, output, hasError })
 }
 
 export function isValidAgentToolsType(toolName: unknown): toolName is AgentToolsType {

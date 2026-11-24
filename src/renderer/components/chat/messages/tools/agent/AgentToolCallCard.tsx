@@ -6,27 +6,24 @@ import { cn } from '@renderer/utils/style'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
-import {
-  AgentToolsType,
-  TO_MARKDOWN_RUNTIME_TOOL_NAME,
-  type ToolInput,
-  type ToolOutput
-} from '../shared/agentToolTypes'
+import { AgentToolsType, TO_MARKDOWN_RUNTIME_TOOL_NAME } from '../shared/agentToolTypes'
 import { type ToolStatus, ToolStatusIndicator } from '../shared/GenericTools'
+import { isToolArgumentObject } from '../shared/toolArgumentObject'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
 import { SessionCreateTool } from './SessionCreateTool'
 import { SessionSendTool } from './SessionSendTool'
 import { ToMarkdownTool } from './ToMarkdownTool'
-import { isValidAgentToolsType, renderTool } from './toolRendererRegistry'
+import { isValidAgentToolsType, renderRawTool } from './toolRendererRegistry'
 import { UnknownToolRenderer } from './UnknownToolRenderer'
 
 function shouldShowHeaderErrorText(toolName: string | undefined, renderedItem: ToolDisclosureItem) {
   return renderedItem.children === undefined || renderedItem.children === null || toolName === AgentToolsType.Write
 }
 
-function getAgentToolFlowTitle(toolName: string | undefined, input: ToolInput | undefined) {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK and partial-JSON inputs are unparsed; only checked string fields become the flow title.
+function getAgentToolFlowTitle(toolName: string | undefined, input: unknown) {
   if (typeof input === 'string') return input.trim() || toolName
 
   if (!input || typeof input !== 'object' || Array.isArray(input)) return toolName
@@ -66,8 +63,8 @@ export function AgentToolCallCard({
 }: {
   toolCallId?: string
   toolName?: string
-  input?: ToolInput
-  output?: ToolOutput
+  input?: unknown
+  output?: unknown
   isStreaming?: boolean
   status?: ToolStatus
   hasError?: boolean
@@ -77,6 +74,7 @@ export function AgentToolCallCard({
 }) {
   const actions = useOptionalMessageListActions()
   const { t } = useTranslation()
+  const builtinInput = input ?? {}
 
   const renderedItem =
     isCherrySessionTool &&
@@ -85,8 +83,8 @@ export function AgentToolCallCard({
       : isCherrySessionTool &&
           (toolName === SESSION_SEND_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_SEND_TOOL_NAME}`)
         ? SessionSendTool({ input, output, hasError, isStreaming, status })
-        : isValidAgentToolsType(toolName)
-          ? renderTool(toolName, input ?? {}, output, hasError)
+        : isValidAgentToolsType(toolName) && (typeof builtinInput === 'string' || isToolArgumentObject(builtinInput))
+          ? renderRawTool(toolName, { input: builtinInput, output, hasError })
           : toolName === TO_MARKDOWN_RUNTIME_TOOL_NAME
             ? ToMarkdownTool({ input, output })
             : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })

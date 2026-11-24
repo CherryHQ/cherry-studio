@@ -1,33 +1,23 @@
 import { getFilePreviewFileName } from '@renderer/utils/filePreview'
 
-import type { MultiEditToolInput, MultiEditToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
 import { ToolHeader } from '../shared/GenericTools'
+import { isToolArgumentObject, readToolStringArgument } from '../shared/toolArgumentObject'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayProps } from '../shared/toolDisplay'
 import { AgentFileDiffView } from './AgentFileDiffView'
 
-function MultiEditToolChildren({ input }: { input?: MultiEditToolInput }) {
-  const edits = Array.isArray(input?.edits) ? input.edits : []
-
-  return (
-    <AgentFileDiffView
-      filePath={input?.file_path}
-      hunks={edits.map((edit) => ({
-        oldString: edit.old_string,
-        newString: edit.new_string
-      }))}
-    />
-  )
-}
-
-export function MultiEditTool({
-  input
-}: {
-  input?: MultiEditToolInput
-  output?: MultiEditToolOutput
-}): ToolDisclosureItem {
-  const filename = input?.file_path ? getFilePreviewFileName(input.file_path) : undefined
+export function MultiEditTool({ input }: ToolDisplayProps): ToolDisclosureItem {
+  const filePath = readToolStringArgument(input, 'file_path')
+  const filename = filePath ? getFilePreviewFileName(filePath) : undefined
+  const rawEdits = isToolArgumentObject(input) ? input.edits : undefined
+  const hunks = Array.isArray(rawEdits)
+    ? rawEdits.map((edit) => ({
+        oldString: readToolStringArgument(edit, 'old_string'),
+        newString: readToolStringArgument(edit, 'new_string')
+      }))
+    : []
 
   return {
     key: AgentToolsType.MultiEdit,
@@ -35,11 +25,11 @@ export function MultiEditTool({
       <ToolHeader
         toolName={AgentToolsType.MultiEdit}
         args={input}
-        params={input?.file_path ? <ClickableFilePath path={input.file_path} displayName={filename} /> : undefined}
+        params={filePath ? <ClickableFilePath path={filePath} displayName={filename} /> : undefined}
         variant="collapse-label"
         showStatus={false}
       />
     ),
-    children: <MultiEditToolChildren input={input} />
+    children: <AgentFileDiffView filePath={filePath} hunks={hunks} />
   }
 }

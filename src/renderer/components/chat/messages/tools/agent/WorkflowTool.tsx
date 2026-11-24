@@ -1,17 +1,30 @@
 import { Check } from 'lucide-react'
 import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
-import { AgentToolsType, type ToolRendererProps } from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
 import { SkeletonValue, ToolHeader, useIsStreaming } from '../shared/GenericTools'
+import { readToolStringArgument } from '../shared/toolArgumentObject'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayProps } from '../shared/toolDisplay'
 
 const CodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
+
+const WorkflowDisplaySchema = z.object({
+  workflowName: z.string().optional().catch(undefined),
+  taskId: z.string().optional().catch(undefined),
+  summary: z.string().optional().catch(undefined),
+  warning: z.string().optional().catch(undefined),
+  error: z.string().optional().catch(undefined),
+  runId: z.string().optional().catch(undefined),
+  scriptPath: z.string().optional().catch(undefined)
+})
 
 function WorkflowDetail({ label, value }: { label: string; value: string | undefined }) {
   if (!value) return null
@@ -26,18 +39,20 @@ function WorkflowDetail({ label, value }: { label: string; value: string | undef
   )
 }
 
-export function WorkflowTool({ input, output }: ToolRendererProps<typeof AgentToolsType.Workflow>): ToolDisclosureItem {
+export function WorkflowTool({ input, output }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
   const actions = useOptionalMessageListActions()
   const [copied, setCopied] = useTemporaryValue(false)
   const isStreaming = useIsStreaming()
-  const result = output && typeof output !== 'string' ? output : undefined
+  const decodedOutput = WorkflowDisplaySchema.safeParse(output)
+  const result = decodedOutput.success ? decodedOutput.data : undefined
+
   // The tool always launches in the background and returns a receipt, so the run's identity comes
   // from the result: `workflowName` mirrors the script's `meta.name`. `input.description` / `title`
   // are documented as ignored by the SDK, so they are deliberately not used as a label.
-  const name = result?.workflowName ?? input?.name
+  const name = result?.workflowName ?? readToolStringArgument(input, 'name')
   const target = name ?? (result?.taskId ? t('message.tools.activity.taskId', { id: result.taskId }) : undefined)
-  const script = input?.script
+  const script = readToolStringArgument(input, 'script')
 
   const hasDetails = Boolean(
     script || result?.summary || result?.warning || result?.error || result?.runId || result?.scriptPath

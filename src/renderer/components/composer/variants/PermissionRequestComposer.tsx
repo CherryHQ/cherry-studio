@@ -8,12 +8,13 @@ import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import {
   isValidAgentToolsType,
-  renderTool,
+  renderRawTool,
   TerminalOutput,
   UnknownToolRenderer
 } from '@renderer/components/chat/messages/tools/agent'
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/ArgsTable'
+import { isToolArgumentObject } from '@renderer/components/chat/messages/tools/shared/toolArgumentObject'
 import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/chat/messages/tools/shared/ToolDisclosure'
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
@@ -64,7 +65,7 @@ function normalizeArgs(
 ): Exclude<Parameters<typeof ToolArgsTable>[0]['args'], undefined> {
   if (args === undefined || args === null) return null
 
-  if (typeof args === 'object') return args
+  if (Array.isArray(args) || isToolArgumentObject(args)) return args
 
   return { value: args }
 }
@@ -113,8 +114,8 @@ function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolRe
   const input = toolResponse.arguments
 
   const renderedItem =
-    isValidAgentToolsType(toolName) && !Array.isArray(input)
-      ? renderTool(toolName, input)
+    isValidAgentToolsType(toolName) && (input === undefined || typeof input === 'string' || isToolArgumentObject(input))
+      ? renderRawTool(toolName, { input })
       : UnknownToolRenderer({ toolName, input })
 
   const item: ToolDisclosureItem = {

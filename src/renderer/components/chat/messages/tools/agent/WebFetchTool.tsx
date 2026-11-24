@@ -1,15 +1,10 @@
-import { AgentToolsType, type WebFetchToolInput, type WebFetchToolOutput } from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
 import { ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayProps } from '../shared/toolDisplay'
 import { truncateOutput } from '../shared/truncateOutput'
 
-export function WebFetchTool({
-  input,
-  output
-}: {
-  input?: WebFetchToolInput
-  output?: WebFetchToolOutput
-}): ToolDisclosureItem {
+export function WebFetchTool({ input, output }: ToolDisplayProps): ToolDisclosureItem {
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {

@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@cherrystudio/ui'
 
-import type { BashOutputToolInput, BashOutputToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
 import { ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { readToolStringArgument } from '../shared/toolArgumentObject'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolDisplayProps } from '../shared/toolDisplay'
 import { truncateOutput } from '../shared/truncateOutput'
 import { TerminalOutput } from './TerminalOutput'
 
@@ -19,8 +20,9 @@ interface ParsedBashOutput {
   tool_use_error?: string
 }
 
-const parseBashOutput = (output?: BashOutputToolOutput): ParsedBashOutput | null => {
-  if (!output) return null
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Only string results enter the XML parser; other runtime results retain the existing generic text fallback.
+const parseBashOutput = (output: unknown): ParsedBashOutput | null => {
+  if (typeof output !== 'string' || !output) return null
 
   try {
     const parser = new DOMParser()
@@ -37,9 +39,11 @@ const parseBashOutput = (output?: BashOutputToolOutput): ParsedBashOutput | null
       return element?.textContent?.trim()
     }
 
+    const exitCode = getElementText('exit_code')
+
     return {
       status: getElementText('status'),
-      exit_code: getElementText('exit_code') ? parseInt(getElementText('exit_code')!) : undefined,
+      exit_code: exitCode ? parseInt(exitCode) : undefined,
       stdout: getElementText('stdout'),
       stderr: getElementText('stderr'),
       timestamp: getElementText('timestamp'),
@@ -50,13 +54,7 @@ const parseBashOutput = (output?: BashOutputToolOutput): ParsedBashOutput | null
   }
 }
 
-export function BashOutputTool({
-  input,
-  output
-}: {
-  input?: BashOutputToolInput
-  output?: BashOutputToolOutput
-}): ToolDisclosureItem {
+export function BashOutputTool({ input, output }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
   const parsedOutput = parseBashOutput(output)
 
@@ -169,7 +167,7 @@ export function BashOutputTool({
         params={
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="py-0 font-mono text-xs">
-              {input?.bash_id}
+              {readToolStringArgument(input, 'bash_id')}
             </Badge>
             {statusConfig && (
               <Badge

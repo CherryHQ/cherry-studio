@@ -30,7 +30,7 @@ export {
   normalizeTaskStatus
 } from './taskData'
 
-export { isValidAgentToolsType, renderTool, toolRenderers } from './toolRendererRegistry'
+export { isValidAgentToolsType, renderRawTool, renderTool, toolRenderers } from './toolRendererRegistry'
 
 export { UnknownToolRenderer } from './UnknownToolRenderer'
 
