@@ -24,6 +24,7 @@ export function useDataChange(
   const endpointsKey = Array.isArray(endpoints) ? endpoints.join('\0') : endpoints
   useEffect(() => {
     if (endpointsKey === '') return
+    // SAFETY: GetMethodApiPaths is a closed set of NUL-free route templates; splitting the joined key recovers those same templates.
     const endpointList = endpointsKey.split('\0') as GetMethodApiPaths[]
 
     return dataApiService.onDataChanged?.(endpointList, (effects) => {
