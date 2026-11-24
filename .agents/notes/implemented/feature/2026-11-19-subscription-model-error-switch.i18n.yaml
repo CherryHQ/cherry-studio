@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-19-subscription-model-error-switch.md
-2026-11-19-subscription-model-error-switch.md: 4f34037cd850aeedb75f5c3eb67ed2fb40ef5f04
-2026-11-19-subscription-model-error-switch.zh.md: 1e0627afb5199cc18fc0279cad3d49e9b7728241
+2026-11-19-subscription-model-error-switch.md: e6cd482b825d5c4208481bc33c0f07643fa4fd55
+2026-11-19-subscription-model-error-switch.zh.md: 655ea5c92e5ed290757b9b9571fa0eed7a763090
