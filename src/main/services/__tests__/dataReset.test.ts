@@ -657,7 +657,7 @@ describe('runDataReset', () => {
           if (String(target).endsWith('/Data')) throw new Error('EBUSY: resource busy')
         })
       },
-      cause: [`${USER_DATA}/Data`]
+      cause: [`${USER_DATA}/Data`, 'EBUSY: resource busy']
     }
   ])('copies the cause of $name, not the warning text', async ({ setup, cause }) => {
     setup()
