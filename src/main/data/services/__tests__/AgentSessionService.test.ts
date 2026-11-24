@@ -925,7 +925,8 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' }
+      { endpoint: '/agent-sessions/latest' },
+      { endpoint: '/ai-usage-records/local', kind: 'projection' }
     ])
 
     expect(updated).toMatchObject({

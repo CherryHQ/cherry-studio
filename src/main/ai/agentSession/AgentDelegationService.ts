@@ -6,9 +6,8 @@ import { loggerService } from '@logger'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { AgentDelegationSnapshot } from '@shared/ai/agentSessionDelivery'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
-
-import { buildAgentSessionTopicId } from './topic'
 
 const logger = loggerService.withContext('AgentDelegationService')
 const DELEGATION_TIMEOUT_MS = 10 * 60_000

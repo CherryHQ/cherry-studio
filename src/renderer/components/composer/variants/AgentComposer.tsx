@@ -44,10 +44,7 @@ import {
   type QuickPanelListItem,
   useOptionalQuickPanel
 } from '@renderer/components/QuickPanel'
-import {
-  openResourceEditDialog,
-  ResourceEditDialogEventHost
-} from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
+import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -82,7 +79,7 @@ import {
   isLocalThoughtConfigOption,
   isUnifiedLocalPermissionMode
 } from '@renderer/utils/agent/localAgentLabels'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import {
   getComposerShortcutLabel,
   resolveNewlineShortcut,
@@ -92,6 +89,7 @@ import {
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -157,6 +155,7 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
+import { useComposerPrefill } from './shared/useComposerPrefill'
 import { useComposerSelectionReferenceInsertion } from './shared/useComposerSelectionReferenceInsertion'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
@@ -1205,6 +1204,19 @@ const AgentComposerInner = ({
 
   useComposerQuoteInsertion(actionsRef)
   useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
+  useComposerPrefill(actionsRef, {
+    topicId: sessionTopicId,
+    enabled: !launchOptions?.editing,
+    replaceDraft: (nextText) => {
+      releaseFollowupEditRef.current()
+      actionsRef.current.replaceDraft({ text: nextText, tokens: [] })
+      handleTextChange(nextText)
+      setFiles([])
+      setSelectedSkills([])
+      setDraftTokens([])
+      draftTokensRef.current = []
+    }
+  })
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })
@@ -1944,7 +1956,6 @@ const AgentComposerInner = ({
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
       <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />
-      <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface
           focusOnTabActivation

@@ -1,7 +1,9 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 
-import type { Tab } from '@renderer/hooks/tab'
+import { type Tab, TabIdContext, TabsContext } from '@renderer/hooks/tab'
+import { HomeTabRuntime } from '@renderer/pages/home/components/HomeTabRuntime'
 
 import { TabIcon } from '../TabIcon'
 
@@ -50,6 +52,33 @@ it('renders CLI Web UI tabs with a local circular icon at the tab size, without 
   }
   const { container } = render(<TabIcon tab={tab} size={16} />)
   expect(container.querySelector('img')).not.toBeInTheDocument()
-  expect(container.querySelector('svg')).toBeInTheDocument()
-  expect(container.querySelector('[data-slot="avatar"]')).toHaveStyle({ width: '16px', height: '16px' })
+  expect(container.querySelector('[data-slot="cli-icon"] svg')).toBeInTheDocument()
+  expect(container.querySelector('[data-slot="cli-icon"]')).toHaveStyle({ width: '16px', height: '16px' })
+})
+
+// Catches a chat tab showing a broken image instead of the assistant's saved emoji.
+it('shows the saved assistant emoji when the chat tab avatar fails to load', () => {
+  function ChatTab() {
+    const [tabs, setTabs] = useState<Tab[]>([{ id: 'chat', type: 'route', url: '/app/chat', title: 'Chat' }])
+    const updateTab = (id: string, updates: Partial<Tab>) =>
+      setTabs((prev) => prev.map((tab) => (tab.id === id ? { ...tab, ...updates } : tab)))
+    return (
+      <TabsContext value={{ tabs, updateTab } as never}>
+        <TabIdContext value="chat">
+          <HomeTabRuntime
+            title="Topic"
+            emoji="🦊"
+            icon="file:///missing-avatar.png"
+            preserveVisuals={false}
+            activeTopicSource="query"
+          />
+        </TabIdContext>
+        <TabIcon tab={tabs[0]} size={16} />
+      </TabsContext>
+    )
+  }
+  render(<ChatTab />)
+  fireEvent.error(screen.getByRole('presentation'))
+  expect(screen.queryByRole('presentation')).not.toBeInTheDocument()
+  expect(screen.getAllByText('🦊').length).toBeGreaterThan(0)
 })

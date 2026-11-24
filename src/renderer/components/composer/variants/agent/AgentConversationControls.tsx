@@ -2,7 +2,8 @@ import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert, X } fro
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
+import { Button, EmojiIcon, NormalTooltip, Tooltip } from '@cherrystudio/ui'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
@@ -10,6 +11,7 @@ import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
@@ -21,7 +23,9 @@ import {
   COMPOSER_BELOW_SELECTOR_BUTTON_CLASS,
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
-  COMPOSER_SELECTOR_BUTTON_CLASS
+  COMPOSER_PROFILE_AVATAR_BUTTON_CLASS,
+  COMPOSER_SELECTOR_BUTTON_CLASS,
+  COMPOSER_TOP_BAR_SHRINK_CLASS
 } from '../shared/ComposerControlScaffolding'
 import { AgentLabel } from './AgentLabel'
 import { LocalAgentModelControl } from './LocalAgentModelControl'
@@ -58,6 +62,9 @@ export interface AgentConversationControlsProps {
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   modelFilter?: ModelSelectorFilter
   onAgentDialogCloseAutoFocus?: () => void
+  /** When given, the avatar becomes its own button (the profile pane toggle); the name keeps its action. */
+  onAvatarClick?: () => void
+  avatarActive?: boolean
 }
 
 function AgentControl({
@@ -69,7 +76,9 @@ function AgentControl({
   iconOnly = false,
   agentTriggerMode,
   onAgentDialogCloseAutoFocus,
-  onAgentChange
+  onAgentChange,
+  onAvatarClick,
+  avatarActive = false
 }: Pick<
   AgentConversationControlsProps,
   | 'agent'
@@ -81,12 +90,36 @@ function AgentControl({
   | 'agentTriggerMode'
   | 'onAgentDialogCloseAutoFocus'
   | 'onAgentChange'
+  | 'onAvatarClick'
+  | 'avatarActive'
 >) {
+  const { t } = useTranslation()
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
-  const triggerClassName = cn(baseTriggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
+  // `side` is where menus open: the top bar's open downward.
+  const triggerClassName = cn(
+    baseTriggerClassName,
+    iconOnly ? COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS : side === 'bottom' && COMPOSER_TOP_BAR_SHRINK_CLASS
+  )
   const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
-  const chevronClassName = cn('text-muted-foreground', iconOnly && 'hidden')
   const [agentEditDialogTarget, setAgentEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+
+  const avatarButton =
+    onAvatarClick && agent ? (
+      <button
+        type="button"
+        aria-label={t('chat.profile_pane.open', { name: agent.name })}
+        aria-pressed={avatarActive}
+        onClick={onAvatarClick}
+        className={COMPOSER_PROFILE_AVATAR_BUTTON_CLASS}>
+        <AssistantAvatarImage
+          src={agent.avatarSrc}
+          alt=""
+          size={20}
+          className="max-w-none rounded-full object-cover"
+          fallback={<EmojiIcon emoji={getAgentAvatarFromConfiguration(agent.configuration)} size={20} />}
+        />
+      </button>
+    ) : null
 
   const agentTrigger = (
     <Button
@@ -103,6 +136,7 @@ function AgentControl({
         <AgentLabel
           agent={agent}
           avatarSize={20}
+          hideIcon={!!avatarButton}
           classNames={{
             name: cn('max-w-40 text-xs', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS),
             container: 'gap-1.5'
@@ -114,14 +148,19 @@ function AgentControl({
           <span className={cn('max-w-40 text-muted-foreground', labelClassName)}>{selectAgentLabel}</span>
         </>
       )}
-      {agentTriggerMode === 'selector' ? <ChevronDown size={14} className={chevronClassName} /> : null}
+      {agentTriggerMode === 'selector' ? (
+        // Beside the avatar, the chevron alone is the icon-only switch control.
+        <ChevronDown size={14} className={cn('text-muted-foreground', iconOnly && !avatarButton && 'hidden')} />
+      ) : null}
     </Button>
   )
 
   if (agentTriggerMode === 'edit') {
     return (
       <>
-        {agentTrigger}
+        {avatarButton}
+        {/* Icon-only, the avatar already stands for the Agent and its pane opens the editor. */}
+        {iconOnly && avatarButton ? null : agentTrigger}
         {agentEditDialogTarget ? (
           <React.Suspense fallback={null}>
             <ResourceEditDialogHost
@@ -140,16 +179,19 @@ function AgentControl({
   }
 
   return (
-    <AgentSelector
-      value={agent?.id ?? null}
-      onChange={onAgentChange}
-      autoSelectOnCreate={shouldAutoSelectCreatedAgent}
-      side={side}
-      align="start"
-      mountStrategy="lazy-keep"
-      onDialogCloseAutoFocus={onAgentDialogCloseAutoFocus}
-      trigger={agentTrigger}
-    />
+    <>
+      {avatarButton}
+      <AgentSelector
+        value={agent?.id ?? null}
+        onChange={onAgentChange}
+        autoSelectOnCreate={shouldAutoSelectCreatedAgent}
+        side={side}
+        align="start"
+        mountStrategy="lazy-keep"
+        onDialogCloseAutoFocus={onAgentDialogCloseAutoFocus}
+        trigger={agentTrigger}
+      />
+    </>
   )
 }
 
@@ -166,8 +208,11 @@ function ModelControl({
   'model' | 'selectModelLabel' | 'canChangeModel' | 'side' | 'iconOnly' | 'onModelSelect' | 'modelFilter'
 >) {
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
-  const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
-  const labelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
+  const triggerClassName = cn(
+    baseTriggerClassName,
+    iconOnly && model ? COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS : side === 'bottom' && COMPOSER_TOP_BAR_SHRINK_CLASS
+  )
+  const labelClassName = cn('max-w-52 truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const loadedProviderName = useProviderDisplayName(model?.providerId)
   const providerName = model ? loadedProviderName || getProviderDisplayNameById(model.providerId) : undefined
   const modelLabel = model ? `${model.name} | ${providerName}` : selectModelLabel
@@ -282,7 +327,7 @@ function WorkspaceControl({
         baseTriggerClassName,
         !menuOpen && 'group',
         'relative',
-        iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
+        iconOnly ? COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS : side === 'bottom' && COMPOSER_TOP_BAR_SHRINK_CLASS,
         hasWarning && 'text-warning hover:text-warning'
       )}
       disabled={!onWorkspaceChange || workspaceChanging}

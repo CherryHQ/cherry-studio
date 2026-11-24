@@ -25,11 +25,11 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isOpenClawTechnicalTitle } from '@main/ai/agentSession/topic'
 import { t } from '@main/i18n'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { AgentSessionCostSnapshotSchema } from '@shared/ai/agentSessionCost'
+import { isOpenClawTechnicalTitle } from '@shared/ai/agentSessionTopic'
 import {
   ElicitationFormSchema,
   elicitationChoices,

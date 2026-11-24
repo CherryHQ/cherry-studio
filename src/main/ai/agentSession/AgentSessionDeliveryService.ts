@@ -3,6 +3,7 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { loggerService } from '@logger'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -10,7 +11,6 @@ import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agent
 
 import { agentChatContextProvider, finalizeInterruptedParts, type StreamListener } from '../streamManager'
 import { awaitsDurableOutcome, recoverSessionDeliveries } from './recoverSessionDeliveries'
-import { buildAgentSessionTopicId } from './topic'
 
 const logger = loggerService.withContext('AgentSessionDeliveryService')
 // Filesystem availability has no app event (for example, an external workspace volume remount).

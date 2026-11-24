@@ -8,6 +8,7 @@
 import * as z from 'zod'
 
 import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
+import { AgentPromptOverridesPatchSchema, AgentPromptOverridesSchema } from '@shared/ai/agentPromptSections'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { LocalAgentConfigurationSchema } from '@shared/ai/localAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
@@ -70,7 +71,10 @@ export const AgentConfigurationSchema = z
     builtin_role: z
       .enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT, BUILTIN_AGENT_ROLE.DOCTOR])
       .optional(),
-    language: AgentLanguageSchema.nullable().optional()
+    language: AgentLanguageSchema.nullable().optional(),
+    claude_code_native_prompt_enabled: z.boolean().optional(),
+    /** The Agent's own text for editable blocks of its System Prompt. */
+    prompt_overrides: AgentPromptOverridesSchema.optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
   // and may contain keys written by older or newer versions of the app. Unknown fields must
@@ -226,8 +230,8 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
  *
  * `configuration` is itself a partial: callers send only the first-level keys
  * they intend to change, and AgentService shallow-merges them onto the latest
- * persisted configuration inside the write transaction. `localRuntime` also merges
- * individual fields; other nested values such as `env_vars` replace as a whole.
+ * persisted configuration inside the write transaction. `localRuntime` merges per field
+ * and `prompt_overrides` per block. Other nested values such as `env_vars` replace as a whole.
  * An explicitly present `undefined` removes a key; omission preserves it.
  */
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS)
@@ -239,9 +243,11 @@ export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS)
     smallModel: UniqueModelIdSchema.nullable().optional(),
     configuration: AgentConfigurationSchema.partial()
       .extend({
+        prompt_overrides: AgentPromptOverridesPatchSchema.optional(),
         localRuntime: LocalAgentConfigurationSchema.partial()
           // PATCH must not apply creation defaults to omitted fields.
           .extend({
+            prompt_overrides: AgentPromptOverridesPatchSchema.optional(),
             enabled: LocalAgentConfigurationSchema.shape.enabled.removeDefault().optional(),
             args: LocalAgentConfigurationSchema.shape.args.removeDefault().optional(),
             env: LocalAgentConfigurationSchema.shape.env.removeDefault().optional()
@@ -310,6 +316,16 @@ export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
 // API Schema definitions
 // ============================================================================
 
+/** Activity of one Agent: its own sessions, task runs and recent token use only. */
+export interface AgentStats {
+  /** Ordinary conversations, excluding scheduled-task runs and deleted sessions. */
+  sessionCount: number
+  /** Runs of this Agent's scheduled tasks started in the last 7 days (rolling). */
+  recentTaskRunCount: number
+  /** Tokens attributed to this Agent over the last 7 days (rolling). */
+  recentTokens: number
+}
+
 export type AgentSchemas = {
   /** List all agents. Creation is a mixed filesystem + DB command on IpcApi (`ai.agent.create`). */
   '/agents': {
@@ -329,6 +345,14 @@ export type AgentSchemas = {
       params: { agentId: string }
       body: UpdateAgentDto
       response: AgentEntity
+    }
+  }
+
+  /** Usage overview of one Agent, for its profile. */
+  '/agents/:agentId/stats': {
+    GET: {
+      params: { agentId: string }
+      response: AgentStats
     }
   }
 
@@ -360,7 +384,7 @@ export type AgentSchemas = {
     GET: {
       params: { agentId: string }
       query?: ListQuery
-      response: OffsetPaginationResponse<ScheduledTaskEntity>
+      response: OffsetPaginationResponse<ScheduledTaskEntity> & { activeTotal: number }
     }
   }
 

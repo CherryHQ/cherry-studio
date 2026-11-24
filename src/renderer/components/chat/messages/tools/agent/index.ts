@@ -1,5 +1,6 @@
 export { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from '../shared/terminalOutputHelpers'
 export { AcpTool } from './AcpTool'
+export { getAgentConfigToolKind } from './agentConfigTool'
 export { AgentExecutionTimeline, AgentToolRenderer } from './AgentExecutionTimeline'
 export { agentInlineResultPresentationRegistry } from './agentInlineResultPresentationRegistry'
 export { AskUserQuestionCard } from './AskUserQuestionCard'
@@ -11,6 +12,7 @@ export {
   isReportArtifactsToolResponse,
   MessageReportArtifacts
 } from './ReportArtifacts'
+export { ResourceIdentityRow } from './ResourceIdentityRow'
 export { SessionResultCards } from './SessionResultCards'
 export { isCherrySessionToolResponse, parseSessionCreateResult, parseSessionSendResult } from './sessionToolResult'
 export {
