@@ -48,4 +48,6 @@ function TreeRowInner<T>(props: TreeRowProps<T>) {
   )
 }
 
-export const TreeRow = memo(TreeRowInner) as <T>(props: TreeRowProps<T>) => React.ReactElement
+// SAFETY: memo forwards props unchanged to TreeRowInner; this restores the generic
+// component signature erased by React's memo typings.
+export const TreeRow = memo(TreeRowInner) as typeof TreeRowInner
