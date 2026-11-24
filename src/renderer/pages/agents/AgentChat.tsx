@@ -6,6 +6,7 @@ import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
+import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
@@ -107,10 +108,17 @@ type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' 
 
 function AgentTopBarControls({ session, ...props }: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
+  const profilePane = useProfilePaneToggle()
 
   return (
     <>
-      <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+      <AgentConversationControls
+        {...props}
+        side="bottom"
+        iconOnly={iconOnly}
+        onAvatarClick={profilePane?.toggle}
+        avatarActive={profilePane?.active}
+      />
       {session && !iconOnly ? (
         <AgentSessionNameControl
           sessionId={session.id}

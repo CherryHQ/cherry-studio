@@ -28,6 +28,7 @@ import {
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -314,6 +315,8 @@ export function useAgentMessageListProviderValue({
     getDoctorSubject,
     selectAllPagination
   })
+  // The conversation's current Assistant / Agent, not the snapshot each message header shows.
+  const toggleAuthorProfile = useProfilePaneToggle()?.toggle
 
   // Raw path to main, which resolves workspace-relative input against the session's workspace: the
   // renderer must never join paths, and nothing unresolved may reach `shell.openPath`.
@@ -554,7 +557,7 @@ export function useAgentMessageListProviderValue({
       openBrowserUrl,
       openExternalUrl: openExternalUrl ?? leafCapabilities.openExternalUrl,
       navigateToRoute,
-      ...pickMessageHeaderActions(headerCapabilities),
+      ...pickMessageHeaderActions({ ...headerCapabilities, toggleAuthorProfile }),
       respondToolApproval,
       resolvePath,
       isDirectory,
@@ -590,6 +593,7 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
+      toggleAuthorProfile,
       isDirectory,
       leafCapabilities,
       navigateToRoute,
