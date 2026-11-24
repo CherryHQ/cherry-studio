@@ -278,7 +278,7 @@ function publishDiagnosis(scope: DoctorScopeKey, text: string, incident?: Doctor
       selectedCheckIds: [],
       startedAt: '2026-05-01T00:00:00.000Z',
       finishedAt: '2026-05-01T00:00:01.000Z',
-      expiresAt: '2026-05-01T00:10:01.000Z',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
       basics: {
         version: '2.0.0',
         edition: 'global',
