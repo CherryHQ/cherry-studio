@@ -259,7 +259,7 @@ export const useEnableKnowledgeBaseEmbedding = () => {
         throw new Error('Knowledge base embedding model is required')
       }
 
-      if (!Number.isInteger(dimensions) || (dimensions as number) <= 0) {
+      if (typeof dimensions !== 'number' || !Number.isInteger(dimensions) || dimensions <= 0) {
         throw new Error(`Knowledge base dimensions must be a positive integer, received "${dimensions}"`)
       }
 
