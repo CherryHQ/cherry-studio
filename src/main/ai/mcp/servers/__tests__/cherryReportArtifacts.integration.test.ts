@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { seedSessionRoot, setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,6 +30,8 @@ describe('report_artifacts indexes the Agent outputs', () => {
       workspacePath,
       trustedNotifyChannels: [],
       allowAnyOwnedNotifyChannel: false,
+      ownerSessionId: `agent-session:${sessionId}`,
+      roots: [{ uri: pathToFileURL(workspacePath).href, name: 'workspace' }],
       getKnowledgeAccess: () => ({ allKnowledgeBases: false, baseIds: [] })
     })
   }
