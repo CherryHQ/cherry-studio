@@ -32,7 +32,10 @@ export function createChannelDraft(
  * The create payload for a draft, checked with the same schemas the main process applies,
  * or `null` when that create would be rejected.
  */
-export function toAgentChannelDraft(channel: ChannelDraftItem): AgentChannelDraft | null {
+export function toAgentChannelDraft(
+  channel: ChannelDraftItem,
+  drafts: readonly ChannelDraftItem[]
+): AgentChannelDraft | null {
   const parsed = AgentChannelDraftSchema.safeParse({
     type: channel.type,
     name: channel.name.trim(),
@@ -45,6 +48,19 @@ export function toAgentChannelDraft(channel: ChannelDraftItem): AgentChannelDraf
   // QR-login channels are created inactive, so their missing credentials are expected.
   if (draft.isActive && !isQrLoginChannel(draft)) {
     if (!ActiveAgentChannelConfigSchemasByType[draft.type].safeParse(draft.config).success) return null
+  }
+  if (draft.isActive && (draft.type === 'wecom' || draft.type === 'dingtalk')) {
+    const key = draft.type === 'wecom' ? 'bot_id' : 'client_id'
+    const botId = channel.config[key]
+    if (
+      typeof botId === 'string' &&
+      drafts.some((other) => {
+        if (other.id === channel.id || other.type !== draft.type || !other.isActive) return false
+        const otherId = other.config[key]
+        return typeof otherId === 'string' && otherId.trim() === botId.trim()
+      })
+    )
+      return null
   }
   return draft
 }

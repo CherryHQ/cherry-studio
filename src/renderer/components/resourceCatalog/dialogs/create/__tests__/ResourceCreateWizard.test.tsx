@@ -1063,6 +1063,30 @@ describe('ResourceCreateWizard agent steps', () => {
       expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
     })
 
+    it.each([
+      ['wecom', 'botId', 'secret'],
+      ['dingtalk', 'clientId', 'clientSecret']
+    ])('blocks duplicate active %s credentials and accepts the pair when one is disabled', async (type, id, secret) => {
+      const user = userEvent.setup()
+      await openChannelsStep(user)
+      const platform = `agent.channels.${type}.title`
+
+      for (const name of [platform, `${platform} 2`]) {
+        await addChannel(user, platform)
+        await user.type(screen.getByLabelText(`agent.channels.${type}.${id}`), 'shared-id')
+        await user.type(screen.getByLabelText(`agent.channels.${type}.${secret}`), 'credential')
+        if (type === 'dingtalk') {
+          await user.type(screen.getByLabelText('agent.channels.dingtalk.robotCode'), 'robot')
+        }
+        await user.click(screen.getByRole('button', { name: DONE }))
+        await user.click(screen.getByRole('switch', { name: `common.enabled ${name}` }))
+      }
+
+      expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+      await user.click(screen.getByRole('switch', { name: `common.enabled ${platform} 2` }))
+      expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
+    })
+
     it('keeps a WeChat draft off and pending its QR login, which needs the Agent to exist', async () => {
       const user = userEvent.setup()
       await openChannelsStep(user)
@@ -1565,14 +1589,16 @@ describe('ResourceCreateWizard result page', () => {
     const channels = await waitFor(() => summaryValue('settings.channels.title')!)
     expect(channels).toHaveTextContent(`WeChat bot${RESULT}.qr_pending${RESULT}.qr_login${LIST_SEPARATOR}Ops bot`)
     await user.click(screen.getByRole('button', { name: `${RESULT}.qr_login` }))
-    expect(request).toHaveBeenCalledWith('channel.update', { channelId: 'ch-wechat', updates: { isActive: true } })
+    expect(request).toHaveBeenCalledWith('channel.qr_login.begin', {
+      channelId: 'ch-wechat',
+      requestId: expect.any(String)
+    })
+    const attempt = request.mock.calls.find(([route]) => route === 'channel.qr_login.begin')?.[1]
 
     // Abandoning the login switches the channel off again, so it stays pending instead of polling.
     const qrDialog = screen.getByRole('heading', { name: 'agent.channels.wechat.qrTitle' }).closest('[role="dialog"]')!
     await user.click(qrDialog.querySelector<HTMLElement>('[data-slot="dialog-close"]')!)
-    await waitFor(() =>
-      expect(request).toHaveBeenCalledWith('channel.update', { channelId: 'ch-wechat', updates: { isActive: false } })
-    )
+    await waitFor(() => expect(request).toHaveBeenCalledWith('channel.qr_login.cancel', attempt))
   })
 
   it('counts a tool switched off and shows the heartbeat interval', async () => {
