@@ -62,6 +62,8 @@ export type QuickPanelCallBackOptions = {
   inputAdapter?: QuickPanelInputAdapter
 }
 
+export type QuickPanelCloseOptions = Omit<QuickPanelCallBackOptions, 'item'>
+
 export type QuickPanelKeyDownEvent = KeyboardEvent | React.KeyboardEvent<HTMLElement>
 
 export type QuickPanelKeyDownHandler = (event: QuickPanelKeyDownEvent) => boolean
@@ -121,7 +123,7 @@ export type QuickPanelOpenOptions = {
   initialSearchText?: string
   beforeAction?: (options: QuickPanelCallBackOptions) => void
   afterAction?: (options: QuickPanelCallBackOptions) => void
-  onClose?: (options: QuickPanelCallBackOptions) => void
+  onClose?: (options: QuickPanelCloseOptions) => void
   /** Panel to show when navigating back from this panel. */
   parentPanel?: QuickPanelOpenOptions
   /** Tool manages list + collapse behavior externally (skip filtering/auto-close) */
@@ -213,7 +215,7 @@ export interface QuickPanelContextType {
   readonly dispatchKeyDown: (event: QuickPanelKeyDownEvent) => boolean
   readonly getPanelGeneration: () => number
   readonly registerKeyDownHandler: (handler: QuickPanelKeyDownHandler | undefined) => () => void
-  readonly onClose?: (Options: QuickPanelCallBackOptions) => void
+  readonly onClose?: (options: QuickPanelCloseOptions) => void
   readonly beforeAction?: (Options: QuickPanelCallBackOptions) => void
   readonly afterAction?: (Options: QuickPanelCallBackOptions) => void
 }

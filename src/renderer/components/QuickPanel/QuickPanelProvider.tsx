@@ -3,6 +3,7 @@ import React, { createContext, useCallback, useEffect, useMemo, useRef, useState
 import type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
+  QuickPanelCloseOptions,
   QuickPanelContextType,
   QuickPanelFilterFn,
   QuickPanelFooterAction,
@@ -41,7 +42,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [parentPanel, setParentPanel] = useState<QuickPanelOpenOptions | undefined>()
   const [filterFn, setFilterFn] = useState<QuickPanelFilterFn | undefined>()
   const [sortFn, setSortFn] = useState<QuickPanelSortFn | undefined>()
-  const [onClose, setOnClose] = useState<((Options: Partial<QuickPanelCallBackOptions>) => void) | undefined>()
+  const [onClose, setOnClose] = useState<((options: QuickPanelCloseOptions) => void) | undefined>()
   const [beforeAction, setBeforeAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
   const [afterAction, setAfterAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
   const [lastCloseAction, setLastCloseAction] = useState<QuickPanelCloseAction | undefined>(undefined)
@@ -179,7 +180,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       isVisibleRef.current = false
       setIsVisible(false)
       setLastCloseAction(action)
-      onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: contextRef.current! })
+      onClose?.({ action, searchText, context: contextRef.current! })
 
       clearTimer.current = window.setTimeout(() => {
         clearTimer.current = null

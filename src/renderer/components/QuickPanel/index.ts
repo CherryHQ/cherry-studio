@@ -17,6 +17,7 @@ export { QuickPanelView } from './QuickPanelView'
 export type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
+  QuickPanelCloseOptions,
   QuickPanelContextType,
   QuickPanelFilterFn,
   QuickPanelFooterAction,

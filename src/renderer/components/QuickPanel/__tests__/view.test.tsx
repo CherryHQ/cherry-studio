@@ -312,7 +312,7 @@ describe('QuickPanelView', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it('passes the current context to onClose callbacks', async () => {
+  it('passes the current context without inventing a selected item on close', async () => {
     const onClose = vi.fn()
     let quickPanel: QuickPanelContextType | undefined
 
@@ -341,6 +341,7 @@ describe('QuickPanelView', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(onClose.mock.calls[0][0].context).toBe(openContext)
+    expect(onClose.mock.calls[0][0]).not.toHaveProperty('item')
   })
 
   it('dispatches keydown immediately after opening in the same effect tick', async () => {
