@@ -136,28 +136,30 @@ describe('DiscordAdapter gateway handshake', () => {
     expect(unexpectedFetches).toEqual([])
   })
 
-  it.each([{}, { heartbeat_interval: '60000' }, { heartbeat_interval: 0 }])(
-    'waits for a valid Hello before identifying or sending heartbeats',
-    async (hello) => {
-      const adapter = createAdapter()
-      try {
-        await adapter.connect()
-        const socket = sockets[0]
-        socket.open()
-        socket.receive({ op: 10, d: hello })
-        await vi.advanceTimersByTimeAsync(60000)
-        expect(socket.frames).toEqual([])
+  it.each([
+    { op: 10, d: {} },
+    { op: 10, d: { heartbeat_interval: '60000' } },
+    { op: 10, d: { heartbeat_interval: 0 } },
+    { op: 10, s: 'invalid', d: { heartbeat_interval: 60000 } }
+  ])('waits for a valid Hello envelope and interval before identifying or sending heartbeats', async (payload) => {
+    const adapter = createAdapter()
+    try {
+      await adapter.connect()
+      const socket = sockets[0]
+      socket.open()
+      socket.emit('message', Buffer.from(JSON.stringify(payload)))
+      await vi.advanceTimersByTimeAsync(60000)
+      expect(socket.frames).toEqual([])
 
-        socket.receive({ op: 10, d: { heartbeat_interval: 60000 } })
-        expect(socket.frames).toEqual([expect.objectContaining({ op: 2 })])
-        await vi.advanceTimersByTimeAsync(30000)
-        expect(socket.frames.at(-1)?.op).toBe(1)
-      } finally {
-        await adapter.disconnect()
-        vi.useRealTimers()
-      }
+      socket.receive({ op: 10, d: { heartbeat_interval: 60000 } })
+      expect(socket.frames).toEqual([expect.objectContaining({ op: 2 })])
+      await vi.advanceTimersByTimeAsync(30000)
+      expect(socket.frames.at(-1)?.op).toBe(1)
+    } finally {
+      await adapter.disconnect()
+      vi.useRealTimers()
     }
-  )
+  })
 
   it('keeps command-like message suffixes as ordinary content', async () => {
     const adapter = createAdapter()

@@ -245,7 +245,10 @@ describe('QqAdapter Hello boundary', () => {
     vi.useRealTimers()
   })
 
-  it('starts Identify and heartbeat only after a valid interval arrives', async () => {
+  it.each([
+    { op: 10, d: { heartbeat_interval: false } },
+    { op: 10, s: 'invalid', d: { heartbeat_interval: 60000 } }
+  ])('starts Identify and heartbeat only after a valid envelope and interval arrive', async (payload) => {
     const socket = new Socket()
     vi.mocked(WebSocket).mockImplementation(function () {
       return socket as unknown as WebSocket
@@ -253,7 +256,7 @@ describe('QqAdapter Hello boundary', () => {
     const adapter = createAdapter()
     try {
       await adapter.connect()
-      socket.receive({ op: 10, d: { heartbeat_interval: false } })
+      socket.receive(payload)
       await vi.advanceTimersByTimeAsync(60000)
       expect(socket.frames).toEqual([])
 

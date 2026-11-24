@@ -29,6 +29,12 @@ const USER_AGENT = 'DiscordBot (https://github.com/CherryHQ/cherry-studio, 1.0.0
 const discordCreatedMessageSchema = z.object({ id: z.string().min(1) })
 const discordGatewaySchema = z.object({ url: z.string().min(1) })
 const discordHelloSchema = z.object({ heartbeat_interval: z.number().positive() })
+const discordGatewayPayloadSchema = z.object({
+  op: z.number(),
+  s: z.number().nullish(),
+  t: z.string().nullish(),
+  d: z.unknown().optional()
+})
 
 // Discord Gateway Opcodes
 const OP_DISPATCH = 0
@@ -383,10 +389,10 @@ class DiscordAdapter extends ChannelAdapter {
   // ─── WebSocket Message Handling ───────────────────────────────
 
   private async handleWsMessage(data: Buffer): Promise<void> {
-    let payload: { op: number; d?: unknown; s?: number; t?: string }
+    let payload: z.infer<typeof discordGatewayPayloadSchema>
 
     try {
-      payload = JSON.parse(data.toString())
+      payload = discordGatewayPayloadSchema.parse(JSON.parse(data.toString()))
     } catch {
       return
     }

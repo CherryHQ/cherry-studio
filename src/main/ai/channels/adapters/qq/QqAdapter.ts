@@ -27,6 +27,12 @@ const qqTokenSchema = z.object({
 })
 const qqGatewaySchema = z.object({ url: z.string().min(1) })
 const qqHelloSchema = z.object({ heartbeat_interval: z.number().positive() })
+const qqGatewayPayloadSchema = z.object({
+  op: z.number(),
+  s: z.number().nullish(),
+  t: z.string().nullish(),
+  d: z.unknown().optional()
+})
 
 type QqMessageBody = {
   markdown: { content: string }
@@ -319,12 +325,12 @@ class QqAdapter extends ChannelAdapter {
   }
 
   private async handleWsMessage(data: Buffer): Promise<void> {
-    let payload: { op: number; d?: unknown; s?: number; t?: string }
+    let payload: z.infer<typeof qqGatewayPayloadSchema>
 
     try {
-      payload = JSON.parse(data.toString())
+      payload = qqGatewayPayloadSchema.parse(JSON.parse(data.toString()))
     } catch {
-      this.log.warn('Invalid JSON from QQ WebSocket')
+      this.log.warn('Invalid payload from QQ WebSocket')
 
       return
     }
