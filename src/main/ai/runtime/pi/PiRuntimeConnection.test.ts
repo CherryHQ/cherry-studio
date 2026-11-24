@@ -20,6 +20,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
@@ -1278,6 +1279,61 @@ describe('desktop Pi root connection', () => {
     expect(context.bindingState).toBe('pending')
     await expect(connect()).rejects.toThrow('missing')
     expect(nativeFiles()).toEqual([])
+  })
+
+  // Regression for #24393: a runtime switch left the stale backend's binding at the
+  // branch anchor, and preparePiBranch rejected the first turn with a blank reply.
+  it('takes over a pending branch anchor reserved by another runtime', () => {
+    const stale = application.get('DbService').withWriteTx((tx) => {
+      const root = ensureAgentSessionRootTx(tx, input.sessionId)
+      const backend = contexts.ensureBackendTx(
+        tx,
+        { version: 1, kind: 'pi-durable', fileName: 'stale.sqlite' },
+        'bound'
+      )
+      return contexts.reserveBranchTx(tx, {
+        sessionId: input.sessionId,
+        backendId: backend.id,
+        anchorMessageId: root
+      })
+    })
+
+    const context = preparePiBranch(input.sessionId)
+    expect(context.id).toBe(stale.id)
+    expect(contexts.backend(context.backendId).locator.kind).toBe('pi')
+    expect(context.nativeThreadId).toBeTruthy()
+    expect(preparePiBranch(input.sessionId).id).toBe(context.id)
+  })
+
+  it('reserves a fresh pi branch at the turn anchor when an ancestor belongs to another runtime', () => {
+    application.get('DbService').withWriteTx((tx) => {
+      const root = ensureAgentSessionRootTx(tx, input.sessionId)
+      const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'claude-code', configDir: '/stale' }, 'bound')
+      contexts.reserveBranchTx(tx, { sessionId: input.sessionId, backendId: backend.id, anchorMessageId: root })
+    })
+
+    const user = message('first question')
+    const context = preparePiBranch(input.sessionId, user.id)
+    expect(context.anchorMessageId).toBe(user.id)
+    expect(contexts.backend(context.backendId).locator.kind).toBe('pi')
+    const resolved = application.get('DbService').withWriteTx((tx) => contexts.branchTx(tx, input.sessionId, user.id))
+    expect(resolved?.id).toBe(context.id)
+  })
+
+  it('still rejects a bound branch owned by another runtime at the same anchor', () => {
+    const stale = application.get('DbService').withWriteTx((tx) => {
+      const root = ensureAgentSessionRootTx(tx, input.sessionId)
+      const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'claude-code', configDir: '/stale' }, 'bound')
+      return contexts.reserveBranchTx(tx, {
+        sessionId: input.sessionId,
+        backendId: backend.id,
+        anchorMessageId: root,
+        nativeThreadId: 'claude-1'
+      })
+    })
+    contexts.bindContext(stale.id, 'claude-1')
+
+    expect(() => preparePiBranch(input.sessionId)).toThrow('belongs to another runtime')
   })
 
   it('keeps a primed owner idle and permits reopen before any input has created a native file', async () => {

@@ -40,13 +40,19 @@ export function prepareDurableBranch(sessionId: string, messageId?: string) {
   agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
     const root = ensureAgentSessionRootTx(tx, sessionId)
-    const existing = contexts.branchTx(tx, sessionId, messageId ?? root)
+    const anchor = messageId ?? root
+    const existing = contexts.branchTx(tx, sessionId, anchor)
     if (existing) {
-      if (contexts.backendTx(tx, existing.backendId).locator.kind !== 'pi-durable')
-        throw new Error('The selected branch belongs to another runtime')
-      return existing
+      if (contexts.backendTx(tx, existing.backendId).locator.kind === 'pi-durable') return existing
+      // The resolved binding was captured under a previous runtime backend; the
+      // durable branch takes over from this anchor instead of rejecting the turn.
+      if (existing.anchorMessageId === anchor) {
+        if (existing.bindingState === 'bound') throw new Error('The selected branch belongs to another runtime')
+        const backend = allocateDurableBackendTx(tx)
+        return contexts.retargetBranchTx(tx, existing.id, backend.id, null)
+      }
     }
     const backend = allocateDurableBackendTx(tx)
-    return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId: messageId ?? root })
+    return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId: anchor })
   })
 }

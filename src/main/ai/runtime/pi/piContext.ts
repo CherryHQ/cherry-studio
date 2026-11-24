@@ -15,14 +15,24 @@ export function preparePiBranch(sessionId: string, messageId?: string, nativeId?
   agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
     const root = ensureAgentSessionRootTx(tx, sessionId)
-    const existing = contexts.branchTx(tx, sessionId, messageId ?? root)
+    const anchor = messageId ?? root
+    const existing = contexts.branchTx(tx, sessionId, anchor)
     if (existing) {
-      if (contexts.backendTx(tx, existing.backendId).locator.kind !== 'pi')
-        throw new Error('The selected branch belongs to another runtime')
-      if (nativeId && existing.nativeThreadId !== nativeId)
-        throw new Error('Requested Pi identity does not match the captured branch')
-      return existing
+      if (contexts.backendTx(tx, existing.backendId).locator.kind === 'pi') {
+        if (nativeId && existing.nativeThreadId !== nativeId)
+          throw new Error('Requested Pi identity does not match the captured branch')
+        return existing
+      }
+      // The resolved binding was captured under a previous runtime backend (e.g. the
+      // agent's runtime was switched on this conversation); the pi branch takes over
+      // from this anchor instead of rejecting the turn. (sessionId, anchorMessageId)
+      // is unique, so an identical anchor must reuse the row.
+      if (existing.anchorMessageId === anchor) {
+        if (existing.bindingState === 'bound') throw new Error('The selected branch belongs to another runtime')
+        const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound')
+        return contexts.retargetBranchTx(tx, existing.id, backend.id, nativeId ?? uuid())
+      }
     }
-    return reservePiBranchTx(tx, sessionId, messageId ?? root, nativeId ?? uuid())
+    return reservePiBranchTx(tx, sessionId, anchor, nativeId ?? uuid())
   })
 }

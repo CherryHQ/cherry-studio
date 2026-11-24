@@ -12,11 +12,21 @@ export function prepareClaudeBranch(sessionId: string, configDir: string, native
     const root = ensureAgentSessionRootTx(tx, sessionId)
     const anchor = messageId ?? getAgentSessionHead(tx, sessionId) ?? root
     const existing = contexts.branchTx(tx, sessionId, anchor)
-    if (existing && (!nativeId || existing.nativeThreadId === nativeId)) {
-      const backend = contexts.backendTx(tx, existing.backendId)
-      if (backend.locator.kind !== 'claude-code' || backend.locator.configDir !== configDir)
-        throw new Error('The selected branch belongs to another runtime backend')
-      return existing
+    if (existing) {
+      const owner = contexts.backendTx(tx, existing.backendId)
+      if (
+        owner.locator.kind === 'claude-code' &&
+        owner.locator.configDir === configDir &&
+        (!nativeId || existing.nativeThreadId === nativeId)
+      )
+        return existing
+      // The resolved binding was captured under a previous runtime backend; the
+      // claude branch takes over from this anchor instead of rejecting the turn.
+      if (existing.anchorMessageId === anchor) {
+        if (existing.bindingState === 'bound') throw new Error('The selected branch belongs to another runtime backend')
+        const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'claude-code', configDir }, 'bound')
+        return contexts.retargetBranchTx(tx, existing.id, backend.id, nativeId ?? uuid())
+      }
     }
     const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'claude-code', configDir }, 'bound')
     return contexts.reserveBranchTx(tx, {

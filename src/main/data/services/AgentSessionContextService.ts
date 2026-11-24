@@ -186,6 +186,27 @@ class AgentSessionContextService {
     return tx.insert(contexts).values(binding).returning().get()
   }
 
+  /**
+   * Repoints an unbound context row at another runtime backend. Used when the runtime
+   * captured a branch anchor under a previous backend (e.g. the agent's runtime was
+   * switched on an existing conversation) and (sessionId, anchorMessageId) is unique,
+   * so a fresh row cannot share the anchor.
+   */
+  retargetBranchTx(
+    tx: DbOrTx,
+    contextId: string,
+    backendId: string,
+    nativeThreadId: string | null
+  ): AgentSessionContextRow {
+    this.backendTx(tx, backendId)
+    return tx
+      .update(contexts)
+      .set({ backendId, nativeThreadId, checkpointMapping: null })
+      .where(eq(contexts.id, contextId))
+      .returning()
+      .get()
+  }
+
   branchTx(tx: DbOrTx, sessionId: string, messageId: string) {
     const path = readAgentSessionAncestry(tx, sessionId, messageId)
     const bindings = tx.select().from(contexts).where(eq(contexts.sessionId, sessionId)).all()

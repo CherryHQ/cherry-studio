@@ -34,7 +34,12 @@ it('reuses a reserved Claude identity only within its captured backend', () => {
   expect(context.bindingState).toBe('pending')
   expect(context.nativeThreadId).toBeTruthy()
   expect(prepareClaudeBranch(sessionId, '/test/claude').id).toBe(context.id)
-  expect(() => prepareClaudeBranch(sessionId, '/test/another-config')).toThrow('another runtime backend')
+  // A pending anchor captured under another backend is retargeted in place rather
+  // than rejected: no native history exists to lose yet.
+  const moved = prepareClaudeBranch(sessionId, '/test/another-config')
+  expect(moved.id).toBe(context.id)
+  const movedBackend = contexts.backend(moved.backendId)
+  expect(movedBackend.locator.kind === 'claude-code' && movedBackend.locator.configDir).toBe('/test/another-config')
   expect(sessionContexts().map((row) => row.id)).toEqual([context.id])
   expect(
     dbh.db
@@ -42,7 +47,7 @@ it('reuses a reserved Claude identity only within its captured backend', () => {
       .from(agentRuntimeBackendTable)
       .all()
       .map((row) => row.id)
-  ).toEqual([context.backendId])
+  ).toEqual([context.backendId, moved.backendId])
 })
 
 it('rolls back an edit binding with its message metadata and then captures the selected branch', () => {
