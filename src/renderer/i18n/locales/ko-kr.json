@@ -1656,6 +1656,7 @@
   "error.diagnosis.bad_request": "제공자 요청 실패(HTTP 400)",
   "error.diagnosis.content": "안전 시스템이 콘텐츠를 차단했습니다. 수정 후 다시 시도하세요",
   "error.diagnosis.context_length": "대화가 너무 깁니다. 기록을 지우거나 새 채팅을 시작하세요",
+  "error.diagnosis.default_model_unavailable": "기본 모델로 AI 진단을 실행하지 못했습니다. 설정에서 모델을 확인한 후 다시 시도하세요.",
   "error.diagnosis.deprecated": "이 모델은 지원이 종료되었습니다. 다른 모델로 전환하세요",
   "error.diagnosis.free_model_unavailable": "AI 진단을 일시적으로 사용할 수 없습니다",
   "error.diagnosis.go_to_settings": "설정으로 이동",
