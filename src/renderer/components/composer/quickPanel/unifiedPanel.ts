@@ -137,25 +137,30 @@ function withUnifiedPanelSortMetadata(
   item: QuickPanelListItem,
   metadata: ComposerUnifiedPanelSortMetadata
 ): QuickPanelListItem {
-  return {
+  const sortedItem: ComposerUnifiedPanelSortedItem = {
     ...item,
     [ComposerUnifiedPanelSortMetadataSymbol]: metadata
-  } as ComposerUnifiedPanelSortedItem
+  }
+
+  return sortedItem
 }
 
 function getUnifiedPanelSortMetadata(item: QuickPanelListItem) {
+  // SAFETY: This private symbol is written only by withUnifiedPanelSortMetadata with the declared metadata shape.
   return (item as ComposerUnifiedPanelSortedItem)[ComposerUnifiedPanelSortMetadataSymbol]
 }
 
 function isUnifiedPanelRootSearchItem(item: QuickPanelListItem) {
-  return Boolean((item as ComposerUnifiedPanelSortedItem)[ComposerUnifiedPanelRootSearchItemSymbol])
+  return ComposerUnifiedPanelRootSearchItemSymbol in item && item[ComposerUnifiedPanelRootSearchItemSymbol] === true
 }
 
 function asUnifiedPanelRootSearchItem(item: QuickPanelListItem): QuickPanelListItem {
-  return {
+  const searchItem: ComposerUnifiedPanelSortedItem = {
     ...item,
     [ComposerUnifiedPanelRootSearchItemSymbol]: true
-  } as ComposerUnifiedPanelSortedItem
+  }
+
+  return searchItem
 }
 
 function tagUnifiedPanelSectionItems(

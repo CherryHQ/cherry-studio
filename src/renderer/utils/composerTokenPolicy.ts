@@ -48,6 +48,7 @@ export type ComposerClipboardTokenKind = ComposerTokenKindWithCapability<'clipbo
 
 export type ComposerClipboardPromptTokenKind = ComposerTokenKindWithCapability<'clipboardPromptText'>
 
+// SAFETY: COMPOSER_TOKEN_CAPABILITIES is a closed source literal whose own keys define ComposerTokenKind.
 export const COMPOSER_TOKEN_KINDS = Object.freeze(Object.keys(COMPOSER_TOKEN_CAPABILITIES) as ComposerTokenKind[])
 
 function getComposerTokenKinds<TCapability extends ComposerTokenCapability>(
