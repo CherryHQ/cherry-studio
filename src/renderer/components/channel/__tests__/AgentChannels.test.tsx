@@ -168,7 +168,11 @@ describe('AgentChannels', () => {
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     await waitFor(() =>
-      expect(ipcRequest).toHaveBeenCalledWith('channel.qr_login.begin', expect.objectContaining({ channelId: 'c3' }))
+      expect(ipcRequest).toHaveBeenCalledWith('channel.qr_login.begin', {
+        channelId: 'c3',
+        requestId: expect.any(String)
+      })
     )
+    expect(ipcRequest).not.toHaveBeenCalledWith('channel.update', { channelId: 'c3', updates: { isActive: true } })
   })
 })
