@@ -94,7 +94,7 @@ function getAgentDescription(id: string, description: string, configuration: unk
   if (description) return description
 
   if (typeof configuration === 'object' && configuration !== null) {
-    const builtinRole = (configuration as { builtin_role?: unknown }).builtin_role
+    const builtinRole = 'builtin_role' in configuration ? configuration.builtin_role : undefined
 
     if (builtinRole === BUILTIN_AGENT_ROLE.ASSISTANT) {
       return t('agent.builtin.cherry_assistant.description')
@@ -150,7 +150,7 @@ function matchesBuiltinRole(
 ): boolean {
   if (!configuration || typeof configuration !== 'object') return expectedRole === undefined
 
-  return (configuration as { builtin_role?: unknown }).builtin_role === expectedRole
+  return ('builtin_role' in configuration ? configuration.builtin_role : undefined) === expectedRole
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted configuration may drift; retain unrelated fields while stripping a reserved role from agents that do not own it.
@@ -213,7 +213,7 @@ function parseConfiguration(raw: unknown, agentId: string): AgentConfiguration |
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Search reads historical configuration without a full entity projection; only a verified string avatar may be shown.
 function getAgentAvatar(configuration: unknown): string | undefined {
   if (!configuration || typeof configuration !== 'object') return undefined
-  const avatar = (configuration as { avatar?: unknown }).avatar
+  const avatar = 'avatar' in configuration ? configuration.avatar : undefined
 
   return typeof avatar === 'string' ? avatar : undefined
 }
@@ -230,6 +230,8 @@ function rowToAgent(
   if (avatarFileId)
     Object.assign(clean, { avatarFileId, avatarSrc: application.get('FileManager').getUrl(avatarFileId) })
 
+  // SAFETY: Agent DTOs validate stored types, and ModelService constructs referenced provider::model keys.
+  // This projection relies on those writer contracts while preserving the legacy type alias and nullability.
   return {
     ...clean,
     mcps,
@@ -900,6 +902,8 @@ export class AgentService {
             if (field === 'mcps' || field === 'knowledgeBaseIds' || field === 'configuration') continue
 
             if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
+
+            // SAFETY: The closed AGENT_MUTABLE_FIELDS table lists only UpdateAgentDto keys; own-field checks retain omission semantics.
             const value = updates[field as keyof typeof updates]
 
             if (value === undefined) continue
