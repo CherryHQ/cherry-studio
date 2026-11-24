@@ -24,6 +24,9 @@ vi.mock('@renderer/components/chat/resourceList/base', async () => {
   return { ResourceList: { HeaderActionButton: Button } }
 })
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request, on: () => () => {} } }))
+vi.mock('@renderer/components/ScheduledTask/TaskFormDialog', () => ({
+  TaskFormDialog: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="Edit task" /> : null)
+}))
 const i18n = createInstance()
 beforeAll(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
@@ -215,4 +218,26 @@ it('allows missed execution and editing without a misleading resume action', asy
   expect(screen.queryByRole('menuitem', { name: 'Pause' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('menuitem', { name: 'Run now' }))
   await waitFor(() => expect(request.mock.calls.map(([name]) => name)).toEqual(['ai.agent.task.run']))
+})
+
+it('keeps lost-binding editing outside the selection button and supports Space', async () => {
+  const user = userEvent.setup()
+  const select = vi.fn()
+  render(
+    <ScheduledTaskGroup
+      status="active"
+      source={source({
+        tasks: [{ ...task, reuseBindingLost: true, reuseBindingLostSessionName: 'Missing conversation' }]
+      })}
+      agents={new Map()}
+      onSelect={select}
+    />
+  )
+  const edit = screen.getByRole('button', { name: /Missing conversation/ })
+  expect(edit.tagName).toBe('BUTTON')
+  expect(edit.parentElement?.closest('button')).toBeNull()
+  edit.focus()
+  await user.keyboard(' ')
+  expect(select).not.toHaveBeenCalled()
+  expect(await screen.findByRole('dialog')).toBeInTheDocument()
 })

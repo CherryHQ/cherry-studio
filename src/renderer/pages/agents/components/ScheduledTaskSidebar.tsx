@@ -78,61 +78,53 @@ function TaskRow({
           ? 'bg-resource-list-row-selected'
           : 'hover:bg-resource-list-row-hover has-[:focus-visible]:bg-resource-list-row-hover'
       )}>
-      <Button
-        variant="ghost"
-        className={cn(
-          'h-auto min-w-0 flex-1 justify-start rounded-lg bg-transparent px-2.5 py-1.5 text-left shadow-none hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
-          selected && 'text-resource-list-row-selected-foreground'
-        )}
-        aria-pressed={selected}
-        onClick={onSelect}>
-        <span className="flex w-full min-w-0 flex-col gap-0.5">
-          <span className={cn('truncate text-[13px] leading-5', selected ? 'font-medium' : 'font-normal')}>
-            {task.name}
-          </span>
-          <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-            <span className="min-w-0 truncate" title={agentName ?? task.agentId}>
-              {agentName ?? task.agentId}
-            </span>
-            <span aria-hidden="true" className="shrink-0">
-              ·
-            </span>
-            <span className="min-w-0 truncate" title={getTriggerSummary(task.trigger, t)}>
-              {getTriggerSummary(task.trigger, t)}
-            </span>
-          </span>
-          {task.status === 'missed' && (
-            <span className="truncate text-xs text-muted-foreground" title={t('scheduledTasks.missedTime')}>
-              {t('scheduledTasks.missedTime')}
-            </span>
+      <div className="min-w-0 flex-1">
+        <Button
+          variant="ghost"
+          className={cn(
+            'h-auto w-full min-w-0 justify-start rounded-lg bg-transparent px-2.5 py-1.5 text-left shadow-none hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
+            selected && 'text-resource-list-row-selected-foreground'
           )}
-          {task.reuseBindingLost && (
-            <span
-              role="button"
-              tabIndex={0}
-              className="truncate text-xs text-warning-subtle-foreground"
-              title={
-                task.reuseBindingLostSessionName
-                  ? t('agent.tasks.reuseSession.bindingLost', { name: task.reuseBindingLostSessionName })
-                  : t('agent.tasks.reuseSession.bindingLostUnknown')
-              }
-              onClick={(event) => {
-                event.stopPropagation()
-                setEditOpen(true)
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.stopPropagation()
-                  setEditOpen(true)
-                }
-              }}>
-              {task.reuseBindingLostSessionName
+          aria-pressed={selected}
+          onClick={onSelect}>
+          <span className="flex w-full min-w-0 flex-col gap-0.5">
+            <span className={cn('truncate text-[13px] leading-5', selected ? 'font-medium' : 'font-normal')}>
+              {task.name}
+            </span>
+            <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+              <span className="min-w-0 truncate" title={agentName ?? task.agentId}>
+                {agentName ?? task.agentId}
+              </span>
+              <span aria-hidden="true" className="shrink-0">
+                ·
+              </span>
+              <span className="min-w-0 truncate" title={getTriggerSummary(task.trigger, t)}>
+                {getTriggerSummary(task.trigger, t)}
+              </span>
+            </span>
+            {task.status === 'missed' && (
+              <span className="truncate text-xs text-muted-foreground" title={t('scheduledTasks.missedTime')}>
+                {t('scheduledTasks.missedTime')}
+              </span>
+            )}
+          </span>
+        </Button>
+        {task.reuseBindingLost && (
+          <button
+            type="button"
+            className="block w-full truncate px-2.5 pb-1.5 text-left text-xs text-warning-subtle-foreground focus-visible:outline focus-visible:outline-ring"
+            title={
+              task.reuseBindingLostSessionName
                 ? t('agent.tasks.reuseSession.bindingLost', { name: task.reuseBindingLostSessionName })
-                : t('agent.tasks.reuseSession.bindingLostUnknown')}
-            </span>
-          )}
-        </span>
-      </Button>
+                : t('agent.tasks.reuseSession.bindingLostUnknown')
+            }
+            onClick={() => setEditOpen(true)}>
+            {task.reuseBindingLostSessionName
+              ? t('agent.tasks.reuseSession.bindingLost', { name: task.reuseBindingLostSessionName })
+              : t('agent.tasks.reuseSession.bindingLostUnknown')}
+          </button>
+        )}
+      </div>
       <DropdownMenu>
         <Tooltip title={t('common.more')}>
           <DropdownMenuTrigger asChild>

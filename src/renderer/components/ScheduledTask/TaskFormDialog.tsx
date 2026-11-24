@@ -37,7 +37,7 @@ import { DiscardChangesDialog } from '@renderer/components/DiscardChangesDialog'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
-import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { cn } from '@renderer/utils/style'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
@@ -426,7 +426,7 @@ const AUTO_REUSE_VALUE = '__auto__'
  * filters out once it is task-owned) is fetched by id and merged in so the
  * picker always shows the effective binding.
  */
-const TaskSessionPickerField: FC<{
+export const TaskSessionPickerField: FC<{
   agentId: string | null
   value: string | null
   onChange: (value: string | null) => void
@@ -434,23 +434,27 @@ const TaskSessionPickerField: FC<{
   bindingLost?: boolean
 }> = ({ agentId, value, onChange, disabled, bindingLost }) => {
   const { t } = useTranslation()
-  const { data: listPage } = useQuery('/agent-sessions', {
-    query: { agentId: agentId ?? '', limit: 200 },
-    enabled: Boolean(agentId)
+  const { pages, hasNext, loadNext, isRefreshing, refresh } = useInfiniteQuery('/agent-sessions', {
+    query: { agentId: agentId ?? '' },
+    limit: 200,
+    enabled: Boolean(agentId),
+    swrOptions: { keepPreviousData: false }
   })
-  const listed = useMemo(() => listPage?.items ?? [], [listPage?.items])
+  useDataChange('/agent-sessions', () => void refresh())
+  const listed = useInfiniteFlatItems(pages).filter((session) => session.agentId === agentId)
   const valueIsListed = value !== null && listed.some((session) => session.id === value)
   const { data: boundSession } = useQuery('/agent-sessions/:sessionId', {
     params: { sessionId: value ?? '' },
-    enabled: Boolean(agentId && value && !valueIsListed)
+    enabled: Boolean(agentId && value && !valueIsListed),
+    swrOptions: { keepPreviousData: false }
   })
 
   const sessions = useMemo(() => {
     const byId = new Map<string, AgentSessionEntity>()
-    if (boundSession) byId.set(boundSession.id, boundSession)
+    if (boundSession?.agentId === agentId) byId.set(boundSession.id, boundSession)
     for (const session of listed) byId.set(session.id, session)
     return [...byId.values()]
-  }, [listed, boundSession])
+  }, [listed, boundSession, agentId])
 
   return (
     <Field>
@@ -473,6 +477,11 @@ const TaskSessionPickerField: FC<{
           </SelectGroup>
         </SelectContent>
       </Select>
+      {hasNext && (
+        <Button type="button" variant="outline" disabled={disabled || isRefreshing} onClick={loadNext}>
+          {t('common.more')}
+        </Button>
+      )}
       <ItemDescription>{t('agent.tasks.reuseSession.sessionDescription')}</ItemDescription>
     </Field>
   )
@@ -782,6 +791,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
 
             {reuseSession && (
               <TaskSessionPickerField
+                key={agentId}
                 agentId={agentId}
                 value={reuseSessionId}
                 bindingLost={Boolean(task?.reuseBindingLost && !reuseSelectionChanged)}
