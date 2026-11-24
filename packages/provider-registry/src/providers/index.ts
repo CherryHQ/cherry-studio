@@ -58,6 +58,7 @@ import p_rapid_mlx from './rapid-mlx'
 import p_silicon from './silicon'
 import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
+import p_teamorouter from './teamorouter'
 import p_together from './together'
 import p_tokendance from './tokendance'
 import p_tokenhub from './tokenhub'
@@ -90,6 +91,7 @@ export const PROVIDERS: Provider[] = [
   p_openrouter,
   p_ollama,
   p_radeon_cloud,
+  p_teamorouter,
   p_tokendance,
   p_new_api,
   p_lmstudio,

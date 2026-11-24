@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-11-14T13:47:05.390Z
- * Total icons: 175
+ * Total icons: 176
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -156,6 +156,7 @@ export { StepIcon as Step } from './step'
 export { StreamlakeIcon as Streamlake } from './streamlake'
 export { SunoIcon as Suno } from './suno'
 export { TavilyIcon as Tavily } from './tavily'
+export { TeamorouterIcon as Teamorouter } from './teamorouter'
 export { TencentCloudTiIcon as TencentCloudTi } from './tencent-cloud-ti'
 export { TesseractJsIcon as TesseractJs } from './tesseract-js'
 export { ThinkAnyIcon as ThinkAny } from './think-any'

@@ -5,7 +5,7 @@
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
  * Generated at: 2026-11-14T13:47:05.564Z
- * Total icons: 175
+ * Total icons: 176
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -159,6 +159,7 @@ import { StepIcon } from './step'
 import { StreamlakeIcon } from './streamlake'
 import { SunoIcon } from './suno'
 import { TavilyIcon } from './tavily'
+import { TeamorouterIcon } from './teamorouter'
 import { TencentCloudTiIcon } from './tencent-cloud-ti'
 import { TesseractJsIcon } from './tesseract-js'
 import { ThinkAnyIcon } from './think-any'
@@ -336,6 +337,7 @@ export const PROVIDER_ICON_CATALOG = {
   streamlake: StreamlakeIcon,
   suno: SunoIcon,
   tavily: TavilyIcon,
+  teamorouter: TeamorouterIcon,
   'tencent-cloud-ti': TencentCloudTiIcon,
   'tesseract-js': TesseractJsIcon,
   'think-any': ThinkAnyIcon,
