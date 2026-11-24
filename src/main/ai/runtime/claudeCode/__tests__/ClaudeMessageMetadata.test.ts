@@ -285,6 +285,27 @@ it('decorates native tool identity and output without moving surrounding content
   })
 })
 
+it('preserves JSON text with an envelope-like structuredContent key', async () => {
+  const payload = { items: [1], structuredContent: { page: 1 } }
+  const messages = await project({
+    id: 'native',
+    role: 'assistant',
+    metadata: { completeness: 'complete' },
+    parts: [
+      {
+        type: 'dynamic-tool',
+        toolName: 'mcp__custom__list',
+        toolCallId: 'toolu_custom',
+        input: {},
+        state: 'output-available',
+        output: [{ type: 'text', text: JSON.stringify(payload) }],
+        callProviderMetadata: { anthropic: { type: 'mcp_tool_use', serverName: 'custom' } }
+      }
+    ]
+  })
+  expect(messages[0].parts[0]).toMatchObject({ output: { content: payload } })
+})
+
 it('preserves structured MCP output alongside inline content', async () => {
   const images = [{ id: 'generated-file-id', name: 'image.png' }]
   const messages = await project({
