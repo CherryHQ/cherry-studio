@@ -41,6 +41,7 @@ import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { readErrorMessage } from '@renderer/utils/errorDetails'
 import { cn } from '@renderer/utils/style'
 import type { OutputFor } from '@shared/ipc/types'
 
@@ -50,6 +51,20 @@ import { RemoteEndpointSettings } from './RemoteEndpointSettings'
 
 const ENDPOINT_PREFERENCE_OPTIONS = { optimistic: false }
 const LAN_HOST = '0.0.0.0'
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- IPC and preference operations can reject arbitrary values; read only a message field and contain diagnostic formatting failures.
+function connectionErrorText(error: unknown): string {
+  try {
+    const message =
+      error !== null && (typeof error === 'object' || typeof error === 'function') && 'message' in error
+        ? error.message
+        : undefined
+
+    return String(message || error)
+  } catch {
+    return readErrorMessage(error)
+  }
+}
 
 const CAPABILITY_LABEL = {
   configuration: 'deviceConnections.capabilities.configuration',
@@ -153,7 +168,7 @@ const DeviceConnectionsSettings: FC = () => {
       if (requestId === invitationRequestId.current && Date.parse(result.expiresAt) > Date.now()) setInvitation(result)
     } catch (error) {
       if (requestId === invitationRequestId.current) {
-        toast.error(t('deviceConnections.pairing.error') + ((error as Error).message || error))
+        toast.error(t('deviceConnections.pairing.error') + connectionErrorText(error))
       }
     } finally {
       if (requestId === invitationRequestId.current) setIsCreatingInvitation(false)
@@ -199,7 +214,7 @@ const DeviceConnectionsSettings: FC = () => {
 
       clearInvitation()
     } catch (error) {
-      toast.error(t('deviceConnections.claims.error') + ((error as Error).message || error))
+      toast.error(t('deviceConnections.claims.error') + connectionErrorText(error))
     } finally {
       setDecidingClaimId(undefined)
     }
@@ -230,7 +245,7 @@ const DeviceConnectionsSettings: FC = () => {
     try {
       await ipcApi.request('api_gateway.lan.set_enabled', { enabled })
     } catch (error) {
-      toast.error(t('deviceConnections.lan.error') + ((error as Error).message || error))
+      toast.error(t('deviceConnections.lan.error') + connectionErrorText(error))
     } finally {
       setIsUpdatingLan(false)
     }

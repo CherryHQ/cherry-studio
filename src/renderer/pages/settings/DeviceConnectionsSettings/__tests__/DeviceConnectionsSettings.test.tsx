@@ -1,7 +1,7 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, render as renderReact, screen, within } from '@testing-library/react'
+import { act, render as renderReact, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren, ReactElement } from 'react'
 import { SWRConfig } from 'swr'
@@ -513,6 +513,27 @@ describe('DeviceConnectionsSettings', () => {
     await user.click(await screen.findByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
     await user.click(screen.getByRole('option', { name: enUS['deviceConnections.pairing.automatic'] }))
     expect(qr().ips).toEqual(invitation.addresses)
+  })
+
+  it.each([
+    { failure: null, detail: 'null' },
+    { failure: { message: 'Remote unavailable' }, detail: 'Remote unavailable' },
+    {
+      failure: Object.defineProperty(new Error(), 'message', {
+        get() {
+          throw new Error('unreadable diagnostic')
+        }
+      }),
+      detail: '[Unserializable]'
+    }
+  ])('keeps invitation recovery available after an opaque failure (%#)', async ({ failure, detail }) => {
+    invitationMock.mockRejectedValueOnce(failure)
+    render(<DeviceConnectionsSettings />)
+    const refresh = await screen.findByRole('button', { name: 'Refresh' })
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(enUS['deviceConnections.pairing.error'] + detail))
+    invitationMock.mockResolvedValueOnce(createInvitation('recovered'))
+    await userEvent.setup().click(refresh)
+    expect(await screen.findByRole('img', { name: 'Pair a device' })).toBeVisible()
   })
 
   it('lets the user retry a failed automatic invitation without retrying on its own', async () => {
