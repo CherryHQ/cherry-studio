@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -16,6 +16,43 @@ afterEach(() => {
 })
 
 describe('ReplyLanguageSelect', () => {
+  it.each([
+    ['  Português  ', { languageMode: 'custom', languageCustom: 'Português' }],
+    ['', { languageMode: 'inherit', languageCustom: '' }]
+  ])('commits a custom-language edit only on blur (%s)', (text, expected) => {
+    const save = vi.fn()
+    render(<ReplyLanguageSelect value={{ languageMode: 'custom', languageCustom: 'Svenska' }} onChange={save} />)
+
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: text } })
+    expect(save).not.toHaveBeenCalled()
+    fireEvent.blur(input)
+    expect(save.mock.calls).toEqual([[expected]])
+  })
+
+  it('previews a draft without replacing the saved override with an invalid edit', () => {
+    const save = vi.fn()
+    const preview = vi.fn()
+    render(
+      <ReplyLanguageSelect
+        value={{ languageMode: 'custom', languageCustom: 'Svenska' }}
+        onChange={save}
+        onDraftChange={preview}
+      />
+    )
+
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'Po' } })
+    expect(preview).toHaveBeenLastCalledWith('Po')
+    expect(save).not.toHaveBeenCalled()
+
+    fireEvent.change(input, { target: { value: 'Po\u2028rtuguês' } })
+    fireEvent.blur(input)
+    expect(input).toHaveValue('Svenska')
+    expect(preview).toHaveBeenLastCalledWith(undefined)
+    expect(save).not.toHaveBeenCalled()
+  })
+
   it('shows the global language on the follow-global option', () => {
     MockUsePreferenceUtils.setPreferenceValue('agent.language', '日本語')
     render(<ReplyLanguageSelect value={{ languageMode: 'inherit', languageCustom: '' }} onChange={() => {}} />)
