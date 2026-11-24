@@ -14,11 +14,17 @@ import type {
   UpdateModelDto
 } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('useModels')
 
 const EMPTY_MODELS: readonly Model[] = Object.freeze([])
+
+function readPreferredModelId(value: string | null): UniqueModelId | null {
+  const result = UniqueModelIdSchema.safeParse(value)
+
+  return result.success ? result.data : null
+}
 
 /**
  * Reactive read of the user's default / quick / translate / painting models.
@@ -27,6 +33,7 @@ const EMPTY_MODELS: readonly Model[] = Object.freeze([])
  * is unset; painting does not — it needs an image-generation model, which the
  * chat default is not, so it stays empty (and out of the cascade) until the
  * user picks one.
+ * Invalid saved IDs are not queried; the stored preference is retained.
  */
 export function useDefaultModel(options: { enabled?: boolean } = {}) {
   const enabled = options.enabled ?? true
@@ -36,16 +43,16 @@ export function useDefaultModel(options: { enabled?: boolean } = {}) {
   const [paintingModelId, setPaintingModelId] = usePreference('feature.paintings.default_model_id')
 
   const { model: defaultModel, isLoading: isDefaultModelLoading } = useModelById(
-    enabled ? (defaultModelId as UniqueModelId) : null
+    enabled ? readPreferredModelId(defaultModelId) : null
   )
 
-  const { model: quickModel } = useModelById(enabled ? ((quickModelId as UniqueModelId) ?? defaultModelId) : null)
+  const { model: quickModel } = useModelById(enabled ? readPreferredModelId(quickModelId ?? defaultModelId) : null)
 
   const { model: translateModel } = useModelById(
-    enabled ? ((translateModelId as UniqueModelId) ?? defaultModelId) : null
+    enabled ? readPreferredModelId(translateModelId ?? defaultModelId) : null
   )
 
-  const { model: paintingModel } = useModelById(enabled ? (paintingModelId as UniqueModelId) : null)
+  const { model: paintingModel } = useModelById(enabled ? readPreferredModelId(paintingModelId) : null)
 
   return {
     defaultModel,
@@ -74,7 +81,7 @@ export function useModels(
   query?: ListModelsQuery,
   options?: { fetchEnabled?: boolean; swrOptions?: SWRConfiguration }
 ) {
-  const filtered = query ? (omitBy(query, isUndefined) as ListModelsQuery) : undefined
+  const filtered = query ? omitBy<ListModelsQuery>(query, isUndefined) : undefined
   const hasQuery = filtered && Object.keys(filtered).length > 0
   const fetchEnabledFlag = options?.fetchEnabled
   const hasEnabled = fetchEnabledFlag !== undefined
