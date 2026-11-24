@@ -20,7 +20,7 @@ import {
   type HarnessOptions,
   type Storage,
   type SubmissionRecord,
-  type ToolTaskInput,
+  type TaskId,
   type Tx
 } from '@earendil-works/pi-durable'
 
@@ -50,9 +50,9 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableBehavior, type PiDurableBehavior } from './behavior/harness'
-import { historyOf, pages, readFacts } from './behavior/history'
+import { conversationId, historyOf, pages, readFacts, toolCallIdentity } from './behavior/history'
 import { meteredModels } from './behavior/models'
-import { ContentProjection } from './content'
+import { ContentProjection, logicalInputId } from './content'
 import { readContextUsage } from './contextUsage'
 import { DurableProjection, submissionState, type DurableObservation } from './projection'
 import { bindStorage } from './storage'
@@ -144,6 +144,12 @@ const rejected = (operation: string, code: string) => ({ status: 'rejected' as c
 
 const nativeId = (id: string): number | undefined =>
   /^(0|[1-9]\d*)$/.test(id) && Number.isSafeInteger(Number(id)) ? Number(id) : undefined
+
+function nativeTaskId(key: string): TaskId | undefined {
+  const id = nativeId(key)
+  // SAFETY: The SDK has no public numeric TaskId constructor; canonical safe integers identify task lookups, not verified task contents.
+  return id === undefined ? undefined : (id as TaskId)
+}
 
 export async function createPiDurableRuntime(
   options: PiDurableRuntimeOptions
@@ -301,9 +307,9 @@ export async function createPiDurableRuntime(
 
     if (!logicalIds.has(record.id) && record.entry !== undefined) {
       const entry = await native.commit((tx) => tx.entry(record.entry!), context)
-      const id = (entry?.data as { cherryInputId?: string })?.cherryInputId
+      const id = logicalInputId(entry?.data)
 
-      if (id) logicalIds.set(record.id, runtimeId(id))
+      if (id) logicalIds.set(record.id, id)
     }
 
     return inputState(record)
@@ -336,10 +342,9 @@ export async function createPiDurableRuntime(
     const lineage =
       origin?.kind === 'record' && origin.record.type === 'subagent-origin' ? origin.record.value : undefined
 
-    const taskId = lineage ? nativeId(lineage.parentToolCallId) : owner.taskId
-    const task = taskId === undefined ? undefined : await tx.task(taskId as typeof owner.taskId)
-    const input = task?.kind === ToolTask.definition.name ? (task.input as ToolTaskInput) : undefined
-    const toolCallId = input?.kind === 'model' ? input.callId : input?.call.id
+    const taskId = lineage ? nativeTaskId(lineage.parentToolCallId) : owner.taskId
+    const task = taskId === undefined ? undefined : await tx.task(taskId)
+    const toolCallId = task?.kind === ToolTask.definition.name ? toolCallIdentity(task)?.id : undefined
     const description = lineage?.description
 
     return {
@@ -378,13 +383,12 @@ export async function createPiDurableRuntime(
             const placed = publication.changes.find((item) => item.type === 'entry' && item.value.id === record.entry)
 
             const id =
-              logicalIds.get(record.id) ??
-              (placed?.type === 'entry' ? (placed.value.data as { cherryInputId?: string })?.cherryInputId : undefined)
+              logicalIds.get(record.id) ?? (placed?.type === 'entry' ? logicalInputId(placed.value.data) : undefined)
 
-            if (id) logicalIds.set(record.id, runtimeId(id))
+            if (id) logicalIds.set(record.id, id)
 
             try {
-              options.onInputPlaced?.(id ? runtimeId(id) : undefined, refFor(record.conversationId).id)
+              options.onInputPlaced?.(id, refFor(record.conversationId).id)
             } catch (cause) {
               report(cause)
             }
@@ -532,9 +536,9 @@ export async function createPiDurableRuntime(
                 const source =
                   record.entry === undefined ? undefined : (await committed.entry(record.entry, context))?.entry
 
-                const logicalId = (source?.data as { cherryInputId?: string })?.cherryInputId
+                const logicalId = logicalInputId(source?.data)
 
-                if (logicalId) logicalIds.set(record.id, runtimeId(logicalId))
+                if (logicalId) logicalIds.set(record.id, logicalId)
 
                 const answer =
                   record.status === 'done' ? (await committed.entry(record.answer, context))?.entry : undefined
@@ -577,9 +581,9 @@ export async function createPiDurableRuntime(
                     records.find((entry) => entry.id === record.entry) ??
                     after.entries.find((entry) => entry.id === record.entry)
 
-                  const logicalId = (source?.data as { cherryInputId?: string })?.cherryInputId
+                  const logicalId = logicalInputId(source?.data)
 
-                  if (logicalId) logicalIds.set(record.id, runtimeId(logicalId))
+                  if (logicalId) logicalIds.set(record.id, logicalId)
 
                   const answer =
                     record.status === 'done'
@@ -800,13 +804,15 @@ export async function createPiDurableRuntime(
         providerSessionId: async () => (await native.snapshot(ProviderDoc, entry.conversation.id, context))?.sessionId,
         facts: () => native.commit((tx) => readFacts(tx, entry.conversation.id), context),
         async behaviorToolCallId(call) {
-          if (unavailable() || call.thread !== entry.ref.id || nativeId(call.key) === undefined) return undefined
-          const task = await native.getTask(Number(call.key) as never, context)
+          if (unavailable() || call.thread !== entry.ref.id) return undefined
+          const taskId = nativeTaskId(call.key)
+          if (taskId === undefined) return undefined
+          const task = await native.getTask(taskId, context)
 
           if (task?.kind !== ToolTask.definition.name || task.conversationId !== entry.conversation.id) return undefined
-          const input = task.input as ToolTaskInput
+          const origin = toolCallIdentity(task)
 
-          return input.kind === 'model' ? input.callId : undefined
+          return origin?.kind === 'model' ? origin.id : undefined
         },
         async configure(change) {
           if (unavailable()) throw new Error('Durable access is closed')
@@ -1094,7 +1100,7 @@ export async function createPiDurableRuntime(
       return track(
         (async () => {
           try {
-            const conversation = await native.conversation(id as ConversationId, context)
+            const conversation = await native.conversation(conversationId(ref.id), context)
 
             if (!conversation) return rejected('open', 'not-found')
             const result = await load(conversation)

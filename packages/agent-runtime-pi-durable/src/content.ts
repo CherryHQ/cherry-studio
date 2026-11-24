@@ -1,10 +1,15 @@
 import type { Message, ToolResultMessage } from '@earendil-works/pi-ai'
 import type { EntryRecord } from '@earendil-works/pi-durable'
 
-import { projectNestedTool, runtimeId, type RuntimeMessage } from '@cherrystudio/agent-runtime'
+import { projectNestedTool, runtimeId, type InputId, type RuntimeMessage } from '@cherrystudio/agent-runtime'
 
 /** Stable committed identities; consumers never decode native entry IDs from these keys. */
 export const entryMessageId = (entry: EntryRecord, index: number): string => `entry:${entry.id}:${index}`
+
+export function logicalInputId(data: EntryRecord['data']): InputId | undefined {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return undefined
+  return typeof data.cherryInputId === 'string' && data.cherryInputId ? runtimeId(data.cherryInputId) : undefined
+}
 
 export class ContentProjection {
   readonly messages: RuntimeMessage[] = []
@@ -29,11 +34,11 @@ export class ContentProjection {
   entry(entry: EntryRecord): void {
     for (const [index, message] of (entry.model ?? []).entries()) {
       this.message(message, entryMessageId(entry, index), 'complete')
-      const inputId = (entry.data as { cherryInputId?: string })?.cherryInputId
+      const inputId = logicalInputId(entry.data)
 
       if (message.role === 'user' && inputId) {
         const value = this.messages.at(-1)!
-        value.metadata = { ...value.metadata!, inputId: runtimeId(inputId) }
+        value.metadata = { ...value.metadata!, inputId }
       }
     }
   }

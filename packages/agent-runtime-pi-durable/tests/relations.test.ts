@@ -1,4 +1,4 @@
-import { awaitWithContext, type Context } from '@earendil-works/chord/context'
+import { awaitWithContext, BACKGROUND_CONTEXT, type Context } from '@earendil-works/chord/context'
 import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai'
 import {
   createRegistry,
@@ -15,6 +15,7 @@ import {
 import { obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
+import { callKeyOf } from '@cherrystudio/agent-behavior'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableRuntime, type PiDurableThreadHandle } from '../src'
@@ -114,6 +115,73 @@ const owner = defineTask<null, { phase: 'run' }, null>({
   async abort(_task, api, context) {
     await api.commit(async () => ({ status: 'terminal', outcome: { status: 'aborted' } }), context)
   }
+})
+
+it.each([
+  { version: 1, input: { callId: 'stored-model-call' }, origin: 'stored-model-call', modelCall: 'stored-model-call' },
+  {
+    version: 3,
+    input: { kind: 'model', callId: 'model-call' },
+    origin: 'model-call',
+    modelCall: 'model-call'
+  },
+  { version: 3, input: { kind: 'nested', call: { id: 'nested-call' } }, origin: 'nested-call', modelCall: undefined },
+  { version: 3, input: { kind: 'model', callId: 42 }, origin: undefined, modelCall: undefined }
+])('reads only evidenced tool-call identity from stored version $version input $input', async (fixture) => {
+  const { runtime, faux } = await setup(async () => {})
+  const storedDefinition = defineTask({
+    name: 'pi.tool',
+    version: fixture.version,
+    initial: () => ({ phase: 'call' as const }),
+    phases: {
+      call: async () => {
+        throw new Error('Stored identity fixture must not execute')
+      }
+    },
+    abort: async () => {
+      throw new Error('Stored identity fixture must not execute')
+    }
+  })
+  const created = await runtime.create({
+    ownership: { kind: 'ownerless' },
+    async init(tx, id) {
+      const assistant = await tx.appendEntry(id, {
+        kind: 'external.assistant',
+        model: [
+          fauxAssistantMessage(fauxToolCall('delegate', {}, { id: fixture.modelCall ?? 'unmapped-call' }), {
+            stopReason: 'toolUse'
+          })
+        ]
+      })
+      const input = fixture.input.kind === 'nested' ? fixture.input : { ...fixture.input, assistant: assistant.id }
+      const taskId = await tx.createTask(storedDefinition, input, {
+        conversationId: id,
+        ownership: { kind: 'conversation' }
+      })
+      await tx.createConversation({ ownership: { kind: 'task', taskId } })
+    }
+  })
+  const root = confirmed(created)
+  const tasks = await runtime.durable.commit((tx) => tx.scanTasks({}, 100), BACKGROUND_CONTEXT)
+  const task = tasks.items.find((candidate) => candidate.kind === 'pi.tool')
+  if (!task) throw new Error('Stored tool task is missing')
+  const { events } = await observe(root)
+  const snapshot = events[0]
+  if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
+  const relation = snapshot.subagents?.[0]
+  expect(relation).toBeDefined()
+  expect(relation?.origin?.toolCallId).toBe(fixture.origin)
+  expect(await root.durable.behaviorToolCallId({ thread: root.thread.id, key: callKeyOf(String(task.id)) })).toBe(
+    fixture.modelCall
+  )
+  if (fixture.modelCall) {
+    const history = (await root.durable.facts()).history
+    const assistant = history.find((entry) => entry.kind === 'assistant')
+    if (!assistant || assistant.kind !== 'assistant') throw new Error('Stored assistant history is missing')
+    expect(assistant.toolCalls[0].callKey).toBe(String(task.id))
+  }
+  expect((await runtime.durable.commit((tx) => tx.task(task.id), BACKGROUND_CONTEXT))?.version).toBe(fixture.version)
+  expect(faux.state.callCount).toBe(0)
 })
 
 it('loads all pages of immediate native ownership without importing siblings or fork ancestry', async () => {

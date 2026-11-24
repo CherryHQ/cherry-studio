@@ -1,5 +1,6 @@
 import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
+import type { Fields } from '../core/args'
 import type { Effect, JobKind, JobSpec, Step, StopCause, TurnInput } from '../core/decisions'
 import type { CallKey, ConversationFacts, GateCall, GateFacts, RunEndFacts, ToolResultFact } from '../core/facts'
 import type { Key } from '../core/keys'
@@ -217,7 +218,7 @@ export interface ToolDefinition {
   readonly name: string
   /** [plan choice] Not in the design's draft; every harness hands it to the model. */
   readonly description: string
-  readonly schema: JsonValue
+  readonly schema: Fields
   /** After a crash a 'safe' call reruns; an 'unsafe' one gets an interrupted result. */
   readonly replay: 'safe' | 'unsafe'
   readonly executionMode: 'parallel' | 'sequential'

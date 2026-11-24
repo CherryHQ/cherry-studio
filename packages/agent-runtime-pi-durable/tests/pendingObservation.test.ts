@@ -18,7 +18,16 @@ function confirmed<T>(result: OperationResult<T>): T {
   return result.value
 }
 
-it.each([false, true])('discovers persisted pending inputs on reopen (concurrent resume: %s)', async (resume) => {
+const metadataCases = [false, true].flatMap((resume) =>
+  [
+    { kind: 'unmarked', data: undefined, logicalId: undefined },
+    { kind: 'nonstring', data: { cherryInputId: 42 }, logicalId: undefined },
+    { kind: 'array', data: [{ cherryInputId: 'nested-only' }], logicalId: undefined },
+    { kind: 'marked', data: { cherryInputId: 'external-input' }, logicalId: 'external-input' }
+  ].map((item) => ({ ...item, resume }))
+)
+
+it.each(metadataCases)('restores $kind inputs (resume=$resume)', async ({ resume, data, logicalId }) => {
   const directory = await mkdtemp(join(tmpdir(), 'durable-pending-'))
   onTestFinished(() => rm(directory, { recursive: true, force: true }))
   const path = join(directory, 'session.sqlite')
@@ -48,7 +57,10 @@ it.each([false, true])('discovers persisted pending inputs on reopen (concurrent
       else signal.addEventListener('abort', () => reject(signal.reason), { once: true })
     })
   faux.setResponses([hold])
-  const active = await conversation.submit({ type: 'input', content: 'Start', whenBusy: 'reject' }, context)
+  const active = await conversation.submit(
+    { type: 'input', content: 'Start', whenBusy: 'reject', entry: { kind: 'external.input', data } },
+    context
+  )
   await reached
   const first = await conversation.submit({ type: 'input', content: 'First queued', whenBusy: 'followUp' }, context)
   const second = await conversation.submit({ type: 'input', content: 'Second queued', whenBusy: 'followUp' }, context)
@@ -89,7 +101,11 @@ it.each([false, true])('discovers persisted pending inputs on reopen (concurrent
   if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
   if (!resume) {
     expect(snapshot.inputs).toEqual([
-      { nativeInput: { session: thread, id: String(active.id) }, facts: ['accepted', 'placed'] },
+      {
+        nativeInput: { session: thread, id: String(active.id) },
+        facts: ['accepted', 'placed'],
+        ...(logicalId && { inputId: logicalId })
+      },
       ...[first, second].map((submission) => ({
         nativeInput: { session: thread, id: String(submission.id) },
         facts: ['accepted', 'queued']
@@ -112,4 +128,12 @@ it.each([false, true])('discovers persisted pending inputs on reopen (concurrent
     expect(placed).toBeGreaterThanOrEqual(0)
     expect(states.slice(placed).every((input) => !input.facts.includes('queued'))).toBe(true)
   }
+  expect(observed(active.id).length).toBeGreaterThan(0)
+  expect(observed(active.id).every((input) => input.inputId === logicalId)).toBe(true)
+  const archive = confirmed(await handle.archive())
+  const startingMessage = archive.messages.find(
+    (message) => message.role === 'user' && message.parts.some((part) => part.type === 'text' && part.text === 'Start')
+  )
+  expect(startingMessage).toBeDefined()
+  expect(startingMessage?.metadata?.inputId).toBe(logicalId)
 })

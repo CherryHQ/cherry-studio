@@ -14,7 +14,6 @@ import {
   type Page,
   type TaskRecord,
   type TaskId,
-  type ToolTaskInput,
   type Tx
 } from '@earendil-works/pi-durable'
 
@@ -26,7 +25,32 @@ import {
   type UsageFact
 } from '@cherrystudio/agent-behavior'
 import type { GoalOwner } from '@cherrystudio/agent-behavior'
-import { runtimeId, type JsonValue, type ThreadId } from '@cherrystudio/agent-runtime'
+import { runtimeId, type ItemId, type JsonValue, type ThreadId } from '@cherrystudio/agent-runtime'
+
+export function toolCallIdentity(task: Pick<TaskRecord<JsonValue, JsonValue, JsonValue>, 'version' | 'input'>) {
+  const input = task.input
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return undefined
+  const kind = 'kind' in input ? input.kind : undefined
+  const assistant = 'assistant' in input ? input.assistant : undefined
+  if (kind === 'model' || (task.version === 1 && kind === undefined))
+    return 'callId' in input && typeof input.callId === 'string'
+      ? {
+          kind: 'model' as const,
+          id: input.callId,
+          assistant:
+            typeof assistant === 'number' && Number.isSafeInteger(assistant) && assistant >= 0 ? assistant : undefined
+        }
+      : undefined
+  if (kind !== 'nested') return undefined
+  const call = 'call' in input ? input.call : undefined
+  return typeof call === 'object' &&
+    call !== null &&
+    !Array.isArray(call) &&
+    'id' in call &&
+    typeof call.id === 'string'
+    ? { kind: 'nested' as const, id: call.id }
+    : undefined
+}
 
 export const threadId = (id: ConversationId): ThreadId => runtimeId(String(id))
 
@@ -47,7 +71,15 @@ export function conversationId(thread: ThreadId): ConversationId {
   if (!Number.isSafeInteger(id) || id < 0 || String(id) !== thread)
     throw new Error(`Invalid Durable conversation ${thread}`)
 
+  // SAFETY: The SDK has no public numeric brand constructor; this canonical safe integer is used for a native conversation lookup.
   return id as ConversationId
+}
+
+export function entryId(item: ItemId): EntryId {
+  const id = Number(item)
+  if (!Number.isSafeInteger(id) || id < 0 || String(id) !== item) throw new Error(`Invalid Durable entry ${item}`)
+  // SAFETY: The SDK has no public numeric brand constructor; the canonical entry ID is resolved by the native history lookup.
+  return id as EntryId
 }
 
 export async function pages<T>(read: (cursor?: Cursor) => Promise<Page<T, Cursor>>): Promise<T[]> {
@@ -89,9 +121,10 @@ export function historyOf(
 
   for (const task of tasks) {
     if (task.kind !== ToolTask.definition.name) continue
-    const input = task.input as ToolTaskInput
+    const input = toolCallIdentity(task)
 
-    if (input.kind === 'model') calls.set(`${input.assistant}:${input.callId}`, String(task.id))
+    if (input?.kind === 'model' && input.assistant !== undefined)
+      calls.set(`${input.assistant}:${input.id}`, String(task.id))
   }
 
   const callKeys = new Map<string, string>()
@@ -285,13 +318,15 @@ export async function readFacts(
 
   for (const task of tasks) {
     if (task.conversationId !== id) continue
-    const input = task.input as { key?: string }
+    const input = task.input
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) continue
 
     if (
       task.kind === 'cherry.behavior-job' &&
       task.state.status !== 'terminal' &&
       task.abortReason !== 'restart' &&
       !abandoned.has(task.id) &&
+      typeof input.key === 'string' &&
       input.key
     )
       keysSeen.add(input.key)
@@ -332,7 +367,8 @@ export async function readFacts(
 export const ZERO_USAGE = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costUsd: 0 }
 
 export function taskRun(task: TaskRecord<JsonValue, JsonValue, JsonValue>): TaskId {
-  return (task.input as GenerationInput).runId ?? task.id
+  // SAFETY: Callers select SDK-owned generation records; runId is their optional native ID, while historical {} uses task.id.
+  return (task.input as Pick<GenerationInput, 'runId'>).runId ?? task.id
 }
 
 export async function runIds(
@@ -347,9 +383,19 @@ export async function runIds(
 
   for (const entry of entries) {
     if (entry.conversationId !== id) continue
-    const data = entry.data as { key?: string; cherryRun?: number } | undefined
+    const data = entry.data
 
-    if (!data?.key || data.cherryRun === undefined) continue
+    if (
+      typeof data !== 'object' ||
+      data === null ||
+      Array.isArray(data) ||
+      typeof data.key !== 'string' ||
+      !data.key ||
+      typeof data.cherryRun !== 'number' ||
+      !Number.isSafeInteger(data.cherryRun) ||
+      data.cherryRun < 1
+    )
+      continue
     const input = await tx.submissionByRequest(id, data.key)
 
     if (input?.type === 'input' && input.runId !== undefined && input.runId > input.id)

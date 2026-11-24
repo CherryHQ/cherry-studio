@@ -318,7 +318,7 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
     async sendUser(thread, text) {
       assertOpen()
       state.counters.users += 1
-      submit(host, threadOf(state, thread), `user:${state.counters.users}`, { kind: USER_INPUT, text, data: null })
+      submit(host, threadOf(state, thread), `user:${state.counters.users}`, { kind: USER_INPUT, text, data: {} })
     },
     async compact(thread) {
       assertOpen()

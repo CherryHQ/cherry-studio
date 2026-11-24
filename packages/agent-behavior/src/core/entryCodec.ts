@@ -21,7 +21,7 @@ import {
   type UsageFact
 } from './facts'
 
-export type EncodedEntry = { readonly kind: EntryKind; readonly data: JsonValue }
+export type EncodedEntry = { readonly kind: EntryKind; readonly data: Fields }
 
 export type RawEntry = {
   readonly id: ItemId

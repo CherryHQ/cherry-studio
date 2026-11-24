@@ -1,10 +1,45 @@
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import { defineExtension, defineTool } from '@earendil-works/pi-durable'
+import { defineExtension, defineTool, ToolResultEntry } from '@earendil-works/pi-durable'
 import { bool, obj } from '@earendil-works/pi-schema'
 import { expect, it } from 'vitest'
 
 import { conversationId, lineageEntries } from '../src/behavior/history'
 import { openDurableHarness } from './behaviorHarness'
+
+it.each([null, false, []])('keeps native invalid_arguments rejection for a gate rewrite of %j', async (args) => {
+  let executions = 0
+  const h = await openDurableHarness(
+    (ports) => ports.toolGate.register({ before: async () => ({ args }), after: async (_call, result) => result }),
+    [
+      defineExtension({
+        name: 'rewritten-input',
+        tools: [
+          defineTool({
+            name: 'requires-object',
+            description: 'Requires an object input',
+            parameters: obj({ ok: bool() }),
+            async execute() {
+              executions++
+              return { output: [{ type: 'text', text: 'executed' }] }
+            }
+          })
+        ]
+      })
+    ]
+  )
+  const thread = await h.harness.createThread()
+  h.harness.script(thread, [
+    { text: '', toolCalls: [{ name: 'requires-object', args: { ok: true } }] },
+    { text: 'done' }
+  ])
+  await h.harness.sendUser(thread, 'Use the tool')
+  await h.harness.settle()
+  const entries = await h.native().commit((tx) => lineageEntries(tx, conversationId(thread)), context)
+  const result = entries.find((entry) => ToolResultEntry.is(entry))
+  if (!result || !ToolResultEntry.is(result)) throw new Error('Native tool result is missing')
+  expect(executions).toBe(0)
+  expect(result.data.diagnostics).toEqual([expect.objectContaining({ severity: 'error', code: 'invalid_arguments' })])
+})
 
 it('preserves image positions, structured program output and UI details through text offload and reopen', async () => {
   const image = { type: 'image' as const, mimeType: 'image/png', data: 'aW1hZ2U=' }

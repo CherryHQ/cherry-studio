@@ -42,6 +42,8 @@ entry metadata, so observations recover their placement and outcome after reopen
 native submissions may lack that logical ID. The adapter exposes no separate host deduplication,
 lookup or retraction API; unknown admission is reconciled from captured facts without resubmitting.
 
+Logical IDs are read only from non-empty string `cherryInputId` fields on object metadata. Tool-call origins are projected from the stored fields they need, including version-1 model tasks without `kind`; identity reads do not enable the scheduler or migrate tasks. Gate argument rewrites retain the native SDK's schema validation and `invalid_arguments` result, rather than introducing a second rejection policy in the adapter.
+
 `whenBusy: 'steer'` delivers input at the next native input boundary. If the current
 run finishes normally before taking it, the input starts a subsequent run. `follow-up`
 waits for the final boundary. Both policies start a run when the conversation is idle;

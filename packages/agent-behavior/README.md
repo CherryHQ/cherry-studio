@@ -68,6 +68,8 @@ Each port's TSDoc is its specification: the intent, one `@harness` section each 
 README does not repeat them; `tests/ports/portNaming.test.ts` fails a port that lacks them. Methods and parameters
 are named as a verb and an object and carry no harness noun (hook, commit, session, task, extension).
 
+Encoded entry data, turn metadata and tool schema roots are JSON objects. The encoder and tool registrars establish these shapes before adapters merge entry keys or register tools; raw history data and tool argument values retain their broader JSON contracts.
+
 ### Harness ports (H1 to H12)
 
 | #   | Port            | Methods                            | Intent                                                                                                    |

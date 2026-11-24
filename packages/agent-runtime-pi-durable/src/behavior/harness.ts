@@ -18,6 +18,7 @@ import {
   ProviderDoc,
   type AgentChange,
   type EntryRecord,
+  type JsonObject,
   type Extension,
   type Harness,
   type TaskId,
@@ -48,7 +49,7 @@ import {
 } from '@cherrystudio/agent-behavior'
 import { type JsonValue, type InputId, type ThreadId } from '@cherrystudio/agent-runtime'
 
-import { conversationId, nativeSummaryUsage, pages, readFacts, threadId, runIds, taskRun } from './history'
+import { conversationId, entryId, nativeSummaryUsage, pages, readFacts, threadId, runIds, taskRun } from './history'
 
 export interface PiDurableBehaviorOptions {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Behavior jobs and native callbacks can reject with arbitrary values; the owning host decides how to report them.
@@ -149,6 +150,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     clock: { now: () => Date.now() },
     memory: {
       async remember<T extends JsonValue>(name: string, produce: () => Promise<T>): Promise<T> {
+        // SAFETY: Memory.remember owns a stable name-to-JSON-result contract within this native hook's memo scope.
         return ((await api.memo(name, callContext)) ??
           (await api.memo(name, nativeValue(await produce()), callContext))) as T
       }
@@ -289,13 +291,17 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
           const id = conversationId(thread)
           const known = await harness.commit(async (tx) => (await tx.doc(hostMemo, id)).values[name], context)
 
-          if (known !== undefined) return known as Awaited<ReturnType<typeof produce>>
+          if (known !== undefined) {
+            // SAFETY: The caller's stable Memory key identifies the same JSON producer type in this conversation-owned memo.
+            return known as Awaited<ReturnType<typeof produce>>
+          }
           const value = await produce()
 
           return harness.commit(async (tx) => {
             const doc = await tx.doc(hostMemo, id)
             doc.values[name] ??= nativeValue(value)
 
+            // SAFETY: This key retains its producer's JSON result; the heterogeneous document erases that per-key type.
             return doc.values[name] as Awaited<ReturnType<typeof produce>>
           }, context)
         }
@@ -336,6 +342,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
             async memo(name, produce) {
               const value = await runtime.memo(name, callContext)
 
+              // SAFETY: Memory.remember keeps one JSON producer type per key in this native task's memo scope.
               return (value ?? (await runtime.memo(name, nativeValue(await produce()), callContext))) as Awaited<
                 ReturnType<typeof produce>
               >
@@ -408,7 +415,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
 
               for (const op of step.ops)
                 if (op.type === 'spawn-child' && op.spec.fork)
-                  forkPoints.set(op.key, await tx.entry(Number(op.spec.fork.at) as never))
+                  forkPoints.set(op.key, await tx.entry(entryId(op.spec.fork.at)))
               const spawned: { key: Key; child: ThreadId }[] = []
               const seen = new Set(facts.keysSeen)
 
@@ -422,7 +429,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                 if (op.type === 'append-quiet')
                   await tx.appendEntry(conversationId(op.thread), {
                     kind: op.input.kind,
-                    data: { ...(op.input.data as Record<string, JsonValue>), key: op.key },
+                    data: { ...op.input.data, key: op.key },
                     model: [{ role: 'user', content: op.input.text, timestamp: Date.now() }]
                   })
 
@@ -451,7 +458,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                   const ownership = { kind: 'task' as const, taskId: owner }
 
                   const child = op.spec.fork
-                    ? await tx.forkConversation(conversationId(op.spec.fork.from), Number(op.spec.fork.at) as never, {
+                    ? await tx.forkConversation(conversationId(op.spec.fork.from), entryId(op.spec.fork.at), {
                         ownership
                       })
                     : await tx.createConversation({ ownership })
@@ -528,7 +535,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                   content: input.text,
                   requestId: key,
                   whenBusy: 'reject',
-                  entry: { kind: input.kind, data: { ...(input.data as Record<string, JsonValue>), key } }
+                  entry: { kind: input.kind, data: { ...input.data, key } }
                 },
                 scope.context
               )
@@ -632,7 +639,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                           entry: {
                             kind: input.kind,
                             data: {
-                              ...(input.data as Record<string, JsonValue>),
+                              ...input.data,
                               key,
                               ...(reservedRun !== undefined && { cherryRun: reservedRun }),
                               ...(scope.input?.thread === child && { cherryInputId: scope.input.id })
@@ -845,7 +852,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       defineTool({
         name: tool.name,
         description: tool.description,
-        parameters: tool.schema as object,
+        parameters: tool.schema,
         replay: tool.replay,
         executionMode: tool.executionMode,
         callers: ['model'],
@@ -857,6 +864,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
               context: callContext,
               commit: (run) => api.commit(run, callContext),
               async memo(name, produce) {
+                // SAFETY: Memory.remember keeps one JSON producer type per key in this native tool task's memo scope.
                 return ((await api.memo(name, callContext)) ??
                   (await api.memo(name, nativeValue(await produce()), callContext))) as Awaited<
                   ReturnType<typeof produce>
@@ -913,7 +921,8 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
 
           return {
             block: result.block,
-            arguments: result.args === undefined ? undefined : (nativeValue(result.args) as Record<string, NativeJson>)
+            // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Host gates return JSON; the SDK revalidates rewrites against the tool schema after this hook despite its object-only hook declaration.
+            arguments: result.args === undefined ? undefined : (nativeValue(result.args) as JsonObject)
           }
         },
         async afterTool(call, result, api, callContext) {
@@ -1104,6 +1113,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
 export type PiDurableBehavior = ReturnType<typeof createPiDurableBehavior>
 
 function nativeValue<T>(value: T): JsonRepresentation<T> {
+  // SAFETY: copyJson validates/copies strict JSON; its broad return type loses the same library's JsonRepresentation mapping.
   return copyJson(value, { omitUndefinedProperties: true }) as JsonRepresentation<T>
 }
 

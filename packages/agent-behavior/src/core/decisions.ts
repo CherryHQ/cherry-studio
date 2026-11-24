@@ -1,6 +1,6 @@
 import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
-import { encodeEntry } from './entryCodec'
+import { encodeEntry, type EncodedEntry } from './entryCodec'
 import type {
   GoalNotice,
   MarkerFact,
@@ -12,7 +12,7 @@ import type {
 } from './facts'
 import type { Key } from './keys'
 
-export type TurnInput = { readonly kind: string; readonly text: string; readonly data: JsonValue }
+export type TurnInput = { readonly kind: string; readonly text: string; readonly data: EncodedEntry['data'] }
 
 export type StopCause = 'goal-withdraw' | 'goal-pause' | 'goal-clear' | 'user'
 
