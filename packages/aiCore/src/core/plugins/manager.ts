@@ -1,3 +1,6 @@
+import type { JSONValue } from '@ai-sdk/provider'
+
+import type { AiSdkModel } from '../providers/types'
 import type { AiPlugin, AiRequestContext } from './types'
 
 /**
@@ -52,11 +55,26 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
   /**
    * 执行 First 钩子 - 返回第一个有效结果
    */
-  async executeFirst<T>(
-    hookName: 'resolveModel' | 'loadTemplate',
-    arg: any,
+  executeFirst(
+    hookName: 'resolveModel',
+    arg: string,
     context: AiRequestContext<TParams, TResult>
-  ): Promise<T | null> {
+  ): Promise<AiSdkModel | null>
+  executeFirst(
+    hookName: 'loadTemplate',
+    arg: string,
+    context: AiRequestContext<TParams, TResult>
+  ): Promise<JSONValue | null>
+  executeFirst(
+    hookName: 'resolveModel' | 'loadTemplate',
+    arg: string,
+    context: AiRequestContext<TParams, TResult>
+  ): Promise<AiSdkModel | JSONValue | null>
+  async executeFirst(
+    hookName: 'resolveModel' | 'loadTemplate',
+    arg: string,
+    context: AiRequestContext<TParams, TResult>
+  ): Promise<AiSdkModel | JSONValue | null> {
     for (const plugin of this.plugins) {
       const hook = plugin[hookName]
 
@@ -64,7 +82,7 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
         const result = await hook(arg, context)
 
         if (result !== null && result !== undefined) {
-          return result as T
+          return result
         }
       }
     }
@@ -125,20 +143,17 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
     hookName: 'onRequestStart' | 'onRequestEnd' | 'onError',
     context: AiRequestContext<TParams, TResult>,
     result?: TResult,
-    error?: Error
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Executors may reject with any value; error hooks receive the original rejection without an Error wrapper.
+    error?: unknown
   ): Promise<void> {
     const promises = this.plugins
       .map((plugin) => {
-        const hook = plugin[hookName]
-
-        if (!hook) return null
-
-        if (hookName === 'onError' && error !== undefined) {
-          return Promise.resolve((hook as NonNullable<typeof plugin.onError>)(error, context))
-        } else if (hookName === 'onRequestEnd' && result !== undefined) {
-          return Promise.resolve((hook as NonNullable<typeof plugin.onRequestEnd>)(context, result))
-        } else if (hookName === 'onRequestStart') {
-          return Promise.resolve((hook as NonNullable<typeof plugin.onRequestStart>)(context))
+        if (hookName === 'onError' && error !== undefined && plugin.onError) {
+          return Promise.resolve(plugin.onError(error, context))
+        } else if (hookName === 'onRequestEnd' && result !== undefined && plugin.onRequestEnd) {
+          return Promise.resolve(plugin.onRequestEnd(context, result))
+        } else if (hookName === 'onRequestStart' && plugin.onRequestStart) {
+          return Promise.resolve(plugin.onRequestStart(context))
         }
 
         return null
@@ -193,9 +208,20 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
       else stats.normal++
 
       // 统计钩子数量
-      Object.keys(stats.hooks).forEach((hookName) => {
-        if (plugin[hookName as keyof AiPlugin]) {
-          stats.hooks[hookName as keyof typeof stats.hooks]++
+      const hookNames = [
+        'resolveModel',
+        'loadTemplate',
+        'transformParams',
+        'transformResult',
+        'onRequestStart',
+        'onRequestEnd',
+        'onError',
+        'transformStream'
+      ] as const
+
+      hookNames.forEach((hookName) => {
+        if (plugin[hookName]) {
+          stats.hooks[hookName]++
         }
       })
     })

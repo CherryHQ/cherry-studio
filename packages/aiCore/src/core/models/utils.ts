@@ -1,13 +1,19 @@
-import type { LanguageModelV2, LanguageModelV3 } from '@ai-sdk/provider'
+import type { ImageModelV3, LanguageModelV2, LanguageModelV3 } from '@ai-sdk/provider'
 
 import type { AiSdkModel } from '../providers'
 
 export const isV2Model = (model: AiSdkModel): model is LanguageModelV2 => {
-  return typeof model === 'object' && model !== null && model.specificationVersion === 'v2'
+  return typeof model === 'object' && model !== null && 'doStream' in model && model.specificationVersion === 'v2'
 }
 
 export const isV3Model = (model: AiSdkModel): model is LanguageModelV3 => {
-  return typeof model === 'object' && model !== null && model.specificationVersion === 'v3'
+  return typeof model === 'object' && model !== null && 'doStream' in model && model.specificationVersion === 'v3'
+}
+
+export const isImageModelV3 = (model: AiSdkModel): model is ImageModelV3 => {
+  return (
+    typeof model === 'object' && model !== null && 'maxImagesPerCall' in model && model.specificationVersion === 'v3'
+  )
 }
 
 /**

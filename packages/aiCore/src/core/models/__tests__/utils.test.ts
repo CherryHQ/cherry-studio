@@ -1,105 +1,45 @@
-import type { LanguageModelV2, LanguageModelV3 } from '@ai-sdk/provider'
+import type { LanguageModelV2 } from '@ai-sdk/provider'
+import { createMockImageModel, createMockLanguageModel } from '@test-utils'
 import { describe, expect, it } from 'vitest'
 
-import type { AiSdkModel } from '../../providers'
-import { hasModelId, isV2Model, isV3Model } from '../utils'
+import { hasModelId, isImageModelV3, isV2Model, isV3Model } from '../utils'
 
 describe('Model Type Guards', () => {
-  describe('isV2Model', () => {
-    it('should return true for V2 models', () => {
-      const v2Model: AiSdkModel = {
-        specificationVersion: 'v2',
-        modelId: 'test-model',
-        provider: 'test-provider'
-      } as LanguageModelV2
+  it('distinguishes complete V2 and V3 language models', () => {
+    const legacy: LanguageModelV2 = {
+      specificationVersion: 'v2',
+      provider: 'test',
+      modelId: 'legacy',
+      supportedUrls: {},
+      doGenerate: async () => {
+        throw new Error('Not used by type classification')
+      },
+      doStream: async () => {
+        throw new Error('Not used by type classification')
+      }
+    }
+    const current = createMockLanguageModel()
 
-      expect(isV2Model(v2Model)).toBe(true)
-    })
-
-    it('should return false for V3 models', () => {
-      const v3Model: AiSdkModel = {
-        specificationVersion: 'v3',
-        modelId: 'test-model',
-        provider: 'test-provider'
-      } as LanguageModelV3
-
-      expect(isV2Model(v3Model)).toBe(false)
-    })
-
-    it('should return false for non-object values', () => {
-      expect(isV2Model('model-id' as any)).toBe(false)
-      expect(isV2Model(null as any)).toBe(false)
-      expect(isV2Model(undefined as any)).toBe(false)
-      expect(isV2Model(123 as any)).toBe(false)
-    })
-
-    it('should return false for objects without specificationVersion', () => {
-      const invalidModel = {
-        modelId: 'test-model',
-        provider: 'test-provider'
-      } as any
-
-      expect(isV2Model(invalidModel)).toBe(false)
-    })
+    expect(isV2Model(legacy)).toBe(true)
+    expect(isV3Model(legacy)).toBe(false)
+    expect(isV2Model(current)).toBe(false)
+    expect(isV3Model(current)).toBe(true)
   })
 
-  describe('isV3Model', () => {
-    it('should return true for V3 models', () => {
-      const v3Model: AiSdkModel = {
-        specificationVersion: 'v3',
-        modelId: 'test-model',
-        provider: 'test-provider'
-      } as LanguageModelV3
+  it('distinguishes V3 image and language models even when the image limit is undefined', () => {
+    const image = createMockImageModel({ maxImagesPerCall: undefined })
+    const language = createMockLanguageModel()
 
-      expect(isV3Model(v3Model)).toBe(true)
-    })
-
-    it('should return false for V2 models', () => {
-      const v2Model: AiSdkModel = {
-        specificationVersion: 'v2',
-        modelId: 'test-model',
-        provider: 'test-provider'
-      } as LanguageModelV2
-
-      expect(isV3Model(v2Model)).toBe(false)
-    })
-
-    it('should return false for non-object values', () => {
-      expect(isV3Model('model-id' as any)).toBe(false)
-      expect(isV3Model(null as any)).toBe(false)
-      expect(isV3Model(undefined as any)).toBe(false)
-    })
-
-    it('should return false for objects without specificationVersion', () => {
-      const invalidModel = {
-        modelId: 'test-model',
-        provider: 'test-provider'
-      } as any
-
-      expect(isV3Model(invalidModel)).toBe(false)
-    })
+    expect(isV3Model(image)).toBe(false)
+    expect(isV2Model(image)).toBe(false)
+    expect(isImageModelV3(image)).toBe(true)
+    expect(isImageModelV3(language)).toBe(false)
   })
 
-  describe('Type Guard Correctness', () => {
-    it('should correctly distinguish between V2 and V3 models', () => {
-      const v2Model: AiSdkModel = {
-        specificationVersion: 'v2',
-        modelId: 'v2-model'
-      } as LanguageModelV2
-
-      const v3Model: AiSdkModel = {
-        specificationVersion: 'v3',
-        modelId: 'v3-model'
-      } as LanguageModelV3
-
-      // V2 model should only match isV2Model
-      expect(isV2Model(v2Model)).toBe(true)
-      expect(isV3Model(v2Model)).toBe(false)
-
-      // V3 model should only match isV3Model
-      expect(isV2Model(v3Model)).toBe(false)
-      expect(isV3Model(v3Model)).toBe(true)
-    })
+  it('does not classify unresolved model IDs as SDK model objects', () => {
+    expect(isV2Model('model-id')).toBe(false)
+    expect(isV3Model('model-id')).toBe(false)
+    expect(isImageModelV3('model-id')).toBe(false)
   })
 
   describe('hasModelId', () => {

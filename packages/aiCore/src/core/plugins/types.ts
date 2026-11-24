@@ -95,7 +95,8 @@ export interface AiPlugin<TParams = unknown, TResult = unknown> {
 
   onRequestEnd?: (context: AiRequestContext<TParams, TResult>, result: TResult) => void | Promise<void>
 
-  onError?: (error: Error, context: AiRequestContext<TParams, TResult>) => void | Promise<void>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- An executor can reject with a non-Error value; hooks must narrow the original rejection before reading its fields.
+  onError?: (error: unknown, context: AiRequestContext<TParams, TResult>) => void | Promise<void>
 
   // 【Stream】流处理 - 直接使用 AI SDK
   transformStream?: (

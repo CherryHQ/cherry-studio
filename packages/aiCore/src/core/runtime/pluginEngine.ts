@@ -4,7 +4,7 @@ import type { generateImage, LanguageModel } from 'ai'
 import { wrapLanguageModel } from 'ai'
 
 import { ModelResolutionError, RecursiveDepthError } from '../errors'
-import { isV3Model } from '../models/utils'
+import { isImageModelV3, isV2Model, isV3Model } from '../models/utils'
 import {
   type AiPlugin,
   type AiRequestContext,
@@ -22,17 +22,6 @@ import type { RegisteredProviderId } from '../providers'
  * 专注于插件处理，不暴露用户API
  */
 export class PluginEngine<T extends string = RegisteredProviderId> {
-  /**
-   * Plugin storage with explicit any/any generics
-   *
-   * SAFETY: Plugins are contravariant in TParams and covariant in TResult.
-   * The cast to AiPlugin<TParams, TResult>[] in PluginManager is safe due to variance rules:
-   * - A plugin accepting any params (TParams = any) can handle specific params
-   * - A plugin returning any result (TResult = any) can be used as any specific result type
-   *
-   * Using AiPlugin<any, any> instead of AiPlugin preserves generic type information
-   * and makes the variance relationship explicit for type checking.
-   */
   private basePlugins: AiPlugin<any, any>[] = []
 
   constructor(
@@ -87,7 +76,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
   }
 
   private createManager<TParams = any, TResult = any>(requestPlugins: AiPlugin<any, any>[]) {
-    const plugins = [...this.basePlugins, ...requestPlugins] as AiPlugin<TParams, TResult>[]
+    const plugins = [...this.basePlugins, ...requestPlugins]
 
     return new PluginManager<TParams, TResult>(plugins)
   }
@@ -107,9 +96,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     settings: TSettings
   ): Promise<TSettings> {
     const context = createContext<T, TSettings>(this.providerId, model, settings)
-    // Same variance-safe narrowing as `executeStreamWithPlugins`: only the stored plugin array needs
-    // a cast, after which params and context type-check against the manager's own generics.
-    const manager = new PluginManager<TSettings>(this.basePlugins as AiPlugin<TSettings>[])
+    const manager = new PluginManager<TSettings>(this.basePlugins)
 
     return manager.executeTransformParams(settings, context)
   }
@@ -131,7 +118,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     await manager.executeConfigureContext(context)
 
     // 2. resolveModel — string → LanguageModel
-    const resolved = await manager.executeFirst<LanguageModel>('resolveModel', modelId, context)
+    const resolved = await manager.executeFirst('resolveModel', modelId, context)
 
     if (!resolved) {
       throw new ModelResolutionError(modelId, this.providerId)
@@ -184,7 +171,6 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     // 创建类型安全的 context
     const context = _context ?? createContext(this.providerId, model, params)
 
-    // ✅ 创建类型化的 manager（逆变安全）
     const manager = this.createManager<TParams, TResult>(requestPlugins)
 
     context.recursiveCall = async (newParams: Partial<TParams>): Promise<TResult> => {
@@ -216,9 +202,9 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
       // 2. 解析模型（如果是字符串）
       if (typeof model === 'string') {
-        const resolved = await manager.executeFirst<LanguageModel>('resolveModel', modelId, context)
+        const resolved = await manager.executeFirst('resolveModel', modelId, context)
 
-        if (!resolved) {
+        if (!resolved || (!isV2Model(resolved) && !isV3Model(resolved))) {
           throw new ModelResolutionError(modelId, this.providerId)
         }
 
@@ -232,8 +218,16 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
       // 2.5 统一应用 context.middlewares（由各插件在 configureContext 阶段写入）
       if (context.middlewares && context.middlewares.length > 0) {
+        if (!isV3Model(resolvedModel)) {
+          throw new ModelResolutionError(
+            modelId,
+            this.providerId,
+            new Error('Language model middleware requires a V3 language model')
+          )
+        }
+
         resolvedModel = wrapLanguageModel({
-          model: resolvedModel as LanguageModelV3,
+          model: resolvedModel,
           middleware: context.middlewares
         })
       }
@@ -253,7 +247,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
       return transformedResult
     } catch (error) {
       // 7. 触发错误事件
-      await manager.executeParallel('onError', context, undefined, error as Error)
+      await manager.executeParallel('onError', context, undefined, error)
       throw error
     }
   }
@@ -289,7 +283,6 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     // 创建类型安全的 context
     const context = _context ?? createContext(this.providerId, model, params)
 
-    // ✅ 创建类型化的 manager（逆变安全）
     const manager = this.createManager<TParams, TResult>(requestPlugins)
 
     context.recursiveCall = async (newParams: Partial<TParams>): Promise<TResult> => {
@@ -327,9 +320,9 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
       // 2. 解析模型（如果是字符串）
       if (typeof model === 'string') {
-        const resolved = await manager.executeFirst<ImageModelV3>('resolveModel', modelId, context)
+        const resolved = await manager.executeFirst('resolveModel', modelId, context)
 
-        if (!resolved) {
+        if (!resolved || !isImageModelV3(resolved)) {
           throw new ModelResolutionError(modelId, this.providerId)
         }
 
@@ -356,7 +349,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
       return transformedResult
     } catch (error) {
       // 7. 触发错误事件
-      await manager.executeParallel('onError', context, undefined, error as Error)
+      await manager.executeParallel('onError', context, undefined, error)
       throw error
     }
   }
@@ -389,7 +382,6 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     // 创建类型安全的 context
     const context = _context ?? createContext(this.providerId, model, params)
 
-    // ✅ 创建类型化的 manager（逆变安全）
     const manager = this.createManager<TParams, TResult>(requestPlugins)
 
     context.recursiveCall = async (newParams: Partial<TParams>): Promise<TResult> => {
@@ -427,9 +419,9 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
       // 2. 解析模型（如果是字符串）
       if (typeof model === 'string') {
-        const resolved = await manager.executeFirst<LanguageModel>('resolveModel', modelId, context)
+        const resolved = await manager.executeFirst('resolveModel', modelId, context)
 
-        if (!resolved) {
+        if (!resolved || (!isV2Model(resolved) && !isV3Model(resolved))) {
           throw new ModelResolutionError(modelId, this.providerId)
         }
 
@@ -445,12 +437,16 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
       // 2.5 应用 context.middlewares 到模型
       if (context.middlewares && context.middlewares.length > 0) {
-        if (typeof resolvedModel === 'string') {
-          throw new Error(`Model must be resolved before applying middlewares, got string: ${resolvedModel}`)
+        if (!isV3Model(resolvedModel)) {
+          throw new ModelResolutionError(
+            modelId,
+            this.providerId,
+            new Error('Language model middleware requires a V3 language model')
+          )
         }
 
         resolvedModel = wrapLanguageModel({
-          model: resolvedModel as LanguageModelV3,
+          model: resolvedModel,
           middleware: context.middlewares
         })
       }
@@ -472,7 +468,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
       return transformedResult
     } catch (error) {
       // 7. 触发错误事件
-      await manager.executeParallel('onError', context, undefined, error as Error)
+      await manager.executeParallel('onError', context, undefined, error)
       throw error
     }
   }

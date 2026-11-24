@@ -233,6 +233,10 @@ const executor = AiCore.create('openai', { apiKey: 'your-key' }, [
 
 `AiRequestContext` 未声明的扩展字段和 `providerToolPlugin` 按 Provider 动态分发的配置值使用 `unknown`；读取其内部字段前，需要由拥有该字段或配置的插件收窄类型。已声明的上下文字段保持原有类型。
 
+`onError` 的参数为 `unknown`，插件需要先收窄再读取 `message` 等字段。执行器的原始拒绝值会原样传给回调，不会包装为 `Error`；回调正常完成后重新抛出原值，回调自身的失败仍按既有行为向调用方传播。`undefined` 拒绝值仍跳过错误通知。旧插件显式声明的 `Error` 参数需要迁移。
+
+`PluginManager.executeFirst` 根据钩子名推导返回类型，不再接受任意结果类型参数。`resolveModel` 可以返回不同模态的 SDK 模型，但必须匹配调用方请求的模态；语言模型不能由图像模型替代。独立的 `resolveModel` 与语言 middleware 路径要求 V3 语言模型；没有 middleware 的文本及流式执行继续支持 SDK 的 V2 语言模型。
+
 `TypedProviderOptions` 的自定义命名空间遵循 AI SDK 的共享 JSON 选项契约，已知 Provider 保留其 SDK 类型。`mergeProviderOptions` 递归合并对象，后传入的标量和数组覆盖先前值；保留 `__proto__` 等字面名称为普通对象的自有数据属性，不合并继承字段，也不修改输入。合并不对 SDK 允许的不透明扩展值进行递归 JSON 验证。
 
 创建自定义插件非常简单：
