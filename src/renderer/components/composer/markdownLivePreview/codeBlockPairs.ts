@@ -99,6 +99,7 @@ export function createCodePairPlugin(findCodeLine: FindCodeLine) {
     state: {
       init: () => [],
       apply: (transaction, closers, _previous, state) => {
+        // SAFETY: This private key is only written here with the numeric closer position in handlePairInput.
         const added = transaction.getMeta(pairKey) as number | undefined
         const { $head } = state.selection
 
