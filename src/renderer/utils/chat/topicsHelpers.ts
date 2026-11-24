@@ -92,12 +92,14 @@ export function moveTopicAfterDrop<T extends { id: string }>(
   return next
 }
 
+type TopicWithMovedAssistant<T extends TopicListItem> = Omit<T, 'assistantId'> & Pick<TopicListItem, 'assistantId'>
+
 export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
   topics: readonly T[],
   payload: ResourceListItemReorderPayload,
   targetAssistantId: string | null,
   groupBy: ResourceListGroupResolver<T>
-): T[] {
+): TopicWithMovedAssistant<T>[] {
   const activeIndex = topics.findIndex((topic) => topic.id === payload.activeId)
 
   if (activeIndex < 0) return [...topics]
@@ -108,10 +110,10 @@ export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
   const movedTopic =
     currentAssistantId === targetAssistantId
       ? activeTopic
-      : ({
+      : {
           ...activeTopic,
           assistantId: targetAssistantId ?? undefined
-        } as T)
+        }
 
   const next = topics.filter((topic) => topic.id !== payload.activeId)
   let insertIndex = next.length
@@ -130,9 +132,10 @@ export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
     }
   }
 
-  next.splice(insertIndex, 0, movedTopic)
+  const result: TopicWithMovedAssistant<T>[] = next
+  result.splice(insertIndex, 0, movedTopic)
 
-  return next
+  return result
 }
 
 export function buildTopicDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import type { Topic } from '@renderer/types/topic'
 
@@ -113,6 +113,28 @@ describe('Topics helpers', () => {
 
     expect(moveTopicAfterDrop(topics, payload).map((topic) => topic.id)).toEqual(['b', 'c', 'a'])
     expect(topics.map((topic) => topic.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('widens the moved assistant identity while preserving extra topic fields and the input row', () => {
+    const topic: Topic & { assistantId: 'assistant-1'; customLabel: 'retained' } = {
+      ...createTopic({ id: 'a' }),
+      assistantId: 'assistant-1',
+      customLabel: 'retained'
+    }
+    const payload = createResourceListItemReorderPayload({
+      activeId: 'a',
+      overType: 'group',
+      targetGroupId: 'topic:assistant:assistant-2'
+    })
+    const moved = applyOptimisticTopicDisplayMove([topic], payload, 'assistant-2', (row) => ({
+      id: `topic:assistant:${row.assistantId}`,
+      label: row.assistantId
+    }))
+
+    expectTypeOf(moved[0].assistantId).toEqualTypeOf<string | undefined>()
+    expectTypeOf(moved[0].customLabel).toEqualTypeOf<'retained'>()
+    expect(moved[0]).toMatchObject({ assistantId: 'assistant-2', customLabel: 'retained' })
+    expect(topic.assistantId).toBe('assistant-1')
   })
 
   it('projects group drops at the visual append position of the target group', () => {
