@@ -1130,6 +1130,7 @@
   "chat.topics.export.obsidian_title_required": "Başlık boş olamaz",
   "chat.topics.export.obsidian_vault": "Kasa",
   "chat.topics.export.obsidian_vault_placeholder": "Lütfen kasa adını seçin",
+  "chat.topics.export.share_image": "Paylaşım görselini dışa aktar",
   "chat.topics.export.siyuan": "Siyuan Note'a Aktar",
   "chat.topics.export.title": "Dışa Aktar",
   "chat.topics.export.title_naming_failed": "Başlık oluşturulamadı, varsayılan başlık kullanılıyor",
