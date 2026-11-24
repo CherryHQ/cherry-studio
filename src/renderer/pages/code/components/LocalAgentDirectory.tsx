@@ -64,6 +64,7 @@ import {
   type LocalAgentCheckResult,
   type LocalAgentDetection,
   type LocalAgentInstallResult,
+  type LocalAgentUninstallResult,
   type LocalAgentPreset
 } from '@shared/ai/localAgent'
 import { AGENTS_MAX_LIMIT, type AgentEntity } from '@shared/data/api/schemas/agents'
@@ -86,6 +87,14 @@ const installErrorKeys = {
   not_detected: 'local_agents.install_error.not_detected',
   stopping: 'local_agents.install_error.stopping'
 } as const
+
+const uninstallErrorKeys = {
+  busy: 'local_agents.uninstall_error.busy',
+  changed: 'local_agents.uninstall_error.changed',
+  failed: 'local_agents.uninstall_error.failed',
+  partial: 'local_agents.uninstall_error.partial',
+  unsupported: 'local_agents.uninstall_error.unsupported'
+} as const satisfies Record<Extract<LocalAgentUninstallResult, { ok: false }>['reason'], string>
 
 const DEFAULT_AGENT_ORDER = new Map(
   [
@@ -781,7 +790,7 @@ export function LocalAgentDetails({
         message: response.ok
           ? t('local_agents.uninstall_success')
           : [
-              t(`local_agents.uninstall_error.${response.reason}`),
+              t(uninstallErrorKeys[response.reason]),
               response.removed?.length &&
                 t('local_agents.uninstall_removed', { components: response.removed.join(', ') }),
               response.remaining?.length &&
@@ -1125,7 +1134,7 @@ export function LocalAgentDetails({
                       <span
                         role="status"
                         aria-live="polite"
-                        className="flex items-center gap-1 whitespace-nowrap text-[11px]">
+                        className="flex items-center gap-1 whitespace-nowrap text-xs">
                         {connection ? (
                           <span
                             className={cn(
@@ -1151,9 +1160,7 @@ export function LocalAgentDetails({
                               ` · ${/^\d/.test(connection.version) ? `v${connection.version}` : connection.version}`}
                           </span>
                         ) : (
-                          <Badge
-                            variant="secondary"
-                            className="px-1.5 py-0 text-[11px] leading-4 text-muted-foreground">
+                          <Badge variant="secondary" className="px-1.5 py-0 text-xs text-muted-foreground">
                             {initial.executableOverride
                               ? t('settings.provider.not_checked')
                               : detection?.path

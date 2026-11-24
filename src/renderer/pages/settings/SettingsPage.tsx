@@ -128,7 +128,7 @@ const SettingsPage: FC = () => {
                             <Tooltip content={item.badgeTooltipKey ? t(item.badgeTooltipKey) : undefined} asChild>
                               <Badge
                                 variant="secondary"
-                                className="px-1.5 py-0 font-normal text-[10px] leading-4 text-muted-foreground">
+                                className="px-1.5 py-0 font-normal text-xs text-muted-foreground">
                                 {t(item.badgeKey)}
                               </Badge>
                             </Tooltip>

@@ -6,6 +6,7 @@ import type { ThreadContextUsage, ContextCategoryKey } from '@cherrystudio/agent
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, ScrollArea } from '@cherrystudio/ui'
 import { ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import { cn } from '@renderer/utils/style'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 
 const CATEGORY_KEYS: Record<ContextCategoryKey | 'buffer' | 'free', string> = {
@@ -241,7 +242,11 @@ export function AgentContextUsageSummary({
         </Accordion>
       )}
       {cost && costFormatter ? (
-        <div className="flex items-center justify-between gap-3 border-border-subtle border-t pt-2 text-muted-foreground">
+        <div
+          className={cn(
+            'flex items-center justify-between gap-3 border-border-subtle border-t pt-2 text-muted-foreground',
+            showCategories && 'mx-3'
+          )}>
           <span>{t('agent.right_pane.info.session_cost')}</span>
           <span className="shrink-0 tabular-nums">
             {cost.amount > 0 && cost.amount < 0.0001

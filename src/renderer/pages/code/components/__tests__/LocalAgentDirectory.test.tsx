@@ -33,7 +33,6 @@ vi.unmock('@cherrystudio/ui')
 
 beforeEach(() => {
   mockPreferenceState.set('feature.code_cli.configs', {})
-  vi.mocked(window.api.file.selectFolder).mockResolvedValue('/test/project')
   MockUseCacheUtils.resetMocks()
   MockUseDataApiUtils.resetMocks()
   MockUseDataApiUtils.mockQueryData('/agents', { items: [], total: 0, page: 1 })
@@ -42,12 +41,15 @@ beforeEach(() => {
     navigation.search = search
     return Promise.resolve()
   })
-  vi.mocked(ipcApi.request).mockImplementation(async (route) =>
-    route === 'code_cli.get_available_terminals'
-      ? []
-      : route === 'ai.local_agents.detect'
-        ? [{ presetId: 'claude', path: '/usr/local/bin/claude' }]
-        : ({ models: [] } as never)
+  vi.mocked(ipcApi.request).mockImplementation(
+    async (route) =>
+      (route === 'file.select_folder'
+        ? '/test/project'
+        : route === 'code_cli.get_available_terminals'
+          ? []
+          : route === 'ai.local_agents.detect'
+            ? [{ presetId: 'claude', path: '/usr/local/bin/claude' }]
+            : { models: [] }) as never
   )
 })
 
@@ -588,6 +590,7 @@ describe('local agent settings navigation', () => {
     vi.mocked(popup.confirm).mockResolvedValueOnce(outcome !== 'cancel')
     const actions: string[] = []
     vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
+      if (route === 'file.select_folder') return '/test/project' as never
       if (route === 'ai.local_agents.detect') return [{ presetId: id, path: '/user/bin/adapter' }] as never
       if (route === 'ai.local_agents.install') {
         expect(input).toEqual({ presetId: id, targetVersion: undefined })

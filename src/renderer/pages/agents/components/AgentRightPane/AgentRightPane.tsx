@@ -1743,7 +1743,7 @@ function AgentDetailsContent() {
             usage={usage}
             percentage={percentage}
             isCompacting={compaction.status === 'compacting'}
-            className="rounded-md border border-border-subtle px-3 py-2"
+            className="py-2"
           />
         }
         status={status}

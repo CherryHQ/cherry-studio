@@ -10,6 +10,8 @@ import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
 
 import { LocalAgentTerminalDialog } from '../LocalAgentTerminalDialog'
 
+vi.unmock('@cherrystudio/ui')
+
 vi.mock('@renderer/utils/platform', async (importOriginal) => ({
   ...(await importOriginal<typeof Platform>()),
   isMac: true,
@@ -36,13 +38,21 @@ function Harness({
   )
 }
 
+function mockFolderSelection(folder: string | null) {
+  vi.spyOn(ipcApi, 'request').mockImplementation(
+    async (route) =>
+      (route === 'file.select_folder'
+        ? folder
+        : [
+            { id: 'Terminal', name: 'Terminal' },
+            { id: 'iTerm2', name: 'iTerm2' }
+          ]) as never
+  )
+}
+
 beforeEach(() => {
   mockPreferenceState.set('feature.code_cli.configs', {})
-  vi.mocked(window.api.file.selectFolder).mockResolvedValue('/projects/new folder')
-  vi.spyOn(ipcApi, 'request').mockResolvedValue([
-    { id: 'Terminal', name: 'Terminal' },
-    { id: 'iTerm2', name: 'iTerm2' }
-  ])
+  mockFolderSelection('/projects/new folder')
 })
 
 it('reuses Code Mate settings and preserves provider/model configuration when choosing a directory', async () => {
@@ -59,6 +69,7 @@ it('reuses Code Mate settings and preserves provider/model configuration when ch
   const user = userEvent.setup()
   const launch = vi.fn().mockResolvedValue(true)
   render(<Harness launch={launch} />)
+  expect(await screen.findByRole('combobox', { name: '终端' })).toHaveTextContent('iTerm2')
   expect(screen.getByDisplayValue('/projects/old')).toBeVisible()
   await user.click(screen.getByRole('button', { name: '选择文件夹' }))
   await user.click(screen.getByRole('button', { name: '启动' }))
@@ -91,7 +102,7 @@ it('remembers the directory for an ACP-only tool and uses the displayed terminal
 })
 
 it('does not start a process or save settings when folder selection and launch are cancelled', async () => {
-  vi.mocked(window.api.file.selectFolder).mockResolvedValue(null)
+  mockFolderSelection(null)
   const user = userEvent.setup()
   const launch = vi.fn()
   render(<Harness launch={launch} />)

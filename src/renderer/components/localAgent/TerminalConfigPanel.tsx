@@ -50,6 +50,7 @@ export const TerminalConfigPanel: FC<TerminalConfigPanelProps> = ({
   const { t } = useTranslation()
   const [historyOpen, setHistoryOpen] = useState(false)
   const directoryId = useId()
+  const terminalId = useId()
   const showTerminals = (isMac || isWin) && terminals.length > 0
   // The caller already resolves `selectedTerminal` to the same fallback used for
   // launching (see useLaunchDialogController), so display and launch stay in sync.
@@ -125,9 +126,11 @@ export const TerminalConfigPanel: FC<TerminalConfigPanelProps> = ({
 
       {showTerminals && (
         <div className="space-y-1.5">
-          <label className="text-xs text-muted-foreground">{t('code.terminal')}</label>
+          <label htmlFor={terminalId} className="text-xs text-muted-foreground">
+            {t('code.terminal')}
+          </label>
           <Select value={effectiveTerminal} onValueChange={(value) => onSelectTerminal(value)} disabled={disabled}>
-            <SelectTrigger size="sm" className="w-full">
+            <SelectTrigger id={terminalId} size="sm" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

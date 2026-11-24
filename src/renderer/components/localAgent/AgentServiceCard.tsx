@@ -25,7 +25,7 @@ export function AgentServiceCard({
         <div className="flex min-w-48 flex-1 items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center">{icon}</div>
           <div className="flex min-h-11 min-w-0 flex-col justify-center gap-1">
-            <h1 className="truncate text-[15px] leading-tight font-semibold">{title}</h1>
+            <h1 className="truncate text-base leading-tight font-semibold">{title}</h1>
             {(version || versionAction) && (
               <div className="flex h-5 min-w-0 items-center gap-1.5">
                 {version && (

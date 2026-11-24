@@ -4,9 +4,11 @@ import { usePreference } from '@data/hooks/usePreference'
 import { preferenceService } from '@data/PreferenceService'
 import { AgentTerminalDialog } from '@renderer/components/localAgent/AgentTerminalDialog'
 import { useAvailableTerminals } from '@renderer/hooks/agent/useAvailableTerminals'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { codeCliForLocalAgent } from '@renderer/utils/agent/codeCliForLocalAgent'
 import type { LocalAgentPreset } from '@shared/ai/localAgent'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 export function LocalAgentTerminalDialog({
   open,
@@ -38,7 +40,9 @@ export function LocalAgentTerminalDialog({
   }
   const selectFolder = async () => {
     try {
-      const selected = await window.api.file.selectFolder({ defaultPath: directory })
+      const selected = await ipcApi.request('file.select_folder', {
+        defaultPath: AbsoluteFilePathSchema.safeParse(directory).data
+      })
       if (selected) setDirectory(selected)
     } catch (error) {
       toast.error(String(error))
