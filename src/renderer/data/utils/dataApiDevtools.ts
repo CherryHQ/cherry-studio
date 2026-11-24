@@ -246,20 +246,12 @@ function serializeError(error: unknown): DataApiDevtoolsEvent['error'] {
   }
 
   if (error && typeof error === 'object') {
-    const record = error as {
-      name?: unknown
-      code?: unknown
-      message?: unknown
-      status?: unknown
-      isRetryable?: unknown
-    }
-
     return {
-      name: typeof record.name === 'string' ? record.name : undefined,
-      code: typeof record.code === 'string' ? record.code : undefined,
-      message: serializeMessage(typeof record.message === 'string' ? record.message : error),
-      status: typeof record.status === 'number' ? record.status : undefined,
-      isRetryable: typeof record.isRetryable === 'boolean' ? record.isRetryable : undefined
+      name: 'name' in error && typeof error.name === 'string' ? error.name : undefined,
+      code: 'code' in error && typeof error.code === 'string' ? error.code : undefined,
+      message: serializeMessage('message' in error && typeof error.message === 'string' ? error.message : error),
+      status: 'status' in error && typeof error.status === 'number' ? error.status : undefined,
+      isRetryable: 'isRetryable' in error && typeof error.isRetryable === 'boolean' ? error.isRetryable : undefined
     }
   }
 
