@@ -32,6 +32,17 @@ describe('ConversationHandoff', () => {
     expect(save).not.toHaveBeenCalled()
     expect(onNewTopic).not.toHaveBeenCalled()
   })
+  it('keeps the dismissed offer hidden after a remount for the same session', () => {
+    const { unmount } = render(
+      <ConversationHandoff sessionId="dismissed-topic" modelId={modelId} hasMessages percentage={85} />
+    )
+    expect(screen.getByRole('status')).toHaveTextContent('handoff.offer')
+    fireEvent.click(screen.getByText('common.close'))
+    expect(screen.queryByRole('status')).toBeNull()
+    unmount()
+    render(<ConversationHandoff sessionId="dismissed-topic" modelId={modelId} hasMessages percentage={85} />)
+    expect(screen.queryByRole('status')).toBeNull()
+  })
   it('requires generation and explicit saving, and exports the edited text', async () => {
     render(<ConversationHandoff sessionId="topic" modelId={modelId} hasMessages />)
     fireEvent.click(screen.getByText('handoff.create'))
