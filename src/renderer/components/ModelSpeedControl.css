@@ -1,0 +1,128 @@
+.model-speed-effort-slider [data-slot='slider-range']::before,
+.model-speed-effort-slider [data-slot='slider-range']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms ease-out;
+}
+
+.model-speed-effort-slider [data-slot='slider-range']::before {
+  background: linear-gradient(90deg, var(--primary), oklch(from var(--primary) l c 300));
+}
+
+.model-speed-effort-slider [data-slot='slider-range']::after {
+  background-image:
+    radial-gradient(circle, oklch(from var(--primary) 0.98 0.01 h) 0 0.7px, transparent 1.2px),
+    radial-gradient(circle, oklch(from var(--primary) 0.98 0.01 h) 0 0.5px, transparent 1px);
+  background-size:
+    43px 13px,
+    67px 17px;
+  background-position:
+    0 2px,
+    19px 8px;
+}
+
+.model-speed-effort-slider-peak [data-slot='slider-range']::before {
+  opacity: 1;
+}
+
+.model-speed-effort-slider-peak [data-slot='slider-range']::after {
+  opacity: 0.45;
+  animation: model-speed-effort-shimmer 8s linear infinite;
+}
+
+@keyframes model-speed-effort-shimmer {
+  to {
+    background-position:
+      86px 15px,
+      86px -9px;
+  }
+}
+
+.model-speed-effort-splash {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.model-speed-effort-splash > span {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: oklch(from var(--primary) l c 300);
+  opacity: 0;
+  animation: model-speed-effort-splash 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.model-speed-effort-splash > span:nth-child(1) {
+  --droplet-x: 17px;
+  --droplet-y: -21px;
+}
+
+.model-speed-effort-splash > span:nth-child(2) {
+  --droplet-x: 25px;
+  --droplet-y: -9px;
+  width: 3px;
+  height: 3px;
+}
+
+.model-speed-effort-splash > span:nth-child(3) {
+  --droplet-x: 22px;
+  --droplet-y: 10px;
+}
+
+.model-speed-effort-splash > span:nth-child(4) {
+  --droplet-x: 10px;
+  --droplet-y: 22px;
+  width: 3px;
+  height: 3px;
+}
+
+.model-speed-effort-splash > span:nth-child(5) {
+  --droplet-x: -6px;
+  --droplet-y: -24px;
+  width: 2px;
+  height: 2px;
+}
+
+@keyframes model-speed-effort-splash {
+  0% {
+    opacity: 0;
+    transform: translate(-2px, -2px) scale(0.4, 1.5);
+  }
+  15% {
+    opacity: 0.8;
+  }
+  65% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--droplet-x), var(--droplet-y)) scale(0.2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-speed-effort-splash {
+    display: none;
+  }
+
+  .model-speed-effort-splash > span {
+    animation: none;
+  }
+
+  .model-speed-effort-slider [data-slot='slider-range']::before,
+  .model-speed-effort-slider [data-slot='slider-range']::after {
+    transition: none;
+  }
+
+  .model-speed-effort-slider-peak [data-slot='slider-range']::after {
+    animation: none;
+    opacity: 0;
+  }
+}

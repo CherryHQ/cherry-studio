@@ -7,7 +7,7 @@ import type { Step } from '../../../src/core/decisions'
 import { decideAtIdle } from '../../../src/core/driver/idle'
 import { decodeEntry, encodeEntry } from '../../../src/core/entryCodec'
 import type { ConversationFacts, HistoryEntry } from '../../../src/core/facts'
-import type { ApprovalOutcome, CallInputs } from '../../../src/core/hostFacts'
+import type { CallInputs } from '../../../src/core/hostFacts'
 import { pendingResults, subagentViews } from '../../../src/core/subagents/subagentLedger'
 import type { BoundPorts, HarnessPorts } from '../../../src/ports/harness'
 import { withoutEnvironment } from '../../core/purity'
@@ -65,7 +65,6 @@ const recorded =
       register: (handlers) =>
         ports.lifecycle.register({
           onOpen: (thread, open, p) => handlers.onOpen(thread, open, recording(p, log)),
-          onCompacting: handlers.onCompacting,
           onCompacted: (thread, p) => handlers.onCompacted(thread, recording(p, log)),
           onClose: (thread, p) => handlers.onClose(thread, recording(p, log))
         })
@@ -84,13 +83,7 @@ function open<P>(scenario: Scenario<P>, log: Decision[] = []): { readonly w: Wor
   return { w: world({ ...options, wrap, wrapCall: (ports) => recording(ports, log) }), hold }
 }
 
-/** The approval outcomes the host keeps for `facts.thread` and its children, as one decision on it gathers them. */
-async function approvalsOf(w: World, facts: ConversationFacts): Promise<ApprovalOutcome[]> {
-  const threads = [facts.thread, ...facts.children.keys()]
-  return (await Promise.all(threads.map((thread) => w.host.approvals.outcomes(thread, [])))).flat()
-}
-
-async function inputsOf(w: World, facts: ConversationFacts): Promise<CallInputs> {
+function inputsOf(w: World, facts: ConversationFacts): CallInputs {
   const settings = w.host.settings
   return {
     now: 0,
@@ -101,8 +94,7 @@ async function inputsOf(w: World, facts: ConversationFacts): Promise<CallInputs>
       attendance: settings.attendance(facts.thread),
       maxBackground: settings.maxBackground(),
       offloadThreshold: settings.offloadThreshold()
-    },
-    approvals: await approvalsOf(w, facts)
+    }
   }
 }
 
@@ -114,10 +106,9 @@ async function sameAsRecompute(w: World, roots: readonly ThreadId[]): Promise<vo
   for (const thread of roots) {
     const facts = await w.read(thread)
     expect(pendingResults(facts.history), `undelivered results on ${thread}`).toEqual([])
-    expect(decideAtIdle(facts, await inputsOf(w, facts)).result.kind, `the driver's work on ${thread}`).toBe('done')
+    expect(decideAtIdle(facts, inputsOf(w, facts)).result.kind, `the driver's work on ${thread}`).toBe('done')
     const shown = w.host.emitted.filter((event) => event.type === 'subagents' && event.thread === thread).at(-1)
-    if (shown?.type === 'subagents')
-      expect(shown.views, `the views shown for ${thread}`).toEqual(subagentViews(facts, await approvalsOf(w, facts)))
+    if (shown?.type === 'subagents') expect(shown.views, `the views shown for ${thread}`).toEqual(subagentViews(facts))
   }
 }
 

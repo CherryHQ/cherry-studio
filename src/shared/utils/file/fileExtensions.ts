@@ -20,6 +20,10 @@ export const knowledgeSupportedFileExts = [
   '.doc',
   '.pptx',
   '.ppt',
+  '.odt',
+  '.odp',
+  '.ods',
+  '.rtf',
   '.epub',
   '.draftsexport'
 ] as const

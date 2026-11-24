@@ -3,7 +3,7 @@ import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ScrollArea } from '@cherrystudio/ui'
+import { Button, ScrollArea } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -207,7 +207,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     )
   }
 
-  const messageContentClassName = 'message-content-container mt-0 min-h-0 max-w-full pl-0'
+  const messageContentClassName = 'message-content-container mt-0 min-h-0 max-w-full'
   const messageContentStyle = {
     fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
     fontSize
@@ -235,7 +235,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           {messageBody}
         </div>
       )}
-      {isAssistantMessage ? messageTail : undefined}
+      {isAssistantMessage ? messageTail : <UnsentMessageNotice message={message} />}
     </>
   )
 
@@ -341,6 +341,24 @@ const MessageItem: FC<Props> = ({ message, messageParts, ...props }) => {
 
 export default memo(MessageItem)
 
+/** A user message the runtime withdrew before the agent received it, with ways to send it again. */
+const UnsentMessageNotice: FC<{ message: MessageListItem }> = ({ message }) => {
+  const { t } = useTranslation()
+  const { resendUnsentMessage, editUnsentMessage } = useMessageListActions()
+  if (message.role !== 'user' || message.status !== 'paused' || !resendUnsentMessage || !editUnsentMessage) return null
+  return (
+    <div className="mt-1 flex max-w-full flex-wrap items-center gap-1 text-foreground-tertiary text-xs">
+      <span>{t('agent.unsent_message.label')}</span>
+      <Button variant="ghost" size="sm" onClick={() => resendUnsentMessage(message)}>
+        {t('agent.unsent_message.resend')}
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => editUnsentMessage(message)}>
+        {t('agent.unsent_message.edit')}
+      </Button>
+    </div>
+  )
+}
+
 const UserBubbleMessage = ({
   message,
   isLastMessage,
@@ -407,6 +425,7 @@ const UserBubbleMessage = ({
             <MessageContent message={message} hoistAttachments />
           </MessageErrorBoundary>
         </div>
+        <UnsentMessageNotice message={message} />
       </MessageUserLayout>
       {!isEditing && (
         <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-xs leading-none text-foreground-tertiary">

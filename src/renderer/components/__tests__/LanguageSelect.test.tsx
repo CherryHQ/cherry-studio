@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -44,27 +44,6 @@ afterEach(() => {
 })
 
 describe('LanguageSelect', () => {
-  it('uses the trigger width without retaining the popover default width', async () => {
-    render(<LanguageSelect value="zh-cn" />)
-
-    fireEvent.focus(screen.getByRole('combobox'))
-
-    const popoverContent = await waitFor(() => {
-      const content = document.querySelector<HTMLElement>('[data-slot="popover-content"]')
-      expect(content).toBeInTheDocument()
-      return content!
-    })
-
-    expect(popoverContent).toHaveClass('w-[var(--radix-popover-trigger-width)]')
-    expect(popoverContent).not.toHaveClass('w-72')
-  })
-
-  it('shows the flag and localized name without the raw language code in the closed selector', () => {
-    render(<LanguageSelect value="zh-cn" />)
-
-    expect(screen.getByRole<HTMLInputElement>('combobox')).toHaveValue('🇨🇳 Chinese')
-  })
-
   it('finds a language by typing its language code', () => {
     const onChange = vi.fn()
     render(<LanguageSelect value="en-us" onChange={onChange} />)

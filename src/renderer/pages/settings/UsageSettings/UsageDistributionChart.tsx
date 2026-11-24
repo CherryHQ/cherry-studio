@@ -158,7 +158,6 @@ export function UsageDistributionChart({
     return (
       <EmptyState
         compact
-        preset="no-result"
         title={t('settings.usage.explore.noBreakdown')}
         description={t('settings.usage.explore.noBreakdownDescription')}
       />
@@ -193,7 +192,6 @@ export function UsageDistributionChart({
               {isEmpty ? (
                 <EmptyState
                   compact
-                  preset="no-result"
                   title={t('settings.usage.explore.noBreakdown')}
                   description={t('settings.usage.explore.noBreakdownDescription')}
                 />

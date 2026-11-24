@@ -100,7 +100,11 @@ function anthropicResponse(tool: boolean): Response {
   })
 }
 
-async function request(messages: MessageParam[], stream = false): Promise<Message> {
+async function request(
+  messages: MessageParam[],
+  stream = false,
+  overrides: Partial<MessageCreateParamsNonStreaming> = {}
+): Promise<Message> {
   const client = new Anthropic({
     apiKey: 'internal-key',
     baseURL: 'http://gateway.test',
@@ -118,7 +122,8 @@ async function request(messages: MessageParam[], stream = false): Promise<Messag
     max_tokens: 2048,
     thinking: { type: 'enabled', budget_tokens: 1024 },
     tools: [{ name: 'echo', input_schema: { type: 'object', properties: { value: { type: 'number' } } } }],
-    messages
+    messages,
+    ...overrides
   }
   return stream ? client.messages.stream(params).finalMessage() : client.messages.create(params)
 }
@@ -170,6 +175,49 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
       .run()
   })
   afterEach(() => vi.restoreAllMocks())
+
+  it('freezes the admitted price even when pricing changes while the provider runs', async () => {
+    mocks.transport.mockImplementation(async () => {
+      dbh.db
+        .update(userModelTable)
+        .set({
+          pricing: {
+            input: { perMillionTokens: 200, currency: 'USD' },
+            output: { perMillionTokens: 400, currency: 'USD' }
+          }
+        })
+        .where(eq(userModelTable.id, 'wire::wire-model'))
+        .run()
+      return anthropicResponse(false)
+    })
+    await request([{ role: 'user', content: 'Hello' }])
+    const rows = dbh.db.select().from(aiUsageRecordTable).all()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ inputTokens: 10, outputTokens: 5 })
+    expect(rows[0].cost).toBeCloseTo(0.00004, 8)
+    expect(modelService.getByKey('wire', 'wire-model').pricing?.input?.perMillionTokens).toBe(200)
+  })
+
+  it('does not duplicate a tool-call cache marker onto its unmarked result', async () => {
+    let body: { messages: Array<{ content: Array<{ type: string; cache_control?: unknown }> }> } = { messages: [] }
+    mocks.transport.mockImplementation(async (_url, init) => {
+      body = JSON.parse(String(init?.body))
+      return anthropicResponse(false)
+    })
+    const marker = { type: 'ephemeral', ttl: '1h' } as const
+    await request([
+      { role: 'user', content: 'Run echo' },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'call-marker', name: 'echo', input: {}, cache_control: marker }]
+      },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call-marker', content: 'done' }] }
+    ])
+    const blocks = body.messages.flatMap((message) => message.content)
+    expect(blocks.find((block) => block.type === 'tool_use')?.cache_control).toEqual(marker)
+    expect(blocks.find((block) => block.type === 'tool_result')?.cache_control).toBeUndefined()
+    expect(blocks.filter((block) => block.cache_control)).toHaveLength(1)
+  })
 
   it.each([false, true])(
     'preserves thinking/tool replay, upstream credentials and single billing (stream=%s)',
@@ -224,6 +272,105 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
         expect(row.cost).toBeCloseTo(0.00004)
       }
       expect(modelService.getByKey('wire', 'wire-model').endpointTypes?.[0]).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    }
+  )
+
+  it.each([false, true])(
+    'preserves caller cache boundaries, schema and failed tool results on the wire (stream=%s)',
+    async (stream) => {
+      const upstream: Array<Record<string, unknown>> = []
+      mocks.transport.mockImplementation(async (_url, init) => {
+        upstream.push(JSON.parse(String(init?.body)))
+        return anthropicResponse(false)
+      })
+      const longCache = { type: 'ephemeral', ttl: '1h' } as const
+      const shortCache = { type: 'ephemeral', ttl: '5m' } as const
+      const schema = {
+        type: 'object' as const,
+        properties: { value: { $ref: '#/definitions/value' } },
+        definitions: { value: { oneOf: [{ type: 'integer' as const }, { type: 'string' as const }] } },
+        required: ['value'],
+        additionalProperties: false
+      }
+      const result = await request(
+        [
+          { role: 'user', content: [{ type: 'text', text: 'Run echo', cache_control: shortCache }] },
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'failed-1', name: 'echo', input: { value: 7 } }] },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'failed-1',
+                content: 'Permission denied',
+                is_error: true,
+                cache_control: shortCache
+              }
+            ]
+          }
+        ],
+        stream,
+        {
+          system: [
+            { type: 'text', text: 'Harness skills', cache_control: longCache },
+            { type: 'text', text: 'Current task' }
+          ],
+          tools: [{ name: 'echo', input_schema: schema, cache_control: longCache }],
+          tool_choice: { type: 'auto', disable_parallel_tool_use: true }
+        }
+      )
+      expect(result.content).toMatchObject([{ type: 'text', text: 'Done' }])
+      expect(upstream).toHaveLength(1)
+      expect(upstream[0]).toMatchObject({
+        system: [
+          { type: 'text', text: 'Harness skills', cache_control: longCache },
+          { type: 'text', text: 'Current task' }
+        ],
+        tools: [{ name: 'echo', input_schema: schema, cache_control: longCache }],
+        tool_choice: { type: 'auto', disable_parallel_tool_use: true },
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'user',
+            content: expect.arrayContaining([{ type: 'text', text: 'Run echo', cache_control: shortCache }])
+          }),
+          expect.objectContaining({
+            role: 'assistant',
+            content: expect.arrayContaining([{ type: 'tool_use', id: 'failed-1', name: 'echo', input: { value: 7 } }])
+          }),
+          expect.objectContaining({
+            role: 'user',
+            content: expect.arrayContaining([
+              {
+                type: 'tool_result',
+                tool_use_id: 'failed-1',
+                content: 'Permission denied',
+                is_error: true,
+                cache_control: shortCache
+              }
+            ])
+          })
+        ])
+      })
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(1)
+    }
+  )
+
+  it.each([{ type: 'none' }, { type: 'auto' }, { type: 'any' }, { type: 'tool', name: 'echo' }] as const)(
+    'preserves explicit tool choice $type',
+    async (toolChoice) => {
+      let body: Record<string, unknown> = {}
+      mocks.transport.mockImplementation(async (_url, init) => {
+        body = JSON.parse(String(init?.body))
+        return anthropicResponse(false)
+      })
+      await request([{ role: 'user', content: 'Choose a tool' }], false, {
+        thinking: { type: 'disabled' },
+        tool_choice: toolChoice
+      })
+      if (toolChoice.type === 'none') {
+        expect(body.tools).toBeUndefined()
+        expect(body.tool_choice).toBeUndefined()
+      } else expect(body.tool_choice).toMatchObject(toolChoice)
     }
   )
 

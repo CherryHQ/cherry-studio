@@ -20,6 +20,7 @@ permissions:
 concurrency:
   group: release-state
   cancel-in-progress: false
+  queue: max
 
 jobs:
   prepare:

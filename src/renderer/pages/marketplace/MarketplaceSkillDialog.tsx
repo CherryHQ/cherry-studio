@@ -2,7 +2,7 @@ import { Check, Download, ExternalLink, Loader2, Package, Sparkles } from 'lucid
 import { useTranslation } from 'react-i18next'
 import useSWR, { useSWRConfig } from 'swr'
 
-import { Button, Dialog, Spinner } from '@cherrystudio/ui'
+import { Button, Dialog, Skeleton } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { openExternalWebsite } from '@renderer/services/website'
 import type { MarketplaceInstallResult, MarketplaceSkill } from '@shared/types/skillMarketplace'
@@ -124,7 +124,7 @@ export function MarketplaceSkillDialog({
             ]}
           />
           <p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
-            {item.subscription && detail?.longDescription.en ? text(detail.longDescription) : text(item.description)}
+            {(detail && text(detail.longDescription)) || text(item.description)}
           </p>
           <dl className="grid grid-cols-[max-content_minmax(0,1fr)_max-content_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
             {[
@@ -139,7 +139,13 @@ export function MarketplaceSkillDialog({
               </div>
             ))}
           </dl>
-          {isLoading ? <Spinner text={t('common.loading')} /> : null}
+          {isLoading ? (
+            <div role="status" aria-label={t('common.loading')} className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : null}
           {error ? (
             <div role="alert" className="flex items-center justify-between gap-3 text-sm text-error">
               {t('marketplace.load_failed')}

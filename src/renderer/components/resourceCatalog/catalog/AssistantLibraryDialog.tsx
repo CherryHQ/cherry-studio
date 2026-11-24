@@ -239,14 +239,14 @@ export function AssistantLibraryDialog({
           </div>
 
           <ScrollArea
+            contentProps={{ className: 'px-5 pt-4 pb-1' }}
             type="auto"
             className="min-h-0 flex-1"
-            viewportProps={{ ref: listScrollRef, 'aria-busy': isLoading || undefined, className: 'px-5 pt-4 pb-1' }}>
+            viewportProps={{ ref: listScrollRef, 'aria-busy': isLoading || undefined }}>
             {isLoading ? (
               <AssistantLibraryPresetListSkeleton />
             ) : visiblePresets.length === 0 ? (
               <EmptyState
-                preset={search ? 'no-result' : 'no-resource'}
                 title={
                   search ? t('library.assistant_catalog.no_match_title') : t('library.assistant_catalog.empty_title')
                 }

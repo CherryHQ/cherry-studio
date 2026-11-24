@@ -44,6 +44,7 @@ import {
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import { getPathBasename } from '@renderer/components/chat/panes/artifactPanePath'
+import { AgentProfilePane, PROFILE_PANE_ID } from '@renderer/components/chat/panes/profile'
 import {
   createResourcePaneCapability,
   RESOURCE_PANE_TAB,
@@ -73,6 +74,7 @@ import { FilePreviewNavigationProvider, hasRenderedFilePreview } from '@renderer
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentChildProjection } from '@renderer/hooks/agent/useAgentChildProjection'
+import { useAgentDesktopControls } from '@renderer/hooks/agent/useAgentDesktopControls'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
@@ -86,14 +88,16 @@ import { agentBrowserRuntimeService } from '@renderer/services/AgentBrowserRunti
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import type { ComposerFileReference } from '@renderer/types/selectionReference'
 import { type Topic, TopicType } from '@renderer/types/topic'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { resolveInlineFilePath } from '@renderer/utils/filePath'
+import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
+import { expandHomeRelativePath } from '@renderer/utils/filePath'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -209,6 +213,8 @@ interface AgentRightPaneMeta {
   workspaceType?: AgentWorkspaceType
   /** Active model — supplies the context-usage denominator and guards against stale readings. */
   model?: Model
+  /** Switches the session's model, asking first when the session already has messages. */
+  onModelChange?: (model: Model) => void
 }
 
 interface AgentRightPaneRuntime {
@@ -261,8 +267,8 @@ interface AgentRightPaneActions {
   canOpenArtifactFile: boolean
   canPreviewInputFileInRightPane: boolean
   openAgentToolFlow: (input: AgentToolFlowOpenInput, nested?: boolean) => void
-  openArtifactFile: (path: string) => void
-  openFileFromPreview: (path: string) => void
+  openArtifactFile: (path: string, location?: FileLocation) => void
+  openFileFromPreview: (path: string, location?: FileLocation) => void
   previewInputFileInRightPane: (input: MessageInputFilePreview) => void
   openBrowserUrl?: (url: string) => void
   openExternalUrl: (url: string) => void
@@ -283,6 +289,7 @@ interface AgentRightPanelScope {
   filePreviewSelection: ArtifactPaneFileSelection | null
   hasSystemWorkspaceEntries: boolean
   filesTitle: string
+  profileTitle: string
   flowTab: AgentFlowTab | null
   previousFlowTab: AgentFlowTab | null
   goBackFlow: () => void
@@ -433,7 +440,7 @@ function AgentRightPaneActionsProvider({
     }
   }, [artifactOpenRequestRef, sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
-  const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen(FILES_PANE_ID)
+  const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && conversationState === 'ready'
   const canPreviewInputFileInRightPane = conversationState === 'ready'
   const {
     clearReturnTarget,
@@ -459,12 +466,13 @@ function AgentRightPaneActionsProvider({
     [canOpenAgentToolFlow, panelActions, replaceFlowTab]
   )
   const openArtifactFileTarget = useCallback(
-    (path: string, fromPreview: boolean) => {
+    (path: string, fromPreview: boolean, location?: FileLocation) => {
       if (!canOpenArtifactFile) return
       const requestId = artifactOpenRequestRef.current + 1
       artifactOpenRequestRef.current = requestId
-      const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
-      const htmlUrl = selection ? toBrowsableHtmlUrl(getArtifactPaneSelectionPath(selection)) : null
+      const resolved = resolveArtifactPaneFileSelection(workspacePath, expandHomeRelativePath(path))
+      const selection = resolved && location ? { ...resolved, location: { ...location } } : resolved
+      const htmlUrl = selection && !location ? toBrowsableHtmlUrl(getArtifactPaneSelectionPath(selection)) : null
       if (htmlUrl) {
         openBrowserUrl(htmlUrl)
         panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: true })
@@ -481,7 +489,9 @@ function AgentRightPaneActionsProvider({
       void openFileTarget(targetPath, {
         openArtifactFile: () => {
           if (artifactOpenRequestRef.current !== requestId) return
-          requestFileSelection(selection)
+          requestFileSelection(selection, () => {
+            panelActions.requestOpen(FILES_PANE_ID, { userInitiated: true })
+          })
         },
         openPath: async (path) => {
           if (artifactOpenRequestRef.current !== requestId) return
@@ -506,9 +516,12 @@ function AgentRightPaneActionsProvider({
     },
     [artifactOpenRequestRef, canOpenArtifactFile, panelActions, openBrowserUrl, requestFileSelection, t, workspacePath]
   )
-  const openArtifactFile = useCallback((path: string) => openArtifactFileTarget(path, false), [openArtifactFileTarget])
+  const openArtifactFile = useCallback(
+    (path: string, location?: FileLocation) => openArtifactFileTarget(path, false, location),
+    [openArtifactFileTarget]
+  )
   const openFileFromPreview = useCallback(
-    (path: string) => openArtifactFileTarget(path, true),
+    (path: string, location?: FileLocation) => openArtifactFileTarget(path, true, location),
     [openArtifactFileTarget]
   )
   const setSelectedFile = useCallback(
@@ -521,7 +534,7 @@ function AgentRightPaneActionsProvider({
   const activateFileTab = useCallback(
     (tab: ArtifactPaneFileSelection) => {
       invalidatePreviewRequests()
-      requestFileSelection(tab, clearReturnTarget)
+      requestFileSelection({ ...tab, location: undefined }, clearReturnTarget)
     },
     [clearReturnTarget, invalidatePreviewRequests, requestFileSelection]
   )
@@ -602,6 +615,7 @@ function AgentRightPaneStateProvider({
   agentName,
   agentAvatar,
   model,
+  onModelChange,
   conversationState = 'ready',
   present = true,
   resourcePane = null,
@@ -714,7 +728,16 @@ function AgentRightPaneStateProvider({
         return
       }
       explicitBrowserBaselineRef.current = null
-      if (browserUrl !== url) setBrowserUrlState({ sessionId, url, profile: WebviewSecurityProfile.AgentDevPreview })
+      if (browserUrl !== url) {
+        if (sessionId)
+          agentBrowserRuntimeService.openPage(sessionId, url, WebviewSecurityProfile.AgentDevPreview, {
+            previewKey: new URL(url).origin,
+            activate:
+              !agentBrowserRuntimeService.get(sessionId) ||
+              agentBrowserRuntimeService.get(sessionId)?.url === 'about:blank'
+          })
+        setBrowserUrlState({ sessionId, url, profile: WebviewSecurityProfile.AgentDevPreview })
+      }
     },
     [browserUrl, messages, partsByMessageId, sessionId]
   )
@@ -735,6 +758,7 @@ function AgentRightPaneStateProvider({
         waitingForHistory: isMessageHistoryLoading && !frontier,
         url
       }
+      if (sessionId) agentBrowserRuntimeService.openPage(sessionId, url)
       setBrowserUrlState({
         sessionId,
         url,
@@ -805,6 +829,7 @@ function AgentRightPaneStateProvider({
   const applyFileSelection = useCallback<RequestFileSelection>(
     (selection, onAccepted, closeActive = !selection) => {
       if (!closeActive && isSameFileSelection(previewFileSelection, selection)) {
+        setPreviewFileSelection(selection)
         onAccepted?.()
         return
       }
@@ -818,7 +843,7 @@ function AgentRightPaneStateProvider({
           next = nextTabs[Math.min(activeIndex, nextTabs.length - 1)] ?? null
         }
       } else if (next && !nextTabs.some((tab) => isSameFileSelection(tab, next))) {
-        nextTabs = nextTabs.toSpliced(activeIndex + 1, 0, next)
+        nextTabs = nextTabs.toSpliced(activeIndex + 1, 0, { ...next, location: undefined })
       }
       showFileTabs(nextTabs, next)
       onAccepted?.()
@@ -837,12 +862,15 @@ function AgentRightPaneStateProvider({
         applyFileSelection(selection, onAccepted, closeActive)
         return
       }
+      const requestId = artifactOpenRequestRef.current
       setPendingLeave({
         fileName: getPathBasename(previewFileSelection.filePath),
-        proceed: () => applyFileSelection(selection, onAccepted, closeActive)
+        proceed: () => {
+          if (artifactOpenRequestRef.current === requestId) applyFileSelection(selection, onAccepted, closeActive)
+        }
       })
     },
-    [applyFileSelection, autoSave, fileSession.isDirty, previewFileSelection]
+    [applyFileSelection, artifactOpenRequestRef, autoSave, fileSession.isDirty, previewFileSelection]
   )
   const closeInactiveFileTab = useCallback((tab: ArtifactPaneFileSelection) => {
     setFileTabs((tabs) => tabs.filter((candidate) => !isSameFileSelection(candidate, tab)))
@@ -868,8 +896,9 @@ function AgentRightPaneStateProvider({
     previousSessionIdRef.current = sessionId
     if (!sessionChanged) return
     const kept = fileTabs.filter((tab) => tab.previewType !== 'file')
-    if (kept.length === fileTabs.length) return
-    showFileTabs(kept, previewFileSelection?.previewType === 'file' ? (kept[0] ?? null) : previewFileSelection)
+    const next = previewFileSelection?.previewType === 'file' ? (kept[0] ?? null) : previewFileSelection
+    if (kept.length === fileTabs.length && !next?.location) return
+    showFileTabs(kept, next ? { ...next, location: undefined } : null)
   }, [fileTabs, previewFileSelection, sessionId, showFileTabs])
 
   const requestFileEditMode = useCallback((mode: AgentFileEditorMode) => {
@@ -948,7 +977,8 @@ function AgentRightPaneStateProvider({
       workspacePath,
       workspaceName,
       workspaceType,
-      model
+      model,
+      onModelChange
     }),
     [
       agentAvatar,
@@ -957,6 +987,7 @@ function AgentRightPaneStateProvider({
       agentName,
       conversationState,
       model,
+      onModelChange,
       sessionId,
       sessionName,
       traceId,
@@ -977,6 +1008,7 @@ function AgentRightPaneStateProvider({
       previousFlowTab,
       goBackFlow,
       meta,
+      profileTitle: t('chat.profile_pane.title'),
       resourcePane,
       traceTitle: t('trace.label')
     }),
@@ -1166,6 +1198,7 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
 const ANNOTATION_TOKEN_LABEL_MAX = 32
 
 function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const panelActions = useRightPanelActions()
   const runtime = useAgentRightPaneRuntime()
   const { acceptDetectedBrowserUrl } = runtime
   const sessionId = scope.meta.sessionId
@@ -1213,11 +1246,11 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
       initialUrl={runtime.browserUrl ?? undefined}
       securityProfile={runtime.browserProfile}
       sessionId={sessionId}
-      onNavigate={runtime.openBrowserUrl}
       target={target}
       isHostActive={active}
       onAnnotationSaved={handleAnnotationSaved}
       toolbarActions={<RightPanelHeaderControls canMaximize />}
+      onEmpty={panelActions.close}
     />
   )
 }
@@ -1511,19 +1544,14 @@ function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
 
 export function AgentTaskProgressCapsule() {
   const { t } = useTranslation()
-  const runtime = useAgentRightPaneRuntime()
   const status = useAgentRightPaneStatus()
 
-  if (status.totalTaskCount === 0 || status.completedTaskCount === status.totalTaskCount) return null
-
-  const hasActiveAssistantRun = runtime.messages.some(
-    (message) => message.role === 'assistant' && message.metadata?.status === 'pending'
-  )
+  if (!status.isTaskPlanActive || status.totalTaskCount === 0 || status.completedTaskCount === status.totalTaskCount) {
+    return null
+  }
   const explicitActiveTaskIndex = status.tasks.findIndex((task) => task.status === 'in_progress')
   const inferredActiveTaskIndex =
-    hasActiveAssistantRun && explicitActiveTaskIndex < 0
-      ? status.tasks.findIndex((task) => task.status === 'pending')
-      : -1
+    explicitActiveTaskIndex < 0 ? status.tasks.findIndex((task) => task.status === 'pending') : -1
   const currentTaskIndex =
     explicitActiveTaskIndex >= 0
       ? explicitActiveTaskIndex
@@ -1597,21 +1625,100 @@ export function AgentTaskProgressCapsule() {
   )
 }
 
+type DesktopControls = ReturnType<typeof useAgentDesktopControls>
+const DesktopControlsContext = createContext<{
+  rows: NonNullable<DesktopControls['controls']>
+  failed: boolean
+  pending: DesktopControls['pending']
+  stopApp: DesktopControls['stopApp']
+} | null>(null)
+
 function AgentDetailsScope({ children, present }: { children: ReactNode; present: boolean }) {
   const meta = useAgentRightPaneMeta()
   const panel = useRightPanelState()
+  const desktopControls = useAgentDesktopControls()
+  const ownerKey = meta.sessionId && meta.agentId ? `agent:${meta.sessionId}:${meta.agentId}` : undefined
+  const rows =
+    desktopControls.controls?.filter(
+      (row) =>
+        ownerKey &&
+        row.ownerId === ownerKey &&
+        typeof row.appId === 'string' &&
+        row.appId.length > 0 &&
+        ['opening', 'active', 'stopping', 'stopped', 'unconfirmed'].includes(row.status)
+    ) ?? []
+  const { t } = useTranslation()
+  useEffect(() => {
+    if (desktopControls.failed) toast.error(t('agent.right_pane.info.desktop_control.load_failed'))
+  }, [desktopControls.failed, t])
   return (
-    <AgentSessionDetailsProvider
-      sessionId={meta.sessionId}
-      available={present && meta.conversationState === 'ready' && !!meta.sessionId && !panel.presentationMaximized}>
-      <AgentRunTaskStopsProvider>
-        {present && meta.conversationState === 'ready' && meta.sessionId && meta.workspacePath && (
-          <AgentWorkspaceOpenShortcut workspacePath={meta.workspacePath} />
-        )}
-        {children}
-      </AgentRunTaskStopsProvider>
-    </AgentSessionDetailsProvider>
+    <DesktopControlsContext
+      value={{
+        rows,
+        failed: desktopControls.failed,
+        pending: desktopControls.pending,
+        stopApp: desktopControls.stopApp
+      }}>
+      <AgentSessionDetailsProvider
+        sessionId={meta.sessionId}
+        available={present && meta.conversationState === 'ready' && !!meta.sessionId && !panel.presentationMaximized}>
+        <AgentRunTaskStopsProvider>
+          <ProfileDetailsExclusivity />
+          {present && meta.conversationState === 'ready' && meta.sessionId && meta.workspacePath && (
+            <AgentWorkspaceOpenShortcut workspacePath={meta.workspacePath} />
+          )}
+          {children}
+        </AgentRunTaskStopsProvider>
+      </AgentSessionDetailsProvider>
+    </DesktopControlsContext>
   )
+}
+
+/** The profile pane and the session details card never show together: opening either closes the other. */
+function ProfileDetailsExclusivity() {
+  const panel = useRightPanelState()
+  const panelActions = useRightPanelActions()
+  const details = useAgentSessionDetails()
+  const profileOpen = panel.isActive(PROFILE_PANE_ID)
+  const detailsOpen = details.available && (details.mode === 'inline' ? details.inlineOpen : details.popupOpen)
+  const previousRef = useRef({ profileOpen, detailsOpen })
+
+  useEffect(() => {
+    const previous = previousRef.current
+    previousRef.current = { profileOpen, detailsOpen }
+    if (!profileOpen || !detailsOpen) return
+    if (!previous.profileOpen) details.setOpen(false)
+    else if (!previous.detailsOpen) panelActions.close()
+  }, [details, detailsOpen, panelActions, profileOpen])
+
+  return null
+}
+
+function AgentProfileRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const actions = useRightPanelActions()
+  const paneActions = useAgentRightPaneActions()
+  const { agentId, sessionId, workspacePath, model, onModelChange } = scope.meta
+  const filesReady = actions.canOpen(FILES_PANE_ID)
+  const workspace = useMemo(
+    () =>
+      workspacePath
+        ? {
+            path: workspacePath,
+            open: filesReady ? () => actions.tryOpen(FILES_PANE_ID, { userInitiated: true }) : undefined
+          }
+        : undefined,
+    [actions, filesReady, workspacePath]
+  )
+  return agentId ? (
+    <AgentProfilePane
+      agentId={agentId}
+      sessionId={sessionId}
+      workspace={workspace}
+      onOpenOutput={paneActions.canOpenArtifactFile ? paneActions.openArtifactFile : undefined}
+      model={model}
+      onModelChange={onModelChange}
+    />
+  ) : null
 }
 
 function AgentDetailsContent() {
@@ -1621,9 +1728,13 @@ function AgentDetailsContent() {
   const status = useAgentRightPaneStatus()
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const compaction = useAgentSessionCompaction(meta.sessionId)
+  const desktopControls = use(DesktopControlsContext)
   return (
     <div key={meta.sessionId}>
       <AgentSessionDetailsSections
+        desktopControls={desktopControls?.rows}
+        pendingDesktopControls={desktopControls?.pending}
+        stopDesktopControl={desktopControls?.stopApp}
         contextUsage={
           <AgentContextUsageSummary
             usage={usage}
@@ -1739,6 +1850,19 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
         readiness: scope.meta.conversationState
       }
     }
+  },
+  // Last, so it never becomes the fallback the sidebar shortcut opens; the avatars are its entry.
+  {
+    component: AgentProfileRightPanel,
+    widthPreset: 'profile',
+    resolve: (scope) => ({
+      id: PROFILE_PANE_ID,
+      instanceKey: `profile:agent:${scope.meta.agentId ?? 'unavailable'}`,
+      title: scope.profileTitle,
+      readiness: scope.meta.agentId ? 'ready' : 'unavailable',
+      headerMode: 'content',
+      canMaximize: false
+    })
   }
 ] satisfies readonly RightPanelCapability<AgentRightPanelScope>[]
 

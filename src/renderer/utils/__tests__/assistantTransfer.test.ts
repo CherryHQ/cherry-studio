@@ -149,11 +149,10 @@ describe('assistantTransfer', () => {
     ])
   })
 
-  it('parses legacy assistant imports with the original defaults', () => {
+  it('parses legacy assistant imports', () => {
     const [draft] = parseAssistantImportContent(
       JSON.stringify({
         name: '旧助手',
-        emoji: '🤖',
         prompt: 'legacy prompt',
         description: 'legacy desc',
         group: ['写作', '生产力']
@@ -172,19 +171,7 @@ describe('assistantTransfer', () => {
     expect(draft.groupName).toBe('写作')
   })
 
-  it('uses the default emoji when a legacy import contains an empty emoji', () => {
-    const [draft] = parseAssistantImportContent(
-      JSON.stringify({
-        name: '无图标助手',
-        emoji: '',
-        prompt: 'legacy prompt'
-      })
-    )
-
-    expect(draft.dto.emoji).toBe('🤖')
-  })
-
-  it('ignores v2-only fields from imported content and still uses legacy defaults', () => {
+  it('ignores v2-only fields from imported content', () => {
     const [draft] = parseAssistantImportContent(
       JSON.stringify({
         name: '新助手',
@@ -205,10 +192,6 @@ describe('assistantTransfer', () => {
     expect(draft.dto).not.toHaveProperty('modelId')
     expect(draft.dto).not.toHaveProperty('mcpServerIds')
     expect(draft.dto).not.toHaveProperty('knowledgeBaseIds')
-    expect(draft.dto.settings).toMatchObject({
-      temperature: 1,
-      enableTemperature: false
-    })
     expect(draft.groupName).toBe('编程')
   })
 

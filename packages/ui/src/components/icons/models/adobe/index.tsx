@@ -9,7 +9,7 @@ const Adobe = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const AdobeIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Adobe, {
   Avatar: AdobeAvatar,
-  colorPrimary: '#EB1000'
+  colorPrimary: '#FFF0ED'
 })
 
 export default AdobeIcon

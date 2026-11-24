@@ -1,28 +1,4 @@
-import { rm } from 'node:fs/promises'
-
-import { _electron as electron } from '@playwright/test'
-
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend({
-  electronApp: async ({}, use, testInfo) => {
-    const profile = testInfo.outputPath('profile')
-    const app = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile },
-      timeout: 60_000
-    })
-    try {
-      await use(app)
-    } finally {
-      try {
-        await app.close()
-      } finally {
-        await rm(profile, { recursive: true, force: true })
-      }
-    }
-  }
-})
+import { expect, test } from './fixtures/electron.fixture'
 
 test('anchor rail stays visible and navigates to the first turn in a narrow message column', async ({
   electronApp,

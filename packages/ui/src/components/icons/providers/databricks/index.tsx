@@ -9,7 +9,7 @@ const Databricks = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const DatabricksIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Databricks, {
   Avatar: DatabricksAvatar,
-  colorPrimary: '#FF3621'
+  colorPrimary: '#ffedeb'
 })
 
 export default DatabricksIcon

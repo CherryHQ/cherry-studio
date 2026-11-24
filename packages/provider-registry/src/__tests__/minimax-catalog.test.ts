@@ -29,8 +29,13 @@ describe('MiniMax M3.1 Flash catalog', () => {
     })
   })
 
-  it.each(['MiniMax-M3.1-Flash', 'MiniMax-M3'])('preserves documented temperature support for %s', (id) => {
-    expect(loader.findModel(id)?.parameterSupport?.temperature).toMatchObject({ supported: true })
+  it.each(['MiniMax-M3.1-Flash', 'MiniMax-M3'])('omits fixed sampling parameters for %s', (id) => {
+    expect(loader.findModel(id)?.parameterSupport).toMatchObject({
+      temperature: { supported: false },
+      topP: { supported: false },
+      frequencyPenalty: false,
+      presencePenalty: false
+    })
   })
 
   it.each(['MiniMax-M3.1-Flash', 'minimax-m3-1-flash', 'MiniMaxAI/MiniMax-M3.1-Flash'])(

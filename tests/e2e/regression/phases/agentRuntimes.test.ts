@@ -11,7 +11,7 @@ import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
 import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
 import { closeSettings } from '../helpers/settings'
 import { agentFilePreview } from '../scenarios/agentFilePreview'
-import { scheduledTaskConversation } from '../scenarios/scheduledTaskConversation'
+import { agentGlobalInstallApproval } from '../scenarios/agentGlobalInstallApproval'
 async function ensureAgentModel(
   app: Parameters<typeof ensureCustomChatProvider>[0],
   page: Parameters<typeof ensureCustomChatProvider>[1]
@@ -22,13 +22,12 @@ async function ensureAgentModel(
   await closeSettings(page)
   return { model: app.config.customProvider.chatModel, providerId }
 }
-import { agentMemoryContext } from '../scenarios/agentMemoryContext'
 import { agentPermissionDecisions } from '../scenarios/agentPermissionDecisions'
 import { agentPreviewPanel } from '../scenarios/agentPreviewPanel'
 import { agentRuntimeMessages } from '../scenarios/agentRuntimeMessages'
 import { agentSessionList } from '../scenarios/agentSessionList'
 import { agentStatusPanel } from '../scenarios/agentStatusPanel'
-import { interruptAgentTask } from '../scenarios/interruptAgentTask'
+import { agentTaskPlanProjection } from '../scenarios/agentTaskPlanProjection'
 import { scheduledTasks } from '../scenarios/scheduledTasks'
 import { workspaceLifecycle } from '../scenarios/workspaceLifecycle'
 
@@ -94,11 +93,6 @@ test(...caseDefinition('MP-144'), async ({ app, mainWindow }, testInfo) => {
   await agentRuntimeMessages(app, mainWindow, testInfo)
 })
 
-test(...caseDefinition('MP-145'), async ({ app, mainWindow: page }, testInfo) => {
-  test.setTimeout(8 * 60_000)
-  await scheduledTaskConversation(app, page, testInfo)
-})
-
 test(...caseDefinition('MP-19'), async ({ app, mainWindow }, testInfo) => {
   test.setTimeout(8 * 60_000)
   await agentPreviewPanel(app, mainWindow, testInfo)
@@ -107,6 +101,11 @@ test(...caseDefinition('MP-19'), async ({ app, mainWindow }, testInfo) => {
 test(...caseDefinition('MP-51'), async ({ app, mainWindow }, testInfo) => {
   test.setTimeout(5 * 60_000)
   await agentPermissionDecisions(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-153'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(10 * 60_000)
+  await agentGlobalInstallApproval(app, mainWindow, testInfo)
 })
 
 test(...caseDefinition('MP-52'), async ({ app, mainWindow: page }, testInfo) => {
@@ -129,15 +128,9 @@ test(...caseDefinition('MP-55'), async ({ app, mainWindow }, testInfo) => {
   await agentStatusPanel(app, mainWindow, testInfo)
 })
 
-test(...caseDefinition('MP-56'), async ({ app, mainWindow: page }, testInfo) => {
+test(...caseDefinition('MP-152'), async ({ app, mainWindow }, testInfo) => {
   test.setTimeout(5 * 60_000)
-  const { model, providerId } = await ensureAgentModel(app, page)
-  await interruptAgentTask(app, page, testInfo, model, providerId)
-})
-
-test(...caseDefinition('MP-57'), async ({ app, mainWindow }, testInfo) => {
-  test.setTimeout(5 * 60_000)
-  await agentMemoryContext(app, mainWindow, testInfo)
+  await agentTaskPlanProjection(app, mainWindow, testInfo)
 })
 
 test(...caseDefinition('MP-58'), async ({ app, mainWindow }, testInfo) => {

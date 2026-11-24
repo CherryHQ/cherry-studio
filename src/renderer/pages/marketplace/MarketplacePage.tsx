@@ -1,8 +1,10 @@
-import { Bot, Layers, Network, Settings2, Sparkles } from 'lucide-react'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { Bot, Layers, Settings2, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, ScrollArea } from '@cherrystudio/ui'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useAgentCatalogPresets } from '@renderer/hooks/useAgentCatalogPresets'
 import { buildAssistantCatalogTabs, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
@@ -10,6 +12,8 @@ import { useBuiltinMcpCatalog } from '@renderer/hooks/useBuiltinMcpCatalog'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { MarketplaceResourceType, MarketplaceView } from '@renderer/types/marketplace'
 
+import { MarketplaceCategoryFilter } from './MarketplaceComponents'
+import { MARKETPLACE_CATEGORY_KEYS } from './marketplaceLabels'
 import { MarketplaceMcp } from './MarketplaceMcp'
 import { MarketplaceSkills } from './MarketplaceSkills'
 import { buildMarketplaceTemplates } from './marketplaceTemplateCatalog'
@@ -21,14 +25,18 @@ import { useMarketplace } from './useMarketplace'
 const RESOURCE_TYPES = [
   { id: 'all', label: 'common.all', icon: Layers },
   { id: 'skill', label: 'marketplace.type.skill', icon: Sparkles },
-  { id: 'mcp', label: 'marketplace.type.mcp', icon: Network },
-  { id: 'agent', label: 'marketplace.type.agent', icon: Bot }
+  { id: 'agent', label: 'marketplace.type.agent', icon: Bot },
+  { id: 'mcp', label: 'marketplace.type.mcp', icon: McpLogo }
 ] as const
 const OVERVIEW_TYPES = ['skill', 'agent', 'mcp'] as const
+const marketplaceRoute = getRouteApi('/app/marketplace')
 
 export default function MarketplacePage() {
   const { t, i18n } = useTranslation()
-  const [resourceType, setResourceType] = useState<MarketplaceView>('all')
+  const navigate = useNavigate()
+  const { mcpView, mcpProvider } = marketplaceRoute.useSearch()
+  const [selectedType, setSelectedType] = useState<MarketplaceView>('all')
+  const resourceType = mcpView || mcpProvider ? 'mcp' : selectedType
   const [sourceId, setSourceId] = useState<string | null>(null)
   const [queries, setQueries] = useState<Record<MarketplaceView, string>>({
     all: '',
@@ -37,7 +45,16 @@ export default function MarketplacePage() {
     mcp: ''
   })
   const [templateCategory, setTemplateCategory] = useState('')
-  const [moreMcpSources, setMoreMcpSources] = useState(false)
+  const [skillCategory, setSkillCategory] = useState('')
+  const moreMcpSources = mcpView === 'sources' || Boolean(mcpProvider)
+  const selectResourceType = (type: MarketplaceView) => {
+    setSelectedType(type)
+    void navigate({
+      to: '/app/marketplace',
+      search: type === 'mcp' ? { mcpView: moreMcpSources ? 'sources' : 'curated' } : {},
+      replace: true
+    })
+  }
   const query = queries[resourceType]
   const skillSourceId = resourceType === 'skill' ? sourceId : null
   const registrySource = skillSourceId === 'skills.sh' || skillSourceId === 'claude-plugins.dev' ? skillSourceId : null
@@ -46,6 +63,11 @@ export default function MarketplacePage() {
     !registrySource && (resourceType === 'all' || resourceType === 'skill')
   )
   const agents = useAgentCatalogPresets({ enabled: resourceType === 'all' || resourceType === 'agent' })
+  const skillCategories = useMemo(
+    () => [...new Set((skills.catalog.data ?? []).map((skill) => skill.domain).filter(Boolean))],
+    [skills.catalog.data]
+  )
+  const curatedSkillCategory = !skillSourceId && skillCategories.includes(skillCategory) ? skillCategory : ''
   const assistants = useAssistantCatalogPresets({
     enabled: resourceType === 'all' || resourceType === 'agent'
   })
@@ -78,16 +100,32 @@ export default function MarketplacePage() {
     setQueries((current) => ({ ...current, [type]: query }))
     if (type === 'skill') setSourceId(null)
     if (type === 'agent') setTemplateCategory('')
-    if (type === 'mcp') setMoreMcpSources(false)
-    setResourceType(type)
+    selectResourceType(type)
   }
   const renderCatalog = (type: MarketplaceResourceType, preview = false) => {
     if (type === 'skill' && !preview && registrySource)
       return <RegistrySkillsCatalog source={registrySource} query={query} active />
-    if (type === 'skill') return <MarketplaceSkills market={skills} query={query} preview={preview} active />
+    if (type === 'skill')
+      return (
+        <MarketplaceSkills market={skills} query={query} category={curatedSkillCategory} preview={preview} active />
+      )
     if (type === 'mcp')
       return (
-        <MarketplaceMcp catalog={mcp} query={query} preview={preview} moreSources={!preview && moreMcpSources} active />
+        <MarketplaceMcp
+          catalog={mcp}
+          query={query}
+          preview={preview}
+          moreSources={!preview && moreMcpSources}
+          providerKey={mcpProvider}
+          onProviderChange={(providerKey) =>
+            void navigate({
+              to: '/app/marketplace',
+              search: { mcpView: 'sources', mcpProvider: providerKey },
+              replace: true
+            })
+          }
+          active
+        />
       )
     return (
       <MarketplaceTemplates
@@ -109,16 +147,16 @@ export default function MarketplacePage() {
   }
   return (
     <div className="flex h-full min-h-0 flex-col bg-background" data-testid="marketplace-page">
-      <div className="flex min-h-0 w-full flex-1 gap-6 p-6">
-        <aside className="w-36 shrink-0 pt-4 lg:w-44" aria-label={t('marketplace.resource_types')}>
-          <h2 className="mb-3 px-3 text-xs text-foreground-tertiary">{t('marketplace.resource_types')}</h2>
+      <div className="flex min-h-0 w-full flex-1 gap-6 px-4 pt-4">
+        <aside className="w-36 shrink-0 pt-1 lg:w-44" aria-label={t('marketplace.resource_types')}>
+          <h2 className="text-foreground-tertiary mb-3 px-3 text-xs">{t('marketplace.resource_types')}</h2>
           <nav className="space-y-1">
             {RESOURCE_TYPES.map(({ id, label, icon: Icon }) => (
               <Button
                 key={id}
                 variant="ghost"
                 aria-pressed={id === resourceType}
-                onClick={() => setResourceType(id)}
+                onClick={() => selectResourceType(id)}
                 data-testid={'marketplace-type-' + id}
                 className={
                   'h-9 w-full justify-start rounded-xl px-3 text-sm ' +
@@ -126,12 +164,12 @@ export default function MarketplacePage() {
                 }>
                 <Icon className="size-4" strokeWidth={1.5} />
                 <span>{t(label)}</span>
-                <span className="ml-auto text-xs font-normal text-foreground-tertiary">{counts[id] ?? '—'}</span>
+                <span className="text-foreground-tertiary ml-auto text-xs font-normal">{counts[id] ?? '—'}</span>
               </Button>
             ))}
           </nav>
         </aside>
-        <main className="@container flex min-h-0 min-w-0 flex-1 flex-col pt-3">
+        <main className="@container flex min-h-0 min-w-0 flex-1 flex-col">
           <ResourceCatalogSearchInput
             value={query}
             onValueChange={(value) => setQueries((current) => ({ ...current, [resourceType]: value }))}
@@ -157,8 +195,10 @@ export default function MarketplacePage() {
                 variant={moreMcpSources ? 'ghost' : 'default'}
                 className="shrink-0 rounded-full focus-visible:underline"
                 aria-pressed={!moreMcpSources}
-                style={moreMcpSources ? undefined : { backgroundColor: '#FF5F5F', color: '#ffffff' }}
-                onClick={() => setMoreMcpSources(false)}>
+                style={moreMcpSources ? undefined : { backgroundColor: 'var(--primary)' }}
+                onClick={() =>
+                  void navigate({ to: '/app/marketplace', search: { mcpView: 'curated' }, replace: true })
+                }>
                 {t('marketplace.curated')}
               </Button>
               <Button
@@ -166,21 +206,33 @@ export default function MarketplacePage() {
                 variant="ghost"
                 className={'shrink-0 rounded-full ' + (moreMcpSources ? 'bg-accent' : '')}
                 aria-pressed={moreMcpSources}
-                onClick={() => setMoreMcpSources(true)}>
+                onClick={() =>
+                  void navigate({ to: '/app/marketplace', search: { mcpView: 'sources' }, replace: true })
+                }>
                 {t('marketplace.more_sources')}
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
                 className="ml-auto"
-                onClick={() => openSettingsTab('/settings/mcp/servers?mcpStandalone=true')}>
+                onClick={() => openSettingsTab('/settings/mcp/servers')}>
                 <Settings2 className="size-4" />
                 {t('marketplace.manage_mcp')}
               </Button>
             </div>
           ) : null}
+          {resourceType === 'skill' && !skillSourceId ? (
+            <MarketplaceCategoryFilter
+              categories={skillCategories}
+              category={curatedSkillCategory}
+              onCategoryChange={setSkillCategory}
+              categoryLabel={(domain) =>
+                MARKETPLACE_CATEGORY_KEYS[domain] ? t(MARKETPLACE_CATEGORY_KEYS[domain]) : domain
+              }
+            />
+          ) : null}
           {resourceType === 'all' ? (
-            <ScrollArea type="hover" className="min-h-0 flex-1" contentProps={{ className: 'space-y-7 pr-1' }}>
+            <ScrollArea className="-mr-4 min-h-0 flex-1" contentProps={{ className: 'space-y-7 pr-5 pb-4' }}>
               {OVERVIEW_TYPES.map((type) => (
                 <section key={type} data-testid={'marketplace-section-' + type}>
                   <div className="mb-3 flex items-center justify-between gap-3">
@@ -196,11 +248,14 @@ export default function MarketplacePage() {
           ) : (
             <div
               key={resourceType + ':' + (skillSourceId ?? '') + ':' + moreMcpSources}
-              className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              className="-mr-4 flex min-h-0 flex-1 flex-col overflow-hidden">
               {resourceType === 'agent' ? (
                 renderCatalog(resourceType)
               ) : (
-                <ScrollArea type="hover" className="min-h-0 flex-1" contentProps={{ className: 'pr-1' }}>
+                <ScrollArea
+                  key={resourceType === 'skill' ? curatedSkillCategory : undefined}
+                  className="min-h-0 flex-1"
+                  contentProps={{ className: 'pr-5 pb-4' }}>
                   {renderCatalog(resourceType)}
                 </ScrollArea>
               )}

@@ -1,10 +1,12 @@
 import '@testing-library/jest-dom/vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type * as ReactI18nextModule from 'react-i18next'
 import type * as StreamdownModule from 'streamdown'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import i18n from '@renderer/i18n/resolver'
 
 vi.unmock('@cherrystudio/ui')
 
@@ -60,7 +62,8 @@ vi.mock('@renderer/components/UpdateDialogPopup', () => ({
   default: { show: vi.fn() }
 }))
 
-vi.mock('react-i18next', () => ({
+vi.mock('react-i18next', async (importOriginal) => ({
+  ...(await importOriginal<typeof ReactI18nextModule>()),
   useTranslation: () => ({
     t: (key: string) =>
       key === 'settings.about.repository.button' ||
@@ -86,6 +89,8 @@ vi.mock('@renderer/components/icons/LogoAvatar', () => ({
 import { AboutSettings } from '..'
 
 const REPOSITORY_URL = 'https://github.com/CherryHQ/cherry-studio'
+
+afterEach(cleanup)
 
 async function renderAboutSettings() {
   render(<AboutSettings />)
@@ -195,5 +200,27 @@ describe('AboutSettings repository entry', () => {
     await user.click(screen.getByRole('button', { name: 'Support' }))
 
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', REPOSITORY_URL)
+  })
+
+  it.each([
+    ['zh-CN', 'https://cherryai.com.cn'],
+    ['zh-TW', 'https://cherryai.com.cn'],
+    ['en-US', 'https://cherryai.com'],
+    ['ja-JP', 'https://cherryai.com']
+  ])('opens the language-specific official website for %s', async (language, expectedUrl) => {
+    const previousLanguage = i18n.language
+    await i18n.changeLanguage(language)
+    try {
+      const user = userEvent.setup()
+      await renderAboutSettings()
+
+      for (const button of screen.getAllByRole('button', { name: 'settings.about.website.button' })) {
+        await user.click(button)
+      }
+
+      expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', expectedUrl)
+    } finally {
+      await i18n.changeLanguage(previousLanguage)
+    }
   })
 })

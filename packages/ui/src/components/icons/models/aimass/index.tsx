@@ -9,7 +9,7 @@ const Aimass = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const AimassIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Aimass, {
   Avatar: AimassAvatar,
-  colorPrimary: '#003E97'
+  colorPrimary: '#e8eef6'
 })
 
 export default AimassIcon

@@ -22,6 +22,8 @@ Provider 仅在激活状态或上下文值变化时发布选项更新。若每�
 
 `TabRouter` 在 React Activity 外提供明确的 Tab/切换激活状态。保留挂载的列表面板将现有 `dataEnabled` 可见性状态传给列表作用域。布局清理、DOM 附着和激活状态阻止隐藏/已释放拥有者执行。三类删除消费者共用该路由；移除 `commandFocus.ts` 及仅针对扫描的旧测试。
 
+只有外部 Tab 重定向才显示切换遮罩并暂停 Tab 作用域。内部路由解析完成后，在 URL 写回 Tab 状态期间仍保持可交互；持久化确认延迟不属于外部切换。
+
 会话数字导航注册到所属 Tab 的运行时，由 `TabIdProvider` 捕获并通过 `useTabCommandRuntime` 读取。列表顺序、加载状态、活动 Tab 和列表激活状态仍决定可用位置。这允许在 composer 中使用 Cmd/Ctrl+1–9，而不会把永久删除提升到列表之外。不在 Tab provider 内时，导航使用窗口拥有者。
 
 ### 交互边界与来源
@@ -56,6 +58,8 @@ Renderer 根 handler 只有显式声明 `allowInKeyboardLayer` 才能跨键盘�
 - 前置 PR 保持可独立审查。源码/CI 范围按 #21837 实际 head 检查；本说明记录行为，不声称已有 GitHub review Approval。
 
 ## 验证
+
+- Regression — `TabRouter.test.tsx` 验证内部导航完成后，即使所属 Tab 尚未确认 URL，页面也不会被遮罩；外部重定向测试仍要求遮罩保持至解析完成。内部导航测试在修复前失败。
 
 - Regression — `CommandFocusScope.test.tsx` 验证重渲染时子组件布局 effect 内的局部路由、DOM 根节点替换后的重新绑定，以及未激活/已释放作用域；`CommandFocusLayers.test.tsx` 继续覆盖 Activity 恢复。
 - Regression — `CommandFocusScope.test.tsx` 验证等价的内联上下文快照保持稳定，并观察值变化和覆盖项移除后的结果。

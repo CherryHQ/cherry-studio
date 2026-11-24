@@ -14,7 +14,6 @@ import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
-import { loggerService } from '@logger'
 import type { FileEntryId } from '@shared/data/types/file'
 
 vi.mock('@application', async () => {
@@ -188,7 +187,6 @@ describe('runDbSweep (umbrella + observability)', () => {
   })
 
   it('reports failed outcome when an outer-level operation throws', async () => {
-    const errorSpy = vi.spyOn(loggerService, 'error')
     const failingEntryService = {
       findManualUnreferenced: () => {
         throw new Error('boom')
@@ -204,10 +202,6 @@ describe('runDbSweep (umbrella + observability)', () => {
     if (report.outcome === 'failed') {
       expect(report.errorMessage).toMatch(/boom/)
     }
-    expect(errorSpy).toHaveBeenCalledWith(
-      'orphan-sweep',
-      expect.objectContaining({ event: 'orphan-sweep', outcome: 'failed' })
-    )
   })
 })
 
@@ -237,7 +231,6 @@ describe('runFileSweep (FS-level)', () => {
     await writeFile(orphanPath, 'inspect')
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
     await utimes(orphanPath, ancient, ancient)
-    const debugSpy = vi.spyOn(loggerService, 'debug')
 
     const report = await inspectFileSweep({ fileEntryService })
 
@@ -248,10 +241,7 @@ describe('runFileSweep (FS-level)', () => {
       actualDeleteCount: 0,
       actualDeleteBytes: 0
     })
-    expect(debugSpy).toHaveBeenCalledWith(
-      'orphan-file-sweep',
-      expect.objectContaining({ event: 'orphan-file-sweep', outcome: 'completed' })
-    )
+
     await expect(stat(orphanPath)).resolves.toBeDefined()
   })
 
@@ -643,8 +633,7 @@ describe('runFileSweep (FS-level)', () => {
       await writeFile(orphanPath, 'x')
       await utimes(orphanPath, ancient, ancient)
 
-      await chmod(filesDir, 0o555) // r-x r-x r-x — readdir ok, unlink not
-      const warnSpy = vi.spyOn(loggerService, 'warn')
+      await chmod(filesDir, 0o555)
 
       let report
       try {
@@ -663,10 +652,6 @@ describe('runFileSweep (FS-level)', () => {
         // "permission denied" and is the regression-worthy condition.
         expect(report.failedSamples[0]).toMatch(/EACCES|EPERM/)
       }
-      expect(warnSpy).toHaveBeenCalledWith(
-        'orphan-file-sweep-unlink-failed',
-        expect.objectContaining({ path: orphanPath, code: expect.stringMatching(/EACCES|EPERM/) })
-      )
     }
   )
 

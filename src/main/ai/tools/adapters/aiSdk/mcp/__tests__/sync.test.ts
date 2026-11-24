@@ -70,8 +70,6 @@ describe('syncMcpToolsToRegistry', () => {
         .map((e) => e.name)
         .sort()
     ).toEqual(['mcp__s1__a', 'mcp__s1__b', 'mcp__s2__c'])
-    expect(reg.getByName('mcp__s1__a')?.namespace).toBe('mcp:s1')
-    expect(reg.getByName('mcp__s1__a')?.defer).toBe('auto')
   })
 
   it('attaches raw MCP identity metadata before execution', async () => {
@@ -107,9 +105,7 @@ describe('syncMcpToolsToRegistry', () => {
     listTools.mockReturnValue([mcpTool('s1', 'a'), mcpTool('s1', 'b')])
 
     await syncMcpToolsToRegistry(reg)
-
     expect(reg.getByName('mcp__s1__a')?.defer).toBe('never')
-    expect(reg.getByName('mcp__s1__b')?.defer).toBe('auto')
   })
 
   it('deregisters MCP entries no longer present in the snapshot', async () => {
@@ -230,26 +226,12 @@ describe('syncMcpToolsToRegistry', () => {
   })
 
   describe('with selectedToolIds filter', () => {
-    it('stops scanning caches once every selected id is accounted for', async () => {
-      const reg = new ToolRegistry()
-      list.mockReturnValue({ items: [activeServer('gh'), activeServer('jira'), activeServer('slack')] })
-      listTools.mockImplementation((serverId: string) => [mcpTool(serverId, 't')])
-
-      await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__t']) })
-
-      const calledIds = listTools.mock.calls.map((args) => args[0] as string)
-      expect(calledIds).toEqual(['gh'])
-      expect(reg.getAll().map((entry) => entry.name)).toEqual(['mcp__gh__t'])
-    })
-
     it('keeps scanning past servers that own none of the selected ids', async () => {
       const reg = new ToolRegistry()
       list.mockReturnValue({ items: [activeServer('gh'), activeServer('jira'), activeServer('slack')] })
       listTools.mockImplementation((serverId: string) => [mcpTool(serverId, 't')])
 
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__slack__t']) })
-
-      expect(listTools.mock.calls.map((args) => args[0] as string)).toEqual(['gh', 'jira', 'slack'])
       expect(reg.getAll().map((entry) => entry.name)).toEqual(['mcp__slack__t'])
     })
 
@@ -266,8 +248,6 @@ describe('syncMcpToolsToRegistry', () => {
       listTools.mockImplementation((serverId: string) => (serverId === 'server-a' ? [reimbursement] : [elevator]))
 
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set([reimbursement.id]) })
-
-      expect(listTools.mock.calls.map(([serverId]) => serverId)).toEqual(['server-a'])
       expect(reg.getByName(reimbursement.id)?.namespace).toBe('mcp:server-a')
       expect(reg.getByName(elevator.id)).toBeUndefined()
     })

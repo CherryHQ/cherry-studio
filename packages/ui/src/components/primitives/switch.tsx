@@ -1,9 +1,12 @@
 import * as SwitchPrimitive from '@radix-ui/react-switch'
 import { cva } from 'class-variance-authority'
+import { CircleHelp } from 'lucide-react'
 import * as React from 'react'
 import { useId } from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
+
+import { Tooltip } from './tooltip'
 
 const switchRootVariants = cva(
   [
@@ -129,6 +132,7 @@ interface DescriptionSwitchProps extends SwitchProps {
   label: string
   /** Optional helper text shown below the label. */
   description?: string
+  descriptionDisplay?: 'inline' | 'tooltip'
   /** Switch position relative to label. Defaults to 'right'. */
   position?: 'left' | 'right'
 }
@@ -137,6 +141,7 @@ interface DescriptionSwitchProps extends SwitchProps {
 const DescriptionSwitch = ({
   label,
   description,
+  descriptionDisplay = 'inline',
   position = 'right',
   size = 'md',
   ...props
@@ -158,9 +163,21 @@ const DescriptionSwitch = ({
             isLeftSide && 'text-right'
           )}>
           {label}
+          {description && descriptionDisplay === 'tooltip' && (
+            <Tooltip content={description} asChild>
+              <span
+                role="img"
+                aria-label={description}
+                tabIndex={0}
+                onClick={(event) => event.preventDefault()}
+                className="ml-1.5 inline-flex align-middle text-muted-foreground">
+                <CircleHelp size={14} aria-hidden />
+              </span>
+            </Tooltip>
+          )}
         </p>
         {/* TODO: use standard typography component */}
-        {description && (
+        {description && descriptionDisplay === 'inline' && (
           <span
             className={cn('text-muted-foreground', {
               'text-[10px] leading-3': size === 'sm',

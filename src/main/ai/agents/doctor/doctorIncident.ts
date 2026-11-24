@@ -15,12 +15,12 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { topicService } from '@data/services/TopicService'
-import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { conversationPartEvidence } from '@main/ai/messages/conversationEvidence'
 import { readConversation } from '@main/ai/messages/readConversation'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { defangSystemReminderTags, sanitizeUntrustedText } from '@main/ai/untrustedContent'
+import { extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { Message } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -181,12 +181,15 @@ export function incidentOverview(incident: DoctorAgentIncident): unknown {
 function precedingMessages(incident: DoctorAgentIncident, count: number): IncidentMessage[] {
   const conversationId = conversationIdOf(incident.topicId)
   const kind = conversationKind(incident)
-  if (kind === 'topic') return messageService.getPathToNode(incident.messageId).slice(-(count + 1))
-  const chronological =
-    kind === 'temporary'
-      ? temporaryChatService.listMessages(conversationId)
-      : // ponytail: only the 50 newest messages are searched; an older incident returns just itself.
-        agentSessionMessageService.listSessionMessages(conversationId, { limit: 50 }).items.slice().reverse()
+  if (kind === 'topic') return messageService.getPathToNode(incident.messageId, { last: count + 1 })
+  if (kind === 'agent') {
+    const { items } = agentSessionMessageService.listSessionMessages(conversationId, {
+      messageId: incident.messageId,
+      limit: count + 1
+    })
+    return items[0]?.id === incident.messageId ? items.toReversed() : []
+  }
+  const chronological = temporaryChatService.listMessages(conversationId)
   const index = chronological.findIndex((message) => message.id === incident.messageId)
   return index < 0 ? [] : chronological.slice(Math.max(0, index - count), index + 1)
 }

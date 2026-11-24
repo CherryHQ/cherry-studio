@@ -1,8 +1,8 @@
-import { Check, Loader2, Plus } from 'lucide-react'
+import { Check, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ConfirmDialog } from '@cherrystudio/ui'
+import { ConfirmDialog, ScrollArea } from '@cherrystudio/ui'
 import type { MarketplaceSkill } from '@shared/types/skillMarketplace'
 import { localizeMarketplaceText } from '@shared/utils/cherrySkillMarketplace'
 
@@ -15,11 +15,13 @@ import type { useMarketplace } from './useMarketplace'
 export function MarketplaceSkills({
   market,
   query,
+  category = '',
   preview = false,
   active
 }: {
   market: ReturnType<typeof useMarketplace>
   query: string
+  category?: string
   preview?: boolean
   active: boolean
 }) {
@@ -40,14 +42,16 @@ export function MarketplaceSkills({
   const filtered = useMemo(() => {
     const search = query.trim().toLocaleLowerCase()
     return (catalog.data ?? [])
-      .filter((skill) =>
-        [skill.name.en, skill.name.zh, skill.description.en, skill.description.zh, skill.author, ...skill.tags]
-          .join(' ')
-          .toLocaleLowerCase()
-          .includes(search)
+      .filter(
+        (skill) =>
+          (preview || !category || skill.domain === category) &&
+          [skill.name.en, skill.name.zh, skill.description.en, skill.description.zh, skill.author, ...skill.tags]
+            .join(' ')
+            .toLocaleLowerCase()
+            .includes(search)
       )
       .sort((a, b) => (b.downloads ?? 0) - (a.downloads ?? 0))
-  }, [catalog.data, query])
+  }, [catalog.data, query, category, preview])
   const groups = useMemo<[string, MarketplaceSkill[]][]>(() => {
     if (preview) return [['', filtered.slice(0, 6)]]
     const grouped = new Map<string, MarketplaceSkill[]>()
@@ -73,12 +77,12 @@ export function MarketplaceSkills({
         <MarketplaceLoadState error={installed.error} empty={false} retry={() => installed.refresh().catch(() => {})} />
       ) : null}
       {skipped > 0 ? (
-        <p role="status" className="mb-3 text-xs text-muted-foreground">
+        <p role="status" className="text-muted-foreground mb-3 text-xs">
           {t('marketplace.subscription.skipped', { count: skipped })}
         </p>
       ) : null}
       {groups.map(([domain, skills]) => (
-        <section key={domain} className="mb-7">
+        <section key={domain} className="mb-7 last:mb-0">
           {domain ? (
             <h2 className="mb-3 text-sm font-medium">
               {MARKETPLACE_CATEGORY_KEYS[domain] ? t(MARKETPLACE_CATEGORY_KEYS[domain]) : domain}
@@ -102,27 +106,39 @@ export function MarketplaceSkills({
                     setDetailOpen(true)
                   }}
                   action={
-                    <MarketplaceCardAction
-                      className={complete ? 'hover:bg-destructive/10 hover:text-destructive' : undefined}
-                      aria-label={t(complete ? 'library.action.uninstall' : 'settings.skills.install') + ': ' + name}
-                      title={t(complete ? 'library.action.uninstall' : 'settings.skills.install')}
-                      disabled={busy || installedUnavailable || (!complete && !skill.hasPackage)}
-                      aria-busy={busy}
-                      onClick={() => {
-                        if (complete) setUninstallTarget(skill)
-                        else void mutateSkill(skill, 'install')
-                      }}>
-                      {busy ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : complete ? (
-                        <Check className="size-4" />
-                      ) : (
-                        <Plus className="size-4" />
-                      )}
-                    </MarketplaceCardAction>
+                    <>
+                      <MarketplaceCardAction
+                        className={complete ? 'hover:bg-destructive/10 hover:text-destructive' : undefined}
+                        aria-label={t(complete ? 'library.action.uninstall' : 'settings.skills.install') + ': ' + name}
+                        title={t(complete ? 'library.action.uninstall' : 'settings.skills.install')}
+                        disabled={busy || installedUnavailable || (!complete && !skill.hasPackage)}
+                        aria-busy={busy}
+                        onClick={() => {
+                          if (complete) setUninstallTarget(skill)
+                          else void mutateSkill(skill, 'install')
+                        }}>
+                        {busy ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : complete ? (
+                          <Check className="size-4" />
+                        ) : (
+                          <Plus className="size-4" />
+                        )}
+                      </MarketplaceCardAction>
+                      {count > 0 && !complete ? (
+                        <MarketplaceCardAction
+                          className="hover:bg-destructive/10 hover:text-destructive"
+                          aria-label={t('library.action.uninstall') + ': ' + name}
+                          title={t('library.action.uninstall')}
+                          disabled={busy || installedUnavailable}
+                          onClick={() => setUninstallTarget(skill)}>
+                          <Trash2 className="size-4" />
+                        </MarketplaceCardAction>
+                      ) : null}
+                    </>
                   }>
                   {count > 0 && !complete ? (
-                    <span className="text-xs text-foreground-tertiary">
+                    <span className="text-foreground-tertiary text-xs">
                       {t('marketplace.partial_install', {
                         installed: count,
                         total: skill.membersKnown ? skill.members.length : '—'
@@ -147,6 +163,7 @@ export function MarketplaceSkills({
         onInstall={(skill) => void mutateSkill(skill, 'install')}
       />
       <ConfirmDialog
+        contentClassName="max-h-[90vh]"
         open={Boolean(uninstallTarget) && active}
         onOpenChange={(open) => {
           if (!open && !uninstallBusy) setUninstallTarget(null)
@@ -155,9 +172,9 @@ export function MarketplaceSkills({
         description={t('marketplace.uninstall_confirm')}
         content={
           uninstallTarget ? (
-            <div className="max-h-60 space-y-3 overflow-y-auto text-sm">
+            <ScrollArea className="max-h-60" contentProps={{ className: 'space-y-3 text-sm' }}>
               <p className="font-medium">{localizeMarketplaceText(uninstallTarget.name, i18n.language)}</p>
-              {uninstallTarget.isCollection ? (
+              {uninstallTarget.isCollection || installedCount(uninstallTarget) > 1 ? (
                 <div className="text-muted-foreground">
                   <p>{t('marketplace.included_skills', { total: installedCount(uninstallTarget) })}</p>
                   <ul className="mt-1 list-inside list-disc">
@@ -168,11 +185,11 @@ export function MarketplaceSkills({
                 </div>
               ) : null}
               {(failures[uninstallTarget.id] ?? []).map((failure) => (
-                <p key={failure.path} role="alert" className="break-words text-error">
+                <p key={failure.path} role="alert" className="text-error break-words">
                   {failure.name}: {failure.error}
                 </p>
               ))}
-            </div>
+            </ScrollArea>
           ) : null
         }
         confirmText={t('library.action.uninstall')}

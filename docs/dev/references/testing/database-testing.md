@@ -71,7 +71,7 @@ resets the mocks.
 ### Do use it for
 
 - Service tests that touch SQLite (`MessageService`, `AssistantService`, …).
-- Handler integration tests where the real DB matters (e.g. `temporaryChats.integration.test.ts`).
+- Integration tests where the real DB matters (e.g. `TemporaryChatService.integration.test.ts`).
 - Seeder tests.
 - Anything that exercises FK cascades, FTS5, `RETURNING` semantics, or
   transactions — because those are exactly where Drizzle-chain mocks lie.
@@ -82,11 +82,7 @@ resets the mocks.
 - Handler tests that only verify wiring/routing — these legitimately mock
   the downstream service because the assertion is about the call shape,
   not the DB state.
-- Migrator tests under `src/main/data/migration/v2/migrators/__tests__/*` —
-  their mock context has been deliberately modelled to verify the
-  migrator's orchestration logic (phase ordering, idempotency, source
-  fallbacks). A real DB would not add coverage over what the mock
-  already asserts.
+- Legacy upgrade detection tests use the same production-schema harness and read-only database copies.
 - Orchestration-layer service tests that mock their downstream data
   service (`KnowledgeService`, `McpService`) — they test
   coordination, not persistence.
@@ -220,38 +216,12 @@ or declare a local `vi.mock('node:fs', ...)` with the
 
 ### better-sqlite3 native module ABI
 
-Use the Node version pinned in `.node-version` and `.nvmrc` when installing or
-rebuilding native modules. Node 24.19.0 headers introduced an `ObjectWrap`
-cleanup-hook regression that can abort during allocation-driven garbage
-collection with `RemoveEnvironmentCleanupHook` and `Assertion failed: (env) != nullptr`
-([upstream issue](https://github.com/nodejs/node/issues/65446)). Changing only the
-runtime does not repair an addon compiled with those headers: switch to the
-repository's pinned Node version and run `pnpm rebuild:node` before rerunning
-the affected tests.
-
-better-sqlite3 is a native module, and unlike the repo's other natives it is
-NOT N-API — so it is ABI-specific and must be compiled for whichever runtime
-loads it. A native `.node` has a single build slot / one ABI, and the app
-(Electron) and the tests (system Node) want different ABIs.
-
-We keep the module at the **Node ABI** for tests — that's what `pnpm install`
-produces and what Vitest (running under system Node) needs. The `main` project
-loads the real native module, so `pnpm test:main` first runs `pnpm rebuild:node`
-(via its `pretest:main` hook) to guarantee the Node ABI, then runs the suite;
-`pnpm test` does the same via its `pretest` hook. The other Vitest projects
-never load better-sqlite3, so their ABI is irrelevant.
-
-The Electron-app entry scripts (`dev`, `dev:watch`, `debug`, `start`) and
-packaging need the **Electron ABI** instead; each app entry script prepends
-`pnpm rebuild:electron` with `--force`. Switching between the app and DB tests
-therefore flips the ABI automatically through `pretest`/`pretest:main` and the
-app entry scripts.
-
-If you use an interactive runner (`pnpm test:watch`, `pnpm test:coverage`, a
-bare `vitest`, or an IDE's Vitest) right after `pnpm dev`, flip back first with
-`pnpm rebuild:node` (or run `pnpm test:main` once). Those commands do not all
-have a `pre*` hook. CI installs and tests under system Node, so it uses the Node
-ABI as well.
+better-sqlite3 13 is an N-API module and ships prebuilt binaries for Linux,
+macOS, and Windows on x64 and arm64. Its loader prefers
+`prebuilds/<platform>-<arch>.node` over `build/Release`, and its `binding.gyp`
+skips compilation when that prebuild exists. Vitest under system Node and the
+Electron app load the same binary, so switching between DB tests and `pnpm dev`
+needs no rebuild.
 
 ### FTS5 and NULL content
 

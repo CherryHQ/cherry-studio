@@ -35,7 +35,7 @@ describe('Pi branch publication with native files', () => {
     if (directory) await rm(directory, { recursive: true, force: true })
   })
 
-  it('retains both native histories, reopens each branch, and forks the shared prefix again', async () => {
+  it('replaces the product tail while preserving native history and the shared prefix', async () => {
     directory = await mkdtemp(path.join(tmpdir(), 'pi-product-branches-'))
     const sessions = path.join(directory, 'sessions')
     await mkdir(sessions)
@@ -136,9 +136,8 @@ describe('Pi branch publication with native files', () => {
     }
     const originalContext = preparePiBranch('product', old.id, source.getSessionId())
     prepareNativeSubmission('product', old.id, originalContext.id, 'reject')
-    const originalSubmission = messages.inputBinding('product', old.id)
     const first = await edit(old.id)
-    expect(messages.inputBinding('product', old.id)).toEqual(originalSubmission)
+    expect(messages.inputBinding('product', old.id)).toBeUndefined()
     expect(messages.inputBinding('product', first.row.id)).toBeUndefined()
     const child = SessionManager.open(resolveResumeTokenSessionFile(first.nativeId, sessions)!, sessions, directory)
     expect(JSON.stringify(child.buildSessionContext().messages)).toContain('Shared answer')
@@ -147,15 +146,11 @@ describe('Pi branch publication with native files', () => {
     const childContext = preparePiBranch('product', first.row.id, first.nativeId)
     prepareNativeSubmission('product', first.row.id, childContext.id, 'reject')
     const childAnswer = answer('Edited answer', child)
-    messages.selectBranch('product', old.id)
-    expect(messages.getLastRuntimeResumeToken('product')).toBe(source.getSessionId())
-    expect(messages.listSessionMessages('product').items[0].data.parts).toEqual([{ type: 'text', text: 'Old answer' }])
-    messages.selectBranch('product', first.row.id)
     expect(messages.getLastRuntimeResumeToken('product')).toBe(first.nativeId)
     expect(messages.listSessionMessages('product').items[0].id).toBe(childAnswer.id)
     const second = await edit(first.row.id)
     expect(second.nativeId).not.toBe(first.nativeId)
-    expect(messages.inputBinding('product', first.row.id)).toBeDefined()
+    expect(messages.inputBinding('product', first.row.id)).toBeUndefined()
     expect(messages.inputBinding('product', second.row.id)).toBeUndefined()
     expect(await readFile(sourceFile, 'utf8')).toBe(originalFile)
     expect(

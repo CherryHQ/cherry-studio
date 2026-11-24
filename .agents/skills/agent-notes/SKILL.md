@@ -11,13 +11,13 @@ Read [the Agent Note rules](../../notes/README.md) before acting. Agent Notes pr
 
 Every human-authored PR declares an Agent Note or an explicit `N/A` reason. Automation-authored PRs (repository workflows and Dependabot) are exempt from this metadata requirement, not from normal validation.
 
-The class names the decision's subject; it does not force every note to start as proposed. Choose the initial lifecycle from whether the target needs human agreement before implementation and whether the decision has already shipped.
+The class names the decision's subject; it does not force every note to start as proposed. Choose the initial lifecycle from whether the target needs a Spec and whether the decision has already shipped.
 
 - Use `N/A` for a local or mechanical edit that restores an existing contract without a durable tradeoff.
 - Write an implemented `bug-fix` note in the same PR when the repair changes failure, compatibility, security, concurrency, atomicity, lifecycle, or another choice likely to be reversed without its root cause.
 - A small, completed testing or other durable decision that does not meet the Spec-first threshold may enter its owning class as implemented.
 - Start substantial feature, architecture, process, and simplification work with a proposed Spec.
-- Start any class as proposed when behavior, ownership, ACs, alternatives, or risks need human agreement before implementation.
+- Start any class as proposed when behavior, ownership, ACs, alternatives, or risks need review.
 
 ## Check the active tree first
 
@@ -30,12 +30,12 @@ There is no `archived/` lifecycle yet. Do not archive by age, merge status, move
 1. Create the bottom Spec branch and proposed bilingual note.
 2. Give observable acceptance criteria contiguous `AC` IDs and a verification owner.
 3. Create the Spec PR through `gh-create-pr`; `Spec PR` is `This PR`.
-4. Inspect GitHub reviews and require an explicit `APPROVED` review whose commit id equals the current Spec head. Approval does not require merging.
-5. After Approval, create implementation layers with `gh-stack`. Each PR links the Spec and lists its AC coverage.
-6. A material behavior, ownership, AC, alternative, or risk change belongs on the Spec branch. Rebase upstack and require Approval again.
+4. Implementation may begin once the Spec PR exists; no explicit human Approval or Spec merge is required to start.
+5. Create implementation layers with `gh-stack`. Each PR links the Spec and lists its AC coverage.
+6. A material behavior, ownership, AC, alternative, or risk change belongs on the Spec branch. Rebase upstack and rerun checks affected by the change; no renewed Approval is required to continue implementation.
 7. The final layer moves all three pair artifacts to `implemented/`, rewrites shipped reality in present tense, and maps every AC to actual evidence.
 
-Before deciding step 7, run `gh stack view --json`. If it exits 2, follow the `gh-stack` skill's remote-discovery procedure; missing local metadata does not prove the PR is standalone. For a stack, inspect the current layer and every downstack implementation PR, then aggregate only ACs backed by verification that was actually run. Intermediate layers keep the note proposed; only the final layer whose cumulative evidence covers every approved AC performs the transition. Do not infer finality from branch order alone.
+Before deciding step 7, run `gh stack view --json`. If it exits 2, follow the `gh-stack` skill's remote-discovery procedure; missing local metadata does not prove the PR is standalone. For a stack, inspect the current layer and every downstack implementation PR, then aggregate only ACs backed by verification that was actually run. Intermediate layers keep the note proposed; only the final layer whose cumulative evidence covers every AC in the current Spec performs the transition. Do not infer finality from branch order alone.
 
 After `gh stack sync`, rerun `pnpm change:scope` against every live PR base and rerun only checks invalidated by the rewritten scope. A successful sync is not validation.
 

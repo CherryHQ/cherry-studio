@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Flex, Textarea } from '@cherrystudio/ui'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useTheme } from '@renderer/hooks/useTheme'
 
 interface MathInputDialogProps {
@@ -39,6 +40,7 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
   const { theme } = useTheme()
   const [value, setValue] = useState<string>(defaultValue)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { value: retainedPosition, isPresent } = useExitPresence(visible ? { position } : null, 120)
 
   useEffect(() => {
     if (visible) {
@@ -78,7 +80,7 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
     }
   }, [visible])
 
-  if (!visible) return null
+  if (!isPresent) return null
 
   const handleSubmit = () => {
     const trimmed = value.trim()
@@ -96,6 +98,7 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
   const isDark = theme === 'dark'
 
   const getPositionStyles = (): React.CSSProperties => {
+    const position = retainedPosition?.position
     if (position) {
       const dialogHeight = 200
       const spaceBelow = window.innerHeight - position.y
@@ -134,7 +137,12 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
   }
 
   return (
-    <div style={styles} ref={containerRef}>
+    <div
+      style={styles}
+      ref={containerRef}
+      inert={!visible}
+      data-state={visible ? 'open' : 'closed'}
+      className="data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 animation-duration-[120ms] fill-mode-both motion-reduce:animate-none motion-reduce:data-[state=closed]:hidden">
       <Textarea.Input
         value={value}
         rows={4}

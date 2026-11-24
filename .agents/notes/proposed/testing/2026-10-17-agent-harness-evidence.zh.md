@@ -200,7 +200,7 @@ later collab operation K2 -> same Thread C -> later Turn T3
 
 ### 按协议版本研究 ACP 智能体
 
-[ACP v1 适配器 Spec](../architecture/2026-11-09-agent-runtime-acp-v1.md) 记录 2026-11-09 的协议／SDK 更新、Claude/Gemini 调研，以及已执行的传输／初始化探针。下文保留原有固定基线；本次更新不代表原生 prompt 或桌面验收已完成。
+[ACP v1 适配器记录](../../implemented/architecture/2026-11-09-agent-runtime-acp-v1.md) 记录 2026-11-09 的协议／SDK 更新、Claude/Gemini 调研，以及适配器／原生循环验证。下文保留原有固定基线；适配器证据仍不包含桌面验收。
 
 #### v1
 

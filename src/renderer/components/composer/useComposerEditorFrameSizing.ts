@@ -35,7 +35,7 @@ function clampComposerEditorHeightPx(height: number, minHeight: number, maxHeigh
 }
 
 function getCollapsedEditorFrameHeightPx(frame: HTMLDivElement, editorMinHeight: number, maxHeight: number) {
-  const editorElement = frame.querySelector('.composer-tiptap') as HTMLElement | null
+  const editorElement = frame.querySelector<HTMLElement>('.composer-tiptap')
   let contentHeight = frame.scrollHeight || editorMinHeight
 
   if (editorElement) {
@@ -300,12 +300,14 @@ export function useComposerEditorFrameSizing({
   ])
 
   const fitContentHeight = useCallback(() => {
+    if (!isExpanded && requestedManualHeight !== null) return
+
     clearAnimationFrame()
     pendingExpandedRef.current = null
     setAnimatedHeight(null)
     setManualHeight(null)
     if (isExpanded) onExpandedChange(false)
-  }, [clearAnimationFrame, isExpanded, onExpandedChange])
+  }, [clearAnimationFrame, isExpanded, onExpandedChange, requestedManualHeight])
 
   const resolvedFrameHeight =
     animatedHeight ?? (isExpanded ? `${maxHeight}px` : manualHeight !== null ? `${manualHeight}px` : undefined)

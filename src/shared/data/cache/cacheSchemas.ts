@@ -143,6 +143,7 @@ export type UseCacheSchema = {
   'ui.window.chat.sidebar.width': number
   'ui.window.chat.artifact_pane.width': number
   'ui.window.chat.resource_pane.width': number
+  'ui.window.chat.profile_pane.width': number
   'ui.window.chat.right_pane_open_override': boolean | null
   'ui.window.agent.right_pane_open_override': boolean | null
 
@@ -170,7 +171,6 @@ export type UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
-  'agent.session.details_hidden': string[]
   // Per-session composer draft. Renderer memory only; app restart discards it.
   'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
   // Unsubmitted AskUserQuestion answers. Renderer memory only; cleared on submit/dismiss.
@@ -241,6 +241,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.chat.sidebar.width': 275,
   'ui.window.chat.artifact_pane.width': 460,
   'ui.window.chat.resource_pane.width': 275,
+  'ui.window.chat.profile_pane.width': 360,
   'ui.window.chat.right_pane_open_override': null,
   'ui.window.agent.right_pane_open_override': null,
   'ui.window.chat.topic.expansion.time': [],
@@ -261,7 +262,6 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': {},
-  'agent.session.details_hidden': [],
   'agent.composer_draft.${sessionId}': {
     text: '',
     tokens: [],
@@ -440,7 +440,12 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
+  'ui.model_selector.presentation': 'popover' | 'dialog'
+  'ui.model_selector.cherryai_pinned': boolean
   'ui.browser.import_prompt_hidden': boolean
+  // Set by the composer's "don't ask again" when another surface replaces a non-empty draft.
+  'ui.composer.prefill_confirm_hidden': boolean
+  'ui.browser.last_urls': Record<string, string>
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
   // restart. Main window only — written from TabsContext, gated on includePinnedTabs.
@@ -454,6 +459,12 @@ export type RendererPersistCacheSchema = {
   // Right-pane width for the topic/session list tab. Separate from the artifact pane's key so a
   // width dragged for an artifact never widens the list (and vice versa).
   'ui.chat.resource_pane.width': number
+  // Right-pane width for the Assistant / Agent profile; its own key so the other panes keep theirs.
+  'ui.chat.profile_pane.width': number
+  // Generated Agent suggestions / Assistant opening questions, regenerated when the identity hash changes.
+  'ui.chat.profile_pane.starters': CacheValueTypes.ProfileStartersCache
+  // Assistant / Agent IDs whose suggestions or opening questions the user hid.
+  'ui.chat.profile_pane.hidden_starters': string[]
   // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer)
   'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
@@ -474,6 +485,7 @@ export type RendererPersistCacheSchema = {
   'ui.agent.last_used_workspace_id': string | null
   // Kept separate so the assistant and agent surfaces don't bleed into each other.
   'ui.agent.right_pane_open_override': boolean | null
+  'ui.agent.details.open': boolean
   'ui.agent.session.expansion.time': string[]
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
@@ -501,6 +513,7 @@ export type RendererPersistCacheSchema = {
   'settings.usage.currency': Currency | null
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
+  'feature.marketplace.skill_catalog': CacheValueTypes.CacheMarketplaceSkillCatalog
   // Last successful external-open target per directory or file-extension scope.
   'external_app.target.preferences': CacheValueTypes.ExternalOpenTargetPreferences
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
@@ -519,7 +532,11 @@ export type RendererPersistCacheSchema = {
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
+  'ui.model_selector.presentation': 'popover',
+  'ui.model_selector.cherryai_pinned': true,
   'ui.browser.import_prompt_hidden': false,
+  'ui.composer.prefill_confirm_hidden': false,
+  'ui.browser.last_urls': {},
   'ui.tab.pinned_tabs': [],
   'ui.tab.normal_tabs': [],
   'ui.tab.active_tab_id': '',
@@ -529,6 +546,9 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.sidebar.width': 275,
   'ui.chat.artifact_pane.width': 280,
   'ui.chat.resource_pane.width': 275, // keep in sync with 'ui.chat.sidebar.width'
+  'ui.chat.profile_pane.width': 360,
+  'ui.chat.profile_pane.starters': {},
+  'ui.chat.profile_pane.hidden_starters': [],
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
@@ -540,6 +560,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
   'ui.agent.right_pane_open_override': null,
+  'ui.agent.details.open': true,
   'ui.agent.session.expansion.time': [],
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
@@ -560,6 +581,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'settings.usage.entry_sort_order': 'desc',
   'settings.usage.currency': null,
   'feature.mcp.provider_available_servers': {},
+  'feature.marketplace.skill_catalog': null,
   'external_app.target.preferences': {},
   'ui.emoji.recently_used': [],
   'ui.screenshot.color_mode': 'hex',
@@ -589,6 +611,7 @@ export type MainPersistCacheSchema = {
   'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
   // Last processed Cherry Cloud notification position per account id; losing one only rebuilds that baseline.
   'cherry_cloud.notification_cursors': Record<string, string>
+  'cherryin.models.last_attempt_at': number | null
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -605,6 +628,7 @@ export const DefaultMainPersistCache: MainPersistCacheSchema = {
   'browser.favicons': {},
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'cherry_cloud.notification_cursors': {},
+  'cherryin.models.last_attempt_at': null,
   'internal.persist_probe': 0,
   'window.bounds': {}
 }

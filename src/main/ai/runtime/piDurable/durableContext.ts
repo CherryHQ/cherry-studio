@@ -10,6 +10,32 @@ export function allocateDurableBackendTx(tx: DbOrTx) {
   return contexts.ensureBackendTx(tx, { version: 1, kind: 'pi-durable', fileName: `${uuid()}.sqlite` }, 'creating')
 }
 
+export function reserveDurableBranchTx(
+  tx: DbOrTx,
+  sessionId: string,
+  anchorMessageId: string,
+  nativeId: string,
+  contextId?: string
+) {
+  if (!contextId)
+    return contexts.reserveBranchTx(tx, {
+      id: nativeId,
+      sessionId,
+      backendId: allocateDurableBackendTx(tx).id,
+      anchorMessageId
+    })
+  const parent = contexts.branchTx(tx, sessionId, anchorMessageId)
+  if (!parent || contexts.backendTx(tx, parent.backendId).locator.kind !== 'pi-durable')
+    throw new Error('Durable edit requires an existing native backend')
+  return contexts.reserveBranchTx(tx, {
+    id: contextId,
+    sessionId,
+    backendId: parent.backendId,
+    anchorMessageId,
+    nativeThreadId: nativeId
+  })
+}
+
 export function prepareDurableBranch(sessionId: string, messageId?: string) {
   agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
@@ -21,6 +47,6 @@ export function prepareDurableBranch(sessionId: string, messageId?: string) {
       return existing
     }
     const backend = allocateDurableBackendTx(tx)
-    return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId: root })
+    return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId: messageId ?? root })
   })
 }

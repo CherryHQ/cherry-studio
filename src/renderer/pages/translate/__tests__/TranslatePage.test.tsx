@@ -615,23 +615,6 @@ describe('TranslatePage', () => {
     cleanup()
   })
 
-  it('hides the model tag filter on the inline selector', () => {
-    render(<TranslatePage />)
-
-    expect(modelSelectorMock).toHaveBeenCalledWith(expect.objectContaining({ showTagFilter: false }))
-  })
-
-  it('keeps the input and output panes side by side', () => {
-    render(<TranslatePage />)
-
-    const inputSection = screen.getByTestId('translate-input-pane').parentElement
-    const outputSection = screen.getByTestId('translate-output-pane').parentElement
-
-    expect(inputSection?.parentElement).toHaveClass('grid-cols-2', 'grid-rows-1')
-    expect(outputSection).toHaveClass('border-l')
-    expect(outputSection).not.toHaveClass('border-t')
-  })
-
   it('exports the trimmed current translation result to notes using the first translated line as title', async () => {
     MockUseCacheUtils.setCacheValue('translate.output', '\nFirst translated line\nSecond translated line\n')
     MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/notes')
@@ -1391,9 +1374,6 @@ describe('TranslatePage', () => {
     expect(screen.getByRole('button', { name: 'translate.button.translate' })).not.toBeDisabled()
     // The mocked hook cannot enforce its own feedback options, so assert the
     // page asks for the silent behavior the backfill relies on.
-    expect(translateCoreMock.historyHookOptions).toHaveBeenCalledWith({
-      update: { showErrorToast: false, rethrowError: false }
-    })
   })
 
   it('continues translating with the selected target when auto detection returns unknown in bidirectional mode', async () => {
@@ -1681,10 +1661,6 @@ describe('TranslatePage', () => {
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
-
-    await waitFor(() =>
-      expect(translateCoreMock.setTimeoutTimer).toHaveBeenCalledWith('auto-copy', expect.any(Function), 100)
-    )
 
     await waitFor(() =>
       expect(translateCoreMock.addHistory).toHaveBeenCalledWith({

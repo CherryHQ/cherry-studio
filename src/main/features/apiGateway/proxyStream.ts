@@ -1,265 +1,43 @@
-/**
- * Proxy Stream Service
- *
- * Routes API-gateway requests through main's `AiStreamManager` as an equal
- * subscriber (alongside WebContentsListener / ChannelAdapterListener), using a
- * one-shot non-persisting prompt stream. The resulting `UIMessageChunk` stream
- * is translated into each API's SSE / JSON shape by the adapter system, driven
- * from the listener via the adapter's push API.
- *
- * The gateway is assistant-agnostic: per-request sampling, client tools, and
- * provider options are passed as first-class `callOverrides` on the stream
- * request (merged at highest precedence inside `buildAgentParams`).
- *
- * Output is a Web-standard `Response`: streaming requests return a
- * `text/event-stream` `ReadableStream`; non-streaming requests return a JSON
- * `Response`. The Elysia route handlers return this `Response` directly.
- */
-
-import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
-import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
-import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
-import type { CallOverrides } from '@main/ai/types'
-import { ENDPOINT_TYPE, ServiceTierSelectionSchema } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
-import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
+import type { SerializedError } from '@shared/types/error'
 
-import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
-import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
-import { buildStreamErrorFrame } from './errors'
-import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
-import { appendInternalAgentContinuation } from './utils/agentContinuation'
-import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
-import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
-import { resolveGatewayModelAddress } from './utils/models'
-import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
+import type { ISseFormatter, IStreamAdapter } from './adapters'
+import { StreamAdapterFactory } from './adapters'
+import { buildStreamErrorFrame, internalGatewayError } from './errors'
+import type { MessageConfig } from './gatewayRequest'
+import { gatewayPromptOptions, prepareGatewayMessage } from './prepareGatewayMessage'
+import { isStartupCommitChunk, streamInterruptedError } from './streamLifecycle'
+
+export type { MessageConfig } from './gatewayRequest'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
-const GATEWAY_STREAM_IDLE_TIMEOUT_MS = 20 * 60_000
-
 type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
 
-const STARTUP_COMMIT_CHUNK_TYPES: ReadonlySet<UIMessageChunk['type']> = new Set([
-  'text-start',
-  'text-delta',
-  'text-end',
-  'reasoning-start',
-  'reasoning-delta',
-  'reasoning-end',
-  'tool-input-available',
-  'finish'
-])
-
-function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
-  return STARTUP_COMMIT_CHUNK_TYPES.has(chunk.type)
+export async function processMessage(config: MessageConfig, release?: () => void): Promise<Response> {
+  try {
+    return await startMessage(config, release)
+  } catch (error) {
+    release?.()
+    throw error
+  }
 }
 
-/**
- * Terminal error for a stream that paused without finishing — the 20-minute idle
- * timeout firing, or a mid-stream abort. `AiStreamManager` classifies both as
- * `paused` (not `error`), so the gateway must synthesize a failure: a 504 for the
- * non-streaming path and a dialect error frame for the streaming path. Without
- * this, a truncated reply is indistinguishable from a real completion.
- */
-function streamInterruptedError(): Error & { status: number } {
-  const error = new Error('Upstream idle timeout exceeded') as Error & {
-    status: number
-    cause?: string
-  }
-  error.status = 504
-  error.cause = 'UPSTREAM_IDLE_TIMEOUT'
-  return error
-}
-
-/** Union of all supported input params. */
-type InputParams = InputParamsMap[InputFormat]
-
-/**
- * Configuration for a gateway message request (streaming or non-streaming).
- * Routes pass `{ params, inputFormat, outputFormat, signal }`.
- */
-export interface MessageConfig {
-  provider?: Provider
-  modelId?: string
-  /** Internal Agent-session hint carried by the Claude Code SDK gateway route. */
-  fastMode?: boolean
-  /**
-   * The loosely-validated gateway request body. Routes validate only the fields
-   * the gateway needs (`model`, `messages`/`input`, …) and pass the rest through,
-   * so this is `unknown` at the boundary and narrowed to the format's SDK type
-   * below — the converters parse the full payload defensively.
-   */
-  params: unknown
-  /**
-   * Explicit `"providerId:modelId"` addressing. The OpenAI/Anthropic dialects
-   * carry the model in the body (`params.model`); Gemini carries it in the URL
-   * path, so its route passes it here to override the body lookup.
-   */
-  modelString?: string
-  /**
-   * Explicit streaming flag. The OpenAI/Anthropic dialects signal streaming via
-   * `params.stream`; Gemini signals it via the `:streamGenerateContent` method,
-   * so its route passes the resolved flag here.
-   */
-  streaming?: boolean
-  inputFormat?: InputFormat
-  outputFormat?: OutputFormat
-  /** Request abort signal (`context.request.signal`); aborts the upstream stream on client disconnect. */
-  signal?: AbortSignal
-  /** Raw request headers used only to validate Cherry-internal usage correlation. */
-  requestHeaders?: Headers
-  onError?: (error: unknown) => void
-  onComplete?: () => void
-}
-
-/**
- * Process a gateway message request — auto-detects streaming from `params.stream`.
- * Returns a Web `Response` (SSE stream or JSON) to be returned from the route.
- */
-export async function processMessage(config: MessageConfig): Promise<Response> {
-  const { inputFormat = 'anthropic', outputFormat = 'anthropic', onError, onComplete, signal } = config
-  // Trust boundary: narrow the loosely-validated body to the format's SDK type once.
-  const params = config.params as InputParams
-
-  // Client-addressing mistakes are 400s, not 500s. Notably gemini-cli's internal
-  // utility calls (chat compression, classification) hardcode bare `gemini-*-flash-lite`
-  // model names that can never carry the gateway's providerId prefix — those requests
-  // fail here by design (gemini-cli swallows them silently) and must not read as
-  // gateway server errors in the logs.
-  const asClientError = (error: unknown): Error & { status: number } => {
-    const err = (error instanceof Error ? error : new Error(String(error))) as Error & { status: number }
-    err.status = 400
-    return err
-  }
-
-  // 1. Resolve the external "providerId:apiModelId" address from Gemini's URL-path
-  // override or the request body, then map it to the internal model id.
-  const modelString = config.modelString ?? ('model' in params ? (params as { model?: string }).model : undefined)
-  if (!modelString || typeof modelString !== 'string') {
-    throw asClientError(new Error('Request is missing a "model" field'))
-  }
-  const isInternalRequest = config.requestHeaders
-    ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
-    : false
-  const reasoningHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_REASONING_EFFORT_HEADER) : null
-  const tierHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_SERVICE_TIER_HEADER) : null
-  const reasoning = ReasoningEffortOptionSchema.safeParse(reasoningHeader ?? undefined)
-  const tier = ServiceTierSelectionSchema.safeParse(tierHeader ?? undefined)
-  if ((reasoningHeader && !reasoning.success) || (tierHeader && !tier.success))
-    throw asClientError(new Error('Invalid internal Agent request options'))
-  const turnOptions = {
-    ...(reasoning.success ? { reasoningEffort: reasoning.data } : {}),
-    ...(tier.success ? { serviceTier: tier.data } : {}),
-    fastMode:
-      config.fastMode === true || (isInternalRequest && config.requestHeaders?.get(CHERRY_FAST_MODE_HEADER) === 'true')
-  }
-  const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
-  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
-  const agentSessionId = config.requestHeaders
-    ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
-    : undefined
-  // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
-  const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
-
-  const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
-
-  logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
-    ...logContext,
-    inputFormat,
-    outputFormat
-  })
-
-  const provider: Provider = config.provider ?? resolvedProvider
-  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
-  const endpoint = resolveEffectiveEndpoint(
-    provider,
-    resolvedAddress.model,
-    isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
-  )
-  const model =
-    endpoint.endpointType && endpoint.endpointType !== resolvedAddress.model.endpointTypes?.[0]
-      ? { ...resolvedAddress.model, endpointTypes: [endpoint.endpointType] }
-      : resolvedAddress.model
-  const resolvedModel = { provider, model }
-  let effectiveParams = params
-
-  if (isInternalAnthropicAgentRequest) {
-    const anthropicParams = params as MessageCreateParams
-    const normalization = normalizeAnthropicToolHistory(anthropicParams.messages)
-
-    if (normalization.status === 'conflict') {
-      logger.warn('Rejected conflicting tool history in internal Agent request', {
-        ...logContext,
-        toolUseId: normalization.toolUseId,
-        reason: normalization.reason,
-        firstLocation: normalization.firstLocation,
-        duplicateLocation: normalization.duplicateLocation
-      })
-      throw asClientError(new Error('Invalid Anthropic tool history: tool_use ids must be unique'))
-    }
-
-    if (normalization.status === 'repaired') {
-      effectiveParams = { ...anthropicParams, messages: normalization.messages }
-      logger.warn('Repaired duplicate tool history in internal Agent request', {
-        ...logContext,
-        duplicateToolUseCount: normalization.duplicateToolUseCount,
-        duplicateToolResultCount: normalization.duplicateToolResultCount
-      })
-    }
-  }
-
-  // 2. Build converter and extract messages / tools / sampling / provider options.
-  const converter = MessageConverterFactory.create(inputFormat, {
-    googleReasoningCache,
-    openRouterReasoningCache
-  })
-
-  const convertedMessages = converter.toUIMessages(effectiveParams)
-  // Leaving inline system messages in place is what keeps the prompt prefix cacheable
-  // across turns; targets that reject them get a downgrade 400 or a fold.
-  const positionedMessages = positionInlineSystemMessages(
-    convertedMessages,
-    endpoint.endpointType,
-    config.requestHeaders
-  )
-  const messages = isInternalAnthropicAgentRequest
-    ? appendInternalAgentContinuation(positionedMessages)
-    : positionedMessages
-  const tools = converter.toAiSdkTools?.(effectiveParams, endpoint.endpointType)
-  const streamOptions = converter.extractStreamOptions(effectiveParams)
-
-  // Provider options (reasoning/thinking) use the same enabled provider resolved above.
-  const extractedProviderOptions = reasoning.success
-    ? {}
-    : (converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {})
-  const providerOptions = agentSessionId
-    ? applyAgentPromptCacheKey(provider, model, extractedProviderOptions, agentSessionId)
-    : extractedProviderOptions
-
-  // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
-  const callOverrides: CallOverrides = {
-    ...streamOptions,
-    ...(tools ? { tools } : {}),
-    ...(Object.keys(providerOptions).length > 0 ? { providerOptions } : {})
-  }
-
-  // 4. Adapter + formatter translate UIMessageChunk → output format.
-  const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, {
-    model: `${providerId}:${modelId}`,
-    ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
-  })
+async function startMessage(config: MessageConfig, release?: () => void): Promise<Response> {
+  const request = await prepareGatewayMessage(config)
+  const { messages, convertedMessages, adapterOptions, internal, outputFormat, logContext, isStreaming } = request
+  const { onError, onComplete, signal } = config
+  const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, adapterOptions)
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
   const usageContext = config.requestHeaders
     ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId())
     : undefined
 
+  const promptOptions = gatewayPromptOptions(request, usageContext)
   const streamId = `gateway-${uuidv4()}`
   if (messages !== convertedMessages) {
     logger.info('Appended assistant-tail continuation for internal agent request', { ...logContext, streamId })
@@ -307,6 +85,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
           if (closed) return
           closed = true
           signal?.removeEventListener('abort', onAbort)
+          release?.()
           try {
             controller.close()
           } catch {
@@ -338,6 +117,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
           else signal.addEventListener('abort', onAbort, { once: true })
         }
 
+        let callbackError: SerializedError | undefined
         const sseListener = new SseListener(write, complete, () => !closed, {
           id: `gateway:${streamId}`,
           // Commit before transforming a semantic chunk: adapter output for `start`
@@ -359,7 +139,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             return buildStreamErrorFrame(outputFormat, streamInterruptedError())
           },
           formatError: (error) => {
-            onError?.(error)
+            onError?.(callbackError ?? error)
             return buildStreamErrorFrame(outputFormat, error)
           }
         })
@@ -389,11 +169,15 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             }
             return sseListener.onPaused(result)
           },
-          onError: (result) => {
+          onError: (result, originalError) => {
             logger.warn('Gateway stream failed', { ...logContext, streamId, error: result.error })
-            if (startupState !== 'pending') return sseListener.onError(result)
+            const upstream = internal ? internalGatewayError(originalError, result.error) : result.error
+            if (startupState !== 'pending') {
+              callbackError = result.error
+              return sseListener.onError({ ...result, error: upstream })
+            }
 
-            fail(result.error)
+            fail(upstream)
             try {
               onError?.(result.error)
             } finally {
@@ -406,19 +190,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         if (closed) return
         try {
           aiStreamManager.streamPrompt({
-            ...turnOptions,
+            ...promptOptions,
             streamId,
-            uniqueModelId,
-            resolvedModel,
-            messages,
-            listener,
-            callOverrides,
-            contextOwner: 'caller',
-            ...(usageContext ? { usageContext } : {}),
-            ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
-            idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
-            // Serve exactly the admitted model; clients own retries, and fallbacks would bypass admission.
-            maxRetries: 0
+            listener
           })
         } catch (error) {
           fail(error)
@@ -457,6 +231,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   let aborted = false
   let adapterFailed = false
+  let callbackError: SerializedError | undefined
   const onAbort = () => {
     aborted = true
     aiStreamManager.abort(streamId, 'gateway client disconnected')
@@ -495,25 +270,19 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       })
       rejectDone(streamInterruptedError())
     },
-    onError: (result) => rejectDone(result.error),
+    onError: (result, originalError) => {
+      callbackError = result.error
+      rejectDone(internal ? internalGatewayError(originalError, result.error) : result.error)
+    },
     isAlive: () => !aborted && !adapterFailed
   }
 
   try {
     if (!aborted) {
       aiStreamManager.streamPrompt({
-        ...turnOptions,
+        ...promptOptions,
         streamId,
-        uniqueModelId,
-        resolvedModel,
-        messages,
-        listener,
-        callOverrides,
-        contextOwner: 'caller',
-        ...(usageContext ? { usageContext } : {}),
-        ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
-        idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
-        maxRetries: 0
+        listener
       })
     }
 
@@ -530,9 +299,10 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     })
   } catch (error) {
     logger.error('Error in message processing', error as Error, logContext)
-    onError?.(error)
+    onError?.(callbackError ?? error)
     throw error
   } finally {
     signal?.removeEventListener('abort', onAbort)
+    release?.()
   }
 }

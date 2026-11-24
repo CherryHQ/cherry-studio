@@ -36,8 +36,10 @@ async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkRe
   let start = 0
   let end = 0
   for (end = bytes.indexOf(10); end >= 0; end = bytes.indexOf(10, start)) {
-    const entry = JSON.parse(bytes.toString('utf8', start, end)) as SessionStoreEntry
+    const line = bytes.toString('utf8', start, end)
     start = end + 1
+    if (line.trim().length === 0) continue
+    const entry = JSON.parse(line) as SessionStoreEntry
     entries.push(entry)
     if (entry.uuid === checkpoint.messageUuid && entry.type === 'assistant' && !entry.isSidechain) break
   }

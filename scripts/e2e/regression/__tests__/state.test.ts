@@ -3,7 +3,17 @@ import type * as fs from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { completeE2eCase, createRun, finalizeRun, getRunVerdict, readRun, updatePhase, writeRun } from '../state'
+import * as regressionCases from '../cases'
+import {
+  completeE2eCase,
+  createRun,
+  finalizeRun,
+  getRunVerdict,
+  readRun,
+  recordSelection,
+  updatePhase,
+  writeRun
+} from '../state'
 import type { RegressionRun } from '../types'
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -11,10 +21,13 @@ vi.mock('node:fs', async (importOriginal) => {
   return { ...actual, renameSync: vi.fn(actual.renameSync) }
 })
 
+afterEach(() => vi.restoreAllMocks())
+
 describe('Playwright run state', () => {
   it('initializes every phase selected by a module task without selecting unrelated cases', () => {
     const run = createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'branch',
       platform: 'macos',
@@ -31,15 +44,16 @@ describe('Playwright run state', () => {
   it('preserves recorded verdicts after a task name is removed from the current manifest', () => {
     const run = createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'branch',
       platform: 'macos',
       ref: 'main',
       runner: 'macos-latest',
-      task: 'code-cli-permissions'
+      task: 'code-cli'
     })
     const completed = updatePhase(
-      completeE2eCase(run, 'MP-97', 'passed', 'Permission modes verified'),
+      completeE2eCase(run, 'CODE-01', 'passed', 'CLI launch verified'),
       'codeTools',
       'passed'
     )
@@ -49,11 +63,12 @@ describe('Playwright run state', () => {
         metadata: { ...completed.metadata, task: 'codeTools' }
       })
     ) as RegressionRun
-    expect(getRunVerdict(historical)).toBe('development_pass')
+    expect(getRunVerdict(historical)).toBe('mock_pass')
   })
   it('accepts English summaries but rejects empty results', () => {
     const run = createRun({
       appVersion: '2.0.8',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'tag',
       platform: 'macos',
@@ -70,6 +85,7 @@ describe('Playwright run state', () => {
   it('records Playwright results and artifacts without the legacy evidence contract', () => {
     const run = createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'branch',
       platform: 'macos',
@@ -91,6 +107,7 @@ describe('Playwright run state', () => {
     const run = finalizeRun(
       createRun({
         appVersion: 'development',
+        mockVersion: '1.46.0',
         commitSha: 'sha',
         mode: 'branch',
         platform: 'macos',
@@ -101,13 +118,17 @@ describe('Playwright run state', () => {
     )
 
     expect(run.cases['S-01'].status).toBe('blocked')
-    expect(run.cases['M-01'].status).toBe('blocked')
-    expect(getRunVerdict(run)).toBe('development_blocked')
+    expect(run.cases['N-01'].status).toBe('blocked')
+    expect(getRunVerdict(run)).toBe('mock_blocked')
   })
 
   it('marks platform-scoped cases as not applicable instead of failing a Windows run', () => {
+    vi.spyOn(regressionCases, 'supportsPlatform').mockImplementation(
+      (id, platform) => id !== 'CODE-01' || platform !== 'windows'
+    )
     const run = createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'branch',
       platform: 'windows',
@@ -116,7 +137,7 @@ describe('Playwright run state', () => {
       task: 'all'
     })
 
-    expect(run.cases['MP-133']).toMatchObject({
+    expect(run.cases['CODE-01']).toMatchObject({
       status: 'not_applicable',
       summary: 'Not supported on windows'
     })
@@ -124,25 +145,28 @@ describe('Playwright run state', () => {
   })
 
   it('reports a task with no applicable case on this platform as not applicable instead of blocked', () => {
+    vi.spyOn(regressionCases, 'supportsPlatform').mockImplementation((_id, platform) => platform !== 'windows')
     const run = finalizeRun(
       createRun({
         appVersion: 'development',
+        mockVersion: '1.46.0',
         commitSha: 'sha',
         mode: 'branch',
         platform: 'windows',
         ref: 'main',
         runner: 'windows-2022',
-        task: 'code-cli-permissions'
+        task: 'code-cli'
       })
     )
 
     expect(run.phases).toEqual({})
-    expect(getRunVerdict(run)).toBe('development_not_applicable')
+    expect(getRunVerdict(run)).toBe('mock_not_applicable')
   })
 
   it('marks unselected tasks as not applicable', () => {
     const run = createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'branch',
       platform: 'macos',
@@ -152,10 +176,33 @@ describe('Playwright run state', () => {
     })
 
     expect(run.cases['S-01'].status).toBe('pending')
-    expect(run.cases['M-01']).toMatchObject({
+    expect(run.cases['N-01']).toMatchObject({
       status: 'not_applicable',
       summary: 'Not selected by task startup-smoke'
     })
+  })
+
+  it('records the executed selection per phase and rejects empty or duplicated sets', () => {
+    const run = createRun({
+      appVersion: 'development',
+      mockVersion: '1.46.0',
+      commitSha: 'sha',
+      mode: 'branch',
+      platform: 'macos',
+      ref: 'main',
+      runner: 'macos-latest',
+      task: 'startup-smoke'
+    })
+
+    const recorded = recordSelection(run, 'startup', ['S-01'], '2026-11-17T00:00:00.000Z')
+    expect(recorded.selections).toEqual({ startup: { ids: ['S-01'], recordedAt: '2026-11-17T00:00:00.000Z' } })
+    // The original run is untouched: other phases and the cases map stay as they were.
+    expect(run.selections).toBeUndefined()
+    expect(recorded.cases['S-01'].status).toBe('pending')
+
+    expect(() => recordSelection(run, 'startup', [])).toThrow('collected no cases')
+    expect(() => recordSelection(run, 'startup', ['S-01', 'S-01'])).toThrow('collected duplicate cases')
+    expect(() => recordSelection(run, 'notes', ['S-01'])).toThrow('Unknown or unselected regression phase')
   })
 })
 
@@ -170,6 +217,7 @@ describe('atomic run-state writes', () => {
     filePath = join(directory, 'run.json')
     const run = createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'base',
       mode: 'branch',
       platform: 'windows',

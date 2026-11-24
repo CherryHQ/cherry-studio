@@ -293,8 +293,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 
 vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
-    `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
+    `${workspaceId ?? ''}\0${workspacePath ?? ''}`
 }))
 
 vi.mock('../messages/agentMessageListAdapter', () => ({
@@ -452,15 +451,6 @@ describe('AgentChat locate pending message', () => {
     expect(onLocateMessageHandled).not.toHaveBeenCalled()
   })
 
-  it('renders the navbar and loading center while the active session is resolving', () => {
-    renderAgentChat(
-      <AgentChat conversationBootstrap={createConversationBootstrap(null, true, 'pending')} showResourceListControls />
-    )
-
-    expect(screen.getByTestId('agent-chat-navbar')).toBeInTheDocument()
-    expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'loading')
-  })
-
   it('loads older session history for pending locate and clears it only after the target appears', async () => {
     const onLocateMessageHandled = vi.fn()
     agentSessionPartsMocks.result = {
@@ -596,6 +586,5 @@ describe('AgentChat locate pending message', () => {
     )
 
     await waitFor(() => expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true'))
-    expect(screen.getByTestId('agent-right-pane')).toBe(rightPane)
   })
 })

@@ -15,7 +15,7 @@ import type { AiPlugin } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 
 import type { MediaCapabilities } from '../../../messages/messageCapabilities'
-import type { AppProviderSettingsMap } from '../../../types'
+import type { AppProviderSettingsMap, CallOverrides, ContextOwner } from '../../../types'
 import type { WrapLanguageModel } from '../retry/createRetryableWrap'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
@@ -84,6 +84,7 @@ export interface AgentOptions {
   headers?: Record<string, string | undefined>
 
   // Agent-specific
+  output?: CallOverrides['output']
   toolChoice?: ToolChoice<ToolSet>
   /** Dynamic subset of tools without changing the type. */
   activeTools?: string[]
@@ -104,6 +105,7 @@ export interface AgentOptions {
 // ── Params ──────────────────────────────────────────────────────────
 
 export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
+  contextOwner?: ContextOwner
   providerId: T
   providerSettings: AppProviderSettingsMap[T]
   modelId: string

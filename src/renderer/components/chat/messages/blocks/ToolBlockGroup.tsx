@@ -296,14 +296,36 @@ function getMcpToolGroupActivity(
   }
 }
 
+/** What the model said the call is for; DeepSeek models are offered an `intent` argument because they call tools silently. */
+function getToolIntent(args: unknown): string | undefined {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
+  const intent = (args as Record<string, unknown>).intent
+  return typeof intent === 'string' && intent.trim() ? intent.trim() : undefined
+}
+
+export function hasToolIntent(item: ToolRenderItem): boolean {
+  return getToolIntent(item.toolResponse.arguments) !== undefined
+}
+
 export function getToolGroupSemanticTitle(
   toolResponse: ToolResponseLike,
   status: ToolStatus,
   t: ReturnType<typeof useTranslation>['t']
 ) {
+  return getToolTitle(toolResponse, status, t, true)
+}
+
+function getToolTitle(
+  toolResponse: ToolResponseLike,
+  status: ToolStatus,
+  t: ReturnType<typeof useTranslation>['t'],
+  withIntent: boolean
+) {
   const isActive = status === 'invoking' || status === 'streaming' || status === 'waiting'
   const mcpPresentation = getMcpToolGroupPresentation(toolResponse.tool, toolResponse.arguments)
   if (mcpPresentation && status === 'error') return t('message.tools.activity.extensionFailed')
+  const intent = withIntent ? getToolIntent(toolResponse.arguments) : undefined
+  if (intent) return intent
 
   const activity =
     getReadableToolActivity(toolResponse.tool.name, toolResponse.arguments, isActive, t) ??
@@ -549,26 +571,65 @@ interface ToolBlockGroupContentProps {
   scrollRef?: React.RefObject<HTMLDivElement | null>
 }
 
-export const ToolBlockGroupContent = React.memo(({ items, scrollRef }: ToolBlockGroupContentProps) => (
-  <div ref={scrollRef} className="tool-block-group-content flex w-full flex-col gap-2">
-    {items.map((item) => {
-      return (
-        <div key={item.id} data-block-id={item.id} className="w-full">
-          <ErrorBoundary fallbackComponent={BlockErrorFallback}>
-            <MessageTools toolResponse={item.toolResponse} />
-          </ErrorBoundary>
-        </div>
-      )
-    })}
-  </div>
-))
+const ToolBlockGroupRow = ({ item }: { item: ToolRenderItem }) => {
+  const intent = getToolIntent(item.toolResponse.arguments)
+  return (
+    <div data-block-id={item.id} className="w-full">
+      {/* Read like the narration other models write between calls, above the call it explains. */}
+      {intent && (
+        <p data-testid="tool-intent" className="mb-2 leading-relaxed text-foreground">
+          {intent}
+        </p>
+      )}
+      <ErrorBoundary fallbackComponent={BlockErrorFallback}>
+        <MessageTools toolResponse={item.toolResponse} />
+      </ErrorBoundary>
+    </div>
+  )
+}
+
+/** Splits a run into folds: adjacent calls with intents that do the same kind of thing share one. */
+function foldSameKindCalls(items: ToolRenderItem[], kindOf: (item: ToolRenderItem) => string): ToolRenderItem[][] {
+  const folds: ToolRenderItem[][] = []
+  for (const item of items) {
+    const fold = folds.at(-1)
+    if (fold && hasToolIntent(fold[0]) && hasToolIntent(item) && kindOf(fold[0]) === kindOf(item)) fold.push(item)
+    else folds.push([item])
+  }
+  return folds
+}
+
+export const ToolBlockGroupContent = React.memo(({ items, scrollRef }: ToolBlockGroupContentProps) => {
+  const { t } = useTranslation()
+  const kindOf = (item: ToolRenderItem) => getToolTitle(item.toolResponse, 'done', t, false)
+  return (
+    <div ref={scrollRef} className="tool-block-group-content flex w-full flex-col gap-2">
+      {foldSameKindCalls(items, kindOf).map((fold) =>
+        fold.length === 1 ? (
+          <ToolBlockGroupRow key={fold[0].id} item={fold[0]} />
+        ) : (
+          <ToolBlockGroup key={fold[0].id} items={fold} title={kindOf(fold[0])}>
+            <div className="flex w-full flex-col gap-2">
+              {fold.map((item) => (
+                <ToolBlockGroupRow key={item.id} item={item} />
+              ))}
+            </div>
+          </ToolBlockGroup>
+        )
+      )}
+    </div>
+  )
+})
 ToolBlockGroupContent.displayName = 'ToolBlockGroupContent'
 
 interface ToolBlockGroupProps {
   children?: React.ReactNode
+  defaultExpanded?: boolean
   isLiveProgress?: boolean
   isThinking?: boolean
   items: ToolRenderItem[]
+  /** A fixed header for a fold of same-kind calls, in place of the latest call's title. */
+  title?: string
 }
 
 const ToolGroupPartsBoundary = React.memo(
@@ -581,10 +642,19 @@ ToolGroupPartsBoundary.displayName = 'ToolGroupPartsBoundary'
 
 /** A nested, independently collapsible group of adjacent tool calls. */
 export const ToolBlockGroup = React.memo(
-  ({ children, isLiveProgress: isLiveProgressProp, isThinking = false, items }: ToolBlockGroupProps) => {
+  ({
+    children,
+    defaultExpanded = false,
+    isLiveProgress: isLiveProgressProp,
+    isThinking = false,
+    items,
+    title
+  }: ToolBlockGroupProps) => {
     const { t } = useTranslation()
+    // A fold can start at its parent group's first call, so it keeps its own disclosure key.
     const [isExpanded, setIsExpanded] = useMessageDisclosureState(
-      items[0] ? `tool-group:${items[0].toolResponse.toolCallId ?? items[0].id}` : undefined
+      items[0] ? `${title ? 'tool-fold' : 'tool-group'}:${items[0].toolResponse.toolCallId ?? items[0].id}` : undefined,
+      defaultExpanded
     )
     const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
     const allItemsCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
@@ -614,6 +684,8 @@ export const ToolBlockGroup = React.memo(
                     isThinking ? <Brain aria-hidden="true" className={TOOL_GROUP_ICON_CLASS_NAME} /> : undefined
                   }
                   isLiveProgress={isLiveProgress}
+                  summary={title}
+                  preferSummary={title !== undefined}
                   semanticToolTitle
                   showContentIcon
                   showLatestWhenComplete

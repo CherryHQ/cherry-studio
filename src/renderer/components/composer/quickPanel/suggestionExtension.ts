@@ -1,11 +1,13 @@
 import type { Editor, Range } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
-import { PluginKey } from '@tiptap/pm/state'
+import { type EditorState, PluginKey } from '@tiptap/pm/state'
 import { exitSuggestion, Suggestion, type SuggestionKeyDownProps, type SuggestionProps } from '@tiptap/suggestion'
 import { t } from 'i18next'
 import type { ReactNode } from 'react'
 
 import { loggerService } from '@logger'
+
+import { isMarkdownFencedCodePosition } from '../markdownLivePreview/livePreviewPlugin'
 
 const logger = loggerService.withContext('ComposerSuggestionExtension')
 const suggestionItemsGeneration = new WeakMap<readonly ComposerSuggestionItem[], number>()
@@ -127,10 +129,10 @@ function createSuggestionRender(
   }
 }
 
-function hasTriggerBoundary(editor: Editor, range: Range) {
-  const from = Math.max(0, Math.min(range.from, editor.state.doc.content.size))
+function hasTriggerBoundary(state: EditorState, range: Range) {
+  const from = Math.max(0, Math.min(range.from, state.doc.content.size))
   if (from <= 1) return true
-  const before = editor.state.doc.textBetween(Math.max(0, from - 1), from, '\n', '')
+  const before = state.doc.textBetween(Math.max(0, from - 1), from, '\n', '')
   return before.length === 0 || /\s/.test(before)
 }
 
@@ -155,7 +157,8 @@ export function createComposerSuggestionExtension(sources: readonly ComposerSugg
           allowSpaces: source.allowSpaces,
           allowedPrefixes: source.allowedPrefixes,
           startOfLine: source.startOfLine,
-          allow: ({ editor, range }) => hasTriggerBoundary(editor, range),
+          allow: ({ state, range }) =>
+            !isMarkdownFencedCodePosition(state, range.from) && hasTriggerBoundary(state, range),
           shouldShow: ({ transaction }) => !transaction.getMeta(COMPOSER_SUPPRESS_SUGGESTION_META),
           items: async ({ editor, query }) => {
             const itemsGeneration = ++latestItemsGeneration

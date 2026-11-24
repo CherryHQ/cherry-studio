@@ -68,7 +68,7 @@ export function coalesceConsecutiveSameRole(messages: ModelMessage[]): ModelMess
   const out: ModelMessage[] = []
   for (const message of messages) {
     const prev = out.at(-1)
-    if (!prev || prev.role !== message.role) {
+    if (!prev || prev.role !== message.role || prev.providerOptions || message.providerOptions) {
       out.push(message)
       continue
     }
