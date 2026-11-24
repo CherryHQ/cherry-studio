@@ -40,6 +40,9 @@ import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
+import { normalizePermissionMode } from '@shared/ai/agentPermissionMode'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { AgentPermissionMode, AgentType } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelStatus } from '@shared/data/types/channel'
 
@@ -189,11 +192,14 @@ const ChannelLogModal: FC<{
 type EditModalProps = {
   open: boolean
   channel: ChannelData | null
-  agents: Array<{ id: string; name: string }>
+  agents: ChannelAgentOption[]
   onClose: () => void
   onSave: (id: string, updates: ChannelUpdates) => void
   onDelete: (id: string) => void
 }
+
+/** An Agent a channel can bind to, with what decides which permission overrides the channel may pick. */
+type ChannelAgentOption = { id: string; name: string; type: AgentType; permissionMode: AgentPermissionMode }
 
 const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, onSave, onDelete }) => {
   const { t } = useTranslation()
@@ -236,6 +242,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
     [channel, onSave]
   )
 
+  const boundAgent = agents.find((agent) => agent.id === agentId)
   const isSystemWorkspace = workspaceId === null
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
@@ -254,6 +261,9 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
       channel={channel}
       onClose={onClose}
       onConfigChange={handleUpdate}
+      // Only modes the bound Agent's runtime can run, so Pi never offers Plan.
+      agentPermissionMode={boundAgent?.permissionMode}
+      permissionModes={boundAgent ? AGENT_RUNTIME_CAPABILITIES[boundAgent.type].permissionModes : undefined}
       onRemove={() => channel && onDelete(channel.id)}>
       <div>
         <Label className="mb-1 block text-xs">{t('agent.channels.bindAgent')}</Label>
@@ -295,7 +305,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
 
 const ChannelInstanceRow: FC<{
   channel: ChannelData
-  agents: Array<{ id: string; name: string }>
+  agents: ChannelAgentOption[]
   connectionStatus: ChannelStatus | undefined
   onEdit: () => void
   onDelete: () => void
@@ -403,7 +413,16 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
     type: channelDef.type
   })
   const { agents: agentList } = useAgents()
-  const agents = useMemo(() => (agentList ?? []).map((a) => ({ id: a.id, name: a.name ?? a.id })), [agentList])
+  const agents = useMemo<ChannelAgentOption[]>(
+    () =>
+      (agentList ?? []).map((a) => ({
+        id: a.id,
+        name: a.name ?? a.id,
+        type: a.type,
+        permissionMode: normalizePermissionMode(a.configuration?.permission_mode)
+      })),
+    [agentList]
+  )
 
   const channelList: ChannelData[] = useMemo(
     () =>

@@ -17,7 +17,7 @@ const channelMocks = vi.hoisted(() => ({
 }))
 
 const agentMocks = vi.hoisted(() => ({
-  agents: [{ id: 'agent-1', name: 'Agent One' }]
+  agents: [] as Array<Record<string, unknown>>
 }))
 
 vi.mock('@logger', () => ({
@@ -225,6 +225,7 @@ describe('ChannelDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     HTMLElement.prototype.scrollIntoView = vi.fn()
+    agentMocks.agents = [{ id: 'agent-1', name: 'Agent One', type: 'claude-code', configuration: {} }]
     channelMocks.channels = [
       {
         id: 'channel-1',
@@ -489,6 +490,20 @@ describe('ChannelDetail', () => {
     }
   })
 
+  // Pi has no Plan mode; a saved Plan override made every inbound turn on the channel fail.
+  it('offers only the permission modes the bound Agent runtime can run', async () => {
+    agentMocks.agents = [{ id: 'agent-1', name: 'Agent One', type: 'pi', configuration: {} }]
+    channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'default' }]
+    render(<ChannelDetail channelDef={channelDef} />)
+
+    const editTooltip = await screen.findByText('common.edit')
+    fireEvent.click(within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button'))
+    await screen.findByDisplayValue('Telegram channel')
+
+    expect(screen.getByText('agent.settings.tooling.permissionMode.acceptEdits.title')).toBeInTheDocument()
+    expect(screen.queryByText('agent.settings.tooling.permissionMode.plan.title')).not.toBeInTheDocument()
+  })
+
   it('sends null permissionMode when clearing an existing override to inherit', async () => {
     render(<ChannelDetail channelDef={channelDef} />)
 
@@ -500,7 +515,7 @@ describe('ChannelDetail', () => {
     expect(nameInput).toHaveFocus()
     expect(nameInput.selectionStart).toBe(nameInput.selectionEnd)
 
-    fireEvent.click(screen.getByText('agent.channels.security.inheritFromAgent'))
+    fireEvent.click(screen.getByText('agent.channels.security.inheritFromAgentMode'))
 
     await waitFor(() => {
       expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', { permissionMode: null })
