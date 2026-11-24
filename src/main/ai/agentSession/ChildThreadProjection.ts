@@ -14,6 +14,7 @@ import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProj
 import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import type { ChildProjectionState } from '@shared/ai/messageProjection'
 import type { CherryUIMessage, MessageStatus } from '@shared/data/types/message'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import { bindNativeInput } from './nativeSubmission'
 import { ThreadMessageProjection, type MessageDecorator } from './ThreadMessageProjection'
@@ -61,6 +62,7 @@ export class ChildThreadProjection {
   private source?: object
   private contextVersion = 0
   private attaching?: Promise<void>
+  private retryStatus?: Extract<RetryPartData, { state: 'retrying' }>
   private view: AgentChildView
   private readonly productIds = new Map<string, string>()
   private readonly committedLiveIds = new Set<string>()
@@ -93,7 +95,9 @@ export class ChildThreadProjection {
     private readonly decorate?: MessageDecorator,
     private readonly onResponse?: (responseId: string, messageId: string) => void
   ) {
-    this.projection = new ThreadMessageProjection(handle.thread, decorate)
+    this.projection = new ThreadMessageProjection(handle.thread, (message, source) =>
+      this.decorateMessage(message, source)
+    )
     this.removed = new Set(context.checkpointMapping?.child?.removed)
     this.nativeIds = { ...context.checkpointMapping?.child?.sources }
     this.composition = { ...context.checkpointMapping?.child?.composition }
@@ -284,7 +288,9 @@ export class ChildThreadProjection {
     let next = new Map(this.saved)
     const committed = new Set<string>()
     if (archive) {
-      const recovered = (this.committed ??= new ThreadMessageProjection(this.handle.thread, this.decorate))
+      const recovered = (this.committed ??= new ThreadMessageProjection(this.handle.thread, (message, source) =>
+        this.decorateMessage(message, source)
+      ))
       const refresh = this.committedRefresh
       this.committedRefresh = new Set()
       try {
@@ -426,6 +432,22 @@ export class ChildThreadProjection {
     return this.canonicalIds.get(id) ?? id
   }
 
+  private decorateMessage(message: CherryUIMessage, source: RuntimeMessage): CherryUIMessage {
+    const error = source.metadata?.error
+    if (error)
+      message = {
+        ...message,
+        parts: [
+          ...message.parts,
+          {
+            type: 'data-error',
+            data: { name: 'AgentRuntimeError', message: error.message, stack: null, reason: error.code }
+          }
+        ]
+      }
+    return this.decorate?.(message, source) ?? message
+  }
+
   private materialize(message: CherryUIMessage, id: string): CherryUIMessage[] {
     const nativeId = this.canonical(message.id)
     const assignments = new Map<number, string>()
@@ -476,14 +498,35 @@ export class ChildThreadProjection {
     Object.assign(this.composition, groups)
   }
 
+  retry(event: RetryPartData): void {
+    if (this.stopped) return
+    this.retryStatus = event.state === 'retrying' ? event : undefined
+    this.publish(this.view)
+  }
+
   private publish(next: AgentChildView): void {
     this.view = next
-    this.delivery.update(next, this.delivery.observed)
+    const messages = [...next.messages]
+    if (this.retryStatus) {
+      const last = messages.at(-1)
+      const reply: CherryUIMessage =
+        last?.role === 'assistant'
+          ? last
+          : { id: `retry:${this.context.id}`, role: 'assistant', parts: [], metadata: { status: 'pending' } }
+      const updated: CherryUIMessage = {
+        ...reply,
+        parts: [...reply.parts, { type: 'data-retry', id: 'retry', data: this.retryStatus }]
+      }
+      if (last === reply) messages[messages.length - 1] = updated
+      else messages.push(updated)
+    }
+    this.delivery.update({ ...next, messages }, this.delivery.observed)
   }
 
   async stop(): Promise<void> {
     await this.attaching
     await this.observation?.drain()
+    this.retryStatus = undefined
     this.stopped = true
     application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId))
     this.source = undefined

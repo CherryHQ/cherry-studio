@@ -153,5 +153,14 @@ export default defineProvider({
       official: 'https://open.cherryin.ai'
     }
   },
-  overrides: [...deepSeekModelOverrides, ...qwenAudioCompatibilityOverrides]
+  overrides: [
+    {
+      modelId: 'claude-fable-5-2',
+      apiModelId: 'anthropic/claude-fable-5.2',
+      endpointTypes: ['anthropic-messages', 'openai-chat-completions'],
+      capabilities: { remove: ['structured-output'] }
+    },
+    ...deepSeekModelOverrides,
+    ...qwenAudioCompatibilityOverrides
+  ]
 })

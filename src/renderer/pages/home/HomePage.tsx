@@ -360,6 +360,19 @@ const HomePage: FC = () => {
     activeId: visibleTopic?.id ?? activeTopicId,
     onSelect: (topic) => setActiveTopicAndCloseResourceView(mapApiTopicToRendererTopic(topic))
   })
+  const openProfileTopic = useCallback(
+    (topicId: string) => {
+      const topic = rendererTopics.find((item) => item.id === topicId)
+      if (topic) {
+        setActiveTopicAndCloseResourceView(topic)
+      } else {
+        closeSurface()
+        clearLocate()
+        setActiveTopicId(topicId)
+      }
+    },
+    [clearLocate, closeSurface, rendererTopics, setActiveTopicAndCloseResourceView, setActiveTopicId]
+  )
   const clearActiveTopicAndCloseResourceView = useCallback(() => {
     closeSurface()
     reenterChatRoute()
@@ -769,6 +782,8 @@ const HomePage: FC = () => {
   // decides whether a visited right-panel subtree survives.
   return (
     <TopicRightPane.Scope
+      assistantId={visibleAssistantId}
+      onOpenTopic={openProfileTopic}
       resourcePane={resourcePane}
       topicId={visibleTopic?.id}
       topicName={visibleTopic?.name}
@@ -781,6 +796,7 @@ const HomePage: FC = () => {
       <HomeTabRuntime
         title={tabTitle}
         emoji={visibleAssistant?.emoji}
+        icon={visibleAssistant?.avatarSrc}
         preserveVisuals={preserveTabVisuals}
         activeTopicId={activeTopic?.id}
         activeTopicSource={activeTopicSource}

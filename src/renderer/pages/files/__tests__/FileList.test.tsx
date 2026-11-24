@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
@@ -84,10 +85,46 @@ function fileListProps(renamingId: string | null): ComponentProps<typeof FileLis
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
 describe('FileList', () => {
+  it.each([
+    { origin: 'internal' as const, sourcePath: '/workspace/Example reports/report.md', isMissing: false },
+    { origin: 'external' as const, sourcePath: 'C:\\Examples\\Sample reports\\report.md', isMissing: true }
+  ])('copies the known $origin path as filesystem text', async (entry) => {
+    const user = userEvent.setup()
+    render(<FileList {...fileListProps(null)} files={[{ ...file, ...entry }]} />)
+
+    fireEvent.contextMenu(screen.getByText(file.name))
+    await user.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_path' }))
+
+    expect(await navigator.clipboard.readText()).toBe(entry.sourcePath)
+    expect(toast.success).toHaveBeenCalledWith('common.copied')
+  })
+
+  it('does not offer to copy a file path before the path is available', async () => {
+    render(<FileList {...fileListProps(null)} />)
+
+    fireEvent.contextMenu(screen.getByText(file.name))
+    await screen.findByRole('menuitem', { name: 'files.show_in_folder' })
+
+    expect(screen.queryByRole('menuitem', { name: 'agent.preview_pane.copy_path' })).not.toBeInTheDocument()
+  })
+
+  it('reports a rejected clipboard write without claiming success', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValueOnce(new Error('Clipboard unavailable'))
+    render(<FileList {...fileListProps(null)} files={[{ ...file, sourcePath: '/workspace/report.md' }]} />)
+
+    fireEvent.contextMenu(screen.getByText(file.name))
+    await user.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_path' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.copy_failed'))
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
   it('disables row and context-menu deletion while a delete request is pending', async () => {
     const onDelete = vi.fn()
     const actions = { ...menuActions, onDelete }
