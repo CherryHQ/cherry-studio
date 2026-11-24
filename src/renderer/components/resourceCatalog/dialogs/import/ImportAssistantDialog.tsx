@@ -313,6 +313,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       }}>
       <DialogContent
         closeOnOverlayClick={!loading}
+        guardDismiss={loading}
         className="overflow-hidden"
         onPointerDownOutside={(event) => loading && event.preventDefault()}>
         {/* Header */}
