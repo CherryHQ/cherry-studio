@@ -2119,6 +2119,41 @@ describe('edit dialogs', () => {
     )
   })
 
+  it.each(['pi', 'pi-durable'] as const)('persists the avatar tool switch for a %s Agent', async (type) => {
+    render(<AgentEditDialog open resource={{ ...PI_AGENT, type }} onOpenChange={vi.fn()} initialTab="tools.builtin" />)
+
+    const toggle = screen.getByRole('switch', { name: 'Change Agent Avatar' })
+    expect(toggle).toBeChecked()
+    fireEvent.click(toggle)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ disabledTools: ['mcp__cherry_tools__agent_avatar'] })
+      })
+    )
+  })
+
+  it('enables an avatar tool disabled under alternate IDs without changing other restrictions', async () => {
+    render(
+      <AgentEditDialog
+        open
+        resource={{
+          ...PI_AGENT,
+          disabledTools: ['read', 'mcp__cherry-tools__agent_avatar', 'mcp__cherryTools__agentAvatar']
+        }}
+        onOpenChange={vi.fn()}
+        initialTab="tools.builtin"
+      />
+    )
+
+    const toggle = screen.getByRole('switch', { name: 'Change Agent Avatar' })
+    expect(toggle).not.toBeChecked()
+    expect(updateAgentMock).not.toHaveBeenCalled()
+    fireEvent.click(toggle)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: ['read'] }) })
+    )
+  })
+
   it('keeps old MCP restrictions until the user explicitly removes them, preserving file restrictions', async () => {
     const user = userEvent.setup()
     render(

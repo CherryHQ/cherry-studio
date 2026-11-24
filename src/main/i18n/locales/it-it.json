@@ -3,6 +3,7 @@
   "agent.avatar_tool.no_backup": "Nessun avatar precedente salvato per questo agente.",
   "agent.avatar_tool.prompt_required": "Serve una descrizione per generare un avatar.",
   "agent.avatar_tool.restored": "Avatar precedente di {{name}} ({{id}}) ripristinato.",
+  "agent.avatar_tool.unavailable": "Lo strumento avatar non è disponibile per l’agente che ha effettuato la richiesta.",
   "agent.avatar_tool.unreadable_backup": "Impossibile leggere l’avatar precedente.",
   "agent.builtin.cherry_assistant.description": "Consulente integrato di Cherry Studio. Diagnostica problemi, guida le operazioni, raccoglie FAQ, invia segnalazioni di bug e richieste di funzionalità, cerca e crea Skills",
   "agent.builtin.cherry_doctor.description": "Analista integrato di diagnostica di sistema. Legge il rapporto diagnostico e lo stato di esecuzione, spiega la causa del problema e propone correzioni circoscritte",

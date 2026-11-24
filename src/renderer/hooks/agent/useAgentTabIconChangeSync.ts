@@ -3,9 +3,8 @@ import { useEffect, useRef } from 'react'
 import { dataApiService } from '@data/DataApiService'
 import { useDataChange, useWriteCache } from '@renderer/data/hooks/useDataApi'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
-import { isEmoji } from '@renderer/utils/naming'
+import { getAgentTabIcon } from '@renderer/utils/agent'
 import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
-import { emojiTabIcon } from '@renderer/utils/tabIcons'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
@@ -53,8 +52,7 @@ export function useAgentTabIconChangeSync(): void {
             })
             agents.set(session.agentId, agent)
           }
-          const avatar = (await agent).configuration?.avatar || undefined
-          const icon = avatar && isEmoji(avatar) ? emojiTabIcon(avatar) : avatar
+          const icon = getAgentTabIcon(await agent)
           const latest = contextRef.current
           if (!lifecycle.mounted || lifecycle.revision !== revision || !latest) return
           for (const tab of latest.tabs) {

@@ -177,7 +177,7 @@ function McpPermissionPreview({
       <ToolArgsTable args={previewArgs} title={t('message.tools.sections.input')} />
     </ScrollArea>
   ) : (
-    <div className="py-2 text-muted-foreground text-xs">{t('message.tools.noData')}</div>
+    <div className="text-muted-foreground py-2 text-xs">{t('message.tools.noData')}</div>
   )
 
   return (
@@ -224,7 +224,9 @@ function PermissionPreview({
     )
   }
   if (isMcpToolResponse(toolResponse)) {
-    return <McpPermissionPreview toolResponse={toolResponse} configPreview={configPreview} avatarTarget={avatarTarget} />
+    return (
+      <McpPermissionPreview toolResponse={toolResponse} configPreview={configPreview} avatarTarget={avatarTarget} />
+    )
   }
 
   return <BuiltinPermissionPreview toolResponse={toolResponse} />
@@ -319,7 +321,8 @@ export default function PermissionRequestComposer({
   const { agent: targetAgent } = useAgent(targetId)
   const avatarTarget = isAvatarRequest ? { id: targetId, name: targetId ? targetAgent?.name : agentName } : undefined
   const cannotApprove =
-    isSubmitting || (requiresAgentConfigPreview && !!configKind && !configPreview?.ok) ||
+    isSubmitting ||
+    (requiresAgentConfigPreview && !!configKind && !configPreview?.ok) ||
     Boolean(targetId && !targetAgent?.name)
 
   const respond = useCallback(

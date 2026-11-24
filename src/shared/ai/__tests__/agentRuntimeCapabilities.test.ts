@@ -37,6 +37,12 @@ function makeModel(overrides: Partial<Model>): Model {
 }
 
 describe('AGENT_RUNTIME_CAPABILITIES', () => {
+  it.each(['pi', 'pi-durable'] as const)('offers an individual avatar tool switch for %s', (runtime) => {
+    expect(AGENT_RUNTIME_CAPABILITIES[runtime].builtinTools().map((tool) => tool.id)).toContain(
+      'mcp__cherry_tools__agent_avatar'
+    )
+  })
+
   it.each(['pi', 'pi-durable'] as const)('offers PowerShell only on Windows for %s', (runtime) => {
     const tools = AGENT_RUNTIME_CAPABILITIES[runtime].builtinTools
     expect(tools('win32').map((tool) => tool.id)).toContain('powershell')

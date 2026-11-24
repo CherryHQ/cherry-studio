@@ -2569,10 +2569,9 @@ describe('AgentPage', () => {
   })
 
   it.each([
-    ['emoji glyph', '🚀', { emoji: '🚀', icon: undefined }],
-    ['image URL', 'https://example.com/avatar.png', { emoji: undefined, icon: 'https://example.com/avatar.png' }]
-  ])('labels the Work tab with an %s avatar through its own slot', (_label, avatar, expected) => {
-    // An image URL handed to the emoji slot renders as clipped text in the tab.
+    ['emoji glyph', '🚀', 'emoji:🚀'],
+    ['image URL', 'https://example.com/avatar.png', 'https://example.com/avatar.png']
+  ])('labels the Work tab with an %s avatar', (_label, avatar, icon) => {
     agentPageMocks.routeSearch = { sessionId: 'session-1' }
     agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A', configuration: { avatar } }]
     activeSessionMocks.session = {
@@ -2586,7 +2585,7 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(expect.objectContaining(expected))
+    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(expect.objectContaining({ icon }))
   })
 
   it('creates and activates a conversation for an agentId entry with no session yet', async () => {

@@ -1,3 +1,8 @@
+import {
+  AGENT_AVATAR_TOOL_DESCRIPTION,
+  AGENT_AVATAR_TOOL_LABEL,
+  PI_AGENT_AVATAR_TOOL_ID
+} from '@shared/ai/agentAvatarTool'
 import { claudeUserFacingTools } from '@shared/ai/claudecode/toolRegistry'
 import { PI_BUILTIN_TOOLS, PI_TOOL_RECALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
@@ -95,15 +100,24 @@ const PI_CAPABILITIES = {
     isPiCompatibleModel(provider, model) &&
     !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
   transport: 'pi-agent',
-  builtinTools: (platform?: string) =>
-    PI_BUILTIN_TOOLS.filter(
+  builtinTools: (platform?: string) => [
+    ...PI_BUILTIN_TOOLS.filter(
       (tool) => platform === undefined || !('platform' in tool) || tool.platform === platform
     ).map((tool) => ({
       id: tool.name,
       labelKey: `agent.tools.builtin.${tool.name}.label`,
       descriptionKey: `agent.tools.builtin.${tool.name}.description`,
       category: tool.category
-    }))
+    })),
+    {
+      id: PI_AGENT_AVATAR_TOOL_ID,
+      labelKey: 'agent.tools.builtin.CherryAgentAvatar.label',
+      descriptionKey: 'agent.tools.builtin.CherryAgentAvatar.description',
+      labelFallback: AGENT_AVATAR_TOOL_LABEL,
+      descriptionFallback: AGENT_AVATAR_TOOL_DESCRIPTION,
+      category: 'media'
+    }
+  ]
 } as const satisfies AgentRuntimeCapabilities
 
 export const AGENT_RUNTIME_CAPABILITIES = {

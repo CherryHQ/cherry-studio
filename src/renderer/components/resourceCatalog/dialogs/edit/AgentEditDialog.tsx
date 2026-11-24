@@ -939,7 +939,7 @@ function ReplyLanguageRow({
   return (
     // The "Other language…" input spans the next grid row, under the name and the select.
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 py-1.5 [&>input]:col-span-2 [&>input]:mt-2">
-      <span className="text-foreground text-sm">{t('library.config.agent.field.language.label')}</span>
+      <span className="text-sm text-foreground">{t('library.config.agent.field.language.label')}</span>
       <ReplyLanguageSelect
         value={{ languageMode, languageCustom }}
         onChange={patchAgentForm}
@@ -984,7 +984,7 @@ function HeartbeatSection({
 
   return (
     <section aria-label={t('library.config.dialogs.edit.section.heartbeat')}>
-      <div className="mb-1.5 px-1 text-muted-foreground text-xs">
+      <div className="text-muted-foreground mb-1.5 px-1 text-xs">
         {t('library.config.dialogs.edit.section.heartbeat')}
       </div>
       <HeartbeatCard value={{ heartbeatEnabled, heartbeatInterval, heartbeatTimeoutMinutes }} onChange={patchAgentForm}>

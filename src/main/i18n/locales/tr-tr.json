@@ -3,6 +3,7 @@
   "agent.avatar_tool.no_backup": "Bu ajan için kayıtlı bir önceki avatar yok.",
   "agent.avatar_tool.prompt_required": "Avatar oluşturmak için bir açıklama gerekiyor.",
   "agent.avatar_tool.restored": "{{name}} ({{id}}) için önceki avatar geri yüklendi.",
+  "agent.avatar_tool.unavailable": "Avatar aracı, bu isteği gönderen ajan için kullanılamıyor.",
   "agent.avatar_tool.unreadable_backup": "Önceki avatar okunamıyor.",
   "agent.builtin.cherry_assistant.description": "Yerleşik Cherry Studio danışmanı. Sorunları tanılar, işlemlerde rehberlik eder, sık sorulan soruları toplar, hata/özellik istekleri gönderir ve Skills arayıp oluşturur",
   "agent.builtin.cherry_doctor.description": "Yerleşik sistem tanılama analisti. Tanılama raporunu ve çalışma zamanı durumunu okur, kök nedeni açıklar ve sınırlı düzeltmeler önerir",
