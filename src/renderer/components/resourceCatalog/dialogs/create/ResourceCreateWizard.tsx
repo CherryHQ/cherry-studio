@@ -546,7 +546,7 @@ export function ResourceCreateWizard({
       knowledgeBaseIds: values.knowledgeBaseIds,
       ...(kind === 'assistant' ? { reviewedMcpServerIds: values.reviewedMcpServerIds } : {}),
       skillIds: values.skillIds,
-      mcpServerIds: values.mcpServerIds,
+      ...(kind === 'agent' || generated ? { mcpServerIds: values.mcpServerIds } : {}),
       enableWebSearch: values.enableWebSearch,
       disabledTools: values.disabledTools,
       channels: channels.filter((channel) => channel !== null),

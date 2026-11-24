@@ -589,6 +589,19 @@ describe('AssistantDataService', () => {
       expect(created.mcpServerIds).toEqual(['default-a'])
     })
 
+    it('saves a manually reviewed active server when global defaults are empty', async () => {
+      await seedDefaultMcpSelection()
+      MockMainPreferenceServiceUtils.setPreferenceValue('assistant.default_mcp_server_ids', [])
+      const created = assistantDataService.create({ name: 'Manual tools', reviewedMcpServerIds: ['default-c'] })
+      expect(assistantDataService.getById(created.id).mcpServerIds).toEqual(['default-c'])
+      const explicit = assistantDataService.create({
+        name: 'Explicit empty',
+        reviewedMcpServerIds: ['default-c'],
+        mcpServerIds: []
+      })
+      expect(assistantDataService.getById(explicit.id).mcpServerIds).toEqual([])
+    })
+
     it('uses the reviewed inherited snapshot rather than a later global default', async () => {
       await seedDefaultMcpSelection()
       MockMainPreferenceServiceUtils.setPreferenceValue('assistant.default_mcp_server_ids', ['default-a'])

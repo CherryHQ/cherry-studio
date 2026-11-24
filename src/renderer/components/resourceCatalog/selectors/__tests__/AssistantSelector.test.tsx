@@ -543,6 +543,7 @@ describe('AssistantSelector', () => {
         })
       })
     )
+    expect(createAssistantMock.mock.calls[0][0].body).not.toHaveProperty('mcpServerIds')
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
     expect(onChange).not.toHaveBeenCalled()
     await user.click(await screen.findByRole('button', { name: 'common.close' }))
