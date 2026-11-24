@@ -2319,7 +2319,7 @@ describe('task session ownership migration', () => {
 })
 
 describe('jobless task history upgrade', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0043_task_session_ownership' })
+  const dbh = setupTestDatabase({ beforeMigration: '0044_task_session_ownership' })
   it('keeps jobless task-created history without owning explicitly picked conversations', () => {
     dbh.sqlite.exec(`
       INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)

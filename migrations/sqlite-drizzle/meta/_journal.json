@@ -305,8 +305,15 @@
     {
       "idx": 43,
       "version": "6",
-      "when": 1795480132692,
-      "tag": "0043_task_session_ownership",
+      "when": 1795485564466,
+      "tag": "0043_artifact",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1795493063015,
+      "tag": "0044_task_session_ownership",
       "breakpoints": true
     }
   ],
