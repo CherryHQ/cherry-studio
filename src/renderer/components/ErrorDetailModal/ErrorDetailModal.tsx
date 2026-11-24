@@ -46,6 +46,7 @@ import type { AppErrorContext } from '@shared/types/appError'
 import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
 import type { DoctorNavigateTarget, DoctorSubjectRef } from '@shared/types/doctor'
 import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
+import { isSafeErrorCode } from '@shared/utils/appError'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { selectDiagnosticAiAttachment } from '@shared/utils/diagnosticAi'
 import { doctorScopeKey } from '@shared/utils/doctor'
@@ -188,6 +189,12 @@ const BuiltinError = memo(({ error }: { error: SerializedError }) => {
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.message')}:</ErrorDetailLabel>
           <ErrorDetailValue className="selectable">{error.message}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+      {isSafeErrorCode(error.code) && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.code')}:</ErrorDetailLabel>
+          <ErrorDetailValue className="selectable">{error.code}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
       {hasDetail && (
@@ -516,6 +523,7 @@ function technicalError(
     name: errorContext.name ?? null,
     message: message.length > 0 ? errorContext.message : null,
     stack: errorContext.stack ?? null,
+    ...(errorContext.code ? { code: errorContext.code } : {}),
     ...(statusCode !== undefined ? { statusCode } : {}),
     ...(responseBody ? { responseBody } : {})
   }

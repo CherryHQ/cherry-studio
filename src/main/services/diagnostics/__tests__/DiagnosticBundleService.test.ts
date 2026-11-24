@@ -718,6 +718,7 @@ describe('DiagnosticBundleService', () => {
       operation: 'painting.generate',
       message: 'upstream failed',
       stack: 'Error: upstream failed\n    at /Users/alice/app.js',
+      code: 'FILE_EDIT_NO_SPACE',
       providerId: 'openai',
       modelId: 'gpt-image-1',
       imageOnly: true,
@@ -741,6 +742,7 @@ describe('DiagnosticBundleService', () => {
     expect(zip.entries).toContain('error-context.json')
     const context = JSON.parse(zip.contents['error-context.json'].toString())
     expect(context.stack).toContain('Error: upstream failed')
+    expect(context.code).toBe('FILE_EDIT_NO_SPACE')
     expect(context.params).toEqual({ size: '1024x1024', apiKey: '<redacted>', n: 1 })
     expect(JSON.stringify(context)).not.toContain('draw a cat')
     expect(JSON.stringify(context)).not.toContain('plain-secret-value')

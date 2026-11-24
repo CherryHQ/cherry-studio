@@ -1561,6 +1561,7 @@
   "error.claude_code_exit.start": "Claude Code se nepodařilo spustit. Diagnostický odkaz: {{reference}}",
   "error.claude_code_session_bus_missing": "Claude Code vyžaduje aktivní session bus systému Linux.",
   "error.claude_code_session_bus_missing_detail": "Nastavte DBUS_SESSION_BUS_ADDRESS v desktopovém prostředí, které spouští Cherry Studio, a poté aplikaci restartujte. Claude Code nebyl spuštěn.",
+  "error.code": "Kód chyby",
   "error.content": "Obsah",
   "error.context.operation": "Operace",
   "error.context.source": "Zdroj",

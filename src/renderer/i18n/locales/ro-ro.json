@@ -1561,6 +1561,7 @@
   "error.claude_code_exit.start": "Claude Code nu a putut porni. Referință diagnostic: {{reference}}",
   "error.claude_code_session_bus_missing": "Claude Code necesită un bus de sesiune Linux activ.",
   "error.claude_code_session_bus_missing_detail": "Setează DBUS_SESSION_BUS_ADDRESS în mediul desktop care pornește Cherry Studio, apoi repornește aplicația. Claude Code nu a fost pornit.",
+  "error.code": "Cod eroare",
   "error.content": "Conținut",
   "error.context.operation": "Operațiune",
   "error.context.source": "Sursă",

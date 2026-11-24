@@ -1561,6 +1561,7 @@
   "error.claude_code_exit.start": "Claude Code を起動できませんでした。診断参照: {{reference}}",
   "error.claude_code_session_bus_missing": "Claude Code の実行には Linux のセッションバスが必要です。",
   "error.claude_code_session_bus_missing_detail": "Cherry Studio を起動するデスクトップ環境で DBUS_SESSION_BUS_ADDRESS を設定してから、アプリを再起動してください。Claude Code は起動されていません。",
+  "error.code": "エラーコード",
   "error.content": "内容",
   "error.context.operation": "操作",
   "error.context.source": "発生元",

@@ -1581,6 +1581,7 @@
   "error.claude_code_exit.start": "Nie udało się uruchomić programu Claude Code. Identyfikator diagnostyczny: {{reference}}",
   "error.claude_code_session_bus_missing": "Claude Code wymaga aktywnej magistrali sesyjnej Linuksa (session bus).",
   "error.claude_code_session_bus_missing_detail": "Ustaw zmienną DBUS_SESSION_BUS_ADDRESS w środowisku graficznym, które uruchamia Cherry Studio, a następnie zrestartuj aplikację. Claude Code nie został uruchomiony.",
+  "error.code": "Kod błędu",
   "error.content": "Treść",
   "error.context.operation": "Operacja",
   "error.context.source": "Źródło",

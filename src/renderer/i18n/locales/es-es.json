@@ -1561,6 +1561,7 @@
   "error.claude_code_exit.start": "Claude Code no pudo iniciarse. Referencia de diagnóstico: {{reference}}",
   "error.claude_code_session_bus_missing": "Claude Code necesita un bus de sesión de Linux activo.",
   "error.claude_code_session_bus_missing_detail": "Configura DBUS_SESSION_BUS_ADDRESS en el entorno de escritorio que inicia Cherry Studio y reinicia la aplicación. Claude Code no se inició.",
+  "error.code": "Código de error",
   "error.content": "contenido",
   "error.context.operation": "Operación",
   "error.context.source": "Origen",
