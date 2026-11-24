@@ -43,6 +43,7 @@ export function createDurationFormatter(language?: string): (durationMs: number)
 }
 
 export function getLocaleFirstDayOfWeek(language?: string): number {
+  // SAFETY: Electron 45 provides native getWeekInfo(); TypeScript 5.9's Intl.Locale declarations omit it.
   const locale = new Intl.Locale(language ?? Intl.DateTimeFormat().resolvedOptions().locale) as Intl.Locale & {
     getWeekInfo(): { firstDay: number }
   }
