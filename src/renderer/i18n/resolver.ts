@@ -29,25 +29,27 @@ const logger = loggerService.withContext('I18N')
 // Lazy locale-pack loaders. Each dynamic import() is emitted as its own async
 // chunk, so a window entry bundles zero translation JSON up front — i18next pulls
 // the current language (and the en-US fallback) on demand inside initI18n().
-const localeLoaders = {
-  'en-US': () => import('./locales/en-us.json'),
-  'zh-CN': () => import('./locales/zh-cn.json'),
-  'zh-TW': () => import('./locales/zh-tw.json'),
-  'cs-CZ': () => import('./locales/cs-cz.json'),
-  'de-DE': () => import('./locales/de-de.json'),
-  'el-GR': () => import('./locales/el-gr.json'),
-  'es-ES': () => import('./locales/es-es.json'),
-  'fr-FR': () => import('./locales/fr-fr.json'),
-  'it-IT': () => import('./locales/it-it.json'),
-  'ja-JP': () => import('./locales/ja-jp.json'),
-  'pl-PL': () => import('./locales/pl-pl.json'),
-  'pt-PT': () => import('./locales/pt-pt.json'),
-  'ro-RO': () => import('./locales/ro-ro.json'),
-  'ru-RU': () => import('./locales/ru-ru.json'),
-  'th-TH': () => import('./locales/th-th.json'),
-  'vi-VN': () => import('./locales/vi-vn.json'),
-  'tr-TR': () => import('./locales/tr-tr.json')
-} satisfies Record<LanguageVarious, () => Promise<{ default: Record<string, string> }>>
+const localeLoaders = new Map(
+  Object.entries({
+    'en-US': () => import('./locales/en-us.json'),
+    'zh-CN': () => import('./locales/zh-cn.json'),
+    'zh-TW': () => import('./locales/zh-tw.json'),
+    'cs-CZ': () => import('./locales/cs-cz.json'),
+    'de-DE': () => import('./locales/de-de.json'),
+    'el-GR': () => import('./locales/el-gr.json'),
+    'es-ES': () => import('./locales/es-es.json'),
+    'fr-FR': () => import('./locales/fr-fr.json'),
+    'it-IT': () => import('./locales/it-it.json'),
+    'ja-JP': () => import('./locales/ja-jp.json'),
+    'pl-PL': () => import('./locales/pl-pl.json'),
+    'pt-PT': () => import('./locales/pt-pt.json'),
+    'ro-RO': () => import('./locales/ro-ro.json'),
+    'ru-RU': () => import('./locales/ru-ru.json'),
+    'th-TH': () => import('./locales/th-th.json'),
+    'vi-VN': () => import('./locales/vi-vn.json'),
+    'tr-TR': () => import('./locales/tr-tr.json')
+  } satisfies Record<LanguageVarious, () => Promise<{ default: Record<string, string> }>>)
+)
 
 export const getLanguage = async () => {
   return (await preferenceService.get('app.language')) || navigator.language || defaultLanguage
@@ -95,7 +97,7 @@ const doInit = async (): Promise<void> => {
   await i18n
     .use(
       resourcesToBackend((language: string) => {
-        const loader = localeLoaders[language as LanguageVarious]
+        const loader = localeLoaders.get(language)
 
         return loader ? loader() : Promise.reject(new Error(`No locale pack for "${language}"`))
       })
