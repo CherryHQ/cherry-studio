@@ -52,13 +52,15 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     Button: ({
       children,
       onClick,
-      'aria-label': ariaLabel
+      'aria-label': ariaLabel,
+      'aria-describedby': ariaDescribedBy
     }: {
       children: ReactNode
       onClick?: ComponentProps<'button'>['onClick']
       'aria-label'?: string
+      'aria-describedby'?: string
     }) => (
-      <button type="button" aria-label={ariaLabel} onClick={onClick}>
+      <button type="button" aria-label={ariaLabel} aria-describedby={ariaDescribedBy} onClick={onClick}>
         {children}
       </button>
     ),
@@ -448,9 +450,9 @@ describe('ModelSettings', () => {
 
     render(<ModelSettings />)
 
-    expect(screen.getByRole('button', { name: 'settings.tool.file_processing.video_vision.title' })).toHaveTextContent(
-      'GPT-4o'
-    )
+    expect(
+      screen.getByRole('button', { name: 'settings.tool.file_processing.video_vision.title' })
+    ).toHaveAccessibleDescription('GPT-4o')
     expect(harness.preferenceSetters[preferenceKey]).not.toHaveBeenCalled()
   })
 })

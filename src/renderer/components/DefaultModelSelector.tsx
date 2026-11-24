@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react'
 import type { ComponentProps, FC } from 'react'
+import { useId } from 'react'
 
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
@@ -41,9 +42,12 @@ export const ModelSelectorTriggerButton: FC<ModelSelectorTriggerProps> = ({
   const provider = model ? providers.find((item) => item.id === model.providerId) : undefined
   const providerName = provider ? getProviderDisplayName(provider) : undefined
   const icon = useIcon(model ? getModelLogoRef(model) : undefined)
+  const contentId = useId()
 
   return (
     <Button
+      // A label replaces the button's content as its name, so the content still has to be announced.
+      aria-describedby={props['aria-label'] ? `${contentId}-model ${contentId}-provider` : undefined}
       {...props}
       type="button"
       variant="outline"
@@ -61,8 +65,14 @@ export const ModelSelectorTriggerButton: FC<ModelSelectorTriggerProps> = ({
             <AvatarFallback>{getModelInitial(model)}</AvatarFallback>
           </Avatar>
         ) : null}
-        <span className="min-w-0 flex-1 truncate">{model?.name ?? placeholder}</span>
-        {providerName && <span className="max-w-[32%] truncate text-xs text-muted-foreground">{providerName}</span>}
+        <span id={`${contentId}-model`} className="min-w-0 flex-1 truncate">
+          {model?.name ?? placeholder}
+        </span>
+        {providerName && (
+          <span id={`${contentId}-provider`} className="max-w-[32%] truncate text-xs text-muted-foreground">
+            {providerName}
+          </span>
+        )}
       </span>
       <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
     </Button>
