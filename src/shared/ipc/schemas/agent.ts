@@ -86,6 +86,10 @@ export const agentRequestSchemas = {
     output: z.void()
   }),
   /** The Pi Durable system prompt the runtime would send for this draft. */
+  'agent.system_prompt.resolve_instructions': defineRoute({
+    input: z.strictObject({ instructions: z.string(), agentId: z.string().optional() }),
+    output: z.string()
+  }),
   'agent.system_prompt.preview': defineRoute({
     input: AgentSystemPromptDraftSchema,
     output: AgentSystemPromptPreviewSchema
