@@ -1,7 +1,7 @@
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 
-import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
+import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, ChannelQrLoginEvent } from './ChannelAdapter'
 import type { ChannelAdapterLoader } from './channelAdapterLoader'
 import type { ChannelLogEntry, ChannelStatusEvent } from './types'
 
@@ -20,6 +20,7 @@ export interface ChannelRuntimeHooks {
   onMessage: (adapter: ChannelAdapter, event: ChannelMessageEvent) => void
   onCommand: (adapter: ChannelAdapter, event: ChannelCommandEvent) => void
   onCredentials: (agentId: string, channelId: string, credentials: { appId: string; appSecret: string }) => void
+  onQrLogin: (event: ChannelQrLoginEvent) => void
   onDynamicChatId: (channelId: string, chatId: string) => void
   onLog: (entry: ChannelLogEntry) => void
   onStatus: (status: ChannelStatusEvent) => void
@@ -227,6 +228,9 @@ export class ChannelRuntime {
     adapter.on('credentials', (credentials) => {
       if (!this.isCurrent(ownership)) return
       this.hooks.onCredentials(adapter.agentId, this.channelId, credentials)
+    })
+    adapter.on('qrLogin', (event: ChannelQrLoginEvent) => {
+      if (this.isCurrent(ownership)) this.hooks.onQrLogin(event)
     })
     adapter.on('log', (entry) => {
       if (this.isCurrent(ownership)) this.hooks.onLog(entry)

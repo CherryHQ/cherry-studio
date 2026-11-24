@@ -2,6 +2,7 @@ import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { AssistantTopicsSourceContext, deriveAssistantTopicsView } from '@renderer/hooks/resourceViewSources'
 import i18n from '@renderer/i18n/resolver'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -157,21 +158,31 @@ describe('AssistantProfilePane', () => {
       })
     })
     // Six topics of this Assistant, more than the recent list shows, plus one of another Assistant.
-    MockUseDataApiUtils.seedInfiniteQuery(
-      '/topics',
-      [
-        {
-          items: [
-            ...[3, 1, 6, 2, 5, 4].map((days) => topic(`topic-${days}`, `Topic ${days}`, assistant.id, days)),
-            topic('other', 'Someone else', 'assistant-2', 0)
-          ]
-        }
-      ],
-      { limit: 200 }
-    )
+    const topics = [
+      ...[3, 1, 6, 2, 5, 4].map((days) => topic(`topic-${days}`, `Topic ${days}`, assistant.id, days)),
+      topic('other', 'Someone else', 'assistant-2', 0)
+    ]
     const opened: string[] = []
     renderInRightPane(
-      <AssistantProfilePane assistantId={assistant.id} activeTopicId="topic-2" onOpenTopic={(id) => opened.push(id)} />
+      <AssistantTopicsSourceContext
+        value={{
+          ...deriveAssistantTopicsView(topics),
+          topics,
+          isLoadingAll: false,
+          isFullyLoaded: true,
+          isRefreshing: false,
+          error: undefined,
+          refreshError: undefined,
+          refetch: vi.fn(),
+          loadLatestTopic: vi.fn(),
+          reuseOrCreateTopic: vi.fn()
+        }}>
+        <AssistantProfilePane
+          assistantId={assistant.id}
+          activeTopicId="topic-2"
+          onOpenTopic={(id) => opened.push(id)}
+        />
+      </AssistantTopicsSourceContext>
     )
 
     fireEvent.click(within(screen.getByRole('region', { name: 'Recent topics' })).getByRole('button', { name: 'All' }))
