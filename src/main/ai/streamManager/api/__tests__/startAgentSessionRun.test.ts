@@ -226,7 +226,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
         })
     )
     let quiesced = false
-    vi.spyOn(managerHolder.current!, 'isWriteQuiesced', 'get').mockImplementation(() => quiesced)
+    vi.spyOn(managerHolder.current as ManagerInstance, 'isWriteQuiesced', 'get').mockImplementation(() => quiesced)
     const run = startAgentSessionRun({
       sessionId: 's',
       userParts: [text('queued')],
