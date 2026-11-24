@@ -2024,7 +2024,7 @@ describe('ChatComposer', () => {
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'multi-model queued', tokens: [] })
     })
-    const dock = (mocks.surfaceProps?.queueContent as any).props
+    const dock = (mocks.surfaceProps!.queueContent as any).props
     expect(dock.items[0].payload.mentionedModels).toHaveLength(2)
     dock.items[0].payload.reasoningEffort = 'low'
     mocks.updateAssistantSettings.mockClear()
@@ -2033,7 +2033,7 @@ describe('ChatComposer', () => {
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'restored', tokens: [] })
     })
-    expect((mocks.surfaceProps?.queueContent as any).props.items[0].payload.reasoningEffort).toBe('low')
+    expect((mocks.surfaceProps!.queueContent as any).props.items[0].payload.reasoningEffort).toBe('low')
   })
 
   it('consumes queued items without swapping the edited message into the queue', async () => {
