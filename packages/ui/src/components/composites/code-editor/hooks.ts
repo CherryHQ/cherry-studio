@@ -35,7 +35,7 @@ async function loadLinterExtension(language: string, languageConfig?: LanguageCo
   try {
     return await loader()
   } catch (error) {
-    console.debug(`Failed to load linter for ${language} (${fileExt})`, error as Error)
+    console.debug(`Failed to load linter for ${language} (${fileExt})`, error)
 
     return null
   }
@@ -75,7 +75,7 @@ export const useLanguageExtensions = (language: string, lint?: boolean, language
         setExtensions(results)
       } catch (error) {
         if (!cancelled) {
-          console.debug('Failed to load language extensions:', error as Error)
+          console.debug('Failed to load language extensions:', error)
           setExtensions([])
         }
       }

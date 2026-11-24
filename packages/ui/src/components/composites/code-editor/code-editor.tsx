@@ -4,7 +4,6 @@ import type { ChangeSpec, TransactionSpec } from '@codemirror/state'
 import { EditorState, Text } from '@codemirror/state'
 import type { ViewUpdate } from '@codemirror/view'
 import { gutters } from '@codemirror/view'
-import type { BasicSetupOptions } from '@uiw/react-codemirror'
 import CodeMirror, { ExternalChange, EditorView } from '@uiw/react-codemirror'
 import { use, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { memo } from 'react'
@@ -88,7 +87,7 @@ const CodeEditor = ({
       foldKeymap: options?.keymap,
       completionKeymap: options?.keymap,
       lintKeymap: options?.keymap,
-      ...(options as BasicSetupOptions)
+      ...options
     }
   }, [options])
 
