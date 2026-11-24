@@ -37,7 +37,7 @@ export interface CreateRichEditorExtensionsOptions {
   onLinkHover?: EnhancedLinkOptions['onLinkHover']
   /** Link hover-end callback. */
   onLinkHoverEnd?: EnhancedLinkOptions['onLinkHoverEnd']
-  /** Scroll parent for the table-of-contents active-item tracking. */
+  /** Resolves the ToC scroll target at initialization; null selects the window for this editor's lifetime. */
   tocScrollParent?: (() => HTMLElement | null) | null
   /** Table-of-contents update callback. */
   onTocUpdate?: (content: TableOfContentDataItem[]) => void
@@ -101,10 +101,15 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
       onLinkHoverEnd,
       editable
     }),
-    TableOfContents.configure({
+    TableOfContents.extend({
+      onCreate(event) {
+        const scrollTarget = tocScrollParent?.() ?? window
+        this.options.scrollParent = () => scrollTarget
+        this.parent?.(event)
+      }
+    }).configure({
       getIndex: getHierarchicalIndexes,
-      onUpdate: onTocUpdate ?? (() => {}),
-      scrollParent: (tocScrollParent as any) ?? window
+      onUpdate: onTocUpdate ?? (() => {})
     }),
     CodeBlockHighlight.configure({
       theme: codeTheme,
