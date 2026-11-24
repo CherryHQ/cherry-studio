@@ -1,26 +1,28 @@
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
 
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { safeToString } from '@renderer/utils/error'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, formatArgValue } from '../shared/ArgsTable'
 import { getEffectiveStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import { ToolDisclosure } from '../shared/ToolDisclosure'
+import type { ToolResponseLike } from '../toolResponse'
 import type { MetaToolName } from './metaToolNames'
 
 export { isMetaToolName, META_TOOL_NAMES, type MetaToolName } from './metaToolNames'
 
 interface Props {
-  toolResponse: NormalToolResponse
+  toolResponse: ToolResponseLike
+  toolName: MetaToolName
 }
 
-const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
-  const { id, tool, status, response } = toolResponse
+const MessageMetaTool: FC<Props> = ({ toolResponse, toolName }) => {
+  const { id, status, response } = toolResponse
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copied, setCopied] = useState(false)
   const { setTimeoutTimer } = useTimer()
@@ -43,7 +45,7 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
     }
   }, [isStreaming, isDone, isError, status, id])
 
-  const titleLabel = useTitleLabel(toolResponse)
+  const titleLabel = useTitleLabel(toolResponse, toolName)
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -87,7 +89,7 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
                 {copied ? t('common.copied') : t('common.copy')}
               </CopyButton>
             ),
-            children: <Body toolResponse={toolResponse} toolName={tool.name as MetaToolName} />
+            children: <Body toolResponse={toolResponse} toolName={toolName} />
           }
         ]}
       />
@@ -95,9 +97,8 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
   )
 }
 
-function useTitleLabel(toolResponse: NormalToolResponse): string {
-  const { tool, arguments: args } = toolResponse
-  const name = tool.name as MetaToolName
+function useTitleLabel(toolResponse: ToolResponseLike, name: MetaToolName): string {
+  const { arguments: args } = toolResponse
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- Native, streamed and persisted arguments may be arrays or text; this guard verifies the envelope before each field is checked.
   const argRecord = isRecord(args) ? args : undefined
 
@@ -130,7 +131,7 @@ function useTitleLabel(toolResponse: NormalToolResponse): string {
 
 // ── Body dispatcher ────────────────────────────────────────────────
 
-const Body: FC<{ toolResponse: NormalToolResponse; toolName: MetaToolName }> = ({ toolResponse, toolName }) => {
+const Body: FC<{ toolResponse: ToolResponseLike; toolName: MetaToolName }> = ({ toolResponse, toolName }) => {
   switch (toolName) {
     case 'tool_search':
       return <ToolSearchBody toolResponse={toolResponse} />
@@ -146,35 +147,41 @@ const Body: FC<{ toolResponse: NormalToolResponse; toolName: MetaToolName }> = (
 
 // ── tool_search ────────────────────────────────────────────────────
 
-interface SearchOutput {
-  loaded?: string[]
-  matchedNamespaces?: Array<{
-    namespace: string
-    tools: Array<{ name: string; description?: string; inputSchema?: unknown }>
-  }>
-}
+const searchNamespacesSchema = z.array(
+  z.object({ namespace: z.string(), tools: z.array(z.object({ name: z.string() })) })
+)
+const stringListSchema = z.array(z.string())
 
 /**
  * The model gets full descriptions + (optional) schemas in its tool result;
  * the UI only needs the names — descriptions are noisy for humans browsing
  * a multi-namespace match. Group by namespace, list names as chips.
  */
-const ToolSearchBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }) => {
+const ToolSearchBody: FC<{ toolResponse: ToolResponseLike }> = ({ toolResponse }) => {
   const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
-  const out = (toolResponse.response ?? undefined) as SearchOutput | undefined
+  const out = isRecord(toolResponse.response) ? toolResponse.response : undefined
+  const namespaces = searchNamespacesSchema.safeParse(out?.matchedNamespaces)
+  const loaded = stringListSchema.safeParse(out?.loaded)
 
-  const matchedNamespaces =
-    out?.matchedNamespaces ??
-    (out?.loaded?.length ? [{ namespace: 'pi', tools: out.loaded.map((name) => ({ name })) }] : [])
+  let matchedNamespaces = namespaces.success ? namespaces.data : undefined
+
+  if (out?.matchedNamespaces == null && loaded.success) {
+    matchedNamespaces = loaded.data.length ? [{ namespace: 'pi', tools: loaded.data.map((name) => ({ name })) }] : []
+  }
 
   return (
     <BodyContainer>
       <ArgsBlock args={args} />
-      {toolResponse.status === 'done' && matchedNamespaces.length === 0 && (
+      {toolResponse.status === 'done' && matchedNamespaces?.length === 0 && (
         <Empty>{t('message.tools.meta.no_tools_matched')}</Empty>
       )}
-      {matchedNamespaces.map((group) => (
+      {matchedNamespaces === undefined && toolResponse.response != null && (
+        <ResponseBlock title={t('message.tools.sections.output')}>
+          <CodeBlock>{stringifyResponse(toolResponse.response)}</CodeBlock>
+        </ResponseBlock>
+      )}
+      {matchedNamespaces?.map((group) => (
         <NamespaceGroup key={group.namespace}>
           <NamespaceTitle>
             <code>{group.namespace}</code> <small>({group.tools.length})</small>
@@ -192,7 +199,7 @@ const ToolSearchBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
 
 // ── tool_inspect ───────────────────────────────────────────────────
 
-const ToolInspectBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }) => {
+const ToolInspectBody: FC<{ toolResponse: ToolResponseLike }> = ({ toolResponse }) => {
   const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const jsDoc = typeof toolResponse.response === 'string' ? toolResponse.response : undefined
@@ -217,7 +224,7 @@ const ToolInspectBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolRespons
  * shows the call's input + output flat — not a second nested collapsible card,
  * which duplicated the name/status and buried the params an extra expand deep.
  */
-const ToolInvokeBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }) => {
+const ToolInvokeBody: FC<{ toolResponse: ToolResponseLike }> = ({ toolResponse }) => {
   const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const innerName = typeof args?.name === 'string' ? args.name : undefined
@@ -246,21 +253,28 @@ const ToolInvokeBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
 
 // ── tool_exec ──────────────────────────────────────────────────────
 
-interface ExecOutput {
-  result?: unknown
-  logs?: string[]
-  error?: string
-  isError?: boolean
-}
-
-const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }) => {
+const ToolExecBody: FC<{ toolResponse: ToolResponseLike }> = ({ toolResponse }) => {
   const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const code = typeof args?.code === 'string' ? args.code : ''
 
-  const out = (
-    typeof toolResponse.response === 'string' ? { result: toolResponse.response } : (toolResponse.response ?? undefined)
-  ) as ExecOutput | undefined
+  const out =
+    typeof toolResponse.response === 'string'
+      ? { result: toolResponse.response }
+      : isRecord(toolResponse.response)
+        ? toolResponse.response
+        : undefined
+  const logs = stringListSchema.safeParse(out && 'logs' in out ? out.logs : undefined)
+  const error = out && 'error' in out ? out.error : undefined
+  const result = out?.result
+  const isError = out && 'isError' in out ? out.isError : undefined
+  const showRawResponse =
+    toolResponse.response != null &&
+    (!out ||
+      (!('result' in out) && !('logs' in out) && !('error' in out)) ||
+      ('logs' in out && out.logs != null && !logs.success) ||
+      (error != null && typeof error !== 'string') ||
+      (isError != null && typeof isError !== 'boolean'))
 
   const { highlightCode } = useCodeStyle()
   const [highlighted, setHighlighted] = useState<string>('')
@@ -294,19 +308,24 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
           <CodeBlock>{code}</CodeBlock>
         )}
       </ResponseBlock>
-      {out?.logs && out.logs.length > 0 && (
-        <ResponseBlock title={t('message.tools.sections.logs', { count: out.logs.length })}>
-          <CodeBlock>{out.logs.join('\n')}</CodeBlock>
+      {logs.success && logs.data.length > 0 && (
+        <ResponseBlock title={t('message.tools.sections.logs', { count: logs.data.length })}>
+          <CodeBlock>{logs.data.join('\n')}</CodeBlock>
         </ResponseBlock>
       )}
-      {out?.error && (
+      {typeof error === 'string' && error && (
         <ResponseBlock title={t('message.tools.status.error')}>
-          <CodeBlock data-error>{out.error}</CodeBlock>
+          <CodeBlock data-error>{error}</CodeBlock>
         </ResponseBlock>
       )}
-      {!out?.isError && out?.result !== undefined && (
+      {!isError && result !== undefined && (
         <ResponseBlock title={t('message.tools.sections.output')}>
-          <CodeBlock>{stringifyResponse(out.result)}</CodeBlock>
+          <CodeBlock>{stringifyResponse(result)}</CodeBlock>
+        </ResponseBlock>
+      )}
+      {showRawResponse && (
+        <ResponseBlock title={t('message.tools.sections.output')}>
+          <CodeBlock>{stringifyResponse(toolResponse.response)}</CodeBlock>
         </ResponseBlock>
       )}
     </BodyContainer>

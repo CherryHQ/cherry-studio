@@ -1,5 +1,4 @@
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import type { McpTool } from '@renderer/types/tool'
 
 import { agentInlineResultPresentationRegistry, isReportArtifactsToolResponse, MessageChannelConfigTool } from './agent'
 import { getAutomationReplKind } from './automation/automationRepl'
@@ -24,10 +23,7 @@ function rendersThroughChooseTool(toolResponse: McpToolResponse | NormalToolResp
 
   if (tool.type !== 'mcp' || getAutomationReplKind(tool)) return true
 
-  return (
-    DEDICATED_AGENT_SERVERS.has((tool as McpTool).serverId) &&
-    canRenderMessageToolResponse(toolResponse as NormalToolResponse)
-  )
+  return 'serverId' in tool && DEDICATED_AGENT_SERVERS.has(tool.serverId) && canRenderMessageToolResponse(toolResponse)
 }
 
 export function canRenderMessageTool(toolResponse: McpToolResponse | NormalToolResponse) {
@@ -37,7 +33,7 @@ export function canRenderMessageTool(toolResponse: McpToolResponse | NormalToolR
 
   if (toolResponse.tool.type === 'mcp' && !rendersThroughChooseTool(toolResponse)) return true
 
-  return canRenderMessageToolResponse(toolResponse as NormalToolResponse)
+  return canRenderMessageToolResponse(toolResponse)
 }
 
 export default function MessageTools({ toolResponse }: Props) {
@@ -54,7 +50,7 @@ export default function MessageTools({ toolResponse }: Props) {
   }
 
   if (rendersThroughChooseTool(resolvedToolResponse)) {
-    return <MessageTool toolResponse={resolvedToolResponse as NormalToolResponse} />
+    return <MessageTool toolResponse={resolvedToolResponse} />
   }
 
   return <MessageMcpTool toolResponse={resolvedToolResponse} />

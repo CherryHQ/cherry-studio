@@ -30,7 +30,7 @@ const createMetaToolResponse = (overrides: Partial<NormalToolResponse> = {}): No
   },
   arguments: { query: 'browser', namespace: 'mcp:test' },
   status: 'done',
-  response: { tools: [] },
+  response: { matchedNamespaces: [] },
   toolCallId: 'meta-call-1',
   ...overrides
 })
@@ -53,7 +53,7 @@ describe('MessageMetaTool', () => {
     { label: 'missing arguments', args: undefined },
     { label: 'non-string fields', args: { query: 42, namespace: false } }
   ])('keeps the search title usable for $label', async ({ args }) => {
-    render(<MessageMetaTool toolResponse={createMetaToolResponse({ arguments: args })} />)
+    render(<MessageMetaTool toolName="tool_search" toolResponse={createMetaToolResponse({ arguments: args })} />)
 
     expect(screen.getByText('tool_search', { exact: true })).toBeVisible()
     await expandCard(/tool_search/)
@@ -66,6 +66,7 @@ describe('MessageMetaTool', () => {
     mockActions.mockReturnValue({ copyText })
     render(
       <MessageMetaTool
+        toolName="tool_invoke"
         toolResponse={createMetaToolResponse({
           tool: { id: 'tool_invoke', name: 'tool_invoke', type: 'builtin' },
           arguments: { name: 'extension_tool', params: { path: 'file.txt' } },
@@ -87,7 +88,7 @@ describe('MessageMetaTool', () => {
     const copyText = vi.fn()
     mockActions.mockReturnValue({ copyText })
 
-    render(<MessageMetaTool toolResponse={createMetaToolResponse()} />)
+    render(<MessageMetaTool toolName="tool_search" toolResponse={createMetaToolResponse()} />)
 
     const copyButton = screen.getByRole('button', { name: '复制' })
     const triggerButton = screen.getByRole('button', { name: /tool_search/ })
@@ -115,6 +116,7 @@ describe('MessageMetaTool', () => {
   it('shows tools loaded by native Pi search instead of an empty result', async () => {
     render(
       <MessageMetaTool
+        toolName="tool_search"
         toolResponse={createMetaToolResponse({ response: { loaded: ['mcp__cherry_tools__web_search'] } })}
       />
     )
@@ -126,6 +128,7 @@ describe('MessageMetaTool', () => {
   it('shows the native Code Mode script and its output', async () => {
     render(
       <MessageMetaTool
+        toolName="codemode"
         toolResponse={createMetaToolResponse({
           tool: { id: 'codemode', name: 'codemode', type: 'builtin' },
           arguments: { code: 'text(42)' },
@@ -136,5 +139,83 @@ describe('MessageMetaTool', () => {
     await expandCard(/codemode/)
     expect(await screen.findByText('text(42)')).toBeTruthy()
     expect(screen.getByText(/Script completed/)).toBeTruthy()
+  })
+
+  it('shows namespace names without requiring unused tool descriptions', async () => {
+    render(
+      <MessageMetaTool
+        toolName="tool_search"
+        toolResponse={createMetaToolResponse({
+          response: { matchedNamespaces: [{ namespace: 'mcp:test', tools: [{ name: 'lookup' }] }] }
+        })}
+      />
+    )
+    await expandCard(/tool_search/)
+
+    expect(screen.getByText('lookup', { exact: true })).toBeVisible()
+    expect(screen.queryByText('没有匹配的工具。')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { matchedNamespaces: [{ namespace: 'mcp:test', tools: null }], error: 'catalog unavailable' },
+    { matchedNamespaces: 'catalog unavailable', loaded: [] },
+    'catalog unavailable'
+  ])('preserves unreadable search evidence instead of reporting no matches', async (response) => {
+    render(<MessageMetaTool toolName="tool_search" toolResponse={createMetaToolResponse({ response })} />)
+    await expandCard(/tool_search/)
+
+    expect(screen.getByText(/catalog unavailable/)).toBeVisible()
+    expect(screen.queryByText('没有匹配的工具。')).not.toBeInTheDocument()
+  })
+
+  it('shows execution logs and retains a falsy result', async () => {
+    render(
+      <MessageMetaTool
+        toolName="tool_exec"
+        toolResponse={createMetaToolResponse({
+          tool: { id: 'tool_exec', name: 'tool_exec', type: 'builtin' },
+          response: { logs: ['started', 'finished'], result: false }
+        })}
+      />
+    )
+    await expandCard(/tool_exec/)
+
+    expect(screen.getByText(/started\s+finished/)).toBeVisible()
+    expect(screen.getByText('false', { exact: true })).toBeVisible()
+  })
+
+  it.each([
+    { logs: 'invalid logs', error: { message: 'execution failed' } },
+    { isError: true, content: [{ type: 'text', text: 'execution failed' }] },
+    { result: 'execution failed', isError: 'invalid flag' }
+  ])('keeps native execution failure evidence readable', async (response) => {
+    render(
+      <MessageMetaTool
+        toolName="tool_exec"
+        toolResponse={createMetaToolResponse({
+          tool: { id: 'tool_exec', name: 'tool_exec', type: 'builtin' },
+          response
+        })}
+      />
+    )
+    await expandCard(/tool_exec/)
+
+    expect(screen.getByText(/execution failed/)).toBeVisible()
+  })
+
+  it('shows an execution error without presenting its result as successful output', async () => {
+    render(
+      <MessageMetaTool
+        toolName="tool_exec"
+        toolResponse={createMetaToolResponse({
+          tool: { id: 'tool_exec', name: 'tool_exec', type: 'builtin' },
+          response: { error: 'execution failed', result: 'partial result', isError: true }
+        })}
+      />
+    )
+    await expandCard(/tool_exec/)
+
+    expect(screen.getByText('execution failed', { exact: true })).toBeVisible()
+    expect(screen.queryByText('partial result', { exact: true })).not.toBeInTheDocument()
   })
 })

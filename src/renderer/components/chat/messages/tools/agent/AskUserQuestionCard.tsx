@@ -4,11 +4,11 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { type AskUserQuestionItem, parseAskUserQuestionToolInput } from '../shared/agentToolTypes'
 import { SkeletonValue } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import type { ToolResponseLike } from '../toolResponse'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
 import { useAskUserQuestionOptimisticInput } from './AskUserQuestionOptimisticContext'
 
@@ -69,7 +69,7 @@ function CompletedContent({ question, answer }: CompletedContentProps) {
 }
 
 // ==================== Main Component ====================
-export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalToolResponse }) {
+export function AskUserQuestionCard({ toolResponse }: { toolResponse: ToolResponseLike }) {
   const { t } = useTranslation()
   const optimisticInput = useAskUserQuestionOptimisticInput(toolResponse.toolCallId)
 

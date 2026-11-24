@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { Spinner } from '@cherrystudio/ui'
 import Link from '@renderer/components/chat/messages/markdown/Link'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { webSearchInputSchema, type WebSearchOutputItem, webSearchOutputSchema } from '@shared/ai/builtinTools'
 
 import { ToolDisclosure } from '../shared/ToolDisclosure'
+import type { ToolResponseLike } from '../toolResponse'
 
 /** Split a result URL into the favicon hostname (keeps `www.`) and the display domain (drops it). */
 function parseResultUrl(url: string) {
@@ -50,7 +50,7 @@ function getProviderWebSearchTarget(response: unknown): string {
   }
 }
 
-const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
+const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: ToolResponseLike }) => {
   const { t } = useTranslation()
   const inputParse = webSearchInputSchema.safeParse(toolResponse.arguments)
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
@@ -97,7 +97,7 @@ const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolR
   )
 }
 
-export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
+export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: ToolResponseLike }) => {
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
   const hasResults = toolResponse.status === 'done' && outputParse.success && outputParse.data.length > 0
   const label = <MessageWebSearchToolLabel toolResponse={toolResponse} />
@@ -121,7 +121,7 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
   )
 }
 
-export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
+export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: ToolResponseLike }) => {
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
 
   if (toolResponse.status !== 'done' || !outputParse.success) return null

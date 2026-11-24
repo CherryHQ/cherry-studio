@@ -2,19 +2,18 @@ import { parse as parsePartialJson } from 'partial-json'
 import { use, useDeferredValue, useMemo } from 'react'
 
 import { PartsContext, useScopedPartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { AgentToolsType, isAskUserQuestionToolName } from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
-import { isToolPartAwaitingApproval } from '../toolResponse'
+import { isToolPartAwaitingApproval, type ToolResponseLike } from '../toolResponse'
 import { AgentToolCallCard } from './AgentToolCallCard'
 import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { NavigateToolInline } from './NavigateTool'
 import { isCherrySessionToolResponse } from './sessionToolResult'
 import { getSubagentTaskStatus } from './subagentStatus'
 
-export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
+export function AgentExecutionTimeline({ toolResponse }: { toolResponse: ToolResponseLike }) {
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
 
   const partsMap = useScopedPartsMap()
@@ -89,6 +88,6 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   )
 }
 
-export function AgentToolRenderer(props: { toolResponse: NormalToolResponse }) {
+export function AgentToolRenderer(props: { toolResponse: ToolResponseLike }) {
   return <AgentExecutionTimeline {...props} />
 }

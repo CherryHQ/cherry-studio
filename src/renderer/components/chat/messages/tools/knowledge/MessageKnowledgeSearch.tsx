@@ -1,11 +1,11 @@
 import { Spinner } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { kbSearchInputSchema, type KbSearchOutputItem, kbSearchOutputSchema } from '@shared/ai/builtinTools'
 
 import { ToolDisclosure } from '../shared/ToolDisclosure'
+import type { ToolResponseLike } from '../toolResponse'
 
-function MessageKnowledgeSearchToolLabel({ toolResponse }: { toolResponse: NormalToolResponse }) {
+function MessageKnowledgeSearchToolLabel({ toolResponse }: { toolResponse: ToolResponseLike }) {
   const inputParse = kbSearchInputSchema.safeParse(toolResponse.arguments)
   const outputParse = kbSearchOutputSchema.safeParse(toolResponse.response)
   const query = inputParse.success ? inputParse.data.query : ''
@@ -27,7 +27,7 @@ function MessageKnowledgeSearchToolLabel({ toolResponse }: { toolResponse: Norma
   )
 }
 
-export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse: NormalToolResponse }) {
+export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse: ToolResponseLike }) {
   const outputParse = kbSearchOutputSchema.safeParse(toolResponse.response)
   const hasResults = toolResponse.status === 'done' && outputParse.success && outputParse.data.length > 0
   const label = <MessageKnowledgeSearchToolLabel toolResponse={toolResponse} />
@@ -51,7 +51,7 @@ export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse
   )
 }
 
-export function MessageKnowledgeSearchToolBody({ toolResponse }: { toolResponse: NormalToolResponse }) {
+export function MessageKnowledgeSearchToolBody({ toolResponse }: { toolResponse: ToolResponseLike }) {
   const outputParse = kbSearchOutputSchema.safeParse(toolResponse.response)
 
   if (toolResponse.status !== 'done' || !outputParse.success) return null

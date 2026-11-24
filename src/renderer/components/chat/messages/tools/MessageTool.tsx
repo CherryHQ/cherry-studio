@@ -1,12 +1,11 @@
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
-
 import { chooseTool } from './chooseTool'
+import type { ToolResponseLike } from './toolResponse'
 
 interface Props {
-  toolResponse: NormalToolResponse
+  toolResponse: ToolResponseLike
 }
 
-export function canRenderMessageToolResponse(toolResponse: NormalToolResponse) {
+export function canRenderMessageToolResponse(toolResponse: ToolResponseLike) {
   return chooseTool(toolResponse) !== null
 }
 

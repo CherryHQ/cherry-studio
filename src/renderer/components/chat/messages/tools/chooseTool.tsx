@@ -1,6 +1,5 @@
 import React, { Suspense } from 'react'
 
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import {
@@ -21,6 +20,7 @@ import MessageMetaTool, { isMetaToolName } from './meta/MessageMetaTool'
 import { isGenerateImageToolName } from './painting/generateImageTool'
 import { MessageGenerateImageToolTitle } from './painting/MessageGenerateImage'
 import { AgentToolsType, isAskUserQuestionToolName } from './shared/agentToolTypes'
+import type { ToolResponseLike } from './toolResponse'
 import { MessageWebSearchToolTitle } from './webSearch/MessageWebSearch'
 
 const builtinToolsPrefix = 'builtin_'
@@ -60,13 +60,13 @@ const isAgentTool = (toolName: string) => {
   return false
 }
 
-export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | null {
+export function chooseTool(toolResponse: ToolResponseLike): React.ReactNode | null {
   const toolName = toolResponse.tool.name
 
   if (getAutomationReplKind(toolResponse.tool)) return <MessageAutomationRepl toolResponse={toolResponse} />
 
   if (isMetaToolName(toolName)) {
-    return <MessageMetaTool toolResponse={toolResponse} />
+    return <MessageMetaTool toolResponse={toolResponse} toolName={toolName} />
   }
 
   // In-process cherry-tools (web/knowledge/memory) carry short wire names, not the `mcp__` prefix.
