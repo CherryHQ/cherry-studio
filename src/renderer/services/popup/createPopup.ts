@@ -17,8 +17,10 @@ import type { CreatePopupOptions, PopupComponent, PopupHandle } from './types'
  */
 export function createPopup<P extends object, R>(
   Component: PopupComponent<P, R>,
-  opts?: CreatePopupOptions<R>
+  ...options: undefined extends R ? [opts?: CreatePopupOptions<R>] : [opts: CreatePopupOptions<R>]
 ): PopupHandle<P, R> {
+  const [opts] = options
+  // SAFETY: The public options tuple requires a typed dismissal value whenever R excludes undefined.
   const dismissResult = opts?.dismissResult as R
   let inFlight: Promise<R> | null = null
   let currentInstanceId: string | null = null
@@ -28,6 +30,7 @@ export function createPopup<P extends object, R>(
 
     const instanceId = popupService.generateInstanceId()
     currentInstanceId = instanceId
+    // SAFETY: PopupHandle.show permits omitted props only when P has no required fields, so {} is valid in that case.
     const promise = popupService.showComponent(Component, (props ?? {}) as P, instanceId, dismissResult)
     inFlight = promise
 

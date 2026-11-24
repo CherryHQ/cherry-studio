@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 // This suite exercises the real popup store, so opt out of the global services/popup mock.
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
@@ -46,6 +46,28 @@ describe('popupService / createPopup', () => {
     expect(popupService.getSnapshot()).toHaveLength(0)
     await expect(componentResult).resolves.toBeNull()
     await expect(confirmResult).resolves.toBe(false)
+  })
+
+  it('permits omitted dismissal options for a void popup and resolves without a host', async () => {
+    const handle = createPopup<Record<string, never>, void>(() => null)
+
+    await expect(handle.show()).resolves.toBeUndefined()
+    expect(popupService.getSnapshot()).toHaveLength(0)
+  })
+
+  it('requires a dismissal value exactly when undefined is outside the result contract', () => {
+    expectTypeOf<Parameters<typeof createPopup<{ label: string }, string>>>().toEqualTypeOf<
+      [Component: PopupComponent<{ label: string }, string>, opts: { dismissResult: string }]
+    >()
+    expectTypeOf<Parameters<typeof createPopup<{ label: string }, string | null>>>().toEqualTypeOf<
+      [Component: PopupComponent<{ label: string }, string | null>, opts: { dismissResult: string | null }]
+    >()
+    expectTypeOf<Parameters<typeof createPopup<{ label: string }, void>>>().toEqualTypeOf<
+      [Component: PopupComponent<{ label: string }, void>, opts?: { dismissResult?: void }]
+    >()
+    expectTypeOf<Parameters<typeof createPopup<{ label: string }, string | undefined>>>().toEqualTypeOf<
+      [Component: PopupComponent<{ label: string }, string | undefined>, opts?: { dismissResult?: string | undefined }]
+    >()
   })
 
   it('mounts once and preserves the first promise and props while single-flight', () => {

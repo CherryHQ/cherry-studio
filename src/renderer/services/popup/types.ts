@@ -27,14 +27,8 @@ export interface PopupHandle<P, R> {
   hide(): void
 }
 
-export interface CreatePopupOptions<R> {
-  /**
-   * Result used when the popup is dismissed without an explicit answer — host-side
-   * `hide()` and the no-host fallback. Provide it for any non-void `R` so the type
-   * stays honest (e.g. `createPopup<Params, string | null>(C, { dismissResult: null })`).
-   */
-  dismissResult?: R
-}
+/** Dismissal result for hide() and the no-host fallback; required when R excludes undefined. */
+export type CreatePopupOptions<R> = undefined extends R ? { dismissResult?: R } : { dismissResult: R }
 
 export type ConfirmPopupType = 'confirm' | 'error' | 'info' | 'warning'
 

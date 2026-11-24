@@ -119,8 +119,10 @@ class PopupService {
       kind: 'component',
       instanceId,
       open: true,
+      // SAFETY: This entry stores Component together with its original P props and R resolver; PopupHost renders that same pair.
       Component: Component as ComponentPopupEntry['Component'],
       props,
+      // SAFETY: This instance's component emits R; PopupHost and createPopup forward it to this captured R resolver.
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The shared store erases unrelated popup result types; this slot retains the resolver paired with this component and instance.
       resolve: resolveFn as (result: unknown) => void
     })
@@ -149,6 +151,7 @@ class PopupService {
       open: true,
       confirmType,
       props,
+      // SAFETY: ConfirmPopupItem resolves this entry with a boolean; its instance ID keeps the captured resolver paired with it.
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Confirm host actions settle with booleans; the shared popup slot erases that result type alongside unrelated component popup results.
       resolve: resolveFn as (result: unknown) => void
     })
