@@ -16,7 +16,7 @@ WaveSpeed 已由 #25141（`b6d632a91b`）作为 OpenAI 兼容的聊天提供商�
 
 传输只根据规范值构造请求体：`prompt`、`images`（仅在有输入文件时，以 data URL 形式）、`aspect_ratio`、`resolution`（小写的档位）、`output_format` 和 `background`，其余参数一律丢弃。提交只发送一次，从不重试。轮询每两秒一次，总预算十分钟，对瞬时轮询失败（HTTP 5xx、429、网络错误）进行有限次数重试。`completed` 返回 `outputs`；`failed`、`cancelled`、`timeout` 和 `deleted` 以供应商的 `error` 文本结束。HTTP 401 映射为令牌错误；其他 HTTP 4xx 以及信封 `code` 不为 200 时映射为携带供应商 `message` 的远端错误。
 
-令牌错误必须能穿过图像作业。作业只保留抛出错误的消息，`ai.image.generate` 再以不带状态码的 `AI_REQUEST_FAILED` 错误返回，否则 `runPainting` 只会显示远端错误。因此图像作业处理器把 `transport.submit` 或 `transport.poll` 抛出的 `PaintingGenerateError` 编码为 `PaintingGenerateError:<code>:<message>`，`runPainting` 和 `normalizePaintingGenerateError` 只解码这一前缀。供应商文本永远不会被当作错误码：消息为 `REQ_ERROR_TOKEN` 的 HTTP 422 仍是带该文本的远端错误。这也修复了 TokenHub 和 DMXAPI 传输的同一路径。
+令牌错误必须能穿过图像作业。作业只保留抛出错误的消息，`ai.image.generate` 再以不带状态码的 `AI_REQUEST_FAILED` 错误返回，否则 `runPainting` 只会显示远端错误。因此图像作业处理器把 `transport.submit` 或 `transport.poll` 抛出的 `PaintingGenerateError` 编码为 `PaintingGenerateError:<code>:<message>`，`runPainting` 和 `normalizePaintingGenerateError` 只解码这一前缀。供应商文本永远不会被当作错误码：消息为 `REQ_ERROR_TOKEN` 的 HTTP 422 仍是带该文本的远端错误；传输抛出的普通错误若文本恰好以该前缀开头（例如 TokenHub 的 `err_msg`），会被重新编码为带原文本的远端错误。这也修复了 TokenHub 和 DMXAPI 传输的同一路径。
 
 ## 备选方案
 
