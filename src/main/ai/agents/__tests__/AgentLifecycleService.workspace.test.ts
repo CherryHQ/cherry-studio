@@ -130,6 +130,12 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
   })
 
   beforeEach(() => {
+    // Explicit even though afterEach's restoreAllMocks already resets plain
+    // vi.fn history: per-test call-count assertions must never depend on the
+    // reset mechanism's coverage.
+    mocks.closeSessionForArchive.mockClear()
+    mocks.closeSession.mockClear()
+    mocks.busyForArchive.mockClear()
     mocks.enqueueTx.mockReset()
     mocks.suspendQueue.mockClear().mockReturnValue({ dispose: vi.fn() })
     // Mirror the real JobManager contract: a row 'running' in the table has a
@@ -1097,6 +1103,34 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     ).not.toBeNull()
   })
 
+  it('terminalizes a stale running archive row on undo so a re-archive enqueues fresh', async () => {
+    // A prior process died mid-pack: cancel() could only flag the zombie, and
+    // a re-archive's idempotent enqueue would reuse the still-nonterminal row
+    // that startup recovery then settles cancelled — losing the new pack. The
+    // undo must settle the zombie terminal, freeing the idempotency key.
+    await lifecycle.archiveSessions(['system'])
+    seedArchiveJob('running')
+    mocks.isExecutingLocally.mockReturnValue(false)
+    await lifecycle.restoreSession('system')
+    const zombie = dbh.db
+      .select()
+      .from(jobTable)
+      .where(eq(jobTable.idempotencyKey, 'archive-system-workspace:system'))
+      .get()
+    expect(zombie?.status).toBe('cancelled')
+    expect(mocks.cancelJob).not.toHaveBeenCalled()
+
+    // The re-archive calls the enqueue path again: with the zombie terminal,
+    // the idempotency key is free, so a real JobManager creates a fresh
+    // runnable row instead of reusing the cancelled zombie (the JobManager
+    // stub only captures enqueues; row creation is its integration suite's
+    // contract).
+    mocks.enqueueTx.mockClear()
+    await lifecycle.archiveSessions(['system'])
+    expect(mocks.enqueueTx).toHaveBeenCalledTimes(1)
+    expect(mocks.enqueueTx.mock.calls[0][1]).toBe('agent.archive-system-workspace')
+  })
+
   it('does not wait behind a stale running archive row left by a prior process', async () => {
     // A 'running' row whose pack died with a previous process holds no storage
     // reservation here; startup recovery re-queues it shortly, so undo must not
@@ -1140,6 +1174,16 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(Date.now() - started).toBeGreaterThanOrEqual(150)
     expect(mocks.cancelJob).not.toHaveBeenCalled()
     expect(existsSync(workspacePath(root, 'system'))).toBe(false)
+  })
+
+  it('reports cleanup complete, not deferred, when the managed storage root is already absent', async () => {
+    // An absent root means no workspace files exist: Empty Archive must not
+    // report deferred reclamation for directories that are not there.
+    await lifecycle.archiveSessions(['system'])
+    await flushArchiveJobs()
+    await rm(root, { recursive: true, force: true })
+    const result = await lifecycle.purgeSessions(['system'])
+    expect(result.deferredWorkspacePaths ?? []).toEqual([])
   })
 
   it('releases the delivery pause before waiting on an in-flight pack during trash purge', async () => {

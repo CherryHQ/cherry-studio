@@ -1013,6 +1013,33 @@ describe('JobManager integration', () => {
     })
   })
 
+  describe('lifecycle restart', () => {
+    it('clears the shutdown flag on re-init so new enqueues dispatch', async () => {
+      let ran = 0
+      const handler: JobHandler = {
+        recovery: 'abandon',
+        async execute() {
+          ran++
+          return { ok: true }
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({ handlers: [['restart.flag', handler]] })
+
+      // An in-process application.restart('JobManager') reuses the instance:
+      // onStop set _isShuttingDown, and without a reset the dispatch gate would
+      // hold every later enqueue for the rest of the process.
+      await jobManager._doStop()
+      await jobManager._doInit()
+
+      const handle = jobManager.enqueue('restart.flag' as never, {} as never)
+      await handle.finished
+      expect(ran).toBe(1)
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
   describe('queue suspension and local execution probe', () => {
     it('suspendQueue holds claims until the last nested hold disposes', async () => {
       let ran = 0

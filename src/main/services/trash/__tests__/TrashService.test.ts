@@ -107,7 +107,12 @@ describe('TrashService', () => {
 
     const result = await new TrashService().purgeNow()
 
-    expect(jobManager.enqueue).toHaveBeenCalledExactlyOnceWith('trash.purge', { emptyAll: true })
+    // The confirmation time travels with the job so a post-restart retry keeps
+    // the confirmed deletion scope (issue #21645 review).
+    expect(jobManager.enqueue).toHaveBeenCalledExactlyOnceWith('trash.purge', {
+      emptyAll: true,
+      cutoffMs: expect.any(Number)
+    })
     expect(result).toEqual({
       status: 'completed',
       reclaimed: true,

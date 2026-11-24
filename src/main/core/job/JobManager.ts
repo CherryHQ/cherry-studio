@@ -344,6 +344,9 @@ export class JobManager extends BaseService {
   // ---------------- Lifecycle ----------------
 
   protected override onInit(): void {
+    // An in-process restart reuses this instance: onStop set the shutdown flag,
+    // and leaving it set would gate every dispatch for the rest of the process.
+    this._isShuttingDown = false
     this.leftoverJobIds = new Set(jobService.getStaleActive().map((row) => row.id))
     // Covers handlers registered before the snapshot; `registerHandler` covers later ones.
     for (const [type, handler] of this.handlers) abandonLeftovers(type, handler, this.leftoverJobIds)

@@ -271,16 +271,19 @@ class AgentWorkspaceStorageService {
    * propagate this instead of silently claiming the files are gone.
    */
   async purgeWorkspace(workspace: Workspace): Promise<boolean> {
-    return (
-      (await this.withSystemWorkspaceStorage(
-        workspace.path,
-        async () => {
-          await this.purge(workspace)
-          return true
-        },
-        true
-      )) ?? false
-    )
+    // Distinguish the two ways no reservation comes back: an absent managed
+    // storage root means no workspace files exist at all — cleanup is COMPLETE,
+    // not deferred (mirrors archiveWorkspace's 'archived' shortcut) — while
+    // 'in-use'/'claimed' means a live conflict the orphan sweep retries.
+    const release = this.reserveWorkspaceStorage(this.workspaceStoragePaths(workspace.path), [])
+    if (release === undefined) return true
+    if (typeof release !== 'function') return false
+    try {
+      await this.purge(workspace)
+      return true
+    } finally {
+      release()
+    }
   }
 
   async reclaimOrphanWorkspace(workspacePath: string, options: OrphanSessionReclaimOptions): Promise<string[]> {

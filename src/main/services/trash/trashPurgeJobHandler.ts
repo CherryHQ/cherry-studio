@@ -10,8 +10,13 @@ import type { JobHandlerFor } from '@main/core/job/types'
 
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
-    /** Trash retention purge. `emptyAll: true` = "empty trash now" (ignores retention). */
-    'trash.purge': { emptyAll?: boolean }
+    /**
+     * Trash retention purge. `emptyAll: true` = "empty trash now" (ignores retention).
+     * `cutoffMs` pins a manual empty-all's deletion scope to the moment the user
+     * confirmed: a retry replayed after a restart must not permanently delete rows
+     * trashed after that confirmation.
+     */
+    'trash.purge': { emptyAll?: boolean; cutoffMs?: number }
   }
 }
 
@@ -131,8 +136,14 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     const retentionDisabled = !emptyAll && retentionDays === 0
     if (retentionDisabled) logger.info('Trash auto-purge disabled (retention_days = 0) — sweeping residue only')
 
-    // MAX_SAFE_INTEGER + strict `deletedAt < cutoff` captures rows moved to the Recycle Bin "now".
-    const cutoffMs = emptyAll ? Number.MAX_SAFE_INTEGER : Date.now() - retentionDays * DAY_MS
+    // A manual empty-all carries its confirmation time as `cutoffMs`: the purge
+    // deletes only what was in the Bin when the user confirmed, so a retry of an
+    // interrupted request (recovery 'retry') cannot delete rows trashed after
+    // relaunch without a fresh confirmation. Rows enqueued before cutoff support
+    // fall back to the legacy unbounded scope. Scheduled purges derive the cutoff
+    // from the retention window at execution time. MAX_SAFE_INTEGER + strict
+    // `deletedAt < cutoff` captures rows moved to the Recycle Bin "now".
+    const cutoffMs = ctx.input?.cutoffMs ?? (emptyAll ? Number.MAX_SAFE_INTEGER : Date.now() - retentionDays * DAY_MS)
     const totalSteps = PURGE_DOMAINS.length + 3 // + task schedule, file, and agent-dir sweeps
     const purged: Record<string, number> = {}
 

@@ -77,7 +77,9 @@ const OLD = Date.now() - 40 * DAY
 /** Trashed, but still inside the retention window. */
 const RECENT = Date.now() - 1 * DAY
 
-function makeCtx(input: { emptyAll?: boolean } = {}): JobContext<{ emptyAll?: boolean }> {
+function makeCtx(
+  input: { emptyAll?: boolean; cutoffMs?: number } = {}
+): JobContext<{ emptyAll?: boolean; cutoffMs?: number }> {
   return {
     jobId: 'job-trash-test',
     input,
@@ -579,6 +581,27 @@ describe('trashPurgeJobHandler', () => {
     expect(result).toMatchObject({ skipped: false, purged: expect.objectContaining({ topic: 1 }) })
     expect(allIds(dbh.db.select({ id: topicTable.id }).from(topicTable).all())).toEqual(['topic-active'])
     expect(fileManagerMock.runSweep).toHaveBeenCalledTimes(1)
+  })
+
+  it('emptyAll with a persisted cutoff spares rows trashed after the confirmation', async () => {
+    // The replay contract: a manual empty-all interrupted and retried after a
+    // restart must delete only what was in the Bin at confirmation time — rows
+    // trashed later require a fresh confirmation.
+    MockMainPreferenceServiceUtils.setPreferenceValue('data.trash.retention_days', 0)
+    const confirmedAt = Date.now() - 60_000
+    await dbh.db.insert(topicTable).values([
+      { id: 'topic-before-confirm', name: 'old trash', orderKey: 'a0', deletedAt: confirmedAt - 1000 },
+      { id: 'topic-after-confirm', name: 'trashed after relaunch', orderKey: 'a1', deletedAt: confirmedAt + 1000 },
+      { id: 'topic-active', name: 'active', orderKey: 'a2' }
+    ])
+
+    const result = await trashPurgeJobHandler.execute(makeCtx({ emptyAll: true, cutoffMs: confirmedAt }))
+
+    expect(result).toMatchObject({ skipped: false, purged: expect.objectContaining({ topic: 1 }) })
+    expect(allIds(dbh.db.select({ id: topicTable.id }).from(topicTable).all()).sort()).toEqual([
+      'topic-active',
+      'topic-after-confirm'
+    ])
   })
 
   it('emptyAll keeps referenced trashed files and reports how many remain', async () => {

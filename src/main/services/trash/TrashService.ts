@@ -77,7 +77,9 @@ export class TrashService extends BaseService {
     deletedCount: number
     retainedReferencedFileCount: number
   }> {
-    const handle = application.get('JobManager').enqueue('trash.purge', { emptyAll: true })
+    // The confirmation's scope travels with the job: a retry replayed after a
+    // restart deletes only what was in the Bin now, never rows trashed later.
+    const handle = application.get('JobManager').enqueue('trash.purge', { emptyAll: true, cutoffMs: Date.now() })
     const snapshot = await handle.finished
     // `finished` resolves only at a terminal state; the guard narrows the type
     // and defends against a contract regression rather than widening the output.

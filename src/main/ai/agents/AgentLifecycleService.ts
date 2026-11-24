@@ -19,6 +19,7 @@ import type {
   ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
+import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { KeyedMutex } from '@shared/utils/async'
 
 import { reclaimPurgedRuntimeSessions, sweepAgentOrphans } from './agentOrphanSweep'
@@ -660,7 +661,19 @@ export class AgentLifecycleService extends BaseService {
     const jobManager = application.get('JobManager')
     for (const workspace of workspaces) {
       const active = jobService.findActiveByIdempotencyKey(ARCHIVE_SYSTEM_WORKSPACE_JOB_KEY_PREFIX + workspace.id)
-      if (active && !jobManager.isExecutingLocally(active.id)) {
+      if (!active || jobManager.isExecutingLocally(active.id)) continue
+      if (active.status === 'running') {
+        // Prior-process zombie: the pack died with its process, and cancel()
+        // could only set cancelRequested — the row would stay non-terminal, an
+        // idempotent re-archive would reuse it, and startup recovery would
+        // settle the REUSED row cancelled, losing the new compression task.
+        // Settle it terminal here instead, freeing the idempotency key.
+        jobService.setTerminalTx(application.get('DbService').getDb(), active.id, 'cancelled', undefined, {
+          code: JOB_ERROR_CODES.CANCELLED,
+          message: cancelReason,
+          retryable: false
+        })
+      } else {
         await jobManager.cancel(active.id, cancelReason)
       }
     }
