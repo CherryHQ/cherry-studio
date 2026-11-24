@@ -299,11 +299,12 @@ function TimeFilterDropdown({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="z-[90] min-w-[132px] rounded-[10px] p-1">
-        <DropdownMenuRadioGroup value={timeFilter} onValueChange={(value) => onSelect(value as GlobalSearchTimeFilter)}>
+        <DropdownMenuRadioGroup value={timeFilter}>
           {TIME_FILTERS.map((filterOption) => (
             <DropdownMenuRadioItem
               key={filterOption}
               value={filterOption}
+              onSelect={() => onSelect(filterOption)}
               className="h-8 rounded-[7px] font-medium text-xs data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground">
               {t(getTimeFilterLabelKey(filterOption))}
             </DropdownMenuRadioItem>
@@ -455,7 +456,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
             entry.kind === 'topic' ? `/topics/${entry.topicId}` : `/agent-sessions/${entry.sessionId}`
           )
 
-          const name = (fetched as { name?: string })?.name?.trim()
+          const name = fetched?.name?.trim()
 
           if (name) {
             cacheService.setCasual(recentRefreshCacheKey(refreshKey), true, RECENT_ITEMS_REFRESH_THROTTLE_MS)
@@ -936,12 +937,12 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
             return
           }
 
-          openMessagePanelItem(item as GlobalMessageSearchPanelItem)
+          if (item.kind === 'message' || item.kind === 'more') openMessagePanelItem(item)
 
           return
         }
 
-        void openPanelItem(item as GlobalSearchKeyboardItem)
+        if (item.kind !== 'more' && item.kind !== 'message-load-more') void openPanelItem(item)
       }
     },
     [

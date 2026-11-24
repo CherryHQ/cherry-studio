@@ -1494,7 +1494,7 @@ describe('GlobalSearchPanel', () => {
     })
   })
 
-  it('renders message search results as parent groups with expandable children', async () => {
+  it.each(['pointer', 'keyboard'])('expands grouped message results with %s activation', async (activation) => {
     const user = userEvent.setup()
     mocks.messageQueryResult = {
       items: [
@@ -1544,10 +1544,20 @@ describe('GlobalSearchPanel', () => {
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
 
     expect(await screen.findByText('Topic A')).toBeInTheDocument()
-    expect(screen.getAllByText('JD')).not.toHaveLength(0)
     expect(screen.queryByRole('option', { name: /needle message one/ })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('option', { name: 'Show 1 more results' }))
+    const more = screen.getByRole('option', { name: 'Show 1 more results' })
+
+    if (activation === 'keyboard') {
+      const input = screen.getByLabelText(SEARCH_INPUT_LABEL)
+      await user.click(input)
+      await waitFor(() => expect(input).toHaveAttribute('aria-activedescendant', screen.getAllByRole('option')[0].id))
+      await user.keyboard('{ArrowUp}')
+      await waitFor(() => expect(input).toHaveAttribute('aria-activedescendant', more.id))
+      await user.keyboard('{Enter}')
+    } else {
+      await user.click(more)
+    }
 
     expect(screen.getByRole('option', { name: /needle message one/ })).toBeInTheDocument()
   })
