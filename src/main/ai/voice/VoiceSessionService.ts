@@ -9,6 +9,7 @@ import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhas
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
 import { MediaKind } from '@main/services/mediaProtocol'
+import { getErrorCode } from '@main/utils/error'
 import type { LocalTranscriptionModelId, LocalSpeechModelId } from '@shared/ai/localVoice'
 import { type LocalVoiceModelId, type VoiceSessionSource, type VoiceSessionTrigger } from '@shared/ai/localVoice'
 import { SpeechInputKind, SpeechOutputKind, TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
@@ -1064,12 +1065,8 @@ export class VoiceSessionService extends BaseService {
       )
     }
 
-    const navigation = (...args: unknown[]) => {
-      const details = args[0] as { isMainFrame?: boolean; isSameDocument?: boolean } | undefined
-      const isMainFrame = details?.isMainFrame ?? (args[3] as boolean | undefined)
-      const isInPlace = details?.isSameDocument ?? (args[2] as boolean | undefined)
-
-      if (isMainFrame && !isInPlace) terminate()
+    const navigation = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
+      if (details.isMainFrame && !details.isSameDocument) terminate()
     }
 
     const session: Session = {
@@ -1422,7 +1419,7 @@ export class VoiceSessionService extends BaseService {
             logger.warn('Voice terminal file cleanup failed', {
               sessionId: session.id,
               category: 'operation_failed',
-              code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+              code: getErrorCode(error) ?? 'UNKNOWN'
             })
           }
         }
@@ -1501,12 +1498,8 @@ export class VoiceSessionService extends BaseService {
     const controller = new AbortController()
     const terminate = () => controller.abort(new VoiceRuntimeError('aborted'))
 
-    const navigation = (...args: unknown[]) => {
-      const details = args[0] as { isMainFrame?: boolean; isSameDocument?: boolean } | undefined
-      const isMainFrame = details?.isMainFrame ?? (args[3] as boolean | undefined)
-      const isInPlace = details?.isSameDocument ?? (args[2] as boolean | undefined)
-
-      if (isMainFrame && !isInPlace) terminate()
+    const navigation = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
+      if (details.isMainFrame && !details.isSameDocument) terminate()
     }
 
     owner.webContents.once('destroyed', terminate)

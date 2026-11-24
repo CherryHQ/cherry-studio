@@ -2267,6 +2267,35 @@ describe('VoiceSessionService file and admission contract', () => {
       expect(logs).not.toContain(sensitive)
   })
 
+  it('cancels capability inspection only when the main document navigates', async () => {
+    let probeSignal: AbortSignal | undefined
+    let finish!: () => void
+    native.status.mockImplementationOnce(
+      (_id, _options, signal: AbortSignal) =>
+        new Promise((resolve) => {
+          probeSignal = signal
+          finish = () => resolve({ status: 'ready' })
+        })
+    )
+    const outcome = service.status(a, { modelId: APPLE_ASR_MODEL_ID }).then(
+      () => 'success',
+      (error: VoiceRuntimeError) => error.reason
+    )
+    await vi.waitFor(() => expect(probeSignal).toBeDefined())
+
+    a.events.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true, url: '#same' })
+    a.events.emit('did-start-navigation', { isMainFrame: false, isSameDocument: false, url: 'https://frame.test' })
+    expect(probeSignal?.aborted).toBe(false)
+
+    a.events.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false, url: 'file:///new' })
+    expect(probeSignal?.aborted).toBe(true)
+    finish()
+    expect(await outcome).toBe('aborted')
+    for (const event of ['destroyed', 'render-process-gone', 'did-start-navigation']) {
+      expect(a.events.listenerCount(event)).toBe(0)
+    }
+  })
+
   it('allows concurrent capability inspections while retaining owner cleanup and bounded admission', async () => {
     const probeSignals: AbortSignal[] = []
     const finishes: Array<() => void> = []
