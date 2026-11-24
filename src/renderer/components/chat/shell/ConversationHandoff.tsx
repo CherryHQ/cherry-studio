@@ -13,7 +13,9 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import type { AddNewTopicPayload } from '@renderer/components/composer/variants/shared/composerProviderActions'
+import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
+import { getProviderDisplayNameById } from '@renderer/utils/naming'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 interface Props {
@@ -42,13 +44,19 @@ export function ConversationHandoff({
   onNewTopic
 }: Props) {
   const { t } = useTranslation()
+  const { providers } = useProviders()
+  const modelLabel = (model: Model) => {
+    const provider = providers.find((item) => item.id === model.providerId)
+    return `${model.name} | ${getProviderDisplayName(provider) || getProviderDisplayNameById(model.providerId)}`
+  }
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState(false)
   const [busy, setBusy] = useState(false)
   // Explicit user choice when the composer has several models; modelId covers the single-model case.
   const [chosenModelId, setChosenModelId] = useState<UniqueModelId | undefined>(undefined)
-  const effectiveModelId = modelId ?? (modelCandidates?.length === 1 ? modelCandidates[0].id : chosenModelId)
+  const chosenModel = modelCandidates?.find((model) => model.id === chosenModelId)
+  const effectiveModelId = modelId ?? (modelCandidates?.length === 1 ? modelCandidates[0].id : chosenModel?.id)
   const [dismissed, setDismissedState] = useState(() => dismissedSessions.has(sessionId))
   const dismiss = () => {
     dismissedSessions.add(sessionId)
@@ -186,8 +194,8 @@ export function ConversationHandoff({
               onSelect={(id) => setChosenModelId(id as UniqueModelId)}
               placeholder={t('handoff.model')}
               emptyText={t('handoff.model')}
-              renderSelected={(model) => model.name}
-              renderItem={(model) => model.name}
+              renderSelected={modelLabel}
+              renderItem={modelLabel}
             />
           ) : null}
           {draft ? (

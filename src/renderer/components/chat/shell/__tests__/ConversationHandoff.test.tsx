@@ -8,6 +8,15 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ConversationHandoff } from '../ConversationHandoff'
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({
+    providers: [
+      { id: 'provider', name: 'Provider' },
+      { id: 'other', name: 'Other Provider' }
+    ]
+  }),
+  getProviderDisplayName: (provider: { name?: string } | undefined) => provider?.name
+}))
 const modelId = 'provider::model' as UniqueModelId
 const save = vi.fn(async () => '/tmp/handoff.md')
 beforeEach(() => {
@@ -18,8 +27,8 @@ beforeEach(() => {
 describe('ConversationHandoff', () => {
   it('lets the user choose a handoff model when several composer models are selected', async () => {
     const models = [
-      { id: 'provider::a', name: 'Model A' },
-      { id: 'provider::b', name: 'Model B' }
+      { id: 'provider::a', name: 'Model A', providerId: 'provider' },
+      { id: 'provider::b', name: 'Model B', providerId: 'provider' }
     ] as unknown as Model[]
     render(<ConversationHandoff sessionId="multi-model" hasMessages modelCandidates={models} />)
     expect(screen.getByText('handoff.create')).toBeEnabled()
@@ -27,13 +36,57 @@ describe('ConversationHandoff', () => {
     // Generation stays unavailable until the user picks the destination model.
     expect(screen.getByText('handoff.generate')).toBeDisabled()
     fireEvent.click(screen.getByText('handoff.model'))
-    fireEvent.click(await screen.findByText('Model B'))
+    fireEvent.click(await screen.findByText('Model B | Provider'))
     expect(screen.getByText('handoff.generate')).toBeEnabled()
     fireEvent.click(screen.getByText('handoff.generate'))
     await waitFor(() =>
       expect(ipcApi.request).toHaveBeenCalledWith(
         'ai.handoff.generate',
         expect.objectContaining({ sessionId: 'multi-model', modelId: 'provider::b' })
+      )
+    )
+  })
+  it('rejects a retained choice when composer candidates change in the same topic', async () => {
+    const models = [
+      { id: 'provider::a', name: 'A', providerId: 'provider' },
+      { id: 'provider::b', name: 'B', providerId: 'provider' }
+    ] as unknown as Model[]
+    const { rerender } = render(
+      <ConversationHandoff sessionId="changed-candidates" hasMessages modelCandidates={models} />
+    )
+    fireEvent.click(screen.getByText('handoff.create'))
+    fireEvent.click(screen.getByText('handoff.model'))
+    fireEvent.click(await screen.findByText('A | Provider'))
+    expect(screen.getByText('handoff.generate')).toBeEnabled()
+    fireEvent.click(screen.getByText('common.cancel'))
+    rerender(
+      <ConversationHandoff
+        sessionId="changed-candidates"
+        hasMessages
+        modelCandidates={[models[1], { id: 'other::c', name: 'C', providerId: 'other' } as unknown as Model]}
+      />
+    )
+    fireEvent.click(screen.getByText('handoff.create'))
+    expect(screen.getByText('handoff.generate')).toBeDisabled()
+    fireEvent.click(screen.getByText('handoff.generate'))
+    expect(ipcApi.request).not.toHaveBeenCalled()
+  })
+  it('distinguishes same-name destinations in picker options and selected value', async () => {
+    const models = [
+      { id: 'provider::a', name: 'Same', providerId: 'provider' },
+      { id: 'other::a', name: 'Same', providerId: 'other' }
+    ] as unknown as Model[]
+    render(<ConversationHandoff sessionId="provider-labels" hasMessages modelCandidates={models} />)
+    fireEvent.click(screen.getByText('handoff.create'))
+    fireEvent.click(screen.getByText('handoff.model'))
+    expect(await screen.findByText('Same | Provider')).toBeVisible()
+    fireEvent.click(screen.getByText('Same | Other Provider'))
+    expect(screen.getByText('Same | Other Provider')).toBeVisible()
+    fireEvent.click(screen.getByText('handoff.generate'))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith(
+        'ai.handoff.generate',
+        expect.objectContaining({ modelId: 'other::a' })
       )
     )
   })
