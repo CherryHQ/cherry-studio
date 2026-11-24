@@ -113,14 +113,15 @@ export function ProcessorPanel({
     Boolean(requiredLocalModel) ||
     showLanguageOptions
 
-  const [apiKeysInput, setApiKeysInput] = useState(() => joinApiKeyString(processor.apiKeys ?? []))
+  const savedApiKeysText = joinApiKeyString(processor.apiKeys ?? [])
+  const [apiKeysInput, setApiKeysInput] = useState(savedApiKeysText)
   const [apiHostInput, setApiHostInput] = useState(entry.capability.apiHost ?? '')
   const [modelIdInput, setModelIdInput] = useState(entry.capability.modelId ?? '')
   const pendingDefaultKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
-    setApiKeysInput(joinApiKeyString(processor.apiKeys ?? []))
-  }, [entry.key, processor.apiKeys])
+    setApiKeysInput(savedApiKeysText)
+  }, [entry.key, savedApiKeysText])
 
   useEffect(() => {
     setApiHostInput(entry.capability.apiHost ?? '')

@@ -100,7 +100,10 @@ export function useFileProcessingPreferences() {
     (processorId: FileProcessorId) => {
       const override = overrides[processorId]
       return Boolean(
-        (override?.capabilities && Object.keys(override.capabilities).length > 0) ||
+        (override?.capabilities &&
+          Object.values(override.capabilities).some((capability) =>
+            Object.keys(capability ?? {}).some((field) => field !== 'apiHost' || !override.apiKeys?.length)
+          )) ||
         (override?.options?.langs && override.options.langs.length > 0)
       )
     },
@@ -127,7 +130,7 @@ export function useFileProcessingPreferences() {
         kept.apiKeys = override.apiKeys
         for (const feature of ['image_to_text', 'document_to_markdown'] as const) {
           const apiHost = override.capabilities?.[feature]?.apiHost
-          if (apiHost) {
+          if (typeof apiHost === 'string') {
             kept.capabilities ??= {}
             kept.capabilities[feature] = { apiHost }
           }

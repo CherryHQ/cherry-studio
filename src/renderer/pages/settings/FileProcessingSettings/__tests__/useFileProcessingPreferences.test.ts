@@ -181,6 +181,17 @@ describe('resetProcessorOptions (#20286)', () => {
     })
   })
 
+  it('keeps an explicitly empty credential destination disabled', async () => {
+    overridesMock.value = {
+      doc2x: { apiKeys: ['private-only'], capabilities: { document_to_markdown: { apiHost: '', modelId: 'custom' } } }
+    }
+    const { result } = renderHook(() => useFileProcessingPreferences())
+    await result.current.resetProcessorOptions('doc2x')
+    expect(setOverridesMock).toHaveBeenLastCalledWith({
+      doc2x: { apiKeys: ['private-only'], capabilities: { document_to_markdown: { apiHost: '' } } }
+    })
+  })
+
   it('does not write a stale map when the current value cannot be read', async () => {
     overridesMock.value = {
       doc2x: { apiKeys: ['saved'], capabilities: { document_to_markdown: { modelId: 'custom' } } }
@@ -218,6 +229,12 @@ describe('resetProcessorOptions (#20286)', () => {
 })
 
 describe('hasProcessorOptions (#20286)', () => {
+  it('does not offer reset for only retained credentials and their host', () => {
+    overridesMock.value = { doc2x: { apiKeys: ['key'], capabilities: { document_to_markdown: { apiHost: '' } } } }
+    const { result } = renderHook(() => useFileProcessingPreferences())
+    expect(result.current.hasProcessorOptions('doc2x')).toBe(false)
+  })
+
   it('is true when capability fields or language options are overridden', () => {
     overridesMock.value = {
       paddleocr: { capabilities: { image_to_text: { modelId: 'PP-OCRv5' } } },

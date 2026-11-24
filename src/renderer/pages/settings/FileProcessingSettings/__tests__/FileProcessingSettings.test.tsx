@@ -600,6 +600,23 @@ describe('processing settings pages', () => {
     })
   })
 
+  it('keeps an unsaved API key draft when unchanged saved keys arrive as a new array', async () => {
+    preferencesMock.defaultImageProcessor = 'mistral'
+    overridesMock.value = { mistral: { apiKeys: ['saved-key'] } }
+    const user = userEvent.setup()
+    const { rerender } = render(<OcrSettings />)
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+    const input = await screen.findByDisplayValue('saved-key')
+    fireEvent.change(input, { target: { value: 'unsaved-draft' } })
+    overridesMock.value = {
+      mistral: { apiKeys: ['saved-key'], capabilities: { image_to_text: { modelId: 'updated' } } }
+    }
+    rerender(<OcrSettings />)
+    expect(input).toHaveValue('unsaved-draft')
+  })
+
   it('keeps API host drafts when another field save rerenders the same processor', async () => {
     const user = userEvent.setup()
     const { rerender } = render(<OcrSettings />)
