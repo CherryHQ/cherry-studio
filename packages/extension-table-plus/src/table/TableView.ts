@@ -8,6 +8,11 @@ import { getElementBorderWidth } from './utilities/getBorderWidth.js'
 import { isCellSelection } from './utilities/isCellSelection.js'
 import { getCellSelectionBounds } from './utilities/selectionBounds.js'
 
+function isElement(node: Node | null): node is Element {
+  // The native discriminator survives cross-document adoption without relying on constructor identity.
+  return node?.nodeType === 1
+}
+
 export function updateColumns(
   node: ProseMirrorNode,
   colgroup: HTMLTableColElement, // <colgroup> has the same prototype as <col>
@@ -26,7 +31,12 @@ export function updateColumns(
       const { colspan, colwidth } = row.child(i).attrs
 
       for (let j = 0; j < colspan; j += 1, col += 1) {
-        const hasWidth = overrideCol === col ? overrideValue : ((colwidth && colwidth[j]) as number | undefined)
+        let hasWidth = overrideValue
+
+        if (overrideCol !== col) {
+          const storedWidth: unknown = Array.isArray(colwidth) ? colwidth[j] : undefined
+          hasWidth = typeof storedWidth === 'number' ? storedWidth : undefined
+        }
         const [propertyKey, propertyValue] = getColStyleDeclaration(cellMinWidth, hasWidth)
         const cssWidth = propertyKey === 'width' ? propertyValue : ''
 
@@ -43,6 +53,7 @@ export function updateColumns(
 
           colgroup.appendChild(colElement)
         } else {
+          // SAFETY: TableView creates an empty colgroup, and this updater only appends col elements to it.
           const colElement = nextDOM as HTMLTableColElement
 
           if (colElement.style.width !== cssWidth) {
@@ -191,11 +202,14 @@ export class TableView implements NodeView {
   }
 
   ignoreMutation(mutation: ViewMutationRecord) {
+    if (mutation.type === 'attributes' && (mutation.target === this.table || this.colgroup.contains(mutation.target))) {
+      return true
+    }
+
     return (
-      (mutation.type === 'attributes' && (mutation.target === this.table || this.colgroup.contains(mutation.target))) ||
-      // Ignore mutations on our action buttons
-      (mutation.target as Element)?.classList?.contains('row-action-trigger') ||
-      (mutation.target as Element)?.classList?.contains('column-action-trigger')
+      isElement(mutation.target) &&
+      (mutation.target.classList.contains('row-action-trigger') ||
+        mutation.target.classList.contains('column-action-trigger'))
     )
   }
 
@@ -398,11 +412,12 @@ export class TableView implements NodeView {
     const getCellDomAndRect = (row: number, col: number) => {
       const cellIndex = row * map.width + col
       const cellPos = tableStart + map.map[cellIndex]
-      const cellDom = this.view.nodeDOM(cellPos) as HTMLElement | null
+      const cellDom = this.view.nodeDOM(cellPos)
+      const element = isElement(cellDom) ? cellDom : null
 
       return {
-        dom: cellDom,
-        rect: cellDom?.getBoundingClientRect()
+        dom: element,
+        rect: element?.getBoundingClientRect()
       }
     }
 
