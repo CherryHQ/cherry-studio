@@ -89,6 +89,8 @@ interface HomeMessageListParams {
   imageActionConsumer?: 'capture'
   onBindRuntime?: MessageListActions['bindRuntime']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
+  messageHead?: MessageListState['messageHead']
+  afterMessages?: MessageListState['afterMessages']
   onComponentUpdate?(): void
   onFirstUpdate?(): void
 }
@@ -109,6 +111,8 @@ export function useHomeMessageListProviderValue({
   imageActionConsumer,
   onBindRuntime,
   onStartBranchDraft,
+  messageHead,
+  afterMessages,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
@@ -807,6 +811,8 @@ export function useHomeMessageListProviderValue({
       isMessagesStale,
       hasOlder,
       messageNavigation,
+      messageHead: normalInteractionsEnabled ? messageHead : undefined,
+      afterMessages: normalInteractionsEnabled ? afterMessages : undefined,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: resolvedAssistantId,
       renderConfig,
@@ -837,7 +843,10 @@ export function useHomeMessageListProviderValue({
       messageUiStateCache.getMessageUiState,
       messageItems,
       messageActivityStore,
+      afterMessages,
+      messageHead,
       messageNavigation,
+      normalInteractionsEnabled,
       partsByMessageId,
       renderConfig,
       resolvedAssistantId,

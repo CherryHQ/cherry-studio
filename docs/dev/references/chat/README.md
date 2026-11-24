@@ -11,6 +11,7 @@ sources:
   - scripts/data-classify/data/target-key-definitions.json
   - src/shared/data/preference/preferenceSchemas.ts
   - src/shared/data/types/contextSettings.ts
+  - src/shared/utils/contextSettings.ts
   - src/shared/data/types/assistant.ts
   - src/shared/data/types/model.ts
   - src/main/ai/constants.ts
@@ -144,6 +145,13 @@ Per-assistant `contextSettings` overrides globals field by field in
 assistant `null` overrides a finite global limit. `thresholdPercent` is clamped
 at merge time. `max_messages` is independent of the master toggle: it bounds how
 much history is sent, not what happens on overflow.
+
+The window and the `maxMessages` merge live in `src/shared/utils/contextSettings.ts`
+so Home chat can show the same cut: `pages/home/messages/contextWindowBoundary.ts`
+windows the loaded active path after the latest clear-context marker plus the next
+user row, and the list draws a divider above the first message that request still
+carries, or after the history when only the new message fits. Nothing is drawn when
+no row is dropped or the cut falls inside an unloaded page.
 An assistant-level `compress.modelId` of `null` inherits the global selection instead of forcing the current request model.
 
 ### Budget with a declared window

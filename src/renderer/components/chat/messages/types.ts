@@ -338,6 +338,8 @@ export interface MessageListState {
   afterMessages?: ReactNode
   /** Optional adapter-owned content rendered after one message's body. */
   messageTail?: MessageTailSlot
+  /** Optional adapter-owned content rendered above the list group that opens with this message. */
+  messageHead?: MessageTailSlot
   /** Renders the live turn's processing status inline, replacing the default placeholder. Receives
    *  that placeholder as a fallback, so an override (e.g. an ephemeral agent api-retry line) can take
    *  over while active and fall back to the placeholder otherwise. Called only in the message that owns

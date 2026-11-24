@@ -14,6 +14,7 @@ import type {
   ChatConversationControlsChangeHandler
 } from '@renderer/components/composer/variants/ChatComposer'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
@@ -22,10 +23,13 @@ import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { normalizeMaxMessages, resolveMaxMessages } from '@shared/utils/contextSettings'
 
 import ChatComposerSlot from './ChatComposerSlot'
 import ChatMain from './ChatMain'
 import { useTopicBranchActions } from './hooks/useTopicBranchActions'
+import { findContextWindowBoundary } from './messages/contextWindowBoundary'
+import { ContextWindowDivider } from './messages/ContextWindowDivider'
 import type { AddNewTopicPayload } from './types'
 import { useChatRuntimeState } from './useChatRuntimeState'
 
@@ -71,6 +75,7 @@ const ChatContent: FC<Props> = ({
   const {
     uiMessages,
     siblingsMap,
+    pathMessages,
     isLoading: isHistoryLoading,
     isStale: isHistoryStale,
     refresh,
@@ -100,6 +105,7 @@ const ChatContent: FC<Props> = ({
       initialMessages={uiMessages}
       uiMessages={uiMessages}
       siblingsMap={siblingsMap}
+      pathMessages={pathMessages}
       refresh={refresh}
       activeNodeId={activeNodeId}
       loadOlder={loadOlder}
@@ -123,6 +129,7 @@ interface InnerProps extends Props {
   /** Live DB-backed message list; reactive to SWR refreshes. */
   uiMessages: CherryUIMessage[]
   siblingsMap: ReturnType<typeof useTopicMessages>['siblingsMap']
+  pathMessages: ReturnType<typeof useTopicMessages>['pathMessages']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
   loadOlder: () => void
@@ -149,6 +156,7 @@ const ChatContentInner: FC<InnerProps> = ({
   initialMessages,
   uiMessages,
   siblingsMap,
+  pathMessages,
   refresh,
   activeNodeId,
   loadOlder,
@@ -189,6 +197,20 @@ const ChatContentInner: FC<InnerProps> = ({
       }),
     [topic.id]
   )
+  const [globalMaxMessages] = usePreference('chat.context_settings.max_messages')
+  const maxMessages = normalizeMaxMessages(
+    resolveMaxMessages(topic.assistantId ? assistant?.settings?.contextSettings : undefined, globalMaxMessages)
+  )
+  const nextTurnFillsActiveNode = runtime.composerChatTarget.mode === 'reserved-branch'
+  const contextWindowSlots = useMemo(() => {
+    if (maxMessages === null || isHistoryStale) return {}
+    const boundary = findContextWindowBoundary(pathMessages, maxMessages, { nextTurnFillsActiveNode })
+    if (!boundary) return {}
+    const divider = <ContextWindowDivider limit={maxMessages} />
+    return boundary.kind === 'before'
+      ? { messageHead: { messageId: boundary.messageId, content: divider } }
+      : { afterMessages: divider }
+  }, [isHistoryStale, maxMessages, nextTurnFillsActiveNode, pathMessages])
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
   const contextUsage = useMemo<ChatContextUsageSource | null>(() => {
     if (isHistoryStale) return null
@@ -262,6 +284,8 @@ const ChatContentInner: FC<InnerProps> = ({
         openCitationsPanel={onOpenCitationsPanel}
         addGeneratedImageToComposer={supportsImageInput ? addGeneratedImageToComposer : undefined}
         onStartBranchDraft={reserveBranch}
+        messageHead={contextWindowSlots.messageHead}
+        afterMessages={contextWindowSlots.afterMessages}
       />
     </div>
   )

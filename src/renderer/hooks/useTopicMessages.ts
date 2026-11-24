@@ -133,6 +133,8 @@ export interface UseTopicMessagesResult {
    * with ≥ 2 members are present.
    */
   siblingsMap: Record<string, SharedMessage[]>
+  /** Loaded tail of the active path (root → activeNode), without siblings: the rows a request is built from. */
+  pathMessages: SharedMessage[]
   isLoading: boolean
   isStale: boolean
   refresh: () => Promise<CherryUIMessage[]>
@@ -257,6 +259,7 @@ export function useTopicMessages(
     () => projectDisplayMessagesToUI(branchProjection.displayMessages, projectionCacheRef.current),
     [branchProjection.displayMessages]
   )
+  const pathMessages = useMemo(() => branchItems.map((item) => item.message), [branchItems])
   const loadedMessageIds = useMemo(() => {
     const ids = new Set<string>()
     for (const item of branchItems) {
@@ -316,6 +319,7 @@ export function useTopicMessages(
   return {
     uiMessages,
     siblingsMap: branchProjection.siblingsMap,
+    pathMessages,
     isLoading: enabled && (isLoading || isStale),
     isStale,
     refresh,
