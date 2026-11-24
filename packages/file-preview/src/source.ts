@@ -73,5 +73,6 @@ export async function readPreviewDocument(
   const bytes = await readPreviewRange(document, 0, document.size, signal)
 
   // Copy only a shared-memory view; whole documents can be tens of MiB.
+  // SAFETY: The buffer check proves this view uses ArrayBuffer; retain the same host-owned view without copying.
   return bytes.buffer instanceof ArrayBuffer ? (bytes as Uint8Array<ArrayBuffer>) : new Uint8Array(bytes)
 }
