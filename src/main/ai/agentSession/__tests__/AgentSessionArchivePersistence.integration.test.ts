@@ -134,7 +134,10 @@ describe('Agent Session archive persistence', () => {
       }
     })
 
-    await expect(service.archiveSessions([SESSION_ID])).resolves.toEqual({ deletedIds: [SESSION_ID] })
+    await expect(service.archiveSessions([SESSION_ID])).resolves.toEqual({
+      deletedIds: [SESSION_ID],
+      deferredWorkspacePaths: []
+    })
     await service.restoreSession(SESSION_ID)
 
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toMatchObject({
@@ -157,7 +160,10 @@ describe('Agent Session archive persistence', () => {
   it('permanently deletes an idle active Session and its messages without deleting the user workspace', async () => {
     mocks.hasUnsettledTopicWork.mockReturnValue(false)
     const service = new AgentLifecycleService()
-    await expect(service.deleteActiveSessionsPermanently([SESSION_ID])).resolves.toEqual({ deletedIds: [SESSION_ID] })
+    await expect(service.deleteActiveSessionsPermanently([SESSION_ID])).resolves.toEqual({
+      deletedIds: [SESSION_ID],
+      deferredWorkspacePaths: []
+    })
     expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID)).get()).toBeUndefined()
     expect(() => agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow()
     expect(
@@ -170,9 +176,12 @@ describe('Agent Session archive persistence', () => {
     mocks.hasUnsettledTopicWork.mockReturnValue(false)
     const service = new AgentLifecycleService()
     await service.archiveSessions([SESSION_ID])
-    await expect(service.deleteActiveSessionsPermanently([SESSION_ID])).resolves.toEqual({ deletedIds: [] })
+    await expect(service.deleteActiveSessionsPermanently([SESSION_ID])).resolves.toEqual({
+      deletedIds: [],
+      deferredWorkspacePaths: []
+    })
     await service.restoreSession(SESSION_ID)
-    await expect(service.purgeSessions([SESSION_ID])).resolves.toEqual({ deletedIds: [] })
+    await expect(service.purgeSessions([SESSION_ID])).resolves.toEqual({ deletedIds: [], deferredWorkspacePaths: [] })
     expect(agentSessionService.getById(SESSION_ID).id).toBe(SESSION_ID)
   })
 })

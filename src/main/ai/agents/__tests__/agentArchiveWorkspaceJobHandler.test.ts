@@ -96,7 +96,7 @@ describe('agentArchiveWorkspaceJobHandler', () => {
     archiveWorkspace.mockImplementationOnce(async (_workspace, isStillArchivable) => {
       // The purge lands mid-close, under the storage reservation.
       listWorkspaces.mockReturnValue([] as never)
-      return (await (isStillArchivable as () => boolean)()) ? 'archived' : 'skipped'
+      return (isStillArchivable as () => boolean)() ? 'archived' : 'skipped'
     })
     await expect(agentArchiveWorkspaceJobHandler.execute(makeContext('session'))).resolves.toEqual({ skipped: true })
   })
