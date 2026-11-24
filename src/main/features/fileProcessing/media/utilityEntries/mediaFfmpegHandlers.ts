@@ -576,6 +576,9 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
     }
 
     const { ffmpegPath } = requireInitData()
+    const probe = (await probeJson(filePath, signal, logger, pidRegistryPath)) as FfprobeResult | null
+    const probedStartSeconds = Number(probe?.format?.start_time)
+    const formatStartSeconds = Number.isFinite(probedStartSeconds) ? probedStartSeconds : 0
     const buckets = createSceneCandidateBuckets(durationMs, candidateLimit)
     let timestampMs: number | undefined
     // First frame of each floor(t*fps) bucket keeps its source PTS. scale stays before rgb24.
@@ -584,7 +587,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
     try {
       await runCommand(
         ffmpegPath,
-        ['-y', '-i', filePath, '-map', '0:V:0', '-an', '-vf', filter, '-f', 'null', '-'],
+        ['-y', '-copyts', '-i', filePath, '-map', '0:V:0', '-an', '-vf', filter, '-f', 'null', '-'],
         signal,
         logger,
         {
@@ -595,9 +598,8 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
             if (!METADATA_FILTER_LINE.test(line)) return
             const time = /pts_time:\s*([0-9]*\.?[0-9]+)/.exec(line)
             if (time?.[1]) {
-              // Floor so a seek cannot start after the frame that produced this PTS.
-              // No -copyts: FFmpeg already removed the format start, so this matches input -ss.
-              timestampMs = Math.floor(Number(time[1]) * 1000)
+              // Without -copyts MPEG-TS rebases to the video start, not the format start input -ss counts from.
+              timestampMs = relativeInputSeekMs(Number(time[1]), formatStartSeconds)
               return
             }
             const score = /lavfi\.scene_score=\s*([0-9]*\.?[0-9]+)/.exec(line)

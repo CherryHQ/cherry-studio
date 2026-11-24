@@ -929,7 +929,7 @@ describe.skipIf(!hasBundledFfmpeg && !requiresBundledFfmpeg)('mediaFfmpegHandler
     expect(shiftedTimes.formatStart).toBeGreaterThan(1)
     expect(shiftedTimes.videoStart).toBeGreaterThan(shiftedTimes.audioStart)
     const shifted = await sceneFrames(shiftedPath, 'format-start-frames')
-    const relativeCutMs = Math.round((shiftedTimes.videoStart - shiftedTimes.formatStart + 2) * 1000)
+    const relativeCutMs = Math.floor((shiftedTimes.videoStart - shiftedTimes.formatStart + 2) * 1000)
     const whiteCut = shifted.detected.find(
       (change) => change.timestampMs >= relativeCutMs && change.timestampMs <= relativeCutMs + 200
     )
@@ -976,6 +976,54 @@ describe.skipIf(!hasBundledFfmpeg && !requiresBundledFfmpeg)('mediaFfmpegHandler
     expect(zero.planned, zeroEvidence).toContain(zeroCut?.timestampMs)
     expect(zeroFrame ? averageColor(zeroFrame.path) : 'missing', zeroEvidence).toBe('white')
     expect(averageColor(zero.extracted[0].path), zeroEvidence).toBe('red')
+  })
+
+  it('keeps a scene cut relative to the format start of an MPEG-TS whose video starts later', async () => {
+    const picture = "color=c=black:s=64x64:r=25:d=3,geq=r='255':g='gte(T,1)*255':b='gte(T,1)*255'"
+    const transportPath = join(root, 'format-start-scene.ts')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=6',
+        '-itsoffset',
+        '2',
+        '-f',
+        'lavfi',
+        '-i',
+        picture,
+        '-c:v',
+        'mpeg2video',
+        '-q:v',
+        '5',
+        '-c:a',
+        'mp2',
+        transportPath
+      ])
+    ).toBe(0)
+
+    const times = readStarts(transportPath)
+    expect(times.videoStart - times.formatStart).toBeGreaterThan(1)
+    const scene = await sceneFrames(transportPath, 'ts-format-start-frames')
+    const relativeCutMs = Math.floor((times.videoStart - times.formatStart + 1) * 1000)
+    const whiteCut = scene.detected.find(
+      (change) => change.timestampMs >= relativeCutMs - 40 && change.timestampMs <= relativeCutMs + 200
+    )
+    const whiteFrame = scene.extracted.find((frame) => frame.timestampMs === whiteCut?.timestampMs)
+    const evidence = JSON.stringify({
+      times,
+      relativeCutMs,
+      detected: scene.detected,
+      planned: scene.planned,
+      extracted: scene.extracted.map((frame) => ({
+        timestampMs: frame.timestampMs,
+        color: averageColor(frame.path)
+      }))
+    })
+    expect(whiteCut, evidence).toBeDefined()
+    expect(scene.planned, evidence).toContain(whiteCut?.timestampMs)
+    expect(whiteFrame ? averageColor(whiteFrame.path) : 'missing', evidence).toBe('white')
   })
 
   it('detects cuts on the first video stream when a larger static stream is default', async () => {
@@ -1894,8 +1942,16 @@ describe('mediaFfmpegHandlers scene scan timeout', () => {
     const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
     const scan = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
     const closeScan = () => queueMicrotask(() => scan.emit('close', null))
-    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/ffprobe' })
     spawnControl.replacement = (command: unknown) => {
+      if (command === '/usr/bin/ffprobe') {
+        const probe = Object.assign(new EventEmitter(), { pid: 424244, stdout: stream(), stderr: stream() })
+        queueMicrotask(() => {
+          probe.stdout.emit('data', '{"format":{"start_time":"0.000000"}}')
+          probe.emit('close', 0)
+        })
+        return probe
+      }
       // Windows kills through taskkill; POSIX through process.kill.
       if (command === 'taskkill') {
         closeScan()
