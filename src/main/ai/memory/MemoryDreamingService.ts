@@ -28,10 +28,6 @@ import type { MemoryCommitResult, MemoryRead } from './MemoryStore'
 
 const logger = loggerService.withContext('MemoryDreamingService')
 const AUTO_KEY = 'feature.memory.dreaming.enabled'
-const manualReady = (state: DreamingState, now: number) =>
-  state.manual &&
-  (state.manualAttempts === 0 ||
-    (state.manualBatch ?? [MEMORY_ENTRY]).every((target) => (state.files[target]?.retryAt ?? 0) <= now))
 
 @Injectable('MemoryDreamingService')
 @ServicePhase(Phase.WhenReady)
@@ -58,9 +54,10 @@ export class MemoryDreamingService extends BaseService {
     this.stopped = false
     for (const state of readDreamingStates()) {
       state.generation++
-      state.manual = false
-      if (state.status === 'running') state.lastResult = { outcome: 'cancelled', finishedAt: Date.now() }
-      if (state.status === 'running' || state.status === 'queued') state.status = 'cancelled'
+      if (state.status === 'running') {
+        state.lastResult = { outcome: 'cancelled', finishedAt: Date.now() }
+        state.status = 'cancelled'
+      }
       writeDreamingState(state)
     }
     this.registerDisposable(
@@ -124,34 +121,16 @@ export class MemoryDreamingService extends BaseService {
   }
 
   status(scope: MemoryScope) {
-    const { status, reason, lastRunAt, lastResult, manual, files } = readDreamingState(scope)
+    const { status, reason, lastRunAt, lastResult, files } = readDreamingState(scope)
     const preferences = application.get('PreferenceService')
-    if ((manual || preferences.get(AUTO_KEY)) && !preferences.get('chat.default_model_id'))
-      return { status: 'failed' as const, reason: 'model' as const, lastRunAt, lastResult, pending: manual }
+    if (preferences.get(AUTO_KEY) && !preferences.get('chat.default_model_id'))
+      return { status: 'failed' as const, reason: 'model' as const, lastRunAt, lastResult }
     const blocked = Object.values(files).find(
       (file) => file.pendingSince !== undefined && file.attempts >= 2 && file.reason
     )
     if (blocked && status === 'idle')
-      return { status: 'failed' as const, reason: blocked.reason, lastRunAt, lastResult, pending: manual }
-    return { status, reason, lastRunAt, lastResult, pending: manual || status === 'running' }
-  }
-
-  request(scope: MemoryScope): void {
-    this.assertScope(scope)
-    const state = readDreamingState(scope)
-    if (this.active && memoryScopeKey(this.active.scope) === memoryScopeKey(scope)) return
-    state.manual = true
-    state.manualBatch = undefined
-    state.manualAttempts = 0
-    state.cancelled = false
-    state.status = 'queued'
-    state.reason = undefined
-    for (const file of Object.values(state.files)) {
-      file.attempts = 0
-      file.retryAt = 0
-    }
-    writeDreamingState(state)
-    this.wake()
+      return { status: 'failed' as const, reason: blocked.reason, lastRunAt, lastResult }
+    return { status, reason, lastRunAt, lastResult }
   }
 
   cancel(scope: MemoryScope): void {
@@ -163,18 +142,17 @@ export class MemoryDreamingService extends BaseService {
       this.queue.runExclusive(async () => {
         ctx.signal.throwIfAborted()
         if (this.stopped || this.foregroundBusy()) return { deferred: true }
+        if (!application.get('PreferenceService').get(AUTO_KEY)) return { idle: true }
         const states = new Map(readDreamingStates().map((state) => [memoryScopeKey(state.scope), state]))
         const scopes: MemoryScope[] = [
           { kind: 'shared' },
           ...agentService.listAgents().agents.map((agent): MemoryScope => ({ kind: 'private', agentId: agent.id }))
         ]
         const now = Date.now()
-        const automatic = application.get('PreferenceService').get(AUTO_KEY)
         const candidates = scopes
           .map((scope) => states.get(memoryScopeKey(scope)) ?? readDreamingState(scope))
-          .filter((state) => state.manual || (automatic && !state.cancelled && (state.scanRetryAt ?? 0) <= now))
+          .filter((state) => !state.cancelled && (state.scanRetryAt ?? 0) <= now)
         const priority = (state: DreamingState) => {
-          if (manualReady(state, now)) return 0
           const entry = state.files[MEMORY_ENTRY]
           if (entry && entry.attempts >= 2 && entry.reason === 'budget') return 2
           return Object.values(state.files).some((file) => needsDreaming(file, now)) ? 1 : 2
@@ -220,7 +198,6 @@ export class MemoryDreamingService extends BaseService {
     const state = readDreamingState(scope)
     if (state.status === 'running') state.lastResult = { outcome: 'cancelled', finishedAt: Date.now() }
     state.generation++
-    state.manual = false
     state.cancelled = cancelled
     state.status = cancelled ? 'cancelled' : 'idle'
     state.reason = undefined
@@ -253,8 +230,7 @@ export class MemoryDreamingService extends BaseService {
   }
 
   private async organize(scope: MemoryScope, ctx: JobContext<Record<string, never>>): Promise<unknown> {
-    const start = readDreamingState(scope)
-    const generation = start.generation
+    const generation = readDreamingState(scope).generation
     const epoch = this.epoch
     const controller = new AbortController()
     const abort = () => controller.abort(ctx.signal.reason)
@@ -273,7 +249,7 @@ export class MemoryDreamingService extends BaseService {
       if (
         epoch !== this.epoch ||
         state.generation !== generation ||
-        (!start.manual && !application.get('PreferenceService').get(AUTO_KEY))
+        !application.get('PreferenceService').get(AUTO_KEY)
       )
         throw new DOMException('Memory maintenance was invalidated', 'AbortError')
       if (this.foregroundBusy()) {
@@ -287,11 +263,6 @@ export class MemoryDreamingService extends BaseService {
     let session: MemorySession | undefined
     try {
       session = application.get('MemoryService').open({ scope, assertAuthorized: assertCurrent }, 'dreaming')
-      if (start.manual && !manualReady(start, Date.now())) {
-        start.lastScanAt = Date.now()
-        writeDreamingState(start)
-        return { deferred: true }
-      }
       if (scope.kind === 'private' && !(await application.get('MemoryService').prepareAgent(scope.agentId)))
         throw new DreamingError('migration')
       readingFiles = true
@@ -307,10 +278,7 @@ export class MemoryDreamingService extends BaseService {
         (left, right) =>
           Number(needsDreaming(state.files[right], Date.now())) - Number(needsDreaming(state.files[left], Date.now()))
       )
-      const selected = (start.manual && start.manualAttempts > 0 && start.manualBatch) || [
-        MEMORY_ENTRY,
-        ...rotated.slice(0, 9)
-      ]
+      const selected = [MEMORY_ENTRY, ...rotated.slice(0, 9)]
       for (const target of selected) {
         readingFiles = true
         const read = await session.read(target)
@@ -336,8 +304,7 @@ export class MemoryDreamingService extends BaseService {
       )
       if (latest.files[MEMORY_ENTRY].attempts >= 2 && latest.files[MEMORY_ENTRY].reason === 'budget')
         return { deferred: true }
-      if (!start.manual && !inputs.some((read) => needsDreaming(latest.files[read.path], Date.now())))
-        return { scanned: inputs.length }
+      if (!inputs.some((read) => needsDreaming(latest.files[read.path], Date.now()))) return { scanned: inputs.length }
       if (!inputs.some((read) => latest.files[read.path].attempts < 2 && latest.files[read.path].retryAt <= Date.now()))
         return { deferred: true }
       const empty = inputs.every((read) => !read.content?.trim())
@@ -356,16 +323,11 @@ export class MemoryDreamingService extends BaseService {
         writeDreamingState(latest)
       }
       latest = readDreamingState(scope)
-      if (!start.manual && !inputs.some((read) => needsDreaming(latest.files[read.path], Date.now())))
-        throw new DreamingError('budget')
+      if (!inputs.some((read) => needsDreaming(latest.files[read.path], Date.now()))) throw new DreamingError('budget')
       for (const read of inputs) revisions.set(read.path, latest.files[read.path].revision)
       assertCurrent()
       if (batch && resolved) {
         latest.status = 'running'
-        if (start.manual) {
-          latest.manualAttempts++
-          latest.manualBatch = inputs.map((read) => read.path)
-        }
         latest.lastRunAt = Date.now()
         latest.reason = undefined
         for (const read of inputs) {
@@ -424,8 +386,6 @@ export class MemoryDreamingService extends BaseService {
       }
       if (partial) throw new DreamingError('conflict')
       latest = readDreamingState(scope)
-      latest.manual = false
-      latest.manualBatch = undefined
       latest.status = 'idle'
       latest.reason = undefined
       latest.lastRunAt = Date.now()
@@ -463,21 +423,15 @@ export class MemoryDreamingService extends BaseService {
             file.attempts = previous
             file.retryAt = Date.now() + 60_000
           }
-          if (start.manual && latest.manualAttempts === start.manualAttempts + 1)
-            latest.manualAttempts = start.manualAttempts
           attempted = false
         }
-        const retryable =
-          attempted && latest.manualAttempts < 2 && inputs.some((read) => (latest.files[read.path]?.attempts ?? 2) < 2)
-        latest.manual = start.manual && (preempted || retryable)
         if (ctx.signal.aborted && !timedOut) {
           latest.generation++
-          latest.manual = false
           latest.cancelled = true
         }
         latest.lastScanAt = Date.now()
         if (!interrupted && readingFiles) latest.scanRetryAt = Date.now() + 60_000
-        latest.status = interrupted ? (latest.manual ? 'queued' : 'cancelled') : 'failed'
+        latest.status = interrupted ? 'cancelled' : 'failed'
         latest.reason =
           error instanceof DreamingError
             ? error.reason

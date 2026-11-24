@@ -18,7 +18,7 @@ export function MemorySettings() {
           {t('settings.memory.title')}
         </SettingTitle>
         <SettingDivider />
-        <MemoryDreamingControls scope={{ kind: 'shared' }} />
+        <MemoryDreamingControls />
         <SettingDivider />
         <MemoryFileControls />
       </SettingGroup>
