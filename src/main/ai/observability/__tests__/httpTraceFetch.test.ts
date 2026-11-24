@@ -1,5 +1,6 @@
 import type { Attributes, AttributeValue, Span, Tracer } from '@opentelemetry/api'
 import { SpanStatusCode } from '@opentelemetry/api'
+import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { describe, expect, it, vi } from 'vitest'
 
 import { HTTP_TRACE_FINAL_BODY_SLOT, type HttpTraceFinalBodySlot } from '../../utils/customFetch'
@@ -22,10 +23,179 @@ function fakeTracer() {
     }
   } as unknown as Span
   const tracer = { startSpan: () => span } as unknown as Tracer
-  return { tracer, attributes, state }
+  return { tracer, attributes, state, span }
+}
+
+function recordedTracer() {
+  const exporter = new InMemorySpanExporter()
+  const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] })
+
+  return { exporter, provider, tracer: provider.getTracer('http-trace-test') }
 }
 
 describe('createHttpTraceFetch', () => {
+  it('records a structured numeric exception without replacing the original rejection', async () => {
+    const { exporter, provider, tracer } = recordedTracer()
+    const reason = { code: 17, name: 'ProviderFailure', message: 'request failed', stack: 'original stack' }
+    const fetch = createHttpTraceFetch(async () => Promise.reject(reason), { tracer })
+
+    try {
+      await expect(fetch('https://provider.test', {})).rejects.toBe(reason)
+      await provider.forceFlush()
+      const [span] = exporter.getFinishedSpans()
+
+      expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: 'request failed' })
+      expect(span.events).toEqual([
+        expect.objectContaining({
+          name: 'exception',
+          attributes: {
+            'exception.type': '17',
+            'exception.message': 'request failed',
+            'exception.stacktrace': 'original stack'
+          }
+        })
+      ])
+    } finally {
+      await provider.shutdown()
+    }
+  })
+
+  it('keeps readable exception fields when another getter throws, without coercing private data', async () => {
+    const { exporter, provider, tracer } = recordedTracer()
+    let coercions = 0
+    const reason = {
+      get code() {
+        throw new Error('unreadable code')
+      },
+      name: 'ProviderFailure',
+      message: 'request failed',
+      stack: 'original stack',
+      privateData: 'do-not-capture',
+      toString() {
+        coercions += 1
+        return 'do-not-capture'
+      }
+    }
+    const fetch = createHttpTraceFetch(async () => Promise.reject(reason), { tracer })
+
+    try {
+      await expect(fetch('https://provider.test', {})).rejects.toBe(reason)
+      await provider.forceFlush()
+      const [span] = exporter.getFinishedSpans()
+
+      expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: 'request failed' })
+      expect(span.events[0]?.attributes).toEqual({
+        'exception.type': 'ProviderFailure',
+        'exception.message': 'request failed',
+        'exception.stacktrace': 'original stack'
+      })
+      expect(JSON.stringify({ attributes: span.attributes, events: span.events })).not.toContain('do-not-capture')
+      expect(coercions).toBe(0)
+    } finally {
+      await provider.shutdown()
+    }
+  })
+
+  it('records a string rejection without requiring an Error instance', async () => {
+    const { exporter, provider, tracer } = recordedTracer()
+    const fetch = createHttpTraceFetch(async () => Promise.reject('network down'), { tracer })
+
+    try {
+      await expect(fetch('https://provider.test', {})).rejects.toBe('network down')
+      await provider.forceFlush()
+      const [span] = exporter.getFinishedSpans()
+
+      expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: 'network down' })
+      expect(span.events[0]?.attributes).toEqual({ 'exception.message': 'network down' })
+    } finally {
+      await provider.shutdown()
+    }
+  })
+
+  it.each([undefined, null, false, 0, ''])(
+    'records a failed response stream even when its reason is %j',
+    async (reason) => {
+      const { exporter, provider, tracer } = recordedTracer()
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.error(reason)
+        }
+      })
+      const fetch = createHttpTraceFetch(async () => new Response(body), { tracer })
+
+      try {
+        const response = await fetch('https://provider.test', {})
+        await expect(response.text()).rejects.toBe(reason)
+        await vi.waitFor(() => expect(exporter.getFinishedSpans()).toHaveLength(1))
+
+        expect(exporter.getFinishedSpans()[0].status.code).toBe(SpanStatusCode.ERROR)
+      } finally {
+        await provider.shutdown()
+      }
+    }
+  )
+
+  it('uses the original fetch with the same frozen request options', async () => {
+    const { tracer, state } = fakeTracer()
+    const init = Object.freeze({ method: 'POST', body: '{}' })
+    const original = new Response('wire response')
+    let calls = 0
+    const fetch = createHttpTraceFetch(
+      async (_input, actualInit) => {
+        calls += 1
+        expect(actualInit).toBe(init)
+        return original
+      },
+      { tracer }
+    )
+
+    expect(await fetch('https://provider.test', init)).toBe(original)
+    expect(await original.text()).toBe('wire response')
+    expect(calls).toBe(1)
+    expect(state.ended).toBe(true)
+  })
+
+  it('keeps the request rejection when exception recording fails', async () => {
+    const { tracer, state, span } = fakeTracer()
+    span.recordException = () => {
+      throw new Error('tracing failed')
+    }
+    const reason = new Error('network down')
+    const fetch = createHttpTraceFetch(async () => Promise.reject(reason), { tracer })
+
+    await expect(fetch('https://provider.test', {})).rejects.toBe(reason)
+    expect(state.status?.code).toBe(SpanStatusCode.ERROR)
+    expect(state.ended).toBe(true)
+  })
+
+  it('returns the untouched response when response metadata capture fails', async () => {
+    const { tracer, state, span } = fakeTracer()
+    const setAttribute = span.setAttribute
+    span.setAttribute = (key, value) => {
+      if (key === 'http.status') throw new Error('tracing failed')
+      return setAttribute(key, value)
+    }
+    const original = new Response('wire response')
+    const fetch = createHttpTraceFetch(async () => original, { tracer })
+
+    expect(await fetch('https://provider.test', {})).toBe(original)
+    expect(await original.text()).toBe('wire response')
+    expect(state.ended).toBe(true)
+    expect(state.status).toBeUndefined()
+  })
+
+  it('uses the original fetch when the tracer cannot start a span', async () => {
+    const { tracer } = fakeTracer()
+    tracer.startSpan = () => {
+      throw new Error('tracer unavailable')
+    }
+    const original = new Response('wire response')
+    const fetch = createHttpTraceFetch(async () => original, { tracer })
+
+    expect(await fetch('https://provider.test', {})).toBe(original)
+    expect(await original.text()).toBe('wire response')
+  })
+
   it.each([
     ['plain object', { ['__proto__']: 'visible', Authorization: 'Bearer private' }],
     [

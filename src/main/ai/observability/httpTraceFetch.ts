@@ -1,5 +1,5 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
-import { context, type Span, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
+import { context, type Exception, type Span, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -34,6 +34,80 @@ export function applyHttpTrace(settings: { fetch?: FetchFunction }, opts: HttpTr
   settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, opts)
 }
 
+interface TraceErrorFields {
+  code?: string | number
+  name?: string
+  message?: string
+  stack?: string
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Fetch and stream rejections are unparsed; project only OTel's primitive exception fields without stringifying the original value.
+function projectTraceException(error: unknown): { exception: Exception; message?: string } {
+  if (typeof error === 'string') return { exception: error, message: error }
+
+  const fields: TraceErrorFields = {}
+
+  if (error !== null && (typeof error === 'object' || typeof error === 'function')) {
+    for (const key of ['code', 'name', 'message', 'stack'] as const) {
+      try {
+        // oxlint-disable-next-line anti-slop/no-reflect-get -- Virtual error fields may have no has trap; each unreadable getter is isolated from the other fields.
+        const value: unknown = Reflect.get(error, key)
+
+        if (key === 'code') {
+          if (typeof value === 'string' || typeof value === 'number') fields.code = value
+        } else if (typeof value === 'string') {
+          fields[key] = value
+        }
+      } catch {
+        continue
+      }
+    }
+  }
+
+  const { code, name, message, stack } = fields
+
+  if (code !== undefined) return { exception: { code, name, message, stack }, message }
+
+  if (message !== undefined) return { exception: { name, message, stack }, message }
+
+  if (name !== undefined) return { exception: { name, stack }, message }
+
+  return { exception: { message: 'HTTP request failed', stack }, message: 'HTTP request failed' }
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tracing receives the original rejection, including falsey values, and must leave that reason unchanged for the request consumer.
+function finishErrorSpan(span: Span, error: unknown, message?: string): void {
+  const projected = projectTraceException(error)
+
+  try {
+    span.setStatus({ code: SpanStatusCode.ERROR, message: message ?? projected.message })
+    span.recordException(projected.exception)
+  } catch (traceError) {
+    logger.warn('httpTraceFetch failed to record an exception', { error: traceError })
+  } finally {
+    endSpan(span)
+  }
+}
+
+function endSpan(span: Span): void {
+  try {
+    span.end()
+  } catch (error) {
+    logger.warn('httpTraceFetch failed to end a span', { error })
+  }
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Capture failures describe tracing, not the HTTP outcome; keep a validated message without coercing a raw rejection.
+function finishCaptureErrorSpan(span: Span, error: unknown): void {
+  try {
+    span.setAttribute('http.trace.captureError', projectTraceException(error).message ?? 'HTTP body capture failed')
+  } catch (traceError) {
+    logger.warn('httpTraceFetch failed to record a capture error', { error: traceError })
+  } finally {
+    endSpan(span)
+  }
+}
+
 /**
  * Wrap a `fetch` so every provider HTTP call emits an `http.request` span
  * under the active context (the `ai.turn`/`doStream` span), capturing the
@@ -48,7 +122,16 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
   const maxBodyBytes = opts.maxBodyBytes ?? MAX_BODY_BYTES
 
   return async (input: RequestInfo | URL, init?: RequestInit) => {
-    const span = tracer.startSpan('http.request', {}, context.active())
+    let span: Span
+
+    try {
+      span = tracer.startSpan('http.request', {}, context.active())
+    } catch (error) {
+      logger.warn('httpTraceFetch failed to start a span; proceeding untraced', { error })
+
+      return innerFetch(input, init)
+    }
+
     // Hand the innermost fetch (customFetch) a slot to record the final on-wire
     // body. Provider transforms between this span and the wire (DashScope
     // web_extractor, Ark include-stripping, Codex/Grok coercion) rewrite the body
@@ -56,13 +139,12 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     // has actually been built. The symbol survives `{ ...init, body }` spreads.
     const finalBodySlot: HttpTraceFinalBodySlot = {}
 
-    if (init)
-      (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot })[HTTP_TRACE_FINAL_BODY_SLOT] = finalBodySlot
-
     // Capturing request metadata must never break the real request: if any of the
     // url/header/body helpers throw, drop tracing for this call and fall back to
     // the untraced fetch.
     try {
+      if (init) Object.assign(init, { [HTTP_TRACE_FINAL_BODY_SLOT]: finalBodySlot })
+
       if (opts.topicId) span.setAttribute('trace.topicId', opts.topicId)
 
       if (opts.modelName) span.setAttribute('trace.modelName', opts.modelName)
@@ -80,7 +162,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
       if (requestBody !== undefined) span.setAttribute('inputs', requestBody)
     } catch (error) {
       logger.warn('httpTraceFetch request-span setup failed; proceeding untraced', { error })
-      span.end()
+      endSpan(span)
 
       return innerFetch(input, init)
     }
@@ -92,26 +174,42 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     } catch (error) {
       // The request may still have been sent (customFetch records the body before
       // net.fetch rejects) — reflect the real body on the errored span too.
-      applyFinalBodyInputs(span, init, maxBodyBytes)
-      span.recordException(error as Error)
-      span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error)?.message })
-      span.end()
+      try {
+        applyFinalBodyInputs(span, finalBodySlot, maxBodyBytes)
+      } catch (traceError) {
+        logger.warn('httpTraceFetch failed to capture the failed request body', { error: traceError })
+      }
+
+      finishErrorSpan(span, error)
       throw error
     }
 
-    applyFinalBodyInputs(span, init, maxBodyBytes)
+    let body: NonNullable<Response['body']>
 
-    span.setAttribute('http.status', response.status)
-    span.setAttribute('http.statusText', response.statusText)
-    span.setAttribute('http.response.headers', JSON.stringify(redactRecord(headersToRecord(response.headers))))
+    try {
+      applyFinalBodyInputs(span, finalBodySlot, maxBodyBytes)
 
-    // response.url is not always populated after a redirect, but when present it
-    // carries the same `?key=`/userinfo secrets as the request url — redact it too.
-    if (response.url) span.setAttribute('http.response.url', redactUrlParams(response.url))
+      span.setAttribute('http.status', response.status)
+      span.setAttribute('http.statusText', response.statusText)
+      span.setAttribute('http.response.headers', JSON.stringify(redactRecord(headersToRecord(response.headers))))
 
-    // No body (GET/HEAD/204) → nothing to tee; settle the span now.
-    if (!response.body) {
-      span.end()
+      // response.url is not always populated after a redirect, but when present it
+      // carries the same `?key=`/userinfo secrets as the request url — redact it too.
+      if (response.url) span.setAttribute('http.response.url', redactUrlParams(response.url))
+
+      // No body (GET/HEAD/204) → nothing to tee; settle the span now.
+      const responseBody = response.body
+
+      if (!responseBody) {
+        endSpan(span)
+
+        return response
+      }
+
+      body = responseBody
+    } catch (error) {
+      logger.warn('httpTraceFetch response-span setup failed; returning original response', { error })
+      finishCaptureErrorSpan(span, error)
 
       return response
     }
@@ -123,12 +221,11 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     let branches: [ReadableStream<Uint8Array>, ReadableStream<Uint8Array>]
 
     try {
-      branches = response.body.tee()
+      branches = body.tee()
     } catch (error) {
       // tee() unavailable (e.g. a custom-fetch body) — original body is untouched.
       logger.warn('httpTraceFetch tee failed, returning original response', { error })
-      span.setAttribute('http.trace.captureError', String(error))
-      span.end()
+      finishCaptureErrorSpan(span, error)
 
       return response
     }
@@ -147,8 +244,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
       })
     } catch (error) {
       logger.warn('httpTraceFetch Response construction failed after tee', { error })
-      span.setAttribute('http.trace.captureError', String(error))
-      span.end()
+      finishCaptureErrorSpan(span, error)
       void captureBranch.cancel().catch(() => {})
 
       // tee locked the original body; hand the SDK a minimal Response over `a`.
@@ -156,23 +252,24 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     }
 
     void accumulateBody(captureBranch, maxBodyBytes, init?.signal)
-      .then(({ body, error }) => {
-        if (body) span.setAttribute('outputs', body)
+      .then((result) => {
+        if (result.body) span.setAttribute('outputs', result.body)
 
-        if (error) {
-          span.recordException(error as Error)
-          span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error)?.message })
-        } else if (init?.signal?.aborted) {
+        if (!result.ok) {
+          finishErrorSpan(span, result.error)
+
+          return
+        }
+
+        if (init?.signal?.aborted) {
           span.setStatus({ code: SpanStatusCode.ERROR, message: 'request aborted before body completed' })
         }
 
-        span.end()
+        endSpan(span)
       })
       .catch((error) => {
         logger.warn('httpTraceFetch body accumulation failed', { error })
-        span.recordException(error as Error)
-        span.setStatus({ code: SpanStatusCode.ERROR, message: 'body accumulation failed' })
-        span.end()
+        finishErrorSpan(span, error, 'body accumulation failed')
       })
 
     return tracedResponse
@@ -184,13 +281,12 @@ async function accumulateBody(
   stream: ReadableStream<Uint8Array>,
   maxBytes: number,
   signal?: AbortSignal | null
-): Promise<{ body: string; error?: unknown }> {
+): Promise<{ ok: true; body: string } | { ok: false; body: string; error: unknown }> {
   const reader = stream.getReader()
   const onAbort = () => void reader.cancel().catch(() => {})
   signal?.addEventListener('abort', onAbort, { once: true })
   const decoder = new TextDecoder()
   let acc = ''
-  let streamError: unknown
 
   try {
     while (acc.length < maxBytes) {
@@ -203,13 +299,13 @@ async function accumulateBody(
   } catch (error) {
     // Stream errored mid-read — keep whatever we accumulated, but surface the
     // error so the span is marked failed instead of looking like a clean exchange.
-    streamError = error
+    return { ok: false, body: truncate(acc, maxBytes), error }
   } finally {
     void reader.cancel().catch(() => {})
     signal?.removeEventListener('abort', onAbort)
   }
 
-  return { body: truncate(acc, maxBytes), error: streamError }
+  return { ok: true, body: truncate(acc, maxBytes) }
 }
 
 /**
@@ -217,12 +313,8 @@ async function accumulateBody(
  * when a provider transform rewrote it via the trace slot. A `null` body clears
  * stale inputs after redirect handling changed the request to GET.
  */
-function applyFinalBodyInputs(span: Span, init: RequestInit | undefined, maxBodyBytes: number): void {
-  const slot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
-    HTTP_TRACE_FINAL_BODY_SLOT
-  ]
-
-  const finalBody = slot?.body
+function applyFinalBodyInputs(span: Span, slot: HttpTraceFinalBodySlot, maxBodyBytes: number): void {
+  const finalBody = slot.body
 
   if (finalBody === null) {
     span.setAttribute('inputs', '')
