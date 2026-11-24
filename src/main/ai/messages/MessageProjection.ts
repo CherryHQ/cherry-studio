@@ -143,6 +143,7 @@ export class MessageProjection<S extends ProjectionState> {
 
     this.view = { ...next, revision: this.view.revision + 1 }
     const { messages, ...published } = this.view
+    // SAFETY: Topic and child state types exclude messages; destructuring removes only the separately encoded message list.
     const update = { ...published, patches, order: messages.map((message) => message.id) } as MessageProjectionUpdate<S>
 
     for (const listener of this.listeners) {

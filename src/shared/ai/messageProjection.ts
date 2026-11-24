@@ -83,5 +83,6 @@ export function applyMessageProjectionUpdate<S extends ProjectionState>(
     return undefined
   const state = omit(update, ['patches', 'order'])
 
+  // SAFETY: Topic and child producers supply states without patches/order; omitting them retains state and revision.
   return { ...state, messages: update.order.map((id) => messages.get(id)!) } as MessageProjectionView<S>
 }
