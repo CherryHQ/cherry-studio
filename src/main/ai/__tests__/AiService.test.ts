@@ -690,6 +690,36 @@ describe('AiService', () => {
     })
   })
 
+  it('reads only recognizable media fields from opaque history and sampling messages', () => {
+    const primarySupport = { image: true, pdf: true, audio: true, video: true }
+    const messages = [
+      null,
+      false,
+      { content: 'plain sampling text' },
+      { parts: [], content: [{ type: 'image' }] },
+      { parts: [null, 'file', { type: 'file', mediaType: 42 }, { type: 'file', mediaType: 'application/pdfx' }] },
+      {
+        content: [
+          { type: 'tool-result', output: { type: 'image' } },
+          { type: 'file', mediaType: 'audio/mpeg' }
+        ]
+      }
+    ]
+
+    expect(resolveRequiredNativeFileSupport(messages, primarySupport)).toEqual({
+      image: false,
+      pdf: false,
+      audio: true,
+      video: false
+    })
+    expect(resolveRequiredNativeFileSupport(undefined, primarySupport)).toEqual({
+      image: false,
+      pdf: false,
+      audio: false,
+      video: false
+    })
+  })
+
   it('flushes accumulated token analytics once when an agent run errors', async () => {
     const service = createService()
     const trackTokenUsage = vi.fn()

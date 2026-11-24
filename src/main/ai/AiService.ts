@@ -138,20 +138,25 @@ export function resolveRequiredNativeFileSupport(
   const required: MutableNativeFileSupport = { ...NO_NATIVE_FILE_REQUIREMENTS }
 
   for (const message of messages) {
-    const m = message as { parts?: unknown[]; content?: unknown }
-    const parts = Array.isArray(m.parts) ? m.parts : Array.isArray(m.content) ? m.content : []
+    if (typeof message !== 'object' || message === null) continue
+    const parts: readonly unknown[] =
+      'parts' in message && Array.isArray(message.parts)
+        ? message.parts
+        : 'content' in message && Array.isArray(message.content)
+          ? message.content
+          : []
 
     for (const part of parts) {
-      const p = part as { type?: string; mediaType?: string }
+      if (typeof part !== 'object' || part === null || !('type' in part)) continue
 
-      if (p.type === 'image' && primarySupport.image) required.image = true
+      if (part.type === 'image' && primarySupport.image) required.image = true
 
-      if (p.type !== 'file' || typeof p.mediaType !== 'string') continue
+      if (part.type !== 'file' || !('mediaType' in part) || typeof part.mediaType !== 'string') continue
 
-      if (p.mediaType.startsWith('image/') && primarySupport.image) required.image = true
-      else if (p.mediaType.startsWith('video/') && primarySupport.video) required.video = true
-      else if (p.mediaType.startsWith('audio/') && primarySupport.audio) required.audio = true
-      else if (p.mediaType === 'application/pdf' && primarySupport.pdf) required.pdf = true
+      if (part.mediaType.startsWith('image/') && primarySupport.image) required.image = true
+      else if (part.mediaType.startsWith('video/') && primarySupport.video) required.video = true
+      else if (part.mediaType.startsWith('audio/') && primarySupport.audio) required.audio = true
+      else if (part.mediaType === 'application/pdf' && primarySupport.pdf) required.pdf = true
     }
   }
 
