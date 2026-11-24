@@ -183,7 +183,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
               triggerLabel={t('settings.prompts.binding.bind')}
               searchPlaceholder={t('settings.prompts.binding.search')}
               emptyLabel={t('settings.prompts.binding.noMore')}
-              disabled={!enabled || Boolean(error) || isLoading || isBinding}
+              disabled={!enabled || Boolean(error) || isLoading || isBinding || isReordering}
               align="end"
               triggerPosition="start"
               triggerVariant="outline"

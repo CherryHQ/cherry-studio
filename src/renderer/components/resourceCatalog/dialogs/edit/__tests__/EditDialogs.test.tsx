@@ -165,8 +165,9 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   )
 }))
 
+const reorderState = vi.hoisted(() => ({ isPending: false }))
 vi.mock('@data/hooks/useReorder', () => ({
-  useReorder: () => ({ applyReorderedList: applyReorderedListMock, isPending: false })
+  useReorder: () => ({ applyReorderedList: applyReorderedListMock, isPending: reorderState.isPending })
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -689,6 +690,7 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  reorderState.isPending = false
   promptProcessorMock.mockReset().mockImplementation(({ prompt }: { prompt: string }) => prompt)
   installedSkillsState.current = {
     skills: [
@@ -1290,6 +1292,18 @@ describe('edit dialogs', () => {
         }
       })
     )
+    expect(bindPromptMock).not.toHaveBeenCalled()
+  })
+
+  // Bind and reorder share one failure slot, so a bind started during a pending reorder could hide its failure.
+  it('does not start a prompt link while a reorder is still pending', async () => {
+    reorderState.isPending = true
+    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: ASSISTANT.id }} />)
+
+    const bindTrigger = screen.getByRole('button', { name: 'Bind prompt' })
+    expect(bindTrigger).toBeDisabled()
+    fireEvent.click(bindTrigger)
+    expect(screen.queryByText('Reusable prompt')).not.toBeInTheDocument()
     expect(bindPromptMock).not.toHaveBeenCalled()
   })
 
