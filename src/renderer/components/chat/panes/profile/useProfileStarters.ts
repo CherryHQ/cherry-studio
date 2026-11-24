@@ -1,13 +1,11 @@
 import { useEffect, useEffectEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import * as z from 'zod'
 
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useModel'
-import { fetchGenerate } from '@renderer/utils/aiGeneration'
-import { parseJSON } from '@renderer/utils/json'
-import type { ProfileStarter, ProfileStarterKind } from '@shared/data/cache/cacheValueTypes'
+import { ipcApi } from '@renderer/ipc'
+import type { ProfileStarter } from '@shared/data/cache/cacheValueTypes'
 
 const logger = loggerService.withContext('useProfileStarters')
 
@@ -15,17 +13,6 @@ const GENERATE_TIMEOUT_MS = 30_000
 const MAX_PROMPT_CHARS = 6000
 // Entries are keyed by Agent or Assistant ID and never pruned on delete, so only the newest are kept.
 const MAX_CACHED_OWNERS = 50
-
-const STARTER_KINDS = [
-  'channel-feishu',
-  'channel-wechat',
-  'schedule',
-  'github',
-  'skills',
-  'memory',
-  'knowledge',
-  'generic'
-] as const satisfies readonly ProfileStarterKind[]
 
 const JSON_ONLY = 'Reply with exactly one JSON object and nothing else — no Markdown, no code fences, no commentary.'
 // In Chinese the model translated "Agent" as 助手 (Assistant), the UI's word for the other kind.
@@ -62,31 +49,7 @@ const SYSTEM_PROMPTS = {
   ].join('\n')
 } as const
 
-const COUNTS = { agent: { min: 4, max: 6 }, assistant: { min: 4, max: 4 } } as const
-
 export type ProfileStarterMode = keyof typeof SYSTEM_PROMPTS
-
-const StarterSchema = z.object({
-  kind: z.enum(STARTER_KINDS).catch('generic'),
-  title: z.string().trim().min(1),
-  hint: z.string().trim().catch(''),
-  prompt: z.string().trim().min(1)
-})
-
-/** Keeps the well-formed items; `null` when fewer than the minimum remain. */
-function parseStarters(text: string, mode: ProfileStarterMode): ProfileStarter[] | null {
-  const parsed = z
-    .object({ items: z.array(z.unknown()) })
-    .safeParse(parseJSON(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)))
-  if (!parsed.success) return null
-  const items = parsed.data.items.flatMap((item) => {
-    const starter = StarterSchema.safeParse(item)
-    if (!starter.success) return []
-    return [mode === 'assistant' ? { ...starter.data, kind: 'generic' as const } : starter.data]
-  })
-  const { min, max } = COUNTS[mode]
-  return items.length >= min ? items.slice(0, max) : null
-}
 
 // FNV-1a: the cache only needs to notice that the identity changed.
 function hashText(text: string): string {
@@ -176,31 +139,22 @@ export function useProfileStarters({
 
   useEffect(() => {
     if (!shouldGenerate) return
-    const controller = new AbortController()
     let cancelled = false
-    let timedOut = false
     const timer = setTimeout(() => {
-      timedOut = true
-      controller.abort()
+      cancelled = true
+      settle(hash, null)
     }, GENERATE_TIMEOUT_MS)
 
-    void fetchGenerate({
-      prompt: SYSTEM_PROMPTS[mode],
-      content: buildInput(),
-      throwOnError: true,
-      signal: controller.signal
-    })
-      .then((text) => {
-        const items = parseStarters(text, mode)
-        if (!items) logger.warn('Generated profile starters did not validate', { mode, ownerId })
-        return items
+    void ipcApi
+      .request('ai.profile_starters.generate', {
+        ownerId,
+        mode,
+        identityHash: hash,
+        system: SYSTEM_PROMPTS[mode],
+        prompt: buildInput()
       })
       .catch((error: unknown) => {
-        if (!cancelled)
-          logger.warn(
-            timedOut ? 'Profile starter generation timed out' : 'Profile starter generation failed',
-            error as Error
-          )
+        if (!cancelled) logger.warn('Profile starter generation failed', error as Error)
         return null
       })
       .then((items) => {
@@ -211,7 +165,6 @@ export function useProfileStarters({
     return () => {
       cancelled = true
       clearTimeout(timer)
-      controller.abort()
     }
   }, [hash, mode, ownerId, shouldGenerate])
 
