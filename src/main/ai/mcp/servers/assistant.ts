@@ -78,31 +78,19 @@ function resolveRealOrNearestExistingPath(targetPath: string): string {
   }
 }
 
-// Whitelist of settings Cherry Assistant can write directly. Each entry binds
-// a `setting` key to a value validator and an `apply` function that performs
-// the write. Settings not in this map are rejected — adding a new one
-// requires explicit code change so a destructive or sensitive setting can
-// never be flipped via prompt injection.
-interface ApplySettingEntry {
-  allowed: readonly string[]
-  apply: (value: string) => Promise<string> | string
-  /** Human-readable hint shown in the tool description. */
-  hint: string
-}
-
-// Only settings whose change is observable to the user without an app restart
-// are listed here.
+// Only user-visible, restart-free settings belong here.
+// The closed allowlist prevents tool input from selecting sensitive settings.
 const APPLY_SETTING_REGISTRY = {
   theme: {
     allowed: [ThemeMode.light, ThemeMode.dark, ThemeMode.system],
     hint: 'theme: light | dark | system',
-    apply: async (value) => {
-      await application.get('PreferenceService').set('ui.theme_mode', value as ThemeMode)
+    apply: async (value: ThemeMode) => {
+      await application.get('PreferenceService').set('ui.theme_mode', value)
 
       return `Theme switched to ${value}.`
     }
   }
-} satisfies Record<string, ApplySettingEntry>
+}
 
 type ApplySettingName = keyof typeof APPLY_SETTING_REGISTRY
 
@@ -244,6 +232,7 @@ function productInfo({ section }: z.infer<typeof ProductInfoInputSchema>): CallT
 }
 
 const ApplySettingInputSchema = z.object({
+  // SAFETY: This closed, nonempty registry's own keys are exactly ApplySettingName; Object.keys erases their literal types.
   setting: z
     .enum(Object.keys(APPLY_SETTING_REGISTRY) as [ApplySettingName, ...ApplySettingName[]])
     .describe('Which setting to change.'),
@@ -251,13 +240,14 @@ const ApplySettingInputSchema = z.object({
 })
 
 async function applySetting({ setting, value }: z.infer<typeof ApplySettingInputSchema>): Promise<CallToolResult> {
-  const entry: ApplySettingEntry = APPLY_SETTING_REGISTRY[setting]
+  const entry = APPLY_SETTING_REGISTRY[setting]
+  const allowedValue = entry.allowed.find((candidate) => candidate === value)
 
-  if (!entry.allowed.includes(value)) {
+  if (allowedValue === undefined) {
     throw new Error(`Value '${value}' is not valid for setting '${setting}'. Allowed: ${entry.allowed.join(', ')}`)
   }
 
-  const message = await entry.apply(value)
+  const message = await entry.apply(allowedValue)
   logger.info('apply_setting succeeded', { setting, value })
 
   return textResult(message)
@@ -655,7 +645,7 @@ function describeModelId(uniqueId: string | null) {
   if (!uniqueId) return null
 
   try {
-    const { providerId, modelId } = parseUniqueModelId(uniqueId as UniqueModelId)
+    const { providerId, modelId } = parseUniqueModelId(uniqueId)
 
     return { id: uniqueId, provider: providerId, modelId }
   } catch {
