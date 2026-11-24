@@ -169,7 +169,7 @@ function Slider({
         if (canSnap && !props.disabled && !event.defaultPrevented && event.button === 0) {
           pointerDownRef.current = true
 
-          if ((event.target as HTMLElement).closest('[data-slot=slider-thumb]')) {
+          if (event.target instanceof Element && event.target.closest('[data-slot=slider-thumb]')) {
             setDragValues(value ?? localValues)
           }
         }
