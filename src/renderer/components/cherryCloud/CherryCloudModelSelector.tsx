@@ -25,7 +25,7 @@ import {
   CHERRYAI_PROVIDER_ID,
   isManagedCherryAiProviderId
 } from '@shared/data/presets/cherryai'
-import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { SubscriptionEntrySource } from '@shared/ipc/schemas/cherryCloud'
 
@@ -126,19 +126,6 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
         </button>
       </>
     ) : null
-  // Main refuses the built-in CherryAI models while signed out, so mark them like the sign-in rows.
-  const presentModel = useCallback(
-    (model: Model, modelProvider: Provider) => {
-      const presentation = getModelPresentation(model, modelProvider)
-      if (!signedOut || !isManagedCherryAiProviderId(model.providerId)) return presentation
-      return {
-        ...presentation,
-        badge: <SubscriptionTag size={9} label={t('settings.subscription.sign_in')} className="h-full" />,
-        description: t('chat.input.quota_notice.sign_in_required')
-      }
-    },
-    [getModelPresentation, signedOut, t]
-  )
   const selectAfterSignIn = (model: Model) => {
     if (selectorProps.multiple) return
     if (selectorProps.selectionType === 'id') selectorProps.onSelect(model.id)
@@ -146,25 +133,20 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
   }
   const selectAfterSignInRef = useRef(selectAfterSignIn)
   selectAfterSignInRef.current = selectAfterSignIn
-  // Choosing a built-in CherryAI model signed out signs in first, then selects it, as the sign-in rows do.
-  const signInFirst =
-    <T extends Model | UniqueModelId | undefined>(
-      select: (value: T) => void,
-      providerOf: (value: NonNullable<T>) => string
-    ) =>
-    (value: T) => {
-      if (!value || !isManagedCherryAiProviderId(providerOf(value))) return select(value)
-      void signInFromPicker().then((signedIn) => signedIn && select(value))
-    }
-  const pickerProps =
-    selectorProps.multiple || !signedOut
-      ? selectorProps
-      : selectorProps.selectionType === 'id'
-        ? {
-            ...selectorProps,
-            onSelect: signInFirst(selectorProps.onSelect, (id) => parseUniqueModelId(id).providerId)
-          }
-        : { ...selectorProps, onSelect: signInFirst(selectorProps.onSelect, (model) => model.providerId) }
+  // Main refuses the built-in CherryAI models while signed out, so they act like the sign-in rows.
+  const presentModel = useCallback(
+    (model: Model, modelProvider: Provider) => {
+      const presentation = getModelPresentation(model, modelProvider)
+      if (!signedOut || !isManagedCherryAiProviderId(model.providerId)) return presentation
+      return {
+        ...presentation,
+        badge: <SubscriptionTag size={9} label={t('settings.subscription.sign_in')} className="h-full" />,
+        description: t('chat.input.quota_notice.sign_in_required'),
+        onAction: () => void signInFromPicker().then((signedIn) => signedIn && selectAfterSignInRef.current(model))
+      }
+    },
+    [getModelPresentation, signedOut, t]
+  )
   const actions = useMemo<ModelSelectorActionItem[]>(() => {
     const lockedRows = {
       sign_in: {
@@ -283,7 +265,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
   }
   return (
     <ModelSelector
-      {...pickerProps}
+      {...selectorProps}
       open={open}
       onOpenChange={onOpenChange}
       filter={modelFilter}

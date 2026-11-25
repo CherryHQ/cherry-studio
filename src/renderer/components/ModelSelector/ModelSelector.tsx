@@ -695,6 +695,12 @@ export function ModelSelector(props: ModelSelectorProps) {
         return
       }
       if (isSelectionDisabled(item.model, item.provider)) return
+      const { onAction } = getModelPresentation(item.model, item.provider)
+      if (onAction) {
+        setOpen(false)
+        onAction()
+        return
+      }
       skipNextFocusScroll.current = true
 
       if (multiple && multiSelectModeRef.current) {
@@ -713,7 +719,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       emitSelection([item.modelId])
       setOpen(false)
     },
-    [emitSelection, isSelectionDisabled, multiple, rawSelectedModelIds, setOpen]
+    [emitSelection, getModelPresentation, isSelectionDisabled, multiple, rawSelectedModelIds, setOpen]
   )
 
   const handleClose = useCallback(() => {

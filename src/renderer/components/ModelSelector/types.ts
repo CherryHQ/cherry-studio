@@ -122,6 +122,8 @@ export interface ModelSelectorPresentation {
   description?: ReactNode
   disabled?: boolean
   priority?: number
+  /** Runs instead of selecting the row, as an action row does, e.g. to sign in first. */
+  onAction?: () => void
 }
 
 export interface ModelSelectorComposition {

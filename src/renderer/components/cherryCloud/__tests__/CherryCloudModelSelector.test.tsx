@@ -217,7 +217,13 @@ describe('Built-in CherryAI models', () => {
     isEnabled: true,
     isHidden: false
   }
-  const renderQwen = (phase: 'signed-out' | 'signed-in', loginOutcome: 'signed-in' | 'cancelled' = 'signed-in') => {
+  const renderQwen = (
+    phase: 'signed-out' | 'signed-in',
+    {
+      loginOutcome = 'signed-in',
+      multiple = false
+    }: { loginOutcome?: 'signed-in' | 'cancelled'; multiple?: boolean } = {}
+  ) => {
     plans.phase = phase
     availability.hidesEveryModel = false
     const providers = [
@@ -235,13 +241,13 @@ describe('Built-in CherryAI models', () => {
       data: route === 'cherry_cloud.login.start' ? { outcome: loginOutcome, status: {} } : undefined
     }))
     const onSelect = vi.fn()
+    const trigger = <button type="button">Models</button>
     render(
-      <CherryCloudModelSelector
-        multiple={false}
-        open
-        onSelect={onSelect}
-        trigger={<button type="button">Models</button>}
-      />
+      multiple ? (
+        <CherryCloudModelSelector multiple open onSelect={onSelect} trigger={trigger} />
+      ) : (
+        <CherryCloudModelSelector multiple={false} open onSelect={onSelect} trigger={trigger} />
+      )
     )
     return { onSelect, row: screen.getByTestId('model-selector-item-cherryai::qwen') }
   }
@@ -260,7 +266,15 @@ describe('Built-in CherryAI models', () => {
   })
 
   it('leaves the selection unchanged when sign-in is cancelled', async () => {
-    const { onSelect, row } = renderQwen('signed-out', 'cancelled')
+    const { onSelect, row } = renderQwen('signed-out', { loginOutcome: 'cancelled' })
+    await userEvent.click(row)
+    await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined))
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  // The chat composer's picker is a multi-model picker; its plain click must sign in too.
+  it('starts sign-in instead of selecting Qwen from a multi-model picker', async () => {
+    const { onSelect, row } = renderQwen('signed-out', { multiple: true })
     await userEvent.click(row)
     await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined))
     expect(onSelect).not.toHaveBeenCalled()
