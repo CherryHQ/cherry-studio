@@ -54,7 +54,7 @@ import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -482,7 +482,7 @@ export function useHomeMessageListProviderValue({
         const resolved = resolvePartFromParts(partsByMessageIdRef.current, msgBlockId)
 
         if (resolved && resolved.part.type === 'text') {
-          const textPart = resolved.part as { text?: string }
+          const textPart = resolved.part
           const { updateCodeBlock } = await import('@renderer/utils/markdown')
           const updatedText = updateCodeBlock(textPart.text || '', originalContent, newContent)
 
@@ -539,7 +539,7 @@ export function useHomeMessageListProviderValue({
         const persistedParts = persistedMessage.data.parts ?? []
         const resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
 
-        if (!resolved || resolved.messageId !== messageId || (resolved.part.type as string) !== 'data-error') return
+        if (!resolved || resolved.messageId !== messageId || resolved.part.type !== 'data-error') return
 
         await requireChatWrite('removeMessageErrorPart').editMessage(
           messageId,
@@ -806,13 +806,8 @@ export function useHomeMessageListProviderValue({
     ({ message, messageParts, trigger, onOpenChange }) => {
       const messageModel = getMessageListItemModel(message)
 
-      const currentMentionModel = messageModel
-        ? ({
-            id: createUniqueModelId(messageModel.provider, messageModel.id),
-            providerId: messageModel.provider,
-            name: messageModel.name,
-            group: messageModel.group
-          } as SharedModel)
+      const currentMentionModelId = messageModel
+        ? createUniqueModelId(messageModel.provider, messageModel.id)
         : undefined
 
       const mentionModelFilter: ModelSelectorFilter = (model) => {
@@ -824,11 +819,11 @@ export function useHomeMessageListProviderValue({
         return true
       }
 
-      const onSelectMentionModel = async (selected: SharedModel | undefined) => {
+      const onSelectMentionModel = async (selected: UniqueModelId | undefined) => {
         if (!selected) return
 
         try {
-          await regenerateMessageUsingModel(message.id, selected.id)
+          await regenerateMessageUsingModel(message.id, selected)
         } catch (error) {
           logger.error('Failed to regenerate message using selected model:', error)
           toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
@@ -838,7 +833,8 @@ export function useHomeMessageListProviderValue({
       return (
         <ModelSelector
           multiple={false}
-          value={currentMentionModel}
+          selectionType="id"
+          value={currentMentionModelId}
           filter={mentionModelFilter}
           offerFilter={(offer) =>
             !messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/')) ||
