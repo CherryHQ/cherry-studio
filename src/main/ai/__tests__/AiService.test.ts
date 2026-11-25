@@ -1561,6 +1561,22 @@ describe('AiService', () => {
       return fileEntry
     }
 
+    it.each([false, true])('selects the concrete image operation when edit inputs are %s', async (editing) => {
+      const service = createService()
+      stubDirectImage(service)
+      await service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        prompt: 'draw a cat',
+        cleanupPolicy: 'delete_when_unreferenced',
+        paramValues: {},
+        ...(editing ? { inputImages: ['data:image/png;base64,QUJD'] } : {})
+      })
+      expect((service as unknown as AiServicePrivate).resolveTransportFor).toHaveBeenCalledWith(
+        expect.anything(),
+        editing ? 'image-edit' : 'image'
+      )
+    })
+
     it('records the provider output count with modality "image"', async () => {
       const service = createService()
       stubDirectImage(service)

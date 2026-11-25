@@ -8,6 +8,7 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { resolveEffectiveEndpointType, type ResolveEndpointIntent } from '@shared/utils/endpointResolution'
 import { getRawModelId } from '@shared/utils/model'
+import { isNewApiProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
@@ -48,7 +49,18 @@ export function resolveEffectiveEndpoint(
   const { endpointType, gatewayRoute } = resolveEffectiveEndpointType(provider, model, preferredEndpointType, intent)
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
-  return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }
+  // Blank New API image URLs inherit the model's primary host, not a saved
+  // chat default on another server. Keep single-host relay presets working.
+  const primaryEndpoint = model.endpointTypes?.[0]
+  const imageHost =
+    (intent === 'image' || intent === 'image-edit') &&
+    isNewApiProvider(provider) &&
+    endpointType &&
+    !provider.endpointConfigs?.[endpointType]?.baseUrl &&
+    primaryEndpoint
+      ? provider.endpointConfigs?.[primaryEndpoint]?.baseUrl
+      : undefined
+  return { endpointType, baseUrl: imageHost || getBaseUrl(provider, endpointType), providerOptionsKey }
 }
 
 /** Maps base id → variant id (`openai` + `openai-chat-completions` → `openai-chat`). No-op when no variant exists. */

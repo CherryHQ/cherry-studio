@@ -2,7 +2,7 @@
  * Pure endpoint-type resolution shared by the main request path and the renderer's composer, so the
  * UI describes the endpoint the request will actually use.
  */
-import { endpointImpliedCapability, MODEL_CAPABILITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
+import { endpointImpliedCapability, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import type { GatewayModelRoute } from '@shared/data/presets/gatewayChatRouting'
 import type { Model } from '@shared/data/types/model'
@@ -13,7 +13,7 @@ import { getLowerBaseModelName, getRawModelId } from './model'
 import { isNewApiProvider } from './provider'
 
 /** Operation selecting the transport; chat defaults must not redirect other modalities. */
-export type ResolveEndpointIntent = 'chat' | 'image' | 'embedding' | 'rerank'
+export type ResolveEndpointIntent = 'chat' | 'image' | 'image-edit' | 'embedding' | 'rerank'
 
 /** New API listings often put `openai` before vendor-native protocols; pick the native wire when configured. */
 function resolveNewApiModelEndpoint(
@@ -25,17 +25,17 @@ function resolveNewApiModelEndpoint(
   if (!endpointTypes?.length || !isNewApiProvider(provider)) return endpointTypes?.[0]
 
   const primaryEndpoint = endpointTypes[0]
-  if (endpointImpliedCapability(primaryEndpoint) !== undefined) {
-    return primaryEndpoint
+  if (intent === 'image' || intent === 'image-edit') {
+    const imageEndpoint =
+      intent === 'image-edit' ? ENDPOINT_TYPE.OPENAI_IMAGE_EDIT : ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+    return endpointTypes.includes(imageEndpoint) &&
+      provider.endpointConfigs?.[imageEndpoint]?.adapterFamily === 'newapi'
+      ? imageEndpoint
+      : primaryEndpoint
   }
 
-  if (intent === 'image') {
-    const imageEndpoint = endpointTypes.find(
-      (endpointType) =>
-        endpointImpliedCapability(endpointType) === MODEL_CAPABILITY.IMAGE_GENERATION &&
-        provider.endpointConfigs?.[endpointType]?.adapterFamily === 'newapi'
-    )
-    return imageEndpoint ?? primaryEndpoint
+  if (endpointImpliedCapability(primaryEndpoint) !== undefined) {
+    return primaryEndpoint
   }
 
   if (intent !== 'chat') return primaryEndpoint

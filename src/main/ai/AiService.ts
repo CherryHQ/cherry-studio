@@ -1162,7 +1162,10 @@ export class AiService extends BaseService {
       )
     }
 
-    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request, 'image')
+    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(
+      request,
+      inputImages ? 'image-edit' : 'image'
+    )
     const imageDownloadSettings =
       sdkConfig.providerId === 'openai-compatible'
         ? (sdkConfig.providerSettings as AppProviderSettingsMap['openai-compatible'])
