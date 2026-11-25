@@ -2,13 +2,20 @@ import type { RefObject } from 'react'
 import { useEffect, useEffectEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import { formatQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { useComposerLayerActive } from '../../ComposerContext'
 import type { ComposerDraftToken } from '../../tokens'
 
-export const createQuoteToken = (selectedText: string, label: string): ComposerDraftToken => ({
+export const createQuoteToken = (
+  selectedText: string,
+  label: string,
+  sourceMessageId?: string
+): ComposerDraftToken & { kind: 'quote'; promptText: string; description: string } => ({
+  ...(sourceMessageId && { sourceMessageId }),
   id: `quote:${Date.now()}:${Math.random().toString(36).slice(2)}`,
   kind: 'quote',
   label,
@@ -16,28 +23,58 @@ export const createQuoteToken = (selectedText: string, label: string): ComposerD
   promptText: formatQuoteTokenPromptText(selectedText)
 })
 
-interface QuoteInsertionActions {
-  insertToken: (token: ComposerDraftToken) => void
-}
+type QuoteInsertionActions = Pick<ComposerSurfaceActions, 'focus' | 'getDraft' | 'insertToken' | 'replaceDraft'>
 
 /**
- * Subscribes to the main-process quote IPC and inserts the quoted text as a quote token via
- * the composer's imperative actions ref. The insertion runs through `useEffectEvent` so the
- * IPC listener stays stable across renders while this composer layer is active.
+ * Inserts external quotes and selections addressed to this active composer.
  */
-export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(actionsRef: RefObject<T>): void {
+export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(
+  actionsRef: RefObject<T>,
+  topicId?: string
+): void {
   const { t } = useTranslation()
   const layerActive = useComposerLayerActive()
 
-  const insertQuote = useEffectEvent((selectedText: string) => {
+  const insertQuote = useEffectEvent((selectedText: string, sourceMessageId?: string, replyText?: string) => {
     if (!selectedText) return
-    actionsRef.current.insertToken(createQuoteToken(selectedText, t('selection.action.builtin.quote')))
+    const token = createQuoteToken(selectedText, t('selection.action.builtin.quote'), sourceMessageId)
+    const actions = actionsRef.current
+    if (!replyText) {
+      actions.insertToken(token)
+      return
+    }
+
+    const draft = actions.getDraft()
+    const prefix = draft.text ? draft.text + '\n\n' : ''
+    actions.replaceDraft(
+      {
+        text: `${prefix}${token.promptText}\n${replyText}`,
+        tokens: [...draft.tokens, { ...token, index: draft.tokens.length, textOffset: prefix.length }]
+      },
+      { emitUpdate: true }
+    )
+    actions.focus('end')
   })
 
   useEffect(() => {
     if (!layerActive) return
-    return window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, selectedText: string) => {
+    const offIpc = window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, selectedText: string) => {
       insertQuote(selectedText)
     })
-  }, [layerActive])
+    const offSelection = EventEmitter.on(EVENT_NAMES.INSERT_COMPOSER_QUOTE, (payload) => {
+      if (!topicId || !payload || typeof payload !== 'object') return
+      if (!('topicId' in payload) || payload.topicId !== topicId) return
+      if (!('text' in payload) || typeof payload.text !== 'string') return
+      const sourceMessageId =
+        'sourceMessageId' in payload && typeof payload.sourceMessageId === 'string'
+          ? payload.sourceMessageId
+          : undefined
+      const replyText = 'replyText' in payload && typeof payload.replyText === 'string' ? payload.replyText : undefined
+      insertQuote(payload.text, sourceMessageId, replyText)
+    })
+    return () => {
+      offIpc?.()
+      offSelection()
+    }
+  }, [layerActive, topicId])
 }
