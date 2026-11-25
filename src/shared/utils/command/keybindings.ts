@@ -62,13 +62,13 @@ export interface FindKeybindingConflictsOptions {
 
 export const isPlatformSupported = (
   rule: Pick<RegisteredKeybindingRule, 'supportedPlatforms'>,
-  platform?: SupportedPlatform
+  platform?: string
 ): boolean => {
   if (!rule.supportedPlatforms?.length || !platform) {
     return true
   }
 
-  return rule.supportedPlatforms.includes(platform)
+  return rule.supportedPlatforms.some((supported) => supported === platform)
 }
 
 const isScopeSupported = (rule: RegisteredKeybindingRule, scope?: CommandScope): boolean => {

@@ -1,5 +1,7 @@
 /** Keyboard relay between a webview guest and its host window. */
 
+import { z } from 'zod'
+
 import {
   canonicalTriggerToken,
   getShortcutBindingFromKeyboardEvent,
@@ -11,16 +13,18 @@ import {
 export const WEBVIEW_KEYDOWN_CHANNEL = 'webview:keydown'
 
 /** Keyboard data forwarded from a webview guest, shaped for `new KeyboardEvent()`. */
-export type WebviewKeyPayload = {
-  key: string
-  code: string
-  ctrlKey: boolean
-  metaKey: boolean
-  shiftKey: boolean
-  altKey: boolean
-  repeat: boolean
-  isTrusted: boolean
-}
+export const WebviewKeyPayloadSchema = z.object({
+  key: z.string(),
+  code: z.string(),
+  ctrlKey: z.boolean(),
+  metaKey: z.boolean(),
+  shiftKey: z.boolean(),
+  altKey: z.boolean(),
+  repeat: z.boolean(),
+  isTrusted: z.boolean()
+})
+
+export type WebviewKeyPayload = z.infer<typeof WebviewKeyPayloadSchema>
 
 // The host owns find/print/save inside webviews, so the guest page must not also
 // run the browser default for them.

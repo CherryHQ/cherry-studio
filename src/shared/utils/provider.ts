@@ -226,7 +226,7 @@ export const DASHSCOPE_HOSTED_WEB_SEARCH_MODELS = [
 ] as const
 
 /** Whether the host serves this tool for the model's vendor family (declaration `vendors` narrowing). */
-function serverToolServesModelVendor(tool: ServerToolConfig, model: Model): boolean {
+function serverToolServesModelVendor(tool: ServerToolConfig, model: Pick<Model, 'id' | 'apiModelId'>): boolean {
   if (!tool.vendors?.length) return true
   // VENDOR_PATTERNS are anchored and assume a namespace-stripped id: a gateway's
   // `google/gemini-3-pro-preview` matches nothing, silently withholding the tool from
@@ -244,16 +244,21 @@ function serverToolServesEndpoint(tool: ServerToolConfig, endpointType: Endpoint
 }
 
 function resolveServerToolEndpoint(
-  model: Model,
+  model: Pick<Model, 'endpointTypes'>,
   provider: Pick<Provider, 'defaultChatEndpoint'>,
   endpointType: EndpointType | undefined
 ): EndpointType | undefined {
   return endpointType ?? model.endpointTypes?.[0] ?? provider.defaultChatEndpoint
 }
 
+type ServerToolModel = Pick<
+  Model,
+  'id' | 'apiModelId' | 'capabilities' | 'endpointTypes' | 'inputModalities' | 'outputModalities'
+>
+
 /** Model-side eligibility for a provider-native tool, compiled from the serving provider declaration. */
 export function isServerToolModelEligible(
-  model: Model,
+  model: ServerToolModel,
   provider: Pick<Provider, 'id' | 'presetProviderId'>,
   tool: ServerTool,
   endpointType?: EndpointType
@@ -275,7 +280,7 @@ export function isServerToolModelEligible(
  * declaration) and "declared but not on this endpoint" both read as unavailable.
  */
 export function isBuiltinWebSearchAvailable(
-  model: Model,
+  model: ServerToolModel,
   provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
@@ -284,7 +289,7 @@ export function isBuiltinWebSearchAvailable(
 
 /** Effective provider-native URL-fetch availability for one provider-model pair. */
 export function isBuiltinWebFetchAvailable(
-  model: Model,
+  model: ServerToolModel,
   provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
@@ -292,7 +297,7 @@ export function isBuiltinWebFetchAvailable(
 }
 
 function isBuiltinServerToolAvailable(
-  model: Model,
+  model: ServerToolModel,
   provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
   toolId: ServerTool,
   endpointType?: EndpointType

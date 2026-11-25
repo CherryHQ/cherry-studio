@@ -31,7 +31,8 @@ export const isAudioModel = (model: Model): boolean =>
   !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_RECOGNITION) || model.inputModalities?.includes(MODALITY.AUDIO))
 
 /** Check if model is an embedding model */
-export const isEmbeddingModel = (model: Model): boolean => model.capabilities.includes(MODEL_CAPABILITY.EMBEDDING)
+export const isEmbeddingModel = (model: Pick<Model, 'capabilities'>): boolean =>
+  model.capabilities.includes(MODEL_CAPABILITY.EMBEDDING)
 
 /** Check if model is a reranking model */
 export const isRerankModel = (model: { capabilities?: readonly unknown[] | null }): boolean =>
@@ -42,7 +43,7 @@ export const isFunctionCallingModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL)
 
 /** Check if model supports image generation */
-export const isGenerateImageModel = (model: Model): boolean =>
+export const isGenerateImageModel = (model: Pick<Model, 'capabilities'>): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
 
 export const isFreeModel = (model: Pick<Model, 'id' | 'name' | 'providerId'>): boolean => {
@@ -53,10 +54,10 @@ export const isFreeModel = (model: Pick<Model, 'id' | 'name' | 'providerId'>): b
   return (model.id + model.name).toLowerCase().includes('free')
 }
 
-export const isGenerateVideoModel = (model: Model): boolean =>
+export const isGenerateVideoModel = (model: Pick<Model, 'capabilities'>): boolean =>
   !!model.capabilities.includes(MODEL_CAPABILITY.VIDEO_GENERATION)
 
-export const isGenerateAudioModel = (model: Model): boolean =>
+export const isGenerateAudioModel = (model: Pick<Model, 'capabilities'>): boolean =>
   !!model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION)
 
 export const isEditImageModel = (model: Model): boolean =>
@@ -66,7 +67,9 @@ export const isEditImageModel = (model: Model): boolean =>
 // modalities still identify a dedicated ASR model by audio input + text output
 // with no text input. The no-text-input guard keeps multimodal chat LLMs
 // (Gemini, GPT-4o, …) selectable.
-export const isSpeechToTextModel = (model: Model): boolean =>
+export const isSpeechToTextModel = (
+  model: Pick<Model, 'capabilities' | 'inputModalities' | 'outputModalities'>
+): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.AUDIO_TRANSCRIPT) ||
   (model.capabilities.includes(MODEL_CAPABILITY.AUDIO_RECOGNITION) &&
     model.inputModalities?.includes(MODALITY.AUDIO) === true &&
@@ -77,7 +80,7 @@ export const isSpeechToTextModel = (model: Model): boolean =>
 // the explicit AUDIO_GENERATION capability only. Producing audio as an *output
 // modality* does NOT make a model text-to-speech — multimodal chat LLMs can emit audio
 // yet still chat, and keying on the modality wrongly classified them as non-chat.
-export const isTextToSpeechModel = (model: Model): boolean =>
+export const isTextToSpeechModel = (model: Pick<Model, 'capabilities'>): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION)
 
 /** Check if model is a dedicated text-to-image model (no text chat) */
@@ -85,7 +88,9 @@ export const isTextToImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) &&
   !model.capabilities.includes(MODEL_CAPABILITY.REASONING)
 
-export const isNonChatModel = (model: Model): boolean =>
+export const isNonChatModel = (
+  model: Pick<Model, 'capabilities' | 'endpointTypes' | 'inputModalities' | 'outputModalities'>
+): boolean =>
   endpointImpliedCapability(model.endpointTypes?.[0]) != null ||
   isEmbeddingModel(model) ||
   isRerankModel(model) ||
@@ -513,7 +518,7 @@ export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
  * or empty on the runtime Model, so reading it alone silently misidentifies models whose
  * unique id carries the wire name instead.
  */
-export function getRawModelId(model: Model): string {
+export function getRawModelId(model: Pick<Model, 'id' | 'apiModelId'>): string {
   return model.apiModelId || parseUniqueModelId(model.id).modelId
 }
 

@@ -16,10 +16,24 @@ import {
   findKeybindingConflicts,
   getCommandAccelerator,
   getCommandDefaultShortcutPreference,
+  isPlatformSupported,
   resolveCommandByKeybinding,
   resolveCommandKeybinding,
   resolveCommandShortcutPreference
 } from '../keybindings'
+
+describe('isPlatformSupported', () => {
+  it.each([
+    { platform: 'darwin', supported: true },
+    { platform: 'linux', supported: false },
+    { platform: 'freebsd', supported: false },
+    { platform: undefined, supported: true },
+    { platform: '', supported: true }
+  ])('preserves restrictions and fallback for platform $platform', ({ platform, supported }) => {
+    expect(isPlatformSupported({ supportedPlatforms: ['darwin'] }, platform)).toBe(supported)
+    expect(isPlatformSupported({}, platform)).toBe(true)
+  })
+})
 
 const testRule = (
   command: CommandId,
