@@ -20,6 +20,7 @@ const EMPTY_TOOL_STATE: CodeCliToolState = { providers: {}, current: null }
 
 function getToolState(toolId: CodeCliId, configs: CodeCliConfigs): CodeCliToolState {
   const state = configs[toolId] ?? EMPTY_TOOL_STATE
+
   // Dev profiles written before `modelId: UniqueModelId | null` may hold the
   // legacy '' sentinel; normalize on read (this is the preference's only read
   // choke point) so the next write self-heals. No migration needed.
