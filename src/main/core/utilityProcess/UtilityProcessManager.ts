@@ -77,8 +77,10 @@ export class UtilityProcessManager extends BaseService {
 
     const cached = this.clients.get(definition)
 
-    // SAFETY: this WeakMap is keyed by the registered definition object and stores only the client built for its Contract.
-    if (cached !== undefined) return cached as UtilityProcessClient<Contract>
+    if (cached !== undefined) {
+      // SAFETY: This WeakMap stores only the client built for the same registered definition object and Contract.
+      return cached as UtilityProcessClient<Contract>
+    }
 
     const client: UtilityProcessClient<Contract> = {
       request: async (method, input, options) => {
@@ -184,8 +186,11 @@ export class UtilityProcessManager extends BaseService {
   ): ProcessHost<Contract, InitData> {
     const existing = this.hosts.get(definition.id)
 
-    // SAFETY: registration permits only one definition object per id; this host was created from it.
-    if (existing !== undefined) return existing as ProcessHost<Contract, InitData>
+    if (existing !== undefined) {
+      // SAFETY: Registration permits only one definition object per id; this host was created from it.
+      return existing as ProcessHost<Contract, InitData>
+    }
+
     const host = new ProcessHost(definition, this.deps)
     this.hosts.set(definition.id, host)
 
