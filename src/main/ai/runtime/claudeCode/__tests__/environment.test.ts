@@ -249,6 +249,36 @@ describe('isTrustedClaudeSlot', () => {
     endpointTypes: ['openai-chat-completions', 'anthropic-messages']
   } as never
 
+  it.each(['bedrock', 'google-vertex-anthropic'])(
+    'does not trust a URL-less %s slot inheriting a relay host',
+    (adapterFamily) => {
+      const provider = {
+        id: adapterFamily === 'bedrock' ? 'aws-bedrock' : 'vertexai',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'anthropic-messages': { adapterFamily },
+          'openai-chat-completions': { baseUrl: 'https://relay.example/v1' }
+        }
+      } as never
+      expect(isTrustedClaudeSlot(provider, { endpointTypes: ['anthropic-messages'] } as never)).toBe(false)
+    }
+  )
+
+  it('trusts a bare regional Vertex host normalized to the official SDK transport', () => {
+    const provider = {
+      id: 'vertexai',
+      presetProviderId: 'vertexai',
+      authType: 'iam-gcp',
+      endpointConfigs: {
+        'anthropic-messages': {
+          adapterFamily: 'google-vertex-anthropic',
+          baseUrl: 'https://us-central1-aiplatform.googleapis.com'
+        }
+      }
+    } as never
+    expect(isTrustedClaudeSlot(provider, dualDialectModel)).toBe(true)
+  })
+
   it('prefers Anthropic Messages for direct SDK dialect budgeting', () => {
     expect(isTrustedClaudeSlot(mixedProvider, dualDialectModel)).toBe(true)
   })

@@ -26,7 +26,8 @@ import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'
-import { isExternalCliProvider } from '@shared/utils/provider'
+import { isBareVertexApiHost } from '@shared/utils/api'
+import { isExternalCliProvider, isVertexProvider } from '@shared/utils/provider'
 
 import { isAnthropicOfficialHost } from './contextWindowSuffix'
 
@@ -93,11 +94,15 @@ export const AUTO_COMPACT_TRIGGER_PCT = 80
 export function isTrustedClaudeSlot(provider?: Provider | null, model?: Model | null): boolean {
   if (provider == null) return false
   if (model == null) return isTrustedClaudeChannel(provider)
-  const endpoint = resolveEffectiveEndpoint(provider, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType
+  const resolved = resolveEffectiveEndpoint(provider, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+  const entry = resolved.endpointType !== undefined ? provider.endpointConfigs?.[resolved.endpointType] : undefined
+  // Vertex's bare official host is normalized away by the config builder;
+  // blank cloud entries otherwise inherit the same fallback host as serving.
+  if (isVertexProvider(provider) && isBareVertexApiHost(resolved.baseUrl)) return true
   return isTrustedClaudeEndpoint(
     provider,
-    endpoint,
-    endpoint !== undefined ? provider.endpointConfigs?.[endpoint] : undefined
+    resolved.endpointType,
+    resolved.baseUrl ? { ...entry, baseUrl: resolved.baseUrl } : entry
   )
 }
 
