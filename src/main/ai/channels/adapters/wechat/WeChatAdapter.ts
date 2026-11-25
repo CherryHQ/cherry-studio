@@ -1,9 +1,14 @@
 import { application } from '@application'
-import { WindowType } from '@main/core/window/types'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
+import type { ChannelQrStatus } from '@shared/ipc/schemas/channel'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  type ChannelQrLoginEvent,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { isSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { type IncomingMessage, WeixinBot } from './WeChatProtocol'
@@ -39,7 +44,7 @@ class WeChatAdapter extends ChannelAdapter {
       },
       onQrUrl: (url) => {
         this.emit('qr', url)
-        this.sendQrToRenderer(url, 'pending')
+        this.emitQrLogin(url, 'pending')
       }
     })
     this.bot = bot
@@ -52,13 +57,13 @@ class WeChatAdapter extends ChannelAdapter {
         const isExpired =
           error instanceof Error &&
           error.message === 'QR login failed after 3 expired QR codes. Use config tool to reconnect.'
-        this.sendQrToRenderer('', isExpired ? 'expired' : 'error')
+        this.emitQrLogin('', isExpired ? 'expired' : 'error')
       }
       throw error
     })
     if (signal.aborted) return
 
-    this.sendQrToRenderer('', 'confirmed', credentials.userId)
+    this.emitQrLogin('', 'confirmed', credentials.userId)
     this.registerMessageHandler(bot)
     this.markConnected()
     this.log.info('WeChat bot logged in and polling started', { userId: credentials.userId })
@@ -79,7 +84,7 @@ class WeChatAdapter extends ChannelAdapter {
     if (this.bot) {
       this.bot.stop()
       this.bot = null
-      this.sendQrToRenderer('', 'disconnected')
+      this.emitQrLogin('', 'disconnected')
       this.log.info('WeChat bot stopped')
     }
   }
@@ -127,17 +132,11 @@ class WeChatAdapter extends ChannelAdapter {
     }
   }
 
-  private sendQrToRenderer(
-    url: string,
-    status: 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error',
-    userId?: string
-  ): void {
-    application.get('IpcApiService').broadcastToType(WindowType.Main, 'channel.wechat.qr_login', {
-      channelId: this.channelId,
-      url,
-      status,
-      userId
-    })
+  private emitQrLogin(url: string, status: ChannelQrStatus, userId?: string): void {
+    this.emit('qrLogin', {
+      type: 'wechat',
+      data: { channelId: this.channelId, url, status, userId }
+    } satisfies ChannelQrLoginEvent)
   }
 
   private registerMessageHandler(bot: WeixinBot): void {

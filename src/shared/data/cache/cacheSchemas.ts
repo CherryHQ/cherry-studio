@@ -143,6 +143,7 @@ export type UseCacheSchema = {
   'ui.window.chat.sidebar.width': number
   'ui.window.chat.artifact_pane.width': number
   'ui.window.chat.resource_pane.width': number
+  'ui.window.chat.profile_pane.width': number
   'ui.window.chat.right_pane_open_override': boolean | null
   'ui.window.agent.right_pane_open_override': boolean | null
 
@@ -240,6 +241,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.chat.sidebar.width': 275,
   'ui.window.chat.artifact_pane.width': 460,
   'ui.window.chat.resource_pane.width': 275,
+  'ui.window.chat.profile_pane.width': 360,
   'ui.window.chat.right_pane_open_override': null,
   'ui.window.agent.right_pane_open_override': null,
   'ui.window.chat.topic.expansion.time': [],
@@ -441,6 +443,8 @@ export type RendererPersistCacheSchema = {
   'ui.model_selector.presentation': 'popover' | 'dialog'
   'ui.model_selector.cherryai_pinned': boolean
   'ui.browser.import_prompt_hidden': boolean
+  // Set by the composer's "don't ask again" when another surface replaces a non-empty draft.
+  'ui.composer.prefill_confirm_hidden': boolean
   'ui.browser.last_urls': Record<string, string>
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
@@ -455,6 +459,12 @@ export type RendererPersistCacheSchema = {
   // Right-pane width for the topic/session list tab. Separate from the artifact pane's key so a
   // width dragged for an artifact never widens the list (and vice versa).
   'ui.chat.resource_pane.width': number
+  // Right-pane width for the Assistant / Agent profile; its own key so the other panes keep theirs.
+  'ui.chat.profile_pane.width': number
+  // Generated Agent suggestions / Assistant opening questions, regenerated when the identity hash changes.
+  'ui.chat.profile_pane.starters': CacheValueTypes.ProfileStartersCache
+  // Assistant / Agent IDs whose suggestions or opening questions the user hid.
+  'ui.chat.profile_pane.hidden_starters': string[]
   // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer)
   'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
@@ -525,6 +535,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.model_selector.presentation': 'popover',
   'ui.model_selector.cherryai_pinned': true,
   'ui.browser.import_prompt_hidden': false,
+  'ui.composer.prefill_confirm_hidden': false,
   'ui.browser.last_urls': {},
   'ui.tab.pinned_tabs': [],
   'ui.tab.normal_tabs': [],
@@ -535,6 +546,9 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.sidebar.width': 275,
   'ui.chat.artifact_pane.width': 280,
   'ui.chat.resource_pane.width': 275, // keep in sync with 'ui.chat.sidebar.width'
+  'ui.chat.profile_pane.width': 360,
+  'ui.chat.profile_pane.starters': {},
+  'ui.chat.profile_pane.hidden_starters': [],
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
