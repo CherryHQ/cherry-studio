@@ -187,7 +187,7 @@ export class SelectionService extends BaseService implements Activatable {
 
       return true
     } catch (error) {
-      this.logError('Failed to load selection-hook:', error as Error)
+      this.logError('Failed to load selection-hook:', error)
 
       return false
     }
@@ -228,7 +228,7 @@ export class SelectionService extends BaseService implements Activatable {
       this.toolbarWindowId = wm.open(WindowType.SelectionToolbar)
 
       this.selectionHook!.on('error', (error: { message: string }) => {
-        this.logError('Error in SelectionHook:', error as Error)
+        this.logError('Error in SelectionHook:', error)
       })
       this.selectionHook!.on('text-selection', this.processTextSelection)
 
@@ -281,9 +281,9 @@ export class SelectionService extends BaseService implements Activatable {
         if (isMac) this.getNativePanel().configurePanel(mw.window.getNativeWindowHandle())
 
         const onHide = () => {
-          const session = wm.getInitData(mw.id) as SelectionActionSession | null
+          const session = wm.getInitData(mw.id)
 
-          if (session) {
+          if (session && 'sessionId' in session && typeof session.sessionId === 'string') {
             application.get('IpcApiService').send(mw.id, 'selection.action_dismissed', { sessionId: session.sessionId })
           }
         }
@@ -1075,7 +1075,7 @@ export class SelectionService extends BaseService implements Activatable {
       this.selectionHook!.on('key-down', this.handleKeyDownHide)
       this.isHideByMouseKeyListenerActive = true
     } catch (error) {
-      this.logError('Failed to start global mouse event listener:', error as Error)
+      this.logError('Failed to start global mouse event listener:', error)
     }
   }
 
@@ -1092,7 +1092,7 @@ export class SelectionService extends BaseService implements Activatable {
       this.selectionHook!.off('key-down', this.handleKeyDownHide)
       this.isHideByMouseKeyListenerActive = false
     } catch (error) {
-      this.logError('Failed to stop global mouse event listener:', error as Error)
+      this.logError('Failed to stop global mouse event listener:', error)
     }
   }
 
@@ -1279,7 +1279,7 @@ export class SelectionService extends BaseService implements Activatable {
         this.selectionHook.stop()
         this.selectionHook.removeAllListeners()
       } catch (error) {
-        this.logError('Failed to stop selection hook:', error as Error)
+        this.logError('Failed to stop selection hook:', error)
       }
     }
 
@@ -1545,7 +1545,8 @@ export class SelectionService extends BaseService implements Activatable {
     }
   }
 
-  private logError(message: string, error?: Error): void {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native module failures and hook error events may be arbitrary values; forward them unchanged to logger.error.
+  private logError(message: string, error?: unknown): void {
     logger.error(message, error)
   }
 }
