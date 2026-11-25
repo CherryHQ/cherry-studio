@@ -308,6 +308,13 @@
       "when": 1795485564466,
       "tag": "0043_artifact",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1795637435057,
+      "tag": "0044_agent_session_tool_output",
+      "breakpoints": true
     }
   ],
   "version": "7"
