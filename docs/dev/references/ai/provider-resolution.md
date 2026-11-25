@@ -41,19 +41,29 @@ resolveProviderOptionsKey(aiSdkProviderId, context): string
 variant suffix if the endpoint type has one, falls back to
 `openai-compatible` when no family is set.
 
-For ordinary chat, a configured `provider.defaultChatEndpoint` supported by the model
-wins over automatic selection, whether inherited from the registry or saved by the
-user. No separate explicit-choice state is needed. A caller's forced SDK dialect
-still wins when declared by the model and configured with a base URL. If the chat
-default is absent, unsupported or unconfigured, New API Gemini/Claude models may
-select a declared, configured native endpoint; other model selections retain their
-listed order. Gateway routing and the provider fallback apply when no model choice
-is available.
+For ordinary chat, an eligible caller-forced SDK dialect wins first: the model
+must declare it and the provider must configure its base URL. A registered gateway
+route matching the model's listed primary endpoint comes next. This keeps
+Gemini-first AiHubMix and DMXAPI models on the Google wire and options namespace
+even when their declared, configured chat default is Chat Completions.
 
-Image intent does not use the chat-default preference. An image-capable primary
-endpoint stays primary. Otherwise a New API image endpoint is promoted only when
-its configuration uses the `newapi` adapter, preserving that adapter's URL handling;
-if none qualifies, the listed primary remains. OpenAI-compatible requests keep
+Otherwise a configured `provider.defaultChatEndpoint` supported by the model wins
+over automatic selection, whether inherited from the registry or saved by the
+user. No separate explicit-choice state is needed. If that default is absent,
+unsupported or unconfigured, New API Gemini/Claude models may select a declared,
+configured native endpoint; other model selections retain their listed order.
+Gateway routing and the provider fallback apply when no model choice is available.
+
+Image requests do not use the chat-default preference. For New API, generation
+selects a declared `openai-image-generation` endpoint configured with the `newapi`
+adapter; requests with edit inputs select `openai-image-edit` under the same rule.
+The matching operation wins even when a different image endpoint is listed first.
+If no matching endpoint qualifies, the listed primary is the fallback. A blank
+image URL inherits the model's primary host before considering the saved chat
+default, so a separate Gemini chat host cannot redirect that inheritance.
+Single-host relay presets still inherit their configured host.
+
+OpenAI-compatible requests keep
 OpenAI tool-schema semantics even when the backend model is Gemini, with one inherited
 exception: `toolSchemaCompatibility` removes `propertyNames` for recognized Gemini
 model IDs on Chat Completions, so key-pattern constraints do not survive on the wire.
