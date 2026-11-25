@@ -3,6 +3,7 @@ import { act, cleanup, render, screen } from '@testing-library/react'
 import { type ReactNode, use, useLayoutEffect, useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
 import {
   CommandFocusScopeContext,
   type CommandFocusScopeState,
@@ -19,6 +20,7 @@ import { CommandContextKeyProvider } from '../CommandContextKeyProvider'
 import { CommandFocusScope } from '../CommandFocusScope'
 import { CommandProvider } from '../CommandProvider'
 
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
 vi.mock('@renderer/utils/platform', () => ({ platform: 'win32' }))
 
 function CommandCounter({
@@ -97,6 +99,44 @@ describe('CommandFocusScope', () => {
   })
 
   afterEach(cleanup)
+
+  it('keeps the host tab open while a guarded dialog or its nested dialog has focus', () => {
+    function HostTab() {
+      const [open, setOpen] = useState(true)
+      useCommandHandler('tab.close', () => setOpen(false), { allowInKeyboardLayer: true })
+      return open ? <span>Host tab</span> : null
+    }
+    const tree = (guarded: boolean, nested: boolean) => (
+      <Providers>
+        <HostTab />
+        <Dialog open>
+          <DialogContent guardDismiss={guarded} aria-describedby={undefined}>
+            <DialogTitle>Draft dialog</DialogTitle>
+            <input aria-label="Draft" />
+            {nested && (
+              <Dialog open>
+                <DialogContent aria-describedby={undefined}>
+                  <DialogTitle>Nested dialog</DialogTitle>
+                  <input aria-label="Nested field" />
+                </DialogContent>
+              </Dialog>
+            )}
+          </DialogContent>
+        </Dialog>
+      </Providers>
+    )
+    const { rerender } = render(tree(true, false))
+    expect(pressShortcut(screen.getByLabelText('Draft'), 'w', 'KeyW')).toBe(true)
+    expect(screen.getByText('Host tab')).toBeInTheDocument()
+
+    rerender(tree(true, true))
+    expect(pressShortcut(screen.getByLabelText('Nested field'), 'w', 'KeyW')).toBe(true)
+    expect(screen.getByText('Host tab')).toBeInTheDocument()
+
+    rerender(tree(false, false))
+    expect(pressShortcut(screen.getByLabelText('Draft'), 'w', 'KeyW')).toBe(true)
+    expect(screen.queryByText('Host tab')).not.toBeInTheDocument()
+  })
 
   it('keeps local command routing attached during descendant layout effects on rerender', () => {
     function LayoutShortcut({ revision }: { revision: number }) {

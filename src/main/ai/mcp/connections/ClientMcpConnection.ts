@@ -483,8 +483,14 @@ export class ClientMcpConnection implements McpConnection {
   }
 
   public async listResourceTemplates(cacheMode: CacheMode = 'use') {
-    const { resourceTemplates } = await this.client.listResourceTemplates(this.paramsWithLogLevel({}), { cacheMode })
-    return resourceTemplates
+    try {
+      const { resourceTemplates } = await this.client.listResourceTemplates(this.paramsWithLogLevel({}), { cacheMode })
+      return resourceTemplates
+    } catch (error) {
+      // Some servers advertise resources but only implement the static catalog.
+      if (ProtocolError.isInstance(error) && error.code === ProtocolErrorCode.MethodNotFound) return []
+      throw error
+    }
   }
 
   public async listResources(cacheMode: CacheMode = 'use', signal?: AbortSignal): Promise<Resource[]> {

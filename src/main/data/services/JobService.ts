@@ -709,11 +709,20 @@ export class JobService {
    * terminal rows total) this in-memory pass is cheaper than a
    * window-function SQL and portable across SQLite versions.
    */
-  pruneTerminalKeepLatestPerScheduleTx(tx: DbOrTx, keepPerSchedule: number): number {
+  pruneTerminalKeepLatestPerScheduleTx(
+    tx: DbOrTx,
+    keepPerSchedule: number,
+    retainedTypes: readonly string[] = []
+  ): number {
     const allTerminal = tx
       .select({ id: jobTable.id, type: jobTable.type, scheduleId: jobTable.scheduleId })
       .from(jobTable)
-      .where(inArray(jobTable.status, TERMINAL_JOB_STATUSES))
+      .where(
+        and(
+          inArray(jobTable.status, TERMINAL_JOB_STATUSES),
+          retainedTypes.length ? notInArray(jobTable.type, [...retainedTypes]) : undefined
+        )
+      )
       .orderBy(desc(jobTable.finishedAt))
       .all()
 
@@ -730,9 +739,9 @@ export class JobService {
     return result.changes
   }
 
-  pruneTerminalKeepLatestPerSchedule(keepPerSchedule: number): number {
+  pruneTerminalKeepLatestPerSchedule(keepPerSchedule: number, retainedTypes: readonly string[] = []): number {
     const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.pruneTerminalKeepLatestPerScheduleTx(tx, keepPerSchedule))
+    return dbService.withWriteTx((tx) => this.pruneTerminalKeepLatestPerScheduleTx(tx, keepPerSchedule, retainedTypes))
   }
 
   // ---------------- Row → Entity ----------------

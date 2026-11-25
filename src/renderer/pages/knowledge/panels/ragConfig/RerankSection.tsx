@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
-import { isRerankModel, KnowledgeModelSelect } from '../../components/KnowledgeModelSelect'
+import { isRerankModel, KnowledgeModelSelect } from '@renderer/components/knowledge/KnowledgeModelSelect'
+
 import { RagFieldLabel } from './panelPrimitives'
 
 interface RerankSectionProps {
