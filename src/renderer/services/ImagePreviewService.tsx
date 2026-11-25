@@ -11,6 +11,7 @@ import {
 import { loggerService } from '@logger'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { readErrorMessage } from '@renderer/utils/errorDetails'
 import {
   copyImageToClipboard,
   type ImageInput,
@@ -61,8 +62,7 @@ const ImagePreviewContainer: React.FC<PreviewProps> = ({ src, open, resolve }) =
         await copyImageToClipboard(item.src)
         toast.success(t('message.copy.success'))
       } catch (error) {
-        const err = error as Error
-        logger.error(`Failed to copy image: ${err.message}`, { stack: err.stack })
+        logger.error(`Failed to copy image: ${readErrorMessage(error)}`, error)
         toast.error(t('message.copy.failed'))
       }
     },

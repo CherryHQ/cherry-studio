@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { toast } from '@renderer/services/toast'
+import { getEventTargetNode } from '@renderer/utils/dom'
 import { download as downloadFile } from '@renderer/utils/download'
 import { svgToPngBlob, svgToSvgBlob } from '@renderer/utils/image'
 
@@ -50,6 +51,7 @@ export const useImageTools = (
 
     if (!imgElement) return null
 
+    // SAFETY: The SVG selected above keeps its element interface when cloned; DOM declarations return only Node.
     const clonedElement = imgElement.cloneNode(true) as SVGElement
     clonedElement.style.transform = ''
     clonedElement.style.transformOrigin = ''
@@ -196,7 +198,7 @@ export const useImageTools = (
     const handleWheel = (e: WheelEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.target) {
         // 确认事件发生在容器内部
-        if (container.contains(e.target as Node)) {
+        if (container.contains(getEventTargetNode(e.target))) {
           e.preventDefault()
           e.stopPropagation()
           const delta = e.deltaY < 0 ? 0.1 : -0.1
