@@ -17,7 +17,7 @@ export async function captureMessageShareImage(
   singleDollarMath: boolean,
   { parts, priorCitationParts }: Pick<MessageExportView, 'parts' | 'priorCitationParts'>
 ) {
-  const { content } = toExportableCitations(markdown, parts, priorCitationParts)
+  const { content } = toExportableCitations(markdown, parts, priorCitationParts, { singleDollarMath })
   const host = document.createElement('div')
   host.className = 'pointer-events-none fixed top-0 -left-[10000px]'
   host.setAttribute('aria-hidden', 'true')

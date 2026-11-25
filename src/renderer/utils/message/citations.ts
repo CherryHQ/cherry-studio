@@ -587,14 +587,16 @@ export function resolveCitationMarkers(content: string, citations: MessageCitati
 export function toExportableCitations(
   content: string,
   parts: readonly CherryMessagePart[],
-  priorParts: readonly CherryMessagePart[] = EMPTY_PARTS
+  priorParts: readonly CherryMessagePart[] = EMPTY_PARTS,
+  { singleDollarMath = false }: { singleDollarMath?: boolean } = {}
 ): { content: string; cited: Citation[] } {
+  const getCodeRanges: GetMarkdownCodeRanges = (source) => getParsedMarkdownCodeRanges(source, singleDollarMath)
   const resolve = (prior?: readonly CherryMessagePart[]) =>
-    resolveCitationMarkerParts([content], resolveMessageCitations(parts, prior), getParsedMarkdownCodeRanges)[0]
+    resolveCitationMarkerParts([content], resolveMessageCitations(parts, prior), getCodeRanges)[0]
   // Earlier turns only answer ids own parts do not mint, so fold them only on an unresolved
   // marker: eager folding made a whole-topic export quadratic in the number of search calls.
   let resolution = resolve()
-  if (priorParts.length > 0 && hasUnresolvedMarker(resolution)) {
+  if (priorParts.length > 0 && hasUnresolvedMarker(resolution, getCodeRanges)) {
     resolution = resolve(priorParts)
   }
   const { content: resolved, byMarker, cited } = resolution
@@ -606,13 +608,16 @@ export function toExportableCitations(
           const citation = byMarker.get(id)
           return citation ? `${space}[${citation.number}]` : ''
         }),
-      getParsedMarkdownCodeRanges
+      getCodeRanges
     ),
     cited
   }
 }
 
-function hasUnresolvedMarker({ content, byMarker }: ResolvedCitationMarkers): boolean {
+function hasUnresolvedMarker(
+  { content, byMarker }: ResolvedCitationMarkers,
+  getCodeRanges: GetMarkdownCodeRanges
+): boolean {
   let unresolved = false
   mapMarkdownOutsideCode(
     content,
@@ -627,7 +632,7 @@ function hasUnresolvedMarker({ content, byMarker }: ResolvedCitationMarkers): bo
       }
       return text
     },
-    getParsedMarkdownCodeRanges
+    getCodeRanges
   )
   return unresolved
 }

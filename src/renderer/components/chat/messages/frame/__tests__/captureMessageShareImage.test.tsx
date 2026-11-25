@@ -1,4 +1,4 @@
-import { act } from '@testing-library/react'
+import { act, within } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -53,3 +53,41 @@ it('renders citation numbers, drops stale markers, and preserves markers inside 
     'Quoted prefix [cite:retired-9] suffix'
   ])
 })
+
+it.each([
+  { name: 'dollar fences', opening: '$$', closing: '$$', singleDollarMath: true },
+  { name: 'LaTeX brackets', opening: '\\[', closing: '\\]', singleDollarMath: false }
+])(
+  'cleans prose after a formula with $name and preserves real code',
+  async ({ opening, closing, singleDollarMath }) => {
+    const code = 'Keep [cite:literal] in code.'
+    const markdown = [
+      [opening, 'x=1', '~~~', closing].join('\n'),
+      'Result [cite:stale].',
+      '~~~txt\n' + code + '\n~~~'
+    ].join('\n\n')
+    let captured: { text: string | null; formula: string | null; code: string | undefined } | undefined
+    vi.mocked(exportService.captureScrollableAsDataUrl).mockImplementation(async ({ current }) => {
+      if (current) {
+        captured = {
+          text: current.textContent,
+          formula: within(current).queryByRole('math', { hidden: true })?.textContent ?? null,
+          code: current.querySelector('pre code')?.textContent?.trimEnd()
+        }
+      }
+      return 'data:image/png;base64,AAAA'
+    })
+
+    let capture: ReturnType<typeof captureMessageShareImage> | undefined
+    await act(async () => {
+      capture = captureMessageShareImage(markdown, singleDollarMath, { parts: [] })
+    })
+    await expect(capture).resolves.toBe('data:image/png;base64,AAAA')
+    expect(captured).toEqual({
+      text: expect.stringContaining('Result.'),
+      formula: expect.stringContaining('x=1'),
+      code
+    })
+    expect(captured?.text).not.toContain('[cite:stale]')
+  }
+)

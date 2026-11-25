@@ -12,6 +12,7 @@
 
 import type { GroundingSupport } from '@google/genai'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
@@ -19,6 +20,7 @@ import { visit } from 'unist-util-visit'
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
+import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
 const MARKDOWN_CODE_PATTERN = /```[\s\S]*?```|`[^`\n]*`/gm
 
@@ -32,14 +34,17 @@ function getBacktickCodeRanges(content: string): CodeRange[] {
   }))
 }
 
-const markdownParser = unified().use(remarkParse).use(remarkGfm).freeze()
+const markdownParser = unified().use(remarkParse).use(remarkGfm, { singleTilde: false }).use(remarkLatexMath)
+const inlineDollarParser = markdownParser().use(remarkMath, { singleDollarTextMath: true }).freeze()
+const literalDollarParser = markdownParser().use(remarkMath, { singleDollarTextMath: false }).freeze()
 
-/** Parse settled Markdown so exports follow actual code boundaries. */
-export function getParsedMarkdownCodeRanges(content: string): CodeRange[] {
+/** Use the renderer's math syntax when finding code boundaries in settled Markdown. */
+export function getParsedMarkdownCodeRanges(content: string, singleDollarMath: boolean): CodeRange[] {
   if (!/[`~\t]| {4}/.test(content)) return []
 
   const ranges: CodeRange[] = []
-  visit(markdownParser.parse(content), ['code', 'inlineCode'], (node) => {
+  const parser = singleDollarMath ? inlineDollarParser : literalDollarParser
+  visit(parser.parse(content), ['code', 'inlineCode'], (node) => {
     const start = node.position?.start.offset
     const end = node.position?.end.offset
     if (start !== undefined && end !== undefined) ranges.push({ start, end })
@@ -107,8 +112,9 @@ export function normalizeCitationMarks(
   content: string,
   citationMap: Map<number, Citation>,
   sourceType?: WebSearchSource,
-  getCodeRanges: GetMarkdownCodeRanges = getBacktickCodeRanges
+  getParsedCodeRanges?: GetMarkdownCodeRanges
 ): string {
+  const getCodeRanges = getParsedCodeRanges ?? getBacktickCodeRanges
   const overlapsCode = (start: number, end = start + 1, skipRanges = getCodeRanges(content)): boolean => {
     for (const range of skipRanges) {
       if (range.start >= end) break
@@ -125,7 +131,9 @@ export function normalizeCitationMarks(
     let m: RegExpExecArray | null
     while ((m = regex.exec(content)) !== null) {
       const end = m.index + m[0].length
-      if (!overlapsCode(m.index, end, skipRanges)) {
+      // The chat fallback can mistake backticks in a link destination for inline code.
+      const protectedEnd = getParsedCodeRanges ? end : m.index + 1
+      if (!overlapsCode(m.index, protectedEnd, skipRanges)) {
         const replacement = getReplacementFn(m)
         if (replacement !== null) {
           replacements.push({ start: m.index, end, replacement })
