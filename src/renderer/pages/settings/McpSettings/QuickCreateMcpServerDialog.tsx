@@ -49,7 +49,7 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
   const [submitting, setSubmitting] = useState(false)
 
   const form = useForm<McpFormValues>({
-    resolver: zodResolver(buildMcpSchema(t)) as any,
+    resolver: zodResolver(buildMcpSchema(t)),
     defaultValues: MCP_FORM_DEFAULT_VALUES
   })
 

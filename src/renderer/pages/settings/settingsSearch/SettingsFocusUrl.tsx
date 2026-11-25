@@ -17,7 +17,7 @@ const SettingsFocusUrl = () => {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const focusId = (search as { focusId?: unknown }).focusId
+    const focusId = 'focusId' in search ? search.focusId : undefined
 
     // Empty string included: a blank anchor must not reach querySelector('#')
     if (typeof focusId !== 'string' || !focusId) return

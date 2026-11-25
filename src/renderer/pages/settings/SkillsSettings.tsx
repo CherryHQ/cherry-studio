@@ -43,8 +43,6 @@ import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 
-type SkillScopeTab = 'all' | 'system' | 'builtin'
-
 export function SkillsSettings() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -85,9 +83,13 @@ export function SkillsSettings() {
 
   const [enabledOnly, setEnabledOnly] = usePersistCache('settings.skills.enabled_only')
   // The scope lives in the route search so it survives the round-trip through the detail route.
-  const search = useSearch({ strict: false }) as { scope?: SkillScopeTab }
+  const search = useSearch({ from: '/settings/skills/' })
   const scope = search.scope ?? 'all'
-  const setScope = (next: string) => void navigate({ to: '/settings/skills', search: { scope: next as SkillScopeTab } })
+  const setScope = (next: string) => {
+    if (next === 'all' || next === 'system' || next === 'builtin') {
+      void navigate({ to: '/settings/skills', search: { scope: next } })
+    }
+  }
 
   const filterResource = useCallback(
     (resource: ResourceItem) =>

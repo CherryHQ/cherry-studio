@@ -21,19 +21,10 @@ interface McpToolsSectionProps {
 
 const MAX_NESTING_DEPTH = 5
 
-interface SchemaProperty {
-  type?: string
-  description?: string
-  enum?: Array<string | number | boolean | null>
-  properties?: Record<string, SchemaProperty>
-  required?: string[]
-  items?: SchemaProperty
-}
+type SchemaProperties = NonNullable<McpTool['inputSchema']['properties']>
+type SchemaProperty = SchemaProperties[string]
 
-type SchemaProperties = Record<string, SchemaProperty>
-
-const getToolSchemaProperties = (tool: McpTool): SchemaProperties | undefined =>
-  tool.inputSchema?.properties as SchemaProperties | undefined
+const getToolSchemaProperties = (tool: McpTool) => tool.inputSchema?.properties
 
 const AutoApproveCell = ({
   tool,
@@ -104,9 +95,34 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
 
   // Render a single schema property and its nested children as a tree node.
   const renderProperty = (key: string, property: SchemaProperty, required: boolean, depth: number = 0) => {
-    const { type, description, items } = property
-    const itemsType = items?.type
+    const fields = property !== null && typeof property === 'object' && !Array.isArray(property) ? property : undefined
+    const type =
+      typeof fields?.type === 'string'
+        ? fields.type
+        : Array.isArray(fields?.type)
+          ? fields.type.filter((value) => typeof value === 'string')
+          : undefined
+    const description = typeof fields?.description === 'string' ? fields.description : undefined
+    const items =
+      fields?.items !== null && typeof fields?.items === 'object' && !Array.isArray(fields.items)
+        ? fields.items
+        : undefined
+    const itemsType =
+      typeof items?.type === 'string'
+        ? items.type
+        : Array.isArray(items?.type)
+          ? items.type.filter((value) => typeof value === 'string')
+          : undefined
     const itemType = type === 'array' && itemsType ? `${itemsType}[]` : type
+    const enumValues = Array.isArray(fields?.enum) ? fields.enum : undefined
+    const properties =
+      fields?.properties !== null && typeof fields?.properties === 'object' && !Array.isArray(fields.properties)
+        ? fields.properties
+        : undefined
+    const itemProperties =
+      items?.properties !== null && typeof items?.properties === 'object' && !Array.isArray(items.properties)
+        ? items.properties
+        : undefined
 
     return (
       <div key={key} data-schema-property={key} className="min-w-0 border-border border-b py-2 last:border-b-0">
@@ -119,19 +135,23 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
               </Tooltip>
             )}
           </Flex>
-          {itemType && <Badge className={`shrink-0 ${getTypeBadgeClass(type)}`}>{itemType}</Badge>}
+          {itemType && (
+            <Badge className={`shrink-0 ${getTypeBadgeClass(typeof type === 'string' ? type : undefined)}`}>
+              {itemType}
+            </Badge>
+          )}
           {description && (
             <span className="wrap-break-word min-w-0 flex-1 text-muted-foreground text-sm leading-5">
               {description}
             </span>
           )}
         </Flex>
-        {property.enum && (
+        {enumValues && (
           <div className="mt-1 ml-42 flex flex-wrap items-center gap-1.5">
             <span className="text-muted-foreground text-sm">
               {t('settings.mcp.tools.inputSchema.enum.allowedValues')}
             </span>
-            {property.enum.map((enumValue, index) => (
+            {enumValues.map((enumValue, index) => (
               <Badge key={index} variant="outline">
                 {String(enumValue)}
               </Badge>
@@ -140,12 +160,16 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
         )}
         {depth < MAX_NESTING_DEPTH &&
           type === 'object' &&
-          property.properties &&
-          renderSchemaProperties(property.properties, property.required, depth + 1)}
-        {depth < MAX_NESTING_DEPTH && type === 'array' && itemsType === 'object' && items?.properties && (
+          properties &&
+          renderSchemaProperties(properties, Array.isArray(fields?.required) ? fields.required : undefined, depth + 1)}
+        {depth < MAX_NESTING_DEPTH && type === 'array' && itemsType === 'object' && itemProperties && (
           <div className="mt-2">
             <span className="text-muted-foreground text-sm italic">items:</span>
-            {renderSchemaProperties(items.properties, items.required, depth + 1)}
+            {renderSchemaProperties(
+              itemProperties,
+              Array.isArray(items?.required) ? items.required : undefined,
+              depth + 1
+            )}
           </div>
         )}
       </div>
@@ -154,7 +178,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
 
   const renderSchemaProperties = (
     properties: SchemaProperties,
-    required: readonly string[] = [],
+    required: readonly SchemaProperty[] = [],
     depth: number = 0
   ) => {
     return (

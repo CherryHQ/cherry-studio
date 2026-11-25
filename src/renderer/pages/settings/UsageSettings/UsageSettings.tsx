@@ -585,6 +585,7 @@ function UsageSettings() {
                     value={groupBy}
                     onValueChange={(value) => {
                       const selected = GROUP_BY_KEYS.find((key) => key === value)
+
                       if (selected !== undefined) setGroupBy(selected)
                     }}>
                     <SelectTrigger size="sm" className="w-full" aria-label={t('settings.usage.explore.groupBy')}>
@@ -604,6 +605,7 @@ function UsageSettings() {
                     value={chartMetric}
                     onValueChange={(value) => {
                       const selected = METRIC_KEYS.find((key) => key === value)
+
                       if (selected !== undefined) setChartMetric(selected)
                     }}>
                     <SelectTrigger size="sm" className="w-full" aria-label={t('settings.usage.explore.metric')}>
@@ -623,6 +625,7 @@ function UsageSettings() {
                     value={String(topCount)}
                     onValueChange={(value) => {
                       const selected = TOP_COUNT_KEYS.find((count) => String(count) === value)
+
                       if (selected !== undefined) setTopCount(selected)
                     }}>
                     <SelectTrigger size="sm" className="w-full" aria-label={t('settings.usage.explore.top')}>

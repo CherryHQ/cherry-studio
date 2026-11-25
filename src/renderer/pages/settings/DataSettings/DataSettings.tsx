@@ -49,7 +49,7 @@ const DataSettings: FC = () => {
   // replace). Unknown values were already dropped by the route schema.
   const search = dataRouteApi.useSearch<AppRouter>()
   const rawPanel = typeof search.panel === 'string' ? search.panel : undefined
-  const panelParam = rawPanel && (DATA_PANEL_KEYS as readonly string[]).includes(rawPanel) ? rawPanel : undefined
+  const panelParam = rawPanel && DATA_PANEL_KEYS.some((key) => key === rawPanel) ? rawPanel : undefined
   const menu = panelParam ?? DEFAULT_DATA_PANEL
 
   const menuItems: DataMenuItem[] = [

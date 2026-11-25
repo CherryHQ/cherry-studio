@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Input, Label } from '@cherrystudio/ui'
 
+import { readChannelIds, readChannelText } from './channelConfigFields'
 import { ChannelQrRegistration } from './ChannelQrRegistration'
 import type { ChannelData, ChannelUpdates } from './channelTypes'
 
@@ -32,8 +33,8 @@ export function DingTalkForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {fields.map((field) => {
           const value = field.list
-            ? ((channel.config[field.key] as string[]) ?? []).join(', ')
-            : ((channel.config[field.key] as string) ?? '')
+            ? readChannelIds(channel.config[field.key]).join(', ')
+            : readChannelText(channel.config[field.key])
 
           return (
             <div key={field.key}>

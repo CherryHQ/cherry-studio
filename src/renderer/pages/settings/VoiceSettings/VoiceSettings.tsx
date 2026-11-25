@@ -1086,7 +1086,7 @@ function VoiceSettings() {
               ) : null}
               {transcriptionModels.map((model) => {
                 const downloadable = model.resourceOperations.includes(VoiceResourceOperation.Download)
-                const status = downloadableModelStatuses[model.id as LocalTranscriptionModelId]
+                const status = downloadableModelStatuses[model.id]
                 const needsDownload = downloadable && status && status.status !== 'ready'
 
                 return (
@@ -1215,10 +1215,12 @@ function VoiceSettings() {
                 if (value.startsWith(DOWNLOAD_MODEL_PREFIX)) {
                   const modelId = value.slice(DOWNLOAD_MODEL_PREFIX.length)
 
-                  if (modelId in DOWNLOADABLE_SPEECH_BUNDLES) {
+                  const bundle = Object.entries(DOWNLOADABLE_SPEECH_BUNDLES).find(([id]) => id === modelId)?.[1]
+
+                  if (bundle) {
                     void navigate({
                       to: '/settings/local-models',
-                      hash: DOWNLOADABLE_SPEECH_BUNDLES[modelId as keyof typeof DOWNLOADABLE_SPEECH_BUNDLES]
+                      hash: bundle
                     }).catch(() => setActionFailed(true))
                   }
 

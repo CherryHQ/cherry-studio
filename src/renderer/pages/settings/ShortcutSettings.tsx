@@ -724,6 +724,7 @@ const ShortcutSettings: FC = () => {
                       value={activeGroup}
                       onValueChange={(value) => {
                         const option = groupOptions.find((item) => item.value === value)
+
                         if (!option) return
 
                         setActiveGroup(option.value)

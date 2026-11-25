@@ -1,4 +1,4 @@
-import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
+import { getRouteApi, useLocation, useNavigate } from '@tanstack/react-router'
 import { debounce } from 'es-toolkit/compat'
 import { BadgeQuestionMark, Bug, Building2, Github, Globe, MessageSquareText, Rss, Star } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
@@ -35,9 +35,12 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
+import type { AppRouter } from '@renderer/types/router'
 import { cn } from '@renderer/utils/style'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { DOCTOR_OPEN_QUERY_PARAM, type DoctorPanel } from '@shared/utils/doctor'
+
+const aboutRouteApi = getRouteApi('/settings/about')
 
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
@@ -52,7 +55,7 @@ const AboutSettings: FC = () => {
   const showReleases = useOpenReleaseNotes()
   const location = useLocation()
   const navigate = useNavigate()
-  const search = useSearch({ strict: false }) as Partial<Record<typeof DOCTOR_OPEN_QUERY_PARAM, DoctorPanel>>
+  const search = aboutRouteApi.useSearch<AppRouter>()
   const consumedDoctorPanelRef = useRef<DoctorPanel | undefined>(undefined)
 
   const { appUpdateState, updateAppUpdateState, checkForUpdate } = useAppUpdateState(async (releaseInfo) => {

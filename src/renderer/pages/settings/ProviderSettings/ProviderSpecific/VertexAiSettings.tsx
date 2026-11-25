@@ -24,12 +24,14 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
   const { updateAuthConfig: saveAuthConfigToServer } = useProviderMutations(providerId)
 
   const gcpConfig = authConfig?.type === 'iam-gcp' ? authConfig : null
-  const credentials = gcpConfig?.credentials as Record<string, string> | undefined
+  const credentials = gcpConfig?.credentials
+  const privateKey = typeof credentials?.privateKey === 'string' ? credentials.privateKey : ''
+  const clientEmail = typeof credentials?.clientEmail === 'string' ? credentials.clientEmail : ''
 
   const [localProjectId, setLocalProjectId] = useState(gcpConfig?.project ?? '')
   const [localLocation, setLocalLocation] = useState(gcpConfig?.location ?? '')
-  const [localPrivateKey, setLocalPrivateKey] = useState(credentials?.privateKey ?? '')
-  const [localClientEmail, setLocalClientEmail] = useState(credentials?.clientEmail ?? '')
+  const [localPrivateKey, setLocalPrivateKey] = useState(privateKey)
+  const [localClientEmail, setLocalClientEmail] = useState(clientEmail)
   const [serviceAccountJson, setServiceAccountJson] = useState('')
   const [serviceAccountJsonError, setServiceAccountJsonError] = useState(false)
 
@@ -49,20 +51,14 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
   const resetLocalAuthConfig = useCallback(() => {
     setLocalProjectId(gcpConfig?.project ?? '')
     setLocalLocation(gcpConfig?.location ?? '')
-    setLocalPrivateKey(credentials?.privateKey ?? '')
-    setLocalClientEmail(credentials?.clientEmail ?? '')
+    setLocalPrivateKey(privateKey)
+    setLocalClientEmail(clientEmail)
 
     if (!serviceAccountJsonError) {
       setServiceAccountJson('')
       setServiceAccountJsonError(false)
     }
-  }, [
-    credentials?.clientEmail,
-    credentials?.privateKey,
-    gcpConfig?.location,
-    gcpConfig?.project,
-    serviceAccountJsonError
-  ])
+  }, [clientEmail, privateKey, gcpConfig?.location, gcpConfig?.project, serviceAccountJsonError])
 
   useEffect(() => {
     if (!isDraftDirtyRef.current && activeSaveRequestsRef.current === 0) {
@@ -331,7 +327,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
             {
               WebkitTextSecurity: showPrivateKey ? 'none' : 'disc',
               maxHeight: localPrivateKey ? '52px' : '32px'
-            } as React.CSSProperties
+            } satisfies React.CSSProperties & { WebkitTextSecurity: 'none' | 'disc' }
           }
           value={localPrivateKey}
           placeholder={t('settings.provider.vertex_ai.service_account.private_key_placeholder')}

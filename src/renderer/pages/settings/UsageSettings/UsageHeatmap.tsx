@@ -171,13 +171,13 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
 
   const bucketMap = useMemo(() => new Map(buckets.map((bucket) => [bucket.date, bucket])), [buckets])
 
-  const thresholds = useMemo(() => {
+  const thresholds = useMemo<[number, number, number]>(() => {
     const values = buckets
       .map((bucket) => getBucketValue(bucket, metric))
       .filter((value) => value > 0)
       .sort((a, b) => a - b)
 
-    return [quantile(values, 0.25), quantile(values, 0.5), quantile(values, 0.75)] as [number, number, number]
+    return [quantile(values, 0.25), quantile(values, 0.5), quantile(values, 0.75)]
   }, [buckets, metric])
 
   useEffect(() => {

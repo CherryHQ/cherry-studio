@@ -1,6 +1,6 @@
 import { isNumberShortcut } from '@renderer/utils/numberShortcuts'
 import { platform } from '@renderer/utils/platform'
-import type { SupportedPlatform } from '@shared/types/command'
+import type { CommandDefinition } from '@shared/types/command'
 import { COMMAND_DEFINITIONS, isPlatformSupported } from '@shared/utils/command'
 
 import type { SettingsSearchEntry } from './settingsSearch/types'
@@ -28,21 +28,14 @@ const categoryToBreadcrumbKey = (categoryKey: string): string => {
     : 'settings.shortcuts.categories.assistant'
 }
 
-// Command definition literals don't all carry `editable` on their keybinding
-type CommandDefinition = (typeof COMMAND_DEFINITIONS)[number]
-
-const currentPlatform = platform as SupportedPlatform | undefined
-
 const isSearchableCommand = (definition: CommandDefinition): boolean => {
-  const keybinding = definition.keybinding as
-    | { editable?: boolean; supportedPlatforms?: SupportedPlatform[] }
-    | undefined
+  const keybinding = definition.keybinding
 
   if (!keybinding || keybinding.editable === false) return false
 
   // Same filter the shortcut list applies at render time — unsupported
   // platforms would render no row and every jump would silently give up
-  return isPlatformSupported(keybinding, currentPlatform)
+  return isPlatformSupported(keybinding, platform)
 }
 
 export const entries: SettingsSearchEntry[] = COMMAND_DEFINITIONS.filter(

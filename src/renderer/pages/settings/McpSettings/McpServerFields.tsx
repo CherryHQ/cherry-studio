@@ -42,7 +42,7 @@ export const buildMcpSchema = (t: (key: string) => string) =>
       isActive: z.boolean().optional(),
       headers: z.string().optional(),
       longRunning: z.boolean().optional(),
-      timeout: z.coerce.number().optional(),
+      timeout: z.coerce.number<number>().optional(),
       provider: z.string().optional(),
       providerUrl: z.string().optional(),
       logoUrl: z.string().optional(),

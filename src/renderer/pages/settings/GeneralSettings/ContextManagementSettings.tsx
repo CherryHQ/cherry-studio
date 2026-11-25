@@ -30,7 +30,7 @@ import {
   MIN_COMPRESS_THRESHOLD_PERCENT,
   MIN_TRUNCATE_THRESHOLD
 } from '@shared/data/types/contextSettings'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { type Model, UniqueModelIdSchema } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -61,7 +61,8 @@ export const ContextManagementSettings = () => {
   const [compressModelId, setCompressModelId] = usePreference('chat.context_settings.compress.model_id')
   const [compressThreshold, setCompressThreshold] = usePreference('chat.context_settings.compress.threshold_percent')
 
-  const { model: compressModel } = useModelById(compressModelId as UniqueModelId | null)
+  const parsedCompressModelId = UniqueModelIdSchema.safeParse(compressModelId)
+  const { model: compressModel } = useModelById(parsedCompressModelId.success ? parsedCompressModelId.data : null)
   const { providers } = useProviders({ enabled: true })
 
   // `undefined` is the selector's CLEAR signal — swallowing it left no way

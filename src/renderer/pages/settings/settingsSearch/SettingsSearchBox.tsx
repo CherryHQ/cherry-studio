@@ -53,11 +53,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
     [mirrorOwner]
   )
 
-  const mirror = (
-    location.state as typeof location.state & {
-      settingsSearchMirror?: { owner: string; revision: number }
-    }
-  )?.settingsSearchMirror
+  const mirror = 'settingsSearchMirror' in location.state ? location.state.settingsSearchMirror : undefined
 
   // A second dismissal would overwrite the panel that back() returns to.
   const leaveInFlightRef = useRef(false)
@@ -98,7 +94,14 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
   // Only the first arrival of an own mirror is an acknowledgement; revisiting
   // its history entry must still restore the query like any external navigation.
   useEffect(() => {
-    const isOwnMirror = mirror?.owner === mirrorOwner && mirror.revision > acknowledgedMirrorRef.current
+    const isOwnMirror =
+      mirror !== null &&
+      typeof mirror === 'object' &&
+      'owner' in mirror &&
+      mirror.owner === mirrorOwner &&
+      'revision' in mirror &&
+      typeof mirror.revision === 'number' &&
+      mirror.revision > acknowledgedMirrorRef.current
 
     if (isOwnMirror) acknowledgedMirrorRef.current = mirror.revision
 

@@ -67,7 +67,9 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
 
   const handlePlatformChange = useCallback(
     async (domain: string) => {
-      const next = domain as PlatformDomain
+      const next = Object.values(PlatformDomain).find((value) => value === domain)
+
+      if (!next) return
       const previous = resolveDmxPlatformFromProvider(provider)
 
       if (next === previous) {

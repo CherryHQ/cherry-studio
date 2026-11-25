@@ -304,6 +304,7 @@ export const PaintingArchiveSection: FC<ArchiveDomainSectionProps> = ({
         chunk(ids, PREVIEW_BATCH_SIZE).map((batch) => ipcApi.request('file.batch_get_physical_paths', { ids: batch }))
       )
 
+      // SAFETY: These typed IPC batches are all physical-path dictionaries; Object.assign's variadic overload erases their common output type.
       return Object.assign({}, ...batches) as (typeof batches)[number]
     },
     { onError: (error) => logger.warn('Failed to load archived painting previews', error) }

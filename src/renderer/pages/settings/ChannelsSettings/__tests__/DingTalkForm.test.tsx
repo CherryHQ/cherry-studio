@@ -29,6 +29,26 @@ function Form() {
 }
 
 describe('DingTalk setup', () => {
+  it('displays valid historical ID strings without coercing malformed entries or rewriting the config', () => {
+    const channel: ChannelData = {
+      id: 'channel',
+      name: 'DingTalk',
+      type: 'dingtalk',
+      isActive: false,
+      config: {
+        client_id: ' app ',
+        client_secret: ' secret ',
+        allowed_chat_ids: ['room-a', 42, ' room-b ', 'room-a'],
+        allowed_user_ids: { malformed: true }
+      }
+    }
+    render(<DingTalkForm channel={channel} onConfigChange={() => undefined} />)
+    expect(screen.getByLabelText('agent.channels.dingtalk.chatIds')).toHaveValue('room-a,  room-b , room-a')
+    expect(screen.getByLabelText('agent.channels.dingtalk.userIds')).toHaveValue('')
+    expect(screen.getByLabelText('agent.channels.dingtalk.clientSecret')).toHaveValue(' secret ')
+    expect(channel.config.allowed_chat_ids).toEqual(['room-a', 42, ' room-b ', 'room-a'])
+  })
+
   it('saves normalized IDs while preserving secret bytes and hiding the secret input', () => {
     render(<Form />)
     const edit = (key: string, value: string) => {

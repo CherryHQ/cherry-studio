@@ -11,6 +11,7 @@ import type { ChannelData } from './channelTypes'
 
 export function ChannelQrRegistration({ channel }: { channel: ChannelData }) {
   const { t } = useTranslation()
+  // SAFETY: The channel form registry routes this same object's wecom/dingtalk type into the only two QR registration callers.
   const { mutate } = useChannels(channel.type as AgentChannelType)
   const attempt = useRef<string | null>(null)
   const [url, setUrl] = useState<string | null>(null)

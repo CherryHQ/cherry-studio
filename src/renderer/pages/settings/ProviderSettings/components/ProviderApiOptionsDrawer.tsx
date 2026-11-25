@@ -339,13 +339,16 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                     action={
                       <Select
                         value={cacheTtl}
-                        onValueChange={(ttl) =>
+                        onValueChange={(ttl) => {
+                          const selectedTtl = ANTHROPIC_CACHE_TTL_OPTIONS.find((option) => option === ttl)
+
+                          if (!selectedTtl) return
                           updateCacheSettings({
                             enabled: effectiveCacheTokenThreshold > 0,
                             tokenThreshold: effectiveCacheTokenThreshold,
-                            ttl: ttl as AnthropicCacheTtl
+                            ttl: selectedTtl
                           })
-                        }>
+                        }}>
                         <SelectTrigger
                           id={apiOptionId(providerId, 'cache-ttl')}
                           className={cn(drawerClasses.selectTrigger, 'h-9 w-32 shrink-0 py-1')}>

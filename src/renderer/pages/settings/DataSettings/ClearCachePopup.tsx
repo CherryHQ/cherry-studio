@@ -90,6 +90,7 @@ function mergeLegacySizes(
 }
 
 function createLoadingOptionStates(): Record<CacheCleanupGroup, CleanupOptionState> {
+  // SAFETY: CACHE_CLEANUP_GROUPS is the complete group domain and every key gets its own loading state; fromEntries erases this coverage.
   return Object.fromEntries(CACHE_CLEANUP_GROUPS.map((group) => [group, { loading: true }])) as Record<
     CacheCleanupGroup,
     CleanupOptionState

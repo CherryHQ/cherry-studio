@@ -13,6 +13,7 @@ import {
   ItemTitle,
   Tooltip
 } from '@cherrystudio/ui'
+import { getEventTargetElement } from '@renderer/utils/dom'
 
 import type { ArchiveItem } from './archive'
 import { computeDaysRemaining, formatDeletedTime } from './archive'
@@ -57,7 +58,9 @@ const ArchiveItemRow: FC<ArchiveItemRowProps> = ({
       className="flex-nowrap gap-3 rounded-none border-0 border-border-subtle border-b px-0 py-2 last:border-b-0 data-[selectable=true]:cursor-pointer"
       data-selectable={showSelection && !isSectionBusy}
       onClick={(event) => {
-        if (showSelection && !isSectionBusy && !(event.target as Element).closest('button')) {
+        const target = getEventTargetElement(event.target)
+
+        if (showSelection && !isSectionBusy && target && !target.closest('button')) {
           onSelectedChange(!selected)
         }
       }}>

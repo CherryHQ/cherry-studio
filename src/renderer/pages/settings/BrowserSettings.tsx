@@ -27,7 +27,6 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { cacheService } from '@renderer/data/CacheService'
 import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
-import type { BrowserStartPageMode } from '@shared/data/preference/preferenceTypes'
 
 import { BrowserClearDialog } from './BrowserSettings/BrowserClearDialog'
 import { BrowserHistoryDialog } from './BrowserSettings/BrowserHistoryDialog'
@@ -191,11 +190,13 @@ export function BrowserSettings() {
             value={startPageMode === 'last' || startPageMode === 'custom' ? startPageMode : 'blank'}
             disabled={saving}
             onValueChange={async (value) => {
+              if (value !== 'blank' && value !== 'last' && value !== 'custom') return
+
               setSaving(true)
               setError(false)
 
               try {
-                await setStartPageMode(value as BrowserStartPageMode)
+                await setStartPageMode(value)
 
                 if (startPageMode === 'last' && value !== 'last') {
                   cacheService.setPersist('ui.browser.last_urls', {})

@@ -55,6 +55,8 @@ const OVMS_DOWNLOAD_TASK_LABEL_KEYS: Record<OvmsDownloadTask, string> = {
   text_generation: 'ovms.download.task.text_generation'
 }
 
+const OVMS_DOWNLOAD_TASKS: readonly OvmsDownloadTask[] = ['text_generation', 'embeddings', 'rerank', 'image_generation']
+
 const PRESET_MODELS: PresetModel[] = [
   {
     modelId: 'OpenVINO/Qwen3-4B-int4-ov',
@@ -348,16 +350,21 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           <Label className="text-[13px] text-foreground">{t('ovms.download.model_task')}</Label>
           <Select
             value={formValues.task}
-            onValueChange={(value) => updateField('task', value as OvmsDownloadTask)}
+            onValueChange={(value) => {
+              const task = OVMS_DOWNLOAD_TASKS.find((option) => option === value)
+
+              if (task) updateField('task', task)
+            }}
             disabled={loading}>
             <SelectTrigger className={drawerClasses.selectTrigger}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent className={drawerClasses.selectContent}>
-              <SelectItem value="text_generation">{t('ovms.download.task.text_generation')}</SelectItem>
-              <SelectItem value="embeddings">{t('ovms.download.task.embeddings')}</SelectItem>
-              <SelectItem value="rerank">{t('ovms.download.task.rerank')}</SelectItem>
-              <SelectItem value="image_generation">{t('ovms.download.task.image_generation')}</SelectItem>
+              {OVMS_DOWNLOAD_TASKS.map((task) => (
+                <SelectItem key={task} value={task}>
+                  {t(OVMS_DOWNLOAD_TASK_LABEL_KEYS[task])}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

@@ -20,9 +20,13 @@ import {
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
 import { openExternalWebsite } from '@renderer/services/website'
+import { getEventTargetElement } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
 
 const builtinTools = settingsMenu.filter((item) => item.groupKey === BUILTIN_TOOLS_GROUP_KEY)
+const transparentGroupStyle: CSSProperties & { '--settings-group-background': string } = {
+  '--settings-group-background': 'transparent'
+}
 
 const SettingsPage: FC = () => {
   const location = useLocation()
@@ -45,7 +49,7 @@ const SettingsPage: FC = () => {
 
   const openExternalLink = (event: MouseEvent<HTMLDivElement>) => {
     if (event.type === 'auxclick' && event.button !== 1) return
-    const anchor = (event.target as Element).closest<HTMLAnchorElement>('a[href]')
+    const anchor = getEventTargetElement(event.target)?.closest<HTMLAnchorElement>('a[href]')
 
     if (!anchor || !/^https?:\/\//i.test(anchor.getAttribute('href') ?? '')) return
     event.preventDefault()
@@ -56,7 +60,7 @@ const SettingsPage: FC = () => {
   return (
     <SettingsSearchDomIdsProvider>
       <div
-        style={isMacTransparentWindow ? ({ '--settings-group-background': 'transparent' } as CSSProperties) : undefined}
+        style={isMacTransparentWindow ? transparentGroupStyle : undefined}
         data-ui="settings.view"
         onClickCapture={openExternalLink}
         onAuxClickCapture={openExternalLink}

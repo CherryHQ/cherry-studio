@@ -20,7 +20,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import type { McpTool } from '@renderer/types/tool'
-import { formatMcpError } from '@renderer/utils/error'
+import { readErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
@@ -84,7 +84,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   const [serverType, setServerType] = useState<McpServerType | undefined>(initialFormValues.serverType)
 
   const form = useForm<McpFormValues>({
-    resolver: zodResolver(buildMcpSchema(t)) as any,
+    resolver: zodResolver(buildMcpSchema(t)),
     defaultValues: initialFormValues
   })
 
@@ -397,10 +397,10 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           markCapabilityLoaded('tools')
           markCapabilityLoaded('prompts')
           markCapabilityLoaded('resources')
-        } catch (error: any) {
+        } catch (error) {
           void popup.error({
             title: t('settings.mcp.startError'),
-            content: formatMcpError(error as { message: string }),
+            content: readErrorMessage(error),
             centered: true
           })
         }
@@ -414,10 +414,10 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       }
 
       form.setValue('isActive', active)
-    } catch (error: any) {
+    } catch (error) {
       void popup.error({
         title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
-        content: formatMcpError(error as { message: string }),
+        content: readErrorMessage(error),
         centered: true
       })
     } finally {
@@ -626,7 +626,11 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         style={{ width: '100%', backgroundColor: 'transparent' }}>
         <Tabs
           value={activeTabValue}
-          onValueChange={(value) => setActiveTab(value as TabKey)}
+          onValueChange={(value) => {
+            const tab = tabs.find((item) => item.key === value)
+
+            if (tab) setActiveTab(tab.key)
+          }}
           variant="line"
           className="flex min-h-0 flex-1 flex-col bg-transparent">
           <div className="shrink-0 px-6 pt-4">

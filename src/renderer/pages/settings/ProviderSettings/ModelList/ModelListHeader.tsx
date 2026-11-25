@@ -8,7 +8,11 @@ import { cn } from '@renderer/utils/style'
 
 import { ProviderBillingButton } from '../BillingSettings/ProviderBillingButton'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
-import type { ModelListCapabilityCounts, ModelListFilter } from './modelListDerivedState'
+import {
+  MODEL_LIST_CAPABILITY_FILTERS,
+  type ModelListCapabilityCounts,
+  type ModelListFilter
+} from './modelListDerivedState'
 import { ModelTypeFilterTabs } from './ModelTypeFilterTabs'
 
 export interface ModelListHeaderProps {
@@ -152,7 +156,11 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
       {filterOpen ? (
         <ModelTypeFilterTabs
           value={selectedFilter}
-          onValueChange={(next) => setSelectedFilter(next as ModelListFilter)}
+          onValueChange={(next) => {
+            const filter = next === 'failed' ? next : MODEL_LIST_CAPABILITY_FILTERS.find((option) => option === next)
+
+            if (filter) setSelectedFilter(filter)
+          }}
           counts={typeCounts}
           extraTabs={
             failedModelCount > 0
