@@ -285,17 +285,21 @@ function projectEndpointConfigOverrides(
 
   for (const [key, config] of Object.entries(configs)) {
     if (!config) continue
+    // SAFETY: Endpoint writes use the shared endpoint-enum partialRecord schema; entries erases only its key union.
     const ep = key as EndpointType
     const presetConfig = presetConfigs?.[ep]
     const override: StoredEndpointConfigOverride = {}
 
     if (config.baseUrl !== undefined && config.baseUrl !== presetConfig?.baseUrl) override.baseUrl = config.baseUrl
     // Same delta rule per dialect key: a value equal to the registry's is not an override.
-    const baselineDialect = resolveEndpointDialect({ endpointConfigs: presetConfigs ?? undefined }, ep)
+    const baselineDialect: Readonly<Record<string, boolean | undefined>> = resolveEndpointDialect(
+      { endpointConfigs: presetConfigs ?? undefined },
+      ep
+    )
 
     const dialect = Object.fromEntries(
       Object.entries(config.dialect ?? {}).filter(
-        ([flag, value]) => value !== undefined && value !== baselineDialect[flag as keyof typeof baselineDialect]
+        ([flag, value]) => value !== undefined && value !== baselineDialect[flag]
       )
     )
 
@@ -675,6 +679,7 @@ class ProviderService {
       }
 
       if (dto.providerSettings !== undefined) {
+        // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Compatibility: merge patch may remove nested required defaults, and historical JSON is not fully revalidated here.
         updates.providerSettings = applyJsonMergePatch(
           current.providerSettings,
           dto.providerSettings

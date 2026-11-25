@@ -354,13 +354,13 @@ function groupIdentitySelect(groupBy: GroupDimension) {
     modelId: groupBy === 'model' ? aiUsageRecordTable.modelId : sql<string | null>`NULL`,
     apiKeyLabel: byApiKey ? sql<string | null>`max(${aiUsageRecordTable.apiKeyLabel})` : sql<string | null>`NULL`,
     apiKeyMasked: byApiKey ? sql<string | null>`max(${aiUsageRecordTable.apiKeyMasked})` : sql<string | null>`NULL`,
-    apiKeyAttribution: byApiKey ? aiUsageRecordTable.apiKeyAttribution : sql<string | null>`NULL`,
-    authMethod: byApiKey ? aiUsageRecordTable.authMethod : sql<string | null>`NULL`
+    apiKeyAttribution: byApiKey ? aiUsageRecordTable.apiKeyAttribution : sql<AiUsageRecordAttribution | null>`NULL`,
+    authMethod: byApiKey ? aiUsageRecordTable.authMethod : sql<AiUsageRecordAuthMethod | null>`NULL`
   }
 }
 
 type GroupIdentityRow = {
-  [K in keyof ReturnType<typeof groupIdentitySelect>]: string | null
+  [K in keyof ReturnType<typeof groupIdentitySelect>]: AiUsageRecordRow[K] | null
 }
 
 function toGroupIdentity(row: GroupIdentityRow, groupBy: GroupDimension): AiUsageRecordGroupIdentity {
@@ -371,7 +371,7 @@ function toGroupIdentity(row: GroupIdentityRow, groupBy: GroupDimension): AiUsag
   const identity: AiUsageRecordGroupIdentity =
     groupBy === 'source'
       ? {
-          sourceType: row.sourceType as AiUsageRecordSourceType | null,
+          sourceType: row.sourceType,
           sourceId: row.sourceId,
           sourceName: row.sourceName,
           sourceIcon: row.sourceIcon
@@ -382,8 +382,9 @@ function toGroupIdentity(row: GroupIdentityRow, groupBy: GroupDimension): AiUsag
     identity.apiKeyId = row.apiKeyId
     identity.apiKeyLabel = row.apiKeyLabel
     identity.apiKeyMasked = row.apiKeyMasked
+    // SAFETY: API-key grouping selects the NOT NULL attribution column; NULL placeholders belong only to other groupings.
     identity.apiKeyAttribution = row.apiKeyAttribution as AiUsageRecordAttribution
-    identity.authMethod = row.authMethod as AiUsageRecordEntry['authMethod']
+    identity.authMethod = row.authMethod
   }
 
   if (groupBy === 'model') identity.modelId = row.modelId
@@ -407,8 +408,9 @@ function toStatsGroupIdentity(row: GroupIdentityRow, groupBy: AiUsageRecordGroup
         apiKeyId: row.apiKeyId,
         apiKeyLabel: row.apiKeyLabel,
         apiKeyMasked: row.apiKeyMasked,
+        // SAFETY: API-key grouping selects the NOT NULL attribution column; NULL placeholders belong only to other groupings.
         apiKeyAttribution: row.apiKeyAttribution as AiUsageRecordAttribution,
-        authMethod: row.authMethod as AiUsageRecordEntry['authMethod']
+        authMethod: row.authMethod
       }
     case 'model':
       return {
@@ -420,7 +422,7 @@ function toStatsGroupIdentity(row: GroupIdentityRow, groupBy: AiUsageRecordGroup
     case 'source':
       return {
         groupBy,
-        sourceType: row.sourceType as AiUsageRecordSourceType | null,
+        sourceType: row.sourceType,
         sourceId: row.sourceId,
         sourceName: row.sourceName,
         sourceIcon: row.sourceIcon
