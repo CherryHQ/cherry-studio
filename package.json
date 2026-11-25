@@ -262,7 +262,7 @@
     "@hookform/resolvers": "^5.0.1",
     "@iconify-json/material-icon-theme": "^1.2.56",
     "@iconify/react": "^6.0.2",
-    "@j178/prek": "^0.3.4",
+    "@j178/prek": "^0.5.11",
     "@larksuiteoapi/node-sdk": "^1.73.0",
     "@lezer/common": "1.5.1",
     "@lezer/highlight": "1.2.3",
