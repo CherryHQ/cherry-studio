@@ -177,7 +177,10 @@ export class CherryInOAuthService {
           }
         }
       }),
-      (input, init) => net.fetch(input as RequestInfo, init),
+      (input, init) => {
+        // SAFETY: This class's request builder returns a URL string; OAuthRuntime forwards that input unchanged on both attempts.
+        return net.fetch(input as RequestInfo, init)
+      },
       {
         context: { apiHost },
         notSignedInMessage: 'OAuth session expired: failed to refresh access token',
