@@ -45,6 +45,7 @@ const locales = Object.fromEntries(
 )
 
 /** Every language main carries a catalog for — the source of truth other modules should key off of. */
+// SAFETY: locales is built only from this file's bundled locale entries, whose keys match LanguageVarious; Object.keys erases that closed union.
 export const SUPPORTED_LANGUAGES = Object.keys(locales) as LanguageVarious[]
 
 export const resolveSystemLanguage = (locale: string): LanguageVarious => {
