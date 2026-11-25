@@ -221,5 +221,6 @@ export const REASONING_EFFORT_ORDER: readonly ReasoningEffort[] = [
 
 /** Extract literal values from an object for use with z.enum(); empty objects produce an empty array. */
 export function objectValues<T extends Record<string, string | number>>(obj: T): T[keyof T][] {
-  return Object.values<T[keyof T]>(obj)
+  // SAFETY: Native Object.values loses the value-union relationship of this enum record.
+  return Object.values(obj) as T[keyof T][]
 }

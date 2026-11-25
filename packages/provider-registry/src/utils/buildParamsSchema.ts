@@ -61,8 +61,8 @@ export function buildParamsSchema(
   // supported branch below overlays per-model constraints on this base.
   const shape: Record<string, z.ZodTypeAny> = {}
 
-  for (const [key, entry] of Object.entries(IMAGE_PARAM_CATALOG)) {
-    shape[key] = entry.schema.catch(undefined)
+  for (const key of IMAGE_PARAM_CATALOG_KEYS) {
+    shape[key] = paramCatalogEntry(key).schema.catch(undefined)
   }
 
   const supports = resolveModeSupports(support, mode)

@@ -427,7 +427,8 @@ async function assignCreators(index: Index, md: ModelsDevApi): Promise<Map<strin
       creatorFetched.set(creator.id, new Set(fetched.map((f) => canonOf(f.id))))
       console.log(`  ${creator.id}: fetched ${fetched.length} from its own API`)
     } catch (e) {
-      console.log(`  ${creator.id}: fetchModels → models.dev fallback (${(e as Error).message})`)
+      const message = e instanceof Error ? e.message : String(e)
+      console.log(`  ${creator.id}: fetchModels → models.dev fallback (${message})`)
     }
   }
 

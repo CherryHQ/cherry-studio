@@ -31,6 +31,7 @@ export async function checkCatalogCompatibility(options: CompatibilityCheckOptio
     )
   }
 
+  // SAFETY: Frozen vN modules bundle compatibilityValidatorEntry.ts, which owns these exports; the reported schema version is checked below.
   const validator = (await import(pathToFileURL(validatorPath).href)) as FrozenValidator
 
   if (validator.schemaVersion !== schemaVersion) {

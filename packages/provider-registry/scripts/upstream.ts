@@ -23,12 +23,14 @@ import type { ProviderModelOverride } from '../src/schemas/provider-models'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 
 const UpstreamModalitySchema = z.enum(['text', 'image', 'audio', 'video'])
+
 const readModalities = (values: string[]) =>
   values.flatMap((value) => {
     const parsed = UpstreamModalitySchema.safeParse(value)
 
     return parsed.success ? [parsed.data] : []
   })
+
 const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'auto'])
 
 export const CAP_ORDER = [

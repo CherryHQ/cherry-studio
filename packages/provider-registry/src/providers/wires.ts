@@ -38,11 +38,12 @@ export function modeWire(
   const profile: Partial<Record<ModeKey, ReasoningWireProfile[ModeKey]>> = {}
 
   // Object key order is preserved, so a call site's mode order survives into the emitted profile.
+  // SAFETY: This partial record has only ModeKey keys; Object.entries erases their literal union.
   for (const [key, value] of Object.entries(modes) as [ModeKey, ModeValue | undefined][]) {
     if (value === undefined) continue
 
     const wireValue: ReasoningWireValue =
-      value === EFFORT ? { source: 'effort' } : { source: 'literal', value: value as string | number | boolean }
+      typeof value === 'object' ? { source: 'effort' } : { source: 'literal', value }
 
     const operations = [{ target, value: wireValue }]
     profile[key] =
