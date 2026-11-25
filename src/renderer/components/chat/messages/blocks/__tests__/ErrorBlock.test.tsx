@@ -118,6 +118,21 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
+  it('shows the Pi Durable initialization cause without network guidance', () => {
+    const error = {
+      name: 'PiDurableInitializationError',
+      message: 'Pi Durable initialize: native-error — operation timed out',
+      stack: null,
+      streamStage: 'response-stream'
+    }
+    render(<ErrorBlock partId="part-1" error={error} message={{ ...message, status: 'error' }} />)
+
+    expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
+    expect(screen.getByText(error.message)).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.network')).not.toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.stream')).not.toBeInTheDocument()
+  })
+
   it.each([false, true])('gates model requests on privacy and a user click (data collection: %s)', async (enabled) => {
     const user = userEvent.setup()
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', enabled)

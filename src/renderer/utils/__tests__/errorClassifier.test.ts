@@ -82,6 +82,18 @@ describe('classifyError', () => {
     }
   )
 
+  it.each(['Pi Durable initialize: native-error', 'Pi Durable initialize: native-error — operation timed out'])(
+    'keeps local Pi Durable initialization diagnostics out of network guidance (%s)',
+    (message) => {
+      const error = makeError({ name: 'PiDurableInitializationError', message, streamStage: 'response-stream' })
+      expect(classifyError(error)).toEqual({
+        category: 'unknown',
+        i18nKey: 'error.diagnosis.unknown',
+        navTarget: null
+      })
+    }
+  )
+
   it.each([
     [401, 'auth'],
     [429, 'rate_limit'],

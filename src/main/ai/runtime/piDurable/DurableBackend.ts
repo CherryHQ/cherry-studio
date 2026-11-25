@@ -14,8 +14,10 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { prepareDurableRoot } from '@main/ai/agentSession/durableNativeContext'
 import { createPiTelemetry } from '@main/ai/observability'
+import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
+import { redactSecretTokens } from '@shared/utils/redaction'
 
 import { createPiGatewayModelBinding } from '../pi/gatewayModelBinding'
 import { createPiBehaviorHost } from '../pi/piBehaviorHost'
@@ -153,7 +155,13 @@ export class DurableBackend {
         // A diagnostic only: Durable keeps its work and records a real failure as the input's outcome.
         onError: (error) => logger.error('Durable backend failed', { backendId: context.backendId, error })
       })
-      if (created.status !== 'confirmed') throw new Error(created.error.message)
+      if (created.status !== 'confirmed') {
+        const { operation, code, message } = created.error
+        const safeMessage = getSafeProviderErrorMessage({ message: redactSecretTokens(message) })
+        const failure = new Error(safeMessage || `Pi Durable ${operation}: ${code}`)
+        failure.name = 'PiDurableInitializationError'
+        throw failure
+      }
       owner.runtime = created.value
       const host = owner.roots.get(context.id)!
       const opened = root.nativeId
