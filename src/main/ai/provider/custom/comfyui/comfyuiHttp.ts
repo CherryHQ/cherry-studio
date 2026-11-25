@@ -72,6 +72,7 @@ export async function withDeadline<T>(
  * is called — and names its own budget, since a listing and a submit do not
  * wait equally long.
  */
+/* oxlint-disable anti-slop/no-unknown-returns -- GET preserves endpoint-specific JSON; listing and extension-compatible workflow consumers own field handling. */
 export async function requestJson(
   url: string,
   fallback: string,
@@ -79,7 +80,6 @@ export async function requestJson(
   options: ComfyuiRequestOptions,
   timeoutMs: number
 ): Promise<unknown> {
-  // oxlint-disable-line anti-slop/no-unknown-returns -- GET preserves endpoint-specific JSON; listing and extension-compatible workflow consumers own field handling.
   const doFetch = options.fetch ?? fetch
 
   return withDeadline(
@@ -108,3 +108,4 @@ export async function requestJson(
     }
   )
 }
+/* oxlint-enable anti-slop/no-unknown-returns */
