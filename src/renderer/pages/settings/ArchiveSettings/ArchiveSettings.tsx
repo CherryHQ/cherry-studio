@@ -426,9 +426,12 @@ const ArchiveSettings: FC = () => {
           variant="underline"
           value={category}
           onValueChange={(value) => {
+            const nextCategory = CATEGORIES.find(({ id }) => id === value)?.id
+
+            if (!nextCategory) return
             closePendingDelete()
             setCanBatchManage(false)
-            setCategory(value as ArchiveCategory)
+            setCategory(nextCategory)
           }}>
           <div className="flex items-center justify-between gap-4 border-border border-b">
             <div

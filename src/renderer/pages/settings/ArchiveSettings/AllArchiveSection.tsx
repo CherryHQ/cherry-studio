@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { ARCHIVE_DOMAINS, type ArchiveDomain } from '@shared/data/api/schemas/archives'
+import { ARCHIVE_DOMAINS } from '@shared/data/api/schemas/archives'
 
 import type { ArchiveBatchOutcome, ArchiveItem } from './archive'
 import type { ArchiveDomainSectionProps } from './ArchiveDomainSections'
@@ -87,11 +87,9 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
     [entries, t]
   )
 
-  const pendingDomain = (Object.keys(actions) as ArchiveDomain[]).find(
-    (domain) => actions[domain].pendingRestoreId !== null
-  )
+  const pendingEntry = Object.entries(actions).find(([, handler]) => handler.pendingRestoreId !== null)
 
-  const pendingRestoreId = pendingDomain ? `${pendingDomain}:${actions[pendingDomain].pendingRestoreId}` : null
+  const pendingRestoreId = pendingEntry ? `${pendingEntry[0]}:${pendingEntry[1].pendingRestoreId}` : null
 
   const withArchiveRefresh = async <T,>(run: () => Promise<T>): Promise<T> => {
     pendingActions.current += 1
@@ -111,13 +109,13 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
     withArchiveRefresh(async () => {
       const outcome: ArchiveBatchOutcome = { succeeded: [], failed: [] }
 
-      for (const domain of Object.keys(actions) as ArchiveDomain[]) {
+      for (const [domain, handler] of Object.entries(actions)) {
         const domainItems = targets.filter((item) => entriesById.get(item.id)?.domain === domain)
 
         if (domainItems.length === 0) continue
 
         try {
-          const result = await actions[domain][action](
+          const result = await handler[action](
             domainItems.map((item) => ({ ...item, id: entriesById.get(item.id)!.entityId }))
           )
 
