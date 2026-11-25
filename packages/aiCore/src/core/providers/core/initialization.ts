@@ -79,7 +79,7 @@ const AzureExtension = ProviderExtension.create({
   name: 'azure',
   aliases: ['azure-openai'] as const,
   supportsImageGeneration: true,
-  create: async (settings) => {
+  create: async (settings): Promise<AzureChatProvider> => {
     const provider = (await import('@ai-sdk/azure')).createAzure(settings)
 
     // Default to chat mode (AI SDK defaults to responses API)

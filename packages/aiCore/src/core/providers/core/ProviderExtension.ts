@@ -283,7 +283,7 @@ export class ProviderExtension<
     } else if (this.config.import && this.config.creatorFunctionName) {
       const module = await this.config.import()
 
-      const creatorFn = Object.hasOwn(module, this.config.creatorFunctionName)
+      const creatorFn = Object.prototype.hasOwnProperty.call(module, this.config.creatorFunctionName)
         ? module[this.config.creatorFunctionName]
         : undefined
 
