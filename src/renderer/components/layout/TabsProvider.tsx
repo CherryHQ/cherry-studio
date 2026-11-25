@@ -113,6 +113,16 @@ export function migratePinnedTabs(pinnedTabs: Tab[]): PinnedRepairResult {
 
 export type PinnedRepairResult = { tabs: Tab[]; changed: boolean }
 
+type PinnedTabRepairCandidate = Pick<Tab, 'id' | 'type' | 'url'> & {
+  title?: unknown
+  icon?: unknown
+  metadata?: unknown
+  lastAccessTime?: unknown
+  isDormant?: unknown
+  isPinned?: unknown
+  savedState?: unknown
+}
+
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Pinned-tab cache predates current tab fields; repair validates each stored entry and reconciles it with live tabs.
 export function repairPinnedTabs(raw: unknown, normalTabs: readonly Tab[]): PinnedRepairResult {
   if (raw === undefined) return { tabs: [], changed: false }
@@ -139,7 +149,7 @@ export function repairPinnedTabs(raw: unknown, normalTabs: readonly Tab[]): Pinn
       continue
     }
 
-    const tab: { [K in keyof Tab]?: unknown } = { ...entry, id, type, url }
+    const tab: PinnedTabRepairCandidate = { ...entry, id, type, url }
 
     if (typeof tab.title !== 'string') tab.title = getDefaultRouteTitle(url)
     tab.isPinned = true
@@ -162,7 +172,7 @@ export function repairPinnedTabs(raw: unknown, normalTabs: readonly Tab[]): Pinn
         'scrollPosition' in savedState &&
         !Number.isFinite(savedState.scrollPosition)
       ) {
-        const repairedState: object = { ...savedState }
+        const repairedState = { ...savedState }
         Reflect.deleteProperty(repairedState, 'scrollPosition')
         tab.savedState = repairedState
       }
