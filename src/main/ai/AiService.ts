@@ -394,9 +394,11 @@ export interface AiImageResult {
  * the orphan sweep only reports them).
  */
 export function imageInputEntryParams(value: string): CreateInternalEntryIpcParams {
+  /* oxlint-disable anti-slop/require-safety-comment-for-type-assertion -- Compatibility: string routing does not prove either template type; FileManager retains its existing data-URI/URL parser and rejection path. */
   return value.startsWith('data:')
     ? { source: 'base64', data: value as Base64String, cleanupPolicy: 'delete_when_unreferenced' }
     : { source: 'url', url: value as UrlString, cleanupPolicy: 'delete_when_unreferenced' }
+  /* oxlint-enable anti-slop/require-safety-comment-for-type-assertion */
 }
 
 /**
@@ -1180,12 +1182,16 @@ export class AiService extends BaseService {
       prompt: promptParam,
       n: structured.n ?? 1,
       maxRetries: request.requestOptions?.maxRetries ?? 0,
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Compatibility: vendors accept sizes such as 2K; the SDK's pixel template is narrower than the existing transport contract.
       ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` })
     }
 
     if (structured.seed !== undefined) imageOptions.seed = structured.seed
 
-    if (structured.aspectRatio) imageOptions.aspectRatio = structured.aspectRatio as `${number}:${number}`
+    if (structured.aspectRatio) {
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Compatibility: ratio normalization checks spelling, not finite numeric values or provider-specific support.
+      imageOptions.aspectRatio = structured.aspectRatio as `${number}:${number}`
+    }
 
     if (Object.keys(imageProviderOptions).length > 0) imageOptions.providerOptions = imageProviderOptions
 
@@ -1308,7 +1314,11 @@ export class AiService extends BaseService {
       const rejected = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected')
 
       if (rejected) throw rejected.reason
-      const inputFileIds = settled.length ? settled.map((r) => (r as PromiseFulfilledResult<string>).value) : undefined
+
+      const inputFileIds = settled.length
+        ? settled.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))
+        : undefined
+
       const maskFileId = request.mask ? await persistInputImage(request.mask) : undefined
       const requestSize = resolveImageRequestSize(structured.size)
 
@@ -1379,6 +1389,7 @@ export class AiService extends BaseService {
     }
 
     if (snapshot.status === 'completed') {
+      // SAFETY: This newly enqueued image job uses the registered abandon-recovery handler whose sole success result is ImageGenerationJobOutput.
       const output = snapshot.output as ImageGenerationJobOutput | null
 
       return { files: output?.files ?? [] }
@@ -1453,10 +1464,9 @@ export class AiService extends BaseService {
     const callerHeaders = request.requestOptions?.headers
 
     const headers = callerHeaders
-      ? (Object.fromEntries(Object.entries(callerHeaders).filter(([, value]) => value !== undefined)) as Record<
-          string,
-          string
-        >)
+      ? Object.fromEntries(
+          Object.entries(callerHeaders).filter((entry): entry is [string, string] => entry[1] !== undefined)
+        )
       : undefined
 
     const rerankParams: RerankParams = {
