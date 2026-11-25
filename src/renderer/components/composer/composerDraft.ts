@@ -100,6 +100,7 @@ function createComposerTokenNode(
     label: token.label,
     ...(token.icon && { icon: token.icon }),
     ...(token.description && { description: token.description }),
+    ...(token.sourceMessageId && { sourceMessageId: token.sourceMessageId }),
     ...(token.promptText && { promptText: token.promptText }),
     ...(payload && { payload })
   }
@@ -380,7 +381,7 @@ export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): C
   return {
     version: COMPOSER_MESSAGE_SNAPSHOT_VERSION,
     tokens: visibleTokens.map((token) => {
-      const { id, kind, label, icon, description, index, textOffset, promptText } = token
+      const { id, kind, label, icon, description, index, textOffset, promptText, sourceMessageId } = token
       const payload = createDisplayFileTokenPayload(token)
 
       return {
@@ -389,6 +390,7 @@ export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): C
         label,
         ...(icon && { icon }),
         ...(description && { description }),
+        ...(sourceMessageId && { sourceMessageId }),
         index,
         textOffset,
         ...(promptText && { promptText }),

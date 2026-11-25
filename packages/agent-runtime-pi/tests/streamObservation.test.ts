@@ -8,12 +8,19 @@ import {
   fauxToolCall,
   InMemoryCredentialStore
 } from '@earendil-works/pi-ai'
-import { ModelRuntime } from '@earendil-works/pi-coding-agent'
-import { expect, it, onTestFinished } from 'vitest'
+import { ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent'
+import { expect, it, onTestFinished, vi } from 'vitest'
 
-import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
+import {
+  runtimeId,
+  ThreadFeed,
+  type ObservationPayload,
+  type OperationResult,
+  type RuntimeMessage
+} from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime } from '../src'
+import { observationReplay } from './observationReplay'
 import { createTestBehavior } from './sessionSupport'
 
 function confirmed<T>(result: OperationResult<T>): T {
@@ -25,6 +32,7 @@ function confirmed<T>(result: OperationResult<T>): T {
 async function setup() {
   const cwd = mkdtempSync(join(tmpdir(), 'pi-stream-observation-'))
   onTestFinished(() => rmSync(cwd, { recursive: true, force: true }))
+  const manager = SessionManager.inMemory(cwd)
   const models = await ModelRuntime.create({
     credentials: new InMemoryCredentialStore(),
     modelsPath: null,
@@ -72,6 +80,7 @@ async function setup() {
       behavior: createTestBehavior(),
       cwd,
       agentDir: cwd,
+      sessionManager: manager,
       modelRuntime: models,
       model: models.getModel('stream-test', 'model')!,
       extensionFactories: [
@@ -91,10 +100,7 @@ async function setup() {
   )
   await handle.input.submit({ inputId: runtimeId('stream-input'), text: 'Stream a reply', whenBusy: 'reject' })
   await ready
-  const updates = () =>
-    events.flatMap((event) =>
-      event.type === 'message.upsert' && event.message.role === 'assistant' ? [event.message] : []
-    )
+  const updates = () => events.flatMap(observationReplay()).filter((message) => message.role === 'assistant')
   const block = (kind: 'text' | 'thinking', initial: string) => {
     const part =
       kind === 'text' ? { type: 'text' as const, text: initial } : { type: 'thinking' as const, thinking: initial }
@@ -117,7 +123,7 @@ async function setup() {
       }
     }
   }
-  return { handle, stream, message, updates, block }
+  return { handle, stream, message, events, updates, block, manager }
 }
 
 for (const kind of ['text', 'thinking'] as const) {
@@ -125,17 +131,21 @@ for (const kind of ['text', 'thinking'] as const) {
     it.each(['paced', 'burst'] as const)(
       `preserves ${kind} starting with ${JSON.stringify(initial)} in %s delivery`,
       async (delivery) => {
-        const { handle, updates, block } = await setup()
+        const { handle, events, updates, block } = await setup()
         const part = block(kind, initial)
         const type = kind === 'text' ? 'text' : 'reasoning'
         part.start()
         if (delivery === 'paced')
           await expect.poll(() => updates().at(-1)?.parts).toMatchObject([{ type, text: initial, state: 'streaming' }])
         part.delta('first')
-        if (delivery === 'paced')
+        if (delivery === 'paced') {
           await expect
             .poll(() => updates().at(-1)?.parts)
             .toMatchObject([{ type, text: initial + 'first', state: 'streaming' }])
+          expect(events).toContainEqual(
+            expect.objectContaining({ type: 'message.text-append', part: 0, text: 'first' })
+          )
+        }
         part.delta(' second')
         part.end()
         await expect
@@ -244,3 +254,73 @@ it('retains corrected text across interleaved tool input and an aborted response
       ]
     })
 })
+
+it.each([
+  [20, 20],
+  [20_000, 20],
+  [20, 20_000]
+])(
+  'routes a native Pi callback with %i history entries and %i settled blocks',
+  async (history, siblings) => {
+    const { handle, message, events, block, manager } = await setup()
+    const subscribe = vi.spyOn(ThreadFeed.prototype, 'observeProjection')
+    const observation = confirmed(await handle.pi.observe(() => {}))
+    const feed = subscribe.mock.contexts[0]!
+    subscribe.mockRestore()
+    if (!(feed instanceof ThreadFeed)) throw new Error('Missing Pi observation source')
+    await observation.drain()
+    const baseline = feed.snapshot
+    const reply = baseline.messages.findLast((item) => item.role === 'assistant')!
+    const prior: RuntimeMessage[] = Array.from({ length: history }, (_, i) => {
+      const id = manager.appendMessage({ role: 'user', content: 'earlier', timestamp: i })
+      return { id, role: 'user', parts: [{ type: 'text', text: 'earlier', state: 'done' }] }
+    })
+    const settled = Array.from({ length: siblings }, () => ({
+      type: 'text' as const,
+      text: 'old',
+      state: 'done' as const
+    }))
+    message.content.push(...settled.map(({ text }) => ({ type: 'text' as const, text })))
+    const active = block('text', 'a')
+    feed.publish({
+      ...baseline,
+      messages: [
+        ...prior,
+        ...baseline.messages.map((item) =>
+          item === reply
+            ? { ...reply, parts: [...settled, { type: 'text' as const, text: 'a', state: 'streaming' as const }] }
+            : item
+        )
+      ]
+    })
+    await observation.drain()
+    events.length = 0
+    const touches = vi.spyOn(feed, 'part')
+    const whole = vi.spyOn(feed, 'message')
+    const reads = vi.spyOn(manager, 'getBranch')
+    const extractions = vi.spyOn(feed, 'snapshot', 'get')
+    const content = message.content
+    let siblingReads = 0
+    message.content = new Proxy(content, {
+      get(target, key, receiver) {
+        if (typeof key === 'string' && /^\d+$/.test(key) && Number(key) < siblings) siblingReads++
+        return Reflect.get(target, key, receiver)
+      }
+    })
+    try {
+      active.delta('b')
+      await expect.poll(() => events.at(-1)).toMatchObject({ type: 'message.text-append', part: siblings, text: 'b' })
+      expect(siblingReads).toBe(0)
+      expect(reads).not.toHaveBeenCalled()
+      expect(whole).not.toHaveBeenCalled()
+      expect(extractions).not.toHaveBeenCalled()
+      expect(new Set(touches.mock.calls.map(([, index]) => index))).toEqual(new Set([siblings]))
+      expect(touches.mock.calls.length).toBeLessThanOrEqual(2)
+    } finally {
+      message.content = content
+      vi.restoreAllMocks()
+      await observation.stop()
+    }
+  },
+  30_000
+)

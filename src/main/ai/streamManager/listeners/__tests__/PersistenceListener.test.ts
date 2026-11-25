@@ -14,10 +14,10 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
-import type { StreamErrorResult } from '../../types'
+import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '../../types'
 
 const appendAssistantMessageMock = vi.fn()
-const messageUpdateMock = vi.fn()
+const markTerminalErrorMock = vi.fn()
 const messageFinalizeMock = vi.fn()
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
@@ -28,7 +28,7 @@ vi.mock('@main/data/services/TemporaryChatService', () => ({
 
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
-    update: messageUpdateMock,
+    markAssistantMessageTerminalError: markTerminalErrorMock,
     finalizeAssistantMessage: messageFinalizeMock
   }
 }))
@@ -85,7 +85,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const listener = new PersistenceListener({
       topicId: 'abc',
       backend: {
-        kind: 'test',
+        kind: 'sqlite',
         persistAssistant: ({ finalMessage }) => {
           attempted = finalMessage
           throw new Error('Disk full')
@@ -109,8 +109,10 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
   it('appends the assistant message on onDone with status=success', async () => {
     const listener = makeListener('openai::gpt-4o')
 
-    await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success', modelId: 'openai::gpt-4o' })
+    const result: StreamDoneResult = { finalMessage: makeFinalMessage(), status: 'success', modelId: 'openai::gpt-4o' }
+    await listener.onDone(result)
 
+    expect(result.persistence).toBeUndefined()
     expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
     const [topicId, payload, runtimeStats, messageId] = appendAssistantMessageMock.mock.calls[0]
     expect(topicId).toBe('abc')
@@ -362,8 +364,9 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
 describe('PersistenceListener + MessageServiceBackend — failed persist recovery', () => {
   beforeEach(() => {
-    messageUpdateMock.mockReset()
+    markTerminalErrorMock.mockReset()
     messageFinalizeMock.mockReset()
+    messageFinalizeMock.mockImplementation((id: string) => ({ id }))
   })
 
   function makeMessageServiceListener() {
@@ -377,30 +380,33 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   it('finalizes an empty paused placeholder instead of leaving it pending', async () => {
     const listener = makeMessageServiceListener()
 
-    await listener.onPaused({ finalMessage: undefined, status: 'paused' })
+    const result: StreamPausedResult = { status: 'paused' }
+    await listener.onPaused(result)
 
+    expect(result.persistence).toEqual({ status: 'saved', message: { messageId: 'assistant-1' } })
     expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
       data: { parts: [] },
       status: 'paused',
       runtimeStats: undefined
     })
-    expect(messageUpdateMock).not.toHaveBeenCalled()
+    expect(markTerminalErrorMock).not.toHaveBeenCalled()
   })
 
   it('does not create an empty successful ordinary-chat reply', async () => {
     const listener = makeMessageServiceListener()
 
-    await listener.onDone({ finalMessage: undefined, status: 'success' })
+    const result: StreamDoneResult = { status: 'success' }
+    await listener.onDone(result)
 
+    expect(result.persistence).toBeUndefined()
     expect(messageFinalizeMock).not.toHaveBeenCalled()
-    expect(messageUpdateMock).not.toHaveBeenCalled()
+    expect(markTerminalErrorMock).not.toHaveBeenCalled()
   })
 
   it('drives the placeholder row to status=error when the persist write fails', async () => {
     messageFinalizeMock.mockImplementationOnce(() => {
       throw new Error('write failed')
     })
-    messageUpdateMock.mockReturnValueOnce({ id: 'assistant-1' })
     const listener = makeMessageServiceListener()
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).rejects.toBeInstanceOf(
@@ -408,9 +414,9 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     )
 
     expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
-    expect(messageUpdateMock).toHaveBeenCalledTimes(1)
+    expect(markTerminalErrorMock).toHaveBeenCalledTimes(1)
     // The recovery write flips the frozen `pending` placeholder to a terminal `error`.
-    expect(messageUpdateMock).toHaveBeenLastCalledWith('assistant-1', { status: 'error' })
+    expect(markTerminalErrorMock).toHaveBeenLastCalledWith('assistant-1')
   })
 
   it('retains frozen turn options when finalizing the assistant placeholder', async () => {
@@ -433,14 +439,14 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
       status: 'success',
       runtimeStats: undefined
     })
-    expect(messageUpdateMock).not.toHaveBeenCalled()
+    expect(markTerminalErrorMock).not.toHaveBeenCalled()
   })
 
   it('still raises the control signal when the terminal-error recovery write also fails', async () => {
     messageFinalizeMock.mockImplementation(() => {
       throw new Error('db down')
     })
-    messageUpdateMock.mockImplementation(() => {
+    markTerminalErrorMock.mockImplementation(() => {
       throw new Error('db down')
     })
     const listener = makeMessageServiceListener()
@@ -450,14 +456,13 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     )
 
     expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
-    expect(messageUpdateMock).toHaveBeenCalledTimes(1)
+    expect(markTerminalErrorMock).toHaveBeenCalledTimes(1)
   })
 
   it('notifies onPersistFailed so the live renderer can be corrected (C1)', async () => {
     messageFinalizeMock.mockImplementationOnce(() => {
       throw new Error('write failed')
     })
-    messageUpdateMock.mockReturnValueOnce({ id: 'assistant-1' })
     const onPersistFailed = vi.fn()
     const listener = new PersistenceListener({
       topicId: 'topic-1',
@@ -497,7 +502,7 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
 
 describe('PersistenceListener + MessageServiceBackend — projection ownership', () => {
   beforeEach(() => {
-    messageUpdateMock.mockReset()
+    markTerminalErrorMock.mockReset()
     messageFinalizeMock.mockReset()
     messageFinalizeMock.mockReturnValue({ id: 'assistant-1' })
   })
@@ -533,6 +538,6 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
       status: 'success',
       runtimeStats: { runtimeTiming, contextTokens: 13 }
     })
-    expect(messageUpdateMock).not.toHaveBeenCalled()
+    expect(markTerminalErrorMock).not.toHaveBeenCalled()
   })
 })
