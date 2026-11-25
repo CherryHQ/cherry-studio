@@ -6,6 +6,7 @@ import type { ApprovalHostFacts } from '@cherrystudio/agent-behavior'
 import type { JsonValue } from '@cherrystudio/agent-runtime'
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
+import { resolveMcpSkillToolAccess } from '@main/ai/toolApproval/builtinToolPolicy'
 import { type CommandCheck, checkCommand, commandContextChangedReason } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
@@ -58,7 +59,8 @@ export async function readPiApprovalFacts(
       : 'other'
   const interaction = ctx.getInteractionState()
   const mode = ctx.getPermissionMode() ?? 'default'
-  const disabled = ctx.isDisabled(name) || browser === 'deny'
+  const skillAccess = resolveMcpSkillToolAccess(name, input)
+  const disabled = ctx.isDisabled(name) || browser === 'deny' || skillAccess?.enabled === false
   const sqlite = disabled
     ? undefined
     : await evaluateUserDataSqliteGuard({
@@ -96,8 +98,12 @@ export async function readPiApprovalFacts(
   return {
     category,
     disabled,
-    autoApproved: browser === 'allow' || ctx.autoApprovedTools.has(name),
-    approvalRequired: ctx.approvalRequiredTools.has(name) || policyAsk || guard?.effect === 'ask',
+    autoApproved:
+      browser === 'allow' || (skillAccess ? skillAccess.approval === 'auto' : ctx.autoApprovedTools.has(name)),
+    approvalRequired:
+      (skillAccess ? skillAccess.approval === 'prompt' : ctx.approvalRequiredTools.has(name)) ||
+      policyAsk ||
+      guard?.effect === 'ask',
     nonBypassable: ctx.nonBypassableApprovalTools.has(name),
     withinAllowedRoots:
       (category === 'read' || category === 'edit') &&

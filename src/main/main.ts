@@ -12,7 +12,10 @@
 // BootConfig must load before any other import (configures userData path)
 
 import '@main/data/bootConfig'
+import { app, protocol } from 'electron'
+
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { serviceList } from '@main/core/application/serviceRegistry'
 // Preboot phase — order matters. See core/preboot/README.md.
 import { prepareBackupRestoreSession, runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
@@ -29,6 +32,9 @@ import { configureRemoteDebugging } from '@main/services/remoteDebugging'
 import { runUserDataRelocation } from '@main/services/userDataRelocation'
 import { getApplicationId } from '@main/utils/appEdition'
 
+import { registerIpc } from './ipc'
+import { versionService } from './services/VersionService'
+
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
 requireSingleInstance()
@@ -42,13 +48,6 @@ initSentry()
 // Privileged schemes must be declared before the app is ready, and only ONCE per
 // process — startApp() itself awaits app.whenReady(), so this cannot move in there.
 protocol.registerSchemesAsPrivileged([CHERRY_MEDIA_SCHEME_DECLARATION, MINI_APP_SCHEME_DECLARATION])
-
-import { app, protocol } from 'electron'
-
-import { loggerService } from '@logger'
-
-import { registerIpc } from './ipc'
-import { versionService } from './services/VersionService'
 
 const logger = loggerService.withContext('MainEntry')
 

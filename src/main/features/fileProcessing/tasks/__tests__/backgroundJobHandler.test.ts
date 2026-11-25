@@ -1,5 +1,3 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Unit tests for backgroundJobHandler.
  *
@@ -8,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * is exercised here (control flow, abort handling, artifact persistence on
  * post-success output).
  */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { JobContext } from '@main/core/job/types'
 import type { AbsoluteFilePath } from '@shared/types/file'
 

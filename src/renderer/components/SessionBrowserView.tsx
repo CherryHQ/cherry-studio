@@ -1,5 +1,5 @@
 import type { WebviewTag } from 'electron'
-import { FileCode, Globe, LoaderCircle, Plus } from 'lucide-react'
+import { Globe, LoaderCircle, Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { BrowserChrome } from '@renderer/components/BrowserChrome'
 import { BrowserOverlays } from '@renderer/components/BrowserOverlays'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { RightPaneTabs } from '@renderer/components/RightPaneTabs'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { WebviewImportBanner } from '@renderer/components/WebviewImportBanner'
@@ -182,7 +183,7 @@ export function SessionBrowserView({
                 <AvatarImage src={page.favicon} alt="" referrerPolicy="no-referrer" />
                 <AvatarFallback className="rounded-none bg-transparent">
                   {page.securityProfile === WebviewSecurityProfile.AgentHtmlArtifact ? (
-                    <FileCode aria-hidden className="size-3.5" />
+                    <FileIcon path="artifact.html" aria-hidden className="size-3.5" />
                   ) : (
                     <Globe aria-hidden className="size-3.5" />
                   )}

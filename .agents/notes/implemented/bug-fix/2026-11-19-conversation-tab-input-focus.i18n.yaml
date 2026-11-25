@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-19-conversation-tab-input-focus.md
+2026-11-19-conversation-tab-input-focus.md: 0c1d4cc233df89906bbe89a7bee4ed9436ab639c
+2026-11-19-conversation-tab-input-focus.zh.md: 5c111402d7f01341a8461101c678c845e6a8aea5

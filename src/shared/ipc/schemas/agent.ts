@@ -1,5 +1,9 @@
 import * as z from 'zod'
 
+import { AGENT_MEMORY_MAX_WRITE_CHARS } from '@shared/ai/agentMemory'
+import { AgentTypeSchema } from '@shared/data/api/schemas/agents'
+import { UniqueModelIdSchema } from '@shared/data/types/model'
+
 import { defineRoute } from '../define'
 import { ImageBytesSchema } from './entityImage'
 
@@ -36,8 +40,43 @@ export type AgentMemorySnapshot = z.infer<typeof AgentMemorySnapshotSchema>
 
 const AgentIdInputSchema = z.strictObject({ agentId: z.string().min(1).max(200) })
 
-/** The editor caps a single write well below the 1 MB viewer slice (UTF-8 bytes can exceed char count). */
-export const AGENT_MEMORY_MAX_WRITE_CHARS = 1_000_000
+/** An Agent's prompt-relevant settings as currently edited; `agentId` is absent while creating one. */
+export const AgentSystemPromptDraftSchema = z.strictObject({
+  agentId: z.string().min(1).max(200).optional(),
+  sessionId: z.string().min(1).max(200).optional(),
+  agentType: AgentTypeSchema.optional(),
+  claudeCodeNativePromptEnabled: z.boolean().optional(),
+  instructions: z.string(),
+  /** As `configuration.language`: a label, `null` for none, absent to follow the global setting. */
+  language: z.string().nullable().optional(),
+  skillIds: z.array(z.string()),
+  disabledTools: z.array(z.string()),
+  knowledgeBaseIds: z.array(z.string())
+})
+export type AgentSystemPromptDraft = z.infer<typeof AgentSystemPromptDraftSchema>
+
+const AgentPromptInstructionsDraftSchema = AgentSystemPromptDraftSchema.pick({
+  agentId: true,
+  sessionId: true,
+  instructions: true
+}).extend({ modelId: UniqueModelIdSchema.nullable() })
+export type AgentPromptInstructionsDraft = z.infer<typeof AgentPromptInstructionsDraftSchema>
+
+/** `guidance` blocks may be replaced per Agent; `live` and `setting` blocks follow data and settings. */
+export const AgentPromptBlockSchema = z.object({
+  key: z.string(),
+  kind: z.enum(['guidance', 'instructions', 'live', 'setting']),
+  text: z.string()
+})
+export type AgentPromptBlockPreview = z.infer<typeof AgentPromptBlockSchema>
+
+/** The full system prompt as generated blocks, in the order the runtime sends them. */
+export const AgentSystemPromptPreviewSchema = z.object({
+  blocks: z.array(AgentPromptBlockSchema),
+  /** A built-in Agent's own prompt, which applies while it has no instructions of its own. */
+  builtinInstructions: z.string().optional()
+})
+export type AgentSystemPromptPreview = z.infer<typeof AgentSystemPromptPreviewSchema>
 
 export const agentRequestSchemas = {
   'agent.set_avatar': defineRoute({
@@ -67,5 +106,14 @@ export const agentRequestSchemas = {
   'agent.memory.open_folder': defineRoute({
     input: AgentIdInputSchema,
     output: z.void()
+  }),
+  /** The editable and inspectable system prompt blocks for this draft. */
+  'agent.system_prompt.preview': defineRoute({
+    input: AgentSystemPromptDraftSchema,
+    output: AgentSystemPromptPreviewSchema
+  }),
+  'agent.system_prompt.resolve_instructions': defineRoute({
+    input: AgentPromptInstructionsDraftSchema,
+    output: z.string()
   })
 }

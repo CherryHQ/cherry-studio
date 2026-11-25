@@ -17,7 +17,7 @@ import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import ImageViewer, { type ImageViewerProps } from '@renderer/components/ImageViewer'
 import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
-import { parseFileLinkHref } from '@renderer/utils/filePath'
+import { parseFileLinkTarget } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
 import { isSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 
@@ -191,7 +191,7 @@ export function MarkdownLinkRenderer({
     )
   }
 
-  const fileLinkPath = openFilePath ? parseFileLinkHref(props.href) : null
+  const fileLinkPath = openFilePath ? parseFileLinkTarget(props.href) : null
   if (fileLinkPath && openFilePath) {
     return (
       <a
@@ -201,7 +201,11 @@ export function MarkdownLinkRenderer({
         onClick={(event) => {
           event.preventDefault()
           event.stopPropagation()
-          void Promise.resolve(openFilePath(fileLinkPath)).catch(() => {})
+          void Promise.resolve(
+            fileLinkPath.location
+              ? openFilePath(fileLinkPath.path, fileLinkPath.location)
+              : openFilePath(fileLinkPath.path)
+          ).catch(() => {})
         }}>
         {props.children}
       </a>

@@ -260,7 +260,7 @@ const NormalTabButton = ({
       onClose()
       return
     }
-    const tabButton = e.currentTarget.closest('[data-tab-id]') as HTMLElement | null
+    const tabButton = e.currentTarget.closest<HTMLElement>('[data-tab-id]')
     // Fractional width: freezing to a rounded offsetWidth would shift every tab
     // boundary at the freeze snap (flexbox resolves fractional widths).
     onClose(tabButton?.getBoundingClientRect().width || undefined)
@@ -935,6 +935,8 @@ export const AppShellTabBar = ({
         ref={tabBarRef}
         data-ui="app.tab-bar"
         style={{
+          // The revealed macOS menu and title bars cover the top of the fullscreen window.
+          marginTop: isMac && isFullscreen ? '72px' : undefined,
           minHeight: isWin ? 'env(titlebar-area-height, 0px)' : undefined,
           paddingLeft:
             (isMac || hasLeadingWindowControls) && !isFullscreen

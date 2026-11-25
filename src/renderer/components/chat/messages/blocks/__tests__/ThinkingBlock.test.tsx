@@ -300,13 +300,18 @@ describe('ThinkingBlock', () => {
   })
 
   describe('layout and readability', () => {
-    it('uses viewport-aware max height on the content panel', () => {
+    it('bounds streaming thinking to the viewport while completed thinking reads at full height', () => {
       mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock()
-      renderThinkingBlock(block)
+      const streaming = renderThinkingBlock(createThinkingBlock({ status: 'streaming' }))
 
-      // Bound long reasoning to the viewport so the message list remains reachable.
+      // Bound streaming reasoning so the message list remains reachable.
       expect(getContentContainer()).toHaveClass('max-h-[min(32rem,60dvh)]')
+      streaming.unmount()
+
+      renderThinkingBlock(createThinkingBlock())
+
+      // Completed reasoning renders at natural height for readability.
+      expect(getContentContainer()).not.toHaveClass('max-h-[min(32rem,60dvh)]')
     })
 
     it('uses theme-aware muted foreground for panel and markdown content', () => {

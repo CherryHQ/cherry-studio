@@ -35,7 +35,6 @@ import {
   resolveSupportedServiceTier
 } from '@renderer/components/ModelSpeedControl'
 import { type QuickPanelListItem, useOptionalQuickPanel } from '@renderer/components/QuickPanel'
-import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
@@ -59,13 +58,9 @@ import { resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
-import { isVisionModel } from '@renderer/utils/model'
-import {
-  isGPT5SeriesReasoningModel,
-  isOpenAIWebSearchModel,
-  resolveReasoningEffortForModel
-} from '@renderer/utils/model'
+import { isOpenAIWebSearchModel, resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
@@ -78,11 +73,13 @@ import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { imageExts } from '@shared/utils/file'
+import { isGPT5SeriesReasoningModel, isVisionModel } from '@shared/utils/model'
 
 import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { NotificationPrimingBanner } from '../NotificationPrimingBanner'
+import { ProviderQuotaNotice } from '../ProviderQuotaNotice'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
@@ -121,6 +118,7 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
+import { useComposerPrefill } from './shared/useComposerPrefill'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMentionSource'
 import { useScreenshotChat } from './shared/useScreenshotChat'
@@ -167,6 +165,8 @@ export interface ChatContextUsageSource {
 export interface ChatComposerProps {
   topic?: Topic
   contextUsage?: ChatContextUsageSource | null
+  /** The latest reply failed because a provider other than Cherry Cloud ran out of quota. */
+  providerQuotaExhausted?: boolean
   scopeKey?: string
   topicId?: string
   assistantId?: string
@@ -268,6 +268,7 @@ type ChatPlacementComposerProps =
 const ChatComposerRoot = ({
   topic,
   contextUsage,
+  providerQuotaExhausted,
   scopeKey,
   topicId,
   assistantId,
@@ -327,6 +328,7 @@ const ChatComposerRoot = ({
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
             contextUsage={contextUsage}
+            providerQuotaExhausted={providerQuotaExhausted}
             assistantId={resolvedAssistantId}
             resolvedContext={resolvedContext}
             resolvedProviders={resolvedProviders}
@@ -368,6 +370,7 @@ const ChatComposerInner = ({
   scopeKey,
   topicId,
   contextUsage,
+  providerQuotaExhausted = false,
   assistantId,
   resolvedContext,
   resolvedProviders,
@@ -923,6 +926,11 @@ const ChatComposerInner = ({
   }, [scopeKey])
 
   const loading = isPending || isSending || awaitingApproval
+  // Once the user has moved to a Cherry Cloud model, the subscription suggestion has served its purpose.
+  const showProviderQuotaNotice =
+    providerQuotaExhausted &&
+    !loading &&
+    !effectiveSubmittedModels.some((model) => isManagedCherryCloudModel(model.providerId))
   const clearContextDisabled =
     loading ||
     Boolean(editingMessageForCurrentTopic) ||
@@ -1384,6 +1392,17 @@ const ChatComposerInner = ({
   }, [actionsRef, addNewTopic])
 
   useComposerQuoteInsertion(actionsRef)
+  useComposerPrefill(actionsRef, {
+    topicId: streamScopeKey,
+    enabled: !editingMessageForCurrentTopic,
+    replaceDraft: (nextText) => {
+      releaseFollowupEditRef.current()
+      actionsRef.current.replaceDraft({ text: nextText, tokens: [] })
+      handleTextChange(nextText)
+      setFiles([])
+      setDraftTokens(undefined)
+    }
+  })
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })
@@ -1823,6 +1842,7 @@ const ChatComposerInner = ({
     assistantId: selectedAssistantId,
     assistantName,
     assistantEmoji: displayAssistant?.emoji,
+    assistantAvatarSrc: displayAssistant?.avatarSrc,
     model: runtimeModel,
     modelPending: runtimeModelPending,
     providers,
@@ -1891,9 +1911,9 @@ const ChatComposerInner = ({
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
       <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
-      <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
+          focusOnTabActivation
           markdownLivePreview={renderInputMessageAsMarkdown}
           showAiDisclaimer
           voiceTarget={{ targetId: `composer:chat:${streamScopeKey}`, sourceEntityId: streamScopeKey }}
@@ -1958,9 +1978,9 @@ const ChatComposerInner = ({
           onPause={onPause}
           bannerContent={<NotificationPrimingBanner />}
           queueContent={
-            quotaExhaustion ? (
+            quotaExhaustion || showProviderQuotaNotice ? (
               <>
-                <CherryCloudQuotaNotice exhaustion={quotaExhaustion} />
+                {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : <ProviderQuotaNotice />}
                 {followupsDock}
               </>
             ) : (

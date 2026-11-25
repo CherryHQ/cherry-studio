@@ -195,6 +195,7 @@ function useTextOverflow<T extends HTMLElement>() {
 function ModelRow({
   item,
   disabled,
+  badge,
   description,
   tags,
   optionId,
@@ -210,6 +211,7 @@ function ModelRow({
 }: {
   item: ModelSelectorModelItem
   disabled: boolean
+  badge?: ReactNode
   description?: ReactNode
   tags: readonly ModelSelectorTag[]
   optionId: string
@@ -256,8 +258,9 @@ function ModelRow({
   ) : null
 
   const trailing =
-    tags.length > 0 ? (
+    badge || tags.length > 0 ? (
       <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+        {badge}
         {tags.map((tag) => (
           <ModelTag
             key={`${item.key}-${tag}`}
@@ -692,6 +695,12 @@ export function ModelSelector(props: ModelSelectorProps) {
         return
       }
       if (isSelectionDisabled(item.model, item.provider)) return
+      const { onAction } = getModelPresentation(item.model, item.provider)
+      if (onAction) {
+        setOpen(false)
+        onAction()
+        return
+      }
       skipNextFocusScroll.current = true
 
       if (multiple && multiSelectModeRef.current) {
@@ -710,7 +719,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       emitSelection([item.modelId])
       setOpen(false)
     },
-    [emitSelection, isSelectionDisabled, multiple, rawSelectedModelIds, setOpen]
+    [emitSelection, getModelPresentation, isSelectionDisabled, multiple, rawSelectedModelIds, setOpen]
   )
 
   const handleClose = useCallback(() => {
@@ -926,6 +935,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         return (
           <div className="group flex h-7 items-center gap-1 bg-popover px-4 text-[11px] text-muted-foreground">
             <span className="flex h-4 items-center truncate leading-4">{groupTitle}</span>
+            {item.titleAction}
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>
                 <Button
@@ -992,6 +1002,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           <ModelRow
             item={item}
             disabled={isSelectionDisabled(item.model, item.provider)}
+            badge={presentation.badge}
             description={presentation.description}
             tags={presentation.tags}
             optionId={getModelSelectorOptionDomId(listboxId, item.key)}

@@ -11,6 +11,7 @@ import uploadPptIcon from '@renderer/assets/images/translate/upload-ppt.svg'
 import uploadTextIcon from '@renderer/assets/images/translate/upload-text.svg'
 import uploadWordIcon from '@renderer/assets/images/translate/upload-word.svg'
 import DictationControls from '@renderer/components/DictationControls'
+import { useTabInputFocus } from '@renderer/hooks/tab'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import type { VoiceReplaceRange } from '@renderer/services/voice'
@@ -90,6 +91,13 @@ const TranslateInputPane = ({
     })
   }, [disabled, onTextChange])
 
+  const focusInput = useCallback(() => {
+    const textarea = textareaRef.current
+    textarea?.focus({ preventScroll: true })
+    return document.activeElement === textarea
+  }, [])
+  useTabInputFocus(disabled ? undefined : focusInput)
+
   const {
     isDragging,
     handleDragEnter,
@@ -126,7 +134,7 @@ const TranslateInputPane = ({
           isDictationIdle ? 'absolute top-4 right-3 z-1' : 'shrink-0 px-3 pt-3'
         )}>
         <div className="min-w-0">
-          <DictationControls targetId={TARGET_ID} disabled={disabled} focusInput={() => textareaRef.current?.focus()} />
+          <DictationControls targetId={TARGET_ID} disabled={disabled} focusInput={focusInput} />
         </div>
         <IconButton size="sm" onClick={onCopy} disabled={!text} aria-label={t('common.copy')}>
           {copied ? <Check size={14} className="text-foreground" /> : <Copy size={14} />}
@@ -150,7 +158,7 @@ const TranslateInputPane = ({
             spellCheck={false}
             placeholder={t('translate.input.placeholder')}
             className={cn(
-              'min-h-full w-full resize-none overflow-hidden bg-transparent p-4 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-muted-foreground',
+              'placeholder:text-muted-foreground min-h-full w-full resize-none overflow-hidden bg-transparent p-4 text-base leading-relaxed text-foreground outline-none placeholder:font-normal',
               isDictationIdle && 'pr-20'
             )}
           />

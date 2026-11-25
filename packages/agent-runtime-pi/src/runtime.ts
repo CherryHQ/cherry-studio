@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
+import { canSuggestPrompt } from '@earendil-works/pi-ai/utils/query-fork'
 import {
   type AgentSession,
   type SessionEntry,
@@ -56,6 +57,7 @@ export interface PiRuntimeOptions {
 }
 export type PiSessionOptions = Omit<AgentRuntimeSessionOptions, 'compaction'> & {
   behavior: PiRuntimeBehavior
+  compactionPercent?: number
   compaction?: Omit<NonNullable<AgentRuntimeSessionOptions['compaction']>, 'summarize'>
 }
 export interface PiThreadHandle extends ThreadHandle {
@@ -72,6 +74,7 @@ export interface PiThreadHandle extends ThreadHandle {
         readonly handle: PiThreadHandle
       }>
     >
+    predictPrompt(prompt: string, signal: AbortSignal): Promise<string>
     history(): readonly SessionEntry[]
     /** Read committed entries through owner shutdown, until this access is released. */
     archive(): ReturnType<PiProjection['archive']>
@@ -197,7 +200,17 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             model,
             sessionManager,
             settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
-            compaction: { ...settings, ...config.compaction },
+            compaction: {
+              ...settings,
+              ...config.compaction,
+              ...(!child &&
+                config.compactionPercent !== undefined && {
+                  reserveTokens: Math.max(
+                    settings.reserveTokens,
+                    Math.ceil((model.contextWindow * (100 - config.compactionPercent)) / 100)
+                  )
+                })
+            },
             extensionFactories: [...(config.extensionFactories ?? []), extension],
             onEvent: (event) => {
               try {
@@ -335,6 +348,14 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             return rejected('open-child', 'closed')
           }
           return { status: 'confirmed', value: { relation: found.value, handle: opened.value } }
+        },
+        async predictPrompt(prompt, signal) {
+          if (unavailable() || signal.aborted || !entry.session.isIdle) return ''
+          const fork = entry.session.createQueryFork()
+          if (!canSuggestPrompt(fork.messages) || unavailable() || signal.aborted) return ''
+          const { message, calledTool } = await fork.query(prompt, AbortSignal.any([signal, closingAccess.signal]))
+          if (calledTool || signal.aborted || unavailable() || message?.stopReason !== 'stop') return ''
+          return message.content.find((part) => part.type === 'text')?.text ?? ''
         },
         // oxlint-disable-next-line no-restricted-globals -- Explicit history reads return isolated native branch entries to the host.
         history: () => (unavailable() ? [] : structuredClone(entry.session.sessionManager.getBranch())),

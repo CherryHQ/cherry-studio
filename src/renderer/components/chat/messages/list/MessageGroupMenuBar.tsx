@@ -92,7 +92,8 @@ const MessageGroupMenuBar: FC<Props> = ({
   }
 
   const hasFailedMessages =
-    !!actions.regenerateMessage && messages.some((m) => isFailedMessage(m) && m.status !== 'pending')
+    !!(actions.regenerateMessage || actions.regenerateMessageUsingModel) &&
+    messages.some((m) => isFailedMessage(m) && m.status !== 'pending')
 
   const handleRetryAll = async () => {
     const retryableMessages = messages.filter((m) => isFailedMessage(m) && m.status !== 'pending')
@@ -102,7 +103,15 @@ const MessageGroupMenuBar: FC<Props> = ({
 
     for (const msg of candidates) {
       try {
-        await actions.regenerateMessage?.(msg.id)
+        // Candidates are the newest failure of each model. Retry one with its own model so the
+        // attempt keeps that reply's identity instead of collapsing every model onto the
+        // composer's current selection.
+        const modelId = resolveUniqueModelId(msg.modelId, msg.model ?? msg.messageSnapshot?.model)
+        if (modelId && actions.regenerateMessageUsingModel) {
+          await actions.regenerateMessageUsingModel(msg.id, modelId)
+        } else {
+          await actions.regenerateMessage?.(msg.id)
+        }
       } catch (e) {
         failedCount++
         lastError = e
