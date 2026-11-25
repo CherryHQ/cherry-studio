@@ -44,6 +44,7 @@ import type {
   AgentRuntimeCommand
 } from '../types'
 import type { DurableBackend, DurableRoot } from './DurableBackend'
+import { resolveDurableCompaction } from './durableCompaction'
 import type { prepareDurableBranch } from './durableContext'
 import { saveDurableRequest } from './durableRequest'
 
@@ -777,6 +778,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     text: string
   ): Promise<void> {
     await projection.flush()
+    // A sibling can keep the shared backend alive across the parent's reconnect.
+    // Existing children need fresh policy too, sized from their own native model.
+    const usage = await handle.contextUsage()
+    if (usage.status !== 'confirmed') throw new Error('Child context policy is unavailable')
+    await handle.durable.configure({ compaction: resolveDurableCompaction(usage.value.contextWindow) })
     const { sessionId } = projection.context
     const id = randomUUID()
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })
