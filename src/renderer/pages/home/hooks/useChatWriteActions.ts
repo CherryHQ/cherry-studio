@@ -1,4 +1,3 @@
-import type { ChatRequestOptions } from 'ai'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,6 +19,7 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import type { ReservedMessageSeedOptions } from '@renderer/hooks/useConversationTurnController'
+import type { StreamCommandRequestOptions } from '@renderer/hooks/useStreamCommands'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
@@ -84,7 +84,7 @@ interface Params {
   topic: Topic
   uiMessages: CherryUIMessage[]
   activeNodeId: string | null
-  regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
+  regenerate: (options?: StreamCommandRequestOptions & { messageId?: string }) => Promise<void>
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
   stop: () => Promise<void>
   refresh: () => Promise<CherryUIMessage[]>
@@ -340,7 +340,8 @@ export function useChatWriteActions(params: Params): Result {
 
       const retryModelId =
         target?.role === 'assistant'
-          ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
+          ? // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Preserve legacy stored model strings and lazy override precedence; ai.stream.open validates the consumed ID before use.
+            (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
           : regenerateModelId
 
       // Only a persisted explicit selection pins the model; sibling history cannot establish intent.
@@ -501,6 +502,7 @@ export function useChatWriteActions(params: Params): Result {
         return
       }
 
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Forward the legacy stored model string to ai.stream.open validation; do not silently rebuild it from another model snapshot.
       const modelId = target?.role === 'assistant' ? (target.metadata?.modelId as UniqueModelId | undefined) : undefined
       const turnOptions = getInheritedTurnOptions(uiMessages, target)
 

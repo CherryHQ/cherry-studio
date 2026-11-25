@@ -261,7 +261,7 @@ function TopicRightPaneProvider({
 >) {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
-  const storeRef = useRef<TopicBranchLiveStateStore>(undefined as never)
+  const storeRef = useRef<TopicBranchLiveStateStore | null>(null)
 
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()
 
