@@ -66,27 +66,25 @@ function openNamedPopup(authUrl: string, popupName: string, features: string): W
 }
 
 function isSecretKeyOAuthPayload(data: unknown): data is SecretKeyOAuthPayload {
-  return (
-    Array.isArray(data) &&
-    data.length > 0 &&
-    typeof data[0] === 'object' &&
-    data[0] !== null &&
-    typeof (data[0] as { secretKey?: unknown }).secretKey === 'string'
-  )
+  if (!Array.isArray(data) || data.length === 0) return false
+  const first: unknown = data[0]
+
+  return typeof first === 'object' && first !== null && 'secretKey' in first && typeof first.secretKey === 'string'
 }
 
 function isAihubmixOAuthPayload(data: unknown): data is AihubmixOAuthPayload {
-  return typeof data === 'object' && data !== null && (data as { key?: unknown }).key === 'cherry_studio_oauth_callback'
+  return typeof data === 'object' && data !== null && 'key' in data && data.key === 'cherry_studio_oauth_callback'
 }
 
 function isNestedApiKeyOAuthPayload(data: unknown): data is NestedApiKeyOAuthPayload {
-  if (typeof data !== 'object' || data === null) return false
-  const nestedData = (data as { data?: unknown }).data
+  if (typeof data !== 'object' || data === null || !('data' in data)) return false
+  const nestedData = data.data
 
   return (
     typeof nestedData === 'object' &&
     nestedData !== null &&
-    typeof (nestedData as { apikey?: unknown }).apikey === 'string'
+    'apikey' in nestedData &&
+    typeof nestedData.apikey === 'string'
   )
 }
 
@@ -170,7 +168,8 @@ export const oauthWithAihubmix = async (setKey) => {
     matches: isAihubmixOAuthPayload,
     getKey: async (data) => {
       const callbackData = typeof data.data === 'object' && data.data !== null ? data.data : {}
-      const { iv, encryptedData } = callbackData as { iv?: unknown; encryptedData?: unknown }
+      const iv = 'iv' in callbackData ? callbackData.iv : undefined
+      const encryptedData = 'encryptedData' in callbackData ? callbackData.encryptedData : undefined
 
       if (typeof iv !== 'string' || typeof encryptedData !== 'string') {
         throw new Error('Invalid OAuth callback payload')
