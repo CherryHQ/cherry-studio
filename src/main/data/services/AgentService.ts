@@ -32,8 +32,7 @@ import {
   LocalAgentConfigurationSchema,
   type LocalAgentConfiguration,
   type LocalAgentLaunchSettings,
-  LOCAL_AGENT_PRESETS,
-  matchesLocalAgentPreset
+  LOCAL_AGENT_PRESETS
 } from '@shared/ai/localAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -421,7 +420,10 @@ export class AgentService {
         req.skillIds?.length
       )
         throw DataApiErrorFactory.invalidOperation('create local agent', 'Local agents own their model and resources')
-      if (config.presetId && !LOCAL_AGENT_PRESETS.some((p) => matchesLocalAgentPreset(p, config)))
+      if (
+        config.presetId &&
+        !LOCAL_AGENT_PRESETS.some((p) => p.id === config.presetId && p.protocol === config.protocol)
+      )
         throw DataApiErrorFactory.invalidOperation('create local agent', 'Invalid preset')
     } else if (!req.model) throw DataApiErrorFactory.invalidOperation('create agent', 'A provider model is required')
     const mcps = req.mcps ?? []

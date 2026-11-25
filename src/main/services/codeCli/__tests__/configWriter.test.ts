@@ -203,7 +203,7 @@ describe('writeCliConfigFiles', () => {
     vi.mocked(getRawShellEnv).mockResolvedValue({ KIRO_HOME: configHome })
     await writeCliConfigFiles('kiro', [{ target: 'kiro-settings', content: '{"telemetry.enabled":false}' }])
     expect(await readFile(path.join(configHome, 'settings', 'cli.json'), 'utf8')).toBe('{"telemetry.enabled":false}')
-    await expect(writeCliConfigFiles('kiro', [{ target: 'cursor-config', content: '{}' }])).rejects.toThrow(
+    await expect(writeCliConfigFiles('kiro', [{ target: 'goose-config', content: '{}' }])).rejects.toThrow(
       'not a config file'
     )
   })

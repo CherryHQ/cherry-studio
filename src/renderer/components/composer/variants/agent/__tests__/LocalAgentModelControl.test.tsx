@@ -141,10 +141,8 @@ describe('local agent model persistence', () => {
     expect(screen.getByRole('button', { name: '选择模型' })).toBeEnabled()
   })
 
-  it.each([
-    ['cursor', 'Cursor CLI 当前不支持自定义服务商模型。'],
-    ['auggie', '暂未适配此智能体的服务商模型。']
-  ])('explains model switching restrictions for %s without changing configuration', async (presetId, reason) => {
+  it('explains model switching restrictions without changing configuration', async () => {
+    const presetId = 'auggie'
     const user = userEvent.setup()
     render(
       <LocalAgentModelControl
@@ -167,7 +165,7 @@ describe('local agent model persistence', () => {
     await user.hover(native.parentElement!)
     expect(await screen.findByRole('tooltip')).toHaveTextContent('暂未适配此智能体的默认模型切换。')
     await user.hover(gateway.parentElement!)
-    expect(await screen.findByRole('tooltip', { name: reason })).toBeVisible()
+    expect(await screen.findByRole('tooltip', { name: '暂未适配此智能体的服务商模型。' })).toBeVisible()
     await user.keyboard('{ArrowDown}{Enter}')
     expect(updateNativeModel).not.toHaveBeenCalled()
   })

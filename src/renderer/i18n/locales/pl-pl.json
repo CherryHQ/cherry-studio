@@ -2750,7 +2750,6 @@
   "local_agents.login_help": "Pomoc logowania",
   "local_agents.login_required": "Wymagane logowanie lub konfiguracja",
   "local_agents.mode": "Tryb sesji",
-  "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI nie obsługuje obecnie niestandardowych modeli dostawców.",
   "local_agents.model_sources.gateway": "Zunifikowana brama",
   "local_agents.model_sources.gateway_not_integrated": "Modele dostawców nie są jeszcze obsługiwane dla tego agenta.",
   "local_agents.model_sources.gateway_unavailable": "Dla tego agenta nie są obecnie dostępne żadne modele dostawców.",

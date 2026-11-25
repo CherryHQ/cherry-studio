@@ -471,7 +471,7 @@ describe('external authentication', () => {
     render(
       <LocalAgentLogin
         {...props}
-        config={{ ...config, presetId: 'cursor' }}
+        config={{ ...config, presetId: 'cursor', protocol: 'cursor' }}
         authMethods={[{ id: 'cursor_login', name: 'Cursor', type: 'agent' }]}
       />
     )
@@ -492,7 +492,7 @@ describe('external authentication', () => {
     render(
       <LocalAgentLogin
         {...props}
-        config={{ ...config, presetId: 'cursor' }}
+        config={{ ...config, presetId: 'cursor', protocol: 'cursor' }}
         onAuthenticated={onAuthenticated}
         authMethods={[{ id: 'login', name: 'Login', type: 'agent' }]}
       />
@@ -525,7 +525,7 @@ describe('external authentication', () => {
     )
     const loginProps = {
       ...props,
-      config: { ...config, presetId: 'cursor' },
+      config: { ...config, presetId: 'qoder' },
       authMethods: [{ id: 'login', name: 'Login', type: 'agent' as const }]
     }
     const { rerender } = render(<LocalAgentLogin {...loginProps} />)

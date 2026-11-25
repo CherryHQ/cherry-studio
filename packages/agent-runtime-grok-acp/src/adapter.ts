@@ -23,8 +23,8 @@ const XaiSessionUpdateSchema = z.object({
     .passthrough()
 })
 export const grokAcpAdapter: Required<Pick<AcpHarnessAdapter, 'register'>> = {
-  register(app, host) {
-    app.onNotification('_x.ai/session/update', XaiSessionUpdateSchema, ({ params }) => {
+  register(host) {
+    host.onNotification('_x.ai/session/update', XaiSessionUpdateSchema, (params) => {
       if (!host.isActiveSession(params.sessionId)) return
       if (params.update.sessionUpdate !== 'turn_completed' || !params.update.usage) return
       const usage = params.update.usage

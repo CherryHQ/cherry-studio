@@ -26,7 +26,7 @@ import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main
 import { isOutsidePath, isSameOrInside } from '@main/utils/file'
 import { CHINA_PIP_INDEXES, OFFICIAL_PIP_INDEX, CHINA_NPM_REGISTRY } from '@main/utils/packageRegistry'
 import { getInteractiveShellEnv, getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
-import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
+import { LOCAL_CLI_AGENT_PRESETS } from '@shared/ai/localAgent'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
   BINARY_INSTALL_PREFERENCE_KEY,
@@ -290,7 +290,7 @@ const hasExecutableCandidateShim = async (shimPath: string): Promise<boolean> =>
 
 const agentCommands = new Set([
   ...CODE_CLI_TOOL_PRESETS.map((preset) => preset.executable),
-  ...LOCAL_AGENT_PRESETS.flatMap((preset) => [
+  ...LOCAL_CLI_AGENT_PRESETS.flatMap((preset) => [
     preset.executable,
     ...(preset.aliases ?? []),
     ...(preset.terminalCli ? [preset.terminalCli.executable] : [])

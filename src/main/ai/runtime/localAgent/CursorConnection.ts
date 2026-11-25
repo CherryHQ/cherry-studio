@@ -6,7 +6,6 @@ import {
   type SDKAgent
 } from '@cherrystudio/agent-runtime-cursor'
 import { getShellEnv } from '@main/utils/shellEnv'
-import { CURSOR_SDK_RESUME_PREFIX } from '@shared/ai/localAgent'
 
 import type { AgentRuntimeUserInput } from '../types'
 import { acquireLocalAgentBrowserLease } from './browserBridge'
@@ -54,27 +53,23 @@ export class CursorConnection extends LocalConnection {
       isReadOnly: () => this.mode === 'plan'
     })
     this.abort.signal.throwIfAborted()
-    const agentId = resume?.slice(CURSOR_SDK_RESUME_PREFIX.length)
-    if (resume && (!resume.startsWith(CURSOR_SDK_RESUME_PREFIX) || !agentId)) {
-      throw new LocalAgentSessionRestoreError('Invalid Cursor SDK session identity')
-    }
     const agent = await openCursorSession({
       cwd,
       apiKey,
       model,
-      agentId,
+      agentId: resume,
       browser: this.browser && { type: 'http', url: this.browser.url, headers: this.browser.headers }
     }).catch((error: unknown) => {
       if (resume) throw new LocalAgentSessionRestoreError('Could not restore the Cursor SDK session', { cause: error })
       throw error
     })
-    if (this.closed || (agentId && agent.agentId !== agentId)) {
+    if (this.closed || (resume && agent.agentId !== resume)) {
       agent.close()
       this.abort.signal.throwIfAborted()
       throw new LocalAgentSessionRestoreError('Cursor returned a different session')
     }
     this.agent = agent
-    this.publishResumeToken(CURSOR_SDK_RESUME_PREFIX + agent.agentId)
+    this.publishResumeToken(agent.agentId)
     return this
   }
 
@@ -137,7 +132,7 @@ export class CursorConnection extends LocalConnection {
         this.events.push({
           type: 'local-turn-usage',
           summary: {
-            nativeSessionId: CURSOR_SDK_RESUME_PREFIX + agent.agentId,
+            nativeSessionId: agent.agentId,
             model: completed.model?.id ?? agent.model?.id ?? null,
             reportedAt: Date.now(),
             correlation: 'unknown',

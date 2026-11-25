@@ -9,10 +9,6 @@
     ".": {
       "types": "./dist/adapter.d.mts",
       "default": "./dist/adapter.mjs"
-    },
-    "./legacy-acp": {
-      "types": "./dist/legacyAcp.d.mts",
-      "default": "./dist/legacyAcp.mjs"
     }
   },
   "scripts": {
@@ -20,7 +16,6 @@
     "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-cursor/tsconfig.json"
   },
   "dependencies": {
-    "@cherrystudio/agent-runtime-acp": "workspace:*",
     "@cursor/sdk": "1.5.0",
     "zod": "4.4.3"
   },

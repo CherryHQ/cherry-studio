@@ -4,11 +4,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { LocalAgentCheckResult, LocalAgentModelCatalog } from '@shared/ai/localAgent'
-import {
-  LocalAgentConfigurationSchema,
-  localAgentChatProtocol,
-  type LocalAgentConfiguration
-} from '@shared/ai/localAgent'
+import { LocalAgentConfigurationSchema, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -18,14 +14,8 @@ import { acpError } from './acpError'
 import { resolveLocalAgentLaunch } from './launch'
 import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
 
-async function connection(
-  sessionId: string,
-  agentId: string,
-  config: LocalAgentConfiguration,
-  headless = false,
-  resume?: string
-) {
-  switch (localAgentChatProtocol(config, resume)) {
+async function connection(sessionId: string, agentId: string, config: LocalAgentConfiguration, headless = false) {
+  switch (config.protocol) {
     case 'cursor': {
       const { CursorConnection } = await import('./CursorConnection')
       return new CursorConnection(sessionId, agentId, config, headless)
@@ -92,7 +82,7 @@ async function startLocalSession(
   probe: false | 'models' = false,
   headless = false
 ) {
-  const live = await connection(sessionId, agentId, config, headless, resume)
+  const live = await connection(sessionId, agentId, config, headless)
   try {
     return await startWithTimeout(live, cwd, resume, probe)
   } catch (error) {

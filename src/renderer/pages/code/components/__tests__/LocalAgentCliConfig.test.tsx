@@ -102,12 +102,6 @@ it('edits CodeBuddy native settings without requiring a provider configuration',
 
 it.each([
   ['openclaw', 'openclaw-config', '{"gateway":{"port":18790}}', '{"gateway":{"port":18791}}'],
-  [
-    'cursor',
-    'cursor-config',
-    '{"permissions":{"deny":["Shell(rm)"]}}',
-    '{"permissions":{"deny":["Shell(rm)","Shell(sudo)"]}}'
-  ],
   ['mistral-vibe', 'vibe-config', 'active_model = "old"', 'active_model = "new"'],
   ['goose', 'goose-config', 'GOOSE_MODEL: old', 'GOOSE_MODEL: new'],
   [

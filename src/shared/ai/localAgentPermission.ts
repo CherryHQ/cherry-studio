@@ -130,9 +130,6 @@ export function classifyNativePermissionMode(
   if (presetId === 'copilot' && (value === 'agent' || name === 'agent')) {
     return { canonicalMode: 'default', priority: 1 }
   }
-  if (presetId === 'cursor' && (value === 'agent' || name === 'agent')) {
-    return { canonicalMode: 'acceptEdits', priority: 1 }
-  }
   if (name === 'default' && value !== 'plan') {
     return { canonicalMode: 'default', priority: 0 }
   }

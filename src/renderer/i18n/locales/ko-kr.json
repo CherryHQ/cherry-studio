@@ -2722,7 +2722,6 @@
   "local_agents.login_help": "로그인 도움말",
   "local_agents.login_required": "로그인 또는 설정 필요",
   "local_agents.mode": "세션 모드",
-  "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI는 현재 사용자 지정 제공자 모델을 지원하지 않습니다.",
   "local_agents.model_sources.gateway": "통합 게이트웨이",
   "local_agents.model_sources.gateway_not_integrated": "이 에이전트에서는 아직 제공자 모델이 지원되지 않습니다.",
   "local_agents.model_sources.gateway_unavailable": "이 에이전트에서 현재 사용할 수 있는 제공자 모델이 없습니다.",

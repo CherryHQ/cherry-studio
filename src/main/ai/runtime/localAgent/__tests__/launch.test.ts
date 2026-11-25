@@ -565,19 +565,22 @@ agent_servers:
     expect(launch).toMatchObject({ executable: executablePath, args })
   })
 
-  it('accepts the Cursor agent symlink but rejects a Grok executable with the same alias', async () => {
-    const alias = path.join(directory, 'agent')
-    const cursor = path.join(directory, 'cursor-agent')
-    const grok = path.join(directory, 'grok')
-    await writeFile(cursor, '#!/bin/sh\n')
-    await writeFile(grok, '#!/bin/sh\n')
-    await symlink(cursor, alias)
-    inventory.snapshots.agent = { name: 'agent', availability: { source: 'system', path: alias } }
-    expect((await detectLocalAgents()).find((agent) => agent.presetId === 'cursor')).toMatchObject({ path: alias })
-    await rm(alias)
-    await symlink(grok, alias)
-    expect((await detectLocalAgents()).find((agent) => agent.presetId === 'cursor')).toMatchObject({ source: 'none' })
-    await expect(resolveLocalAgentLaunch({ ...config, presetId: 'cursor', protocol: 'acp' })).rejects.toThrow()
+  it('excludes SDK-only Cursor from discovery and rejects direct CLI launches', async () => {
+    expect((await detectLocalAgents()).some((agent) => agent.presetId === 'cursor')).toBe(false)
+    await expect(
+      resolveLocalAgentLaunch({ ...config, presetId: 'cursor', protocol: 'cursor' }, undefined, true)
+    ).rejects.toThrow('Invalid local agent preset')
+    await expect(
+      resolveLocalAgentLaunch({
+        ...config,
+        presetId: undefined,
+        protocol: 'cursor',
+        executableOverride: process.execPath
+      })
+    ).rejects.toThrow('Invalid local agent preset')
+    await expect(
+      resolveLocalAgentLaunch({ ...config, presetId: 'cursor', protocol: 'acp', executableOverride: process.execPath })
+    ).rejects.toThrow('Invalid local agent preset')
   })
 
   it('applies required protocol environment without overriding explicit user choices', async () => {

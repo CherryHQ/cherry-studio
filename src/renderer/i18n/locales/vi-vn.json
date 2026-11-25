@@ -2722,7 +2722,6 @@
   "local_agents.login_help": "Trợ giúp đăng nhập",
   "local_agents.login_required": "Cần đăng nhập hoặc cấu hình",
   "local_agents.mode": "Chế độ phiên",
-  "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI hiện không hỗ trợ mô hình nhà cung cấp tùy chỉnh.",
   "local_agents.model_sources.gateway": "Cổng thống nhất",
   "local_agents.model_sources.gateway_not_integrated": "Chưa hỗ trợ mô hình nhà cung cấp cho tác nhân này.",
   "local_agents.model_sources.gateway_unavailable": "Hiện không có mô hình nhà cung cấp nào khả dụng cho tác nhân này.",

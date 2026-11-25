@@ -2722,7 +2722,6 @@
   "local_agents.login_help": "Ajuda para iniciar sessão",
   "local_agents.login_required": "É necessário iniciar sessão ou configurar",
   "local_agents.mode": "Modo da sessão",
-  "local_agents.model_sources.cursor_provider_unsupported": "O Cursor CLI não suporta atualmente modelos de fornecedores personalizados.",
   "local_agents.model_sources.gateway": "Gateway Unificado",
   "local_agents.model_sources.gateway_not_integrated": "Os modelos de fornecedores ainda não são suportados para este agente.",
   "local_agents.model_sources.gateway_unavailable": "Não existem atualmente modelos de fornecedores disponíveis para este agente.",

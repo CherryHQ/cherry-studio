@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
 import { codeCliForLocalAgent } from '@renderer/utils/agent/codeCliForLocalAgent'
-import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
+import { LOCAL_AGENT_PRESETS, LOCAL_CLI_AGENT_PRESETS } from '@shared/ai/localAgent'
 import { CodeCli } from '@shared/types/codeCli'
 import { getCliConfigTargets } from '@shared/utils/cliConfig'
 
@@ -87,7 +87,7 @@ beforeEach(() => {
 
 describe('managed local Agent details', () => {
   it('provides a native file editor for every preset with persistent configuration', () => {
-    const missing = LOCAL_AGENT_PRESETS.filter((p) => p.id !== 'deepagents')
+    const missing = LOCAL_CLI_AGENT_PRESETS.filter((p) => p.id !== 'deepagents')
       .filter((p) => !getCliConfigTargets(codeCliForLocalAgent(p.id) ?? p.id).length)
       .map((p) => p.id)
     expect(missing).toEqual([])

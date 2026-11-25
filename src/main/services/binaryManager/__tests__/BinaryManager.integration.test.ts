@@ -13,7 +13,7 @@ import { application } from '@application'
 import { CLI_INSTALL_TOOL_NAME, registerCliTools } from '@main/ai/mcp/servers/cherryCliTools'
 import { BaseService } from '@main/core/lifecycle'
 import type * as ShellEnvModule from '@main/utils/shellEnv'
-import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
+import { LOCAL_CLI_AGENT_PRESETS } from '@shared/ai/localAgent'
 
 import { BinaryManager } from '../BinaryManager'
 
@@ -134,7 +134,7 @@ if (command === 'use') {
     const systemDir = path.join(tempDir, 'system')
     fs.mkdirSync(legacy)
     fs.mkdirSync(systemDir)
-    const commands = LOCAL_AGENT_PRESETS.map((preset) => preset.executable)
+    const commands = LOCAL_CLI_AGENT_PRESETS.map((preset) => preset.executable)
     for (const name of commands) {
       const managed = path.join(legacy, name)
       fs.writeFileSync(managed, '', { mode: 0o755 })

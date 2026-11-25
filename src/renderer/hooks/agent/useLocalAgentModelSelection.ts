@@ -63,11 +63,7 @@ export function useLocalAgentModelSelection(
       ? undefined
       : {
           native: config?.presetId === 'antigravity-acp' ? undefined : t('local_agents.global_model_unavailable'),
-          gateway: t(
-            config?.presetId === 'cursor'
-              ? 'local_agents.model_sources.cursor_provider_unsupported'
-              : 'local_agents.model_sources.gateway_not_integrated'
-          )
+          gateway: t('local_agents.model_sources.gateway_not_integrated')
         }
   const { models, isLoading: modelsLoading } = useModels(
     { enabled: true },

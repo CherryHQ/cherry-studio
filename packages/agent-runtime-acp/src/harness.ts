@@ -1,11 +1,9 @@
 import type {
-  ClientApp,
   ClientConnection,
   InitializeResponse,
   NewSessionResponse,
   PromptRequest,
-  PromptResponse,
-  SessionUpdate
+  PromptResponse
 } from '@agentclientprotocol/sdk'
 
 import type { OperationResult, ThreadContextUsage } from '@cherrystudio/agent-runtime'
@@ -14,27 +12,18 @@ export interface AcpHarnessSession {
   readonly promptMeta?: PromptRequest['_meta']
   inspectContextUsage?(): Promise<OperationResult<ThreadContextUsage>>
   contextAfterPrompt?(response: PromptResponse, revision: string): ThreadContextUsage | undefined
-  consumeUpdate?(update: SessionUpdate): boolean
+  consumeAssistantText?(text: string): boolean
 }
 
 export interface AcpHarnessHost {
-  readonly signal: AbortSignal
-  isActive(): boolean
+  onNotification<T>(method: string, schema: { parse(params: unknown): T }, handle: (params: T) => void): void
   isActiveSession(sessionId: string): boolean
   usage(value: NonNullable<PromptResponse['usage']>): void
-  approve(
-    id: string,
-    name: string,
-    input: Record<string, unknown>,
-    signal?: AbortSignal
-  ): Promise<{ approved: boolean; updatedInput?: Record<string, unknown> }>
-  text(text: string): void
-  result(id: string, output: unknown): void
 }
 
 export interface AcpHarnessAdapter {
-  register?(app: ClientApp, host: AcpHarnessHost): void
-  retainSetupUpdate?(update: SessionUpdate): boolean
+  register?(host: AcpHarnessHost): void
+  readonly setupUpdate?: 'agent_message_chunk'
   bind?(input: {
     readonly agent: Pick<ClientConnection['agent'], 'request'>
     readonly agentCapabilities: InitializeResponse['agentCapabilities']

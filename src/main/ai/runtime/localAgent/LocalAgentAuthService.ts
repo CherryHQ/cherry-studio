@@ -5,7 +5,7 @@ import { shell } from 'electron'
 import { application } from '@application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
-import { localAgentChatProtocol, type LocalAgentConfiguration } from '@shared/ai/localAgent'
+import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { isSensitiveKey, redactLiteral } from '@shared/utils/redaction'
 
 import { AcpConnection } from './AcpConnection'
@@ -37,7 +37,7 @@ export class LocalAgentAuthService extends BaseService {
     options?: CliAuthOptions
   ): Promise<void> {
     if (this.pending.has(requestId)) throw new Error('Authentication is already in progress')
-    if (localAgentChatProtocol(config) === 'cursor') {
+    if (config.protocol === 'cursor') {
       if (methodId !== 'cursor_login') throw new Error('Unknown Cursor authentication method')
       const controller = new AbortController()
       const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(AUTH_TIMEOUT_MS)])
@@ -59,7 +59,7 @@ export class LocalAgentAuthService extends BaseService {
       await this.authenticateViaCli(requestId, config, cliSpec, options?.secret)
       return
     }
-    if (localAgentChatProtocol(config) !== 'acp') throw new Error('ACP authentication is unavailable')
+    if (config.protocol !== 'acp') throw new Error('ACP authentication is unavailable')
 
     const live = new AcpConnection(`local-agent-auth:${requestId}`, '', config)
     this.pending.set(requestId, () => live.close())

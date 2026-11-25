@@ -37,8 +37,6 @@ import { toast } from '@renderer/services/toast'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import {
   LOCAL_AGENT_PRESETS,
-  localAgentChatProtocol,
-  matchesLocalAgentPreset,
   type LocalAgentAuthMethod,
   type LocalAgentConfiguration,
   type LocalAgentModelCatalog
@@ -172,8 +170,8 @@ export function LocalAgentLogin({
     env: config.env,
     enabled: true
   })
-  const sdk = localAgentChatProtocol(config) === 'cursor'
-  const methods = sdk
+  const sdk = config.protocol === 'cursor'
+  const methods: LocalAgentAuthMethod[] | undefined = sdk
     ? [{ id: 'cursor_login', type: 'agent', name: 'Cursor' }]
     : (authMethods ?? (discovered?.signature === signature ? discovered.methods : undefined))
   const methodNames: Record<string, Record<string, string>> = {
@@ -194,7 +192,7 @@ export function LocalAgentLogin({
     kilo: { 'kilo-login': `Kilo · ${t('local_agents.sign_in')}` },
     hermes: { custom: t('local_agents.auth_runtime_credentials') }
   }
-  const preset = LOCAL_AGENT_PRESETS.find((entry) => matchesLocalAgentPreset(entry, config))
+  const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === config.presetId && entry.protocol === config.protocol)
   const usableMethods = methods
     ?.filter((method) => method.type === 'agent' && !preset?.externalCredentialMethods?.includes(method.id))
     .map((method) => ({ ...method, name: methodNames[config.presetId ?? '']?.[method.id] ?? method.name }))
@@ -208,7 +206,7 @@ export function LocalAgentLogin({
     status: OutputFor<'ai.local_agents.auth_status'>
   }>()
   const authFailed = !!authenticationError && classifyLocalAgentError(authenticationError).kind === 'authentication'
-  const hasNativeStatus = !!preset?.authStatusArgs
+  const hasNativeStatus = sdk || !!preset?.authStatusArgs
   const currentStatus = authStatus?.signature === signature ? authStatus.status : cachedAuthStatus.get(signature)
   const status = authFailed && !hasNativeStatus ? 'signed-out' : (currentStatus ?? 'unknown')
   const signedIn = status === 'signed-in'

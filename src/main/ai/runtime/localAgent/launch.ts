@@ -17,9 +17,8 @@ import { autoDiscoverGitBash, findExecutableInEnv } from '@main/utils/commandRes
 import { getEnvironmentValue, mergeEnvironment } from '@main/utils/env'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import {
-  LOCAL_AGENT_PRESETS,
-  matchesLocalAgentPreset,
-  type LocalAgentPreset,
+  LOCAL_CLI_AGENT_PRESETS,
+  type LocalCliAgentPreset,
   type LocalAgentConfiguration,
   type LocalAgentDetection
 } from '@shared/ai/localAgent'
@@ -27,7 +26,7 @@ import type { InputFor } from '@shared/ipc/types'
 import type { BinaryAvailability, BinaryToolSnapshot } from '@shared/types/binary'
 import { POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
 
-import { readInstalledPackageVersion, resolveInstalledExecutable } from './installedVersion'
+import { readInstalledPackageVersion } from './installedVersion'
 import { readNativeModelConfig, resolveClineProvider, usesGlobalClineProfile } from './nativeModelConfig'
 import { resolveRequiredRuntime } from './runtimeDependency'
 
@@ -46,7 +45,7 @@ function mergeClaudeProviderEnv(base: Record<string, string>, overrides: Record<
   return mergeEnvironment(inherited, overrides)
 }
 
-type AgentCommand = Pick<LocalAgentPreset, 'executable' | 'aliases'> & Partial<Pick<LocalAgentPreset, 'protocol'>>
+type AgentCommand = Pick<LocalCliAgentPreset, 'executable' | 'aliases'> & Partial<Pick<LocalCliAgentPreset, 'protocol'>>
 
 async function supportsAgentCommand(preset: AgentCommand, candidate: BinaryAvailability) {
   if (preset.executable !== 'dsh' || preset.protocol !== 'acp' || candidate.source === 'none') return true
@@ -61,10 +60,6 @@ async function selectInstallation(preset: AgentCommand, snapshots: Record<string
     [preset.executable, ...(preset.aliases ?? [])].map(async (name) => {
       const candidate = snapshots[name]?.availability
       if (candidate && !(await supportsAgentCommand(preset, candidate))) return undefined
-      if (preset.executable === 'cursor-agent' && name === 'agent' && candidate && candidate.source !== 'none') {
-        const target = await resolveInstalledExecutable(candidate.path).catch(() => '')
-        if (!/^cursor-agent(?:\.exe|\.cmd)?$/i.test(path.basename(target))) return undefined
-      }
       return candidate
     })
   )
@@ -110,14 +105,14 @@ export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
   const snapshots = await application
     .get('BinaryManager')
     .getToolSnapshots(
-      LOCAL_AGENT_PRESETS.flatMap((preset) => [
+      LOCAL_CLI_AGENT_PRESETS.flatMap((preset) => [
         preset.executable,
         ...(preset.aliases ?? []),
         ...(preset.terminalCli ? [preset.terminalCli.executable] : [])
       ])
     )
   return Promise.all(
-    LOCAL_AGENT_PRESETS.map(async (preset) => {
+    LOCAL_CLI_AGENT_PRESETS.map(async (preset) => {
       const adapter = await selectAvailableInstallation(preset, snapshots)
       const terminal = preset.terminalCli ? await selectAvailableInstallation(preset.terminalCli, snapshots) : adapter
       const installed = preset.id === 'antigravity-acp' && adapter.source === 'none' ? terminal : adapter
@@ -383,12 +378,12 @@ export async function resolveLocalAgentLaunch(
   headless = false
 ) {
   const terminal = mode === true
-  const definition = LOCAL_AGENT_PRESETS.find((p) => p.id === config.presetId)
+  const definition = LOCAL_CLI_AGENT_PRESETS.find((p) => p.id === config.presetId)
   const preset =
     terminal && definition?.terminalCli
       ? { ...definition, executable: definition.terminalCli.executable, aliases: undefined }
       : definition
-  if (config.presetId && (!preset || !matchesLocalAgentPreset(preset, config)))
+  if (config.protocol === 'cursor' || (config.presetId && (!preset || preset.protocol !== config.protocol)))
     throw new Error('Invalid local agent preset')
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
     throw new Error('Local agent is being uninstalled')
@@ -567,7 +562,7 @@ export async function resolveLocalAgentLaunch(
 }
 
 export async function openLocalAgentTerminal(config: InputFor<'ai.local_agents.open_terminal'>) {
-  const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === config.presetId)
+  const preset = LOCAL_CLI_AGENT_PRESETS.find((entry) => entry.id === config.presetId)
   if (!preset?.terminalArgs) throw new Error('This agent does not have a supported interactive CLI')
   let args = config.login ? preset.loginArgs : preset.terminalArgs
   if (!args) throw new Error('This agent does not have a supported terminal login command')

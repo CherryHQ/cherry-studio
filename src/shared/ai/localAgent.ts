@@ -21,31 +21,6 @@ export const LocalAgentConfigurationSchema = z.strictObject({
 })
 export type LocalAgentConfiguration = z.infer<typeof LocalAgentConfigurationSchema>
 
-export const CURSOR_SDK_RESUME_PREFIX = 'cursor-sdk:'
-
-export function localAgentChatProtocol(
-  config: Pick<LocalAgentConfiguration, 'presetId' | 'protocol' | 'executableOverride' | 'args'>,
-  resume?: string
-): LocalAgentConfiguration['protocol'] {
-  if (config.presetId !== 'cursor' || (config.protocol !== 'cursor' && config.protocol !== 'acp'))
-    return config.protocol
-  if (resume) return resume.startsWith(CURSOR_SDK_RESUME_PREFIX) ? 'cursor' : 'acp'
-  return config.executableOverride ||
-    (config.args.length > 0 && !(config.args.length === 1 && config.args[0] === 'acp'))
-    ? 'acp'
-    : 'cursor'
-}
-
-export function matchesLocalAgentPreset(
-  preset: LocalAgentPreset,
-  config: Pick<LocalAgentConfiguration, 'presetId' | 'protocol'>
-) {
-  return (
-    preset.id === config.presetId &&
-    (preset.protocol === config.protocol || (preset.id === 'cursor' && config.protocol === 'acp'))
-  )
-}
-
 /** Custom third-party executables default to opt-in (`disabled`); built-in presets inherit Browser settings. */
 export function resolveLocalAgentBrowserControl(
   config: Pick<LocalAgentConfiguration, 'presetId' | 'browserControl'>
@@ -61,13 +36,10 @@ export const LocalAgentLaunchSettingsSchema = LocalAgentConfigurationSchema.pick
 })
 export type LocalAgentLaunchSettings = z.infer<typeof LocalAgentLaunchSettingsSchema>
 
-export interface LocalAgentPreset {
-  id: string
-  name: string
-  protocol: LocalAgentConfiguration['protocol']
+interface LocalAgentCliOptions {
   executable: string
-  aliases?: readonly string[]
   terminalArgs?: readonly string[]
+  aliases?: readonly string[]
   loginArgs?: readonly string[]
   authStatusArgs?: readonly string[]
   /** ACP methods that rely on credentials configured outside the login flow. */
@@ -76,10 +48,26 @@ export interface LocalAgentPreset {
   args: readonly string[]
   platformArgs?: Partial<Record<'linux' | 'darwin' | 'win32', readonly string[]>>
   env?: Readonly<Record<string, string>>
-  helpUrl: string
   npmPackage?: string
   requiredRuntime?: { executable: 'bun'; minimumVersion: string }
 }
+
+interface LocalAgentPresetInfo {
+  id: string
+  name: string
+  helpUrl: string
+}
+
+export type LocalCliAgentPreset = LocalAgentPresetInfo &
+  LocalAgentCliOptions & {
+    protocol: Exclude<LocalAgentConfiguration['protocol'], 'cursor'>
+  }
+
+type CursorPreset = LocalAgentPresetInfo & { id: 'cursor'; protocol: 'cursor' } & {
+  [K in keyof LocalAgentCliOptions]?: never
+}
+
+export type LocalAgentPreset = LocalCliAgentPreset | CursorPreset
 
 export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   {
@@ -126,14 +114,9 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'cursor',
-    authStatusArgs: ['status'],
-    terminalArgs: [],
     name: 'Cursor',
     protocol: 'cursor',
-    executable: 'cursor-agent',
-    aliases: ['agent'],
-    args: ['acp'],
-    helpUrl: 'https://cursor.com/docs/sdk/typescript'
+    helpUrl: 'https://cursor.com/docs/api/sdk/typescript'
   },
   {
     id: 'kimi',
@@ -423,6 +406,8 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     helpUrl: 'https://poolside.ai'
   }
 ]
+
+export const LOCAL_CLI_AGENT_PRESETS = LOCAL_AGENT_PRESETS.filter((preset) => preset.protocol !== 'cursor')
 
 export interface LocalAgentDetection {
   presetId: string

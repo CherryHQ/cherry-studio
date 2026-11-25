@@ -173,7 +173,9 @@ export function LocalAgentAdvancedSettings({
           )}
         </div>
       }>
-      <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.advanced_hint')}</p>
+      {config.protocol !== 'cursor' && (
+        <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.advanced_hint')}</p>
+      )}
       <fieldset
         disabled={busy}
         className="min-w-0 space-y-5"
@@ -192,26 +194,30 @@ export function LocalAgentAdvancedSettings({
             onChange={(e) => setName(e.target.value)}
           />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="local-agent-path">{t('local_agents.executable')}</Label>
-          <Input
-            id="local-agent-path"
-            className="h-8 font-mono text-xs"
-            placeholder={detection?.path ?? preset?.executable}
-            value={executableOverride ?? ''}
-            onChange={(e) => setExecutableOverride(e.target.value || undefined)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="local-agent-args">{t('local_agents.arguments')}</Label>
-          <Textarea.Input
-            id="local-agent-args"
-            className="min-h-16 font-mono text-xs"
-            value={args}
-            onChange={(e) => setArgs(e.target.value)}
-            spellCheck={false}
-          />
-        </div>
+        {config.protocol !== 'cursor' && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="local-agent-path">{t('local_agents.executable')}</Label>
+              <Input
+                id="local-agent-path"
+                className="h-8 font-mono text-xs"
+                placeholder={detection?.path ?? preset?.executable}
+                value={executableOverride ?? ''}
+                onChange={(e) => setExecutableOverride(e.target.value || undefined)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="local-agent-args">{t('local_agents.arguments')}</Label>
+              <Textarea.Input
+                id="local-agent-args"
+                className="min-h-16 font-mono text-xs"
+                value={args}
+                onChange={(e) => setArgs(e.target.value)}
+                spellCheck={false}
+              />
+            </div>
+          </>
+        )}
         <div className="space-y-2">
           <Label htmlFor="local-agent-env">{t('local_agents.environment')}</Label>
           <Textarea.Input

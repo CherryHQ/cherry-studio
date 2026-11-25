@@ -106,7 +106,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
   const currentQuestion = questions[currentIndex]
   const field = form ? Object.values(form.properties)[currentIndex] : undefined
-  const choicesOnly = form ? !field || elicitationChoices(field).length > 0 : request.input.choiceOnly
+  const choicesOnly = form && (!field || elicitationChoices(field).length > 0)
   const totalQuestions = questions.length
   const isFirstQuestion = currentIndex === 0
   const isLastQuestion = currentIndex === totalQuestions - 1
@@ -216,11 +216,6 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           ...request.input,
           answers: buildAnswers(answersByIndex),
           ...(form && { elicitationContent: content }),
-          ...(request.input.choiceOnly && {
-            answerSelections: Object.fromEntries(
-              questions.map((question, index) => [question.id ?? question.question, answersByIndex[index] ?? []])
-            )
-          }),
           ...(annotations && { annotations })
         }
       })
@@ -236,8 +231,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
       request.input,
       request.match,
       respond,
-      selectedAnswers,
-      questions
+      selectedAnswers
     ]
   )
 

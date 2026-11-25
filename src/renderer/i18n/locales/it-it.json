@@ -2722,7 +2722,6 @@
   "local_agents.login_help": "Guida all’accesso",
   "local_agents.login_required": "Accesso o configurazione richiesti",
   "local_agents.mode": "Modalità sessione",
-  "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI al momento non supporta modelli di fornitori personalizzati.",
   "local_agents.model_sources.gateway": "Gateway unificato",
   "local_agents.model_sources.gateway_not_integrated": "I modelli dei fornitori non sono ancora supportati per questo agente.",
   "local_agents.model_sources.gateway_unavailable": "Al momento non sono disponibili modelli dei fornitori per questo agente.",

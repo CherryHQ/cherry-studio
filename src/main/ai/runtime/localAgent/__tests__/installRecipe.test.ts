@@ -76,7 +76,7 @@ describe('system agent install recipes', () => {
       args: ['install', '--global', '@kilocode/cli@7.8.1']
     })
     expect(
-      resolveInstallRecipe('cursor', registry('cursor', { uvx: { package: 'fixture-agent==1.2.3', args: ['-x'] } }))
+      resolveInstallRecipe('junie', registry('junie', { uvx: { package: 'fixture-agent==1.2.3', args: ['-x'] } }))
     ).toEqual({ manager: 'uv', package: 'fixture-agent==1.2.3', args: ['tool', 'install', 'fixture-agent==1.2.3'] })
   })
 
@@ -142,7 +142,7 @@ describe('system agent install recipes', () => {
     const manifest = {
       agents: [
         {
-          id: 'cursor',
+          id: 'junie',
           version: '1.2.3',
           distribution: {
             binary: {
@@ -153,12 +153,12 @@ describe('system agent install recipes', () => {
         }
       ]
     }
-    expect(resolveInstallRecipe('cursor', manifest, 'darwin', 'arm64')).toMatchObject({
+    expect(resolveInstallRecipe('junie', manifest, 'darwin', 'arm64')).toMatchObject({
       manager: 'binary',
       archive: 'https://example.com/arm.zip',
       sha256: 'a'.repeat(64)
     })
-    expect(resolveInstallRecipe('cursor', manifest, 'win32', 'arm64')).toMatchObject({
+    expect(resolveInstallRecipe('junie', manifest, 'win32', 'arm64')).toMatchObject({
       manager: 'binary',
       archive: 'https://example.com/windows.zip',
       cmd: './agent.exe'
@@ -166,7 +166,7 @@ describe('system agent install recipes', () => {
     const withWinArm64 = {
       agents: [
         {
-          id: 'cursor',
+          id: 'junie',
           version: '1.2.3',
           distribution: {
             binary: {
@@ -177,12 +177,12 @@ describe('system agent install recipes', () => {
         }
       ]
     }
-    expect(resolveInstallRecipe('cursor', withWinArm64, 'win32', 'arm64')).toMatchObject({
+    expect(resolveInstallRecipe('junie', withWinArm64, 'win32', 'arm64')).toMatchObject({
       manager: 'binary',
       archive: 'https://example.com/windows-arm64.zip',
       cmd: './agent-arm64.exe'
     })
-    expect(resolveInstallRecipe('cursor', manifest, 'win32', 'x64')).toMatchObject({ cmd: './agent.exe' })
-    expect(resolveInstallRecipe('cursor', manifest, 'linux', 'x64')).toBeUndefined()
+    expect(resolveInstallRecipe('junie', manifest, 'win32', 'x64')).toMatchObject({ cmd: './agent.exe' })
+    expect(resolveInstallRecipe('junie', manifest, 'linux', 'x64')).toBeUndefined()
   })
 })

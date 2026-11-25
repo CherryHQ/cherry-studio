@@ -17,8 +17,8 @@ import { CHINA_NPM_REGISTRY, CHINA_PIP_INDEXES } from '@main/utils/packageRegist
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import {
-  LOCAL_AGENT_PRESETS,
-  type LocalAgentPreset,
+  LOCAL_CLI_AGENT_PRESETS,
+  type LocalCliAgentPreset,
   type LocalAgentInstallResult,
   type LocalAgentUninstallComponent,
   type LocalAgentUninstallResult
@@ -37,10 +37,10 @@ import { getBinaryAgentInstallation, ownsNpmExecutable, ownsUvExecutable, uninst
 
 const logger = loggerService.withContext('LocalAgentInstallService')
 type InstallTarget = Pick<
-  LocalAgentPreset,
+  LocalCliAgentPreset,
   'id' | 'executable' | 'aliases' | 'npmPackage' | 'requiredRuntime' | 'terminalCli'
 > & {
-  protocol?: LocalAgentPreset['protocol']
+  protocol?: LocalCliAgentPreset['protocol']
   cli?: CodeCliToolPreset
 }
 
@@ -63,7 +63,7 @@ export class LocalAgentInstallService extends BaseService {
   }
 
   install(presetId: string, targetVersion?: string, systemOnly = false): Promise<LocalAgentInstallResult> {
-    const target = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
+    const target = LOCAL_CLI_AGENT_PRESETS.find((entry) => entry.id === presetId)
     return target
       ? this.installTarget(target, targetVersion, systemOnly)
       : Promise.resolve({ ok: false, reason: 'unsupported' })
@@ -95,14 +95,14 @@ export class LocalAgentInstallService extends BaseService {
   }
 
   isUninstalling(presetId: string): boolean {
-    const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
+    const preset = LOCAL_CLI_AGENT_PRESETS.find((entry) => entry.id === presetId)
     return (
       !!preset && [preset.executable, preset.terminalCli?.executable].some((name) => name && this.removals.has(name))
     )
   }
 
   async getUninstallComponents(presetId: string, expectedPath: string): Promise<LocalAgentUninstallComponent[]> {
-    const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
+    const preset = LOCAL_CLI_AGENT_PRESETS.find((entry) => entry.id === presetId)
     return preset
       ? (await this.resolveUninstallComponents(preset, expectedPath)).map(({ executable, path }) => ({
           executable,
@@ -116,7 +116,7 @@ export class LocalAgentInstallService extends BaseService {
     expectedPath: string,
     expectedComponents?: LocalAgentUninstallComponent[]
   ): Promise<LocalAgentUninstallResult> {
-    const target = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
+    const target = LOCAL_CLI_AGENT_PRESETS.find((entry) => entry.id === presetId)
     return target
       ? this.uninstallTarget(target, expectedPath, expectedComponents)
       : Promise.resolve({ ok: false, reason: 'unsupported' })
@@ -136,7 +136,7 @@ export class LocalAgentInstallService extends BaseService {
     }
     if (primary.source === 'none' || primary.path !== expectedPath) return []
     const presets = target.cli
-      ? LOCAL_AGENT_PRESETS.filter(
+      ? LOCAL_CLI_AGENT_PRESETS.filter(
           (preset) => preset.executable === target.executable || preset.terminalCli?.executable === target.executable
         )
       : [target]
@@ -197,7 +197,7 @@ export class LocalAgentInstallService extends BaseService {
     const cli = presetId.startsWith('cli:') ? CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[presetId.slice(4)] : undefined
     const target = cli
       ? { id: cli.id, executable: cli.executable, cli }
-      : LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
+      : LOCAL_CLI_AGENT_PRESETS.find((entry) => entry.id === presetId)
     if (!target) return { canUpgrade: false }
     const detected = await this.detect(target)
     if (detected.source === 'none') return { canUpgrade: false }
@@ -245,7 +245,7 @@ export class LocalAgentInstallService extends BaseService {
   }
 
   private async recipe(target: InstallTarget, targetVersion?: string) {
-    if (target.npmPackage && !LOCAL_AGENT_PRESETS.some((preset) => preset.executable === target.executable))
+    if (target.npmPackage && !LOCAL_CLI_AGENT_PRESETS.some((preset) => preset.executable === target.executable))
       return { manager: 'npm' as const, package: target.npmPackage, args: ['install', '--global', target.npmPackage] }
     const recipe = target.cli
       ? resolveCliInstallRecipe(target.cli, targetVersion)
@@ -465,7 +465,7 @@ export class LocalAgentInstallService extends BaseService {
         if (!action) return { ok: false, reason: 'unsupported' }
         actions.push({ component, action })
       }
-      const agents = LOCAL_AGENT_PRESETS.filter((agent) =>
+      const agents = LOCAL_CLI_AGENT_PRESETS.filter((agent) =>
         components.some(
           ({ executable }) => executable === agent.executable || executable === agent.terminalCli?.executable
         )

@@ -2722,7 +2722,6 @@
   "local_agents.login_help": "登录帮助",
   "local_agents.login_required": "需要登录或配置",
   "local_agents.mode": "会话模式",
-  "local_agents.model_sources.cursor_provider_unsupported": "Cursor CLI 当前不支持自定义服务商模型。",
   "local_agents.model_sources.gateway": "统一网关",
   "local_agents.model_sources.gateway_not_integrated": "暂未适配此智能体的服务商模型。",
   "local_agents.model_sources.gateway_unavailable": "此智能体暂无可用的服务商模型。",

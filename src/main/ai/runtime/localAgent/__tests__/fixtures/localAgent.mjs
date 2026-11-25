@@ -28,7 +28,6 @@ const text = (value) =>
   protocol === 'acp'
     ? update({
         sessionUpdate: 'agent_message_chunk',
-        ...(scenario === 'cursor-plan' ? { messageId: 'cursor-message' } : {}),
         content: { type: 'text', text: value }
       })
     : emit({
@@ -577,14 +576,6 @@ createInterface({ input: process.stdin }).on('line', (line) => {
           await requestClient('terminal/release', { sessionId, terminalId })
         } else {
           const requests = {
-            'cursor-question': [
-              'cursor/ask_question',
-              {
-                toolCallId: 'cancelled-tool',
-                questions: [{ id: 'q', prompt: 'Continue?', options: [{ id: 'yes', label: 'Yes' }] }]
-              }
-            ],
-            'cursor-plan': ['cursor/create_plan', { toolCallId: 'cancelled-tool', plan: '' }],
             permission: [
               'session/request_permission',
               {
@@ -1195,31 +1186,6 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     }
     if (scenario === 'crash') process.exit(7)
     if (scenario === 'cancel') return
-    if (scenario === 'cursor-question' || scenario === 'cursor-plan') {
-      emit({
-        id: 'cursor-extension',
-        method: scenario === 'cursor-question' ? 'cursor/ask_question' : 'cursor/create_plan',
-        params:
-          scenario === 'cursor-question'
-            ? {
-                toolCallId: 'question-tool',
-                title: 'Select features',
-                questions: [
-                  {
-                    id: 'features',
-                    prompt: 'Choose features',
-                    allowMultiple: true,
-                    options: [
-                      { id: 'one', label: 'Same, label' },
-                      { id: 'two', label: 'Same, label' }
-                    ]
-                  }
-                ]
-              }
-            : { toolCallId: 'plan-tool', name: 'Review plan', plan: '## Plan\nWrite only approved files.', todos: [] }
-      })
-      return
-    }
     if (scenario.startsWith('elicitation')) {
       emit({
         id: 'elicitation',
@@ -1408,9 +1374,6 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   } else if (id === 'write-again' || id === 'elicitation') {
     text(JSON.stringify(message.result ?? message.error))
     finish()
-  } else if (id === 'cursor-extension') {
-    text(JSON.stringify(message.result ?? message.error))
-    finish()
   } else if (id === 'write-file') {
     emit({
       id: 'read-file',
@@ -1461,7 +1424,6 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     finish()
   } else if (method === 'session/cancel' || method === 'turn/interrupt') {
     if (id) reply(id, {})
-    // Cursor callbacks finish after receiving their reply, so shutdown cannot race its receipt.
-    if (scenario !== 'cursor-question' && scenario !== 'cursor-plan') finish()
+    finish()
   } else if (id) reply(id, {})
 })

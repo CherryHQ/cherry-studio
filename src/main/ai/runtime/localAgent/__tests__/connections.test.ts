@@ -872,7 +872,7 @@ describe('local protocol processes', () => {
   })
 
   it('ignores Grok billing notifications on another named ACP harness', async () => {
-    const { connection, events, closeAndDrain } = create('acp', 'xai-usage', undefined, 'cursor')
+    const { connection, events, closeAndDrain } = create('acp', 'xai-usage', undefined, 'copilot')
     await connection.start(cwd)
     await connection.send(input)
     await closeAndDrain()
@@ -1035,64 +1035,6 @@ describe('local protocol processes', () => {
       ])
     }
   )
-
-  it('returns Cursor option IDs without conflating duplicate labels or splitting commas', async () => {
-    const { connection, events, text } = create('acp', 'cursor-question', undefined, 'cursor')
-    await connection.start(cwd)
-    const sending = connection.send(input)
-    const approval = await waitForApproval(events)
-    expect(approval.request.toolName).toBe('AskUserQuestion')
-    expect(approval.request.input).toMatchObject({
-      choiceOnly: true,
-      questions: [{ id: 'features', multiSelect: true }]
-    })
-    toolApprovalRegistry.dispatch(approval.request.approvalId, {
-      approved: true,
-      updatedInput: { answerSelections: { features: ['two', 'one'] } }
-    })
-    await sending
-    expect(text()).toContain(
-      '"outcome":{"outcome":"answered","answers":[{"questionId":"features","selectedOptionIds":["two","one"]}]}'
-    )
-    expect(observedParts(events)).toContainEqual(
-      expect.objectContaining({
-        type: 'dynamic-tool',
-        state: 'output-available',
-        output: expect.objectContaining({ answers: { features: 'Same, label, Same, label' } })
-      })
-    )
-  })
-
-  it.each([true, false])('returns the explicit Cursor plan decision: %s', async (approved) => {
-    const { connection, events, text } = create('acp', 'cursor-plan', undefined, 'cursor')
-    await connection.start(cwd)
-    const sending = connection.send(input)
-    const approval = await waitForApproval(events)
-    expect(text()).toContain('## Plan')
-    toolApprovalRegistry.dispatch(approval.request.approvalId, { approved })
-    await sending
-    await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({ type: 'turn-complete' })))
-    expect(text()).toContain(`"outcome":{"outcome":"${approved ? 'accepted' : 'rejected'}"}`)
-    expect(
-      observedParts(events).flatMap((chunk) =>
-        chunk.type === 'open' && chunk.kind === 'text' ? [chunk.providerMetadata?.acp?.messageId] : []
-      )
-    ).toEqual(['cursor-message', undefined, 'cursor-message'])
-  })
-
-  it.each(['cursor-question', 'cursor-plan'])('cancels %s on close without approval', async (scenario) => {
-    const { connection, events, drained } = create('acp', scenario)
-    await connection.start(cwd)
-    const sending = connection.send(input)
-    await vi.waitFor(() => expect(events.some((event) => event.type === 'tool-approval-request')).toBe(true))
-    await connection.close()
-    await sending
-    await drained
-    expect(await readWire()).toContainEqual(
-      expect.objectContaining({ id: 'cursor-extension', result: { outcome: { outcome: 'cancelled' } } })
-    )
-    expect(toolApprovalRegistry.hasSession('session')).toBe(false)
-  })
 
   it.each(['approved-write', 'approved-write-changed', 'approved-write-repeated'])(
     'reuses only a single identical approved write (%s)',
@@ -1657,7 +1599,7 @@ describe('local protocol processes', () => {
     )
   })
 
-  it.each(['permission', 'form', 'write', 'terminal', 'wait', 'cursor-question', 'cursor-plan'])(
+  it.each(['permission', 'form', 'write', 'terminal', 'wait'])(
     'settles a cancelled %s request without lingering approval or unapproved side effects',
     async (kind) => {
       const { connection, events, text } = create('acp', `request-cancel:${kind}`)
@@ -1671,7 +1613,6 @@ describe('local protocol processes', () => {
       expect(toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: true })).toBeUndefined()
       const response = JSON.parse(text())
       if (kind === 'permission') expect(response).toEqual({ outcome: { outcome: 'cancelled' } })
-      else if (kind.startsWith('cursor-')) expect(response).toEqual({ outcome: { outcome: 'cancelled' } })
       else if (kind === 'form') expect(response).toEqual({ action: 'cancel' })
       else expect(response.code).toBe(-32800)
       await expect(readFile(path.join(cwd, 'cancelled.txt'))).rejects.toThrow()

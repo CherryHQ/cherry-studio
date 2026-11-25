@@ -5,7 +5,7 @@ import type * as NodePath from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as LifecycleModule from '@main/core/lifecycle'
-import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
+import { LOCAL_CLI_AGENT_PRESETS } from '@shared/ai/localAgent'
 import { CODE_CLI_TOOL_PRESET_BY_EXECUTABLE } from '@shared/data/presets/codeCliTools'
 
 const mockCreateRequire = vi.hoisted(() => vi.fn())
@@ -981,7 +981,7 @@ describe('BinaryManager', () => {
 
     it.each([
       ...new Set(
-        LOCAL_AGENT_PRESETS.flatMap((preset) => [
+        LOCAL_CLI_AGENT_PRESETS.flatMap((preset) => [
           preset.executable,
           ...(preset.aliases ?? []),
           ...(preset.terminalCli?.executable ? [preset.terminalCli?.executable] : [])

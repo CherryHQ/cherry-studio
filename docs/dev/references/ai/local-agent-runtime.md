@@ -54,15 +54,12 @@ are preserved.
   acquire a connection.
 - Streams use `runtime:<agent-id>` as execution identity. It belongs to the stream.
   Persisted messages retain author and native model attribution when available.
-- Cursor uses the local TypeScript SDK for new chats. Its SDK credential store
-  and model catalog are separate from CLI login. The CLI is optional for SDK chat.
+- Cursor uses the local TypeScript SDK for new chats. The bundled SDK owns login, the model catalog and session recovery.
   Cherry passes an empty virtual filesystem, no ambient settings, and the MCP-only
   tool list on both create and resume. Per-turn host tools read the selected
   workspace. Writes, edits and commands require approval of the individual call.
   Plan mode blocks those operations after a mode change as well as before approval.
-  The optional browser endpoint keeps its session-scoped lease. SDK resume tokens
-  carry a `cursor-sdk:` prefix. Older unprefixed Cursor tokens and explicit ACP
-  executables retain the CLI route. [Cursor SDK documentation](https://cursor.com/docs/sdk/typescript)
+  The optional browser endpoint keeps its session-scoped lease. Session recovery uses the SDK agent ID. [Cursor SDK documentation](https://cursor.com/docs/api/sdk/typescript)
 - For CLI-backed routes the CLI owns authentication, project settings, MCP and Skills. Local turns use
   native resources and controls. Main rejects Cherry knowledge scopes for these turns.
 - When host browser control is enabled, interactive sessions expose Cherry Studio's
@@ -191,7 +188,7 @@ recovery link.
 | Driver | Resume identity | Model control | Approval protocol |
 | --- | --- | --- | --- |
 | Claude Code | SDK session ID | SDK model catalog or CLI default | SDK `canUseTool` |
-| Cursor SDK | Prefixed local SDK agent ID | SDK model catalog or Auto | Cherry approves workspace edits and program execution |
+| Cursor SDK | Local SDK agent ID | SDK model catalog or Auto | Cherry approves workspace edits and program execution |
 | Codex | App Server thread ID | `model/list` or CLI default | Native decisions and permission requests |
 | ACP | ACP session ID | Model config option or legacy `session/set_model` | Original option IDs and scopes |
 
@@ -271,7 +268,7 @@ must match the active connection and turn. URL mode is unsupported and requests
 outside a conversation return `cancel`. Flat fields keep native IDs and types.
 Users can review defaults and explicitly submit, decline or cancel. Renderer and
 Main validate against the schema. Cancellation and shutdown release pending
-questions. Cursor’s legacy ACP question extension also uses the composer.
+questions.
 
 See [Adding a Runtime](./adding-a-runtime.md) and
 [Agent Session Runtime](./agent-session-runtime.md) for the host contract.

@@ -426,6 +426,25 @@ describe('local agent settings navigation', () => {
     expect(within(program).getByRole('status')).toHaveTextContent('已安装')
   })
 
+  it('can enable Cursor and check its SDK connection on a machine without agent CLIs', async () => {
+    navigation.search = { id: 'cursor' }
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [] as never
+      if (route === 'ai.local_agents.auth_status') return 'signed-out' as never
+      if (route === 'ai.local_agents.check') return { ok: true, status: 'ready' } as never
+      return { models: [] } as never
+    })
+    render(<LocalAgentDirectory />)
+    expect(await screen.findByRole('switch', { name: '启用此智能体' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: /^安装$/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '检查连接' }))
+    await screen.findByText('已连接')
+    expect(ipcApi.request).toHaveBeenCalledWith(
+      'ai.local_agents.check',
+      expect.objectContaining({ presetId: 'cursor', protocol: 'cursor' })
+    )
+  })
+
   it('offers a system installation after a legacy Agent fails its protocol check', async () => {
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
       if (route === 'ai.local_agents.detect')

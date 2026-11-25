@@ -60,7 +60,6 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
 import {
   LOCAL_AGENT_PRESETS,
-  localAgentChatProtocol,
   LocalAgentLaunchSettingsSchema,
   type LocalAgentConfiguration,
   type LocalAgentCheckResult,
@@ -228,10 +227,14 @@ export function LocalAgentDirectory({
     ...(archivedAgents?.items ?? []).filter((a) => a.deletedAt && !agents.some((agent) => agent.id === a.id))
   ].filter((a) => a.type === 'local')
   const installedIds = new Set(detections.filter((detection) => detection.path).map((detection) => detection.presetId))
-  const getPriority = (entry: { id: string; agent?: AgentEntity }) =>
+  const getPriority = (entry: { id: string; agent?: AgentEntity; preset?: LocalAgentPreset }) =>
     !entry.agent?.deletedAt && entry.agent?.configuration?.localRuntime?.enabled
       ? 2
-      : Number(installedIds.has(entry.id) || !!entry.agent?.configuration?.localRuntime?.executableOverride)
+      : Number(
+          entry.preset?.protocol === 'cursor' ||
+            installedIds.has(entry.id) ||
+            !!entry.agent?.configuration?.localRuntime?.executableOverride
+        )
   const orderIndex = new Map(
     agentOrder.map((id, index) => [id === 'cli:deepseek-harness' || id === 'cli:openclaw' ? id.slice(4) : id, index])
   )
@@ -358,7 +361,7 @@ export function LocalAgentDirectory({
                   const detection = detections.find((d) => d.presetId === e.id)
                   const executableOverride = e.agent?.configuration?.localRuntime?.executableOverride
                   const config = e.agent?.configuration?.localRuntime
-                  const sdk = config ? localAgentChatProtocol(config) === 'cursor' : e.preset?.protocol === 'cursor'
+                  const sdk = (e.preset?.protocol ?? config?.protocol) === 'cursor'
                   const notInstalled =
                     !sdk &&
                     !!detection &&
@@ -370,11 +373,13 @@ export function LocalAgentDirectory({
                       ? t('local_agents.enabled')
                       : executableOverride
                         ? t('settings.provider.not_checked')
-                        : sdk || detection?.path
-                          ? t('local_agents.detected')
-                          : detection
-                            ? t('local_agents.not_installed')
-                            : t('settings.provider.not_checked')
+                        : sdk
+                          ? t('settings.dependencies.source.bundled')
+                          : detection?.path
+                            ? t('local_agents.detected')
+                            : detection
+                              ? t('local_agents.not_installed')
+                              : t('settings.provider.not_checked')
                   const tool = e.preset
                     ? codeCliForLocalAgent(e.preset.id)
                     : CODE_CLI_TOOL_PRESETS.find((tool) => e.id === `cli:${tool.id}`)?.id
@@ -558,7 +563,7 @@ export function LocalAgentDetails({
     'save' | 'check' | 'toggle' | 'uninstall' | 'confirm-uninstall' | 'model' | 'terminal'
   >()
   const missing = missingChatExecutable(detection, initial)
-  const sdk = localAgentChatProtocol(initial) === 'cursor'
+  const sdk = (preset?.protocol ?? initial.protocol) === 'cursor'
   const available = sdk || (!!(detection?.path || initial.executableOverride) && !missing)
   const {
     catalog,
@@ -568,7 +573,7 @@ export function LocalAgentDetails({
     refresh: refreshModels
   } = useLocalAgentModelCatalog(preset?.id ?? agent?.id ?? 'custom-new', initial, !modelList && available)
   const modelSelection = useLocalAgentModelSelection(initial, catalog?.models ?? [])
-  const version = useLocalAgentVersion(initial.executableOverride ? undefined : preset?.id, detection?.path)
+  const version = useLocalAgentVersion(sdk || initial.executableOverride ? undefined : preset?.id, detection?.path)
   const [openingChat, setOpeningChat] = useState(false)
   const installationUnknown = !!preset && !detection && !initial.executableOverride
   const busy = installing || busyAction !== undefined || openingChat
@@ -604,13 +609,13 @@ export function LocalAgentDetails({
     if (busy) return false
     setBusyAction('terminal')
     try {
-      if (preset && (preset.terminalCli || sdk)) {
+      if (preset?.terminalCli) {
         const detected = await ipcApi.request('ai.local_agents.detect', {})
         if (!detected.find((entry) => entry.presetId === preset.id)?.terminalPath) {
           if (
             !(await popup.confirm({
               title: `${preset.name} · ${t('code.terminal')}`,
-              content: `${preset.terminalCli?.executable ?? preset.executable}: ${t('code.not_installed')}`,
+              content: `${preset.terminalCli.executable}: ${t('code.not_installed')}`,
               okText: t('code.install')
             }))
           )
@@ -1063,13 +1068,11 @@ export function LocalAgentDetails({
                   {!available && detection?.terminalPath && terminalButton}
                   {available ? (
                     <>
-                      {(sdk || localAgentChatProtocol(initial) === 'acp' || preset?.loginArgs) && (
+                      {(sdk || initial.protocol === 'acp' || preset?.loginArgs) && (
                         <LocalAgentLogin
                           config={initial}
                           authMethods={
-                            localAgentChatProtocol(initial) === 'acp'
-                              ? (freshCatalog?.authMethods ?? catalog?.authMethods)
-                              : []
+                            initial.protocol === 'acp' ? (freshCatalog?.authMethods ?? catalog?.authMethods) : []
                           }
                           modelsLoading={modelsLoading}
                           freshCatalog={freshCatalog}
@@ -1139,9 +1142,9 @@ export function LocalAgentDetails({
                 </>
               }>
               <div className="flex items-start justify-end gap-2">
-                {(initial.executableOverride ?? detection?.path ?? preset?.executable) && (
+                {(sdk || initial.executableOverride || detection?.path || preset?.executable) && (
                   <InputGroup
-                    aria-label={t('local_agents.installation_location')}
+                    aria-label={sdk ? undefined : t('local_agents.installation_location')}
                     onMouseEnter={() => setProgramHovered(true)}
                     onMouseLeave={() => setProgramHovered(false)}
                     className={cn(
@@ -1152,18 +1155,20 @@ export function LocalAgentDetails({
                         !['ready', 'authentication-required'].includes(connection.status) &&
                         'border-error-border bg-error-subtle'
                     )}>
-                    <Button
-                      variant="ghost"
-                      disabled={busy}
-                      onClick={openEditor}
-                      aria-label={t('local_agents.installation_location')}
-                      className="h-full min-w-0 flex-1 justify-start rounded-lg px-2.5 text-left font-normal hover:bg-transparent">
-                      <span dir="rtl" className="min-w-0 truncate text-left font-mono text-xs text-foreground">
-                        <bdi dir="ltr">
-                          {sdk ? '@cursor/sdk' : (initial.executableOverride ?? detection?.path ?? preset?.executable)}
-                        </bdi>
-                      </span>
-                    </Button>
+                    {sdk ? (
+                      <span className="min-w-0 flex-1 truncate px-2.5 font-mono text-xs">@cursor/sdk</span>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={openEditor}
+                        aria-label={t('local_agents.installation_location')}
+                        className="h-full min-w-0 flex-1 justify-start rounded-lg px-2.5 text-left font-normal hover:bg-transparent">
+                        <span dir="rtl" className="min-w-0 truncate text-left font-mono text-xs text-foreground">
+                          <bdi dir="ltr">{initial.executableOverride ?? detection?.path ?? preset?.executable}</bdi>
+                        </span>
+                      </Button>
+                    )}
                     <InputGroupAddon align="inline-end" className="shrink-0 gap-1 py-0 pr-1">
                       <span
                         role="status"
@@ -1199,11 +1204,13 @@ export function LocalAgentDetails({
                               ? t('settings.provider.not_checked')
                               : missing
                                 ? `${missing} · ${t('local_agents.not_installed')}`
-                                : sdk || detection?.path
-                                  ? t('local_agents.detected')
-                                  : installationUnknown
-                                    ? t('settings.provider.not_checked')
-                                    : t('local_agents.not_installed')}
+                                : sdk
+                                  ? t('settings.dependencies.source.bundled')
+                                  : detection?.path
+                                    ? t('local_agents.detected')
+                                    : installationUnknown
+                                      ? t('settings.provider.not_checked')
+                                      : t('local_agents.not_installed')}
                           </Badge>
                         )}
                       </span>

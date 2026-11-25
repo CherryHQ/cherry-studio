@@ -2722,7 +2722,6 @@
   "local_agents.login_help": "วิธีลงชื่อเข้าใช้",
   "local_agents.login_required": "ต้องเข้าสู่ระบบหรือตั้งค่า",
   "local_agents.mode": "โหมดเซสชัน",
-  "local_agents.model_sources.cursor_provider_unsupported": "ขณะนี้ Cursor CLI ไม่รองรับโมเดลผู้ให้บริการที่กำหนดเอง",
   "local_agents.model_sources.gateway": "เกตเวย์รวม",
   "local_agents.model_sources.gateway_not_integrated": "ยังไม่รองรับโมเดลผู้ให้บริการสำหรับเอเจนต์นี้",
   "local_agents.model_sources.gateway_unavailable": "ขณะนี้ไม่มีโมเดลผู้ให้บริการที่ใช้ได้สำหรับเอเจนต์นี้",

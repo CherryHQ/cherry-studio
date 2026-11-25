@@ -243,7 +243,7 @@ export class AcpConnection extends LocalConnection {
             params.update.sessionUpdate === 'session_info_update' ||
             params.update.sessionUpdate === 'notice' ||
             params.update.sessionUpdate === 'current_mode_update' ||
-            this.harness?.retainSetupUpdate?.(params.update)
+            params.update.sessionUpdate === this.harness?.setupUpdate
           )
             this.pendingUpdates.push(params)
         } else if (params.sessionId === this.nativeId) this.update(params.update)
@@ -588,21 +588,15 @@ export class AcpConnection extends LocalConnection {
         this.terminals.delete(params.terminalId)
         return {}
       })
-    this.harness?.register?.(app, {
+    this.harness?.register?.({
+      onNotification: (method, schema, handle) => {
+        app.onNotification(method, schema, ({ params }) => handle(params))
+      },
       isActiveSession: (sessionId) =>
         this.active && !this.loading && !this.abort.signal.aborted && this.nativeId === sessionId,
       usage: (value) => {
         this.turnUsage = value
-      },
-      isActive: () => this.active && !this.abort.signal.aborted,
-      signal: this.abort.signal,
-      approve: (id, name, input, signal) => this.approve(id, name, input, signal),
-      text: (text) => {
-        if (this.messageId !== undefined) this.endContent()
-        this.messageId = undefined
-        this.content(text)
-      },
-      result: (id, output) => this.result(id, output)
+      }
     })
     this.connection = app.connect(
       ndJsonStream(Writable.toWeb(child.stdin), Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>)
@@ -919,7 +913,12 @@ export class AcpConnection extends LocalConnection {
     return terminal
   }
   private update(update: SessionUpdate) {
-    if (this.harnessSession?.consumeUpdate?.(update)) return
+    if (
+      update.sessionUpdate === 'agent_message_chunk' &&
+      update.content.type === 'text' &&
+      this.harnessSession?.consumeAssistantText?.(update.content.text)
+    )
+      return
 
     if (update.sessionUpdate === 'compaction_update') {
       const { compactionId, status } = update

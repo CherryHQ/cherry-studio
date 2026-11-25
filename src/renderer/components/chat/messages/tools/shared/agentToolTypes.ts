@@ -208,8 +208,6 @@ export const AskUserQuestionToolInputSchema = z.object({
   elicitation: z.object({ schema: ElicitationFormSchema, message: z.string(), agentName: z.string() }).optional(),
   questions: z.array(AskUserQuestionItemSchema).min(1),
   answers: AskUserQuestionAnswerSchema.optional(),
-  choiceOnly: z.boolean().optional(),
-  answerSelections: z.record(z.string(), z.array(z.string())).optional(),
   annotations: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
   metadata: z.record(z.string(), z.unknown()).optional()
 })
@@ -227,8 +225,6 @@ export type AskUserQuestionItem = Omit<SDKAskUserQuestionItem, 'options'> & {
 }
 export type AskUserQuestionToolInput = Omit<AskUserQuestionInput, 'questions'> & {
   elicitation?: { schema: ElicitationForm; message: string; agentName: string }
-  choiceOnly?: boolean
-  answerSelections?: Record<string, string[]>
   questions: AskUserQuestionItem[]
 }
 export type AskUserQuestionToolOutput = AskUserQuestionOutput

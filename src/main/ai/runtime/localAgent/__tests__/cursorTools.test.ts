@@ -6,7 +6,6 @@ import { Agent, type AgentOptions } from '@cursor/sdk'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { openCursorSession } from '@cherrystudio/agent-runtime-cursor'
-import { localAgentChatProtocol, LocalAgentConfigurationSchema } from '@shared/ai/localAgent'
 
 import { cursorWorkspaceTools } from '../cursorTools'
 
@@ -74,15 +73,6 @@ it('executes the approved command in this workspace', async () => {
     { toolCallId: 'x' }
   )
   expect(await readFile(path.join(cwd, 'marker'), 'utf8')).toBe('approved')
-})
-
-it('restores Cursor sessions using the protocol that issued their identity', () => {
-  const previous = LocalAgentConfigurationSchema.parse({ presetId: 'cursor', protocol: 'acp' })
-  expect(localAgentChatProtocol(previous)).toBe('cursor')
-  expect(localAgentChatProtocol(previous, 'old-native-id')).toBe('acp')
-  const override = { ...previous, executableOverride: '/custom/cursor-agent' }
-  expect(localAgentChatProtocol(override)).toBe('acp')
-  expect(localAgentChatProtocol(override, 'cursor-sdk:existing')).toBe('cursor')
 })
 
 it.each([undefined, 'saved-cursor-agent'])('isolates the native tool surface for %s', async (agentId) => {

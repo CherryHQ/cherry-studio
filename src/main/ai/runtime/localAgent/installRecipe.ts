@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
+import { LOCAL_CLI_AGENT_PRESETS } from '@shared/ai/localAgent'
 import { CODE_CLI_TOOL_PRESETS, type CodeCliToolPreset } from '@shared/data/presets/codeCliTools'
 
 const packageDistribution = z.object({ package: z.string().min(1) })
@@ -53,7 +53,7 @@ export function resolveInstallRecipe(
   platform = process.platform,
   arch = process.arch
 ): LocalAgentInstallRecipe | LocalAgentBinaryRecipe | CliScriptRecipe | undefined {
-  const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
+  const preset = LOCAL_CLI_AGENT_PRESETS.find((entry) => entry.id === presetId)
   if (!preset) throw new Error('Unknown local agent preset')
   // Hermes is absent from the registry; Kimi's registry entry still ships the retired CLI.
   const native = ['claude', 'codex', 'kimi', 'hermes', 'deepseek-harness', 'openclaw'].includes(presetId)

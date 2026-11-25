@@ -2,26 +2,12 @@ import { stripVTControlCharacters } from 'node:util'
 
 import { CommandFailedError, executeCommand } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
-import {
-  LOCAL_AGENT_PRESETS,
-  localAgentChatProtocol,
-  matchesLocalAgentPreset,
-  type LocalAgentConfiguration
-} from '@shared/ai/localAgent'
+import { LOCAL_CLI_AGENT_PRESETS, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { OutputFor } from '@shared/ipc/types'
 
 import { resolveLocalAgentLaunch } from './launch'
 
 type AuthStatus = OutputFor<'ai.local_agents.auth_status'>
-
-export function parseCursorAuthStatus(output: string): AuthStatus {
-  const text = stripVTControlCharacters(output)
-  if (/^\s*[✗✘×]?\s*(Not logged in|Partially authenticated \(missing refresh token\))\s*$/m.test(text))
-    return 'signed-out'
-  // Cursor also reports success when fetching the account fails; that does not verify authentication.
-  if (/^\s*✓\s*Logged in as .+$/m.test(text)) return 'signed-in'
-  return 'unknown'
-}
 
 export function parseOpenCodeAuthStatus(output: string): AuthStatus {
   const text = stripVTControlCharacters(output).trim()
@@ -40,7 +26,6 @@ export function parseOpenCodeAuthStatus(output: string): AuthStatus {
 }
 
 function parseNativeStatus(presetId: string, output: string): AuthStatus {
-  if (presetId === 'cursor') return parseCursorAuthStatus(output)
   if (presetId === 'opencode') return parseOpenCodeAuthStatus(output)
   if (presetId === 'codex') {
     const text = stripVTControlCharacters(output)
@@ -56,7 +41,7 @@ function parseNativeStatus(presetId: string, output: string): AuthStatus {
 }
 
 export async function getLocalAgentAuthStatus(config: LocalAgentConfiguration): Promise<AuthStatus> {
-  if (localAgentChatProtocol(config) === 'cursor') {
+  if (config.protocol === 'cursor') {
     try {
       const { cursorAuthStatus } = await import('@cherrystudio/agent-runtime-cursor')
       return await cursorAuthStatus(config.env.CURSOR_API_KEY ?? (await getShellEnv()).CURSOR_API_KEY)
@@ -64,7 +49,9 @@ export async function getLocalAgentAuthStatus(config: LocalAgentConfiguration): 
       return 'unknown'
     }
   }
-  const preset = LOCAL_AGENT_PRESETS.find((entry) => matchesLocalAgentPreset(entry, config))
+  const preset = LOCAL_CLI_AGENT_PRESETS.find(
+    (entry) => entry.id === config.presetId && entry.protocol === config.protocol
+  )
   if (!preset?.authStatusArgs) return 'unsupported'
   if (
     config.args.length &&
@@ -73,8 +60,6 @@ export async function getLocalAgentAuthStatus(config: LocalAgentConfiguration): 
     return 'unsupported'
   try {
     const launch = await resolveLocalAgentLaunch(config)
-    // Cursor's native status command checks OAuth, not an API key supplied through the environment.
-    if (preset.id === 'cursor' && launch.env.CURSOR_API_KEY) return 'unsupported'
     return await executeCommand(launch.executable, [...preset.authStatusArgs], {
       env: launch.env,
       includeStderr: preset.id === 'codex',

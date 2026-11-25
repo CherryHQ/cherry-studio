@@ -1795,9 +1795,6 @@ importers:
 
   packages/agent-runtime-cursor:
     dependencies:
-      '@cherrystudio/agent-runtime-acp':
-        specifier: workspace:*
-        version: link:../agent-runtime-acp
       '@cursor/sdk':
         specifier: 1.5.0
         version: 1.5.0(zod@4.4.3)
