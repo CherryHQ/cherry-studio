@@ -1,8 +1,8 @@
-import { ScanLine, Settings2, Terminal, ToolCase } from 'lucide-react'
+import { LoaderCircle, ScanLine, Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Tooltip } from '@cherrystudio/ui'
+import { Alert, Badge, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import { ContextUsageMeter } from '@renderer/components/chat/contextUsage'
@@ -50,11 +50,13 @@ import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionCost } from '@renderer/hooks/agent/useAgentSessionCost'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
 import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
+import { useLocalAgentSessionInfo } from '@renderer/hooks/agent/useLocalAgentSessionInfo'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useLatest } from '@renderer/hooks/useLatest'
@@ -68,8 +70,17 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
-import { getPermissionModeCards } from '@renderer/utils/agent'
+import {
+  classifyNativePermissionMode,
+  findLocalDefaultNonPlanOption,
+  findLocalPermissionConfigOption,
+  findLocalPlanModeOption,
+  isHighRiskLocalOption,
+  isLocalThoughtConfigOption,
+  isUnifiedLocalPermissionMode
+} from '@renderer/utils/agent/localAgentLabels'
 import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
+import { anyFileExt, excludeFileExt, isSupportedExtension } from '@renderer/utils/file'
 import {
   getComposerShortcutLabel,
   resolveNewlineShortcut,
@@ -80,6 +91,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
+import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -89,6 +101,7 @@ import type { Model, ServiceTierSelection } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
+import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 
 import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { useComposerLayerActive } from '../ComposerContext'
@@ -124,6 +137,8 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
+import { LocalAgentConfigControl } from './agent/LocalAgentConfigControl'
+import { LocalAgentThoughtControl } from './agent/LocalAgentThoughtControl'
 import { useAgentPromptSuggestion } from './agent/useAgentPromptSuggestion'
 import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
@@ -318,6 +333,13 @@ const AgentComposerRoot = ({
         shouldValidateSkills: false
       }
     }
+    if (agent?.type === 'local') {
+      draft = {
+        ...draft,
+        ...excludeComposerDraftTokens(draft, (token) => token.kind === 'skill' || token.kind === 'knowledge'),
+        knowledgeBaseIds: []
+      }
+    }
     initialDraftRef.current = { instanceKey: scopedComposerInstanceKey, draft }
   }
   const { draft: initialDraft } = initialDraftRef.current
@@ -475,10 +497,18 @@ interface InnerProps {
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
   const { t } = useTranslation()
   const { percentage, usage } = useAgentSessionContextUsage(sessionId, model)
+  const cost = useAgentSessionCost(sessionId)
   const compaction = useAgentSessionCompaction(sessionId)
+  const isCompacting = compaction.status === 'compacting'
+  if (isCompacting)
+    return (
+      <Badge variant="secondary" role="status" aria-live="polite" className="gap-1.5 font-normal text-muted-foreground">
+        <LoaderCircle className="size-3 animate-spin" aria-hidden />
+        {t('chat.compaction.compacting')}
+      </Badge>
+    )
   if (percentage === null || !usage) return null
 
-  const isCompacting = compaction.status === 'compacting'
   const label = t('agent.right_pane.info.context_usage')
 
   return (
@@ -493,6 +523,7 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
       }}
       content={
         <AgentContextUsageSummary
+          cost={cost}
           usage={usage}
           percentage={percentage}
           isCompacting={isCompacting}
@@ -591,12 +622,25 @@ const AgentComposerInner = ({
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
   const agentModelFilter = useAgentModelFilter(agent?.type)
-  const isModelUnavailable = Boolean(agent) && !model && !modelPending
-  const missingModelMessage = isModelUnavailable ? t('code.model_required') : undefined
+  const isModelUnavailable = Boolean(agent) && agent?.type !== 'local' && !model && !modelPending
+  const missingModelMessage =
+    agent?.type === 'local' && !agent.configuration?.localRuntime?.enabled
+      ? t('local_agents.disabled')
+      : isModelUnavailable
+        ? t('code.model_required')
+        : undefined
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const pinnedLauncherIds = useMemo(
     () => pinnedToolIds.map((id) => (id === 'skills' ? AGENT_SKILLS_LAUNCHER_ID : id)),
     [pinnedToolIds]
+  )
+  const currentTabId = useCurrentTabId()
+  const isActiveTab = useIsActiveTab()
+  const { info: localInfo, options: localOptions } = useLocalAgentSessionInfo(
+    sessionId,
+    agent?.type === 'local' && (!currentTabId || isActiveTab),
+    agent?.type === 'local' ? agent.configuration?.localRuntime?.protocol : undefined,
+    agent?.type === 'local' ? agent.configuration?.localRuntime?.presetId : undefined
   )
   const configuredReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
   const canonicalReasoningEffort = model
@@ -644,14 +688,18 @@ const AgentComposerInner = ({
   const activeServiceTierOverride = serviceTierOverride?.agentId === agent?.id ? serviceTierOverride : null
   const serviceTier = activeServiceTierOverride?.value ?? canonicalServiceTier
   const [fastMode, setFastMode] = useState(false)
+  const capabilities = agent ? AGENT_RUNTIME_CAPABILITIES[agent.type] : undefined
+  const supportsCherrySkills = capabilities?.skills !== false
+  const supportsCherryMcp = capabilities?.mcp !== false
+  const supportsKnowledgeBases = capabilities?.knowledgeBases !== false
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
-    getCachedSkillTokens(initialDraft.tokens).map(getSkillFromCachedToken)
+    supportsCherrySkills ? getCachedSkillTokens(initialDraft.tokens).map(getSkillFromCachedToken) : []
   )
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const requestCommands = useCallback(() => {
-    if (agent?.type === 'claude-code' && sessionId)
+    if ((agent?.type === 'claude-code' || agent?.type === 'local') && sessionId)
       void ipcApi
         .request('ai.agent.session.commands', { sessionId })
         .catch((error) => logger.warn('Could not load session commands', { error }))
@@ -660,8 +708,42 @@ const AgentComposerInner = ({
   useEffect(() => {
     if (usingSlash) requestCommands()
   }, [usingSlash, requestCommands])
-  const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
-  const nativeFollowUp = !!agent && AGENT_RUNTIME_CAPABILITIES[agent.type].nativeFollowUp
+  const usesCherryPermissionMode = (capabilities?.permissionModes.length ?? 0) > 0
+  const supportsPlan = capabilities?.permissionModes.some((mode) => mode === 'plan') ?? false
+  const localPresetId = agent?.configuration?.localRuntime?.presetId
+  const localMode = agent?.type === 'local' ? localOptions?.mode : undefined
+  const localExtraOptions = useMemo(() => {
+    const primaryModel = localOptions?.configOptions?.find(
+      (item) => item.category === 'model' && item.type === 'select'
+    )
+    return localOptions?.configOptions?.filter(
+      (option) => option.category !== 'model_config' && option !== primaryModel && option.id !== localOptions?.mode?.id
+    )
+  }, [localOptions?.configOptions, localOptions?.mode?.id])
+  const localPermissionSource = useMemo<{ kind: 'mode' | 'config'; selection: LocalAgentSelection } | undefined>(() => {
+    if (isUnifiedLocalPermissionMode(localMode, localPresetId) && localMode) {
+      return { kind: 'mode', selection: localMode }
+    }
+    if (agent?.type !== 'local') return undefined
+    const configSelection = findLocalPermissionConfigOption(localExtraOptions, localPresetId)
+    return configSelection ? { kind: 'config', selection: configSelection } : undefined
+  }, [agent?.type, localExtraOptions, localMode, localPresetId])
+  const hasUnifiedPermissionMode = Boolean(localPermissionSource)
+  const hasUnifiedModePermission = localPermissionSource?.kind === 'mode'
+  const localPermissionSelection = localPermissionSource?.selection
+  const localPlanOption = useMemo(
+    () => (localPermissionSelection ? findLocalPlanModeOption(localPermissionSelection) : undefined),
+    [localPermissionSelection]
+  )
+  const lastNonPlanLocalModeRef = useRef<{ sessionId: string; value: string } | null>(null)
+  const localPlanSwitchInFlightRef = useRef(false)
+  useEffect(() => {
+    if (!localPermissionSelection || !localPlanOption) return
+    if (localPermissionSelection.currentValue !== localPlanOption.value) {
+      lastNonPlanLocalModeRef.current = { sessionId, value: localPermissionSelection.currentValue }
+    }
+  }, [localPermissionSelection, localPlanOption, sessionId])
+  const nativeFollowUp = capabilities?.nativeFollowUp ?? false
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -686,6 +768,52 @@ const AgentComposerInner = ({
     const launcher = getLaunchers('root-panel').find((entry) => entry.id === 'plan-mode')
     if (launcher && quickPanel) dispatchLauncher(launcher, { quickPanel, source: 'root-panel' })
   }, [dispatchLauncher, getLaunchers, quickPanel])
+  const toggleLocalPlanMode = useCallback(() => {
+    if (isStreaming || localPlanSwitchInFlightRef.current || !localPermissionSource || !localPlanOption) return
+    const activeSelection = localPermissionSource.selection
+    const isCurrentlyPlan = activeSelection.currentValue === localPlanOption.value
+    let targetValue: string | undefined
+    if (!isCurrentlyPlan) {
+      targetValue = localPlanOption.value
+    } else {
+      const remembered =
+        lastNonPlanLocalModeRef.current?.sessionId === sessionId ? lastNonPlanLocalModeRef.current.value : undefined
+      const rememberedOption = remembered
+        ? activeSelection.options.find((option) => option.value === remembered)
+        : undefined
+      if (
+        rememberedOption &&
+        rememberedOption.value !== localPlanOption.value &&
+        classifyNativePermissionMode(rememberedOption, localPresetId)?.canonicalMode !== 'bypassPermissions' &&
+        !isHighRiskLocalOption({
+          kind: localPermissionSource.kind,
+          optionId: activeSelection.id,
+          value: rememberedOption.value,
+          name: rememberedOption.name
+        })
+      ) {
+        targetValue = rememberedOption.value
+      } else {
+        targetValue = findLocalDefaultNonPlanOption(activeSelection, localPlanOption.value)?.value
+      }
+    }
+    if (!targetValue || targetValue === activeSelection.currentValue) return
+    localPlanSwitchInFlightRef.current = true
+    const method =
+      localPermissionSource.kind === 'config' ? 'ai.local_agents.set_config_option' : 'ai.local_agents.set_mode'
+    void ipcApi
+      .request(method, {
+        sessionId,
+        configId: activeSelection.id,
+        value: targetValue
+      })
+      .catch((error) => {
+        toast.error(String(error))
+      })
+      .finally(() => {
+        localPlanSwitchInFlightRef.current = false
+      })
+  }, [isStreaming, localPermissionSource, localPlanOption, localPresetId, sessionId])
   const rootPanelVisible =
     layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const skillsPanelVisible =
@@ -694,22 +822,27 @@ const AgentComposerInner = ({
     layerActive && quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
   )
   const skillsDataEnabled =
-    selectedSkills.length > 0 ||
-    getAgentComposerTokenIds(draftTokens, 'skill').size > 0 ||
-    rootPanelVisible ||
-    skillsPanelVisible
+    supportsCherrySkills &&
+    (selectedSkills.length > 0 ||
+      getAgentComposerTokenIds(draftTokens, 'skill').size > 0 ||
+      rootPanelVisible ||
+      skillsPanelVisible)
   const knowledgeBasesDataEnabled =
-    selectedKnowledgeBases.length > 0 ||
-    getAgentComposerTokenIds(draftTokens, 'knowledge').size > 0 ||
-    rootPanelVisible ||
-    knowledgeBasePanelVisible
+    supportsKnowledgeBases &&
+    (selectedKnowledgeBases.length > 0 ||
+      getAgentComposerTokenIds(draftTokens, 'knowledge').size > 0 ||
+      rootPanelVisible ||
+      knowledgeBasePanelVisible)
   const {
     skills: availableSkills,
     loading: isAvailableSkillsLoading,
     error: availableSkillsError,
     refresh: refreshAvailableSkills
   } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled })
-  const remoteSkillCatalogs = useMcpSkills(agent?.mcps ?? [], rootPanelVisible || skillsPanelVisible)
+  const remoteSkillCatalogs = useMcpSkills(
+    agent?.mcps ?? [],
+    supportsCherryMcp && (rootPanelVisible || skillsPanelVisible)
+  )
   const skillByFilename = useMemo(
     () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
     [availableSkills]
@@ -718,7 +851,26 @@ const AgentComposerInner = ({
     enabled: knowledgeBasesDataEnabled
   })
 
-  const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
+  const fileCapabilities = useComposerFileCapabilities(model)
+  const isAcpLocalAgent = agent?.type === 'local' && agent.configuration?.localRuntime?.protocol === 'acp'
+  const canAddImageFile = agent?.type === 'local' ? localInfo?.images !== false : fileCapabilities.canAddImageFile
+  const canAddAudioFile = !isAcpLocalAgent || localInfo?.audio === true
+  const supportedExts = useMemo(
+    () =>
+      agent?.type === 'local'
+        ? [
+            ...textExts,
+            ...documentExts,
+            ...archiveExts,
+            ...videoExts,
+            ...(canAddImageFile ? imageExts : imageExts.map(excludeFileExt)),
+            ...(canAddAudioFile ? audioExts : audioExts.map(excludeFileExt)),
+            anyFileExt
+          ]
+        : fileCapabilities.supportedExts,
+    [agent?.type, canAddAudioFile, canAddImageFile, fileCapabilities.supportedExts]
+  )
+  const supportedExtsRef = useLatest(supportedExts)
 
   useEffect(() => {
     if (model?.supportsFastMode !== true) setFastMode(false)
@@ -827,13 +979,13 @@ const AgentComposerInner = ({
     knowledgeBaseIdsRef,
     syncKnowledgeBaseIds
   } = useComposerKnowledgeBaseScope({
-    configuredKnowledgeBaseIds: agent?.knowledgeBaseIds,
+    configuredKnowledgeBaseIds: supportsKnowledgeBases ? agent?.knowledgeBaseIds : undefined,
     allKnowledgeBases,
     isKnowledgeBasesLoading,
     scopeKey: selectedKnowledgeBasesScopeKey,
     selectedKnowledgeBases,
     setSelectedKnowledgeBases,
-    initialKnowledgeBaseIds: initialDraft.knowledgeBaseIds,
+    initialKnowledgeBaseIds: supportsKnowledgeBases ? initialDraft.knowledgeBaseIds : [],
     // The tool provider above is keyed by agent + session + workspace, so this hook remounts with the scope.
     remountsOnScopeChange: true
   })
@@ -953,10 +1105,14 @@ const AgentComposerInner = ({
       const parsed = AbsoluteFilePathSchema.safeParse(data.path)
       if (!parsed.success || filesRef.current.some((file) => file.path === parsed.data)) return
       const attachment = { ...createAttachmentFromPath(parsed.data), ...(data.name && { origin_name: data.name }) }
+      if (supportedExtsRef.current.length > 0 && !isSupportedExtension(attachment.ext, supportedExtsRef.current)) {
+        toast.info(t('chat.input.file_not_supported'))
+        return
+      }
       actionsRef.current.insertToken(agentFileToComposerToken(attachment))
       setFiles((prev) => (prev.some((file) => file.path === attachment.path) ? prev : [...prev, attachment]))
     })
-  }, [actionsRef, filesRef, layerActive, sessionTopicId, setFiles])
+  }, [actionsRef, filesRef, layerActive, sessionTopicId, setFiles, supportedExtsRef, t])
 
   useEffect(() => {
     if (!launchOptions?.initialDraft) return
@@ -1070,8 +1226,11 @@ const AgentComposerInner = ({
   }, [refreshAvailableSkills, skillItems, skillLabel])
 
   useEffect(
-    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction]),
-    [skillManageFooterAction, skillsLauncher, toolsRegistry]
+    () =>
+      supportsCherrySkills
+        ? toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction])
+        : undefined,
+    [skillManageFooterAction, skillsLauncher, supportsCherrySkills, toolsRegistry]
   )
 
   // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
@@ -1089,10 +1248,11 @@ const AgentComposerInner = ({
   )
 
   const handleRootPanelOpen = useCallback(() => {
+    if (!supportsCherrySkills) return
     void refreshAvailableSkills().catch((error) => {
       logger.warn('Failed to refresh available skills when opening root panel', { error })
     })
-  }, [refreshAvailableSkills])
+  }, [refreshAvailableSkills, supportsCherrySkills])
 
   useComposerQuoteInsertion(actionsRef, sessionTopicId, !launchOptions?.editing)
   useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
@@ -1225,7 +1385,29 @@ const AgentComposerInner = ({
     ]
   }, [handleCreateEmptySession, hasNewSessionAction, screenshotEnabled, startScreenshot, t])
 
-  const toolsSession = sessionData
+  const localPermission = useMemo(
+    () =>
+      agent?.type === 'local' && !launchOptions?.editing
+        ? {
+            mode: localPermissionSelection,
+            kind: localPermissionSource?.kind,
+            presetId: localPresetId,
+            disabled: isStreaming
+          }
+        : undefined,
+    [
+      agent?.type,
+      isStreaming,
+      launchOptions?.editing,
+      localPermissionSelection,
+      localPermissionSource?.kind,
+      localPresetId
+    ]
+  )
+  const toolsSession = useMemo(
+    () => (sessionData && localPermission ? { ...sessionData, localPermission } : sessionData),
+    [localPermission, sessionData]
+  )
   const handleReasoningEffortChange = useCallback(
     (option: ThinkingOption) => {
       if (!agent) return
@@ -1343,7 +1525,12 @@ const AgentComposerInner = ({
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
-      const payload = buildComposerQueuedPayload(draft, {
+      const supportedDraft = excludeComposerDraftTokens(
+        draft,
+        (token) =>
+          (!supportsCherrySkills && token.kind === 'skill') || (!supportsKnowledgeBases && token.kind === 'knowledge')
+      )
+      const payload = buildComposerQueuedPayload(supportedDraft, {
         files,
         fileTokenId: agentComposerTokenId.file,
         extra: () => ({
@@ -1354,7 +1541,7 @@ const AgentComposerInner = ({
       })
       if (!payload) return null
 
-      const tokenIds = getAgentComposerTokenIds(draft.tokens)
+      const tokenIds = getAgentComposerTokenIds(supportedDraft.tokens)
       const knowledgeBaseIds = selectedKnowledgeBasesInScope
         .filter((base) => tokenIds.has(agentComposerTokenId.knowledge(base)))
         .map((base) => base.id)
@@ -1363,7 +1550,16 @@ const AgentComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [fastMode, files, model, reasoningEffort, selectedKnowledgeBasesInScope, serviceTier]
+    [
+      fastMode,
+      files,
+      model,
+      reasoningEffort,
+      selectedKnowledgeBasesInScope,
+      serviceTier,
+      supportsCherrySkills,
+      supportsKnowledgeBases
+    ]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1388,7 +1584,12 @@ const AgentComposerInner = ({
             body: {
               agentId,
               sessionId,
-              userMessageParts: [...payload.userMessageParts, ...fileParts],
+              userMessageParts: [
+                ...(supportsKnowledgeBases
+                  ? payload.userMessageParts
+                  : withKnowledgeScopePart(payload.userMessageParts, [])),
+                ...fileParts
+              ],
               reasoningEffort: payload.reasoningEffort,
               serviceTier: payload.serviceTier,
               ...(payload.fastMode ? { fastMode: true } : {}),
@@ -1416,7 +1617,8 @@ const AgentComposerInner = ({
       launchOptions,
       saveHistory,
       sessionId,
-      sessionTopicId
+      sessionTopicId,
+      supportsKnowledgeBases
     ]
   )
 
@@ -1561,9 +1763,9 @@ const AgentComposerInner = ({
 
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => {
-      if (sendDisabled) return
+      if (sendDisabled || (agent?.type === 'local' && !agent.configuration?.localRuntime?.enabled)) return
       if (directSendInFlightRef.current) return
-      if (!model) {
+      if (!model && agent?.type !== 'local') {
         toast.error(t('code.model_required'))
         return
       }
@@ -1596,6 +1798,7 @@ const AgentComposerInner = ({
       }
     },
     [
+      agent,
       buildQueuedPayload,
       clearCurrentDraft,
       enqueueFollowup,
@@ -1618,6 +1821,7 @@ const AgentComposerInner = ({
     accessiblePaths,
     files,
     setFiles,
+    supportedExts,
     enabled: enableResourceMention,
     getAdditionalItems: getEntityReferenceItems
   })
@@ -1676,7 +1880,7 @@ const AgentComposerInner = ({
         onSelect: ({ unifiedPanelControl }) =>
           unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
       }
-    ]
+    ] satisfies ComposerToolbarCustomTool[]
   }, [
     handleCreateEmptySession,
     hasNewSessionAction,
@@ -1687,6 +1891,8 @@ const AgentComposerInner = ({
     t
   ])
 
+  const showsPermissionModeToolbar =
+    usesCherryPermissionMode || (agent?.type === 'local' && hasUnifiedPermissionMode && !launchOptions?.editing)
   const renderQuickPanelShortcuts = useCallback(
     ({
       inputAdapter,
@@ -1702,6 +1908,12 @@ const AgentComposerInner = ({
         onResetPinnedIds={resetPinnedToolIds}
         isDefault={pinnedToolsAtDefault}
         customTools={toolbarCustomTools}
+        hiddenIds={[
+          ...(showsPermissionModeToolbar ? [] : ['permission-mode']),
+          ...(supportsKnowledgeBases ? [] : ['knowledge-base']),
+          ...(supportsCherrySkills ? [] : ['skills']),
+          ...(supportsCherryMcp ? [] : [ComposerPanelSymbol.McpStatus])
+        ]}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
         isModelUnavailable={isModelUnavailable}
@@ -1717,11 +1929,17 @@ const AgentComposerInner = ({
       resetPinnedToolIds,
       setCustomizeToolbarOpen,
       setPinnedToolIds,
+      showsPermissionModeToolbar,
+      supportsCherryMcp,
+      supportsCherrySkills,
+      supportsKnowledgeBases,
       toolbarCustomTools
     ]
   )
 
   const controlSlots = renderControls({
+    localInfo,
+    localSessionId: sessionId,
     agent,
     model,
     workspace,
@@ -1744,6 +1962,45 @@ const AgentComposerInner = ({
     workspaceChanging
   })
 
+  const localPermissionConfigId =
+    localPermissionSource?.kind === 'config' ? localPermissionSource.selection.id : undefined
+  const localThoughtConfigOption = localExtraOptions?.find(
+    (option): option is Extract<LocalAgentConfigOption, { type: 'select' }> =>
+      option.id !== localPermissionConfigId && isLocalThoughtConfigOption(option)
+  )
+  const localThoughtControl: { kind: 'thought' | 'config' | 'mode'; selection: LocalAgentSelection } | undefined =
+    localOptions?.thoughtLevel && localOptions.thoughtLevel.options.length > 1
+      ? { kind: 'thought', selection: localOptions.thoughtLevel }
+      : localThoughtConfigOption
+        ? {
+            kind: 'config',
+            selection: {
+              id: localThoughtConfigOption.id,
+              currentValue: String(localThoughtConfigOption.currentValue),
+              options: localThoughtConfigOption.options
+                .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
+                .map((choice) => ({
+                  ...choice,
+                  description: choice.description ?? undefined
+                }))
+            }
+          }
+        : !hasUnifiedPermissionMode &&
+            localPresetId === 'pi-acp' &&
+            localOptions?.mode &&
+            localOptions.mode.options.length > 1
+          ? { kind: 'mode', selection: localOptions.mode }
+          : undefined
+  const excludedExtraOptionIds = new Set<string>()
+  if (localPermissionSource?.kind === 'config') excludedExtraOptionIds.add(localPermissionSource.selection.id)
+  if (localThoughtControl && localThoughtControl.kind !== 'mode') {
+    excludedExtraOptionIds.add(localThoughtControl.selection.id)
+  }
+  const localRemainingConfigOptions =
+    excludedExtraOptionIds.size > 0
+      ? localExtraOptions?.filter((option) => !excludedExtraOptionIds.has(option.id))
+      : localExtraOptions
+
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
       {model ? (
@@ -1756,6 +2013,29 @@ const AgentComposerInner = ({
           onServiceTierChange={handleServiceTierChange}
           onFastModeChange={setFastMode}
         />
+      ) : null}
+      {agent?.type === 'local' && !launchOptions?.editing ? (
+        <>
+          {localThoughtControl ? (
+            <LocalAgentThoughtControl
+              key={`thought:${sessionId}`}
+              sessionId={sessionId}
+              kind={localThoughtControl.kind}
+              selection={localThoughtControl.selection}
+              presetId={localPresetId}
+              disabled={isStreaming}
+            />
+          ) : null}
+          <LocalAgentConfigControl
+            key={`config:${sessionId}`}
+            sessionId={sessionId}
+            agentName={agent.name.trim() || undefined}
+            presetId={localPresetId}
+            options={localRemainingConfigOptions}
+            mode={hasUnifiedModePermission || localThoughtControl?.kind === 'mode' ? undefined : localOptions?.mode}
+            disabled={isStreaming}
+          />
+        </>
       ) : null}
       <AgentComposerContextUsage model={model} sessionId={sessionId} />
       <ComposerDictationButton inputAdapter={inputAdapter} />
@@ -1810,7 +2090,7 @@ const AgentComposerInner = ({
             launchOptions?.editing ? { ...launchOptions.editing, cancelDisabled: isDirectSending } : undefined
           }
           onPause={abortAgentSession}
-          onShiftTab={supportsPlan ? togglePlanMode : undefined}
+          onShiftTab={supportsPlan ? togglePlanMode : localPlanOption ? toggleLocalPlanMode : undefined}
           queueContent={
             <>
               {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}

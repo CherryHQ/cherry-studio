@@ -8,6 +8,7 @@ import type { AiGenerateRequest, AsInProcessChat } from '@main/ai/AiService'
 import { WindowType } from '@main/core/window/types'
 import { messageService } from '@main/data/services/MessageService'
 import { getAppLanguage } from '@main/i18n'
+import { isOpenClawTechnicalTitle } from '@shared/ai/agentSessionTopic'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -132,7 +133,7 @@ function matchesFirstUserMessageTitle(name: string | null | undefined, userText:
 // default or still the temporary title", which survives restarts because it
 // derives from the persisted name instead of runtime state.
 function canAutoRenameAgentSessionName(name: string | null | undefined, userText?: string): boolean {
-  if (isDefaultAgentSessionName(name)) return true
+  if (isDefaultAgentSessionName(name) || isOpenClawTechnicalTitle(name)) return true
   return userText !== undefined && matchesFirstUserMessageTitle(name, userText)
 }
 

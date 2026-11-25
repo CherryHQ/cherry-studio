@@ -4,6 +4,7 @@ import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-o
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
 export type AgentRuntimeLocator =
+  | { version: 1; kind: 'local'; agentId: string }
   | { version: 1; kind: 'pi' }
   | { version: 1; kind: 'pi-durable'; fileName: string }
   | { version: 1; kind: 'claude-code'; configDir: string }

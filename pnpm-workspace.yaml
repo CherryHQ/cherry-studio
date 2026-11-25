@@ -141,6 +141,7 @@ patchedDependencies:
   "@earendil-works/pi-coding-agent@1.5.2": patches/@earendil-works__pi-coding-agent@1.5.2.patch
 
   "@earendil-works/pi-durable@1.5.2": patches/@earendil-works__pi-durable@1.5.2.patch
+  pi-acp@0.0.34: patches/pi-acp@0.0.34.patch
 
 allowBuilds:
   "@google/genai": false

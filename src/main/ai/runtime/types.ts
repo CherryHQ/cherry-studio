@@ -1,4 +1,5 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
+import type { FinishReason } from 'ai'
 
 import type {
   InputLookup,
@@ -14,9 +15,13 @@ import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
+import type { AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
-import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
+import type { LocalAgentNotice, LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
+import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
@@ -27,7 +32,7 @@ import type {
   MessageSnapshot,
   MessageStats
 } from '@shared/data/types/message'
-import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -68,7 +73,7 @@ export interface AgentRuntimeTraceContext {
 export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
-  modelId: UniqueModelId
+  modelId: ExecutionId
   /** Canonical reasoning selection frozen for this connection's turn. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier frozen for this connection's turn. */
@@ -145,8 +150,8 @@ type RuntimeStreamControl =
   | Extract<CherryUIMessageChunk, { type: 'data-retry' | 'tool-input-available' }>
   | {
       type: 'message-metadata'
-      messageMetadata: { stats: MessageStats; totalTokens?: number } & {
-        [K in Exclude<keyof CherryUIMessageMetadata, 'stats' | 'totalTokens'>]?: never
+      messageMetadata: ({ stats: MessageStats; totalTokens?: number } | { localTurnUsage: LocalAgentTurnUsage }) & {
+        [K in Exclude<keyof CherryUIMessageMetadata, 'stats' | 'totalTokens' | 'localTurnUsage'>]?: never
       }
     }
 
@@ -159,7 +164,11 @@ export type AgentControlChunk =
     >
 
 export type AgentRuntimeEvent =
-  | { type: 'message-projection'; projection: RuntimeMessageProjection }
+  | {
+      type: 'message-projection'
+      projection: RuntimeMessageProjection
+      toolOwner?: { toolCallId: string; detached: boolean }
+    }
   | (LivePartInput & { contextId: string })
   | { type: 'response-start'; responseId: string; messageId?: string }
   | RuntimeStreamControl
@@ -178,9 +187,10 @@ export type AgentRuntimeEvent =
           inputTokens: number
           outputTokens: number
           totalTokens: number
-          noCacheTokens: number
-          cacheReadTokens: number
-          cacheWriteTokens: number
+          reasoningTokens?: number
+          noCacheTokens?: number
+          cacheReadTokens?: number
+          cacheWriteTokens?: number
         }
         metrics?: {
           timeFirstTokenMs?: number
@@ -191,7 +201,12 @@ export type AgentRuntimeEvent =
     }
   | { type: 'resume-token'; token: string }
   /** `paused`: native evidence that the turn was aborted, such as a recorded user stop. */
-  | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor; status?: 'paused' }
+  | {
+      type: 'turn-complete'
+      forkAnchor?: RuntimeForkAnchor
+      status?: 'paused'
+      finishReason?: FinishReason
+    }
   /** The driver could not submit a pending input. The host requeues it for the next turn. */
   | { type: 'steer-undelivered'; inputIds: readonly string[] }
   /** A steer was injected mid-turn (PreToolUse/PostToolBatch hook) and the model is about to emit its post-steer
@@ -210,15 +225,22 @@ export type AgentRuntimeEvent =
    *  session status — the host surfaces it in the message stream and clears it when content resumes,
    *  the turn ends/errors/cancels, or the connection closes. Never persisted as conversation content. */
   | { type: 'api-retry'; retry: AgentSessionApiRetryInfo }
+  | { type: 'local-turn-usage'; summary: LocalAgentTurnUsage }
+  | { type: 'session-cost'; snapshot: AgentSessionCostSnapshot }
   | { type: 'context-usage'; result: OperationResult<ThreadContextUsage> }
   /** The SDK pushed a fresh slash-command catalog mid-session (`system / commands_changed`) — e.g.
    *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at
    *  init and never reflects this, so the host REPLACES its cached list from `commands`. */
+  | { type: 'session-title'; title: string }
+  | { type: 'notice'; notice: LocalAgentNotice }
+  | { type: 'local-session-info'; info: LocalAgentSessionInfo }
   | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
   /** Live background work after a membership change. REPLACE semantics — the payload is the full set. */
   | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
-  /** Native work retaining this connection, independently from product reply completion. */
-  | { type: 'background-work-state'; active: boolean }
+  /** Native work retaining this connection, independently from product reply completion.
+   *  `awaitingReply` defaults to `active`; false keeps detached commands alive without a pending reply. */
+  | { type: 'background-work-state'; active: boolean; awaitingReply?: boolean }
+  /** A background command's own stream chunk, routed to its detached transcript turn. */
   /** Full set of triggering native tool calls whose background results have not drained. */
   | { type: 'background-results'; result: OperationResult<readonly string[]> }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
@@ -262,6 +284,11 @@ export interface AgentRuntimeConnection {
 
   predictPrompt?(signal: AbortSignal): Promise<string>
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  readonly sessionCostScope?: 'native-session'
+  readonly localSessionInfo?: LocalAgentSessionInfo
+  setConfigOption?(configId: string, value: string | boolean): Promise<LocalAgentSessionInfo>
+  setMode?(configId: string, value: string): Promise<LocalAgentSessionInfo>
+  setThoughtLevel?(configId: string, value: string): Promise<LocalAgentSessionInfo>
   /** The configured Runtime owner remains resident until explicit retirement. */
   readonly retainWhileIdle?: boolean
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
@@ -298,7 +325,7 @@ export interface AgentRuntimeConnection {
    * pinning the host uses for `connect`.
    */
   reconcile(input: {
-    modelId: UniqueModelId
+    modelId: ExecutionId
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
     knowledgeBaseIds?: readonly string[]
@@ -339,6 +366,8 @@ export interface AgentRuntimeConnection {
 
 export interface AgentSessionRuntimeDriver {
   readonly type: string
+  /** Local CLI runtimes key execution identity by agent rather than by a spawned process. */
+  getExecutionId?(agent: AgentEntity): ExecutionId | undefined
   /** Native artifact ownership and checkpoint remapping before session recovery. */
   readonly workspaceRelocation?: RuntimeWorkspaceRelocation
   /** Restore persisted runtime history after generic fork, crash and delivery recovery. */

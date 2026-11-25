@@ -56,6 +56,7 @@ import {
   toFtsLikePattern,
   toFtsMatchQuery
 } from '@main/utils/trigramFtsQuery'
+import { AgentSessionCostSnapshotSchema, type AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import {
   AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES,
   type AgentSessionDeliveryEnvelope,
@@ -65,6 +66,8 @@ import {
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
+import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import {
   applyApprovalDecisions,
   type ApprovalDecision,
@@ -127,6 +130,8 @@ import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordS
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
+
+export type ExpectedAgent = string | { id: string; updatedAt: string; model: string | null; type: string }
 
 const logger = loggerService.withContext('AgentSessionMessageService')
 
@@ -292,6 +297,8 @@ type SaveAgentSessionMessageParams = {
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
   unchangedToolCallIds?: ReadonlySet<string>
+  localSessionCost?: AgentSessionCostSnapshot
+  localTurnUsage?: LocalAgentTurnUsage
   nativeContextId?: string
   /** Stored part identities parallel to `message.data.parts`; unchanged parts are not rewritten. */
   partIds?: readonly string[]
@@ -428,6 +435,7 @@ function terminalResultData(
     if (part.type === 'file' && readCherryMeta(part)?.fileEntryId) return [structuredClone(part)]
     return []
   })
+  if (error?.message) parts.push({ type: 'text', text: error.message })
   if (parts.length > 0) return { parts }
 
   const text =
@@ -1389,6 +1397,8 @@ export class AgentSessionMessageService {
     for (const row of rows) {
       const { storedData, offloaded, retainedToolCallIds } = this.extractMessageToolOutputs(sessionId, row.id, row.data)
       const { data, parts } = splitAgentSessionMessageData(storedData)
+      delete data.localSessionCost
+      delete data.localTurnUsage
       tx.insert(sessionMessagesTable)
         .values({
           id: row.id,
@@ -1844,7 +1854,13 @@ export class AgentSessionMessageService {
       throw DataApiErrorFactory.notFound('Message', messageId)
     }
     notifyDataApiDataChange([
-      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId } }
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId } },
+      ...(result.hasLocalTurnUsage || result.hasLocalSessionCost
+        ? [{ endpoint: '/ai-usage-records/local' as const, kind: 'membership' as const }]
+        : []),
+      ...(result.hasLocalSessionCost
+        ? [{ endpoint: '/agent-sessions/:sessionId/cost' as const, routeParams: { sessionId } }]
+        : [])
     ])
   }
 
@@ -2038,6 +2054,48 @@ export class AgentSessionMessageService {
     return isDeferredToolOutput(output) ? { found: false } : { found: true, output }
   }
 
+  getSessionCost(sessionId: string): AgentSessionCostSnapshot | null {
+    const db = application.get('DbService').getDb()
+    this.assertActiveSession(db, sessionId)
+    const row = db
+      .select({ snapshot: sql<string>`json_extract(${sessionMessagesTable.data}, '$.localSessionCost')` })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          sql`json_type(${sessionMessagesTable.data}, '$.localSessionCost') = 'object'`
+        )
+      )
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .limit(1)
+      .get()
+    return row ? AgentSessionCostSnapshotSchema.parse(JSON.parse(row.snapshot)) : null
+  }
+
+  saveSessionCost(sessionId: string, snapshot: AgentSessionCostSnapshot): void {
+    const db = application.get('DbService').getDb()
+    const latestMessage = db
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), ne(sessionMessagesTable.role, 'root')))
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .limit(1)
+    const result = db
+      .update(sessionMessagesTable)
+      .set({
+        data: sql`json_set(${sessionMessagesTable.data}, '$.localSessionCost', json(${JSON.stringify(snapshot)}))`
+      })
+      .where(inArray(sessionMessagesTable.id, latestMessage))
+      .run()
+    if (result.changes > 0) {
+      notifyDataApiDataChange([
+        { endpoint: '/ai-usage-records/local', kind: 'membership' },
+        { endpoint: '/agent-sessions/:sessionId/cost', routeParams: { sessionId } },
+        { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
+      ])
+    }
+  }
+
   updateSessionMessage(
     sessionId: string,
     messageId: string,
@@ -2056,6 +2114,10 @@ export class AgentSessionMessageService {
       // PATCH callers send partial data (usually just parts); shallow-merge so
       // omitted keys like main-authoritative turnOptions survive the update.
       const mergedData: AgentSessionMessageData = publicMessageData({ ...existing.data, ...dto.data })
+      delete mergedData.localTurnUsage
+      if (existing.data.localTurnUsage) mergedData.localTurnUsage = existing.data.localTurnUsage
+      delete mergedData.localSessionCost
+      if (existing.data.localSessionCost) mergedData.localSessionCost = existing.data.localSessionCost
       if (existing.data.deliveryReplyAnchor) mergedData.deliveryReplyAnchor = existing.data.deliveryReplyAnchor
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = this.extractMessageToolOutputs(
@@ -2085,14 +2147,20 @@ export class AgentSessionMessageService {
     return message
   }
 
-  deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
+  deleteSessionMessageTx(
+    tx: DbOrTx,
+    sessionId: string,
+    messageId: string
+  ): { rowsAffected: number; hasLocalTurnUsage?: boolean; hasLocalSessionCost?: boolean } {
     const existing = tx
       .select({
         role: sessionMessagesTable.role,
         parentId: sessionMessagesTable.parentId,
         inputContextId: sessionMessagesTable.inputContextId,
         deliveryStatus: sessionMessagesTable.deliveryStatus,
-        nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`
+        nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`,
+        localTurnUsageType: sql<string | null>`json_type(${sessionMessagesTable.data}, '$.localTurnUsage')`,
+        localSessionCostType: sql<string | null>`json_type(${sessionMessagesTable.data}, '$.localSessionCost')`
       })
       .from(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
@@ -2132,7 +2200,11 @@ export class AgentSessionMessageService {
       .delete(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
       .run()
-    return { rowsAffected: result.changes }
+    return {
+      rowsAffected: result.changes,
+      hasLocalTurnUsage: existing?.localTurnUsageType === 'object',
+      hasLocalSessionCost: existing?.localSessionCostType === 'object'
+    }
   }
 
   /** Legacy orphans plus native agent types whose caller owns restart terminalization. */
@@ -2458,6 +2530,12 @@ export class AgentSessionMessageService {
 
     const existingRow = this.findExistingMessageRow(db, sessionId, messageId)
     const data: AgentSessionMessageData = publicMessageData(message.data)
+    delete data.localTurnUsage
+    if (params.localTurnUsage ?? existingRow?.data.localTurnUsage)
+      data.localTurnUsage = params.localTurnUsage ?? existingRow?.data.localTurnUsage
+    delete data.localSessionCost
+    const sessionCost = params.localSessionCost ?? existingRow?.data.localSessionCost
+    if (sessionCost) data.localSessionCost = sessionCost
     if (params.runtimeAnchor) data.runtimeAnchor = params.runtimeAnchor
     if (params.deliveryReplyAnchor) data.deliveryReplyAnchor = params.deliveryReplyAnchor
 
@@ -2669,6 +2747,12 @@ export class AgentSessionMessageService {
     }
     if (publishDataChange) {
       notifyDataApiDataChange([
+        ...(result.entity.data.localTurnUsage || result.entity.data.localSessionCost
+          ? [{ endpoint: '/ai-usage-records/local' as const, kind: 'membership' as const }]
+          : []),
+        ...(result.entity.data.localSessionCost
+          ? [{ endpoint: '/agent-sessions/:sessionId/cost' as const, routeParams: { sessionId } }]
+          : []),
         ...agentSessionReadModelEffects(result.activityTimestamp !== null ? [sessionId] : [], 'projection'),
         {
           endpoint: '/agent-sessions/:sessionId/messages',
@@ -2787,6 +2871,7 @@ export class AgentSessionMessageService {
 
   /** Atomically create a Session and persist its first durable delivery. */
   createSessionWithDelivery(input: {
+    delegation?: true
     senderAgentId: string
     senderSessionId: string
     senderMessageId?: string
@@ -2813,7 +2898,8 @@ export class AgentSessionMessageService {
             senderMessageId: input.senderMessageId,
             receiverSessionId: sessionId,
             content,
-            replyPolicy: 'completion'
+            replyPolicy: 'completion',
+            ...(input.delegation ? { delegation: true as const } : {})
           })
         }),
       {
@@ -2836,6 +2922,7 @@ export class AgentSessionMessageService {
   private acceptSessionDeliveryTx(
     tx: DbOrTx,
     input: {
+      delegation?: true
       senderAgentId: string
       senderSessionId: string
       senderMessageId?: string
@@ -2897,6 +2984,7 @@ export class AgentSessionMessageService {
     }
     const delivery: AgentSessionDeliveryEnvelope = {
       version: 1,
+      ...(input.delegation ? { delegation: true } : {}),
       sender: senderIdentity,
       receiver: {
         agentId: receiverSession.agentId,
@@ -3134,6 +3222,9 @@ export class AgentSessionMessageService {
         return { requestId: null, result: null }
       }
 
+      let error = request.delivery.delegation ? request.delivery.error : null
+      const outcome = error?.code === 'TIMEOUT' ? 'failed' : input.outcome
+
       const existingResult = tx
         .select()
         .from(sessionMessagesTable)
@@ -3145,7 +3236,7 @@ export class AgentSessionMessageService {
           .set({
             deliveryStatus: 'consumed',
             deliveryTurnRef: null,
-            delivery: { ...request.delivery, outcome: input.outcome, statusAt: new Date().toISOString() }
+            delivery: { ...request.delivery, outcome, error, statusAt: new Date().toISOString() }
           })
           .where(eq(sessionMessagesTable.id, request.id))
           .run()
@@ -3159,6 +3250,12 @@ export class AgentSessionMessageService {
       const assistant = this.findExistingMessageRow(tx, input.requestSessionId, input.assistantMessageId)
       if (!assistant || assistant.role !== 'assistant' || assistant.status === 'pending') {
         return { requestId: null, result: null }
+      }
+
+      if (!error && outcome === 'failed') {
+        const failure = assistant.data.parts?.findLast((part) => part.type === 'data-error')
+        const message = failure?.type === 'data-error' ? getSafeProviderErrorMessage(failure.data) : ''
+        if (message) error = { code: 'TARGET_EXECUTION_FAILED', message }
       }
 
       let result: AgentSessionMessageEntity | null = null
@@ -3193,8 +3290,8 @@ export class AgentSessionMessageService {
           receiverSnapshot: request.delivery.senderSnapshot,
           replyPolicy: 'none',
           sourceMessageId: assistant.id,
-          outcome: input.outcome,
-          error: null,
+          outcome,
+          error,
           statusAt: new Date().toISOString()
         }
         result = this.saveMessageTx(tx, {
@@ -3206,7 +3303,7 @@ export class AgentSessionMessageService {
             id: uuidv7(),
             role: 'user',
             status: 'success',
-            data: terminalResultData(assistant, input.outcome),
+            data: terminalResultData(assistant, outcome, error ?? undefined),
             delivery: resultEnvelope,
             deliveryStatus: 'accepted',
             deliveryInReplyTo: request.id,
@@ -3219,7 +3316,7 @@ export class AgentSessionMessageService {
         .set({
           deliveryStatus: 'consumed',
           deliveryTurnRef: null,
-          delivery: { ...request.delivery, outcome: input.outcome, statusAt: new Date().toISOString() }
+          delivery: { ...request.delivery, outcome, error, statusAt: new Date().toISOString() }
         })
         .where(eq(sessionMessagesTable.id, request.id))
         .run()
@@ -3512,11 +3609,7 @@ export class AgentSessionMessageService {
   }
 
   /** Reject ownership changes before any message row is written in this transaction. */
-  private assertExpectedAgentTx(
-    db: DbOrTx,
-    sessionId: string,
-    expectedAgent: string | { id: string; updatedAt: string; model: string | null; type: string } | undefined
-  ): void {
+  private assertExpectedAgentTx(db: DbOrTx, sessionId: string, expectedAgent: ExpectedAgent | undefined): void {
     if (!expectedAgent) return
     const expectedAgentId = typeof expectedAgent === 'string' ? expectedAgent : expectedAgent.id
     const [session] = db

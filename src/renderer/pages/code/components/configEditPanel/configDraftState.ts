@@ -1,4 +1,4 @@
-import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@renderer/pages/code/cliConfig'
+import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@renderer/services/codeCliConfig'
 import {
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
@@ -8,7 +8,7 @@ import {
   readCliConfigFiles,
   sanitizeCliConfigBlob,
   updateCliConfigDraftConfig
-} from '@renderer/pages/code/cliConfig'
+} from '@renderer/services/codeCliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'

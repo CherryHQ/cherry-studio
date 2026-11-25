@@ -117,7 +117,9 @@ export async function resolveGatewayRequest(config: MessageConfig) {
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
   const agentSessionId =
     config.agentContext?.agentSessionId ??
-    (config.requestHeaders ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders) : undefined)
+    (config.requestHeaders
+      ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders, modelString)
+      : undefined)
   // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
   const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
 
@@ -145,6 +147,7 @@ export async function resolveGatewayRequest(config: MessageConfig) {
     inputFormat,
     outputFormat,
     params,
+    modelString,
     provider,
     model,
     resolvedModel,

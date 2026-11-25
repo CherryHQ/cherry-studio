@@ -12,6 +12,7 @@ import type { Topic } from '@renderer/types/topic'
 import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type {
   ChatMessageStyle,
   MultiModelFoldDisplayMode,
@@ -178,6 +179,8 @@ export interface MessageErrorDiagnosisInput {
 }
 
 export interface MessageUserProfile {
+  id?: string
+  avatarIcon?: ReactNode
   name?: string
   avatar?: string
 }
@@ -235,6 +238,7 @@ export interface MessageListItem {
   messageSnapshot?: MessageSnapshot
   siblingsGroupId?: number
   isActiveBranch?: boolean
+  localTurnUsage?: LocalAgentTurnUsage
   stats?: MessageStats
   delivery?: AgentSessionDelivery
   turnOrigin?: AutonomousTurnOrigin
@@ -450,6 +454,7 @@ export interface MessageListActions {
   removeMessageErrorPart?: (input: RemoveMessageErrorPartInput) => void | Promise<void>
   openErrorDetail?: (input: MessageErrorDetailInput) => void | Promise<void>
   navigateErrorTarget?: (target: string) => void | Promise<void>
+  renderLocalAgentUpgrade?: () => ReactNode
   requestTranslationLanguages?: () => void
   retryTranslationLanguages?: () => void
   translateMessage?: (messageId: string, language: TranslateLanguage, sourceText: string) => void | Promise<void>

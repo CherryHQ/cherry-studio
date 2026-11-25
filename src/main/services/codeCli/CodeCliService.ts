@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'child_process'
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { promisify } from 'util'
@@ -7,12 +8,13 @@ import { app } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { syncLocalAgentConfigModel } from '@main/ai/runtime/localAgent/selectModel'
 import { skillService } from '@main/ai/skills/SkillService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
+import { t } from '@main/i18n'
 import { toAsarUnpackedPath } from '@main/utils/asar'
-import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBundledGitDir } from '@main/utils/bundledGit'
+import { appendBundledGitPathTail, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import {
@@ -22,6 +24,7 @@ import {
   type CodeCliToolPreset
 } from '@shared/data/presets/codeCliTools'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
+import type { InputFor } from '@shared/ipc/types'
 import type {
   BinaryInstallByNameRequest,
   BinaryRemoveRequest,
@@ -36,7 +39,6 @@ import {
   type TerminalConfigWithCommand
 } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
-import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { REDACTED } from '@shared/utils/redaction'
 
@@ -54,21 +56,6 @@ const execAsync = promisify(require('child_process').exec)
 const execFileAsync = promisify(execFile)
 const logger = loggerService.withContext('CodeCliService')
 
-/**
- * Append the bundled MinGit dir (Windows-only; null elsewhere) to the tail of
- * every PATH-cased key so a launched CLI resolves a bare `git` as a last resort
- * while any git already on PATH keeps winning (#16402).
- */
-function appendBundledGitPathTail(env: Record<string, string>): void {
-  const gitDir = getBundledGitDir()
-  if (!gitDir) return
-  const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
-  const canonicalKey = pathKeys[0] ?? 'Path'
-  const segments = pathKeys.flatMap((key) => (env[key] ?? '').split(';'))
-  const updated = dedupePathSegments([...segments, gitDir]).join(';')
-  for (const key of pathKeys) env[key] = updated
-  if (pathKeys.length === 0) env[canonicalKey] = updated
-}
 const MACOS_APPLICATION_LOOKUP_SCRIPT = [
   'ObjC.import("AppKit")',
   'function run(argv) {',
@@ -79,7 +66,7 @@ const MACOS_APPLICATION_LOOKUP_SCRIPT = [
 
 @Injectable('CodeCliService')
 @ServicePhase(Phase.Background)
-@DependsOn(['BinaryManager'])
+@DependsOn(['BinaryManager', 'LocalAgentInstallService'])
 export class CodeCliService extends BaseService {
   // Static properties for cleanup management (avoid listener accumulation)
   private static pendingBatCleanups = new Set<string>()
@@ -91,6 +78,7 @@ export class CodeCliService extends BaseService {
   } | null = null
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
   private loginQuery: { controller: AbortController; promise: Promise<boolean>; users: number } | null = null
+  private readonly launchScripts = new Map<string, ReturnType<typeof setTimeout>>()
 
   protected async onInit(): Promise<void> {
     if (isMac || isWin) {
@@ -106,7 +94,8 @@ export class CodeCliService extends BaseService {
 
   async installCli(request: BinaryInstallByNameRequest): Promise<void> {
     const preset = this.requirePreset(request.name)
-    await application.get('BinaryManager').installByName(request)
+    const result = await application.get('LocalAgentInstallService').installCli(request)
+    if (!result.ok) throw new Error(result.detail ?? `${result.reason}${result.manager ? `: ${result.manager}` : ''}`)
     const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
     if (!snapshot || snapshot.availability.source === 'none') {
       throw new Error(`${preset.executable} is unavailable after installation`)
@@ -116,15 +105,43 @@ export class CodeCliService extends BaseService {
 
   async removeCli(request: BinaryRemoveRequest): Promise<BinaryRemoveResult> {
     const preset = this.requirePreset(request.name)
-    const result = await application.get('BinaryManager').removeTool(request)
-    if (result.status === 'cleanup_blocked') return result
+    const manager = application.get('BinaryManager')
+    const available = (await manager.getToolSnapshots([preset.executable]))[preset.executable]?.availability
+    if (available?.source === 'system' || available?.source === 'mise') {
+      const removed = await application.get('LocalAgentInstallService').uninstallCli(preset.executable, available.path)
+      if (!removed.ok)
+        return {
+          status: 'cleanup_blocked',
+          reason: 'cleanup_failed',
+          message:
+            removed.reason === 'partial'
+              ? t('code_cli.uninstall_partial', {
+                  removed: removed.removed?.join(', ') ?? '',
+                  remaining: removed.remaining?.join(', ') ?? ''
+                })
+              : (removed.detail ?? removed.reason)
+        }
+    } else {
+      const result = await manager.removeTool(request)
+      if (result.status === 'cleanup_blocked') return result
+    }
 
     const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
     if (snapshot) await this.reconcileCliSkill(preset, snapshot)
-    return result
+    return { status: 'removed' }
   }
 
   async reconcileCliSkills(): Promise<void> {
+    for (const [folder, namespace] of [
+      ['code-mate-gemini', 'code-cli:gemini-cli'],
+      ['code-mate-claude-code', 'code-cli:claude-code'],
+      ['code-mate-codex', 'code-cli:openai-codex'],
+      ['code-mate-opencode', 'code-cli:opencode']
+    ]) {
+      await skillService.uninstallBuiltinSkill(folder, namespace).catch((error) => {
+        logger.warn('Failed to remove retired Code CLI skill', { folder, error })
+      })
+    }
     const snapshots = await application
       .get('BinaryManager')
       .getToolSnapshots(CODE_CLI_TOOL_PRESETS.map((preset) => preset.executable))
@@ -150,6 +167,7 @@ export class CodeCliService extends BaseService {
   }
 
   private async installCliSkill(preset: CodeCliToolPreset): Promise<void> {
+    if (!preset.skillFolderName || !preset.skillNamespace) return
     const sourcePath = path.join(
       toAsarUnpackedPath(application.getPath('feature.code_cli.skills.builtin')),
       preset.skillFolderName
@@ -158,6 +176,7 @@ export class CodeCliService extends BaseService {
   }
 
   private async reconcileCliSkill(preset: CodeCliToolPreset, snapshot: BinaryToolSnapshot): Promise<void> {
+    if (!preset.skillFolderName || !preset.skillNamespace) return
     if (snapshot.availability.source !== 'none') {
       await this.installCliSkill(preset)
       return
@@ -244,7 +263,29 @@ export class CodeCliService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.loginQuery?.controller.abort()
+    await this.configWriteQueue.catch(() => {})
+    for (const file of this.launchScripts.keys()) this.removeLaunchScript(file)
     this.terminalsCache = null
+  }
+
+  private createLaunchScript(command: string): string {
+    const file = application.getPath('feature.cli.temp', `launch_${randomUUID()}.sh`)
+    fs.writeFileSync(file, `#!/bin/sh\n/bin/rm -f -- ${posixQuote(file)}\n${command}\n`, { mode: 0o600, flag: 'wx' })
+    const timer = setTimeout(() => this.removeLaunchScript(file), 10 * 60_000)
+    timer.unref()
+    this.launchScripts.set(file, timer)
+    return file
+  }
+
+  private removeLaunchScript(file: string): void {
+    clearTimeout(this.launchScripts.get(file))
+    this.launchScripts.delete(file)
+    try {
+      fs.unlinkSync(file)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+        logger.warn('Failed to remove terminal launch script', { error })
+    }
   }
 
   /**
@@ -467,17 +508,55 @@ export class CodeCliService extends BaseService {
     return []
   }
 
-  /** Transactional write of a file-configured CLI's config files (code_cli.write_config). */
-  public async writeConfigFiles(cliTool: FileConfiguredCli, files: CliConfigWriteFile[]): Promise<void> {
-    if (cliTool === CodeCli.HERMES) {
-      return application.get('HermesDashboardService').writeConfigFiles(() => writeCliConfigFiles(cliTool, files))
-    }
-    return writeCliConfigFiles(cliTool, files)
+  private configWriteQueue: Promise<unknown> = Promise.resolve()
+
+  public async updateConfigFiles<T>(
+    cliTool: FileConfiguredCli,
+    targets: readonly CliConfigTarget[],
+    update: (files: CliConfigReadFile[]) => CliConfigWriteFile[],
+    commit: () => T
+  ): Promise<T> {
+    const operation = this.configWriteQueue
+      .catch(() => {})
+      .then(async () => {
+        const apply = async () =>
+          (await writeCliConfigFiles(cliTool, update(await readCliConfigFiles(targets)), commit)) as T
+        if (cliTool === CodeCli.HERMES) return application.get('HermesDashboardService').writeConfigFiles(apply)
+        if (cliTool === CodeCli.OPENCLAW) return application.get('OpenClawService').writeConfigFiles(apply)
+        if (cliTool === CodeCli.DEEPSEEK_HARNESS)
+          return application.get('DeepSeekHarnessService').writeConfigFiles(apply)
+        return apply()
+      })
+    this.configWriteQueue = operation
+    return operation
+  }
+
+  /** Apply a CLI draft and its Agent projection together, rejecting stale files inside the write queue. */
+  public async writeConfigFiles(input: InputFor<'code_cli.write_config'>): Promise<void> {
+    const shellEnv = await getRawShellEnv()
+    await this.updateConfigFiles(
+      input.cliTool,
+      input.expectedFiles?.map((file) => file.target) ?? [],
+      (current) => {
+        if (
+          input.expectedFiles?.some(
+            (file) => current.find((entry) => entry.target === file.target)?.content !== file.content
+          )
+        ) {
+          throw new Error(t('code_cli.config_changed'))
+        }
+        return input.files
+      },
+      () => syncLocalAgentConfigModel(input.cliTool, input.files, input.preserveModelSource, shellEnv)
+    )
   }
 
   /** Batch read of CLI config files (code_cli.read_config); content === null ⇔ file missing. */
-  public async readConfigFiles(targets: readonly CliConfigTarget[]): Promise<CliConfigReadFile[]> {
-    return readCliConfigFiles(targets)
+  public async readConfigFiles(
+    targets: readonly CliConfigTarget[],
+    overrides?: Record<string, string>
+  ): Promise<CliConfigReadFile[]> {
+    return readCliConfigFiles(targets, overrides)
   }
 
   async run(input: CodeCliRunInput): Promise<OperationResult> {
@@ -531,23 +610,16 @@ export class CodeCliService extends BaseService {
 
     const preset = CODE_CLI_TOOL_PRESET_MAP[cliTool]
     const executableName = preset.executable
-    const spec = { name: executableName, tool: preset.miseTool }
-
     logger.debug(`Executable name: ${executableName}`)
-    logger.debug(`Tool install spec: ${spec.tool}`)
 
-    // Prefer mise/bundled binaries, then the user's login-shell PATH. Only
-    // install when no currently available source can execute the CLI.
+    // Reuse existing installations; missing CLIs install into the user's system environment.
     const binaryManager = application.get('BinaryManager')
     let snapshot = (await binaryManager.getToolSnapshots([executableName]))[executableName]
     let { availability } = snapshot
 
     if (availability.source === 'none') {
-      logger.info(`${cliTool} not installed, installing via BinaryManager...`)
+      logger.info(`${cliTool} not installed, installing globally...`)
       try {
-        // Name-only lazy install: BinaryManager resolves the Code CLI's fixed
-        // recipe itself and writes no Preference — the CLI is a code-owned tool,
-        // not a user-added custom one.
         await this.installCli({ name: executableName })
         logger.info(`${cliTool} installed successfully`)
       } catch (error) {
@@ -595,52 +667,7 @@ export class CodeCliService extends BaseService {
     if (usesCherryExecutionEnv && isWin) appendBundledGitPathTail(env)
     logger.debug(`Environment variables:`, Object.keys(env))
 
-    // Select different terminal based on operating system
     const platform = process.platform
-    let terminalCommand: string
-    let terminalArgs: string[]
-
-    // Build environment variable prefix (based on platform)
-    const buildEnvPrefix = (isWindows: boolean) => {
-      if (Object.keys(env).length === 0) {
-        logger.info('No environment variables to set')
-        return ''
-      }
-
-      logger.info('Setting environment variables:', Object.keys(env))
-
-      if (isWindows) {
-        // Windows uses set command
-        // Escape all cmd.exe metacharacters in env values to prevent command injection
-        return Object.entries(env)
-          .map(([key, value]) => `set "${key}=${escapeBatchText(value)}"`)
-          .join(' && ')
-      } else {
-        // Unix-like systems use export command
-        const validEntries = Object.entries(env).filter(([key, value]) => {
-          if (!key || key.trim() === '') {
-            return false
-          }
-          if (value === undefined || value === null) {
-            return false
-          }
-          return true
-        })
-
-        const envCommands = validEntries
-          .map(([key, value]) => {
-            const exportCmd = `export ${key}=${posixQuote(String(value))}`
-            logger.debug(`Setting env var: ${key}=${REDACTED}`)
-            return exportCmd
-          })
-          .join(' && ')
-        const clearAmbientMise = usesCherryExecutionEnv
-          ? 'for _cherry_mise_key in $(env | sed -n \'s/^\\(MISE_[A-Za-z0-9_]*\\)=.*/\\1/p\'); do unset "$_cherry_mise_key"; done'
-          : ''
-        return [clearAmbientMise, envCommands].filter(Boolean).join(' && ')
-      }
-    }
-
     const needsBatchCall = platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
     // The win32 command is only ever embedded in the generated .bat below, where
     // cmd.exe expands %…% even inside double quotes — double it like the
@@ -655,37 +682,6 @@ export class CodeCliService extends BaseService {
     // carries no model argument; we only disable its own auto-update.
     if (cliTool === CodeCli.OPEN_CODE) {
       env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
-    }
-
-    // gemini-cli only loads ~/.gemini/.env (where GEMINI_API_KEY lives) when it
-    // considers the launch directory "trusted"; a fresh directory otherwise falls
-    // through to an interactive "Enter Gemini API Key" prompt even though
-    // selectedType is already configured. This env var is gemini-cli's own
-    // documented bypass, scoped to this one launched session only.
-    if (cliTool === CodeCli.GEMINI_CLI) {
-      env.GEMINI_CLI_TRUST_WORKSPACE = 'true'
-
-      // gemini-cli resolves its model with precedence `--model` → GEMINI_MODEL →
-      // settings.model.name, and its `resolveModel` rewrites any name ending in "flash" to a
-      // default Gemini model. Pass the model on the command line (highest precedence, honored
-      // verbatim) so the launched session hits the intended model. In gateway mode it needs the
-      // `providerId:modelId` address the gateway parses from the URL path, carrying the sentinel
-      // suffix so that rewrite can't corrupt a name ending in "flash" (see
-      // GEMINI_GATEWAY_MODEL_SUFFIX); direct mode passes the bare model id.
-      if (normal) {
-        // The gateway serves only `/v1beta`; force the SDK's API version at launch so a stale
-        // `GOOGLE_GENAI_API_VERSION=v1` exported in the user's shell can't redirect it to `/v1`.
-        if (normal.gateway) env.GOOGLE_GENAI_API_VERSION = 'v1beta'
-        const modelArg = normal.gateway ? formatGeminiGatewayModelId(normal.providerId, normal.model) : normal.model
-        // Bare-concatenated into the launch command like OpenCode's model above, so reject a
-        // model id carrying shell metacharacters rather than launch.
-        if (!isShellSafeModelId(modelArg)) {
-          const message = `Unsupported model id for ${cliTool}: ${modelArg}`
-          logger.error(message)
-          return { success: false, message }
-        }
-        baseCommand = `${baseCommand} --model ${modelArg}`
-      }
     }
 
     if (cliTool === CodeCli.ANTIGRAVITY_CLI && normal) {
@@ -725,12 +721,126 @@ export class CodeCliService extends BaseService {
       baseCommand = `${baseCommand} /login`
     }
 
+    return this.launchTerminal({
+      cliTool,
+      directory,
+      terminal: input.terminal,
+      baseCommand,
+      env,
+      usesCherryExecutionEnv,
+      rawShellEnv
+    })
+  }
+
+  async openTerminal(input: {
+    executable: string
+    args: readonly string[]
+    env: Record<string, string>
+    usesCherryExecutionEnv: boolean
+    directory?: string
+    terminal?: string
+  }): Promise<OperationResult> {
+    if (input.directory && !fs.statSync(input.directory, { throwIfNoEntry: false })?.isDirectory()) {
+      return { success: false, message: t('agent.session.workspace_status.not_directory', { path: input.directory }) }
+    }
+    const platform = process.platform
+    const needsBatchCall =
+      platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(input.executable).toLowerCase())
+    if (input.args.some((arg) => !/^[A-Za-z0-9_./=-]+$/.test(arg))) throw new Error('Unsupported terminal argument')
+    const executable =
+      platform === 'win32'
+        ? `${needsBatchCall ? 'call ' : ''}"${input.executable.replace(/%/g, '%%')}"`
+        : posixQuote(input.executable)
+    return this.launchTerminal({
+      cliTool: 'local-agent',
+      directory: input.directory ?? application.getPath('sys.home'),
+      terminal: input.terminal,
+      baseCommand: [executable, ...input.args.map((arg) => (platform === 'win32' ? arg : posixQuote(arg)))].join(' '),
+      env: input.env,
+      usesCherryExecutionEnv: input.usesCherryExecutionEnv
+    })
+  }
+
+  private async launchTerminal(input: {
+    cliTool: string
+    directory: string
+    terminal?: string
+    baseCommand: string
+    env: Record<string, string>
+    usesCherryExecutionEnv: boolean
+    rawShellEnv?: Record<string, string>
+  }): Promise<OperationResult> {
+    const { cliTool, directory, baseCommand, env, usesCherryExecutionEnv, rawShellEnv } = input
+    // Select different terminal based on operating system
+    const platform = process.platform
+    let terminalCommand: string
+    let terminalArgs: string[]
+    let launchScript: string | undefined
+
+    // Build environment variable prefix (based on platform)
+    const buildEnvPrefix = (isWindows: boolean) => {
+      if (Object.keys(env).length === 0) {
+        logger.info('No environment variables to set')
+        return ''
+      }
+
+      logger.info('Setting environment variables:', Object.keys(env))
+
+      if (isWindows) {
+        // Inside `set "KEY=VAL"`, cmd treats ^/&/|/< /> literally and only expands %; unquoted set handles values with ".
+        const entries = Object.entries(env)
+        const unquoted = entries.filter(([, value]) => value.includes('"'))
+        const quoted = entries.filter(([, value]) => !value.includes('"'))
+        const parts: string[] = []
+        if (unquoted.length) {
+          parts.push(unquoted.map(([key, value]) => `set ${key}=${escapeBatchUnquotedSetValue(value)}`).join('\r\n'))
+        }
+        if (quoted.length) {
+          parts.push(
+            quoted
+              .map(([key, value]) => `set "${key}=${value.replace(/\r?\n/g, ' ').replace(/%/g, '%%')}"`)
+              .join(' && ')
+          )
+        }
+        return parts.join('\r\n')
+      } else {
+        // Unix-like systems use export command
+        const validEntries = Object.entries(env).filter(([key, value]) => {
+          if (!key || key.trim() === '') {
+            return false
+          }
+          if (value === undefined || value === null) {
+            return false
+          }
+          return true
+        })
+
+        const envCommands = validEntries
+          .map(([key, value]) => {
+            const exportCmd = `export ${key}=${posixQuote(String(value))}`
+            logger.debug(`Setting env var: ${key}=${REDACTED}`)
+            return exportCmd
+          })
+          .join(' && ')
+        const clearAmbientMise = usesCherryExecutionEnv
+          ? 'for _cherry_mise_key in $(env | sed -n \'s/^\\(MISE_[A-Za-z0-9_]*\\)=.*/\\1/p\'); do unset "$_cherry_mise_key"; done'
+          : ''
+        return [clearAmbientMise, envCommands].filter(Boolean).join(' && ')
+      }
+    }
+
+    const envPrefix = buildEnvPrefix(platform === 'win32')
+    const runLine = [platform === 'win32' ? 'set "NO_COLOR="' : 'unset NO_COLOR', baseCommand]
+      .filter(Boolean)
+      .join(' && ')
+    const separateWindowsEnvLine = platform === 'win32' && Object.values(env).some((value) => value.includes('"'))
+    const command = separateWindowsEnvLine
+      ? `${envPrefix}\r\n${runLine}`
+      : [envPrefix, runLine].filter(Boolean).join(' && ')
+
     switch (platform) {
       case 'darwin': {
         // macOS - Support multiple terminals
-        const envPrefix = buildEnvPrefix(false)
-
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         // Combine directory change with the main command to ensure they execute in the same shell session.
         // Single-quote the directory so a path containing spaces / `$()` / backticks / `;` can't inject
@@ -740,15 +850,14 @@ export class CodeCliService extends BaseService {
         const terminalConfig = await this.getTerminalConfig(input.terminal)
         logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
 
-        const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
+        launchScript = this.createLaunchScript(fullCommand)
+        const { command: cmd, args } = terminalConfig.command(directory, `. ${posixQuote(launchScript)}`)
         terminalCommand = cmd
         terminalArgs = args
         break
       }
       case 'win32': {
         // Windows - Use temp bat file for debugging
-        const envPrefix = buildEnvPrefix(true)
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         // Create temp bat file for debugging and avoid complex command line escaping issues
         const tempDir = application.getPath('feature.cli.temp')
@@ -772,8 +881,7 @@ export class CodeCliService extends BaseService {
           `title ${cliTool} - Cherry Studio`,
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',
-          `echo Tool: ${CodeCliService.escapeBatchTextForEcho(cliTool)}`,
-          `echo Directory: ${CodeCliService.escapeBatchTextForEcho(directory)}`,
+          `echo Tool: ${cliTool}`,
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
           '',
@@ -795,7 +903,6 @@ export class CodeCliService extends BaseService {
           ':: Error handlers (using labels to ensure entire branch is conditional)',
           ':dir_missing',
           'echo ERROR: Directory does not exist',
-          `echo Target: ${CodeCliService.escapeBatchTextForEcho(directory)}`,
           'pause',
           'exit /b 1',
           '',
@@ -889,8 +996,6 @@ export class CodeCliService extends BaseService {
         // the new standalone/Wayland emulators are inserted ahead of the `xterm`
         // last-resort only, so an installed real terminal beats xterm without
         // shadowing xdg-terminal-exec or x-terminal-emulator.
-        const envPrefix = buildEnvPrefix(false)
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
         // cd inside the launched command so the working directory is correct
         // on emulators that don't expose a --working-directory flag.
         const innerCommand = `cd ${posixQuote(directory)} && clear && ${command}; exec bash`
@@ -953,7 +1058,7 @@ export class CodeCliService extends BaseService {
         throw new Error(`Unsupported operating system: ${platform}`)
     }
 
-    const baseProcessEnv = usesCherryExecutionEnv ? rawShellEnv! : await getRawShellEnv()
+    const baseProcessEnv = rawShellEnv ?? (await getRawShellEnv())
     const processEnv = Object.fromEntries(
       Object.entries(baseProcessEnv).filter(
         ([key]) =>
@@ -980,7 +1085,8 @@ export class CodeCliService extends BaseService {
         stdio: 'ignore',
         cwd: directory,
         env: processEnv,
-        shell: isWin
+        // All configured terminals are native executables; shell: true breaks spaces and & in PowerShell/WSL args.
+        shell: false
       })
       // spawn() fails asynchronously (e.g. ENOENT when the fallback terminal is
       // missing); without a listener that becomes an uncaught exception after
@@ -996,6 +1102,7 @@ export class CodeCliService extends BaseService {
 
       return { success: true }
     } catch (error) {
+      if (launchScript) this.removeLaunchScript(launchScript)
       const errorMessage = error instanceof Error ? error.message : String(error)
       const failureMessage = `Failed to launch terminal: ${errorMessage}`
       logger.error(failureMessage, error as Error)
@@ -1005,21 +1112,18 @@ export class CodeCliService extends BaseService {
       }
     }
   }
+}
 
-  /**
-   * Escape text for safe use in batch echo statements
-   * Only handles critical issues: newlines and % characters
-   * Preserves command syntax (e.g., &&) - use for constructed command strings
-   * @param text - Raw text from command output or user input
-   * @returns Escaped text safe for batch echo statements
-   */
-  private static escapeBatchTextForEcho(text: string): string {
-    if (!text) return ''
-    return text
-      .replace(/%/g, '%%') // Escape % to avoid variable expansion
-      .replace(/\r\n/g, ' ') // Windows newline to space
-      .replace(/\n/g, ' ') // Unix newline to space
-  }
+function escapeBatchUnquotedSetValue(text: string): string {
+  return text
+    .replace(/\r?\n/g, ' ')
+    .replace(/\^/g, '^^')
+    .replace(/%/g, '%%')
+    .replace(/&/g, '^&')
+    .replace(/\|/g, '^|')
+    .replace(/>/g, '^>')
+    .replace(/</g, '^<')
+    .replace(/"/g, '^"')
 }
 
 /**

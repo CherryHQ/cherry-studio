@@ -254,7 +254,8 @@ describe('NotificationService', () => {
       }
       if (name === 'ConversationNavigationService')
         return { focusOrOpen: mocks.focusOrOpen, isActiveInFocusedWindow: mocks.isActiveInFocusedWindow }
-      if (name === 'WindowManager') return { getWindowInfosByType: mocks.getWindowInfosByType }
+      if (name === 'WindowManager')
+        return { getWindowInfosByType: mocks.getWindowInfosByType, getWindowsByType: () => [] }
       if (name === 'IpcApiService') return { send: mocks.send, broadcastToType: mocks.broadcastToType }
       if (name === 'MainWindowService') return { showMainWindow: mocks.showMainWindow }
       if (name === 'PreferenceService') {
@@ -1046,6 +1047,29 @@ describe('NotificationService', () => {
     await expect(activateNotification(record.id)).rejects.toThrow('notification.center.target_unavailable')
     expect(lookup).toHaveBeenCalledWith('deleted')
     expect(mocks.focusOrOpen).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('opens the run that produced the scheduled notification, legacy=%s', async (legacy) => {
+    const runId = 'first-run'
+    await service.publishTaskResult(
+      taskResult({
+        resultId: runId,
+        source: 'scheduled-task',
+        status: 'failed',
+        target: { kind: 'scheduled-task', taskId: 'schedule', ...(legacy ? {} : { runId }) },
+        errorSummary: 'First run failed'
+      })
+    )
+    const record = notificationRecordService.list().items[0]
+    vi.spyOn(agentTaskService, 'getTaskById').mockReturnValue({ id: 'schedule' } as never)
+
+    await activateNotification(record.id)
+
+    expect(mocks.showMainWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: `/settings/scheduled-tasks/schedule?notificationId=${record.id}&runId=first-run`
+      })
+    )
   })
 
   it.each(['assistant', 'agent'] as const)(

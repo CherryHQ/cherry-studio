@@ -8,6 +8,7 @@ import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import {
+  AcpTool,
   getAgentConfigToolKind,
   isValidAgentToolsType,
   renderTool,
@@ -26,6 +27,7 @@ import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpToo
 import { cn } from '@renderer/utils/style'
 import type { AgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
 import type { AgentConfigChangePreview as ConfigPreview } from '@shared/ai/agentConfigToolOutput'
+import { LocalAcpToolSchema, LocalPermissionOptionsSchema } from '@shared/ai/localAgent'
 
 import type { ComposerOverride } from '../ComposerContext'
 import { AgentConfigChangePreview } from './AgentConfigChangePreview'
@@ -53,6 +55,7 @@ function isHandledElsewhere(event: KeyboardEvent) {
 }
 
 export type PermissionRequestComposerProps = {
+  keyboardShortcuts?: boolean
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   className?: string
@@ -117,16 +120,29 @@ export function createPermissionRequestComposerOverride({
   }
 }
 
+function stripLocalPermissionEnvelope(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !('localPermissionOptions' in value)) {
+    return value
+  }
+  const rest = { ...(value as Record<string, unknown>) }
+  delete rest.localPermissionOptions
+  return rest
+}
+
 function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const toolName = toolResponse.tool.name
-  const input = toolResponse.arguments as Record<string, unknown> | string | undefined
-  const renderedItem = isValidAgentToolsType(toolName)
-    ? renderTool(toolName, input)
-    : UnknownToolRenderer({ toolName, input })
+  const rawInput = toolResponse.arguments as Record<string, unknown> | string | undefined
+  const acp = LocalAcpToolSchema.safeParse(rawInput && typeof rawInput === 'object' ? rawInput.localAcpTool : undefined)
+  const input = stripLocalPermissionEnvelope(rawInput) as Record<string, unknown> | string | undefined
+  const renderedItem = acp.success
+    ? AcpTool({ tool: acp.data })
+    : isValidAgentToolsType(toolName)
+      ? renderTool(toolName, input)
+      : UnknownToolRenderer({ toolName, input })
 
   const item: ToolDisclosureItem = {
     ...renderedItem,
-    label: <PermissionPreviewHeader toolName={toolName} />,
+    label: acp.success ? renderedItem.label : <PermissionPreviewHeader toolName={toolName} />,
     children: renderBuiltinPreviewChildren(toolName, renderedItem.children),
     classNames: {
       ...renderedItem.classNames,
@@ -155,7 +171,7 @@ function McpPermissionPreview({
   configPreview: ConfigPreviewProps | null
 }) {
   const { t } = useTranslation()
-  const args = normalizeArgs(toolResponse.arguments)
+  const args = normalizeArgs(stripLocalPermissionEnvelope(toolResponse.arguments) as ToolResponseLike['arguments'])
   const argsPreview = args ? (
     <ScrollArea
       viewportProps={{ className: 'overflow-x-hidden', 'data-testid': 'permission-mcp-args-scroll' }}
@@ -270,6 +286,7 @@ export default function PermissionRequestComposer({
   request,
   onRespond,
   className,
+  keyboardShortcuts = true,
   agentName,
   requiresAgentConfigPreview = false,
   onOpenSource
@@ -283,6 +300,16 @@ export default function PermissionRequestComposer({
   const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
   // A typed reason means the user is denying — Enter must not approve behind their back.
   const hasRejectionReason = rejectionReason.trim().length > 0
+  const parsedOptions = LocalPermissionOptionsSchema.safeParse(request.toolResponse.arguments)
+  const localOptions = parsedOptions.success ? parsedOptions.data.localPermissionOptions : undefined
+  const primaryAllowOption = localOptions
+    ? (localOptions.find((option) => option.kind === 'allow_once') ??
+      localOptions.find((option) => option.kind.startsWith('allow_')))
+    : undefined
+  const primaryRejectOption = localOptions
+    ? (localOptions.find((option) => option.kind === 'reject_once') ??
+      localOptions.find((option) => option.kind.startsWith('reject_')))
+    : undefined
   const configKind = getAgentConfigToolKind(request.toolResponse)
   const { data: configPreview, error: configPreviewError } = useSWRImmutable(
     configKind ? ['ai.agent.preview_config_change', request.approvalId] : null,
@@ -336,11 +363,46 @@ export default function PermissionRequestComposer({
 
   useHotkeys(
     'enter',
-    () => void (hasRejectionReason ? deny() : approve()),
-    { preventDefault: true, ignoreEventWhen: isHandledElsewhere },
-    [approve, deny, hasRejectionReason]
+    () => {
+      if (localOptions) {
+        if (!isSubmitting && primaryAllowOption) {
+          void respond(
+            {
+              match: request.match,
+              approved: true,
+              updatedInput: { localPermissionOption: primaryAllowOption.optionId }
+            },
+            'approve'
+          )
+        }
+        return
+      }
+      void (hasRejectionReason ? deny() : approve())
+    },
+    { enabled: keyboardShortcuts, preventDefault: true, ignoreEventWhen: isHandledElsewhere },
+    [approve, deny, hasRejectionReason, isSubmitting, localOptions, primaryAllowOption, request.match, respond]
   )
-  useHotkeys('esc', () => void deny(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [deny])
+  useHotkeys(
+    'esc',
+    () => {
+      if (localOptions && primaryRejectOption) {
+        if (!isSubmitting) {
+          void respond(
+            {
+              match: request.match,
+              approved: false,
+              updatedInput: { localPermissionOption: primaryRejectOption.optionId }
+            },
+            'deny'
+          )
+        }
+        return
+      }
+      void deny()
+    },
+    { enabled: keyboardShortcuts, preventDefault: true, ignoreEventWhen: isHandledElsewhere },
+    [deny, isSubmitting, localOptions, primaryRejectOption, request.match, respond]
+  )
 
   return (
     <div
@@ -446,53 +508,119 @@ export default function PermissionRequestComposer({
           />
         </div>
 
-        <div className="mt-2 px-1">
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={isSubmitting}
-            aria-expanded={reasonExpanded}
-            className="h-auto gap-1 px-0 py-1 text-muted-foreground text-xs"
-            onClick={() =>
-              setRejectionDraft({ approvalId: request.approvalId, value: rejectionReason, expanded: !reasonExpanded })
-            }>
-            <ChevronDown aria-hidden="true" className={cn('size-3', reasonExpanded && 'rotate-180')} />
-            {t('agent.toolPermission.reasonLabel')}
-          </Button>
-          {reasonExpanded ? (
-            <Textarea.Input
-              value={rejectionReason}
+        {!localOptions && (
+          <div className="mt-2 px-1">
+            <Button
+              type="button"
+              variant="ghost"
               disabled={isSubmitting}
-              maxLength={500}
-              rows={2}
-              aria-label={t('agent.toolPermission.reasonLabel')}
-              placeholder={t('agent.toolPermission.reasonPlaceholder')}
-              className="mt-1 min-h-14 resize-none px-3 py-2 text-sm"
-              onValueChange={(value) => setRejectionDraft({ approvalId: request.approvalId, value, expanded: true })}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
-                event.preventDefault()
-                void (hasRejectionReason ? deny() : approve())
-              }}
-            />
-          ) : null}
-        </div>
+              aria-expanded={reasonExpanded}
+              className="h-auto gap-1 px-0 py-1 text-muted-foreground text-xs"
+              onClick={() =>
+                setRejectionDraft({ approvalId: request.approvalId, value: rejectionReason, expanded: !reasonExpanded })
+              }>
+              <ChevronDown aria-hidden="true" className={cn('size-3', reasonExpanded && 'rotate-180')} />
+              {t('agent.toolPermission.reasonLabel')}
+            </Button>
+            {reasonExpanded ? (
+              <Textarea.Input
+                value={rejectionReason}
+                disabled={isSubmitting}
+                maxLength={500}
+                rows={2}
+                aria-label={t('agent.toolPermission.reasonLabel')}
+                placeholder={t('agent.toolPermission.reasonPlaceholder')}
+                className="mt-1 min-h-14 resize-none px-3 py-2 text-sm"
+                onValueChange={(value) => setRejectionDraft({ approvalId: request.approvalId, value, expanded: true })}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+                  event.preventDefault()
+                  void (hasRejectionReason ? deny() : approve())
+                }}
+              />
+            ) : null}
+          </div>
+        )}
 
-        <div className="mt-2.5 flex justify-end gap-2 px-1 pb-0.5">
-          <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>
-            {t('agent.toolPermission.button.deny')}
-            <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
-              {hasRejectionReason ? 'Enter' : 'Esc'}
-            </Kbd>
-          </Button>
-          <Button type="button" variant="emphasis" disabled={cannotApprove} onClick={() => void approve()}>
-            {t(request.commandPolicy ? 'agent.toolPermission.button.allowOnce' : 'agent.toolPermission.button.allow')}
-            {!hasRejectionReason && (
-              <Kbd aria-hidden="true" className="bg-current/10 text-current">
-                Enter
-              </Kbd>
-            )}
-          </Button>
+        <div className="mt-2.5 flex flex-wrap justify-end gap-2 px-1 pb-0.5">
+          {localOptions ? (
+            localOptions.map((option) => {
+              const isPrimaryAllow = option === primaryAllowOption
+              const isPrimaryReject = option === primaryRejectOption
+              const isAllow = option.kind.startsWith('allow_')
+              const buttonLabel = option.label
+                ? t(
+                    (
+                      {
+                        allow: 'agent.toolPermission.button.allow',
+                        allow_session: 'local_agents.allow_session',
+                        deny: 'agent.toolPermission.button.deny',
+                        cancel: 'common.cancel'
+                      } as const
+                    )[option.label]
+                  )
+                : /^allow$/i.test(option.name) && option.kind === 'allow_once'
+                  ? t('agent.toolPermission.button.allow')
+                  : /^allow once$/i.test(option.name) && option.kind === 'allow_once'
+                    ? t('local_agents.allow_once')
+                    : /^(?:reject|deny)$/i.test(option.name) && option.kind === 'reject_once'
+                      ? t('agent.toolPermission.button.deny')
+                      : /^(?:always allow|allow always)(?:\s*\(risky\))?$/i.test(option.name) &&
+                          option.kind === 'allow_always'
+                        ? t('local_agents.allow_always')
+                        : option.name
+              return (
+                <Button
+                  key={option.optionId}
+                  type="button"
+                  variant={isPrimaryAllow ? 'emphasis' : isAllow ? 'secondary' : 'outline'}
+                  disabled={isSubmitting}
+                  onClick={() =>
+                    void respond(
+                      {
+                        match: request.match,
+                        approved: isAllow,
+                        updatedInput: { localPermissionOption: option.optionId }
+                      },
+                      isAllow ? 'approve' : 'deny'
+                    )
+                  }>
+                  {buttonLabel}
+                  {keyboardShortcuts && isPrimaryAllow && (
+                    <Kbd aria-hidden="true" className="bg-current/10 text-current">
+                      Enter
+                    </Kbd>
+                  )}
+                  {keyboardShortcuts && isPrimaryReject && (
+                    <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
+                      Esc
+                    </Kbd>
+                  )}
+                </Button>
+              )
+            })
+          ) : (
+            <>
+              <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>
+                {t('agent.toolPermission.button.deny')}
+                {keyboardShortcuts && (
+                  <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
+                    {hasRejectionReason ? 'Enter' : 'Esc'}
+                  </Kbd>
+                )}
+              </Button>
+              <Button type="button" variant="emphasis" disabled={cannotApprove} onClick={() => void approve()}>
+                {t(
+                  request.commandPolicy ? 'agent.toolPermission.button.allowOnce' : 'agent.toolPermission.button.allow'
+                )}
+                {!hasRejectionReason && keyboardShortcuts && (
+                  <Kbd aria-hidden="true" className="bg-current/10 text-current">
+                    Enter
+                  </Kbd>
+                )}
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -15,6 +15,7 @@ export interface AgentRuntimeCapabilities {
   /** i18n key for runtime selector option. */
   labelKey: string
   labelFallback: string
+  /** Cherry permission modes. Native controls come from the connected CLI. */
   permissionModes: readonly AgentPermissionMode[]
   /** plan/small model fields. */
   modelTiers: boolean
@@ -107,6 +108,23 @@ const PI_CAPABILITIES = {
 } as const satisfies AgentRuntimeCapabilities
 
 export const AGENT_RUNTIME_CAPABILITIES = {
+  local: {
+    labelKey: 'local_agents.title',
+    labelFallback: 'Local agents',
+    permissionModes: [],
+    modelTiers: false,
+    heartbeat: false,
+    knowledgeBases: false,
+    mcp: false,
+    skills: false,
+    claudeRegistryTools: false,
+    slashCommands: [],
+    nativeFollowUp: false,
+    createDefaults: { permissionMode: 'default' },
+    isModelCompatible: () => false,
+    transport: 'local-agent',
+    builtinTools: () => []
+  },
   'claude-code': {
     labelKey: 'library.config.agent.field.runtime.option.claude_code',
     labelFallback: 'Claude Agent',

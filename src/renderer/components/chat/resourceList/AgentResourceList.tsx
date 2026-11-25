@@ -571,14 +571,18 @@ export function AgentResourceList({
           icon: <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
           order: 22
         }),
-        buildResolvedIconTypeMenuAction(
-          AGENT_ENTITY_ICON_TYPE_ACTION_ID,
-          t('agent.icon.type'),
-          <Smile size={14} />,
-          25,
-          assistantIconType,
-          t
-        ),
+        ...(owner?.configuration?.localRuntime
+          ? []
+          : [
+              buildResolvedIconTypeMenuAction(
+                AGENT_ENTITY_ICON_TYPE_ACTION_ID,
+                t('agent.icon.type'),
+                <Smile size={14} />,
+                25,
+                assistantIconType,
+                t
+              )
+            ]),
         buildResolvedResourceEntityMenuAction({
           id: AGENT_ENTITY_ARCHIVE_SESSIONS_ACTION_ID,
           commandId: AGENT_ENTITY_ARCHIVE_SESSIONS_ACTION_ID,

@@ -1,8 +1,10 @@
-import { type ChildProcess, execFileSync } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
 import path from 'node:path'
+
+import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
@@ -24,6 +26,7 @@ import {
 } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import type { BinaryAvailability } from '@shared/types/binary'
+import { CodeCli } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
@@ -103,6 +106,7 @@ type OpenClawConfigSchemaNode = {
 
 interface OpenClawValidationReport {
   valid: boolean
+  missing?: boolean
   path?: string
   issues: OpenClawValidationIssue[]
   warnings: OpenClawValidationIssue[]
@@ -411,6 +415,13 @@ export class OpenClawService extends BaseService {
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
   private gatewayProcess?: { child: ChildProcess; port: number }
+  /** Serializes config writes with the gateway lifecycle so neither observes a half-written file. */
+  private readonly configMutex = new Mutex()
+  /** Serializes gateway lease acquisition, release, and shutdown transitions. */
+  private readonly gatewayLifecycleMutex = new Mutex()
+  private startingGateway = false
+  /** Sessions holding the gateway open; the web UI and an idle release leave it running. */
+  private readonly gatewayLeases = new Set<symbol>()
   // Bumped by every setGatewayStatus; probes discard results from an older generation.
   private gatewayTransitionId = 0
 
@@ -648,13 +659,30 @@ export class OpenClawService extends BaseService {
 
     if (typeof report.valid !== 'boolean') fail()
     if (report.path !== undefined && typeof report.path !== 'string') fail()
+    if (report.error !== undefined && typeof report.error !== 'string') fail()
     if (report.issues !== undefined && (!Array.isArray(report.issues) || !report.issues.every(isIssue))) fail()
     if (report.warnings !== undefined && (!Array.isArray(report.warnings) || !report.warnings.every(isIssue))) fail()
     const valid = report.valid as boolean
     const reportPath = report.path as string | undefined
     const issues = (report.issues ?? []) as OpenClawValidationIssue[]
     const warnings = (report.warnings ?? []) as OpenClawValidationIssue[]
-    if (!valid && issues.length === 0) fail()
+    // Fresh installs without openclaw.json emit { valid: false, path, error: "file not found" } with exit code 1 (or 0 in mocks).
+    if (!valid && issues.length === 0) {
+      if (
+        (result.exitCode === 0 || result.exitCode === 1) &&
+        typeof report.error === 'string' &&
+        /\bfile not found\b/i.test(report.error)
+      ) {
+        return {
+          valid: false,
+          missing: true,
+          ...(reportPath !== undefined ? { path: reportPath } : {}),
+          issues: [],
+          warnings
+        }
+      }
+      fail()
+    }
     if ((valid && result.exitCode !== 0) || (!valid && result.exitCode !== 1)) fail()
 
     return {
@@ -707,17 +735,18 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  private async assertConfigValid(runtime: OpenClawRuntime, configPath: AbsoluteFilePath): Promise<void> {
-    const report = await this.validateConfig(runtime, configPath)
-    if (report.valid) {
-      for (const warning of report.warnings) {
-        logger.warn('OpenClaw config validation warning', {
-          summary: this.sanitizeDiagnostic(`${warning.path}: ${warning.message}`)
-        })
-      }
-      return
+  private logValidationWarnings(report: OpenClawValidationReport): void {
+    for (const warning of report.warnings) {
+      logger.warn('OpenClaw config validation warning', {
+        summary: this.sanitizeDiagnostic(`${warning.path}: ${warning.message}`)
+      })
     }
+  }
 
+  private throwValidationReportError(report: OpenClawValidationReport): never {
+    if (report.missing) {
+      throw new OpenClawPreflightError('preflight_failed', t('openclaw.errors.preflight_failed'))
+    }
     const kind = report.issues.some((issue) => isCherryManagedConfigPath(issue.path))
       ? 'binary_incompatible'
       : 'external_config_invalid'
@@ -727,6 +756,74 @@ export class OpenClawService extends BaseService {
         ? t('openclaw.errors.binary_incompatible', { details })
         : t('openclaw.errors.external_config_invalid', { details })
     throw new OpenClawPreflightError(kind, message)
+  }
+
+  private async assertConfigValid(runtime: OpenClawRuntime, configPath: AbsoluteFilePath): Promise<void> {
+    const report = await this.validateConfig(runtime, configPath)
+    if (report.valid) {
+      this.logValidationWarnings(report)
+      return
+    }
+    this.throwValidationReportError(report)
+  }
+
+  private ensureConfigDirectoryAndMigrateLegacy(): boolean {
+    if (!fs.existsSync(openclawConfigDir())) {
+      fs.mkdirSync(openclawConfigDir(), { recursive: true })
+    }
+    if (!fs.existsSync(openclawLegacyConfigPath())) return false
+    if (fs.existsSync(openclawConfigPath())) {
+      fs.renameSync(openclawConfigPath(), openclawConfigBakPath())
+      logger.info('Migrated openclaw.json → openclaw.json.bak')
+    }
+    fs.renameSync(openclawLegacyConfigPath(), openclawConfigPath())
+    logger.info('Migrated openclaw.cherry.json → openclaw.json')
+    return true
+  }
+
+  private async writeValidatedConfig(runtime: OpenClawRuntime, serialized: string, token: string): Promise<void> {
+    const candidatePath = AbsoluteFilePathSchema.parse(
+      path.join(openclawConfigDir(), `openclaw.json.cherry-candidate-${crypto.randomUUID()}`)
+    )
+    try {
+      await atomicWriteFile(candidatePath, serialized, { mode: OPENCLAW_CONFIG_FILE_MODE })
+      await this.assertConfigValid(runtime, candidatePath)
+      await atomicWriteFile(openclawConfigPath(), serialized, { mode: OPENCLAW_CONFIG_FILE_MODE })
+      this.gatewayAuthToken = token
+    } finally {
+      await remove(candidatePath).catch((cleanupError) => {
+        logger.warn('Failed to remove OpenClaw config validation candidate', cleanupError as Error)
+      })
+    }
+  }
+
+  private async ensureFormalConfigValid(runtime: OpenClawRuntime): Promise<void> {
+    const report = await this.validateConfig(runtime, openclawConfigPath())
+    if (report.valid) {
+      this.logValidationWarnings(report)
+      return
+    }
+    if (!report.missing) {
+      this.throwValidationReportError(report)
+    }
+
+    const migrated = this.ensureConfigDirectoryAndMigrateLegacy()
+    if (migrated || fs.existsSync(openclawConfigPath())) {
+      await this.assertConfigValid(runtime, openclawConfigPath())
+      return
+    }
+
+    const token = this.gatewayAuthToken || this.generateAuthToken()
+    const minimalConfig = {
+      gateway: {
+        mode: 'local',
+        port: this.gatewayPort,
+        auth: { token }
+      },
+      update: { checkOnStart: false }
+    }
+    await this.writeValidatedConfig(runtime, JSON.stringify(minimalConfig, null, 2), token)
+    logger.info('Initialized minimal OpenClaw gateway configuration')
   }
 
   private async assertSchemaCapability(runtime: OpenClawRuntime): Promise<OpenClawConfigSchemaNode> {
@@ -863,44 +960,82 @@ export class OpenClawService extends BaseService {
     throw new OpenClawPreflightError('binary_incompatible', t('openclaw.errors.binary_incompatible', { details }))
   }
 
+  /** Serialize a config write with the gateway lifecycle and drop the cached auth token. */
+  public async writeConfigFiles<T>(write: () => Promise<T>): Promise<T> {
+    return this.configMutex.runExclusive(async () => {
+      const result = await write()
+      this.gatewayAuthToken = ''
+      return result
+    })
+  }
+
+  /**
+   * Hold the gateway open for one agent session. The saved model is synced first so the spawned
+   * process reads the caller's choice; releasing the last lease stops the gateway it owns.
+   */
+  async acquireGateway(signal: AbortSignal) {
+    signal.throwIfAborted()
+    return this.gatewayLifecycleMutex.runExclusive(async () => {
+      signal.throwIfAborted()
+      if (this.gatewayLeases.size === 0) {
+        const state = application.get('PreferenceService').get('feature.code_cli.configs')?.[CodeCli.OPENCLAW]
+        const modelId = state?.current ? state.providers[state.current]?.modelId : undefined
+        if (modelId) {
+          const synced = await this.syncConfig(modelId)
+          if (!synced.success) throw new Error(synced.message)
+        }
+        const started = await this.startGateway()
+        if (!started.success) throw new Error(started.message)
+        try {
+          signal.throwIfAborted()
+        } catch (error) {
+          await this.stopGateway()
+          throw error
+        }
+      }
+      const lease = Symbol()
+      this.gatewayLeases.add(lease)
+      this.loadAuthTokenFromConfig()
+      return {
+        url: this.gatewayUrl,
+        token: this.gatewayAuthToken,
+        dispose: async () => {
+          await this.gatewayLifecycleMutex.runExclusive(async () => {
+            if (!this.gatewayLeases.delete(lease) || this.gatewayLeases.size) return
+            const stopped = await this.stopGateway()
+            if (!stopped.success) throw new Error(stopped.message)
+          })
+        }
+      }
+    })
+  }
+
   /**
    * Start the OpenClaw Gateway
    */
   public async startGateway(port?: number): Promise<OperationResult> {
     // Guard before touching the port so a concurrent-start rejection cannot repoint
     // it, and an omitted port keeps the preference-synced value instead of the default.
-    if (this.gatewayStatus === 'starting') {
+    if (this.startingGateway || this.gatewayStatus === 'starting') {
       return { success: false, message: 'Gateway is already starting' }
     }
+    this.startingGateway = true
     if (port !== undefined) this.gatewayPort = port
 
     try {
       const runtime = await this.resolveOpenClawRuntime()
-      await this.assertConfigValid(runtime, openclawConfigPath())
+      await this.ensureFormalConfigValid(runtime)
 
-      // Check if the port is already in use
       const isPortOpen = await this.checkPortOpen(this.gatewayPort)
       if (isPortOpen) {
-        // Check if this is our gateway already running on this port
         const { status } = await this.checkGatewayHealth()
         if (status === 'healthy') {
-          // Stop the stale gateway (e.g. respawned orphan from a previous session)
-          logger.info('Detected stale gateway on port, stopping before restart...')
-          await this.stopGateway()
-
-          // Verify port is now free
-          const stillOpen = await this.checkPortOpen(this.gatewayPort)
-          if (stillOpen) {
-            return {
-              success: false,
-              message: `Port ${this.gatewayPort} is still in use after stopping the old gateway.`
-            }
-          }
-        } else {
-          return {
-            success: false,
-            message: `Port ${this.gatewayPort} is already in use by another application. Please choose a different port.`
-          }
+          this.setGatewayStatus('running')
+          return { success: true }
+        }
+        return {
+          success: false,
+          message: `Port ${this.gatewayPort} is already in use by another application. Please choose a different port.`
         }
       }
 
@@ -915,16 +1050,18 @@ export class OpenClawService extends BaseService {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to start gateway:', error as Error)
       return { success: false, message: errorMessage }
+    } finally {
+      this.startingGateway = false
     }
   }
 
   /**
-   * Start gateway via `openclaw gateway run --force` and wait for it to become ready.
+   * Start gateway via `openclaw gateway run` and wait for it to become ready.
    * Spawns the gateway as a detached process so its lifecycle is independent.
    * Uses process termination to stop it later.
    */
   private async startAndWaitForGateway(openclawPath: string, shellEnv: Record<string, string>): Promise<void> {
-    const args = ['gateway', 'run', '--force']
+    const args = ['gateway', 'run']
 
     logger.info(`Starting gateway: ${openclawPath} ${args.join(' ')}`)
 
@@ -950,6 +1087,7 @@ export class OpenClawService extends BaseService {
       windowsHide: true
     })
     this.gatewayProcess = { child: proc, port: this.gatewayPort }
+    application.get('CacheService').setShared('feature.openclaw.gateway_owned', true)
     proc.unref()
 
     // Collect early exit errors (e.g. binary crash on startup)
@@ -966,7 +1104,10 @@ export class OpenClawService extends BaseService {
       earlyExitError = err.message
     })
     proc.on('exit', (code) => {
-      if (this.gatewayProcess?.child === proc) this.gatewayProcess = undefined
+      if (this.gatewayProcess?.child === proc) {
+        this.gatewayProcess = undefined
+        application.get('CacheService').setShared('feature.openclaw.gateway_owned', false)
+      }
       // Capture output from both streams for diagnostics
       const combinedOutput = [stderrOutput.trim(), stdoutOutput.trim()].filter(Boolean).join('\n')
       const detail = combinedOutput.split('\n').filter(Boolean).slice(0, 5).join('\n')
@@ -1017,18 +1158,17 @@ export class OpenClawService extends BaseService {
     throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
   }
 
-  /**
-   * Stop the OpenClaw Gateway.
-   * Stops verified OpenClaw listeners on the configured gateway port.
-   */
-  public async stopGateway(): Promise<OperationResult> {
+  /** Stop a Cherry-owned gateway. Uninstall also requires the port to be free. */
+  public async stopGateway({ requirePortFree = false } = {}): Promise<OperationResult> {
     const transitionBefore = this.gatewayTransitionId
     try {
       const owned = this.gatewayProcess
       if (owned?.port === this.gatewayPort && owned.child.exitCode === null && owned.child.signalCode === null) {
         await terminateProcessTree(owned.child, true, 'OpenClaw gateway')
-      } else {
-        this.killGatewayProcesses()
+      } else if (await this.checkPortOpen(this.gatewayPort)) {
+        return requirePortFree
+          ? { success: false, message: 'Gateway is running outside Cherry Studio' }
+          : { success: true }
       }
 
       const stillRunning = await this.waitForGatewayStop()
@@ -1047,73 +1187,6 @@ export class OpenClawService extends BaseService {
       logger.error('Failed to stop gateway:', error as Error)
       this.setGatewayStatus('error')
       return { success: false, message: errorMessage }
-    }
-  }
-
-  private killGatewayProcesses(): void {
-    try {
-      const output = isWin
-        ? execFileSync('netstat', ['-ano'], { encoding: 'utf8', windowsHide: true })
-        : execFileSync('lsof', ['-t', `-iTCP:${this.gatewayPort}`, '-sTCP:LISTEN'], { encoding: 'utf8' })
-      const candidates = isWin
-        ? output.split(/\r?\n/).flatMap((line) => {
-            const [protocol, local, , state, pid] = line.trim().split(/\s+/)
-            return protocol === 'TCP' && local.endsWith(`:${this.gatewayPort}`) && state === 'LISTENING' ? [pid] : []
-          })
-        : output.trim().split(/\s+/)
-      const pids = new Set(candidates.filter((value) => /^\d+$/.test(value)).map(Number))
-      for (const pid of pids) {
-        if (pid <= 0 || pid === process.pid) continue
-        if (!this.isOpenClawGatewayProcess(pid)) {
-          logger.debug('Preserving an unverified gateway-port listener', { pid, port: this.gatewayPort })
-          continue
-        }
-        try {
-          if (isWin) execFileSync('taskkill', ['/PID', String(pid), '/F'], { stdio: 'ignore', windowsHide: true })
-          else process.kill(pid, 'SIGKILL')
-          logger.info('Stopped gateway listener', { pid, port: this.gatewayPort })
-        } catch (error) {
-          logger.debug('Gateway listener already exited or could not be stopped', { pid, error })
-        }
-      }
-    } catch {
-      logger.debug('No gateway listeners found on the configured port', { port: this.gatewayPort })
-    }
-  }
-
-  private isOpenClawGatewayProcess(pid: number): boolean {
-    try {
-      const command = (
-        isWin
-          ? execFileSync(
-              'powershell.exe',
-              [
-                '-NoProfile',
-                '-NonInteractive',
-                '-Command',
-                `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").CommandLine`
-              ],
-              { encoding: 'utf8', windowsHide: true, timeout: 2000 }
-            )
-          : execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8', timeout: 2000 })
-      ).trim()
-      // OpenClaw sets this title after entering its gateway command on POSIX.
-      if (!isWin && command === 'openclaw-gateway') return true
-      const args = (command.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map((arg) =>
-        arg.replace(/^["']|["']$/g, '').replaceAll('\\', '/')
-      )
-      const executable = path.posix
-        .basename(args[0] ?? '')
-        .toLowerCase()
-        .replace(/\.exe$/, '')
-      if (executable === 'openclaw') return args[1] === 'gateway'
-      return (
-        (executable === 'node' || executable === 'bun') &&
-        /\/openclaw\/(?:openclaw\.mjs|dist\/(?:index|entry)\.js)$/.test(args[1] ?? '') &&
-        args[2] === 'gateway'
-      )
-    } catch {
-      return false
     }
   }
 
@@ -1457,20 +1530,8 @@ export class OpenClawService extends BaseService {
       const runtime = await this.resolveOpenClawRuntime()
       const configSchema = await this.assertSchemaCapability(runtime)
 
-      // Ensure config directory exists
-      if (!fs.existsSync(openclawConfigDir())) {
-        fs.mkdirSync(openclawConfigDir(), { recursive: true })
-      }
-
-      // Migrate legacy openclaw.cherry.json → openclaw.json
-      if (fs.existsSync(openclawLegacyConfigPath())) {
-        if (fs.existsSync(openclawConfigPath())) {
-          fs.renameSync(openclawConfigPath(), openclawConfigBakPath())
-          logger.info('Migrated openclaw.json → openclaw.json.bak')
-        }
-        fs.renameSync(openclawLegacyConfigPath(), openclawConfigPath())
-        logger.info('Migrated openclaw.cherry.json → openclaw.json')
-      }
+      // Ensure config directory exists and migrate legacy openclaw.cherry.json → openclaw.json
+      this.ensureConfigDirectoryAndMigrateLegacy()
 
       // Read existing config. An unparseable file aborts the sync instead of
       // being rebuilt from scratch — silently replacing it would destroy any
@@ -1606,20 +1667,7 @@ export class OpenClawService extends BaseService {
         primary: `${providerKey}/${primaryModel.id}`
       }
 
-      const serialized = JSON.stringify(config, null, 2)
-      const candidatePath = AbsoluteFilePathSchema.parse(
-        path.join(openclawConfigDir(), `openclaw.json.cherry-candidate-${crypto.randomUUID()}`)
-      )
-      try {
-        await atomicWriteFile(candidatePath, serialized, { mode: OPENCLAW_CONFIG_FILE_MODE })
-        await this.assertConfigValid(runtime, candidatePath)
-        await atomicWriteFile(openclawConfigPath(), serialized, { mode: OPENCLAW_CONFIG_FILE_MODE })
-        this.gatewayAuthToken = token
-      } finally {
-        await remove(candidatePath).catch((cleanupError) => {
-          logger.warn('Failed to remove OpenClaw config validation candidate', cleanupError as Error)
-        })
-      }
+      await this.writeValidatedConfig(runtime, JSON.stringify(config, null, 2), token)
 
       logger.info(`Synced provider ${provider.id} to OpenClaw config`)
       return { success: true }

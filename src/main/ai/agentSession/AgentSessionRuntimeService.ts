@@ -31,6 +31,7 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
@@ -47,6 +48,7 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
+import { AGENT_SESSION_COST_CACHE_KEY, type AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import {
   AGENT_SESSION_CLOSING_CACHE_KEY,
   type AgentSessionEditDraft,
@@ -65,6 +67,19 @@ import {
 } from '@shared/ai/agentSessionTopic'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import { getProviderModelId, type ExecutionId } from '@shared/ai/executionIdentity'
+import {
+  DSH_LOCAL_MODE_ID,
+  DSH_LOCAL_MODE_OPTIONS,
+  getDefaultLocalAgentMode,
+  getDefaultLocalAgentThoughtLevel,
+  isLocalPermissionConfigOption,
+  isLocalPermissionConfigOptionId,
+  type LocalAgentConfiguration,
+  type LocalAgentSessionInfo,
+  type LocalAgentSessionOverrides
+} from '@shared/ai/localAgent'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
@@ -82,6 +97,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { prepareAgentConfigApproval } from '../agents/agentConfigTool'
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
+import { LocalAgentSessionRestoreError } from '../runtime/localAgent/LocalAgentSessionRestoreError'
 import { recoverDurableReplies } from '../runtime/piDurable/recoverDurableReplies'
 import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
@@ -153,6 +169,19 @@ const USER_STOP_REASONS: ReadonlySet<unknown> = new Set(['user-requested', 'remo
 type NativeInputState = Extract<AgentRuntimeEvent, { type: 'input-state' }>['input']
 /** Shown on a card whose requesting runtime went away before the user could answer it. */
 const ABANDONED_APPROVAL_ERROR = 'The runtime connection closed before this request was answered'
+const LOCAL_CAPABILITY_RESET_ERROR_CODES = new Set(['LOCAL_AGENT_HOST_REQUIRED', 'LOCAL_AGENT_NOT_INSTALLED'])
+
+function isMissingLocalAgentRuntimeError(error: unknown): boolean {
+  let current: unknown = error
+  const seen = new Set<unknown>()
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current)
+    const code = (current as { code?: unknown }).code
+    if (typeof code === 'string' && LOCAL_CAPABILITY_RESET_ERROR_CODES.has(code)) return true
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
+}
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -184,7 +213,7 @@ export interface BeginAgentSessionTurnInput {
   topicId: string
   agentId: string
   agentType: string
-  modelId: UniqueModelId
+  modelId: ExecutionId
   reasoningEffort?: ReasoningEffortOption
   serviceTier?: ServiceTierSelection
   fastMode?: boolean
@@ -232,6 +261,7 @@ export interface AgentSessionInteractionState {
 }
 
 type AgentSessionTurn = {
+  localTurnUsage?: LocalAgentTurnUsage
   taskIds: readonly string[]
   forkAnchor?: RuntimeForkAnchor
   turnId: string
@@ -239,7 +269,7 @@ type AgentSessionTurn = {
   systemReminder?: boolean
   assistantMessageId: string
   userMessage: AgentSessionMessageEntity
-  modelId: UniqueModelId
+  modelId: ExecutionId
   /** Immutable author snapshot captured when this exact turn was submitted. */
   messageSnapshot?: MessageSnapshot
   /** Whether this initial turn owns the session's one automatic AI naming attempt. */
@@ -282,7 +312,8 @@ type PendingAgentSessionTurn = {
 }
 
 type AgentSessionConnectionTarget = AgentSessionRuntimeConnectionTarget & {
-  modelId: UniqueModelId
+  localWorkingDirectory?: string
+  modelId: ExecutionId
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
   fastMode: boolean
@@ -298,7 +329,7 @@ type AgentSessionRuntimeEntry = {
   prediction?: {
     requestId?: string
     replyId: string
-    modelId: UniqueModelId
+    modelId: ExecutionId
     controller: AbortController
     result: Promise<string>
   }
@@ -324,13 +355,14 @@ type AgentSessionRuntimeEntry = {
   sessionTraceId?: string
   agentId: string
   agentType: string
-  modelId: UniqueModelId
+  modelId: ExecutionId
   /** Author snapshot (agent + nested model) for assistant rows the runtime opens this session. */
   messageSnapshot?: MessageSnapshot
   runtimeState: RuntimeState
   /** Capture owner/receipt of the installed connection; retained through terminal persistence. */
   usageCapture?: AgentSessionUsageCapture
   connectionLoop?: Promise<void>
+  nativeTitleReceived?: boolean
   connectionGeneration?: string
   /** Pending product handoffs outlive the connection that attempted native admission. */
   pendingInputs?: Map<
@@ -342,6 +374,7 @@ type AgentSessionRuntimeEntry = {
     }
   >
   lastResumeToken?: string
+  localWorkingDirectory?: string
   branchHead?: string
   secondaryContextId?: string
   usageAttribution?: AgentSessionUsageAttribution
@@ -355,7 +388,7 @@ type AgentSessionRuntimeEntry = {
   /** Synchronous terminal commits; later native changes update these rows directly. */
   persistedMessageIds?: Set<string>
   contextUsageEpoch?: number
-  contextUsageModel?: UniqueModelId
+  contextUsageModel?: ExecutionId
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -400,6 +433,7 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
   'ClaudeCodeProcessManager',
   'ClaudeCodeWarmQueryManager',
   'AutomationReplService',
+  'LocalAgentMcpBridgeService',
   'RuntimeActivityService'
 ])
 export class AgentSessionRuntimeService extends BaseService {
@@ -902,6 +936,13 @@ export class AgentSessionRuntimeService extends BaseService {
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
     const existing = this.selectRecoveredRoot(input.sessionId, input.assistantMessageId)
     if (existing && this.runtimeStatus(existing) === 'active') throw new AgentSessionEditError('busy')
+    if (existing && (existing.agentId !== input.agentId || existing.agentType !== input.agentType)) {
+      existing.lastResumeToken = undefined
+      existing.usageCapture = undefined
+      const closing = this.closingSessions.get(input.sessionId)
+      if (closing) closing.resumeToken = undefined
+      this.closeConnectionAsync(existing)
+    }
     const turn = createSessionTurn({
       taskIds: input.userMessage ? [input.userMessage.id] : [],
       assistantMessageId: input.assistantMessageId,
@@ -1109,6 +1150,15 @@ export class AgentSessionRuntimeService extends BaseService {
     return turn
   }
 
+  private getAgentExecutionId(
+    agent: AgentEntity | null | undefined,
+    sessionModelOverride?: UniqueModelId | null
+  ): ExecutionId | undefined {
+    if (!agent) return
+    const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
+    return driver?.getExecutionId ? driver.getExecutionId(agent) : (sessionModelOverride ?? agent.model ?? undefined)
+  }
+
   /**
    * Best-effort read of a session's model override for runtime bookkeeping.
    * Returns null when the session is gone (callers keep prior behavior) and
@@ -1127,7 +1177,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const session = agentSessionService.getById(sessionId)
     const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
     if (!agent) return []
-    if (agent.type !== 'claude-code')
+    if (agent.type !== 'claude-code' && agent.type !== 'local')
       return AGENT_RUNTIME_CAPABILITIES[agent.type].slashCommands.map(({ command, description }) => ({
         name: command.replace(/^\//, ''),
         description: description ?? '',
@@ -1135,8 +1185,9 @@ export class AgentSessionRuntimeService extends BaseService {
       }))
     const cache = application.get('CacheService')
     const cached = cache.getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId))
-    if (cached) return cached
-    if (application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready') return []
+    if (cached && agent.type !== 'local') return cached
+    if (agent.type === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
+      return []
     const connection = await this.commandConnection(sessionId)
     const commands = await connection?.getSupportedCommands?.()
     const entry = this.entries.get(sessionId)
@@ -1160,7 +1211,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry) {
       const session = agentSessionService.getById(sessionId)
       const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
-      const modelId = session.model ?? agent?.model
+      const modelId = agent && this.getAgentExecutionId(agent, session.model)
       if (!agent || !modelId) return
       entry = {
         sessionId,
@@ -1199,7 +1250,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
       // A cleared model (`PATCH { model: null }`) is unroutable only when no
       // session override remains — a session with its own model stays routable.
-      const effectiveModel = this.readSessionModelOverride(entry.sessionId) ?? agent.model ?? null
+      const effectiveModel = this.getAgentExecutionId(agent, this.readSessionModelOverride(entry.sessionId))
       if (modelEdited && !effectiveModel) {
         this.invalidateModelClearedEntry(entry)
         continue
@@ -1389,9 +1440,10 @@ export class AgentSessionRuntimeService extends BaseService {
     // Refresh before steering so a changed session model queues a new turn.
     // Headless inputs continue to use the Agent default.
     const latestEffectiveModel =
-      (headless ? null : this.readSessionModelOverride(sessionId)) ??
-      agentService.getAgent(entry.agentId)?.model ??
-      entry.modelId
+      this.getAgentExecutionId(
+        agentService.getAgent(entry.agentId),
+        headless ? null : this.readSessionModelOverride(sessionId)
+      ) ?? entry.modelId
     if (latestEffectiveModel !== entry.modelId) entry.modelId = latestEffectiveModel
     // Submit steer natively into the open turn; `steer-undelivered` queues it if delivery fails.
     // A changed model/reasoning/service-tier/Fast/knowledge scope must queue as the next turn.
@@ -1630,6 +1682,20 @@ export class AgentSessionRuntimeService extends BaseService {
     this.publishSessionClosing(sessionId, true)
     this.syncRuntimeActivity()
     return barrier.promise
+  }
+
+  /** Close owned entries only after every matching session is free of turns and background work. */
+  async closeIdleSessions(sessionIds: readonly string[]): Promise<boolean> {
+    const targets = new Set(sessionIds)
+    const entries = [...this.entries.values()].filter((entry) => targets.has(entry.sessionId))
+    if (
+      entries.some(
+        (entry) => this.isSessionBusy(entry.sessionId) || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
+      )
+    )
+      return false
+    await Promise.all(entries.map((entry) => this.closeSession(entry.sessionId)))
+    return true
   }
 
   private publishSessionClosing(sessionId: string, closing: boolean): void {
@@ -2009,6 +2075,7 @@ export class AgentSessionRuntimeService extends BaseService {
         .resolveToolApproval(
           entry?.topicId ?? buildAgentSessionTopicId(dispatched.sessionId, dispatched.contextId),
           dispatched.toolCallId,
+          approvalId,
           guardedDecision.approved
         )
     }
@@ -2222,6 +2289,8 @@ export class AgentSessionRuntimeService extends BaseService {
     // one agent and already has the updated entity.
     agent: AgentEntity | null = agentService.getAgent(entry.agentId)
   ): AgentSessionConnectionTarget {
+    const localWorkingDirectory =
+      entry.agentType === 'local' ? agentSessionService.getById(entry.sessionId).workspace.path : undefined
     const turn = this.currentTurn(entry)
     const live =
       turn &&
@@ -2230,6 +2299,7 @@ export class AgentSessionRuntimeService extends BaseService {
         hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
     return live
       ? {
+          localWorkingDirectory,
           modelId: turn.modelId,
           reasoningEffort: turn.reasoningEffort,
           serviceTier: turn.serviceTier,
@@ -2240,6 +2310,7 @@ export class AgentSessionRuntimeService extends BaseService {
           trustedNotifyChannels: turn.trustedNotifyChannels
         }
       : {
+          localWorkingDirectory,
           modelId: entry.modelId,
           reasoningEffort: agent?.configuration?.reasoning_effort ?? 'default',
           serviceTier: 'standard',
@@ -2254,6 +2325,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const current = this.connectionTarget(entry, agent)
     const configuredKnowledgeBaseIds = agent?.knowledgeBaseIds
     return (
+      current.localWorkingDirectory === target.localWorkingDirectory &&
       current.modelId === target.modelId &&
       current.reasoningEffort === target.reasoningEffort &&
       current.serviceTier === target.serviceTier &&
@@ -2281,6 +2353,8 @@ export class AgentSessionRuntimeService extends BaseService {
           !entry.lastResumeToken &&
           closing.resumeToken &&
           closing.branchHead &&
+          (entry.agentType !== 'local' ||
+            closing.entry?.localWorkingDirectory === this.connectionTarget(entry).localWorkingDirectory) &&
           agentSessionMessageService.sharesBranch(entry.sessionId, entry.branchHead, closing.branchHead)
         ) {
           entry.lastResumeToken = closing.resumeToken
@@ -2312,7 +2386,10 @@ export class AgentSessionRuntimeService extends BaseService {
         // closed like the push path: the suspect connection is replaced by a fresh one.
         let verdict: AgentRuntimeReconcileResult
         try {
-          verdict = await connection.reconcile(target)
+          verdict =
+            entry.localWorkingDirectory !== target.localWorkingDirectory
+              ? 'rebuild'
+              : await connection.reconcile(target)
         } catch (error) {
           logger.error('Connection reconcile threw; failing closed', { sessionId: entry.sessionId, error })
           verdict = 'failed'
@@ -2335,6 +2412,7 @@ export class AgentSessionRuntimeService extends BaseService {
         switch (verdict) {
           case 'current':
           case 'patched':
+            if (!this.connectionTargetEquals(entry, target)) continue
             return true
           case 'rebuild': {
             // Background work may keep the old connection alive, but it cannot make a spawn-frozen
@@ -2408,6 +2486,11 @@ export class AgentSessionRuntimeService extends BaseService {
 
     this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
+    // A prewarmed native session belongs to its original directory, even before the first input.
+    if (entry.localWorkingDirectory && entry.localWorkingDirectory !== target.localWorkingDirectory) {
+      entry.lastResumeToken = undefined
+    }
+    entry.localWorkingDirectory = target.localWorkingDirectory
 
     const request: AgentRuntimeConnectInput = {
       sessionId: entry.sessionId,
@@ -2425,7 +2508,13 @@ export class AgentSessionRuntimeService extends BaseService {
       branchHead: entry.branchHead,
       ...this.inputCallbacks(entry, attemptId)
     }
-    const connection = await driver.connect(request)
+    const connection = await driver.connect(request).catch((error: unknown) => {
+      if (entry.agentType === 'local' && isMissingLocalAgentRuntimeError(error))
+        this.publishLocalSessionInfo(entry, null, { clearSnapshots: true })
+      if (error instanceof LocalAgentSessionRestoreError)
+        this.publishLocalSessionInfo(entry, null, { restoreUnavailable: true })
+      throw error
+    })
     const attempt = this.connectionAttempts.get(entry)
     const interrupt = attempt?.id === attemptId && attempt.interrupt
     const owner = connection.contextId && this.entryForContext(entry.sessionId, connection.contextId)
@@ -2441,6 +2530,11 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.observeConnection(entry, connection, target.modelId, attemptId)) {
       await this.closeRuntimeConnection(connection, entry, false, interrupt)
       return false
+    }
+    if (entry.agentType === 'local') {
+      const overrides = target.headless ? undefined : this.getLocalSessionOverrides(entry.sessionId)
+      if (overrides && !(await this.restoreLocalSessionOverrides(entry, connection, attemptId, overrides))) return false
+      if (connection.localSessionInfo) this.publishLocalSessionInfo(entry, connection.localSessionInfo)
     }
     await this.reconcilePendingInputs(entry, connection, attemptId)
     return (
@@ -2470,7 +2564,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private observeConnection(
     entry: AgentSessionRuntimeEntry,
     connection: AgentRuntimeConnection,
-    modelId: UniqueModelId,
+    modelId: ExecutionId,
     attemptId: string
   ): boolean {
     if (this.currentConnection(entry) === connection) return this.isCurrentGeneration(entry, attemptId)
@@ -2642,7 +2736,9 @@ export class AgentSessionRuntimeService extends BaseService {
         const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
         const projection = this.rootProjection(entry, event.projection.contextId)
         if (turn) turn.projection = projection
-        const changed = projection.accept(event.projection, turn?.assistantMessageId)
+        const owner = event.toolOwner && projection.toolCallMessageId(event.toolOwner.toolCallId)
+        if (event.toolOwner?.detached && !owner) break
+        const changed = projection.accept(event.projection, owner ?? turn?.assistantMessageId)
         for (const [id, entries] of changed) this.publishRootMessage(entry, projection, id, entries)
         break
       }
@@ -2656,6 +2752,19 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       case 'resume-token':
         entry.lastResumeToken = event.token
+        if (connection?.sessionCostScope === 'native-session') {
+          const cached = application.get('CacheService').getShared(AGENT_SESSION_COST_CACHE_KEY(entry.sessionId))
+          if (cached?.nativeSessionId !== event.token) {
+            const saved = agentSessionMessageService.getSessionCost(entry.sessionId)
+            if (saved || cached)
+              this.persistSessionCost(
+                entry,
+                saved?.nativeSessionId === event.token
+                  ? saved
+                  : { nativeSessionId: event.token, reportedAt: Date.now(), cost: null }
+              )
+          }
+        }
         if (this.runtimeStatus(entry) === 'active') this.refreshContextUsage(entry)
         break
       case 'message-metadata':
@@ -2720,8 +2829,39 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'api-retry':
         this.handleApiRetry(entry, event.retry)
         break
+      case 'local-turn-usage': {
+        const turn = this.liveTurn(entry)
+        if (turn) {
+          turn.localTurnUsage = event.summary
+          this.deliverRuntimeChunk(entry, {
+            type: 'message-metadata',
+            messageMetadata: { localTurnUsage: event.summary }
+          })
+        }
+        break
+      }
+      case 'session-cost':
+        this.persistSessionCost(entry, event.snapshot)
+        break
       case 'context-usage':
         this.persistContextUsage(entry, event.result)
+        break
+      case 'session-title':
+        entry.nativeTitleReceived = true
+        if (agentSessionService.updateGeneratedName(entry.sessionId, event.title))
+          application.get('IpcApiService').broadcast('ai.agent.session.auto_renamed', { sessionId: entry.sessionId })
+        break
+      case 'notice': {
+        const window = getFullChromeWindowInfos().find((window) => window.isFocused)
+        if (window)
+          application.get('IpcApiService').send(window.id, 'ai.local_agents.notice', {
+            sessionId: entry.sessionId,
+            notice: event.notice
+          })
+        break
+      }
+      case 'local-session-info':
+        this.publishLocalSessionInfo(entry, event.info)
         break
       case 'supported-commands':
         // SDK pushed a refreshed catalog (`commands_changed`) — replace the cached list so the
@@ -3011,6 +3151,16 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
   }
 
+  private persistSessionCost(entry: AgentSessionRuntimeEntry, snapshot: AgentSessionCostSnapshot): void {
+    if (!this.isCurrentEntry(entry)) return
+    application.get('CacheService').setShared(AGENT_SESSION_COST_CACHE_KEY(entry.sessionId), snapshot)
+    try {
+      agentSessionMessageService.saveSessionCost(entry.sessionId, snapshot)
+    } catch (error) {
+      logger.warn('Failed to persist native session cost', { sessionId: entry.sessionId, error })
+    }
+  }
+
   private persistContextUsage(entry: AgentSessionRuntimeEntry, result: AgentSessionContextUsage['result']): void {
     if (!this.isCurrentEntry(entry)) return
     if (entry.contextUsageModel !== entry.modelId) return
@@ -3277,7 +3427,7 @@ export class AgentSessionRuntimeService extends BaseService {
             role: 'assistant',
             status: 'success',
             data: { parts: [part] },
-            modelId: this.connectionTarget(entry).modelId,
+            modelId: getProviderModelId(this.connectionTarget(entry).modelId),
             messageSnapshot: entry.messageSnapshot
           }
         },
@@ -3695,7 +3845,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!pending) return
     const liveAgent = agentService.getAgent(entry.agentId)
     const sessionOverride = pending.headless ? null : this.readSessionModelOverride(entry.sessionId)
-    const effectiveModel = sessionOverride ?? liveAgent?.model ?? null
+    const effectiveModel = this.getAgentExecutionId(liveAgent, sessionOverride)
     if (effectiveModel && effectiveModel !== entry.modelId) {
       entry.modelId = effectiveModel
       this.invalidateContextUsage(entry)
@@ -3727,7 +3877,7 @@ export class AgentSessionRuntimeService extends BaseService {
     })
     this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn, reserved: true })
-    if (!effectiveModel) {
+    if (!liveAgent || !effectiveModel) {
       this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
       this.applyRuntimeStateEvent(entry, {
         type: 'reply-delivery-failed',
@@ -3878,7 +4028,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private startRuntimeRootSpan(
     entry: AgentSessionRuntimeEntry,
-    modelId: UniqueModelId = entry.modelId
+    modelId: ExecutionId = entry.modelId
   ): Span | undefined {
     const traceId = entry.sessionTraceId
     if (!traceId) return undefined
@@ -3894,7 +4044,7 @@ export class AgentSessionRuntimeService extends BaseService {
           'cs.session_id': entry.sessionId
         }
       },
-      { topicId: entry.topicId, modelName: parseUniqueModelId(modelId).modelId },
+      { topicId: entry.topicId, modelName: traceModelName(modelId) },
       traceId
     )
     return turnTrace.rootSpan
@@ -3903,7 +4053,7 @@ export class AgentSessionRuntimeService extends BaseService {
   /** Container trace passed to the driver as the connection's traceparent. */
   private sessionTraceContext(
     entry: AgentSessionRuntimeEntry,
-    modelId: UniqueModelId = entry.modelId
+    modelId: ExecutionId = entry.modelId
   ): AgentRuntimeTraceContext | undefined {
     const traceId = entry.sessionTraceId
     if (!traceId) return undefined
@@ -3913,7 +4063,7 @@ export class AgentSessionRuntimeService extends BaseService {
       rootSpanId: deriveRootSpanId(traceId),
       sessionId: entry.sessionId,
       turnId: this.currentTurn(entry)?.turnId ?? '',
-      modelName: parseUniqueModelId(modelId).modelId
+      modelName: traceModelName(modelId)
     }
   }
 
@@ -3932,7 +4082,8 @@ export class AgentSessionRuntimeService extends BaseService {
       backend: new AgentSessionMessageBackend({
         sessionId: entry.sessionId,
         assistantMessageId,
-        modelId,
+        modelId: getProviderModelId(modelId),
+        localTurnUsage: () => currentTurn.localTurnUsage,
         runtimeResumeToken: () => entry.lastResumeToken,
         forkAnchor: () => currentTurn.forkAnchor,
         projection: () =>
@@ -3952,17 +4103,329 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
+  private getLocalSessionOverrides(sessionId: string): LocalAgentSessionOverrides | undefined {
+    try {
+      const store = application.get('CacheService').getPersist?.('local_agent.session_overrides')
+      return store?.[sessionId]
+    } catch {
+      return undefined
+    }
+  }
+
+  private saveLocalSessionOverride(
+    sessionId: string,
+    patch: {
+      mode?: { configId: string; value: string }
+      thoughtLevel?: { configId: string; value: string }
+      configOption?: { configId: string; value: string | boolean }
+    }
+  ): void {
+    try {
+      const cache = application.get('CacheService')
+      if (!cache.getPersist || !cache.setPersist) return
+      const store = cache.getPersist('local_agent.session_overrides') ?? {}
+      const existing = store[sessionId]
+      const nextEntry: LocalAgentSessionOverrides = {
+        ...existing,
+        ...(patch.mode ? { mode: patch.mode } : {}),
+        ...(patch.thoughtLevel ? { thoughtLevel: patch.thoughtLevel } : {}),
+        ...(patch.configOption
+          ? {
+              configOptions: {
+                ...existing?.configOptions,
+                [patch.configOption.configId]: patch.configOption.value
+              }
+            }
+          : {}),
+        updatedAt: Date.now()
+      }
+      const entries: Array<[string, LocalAgentSessionOverrides]> = [
+        [sessionId, nextEntry],
+        ...Object.entries(store).filter(([id]) => id !== sessionId)
+      ]
+      const nextStore = Object.fromEntries(entries.sort(([, a], [, b]) => b.updatedAt - a.updatedAt).slice(0, 500))
+      cache.setPersist('local_agent.session_overrides', nextStore)
+    } catch (error) {
+      logger.warn('Failed to persist local session override', error as Error, { sessionId })
+    }
+  }
+
+  private async restoreLocalSessionOverrides(
+    entry: AgentSessionRuntimeEntry,
+    connection: AgentRuntimeConnection,
+    attemptId: string,
+    saved: LocalAgentSessionOverrides
+  ): Promise<boolean> {
+    const modeInfo = connection.localSessionInfo?.mode
+    if (
+      saved.mode &&
+      connection.setMode &&
+      modeInfo &&
+      modeInfo.id === saved.mode.configId &&
+      modeInfo.currentValue !== saved.mode.value &&
+      modeInfo.options.some((option) => option.value === saved.mode!.value)
+    ) {
+      try {
+        await connection.setMode(saved.mode.configId, saved.mode.value)
+      } catch (error) {
+        logger.warn('Failed to restore local session mode override', error as Error, {
+          sessionId: entry.sessionId,
+          configId: saved.mode.configId,
+          value: saved.mode.value
+        })
+      }
+      if (!this.isCurrentGeneration(entry, attemptId) || this.currentConnection(entry) !== connection) {
+        return false
+      }
+    }
+    const thoughtInfo = connection.localSessionInfo?.thoughtLevel
+    if (
+      saved.thoughtLevel &&
+      connection.setThoughtLevel &&
+      thoughtInfo &&
+      thoughtInfo.id === saved.thoughtLevel.configId &&
+      thoughtInfo.currentValue !== saved.thoughtLevel.value &&
+      thoughtInfo.options.some((option) => option.value === saved.thoughtLevel!.value)
+    ) {
+      try {
+        await connection.setThoughtLevel(saved.thoughtLevel.configId, saved.thoughtLevel.value)
+      } catch (error) {
+        logger.warn('Failed to restore local session thought level override', error as Error, {
+          sessionId: entry.sessionId,
+          configId: saved.thoughtLevel.configId,
+          value: saved.thoughtLevel.value
+        })
+      }
+      if (!this.isCurrentGeneration(entry, attemptId) || this.currentConnection(entry) !== connection) {
+        return false
+      }
+    }
+    if (saved.configOptions && connection.setConfigOption) {
+      for (const [configId, value] of Object.entries(saved.configOptions)) {
+        const option = connection.localSessionInfo?.configOptions?.find((item) => item.id === configId)
+        if (!option || option.currentValue === value) continue
+        if (option.type === 'boolean' && typeof value !== 'boolean') continue
+        if (
+          option.type === 'select' &&
+          (typeof value !== 'string' ||
+            !option.options
+              .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
+              .some((choice) => choice.value === value))
+        ) {
+          continue
+        }
+        try {
+          await connection.setConfigOption(configId, value)
+        } catch (error) {
+          logger.warn('Failed to restore local session config option override', error as Error, {
+            sessionId: entry.sessionId,
+            configId,
+            value
+          })
+        }
+        if (!this.isCurrentGeneration(entry, attemptId) || this.currentConnection(entry) !== connection) {
+          return false
+        }
+      }
+    }
+    return this.isCurrentGeneration(entry, attemptId) && this.currentConnection(entry) === connection
+  }
+
+  private async changeLocalOption(
+    sessionId: string,
+    apply: (connection: AgentRuntimeConnection) => Promise<LocalAgentSessionInfo> | undefined
+  ) {
+    let entry = this.entries.get(sessionId)
+    if ((!entry || !this.currentConnection(entry)) && !this.isSessionBusy(sessionId)) {
+      const agentId = agentSessionService.getById(sessionId)?.agentId
+      if (agentId && agentService.getAgent(agentId)?.type === 'local') {
+        await this.commandConnection(sessionId)
+        entry = this.entries.get(sessionId)
+      }
+    }
+    const connection = entry?.agentType === 'local' && this.currentConnection(entry)
+    const change = connection && !this.isSessionBusy(sessionId) && apply(connection)
+    if (!change) throw new Error('Local agent session is unavailable or busy')
+    return change
+  }
+
+  async setLocalConfigOption(sessionId: string, configId: string, value: string | boolean) {
+    const info = await this.changeLocalOption(sessionId, (connection) => connection.setConfigOption?.(configId, value))
+    const option = info.configOptions?.find((item) => item.id === configId)
+    if (isLocalPermissionConfigOptionId(configId) || (option && isLocalPermissionConfigOption(option))) {
+      this.saveLocalSessionOverride(sessionId, { configOption: { configId, value } })
+    }
+    return info
+  }
+
+  private buildLocalFallbackSessionInfo(
+    sessionId: string,
+    protocol: LocalAgentConfiguration['protocol'],
+    presetId?: string,
+    baseInfo?: LocalAgentSessionInfo
+  ): LocalAgentSessionInfo {
+    const saved = this.getLocalSessionOverrides(sessionId)
+    const defaultMode = getDefaultLocalAgentMode(protocol, presetId)
+    const savedMode = saved?.mode
+    const resolvedMode =
+      defaultMode &&
+      savedMode?.configId === defaultMode.id &&
+      defaultMode.options.some((option) => option.value === savedMode.value)
+        ? { ...defaultMode, currentValue: savedMode.value }
+        : defaultMode
+    const defaultThoughtLevel = getDefaultLocalAgentThoughtLevel(protocol)
+    const savedThoughtLevel = saved?.thoughtLevel
+    const resolvedThoughtLevel =
+      defaultThoughtLevel &&
+      savedThoughtLevel?.configId === defaultThoughtLevel.id &&
+      defaultThoughtLevel.options.some((option) => option.value === savedThoughtLevel.value)
+        ? { ...defaultThoughtLevel, currentValue: savedThoughtLevel.value }
+        : defaultThoughtLevel
+    return {
+      models: baseInfo?.models ?? [],
+      images: baseInfo?.images ?? true,
+      resume: baseInfo?.resume ?? true,
+      ...baseInfo,
+      ...(resolvedMode ? { mode: resolvedMode } : {}),
+      ...(resolvedThoughtLevel ? { thoughtLevel: resolvedThoughtLevel } : {})
+    }
+  }
+
+  async setLocalMode(sessionId: string, configId: string, value: string) {
+    if (this.isSessionBusy(sessionId)) throw new Error('Local agent session is unavailable or busy')
+    const session = agentSessionService.getById(sessionId)
+    const agent = session?.agentId ? agentService.getAgent(session.agentId) : undefined
+    const isLocalAgent = agent?.type === 'local'
+    const localConfig = isLocalAgent ? agent.configuration?.localRuntime : undefined
+    // DeepSeek Harness reads DSH_PERMISSION_MODE at launch, so idle sessions reconnect.
+    if (
+      localConfig?.presetId === 'deepseek-harness' &&
+      configId === DSH_LOCAL_MODE_ID &&
+      DSH_LOCAL_MODE_OPTIONS.some((option) => option.value === value)
+    ) {
+      const existingEntry = this.entries.get(sessionId)
+      const existingConnection = existingEntry && this.currentConnection(existingEntry)
+      const baseInfo = existingConnection?.localSessionInfo ? { ...existingConnection.localSessionInfo } : undefined
+      this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
+      if (existingConnection) {
+        await this.closeSession(sessionId)
+      }
+      const info = this.buildLocalFallbackSessionInfo(sessionId, localConfig.protocol, localConfig.presetId, baseInfo)
+      application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, info })
+      return info
+    }
+    let primeError: unknown
+    let entry = this.entries.get(sessionId)
+    if (!entry || !this.currentConnection(entry)) {
+      if (isLocalAgent) {
+        try {
+          await this.commandConnection(sessionId)
+        } catch (error) {
+          primeError = error
+        }
+        entry = this.entries.get(sessionId)
+      }
+    }
+    const connection = entry?.agentType === 'local' && this.currentConnection(entry)
+    if (connection && !this.isSessionBusy(sessionId) && connection.setMode) {
+      const info = await connection.setMode(configId, value)
+      this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
+      return info
+    }
+    if (!connection && !this.isSessionBusy(sessionId) && localConfig) {
+      const defaultMode = getDefaultLocalAgentMode(localConfig.protocol, localConfig.presetId)
+      if (defaultMode && defaultMode.id === configId && defaultMode.options.some((option) => option.value === value)) {
+        this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
+        const info = this.buildLocalFallbackSessionInfo(sessionId, localConfig.protocol, localConfig.presetId)
+        application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, info })
+        return info
+      }
+    }
+    if (primeError) throw primeError
+    throw new Error('Local agent session is unavailable or busy')
+  }
+
+  async setLocalThoughtLevel(sessionId: string, configId: string, value: string) {
+    if (this.isSessionBusy(sessionId)) throw new Error('Local agent session is unavailable or busy')
+    let primeError: unknown
+    let entry = this.entries.get(sessionId)
+    if (!entry || !this.currentConnection(entry)) {
+      const agentId = agentSessionService.getById(sessionId)?.agentId
+      if (agentId && agentService.getAgent(agentId)?.type === 'local') {
+        try {
+          await this.commandConnection(sessionId)
+        } catch (error) {
+          primeError = error
+        }
+        entry = this.entries.get(sessionId)
+      }
+    }
+    const connection = entry?.agentType === 'local' && this.currentConnection(entry)
+    if (connection && !this.isSessionBusy(sessionId) && connection.setThoughtLevel) {
+      const info = await connection.setThoughtLevel(configId, value)
+      this.saveLocalSessionOverride(sessionId, { thoughtLevel: { configId, value } })
+      return info
+    }
+    if (!connection && !this.isSessionBusy(sessionId)) {
+      const session = agentSessionService.getById(sessionId)
+      const agent = session?.agentId ? agentService.getAgent(session.agentId) : undefined
+      const localConfig = agent?.type === 'local' ? agent.configuration?.localRuntime : undefined
+      const defaultThoughtLevel = localConfig ? getDefaultLocalAgentThoughtLevel(localConfig.protocol) : undefined
+      if (
+        localConfig &&
+        defaultThoughtLevel &&
+        defaultThoughtLevel.id === configId &&
+        defaultThoughtLevel.options.some((option) => option.value === value)
+      ) {
+        this.saveLocalSessionOverride(sessionId, { thoughtLevel: { configId, value } })
+        const info = this.buildLocalFallbackSessionInfo(sessionId, localConfig.protocol, localConfig.presetId)
+        application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, info })
+        return info
+      }
+    }
+    if (primeError) throw primeError
+    throw new Error('Local agent session is unavailable or busy')
+  }
+
+  getLocalSessionInfo(sessionId: string) {
+    const entry = this.entries.get(sessionId)
+    return entry ? (this.currentConnection(entry)?.localSessionInfo ?? null) : null
+  }
+
+  /** Push the live capabilities, or null when the connection that owned them is gone. */
+  private publishLocalSessionInfo(
+    entry: AgentSessionRuntimeEntry,
+    info: LocalAgentSessionInfo | null,
+    options?: { clearSnapshots?: boolean; restoreUnavailable?: boolean }
+  ): void {
+    if (this.isShuttingDown) return
+    application.get('IpcApiService').broadcast('ai.local_agents.session_updated', {
+      sessionId: entry.sessionId,
+      info,
+      ...options
+    })
+  }
+
+  private shouldRetainWhileIdle(entry: AgentSessionRuntimeEntry): boolean {
+    if (!this.currentConnection(entry)?.retainWhileIdle) return false
+    return entry.agentType !== 'local' || !agentSessionService.isOneOffTaskSession(entry.sessionId)
+  }
+
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
-    if (this.currentConnection(entry)?.retainWhileIdle) return
-    if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) || this.runtimeStatus(entry) !== 'idle') {
+    if (
+      hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) ||
+      this.runtimeStatus(entry) !== 'idle' ||
+      this.shouldRetainWhileIdle(entry)
+    ) {
       return
     }
     entry.idleTimer = setTimeout(() => {
       if (
         !this.isCurrentEntry(entry) ||
         hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) ||
-        this.runtimeStatus(entry) !== 'idle'
+        this.runtimeStatus(entry) !== 'idle' ||
+        this.shouldRetainWhileIdle(entry)
       ) {
         return
       }
@@ -4034,7 +4497,8 @@ export class AgentSessionRuntimeService extends BaseService {
       new AgentSessionMessageBackend({
         sessionId: entry.sessionId,
         assistantMessageId: turn.assistantMessageId,
-        modelId: turn.modelId,
+        modelId: getProviderModelId(turn.modelId),
+        localTurnUsage: () => turn.localTurnUsage,
         runtimeResumeToken: () => entry.lastResumeToken,
         projection: () =>
           turn.projection ? this.rootCheckpoint(entry, turn.projection, turn.assistantMessageId) : undefined,
@@ -4080,7 +4544,10 @@ export class AgentSessionRuntimeService extends BaseService {
   ): AgentRuntimeConnection | undefined {
     const connection = this.currentConnection(entry)
     if (connection && resetRuntimeState) this.resetConnectionRuntimeState(entry, connection)
-    if (connection) this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
+    if (connection) {
+      this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
+      this.publishLocalSessionInfo(entry, null)
+    }
     entry.connectionLoop = undefined
     entry.connectionGeneration = undefined
     return connection
@@ -4159,20 +4626,25 @@ function isAbortError(error: unknown): boolean {
   return !!error && typeof error === 'object' && 'name' in error && error.name === 'AbortError'
 }
 
-/**
- * A queued/steered follow-up freezes its author snapshot at submit time, but the runtime drains it on the
- * LATEST agent model (`entry.modelId`). Reconcile the snapshot's nested model to the model that actually
- * runs so `messageSnapshot.model` never disagrees with the row's `modelId`; the author (id/name/emoji)
- * stays frozen. No-op when the frozen model already is the running model.
- */
+/** Trace label for a model id; local-CLI `runtime:` ids carry no provider split. */
+function traceModelName(modelId: ExecutionId): string {
+  const providerModelId = getProviderModelId(modelId)
+  if (!providerModelId) return modelId.startsWith('runtime:') ? modelId.slice('runtime:'.length) : modelId
+  return parseUniqueModelId(providerModelId).modelId
+}
+
+// Queued turns keep their submit-time author and record the model that actually runs.
 function reconcileSnapshotModel(
   snapshot: MessageSnapshot | undefined,
-  modelId: UniqueModelId,
+  modelId: ExecutionId,
   modelName: string | null | undefined
 ): MessageSnapshot | undefined {
   if (!snapshot) return undefined
-  if (createUniqueModelId(snapshot.model.provider, snapshot.model.id) === modelId) return snapshot
-  const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
+  const providerModelId = getProviderModelId(modelId)
+  if (!providerModelId) return snapshot
+  if (snapshot.model && createUniqueModelId(snapshot.model.provider, snapshot.model.id) === providerModelId)
+    return snapshot
+  const { providerId, modelId: rawModelId } = parseUniqueModelId(providerModelId)
   return { ...snapshot, model: { id: rawModelId, name: modelName ?? rawModelId, provider: providerId } }
 }
 

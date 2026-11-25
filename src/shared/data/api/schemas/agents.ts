@@ -10,6 +10,7 @@ import * as z from 'zod'
 import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
 import { AgentPromptOverridesPatchSchema, AgentPromptOverridesSchema } from '@shared/ai/agentPromptSections'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { LocalAgentConfigurationSchema } from '@shared/ai/localAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -43,13 +44,14 @@ export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
-export const AGENT_TYPES = ['claude-code', 'pi', 'pi-durable'] as const
+export const AGENT_TYPES = ['claude-code', 'pi', 'pi-durable', 'local'] as const
 export const AgentTypeSchema = z.enum(AGENT_TYPES)
 export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
 export const AgentConfigurationSchema = z
   .object({
+    localRuntime: LocalAgentConfigurationSchema.optional(),
     avatar: z.string().optional(),
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
@@ -202,7 +204,7 @@ export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 export type TaskRunSummary =
   | { status: 'queued' }
   | { status: 'running' }
-  | { status: 'completed' | 'failed' | 'cancelled'; finishedAt: string }
+  | { status: 'completed' | 'failed' | 'cancelled' | 'skipped'; finishedAt: string }
 export type ScheduledTaskListItem = ScheduledTaskEntity & { runSummary: TaskRunSummary | null }
 
 export const TaskRunLogEntitySchema = z.strictObject({
@@ -212,8 +214,8 @@ export const TaskRunLogEntitySchema = z.strictObject({
   startedAt: z.string(),
   /** null while unfinished and for runs that never started (no queue-wait shown as duration). */
   durationMs: z.number().nullable(),
-  /** JobStatus terminal set + 'running' (pending/delayed collapse to 'running' for display). */
-  status: z.enum(['running', 'completed', 'failed', 'cancelled']),
+  /** Display outcomes. Pending and delayed runs are shown as running. */
+  status: z.enum(['running', 'completed', 'failed', 'cancelled', 'skipped']),
   result: z.string().nullable().optional(),
   error: z.string().nullable().optional()
 })
@@ -228,10 +230,9 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
  *
  * `configuration` is itself a partial: callers send only the first-level keys
  * they intend to change, and AgentService shallow-merges them onto the latest
- * persisted configuration inside the write transaction. Nested values such as
- * `env_vars` still replace as a whole, except `prompt_overrides`, which merges
- * block by block. An explicitly present `undefined` value removes that
- * configuration key; omission preserves it.
+ * persisted configuration inside the write transaction. `localRuntime` merges per field
+ * and `prompt_overrides` per block. Other nested values such as `env_vars` replace as a whole.
+ * An explicitly present `undefined` removes a key; omission preserves it.
  */
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS)
   .partial()
@@ -241,7 +242,18 @@ export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS)
     planModel: UniqueModelIdSchema.nullable().optional(),
     smallModel: UniqueModelIdSchema.nullable().optional(),
     configuration: AgentConfigurationSchema.partial()
-      .extend({ prompt_overrides: AgentPromptOverridesPatchSchema.optional() })
+      .extend({
+        prompt_overrides: AgentPromptOverridesPatchSchema.optional(),
+        localRuntime: LocalAgentConfigurationSchema.partial()
+          // PATCH must not apply creation defaults to omitted fields.
+          .extend({
+            prompt_overrides: AgentPromptOverridesPatchSchema.optional(),
+            enabled: LocalAgentConfigurationSchema.shape.enabled.removeDefault().optional(),
+            args: LocalAgentConfigurationSchema.shape.args.removeDefault().optional(),
+            env: LocalAgentConfigurationSchema.shape.env.removeDefault().optional()
+          })
+          .optional()
+      })
       .optional(),
     /** Validation basis for `configuration.reasoning_effort` normalization: the model the caller is actually steering (a session-level override when set). Omitted falls back to the agent's (possibly patched) model (cherry-pr-review inv_98911732422a84bf). */
     reasoningValidationModelId: UniqueModelIdSchema.optional(),

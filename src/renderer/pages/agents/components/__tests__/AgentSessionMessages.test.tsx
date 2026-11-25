@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -45,6 +45,28 @@ describe('AgentSessionMessages', () => {
     ipcRequestMock.mockClear()
   })
 
+  it('normalizes blank agent avatars before passing the assistant profile to the message list', () => {
+    render(
+      <AgentSessionMessages
+        agentId="agent-1"
+        sessionId="session-1"
+        messages={[]}
+        activeAgent={{ id: 'agent-1', name: 'Blank avatar agent', configuration: { avatar: '   ' } } as any}
+        partsByMessageId={{}}
+        isLoading={false}
+      />
+    )
+
+    expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assistantProfile: expect.objectContaining({
+          name: 'Blank avatar agent',
+          avatar: '🤖'
+        })
+      })
+    )
+  })
+
   it('uses the active session workspace path for message actions', () => {
     render(
       <AgentSessionMessages
@@ -60,6 +82,23 @@ describe('AgentSessionMessages', () => {
     expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
       expect.objectContaining({ workspacePath: '/Users/alice/Data/Agents/agent-1/session-1' })
     )
+  })
+
+  it('opens archived local tasks using only known capabilities', async () => {
+    const checked = vi.fn()
+    const view = render(
+      <AgentSessionMessages
+        agentId="local"
+        sessionId="session-1"
+        messages={[]}
+        partsByMessageId={{}}
+        isLoading={false}
+        onLocalRestoreChecked={checked}
+      />
+    )
+    await waitFor(() => expect(checked).toHaveBeenCalledWith(false))
+    view.unmount()
+    expect(ipcRequestMock.mock.calls).toEqual([['ai.local_agents.session_info', { sessionId: 'session-1' }]])
   })
 
   it('can mount and unmount a history view without issuing an execution command', () => {

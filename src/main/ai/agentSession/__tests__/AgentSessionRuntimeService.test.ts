@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => ({
   getStoredMessagePart: vi.fn(),
   getStoredMessageParts: vi.fn(),
   findStoredToolOwners: vi.fn(),
+  hasSessionMessages: vi.fn<(_sessionId: string) => boolean>(),
   hasSessionMessage: vi.fn<(_sessionId: string, _messageId: string) => boolean>(() => true),
   applyToolApprovalDecision: vi.fn(),
   retireAbandonedApproval: vi.fn(),
@@ -61,12 +62,14 @@ const mocks = vi.hoisted(() => ({
   suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
+  broadcast: vi.fn(),
   resolveToolApproval: vi.fn(),
   retireToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
+  cachePersist: new Map<string, unknown>(),
   closeWarmQueries: vi.fn(),
 
   closeWarmSession: vi.fn().mockResolvedValue(undefined),
@@ -136,6 +139,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getStoredMessagePart: mocks.getStoredMessagePart,
     getStoredMessageParts: mocks.getStoredMessageParts,
     findStoredToolOwners: mocks.findStoredToolOwners,
+    hasSessionMessages: mocks.hasSessionMessages,
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     retireAbandonedApproval: mocks.retireAbandonedApproval,
@@ -565,6 +569,7 @@ describe('AgentSessionRuntimeService', () => {
     runtimeDriverRegistry.clearForTest()
     toolApprovalRegistry.clear('test-reset')
     vi.clearAllMocks()
+    mocks.cachePersist.clear()
     mocks.sharesBranch.mockReturnValue(true)
     mocks.saveMessage.mockImplementation(({ message }) => ({
       ...message,
@@ -617,7 +622,11 @@ describe('AgentSessionRuntimeService', () => {
         return {
           setShared: mocks.cacheSetShared,
           getShared: mocks.cacheGetShared,
-          deleteShared: mocks.cacheDeleteShared
+          deleteShared: mocks.cacheDeleteShared,
+          getPersist: vi.fn((key: string) => mocks.cachePersist.get(key) ?? {}),
+          setPersist: vi.fn((key: string, value: unknown) => {
+            mocks.cachePersist.set(key, value)
+          })
         }
       if (name === 'ClaudeCodeBinaryService') return { getStatus: () => ({ phase: 'ready' }) }
       if (name === 'ClaudeCodeWarmQueryManager')
@@ -628,6 +637,7 @@ describe('AgentSessionRuntimeService', () => {
         }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
       if (name === 'WindowManager') return { getWindow: mocks.getWindow }
+      if (name === 'IpcApiService') return { broadcast: mocks.broadcast, send: vi.fn(), broadcastToType: vi.fn() }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -775,6 +785,19 @@ describe('AgentSessionRuntimeService', () => {
     expect(() => service.assertSessionEditable('session-1')).not.toThrow()
   })
 
+  it('publishes null local capabilities when the owning connection is detached', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    mocks.broadcast.mockClear()
+    await service.closeSession('session-1')
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.local_agents.session_updated', {
+      sessionId: 'session-1',
+      info: null
+    })
+  })
+
   describe('runtime activity for detached work', () => {
     const activities = new Set<symbol>()
     let registration: MockInstance
@@ -889,7 +912,12 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       expect(service.respondToolApproval('approval-1', { approved: true })).toEqual({ ok: true })
       expect(resolve).toHaveBeenCalledWith({ approved: true })
-      expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1', true)
+      expect(mocks.resolveToolApproval).toHaveBeenCalledWith(
+        'agent-session:session-1',
+        'tool-call-1',
+        'approval-1',
+        true
+      )
     })
 
     it('settles a persisted background interaction before resolving the requesting agent', () => {
@@ -4982,6 +5010,326 @@ describe('AgentSessionRuntimeService', () => {
         modelId: baseTurnInput.modelId,
         result: unavailable
       })
+    })
+  })
+
+  it('restores the native session to change its mode without sending a turn', async () => {
+    const info = { models: [], images: false, resume: true }
+    const connection = {
+      ...createAsyncQueue<any>(),
+      send: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current'),
+      setMode: vi.fn().mockResolvedValue(info)
+    }
+    const connect = vi.fn().mockResolvedValue(connection)
+    runtimeDriverRegistry.register({ type: 'local', connect, validateSession: vi.fn() })
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'local', model: baseTurnInput.modelId })
+    mocks.getLastRuntimeResumeToken.mockReturnValue('previous-session')
+
+    const service = new AgentSessionRuntimeService()
+    await expect(service.setLocalMode('session-1', 'mode', 'default')).resolves.toEqual(info)
+    expect(connect).toHaveBeenCalledWith(expect.objectContaining({ resumeToken: 'previous-session' }))
+    expect(connection.setMode).toHaveBeenCalledWith('mode', 'default')
+    expect(connection.send).not.toHaveBeenCalled()
+    expect(service.inspect('session-1')?.status).toBe('idle')
+
+    service.beginTurn({ ...baseTurnInput, agentType: 'local' })
+    await expect(service.setLocalMode('session-1', 'mode', 'auto')).rejects.toThrow('busy')
+    expect(connection.setMode).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists local session mode and security overrides, replays them on reconnect, and supports pre-connect mode selection', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'local',
+      model: baseTurnInput.modelId,
+      configuration: { localRuntime: { protocol: 'claude', enabled: true, args: [], env: {} } }
+    })
+
+    const service = new AgentSessionRuntimeService()
+
+    // Blank session with no registered driver yet still accepts and persists valid Claude default mode.
+    const preConnect = await service.setLocalMode('session-1', 'claude-mode', 'plan')
+    expect(preConnect.mode?.currentValue).toBe('plan')
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.local_agents.session_updated', {
+      sessionId: 'session-1',
+      info: expect.objectContaining({ mode: expect.objectContaining({ id: 'claude-mode', currentValue: 'plan' }) })
+    })
+
+    // Reconnecting replays both persisted mode and security config options before publishing capabilities.
+    const replayedInfo = {
+      models: [],
+      images: true,
+      resume: true,
+      mode: {
+        id: 'claude-mode',
+        currentValue: 'default',
+        options: [
+          { value: 'default', name: 'Default' },
+          { value: 'plan', name: 'Plan' }
+        ]
+      },
+      configOptions: [{ id: 'allow_all', name: 'Allow All', type: 'boolean' as const, currentValue: false }]
+    }
+    const connection = {
+      ...createAsyncQueue<any>(),
+      send: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current'),
+      localSessionInfo: replayedInfo,
+      setMode: vi.fn(async (_configId: string, value: string) => {
+        replayedInfo.mode.currentValue = value
+        return replayedInfo
+      }),
+      setConfigOption: vi.fn(async (_configId: string, value: string | boolean) => {
+        replayedInfo.configOptions[0].currentValue = Boolean(value)
+        return replayedInfo
+      })
+    }
+    runtimeDriverRegistry.register({
+      type: 'local',
+      connect: vi.fn(async () => ({ ...connection, ...createAsyncQueue<AgentRuntimeEvent>() })),
+      validateSession: vi.fn()
+    })
+
+    // Save an allow_all security override after connecting, then simulate disconnect + reconnect.
+    await service.listSessionCommands('session-1')
+    expect(connection.setMode).toHaveBeenCalledWith('claude-mode', 'plan')
+    await service.setLocalConfigOption('session-1', 'allow_all', true)
+    await service.closeSession('session-1')
+
+    connection.setMode.mockClear()
+    connection.setConfigOption.mockClear()
+    replayedInfo.mode.currentValue = 'default'
+    replayedInfo.configOptions[0].currentValue = false
+    mocks.broadcast.mockClear()
+
+    await service.listSessionCommands('session-1')
+    expect(connection.setMode).toHaveBeenCalledWith('claude-mode', 'plan')
+    expect(connection.setConfigOption).toHaveBeenCalledWith('allow_all', true)
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.local_agents.session_updated', {
+      sessionId: 'session-1',
+      info: expect.objectContaining({
+        mode: expect.objectContaining({ currentValue: 'plan' }),
+        configOptions: [expect.objectContaining({ id: 'allow_all', currentValue: true })]
+      })
+    })
+  })
+
+  it('persists and replays generic permission config option IDs across reconnect while leaving non-permission configs ephemeral', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'local',
+      model: baseTurnInput.modelId,
+      configuration: { localRuntime: { protocol: 'acp', enabled: true, args: [], env: {} } }
+    })
+
+    const service = new AgentSessionRuntimeService()
+    const replayedInfo = {
+      models: [],
+      images: false,
+      resume: true,
+      configOptions: [
+        {
+          id: 'permission_mode',
+          name: 'Permission Mode',
+          type: 'select' as const,
+          currentValue: 'default',
+          options: [
+            { value: 'default', name: 'Default' },
+            { value: 'bypassPermissions', name: 'Bypass Permissions' }
+          ]
+        },
+        {
+          id: 'approval_mode',
+          name: 'Approval Mode',
+          type: 'select' as const,
+          currentValue: 'ask',
+          options: [
+            { value: 'ask', name: 'Ask' },
+            { value: 'yolo', name: 'YOLO' }
+          ]
+        },
+        {
+          id: 'permissions',
+          name: 'Permissions',
+          type: 'select' as const,
+          currentValue: 'default',
+          options: [
+            { value: 'default', name: 'Default' },
+            { value: 'accept-edits', name: 'Accept Edits' }
+          ]
+        },
+        {
+          id: 'verbosity',
+          name: 'Verbosity',
+          type: 'select' as const,
+          currentValue: 'brief',
+          options: [
+            { value: 'brief', name: 'Brief' },
+            { value: 'verbose', name: 'Verbose' }
+          ]
+        }
+      ]
+    }
+    const connection = {
+      ...createAsyncQueue<any>(),
+      send: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current'),
+      localSessionInfo: replayedInfo,
+      setConfigOption: vi.fn(async (configId: string, value: string | boolean) => {
+        const option = replayedInfo.configOptions.find((item) => item.id === configId)
+        if (option) option.currentValue = String(value)
+        return replayedInfo
+      })
+    }
+    runtimeDriverRegistry.register({
+      type: 'local',
+      connect: vi.fn(async () => ({ ...connection, ...createAsyncQueue<AgentRuntimeEvent>() })),
+      validateSession: vi.fn()
+    })
+
+    await service.listSessionCommands('session-1')
+    await service.setLocalConfigOption('session-1', 'permission_mode', 'bypassPermissions')
+    await service.setLocalConfigOption('session-1', 'approval_mode', 'yolo')
+    await service.setLocalConfigOption('session-1', 'permissions', 'accept-edits')
+    await service.setLocalConfigOption('session-1', 'verbosity', 'verbose')
+    await service.closeSession('session-1')
+
+    connection.setConfigOption.mockClear()
+    replayedInfo.configOptions[0].currentValue = 'default'
+    replayedInfo.configOptions[1].currentValue = 'ask'
+    replayedInfo.configOptions[2].currentValue = 'default'
+    replayedInfo.configOptions[3].currentValue = 'brief'
+
+    await service.listSessionCommands('session-1')
+    expect(connection.setConfigOption).toHaveBeenCalledWith('permission_mode', 'bypassPermissions')
+    expect(connection.setConfigOption).toHaveBeenCalledWith('approval_mode', 'yolo')
+    expect(connection.setConfigOption).toHaveBeenCalledWith('permissions', 'accept-edits')
+    expect(connection.setConfigOption).not.toHaveBeenCalledWith('verbosity', expect.anything())
+  })
+
+  it('surfaces the underlying CLI reconnect error instead of unavailable/busy when priming a disconnected ACP session fails', async () => {
+    runtimeDriverRegistry.register({
+      type: 'local',
+      connect: vi.fn().mockRejectedValue(new Error('zcode backend reader exited (backend dead)')),
+      validateSession: vi.fn()
+    })
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'local',
+      model: baseTurnInput.modelId,
+      configuration: { localRuntime: { presetId: 'zcode', protocol: 'acp', enabled: true, args: [], env: {} } }
+    })
+
+    const service = new AgentSessionRuntimeService()
+    await expect(service.setLocalMode('session-1', 'mode', 'edit')).rejects.toThrow(
+      'zcode backend reader exited (backend dead)'
+    )
+  })
+
+  it('persists pre-connect thoughtLevel overrides, replays them on reconnect, and rebuilds idle DSH sessions on mode switch', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'local',
+      model: baseTurnInput.modelId,
+      configuration: { localRuntime: { presetId: 'claude', protocol: 'claude', enabled: true, args: [], env: {} } }
+    })
+
+    const service = new AgentSessionRuntimeService()
+    const preThought = await service.setLocalThoughtLevel('session-1', 'claude-effort', 'high')
+    expect(preThought.thoughtLevel?.currentValue).toBe('high')
+    expect(preThought.mode).toMatchObject({ id: 'claude-mode', currentValue: 'default' })
+
+    const replayedInfo = {
+      models: [],
+      images: true,
+      resume: true,
+      mode: { id: 'claude-mode', currentValue: 'default', options: [{ value: 'default', name: 'Default' }] },
+      thoughtLevel: {
+        id: 'claude-effort',
+        currentValue: 'default',
+        options: [
+          { value: 'default', name: 'Default' },
+          { value: 'high', name: 'High' }
+        ]
+      }
+    }
+    const setThoughtLevel = vi.fn(async (_id: string, val: string) => {
+      replayedInfo.thoughtLevel.currentValue = val
+      return replayedInfo
+    })
+    runtimeDriverRegistry.register({
+      type: 'local',
+      connect: vi.fn().mockResolvedValue({
+        ...createAsyncQueue<any>(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        localSessionInfo: replayedInfo,
+        setThoughtLevel
+      }),
+      validateSession: vi.fn()
+    })
+
+    await service.listSessionCommands('session-1')
+    expect(setThoughtLevel).toHaveBeenCalledWith('claude-effort', 'high')
+    await service.closeSession('session-1')
+
+    // DSH mode change persists override, closes an idle connection for next-turn env injection, and broadcasts mode.
+    mocks.cachePersist.clear()
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-dsh',
+      type: 'local',
+      model: baseTurnInput.modelId,
+      configuration: {
+        localRuntime: { presetId: 'deepseek-harness', protocol: 'acp', enabled: true, args: [], env: {} }
+      }
+    })
+    mocks.hasSessionMessages.mockReturnValue(true)
+    mocks.getSessionById.mockReturnValue({ id: 'session-dsh', agentId: 'agent-dsh', workspace: { path: '/workspace' } })
+    const dshClose = vi.fn()
+    runtimeDriverRegistry.register({
+      type: 'local',
+      connect: vi.fn().mockResolvedValue({
+        ...createAsyncQueue<any>(dshClose),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        localSessionInfo: {
+          models: [{ id: 'm1', name: 'Model 1' }],
+          images: false,
+          resume: true,
+          mode: {
+            id: 'dsh-mode',
+            currentValue: 'workspace-write',
+            options: [
+              { value: 'read-only', name: 'Read Only' },
+              { value: 'workspace-write', name: 'Workspace' },
+              { value: 'danger-full-access', name: 'Full Access' }
+            ]
+          }
+        }
+      }),
+      validateSession: vi.fn()
+    })
+    await service.listSessionCommands('session-dsh')
+    mocks.broadcast.mockClear()
+
+    const updatedDsh = await service.setLocalMode('session-dsh', 'dsh-mode', 'read-only')
+    expect(updatedDsh.mode?.currentValue).toBe('read-only')
+    expect(updatedDsh.models).toEqual([{ id: 'm1', name: 'Model 1' }])
+    expect(dshClose).toHaveBeenCalled()
+    expect(
+      (mocks.cachePersist.get('local_agent.session_overrides') as Record<string, any> | undefined)?.['session-dsh']
+        ?.mode
+    ).toEqual({
+      configId: 'dsh-mode',
+      value: 'read-only'
+    })
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.local_agents.session_updated', {
+      sessionId: 'session-dsh',
+      info: expect.objectContaining({ mode: expect.objectContaining({ id: 'dsh-mode', currentValue: 'read-only' }) })
     })
   })
 

@@ -1,22 +1,26 @@
 import type * as NodeChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
+import { MockMainPreferenceServiceExport } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
+import { parse } from 'yaml'
 
 import { BaseService } from '@main/core/lifecycle'
 import type * as ProcessRunner from '@main/utils/processRunner'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import type * as DeepSeekHarnessConfigModule from '../config'
 
 const mocks = vi.hoisted(() => ({
   execFile: vi.fn(),
+  executeCommand: vi.fn(),
   isWin: false,
   appGet: vi.fn(),
   appGetPath: vi.fn(),
@@ -29,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   gatewayStart: vi.fn(),
   gatewayEnsureKey: vi.fn(),
   gatewayGetConfig: vi.fn(),
+  gatewayCreateScoped: vi.fn(),
   broadcast: vi.fn(),
   setShared: vi.fn(),
   loggerWarn: vi.fn()
@@ -50,7 +55,8 @@ vi.mock('@main/core/platform', () => ({
 }))
 vi.mock('@main/utils/processRunner', async (importOriginal) => ({
   ...(await importOriginal<typeof ProcessRunner>()),
-  crossPlatformSpawn: mocks.spawn
+  crossPlatformSpawn: mocks.spawn,
+  executeCommand: mocks.executeCommand
 }))
 vi.mock('@main/utils/shellEnv', () => ({
   getRawShellEnv: vi.fn(async () => ({
@@ -140,6 +146,7 @@ describe('DeepSeekHarnessService', () => {
       if (key === 'feature.deepseek_harness.workspace') return '/mock/userData/Data/DeepSeekHarness/Workspace'
       throw new Error(`Unexpected application.getPath(${key})`)
     })
+    mocks.executeCommand.mockResolvedValue('')
     mocks.execFile.mockImplementation(
       (
         _file: string,
@@ -160,9 +167,11 @@ describe('DeepSeekHarnessService', () => {
         return {
           start: mocks.gatewayStart,
           ensureValidApiKey: mocks.gatewayEnsureKey,
-          getCurrentConfig: mocks.gatewayGetConfig
+          getCurrentConfig: mocks.gatewayGetConfig,
+          createScopedCredential: mocks.gatewayCreateScoped
         }
       }
+      if (name === 'PreferenceService') return MockMainPreferenceServiceExport.preferenceService
       if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
       if (name === 'CacheService') return { setShared: mocks.setShared }
       throw new Error(`Unexpected application.get(${name})`)
@@ -172,9 +181,16 @@ describe('DeepSeekHarnessService', () => {
     mocks.modelGet.mockReturnValue(model)
     mocks.writeConfig.mockResolvedValue({
       credentials: { path: '/mock/home/.dsh/.credentials.yaml', written: 'written credentials' },
-      settings: { path: '/mock/home/.dsh/settings.yaml', written: 'written settings' }
+      settings: { path: '/mock/home/.dsh/settings.yaml', written: 'written settings' },
+      profile: { path: '/mock/home/.dsh/cordis.patch.yml', written: 'written profile' },
+      headless: { path: '/mock/home/.dsh/profiles/headless/cordis.patch.yml', written: 'written headless profile' }
     })
     mocks.rollbackConfig.mockResolvedValue(true)
+    mocks.gatewayCreateScoped.mockImplementation(async ({ agentSessionId }) => ({
+      baseUrl: 'http://127.0.0.1:45555',
+      apiKey: `test-key-${agentSessionId}`,
+      dispose: vi.fn()
+    }))
     mocks.gatewayStart.mockResolvedValue(undefined)
     mocks.gatewayEnsureKey.mockResolvedValue('gateway-key')
     mocks.gatewayGetConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
@@ -205,6 +221,19 @@ describe('DeepSeekHarnessService', () => {
     })
     return child
   }
+
+  it('rejects raw configuration writes while its managed service is running', async () => {
+    spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+    const service = new DeepSeekHarnessService()
+    await service.start(startInput)
+    const write = vi.fn(async () => undefined)
+    try {
+      await expect(service.writeConfigFiles(write)).rejects.toThrow('DeepSeek Harness')
+      expect(write).not.toHaveBeenCalled()
+    } finally {
+      await service.stop()
+    }
+  })
 
   it('serializes concurrent starts into one child and confirms the ready URL with HTTP 200', async () => {
     spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
@@ -361,6 +390,143 @@ describe('DeepSeekHarnessService', () => {
     await service.stop()
   })
 
+  it('applies native defaults without starting a WebUI process', async () => {
+    const service = new DeepSeekHarnessService()
+    await service.applyModel(startInput)
+    expect(mocks.writeConfig).toHaveBeenCalledWith(
+      '/mock/home/.dsh',
+      expect.objectContaining({ modelId: 'claude-sonnet' })
+    )
+    expect(mocks.spawn).not.toHaveBeenCalled()
+    expect(service.getStatus()).toEqual({ status: 'stopped' })
+  })
+
+  it('prepares new ACP sessions with the gateway model saved by either picker', async () => {
+    const preferences = MockMainPreferenceServiceExport.preferenceService
+    const key = 'feature.code_cli.configs'
+    const previous = preferences.get(key)
+    const settings = { agentPreset: 'code', permissionMode: 'read-only' }
+    await preferences.set(key, {
+      [CodeCli.DEEPSEEK_HARNESS]: {
+        current: null,
+        providers: { [CLI_API_GATEWAY_PROVIDER_ID]: { modelId: null, config: settings } }
+      }
+    })
+    try {
+      const service = new DeepSeekHarnessService()
+      await service.selectGatewayModel(startInput.uniqueModelId)
+      expect(preferences.get(key)?.[CodeCli.DEEPSEEK_HARNESS]).toEqual({
+        current: CLI_API_GATEWAY_PROVIDER_ID,
+        providers: { [CLI_API_GATEWAY_PROVIDER_ID]: { modelId: startInput.uniqueModelId, config: settings } }
+      })
+      await expect(service.prepareAgent()).resolves.toEqual({
+        nativeModel: '["cherry-studio-codemate-gateway","anthropic:claude-sonnet"]'
+      })
+      expect(mocks.writeConfig).toHaveBeenLastCalledWith(
+        '/mock/home/.dsh',
+        expect.objectContaining({ modelId: 'anthropic:claude-sonnet', agentPreset: 'code' })
+      )
+    } finally {
+      await preferences.set(key, previous ?? {})
+    }
+  })
+
+  it('isolates gateway credentials for two ACP sessions using the same saved model', async () => {
+    const preferences = MockMainPreferenceServiceExport.preferenceService
+    const previous = preferences.get('feature.code_cli.configs')
+    const dir = await mkdtemp(path.join(tmpdir(), 'dsh-acp-'))
+    const home = path.join(dir, 'home')
+    const route = 'cherry-studio-codemate-gateway'
+    const { writeDeepSeekHarnessConfig } = await vi.importActual<typeof DeepSeekHarnessConfigModule>('../config')
+    mocks.appGetPath.mockImplementation((key: string, file?: string) => {
+      if (key === 'external.deepseek_harness.config') return home
+      if (key === 'app.temp') return path.join(dir, file ?? '')
+      throw new Error(`Unexpected application.getPath(${key})`)
+    })
+    for (let i = 0; i < 3; i++) mocks.writeConfig.mockImplementationOnce(writeDeepSeekHarnessConfig)
+    await mkdir(home)
+    await writeFile(
+      path.join(home, 'cordis.patch.yml'),
+      [
+        '- id: llm-pi-ai',
+        '  config:',
+        '    providers:',
+        '      another-route:',
+        '        api: openai-responses',
+        '        baseURL: https://example.org'
+      ].join('\n')
+    )
+
+    const service = new DeepSeekHarnessService()
+    try {
+      await service.selectGatewayModel(startInput.uniqueModelId)
+      const [first, second] = await Promise.all([service.prepareAgent('first'), service.prepareAgent('second')])
+      expect(first?.gateway?.env.CHERRY_DSH_ACP_GATEWAY_API_KEY).toBe('test-key-first')
+      expect(second?.gateway?.env.CHERRY_DSH_ACP_GATEWAY_API_KEY).toBe('test-key-second')
+      expect(first?.gateway?.patchPath).not.toBe(second?.gateway?.patchPath)
+      expect(mocks.gatewayCreateScoped.mock.calls.map(([scope]) => scope)).toEqual(
+        ['first', 'second'].map((agentSessionId) => ({
+          path: '/v1/chat/completions',
+          model: 'anthropic:claude-sonnet',
+          agentSessionId
+        }))
+      )
+      for (const launch of [first, second]) {
+        expect(launch?.nativeModel).toBe(JSON.stringify([route, 'anthropic:claude-sonnet']))
+        const overlay = await readFile(launch!.gateway!.patchPath, 'utf8')
+        expect(overlay).not.toContain(launch!.gateway!.env.CHERRY_DSH_ACP_GATEWAY_API_KEY)
+        expect(parse(overlay)).toEqual(
+          expect.arrayContaining([
+            { id: 'acp', config: { provider: route, model: 'anthropic:claude-sonnet' } },
+            {
+              id: 'llm-pi-ai',
+              config: {
+                providers: {
+                  'another-route': { api: 'openai-responses', baseURL: 'https://example.org' },
+                  [route]: expect.objectContaining({
+                    baseURL: 'http://127.0.0.1:45555/v1',
+                    apiKeyEnv: 'CHERRY_DSH_ACP_GATEWAY_API_KEY',
+                    models: [expect.objectContaining({ id: 'anthropic:claude-sonnet' })]
+                  })
+                }
+              }
+            }
+          ])
+        )
+      }
+      expect(await readFile(path.join(home, '.credentials.yaml'), 'utf8')).not.toContain('test-key-')
+      expect(await readFile(path.join(home, 'cordis.patch.yml'), 'utf8')).not.toContain('45555')
+      await first!.gateway!.dispose()
+      await expect(readFile(first!.gateway!.patchPath)).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(readFile(second!.gateway!.patchPath)).resolves.toBeDefined()
+      await second!.gateway!.dispose()
+    } finally {
+      await preferences.set('feature.code_cli.configs', previous)
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps the previous ACP default when writing the new gateway model fails', async () => {
+    const preferences = MockMainPreferenceServiceExport.preferenceService
+    const key = 'feature.code_cli.configs'
+    const previous = preferences.get(key)
+    const saved = {
+      [CodeCli.DEEPSEEK_HARNESS]: {
+        current: CLI_API_GATEWAY_PROVIDER_ID,
+        providers: { [CLI_API_GATEWAY_PROVIDER_ID]: { modelId: 'anthropic::previous' as const } }
+      }
+    }
+    await preferences.set(key, saved)
+    mocks.writeConfig.mockRejectedValueOnce(new Error('DSH config is read-only'))
+    try {
+      const service = new DeepSeekHarnessService()
+      await expect(service.selectGatewayModel(startInput.uniqueModelId)).rejects.toThrow('DSH config is read-only')
+      expect(preferences.get(key)).toEqual(saved)
+    } finally {
+      await preferences.set(key, previous ?? {})
+    }
+  })
+
   it('uses an enabled API key obtained through CherryIN-style OAuth in direct mode', async () => {
     mocks.providerGet.mockReturnValue({ ...provider, authType: 'oauth' })
     spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
@@ -459,14 +625,7 @@ describe('DeepSeekHarnessService', () => {
   it('records the dsh version with scrubbed env when launch fails', async () => {
     process.env.CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY = 'probe-secret'
     try {
-      mocks.execFile.mockImplementationOnce(
-        (
-          _file: string,
-          _args: string[],
-          _options: object,
-          callback: (error: Error | null, stdout: string, stderr: string) => void
-        ) => callback(null, '0.1.5-rc.1\n', '')
-      )
+      mocks.executeCommand.mockResolvedValueOnce('0.1.5-rc.1\n')
       spawnChild((child) => {
         child.stderr.write('boom\n')
         child.close(1, null)
@@ -474,13 +633,12 @@ describe('DeepSeekHarnessService', () => {
       const result = await new DeepSeekHarnessService().start(startInput)
 
       expect(result.success).toBe(false)
-      expect(mocks.execFile).toHaveBeenCalledWith(
+      expect(mocks.executeCommand).toHaveBeenCalledWith(
         '/usr/local/bin/dsh',
         ['--version'],
-        expect.objectContaining({ timeout: 3000, windowsHide: true }),
-        expect.any(Function)
+        expect.objectContaining({ timeout: 3000 })
       )
-      const probeEnv = mocks.execFile.mock.calls[0][2] as { env: NodeJS.ProcessEnv }
+      const probeEnv = mocks.executeCommand.mock.calls[0][2] as { env: NodeJS.ProcessEnv }
       expect(probeEnv.env).not.toHaveProperty('CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY')
       expect(mocks.loggerWarn).toHaveBeenCalledWith('DeepSeek Harness failed to start', {
         dshVersion: '0.1.5-rc.1'
@@ -491,14 +649,7 @@ describe('DeepSeekHarnessService', () => {
   })
 
   it('still reports the launch failure when the version probe fails', async () => {
-    mocks.execFile.mockImplementationOnce(
-      (
-        _file: string,
-        _args: string[],
-        _options: object,
-        callback: (error: Error | null, stdout: string, stderr: string) => void
-      ) => callback(new Error('spawn ENOENT'), '', '')
-    )
+    mocks.executeCommand.mockRejectedValueOnce(new Error('spawn ENOENT'))
     vi.mocked(fetch).mockResolvedValueOnce({
       status: 401,
       body: { cancel: vi.fn(async () => undefined) }

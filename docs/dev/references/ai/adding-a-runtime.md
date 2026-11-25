@@ -172,24 +172,19 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      - `compaction-start` / `compaction-complete` / `compaction-error`
        events if the runtime compacts its own history.
 
-3. **System prompt adapter** — call the runtime-neutral
+3. **System prompt adapter** — for Cherry-managed prompt runtimes, call the runtime-neutral
    `buildAgentPrompt()` from `src/main/ai/agents/prompt/buildAgentPrompt.ts`, then map its
-   `{ base, append }` result into the SDK's native prompt representation. Pass resolved
-   channel state and capability-gated citation guidance into the common materializer.
+   `{ base, append }` result into the SDK's native prompt representation. Pass references to callable tools and capability-gated citation guidance into the common materializer.
    Do not copy instruction precedence, built-in Agent fallback/provisioning, prompt-variable
    resolution, channel security, artifact reporting, or language guidance into the driver.
    Keep only native mechanics in the adapter: the SDK base prompt, cwd/project-context
    carrier, tool snippets, skills transport, and the representation of base/append.
    See [System prompt ownership](./agent-session-runtime.md#system-prompt-ownership).
 
-4. **Content producer** — choose one source per execution. Common runtime adapters
-   expose AI SDK `RuntimeMessage` values through observation. Native deltas use
-   `RuntimeMessageStream` before observer fanout; authoritative native snapshots
-   can produce messages directly. Main uses `ThreadMessageProjection` and product
-   decorators such as `pi/PiMessageMetadata.ts` and `claudeCode/ClaudeMessageMetadata.ts`,
-   then publishes replacement-aware product views. Keep lifecycle/approval controls separate;
-   do not produce the same text and tools through both sources. Import the transport
-   constant from the descriptor rather than re-declaring its string.
+4. **Content producer** — establish the native source in its execution context with
+   `message-projection` before the first live update. Address text, reasoning and tool
+   changes by source and block. Main owns durable part IDs and forwards changes to
+   subscribers. Publish approval, usage and lifecycle controls independently.
 
 5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
    (called from `AgentSessionRuntimeService.onInit`). Do **not** create a
@@ -199,6 +194,11 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 6. **Path keys** — if the runtime needs disk state (config home, session
    files), add `feature.agents.<name>.*` keys to the path registry
    (`src/main/core/paths/`) instead of building paths ad hoc.
+
+[Local CLI runtimes](./local-agent-runtime.md#ownership-and-routing) use native
+configuration. Their drivers may supply a provider-free `getExecutionId(agent)`
+(`undefined` makes the Agent unroutable). Set `sessionCostScope: 'native-session'`
+when cumulative cost follows the connection's resume token.
 
 ## Step 3 — renderer
 
@@ -214,7 +214,7 @@ known exceptions, only if you need them:
 
 These are the choices nothing enforces:
 
-- **Cherry prompt policy is runtime-neutral.** Every driver must consume
+- **Cherry prompt policy is runtime-neutral.** Every Cherry-managed prompt driver must consume
   `buildAgentPrompt()` rather than assembling its own Cherry policy. A runtime may
   supply native workspace/context mechanics, but it may not omit or fork instruction authority,
   built-in Agent resolution, channel security, citation/artifact guidance, or response language.

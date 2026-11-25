@@ -114,6 +114,8 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private messageOutputIndex: number | null = null
   private reasoning: ReasoningState | null = null
   private reasoningCount = 0
+  private readonly toClientToolName?: StreamAdapterOptions['toClientToolName']
+  private readonly resolveClientToolCall?: StreamAdapterOptions['resolveClientToolCall']
 
   override getMessageId(): string {
     return `resp_${this.state.messageId}`
@@ -123,6 +125,8 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     super(options)
     this.createdAt = Math.floor(Date.now() / 1000)
     this.outputItemId = `msg_${this.state.messageId}`
+    this.toClientToolName = options.toClientToolName
+    this.resolveClientToolCall = options.resolveClientToolCall
   }
 
   /**
@@ -468,6 +472,11 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       return
     }
 
+    const resolved = this.resolveClientToolCall?.(toolName) ?? {
+      name: this.toClientToolName?.(toolName) ?? toolName
+    }
+    const clientName = resolved.name
+
     // The reasoning that led to this call belongs before it in `output[]`.
     this.closeReasoningItem()
     const outputIndex = this.nextOutputIndex++
@@ -480,18 +489,19 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       outputIndex,
       itemId,
       callId: toolCallId,
-      name: toolName,
+      name: clientName,
       arguments: argsString
     })
 
-    const inProgressItem: ResponseFunctionToolCall = {
+    const inProgressItem = {
       type: 'function_call',
       id: itemId,
       call_id: toolCallId,
-      name: toolName,
+      name: clientName,
+      ...(resolved.namespace ? { namespace: resolved.namespace } : {}),
       arguments: '',
       status: 'in_progress'
-    }
+    } as ResponseFunctionToolCall
 
     this.emit({
       type: 'response.output_item.added',
@@ -512,7 +522,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       type: 'response.function_call_arguments.done',
       item_id: itemId,
       output_index: outputIndex,
-      name: toolName,
+      name: clientName,
       arguments: argsString,
       sequence_number: this.nextSequence()
     })

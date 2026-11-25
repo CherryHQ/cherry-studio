@@ -33,7 +33,12 @@ const REQUEST_UNIT_BYTES = 1024 * 1024
 const INTERNAL_REQUEST_BUDGET = 32
 
 /** What a scoped internal credential may call: one generation path, one model address. */
-export type InternalCredentialScope = { path: string; model: string }
+export type InternalCredentialScope = {
+  path: string
+  model: string
+  agentSessionId?: string
+  allowPublicCorrelation?: boolean
+}
 
 function presentedToken(headers: Headers): string | undefined {
   return (
@@ -574,22 +579,40 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  /** Agent session id of an unrestricted internal request; undefined for every other caller. */
-  getAgentSessionId(headers: Headers): string | undefined {
+  /** Agent session id of an internal request or a unique active turn for a bound public-key CLI session. */
+  getAgentSessionId(headers: Headers, model?: string): string | undefined {
     const token = presentedToken(headers)
-    if (!token || !isValidToken(token, this.internalApiKey)) return undefined
-    return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
+    if (!token) return undefined
+    const scope = this.scopedCredentials.get(token)
+    if (scope) return scope.agentSessionId
+    if (isValidToken(token, this.internalApiKey)) return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
+    if (!model || headers.has(AGENT_USAGE_CAPTURE_HEADER) || headers.has(AGENT_SESSION_ID_HEADER)) return undefined
+    const currentApiKey = this.getCurrentConfig().apiKey
+    if (typeof currentApiKey !== 'string' || !currentApiKey || !isValidToken(token, currentApiKey)) return undefined
+    const runtime = application.get('AgentSessionRuntimeService')
+    const activeSessionIds = new Set<string>()
+    for (const candidate of this.scopedCredentials.values()) {
+      if (!candidate.allowPublicCorrelation || !candidate.agentSessionId || candidate.model !== model) continue
+      if (runtime.getActiveUsageContext(candidate.agentSessionId)?.assistantMessageId) {
+        activeSessionIds.add(candidate.agentSessionId)
+      }
+    }
+    return activeSessionIds.size === 1 ? [...activeSessionIds][0] : undefined
   }
 
   /** Capture the reserved continuation or active turn of the requesting Agent session. */
-  resolveAgentSessionUsage(headers: Headers, responseId?: string): InProcessUsageContext | undefined {
-    const sessionId = this.getAgentSessionId(headers)
+  resolveAgentSessionUsage(headers: Headers, responseId?: string, model?: string): InProcessUsageContext | undefined {
+    const sessionId = this.getAgentSessionId(headers, model)
     if (!sessionId) return undefined
     const capture = headers.get(AGENT_USAGE_CAPTURE_HEADER)
     if (capture) {
       const usage = this.usageCaptures.get(capture)
       return usage?.agentSessionId === sessionId ? usage : undefined
     }
-    return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId, responseId)
+    const token = presentedToken(headers)
+    const isDirectInternal = !!token && isValidToken(token, this.internalApiKey)
+    return application
+      .get('AgentSessionRuntimeService')
+      .getActiveUsageContext(sessionId, isDirectInternal ? responseId : undefined)
   }
 }

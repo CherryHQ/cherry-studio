@@ -26,6 +26,8 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
         'agent.toolPermission.button.allow': 'Allow',
+        'local_agents.allow_always': '始终允许',
+        'local_agents.allow_once': '允许一次',
         'agent.toolPermission.button.allowOnce': 'Allow this invocation',
         'agent.toolPermission.workingDirectory': 'Working directory',
         'agent.toolPermission.policyEvidence': 'Matching command details',
@@ -98,6 +100,137 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
+  it('returns the original scoped native permission option', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'native-session-grant', kind: 'allow_always', name: 'Allow during this session' },
+        { optionId: 'native-deny', kind: 'reject_once', name: 'Reject this operation' }
+      ]
+    }
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.queryByRole('button', { name: 'Allow' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Allow during this session' }))
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: request.match,
+        approved: true,
+        updatedInput: { localPermissionOption: 'native-session-grant' }
+      })
+    )
+  })
+
+  it.each([
+    { allowName: 'Always Allow', rejectName: 'Reject' },
+    { allowName: 'Always allow', rejectName: 'Reject' },
+    { allowName: 'Allow Always', rejectName: 'Deny' },
+    { allowName: 'Allow Always (risky)', rejectName: 'Deny' }
+  ])('translates $allowName and $rejectName without widening custom grants', async ({ allowName, rejectName }) => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'allow_always', kind: 'allow_always', name: allowName },
+        { optionId: 'custom', kind: 'allow_always', name: 'Allow only /tmp/project' },
+        { optionId: 'reject', kind: 'reject_once', name: rejectName }
+      ]
+    }
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByRole('button', { name: 'Allow only /tmp/project' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Deny' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '始终允许' }))
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: request.match,
+        approved: true,
+        updatedInput: { localPermissionOption: 'allow_always' }
+      })
+    )
+  })
+
+  it('strips localPermissionOptions from generic tool previews outside native ACP payloads', () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      command: 'pnpm build',
+      localPermissionOptions: [{ optionId: 'session', kind: 'allow_always', name: 'Allow for session' }]
+    }
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByText(/pnpm build/)).toBeVisible()
+    expect(screen.queryByText(/localPermissionOptions/)).not.toBeInTheDocument()
+  })
+
+  it('shows the native ACP operation without its protocol envelope and returns the original grant ID', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localAcpTool: { title: 'Write report', rawInput: { file_path: '/tmp/report.txt', content: 'report body' } },
+      tool: { toolCallId: 'call-1' },
+      localPermissionOptions: [{ optionId: 'once', kind: 'allow_once', name: 'Allow once' }]
+    }
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByText('/tmp/report.txt')).toBeVisible()
+    expect(screen.getByText('report body')).toBeVisible()
+    expect(screen.queryByText('localAcpTool')).not.toBeInTheDocument()
+    expect(screen.queryByText('localPermissionOptions')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '允许一次' }))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: request.match,
+      approved: true,
+      updatedInput: { localPermissionOption: 'once' }
+    })
+  })
+
+  it('supports Enter/Esc shortcuts and emphasizes only the primary allow option for local options', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'allow-once', kind: 'allow_once', name: 'Allow once' },
+        { optionId: 'allow-session', kind: 'allow_always', name: 'Always allow' },
+        { optionId: 'deny-once', kind: 'reject_once', name: 'Reject' }
+      ]
+    }
+    const { rerender } = render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+
+    const primaryAllow = screen.getByRole('button', { name: '允许一次' })
+    const secondaryAllow = screen.getByRole('button', { name: '始终允许' })
+    const primaryReject = screen.getByRole('button', { name: 'Deny' })
+
+    expect(primaryAllow).toHaveTextContent('Enter')
+    expect(secondaryAllow).not.toHaveTextContent('Enter')
+    expect(primaryReject).toHaveTextContent('Esc')
+    expect(primaryAllow.className).toContain('bg-neutral-900')
+    expect(secondaryAllow.className).toContain('bg-secondary')
+    expect(primaryReject.className).toContain('border-border')
+
+    fireEvent.keyDown(document, { key: 'Enter' })
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: request.match,
+        approved: true,
+        updatedInput: { localPermissionOption: 'allow-once' }
+      })
+    )
+
+    const nextRequest = makeRequest({
+      approvalId: 'approval-2',
+      match: { ...makeRequest().match, approvalId: 'approval-2' }
+    })
+    nextRequest.toolResponse.arguments = request.toolResponse.arguments
+    rerender(<PermissionRequestComposer request={nextRequest} onRespond={onRespond} />)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: nextRequest.match,
+        approved: false,
+        updatedInput: { localPermissionOption: 'deny-once' }
+      })
+    )
+  })
+
   // Catch evidence disclosure accidentally granting permission through the global Enter shortcut.
   it('shows execution facts and lets the user inspect evidence before granting one invocation', async () => {
     const user = userEvent.setup()
@@ -601,5 +734,43 @@ describe('PermissionRequestComposer', () => {
       expect(await screen.findByText('agent.toolPermission.agent_config.error')).toBeInTheDocument()
       expect(screen.getByText('bypassPermissions')).toBeInTheDocument()
     })
+  })
+
+  it('renders ACP text content previews outside MessageListProvider without crashing', async () => {
+    render(
+      <PermissionRequestComposer
+        request={makeRequest({
+          toolResponse: {
+            id: 'acp-write-1',
+            toolCallId: 'acp-write-1',
+            status: 'pending',
+            arguments: {
+              localAcpTool: {
+                title: 'Write',
+                kind: 'edit',
+                status: 'pending',
+                content: [
+                  {
+                    type: 'content',
+                    content: {
+                      type: 'text',
+                      text: 'Requesting approval to write **tool_kimi.txt**'
+                    }
+                  }
+                ]
+              }
+            },
+            tool: {
+              id: 'ACP: WriteFile',
+              name: 'ACP: WriteFile',
+              type: 'builtin'
+            }
+          }
+        })}
+        onRespond={vi.fn()}
+      />
+    )
+
+    expect(await screen.findByText('tool_kimi.txt')).toBeInTheDocument()
   })
 })

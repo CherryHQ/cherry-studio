@@ -1,3 +1,4 @@
+import { SETTINGS_LIST_ICON_FRAME_CLASS } from '@renderer/components/icons/iconDisplayConfig'
 import { cn } from '@renderer/utils/style'
 
 /** Provider settings class compositions. Prefer Tailwind utilities and exported design tokens. */
@@ -80,8 +81,10 @@ export const providerListClasses = {
   itemIdentity: 'flex min-w-0 flex-1 items-center gap-2.5',
   itemDragHandle:
     'flex w-2.5 shrink-0 items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[dragging=true]:opacity-100',
-  itemAvatar:
-    'shrink-0 rounded-md border border-border-subtle [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]',
+  itemAvatar: cn(
+    SETTINGS_LIST_ICON_FRAME_CLASS,
+    '[&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]'
+  ),
   itemLabel:
     'min-w-0 truncate text-sm leading-[1.35] text-foreground font-normal group-data-[selected=true]/row:font-medium',
   itemTrailingSlot: 'relative -mr-1 ml-1 flex shrink-0 items-center justify-center',

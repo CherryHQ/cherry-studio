@@ -1300,3 +1300,79 @@ it.each([false, true])('retains approval=%s through native results, persistence 
   })
   expect(restored.parts(f.reply.id)).toEqual([expected])
 })
+
+it('keeps a late child tool flow on its originating reply during the next turn', async () => {
+  const f = await fixture()
+  const tool = {
+    type: 'dynamic-tool' as const,
+    toolName: 'Agent',
+    toolCallId: 'first-task',
+    input: {},
+    state: 'output-available' as const,
+    output: 'started'
+  }
+  await f.project([reply([tool])])
+  await f.emit({ type: 'turn-complete' })
+  const completed: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+  await f.handle.listeners[0].onDone(completed)
+  await f.handle.listeners[1].onDone(completed)
+
+  const user = savedUser(f.reply.id, 'Next request')
+  const second = messages.saveMessage({
+    sessionId: 'root',
+    parentId: user.id,
+    message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+  })
+  const handle = f.service.beginTurn({
+    sessionId: 'root',
+    topicId: 'agent-session:root',
+    agentId: 'agent',
+    agentType: 'pi',
+    modelId: 'test::model',
+    assistantMessageId: second.id,
+    userMessage: user
+  })
+  const stream = f.service.openTurnStream({
+    sessionId: 'root',
+    turnId: handle.turnId,
+    signal: handle.abortController.signal
+  })
+  const done = pipeMessageStream(
+    stream,
+    handle.abortController.signal,
+    { id: second.id, role: 'assistant' },
+    () => {},
+    () => {},
+    () => {}
+  )
+  await f.project([text('second', 'Foreground')])
+  const contextId = f.context.id
+  const ref = {
+    id: runtimeId<'item'>('child-result'),
+    session: { id: runtimeId<'thread'>(contextId), backendId: runtimeId<'backend'>('backend') }
+  }
+  await f.emit({
+    type: 'message-projection',
+    toolOwner: { toolCallId: tool.toolCallId, detached: true },
+    projection: {
+      contextId,
+      messages: [{ id: ref.id, role: 'assistant', parts: [] }],
+      live: [ref.id],
+      removed: [],
+      replaces: {}
+    }
+  })
+  await f.emit({
+    type: 'message.parts',
+    contextId,
+    ref,
+    changes: [
+      { type: 'open', kind: 'text', part: 0 },
+      { type: 'append', part: 0, text: 'Child finished' },
+      { type: 'finish', part: 0 }
+    ]
+  })
+  await f.emit({ type: 'turn-complete' })
+  expect((await done).finalMessage?.parts).toEqual(text('', 'Foreground').parts)
+  expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual([tool, ...text('', 'Child finished').parts])
+})

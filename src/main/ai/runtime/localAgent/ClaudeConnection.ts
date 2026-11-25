@@ -1,0 +1,560 @@
+import type { ChildProcess } from 'node:child_process'
+
+import { query, type Query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { FinishReason } from 'ai'
+import { parse as parsePartialJson } from 'partial-json'
+
+import { crossPlatformSpawn } from '@main/utils/processRunner'
+import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
+import {
+  CLAUDE_LOCAL_MODE_ID,
+  CLAUDE_LOCAL_MODE_OPTIONS,
+  CLAUDE_LOCAL_THOUGHT_LEVEL_ID,
+  CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS
+} from '@shared/ai/localAgent'
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
+import { AsyncEventQueue } from '@shared/utils/async'
+
+import { ClaudeCodeStreamAdapter } from '../claudeCode'
+import type { AgentRuntimeUserInput } from '../types'
+import {
+  acquireLocalAgentBrowserLease,
+  isHostBrowserControlAllowed,
+  LOCAL_AGENT_AUTOMATION_SERVER_NAME
+} from './browserBridge'
+import { bindLocalGatewayUsage } from './gatewayUsage'
+import { resolveLocalAgentLaunch } from './launch'
+import type { LocalAgentBrowserLease } from './LocalAgentMcpBridgeService'
+import { LocalConnection } from './LocalConnection'
+import { localContent } from './localContent'
+
+const CLAUDE_DEFAULT_COMMANDS: AgentSessionSlashCommand[] = [
+  { name: 'clear', description: 'Start a new conversation with empty context', argumentHint: '', builtin: true },
+  {
+    name: 'compact',
+    description: 'Free up context by summarizing the conversation so far',
+    argumentHint: '',
+    builtin: true
+  },
+  {
+    name: 'context',
+    description: 'Visualize current context usage as a colored grid',
+    argumentHint: '',
+    builtin: true
+  },
+  {
+    name: 'usage',
+    description: 'Show session cost, plan usage limits, and activity stats',
+    argumentHint: '',
+    builtin: true
+  },
+  {
+    name: 'goal',
+    description: 'Set a goal to work toward until it is completed',
+    argumentHint: '<goal>',
+    builtin: true
+  }
+]
+
+const UNSUPPORTED_CLAUDE_SLASH_COMMANDS = new Set([
+  '__remote-workflow',
+  'workflow-launch-exec',
+  'auto-mode-setup',
+  'color',
+  'design-consent',
+  'design-revoke',
+  'effort',
+  'fast',
+  'focus',
+  'heapdump',
+  'ultraplan',
+  'voice'
+])
+
+type ClaudePermissionModeValue = (typeof CLAUDE_LOCAL_MODE_OPTIONS)[number]['value']
+type ClaudeThoughtLevelValue = (typeof CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS)[number]['value']
+
+function filterClaudeSlashCommands(commands: AgentSessionSlashCommand[]): AgentSessionSlashCommand[] {
+  return commands.filter((command) => !UNSUPPORTED_CLAUDE_SLASH_COMMANDS.has(command.name))
+}
+
+export class ClaudeConnection extends LocalConnection {
+  private readonly processes = new Set<ChildProcess>()
+  private query?: Query
+  private resume?: string
+  private cwd = ''
+  private launch?: Awaited<ReturnType<typeof resolveLocalAgentLaunch>>
+  private gatewayLease?: { dispose: () => void }
+  private browserLease?: LocalAgentBrowserLease
+  private dynamicCommandsLoaded = false
+  private permissionModeOverride?: ClaudePermissionModeValue
+  private thoughtLevelOverride?: ClaudeThoughtLevelValue
+  private readonly sessionAllowedTools = new Set<string>()
+
+  override async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
+    if (!this.dynamicCommandsLoaded && !this.closed && this.launch) {
+      this.dynamicCommandsLoaded = true
+      const input = new AsyncEventQueue<SDKUserMessage>()
+      const stream = this.createQuery(input)
+      try {
+        const commands = filterClaudeSlashCommands(await stream.supportedCommands())
+        if (commands.length > 0) this.supportedCommands = commands
+      } catch {
+        // Older or unavailable CLIs can still use the built-in commands.
+      } finally {
+        input.close()
+        stream.close()
+      }
+    }
+    return this.supportedCommands
+  }
+
+  async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
+    this.cwd = cwd
+    this.resume = resume
+    this.launch = await resolveLocalAgentLaunch(this.config, this.abort.signal, false, this.headless)
+    if (!probe) {
+      this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, this.launch.env)
+      this.browserLease = await acquireLocalAgentBrowserLease({
+        sessionId: this.sessionId,
+        agentId: this.agentId,
+        config: this.config,
+        headless: this.headless,
+        signal: this.abort.signal,
+        isReadOnly: () => (this.permissionModeOverride ?? this.localSessionInfo.mode?.currentValue) === 'plan'
+      })
+    }
+    this.abort.signal.throwIfAborted()
+    if (probe) {
+      const input = new AsyncEventQueue<SDKUserMessage>()
+      const stream = this.createQuery(input)
+      try {
+        await stream.initializationResult()
+        if (probe === 'models')
+          this.localSessionInfo.models = (await stream.supportedModels()).map((model) => ({
+            id: model.value,
+            name: model.displayName
+          }))
+      } finally {
+        input.close()
+        stream.close()
+      }
+    } else {
+      this.supportedCommands = CLAUDE_DEFAULT_COMMANDS
+      this.localSessionInfo.mode = {
+        id: CLAUDE_LOCAL_MODE_ID,
+        currentValue: this.permissionModeOverride ?? 'default',
+        options: CLAUDE_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
+      }
+      this.localSessionInfo.thoughtLevel = {
+        id: CLAUDE_LOCAL_THOUGHT_LEVEL_ID,
+        currentValue: this.thoughtLevelOverride ?? 'default',
+        options: CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS.map((option) => ({ ...option }))
+      }
+    }
+    this.localSessionInfo.resume = true
+    this.localSessionInfo.images = true
+    return this
+  }
+
+  async setMode(configId: string, value: string) {
+    if (this.headless) throw new Error('Scheduled tasks use the agent configuration')
+    if (this.closed || this.active) throw new Error('Claude session is unavailable or busy')
+    const option = CLAUDE_LOCAL_MODE_OPTIONS.find((item) => item.value === value)
+    if (configId !== CLAUDE_LOCAL_MODE_ID || !option || !this.localSessionInfo.mode) {
+      throw new Error('This session option is no longer available')
+    }
+    this.permissionModeOverride = option.value
+    this.localSessionInfo.mode.currentValue = option.value
+    // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable Claude session state before queuing an event.
+    this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
+    return this.localSessionInfo
+  }
+
+  async setThoughtLevel(configId: string, value: string) {
+    if (this.closed || this.active) throw new Error('Claude session is unavailable or busy')
+    const option = CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS.find((item) => item.value === value)
+    if (configId !== CLAUDE_LOCAL_THOUGHT_LEVEL_ID || !option || !this.localSessionInfo.thoughtLevel) {
+      throw new Error('This session option is no longer available')
+    }
+    this.thoughtLevelOverride = option.value
+    this.localSessionInfo.thoughtLevel.currentValue = option.value
+    // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable Claude session state before queuing an event.
+    this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
+    return this.localSessionInfo
+  }
+
+  private createQuery(prompt: string | AsyncIterable<SDKUserMessage>) {
+    if (!this.launch) throw new Error('Claude executable is unavailable')
+    return query({
+      prompt,
+      options: {
+        cwd: this.cwd,
+        pathToClaudeCodeExecutable: this.launch.executable,
+        env: this.launch.env,
+        spawnClaudeCodeProcess: (options) => {
+          const child = crossPlatformSpawn(options.command, [...options.args, ...(this.launch?.args ?? [])], {
+            cwd: options.cwd,
+            env: options.env,
+            signal: options.signal,
+            detached: process.platform !== 'win32'
+          })
+          if (!child.stdin || !child.stdout) throw new Error('Claude stdio is unavailable')
+          child.stderr?.resume()
+          this.processes.add(child)
+          child.once('exit', () => this.processes.delete(child))
+          return Object.assign(child, { stdin: child.stdin, stdout: child.stdout })
+        },
+        settingSources: this.headless ? [] : ['user', 'project', 'local'],
+        model: this.config.nativeModel ?? (this.headless ? this.launch.nativeModel : undefined),
+        ...(!this.headless && this.browserLease
+          ? {
+              mcpServers: {
+                [LOCAL_AGENT_AUTOMATION_SERVER_NAME]: {
+                  type: 'http' as const,
+                  url: this.browserLease.url,
+                  headers: { ...this.browserLease.headers }
+                }
+              }
+            }
+          : {}),
+        ...(this.thoughtLevelOverride && this.thoughtLevelOverride !== 'default'
+          ? { effort: this.thoughtLevelOverride }
+          : {}),
+        ...(this.headless
+          ? {
+              permissionMode: 'dontAsk' as const,
+              tools: ['Read', 'Glob', 'Grep'],
+              strictMcpConfig: true
+            }
+          : this.permissionModeOverride
+            ? {
+                permissionMode: this.permissionModeOverride,
+                ...(this.permissionModeOverride === 'bypassPermissions'
+                  ? { allowDangerouslySkipPermissions: true }
+                  : {})
+              }
+            : {}),
+        resume: this.resume,
+        includePartialMessages: true,
+        canUseTool: async (name, input, options) => {
+          if (this.headless) {
+            return { behavior: 'deny' as const, message: this.denyUnattendedRequest().reason }
+          }
+          if (
+            this.browserLease &&
+            (name === `mcp__${LOCAL_AGENT_AUTOMATION_SERVER_NAME}__js` ||
+              name === `mcp__${LOCAL_AGENT_AUTOMATION_SERVER_NAME}__reset`)
+          ) {
+            return isHostBrowserControlAllowed(this.config)
+              ? { behavior: 'allow' as const, updatedInput: input }
+              : { behavior: 'deny' as const, message: 'Built-in browser control is disabled' }
+          }
+          if (name === 'AskUserQuestion') {
+            const answer = await this.approve(options.toolUseID, name, input, options.signal)
+            return answer.approved
+              ? { behavior: 'allow' as const, updatedInput: answer.updatedInput ?? input }
+              : { behavior: 'deny' as const, message: answer.reason ?? 'Denied by user' }
+          }
+
+          const effectiveMode = this.permissionModeOverride ?? this.localSessionInfo.mode?.currentValue
+          if (effectiveMode === 'bypassPermissions' || this.sessionAllowedTools.has(name)) {
+            return { behavior: 'allow' as const, updatedInput: input }
+          }
+
+          const answer = await this.approve(
+            options.toolUseID,
+            name,
+            {
+              ...input,
+              localPermissionOptions: [
+                { optionId: 'allow', name: 'Allow', label: 'allow' as const, kind: 'allow_once' as const },
+                {
+                  optionId: 'allow_session',
+                  name: 'Allow for session',
+                  label: 'allow_session' as const,
+                  kind: 'allow_always' as const
+                },
+                { optionId: 'deny', name: 'Deny', label: 'deny' as const, kind: 'reject_once' as const }
+              ]
+            },
+            options.signal
+          )
+          if (!answer.approved) {
+            return { behavior: 'deny' as const, message: answer.reason ?? 'Denied by user' }
+          }
+          if (answer.updatedInput?.localPermissionOption === 'allow_session') {
+            this.sessionAllowedTools.add(name)
+            const updatedPermissions = options.suggestions?.map((rule) => ({
+              ...rule,
+              destination: 'session' as const
+            }))
+            return {
+              behavior: 'allow' as const,
+              updatedInput: input,
+              ...(updatedPermissions?.length ? { updatedPermissions } : {})
+            }
+          }
+          return { behavior: 'allow' as const, updatedInput: input }
+        }
+      }
+    })
+  }
+  async send(input: AgentRuntimeUserInput) {
+    const content = await localContent(input, this.localSessionInfo.images)
+    const messages = new AsyncEventQueue<SDKUserMessage>()
+    messages.push({
+      type: 'user',
+      session_id: this.resume ?? '',
+      parent_tool_use_id: null,
+      message: {
+        role: 'user',
+        content: content.map((part) =>
+          part.type === 'text'
+            ? part
+            : {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: part.mimeType as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp',
+                  data: part.data
+                }
+              }
+        )
+      }
+    })
+    const root = this.begin(input.message.id, this.resume)
+    const flows = new Map<string, typeof root>()
+    let stream: Query | undefined
+    let finishReason: FinishReason = 'stop'
+    let completed = false
+    let failure: unknown
+    const textParts = new Map<string, number>()
+    const inputJson = new Map<string, string>()
+    const accept = (chunk: CherryUIMessageChunk, source = root) => {
+      switch (chunk.type) {
+        case 'text-start':
+        case 'reasoning-start': {
+          const part = source.nextPart++
+          textParts.set(chunk.id, part)
+          this.editPart(
+            {
+              type: 'open',
+              part,
+              kind: chunk.type === 'text-start' ? 'text' : 'reasoning',
+              providerMetadata: chunk.providerMetadata
+            },
+            source
+          )
+          break
+        }
+        case 'text-delta':
+        case 'reasoning-delta':
+        case 'text-end':
+        case 'reasoning-end': {
+          const part = textParts.get(chunk.id)
+          if (part === undefined) break
+          if ('delta' in chunk) this.editPart({ type: 'append', part, text: chunk.delta }, source)
+          else {
+            textParts.delete(chunk.id)
+            this.editPart({ type: 'finish', part, providerMetadata: chunk.providerMetadata }, source)
+          }
+          break
+        }
+        case 'tool-input-start':
+        case 'tool-input-available': {
+          const metadata = chunk.providerMetadata
+          const cherry = metadata?.cherry
+          const callProviderMetadata = {
+            ...metadata,
+            cherry: {
+              ...(typeof cherry === 'object' && !Array.isArray(cherry) ? cherry : {}),
+              localAgentProtocol: 'claude'
+            }
+          }
+          if (chunk.type === 'tool-input-available') inputJson.delete(chunk.toolCallId)
+          this.putTool(
+            {
+              type: 'dynamic-tool',
+              toolCallId: chunk.toolCallId,
+              toolName: chunk.toolName,
+              title: chunk.title,
+              providerExecuted: chunk.providerExecuted,
+              callProviderMetadata,
+              ...(chunk.type === 'tool-input-start'
+                ? { state: 'input-streaming', input: undefined }
+                : { state: 'input-available', input: chunk.input })
+            },
+            source
+          )
+          break
+        }
+        case 'tool-input-delta': {
+          const slot = this.tools.get(chunk.toolCallId)
+          if (slot?.value.state !== 'input-streaming') break
+          const json = (inputJson.get(chunk.toolCallId) ?? '') + chunk.inputTextDelta
+          inputJson.set(chunk.toolCallId, json)
+          try {
+            this.putTool({ ...slot.value, input: parsePartialJson(json) }, source)
+          } catch {
+            // The next fragment may complete the first JSON token.
+          }
+          break
+        }
+        case 'tool-output-available':
+        case 'tool-output-error': {
+          const cherry = chunk.providerMetadata?.cherry
+          this.result(
+            chunk.toolCallId,
+            'output' in chunk ? chunk.output : chunk.errorText,
+            chunk.type === 'tool-output-error',
+            {
+              ...chunk.providerMetadata,
+              cherry: {
+                ...(typeof cherry === 'object' && !Array.isArray(cherry) ? cherry : {}),
+                localAgentProtocol: 'claude'
+              }
+            }
+          )
+          break
+        }
+        case 'tool-output-denied': {
+          const tool = this.tools.get(chunk.toolCallId)?.value
+          if (tool)
+            this.putTool({
+              type: 'dynamic-tool',
+              toolName: tool.toolName,
+              toolCallId: tool.toolCallId,
+              input: tool.input,
+              callProviderMetadata: tool.callProviderMetadata,
+              state: 'output-denied',
+              approval: { id: tool.approval?.id ?? chunk.toolCallId, approved: false }
+            })
+          break
+        }
+        case 'finish':
+        case 'message-metadata': {
+          if (chunk.type === 'finish') finishReason = chunk.finishReason ?? 'stop'
+          const stats = chunk.messageMetadata?.stats
+          if (stats) this.events.push({ type: 'message-metadata', messageMetadata: { stats } })
+          break
+        }
+        case 'data-agent-task-event':
+          this.putData(chunk, source.nextPart++, source)
+          break
+      }
+    }
+    const adapter = new ClaudeCodeStreamAdapter({
+      sessionId: this.sessionId,
+      streamOptions: { prompt: [] },
+      sink: { enqueue: accept },
+      statusSink: {
+        emit: (event) => {
+          // Closing the query at turn end also ends its background work.
+          if (event.type === 'background-flow-chunk') {
+            let source = flows.get(event.rootToolCallId)
+            if (!source) {
+              source = this.openSource({ toolCallId: event.rootToolCallId, detached: event.detached })
+              flows.set(event.rootToolCallId, source)
+            }
+            accept(event.chunk, source)
+          } else if (event.type !== 'background-work-state' && event.type !== 'autonomous-turn-state')
+            this.events.push(event)
+        }
+      },
+      onSessionId: (token) => {
+        if (token === this.resume) return
+        this.resume = token
+        this.publishResumeToken(token)
+      }
+    })
+    adapter.beginTurn()
+    try {
+      stream = this.createQuery(messages)
+      this.query = stream
+      const commands = filterClaudeSlashCommands(await stream.supportedCommands())
+      if (commands.length > 0) this.publishCommands(commands)
+      this.localSessionInfo.models = (await stream.supportedModels()).map((m) => ({ id: m.value, name: m.displayName }))
+      for await (const message of stream) {
+        if (
+          !this.permissionModeOverride &&
+          message.type === 'system' &&
+          'subtype' in message &&
+          message.subtype === 'init' &&
+          'permissionMode' in message
+        ) {
+          const reported = CLAUDE_LOCAL_MODE_OPTIONS.find((option) => option.value === message.permissionMode)?.value
+          if (reported && this.localSessionInfo.mode && this.localSessionInfo.mode.currentValue !== reported) {
+            this.localSessionInfo.mode.currentValue = reported
+            // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable Claude session state before queuing an event.
+            this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
+          }
+        }
+        if (
+          message.type === 'assistant' &&
+          !message.parent_tool_use_id &&
+          message.message.model &&
+          message.message.model !== '<synthetic>'
+        ) {
+          this.localSessionInfo.activeModel = { id: message.message.model }
+        }
+        if (
+          message.type === 'system' &&
+          'subtype' in message &&
+          (message as { subtype?: string }).subtype === 'session_title_changed' &&
+          'title' in message &&
+          typeof (message as { title?: unknown }).title === 'string'
+        ) {
+          this.events.push({ type: 'session-title', title: (message as { title: string }).title })
+          continue
+        }
+        if (
+          message.type === 'result' &&
+          'local_command' in message &&
+          (message as { local_command?: string }).local_command === 'clear'
+        ) {
+          this.content('Started a new conversation with empty context.')
+        }
+        if (adapter.handleMessage(message).type === 'result') {
+          if (
+            this.headless &&
+            message.type === 'result' &&
+            !message.is_error &&
+            message.permission_denials?.length &&
+            !this.abort.signal.aborted
+          ) {
+            failure ??= Object.assign(new Error('Claude denied a tool request during this scheduled task'), {
+              providerErrorCategory: 'permission'
+            })
+          }
+          completed = true
+          break
+        }
+      }
+      if (!completed) throw new Error('Claude exited before completing the turn')
+    } catch (error) {
+      adapter.finalizeOpenTextParts()
+      failure = error
+    } finally {
+      messages.close()
+      stream?.close()
+      if (this.query === stream) this.query = undefined
+      this.finish(failure, finishReason)
+    }
+  }
+  protected async stop() {
+    if (this.active && this.query) {
+      void this.query.interrupt().catch(() => {})
+      await this.waitForTurn()
+    }
+    this.query?.close()
+    await Promise.all([...this.processes].map((child) => this.stopProcess(child)))
+  }
+  protected override dispose() {
+    void this.browserLease?.dispose().catch(() => {})
+    this.browserLease = undefined
+    this.gatewayLease?.dispose()
+    this.gatewayLease = undefined
+    super.dispose()
+  }
+}

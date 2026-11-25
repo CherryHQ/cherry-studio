@@ -62,7 +62,9 @@ export async function pipeMessageStream(
         metadata = {
           ...header.metadata,
           ...chunk.messageMetadata,
-          stats: { ...header.metadata?.stats, ...chunk.messageMetadata.stats }
+          ...('stats' in chunk.messageMetadata && {
+            stats: { ...header.metadata?.stats, ...chunk.messageMetadata.stats }
+          })
         }
         header = { ...header, metadata }
       }

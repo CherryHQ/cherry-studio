@@ -21,6 +21,7 @@ import { ensureAgentSessionRootTx, getAgentSessionHead } from './agentSessionMes
 import { agentSessionService } from './AgentSessionService'
 
 const locatorSchema = z.discriminatedUnion('kind', [
+  z.object({ version: z.literal(1), kind: z.literal('local'), agentId: z.string().min(1) }),
   z.object({ version: z.literal(1), kind: z.literal('pi') }),
   z.object({
     version: z.literal(1),

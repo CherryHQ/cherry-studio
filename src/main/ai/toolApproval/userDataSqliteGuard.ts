@@ -23,6 +23,7 @@ const PI_TOOL_BINDING = {
 } satisfies ToolBinding
 
 const TOOL_BINDINGS = {
+  local: { pathFields: {}, shellFields: {} },
   'claude-code': {
     pathFields: {
       Write: 'file_path',

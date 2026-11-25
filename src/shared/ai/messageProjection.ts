@@ -1,8 +1,8 @@
 import { isEqual, omit } from 'es-toolkit'
 
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { DeferredToolResultRef } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { ErrorPartData } from '@shared/data/types/uiParts'
 
 export type ProjectionTarget =
@@ -21,7 +21,7 @@ export interface ChildProjectionState {
 }
 
 export type ProjectedExecution = {
-  executionId: UniqueModelId
+  executionId: ExecutionId
   attemptId: number
   userMessageId?: string
   anchorMessageId?: string
