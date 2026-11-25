@@ -510,6 +510,11 @@ export class LocalAgentInstallService extends BaseService {
     this.abort.abort()
     await Promise.all(
       [...this.children].map(async (child) => {
+        if (process.platform === 'win32') {
+          await terminateProcessTree(child, true, 'local agent installation')
+          await waitForProcessExit(child, 1000)
+          return
+        }
         await terminateProcessTree(child, false, 'local agent installation')
         if (!(await waitForProcessExit(child, 1000)))
           await terminateProcessTree(child, true, 'local agent installation')

@@ -231,6 +231,14 @@ export class HermesDashboardService extends BaseService {
     }
     this.stoppingChild = child
     try {
+      if (process.platform === 'win32') {
+        // Headless Windows console trees ignore non-forced taskkill /T, avoiding a 3s stall on stop.
+        await terminateProcessTree(child, true, 'Hermes Dashboard')
+        if (!(await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS))) {
+          throw new Error('Hermes Dashboard did not exit after forced termination')
+        }
+        return
+      }
       await terminateProcessTree(child, false, 'Hermes Dashboard')
       if (await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS)) return
 

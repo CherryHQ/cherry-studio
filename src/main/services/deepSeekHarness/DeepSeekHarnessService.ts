@@ -474,6 +474,14 @@ export class DeepSeekHarnessService extends BaseService {
     const child = this.child
     if (!child) return
     this.stoppingChild = child
+    if (process.platform === 'win32') {
+      // Headless Windows console trees ignore non-forced taskkill /T, avoiding a 3s stall on stop.
+      await terminateProcessTree(child, true, 'DeepSeek Harness')
+      if (!(await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS))) {
+        throw new Error('DeepSeek Harness did not exit after forced termination')
+      }
+      return
+    }
     await terminateProcessTree(child, false, 'DeepSeek Harness')
     if (await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS)) return
 
