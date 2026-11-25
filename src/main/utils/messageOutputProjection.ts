@@ -28,6 +28,7 @@ import {
   isPersistedToolOutput
 } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { hasMcpAppResult } from '@shared/types/mcpApp'
 
 /** Serialized UTF-8 size at or below which a result travels inline. */
 export const DEFER_TOOL_OUTPUT_BYTES = 32 * 1024
@@ -248,16 +249,17 @@ function projectToolOutputForRenderer(output: unknown, ref: DeferredToolResultRe
   const serialized = isPersisted ? JSON.stringify(output) : serializeOversizedToolOutput(output)
   if (serialized === undefined) return output
   const versionedRef = { ...ref, revision: createHash('sha256').update(serialized).digest('hex') }
+  const deferred = {
+    $deferredToolResult: versionedRef,
+    ...(hasMcpAppResult(output) && { hasMcpApp: true })
+  } satisfies DeferredToolOutput
   if (isPersisted) {
     const persisted = output.$persistedToolOutput
-    const deferred = {
-      $deferredToolResult: versionedRef,
-      excerpt: envelopeDisplayExcerpt(persisted)
-    } satisfies DeferredToolOutput
-    return persisted.shape === 'entities' ? withCitationSkeleton(deferred, persisted.skeleton) : deferred
+    const withExcerpt = { ...deferred, excerpt: envelopeDisplayExcerpt(persisted) }
+    return persisted.shape === 'entities' ? withCitationSkeleton(withExcerpt, persisted.skeleton) : withExcerpt
   }
 
-  return withCitationSkeleton({ $deferredToolResult: versionedRef }, output)
+  return withCitationSkeleton(deferred, output)
 }
 
 /** Projects a stored or finalized message part. Returns the same object when nothing changed. */

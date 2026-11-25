@@ -35,7 +35,6 @@ import {
   toAISDK
 } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import {
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
@@ -44,11 +43,13 @@ import {
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
+import { omitCompactedAnthropicThinking, usesAnthropicMessagesSdk } from '@main/ai/messages/anthropicThinking'
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
 import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
+import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
 
 import type { RequestFeature } from '../feature'
@@ -197,7 +198,8 @@ export const inLoopCompactionFeature: RequestFeature = {
           durationMs: Date.parse(completedAt) - Date.parse(startedAt),
           foldedCount: Math.max(0, history.length - compacted.length)
         })
-        return toAISDK(compacted)
+        const replay = toAISDK(compacted)
+        return usesAnthropicMessagesSdk(scope.aiSdkProviderId, scope) ? omitCompactedAnthropicThinking(replay) : replay
       } catch (error) {
         if (!(signal ?? scope.signal)?.aborted) {
           logger.warn('overflow recovery compaction failed', {
@@ -359,6 +361,9 @@ export const inLoopCompactionFeature: RequestFeature = {
             completedAt: new Date().toISOString()
           })
           return foldCache ? { messages: candidate } : undefined
+        }
+        if (usesAnthropicMessagesSdk(scope.aiSdkProviderId, scope)) {
+          compacted = omitCompactedAnthropicThinking(compacted)
         }
         const completedAt = new Date().toISOString()
         const postTokens = estimateModelMessages(compacted, dialect)

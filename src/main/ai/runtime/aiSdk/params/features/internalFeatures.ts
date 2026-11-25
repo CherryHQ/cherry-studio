@@ -14,12 +14,14 @@
 import type { RequestFeature } from '../feature'
 import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
+import { anthropicThinkingBindingFeature } from './anthropicThinkingBinding'
 import { bedrockAnthropicCacheFeature } from './bedrockAnthropicCache'
 import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
 import { devtoolsFeature } from './devtools'
 import { gatewayAnthropicCacheFeature, gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
+import { geminiHistorySignatureReplayFeature } from './geminiHistorySignatureReplay'
 import { grokReasoningReplayFeature } from './grokReasoningReplay'
 import { inLoopCompactionFeature } from './inLoopCompaction'
 import { noThinkFeature } from './noThink'
@@ -58,12 +60,14 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   // Vercel AI Gateway drops the `anthropic` markers above and caches on its own option instead.
   gatewayAnthropicCacheFeature,
   anthropicHeadersFeature,
+  anthropicThinkingBindingFeature,
   // Provider compatibility: strip unsupported schema keywords, then apply Gemini-specific tool filtering.
   toolSchemaCompatibilityFeature,
   openrouterReasoningFeature,
   noThinkFeature,
   qwenThinkingFeature,
   qwenEnableThinkingFeature,
+  geminiHistorySignatureReplayFeature,
   skipGeminiThoughtSignatureFeature,
   // The HuggingFace router rejects reasoning input items — strip them on replay.
   stripReasoningReplayFeature,

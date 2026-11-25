@@ -41,7 +41,6 @@ import { agentSessionReadModelEffects, agentSessionService } from '@data/service
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { projectMessagePartForRenderer, projectMessagePartsForRenderer } from '@main/utils/messageOutputProjection'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import {
@@ -60,6 +59,7 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import {
   type AiToolResultResponse,
   applyApprovalDecisions,
@@ -1218,11 +1218,13 @@ export class AgentSessionMessageService {
   listLiveCreatedInRangeMetadataPage({
     fromMs,
     toMs,
+    sessionId,
     cursor: rawCursor,
     limit
   }: {
     fromMs: number
     toMs: number
+    sessionId?: string
     cursor?: string
     limit: number
   }): CursorPaginationResponse<AgentSessionMessageRangeMetadata> {
@@ -1248,6 +1250,7 @@ export class AgentSessionMessageService {
           gte(sessionMessagesTable.createdAt, fromMs),
           lte(sessionMessagesTable.createdAt, toMs),
           isNull(sessionTable.deletedAt),
+          sessionId === undefined ? undefined : eq(sessionMessagesTable.sessionId, sessionId),
           cursor ? ordering.where(cursor) : undefined
         )
       )
@@ -1360,11 +1363,10 @@ export class AgentSessionMessageService {
     const items = hydratedRows.map((row) => {
       const entity = this.rowToEntity(row)
       if (options.deferToolOutputs && entity.role === 'assistant' && entity.data.parts) {
-        entity.data.parts = projectMessagePartsForRenderer(
-          entity.data.parts,
-          buildAgentSessionTopicId(sessionId),
-          entity.id
-        )
+        entity.data = {
+          ...entity.data,
+          parts: projectMessagePartsForRenderer(entity.data.parts, buildAgentSessionTopicId(sessionId), entity.id)
+        }
       }
       return { ...entity, siblings: siblingsByParent.get(row.parentId) ?? [] }
     })
