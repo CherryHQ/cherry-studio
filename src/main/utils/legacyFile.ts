@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 import { decodeTextWithAutoEncoding as decodeTextBuffer } from '@main/utils/textEncoding'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { FileType } from '@shared/types/file'
@@ -227,9 +228,7 @@ export async function writeWithLock(
 
       return
     } catch (error) {
-      const nodeError = error as NodeJS.ErrnoException
-
-      if (nodeError.code !== 'EEXIST' || attempt >= retries) {
+      if (getErrorCode(error) !== 'EEXIST' || attempt >= retries) {
         throw error
       }
 

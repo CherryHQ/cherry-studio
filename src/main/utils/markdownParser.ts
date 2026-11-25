@@ -436,6 +436,7 @@ export async function parseSkillMetadata(
 
   // Validate version and author
   const nestedMetadata = data.metadata
+
   const version =
     toString(data.version) ??
     (typeof nestedMetadata === 'object' &&
@@ -444,6 +445,7 @@ export async function parseSkillMetadata(
     'version' in nestedMetadata
       ? toString(nestedMetadata.version)
       : undefined)
+
   const author = toString(data.author)
 
   logger.debug('Successfully parsed skill metadata', {

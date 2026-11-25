@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 
 import { app } from 'electron'
+import { z } from 'zod'
 
 import { application } from '@application'
 import type { AppEdition } from '@shared/types/appEdition'
@@ -30,9 +31,9 @@ function resolveAppEdition(): AppEdition {
     return parseAppEdition(developmentEdition)
   }
 
-  const packageMetadata = JSON.parse(readFileSync(application.getPath('app.root', 'package.json'), 'utf8')) as {
-    cherryEdition?: unknown
-  }
+  const packageMetadata = z
+    .object({ cherryEdition: z.unknown().optional() })
+    .parse(JSON.parse(readFileSync(application.getPath('app.root', 'package.json'), 'utf8')))
 
   return parseAppEdition(packageMetadata.cherryEdition)
 }

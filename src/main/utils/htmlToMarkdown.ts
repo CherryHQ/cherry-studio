@@ -102,12 +102,12 @@ function escapePipes(text: string): string {
   return parts.join('|')
 }
 
-function tableOf(node: Node): HTMLElement | null {
-  let parent: Node | null = node.parentNode
+function tableOf(node: Element): Element | null {
+  let parent = node.parentElement
 
-  while (parent && parent.nodeName !== 'TABLE') parent = parent.parentNode
+  while (parent && parent.nodeName !== 'TABLE') parent = parent.parentElement
 
-  return (parent as HTMLElement) ?? null
+  return parent
 }
 
 interface TableGrid {

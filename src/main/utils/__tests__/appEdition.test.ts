@@ -81,6 +81,15 @@ describe('getAppEdition', () => {
     expect(() => getAppEdition()).toThrow('Unsupported application edition: enterprise')
   })
 
+  it.each([7, false, []])('rejects a malformed package metadata root', async (metadata) => {
+    setPackaged(true)
+    readFileSyncMock.mockReturnValue(JSON.stringify(metadata))
+
+    const getAppEdition = await loadGetAppEdition()
+
+    expect(() => getAppEdition()).toThrow()
+  })
+
   it('keeps runtime application IDs aligned with both packaging configurations', async () => {
     const actualFs = await vi.importActual<typeof NodeFs>('node:fs')
     const projectRoot = path.resolve(import.meta.dirname, '../../../..')

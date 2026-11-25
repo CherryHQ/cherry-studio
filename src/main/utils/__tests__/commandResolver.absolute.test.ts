@@ -1,11 +1,21 @@
-import fs from 'node:fs'
+import fs from 'fs'
+import type * as Fs from 'fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { findCommandInShellEnv } from '../commandResolver'
+
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof Fs>()
+
+  return {
+    ...actual,
+    default: { ...actual, statSync: vi.fn(actual.statSync), accessSync: vi.fn(actual.accessSync) }
+  }
+})
 
 let root: string
 let executable: string
@@ -55,11 +65,10 @@ describe('absolute executable lookup', () => {
     ] as const)(
       'preserves the original %s failure rather than claiming the executable is missing',
       async (_label, createFailure) => {
-        const original = { statSync: fs.statSync, accessSync: fs.accessSync }
         const failure = createFailure()
-        fs[operation] = () => {
+        vi.mocked(fs[operation]).mockImplementationOnce(() => {
           throw failure
-        }
+        })
         let rejected = false
 
         try {
@@ -68,8 +77,7 @@ describe('absolute executable lookup', () => {
           rejected = true
           expect(Object.is(error, failure)).toBe(true)
         } finally {
-          fs.statSync = original.statSync
-          fs.accessSync = original.accessSync
+          vi.mocked(fs[operation]).mockReset()
         }
 
         expect(rejected).toBe(true)
