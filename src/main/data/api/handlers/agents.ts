@@ -67,6 +67,14 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     }
   },
 
+  '/agents/:agentId/stats': {
+    GET: async ({ params }) => {
+      const stats = agentService.getStats(params.agentId)
+      if (!stats) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      return stats
+    }
+  },
+
   '/agents/:agentId': {
     GET: async ({ params }) => {
       const agent = agentService.getAgent(params.agentId)
@@ -95,8 +103,8 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents/:agentId/tasks': {
     GET: async ({ params, query }) => {
       const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
-      const { tasks, total } = taskService.listTasks(params.agentId, { limit, offset })
-      return { items: tasks, total, page }
+      const { tasks, total, activeTotal } = taskService.listTasks(params.agentId, { limit, offset })
+      return { items: tasks, total, activeTotal, page }
     }
   },
 
