@@ -2583,6 +2583,36 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('uses the image endpoint consistently for DashScope probes despite a saved Responses default', async () => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValueOnce(
+      makeProvider({
+        id: 'dashscope',
+        presetProviderId: 'dashscope',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://dashscope.aliyuncs.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://responses.example/v1' }
+        }
+      })
+    )
+    mockModelGetByKey.mockReturnValue(
+      makeModel({
+        id: 'dashscope::qwen-image-3.0',
+        providerId: 'dashscope',
+        apiModelId: 'qwen-image-3.0',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+    )
+    const submit = vi.fn().mockResolvedValue({ imageUrls: ['https://example.test/image.png'] })
+    mockResolveImageTransport.mockReturnValueOnce({ submit })
+    await service.checkModel({ uniqueModelId: 'dashscope::qwen-image-3.0', apiKeyOverride: 'sk-selected' })
+    expect(mockResolveImageTransport).toHaveBeenCalledWith('dashscope', 'qwen-image-3.0', expect.anything())
+    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('dashscope', 'sk-selected')
+    expect(submit).toHaveBeenCalledTimes(1)
+  })
+
   it('cancels the job an image probe queued', async () => {
     const service = createService()
     mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'ppio', name: 'PPIO' }))

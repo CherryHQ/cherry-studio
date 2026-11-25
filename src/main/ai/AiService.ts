@@ -1635,13 +1635,12 @@ export class AiService extends BaseService {
           // with the caller's key, no job row, no result download.
           const vendorTransport = imageSupport?.modes?.[probeMode]?.vendorTransport
           probe = (async () => {
+            const resolvedEndpoint = resolveEffectiveEndpoint(provider, model, undefined, 'image')
             const { config } = await resolveProviderAiSdkConfig(provider, model, {
-              apiKeyOverride: request.apiKeyOverride
+              apiKeyOverride: request.apiKeyOverride,
+              resolvedEndpoint
             })
-            const wireModelId = resolveWireModelId(
-              model,
-              resolveEffectiveEndpoint(provider, model, undefined, 'image').endpointType
-            )
+            const wireModelId = resolveWireModelId(model, resolvedEndpoint.endpointType)
             const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
             if (!transport) {
               throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
