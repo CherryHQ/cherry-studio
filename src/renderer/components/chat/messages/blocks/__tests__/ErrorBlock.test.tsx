@@ -19,7 +19,6 @@ const mocks = vi.hoisted(() => ({
   i18nKeys: new Set<string>(),
   request: vi.fn(),
   language: 'en',
-  ipcRequest: vi.fn(),
   translations: new Map<string, string>()
 }))
 
@@ -91,10 +90,6 @@ vi.mock('../../MessageListProvider', () => ({
   useMessageListActions: () => mocks.actions
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (...args: unknown[]) => mocks.ipcRequest(...args) }
-}))
-
 import ErrorBlock from '../ErrorBlock'
 
 const message: MessageListItem = {
@@ -115,7 +110,7 @@ describe('ErrorBlock', () => {
     mocks.actions = {}
     mocks.i18nKeys.clear()
     mocks.language = 'en'
-    mocks.ipcRequest = vi.fn().mockResolvedValue(undefined)
+    mocks.request.mockReset().mockResolvedValue(undefined)
     mocks.translations.clear()
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
     mocks.translations.set('error.diagnosis.ai_button', AI_DIAGNOSIS_LABEL)
@@ -159,7 +154,7 @@ describe('ErrorBlock', () => {
     await waitFor(() => expect(regenerateMessageUsingModel).toHaveBeenCalled())
     expect(regenerateMessageUsingModel).toHaveBeenCalledWith('message-1', uniqueModelId)
     expect(removeMessageErrorPart).not.toHaveBeenCalled()
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.ollama.set_num_ctx_cap', {
+    expect(mocks.request).toHaveBeenCalledWith('ai.ollama.set_num_ctx_cap', {
       uniqueModelId,
       numCtxCap: 32_768
     })
@@ -229,7 +224,7 @@ describe('ErrorBlock', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Retry smaller' }))
     await waitFor(() =>
-      expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.ollama.set_num_ctx_cap', {
+      expect(mocks.request).toHaveBeenCalledWith('ai.ollama.set_num_ctx_cap', {
         uniqueModelId: 'ollama::fallback-model',
         numCtxCap: 32_768
       })
