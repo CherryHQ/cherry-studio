@@ -78,6 +78,7 @@ import { useAgentDesktopControls } from '@renderer/hooks/agent/useAgentDesktopCo
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useAgentToolParts } from '@renderer/hooks/agent/useAgentToolParts'
 import { useCurrentTabId } from '@renderer/hooks/tab'
@@ -1340,12 +1341,13 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     [childActivity, providerValue, t]
   )
 
+  const streamTopicId = useAgentSessionStreamTopic(meta.sessionId)
   const partReader = useMemo(
     () =>
       meta.sessionId && archiveSessionId
         ? messageProjectionService.partsFor({ kind: 'child', sessionId: meta.sessionId, toolCallId })
-        : messageProjectionService.partsFor({ kind: 'topic', topicId: topic.id }),
-    [archiveSessionId, meta.sessionId, toolCallId, topic.id]
+        : messageProjectionService.partsFor({ kind: 'topic', topicId: streamTopicId }),
+    [archiveSessionId, meta.sessionId, toolCallId, streamTopicId]
   )
   return (
     <ProjectionReaderProvider reader={partReader}>
@@ -1746,8 +1748,8 @@ function AgentDetailsLayout({ children }: { children: ReactNode }) {
 }
 
 function AgentTraceRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const traceTopicId = useAgentSessionStreamTopic(scope.meta.sessionId)
   if (!active) return null
-  const traceTopicId = scope.meta.sessionId ? buildAgentSessionTopicId(scope.meta.sessionId) : ''
   return (
     <Suspense fallback={null}>
       <TracePane payload={{ topicId: traceTopicId, traceId: scope.meta.traceId ?? '' }} />

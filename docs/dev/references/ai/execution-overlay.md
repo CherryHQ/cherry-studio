@@ -66,7 +66,7 @@ Child projections currently compose native fragments using `afterPartId`. The ch
 
 One revision may carry several ordered edits. The renderer routes parts frames directly to its part store. Its structural reducer accepts only structural frames. Each path validates the whole revision before publishing its values. Text, reasoning and tool rows subscribe by projection target and part ID. A suffix wakes the affected row. Structural frames carry membership changes and detail invalidations. Main projects tool results with their archive message ID and stable part ID. Both the published value and its invalidation use that address. A merged child reply can therefore display a result whose archive row belongs to a different source.
 
-Root recovery loads source mappings, part identities and approval facts. Reading a reply resolves its live and committed entries together. A successful part save releases its live payload, and a failed write leaves the payload available for terminal persistence. A completed root overlay reads the stored reply on demand. Child archive reconciliation uses the latest accepted value of an updated part.
+Root recovery loads source mappings, part identities and approval facts. Reading a reply resolves its live and committed entries together. A successful part save releases its live payload, and a failed write leaves the payload available for terminal persistence. A completed root overlay reads the stored reply on demand. Child archive reconciliation carries the published part ID across native preview and committed identities. A successful write releases the matching preview output, including a retracted result. A newer live update to that part survives the older write.
 
 Owners capture mutable native parts at acceptance and retain untouched accepted parts. A tool update captures its latest output and compact renderer part once; subsequent text batches reuse that accepted part instead of cloning, serializing or hashing the result again. A replacement supersedes the previous accepted result rather than retaining a value history.
 
@@ -78,7 +78,7 @@ A root terminal is published in the notification phase, after terminal persisten
 
 ## Attachment and recovery
 
-When Durable reopens during an unfinished placed input, its unique logical user-input boundary identifies committed output for the existing reply, including a tool-wait interval with no generation preview. Earlier answers and queued or ambiguous input boundaries remain historical. Recovery does not resend the input.
+When Durable reopens during an unfinished placed input, its unique logical user-input boundary identifies committed output for the existing reply, including a tool-wait interval with no generation preview. A compaction summary inside the same Run keeps that input boundary open for its answer. Earlier answers and queued or ambiguous inputs remain historical. Recovery does not resend the input.
 
 The root and child projection readers preserve stored tool-result references when loading their SQLite baselines. A tool detail request carries the stable `partId` through the renderer hook to the live or archived result reader. The reader allocates the live result's UTF-8 range buffer when requested.
 
@@ -96,7 +96,7 @@ A speech subscriber receives a baseline when it starts listening. A new text blo
 
 - Update routing retains the execution attempt and anchor. A stale active-execution cache cannot overwrite a newer attempt.
 - Finish callbacks occur once per observed attempt, including failure completion for `unresolved` attempts. Failed persistence settles recovery requests and reports errors while retaining readable output. Replayed or duplicate revisions do not repeat completion.
-- Home and Agent Chat receive the stored message ID after a durable write. On completion or attachment, they read that row and replace its slot on the loaded branch page. History takes over when the current attempt has a readable terminal row. A pending placeholder, an outstanding approval or a failed read keeps live content visible. Branch membership and order changes refresh the branch separately.
+- Home and Agent Chat receive the stored message ID after a durable write. On completion or attachment, they read that row and replace its slot on the loaded branch page. History takes over when the current attempt has a readable terminal row. A pending placeholder, an outstanding approval, a page miss or a failed read keeps live content visible. Explicit exclusion by the selected branch hides the reply. A late read for a previous selection cannot complete the handoff.
 - Quick Assistant clears its local replies on reset. Late frames from a cleared attempt stay hidden.
 - Topic status and approval indicators still use the existing shared-cache status entries. Those entries do not contain the streamed body.
 

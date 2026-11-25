@@ -25,7 +25,7 @@ import type { ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { ProjectionLayoutContext } from '@renderer/hooks/agent/ProjectionReaderProvider'
-import { ProjectionPartContext } from '@renderer/hooks/agent/useProjectionPart'
+import { ProjectionPartContext, useProjectionPart } from '@renderer/hooks/agent/useProjectionPart'
 import { messageProjectionService } from '@renderer/services/aiTransport'
 import {
   getCachedMessageUiState,
@@ -1041,7 +1041,7 @@ function settleToolResponse(toolResponse: ToolResponseLike): ToolResponseLike {
 }
 
 const ToolPartView = React.memo(function ToolPartView({
-  part,
+  part: fallback,
   partId,
   settleActiveTools
 }: {
@@ -1050,6 +1050,7 @@ const ToolPartView = React.memo(function ToolPartView({
   settleActiveTools?: boolean
 }) {
   const messageId = useMessagePartsScopeId()
+  const part = useProjectionPart(partId, fallback) ?? fallback
   const toolResponse = getCachedToolProjection(part, partId).toolResponse
   if (!toolResponse) return null
   return (

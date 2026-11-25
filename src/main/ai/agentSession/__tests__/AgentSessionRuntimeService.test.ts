@@ -127,6 +127,7 @@ vi.mock('@data/services/AgentService', () => ({
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
+    onBranchSelected: () => () => {},
     saveMessage: mocks.saveMessage,
     lastTimelinePosition: () => 0,
     replaceMessageParts: mocks.replaceMessageParts,
@@ -2686,6 +2687,40 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('connection reconcile — pull path (fresh-turn staleness check)', () => {
+    it('admits the first input on its requested configuration after attaching a restored root', async () => {
+      const sent: Array<{ inputId: string; modelId: string; knowledgeBaseIds?: readonly string[] }> = []
+      let restored = true
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        validateSession: vi.fn(),
+        connect: async (request) => {
+          const frozen = restored ? { modelId: 'test::old', knowledgeBaseIds: ['old'] } : request
+          restored = false
+          return {
+            ...createAsyncQueue<never>(),
+            preparedFor: (next) => frozen === next,
+            reconcile: async (target) => (target.modelId === frozen.modelId ? 'current' : 'rebuild'),
+            send: ({ message }) => {
+              sent.push({ inputId: message.id, modelId: frozen.modelId, knowledgeBaseIds: frozen.knowledgeBaseIds })
+            }
+          }
+        }
+      })
+      const service = new AgentSessionRuntimeService()
+      const message = userMessage('new-input')
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: message })
+      const reader = openChunkStream(service, {
+        sessionId: baseTurnInput.sessionId,
+        turnId: handle.turnId,
+        signal: handle.abortController.signal
+      }).getReader()
+      await vi.waitFor(() =>
+        expect(sent).toEqual([{ inputId: message.id, modelId: baseTurnInput.modelId, knowledgeBaseIds: [] }])
+      )
+      await reader.cancel()
+      await service.closeSession(baseTurnInput.sessionId)
+    })
+
     it('sends a changed per-turn max override after an idle warm default without an Agent write', async () => {
       const sent: Array<{ effort: AgentRuntimeConnectInput['reasoningEffort']; messageId: string }> = []
       const connectionFor = (effort: AgentRuntimeConnectInput['reasoningEffort']) => ({

@@ -3,7 +3,7 @@ import { renderHook } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { messageProjectionService } from '@renderer/services/aiTransport'
-import type { MessageProjectionView, ProjectedExecution, TopicProjectionState } from '@shared/ai/messageProjection'
+import type { MessageProjectionView, TopicProjectionState } from '@shared/ai/messageProjection'
 
 import { useTopicSpeech } from '../useTopicSpeech'
 
@@ -11,15 +11,12 @@ const flush = async () => {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 afterEach(() => vi.restoreAllMocks())
-function execution(attemptId: number, status: ProjectedExecution['status'] = 'active'): ProjectedExecution {
-  return { executionId: 'p::m', attemptId, anchorMessageId: 'anchor', messageId: 'anchor', status }
-}
 function view(topicId: string, attemptId: number): MessageProjectionView<TopicProjectionState> {
   return {
     kind: 'topic',
     topicId,
     revision: 0,
-    executions: [execution(attemptId)],
+    executions: [{ executionId: 'p::m', attemptId, anchorMessageId: 'anchor', messageId: 'anchor', status: 'active' }],
     messages: [{ id: 'anchor', role: 'assistant', parts: [{ type: 'text', text: 'prefix', state: 'streaming' }] }]
   }
 }

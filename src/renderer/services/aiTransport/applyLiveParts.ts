@@ -68,7 +68,10 @@ export function applyLiveParts(
         before.type === 'dynamic-tool' &&
         value.type === 'dynamic-tool' &&
         before.toolName === value.toolName &&
-        ((value.state === 'output-available' && value.preliminary) ||
+        ((before.state === 'output-available' &&
+          before.preliminary &&
+          value.state === 'output-available' &&
+          value.preliminary) ||
           (value.state === 'input-streaming' && before.state === 'input-streaming'))
       if (!progress) layout.add(partId)
     } else if (

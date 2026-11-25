@@ -126,6 +126,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private publishedBackground?: DurableObservation['backgroundResults']
   private projection?: ThreadProjection
 
+  preparedFor(request: AgentRuntimeConnectInput): boolean {
+    return this.input === request
+  }
+
   bindInputs(callbacks: Pick<AgentRuntimeConnectInput, 'onInputPrepared' | 'onSteerInjected'>): void {
     this.input.onInputPrepared = callbacks.onInputPrepared
     this.input.onSteerInjected = callbacks.onSteerInjected

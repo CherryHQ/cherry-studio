@@ -3,6 +3,7 @@ import { isToolUIPart } from 'ai'
 import { MessageProjection } from '@main/ai/messages/MessageProjection'
 import type { PublishedPartPatch } from '@main/utils/messageOutputProjection'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import { projectPersistenceFailures } from '@shared/ai/messageProjection'
 import type {
   MessageViewPatch,
   MessageProjectionView,
@@ -13,6 +14,7 @@ import type {
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { ErrorPartData } from '@shared/data/types/uiParts'
 
 import { finalizeInterruptedParts } from './persistence/PersistenceBackend'
 import { projectStreamMessageForRenderer } from './rendererPayload'
@@ -64,11 +66,12 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
   override snapshot(): MessageProjectionView<TopicProjectionState> {
     const view = super.snapshot()
     const agent = this.agent
-    if (!agent) return view
-    const id = this.executions.get(agent.modelId)?.messageId
-    if (!id) return view
-    const message = agent.readMessage()
-    return message ? { ...view, messages: [projectStreamMessageForRenderer(this.topicId, { ...message, id })] } : view
+    const execution = agent && this.executions.get(agent.modelId)
+    const id = execution?.messageId
+    const message = id && agent?.readMessage()
+    return projectPersistenceFailures(
+      message ? { ...view, messages: [projectStreamMessageForRenderer(this.topicId, { ...message, id })] } : view
+    )
   }
 
   accumulate(modelId: UniqueModelId, attemptId: number, message: CherryUIMessage): void {
@@ -105,12 +108,44 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
     this.complete(result, 'paused')
   }
   onError(result: StreamErrorResult): void {
-    this.complete(result, result.persistence?.status === 'failed' ? 'unresolved' : 'error')
+    if (result.persistence?.status === 'failed') {
+      this.persistenceFailed(result.modelId, result.attemptId, result.userMessageId, {
+        ...result.error,
+        executionFailure: result.persistence.failure
+      })
+    } else this.complete(result, 'error')
+  }
+
+  private persistenceFailed(
+    modelId: UniqueModelId | undefined,
+    attemptId: number | undefined,
+    userMessageId: string | undefined,
+    persistenceError: ErrorPartData
+  ): void {
+    this.flush()
+    for (const execution of this.executions.values()) {
+      if (
+        (modelId && modelId !== execution.executionId) ||
+        (attemptId !== undefined && attemptId !== execution.attemptId)
+      )
+        continue
+      const sdkBody = this.messages.get(execution.executionId)
+      if (sdkBody) this.setMessage(execution, { ...sdkBody, parts: finalizeInterruptedParts(sdkBody.parts, 'error') })
+      this.executions.set(execution.executionId, {
+        ...execution,
+        status: 'unresolved',
+        savedMessageId: undefined,
+        userMessageId,
+        messageId: execution.messageId ?? execution.anchorMessageId ?? crypto.randomUUID(),
+        persistenceError
+      })
+    }
+    this.publish(true)
   }
 
   private complete(
     result: StreamDoneResult | StreamPausedResult | StreamErrorResult,
-    status: Exclude<ProjectedExecution['status'], 'active'>
+    status: 'done' | 'paused' | 'error'
   ): void {
     for (const execution of this.executions.values()) {
       if (result.modelId && result.modelId !== execution.executionId) continue
@@ -143,12 +178,8 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
       const terminal = {
         ...this.executions.get(execution.executionId)!,
         userMessageId: result.userMessageId,
-        ...(status === 'unresolved'
-          ? { status, savedMessageId: undefined }
-          : {
-              status,
-              savedMessageId: result.persistence?.status === 'saved' ? result.persistence.message.messageId : undefined
-            })
+        status,
+        savedMessageId: result.persistence?.status === 'saved' ? result.persistence.message.messageId : undefined
       }
       this.executions.set(execution.executionId, terminal)
       if (message && this.agent?.modelId === execution.executionId) this.relayAgentMessage(terminal, message)

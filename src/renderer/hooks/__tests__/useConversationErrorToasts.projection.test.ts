@@ -26,7 +26,7 @@ function terminal(
         attemptId: 10,
         userMessageId: 'queued-user',
         messageId: 'reply',
-        status
+        ...(status === 'unresolved' ? { status, persistenceError: error } : { status })
       }
     ],
     messages: [

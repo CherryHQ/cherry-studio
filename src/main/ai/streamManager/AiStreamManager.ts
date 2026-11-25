@@ -91,6 +91,13 @@ import type {
 } from './types'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
+function hasToolOutcome(part: CherryUIMessage['parts'][number]) {
+  return (
+    isToolUIPart(part) &&
+    (part.state === 'output-denied' || part.state === 'output-error' || part.state === 'output-available')
+  )
+}
+
 function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution): CherryUIMessage {
   if (!exec.resolvedToolApprovals?.size) return message
   return {
@@ -2297,13 +2304,7 @@ export class AiStreamManager extends BaseService {
       const active = this.activeStreams.get(topicId)
       if (!active || active.executions.get(modelId) !== exec) return
       const hadPending = !!exec.pendingApprovalToolCallIds?.size
-      for (const part of message.parts) {
-        if (
-          isToolUIPart(part) &&
-          (part.state === 'output-available' || part.state === 'output-error' || part.state === 'output-denied')
-        )
-          finishToolApproval(part.toolCallId)
-      }
+      for (const part of message.parts) if (hasToolOutcome(part)) finishToolApproval(part.toolCallId)
       if (hadPending && !exec.pendingApprovalToolCallIds?.size) active.lifecycle.onApprovalPendingChanged(active)
       notifyContent(active, (sink) => sink.snapshot(current, source.kind))
     }
@@ -2397,7 +2398,8 @@ export class AiStreamManager extends BaseService {
             projection?.relayAgentPart(modelId, exec.attemptId, patch)
             if (ref) projection?.invalidateToolResults([ref])
             const hadPending = !!exec.pendingApprovalToolCallIds?.size
-            if (ref) finishToolApproval(ref.toolCallId)
+            const { part } = change
+            if (hasToolOutcome(part)) finishToolApproval(part.toolCallId)
             if (active && hadPending && !exec.pendingApprovalToolCallIds?.size)
               active.lifecycle.onApprovalPendingChanged(active)
           } else projection?.relayAgentPart(modelId, exec.attemptId, change)

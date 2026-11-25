@@ -186,7 +186,11 @@ function RuntimeHost({
     initialMessages: messages,
     uiMessages: messages,
     refresh: mocks.refresh,
-    replyHistory: { loaded: true, has: () => false, get: () => undefined, refreshRow: async () => {} },
+    replyHistory: {
+      layout: {},
+      lookup: () => ({ kind: 'unknown' }),
+      refreshRow: async () => 'pending'
+    },
     activeNodeId,
     messagesCacheMutate: vi.fn(),
     onBranchLiveStateChange: mocks.onBranchLiveStateChange

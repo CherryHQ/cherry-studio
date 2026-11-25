@@ -1,9 +1,10 @@
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import ts from 'typescript'
 import { expect, it } from 'vitest'
 
 it('restricts the installed live writers and selectors while permitting recovery in its own method', () => {
@@ -35,7 +36,7 @@ it('restricts the installed live writers and selectors while permitting recovery
     'src/renderer/services/aiTransport/MessageProjectionService.ts':
       'export class Store { commitParts() { return this.bulk() } bulk() { return this.row.forEachPart(fn) } }',
     'src/renderer/components/chat/messages/blocks/MessagePartsRenderer.tsx':
-      'export function AddressedMessageParts() { return projectLiveMessageParts(row) }',
+      'export function useAddressedMessageParts() { return projectLiveMessageParts(row) }',
     'src/renderer/services/aiTransport/applyLiveParts.ts':
       'import { type MessageProjectionView as Page } from "@shared/ai/messageProjection"; export type { Page }'
   }
@@ -51,11 +52,26 @@ it('restricts the installed live writers and selectors while permitting recovery
       cwd: directory,
       encoding: 'utf8'
     })
-    const { diagnostics } = JSON.parse(result.stdout) as { diagnostics: { filename: string; code: string }[] }
-    expect(diagnostics.map((d) => d.filename).sort()).toEqual(Object.keys(files).sort())
-    expect(diagnostics.filter((d) => d.code.includes('addressed-writes'))).toHaveLength(11)
+    const { diagnostics } = JSON.parse(result.stdout) as {
+      diagnostics: { filename: string; code: string; message: string }[]
+    }
+    const missing = diagnostics.filter((d) => d.message.startsWith('Configured live writer'))
+    expect(missing.some((d) => d.message.includes('AddressedProcessHistory'))).toBe(true)
+    const restricted = diagnostics.filter((d) => !missing.includes(d))
+    expect(restricted.map((d) => d.filename).sort()).toEqual(Object.keys(files).sort())
+    expect(restricted.filter((d) => d.code.includes('addressed-writes'))).toHaveLength(11)
     expect(result.status).toBe(1)
   } finally {
     rmSync(directory, { force: true, recursive: true })
+  }
+})
+
+it('keeps the production paths covered by the incremental guards', () => {
+  const root = fileURLToPath(new URL('../../../', import.meta.url))
+  const { config, error } = ts.readConfigFile(join(root, '.oxlintrc.json'), ts.sys.readFile)
+  expect(error).toBeUndefined()
+  for (const override of config.overrides) {
+    if (!override.rules?.['incremental-projection/addressed-writes']) continue
+    for (const file of override.files) expect(existsSync(join(root, file)), file).toBe(true)
   }
 })

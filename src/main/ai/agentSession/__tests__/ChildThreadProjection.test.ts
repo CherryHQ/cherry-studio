@@ -315,6 +315,28 @@ it.each([false, true])(
   }
 )
 
+it('keeps the published ID of an unsaved child part when its preview gets an archive alias', async () => {
+  const f = fixture()
+  await f.projection.attach()
+  await f.send({ type: 'message.reconcile', message: f.item('preview', 'before', 'partial') })
+  await f.projection.flush()
+  const ref = { session: f.handle.thread, id: runtimeId<'item'>('preview') }
+  await f.send({ type: 'message.text-open', ref, part: 1, kind: 'text' })
+  await f.send({ type: 'message.text-append', ref, part: 1, text: 'after' })
+
+  const [live] = f.projection.snapshot().messages
+  expect(live.partIds).toHaveLength(2)
+  expect(savedChildView(f.context).messages[0].partIds).toHaveLength(1)
+  f.archive.aliases = { entry: 'preview' }
+  f.archive.messages = [
+    { ...f.item('entry', 'before'), parts: [...f.item('entry', 'before').parts, ...f.item('entry', 'after').parts] }
+  ]
+  await f.projection.refresh()
+
+  expect(f.projection.snapshot().messages[0]).toMatchObject({ id: live.id, partIds: live.partIds })
+  expect(savedChildView(f.context).messages[0]).toMatchObject({ id: live.id, partIds: live.partIds })
+})
+
 // A committed UUID replaces its streaming identity without creating a second product row.
 it('keeps the product identity when a native committed block replaces a preview', async () => {
   const f = fixture()
@@ -769,6 +791,101 @@ it('composes native messages by placed input boundaries and restores the same ch
   expect(view[3].id).not.toBe(first)
   expect(savedChildView(contexts.context(f.context.id)).messages).toEqual(view)
   expect(readAgentSessionPath(dbh.db, f.context.sessionId)).toHaveLength(5)
+})
+
+it.each(['replace', 'retract'] as const)(
+  'relinquishes a pending child tool output when reconciliation says to %s it',
+  async (action) => {
+    const f = fixture()
+    const ref = { session: f.handle.thread, id: runtimeId<'item'>('tool') }
+    const call = {
+      type: 'dynamic-tool' as const,
+      toolCallId: 'call',
+      toolName: 'Read',
+      input: {},
+      state: 'input-available' as const
+    }
+    const saved = { ...call, state: 'output-available' as const, output: 'initial', preliminary: true }
+    const input = { ...f.item(ref.id, ''), parts: [saved] }
+    await f.projection.attach()
+    await f.send({ type: 'message.reconcile', message: input })
+    await f.projection.flush()
+    const [row] = f.projection.snapshot().messages
+    const partId = row.partIds![0]
+    const tool = { ...call, state: 'output-available' as const, output: 'preview'.repeat(10_000), preliminary: true }
+    await f.send({ type: 'message.tool-output', ref, part: 0, tool })
+    expect(f.projection.getToolResult(partId, 'call')).toEqual({ found: true, output: tool.output })
+
+    f.projection.snapshot()
+    const updates: AgentChildUpdate[] = []
+    f.projection.subscribe((update) => updates.push(update))
+    const final = action === 'replace' ? { ...tool, output: 'final'.repeat(10_000), preliminary: false } : call
+    const reconciled = { ...input, parts: [final] }
+    f.archive.messages = [reconciled]
+    await f.send({ type: 'snapshot', messages: [], inputs: [], activity: { state: 'active' } })
+    vi.spyOn(application.get('DbService'), 'withWriteTx').mockImplementationOnce(() => {
+      throw new Error('Write unavailable')
+    })
+    await expect(f.projection.flush()).rejects.toThrow('Write unavailable')
+    expect(f.projection.getToolResult(partId, 'call')).toEqual({ found: true, output: tool.output })
+    await f.projection.flush()
+    expect(f.projection.getToolResult(partId, 'call')).toBeUndefined()
+    expect(messages.getSessionToolOutput(f.context.sessionId, row.id, 'call', partId)).toEqual(
+      'output' in final ? { found: true, output: final.output } : { found: false }
+    )
+    expect(updates.flatMap((update) => [...update.patches])).toContainEqual({
+      type: 'tool-result',
+      ref: { topicId: `agent-session:${f.context.sessionId}`, messageId: row.id, toolCallId: 'call', partId }
+    })
+    if (action === 'retract') expect(savedChildView(f.context).messages[0].parts[0]).not.toHaveProperty('output')
+  }
+)
+
+it('keeps a newer child tool result arriving during a committed archive read', async () => {
+  const reading = Promise.withResolvers<void>()
+  const release = Promise.withResolvers<void>()
+  let block = false
+  const f = fixture(async () => {
+    if (block) {
+      reading.resolve()
+      await release.promise
+    }
+  })
+  const ref = { session: f.handle.thread, id: runtimeId<'item'>('tool') }
+  const call = {
+    type: 'dynamic-tool' as const,
+    toolCallId: 'call',
+    toolName: 'Read',
+    input: {},
+    state: 'input-available' as const
+  }
+  const input = { ...f.item(ref.id, ''), parts: [call] }
+  await f.projection.attach()
+  await f.send({ type: 'message.reconcile', message: input })
+  await f.projection.flush()
+  const [row] = f.projection.snapshot().messages
+  const partId = row.partIds![0]
+  const old = { ...call, state: 'output-available' as const, output: 'old' }
+  f.archive.aliases = { committed: ref.id }
+  f.archive.messages = [{ ...input, id: 'committed', parts: [old, { ...call, toolCallId: 'archive-sibling' }] }]
+  block = true
+  const pending = f.projection.refresh()
+  await reading.promise
+  try {
+    await f.send({ type: 'message.tool-output', ref, part: 0, tool: { ...old, output: 'new' } })
+  } finally {
+    block = false
+    release.resolve()
+  }
+  await pending
+  expect(f.projection.snapshot().messages[0].parts).toMatchObject([
+    { output: 'new' },
+    { toolCallId: 'archive-sibling' }
+  ])
+  expect(messages.getSessionToolOutput(f.context.sessionId, row.id, 'call', partId)).toEqual({
+    found: true,
+    output: 'new'
+  })
 })
 
 it('serves a large error under its native archive row before and after the child commits', async () => {

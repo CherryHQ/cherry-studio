@@ -3,6 +3,7 @@ import { isEqual, omit } from 'es-toolkit'
 import type { DeferredToolResultRef } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { ErrorPartData } from '@shared/data/types/uiParts'
 
 export type ProjectionTarget =
   | { kind: 'topic'; topicId: string }
@@ -26,7 +27,13 @@ export type ProjectedExecution = {
   anchorMessageId?: string
   messageId?: string
 } & (
-  | { status: 'active' | 'unresolved'; savedMessageId?: never }
+  | { status: 'active'; savedMessageId?: never }
+  | {
+      status: 'unresolved'
+      messageId: string
+      persistenceError: ErrorPartData
+      savedMessageId?: never
+    }
   | { status: 'done' | 'paused' | 'error'; savedMessageId?: string }
 )
 
@@ -150,6 +157,29 @@ export type MessageProjectionUpdate<S extends ProjectionState = ProjectionState>
 
 export type ProjectionNotification = MessageProjectionUpdate | { kind: 'source-changed' }
 
+/** Both attach and an existing subscriber derive the failed-save marker from the same execution. */
+export function projectPersistenceFailures<S extends ProjectionState>(
+  view: MessageProjectionView<S>
+): MessageProjectionView<S> {
+  if (view.kind !== 'topic') return view
+  let messages = view.messages
+  for (const execution of view.executions) {
+    if (execution.status !== 'unresolved') continue
+    const index = messages.findIndex((row) => row.id === execution.messageId)
+    const row: CherryUIMessage = messages[index] ?? { id: execution.messageId, role: 'assistant', parts: [] }
+    const id = `persistence-error:${execution.attemptId}`
+    if (row.parts.some((part) => part.type === 'data-error' && part.id === id)) continue
+    const error: Part = { type: 'data-error', id, data: execution.persistenceError }
+    const failed = {
+      ...row,
+      parts: [...row.parts, error],
+      ...(row.partIds && { partIds: [...row.partIds, id] })
+    }
+    messages = index < 0 ? [...messages, failed] : messages.with(index, failed)
+  }
+  return messages === view.messages ? view : { ...view, messages }
+}
+
 /** A missing revision or invalid patch requires a new baseline, never a partial application. */
 export function applyMessageProjectionUpdate<S extends ProjectionState>(
   view: MessageProjectionView<S>,
@@ -184,12 +214,12 @@ export function applyMessageProjectionUpdate<S extends ProjectionState>(
   )
     return undefined
   const state = omit(update, ['patches', 'order'])
-  return {
+  return projectPersistenceFailures({
     ...state,
     messages: update.order
       ? update.order.map((id) => messages.get(id)!)
       : changed
         ? view.messages.map((message) => messages.get(message.id)!)
         : view.messages
-  } as MessageProjectionView<S>
+  } as MessageProjectionView<S>)
 }

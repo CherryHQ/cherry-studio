@@ -9,14 +9,16 @@ import type { ReplyHistory } from '../useHistoryRowUpdates'
 const storedRow = { id: 'same-anchor', status: 'success' as const }
 const hasStored = (id: string) => id === storedRow.id
 function history(
-  refreshRow: ReplyHistory['refreshRow'] = async () => {},
-  row: ReturnType<ReplyHistory['get']> = storedRow
+  refresh: (id: string) => Promise<unknown> = async () => {},
+  row: Extract<ReturnType<ReplyHistory['lookup']>, { kind: 'row' }>['row'] = storedRow
 ): ReplyHistory {
   return {
-    loaded: true,
-    has: row?.id === storedRow.id ? hasStored : (id) => row?.id === id,
-    get: (id) => (row?.id === id ? row : undefined),
-    refreshRow
+    layout: row?.id === storedRow.id ? hasStored : row,
+    lookup: (id) => (row?.id === id ? { kind: 'row', row } : { kind: 'unknown' }),
+    refreshRow: async (id) => {
+      await refresh(id)
+      return 'written'
+    }
   }
 }
 const view = (
@@ -32,7 +34,11 @@ const view = (
       executionId: 'p::m',
       attemptId,
       messageId: 'same-anchor',
-      ...(status === 'active' || status === 'unresolved' ? { status } : { status, savedMessageId: 'same-anchor' })
+      ...(status === 'unresolved'
+        ? { status, persistenceError: { message: 'failed', stack: null, name: 'Error' } }
+        : status === 'active'
+          ? { status }
+          : { status, savedMessageId: 'same-anchor' })
     }
   ],
   messages: [{ id: 'same-anchor', role: 'assistant', parts: [{ type: 'text', text: String(attemptId) }] }]
@@ -171,14 +177,17 @@ it('rereads a committed ID when a concurrent branch refresh reinstalls an older 
   const terminal = view(9)
   const first = history()
   const read = Promise.withResolvers<void>()
-  let stored: NonNullable<ReturnType<ReplyHistory['get']>> = { ...storedRow, status: 'pending' }
+  let stored: NonNullable<Extract<ReturnType<ReplyHistory['lookup']>, { kind: 'row' }>['row']> = {
+    ...storedRow,
+    status: 'pending'
+  }
   const next: ReplyHistory = {
-    loaded: true,
-    has: (id) => id === storedRow.id,
-    get: () => stored,
+    layout: {},
+    lookup: () => ({ kind: 'row', row: stored }),
     refreshRow: async () => {
       await read.promise
       stored = storedRow
+      return 'written'
     }
   }
   const hook = renderHook(({ source }) => useHistoryReplies(terminal, [], source, 'done'), {

@@ -39,6 +39,7 @@ export interface DurableRecoveryWork {
   readonly needsInventory: boolean
   readonly legacyBehavior: readonly ThreadId[]
   readonly roots: Map<ThreadId, ThreadId>
+  readonly executingRoots: ReadonlySet<ThreadId>
   readonly abandoned: Set<TaskId>
   readonly modelRefs: ReadonlyMap<ThreadId, ModelRef[]>
 }
@@ -135,7 +136,6 @@ export async function readDurableWork(
           continue
         }
         if (await needsBehaviorRecovery(storage, conversation.id)) {
-          ids.add(conversation.id)
           legacyBehavior.push(runtimeId(String(conversation.id)))
         }
       }
@@ -155,6 +155,8 @@ export async function readDurableWork(
     return root
   }
   for (const id of ids) await resolve(id, false)
+  const executingRoots = new Set(roots.values())
+  for (const id of legacyBehavior) await resolve(Number(id) as ConversationId, false)
   for (const id of behavior) {
     // A behavior hint can outlive the goal or child that recorded it until the next clean close.
     if (!(await resolve(id, true)) && (await needsBehaviorRecovery(storage, id))) await resolve(id, false)
@@ -175,7 +177,14 @@ export async function readDurableWork(
     refs.push(model)
     modelRefs.set(root, refs)
   }
-  return { roots, abandoned, modelRefs, legacyBehavior, needsInventory: doc?.value.initialized !== true }
+  return {
+    roots,
+    executingRoots,
+    abandoned,
+    modelRefs,
+    legacyBehavior,
+    needsInventory: doc?.value.initialized !== true
+  }
 }
 
 export async function acknowledgeChildArchive(tx: Tx, id: ConversationId, through: EntryId): Promise<void> {

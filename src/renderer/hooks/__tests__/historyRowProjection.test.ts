@@ -132,7 +132,7 @@ it('preserves a later edit when an older read of the same reply finishes last', 
   })
   mockDataApiService.get.mockResolvedValueOnce({ items: [{ message: row('baseline') }], activeNodeId: 'reply' })
   const hook = renderHook(() => useTopicMessages('topic'), { wrapper: Wrapper })
-  await waitFor(() => expect(hook.result.current.replyHistory.has('reply')).toBe(true))
+  await waitFor(() => expect(hook.result.current.replyHistory.lookup('reply').kind).toBe('row'))
   const older = Promise.withResolvers<ReturnType<typeof row>>()
   mockDataApiService.get.mockReturnValueOnce(older.promise).mockResolvedValueOnce(row('edited'))
   const stale = hook.result.current.replyHistory.refreshRow('reply')
@@ -144,16 +144,23 @@ it('preserves a later edit when an older read of the same reply finishes last', 
   expect(hook.result.current.uiMessages[0].parts).toEqual(row('edited').data.parts)
 })
 
-it.each(['selected', 'queued', 'sibling'])(
-  'resolves an observed Agent reply against the %s branch after a failed reservation read',
-  async (branch) => {
+it.each(
+  ['Agent', 'Home'].flatMap((kind) => ['selected', 'queued', 'sibling', 'partial'].map((branch) => ({ kind, branch })))
+)(
+  'resolves an observed $kind reply against the $branch branch after a failed reservation read',
+  async ({ kind, branch }) => {
     installCacheApiMock()
     const { Wrapper } = createSWRTestWrapper()
     const sessionId = 'observed'
-    const path = '/agent-sessions/observed/messages'
+    const agent = kind === 'Agent'
+    const path = agent ? '/agent-sessions/observed/messages' : '/topics/observed/messages'
+    const endpoint = agent ? '/agent-sessions/:sessionId/messages' : '/topics/:topicId/messages'
+    const routeParams = agent ? { sessionId } : { topicId: sessionId }
+
     const row = (id: string, role: 'user' | 'assistant', status: 'pending' | 'success', text: string) => ({
       id,
       sessionId,
+      topicId: sessionId,
       role,
       status,
       data: { parts: [{ type: 'text' as const, text }] }
@@ -162,23 +169,33 @@ it.each(['selected', 'queued', 'sibling'])(
     const pending = row('answer', 'assistant', 'pending', '')
     const user = row('input', 'user', 'success', 'new turn')
     const saved = row('answer', 'assistant', 'success', 'committed reply')
-    const reservation = Promise.withResolvers<{ items: (typeof prefix)[] }>()
-    const retry = Promise.withResolvers<{ items: (typeof prefix)[] }>()
+    const page = (rows: (typeof prefix)[], nextCursor?: string) => ({
+      items: agent ? rows : rows.toReversed().map((message) => ({ message })),
+      ...(nextCursor && { nextCursor })
+    })
+    const reservation = Promise.withResolvers<ReturnType<typeof page>>()
+    const retry = Promise.withResolvers<ReturnType<typeof page>>()
     const committed = Promise.withResolvers<typeof saved>()
     const initial = branch === 'queued' ? [user, prefix] : [prefix]
-    mockDataApiService.get.mockResolvedValueOnce({ items: initial })
+    mockDataApiService.get.mockResolvedValueOnce(page(initial))
     const terminal: TopicView = {
       kind: 'topic',
-      topicId: 'agent-session:observed',
+      topicId: agent ? 'agent-session:observed' : sessionId,
       revision: 2,
       executions: [
         { executionId: 'p::m', attemptId: 1, messageId: 'answer', status: 'done', savedMessageId: 'answer' }
       ],
       messages: [{ id: 'answer', role: 'assistant', parts: [{ type: 'text', text: 'live reply' }] }]
     }
+    const useHistory = agent
+      ? () => useAgentSessionParts(sessionId)
+      : () => {
+          const value = useTopicMessages(sessionId)
+          return { messages: value.uiMessages, replyHistory: value.replyHistory }
+        }
     const observer = renderHook(
       ({ done }) => {
-        const history = useAgentSessionParts(sessionId)
+        const history = useHistory()
         return { history, live: useHistoryReplies(done ? terminal : null, [], history.replyHistory, 'done') }
       },
       { wrapper: Wrapper, initialProps: { done: false } }
@@ -190,15 +207,15 @@ it.each(['selected', 'queued', 'sibling'])(
     )
     mockDataApiService.get.mockReturnValueOnce(reservation.promise).mockImplementation(async (url) => {
       if (url === path) return retry.promise
-      if (url === path + '/answer') return committed.promise
+      if (url === (agent ? path + '/answer' : '/messages/answer')) return committed.promise
       throw new Error('Unexpected row ' + url)
     })
     const membership = () =>
       mockDataApiService._emitDataChange([
         {
-          endpoint: '/agent-sessions/:sessionId/messages',
+          endpoint,
           kind: 'membership',
-          routeParams: { sessionId },
+          routeParams,
           entityIds: branch === 'queued' ? ['answer'] : ['input', 'answer']
         }
       ])
@@ -210,27 +227,27 @@ it.each(['selected', 'queued', 'sibling'])(
     await act(async () =>
       mockDataApiService._emitDataChange([
         {
-          endpoint: '/agent-sessions/:sessionId/messages',
+          endpoint,
           kind: 'projection',
-          routeParams: { sessionId },
+          routeParams,
           entityIds: ['answer']
         }
       ])
     )
-    if (branch === 'sibling') {
-      await act(async () => retry.resolve({ items: [prefix] }))
-      expect(observer.result.current.live).toEqual([])
+    if (branch === 'sibling' || branch === 'partial') {
+      await act(async () => retry.resolve(page([prefix], branch === 'partial' ? 'older' : undefined)))
+      expect(observer.result.current.live).toEqual(branch === 'sibling' ? [] : terminal.messages)
       expect(observer.result.current.history.messages.map(({ id }) => id)).toEqual(['prefix'])
       return
     }
-    await act(async () => retry.resolve({ items: [pending, user, prefix] }))
+    await act(async () => retry.resolve(page([pending, user, prefix])))
     expect(observer.result.current.history.messages.map(({ id }) => id)).toEqual(['prefix', 'input', 'answer'])
     expect(observer.result.current.live).toEqual(terminal.messages)
     await act(async () => committed.resolve(saved))
     expect(observer.result.current.live).toEqual([])
     expect(observer.result.current.history.messages.at(-1)?.parts).toEqual(saved.data.parts)
 
-    mockDataApiService.get.mockResolvedValue({ items: [prefix] })
+    mockDataApiService.get.mockResolvedValue(page([prefix]))
     await act(async () => membership())
     expect(observer.result.current.history.messages.map(({ id }) => id)).toEqual(['prefix'])
     expect(observer.result.current.live).toEqual([])

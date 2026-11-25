@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { loggerService } from '@logger'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
@@ -10,15 +10,17 @@ const logger = loggerService.withContext('historyRows')
 
 type Row = Pick<Message, 'id' | 'status'>
 export type HistorySlot = { page: number; item: number; sibling?: number }
-type Read = { newer?: Promise<void> }
+type HistoryRead = 'written' | 'pending'
+type Read = { newer?: Promise<HistoryRead> }
 const pageReads = new WeakMap<object, Map<string, Read>>()
 
+type Membership = { kind: 'row'; row: Row } | { kind: 'excluded' | 'unknown' }
+
 export interface ReplyHistory {
-  loaded: boolean
-  membershipUncertain?: boolean
-  has(id: string): boolean
-  get(id: string): Row | undefined
-  refreshRow(id: string): Promise<void>
+  /** Changes on a new branch page, while addressed writes retain their layout. */
+  layout?: object
+  lookup(id: string): Membership
+  refreshRow(id: string): Promise<HistoryRead>
 }
 
 export interface PageRows<Item, Entity extends Row> {
@@ -26,25 +28,82 @@ export interface PageRows<Item, Entity extends Row> {
   replace(items: Item[], slot: HistorySlot, row: Entity): Item[]
 }
 
-export function useHistoryRowUpdates<Item, Entity extends Row, Page extends { items: Item[] }>(
+export function useHistoryRowUpdates<
+  Item,
+  Entity extends Row,
+  Page extends { items: Item[]; nextCursor?: string | null }
+>(
   pages: Page[],
   positions: ReadonlyMap<string, HistorySlot>,
   rows: PageRows<Item, Entity>,
   read: (id: string) => Promise<Entity>,
-  write: (pageIndex: number, update: (page: Page) => Item[]) => Promise<void>
-): ReplyHistory {
+  write: (pageIndex: number, update: (page: Page) => Item[]) => Promise<void>,
+  scope: string,
+  refresh: (options: { throwOnError: true }) => Promise<Page[] | undefined>,
+  excludedSiblings: ReadonlySet<string>
+) {
+  const request = useMemo(
+    (): {
+      scope: string
+      pending?: { ids: Set<string>; promise: Promise<void> }
+      failed: boolean
+    } => ({ scope, failed: false }),
+    [scope]
+  )
+  useEffect(
+    () => () => {
+      request.pending = undefined
+    },
+    [request]
+  )
+  const [coverage, setCoverage] = useState<{ owner: typeof request; ids: Set<string>; first: object; last: object }>()
+  const verifyMembership = useCallback(
+    (ids: string[], invalidate = false) => {
+      const current = request.pending
+      if (current && !invalidate && ids.every((id) => current.ids.has(id))) return current.promise
+      const expected = new Set([...(current?.ids ?? []), ...ids])
+      setCoverage(undefined)
+      const promise = refresh({ throwOnError: true })
+        .then((pages) => {
+          if (request.pending?.promise !== promise || !pages?.length) return
+          request.failed = false
+          setCoverage({
+            owner: request,
+            ids: expected,
+            first: historyPageLayout(pages[0].items),
+            last: historyPageLayout(pages[pages.length - 1].items)
+          })
+        })
+        .catch((error) => {
+          if (request.pending?.promise === promise) request.failed = true
+          throw error
+        })
+        .finally(() => {
+          if (request.pending?.promise === promise) request.pending = undefined
+        })
+      request.pending = { ids: expected, promise }
+      return promise
+    },
+    [request, refresh]
+  )
+  const covered =
+    coverage?.owner === request &&
+    pages.length > 0 &&
+    historyPageLayout(pages[0].items) === coverage.first &&
+    historyPageLayout(pages[pages.length - 1].items) === coverage.last
+  const complete = covered && !pages[pages.length - 1].nextCursor
   const has = useMemo(() => (id: string) => positions.has(id), [positions])
-  return useMemo(() => {
+  const updates = useMemo(() => {
     const get = (id: string) => {
       const position = positions.get(id)
       return position && pages[position.page] && rows.get(pages[position.page].items, position)
     }
-    const refreshRow = (id: string): Promise<void> => {
+    const refreshRow = (id: string): Promise<HistoryRead> => {
       const position = positions.get(id)
-      if (!position || !pages[position.page]) return Promise.resolve()
+      if (!position || !pages[position.page]) return Promise.resolve('pending')
       const { page } = position
       const before = rows.get(pages[page].items, position)
-      if (before?.id !== id) return Promise.resolve()
+      if (before?.id !== id) return Promise.resolve('pending')
       const layout = historyPageLayout(pages[page].items)
       let requests = pageReads.get(layout)
       if (!requests) {
@@ -58,14 +117,16 @@ export function useHistoryRowUpdates<Item, Entity extends Row, Page extends { it
         .then(async (row) => {
           if (ticket.newer) return ticket.newer
           if (row.id !== id) throw new Error('History row identity changed')
+          let applied = false
           await write(page, ({ items }) => {
             if (ticket.newer) return items
             if (historyPageLayout(items) !== layout && rows.get(items, position) !== before) return items
             const updated = rows.replace(items, position, row)
+            applied = true
             keepHistoryPageLayout(items, updated)
             return updated
           })
-          return ticket.newer
+          return ticket.newer ?? (applied && row.status !== 'pending' ? ('written' as const) : ('pending' as const))
         })
         .finally(() => {
           if (requests.get(id) === ticket) requests.delete(id)
@@ -73,20 +134,43 @@ export function useHistoryRowUpdates<Item, Entity extends Row, Page extends { it
       if (previous) previous.newer = request
       return request
     }
-    return { loaded: pages.length > 0, has, get, refreshRow }
-  }, [has, positions, pages, read, rows, write])
-}
-
-export function applyHistoryChanges(
-  effects: readonly DataApiDataChangeEffect[],
-  history: ReplyHistory,
-  refreshMembership: () => Promise<unknown>
-): void {
-  if (effects.some((effect) => effect.kind !== 'projection' || !effect.entityIds)) {
-    void refreshMembership()
-    return
+    return { get, refreshRow }
+  }, [positions, pages, read, rows, write])
+  const replyHistory = useMemo<ReplyHistory>(
+    () => ({
+      layout: pages.length ? positions : undefined,
+      lookup(id) {
+        const row = updates.get(id)
+        if (row && !excludedSiblings.has(id)) return { kind: 'row', row }
+        if (covered && coverage?.ids.has(id) && (complete || excludedSiblings.has(id))) return { kind: 'excluded' }
+        return { kind: 'unknown' }
+      },
+      refreshRow(id) {
+        return has(id) && !excludedSiblings.has(id)
+          ? updates.refreshRow(id)
+          : verifyMembership([id]).then(() => 'pending')
+      }
+    }),
+    [updates, pages.length, positions, covered, coverage, excludedSiblings, complete, has, verifyMembership]
+  )
+  const onChange = (effects: readonly DataApiDataChangeEffect[]) => {
+    if (effects.some((effect) => effect.kind !== 'projection' || !effect.entityIds)) {
+      void verifyMembership(
+        effects.flatMap((effect) => effect.entityIds ?? []),
+        true
+      ).catch((error) => logger.warn('Could not refresh history membership', { error }))
+      return
+    }
+    const missing: string[] = []
+    for (const id of new Set(effects.flatMap((effect) => effect.entityIds ?? []))) {
+      if (!has(id)) {
+        missing.push(id)
+        continue
+      }
+      void updates.refreshRow(id).catch((error) => logger.warn('Could not update changed history row', { id, error }))
+    }
+    if (missing.length && request.failed)
+      void verifyMembership(missing).catch((error) => logger.warn('Could not refresh history membership', { error }))
   }
-  for (const id of new Set(effects.flatMap((effect) => effect.entityIds ?? []))) {
-    void history.refreshRow(id).catch((error) => logger.warn('Could not update changed history row', { id, error }))
-  }
+  return { replyHistory, onChange }
 }

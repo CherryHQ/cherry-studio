@@ -39,7 +39,10 @@ export class ThreadFeed {
   private value: Omit<ThreadSnapshot, 'messages'> & { messages: RuntimeMessage[] }
   private cachedSnapshot?: ThreadSnapshot
   private readonly messageIndices = new Map<string, number>()
-  private readonly partChanges = new Map<string, Map<number, RuntimeMessage['parts'][number]>>()
+  private readonly partChanges = new Map<
+    string,
+    { parts: Map<number, RuntimeMessage['parts'][number]>; length: number }
+  >()
 
   constructor(
     value: ThreadSnapshot,
@@ -84,7 +87,7 @@ export class ThreadFeed {
     const changes = this.partChanges.get(id)
     if (!changes) return message
     const parts = message.parts.slice()
-    for (const [partIndex, part] of changes) parts[partIndex] = part
+    for (const [partIndex, part] of changes.parts) parts[partIndex] = part
     return immutable({ ...message, parts })
   }
 
@@ -98,21 +101,34 @@ export class ThreadFeed {
     return (current?.type === 'text' || current?.type === 'reasoning') && current.state === 'streaming'
   }
 
+  partCount(id: string): number | undefined {
+    const index = this.messageIndices.get(id)
+    return index === undefined
+      ? undefined
+      : (this.partChanges.get(id)?.length ?? this.value.messages[index].parts.length)
+  }
+
   part(id: string, part: number): RuntimeMessage['parts'][number] | undefined {
     const index = this.messageIndices.get(id)
     return index === undefined
       ? undefined
-      : (this.partChanges.get(id)?.get(part) ?? this.value.messages[index].parts[part])
+      : (this.partChanges.get(id)?.parts.get(part) ?? this.value.messages[index].parts[part])
   }
 
   publishPart(input: LivePartInput): LivePartInput | undefined {
     const id = input.ref.id
-    if (this.ended || !this.messageIndices.has(id)) return
+    const length = this.partCount(id)
+    if (this.ended || length === undefined) return
     const staged = stagePartUpdate(input, (index) => this.part(id, index))
     if (!staged) return
-    const current = this.partChanges.get(id)
-    if (current) for (const [index, part] of staged.parts) current.set(index, part)
-    else if (staged.parts.size) this.partChanges.set(id, staged.parts)
+    if (staged.parts.size) {
+      const changes = this.partChanges.get(id) ?? { parts: new Map(), length }
+      for (const [index, part] of staged.parts) {
+        changes.parts.set(index, part)
+        changes.length = Math.max(changes.length, index + 1)
+      }
+      this.partChanges.set(id, changes)
+    }
     this.cachedSnapshot = undefined
     for (const observer of this.observers) observer.send(staged.event)
     return staged.event

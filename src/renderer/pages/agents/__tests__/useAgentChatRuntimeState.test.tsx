@@ -707,6 +707,20 @@ describe('useAgentChatRuntimeState', () => {
     }
   )
 
+  it('observes the selected recovered run while submitting the next turn through the session', () => {
+    const topic = 'agent-session:session-1/context/recovered'
+    MockUseCacheUtils.setSharedCacheValue('agent.session.stream_topic.session-1', topic)
+    renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    expect(mocks.useChatWithHistory.mock.lastCall?.[0]).toBe(topic)
+    expect(mocks.useTopicCompletion.mock.lastCall?.[0]).toBe(topic)
+    expect(mocks.controllerOptions.mock.lastCall?.[0].ensureConversation()).toEqual({
+      topicId: 'agent-session:session-1'
+    })
+  })
+
   it('reports a blocked stream open as not sent', async () => {
     mocks.sendTurn.mockResolvedValueOnce(false)
     const { result } = renderHook(() =>

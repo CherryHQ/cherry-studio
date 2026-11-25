@@ -68,7 +68,7 @@ export class ChildThreadProjection {
   private readonly delivery: MessageProjection<ChildProjectionState>
   private timer?: ReturnType<typeof setTimeout>
   private pending: Promise<void> = Promise.resolve()
-  private drainingParts?: Promise<void>
+  private publishingArchive?: Promise<void>
   private stopped = false
   private needsHistory = true
   private reloadSaved = false
@@ -76,11 +76,12 @@ export class ChildThreadProjection {
   private history?: CommittedHistory
   private canonicalIds = new Map<string, string>()
   private readonly composition: Composition
-  private readonly sourceRows = new Map<string, Composition[string]>()
   private readonly materialized = new Map<
     string,
-    { source: CherryUIMessage; id: string; rows: CherryUIMessage[]; partIds: string[] }
+    { source: CherryUIMessage; id: string; rows: CherryUIMessage[]; partIds: string[]; fragments: Composition[string] }
   >()
+  /** Native addresses changed while reading an older archive, indexed by stable product row and part position. */
+  private archiveEdits?: Map<string, Map<number, string>>
   private readonly pendingResults = new Map<string, { messageId: string; part: ToolOutput }>()
   private readonly visibleParts = new Map<string, { messageId: string; value: CherryUIMessage['parts'][number] }>()
   private readonly changedParts = new Map<string, { messageId: string; placement?: { afterPartId?: string } }>()
@@ -144,12 +145,11 @@ export class ChildThreadProjection {
     const source = {}
     this.source = source
     const result = await this.handle.observe(async (event) => {
-      if (this.drainingParts) await this.drainingParts
+      if (this.publishingArchive) await this.publishingArchive
       if (this.stopped || this.source !== source) return
       if (isLivePartInput(event)) {
-        const nativeId = this.canonical(event.ref.id)
-        if (!this.materialized.has(nativeId)) await this.flush()
-        const applied = this.applyParts(nativeId, event)
+        if (!this.sourceRow(event.ref.id)) await this.flush()
+        const applied = this.applyParts(event)
         if (applied) {
           if (applied === 'persist') this.schedule()
           return
@@ -235,8 +235,8 @@ export class ChildThreadProjection {
     await this.flush()
   }
 
-  private applyParts(nativeId: string, event: LivePartInput): 'accepted' | 'persist' | undefined {
-    const row = this.materialized.get(nativeId)
+  private applyParts(event: LivePartInput): 'accepted' | 'persist' | undefined {
+    const row = this.sourceRow(event.ref.id)
     if (!row) return undefined
     const accepted = this.projection.stageParts(event, row.partIds.length)
     if (!accepted) return undefined
@@ -303,7 +303,7 @@ export class ChildThreadProjection {
           break
         case 'put': {
           const part = edit.value as Exclude<CherryUIMessage['parts'][number], { type: 'text' | 'reasoning' }>
-          const archiveMessageId = this.sourceRows.get(nativeId)?.[index + 1]?.messageId ?? row.id
+          const archiveMessageId = row.fragments[index + 1]?.messageId ?? row.id
           const { patch, ref } = projectAgentNonTextPart(buildAgentSessionTopicId(this.context.sessionId), {
             archiveMessageId,
             partId,
@@ -352,6 +352,11 @@ export class ChildThreadProjection {
         messageId: values.get(patch.partId)!.messageId,
         ...(placement && { placement: { afterPartId: placement.afterPartId } })
       })
+    }
+    if (this.archiveEdits) {
+      let edits = this.archiveEdits.get(row.id)
+      if (!edits) this.archiveEdits.set(row.id, (edits = new Map()))
+      for (const index of accepted.keys()) edits.set(index, event.ref.id)
     }
     row.partIds.push(...added)
     this.delivery.publishParts(patches)
@@ -416,7 +421,47 @@ export class ChildThreadProjection {
     }
     const history = this.needsHistory
     this.needsHistory = false
-    const archive = history ? await this.readCommitted() : undefined
+    if (history) this.archiveEdits = new Map()
+    try {
+      const archive = history ? await this.readCommitted() : undefined
+      const writing = this.commit(archive && this.includeLaterParts(archive))
+      this.publishingArchive = writing.catch(() => {})
+      await writing
+    } finally {
+      this.archiveEdits = undefined
+      this.publishingArchive = undefined
+    }
+  }
+
+  private includeLaterParts(archive: CommittedHistory): CommittedHistory {
+    const edits = this.archiveEdits
+    if (!edits?.size) return archive
+    return {
+      ...archive,
+      messages: archive.messages.map((message) => {
+        const row = this.sourceRow(message.id) ?? this.sourceRow(archive.aliases[message.id])
+        const changes = row && edits.get(row.id)
+        if (!changes) return message
+        const parts = message.parts.slice()
+        for (const [index, nativeId] of changes) {
+          const value = this.projection.part(nativeId, index)
+          if (!value || index > parts.length) continue
+          const previous = parts[index]
+          if (previous && previous.type !== value.type) continue
+          if (
+            previous?.type === 'dynamic-tool' &&
+            value.type === 'dynamic-tool' &&
+            previous.toolCallId !== value.toolCallId
+          )
+            continue
+          parts[index] = value
+        }
+        return { ...message, parts }
+      })
+    }
+  }
+
+  private async commit(archive?: CommittedHistory): Promise<void> {
     if (archive) {
       this.history = archive
       this.canonicalIds = new Map()
@@ -447,7 +492,7 @@ export class ChildThreadProjection {
       this.committedLiveIds.add(liveId)
     }
     let next = new Map(this.saved)
-    const committed = new Set<string>()
+    const covered = new Set<string>()
     if (archive) {
       const recovered = (this.committed ??= new ThreadMessageProjection(
         this.handle.thread,
@@ -474,7 +519,7 @@ export class ChildThreadProjection {
         const id = (this.nativeIds[message.id] ??= this.productIds.get(message.id) ?? uuid())
         const rows = this.materialize(message, id)
         for (const row of rows) {
-          committed.add(row.id)
+          covered.add(row.id)
           if (
             row.role === 'user' &&
             next.has(row.id) &&
@@ -486,34 +531,33 @@ export class ChildThreadProjection {
             ...row,
             parts: row.parts.length
               ? row.parts.map((part, index) =>
-                  Object.assign({}, saved?.parts[index]?.type === part.type ? saved.parts[index] : undefined, part)
+                  part.type === 'dynamic-tool'
+                    ? part
+                    : Object.assign({}, saved?.parts[index]?.type === part.type ? saved.parts[index] : undefined, part)
                 )
               : (saved?.parts ?? [])
           })
         }
       }
     }
-    // Keep arrivals during the archive read live, then serialize the final drain with snapshot publication.
-    this.drainingParts = this.projection.drain()
-    try {
-      await this.drainingParts
-    } finally {
-      this.drainingParts = undefined
-    }
+    await this.projection.drain()
     const current = this.projection.snapshot()
     for (const message of current.messages) {
       if (this.removed.has(message.id)) continue
       const id = this.nativeIds[message.id] ?? this.productIds.get(message.id) ?? uuid()
       this.productIds.set(message.id, id)
       if (
-        ((committed.has(id) || this.committedLiveIds.has(message.id)) &&
-          next.get(id)?.metadata?.status !== 'pending') ||
+        (covered.has(id) && this.archiveEdits?.has(id)) ||
+        ((covered.has(id) || this.committedLiveIds.has(message.id)) && next.get(id)?.metadata?.status !== 'pending') ||
         (message.role === 'user' &&
           next.has(id) &&
           messages.inputBinding(this.context.sessionId, id)?.contextId === this.context.id)
       )
         continue
-      for (const row of this.materialize(message, id)) next.set(row.id, row)
+      for (const row of this.materialize(message, id)) {
+        covered.add(row.id)
+        next.set(row.id, row)
+      }
     }
     const mappings = new Map([...Object.entries(this.nativeIds), ...this.productIds])
     const retained = new Set([...mappings].filter(([source]) => !this.removed.has(source)).map(([, id]) => id))
@@ -524,7 +568,7 @@ export class ChildThreadProjection {
     const sourceOrder = new Set<string>()
     for (const message of [...(this.history?.messages ?? []), ...current.messages]) {
       if (this.removed.has(message.id)) continue
-      for (const row of this.sourceRows.get(this.canonical(message.id)) ?? [])
+      for (const row of this.sourceRow(message.id)?.fragments ?? [])
         if (next.has(row.messageId)) sourceOrder.add(row.messageId)
     }
     const ordered = sourceOrder.values()
@@ -533,10 +577,11 @@ export class ChildThreadProjection {
     next = new Map(order.map((id) => [id, next.get(id)!]))
     this.composeSources(current.messages)
     const retainedSources = new Set(
-      [...(this.history?.messages ?? []), ...current.messages].map((message) => this.canonical(message.id))
+      [...(this.history?.messages ?? []), ...current.messages]
+        .filter((message) => !this.removed.has(message.id))
+        .map((message) => mappings.get(message.id))
     )
-    for (const id of this.materialized.keys())
-      if (!retainedSources.has(id) || this.removed.has(id)) this.materialized.delete(id)
+    for (const id of this.materialized.keys()) if (!retainedSources.has(id)) this.materialized.delete(id)
     const changed = [...next.values()].filter((message) => !storedEqual(message, this.saved.get(message.id)))
     const reordered = !isDeepStrictEqual(order, [...this.saved.keys()])
     const durable = new Set(Object.values(this.nativeIds))
@@ -597,14 +642,19 @@ export class ChildThreadProjection {
       this.saved.clear()
       for (const [id, message] of next) this.saved.set(id, message)
     }
+    const topicId = buildAgentSessionTopicId(this.context.sessionId)
+    const changedResults: DeferredToolResultRef[] = []
+    for (const [partId, pending] of this.pendingResults) {
+      if (!covered.has(pending.messageId) && next.has(pending.messageId)) continue
+      this.pendingResults.delete(partId)
+      changedResults.push({ topicId, messageId: pending.messageId, toolCallId: pending.part.toolCallId, partId })
+    }
     for (const [responseId, nativeId] of Object.entries(archive?.responseIds ?? {})) {
       const messageId = this.nativeIds[nativeId]
       if (!messageId || this.reportedResponses.get(responseId) === messageId) continue
       this.reportedResponses.set(responseId, messageId)
       this.onResponse?.(responseId, messageId)
     }
-    const topicId = buildAgentSessionTopicId(this.context.sessionId)
-    const changedResults: DeferredToolResultRef[] = []
     const renderedRows = new Map<string, ProjectedArchiveRow>()
     for (const [id, row] of next) {
       const before = this.renderedRows.get(id)
@@ -625,6 +675,11 @@ export class ChildThreadProjection {
       },
       changedResults
     )
+  }
+
+  private sourceRow(nativeId: string) {
+    const id = this.nativeIds[nativeId] ?? this.productIds.get(nativeId)
+    return id ? this.materialized.get(id) : undefined
   }
 
   private canonical(id: string): string {
@@ -666,8 +721,8 @@ export class ChildThreadProjection {
 
   private materialize(message: CherryUIMessage, id: string): CherryUIMessage[] {
     const nativeId = this.canonical(message.id)
-    const accepted = this.materialized.get(nativeId)
-    if (accepted?.source === message && accepted.id === id) return accepted.rows
+    const accepted = this.materialized.get(id)
+    if (accepted?.source === message) return accepted.rows
     const assignments = new Map<number, string>()
     for (const [old, source] of Object.entries(this.history?.legacy ?? {})) {
       const row = this.nativeIds[old]
@@ -676,7 +731,7 @@ export class ChildThreadProjection {
     }
     const rows = new Map<string, CherryUIMessage & { partIds: string[] }>()
     const partIds: string[] = []
-    const fragments: Composition[string] = []
+    const fragments: Composition[string] = [{ messageId: id, parts: [] }]
     message.parts.forEach((part, index) => {
       const rowId = assignments.get(index) ?? id
       const row = rows.get(rowId) ?? { ...message, id: rowId, parts: [], partIds: [] }
@@ -689,9 +744,8 @@ export class ChildThreadProjection {
       rows.set(rowId, row)
     })
     if (!rows.size) rows.set(id, { ...message, id, partIds: [] })
-    this.sourceRows.set(nativeId, [{ messageId: id, parts: [] }, ...fragments])
     const result = [...rows.values()]
-    this.materialized.set(nativeId, { source: message, id, rows: result, partIds })
+    this.materialized.set(id, { source: message, id, rows: result, partIds, fragments })
     return result
   }
 
@@ -707,7 +761,7 @@ export class ChildThreadProjection {
     const covered = new Set<string>()
     for (const source of sources.values()) {
       if (this.removed.has(source.id)) continue
-      const fragments = this.sourceRows.get(source.id)
+      const fragments = this.sourceRow(source.id)?.fragments
       if (source.role === 'user') {
         placed = true
         reply = undefined
@@ -766,12 +820,6 @@ export class ChildThreadProjection {
 
   private publish(next: AgentChildView, changedResults: readonly DeferredToolResultRef[] = []): void {
     this.view = next
-    for (const [partId, pending] of this.pendingResults) {
-      const saved = this.saved.get(pending.messageId)
-      const written = saved?.parts[saved.partIds?.indexOf(partId) ?? -1]
-      if ((!saved && !this.renderedRows.has(pending.messageId)) || isDeepStrictEqual(written, pending.part))
-        this.pendingResults.delete(partId)
-    }
     let { messages } = next
     if (this.retryStatus) {
       const last = messages.at(-1)

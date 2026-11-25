@@ -1,7 +1,7 @@
 import { useMemo, useSyncExternalStore } from 'react'
 
+import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { messageProjectionService } from '@renderer/services/aiTransport'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { collect, concat, foldLayout, single, type Range } from '@renderer/utils/message/projectionRange'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -12,9 +12,10 @@ export function useAgentToolParts(
   baseline: PartRows,
   accepts: (part: CherryMessagePart) => boolean
 ): PartRows {
+  const topicId = useAgentSessionStreamTopic(sessionId)
   const selection = useMemo(() => {
-    const target = { kind: 'topic' as const, topicId: buildAgentSessionTopicId(sessionId ?? '') }
-    if (!sessionId || !messageProjectionService.getSnapshot(target).view)
+    const target = { kind: 'topic' as const, topicId }
+    if (!topicId || !messageProjectionService.getSnapshot(target).view)
       return { getSnapshot: () => baseline, subscribe: () => () => {} }
     const reader = messageProjectionService.partsFor(target)
     const select = foldLayout<Range<CherryMessagePart> | null>(
@@ -59,6 +60,6 @@ export function useAgentToolParts(
         return off
       }
     }
-  }, [sessionId, baseline, accepts])
+  }, [topicId, baseline, accepts])
   return useSyncExternalStore(selection.subscribe, selection.getSnapshot)
 }

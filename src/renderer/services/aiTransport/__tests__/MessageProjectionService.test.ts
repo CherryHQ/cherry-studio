@@ -255,6 +255,8 @@ describe('shared projection delivery', () => {
     structure.mockClear()
     const leaf = vi.fn(() => store.getPart(tool))
     const offPart = store.partsFor(target).subscribe('call-part', leaf)
+    const layout = store.partsFor(target).row(base.messages[0].id)!
+    const initialLayout = layout.getSnapshot()
     const running = { ...tool, state: 'output-available' as const, output: 'working', preliminary: true }
     ipc.emit(first.subscriptionId, {
       kind: 'topic',
@@ -264,11 +266,20 @@ describe('shared projection delivery', () => {
     })
     expect(leaf.mock.results.map(({ value }) => value)).toEqual([running])
     expect(structure).not.toHaveBeenCalled()
-    const final = { ...running, output: 'done', preliminary: false }
+    const runningLayout = layout.getSnapshot()
+    expect(runningLayout).not.toBe(initialLayout)
     ipc.emit(first.subscriptionId, {
       kind: 'topic',
       type: 'parts',
       revision: 2,
+      patches: [{ type: 'part-put', partId: 'call-part', part: { ...running, output: 'more progress' } }]
+    })
+    expect(layout.getSnapshot()).toBe(runningLayout)
+    const final = { ...running, output: 'done', preliminary: false }
+    ipc.emit(first.subscriptionId, {
+      kind: 'topic',
+      type: 'parts',
+      revision: 3,
       patches: [{ type: 'part-put', partId: 'call-part', part: final }]
     })
     expect(store.readParts(store.getSnapshot(target).view!.messages[0].parts)).toEqual([final])

@@ -1,11 +1,11 @@
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { createModels, fauxAssistantMessage, fauxProvider } from '@earendil-works/pi-ai'
-import { createRegistry, Harness, MemoryStorage } from '@earendil-works/pi-durable'
+import { CompactionEntry, createRegistry, Harness, MemoryStorage, UserEntry } from '@earendil-works/pi-durable'
 import { expect, it } from 'vitest'
 
 import { runtimeId } from '@cherrystudio/agent-runtime'
 
-import { areDurableInputsAbsent } from '../src/replyHistory'
+import { areDurableInputsAbsent, readDurableReply } from '../src/replyHistory'
 
 it('keeps a delivery pending when a linked input has a legacy receipt or a receipt has no recoverable identity', async () => {
   const ctx = BACKGROUND_CONTEXT
@@ -52,3 +52,56 @@ it('keeps a delivery pending when a linked input has a legacy receipt or a recei
     await harness.close(ctx)
   }
 })
+
+it.each(['compaction', 'next-input'] as const)(
+  'recovers a committed answer across the correct %s boundary',
+  async (between) => {
+    const ctx = BACKGROUND_CONTEXT
+    const storage = new MemoryStorage()
+    const models = createModels()
+    const faux = fauxProvider()
+    models.setProvider(faux.provider)
+    let started!: () => void
+    let finish!: () => void
+    const generation = new Promise<void>((resolve) => (started = resolve))
+    const waiting = new Promise<void>((resolve) => (finish = resolve))
+    faux.setResponses([
+      async () => {
+        started()
+        await waiting
+        return fauxAssistantMessage('committed answer')
+      }
+    ])
+    const harness = await Harness.open(storage, { models, registry: createRegistry() }, ctx)
+    try {
+      const root = await harness.createConversation({ ownership: { kind: 'ownerless' } }, ctx)
+      await root.configure({ model: { provider: 'faux', modelId: 'faux-1' } }, ctx)
+      const inputId = runtimeId<'input'>('request')
+      const receipt = await root.submit(
+        { type: 'input', content: 'question', requestId: inputId, whenBusy: 'reject' },
+        ctx
+      )
+      await generation
+      await harness.commit(async (tx) => {
+        const model = [{ role: 'user' as const, content: 'context', timestamp: Date.now() }]
+        if (between === 'compaction')
+          await tx.appendEntry(CompactionEntry, root.id, { model, data: { reason: 'overflow' } })
+        else await tx.appendEntry(UserEntry, root.id, { model })
+      }, ctx)
+      finish()
+      expect((await receipt.wait(ctx)).status).toBe('done')
+      const reply = await readDurableReply(storage, { backendId: runtimeId('store'), id: runtimeId(String(root.id)) }, [
+        { inputId }
+      ])
+      if (between === 'compaction')
+        expect(reply).toMatchObject({
+          messages: [{ role: 'assistant', parts: [{ type: 'text', text: 'committed answer' }] }],
+          outcome: { outcome: 'completed' }
+        })
+      else expect(reply).toBeUndefined()
+    } finally {
+      finish()
+      await harness.close(ctx)
+    }
+  }
+)

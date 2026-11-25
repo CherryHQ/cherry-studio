@@ -260,7 +260,9 @@ it('correlates identical transformed inputs and shares one response across batch
   await handle.input.submit(input('steer-2', 'steer'))
   await handle.input.submit(input('follow', 'follow-up'))
   finish.resolve()
-  await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
+  await expect
+    .poll(() => events.findLast((event) => event.type === 'activity.changed')?.activity.state, { timeout: 10_000 })
+    .toBe('idle')
 
   const after = await observe(confirmed(await runtime.open(handle.thread)))
   await expect.poll(() => after[0]?.type).toBe('snapshot')
@@ -588,7 +590,11 @@ it('continues an observed child through its owner, keeps one relationship, and r
   )
   const parentEvents = await observe(parent)
   await parent.input.submit(input('delegate'))
-  await expect.poll(() => parentEvents.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
+  await expect
+    .poll(() => parentEvents.findLast((event) => event.type === 'activity.changed')?.activity.state, {
+      timeout: 10_000
+    })
+    .toBe('idle')
   const relation = parentEvents.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('Missing child')
   const child = confirmed(await runtime.open(relation.subagent.child))

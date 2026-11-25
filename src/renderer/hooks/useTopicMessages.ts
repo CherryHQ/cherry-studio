@@ -31,13 +31,7 @@ import type {
 
 import { useHistoryPageProjection } from './historyPageLayout'
 import { useConversationHistoryQuery } from './useConversationHistoryQuery'
-import {
-  applyHistoryChanges,
-  type HistorySlot,
-  type PageRows,
-  type ReplyHistory,
-  useHistoryRowUpdates
-} from './useHistoryRowUpdates'
+import { type HistorySlot, type PageRows, type ReplyHistory, useHistoryRowUpdates } from './useHistoryRowUpdates'
 
 // Baseline page size when the anchor rail is off — no reason to load more.
 const PAGE_SIZE = 50
@@ -248,7 +242,9 @@ export function useTopicMessages(
         positions.get(row.id)!.displayIndex = index
       })
       const pagesBelongToTopic = items.every((item) => branchBelongsToTopic(item, topicId))
-      return { positions, uiMessages, siblingsMap, pagesBelongToTopic }
+      const excluded = new Set<string>()
+      for (const [id, slot] of positions) if (slot.displayIndex === undefined) excluded.add(id)
+      return { positions, uiMessages, siblingsMap, pagesBelongToTopic, excluded }
     },
     [topicId]
   )
@@ -280,7 +276,11 @@ export function useTopicMessages(
     },
     [topicId]
   )
-  const { positions, uiMessages, siblingsMap, pagesBelongToTopic } = useHistoryPageProjection(pages, build, replace)
+  const { positions, uiMessages, siblingsMap, pagesBelongToTopic, excluded } = useHistoryPageProjection(
+    pages,
+    build,
+    replace
+  )
   const activeNodeId = pages[0]?.activeNodeId ?? null
 
   // Errors that predate the load-all are baseline; only a NEW error while paging
@@ -330,11 +330,20 @@ export function useTopicMessages(
     limit: pageSize
   })
   const readRow = useCallback((id: string) => dataApiService.get(`/messages/${id}`), [])
-  const replyHistory = useHistoryRowUpdates(pages, positions, branchRows, readRow, writePage)
+  const { replyHistory, onChange } = useHistoryRowUpdates(
+    pages,
+    positions,
+    branchRows,
+    readRow,
+    writePage,
+    topicId,
+    refreshPages,
+    excluded
+  )
   useDataChange(
     '/topics/:topicId/messages',
     (effects) => {
-      if (enabled) applyHistoryChanges(effects, replyHistory, mutate)
+      if (enabled) onChange(effects)
     },
     { routeParams: { topicId } }
   )

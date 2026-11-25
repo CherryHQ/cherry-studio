@@ -45,6 +45,7 @@ import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { Emitter } from '@main/core/lifecycle'
 import { orderAgentTimelineParts } from '@main/utils/agentTimelineOrder'
 import { projectMessagePartForRenderer, projectMessagePartsForRenderer } from '@main/utils/messageOutputProjection'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
@@ -595,6 +596,9 @@ function syncMessageToolOutputsTx(
 }
 
 export class AgentSessionMessageService {
+  private readonly branchSelected = new Emitter<{ sessionId: string; head: string }>()
+  readonly onBranchSelected = this.branchSelected.event
+
   private readonly acceptedToolParts = new WeakMap<object, AcceptedToolPart>()
 
   private extractMessageToolOutputs<T extends AgentSessionMessageData>(
@@ -1153,11 +1157,13 @@ export class AgentSessionMessageService {
   }
 
   selectBranch(sessionId: string, messageId: string): void {
-    application.get('DbService').withWriteTx((tx) => {
+    const head = application.get('DbService').withWriteTx((tx) => {
       this.assertActiveSession(tx, sessionId)
       const head = this.branchTip(sessionId, messageId, tx)
       tx.update(sessionTable).set({ activeNodeId: head }).where(eq(sessionTable.id, sessionId)).run()
+      return head
     })
+    this.branchSelected.fire({ sessionId, head })
     notifyDataApiDataChange([
       { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId } }
     ])

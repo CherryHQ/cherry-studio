@@ -149,10 +149,7 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
     recovery?: DurableRecoveryWork
   ) {
     const existing = slot.connections.get(context.id)
-    if (existing) {
-      existing.bindInputs(input)
-      return existing
-    }
+    if (existing) return existing
     contexts.markRecoveryCheck(context.backendId, true)
     const created = slot.owner ? undefined : await DurableBackend.open(input, context, recovery)
     const owner = (slot.owner ??= created!.owner)
@@ -195,7 +192,6 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
     }
     try {
       const requested = await attach(root)
-      if (!recovery) requested.bindInputs(input)
       for (const host of created?.pending ?? []) {
         if (host.context.id !== context.id) this.adopt(host, await attach(host))
       }

@@ -115,6 +115,10 @@ export class ThreadMessageProjection {
     })
   }
 
+  part(nativeId: string, index: number): RuntimeMessage['parts'][number] | undefined {
+    return this.partUpdates.get(nativeId)?.get(index)?.value ?? this.admitted.get(nativeId)?.parts[index]
+  }
+
   drain(): Promise<void> {
     if (this.partUpdates.size) return this.accept([])
     return this.pending

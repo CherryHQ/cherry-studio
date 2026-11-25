@@ -262,6 +262,19 @@ type InfiniteQueryKeyGetter = (
   previousPageData: CursorPaginationResponse<unknown> | null
 ) => InfiniteQueryKey | null
 
+// Each selected page has its own key object, including concurrent reads of the same cursor.
+const strictPageReads = new WeakMap<object, (page: Promise<unknown>) => void>()
+
+function useInfiniteQueryLifetime(key: string) {
+  const lifetime = useMemo((): { key: string; signal?: AbortSignal } => ({ key }), [key])
+  useEffect(() => {
+    const controller = new AbortController()
+    lifetime.signal = controller.signal
+    return () => controller.abort()
+  }, [lifetime])
+  return lifetime
+}
+
 function createInfiniteQueryKeyGetter(
   resolvedPath: string,
   query: unknown,
@@ -899,9 +912,15 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     [resolvedPath, options?.query, limit, enabled]
   )
   const infiniteFetcher = (key: [string, Record<string, unknown>]) => {
-    return getFetcher(key as unknown as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]) as Promise<
-      ResponseForPath<TPath, 'GET'>
-    >
+    const page = getFetcher(
+      key as unknown as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]
+    ) as Promise<ResponseForPath<TPath, 'GET'>>
+    const accept = strictPageReads.get(key)
+    if (accept) {
+      strictPageReads.delete(key)
+      accept(page)
+    }
+    return page
   }
 
   const swrResult = useSWRInfinite(getKey, infiniteFetcher, swrOptions)
@@ -927,20 +946,52 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     if (hasNext) void setSize((s) => s + 1)
   }, [hasNext, setSize])
 
-  const { cache } = useSWRConfig()
-  const cacheKey = unstable_serialize_infinite(getKey)
+  const { cache, compare: defaultCompare } = useSWRConfig()
+  const compare = swrOptions.compare ?? defaultCompare
+  const lifetime = useInfiniteQueryLifetime(unstable_serialize_infinite(getKey))
+  const { size } = swrResult
   const refresh = useCallback(
     async (options?: { throwOnError?: boolean }) => {
-      const pages = await mutate()
-      if (options?.throwOnError) {
-        // SWR resolves revalidation with cached pages even when its fetcher failed.
-        const error = cache.get(cacheKey)?.error
-        if (error) throw error
-        if (!pages) throw new Error('No pages available after revalidation')
+      if (!options?.throwOnError) return mutate()
+      const signal = lifetime.signal
+      if (!signal || signal.aborted) throw new Error('History read is no longer active')
+      const reads: Promise<ResponseForPath<TPath, 'GET'>>[] = []
+      let selected = 0
+      const accept = (page: Promise<unknown>) => reads.push(page as Promise<ResponseForPath<TPath, 'GET'>>)
+      const [get, , subscribe] = createCacheHelper<ResponseForPath<TPath, 'GET'>[]>(cache, lifetime.key)
+      const settled = Promise.withResolvers<void>()
+      const cancelled = Promise.withResolvers<void>()
+      const cancel = () => cancelled.resolve()
+      signal.addEventListener('abort', cancel, { once: true })
+      const unsubscribe = subscribe(lifetime.key, (current, previous) => {
+        if (previous.isValidating && !current.isValidating) settled.resolve()
+      })
+      try {
+        await mutate((current) => current, {
+          populateCache: false,
+          revalidate(_page, key) {
+            if (Array.isArray(key)) {
+              selected++
+              strictPageReads.set(key, accept)
+            }
+            return true
+          }
+        })
+        if (!selected) throw new Error('No pages selected for revalidation')
+        await Promise.race([settled.promise, cancelled.promise])
+        const fresh = await Promise.race([Promise.all(reads), cancelled.promise])
+        if (!fresh || signal.aborted) throw new Error('History read is no longer active')
+        const last = fresh.at(-1) as CursorPaginationResponse<unknown> | undefined
+        if (!last || fresh.length !== selected || (fresh.length < size && last.nextCursor))
+          throw new Error('Incomplete pages after revalidation')
+        const cached = get().data
+        return cached && compare(fresh, cached) ? cached : fresh
+      } finally {
+        unsubscribe()
+        signal.removeEventListener('abort', cancel)
       }
-      return pages as ResponseForPath<TPath, 'GET'>[] | undefined
     },
-    [cache, cacheKey, mutate]
+    [cache, lifetime, compare, mutate, size]
   )
   const reset = useCallback(() => setSize(1), [setSize])
 
@@ -1061,42 +1112,49 @@ export function useWriteInfinitePage<TPath extends ApiPath>(
   options?: Omit<InfiniteQueryOptions<TPath>, 'enabled' | 'swrOptions'>
 ) {
   type Page = Extract<ResponseForPath<TPath, 'GET'>, CursorPaginationResponse<unknown>>
-  const { cache, mutate } = useSWRConfig()
+  const { cache } = useSWRConfig()
   const { getKey, infiniteCacheKey } = useInfiniteCacheKeys(
     resolveTemplate(path, options?.params),
     options?.query,
     options?.limit
   )
 
+  const lifetime = useInfiniteQueryLifetime(infiniteCacheKey)
+
   return useCallback(
     async (index: number, update: (page: Page) => Page['items']): Promise<void> => {
-      const [get, , subscribe] = createCacheHelper<Page[]>(cache, infiniteCacheKey)
+      const [get, publishPages, subscribe] = createCacheHelper<Page[]>(cache, lifetime.key)
       // Mutating a validating SWR key discards its pending response, including a branch switch.
+      const signal = lifetime.signal
       while (get().isValidating) {
+        if (!signal || signal.aborted) return
         const settled = Promise.withResolvers<void>()
-        const unsubscribe = subscribe(infiniteCacheKey, (state) => {
+        const unsubscribe = subscribe(lifetime.key, (state) => {
           if (!state.isValidating) settled.resolve()
         })
+        const cancel = () => settled.resolve()
+        signal.addEventListener('abort', cancel, { once: true })
         await settled.promise
+        signal.removeEventListener('abort', cancel)
         unsubscribe()
+        if (signal.aborted) return
       }
       const pages = get().data
       const page = pages?.[index]
       if (!pages || !page) return
-      const items = update(page)
-      if (items === page.items) return
       const key = getKey(index, index === 0 ? null : pages[index - 1])
       if (!key) return
+      const items = update(page)
+      if (items === page.items) return
       const nextPage = { ...page, items }
       const nextPages = pages.slice()
       nextPages[index] = nextPage
-      // Publish both cache entries before yielding; a sibling write must see the new aggregate.
-      await Promise.all([
-        mutate(key, nextPage, { revalidate: false }),
-        mutate(infiniteCacheKey, nextPages, { revalidate: false })
-      ])
+      // A row write owns the data field. SWR's mutate would also clear a branch fetch error.
+      const [, publishPage] = createCacheHelper<Page>(cache, unstable_serialize(key))
+      publishPage({ data: nextPage })
+      publishPages({ data: nextPages })
     },
-    [cache, getKey, infiniteCacheKey, mutate]
+    [cache, getKey, lifetime]
   )
 }
 

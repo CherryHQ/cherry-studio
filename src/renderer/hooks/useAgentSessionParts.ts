@@ -28,7 +28,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 
 import { useHistoryPageProjection } from './historyPageLayout'
 import { useConversationHistoryQuery } from './useConversationHistoryQuery'
-import { applyHistoryChanges, type PageRows, useHistoryRowUpdates } from './useHistoryRowUpdates'
+import { type PageRows, useHistoryRowUpdates } from './useHistoryRowUpdates'
 
 const PAGE_SIZE = 50
 
@@ -44,15 +44,18 @@ const keepMembership = <T>(current: T) => current
 
 function sessionMembership(pages: SessionPage[]) {
   const ids: string[] = []
+  const excluded = new Set<string>()
   const byId = new Map<string, { index: number; page: number; item: number }>()
   for (let page = pages.length - 1; page >= 0; page--) {
     for (let item = pages[page].items.length - 1; item >= 0; item--) {
-      const id = pages[page].items[item].id
+      const row = pages[page].items[item]
+      const id = row.id
+      for (const sibling of row.siblings ?? []) if (sibling !== id) excluded.add(sibling)
       byId.set(id, { index: ids.length, page, item })
       ids.push(id)
     }
   }
-  return { ids, byId }
+  return { ids, byId, excluded }
 }
 
 export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryUIMessage {
@@ -165,16 +168,20 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [sessionId]
   )
   const membership = useHistoryPageProjection(pages, sessionMembership, keepMembership)
-  const rows = useHistoryRowUpdates(pages, membership.byId, sessionRows, readRow, writePage)
-  const membershipUncertain = isRefreshing || !!error
-  const replyHistory = useMemo(() => ({ ...rows, membershipUncertain }), [rows, membershipUncertain])
+  const { replyHistory, onChange } = useHistoryRowUpdates(
+    pages,
+    membership.byId,
+    sessionRows,
+    readRow,
+    writePage,
+    sessionId,
+    refreshPages,
+    membership.excluded
+  )
   useDataChange(
     '/agent-sessions/:sessionId/messages',
     (effects) => {
-      if (!enabled) return
-      if (error && effects.some((effect) => effect.entityIds?.some((id) => !rows.has(id)))) {
-        void mutate()
-      } else applyHistoryChanges(effects, rows, mutate)
+      if (enabled) onChange(effects)
     },
     { routeParams: { sessionId } }
   )

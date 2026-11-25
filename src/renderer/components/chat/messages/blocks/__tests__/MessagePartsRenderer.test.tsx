@@ -204,6 +204,7 @@ vi.mock('../../tools/MessageTools', () => {
           data-status={toolResponse?.status}
           data-tool-type={toolResponse?.tool?.type}
           data-tool-name={toolResponse?.tool?.name}
+          data-description={toolResponse?.arguments?.description}
           data-server-name={toolResponse?.tool?.serverName ?? ''}
         />
       ) : null
@@ -593,6 +594,42 @@ describe('MessagePartsRenderer', () => {
       // Active + renderer falls back to the placeholder → the placeholder shows.
       render(treeWith((placeholder) => <>{placeholder}</>))
       expect(screen.getByTestId('mock-placeholder')).toBeInTheDocument()
+    })
+
+    it('updates the mounted Agent tool card when only its streamed arguments change', async () => {
+      const ipc = projectionIpc()
+      const store = new MessageProjectionService()
+      const target = { kind: 'topic', topicId: 't' } as const
+      const stop = store.subscribe(target, () => {})
+      const attachment = ipc.attachments[0]
+      const call = {
+        type: 'dynamic-tool',
+        toolName: 'Agent',
+        toolCallId: 'agent',
+        state: 'input-streaming',
+        input: { description: 'Read' }
+      } as const
+      const row = { id: 'msg-1', role: 'assistant' as const, partIds: ['agent-part'], parts: [call] }
+      await act(async () => attachment.resolve({ ...target, revision: 0, executions: [], messages: [row] }))
+      activateTurn('streaming')
+      const tree = render(
+        <ProjectionReaderProvider reader={store.partsFor(target)}>
+          {renderPartsTree(row.parts, msg({ status: 'pending', partIds: row.partIds }), { openAgentToolFlow: vi.fn() })}
+        </ProjectionReaderProvider>
+      )
+      const card = screen.getByTestId('mock-message-tools')
+      expect(card).toHaveAttribute('data-description', 'Read')
+      act(() =>
+        ipc.emit(attachment.subscriptionId, {
+          kind: 'topic',
+          type: 'parts',
+          revision: 1,
+          patches: [{ type: 'part-put', partId: 'agent-part', part: { ...call, input: { description: 'Read file' } } }]
+        })
+      )
+      expect(card).toHaveAttribute('data-description', 'Read file')
+      tree.unmount()
+      stop()
     })
 
     it.each([20, 20_000])(

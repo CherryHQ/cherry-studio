@@ -23,17 +23,29 @@ export default {
         type: 'problem',
         schema: [{ type: 'array', items: { type: 'string' } }],
         messages: {
+          missing: 'Configured live writer {{name}} was not found in this file.',
           wide: 'The live writer receives an addressed edit. Move whole-source reads to baseline or recovery.'
         }
       },
       create(context) {
         const methods = new Set(context.options[0])
+        const defined = new Set()
         const calls = new Map()
         const reads = []
+        function functionName(node) {
+          if (node.type === 'MethodDefinition') return key(node.key)
+          if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression') return node.id?.name
+          if (
+            node.type === 'ArrowFunctionExpression' &&
+            node.parent?.type === 'VariableDeclarator' &&
+            ['Program', 'ExportNamedDeclaration'].includes(node.parent.parent?.parent?.type)
+          )
+            return node.parent.id?.name
+        }
         function enclosing(node) {
           for (let p = node.parent; p; p = p.parent) {
-            if (p.type === 'MethodDefinition') return key(p.key)
-            if (p.type === 'FunctionDeclaration') return p.id?.name
+            const name = functionName(p)
+            if (name) return name
           }
         }
         function record(node, name) {
@@ -47,6 +59,10 @@ export default {
             reads.push({ owner, node })
         }
         return {
+          'MethodDefinition, FunctionDeclaration, FunctionExpression, ArrowFunctionExpression'(node) {
+            const name = functionName(node)
+            if (name) defined.add(name)
+          },
           MemberExpression(node) {
             if (!node.computed || node.property.type === 'Literal') record(node, key(node.property))
           },
@@ -64,7 +80,9 @@ export default {
             if (!calls.has(owner)) calls.set(owner, new Set())
             calls.get(owner).add(name)
           },
-          'Program:exit'() {
+          'Program:exit'(node) {
+            for (const name of methods)
+              if (!defined.has(name)) context.report({ node, messageId: 'missing', data: { name } })
             const reachable = new Set(methods)
             for (const name of reachable) for (const next of calls.get(name) ?? []) reachable.add(next)
             for (const { owner, node } of reads) if (reachable.has(owner)) context.report({ node, messageId: 'wide' })

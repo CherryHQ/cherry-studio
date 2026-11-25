@@ -1,6 +1,6 @@
 import { mockDataApiService } from '@test-mocks/renderer/DataApiService'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { unstable_serialize } from 'swr'
+import { unstable_serialize, useSWRConfig } from 'swr'
 import { unstable_serialize as serializeInfinite } from 'swr/infinite'
 import { expect, it, vi } from 'vitest'
 
@@ -108,4 +108,162 @@ it('preserves a concurrent branch refresh when a saved row from the old branch a
     await completing
   })
   expect(result.current.history.pages[0].items.map((row) => row.id)).toEqual(['selected-branch'])
+})
+
+it('preserves a membership read failure when a waiting row write succeeds', async () => {
+  mockDataApiService.get.mockResolvedValue({ items: [message('old')] })
+  const { Wrapper } = createSWRTestWrapper()
+  const { result } = renderHook(
+    () => ({ history: useInfiniteQuery(path, options('a')), write: useWriteInfinitePage(path, options('a')) }),
+    { wrapper: Wrapper }
+  )
+  await waitFor(() => expect(result.current.history.pages).toHaveLength(1))
+  const membership = Promise.withResolvers<Page>()
+  const offline = new Error('membership unavailable')
+  mockDataApiService.get.mockReturnValueOnce(membership.promise)
+  let read!: Promise<unknown>
+  act(() => {
+    read = result.current.history.refresh({ throwOnError: true }).catch((error) => error)
+  })
+  await waitFor(() => expect(result.current.history.isRefreshing).toBe(true))
+  await act(async () => {
+    const write = result.current.write(0, () => [message('committed')])
+    membership.reject(offline)
+    await write
+  })
+  expect(await read).toBe(offline)
+  expect(result.current.history.error).toBe(offline)
+  expect(result.current.history.pages[0].items[0].id).toBe('committed')
+})
+
+it('releases a row write waiting for an unmounted history reader', async () => {
+  mockDataApiService.get.mockResolvedValue({ items: [message('old')] })
+  const { Wrapper, cache } = createSWRTestWrapper()
+  const hook = renderHook(
+    () => ({
+      history: useInfiniteQuery(path, options('a')),
+      write: useWriteInfinitePage(path, options('a'))
+    }),
+    { wrapper: Wrapper }
+  )
+  await waitFor(() => expect(hook.result.current.history.pages).toHaveLength(1))
+  const membership = Promise.withResolvers<Page>()
+  mockDataApiService.get.mockReturnValueOnce(membership.promise)
+  act(() => {
+    void hook.result.current.history.refresh()
+  })
+  await waitFor(() => expect(hook.result.current.history.isRefreshing).toBe(true))
+  const write = hook.result.current.write(0, () => [message('late reply')])
+  hook.unmount()
+  await write
+  expect(cache.get(unstable_serialize(readKey('a', 0)))?.data).toMatchObject({ items: [{ id: 'old' }] })
+  membership.resolve({ items: [] })
+})
+
+it('returns the failed read to its caller even after an independent cache update recovers the list', async () => {
+  const page = { items: [message('old')] }
+  const recovered = { items: [message('new')] }
+  mockDataApiService.get.mockResolvedValue(page)
+  const { Wrapper } = createSWRTestWrapper()
+  const { result } = renderHook(
+    () => {
+      const { mutate } = useSWRConfig()
+      return useInfiniteQuery(path, {
+        ...options('a'),
+        swrOptions: {
+          shouldRetryOnError: false,
+          onError: () =>
+            queueMicrotask(
+              () =>
+                void mutate(
+                  serializeInfinite(() => readKey('a', 0)),
+                  [recovered],
+                  false
+                )
+            )
+        }
+      })
+    },
+    { wrapper: Wrapper }
+  )
+  await waitFor(() => expect(result.current.pages).toEqual([page]))
+  mockDataApiService.get.mockRejectedValueOnce(new Error('offline'))
+  await act(async () => {
+    await expect(result.current.refresh({ throwOnError: true })).rejects.toThrow('offline')
+  })
+  expect(result.current.pages).toEqual([recovered])
+  expect(result.current.error).toBeUndefined()
+})
+
+it('keeps the outcome of each reader when a newer refresh finishes first', async () => {
+  const oldPage = { items: [message('old')] }
+  const newPage = { items: [message('new')] }
+  mockDataApiService.get.mockResolvedValue(oldPage)
+  const { Wrapper } = createSWRTestWrapper()
+  const { result } = renderHook(
+    () => ({
+      first: useInfiniteQuery(path, options('a')),
+      second: useInfiniteQuery(path, options('a'))
+    }),
+    { wrapper: Wrapper }
+  )
+  await waitFor(() => expect(result.current.first.pages).toEqual([oldPage]))
+  const older = Promise.withResolvers<Page>()
+  mockDataApiService.get.mockReturnValueOnce(older.promise).mockResolvedValueOnce(newPage)
+  let first!: Promise<unknown>
+  await act(async () => {
+    first = result.current.first.refresh({ throwOnError: true }).catch((error) => error)
+    await expect(result.current.second.refresh({ throwOnError: true })).resolves.toEqual([newPage])
+  })
+  const offline = new Error('older request failed')
+  await act(async () => {
+    older.reject(offline)
+    expect(await first).toBe(offline)
+  })
+  expect(result.current.second.pages).toEqual([newPage])
+})
+
+it('checks each selected cursor and follows the new end of the branch when it shrinks', async () => {
+  const head = { items: [message('head')], nextCursor: 'older' }
+  const tail = { items: [message('tail')] }
+  mockDataApiService.get.mockImplementation(async (_path, options) => (options?.query?.cursor ? tail : head))
+  const { Wrapper } = createSWRTestWrapper()
+  const { result } = renderHook(() => useInfiniteQuery(path, options('a')), { wrapper: Wrapper })
+  await waitFor(() => expect(result.current.pages).toEqual([head]))
+  act(() => result.current.loadNext())
+  await waitFor(() => expect(result.current.pages).toEqual([head, tail]))
+  const offline = new Error('second page offline')
+  mockDataApiService.get.mockResolvedValueOnce(head).mockRejectedValueOnce(offline)
+  await act(async () => {
+    await expect(result.current.refresh({ throwOnError: true })).rejects.toBe(offline)
+  })
+  expect(result.current.pages).toEqual([head, tail])
+  const empty = { items: [] }
+  mockDataApiService.get.mockResolvedValueOnce(empty)
+  await act(async () => {
+    await expect(result.current.refresh({ throwOnError: true })).resolves.toEqual([empty])
+  })
+  expect(result.current.pages).toEqual([empty])
+})
+
+it('releases a strict read when its query changes and rejects a refresh with no active reader', async () => {
+  const page = { items: [message('old')] }
+  mockDataApiService.get.mockResolvedValue(page)
+  const { Wrapper } = createSWRTestWrapper()
+  const hook = renderHook(({ scope, enabled }) => useInfiniteQuery(path, { ...options(scope), enabled }), {
+    wrapper: Wrapper,
+    initialProps: { scope: 'a', enabled: true }
+  })
+  await waitFor(() => expect(hook.result.current.pages).toEqual([page]))
+  const pending = Promise.withResolvers<Page>()
+  mockDataApiService.get.mockReturnValueOnce(pending.promise)
+  let first!: Promise<unknown>
+  act(() => {
+    first = hook.result.current.refresh({ throwOnError: true }).catch((error) => error)
+  })
+  await waitFor(() => expect(hook.result.current.isRefreshing).toBe(true))
+  hook.rerender({ scope: 'b', enabled: false })
+  expect(await first).toBeInstanceOf(Error)
+  await expect(hook.result.current.refresh({ throwOnError: true })).rejects.toThrow()
+  pending.resolve(page)
 })

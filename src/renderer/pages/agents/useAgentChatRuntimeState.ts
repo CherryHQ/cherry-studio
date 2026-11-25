@@ -21,6 +21,7 @@ import { cacheService } from '@renderer/data/CacheService'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
+import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useAgentToolParts } from '@renderer/hooks/agent/useAgentToolParts'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -267,6 +268,7 @@ export function useAgentChatRuntimeState({
     [sessionId, t]
   )
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
+  const streamTopicId = useAgentSessionStreamTopic(sessionId)
   const {
     messages: uiMessages,
     replyHistory,
@@ -294,7 +296,7 @@ export function useAgentChatRuntimeState({
     void seedReservedMessages(reservedMessages)
   }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
 
-  const { activeExecutions, setMessages, stop, projection } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const { activeExecutions, setMessages, stop, projection } = useChatWithHistory(streamTopicId, uiMessages, refresh)
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
@@ -375,21 +377,21 @@ export function useAgentChatRuntimeState({
     },
     [autoReadEnabled, sessionId]
   )
-  const { status, isPending } = useTopicStreamStatus(sessionTopicId)
+  const { status, isPending } = useTopicStreamStatus(streamTopicId)
   const liveAssistants = useHistoryReplies(
     projection,
     activeExecutions,
     replyHistory,
     sessionMessagesEnabled ? status : undefined
   )
-  useTopicSpeech(sessionTopicId, activeExecutions, autoReadEnabled, (_executionId, event) => {
+  useTopicSpeech(streamTopicId, activeExecutions, autoReadEnabled, (_executionId, event) => {
     const messageId = event.type === 'snapshot' ? event.message.id : event.messageId
     const turnOrigin =
       cacheService.getShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, messageId)) ??
       (event.type === 'snapshot' ? event.message.metadata?.turnOrigin : event.turnOrigin)
-    autoReadService.update({ ...event, enabled: autoReadEnabled, scope: sessionTopicId, eligible: !turnOrigin })
+    autoReadService.update({ ...event, enabled: autoReadEnabled, scope: streamTopicId, eligible: !turnOrigin })
   })
-  useTopicCompletion(sessionTopicId, activeExecutions, (executionId, event) => {
+  useTopicCompletion(streamTopicId, activeExecutions, (executionId, event) => {
     errorToastsRef.current?.onFinish(executionId, event)
     handleExecutionFinish(executionId, event)
   })
@@ -403,14 +405,14 @@ export function useAgentChatRuntimeState({
   >({})
 
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
-  // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
+  // an unchanged streamTopicId, and the fresh {} literal would defeat React's
   // setState bail-out and force a re-render on every tab switch.
-  const optimisticInputsResetTopicIdRef = useRef(sessionTopicId)
+  const optimisticInputsResetTopicIdRef = useRef(streamTopicId)
   useEffect(() => {
-    if (optimisticInputsResetTopicIdRef.current === sessionTopicId) return
-    optimisticInputsResetTopicIdRef.current = sessionTopicId
+    if (optimisticInputsResetTopicIdRef.current === streamTopicId) return
+    optimisticInputsResetTopicIdRef.current = streamTopicId
     setOptimisticAskUserQuestionInputsByToolCallId({})
-  }, [sessionTopicId])
+  }, [streamTopicId])
 
   const approvalParts = useAgentToolParts(
     Object.keys(optimisticAskUserQuestionInputsByToolCallId).length ? sessionId : undefined,
@@ -473,7 +475,7 @@ export function useAgentChatRuntimeState({
           approved,
           reason,
           updatedInput,
-          topicId: sessionTopicId,
+          topicId: streamTopicId,
           anchorId: match.messageId
         })
       } catch (error) {
@@ -500,10 +502,10 @@ export function useAgentChatRuntimeState({
       }
       await refresh()
     },
-    [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionId, sessionTopicId]
+    [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionId, streamTopicId]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
-    topicId: sessionTopicId,
+    topicId: streamTopicId,
     partsByMessageId,
     persistedPartsByMessageId,
     streamingLayers,
@@ -580,7 +582,7 @@ export function useAgentChatRuntimeState({
     [toolApprovalComposerOverrides]
   )
 
-  const errorToasts = useConversationErrorToasts(sessionTopicId, {
+  const errorToasts = useConversationErrorToasts(streamTopicId, {
     trimContext: canCompact
       ? async () => {
           if (isPending || editBusy) return false

@@ -11,8 +11,11 @@ const logger = loggerService.withContext('useHistoryReplies')
 // A failed read may retain a streamed reply until a later history update replaces that row.
 type Handoff = { accepted: true } | { accepted: false; before?: WeakRef<object> }
 
-function historyOwns(row: ReturnType<ReplyHistory['get']>, handoff?: Handoff): boolean {
-  return !!row && row.status !== 'pending' && !!handoff && (handoff.accepted || row !== handoff.before?.deref())
+function historyOwns(
+  row: Extract<ReturnType<ReplyHistory['lookup']>, { kind: 'row' }>['row'],
+  handoff?: Handoff
+): boolean {
+  return row.status !== 'pending' && !!handoff && (handoff.accepted || row !== handoff.before?.deref())
 }
 
 export function useHistoryReplies(
@@ -29,19 +32,23 @@ export function useHistoryReplies(
     !turn.isAwaitingApproval &&
     (turn.isTerminal || (turn.isStreamLive && replies.some(({ execution }) => execution.status === 'active')))
   const saved =
-    ready && history.loaded
+    ready && history.layout
       ? replies.flatMap(({ execution }) =>
-          execution.savedMessageId && history.has(execution.savedMessageId)
-            ? [{ attemptId: execution.attemptId, id: execution.savedMessageId }]
-            : []
+          execution.savedMessageId ? [{ attemptId: execution.attemptId, id: execution.savedMessageId }] : []
         )
       : []
   const key = JSON.stringify(saved)
   const adopt = useEffectEvent((current: () => boolean) => {
     if (!topicId) return
     for (const { attemptId, id } of saved) {
-      const before = history.get(id)
-      if (handoff?.topicId === topicId && historyOwns(before, handoff.attempts.get(attemptId))) continue
+      const member = history.lookup(id)
+      if (member.kind === 'excluded') continue
+      if (
+        member.kind === 'row' &&
+        handoff?.topicId === topicId &&
+        historyOwns(member.row, handoff.attempts.get(attemptId))
+      )
+        continue
       const record = (outcome: Handoff) => {
         if (!current()) return
         setHandoff((previous) => {
@@ -55,11 +62,15 @@ export function useHistoryReplies(
           return { topicId, attempts }
         })
       }
+      const unconfirmed: Handoff = {
+        accepted: false,
+        before: member.kind === 'row' ? new WeakRef(member.row) : undefined
+      }
       void history.refreshRow(id).then(
-        () => record({ accepted: true }),
+        (outcome) => record(outcome === 'written' ? { accepted: true } : unconfirmed),
         (error) => {
           logger.warn('Could not read committed reply', { topicId, id, error })
-          record({ accepted: false, before: before && new WeakRef(before) })
+          record(unconfirmed)
         }
       )
     }
@@ -71,17 +82,17 @@ export function useHistoryReplies(
     return () => {
       current = false
     }
-  }, [topicId, key, history.has])
+  }, [topicId, key, history.layout])
 
   return useMemo(
     () =>
       replies.flatMap(({ execution, message }) => {
         const id = execution.savedMessageId
         const result = handoff?.topicId === topicId ? handoff?.attempts.get(execution.attemptId) : undefined
-        if (id && history.loaded && (result || ready)) {
-          const row = history.get(id)
-          if (!row && (result?.accepted || !history.membershipUncertain)) return []
-          if (historyOwns(row, result)) return []
+        if (id && history.layout && (result || ready)) {
+          const member = history.lookup(id)
+          if (member.kind === 'excluded' || (member.kind === 'unknown' && result?.accepted)) return []
+          if (member.kind === 'row' && historyOwns(member.row, result)) return []
         }
         return [message]
       }),

@@ -63,8 +63,7 @@
       "files": [
         "packages/agent-runtime/src/textPartUpdates.ts",
         "packages/agent-runtime-pi-durable/src/previewTextAppends.ts",
-        "packages/agent-runtime-pi-durable/src/toolOutputOps.ts",
-        "src/main/ai/agentSession/partChange.ts"
+        "packages/agent-runtime-pi-durable/src/toolOutputOps.ts"
       ],
       "rules": {
         "no-restricted-imports": [
@@ -137,7 +136,7 @@
     },
     {
       "files": ["packages/agent-runtime-pi/src/runtimeProjection.ts"],
-      "rules": { "incremental-projection/addressed-writes": ["error", ["delta", "result"]] }
+      "rules": { "incremental-projection/addressed-writes": ["error", ["delta", "result", "nested"]] }
     },
     {
       "files": ["packages/agent-runtime-pi-durable/src/projection.ts"],
@@ -217,7 +216,10 @@
     {
       "files": ["src/renderer/components/chat/messages/blocks/MessagePartsRenderer.tsx"],
       "rules": {
-        "incremental-projection/addressed-writes": ["error", ["AddressedMessageParts", "AddressedProcessLayout"]]
+        "incremental-projection/addressed-writes": [
+          "error",
+          ["useAddressedMessageParts", "AddressedProcessHistory", "AddressedHistoryRun", "ToolPartView"]
+        ]
       }
     },
     {

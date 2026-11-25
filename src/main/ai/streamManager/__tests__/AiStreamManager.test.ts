@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiService } from '@main/ai/AiService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -402,6 +402,46 @@ describe('AiStreamManager', () => {
     sender.emit('destroyed')
   })
 
+  it('keeps the Agent body and reports the same save failure to the current and reattaching window', async () => {
+    const topicId = 'agent-session:failed-archive'
+    const source = controlledMessageSource()
+    mockStreamText.mockResolvedValueOnce(source.source)
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, topicId, 'watch', (update) => {
+      if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
+    })
+    const persistence = new PersistenceListener({
+      topicId,
+      modelId: 'p::m',
+      backend: {
+        kind: 'agents-db',
+        persistAssistant: async () => {
+          throw new Error('archive unavailable')
+        }
+      },
+      onPersistFailed: (error) => mgr.broadcastTopicError(topicId, 'p::m', error)
+    })
+    startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [persistence] })
+    source.enqueue({
+      type: 'message',
+      entries: [{ partId: 'visible', pos: 1, payload: { type: 'text', text: 'Accepted body' } }]
+    })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ text: 'Accepted body' }))
+    source.close()
+    await vi.waitFor(() => expect(view).toMatchObject({ executions: [{ status: 'unresolved' }] }))
+    const reattached = await mgr.attachProjection(sender, topicId, 'second-window', () => {})
+    assert.isNotNull(reattached)
+    expect(view?.messages[0]?.parts).toMatchObject([
+      { type: 'text', text: 'Accepted body' },
+      { type: 'data-error', data: { message: 'archive unavailable' } }
+    ])
+    expect(reattached.messages[0]?.parts).toEqual(view?.messages[0]?.parts)
+    expect(reattached.messages[0]?.partIds).toEqual(view?.messages[0]?.partIds)
+    expect(reattached.messages[0]?.partIds?.[0]).toBe('visible')
+    sender.emit('destroyed')
+  })
+
   it.each([false, true])('preserves approval=%s when the runtime later reports a tool error', async (approved) => {
     const feed = controlledStream()
     mockStreamText.mockResolvedValueOnce(feed.stream)
@@ -544,6 +584,36 @@ describe('AiStreamManager', () => {
     await vi.advanceTimersByTimeAsync(0)
     mgr.detachProjection(sender, 'subscription')
     sender.emit('destroyed')
+  })
+
+  it('clears a pending approval when an Agent denies the tool through a part update', async () => {
+    const topicId = 'native-denial'
+    const feed = controlledMessageSource()
+    mockStreamText.mockResolvedValueOnce(feed.source)
+    startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [] })
+    feed.enqueue({
+      type: 'control',
+      chunk: { type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' }
+    })
+    const anchors = () =>
+      (sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as { awaitingApprovalAnchors?: unknown[] } | undefined)
+        ?.awaitingApprovalAnchors
+    await vi.waitFor(() => expect(anchors()).toHaveLength(1))
+    feed.enqueue({
+      type: 'part-put',
+      partId: 'tool',
+      archiveMessageId: 'reply',
+      part: {
+        type: 'dynamic-tool',
+        toolName: 'Read',
+        toolCallId: 'call',
+        input: {},
+        state: 'output-denied',
+        approval: { id: 'approval', approved: false }
+      }
+    })
+    expect(anchors()).toEqual([])
+    feed.close()
   })
 
   it('publishes an Agent approval decision while its native tool is still waiting', async () => {

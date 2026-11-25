@@ -385,18 +385,12 @@ export class PiProjection {
     return { session: this.ref, id: runtimeId(id) }
   }
 
-  private publish(message: RuntimeMessage, replaces?: readonly ItemRef[], changedParts?: readonly number[]): void {
+  private publish(message: RuntimeMessage, replaces?: readonly ItemRef[]): void {
     if (this.snapshotMessages) {
       this.snapshotMessages.set(message.id, message)
       return
     }
-    const event = messageObservation(
-      this.itemRef(message.id),
-      this.feed.message(message.id),
-      message,
-      replaces,
-      changedParts
-    )
+    const event = messageObservation(this.itemRef(message.id), this.feed.message(message.id), message, replaces)
     if (event.type === 'message.parts') this.feed.publishPart(event)
     else this.feed.publish(event)
   }
@@ -405,13 +399,18 @@ export class PiProjection {
     if (part.type !== 'dynamic-tool') return
     const id = this.calls.get(parentCallId)?.id
     if (!id) return
-    const message = this.snapshotMessages ? this.snapshotMessages.get(id) : this.feed.message(id)
-    if (!message) return
-    const index = this.calls.get(part.toolCallId)?.index ?? message.parts.length
-    this.calls.set(part.toolCallId, { id: message.id, index })
-    const parts = message.parts.slice()
-    parts[index] = part
-    this.publish({ ...message, parts })
+    const historical = this.snapshotMessages?.get(id)
+    const length = this.snapshotMessages ? historical?.parts.length : this.feed.partCount(id)
+    if (length === undefined) return
+    const index = this.calls.get(part.toolCallId)?.index ?? length
+    this.calls.set(part.toolCallId, { id, index })
+    if (historical) historical.parts[index] = part
+    else
+      this.feed.publishPart({
+        type: 'message.parts',
+        ref: this.itemRef(id),
+        changes: [{ type: 'put', part: index, value: part }]
+      })
   }
 
   private result(callId: string, output: unknown, isError: boolean, preliminary = false): void {
@@ -540,9 +539,9 @@ export class PiProjection {
       const text = end ? native.content : part.type === 'text' ? part.text : part.thinking
       if (
         (native.type === 'text_delta' || native.type === 'thinking_delta') &&
-        (old?.type === 'text' || old?.type === 'reasoning') &&
+        old?.type === (part.type === 'text' ? 'text' : 'reasoning') &&
         old.state === 'streaming' &&
-        text === old.text + native.delta
+        text.length === old.text.length + native.delta.length
       ) {
         this.feed.publishPart({ type: 'message.text-append', ref, part: index, text: native.delta })
         return

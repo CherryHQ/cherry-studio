@@ -44,6 +44,8 @@ import { lookupNativeInput, prepareNativeSubmission } from '@main/ai/agentSessio
 import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
+import type { StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManager'
+import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
@@ -52,6 +54,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { getShellEnv } from '@main/utils/shellEnv'
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Run the renderer reducer against real Main and native events in the integration test.
 import { MessageProjectionService } from '@renderer/services/aiTransport/MessageProjectionService'
+import { AGENT_SESSION_STREAM_TOPIC_CACHE_KEY } from '@shared/ai/agentSessionStreamTopic'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { McpServerSchema } from '@shared/data/types/mcpServer'
 import { ModelSchema } from '@shared/data/types/model'
@@ -1001,6 +1004,158 @@ describe('desktop Pi Durable connection', () => {
     await done(next.events)
     expect(text(next.events)).toContain('after close race')
     expect(next.events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('uses the next request settings when an idle root only has a stale recovery hint', async () => {
+    sharedHosts()
+    input = { ...input, reasoningEffort: 'high', fastMode: true }
+    const initial = await connect()
+    await initial.connection.send({ message: message('old settings') })
+    await done(initial.events)
+    const root = contexts.context(initial.connection.contextId!)
+    await initial.connection.close()
+    const { recoveryIndex } = await import('@cherrystudio/agent-runtime-pi-durable')
+    const native = createSession(await openDurableStorage(contexts.backend(root.backendId)))
+    try {
+      await native.commit(async (tx) => {
+        ;(await tx.doc(recoveryIndex)).behavior[root.nativeThreadId!] = true
+      }, BACKGROUND_CONTEXT)
+    } finally {
+      await native.close(BACKGROUND_CONTEXT)
+    }
+
+    const binding = mocks.binding.getMockImplementation()!
+    mocks.binding.mockImplementation(async (...args: Parameters<typeof binding>) => {
+      const request = args[0]
+      script = respondingModel(() => assistantReply(`${request.reasoningEffort}/${request.fastMode}`))
+      return binding(...args)
+    })
+    input = { ...input, reasoningEffort: 'low', fastMode: false }
+    const current = await connect()
+    await current.connection.send({ message: message('new settings') })
+    await done(current.events)
+    expect(text(current.events)).toContain('low/false')
+  })
+
+  async function recoveredSecondaryRoot() {
+    sharedHosts()
+    const user = message('B')
+    const root = prepareDurableBranch(input.sessionId, user.id)
+    input = { ...input, branchHead: user.id, reasoningEffort: 'default', serviceTier: 'standard' }
+    const connection = await driver.connect(input)
+    connections.push(connection)
+    const sibling = messages.saveMessage({
+      sessionId: input.sessionId,
+      parentId: messages.readEditSnapshotTx(dbh.db, input.sessionId, user.id).user.parentId!,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'A' }] } }
+    })
+    contexts.reserveBranchTx(dbh.db, {
+      sessionId: input.sessionId,
+      backendId: root.backendId,
+      anchorMessageId: sibling.id
+    })
+    messages.selectBranch(input.sessionId, sibling.id)
+    BaseService.resetInstances()
+    const service = new AgentSessionRuntimeService()
+    await service._doInit()
+    runtimeDriverRegistry.register(driver)
+    const iterators = vi.spyOn(connection.events, Symbol.asyncIterator)
+    service.adoptDurableConnection(input, root, connection)
+    return { user, root, connection, service, iterators }
+  }
+
+  it('keeps the active scoped topic, decision and stop target after selecting a recovered root', async () => {
+    const { user, root, connection, service } = await recoveredSecondaryRoot()
+    const { sessionId } = input
+    const topic = `agent-session:${sessionId}/context/${root.id}`
+    const assistant = messages.saveMessage({
+      sessionId,
+      parentId: user.id,
+      message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    messages.linkReply(sessionId, [user.id], assistant.id)
+    const launched = Promise.withResolvers<StartRuntimeTurnInput>()
+    const decisions: string[] = []
+    MockApplicationUtils.setService('AiStreamManager', {
+      startRuntimeTurn: (start: StartRuntimeTurnInput) => launched.resolve(start),
+      resolveToolApproval: (topicId: string) => decisions.push(topicId),
+      drainRuntimeReply: async () => {},
+      pauseRuntimeTurn: () => {}
+    })
+    try {
+      connection.events.push({
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' },
+        recoveredInputId: user.id
+      })
+      const turn = await launched.promise
+      expect(turn.topicId).toBe(topic)
+      messages.selectBranch(sessionId, user.id)
+      await service.prepareBranch(sessionId, user.id)
+      expect(service.inspect(sessionId)).toMatchObject({ topicId: topic, assistantMessageId: assistant.id })
+      expect(application.get('CacheService').getShared(AGENT_SESSION_STREAM_TOPIC_CACHE_KEY(sessionId))).toBe(topic)
+      const answer = Promise.withResolvers<{ approved: boolean }>()
+      toolApprovalRegistry.register({
+        approvalId: 'B-approval',
+        toolCallId: 'B-call',
+        sessionId,
+        contextId: root.id,
+        toolName: 'read',
+        originalInput: {},
+        resolve: answer.resolve
+      })
+      expect(service.respondToolApproval('B-approval', { approved: true })).toEqual({ ok: true })
+      await expect(answer.promise).resolves.toMatchObject({ approved: true })
+      expect(decisions).toEqual([topic])
+      expect(service.abortPendingTurn(sessionId, 'test-stop', root.id)).toBe(true)
+      expect(turn.abortController!.signal.aborted).toBe(true)
+    } finally {
+      await service._doDestroy()
+      MockApplicationUtils.resetServices()
+    }
+  })
+
+  it('keeps one reader and the complete reply when selecting a restored secondary root', async () => {
+    const { user, service, iterators, connection } = await recoveredSecondaryRoot()
+    const submitted = vi.spyOn(connection, 'send')
+    try {
+      messages.selectBranch(input.sessionId, user.id)
+      await service.prepareBranch(input.sessionId, user.id)
+      const assistant = messages.saveMessage({
+        sessionId: input.sessionId,
+        parentId: user.id,
+        message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      const run = service.beginTurn({
+        ...input,
+        agentType: 'pi-durable',
+        topicId: `agent-session:${input.sessionId}`,
+        assistantMessageId: assistant.id,
+        userMessage: user
+      })
+      const source = service.openTurnStream({
+        sessionId: input.sessionId,
+        turnId: run.turnId,
+        signal: run.abortController.signal
+      })
+      const result = await pipeMessageStream(
+        source,
+        run.abortController.signal,
+        { id: assistant.id, role: 'assistant' },
+        () => {},
+        () => {},
+        () => {}
+      )
+      expect(result.finalMessage?.parts).toContainEqual(expect.objectContaining({ type: 'text', text: 'Hello world' }))
+      expect(iterators).toHaveBeenCalledTimes(1)
+      expect(submitted.mock.calls.map(([command]) => command.message.id)).toEqual([user.id])
+      for (const listener of run.listeners)
+        await listener.onDone({ status: 'success', finalMessage: result.finalMessage })
+      expect(messages.getSessionMessage(input.sessionId, assistant.id).status).toBe('success')
+    } finally {
+      await service._doDestroy()
+    }
   })
 
   it.each([false, true])(

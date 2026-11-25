@@ -11,6 +11,7 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ProjectionReaderProvider } from '@renderer/hooks/agent/ProjectionReaderProvider'
+import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { messageProjectionService } from '@renderer/services/aiTransport'
@@ -91,9 +92,10 @@ const AgentSessionMessages = ({
 }: Props) => {
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
+  const streamTopicId = useAgentSessionStreamTopic(sessionId)
   const partReader = useMemo(
-    () => messageProjectionService.partsFor({ kind: 'topic', topicId: sessionTopicId }),
-    [sessionTopicId]
+    () => messageProjectionService.partsFor({ kind: 'topic', topicId: streamTopicId }),
+    [streamTopicId]
   )
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
 

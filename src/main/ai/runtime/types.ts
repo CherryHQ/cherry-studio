@@ -252,6 +252,11 @@ export interface AgentRuntimeConnection {
   /** Bound product context for controls that precede the first native message. */
   readonly contextId?: string
 
+  /** Reused connections can carry another Run's settings and need reconciliation before the next admission. */
+  preparedFor?(request: AgentRuntimeConnectInput): boolean
+  /** Install the registered owner's callbacks on a reusable connection. */
+  bindInputs?(callbacks: Pick<AgentRuntimeConnectInput, 'onInputPrepared' | 'onSteerInjected'>): void
+
   predictPrompt?(signal: AbortSignal): Promise<string>
   readonly events: AsyncIterable<AgentRuntimeEvent>
   /** The configured Runtime owner remains resident until explicit retirement. */

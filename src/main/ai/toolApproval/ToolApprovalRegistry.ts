@@ -31,7 +31,7 @@ type PendingApproval = {
   abortListener?: () => void
 }
 
-type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'toolCallId' | 'presentation'>
+type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'contextId' | 'toolCallId' | 'presentation'>
 type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'presentation'> & {
   presentation?: PendingApproval['presentation']
 }
@@ -96,6 +96,7 @@ class ToolApprovalRegistry {
     if (!entry) return undefined
     return {
       sessionId: entry.sessionId,
+      contextId: entry.contextId,
       toolCallId: entry.toolCallId,
       presentation: entry.presentation
     }
@@ -110,6 +111,7 @@ class ToolApprovalRegistry {
     entry.resolve(decision)
     return {
       sessionId: entry.sessionId,
+      contextId: entry.contextId,
       toolCallId: entry.toolCallId,
       presentation: entry.presentation
     }

@@ -94,7 +94,10 @@ export class DurableBackend {
       for (const nativeId of new Set(recovery.roots.values())) {
         const binding = contexts.rootForThread(context.backendId, nativeId)
         if (!binding) throw new Error('Unfinished Durable conversation has no product host')
-        const request = await DurableBackend.restoredInput(binding, root.storage)
+        const request =
+          binding.id === context.id && !recovery.executingRoots.has(nativeId)
+            ? input
+            : await DurableBackend.restoredInput(binding, root.storage)
         const prepared = await owner.prepare(request, binding, recovery.modelRefs.get(nativeId))
         rootContexts.set(nativeId, binding.id)
         pending.push(prepared)

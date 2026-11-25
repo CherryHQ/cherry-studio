@@ -1,5 +1,5 @@
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
-import type { Cursor, EntryId, Storage } from '@earendil-works/pi-durable'
+import { UserEntry, type Cursor, type EntryId, type Storage } from '@earendil-works/pi-durable'
 
 import type { InputId, NativeInputId, Thread, ThreadId } from '@cherrystudio/agent-runtime'
 
@@ -48,7 +48,7 @@ export async function readDurableReply(
         const entryRun =
           entry.data && typeof entry.data === 'object' && 'runId' in entry.data ? entry.data.runId : undefined
         if (
-          (entry.model?.some((message) => message.role === 'user') && !anchors.has(entry.id)) ||
+          ((entry.kind === 'cherry.user-input' || UserEntry.is(entry)) && !anchors.has(entry.id)) ||
           (entryRun !== undefined && primary.runId !== undefined && entryRun !== primary.runId)
         ) {
           if (primary.answer !== undefined) return
