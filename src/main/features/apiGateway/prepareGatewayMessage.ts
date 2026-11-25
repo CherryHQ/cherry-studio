@@ -8,7 +8,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { MessageConverterFactory, type StreamAdapterOptions } from './adapters'
 import { readClaudeCodeReplay, saveClaudeCodeReplay } from './claudeCodeReplay'
-import { resolveGatewayRequest, type MessageConfig } from './gatewayRequest'
+import { type MessageConfig, readGatewayRequest, resolveGatewayRequest } from './gatewayRequest'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { GATEWAY_STREAM_IDLE_TIMEOUT_MS } from './streamLifecycle'
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
@@ -19,33 +19,27 @@ import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 const logger = loggerService.withContext('GatewayMessage')
 
 export async function prepareGatewayMessage(config: MessageConfig) {
-  let request = await resolveGatewayRequest(config)
-  const { params, inputFormat, outputFormat, isInternalAnthropicAgentRequest, agentSessionId, asClientError } = request
+  const incoming = readGatewayRequest(config)
+  const { params, inputFormat, outputFormat, isInternalAnthropicAgentRequest, agentSessionId, asClientError } = incoming
   let effectiveParams = params
+  const normalization = isInternalAnthropicAgentRequest
+    ? normalizeAnthropicToolHistory((params as MessageCreateParams).messages)
+    : undefined
 
-  if (isInternalAnthropicAgentRequest) {
-    const anthropicParams = params as MessageCreateParams
-    const normalization = normalizeAnthropicToolHistory(anthropicParams.messages)
+  if (normalization?.status === 'conflict') {
+    logger.warn('Rejected conflicting tool history in internal Agent request', {
+      modelAddress: incoming.modelString,
+      agentSessionId,
+      toolUseId: normalization.toolUseId,
+      reason: normalization.reason,
+      firstLocation: normalization.firstLocation,
+      duplicateLocation: normalization.duplicateLocation
+    })
+    throw asClientError(new Error('Invalid Anthropic tool history: tool_use ids must be unique'))
+  }
 
-    if (normalization.status === 'conflict') {
-      logger.warn('Rejected conflicting tool history in internal Agent request', {
-        ...request.logContext,
-        toolUseId: normalization.toolUseId,
-        reason: normalization.reason,
-        firstLocation: normalization.firstLocation,
-        duplicateLocation: normalization.duplicateLocation
-      })
-      throw asClientError(new Error('Invalid Anthropic tool history: tool_use ids must be unique'))
-    }
-
-    if (normalization.status === 'repaired') {
-      effectiveParams = { ...anthropicParams, messages: normalization.messages }
-      logger.warn('Repaired duplicate tool history in internal Agent request', {
-        ...request.logContext,
-        duplicateToolUseCount: normalization.duplicateToolUseCount,
-        duplicateToolResultCount: normalization.duplicateToolResultCount
-      })
-    }
+  if (normalization?.status === 'repaired') {
+    effectiveParams = { ...(params as MessageCreateParams), messages: normalization.messages }
   }
 
   const claudeCodeSession =
@@ -53,17 +47,19 @@ export async function prepareGatewayMessage(config: MessageConfig) {
   const replay = claudeCodeSession
     ? readClaudeCodeReplay(claudeCodeSession, (effectiveParams as MessageCreateParams).messages)
     : undefined
-  if (replay?.continuation) {
-    const { source, routeId } = replay.continuation
-    try {
-      request = await resolveGatewayRequest({ ...config, modelString: source.modelAddress }, source.endpointType)
-      request.resolvedModel.replayRouteId = routeId
-    } catch {
-      throw asClientError(new ToolContinuationRouteError())
-    }
-  }
+  const request = await resolveGatewayRequest(config, incoming, replay?.continuation).catch((error: unknown) => {
+    if (replay?.continuation) throw asClientError(new ToolContinuationRouteError())
+    throw error
+  })
   const { provider, model, endpoint, reasoning, modelId, modelAddress, logContext } = request
   const internal = request.isInternalRequest
+  if (normalization?.status === 'repaired') {
+    logger.warn('Repaired duplicate tool history in internal Agent request', {
+      ...logContext,
+      duplicateToolUseCount: normalization.duplicateToolUseCount,
+      duplicateToolResultCount: normalization.duplicateToolResultCount
+    })
+  }
   logger.info('Converting gateway protocol request', {
     ...logContext,
     mode: 'sdk',

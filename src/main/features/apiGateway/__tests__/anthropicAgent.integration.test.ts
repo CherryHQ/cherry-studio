@@ -244,7 +244,17 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
     BaseService.resetInstances()
     mocks.manager = new AiStreamManager()
     mocks.ai = new AiService()
+    dbh.db
+      .update(userModelTable)
+      .set({ isEnabled: false })
+      .where(eq(userModelTable.id, `wire::${other}`))
+      .run()
     const continued = await request(history, false, { model: `wire:${other}` })
+    dbh.db
+      .update(userModelTable)
+      .set({ isEnabled: true })
+      .where(eq(userModelTable.id, `wire::${other}`))
+      .run()
     expect(upstream[1].url).toContain(`/models/${gemini}:streamGenerateContent`)
     expect(upstream[1].body.contents.flatMap(({ parts }) => parts)).toEqual(
       expect.arrayContaining([
@@ -283,75 +293,92 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
     expect(upstream).toHaveLength(4)
   })
 
-  it('replays empty Responses reasoning with its original ciphertext only in its own session', async () => {
-    const model = 'wire:o3'
-    addModel('o3', ENDPOINT_TYPE.OPENAI_RESPONSES)
-    const sent: Array<{ store: boolean; input: Array<Record<string, unknown>> }> = []
-    mocks.transport.mockImplementation(async (_url, init) => {
-      sent.push(JSON.parse(String(init?.body)))
-      const id = sent.length
-      const reasoning = { type: 'reasoning', id: `rs_${id}`, summary: [], encrypted_content: `cipher-${id}` }
-      const message = {
-        type: 'message',
-        id: `msg_${id}`,
-        role: 'assistant',
-        status: 'completed',
-        content: [{ type: 'output_text', text: `Answer ${id}`, annotations: [] }]
-      }
-      const events = [
-        { type: 'response.output_item.added', output_index: 0, item: { ...reasoning, encrypted_content: null } },
-        { type: 'response.output_item.done', output_index: 0, item: reasoning },
-        { type: 'response.output_item.added', output_index: 1, item: { ...message, content: [] } },
-        {
-          type: 'response.output_text.delta',
-          item_id: message.id,
-          output_index: 1,
-          content_index: 0,
-          delta: `Answer ${id}`
-        },
-        { type: 'response.output_item.done', output_index: 1, item: message },
-        {
-          type: 'response.completed',
-          response: {
-            id: `resp_${id}`,
-            object: 'response',
-            created_at: 1,
-            model: 'o3',
-            status: 'completed',
-            output: [reasoning, message],
-            usage: { input_tokens: 10, output_tokens: 5 }
-          }
+  it.each(['openai', 'open-responses'] as const)(
+    'replays empty %s reasoning only for unambiguous history in its own session',
+    async (adapterFamily) => {
+      const model = 'wire:o3'
+      addModel('o3', ENDPOINT_TYPE.OPENAI_RESPONSES)
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://openai.test/v1', adapterFamily } }
+        })
+        .where(eq(userProviderTable.providerId, 'wire'))
+        .run()
+      const sent: Array<{ store?: boolean; input: Array<Record<string, unknown>> }> = []
+      mocks.transport.mockImplementation(async (_url, init) => {
+        sent.push(JSON.parse(String(init?.body)))
+        const id = sent.length
+        const reasoning = { type: 'reasoning', id: `rs_${id}`, summary: [], encrypted_content: `cipher-${id}` }
+        const message = {
+          type: 'message',
+          id: `msg_${id}`,
+          role: 'assistant',
+          status: 'completed',
+          content: [{ type: 'output_text', text: `Answer ${id}`, annotations: [] }]
         }
-      ]
-      return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
-        headers: { 'content-type': 'text/event-stream' }
+        const events = [
+          { type: 'response.output_item.added', output_index: 0, item: { ...reasoning, encrypted_content: null } },
+          { type: 'response.output_item.done', output_index: 0, item: reasoning },
+          { type: 'response.output_item.added', output_index: 1, item: { ...message, content: [] } },
+          {
+            type: 'response.output_text.delta',
+            item_id: message.id,
+            output_index: 1,
+            content_index: 0,
+            delta: `Answer ${id}`
+          },
+          { type: 'response.output_item.done', output_index: 1, item: message },
+          {
+            type: 'response.completed',
+            response: {
+              id: `resp_${id}`,
+              object: 'response',
+              created_at: 1,
+              model: 'o3',
+              status: 'completed',
+              output: [reasoning, message],
+              usage: { input_tokens: 10, output_tokens: 5 }
+            }
+          }
+        ]
+        return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
+          headers: { 'content-type': 'text/event-stream' }
+        })
       })
-    })
-    const history: MessageParam[] = [{ role: 'user', content: 'Hello' }]
-    for (let turn = 1; turn <= 3; turn++) {
-      const reply = await request(history, turn % 2 === 1, { model })
-      expect(reply.content).toMatchObject([
-        { type: 'thinking', thinking: '' },
-        { type: 'text', text: `Answer ${turn}` }
+      const history: MessageParam[] = [{ role: 'user', content: 'Hello' }]
+      for (let turn = 1; turn <= 3; turn++) {
+        const reply = await request(history, turn % 2 === 1, { model })
+        expect(reply.content).toMatchObject([
+          { type: 'thinking', thinking: '' },
+          { type: 'text', text: `Answer ${turn}` }
+        ])
+        history.push({ role: 'assistant', content: reply.content }, { role: 'user', content: `Follow-up ${turn}` })
+      }
+      if (adapterFamily === 'openai') expect(sent[2].store).toBe(false)
+      expect(sent[2].input.filter((item) => item.type === 'reasoning')).toMatchObject([
+        { encrypted_content: 'cipher-1' },
+        { encrypted_content: 'cipher-2' }
       ])
-      history.push({ role: 'assistant', content: reply.content }, { role: 'user', content: `Follow-up ${turn}` })
-    }
-    expect(sent[2].store).toBe(false)
-    expect(sent[2].input.filter((item) => item.type === 'reasoning')).toMatchObject([
-      { encrypted_content: 'cipher-1' },
-      { encrypted_content: 'cipher-2' }
-    ])
-    expect(sent[2].input.some((item) => item.type === 'item_reference')).toBe(false)
+      expect(sent[2].input.some((item) => item.type === 'item_reference')).toBe(false)
 
-    dbh.db
-      .insert(agentSessionTable)
-      .values({ id: 'other-session', name: 'Other', workspaceId: 'agent-workspace', orderKey: 'a1' })
-      .run()
-    prepareClaudeBranch('other-session', '/workspace/.claude')
-    mocks.sessionId = 'other-session'
-    await request(history, false, { model })
-    expect(sent[3].input.filter((item) => item.type === 'reasoning')).toEqual([])
-  })
+      const repeated = [history[0], history[1], { role: 'user' as const, content: 'Continue' }, ...history.slice(1)]
+      await request(repeated, false, { model })
+      expect(sent[3].input.filter((item) => item.type === 'reasoning')).toMatchObject([
+        { encrypted_content: 'cipher-2' },
+        { encrypted_content: 'cipher-3' }
+      ])
+
+      dbh.db
+        .insert(agentSessionTable)
+        .values({ id: 'other-session', name: 'Other', workspaceId: 'agent-workspace', orderKey: 'a1' })
+        .run()
+      prepareClaudeBranch('other-session', '/workspace/.claude')
+      mocks.sessionId = 'other-session'
+      await request(history, false, { model })
+      expect(sent[4].input.filter((item) => item.type === 'reasoning')).toEqual([])
+    }
+  )
 
   it('freezes the admitted price even when pricing changes while the provider runs', async () => {
     mocks.transport.mockImplementation(async () => {

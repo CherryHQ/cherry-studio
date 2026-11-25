@@ -83,17 +83,27 @@ export function saveClaudeCodeReplay(
 
 export function readClaudeCodeReplay(sessionId: string, messages: readonly MessageParam[]) {
   const incomingKeys = new Map<ContentBlockParam, string>()
+  const seen = new Set<string>()
+  const repeated = new Set<string>()
   for (const message of messages) {
     if (message.role !== 'assistant' || typeof message.content === 'string') continue
     const blockIds = blockKeys(message.content)
     for (const [index, block] of message.content.entries()) {
       const key = blockIds[index]
-      if (key) incomingKeys.set(block, key)
+      if (!key) continue
+      if (seen.has(key)) repeated.add(key)
+      else seen.add(key)
+      incomingKeys.set(block, key)
     }
   }
 
   const states = incomingKeys.size ? agentSessionContextService.readClaudeCodeReplay(sessionId) : undefined
-  const getState = (block: ContentBlockParam) => states?.[incomingKeys.get(block) ?? '']
+  const getState = (block: ContentBlockParam) => {
+    const key = incomingKeys.get(block)
+    if (!key) return undefined
+    const state = states?.[key]
+    return state && repeated.has(key) ? 'ambiguous' : state
+  }
   const currentTurn = messages.findLastIndex(
     ({ role, content }) =>
       role === 'user' &&
