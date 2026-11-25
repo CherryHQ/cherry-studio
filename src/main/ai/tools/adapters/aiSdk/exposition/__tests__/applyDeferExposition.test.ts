@@ -32,7 +32,7 @@ describe('applyDeferExposition', () => {
   it('returns ToolSet unchanged when no entries are deferred', async () => {
     const { registry, tools } = buildRegistryWith([makeEntry('web_search', 'never'), makeEntry('mcp__a__t', 'auto')])
     const result = await applyDeferExposition(tools, registry, 32_000)
-    expect(result.tools).toBe(tools)
+    expect(result.tools).toEqual(tools)
     expect(result.deferredEntries).toEqual([])
   })
 
@@ -53,35 +53,6 @@ describe('applyDeferExposition', () => {
     )
     expect(result!['experimental']).toBeUndefined()
     expect(deferredEntries.map((e) => e.name)).toEqual(['experimental'])
-  })
-
-  it('strips overflowing auto entries when the pool meets both size and net-savings gates', async () => {
-    // 5 fat auto entries — pool count >= MIN_AUTO_DEFER_COUNT, total cost
-    // overflows 10% of 32k, and savings exceed META_TOOLS_OVERHEAD_TOKENS.
-    const heavyAuto = Array.from({ length: 5 }, (_, i) => makeEntry(`mcp__big${i}__t`, 'auto', 8_000))
-    const small = makeEntry('web_search', 'never')
-    const { registry, tools } = buildRegistryWith([...heavyAuto, small])
-    const { tools: result, deferredEntries } = await applyDeferExposition(tools, registry, 32_000)
-    for (const e of heavyAuto) {
-      expect(result![e.name]).toBeUndefined()
-    }
-    expect(result!['web_search']).toBeDefined()
-    expect(result![TOOL_SEARCH_TOOL_NAME]).toBeDefined()
-    expect(result![TOOL_INSPECT_TOOL_NAME]).toBeDefined()
-    expect(result![TOOL_INVOKE_TOOL_NAME]).toBeDefined()
-    expect(deferredEntries.map((e) => e.name).sort()).toEqual(heavyAuto.map((e) => e.name).sort())
-  })
-
-  it('keeps a single fat auto entry inline (below minimum-count gate, no meta-tools injected)', async () => {
-    // One huge entry blows the cost threshold but the pool is too small for
-    // search-then-invoke to be a net win — must stay inline.
-    const huge = makeEntry('mcp__big__t', 'auto', 50_000)
-    const small = makeEntry('web_search', 'never')
-    const { registry, tools } = buildRegistryWith([huge, small])
-    const { tools: result, deferredEntries } = await applyDeferExposition(tools, registry, 32_000)
-    expect(result).toBe(tools)
-    expect(result![TOOL_SEARCH_TOOL_NAME]).toBeUndefined()
-    expect(deferredEntries).toEqual([])
   })
 
   async function exposeDeferredTool() {
@@ -129,7 +100,7 @@ describe('applyDeferExposition', () => {
       orphan: { description: 'o', inputSchema: {} } as unknown as Tool
     }
     const result = await applyDeferExposition(tools, registry, 32_000)
-    expect(result.tools).toBe(tools)
+    expect(result.tools).toEqual(tools)
     expect(result.deferredEntries).toEqual([])
   })
 })

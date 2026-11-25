@@ -14,13 +14,13 @@ import path from 'node:path'
 
 import mime from 'mime'
 
-import { decodeTextBufferIfText } from '../textEncoding'
-
-export { decodeTextBufferIfText } from '../textEncoding'
-
 import { type AbsoluteFilePath, FILE_TYPE, type FileType } from '@shared/types/file'
 import { KB } from '@shared/utils/constants'
 import { getFileTypeByExt } from '@shared/utils/file'
+
+import { decodeTextBufferIfText } from '../textEncoding'
+
+export { decodeTextBufferIfText } from '../textEncoding'
 
 /**
  * Content-based text detection: reads the first 8 KB and delegates to

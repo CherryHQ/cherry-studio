@@ -1,10 +1,12 @@
 ---
 description: buildAgentParams and the RequestFeature model composing plugins, tools, hooks, and provider quirks per request
 sources:
+  - src/main/ai/utils/modelParameters.ts
   - src/main/ai/runtime/aiSdk/params/buildAgentParams.ts
   - src/main/ai/runtime/aiSdk/params/feature.ts
   - src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts
   - src/main/ai/runtime/aiSdk/params/features/qwenAnthropicWebTools.ts
+  - src/main/ai/runtime/aiSdk/params/features/toolSchemaCompatibility.ts
 ---
 
 # Params Pipeline
@@ -38,12 +40,33 @@ never enter this pipeline; they use `resolveSdkConfig` directly.
 
 `AiStreamRequest` requires `conversation.topicId` as its sole stream-topic
 field. `conversation.id` may instead identify the longer-lived agent session;
-non-streaming requests such as probes may omit `topicId`.
+headless requests such as probes may omit `topicId`, even when the provider
+response is streamed and consumed entirely in the main process.
 
 Callers (chat, agent session, translate, prompt-only) shape their own
 `AiChatRequest` and hand it in. The pipeline refines the request-local
 `sdkConfig.providerSettings.fetch` when HTTP tracing or custom-parameter body
 passthrough is required.
+
+For `contextOwner: 'caller'`, the caller supplies the prompt, tools, and history.
+The pipeline uses `request.system` and `callOverrides.tools` without Cherry's
+system assembly, registry selection, deferred-tool exposition, or web-tool
+routing. It does not move system messages into Responses `instructions` or set
+`systemMessageMode: 'remove'`. Feature collection and AI SDK middleware still
+run, as does `Agent.stream()`'s `messageRules` normalization. Caller requests
+omit loop stop conditions and AI tool repair; their execution uses single-step
+`streamText` / `generateText` instead of `ToolLoopAgent`.
+Per-call overrides carry sampling, penalties and seed through the standard parameter filter,
+and forward tool choice, active tools and structured `Output` settings to caller-owned execution.
+Provider-scoped options merge after capability defaults, so explicit Gemini safety settings and
+cached context reach the same provider for HTTP and object callers.
+
+On `openai-chat-completions`, tool-schema middleware normalizes incompatible enums
+and removes `propertyNames` for recognizable Gemini raw model IDs, including
+custom relays. Recognition is a compatibility heuristic that leaves opaque aliases
+unrecognized. Normalization can relax the constraints sent to the provider. MCP
+tools still validate against the original schema, and gateway callers validate
+their own tools.
 
 ## RequestFeature
 
@@ -121,6 +144,21 @@ for a single request, so any added field becomes part of the contract — keep i
 minimal. After feature collection, the pipeline may still refine the
 request-local `sdkConfig.providerSettings.fetch` before returning it.
 
+## Anthropic thinking replay
+
+For Cherry-managed requests to the first-party Claude Messages API, the
+Anthropic adapter opts into `drop_block` when a supported model in adaptive
+thinking mode receives historical signed or redacted thinking. The SDK adds
+the beta header. Claude evaluates each signature and discards failing blocks.
+An explicit binding policy takes precedence. Compatible endpoints keep their
+existing request options.
+
+Completed signed and redacted thinking remains available for replay even
+when the display text is empty. When in-flight compaction or its sliding
+window cuts the prompt, Anthropic Messages adapters, including that route in
+CherryIN and AiHubMix, omit the affected thinking from the rewritten prompt and
+keep the surrounding content.
+
 ## Pipeline order
 
 ```
@@ -161,13 +199,16 @@ they are not contributed by a `RequestFeature`. Assistant `temperature`
 and `topP` values are capability-filtered, then custom standard params
 override them, and per-call overrides apply last. After service tier, per-call
 and Fast Mode options, and the output limit have been resolved,
-`stripRejectedSamplingParams` applies the resolved model's temperature/topP
-support and existing family policies to all three parameter surfaces:
+`stripUnsupportedModelParams` applies the resolved model's temperature/topP
+support, frequency/presence penalty support, and existing family policies to all three parameter surfaces:
 
 - Top-level standard parameters.
 - Direct fields in each `providerOptions` namespace.
 - Top-level body-passthrough parameters, including the wire alias `top_p`.
 
+Declared temperature/topP ranges clamp finite numeric values after all overrides,
+including the `top_p` body alias. Unsupported penalty fields are removed in both
+camelCase and snake_case; Gemini 3/4 omit penalties even without registry metadata.
 The filter does not mutate its inputs or traverse arbitrary nested custom data.
 Assistant enable flags, reasoning-aware limits, and mutual-exclusion rules stay
 in `getTemperature` / `getTopP`; this final step enforces sampling omission

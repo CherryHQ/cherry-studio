@@ -7,7 +7,7 @@ import NpxSearch from '@renderer/pages/settings/McpSettings/NpxSearch'
 const NpxSearchWrapper = () => {
   const { theme } = useTheme()
   return (
-    <SettingsContentColumn theme={theme} className="pt-2" innerClassName="max-w-[1200px]">
+    <SettingsContentColumn theme={theme} contentProps={{ className: 'pt-8' }} innerClassName="max-w-[1200px]">
       <NpxSearch />
     </SettingsContentColumn>
   )

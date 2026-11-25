@@ -27,9 +27,6 @@ import type { ProviderSpecificError } from './providerSpecificError'
 /** i18n key used when a streaming response is paused/aborted by the user. */
 export const ERROR_I18N_KEY_STREAM_PAUSED = 'stream_paused'
 
-/** i18n key used when a request times out. */
-export const ERROR_I18N_KEY_REQUEST_TIMEOUT = 'request_timeout'
-
 /**
  * Serialized error for storage and rendering.
  *

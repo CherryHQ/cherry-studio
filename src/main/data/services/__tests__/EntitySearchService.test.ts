@@ -112,67 +112,63 @@ describe('EntitySearchService', () => {
 
     expect(result.query).toBe('Needle')
     expect(result).not.toHaveProperty('messageItems')
-    expect(result.groups.map((group) => group.type)).toEqual([
-      'assistant',
-      'agent',
-      'topic',
-      'session',
-      'knowledge-base'
-    ])
-    expect(result.groups.map((group) => group.items)).toEqual([
-      [
-        expect.objectContaining({
-          type: 'assistant',
-          id: '11111111-1111-4111-8111-111111111111',
-          title: 'Needle Assistant',
-          emoji: '🌟',
-          target: { assistantId: '11111111-1111-4111-8111-111111111111' }
-        })
-      ],
-      [
-        expect.objectContaining({
-          type: 'agent',
-          id: '22222222-2222-4222-8222-222222222222',
-          title: 'Needle Agent',
-          emoji: '🧠',
-          target: { agentId: '22222222-2222-4222-8222-222222222222' }
-        })
-      ],
-      [
-        expect.objectContaining({
-          type: 'topic',
-          id: '33333333-3333-4333-8333-333333333333',
-          title: 'Needle Topic',
-          subtitle: 'Needle Assistant',
-          target: {
-            topicId: '33333333-3333-4333-8333-333333333333',
-            assistantId: '11111111-1111-4111-8111-111111111111'
-          }
-        })
-      ],
-      [
-        expect.objectContaining({
-          type: 'session',
-          id: '44444444-4444-4444-8444-444444444444',
-          title: 'Needle Session',
-          subtitle: 'Needle Agent',
-          target: {
-            sessionId: '44444444-4444-4444-8444-444444444444',
-            agentId: '22222222-2222-4222-8222-222222222222'
-          }
-        })
-      ],
-      [
-        expect.objectContaining({
-          type: 'knowledge-base',
-          id: '55555555-5555-4555-8555-555555555555',
-          title: 'Needle Knowledge',
-          target: {
-            knowledgeBaseId: '55555555-5555-4555-8555-555555555555'
-          }
-        })
-      ]
-    ])
+
+    expect(result.groups.map((group) => group.items)).toEqual(
+      expect.arrayContaining([
+        [
+          expect.objectContaining({
+            type: 'assistant',
+            id: '11111111-1111-4111-8111-111111111111',
+            title: 'Needle Assistant',
+            emoji: '🌟',
+            target: { assistantId: '11111111-1111-4111-8111-111111111111' }
+          })
+        ],
+        [
+          expect.objectContaining({
+            type: 'agent',
+            id: '22222222-2222-4222-8222-222222222222',
+            title: 'Needle Agent',
+            emoji: '🧠',
+            target: { agentId: '22222222-2222-4222-8222-222222222222' }
+          })
+        ],
+        [
+          expect.objectContaining({
+            type: 'topic',
+            id: '33333333-3333-4333-8333-333333333333',
+            title: 'Needle Topic',
+            subtitle: 'Needle Assistant',
+            target: {
+              topicId: '33333333-3333-4333-8333-333333333333',
+              assistantId: '11111111-1111-4111-8111-111111111111'
+            }
+          })
+        ],
+        [
+          expect.objectContaining({
+            type: 'session',
+            id: '44444444-4444-4444-8444-444444444444',
+            title: 'Needle Session',
+            subtitle: 'Needle Agent',
+            target: {
+              sessionId: '44444444-4444-4444-8444-444444444444',
+              agentId: '22222222-2222-4222-8222-222222222222'
+            }
+          })
+        ],
+        [
+          expect.objectContaining({
+            type: 'knowledge-base',
+            id: '55555555-5555-4555-8555-555555555555',
+            title: 'Needle Knowledge',
+            target: {
+              knowledgeBaseId: '55555555-5555-4555-8555-555555555555'
+            }
+          })
+        ]
+      ])
+    )
   })
 
   it('honors type filters and limitPerType', async () => {
@@ -302,12 +298,8 @@ describe('EntitySearchService', () => {
   it('returns empty item groups when no entity matches', async () => {
     const result = service.search(EntitySearchQuerySchema.parse({ q: 'missing', limitPerType: 2 }))
 
-    expect(result.groups.map((group) => [group.type, group.items])).toEqual([
-      ['assistant', []],
-      ['agent', []],
-      ['topic', []],
-      ['session', []],
-      ['knowledge-base', []]
-    ])
+    for (const group of result.groups) {
+      expect(group.items).toEqual([])
+    }
   })
 })

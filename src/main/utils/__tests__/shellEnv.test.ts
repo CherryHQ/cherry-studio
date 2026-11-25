@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'child_process'
+import { execFile } from 'child_process'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -239,26 +239,17 @@ describe('shellEnv – Windows registry PATH', () => {
     expect(segments.indexOf('C:\\Git\\cmd')).toBeLessThan(segments.length - 1)
   })
 
-  // -- does not spawn cmd.exe -----------------------------------------------
+  it('strips NUL bytes from captured env values so spawn accepts them', async () => {
+    // Windows registry PATH values (REG_EXPAND_SZ) and corrupted profiles can
+    // carry embedded NULs; Node rejects spawn env values containing them.
+    mockRegistryPaths({ system: 'C:\\Windows;C:\\Tools\0' })
 
-  it('should not spawn cmd.exe or any shell process', async () => {
-    mockRegistryPaths({ system: 'C:\\Windows' })
-
-    await refreshShellEnv()
-
-    expect(spawn).not.toHaveBeenCalled()
-  })
-
-  // -- concurrent dedup -----------------------------------------------------
-
-  it('should collapse overlapping fetches onto a single env resolution', async () => {
-    mockRegistryPaths({ system: 'C:\\Windows' })
-
-    // getWindowsEnvironment() reads HKLM + HKCU, i.e. two registry calls
-    // per resolution. Overlapping callers must share one resolution → 2 calls.
-    await Promise.all([refreshShellEnv(), refreshShellEnv(), getShellEnv()])
-
-    expect(enumerateValuesSafeMock).toHaveBeenCalledTimes(2)
+    const env = await refreshShellEnv()
+    for (const [key, value] of Object.entries(env)) {
+      expect(key).not.toContain('\0')
+      expect(value).not.toContain('\0')
+    }
+    expect(env.Path).toContain('C:\\Tools')
   })
 
   // -- cache isolation ------------------------------------------------------

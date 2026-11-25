@@ -4,8 +4,10 @@
 
 import * as z from 'zod'
 
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { TraceIdSchema } from '@shared/data/types/trace'
 
+import { ConversationListSortBySchema, ConversationListSortLocaleSchema } from '../../types/conversationList'
 import type { CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import {
@@ -28,6 +30,8 @@ export const SessionNameEntitySchema = z.string().max(255)
 export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string().nullable(),
+  /** Per-session model override; null/missing follows the parent agent's model. */
+  model: UniqueModelIdSchema.nullable().optional(),
   /** May be empty for an untitled placeholder session, matching topic.name semantics. */
   name: SessionNameEntitySchema,
   isNameManuallyEdited: z.boolean(),
@@ -51,6 +55,7 @@ export const CreateAgentSessionSchema = z.strictObject({
   agentId: z.string().min(1),
   name: SessionNameEntitySchema,
   description: z.string().optional(),
+  model: UniqueModelIdSchema.nullable().optional(),
   workspace: AgentSessionWorkspaceSourceSchema
 })
 export type CreateAgentSessionDto = z.infer<typeof CreateAgentSessionSchema>
@@ -59,7 +64,8 @@ export const UpdateAgentSessionSchema = z.strictObject({
   name: SessionNameEntitySchema.optional(),
   isNameManuallyEdited: z.boolean().optional(),
   description: z.string().optional(),
-  agentId: z.string().min(1).optional()
+  agentId: z.string().min(1).optional(),
+  model: UniqueModelIdSchema.nullable().optional()
 })
 
 export type UpdateAgentSessionDto = z.infer<typeof UpdateAgentSessionSchema>
@@ -76,6 +82,9 @@ export type SetAgentSessionWorkspaceDto = AgentSessionWorkspaceSource
 
 /** Query for `GET /agent-sessions` (cursor pagination + optional agent filter). */
 export const ListAgentSessionsQuerySchema = z.strictObject({
+  sortBy: ConversationListSortBySchema.optional(),
+  sortLocale: ConversationListSortLocaleSchema.optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
   ids: z.array(z.string().min(1)).min(1).max(200).optional(),
   agentId: z.string().optional(),
   workspaceId: z.string().min(1).optional(),

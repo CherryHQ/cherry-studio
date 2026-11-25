@@ -2,11 +2,11 @@ import type { BrowserView, BrowserWindow } from 'electron'
 
 import { loggerService } from '@logger'
 
+import type { GuestSession } from '../session/GuestSession'
+
 export const logger = loggerService.withContext('McpBrowserCDP')
 export const userAgent =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
-
-import type { GuestSession } from '../session/GuestSession'
 
 export interface TabInfo {
   session: GuestSession

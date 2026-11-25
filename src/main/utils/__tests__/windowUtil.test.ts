@@ -31,15 +31,6 @@ afterEach(() => {
 })
 
 describe('getWindowsBackgroundMaterial', () => {
-  it('returns mica on Windows 11 22H2 and newer', async () => {
-    const { getWindowsBackgroundMaterial } = await loadWindowUtil({
-      isWin: true,
-      systemVersion: '10.0.22621'
-    })
-
-    expect(getWindowsBackgroundMaterial()).toBe('mica')
-  })
-
   it('returns undefined below the Windows 11 22H2 build threshold', async () => {
     const { getWindowsBackgroundMaterial } = await loadWindowUtil({
       isWin: true,

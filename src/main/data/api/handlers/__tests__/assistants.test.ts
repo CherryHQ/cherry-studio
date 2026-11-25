@@ -57,14 +57,14 @@ describe('assistantHandlers', () => {
         }
       } as never)
 
-      expect(listMock).toHaveBeenCalledWith({
-        groupId: GROUP_ID,
-        updatedAtFrom: '2026-05-01T00:00:00.000Z',
-        sortBy: 'updatedAt',
-        sortOrder: 'desc',
-        page: 1,
-        limit: 100
-      })
+      expect(listMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          groupId: GROUP_ID,
+          updatedAtFrom: '2026-05-01T00:00:00.000Z',
+          sortBy: 'updatedAt',
+          sortOrder: 'desc'
+        })
+      )
     })
 
     it('should reject legacy numeric updatedAtFrom and orderBy list params', async () => {

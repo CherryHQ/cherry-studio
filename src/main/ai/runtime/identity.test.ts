@@ -6,7 +6,7 @@ import type { HookInput, SyncHookJSONOutput } from '@anthropic-ai/claude-agent-s
 import type { BeforeAgentStartEvent, ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { PromptBuilder } from '@main/ai/agents/prompt'
+import { PromptBuilder } from '@main/ai/agents/prompt/promptContext'
 
 import { createClaudeCodeIdentityHooks } from './claudeCode/identityHooks'
 import { createPiIdentityExtension } from './pi/identityExtension'
@@ -117,6 +117,24 @@ describe('Live Agent identity', () => {
     await writeFile(file, 'Persona B with a changed length')
     await utimes(file, before.atime, before.mtime)
     expect(await builder.buildMemoriesSection(root)).toContain('Persona B with a changed length')
+  })
+
+  // Pi wraps every section in its key's tag, so a tag inside the section reached the model twice.
+  it('delivers the identity inside exactly one <agent_identity> tag on each runtime', async () => {
+    await writeIdentity('A')
+    const tags = (text = '') => text.match(/<agent_identity>/g)?.length ?? 0
+    let beforeStart!: (event: BeforeAgentStartEvent) => Promise<void>
+    await createPiIdentityExtension(root)({
+      on: (event: string, handler: typeof beforeStart) => {
+        if (event === 'before_agent_start') beforeStart = handler
+      }
+    } as ExtensionAPI)
+    const event = { systemPromptOptions: { sections: {} } } as unknown as BeforeAgentStartEvent
+    await beforeStart(event)
+
+    expect(tags(await claudeConnection()('SessionStart'))).toBe(1)
+    expect(event.systemPromptOptions.sections.agent_identity).toContain('Persona A')
+    expect(tags(event.systemPromptOptions.sections.agent_identity)).toBe(0)
   })
 
   it('updates only the Pi identity section before each turn', async () => {

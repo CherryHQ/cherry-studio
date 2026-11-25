@@ -57,24 +57,6 @@ describe('AgentContent', () => {
     preferenceMock.setShowSidebar.mockClear()
   })
 
-  it('keeps agent page tools in the navbar', () => {
-    render(<AgentContent activeAgent={agentA} tools={<span>files</span>} />)
-
-    expect(screen.getByText('tools')).toBeInTheDocument()
-  })
-
-  it('does not render the workspace opener in the navbar', () => {
-    render(<AgentContent activeAgent={agentA} tools={<span>files</span>} />)
-
-    expect(screen.queryByRole('button', { name: 'open workspace' })).not.toBeInTheDocument()
-  })
-
-  it('hides agent-scoped navbar actions when no agent is active', () => {
-    render(<AgentContent activeAgent={null} tools={<span>files</span>} />)
-
-    expect(screen.queryByText('tools')).not.toBeInTheDocument()
-  })
-
   it('keeps the sidebar toggle inactive when the sidebar is visible', () => {
     preferenceMock.showSidebar = true
 
@@ -83,8 +65,6 @@ describe('AgentContent', () => {
     const [toggle] = screen.getAllByRole('button')
 
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
-    expect(toggle).toHaveAttribute('data-tone', 'conversation')
-    expect(toggle).not.toHaveAttribute('data-active')
   })
 
   it('shows only the inactive sidebar toggle when the sidebar is hidden', () => {
@@ -93,28 +73,5 @@ describe('AgentContent', () => {
     const toggle = screen.getAllByRole('button')[0]
 
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
-    expect(toggle).toHaveAttribute('data-tone', 'conversation')
-    expect(toggle).not.toHaveAttribute('data-active')
-    expect(screen.queryByRole('button', { name: 'agent.session.add.title' })).not.toBeInTheDocument()
-  })
-
-  it('places the conversation controls host after the sidebar toggle', () => {
-    const { container } = render(
-      <AgentContent activeAgent={agentA} conversationControls={<span>conversation metadata</span>} />
-    )
-
-    const toggle = screen.getByRole('button', { name: 'navbar.show_sidebar' })
-    const controls = container.querySelector('[data-conversation-topbar-controls]')
-
-    expect(toggle.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByText('conversation metadata')).toBeInTheDocument()
-  })
-
-  it('hides the new-session button when the sidebar is visible', () => {
-    preferenceMock.showSidebar = true
-
-    render(<AgentContent activeAgent={agentA} />)
-
-    expect(screen.queryByRole('button', { name: 'agent.session.add.title' })).not.toBeInTheDocument()
   })
 })

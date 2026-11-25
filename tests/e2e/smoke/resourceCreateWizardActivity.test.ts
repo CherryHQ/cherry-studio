@@ -1,11 +1,11 @@
 import { isAbsolute, parse, relative, sep } from 'node:path'
 
-import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { type ElectronApplication, type Page } from '@playwright/test'
 
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { selectVisibleModel } from '../regression/helpers/models'
 import { selectSidebarApp } from '../regression/helpers/navigation'
-import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
 
 const test = base.extend<{ isolatedSession: { launch: () => Promise<{ app: ElectronApplication; page: Page }> } }>({
@@ -20,7 +20,7 @@ const test = base.extend<{ isolatedSession: { launch: () => Promise<{ app: Elect
         launch: async () => {
           const env = { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }
           Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
-          app = await electron.launch({
+          app = await launchSmokeElectron({
             args: ['.'],
             env,
             timeout: 60_000
@@ -169,9 +169,6 @@ test('agent wizard preserves its draft and Knowledge step across Activity re-sho
 
     await addAgent.click()
     await expect(basicStep, 'Agent creation must start at Basic info').toHaveAttribute('aria-current', 'step')
-    const pi = dialog.getByRole('radio').and(dialog.locator('[value="pi"]'))
-    await dialog.getByLabel('Runtime mode').getByText('Pi', { exact: true }).click()
-    await expect(pi, 'Pi must expose the Skills and Knowledge path').toBeChecked()
     await nameInput.fill(name)
     await descriptionInput.fill(description)
     await selectModel()
@@ -179,7 +176,7 @@ test('agent wizard preserves its draft and Knowledge step across Activity re-sho
     await expect(promptStep, 'Next must reach the real system prompt editor').toHaveAttribute('aria-current', 'step')
     await promptEditor.fill(prompt)
     await next.click()
-    await expect(skillsStep, 'Pi creation must include the Skills step before Knowledge').toHaveAttribute(
+    await expect(skillsStep, 'Agent creation must include the Skills step before Knowledge').toHaveAttribute(
       'aria-current',
       'step'
     )

@@ -33,8 +33,16 @@ The main-process observability boundary is `src/main/ai/observability`:
 - `core/` creates Cherry-owned turn roots and common `cs.*` attributes.
 - `adapters/aiSdk/` interprets AI SDK child spans.
 - `adapters/claudeCode/` interprets Claude Code OTLP spans and logs.
+- `adapters/pi/` bridges native Durable phases and propagation without duplicating SDK model spans.
 - `storage/` keeps the in-memory span projection and JSONL-compatible history.
 - `sinks/` defines the extension point for local and future external export.
+
+Trusted internal gateway calls carry the runtime's trace parent in their
+in-process usage context. SDK telemetry and HTTP spans use the session topic,
+while stream management keeps its request-scoped topic. `AdapterTracer` restores
+the parent when the HTTP boundary lost the active context, retaining existing
+nested SDK parents. The outer Agent turn continues to own session history flush.
+External callers cannot supply this in-process context.
 
 ## Local history flush
 
@@ -75,7 +83,21 @@ by the global provider. On every `startSpan` / `startActiveSpan` it:
 - `buildTelemetry` (`runtime/aiSdk/params/buildTelemetry.ts`) — passed to AI
   SDK as `experimental_telemetry.tracer`. Captures every AI SDK auto-span.
   Returns `undefined` (no telemetry, no tracer) when there is no `topicId`
-  or developer mode is off — see below.
+  or developer mode is off — see below. Full SDK input/output recording is disabled before
+  serialization; bounded HTTP trace bodies and turn attributes supply diagnostic content.
+
+The in-memory projection enforces a 50,000-span and conservative 64 MiB serialized-size budget,
+including active traces. It first removes completed traces, then completed spans within active
+traces, then the oldest active diagnostic span if necessary. Viewer cursors reset after eviction;
+a later terminal export can restore an evicted span. Full-span and incremental event accounting use
+the same size estimator. Metadata for traces without retained spans is limited to the most recent
+1,000 traces, while metadata for retained spans stays available. These limits govern diagnostic retention,
+not runtime execution or conversation history.
+
+Bounded HTTP bodies and turn-text attributes own independent string storage. A preview cannot
+keep a full serialized request or answer alive through a V8 string slice. Capture preserves
+UTF-16 code units, including a surrogate pair split by the existing character limit. Background
+response capture keeps the abort signal without retaining the already-sent request body.
 
 ## AiSdkSpanAdapter
 
@@ -96,12 +118,20 @@ by the global provider. On every `startSpan` / `startActiveSpan` it:
 Claude Code Agent SDK spans do not go through `AiSdkSpanAdapter`; they are
 converted by `src/main/ai/observability/adapters/claudeCode/ClaudeCodeOtlpAdapter.ts`.
 
-Pi has no native OTel exporter. Its runtime connection creates Cherry-owned
-`pi.generate_content` spans at the provider stream boundary and
-`pi.execute_tool` spans from Pi's tool lifecycle events. These spans use the
-agent-session trace context supplied by the host and flow through the existing
-`NodeTraceService` and `TraceStorageService`; parallel tool calls are tracked by
-tool-call id and unfinished spans are closed when the connection ends.
+Pi Durable supplies native `pi.durable.submit` and `pi.durable.phase` instrumentation through
+`HarnessOptions.telemetry`. `adapters/pi/piTelemetry.ts` bridges that contract to Cherry's OTel
+provider and local trace storage in developer mode. Native task/tool attributes, committed-entry
+and replay events, status and links remain intact. Serialized W3C carriers also retain the owning
+session and turn when a task resumes; tasks created without a carrier cannot recover an old parent.
+
+Model observations belong to the gateway's AI SDK spans, and request/response bodies belong to
+HTTP tracing. The Pi bridge suppresses `pi.ai.request` and `pi.ai.poll`, forwards their parent
+context, and attaches the SDK request beneath its native phase through an authenticated internal
+usage capture. It does not record model usage or write billing records. Host-created
+`pi.generate_content` and `pi.execute_tool` spans are removed. Ordinary Pi 1.5.0 has no native
+tool-span API, so its tool transcript remains the source of tool details. Native Durable telemetry
+records identifiers and lifecycle facts, not message or tool bodies; metrics export is outside
+this trace integration.
 
 Historical DSH trace spans remain readable; no DSH runtime produces new spans.
 

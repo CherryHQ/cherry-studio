@@ -37,6 +37,7 @@ function deepFreeze<T>(value: T): Readonly<T> {
 }
 
 function cloneAndFreeze<T>(value: T): Readonly<T> {
+  // oxlint-disable-next-line no-restricted-globals -- Freeze one invocation receipt after a single ownership copy of its nested inputs.
   return deepFreeze(structuredClone(value))
 }
 
@@ -73,13 +74,12 @@ export function createAiUsageCaptureContext(input: CreateAiUsageCaptureContextIn
           ? null
           : (() => {
               const parsed = AiUsagePricingSnapshotSchema.safeParse(input.pricingSnapshot)
-              return parsed.success ? cloneAndFreeze(parsed.data) : null
+              return parsed.success ? parsed.data : null
             })(),
     trustProviderReportedCost: input.trustProviderReportedCost === true,
     reportedCostCurrency: input.reportedCostCurrency ?? null,
-    credentialReceipt: cloneAndFreeze(input.credentialReceipt ?? { attribution: 'unknown' }),
-    source: input.source === undefined ? null : input.source === null ? null : cloneAndFreeze(input.source),
-    messageRef:
-      input.messageRef === undefined ? null : input.messageRef === null ? null : cloneAndFreeze(input.messageRef)
+    credentialReceipt: input.credentialReceipt ?? { attribution: 'unknown' },
+    source: input.source ?? null,
+    messageRef: input.messageRef ?? null
   })
 }

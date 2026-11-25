@@ -6,7 +6,7 @@ import { setTimeout } from 'node:timers/promises'
 import { pathToFileURL } from 'node:url'
 
 import { chromium, type BrowserContext } from '@playwright/test'
-import AdmZip from 'adm-zip'
+import JSZip from 'jszip'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
@@ -498,7 +498,7 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
     await menuAction('Export to Word')
     await saveNativeFile(app.record.platform, app.paths, wordPath)
     await expect.poll(async () => (await stat(wordPath).catch(() => undefined))?.size ?? 0).toBeGreaterThan(0)
-    const xml = new AdmZip(await readFile(wordPath)).readAsText('word/document.xml')
+    const xml = await (await JSZip.loadAsync(await readFile(wordPath))).file('word/document.xml')!.async('string')
     expect(xml).toContain('<w:tbl>')
     expect(xml).toContain('苹果')
     expect(xml).toContain('中文标题')

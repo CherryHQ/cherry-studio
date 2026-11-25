@@ -9,7 +9,7 @@ const Fireworks = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const FireworksIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Fireworks, {
   Avatar: FireworksAvatar,
-  colorPrimary: '#5019C5'
+  colorPrimary: '#efeafa'
 })
 
 export default FireworksIcon

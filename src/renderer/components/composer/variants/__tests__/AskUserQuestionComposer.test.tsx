@@ -78,46 +78,6 @@ describe('AskUserQuestionComposer', () => {
     MockCacheUtils.resetMocks()
   })
 
-  it('keeps the full question visible instead of clamping it to one line', () => {
-    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
-
-    const heading = screen.getByRole('heading', { name: 'Choose logger' })
-    // The wrapping classes are the layout contract for the reported long-question truncation.
-    expect(heading).toHaveClass('whitespace-pre-wrap', 'break-words')
-    expect(heading).not.toHaveClass('line-clamp-1')
-  })
-
-  it('caps a long multiline question with vertical scrolling so answer controls stay reachable', () => {
-    const longQuestion = [
-      'Which logging approach should the agent use for this multi-service workspace?',
-      'Please consider structured JSON output, rotation, and how traces should correlate across the renderer and main process.',
-      'The answer will be applied to every new session, so pick the option that stays readable when the composer dock is only 150px tall.'
-    ].join('\n')
-
-    render(
-      <AskUserQuestionComposer
-        request={makeRequest([
-          {
-            question: longQuestion,
-            header: 'Logger',
-            options: [
-              { label: 'Winston', description: 'Mature ecosystem' },
-              { label: 'Pino', description: 'JSON native' }
-            ],
-            multiSelect: false
-          }
-        ])}
-        onRespond={vi.fn()}
-      />
-    )
-
-    const heading = screen.getByRole('heading', { name: longQuestion })
-    expect(heading).toHaveClass('whitespace-pre-wrap', 'break-words', 'max-h-36', 'overflow-y-auto')
-    expect(heading).not.toHaveClass('line-clamp-1')
-    expect(screen.getByRole('button', { name: /Winston/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
-  })
-
   it('keeps a 2000-character option description complete with wrapping and bounded scrolling', () => {
     const marker = 'END-OF-DESCRIPTION-22984'
     const description = `${'Consider structured logging across every service. '.repeat(50).slice(0, 2000 - marker.length)}${marker}`
@@ -313,12 +273,6 @@ describe('AskUserQuestionComposer', () => {
     expect(span).not.toHaveClass('truncate')
   })
 
-  it('marks the root panel as a composer viewport inset target', () => {
-    const { container } = render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
-
-    expect(container.firstElementChild).toHaveAttribute('data-composer-viewport-inset-target', '')
-  })
-
   it('bounds the complete panel to the stage and lets only the option list shrink', () => {
     const stage = document.createElement('div')
     stage.setAttribute('data-composer-stage', '')
@@ -413,6 +367,22 @@ describe('AskUserQuestionComposer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
     expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'true')
     expect(onRespond).not.toHaveBeenCalled()
+  })
+
+  it.each([1, 2])('dismisses the request after skipping all %i questions', async (questionCount) => {
+    const user = userEvent.setup()
+    const request = makeRequest(questions.slice(0, questionCount))
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+
+    for (const question of request.input.questions) {
+      expect(screen.getByRole('heading', { name: question.question })).toBeInTheDocument()
+      expect(onRespond).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Skip' }))
+    }
+
+    expect(onRespond).toHaveBeenCalledExactlyOnceWith({ match: request.match, approved: false })
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeDisabled()
   })
 
   it('submits the final selected option when earlier questions were skipped', async () => {

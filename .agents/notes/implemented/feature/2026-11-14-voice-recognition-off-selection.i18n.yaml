@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-14-voice-recognition-off-selection.md
+2026-11-14-voice-recognition-off-selection.md: 82a6d579bebce457b9b4843cd5be2dd866f38349
+2026-11-14-voice-recognition-off-selection.zh.md: 2225903d23238a1ac1347f263c538df32c39cb3a

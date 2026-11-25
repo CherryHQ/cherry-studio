@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useAgentTabIconChangeSync } from '@renderer/hooks/agent/useAgentTabIconChangeSync'
 import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useConversationTabTitleChangeSync } from '@renderer/hooks/tab'
@@ -13,6 +14,7 @@ import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useMiniAppListSync } from '@renderer/hooks/useMiniApps'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
 import { useWebSearchFallbackNotice } from '@renderer/hooks/useWebSearchFallbackNotice'
+import { useWheelZoom } from '@renderer/hooks/useWheelZoom'
 import { setDayjsLocale } from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -78,6 +80,7 @@ export function useWindowRuntime(): void {
   useCustomCss()
   useDayjsLocaleSync()
   useAppPathSnapshot()
+  useWheelZoom()
 
   // Root background (macOS vibrancy / transparent-window aware).
   useEffect(() => {
@@ -121,6 +124,7 @@ export function useWindowRuntime(): void {
   useAgentSessionAutoRenameSync()
   // Relabels tabs bound to a renamed conversation, whichever window renamed it.
   useConversationTabTitleChangeSync()
+  useAgentTabIconChangeSync()
 
   // Launcher-list convergence after IPC-side writes: exactly once per window,
   // and outside every `<Activity>`.

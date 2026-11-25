@@ -127,7 +127,7 @@ The builder table (`config.ts`, first match wins):
 | Match | Builder | Notes |
 |---|---|---|
 | `id === copilot` | `buildCopilotConfig` | async — fetches a Copilot token |
-| `id === 'cherryai'` | `buildCherryAIConfig` | |
+| `id === 'cherryai'` | `buildCherryAIConfig` | HMAC-signs requests; refuses them before sending unless signed in to Cherry AI |
 | `isOllamaProvider` | `buildOllamaConfig` | |
 | `isAzureOpenAIProvider` | `buildAzureConfig` | returns `azure` / `azure-responses` / `azure-anthropic` (Claude on Azure) |
 | `id === 'bedrock'` | `buildBedrockConfig` | |
@@ -173,6 +173,6 @@ extension declares:
 
 - Code: `src/main/ai/provider/`
 - Tests: `provider/__tests__/endpoint.test.ts` (54 cases)
-- Migration of legacy provider rows: `src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts`
+- Legacy provider imports: [intermediate upgrade release](../data/v2-migration-guide.md)
 - Catalog (new installs): `packages/provider-registry/data/providers.json`
 - Design: [Adapter Family](./adapter-family.md)

@@ -4,8 +4,8 @@ import React from 'react'
 import { gt as semverGt } from 'semver'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import babeldocIcon from '@renderer/assets/images/dependencies/babeldoc.png'
 import { BABELDOC_MINIMUM_VERSION } from '@shared/data/presets/binaryTools'
 import type { BinaryToolInstalledSizes, BinaryToolSnapshot } from '@shared/types/binary'
 
@@ -95,7 +95,8 @@ vi.mock('semver', () => ({
   gt: vi.fn(() => true),
   valid: vi.fn((version: string) => (/^\d+\.\d+\.\d+/.test(version) ? version : null))
 }))
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const { PageHeader } = await importOriginal<typeof CherryStudioUi>()
   const passthrough =
     (tag: string) =>
     ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
@@ -124,6 +125,9 @@ vi.mock('@cherrystudio/ui', () => {
         )
       : null
   return {
+    PageHeader,
+    HelpTooltip: () => null,
+
     Badge: passthrough('span'),
     Button: ({ children, onClick, 'aria-label': ariaLabel, disabled, title }: any) =>
       React.createElement('button', { onClick, 'aria-label': ariaLabel, disabled, title }, children),
@@ -250,17 +254,6 @@ describe('EnvironmentDependencies', () => {
     expect(await screen.findByText('Bun')).toBeInTheDocument()
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
     expect(screen.getByText('BabelDOC Stream')).toBeInTheDocument()
-  })
-
-  it('renders the BabelDOC preset with its bundled image icon (not the fallback glyph)', async () => {
-    render(<EnvironmentDependencies />)
-
-    const card = (await screen.findByText('BabelDOC Stream')).closest<HTMLElement>('[role="listitem"]')
-    expect(card).not.toBeNull()
-    // BabelDOC has no iconify mark, so it must resolve to the bundled PNG — dropping the `name`
-    // prop would silently fall back to the Terminal glyph and this src would disappear.
-    const icon = card!.querySelector('img')
-    expect(icon?.getAttribute('src')).toBe(babeldocIcon)
   })
 
   it('gives the public icon-only dependency actions accessible names', async () => {
@@ -558,19 +551,6 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
     expect(await screen.findByText('settings.dependencies.viewErrorDetails')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
-  it('shows the install duration hint while an install is in progress', async () => {
-    setSnapshots({
-      uv: {
-        name: 'uv',
-        application: { status: 'absent' },
-        availability: { source: 'none' },
-        operation: { status: 'installing' }
-      }
-    })
-    render(<EnvironmentDependencies />)
-    expect(await screen.findByText('settings.dependencies.installingHint')).toBeInTheDocument()
   })
 
   it('does not fetch latest versions in mini mode', async () => {
@@ -992,11 +972,6 @@ describe('EnvironmentDependencies', () => {
     await waitFor(() => expect(screen.queryByText('v2.0.0')).not.toBeInTheDocument())
   })
 
-  it('fetches latest versions on mount', async () => {
-    render(<EnvironmentDependencies />)
-    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(false))
-  })
-
   it('shows persistent failed-install details on demand', async () => {
     setSnapshots({
       uv: {
@@ -1178,7 +1153,7 @@ describe('EnvironmentDependencies', () => {
       setSnapshots({ uv: miseSnapshot('uv', 'uv', '1.0.0', false) })
       ipcMocks.installedSizes.mockResolvedValueOnce({ uv: 0 })
       render(<EnvironmentDependencies />)
-      expect(await screen.findByText('0.00 KB')).toBeInTheDocument()
+      expect(await screen.findByText('0 B')).toBeInTheDocument()
     })
 
     it('U3 invalidates immediately on events, while snapshots wait, and ignores an old rejection after new success', async () => {

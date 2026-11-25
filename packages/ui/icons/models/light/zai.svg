@@ -1,3 +1,6 @@
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<rect width="120" height="120" fill="var(--icon-neutral-background, #FFFFFF)"/>
+<g fill="none" transform="translate(18 18) scale(5.20661157) translate(-3.9333 -3.4333)">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12.07 5L10.618 6.91945H4.43533L5.88667 5H12.0707H12.07ZM19.5027 16.0812L18.052 18H11.8907L13.34 16.0812H19.5027ZM20 5L10.176 18H4L13.824 5H20Z" fill="black"/>
+</g>
 </svg>

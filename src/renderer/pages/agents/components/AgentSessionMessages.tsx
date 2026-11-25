@@ -17,7 +17,7 @@ import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -104,8 +104,9 @@ const AgentSessionMessages = ({
     () =>
       activeAgent
         ? {
+            id: activeAgent.id,
             name: activeAgent.name,
-            avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
+            avatar: getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
           }
         : undefined,
     [activeAgent]

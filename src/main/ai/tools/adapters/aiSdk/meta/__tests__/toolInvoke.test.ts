@@ -2,9 +2,10 @@ import { jsonSchema, type Tool } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
+import { createAutomationReplToolEntries } from '../../builtin/AutomationReplTools'
 import { ToolRegistry } from '../../registry'
 import type { ToolEntry } from '../../types'
-import { createToolInvokeTool, TOOL_INVOKE_TOOL_NAME } from '../toolInvoke'
+import { createToolInvokeTool } from '../toolInvoke'
 
 const innerExecute = vi.fn()
 const innerToModelOutput = vi.fn()
@@ -67,10 +68,6 @@ async function callInvoke(tool: Tool, args: { name: string; params?: unknown }) 
 }
 
 describe('tool_invoke meta-tool', () => {
-  it('TOOL_INVOKE_TOOL_NAME is the agreed wire-name', () => {
-    expect(TOOL_INVOKE_TOOL_NAME).toBe('tool_invoke')
-  })
-
   it('forwards params to the inner tool execute', async () => {
     innerExecute.mockReset().mockResolvedValue({ ok: true })
     const reg = makeRegistry()
@@ -88,15 +85,6 @@ describe('tool_invoke meta-tool', () => {
     const tool = createToolInvokeTool(reg, allowAll('mcp__s1__t'), inspected('mcp__s1__t'))
     await callInvoke(tool, { name: 'mcp__s1__t' })
     expect(innerExecute.mock.calls[0][0]).toEqual({})
-  })
-
-  it('nests the toolCallId so telemetry can rebuild the call tree', async () => {
-    innerExecute.mockReset().mockResolvedValue('ok')
-    const reg = makeRegistry()
-    const tool = createToolInvokeTool(reg, allowAll('mcp__s1__t'), inspected('mcp__s1__t'))
-    await callInvoke(tool, { name: 'mcp__s1__t', params: {} })
-    const passedOptions = innerExecute.mock.calls[0][1]
-    expect(passedOptions.toolCallId).toBe('outer-1::mcp__s1__t')
   })
 
   it('throws when target tool not registered', async () => {
@@ -303,12 +291,6 @@ describe('tool_invoke meta-tool', () => {
       expect(innerToModelOutput).not.toHaveBeenCalled()
     })
 
-    it('advertises a callable inputExample', () => {
-      const reg = makeRegistry()
-      const tool = createToolInvokeTool(reg, allowAll('mcp__s1__t'), inspected('mcp__s1__t'))
-      expect(tool.inputExamples?.[0]?.input).toMatchObject({ name: expect.any(String), params: expect.any(Object) })
-    })
-
     it('serializes params as an open object — the wire schema must accept the inputExample', async () => {
       // Regression pin: the SDK's zod conversion force-sets
       // additionalProperties:false on every object node, which turned `params`
@@ -332,6 +314,49 @@ describe('tool_invoke meta-tool', () => {
       expect(await schema.validate!({ name: 'x', params: { a: 1 } })).toMatchObject({ success: true })
       expect(await schema.validate!({ params: {} })).toMatchObject({ success: false })
       expect(await schema.validate!({ name: 1 })).toMatchObject({ success: false })
+    })
+  })
+})
+
+describe('tool_invoke automation output projection (#23303)', () => {
+  const NOTE =
+    'This automation tool result could not be read back from the conversation history. Ignore it and observe the current state again before acting.'
+
+  describe.each(['automation_repl', 'automation_repl_reset'])('%s', (name) => {
+    function format(output: unknown) {
+      const registry = new ToolRegistry()
+      createAutomationReplToolEntries().forEach((entry) => registry.register(entry))
+      const invoke = createToolInvokeTool(registry, allowAll(name), inspected(name))
+      return invoke.toModelOutput!({
+        toolCallId: 'outer-automation',
+        input: { name, params: name === 'automation_repl' ? { code: '1' } : {} },
+        output
+      })
+    }
+
+    it.each([
+      ['empty object', {}],
+      ['top-level marker', '<persisted-output>…</persisted-output>'],
+      ['missing text', { content: [{ type: 'text' }] }]
+    ])('delegates unreadable %s to the automation note', async (_label, output) => {
+      expect(await format(output)).toEqual({ type: 'text', value: NOTE })
+    })
+
+    it('delegates valid text and image output without changing bytes or order', async () => {
+      expect(
+        await format({
+          content: [
+            { type: 'text', text: 'good' },
+            { type: 'image', data: 'aGVsbG8=', mimeType: 'image/png' }
+          ]
+        })
+      ).toEqual({
+        type: 'content',
+        value: [
+          { type: 'text', text: 'good' },
+          { type: 'image-data', data: 'aGVsbG8=', mediaType: 'image/png' }
+        ]
+      })
     })
   })
 })

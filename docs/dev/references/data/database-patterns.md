@@ -346,6 +346,33 @@ silently.
 Reference implementations: `MessageService.getBranchMessages` / `getPathToNode`,
 `KnowledgeItemService.getCascadeIdsInBase`.
 
+### Pin the plan for tree walks
+
+The database has no `ANALYZE` statistics (`sqlite_stat1`), so SQLite picks
+indexes by heuristic. On a parent/child walk it tends to choose the composite
+index led by the scope column (`topic_id`, `session_id`, `base_id`) — because
+that index also satisfies the `ORDER BY`, or because it lets the base table
+drive the join. Each step then rescans the whole scope and the walk becomes
+O(N²): a 10,000-node chain takes seconds instead of milliseconds.
+
+Pin every step to the parent-lookup index:
+
+- **`CROSS JOIN`** — SQLite never reorders it, so
+  `FROM subtree s CROSS JOIN message m ON m.parent_id = s.id` keeps the CTE
+  as the outer loop and probes the parent index once per row.
+- **Unary `+`** — `+col` leaves the value unchanged but hides the column from
+  index selection. Apply it to a column the parent index does not need:
+  `ORDER BY +created_at` when the parent index already leads with the scope
+  column, `+m.topic_id` when the parent index covers `parent_id` alone.
+
+Check with `EXPLAIN QUERY PLAN` against a database built from the real
+migrations: each recursive step or per-level query must `SEARCH` the parent
+index, never the scope index on the scope column alone.
+
+Reference implementations: `MessageService.resolveNewestLeafIdTx`,
+`KnowledgeItemService.getSubtreeItems`, `AgentSessionMessageService.branchTip`,
+`agentSessionDescendantIds`.
+
 ## Custom SQL & FTS5
 
 Triggers, FTS5 virtual tables, the `CUSTOM_SQL_STATEMENTS` every-boot replay (and why it's ~0.1 ms O(1)), the `fts_rowid` rowid-stability rule, and the idempotency rules (vtables `IF NOT EXISTS`, triggers `DROP+CREATE`) are consolidated in **[Database Construction](./database-construction.md)** (§3 Custom SQL, §4 FTS5).

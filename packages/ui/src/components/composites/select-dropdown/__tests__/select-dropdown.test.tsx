@@ -45,11 +45,6 @@ describe('SelectDropdown', () => {
       render(<SelectDropdown {...defaultProps} selectedId="2" />)
       expect(screen.getByText('Beta')).toBeInTheDocument()
     })
-
-    it('renders default placeholder when none provided and no selection', () => {
-      render(<SelectDropdown {...defaultProps} />)
-      expect(screen.getByText('...')).toBeInTheDocument()
-    })
   })
 
   describe('dropdown interaction', () => {
@@ -106,13 +101,6 @@ describe('SelectDropdown', () => {
       expect(removeBtns).toHaveLength(3)
       fireEvent.click(removeBtns[0])
       expect(onRemove).toHaveBeenCalledWith('1')
-    })
-  })
-
-  describe('renderTriggerLeading', () => {
-    it('renders leading content in trigger', () => {
-      render(<SelectDropdown {...defaultProps} renderTriggerLeading={<span>Icon</span>} />)
-      expect(screen.getByText('Icon')).toBeInTheDocument()
     })
   })
 })

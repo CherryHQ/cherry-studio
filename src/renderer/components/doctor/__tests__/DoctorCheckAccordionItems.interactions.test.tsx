@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
@@ -511,7 +511,19 @@ describe('DoctorCheckAccordionItems interactions', () => {
     expect(showDetails).toHaveFocus()
   })
 
-  it('moves focus to newly revealed evidence after consent', async () => {
+  it('keeps the consent dialog through exit and then focuses the newly revealed evidence', async () => {
+    const getComputedStyle = window.getComputedStyle
+    const styleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+      const styles = getComputedStyle(element)
+      return new Proxy(styles, {
+        get(target, property, receiver) {
+          // JSDOM supplies the browser animation names so real Radix Presence can retain the closing dialog.
+          if (property === 'animationName') return element.getAttribute('data-state') === 'closed' ? 'exit' : 'enter'
+          if (property === 'display') return 'grid'
+          return Reflect.get(target, property, receiver)
+        }
+      })
+    })
     const user = userEvent.setup()
     render(
       <Dialog defaultOpen>
@@ -533,8 +545,15 @@ describe('DoctorCheckAccordionItems interactions', () => {
     const confirmation = await screen.findByRole('dialog', { name: 'settings.doctor.confirm_evidence.title' })
     await user.click(within(confirmation).getByRole('button', { name: 'settings.doctor.actions.show_details' }))
 
+    expect(confirmation).toBeInTheDocument()
+    expect(confirmation).toHaveAttribute('data-state', 'closed')
     expect(localDetails).toHaveAttribute('aria-expanded', 'true')
+    const animationEnd = new Event('animationend', { bubbles: true })
+    Object.defineProperty(animationEnd, 'animationName', { value: 'exit' })
+    fireEvent(confirmation, animationEnd)
+    await waitFor(() => expect(confirmation).not.toBeInTheDocument())
     const evidence = screen.getByText('private Doctor evidence').closest('dl')
     expect(evidence).toHaveFocus()
+    styleSpy.mockRestore()
   })
 })

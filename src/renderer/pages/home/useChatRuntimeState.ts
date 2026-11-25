@@ -24,7 +24,6 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import {
   useTopicAwaitingApproval,
   useTopicOverlayHandoffOnTerminal,
@@ -42,6 +41,7 @@ import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
+import { useToolApprovalBridge } from './hooks/useToolApprovalBridge'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
 
 const logger = loggerService.withContext('useChatRuntimeState')
@@ -119,6 +119,7 @@ export function useChatRuntimeState({
   composerModelId,
   onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
+  const [scrollToBottomOnSend] = usePreference('chat.message.scroll_to_bottom_on_send')
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
@@ -261,6 +262,7 @@ export function useChatRuntimeState({
     [uiMessages]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
+    topicId: topic.id,
     partsByMessageId,
     persistedPartsByMessageId,
     streamingLayers,
@@ -514,14 +516,14 @@ export function useChatRuntimeState({
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
         const sent = await send({ text, options })
-        if (sent) scrollToBottom()
+        if (sent && scrollToBottomOnSend) scrollToBottom()
         return sent
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [scrollToBottom, send]
+    [scrollToBottom, scrollToBottomOnSend, send]
   )
 
   return {

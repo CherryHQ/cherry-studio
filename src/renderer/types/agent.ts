@@ -1,5 +1,3 @@
-import * as z from 'zod'
-
 /**
  * Renderer-only agent UI / form types.
  *
@@ -7,12 +5,12 @@ import * as z from 'zod'
  * `@shared/data/types/agent` — import them from there directly. This file
  * intentionally does not re-export them.
  */
-import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import * as z from 'zod'
+
 import type { Tool } from '@shared/ai/tool'
 import {
   AgentBaseSchema,
   type AgentConfiguration,
-  AgentEntitySchema,
   type AgentPermissionMode,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
@@ -52,16 +50,6 @@ export type FeishuChannelConfig = {
   allowed_chat_ids: string[]
   domain: FeishuDomain
   mention_only?: boolean
-}
-
-// ------------------ Type guards ------------------
-export const isAgentType = (type: unknown): type is AgentType => {
-  // Runtime keys live in the shared capability descriptor; no zod schema needed.
-  return typeof type === 'string' && type in AGENT_RUNTIME_CAPABILITIES
-}
-
-export const isAgentEntity = (value: unknown): value is AgentEntity => {
-  return AgentEntitySchema.safeParse(value).success
 }
 
 // ------------------ Form models (UI-only) --------------------------------

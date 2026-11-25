@@ -1,4 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="1.5 1 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-7.2273 -7.7273 81.4545 81.4545">
+  <style>
+    @media (prefers-color-scheme: dark) { .icon-background { fill: #213733; } }
+  </style>
+  <rect class="icon-background" x="-7.2273" y="-7.7273" width="81.4545" height="81.4545" fill="#E7F8F5"/>
   <defs>
     <linearGradient id="body" x1="10" y1="14" x2="44" y2="50" gradientUnits="userSpaceOnUse">
       <stop stop-color="#A4EEE3"/>

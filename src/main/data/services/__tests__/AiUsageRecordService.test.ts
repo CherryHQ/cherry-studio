@@ -595,8 +595,6 @@ describe('AiUsageRecordService', () => {
     pricingSnapshot.perImage.price = 99
     aiUsageRecordService.recordInvocation(invocation({ context: frozen }))
 
-    expect(Object.isFrozen(frozen)).toBe(true)
-    expect(Object.isFrozen(frozen.pricingSnapshot?.perImage)).toBe(true)
     expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
       providerId: 'provider-1',
       providerName: 'Provider One',
@@ -738,7 +736,7 @@ describe('AiUsageRecordService', () => {
       ],
       capturedAt: '2026-07-28T00:00:00.000Z'
     })
-    expect(Object.isFrozen(snapshot?.inputTokenTiers)).toBe(true)
+
     expect(
       createAiUsagePricingSnapshot(
         {

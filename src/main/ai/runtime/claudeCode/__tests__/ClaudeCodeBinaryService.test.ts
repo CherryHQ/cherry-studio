@@ -336,6 +336,42 @@ describe('Claude runtime acquisition', () => {
     expect(vi.mocked(net.fetch).mock.calls).toHaveLength(0)
   })
 
+  it('installs into a missing nested runtime root without relying on path lookup to create it', async () => {
+    const runtimeRoot = path.join(root, 'a/b/runtime')
+    vi.mocked(application.getPath).mockReturnValue(runtimeRoot)
+
+    const executable = await service.ensureExecutable()
+    expect(service.getStatus().phase).toBe('ready')
+    expect(await readFile(executable, 'utf8')).toBe('native-cli-fixture')
+    expect(JSON.parse(await readFile(path.join(path.dirname(executable), 'installed.json'), 'utf8'))).toEqual({
+      integrity: `sha512-${createHash('sha512').update(archive).digest('base64')}`,
+      size: Buffer.byteLength('native-cli-fixture')
+    })
+    expect((await readdir(runtimeRoot)).filter((name) => name.startsWith('.download-'))).toEqual([])
+  })
+
+  it('recovers on explicit retry in the same instance after a runtime root obstacle is removed', async () => {
+    const runtimeRoot = path.join(root, 'runtime')
+    await writeFile(runtimeRoot, 'obstacle')
+    vi.mocked(application.getPath).mockReturnValue(runtimeRoot)
+
+    await expect(service.ensureExecutable()).rejects.toThrow()
+    expect(service.getStatus()).toMatchObject({ phase: 'error', error: 'storage' })
+    expect(() => service.requireExecutable()).toThrow()
+    expect(await readFile(runtimeRoot, 'utf8')).toBe('obstacle')
+
+    await rm(runtimeRoot)
+    service.ensure(true)
+    const executable = await service.ensureExecutable()
+    expect(service.getStatus().phase).toBe('ready')
+    expect(await readFile(executable, 'utf8')).toBe('native-cli-fixture')
+    expect(JSON.parse(await readFile(path.join(path.dirname(executable), 'installed.json'), 'utf8'))).toEqual({
+      integrity: `sha512-${createHash('sha512').update(archive).digest('base64')}`,
+      size: Buffer.byteLength('native-cli-fixture')
+    })
+    expect((await readdir(runtimeRoot)).filter((name) => name.startsWith('.download-'))).toEqual([])
+  })
+
   it.each(['ENOENT', 'EINVAL', 'EEXIST'])('reports staging directory failures as storage errors (%s)', async (code) => {
     vi.mocked(mkdtemp).mockRejectedValueOnce(Object.assign(new Error('Cannot create staging directory'), { code }))
     service.ensure()

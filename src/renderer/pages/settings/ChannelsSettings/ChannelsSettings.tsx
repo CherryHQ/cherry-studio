@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MenuItem, MenuList, PageHeader, RowFlex, ScrollArea } from '@cherrystudio/ui'
+import { AVAILABLE_CHANNELS, type AvailableChannel } from '@renderer/components/channel/channelTypes'
 import {
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
@@ -12,7 +13,6 @@ import {
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 
 import ChannelDetail from './ChannelDetail'
-import { AVAILABLE_CHANNELS, type AvailableChannel } from './channelTypes'
 
 const ChannelsSettings: FC = () => {
   const { t } = useTranslation()
