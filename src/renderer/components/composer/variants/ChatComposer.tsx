@@ -311,14 +311,14 @@ const ChatComposerRoot = ({
 
   const initialDraft = initialDraftRef.current.draft
 
-  const initialState = useMemo(
+  const initialState = useMemo<React.ComponentProps<typeof ComposerToolRuntimeProvider>['initialState']>(
     () => ({
       files: initialDraft.files,
-      mentionedModels: [] as Model[],
-      selectedKnowledgeBases: [] as KnowledgeBase[],
+      mentionedModels: [],
+      selectedKnowledgeBases: [],
       isExpanded: false,
       couldAddImageFile: false,
-      extensions: [] as string[]
+      extensions: []
     }),
     [initialDraft]
   )

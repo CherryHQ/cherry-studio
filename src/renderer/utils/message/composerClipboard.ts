@@ -6,9 +6,9 @@ import {
   isComposerClipboardTokenKind
 } from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { type CherryFileMeta, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
-import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
-import { fileUrlToPath, getFileTypeByExt } from '@shared/utils/file'
+import { type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { getFileTypeByExt, tryFileUrlToPath } from '@shared/utils/file'
 
 import type { ComposerAttachment } from './composerAttachment'
 import {
@@ -136,15 +136,11 @@ function stripFileUrl(value: string | undefined): string | undefined {
 
   if (!value.startsWith('file://')) return value
 
-  try {
-    return fileUrlToPath(value as FileUrlString)
-  } catch {
-    return value.replace(/^file:\/\//, '')
-  }
+  return tryFileUrlToPath(value) ?? value.replace(/^file:\/\//, '')
 }
 
 function isFileType(value: unknown): value is FileType {
-  return typeof value === 'string' && Object.values(FILE_TYPE).includes(value as FileType)
+  return typeof value === 'string' && Object.values(FILE_TYPE).some((type) => type === value)
 }
 
 function readFileDisplayPayload(
@@ -444,15 +440,10 @@ function getTokenFallbackText(
 }
 
 function readMessageFilePayload(part: CherryMessagePart): FileClipboardPayload | undefined {
-  if ((part as { type?: string }).type !== 'file') return undefined
+  if (part.type !== 'file') return undefined
 
-  const filePart = part as {
-    filename?: string
-    mediaType?: string
-    url?: string
-  }
-
-  const cherry = readCherryMeta(part) as CherryFileMeta | undefined
+  const filePart = part
+  const cherry = readCherryMeta(part)
   const fileTokenSourceId = cherry?.fileTokenSourceId
 
   if (!fileTokenSourceId) return undefined

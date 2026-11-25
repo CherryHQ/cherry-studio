@@ -377,14 +377,14 @@ const AgentComposerRoot = ({
     }
   }, [session, agent, agentId, sessionId, sessionSlashCommands])
 
-  const initialState = useMemo(
+  const initialState = useMemo<React.ComponentProps<typeof ComposerToolRuntimeProvider>['initialState']>(
     () => ({
       mentionedModels: [],
       selectedKnowledgeBases: [],
       files: initialDraft.files,
       isExpanded: false,
       couldAddImageFile: false,
-      extensions: [] as string[]
+      extensions: []
     }),
     [initialDraft]
   )
