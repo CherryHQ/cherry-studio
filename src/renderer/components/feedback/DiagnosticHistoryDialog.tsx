@@ -52,6 +52,7 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
   useDataChange(open ? '/diagnostic-reports' : [], () => void refetch())
 
   const refreshPage = useCallback(async () => {
+    // SAFETY: reportIdsKey is this component's JSON serialization of typed reportId strings; the stable key prevents status-refresh loops.
     const reportIds = JSON.parse(reportIdsKey) as string[]
 
     if (reportIds.length === 0) return

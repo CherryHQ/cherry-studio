@@ -16,9 +16,11 @@ const RANGE_OPTIONS = [
   { translationKey: 'settings.about.diagnostics.ranges.7d', value: '7d' }
 ] as const
 
-const RANGE_TRANSLATION_KEYS = Object.fromEntries(
-  RANGE_OPTIONS.map(({ translationKey, value }) => [value, translationKey])
-) as Record<DiagnosticRange, (typeof RANGE_OPTIONS)[number]['translationKey']>
+const RANGE_TRANSLATION_KEYS = {
+  '24h': 'settings.about.diagnostics.ranges.24h',
+  '3d': 'settings.about.diagnostics.ranges.3d',
+  '7d': 'settings.about.diagnostics.ranges.7d'
+} satisfies Record<DiagnosticRange, (typeof RANGE_OPTIONS)[number]['translationKey']>
 
 type InspectResult = OutputFor<'diagnostics.bundle.inspect'>
 
@@ -46,7 +48,7 @@ export function useDiagnosticSourceSelection(onSelectionChange: () => void) {
       })
       .catch((error) => {
         if (!active) return
-        logger.error('Failed to inspect diagnostic sources', error as Error)
+        logger.error('Failed to inspect diagnostic sources', error)
         setInspectResult(null)
         setInspectError(true)
       })
