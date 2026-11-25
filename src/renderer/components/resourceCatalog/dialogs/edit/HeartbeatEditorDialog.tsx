@@ -91,7 +91,11 @@ export function HeartbeatEditorDialog({
   const running = latest && ['pending', 'delayed', 'running'].includes(latest.status)
   const baseline = document && (hasHeartbeatTasks(document.content) ? document.content : '')
   const dirty = document !== null && content !== baseline
-  const result = latest?.output as { result?: string } | undefined
+  const output = latest?.output
+  const result =
+    output && typeof output === 'object' && 'result' in output && typeof output.result === 'string'
+      ? output.result
+      : undefined
 
   async function save(run: boolean) {
     if (!document || busy) return
@@ -195,9 +199,9 @@ export function HeartbeatEditorDialog({
                   {new Date(latest.createdAt).toLocaleString()}
                 </p>
                 {latest.error ? <p className="text-destructive">{latest.error.message}</p> : null}
-                {result?.result ? (
+                {result ? (
                   <p className="max-h-28 overflow-auto whitespace-pre-wrap break-words text-muted-foreground">
-                    {result.result}
+                    {result}
                   </p>
                 ) : null}
               </>

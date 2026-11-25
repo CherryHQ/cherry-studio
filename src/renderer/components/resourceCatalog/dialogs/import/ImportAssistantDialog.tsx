@@ -367,6 +367,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
           value={tab}
           onValueChange={(value) => {
             const next = tabs.find((item) => item.id === value)
+
             if (next) setTab(next.id)
           }}>
           <TabsList className="h-auto w-auto justify-start gap-1 bg-transparent p-0">

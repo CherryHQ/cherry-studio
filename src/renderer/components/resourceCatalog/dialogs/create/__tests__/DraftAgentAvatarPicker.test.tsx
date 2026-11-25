@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
+import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as Ui from '@cherrystudio/ui'
@@ -10,7 +11,10 @@ import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/i
 import { DraftAgentAvatarPicker } from '../DraftAgentAvatarPicker'
 
 vi.mock('@cherrystudio/ui', async (original) => original<typeof Ui>())
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+vi.mock('react-i18next', async (importOriginal) => ({
+  ...(await importOriginal<typeof ReactI18next>()),
+  useTranslation: () => ({ t: (key: string) => key })
+}))
 vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(), prepareEntityImageBytes: vi.fn() }))
 vi.mock('@renderer/components/EmojiPicker', () => ({
   EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (

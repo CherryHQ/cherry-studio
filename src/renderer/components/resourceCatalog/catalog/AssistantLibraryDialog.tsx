@@ -398,7 +398,6 @@ const AssistantLibraryPresetRow = memo(function AssistantLibraryPresetRow({
 }: AssistantLibraryPresetRowProps) {
   const { t } = useTranslation()
   const summary = getPresetSummary(preset)
-  const isAdded = Boolean(addedAssistantId)
 
   const handleAdd = useCallback(() => {
     onAddPreset(preset)
@@ -437,12 +436,12 @@ const AssistantLibraryPresetRow = memo(function AssistantLibraryPresetRow({
       </div>
       {/* stopPropagation so the quick add/open action never bubbles to the row's preview. */}
       <div className="shrink-0" onClick={(event) => event.stopPropagation()}>
-        {isAdded ? (
+        {addedAssistantId ? (
           <Button
             variant="ghost"
             size="sm"
             className={cn('h-7 gap-1 px-2 text-success hover:text-success')}
-            onClick={() => onOpenChat(addedAssistantId as string)}>
+            onClick={() => onOpenChat(addedAssistantId)}>
             <Check size={13} />
             <span>{t('library.assistant_catalog.go_to_chat')}</span>
           </Button>
