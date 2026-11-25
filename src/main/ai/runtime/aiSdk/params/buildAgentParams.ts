@@ -761,6 +761,12 @@ function buildAgentOptions(
         provider.id,
         sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
       )
+      if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES && typeof bodyParams.reasoning_effort === 'string') {
+        const { reasoning_effort, ...remainingBodyParams } = bodyParams
+        bodyParams = remainingBodyParams
+        const key = sdkConfig.providerOptionsKey
+        providerOptions[key] = { ...providerOptions[key], reasoningEffort: reasoning_effort }
+      }
     }
   }
 

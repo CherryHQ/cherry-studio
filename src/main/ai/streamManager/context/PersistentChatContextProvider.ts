@@ -855,6 +855,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       id: m.id,
       role: m.role,
       parts: m.data?.parts ?? [],
+      modelId: m.role === 'assistant' && m.status === 'success' ? (m.modelId ?? undefined) : undefined,
       compactionSummary: m.compactionSummary ?? undefined,
       contextTokens: m.stats?.contextTokens ?? undefined
     }
@@ -863,7 +864,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   private toServed(row: CompactionRow): CherryUIMessage {
     // Route the role through toContentRole to keep the virtual-root guard that the
     // rest of this file relies on (a `root` row must never reach model history).
-    return { id: row.id, role: toContentRole(row.role as MessageRole), parts: row.parts } as CherryUIMessage
+    return {
+      id: row.id,
+      role: toContentRole(row.role as MessageRole),
+      parts: row.parts,
+      ...(row.modelId && { metadata: { modelId: row.modelId } })
+    } as CherryUIMessage
   }
 
   private estimateTotal(rows: CompactionRow[], dialect: TokenDialect): number {

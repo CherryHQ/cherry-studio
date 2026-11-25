@@ -271,6 +271,7 @@
     "@mistralai/mistralai": "^1.7.5",
     "@modelcontextprotocol/client": "2.4.0",
     "@modelcontextprotocol/core": "2.4.0",
+    "@modelcontextprotocol/ext-apps": "2.0.4",
     "@modelcontextprotocol/server": "2.4.0",
     "@mozilla/readability": "^0.6.0",
     "@notionhq/client": "^2.2.15",

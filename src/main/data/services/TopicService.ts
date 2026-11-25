@@ -15,6 +15,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
 import { getAppLanguage } from '@main/i18n'
 import { parseJsonSortKey, selectNamePage } from '@main/utils/listOrdering'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -125,6 +126,9 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
 }
 
 export class TopicService {
+  private readonly changed = new Emitter<readonly string[]>()
+  readonly onChanged = this.changed.event
+
   notifyReadModelChange(
     topicIds: readonly string[],
     kind: 'membership' | 'projection',
@@ -132,6 +136,7 @@ export class TopicService {
   ): void {
     if (topicIds.length === 0) return
     const entityIds = [...new Set(topicIds)]
+    this.changed.fire(entityIds)
     // A terminal single delete scopes its by-id effect to that exact id; batches keep
     // one broadcast-wide entry per the shared data-change contract (batch = one entry,
     // and one entry can carry only one routeParams).

@@ -1,10 +1,15 @@
 name: E2E Regression Test
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('E2E Regression · {0} · {1}{2}', inputs.ref, inputs.task, inputs.op_id != '' && format(' [op:{0}]', inputs.op_id) || '') || format('E2E Regression (scheduled) {0}', github.sha) }}
 
 on:
   schedule:
     - cron: "45 19 * * *" # 03:45 BJ Time — daily full regression on main
   workflow_dispatch:
     inputs:
+      op_id:
+        description: "Optional dispatch correlation id, 16 lowercase hex chars; echoed as a trailing [op:<id>] run-title marker"
+        type: string
+        default: ""
       ref:
         description: "Branch in this repository or a v* release tag to test"
         required: true
@@ -44,6 +49,16 @@ jobs:
       prepare_mcp: ${{ steps.suite.outputs.prepare_mcp }}
       smoke: ${{ steps.suite.outputs.smoke }}
     steps:
+      - name: Validate dispatch correlation id
+        if: github.event_name == 'workflow_dispatch' && inputs.op_id != ''
+        shell: bash
+        env:
+          QA_OP_ID: ${{ inputs.op_id }}
+        run: |
+          if ! [[ "$QA_OP_ID" =~ ^[0-9a-f]{16}$ ]]; then
+            echo "op_id must be 16 lowercase hex characters" >&2
+            exit 1
+          fi
       - &checkout-controller
         name: Checkout workflow controller
         uses: actions/checkout@v7
