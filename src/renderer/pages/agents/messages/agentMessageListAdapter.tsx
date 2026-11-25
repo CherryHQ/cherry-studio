@@ -420,7 +420,12 @@ export function useAgentMessageListProviderValue({
     [sessionId, t, notifyError]
   )
   const agentRenderConfig = useMemo(
-    () => ({ ...renderConfig, keepIntermediateAssistantText: true, expandToolSteps: true }),
+    () => ({
+      ...renderConfig,
+      keepIntermediateAssistantText: true,
+      expandToolSteps: false,
+      expandLiveToolSteps: true
+    }),
     [renderConfig]
   )
   const state = useMemo<MessageListState>(
