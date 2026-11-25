@@ -1085,7 +1085,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         summaryRow(boundary.id, summary, manifestHandles(d + keepIdx), manifestPaths(d + keepIdx)),
         ...recent.slice(keepIdx)
       ]
-      const postTokens = this.estimateContext(served, dialect)
+      // Retained assistants measured the pre-fold prefix. Their usage is not
+      // evidence about this newly assembled replacement.
+      const postTokens = this.estimateTotal(served, dialect)
       if (postTokens > inputRoom) {
         logger.warn('durable compaction replacement exceeds input room; keeping existing history', {
           topicId,

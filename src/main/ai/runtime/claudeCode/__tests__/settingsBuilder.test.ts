@@ -911,6 +911,22 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   // A tiny declaration fits by reducing both the shared cap and trigger.
+  it('keeps a finite output cap when an explicit trigger is malformed', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      { id: 'openrouter' } as never,
+      { contextWindow: 400_000, maxOutputTokens: 128_000 },
+      {
+        id: 'agent-1',
+        configuration: { env_vars: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: '64000', CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: 'bad' } }
+      } as never
+    )
+    const cap = Number(settings.env?.CLAUDE_CODE_MAX_OUTPUT_TOKENS)
+    expect(Number.isFinite(cap)).toBe(true)
+    expect(cap).toBeGreaterThan(0)
+    expect(cap).toBeLessThanOrEqual(64000)
+  })
+
   it('does not raise an explicit digit-separated output cap', async () => {
     const settings = await buildClaudeCodeSessionSettings(
       { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,

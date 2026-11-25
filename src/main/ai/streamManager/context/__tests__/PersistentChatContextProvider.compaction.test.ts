@@ -791,6 +791,25 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     ])
   }
 
+  it('accepts a fitting replacement despite a retained assistant old full-history usage', async () => {
+    const BIG = 'word '.repeat(3000)
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', 'recent question'),
+      fakeMsgWithContextTokens('a2', 'assistant', 'short answer', 12_000),
+      fakeMsg('u3', 'user', 'continue')
+    ])
+    compressionOn()
+    const { messages } = await makeHistory('u3', [DEFAULT_MODEL_ID], { contextWindow: 10_000 })
+    expect(mockSummarizeModelMessages).toHaveBeenCalledTimes(1)
+    expect(mockSetCompactionSummary).toHaveBeenCalled()
+    expect(messages[0].id).toMatch(/^compaction:/)
+    expect(messages.map((message) => message.id)).toContain('a2')
+    const completed = capturedChunks.filter((chunk) => chunk.type === 'data-compaction-anchor').at(-1)
+    expect(completed?.data.status).toBe('done')
+  })
+
   it('does not persist or serve a summary replacement larger than the input room', async () => {
     fiveBigTurns()
     compressionOn()
