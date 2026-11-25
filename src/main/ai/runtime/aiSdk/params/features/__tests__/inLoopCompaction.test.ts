@@ -246,6 +246,19 @@ describe('inLoopCompactionFeature', () => {
     return hooks.prepareStep!
   }
 
+  it('does not serve or cache an oversized replacement', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(20_000)])
+    const currentScope = scope({ chatId: 'topic-1', contextWindow: 10_000 })
+    currentScope.request.callOverrides = { maxOutputTokens: 4096 }
+    const events = vi.fn()
+    currentScope.compactionSink = events
+    const prepareStep = getPrepareStep(currentScope)
+    const messages = [userMessage(4500)]
+    expect(await prepareStep({ messages } as any)).toBeUndefined()
+    expect(events.mock.calls.at(-1)?.[1].status).toBe('skipped')
+  })
+
   it('returns no override and does not compact when the prompt is below 80% of the window', async () => {
     compactModelMessages.mockClear()
     const prepareStep = getPrepareStep()
@@ -392,7 +405,7 @@ describe('inLoopCompactionFeature', () => {
     const summarizeBudget = maxOutputTokens + maxInputTokens
     // The summarize call fits inside the once-margined compressor window
     // (floor(100_000 * 0.9) = 90_000) …
-    expect(summarizeBudget).toBeLessThan(90_000)
+    expect(summarizeBudget).toBe(78_957)
     // … but is larger than a double-margined budget would allow
     // (floor(90_000 * 0.9) = 81_000 window → ~71_307 total), proving the
     // margin was applied once, not twice.

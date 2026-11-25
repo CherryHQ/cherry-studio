@@ -773,7 +773,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     const summarizeBudget = opts.maxOutputTokens + opts.maxInputTokens
     // The summarize call fits inside the once-margined compressor window
     // (floor(100_000 * 0.9) = 90_000) …
-    expect(summarizeBudget).toBeLessThan(90_000)
+    expect(summarizeBudget).toBe(78_957)
     // … but is larger than a double-margined budget would allow
     // (floor(90_000 * 0.9) = 81_000 window → ~71_307 total), proving the
     // margin was applied once, not twice.
@@ -790,6 +790,19 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       fakeMsg('u3', 'user', BIG)
     ])
   }
+
+  it('does not persist or serve a summary replacement larger than the input room', async () => {
+    fiveBigTurns()
+    compressionOn()
+    mockSummarizeModelMessages.mockResolvedValue('token '.repeat(20_000))
+    const { messages } = await makeHistory('u3')
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+    expect(mockSetCompactionSummary).not.toHaveBeenCalled()
+    expect(messages[0].id).not.toMatch(/^compaction:/)
+    expect(capturedChunks.filter((chunk) => chunk.type === 'data-compaction-anchor').at(-1)?.data.status).toBe(
+      'skipped'
+    )
+  })
 
   it.each(['success', 'empty', 'error'] as const)(
     'publishes progress before summarization settles and clears it after %s',

@@ -1082,13 +1082,23 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         skip()
         return serve(effective)
       }
-      messageService.setCompactionSummary(boundary.id, summary)
       // Boundary index in rawUI: recent = rows.slice(d + 1), boundary = recent[keepIdx - 1].
       const served = [
         summaryRow(boundary.id, summary, manifestHandles(d + keepIdx), manifestPaths(d + keepIdx)),
         ...recent.slice(keepIdx)
       ]
-      settle({ postTokens: this.estimateContext(served, dialect), foldedCount: keepIdx })
+      const postTokens = this.estimateContext(served, dialect)
+      if (postTokens > inputRoom) {
+        logger.warn('durable compaction replacement exceeds input room; keeping existing history', {
+          topicId,
+          postTokens,
+          inputRoom
+        })
+        skip()
+        return serve(effective)
+      }
+      messageService.setCompactionSummary(boundary.id, summary)
+      settle({ postTokens, foldedCount: keepIdx })
       return serve(served)
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })

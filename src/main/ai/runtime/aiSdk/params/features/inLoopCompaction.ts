@@ -384,6 +384,18 @@ export const inLoopCompactionFeature: RequestFeature = {
         }
         const completedAt = new Date().toISOString()
         const postTokens = estimateModelMessages(compacted, dialect)
+        // A summary can grow or retain too much recent history. Never replace a
+        // fitting prompt with one that exceeds the request model's input room.
+        if (postTokens > inputRoom) {
+          compactionDisabled = true
+          scope.compactionSink?.(anchorId, {
+            status: 'skipped',
+            phase: 'in-loop',
+            startedAt,
+            completedAt
+          })
+          return foldCache ? { messages: candidate } : undefined
+        }
         scope.compactionSink?.(anchorId, {
           status: 'done',
           phase: 'in-loop',
