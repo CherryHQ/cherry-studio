@@ -1,6 +1,6 @@
-import { applyEdits, modify, parse, type ParseError } from 'jsonc-parser'
+import { applyEdits, findNodeAtLocation, modify, parse, parseTree, type ParseError } from 'jsonc-parser'
 import * as toml from 'smol-toml'
-import { parseDocument } from 'yaml'
+import { isCollection, parseDocument } from 'yaml'
 
 import { t } from '@main/i18n'
 import { getEnvironmentValue } from '@main/utils/env'
@@ -20,6 +20,11 @@ function parseYamlDoc(content: string | null) {
   if (doc.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
   if (doc.contents === null) doc.contents = doc.createNode({}) as unknown as typeof doc.contents
   return doc
+}
+
+function deleteYamlPath(doc: ReturnType<typeof parseDocument>, key: readonly string[]) {
+  const parent = key.length > 1 ? doc.getIn(key.slice(0, -1), true) : doc.contents
+  if (isCollection(parent)) doc.deleteIn(key)
 }
 
 function tomlTable(value: unknown): toml.TomlTable {
@@ -57,13 +62,12 @@ export function usesGlobalClineProfile(env: NodeJS.ProcessEnv, shellEnv: NodeJS.
 /** Changes only the native default, preserving credentials and unrelated settings. */
 export function updateNativeModelConfig(target: CliConfigTarget, content: string | null, model?: string): string {
   if (target === 'poolside-settings') {
-    const config = parseDocument(content ?? '{}')
-    if (config.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
+    const config = parseYamlDoc(content)
     config.setIn(['pool', 'default_agent_server'], 'Poolside')
     if (!config.hasIn(['agent_servers', 'Poolside']))
       config.setIn(['agent_servers', 'Poolside'], config.createNode({ type: 'custom', command: 'pool', args: ['acp'] }))
     const key = ['agent_servers', 'Poolside', 'default_config_options', 'model']
-    if (model === undefined) config.deleteIn(key)
+    if (model === undefined) deleteYamlPath(config, key)
     else config.setIn(key, model)
     return config.toString()
   }
@@ -91,15 +95,15 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
     const config = parseYamlDoc(content)
     const key =
       target === 'hermes-config' ? ['model', 'default'] : target === 'goose-config' ? ['GOOSE_MODEL'] : ['defaultModel']
-    if (model === undefined) config.deleteIn(key)
+    if (model === undefined) deleteYamlPath(config, key)
     else config.setIn(key, model)
     return config.toString()
   }
   if (target === 'omp-settings') {
     const config = parseYamlDoc(content)
     if (model === undefined) {
-      config.deleteIn(['defaultProvider'])
-      config.deleteIn(['defaultModel'])
+      deleteYamlPath(config, ['defaultProvider'])
+      deleteYamlPath(config, ['defaultModel'])
     } else {
       const slash = model.indexOf('/')
       if (slash > 0 && slash < model.length - 1) {
@@ -162,16 +166,18 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
     default:
       throw new Error(t('code_cli.model.unsupported'))
   }
-  return updates.reduce(
-    (text, [key, value]) =>
-      applyEdits(
-        text,
-        modify(text, key, value, {
-          formattingOptions: { insertSpaces: true, tabSize: 2 }
-        })
-      ),
-    content ?? '{}'
-  )
+  return updates.reduce((text, [key, value]) => {
+    if (value === undefined) {
+      const tree = parseTree(text, undefined, { allowTrailingComma: true })
+      if (!tree || !findNodeAtLocation(tree, key)) return text
+    }
+    return applyEdits(
+      text,
+      modify(text, key, value, {
+        formattingOptions: { insertSpaces: true, tabSize: 2 }
+      })
+    )
+  }, content ?? '{}')
 }
 
 export function readNativeModelConfig(target: CliConfigTarget, content: string): string | undefined {

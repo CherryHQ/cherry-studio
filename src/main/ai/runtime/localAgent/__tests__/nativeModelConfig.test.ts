@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 
 import { application } from '@application'
+import { LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
 
 import { readNativeModelConfig, resolveConfiguredAcpModel, updateNativeModelConfig } from '../nativeModelConfig'
 
@@ -236,4 +237,18 @@ describe('extra CLI nativeModelConfig targets', () => {
     expect(readNativeModelConfig('glm-credentials', cleared)).toBeUndefined()
     expect(JSON.parse(cleared)).toEqual({ keep: true })
   })
+
+  it.each(Object.values(LOCAL_AGENT_MODEL_CONFIG).map((entry) => entry.target))(
+    'clears %s safely when parent keys are absent after gateway clear',
+    (target) => {
+      const fromNull = updateNativeModelConfig(target, null, undefined)
+      expect(readNativeModelConfig(target, fromNull)).toBeUndefined()
+      const empty =
+        target === 'codex-config' || target === 'kimi-config' || target === 'vibe-config' || target === 'grok-config'
+          ? ''
+          : '{}'
+      const fromEmpty = updateNativeModelConfig(target, empty, undefined)
+      expect(readNativeModelConfig(target, fromEmpty)).toBeUndefined()
+    }
+  )
 })
