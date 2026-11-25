@@ -100,7 +100,7 @@ export class DoctorAgentService extends BaseService {
 
     if (!report || report.runId !== reportRunId) return { status: 'stale' }
 
-    const agent = this.ensureDoctorAgent(input.modelId as UniqueModelId | undefined)
+    const agent = this.ensureDoctorAgent(input.modelId)
 
     if (!agent?.model) return { status: 'no_model' }
 
@@ -293,9 +293,9 @@ export class DoctorAgentService extends BaseService {
   }
 
   /** The user's pick wins; otherwise keep the Agent's model, falling back to the chat default. */
-  private ensureDoctorAgent(requestedModel?: UniqueModelId) {
+  private ensureDoctorAgent(requestedModel?: string) {
     const agent = agentService.ensureBuiltinAgent(loadBuiltinAgentEnsureInput(BUILTIN_AGENT_ROLE.DOCTOR))
-    const defaultModel = application.get('PreferenceService').get('chat.default_model_id') as UniqueModelId | null
+    const defaultModel = application.get('PreferenceService').get('chat.default_model_id')
     const candidates = requestedModel ? [requestedModel] : [agent.model, defaultModel]
 
     const model = candidates.find(
@@ -315,7 +315,7 @@ export class DoctorAgentService extends BaseService {
     }
   }
 
-  private isUsableModel(modelId: UniqueModelId): boolean {
+  private isUsableModel(modelId: string): modelId is UniqueModelId {
     try {
       const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
       const provider = providerService.getByProviderId(providerId)

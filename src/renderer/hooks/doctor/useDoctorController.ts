@@ -47,7 +47,9 @@ function fixRequestFor(
   checkId: DoctorCheckId,
   action: Extract<DoctorAction, { kind: 'fix' }>
 ): DoctorFixRequest | undefined {
-  if (!DOCTOR_CHECK_CATALOG[checkId].fixes.some((candidate) => candidate.id === action.fixId)) return undefined
+  const fix = DOCTOR_CHECK_CATALOG[checkId].fixes.find((candidate) => candidate.id === action.fixId)
+
+  if (!fix || ('targeted' in fix && fix.targeted && !action.target)) return undefined
 
   const request = {
     scope,
@@ -58,6 +60,7 @@ function fixRequestFor(
 
   if (action.target) Object.assign(request, { target: action.target })
 
+  // SAFETY: Catalog membership and the required target are checked above; the union erases the check-to-fix association.
   return request as DoctorFixRequest
 }
 

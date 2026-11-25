@@ -26,8 +26,10 @@ function formatBasics(basics: DoctorBasics, labels: DoctorCopyLabels): readonly 
   ]
 
   for (const [name, value] of Object.entries(basics.runtime)) {
-    // SAFETY: collectDiagnosticSystemInfo builds the four DoctorBasics runtime fields; the copy projection preserves them.
-    if (value) lines.push(`${labels.runtime[name as keyof DoctorBasics['runtime']]}: ${value}`)
+    if (value) {
+      // SAFETY: collectDiagnosticSystemInfo builds the four DoctorBasics runtime fields; the copy projection preserves them.
+      lines.push(`${labels.runtime[name as keyof DoctorBasics['runtime']]}: ${value}`)
+    }
   }
 
   return lines
