@@ -2496,6 +2496,36 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Weighing the next step')
     })
 
+    it('leaves intent-hidden reasoning history alone when thinking auto-collapse toggles', () => {
+      const withIntent = (id: string) => ({ ...toolPart(id), input: { path: `${id}.txt`, intent: `check ${id}` } })
+      const reasoning = { type: 'reasoning', text: 'Weighing the next step', state: 'done' }
+      const parts = [
+        reasoning,
+        withIntent('read'),
+        reasoning,
+        withIntent('grep'),
+        { type: 'text', text: 'done' }
+      ] as unknown as CherryMessagePart[]
+      const message = msg()
+      const config = (thoughtAutoCollapse: boolean) => ({
+        ...defaultMessageRenderConfig,
+        expandToolSteps: true,
+        thoughtAutoCollapse
+      })
+
+      const { rerender } = render(renderPartsTree(parts, message, {}, config(true)))
+      // Reasoning is hidden behind intents, so the outer group shows only tool steps.
+      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'true')
+
+      fireEvent.click(historyTrigger)
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+
+      rerender(renderPartsTree(parts, message, {}, config(false)))
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+    })
+
     it('keeps a finished turn’s steps open when tool steps expand, until the user closes them', () => {
       renderParts(
         [toolPart('read'), toolPart('edit'), { type: 'text', text: 'done' }] as unknown as CherryMessagePart[],
