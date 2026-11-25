@@ -68,6 +68,11 @@ export class SkillInstaller {
     } else {
       await this.recoverInterruptedInstall(destPath)
     }
+    // A previous retry may have stashed a preserved `.bak` aside and then crashed
+    // before publishing. The stash (`<backup>.stash-*`) is the only complete copy
+    // while `.bak` is missing, but the startup sweep only looks for `.bak`/`.cleanup`.
+    // Restore it to the rollback slot before freeing that slot again.
+    await this.restoreStashedBackup(destPath)
     await this.removeCommittedCleanup(destPath)
 
     const backupPath = this.getBackupPath(destPath)
@@ -148,15 +153,22 @@ export class SkillInstaller {
           state = 'committed'
           await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
           if (stashedBackupPath) {
-            await this.safeRemoveDirectory(stashedBackupPath, 'stashed skill backup')
             stashedBackupPath = null
           }
+          // The retry may have left older `.bak.stash-*` copies from earlier
+          // crashes (only the newest is stashed per attempt). They are all
+          // obsolete once the verified replacement commits; remove them so a
+          // later crash cannot strand an undiscoverable copy.
+          await this.removeAllStashedBackups(destPath)
           return
         }
         if (stashedBackupPath) {
-          await this.safeRemoveDirectory(stashedBackupPath, 'stashed skill backup')
           stashedBackupPath = null
         }
+        // No rollback slot was used, but a previous crash may still have left
+        // stash markers behind (e.g. stash succeeded, publish never started).
+        // The verified install is committed, so those markers are obsolete.
+        await this.removeAllStashedBackups(destPath)
         state = 'committed'
       },
       rollback: async () => {
@@ -182,6 +194,10 @@ export class SkillInstaller {
    * backup marker. The replacement is uncommitted while that marker exists.
    */
   async recoverInterruptedInstall(destPath: string): Promise<void> {
+    // A retry that stashed `.bak` aside and then crashed leaves the only complete
+    // copy under `.bak.stash-*` with no `.bak` for the sweep to find. Promote it
+    // back to the rollback slot before deciding between destination and backup.
+    await this.restoreStashedBackup(destPath)
     const backupPath = this.getBackupPath(destPath)
     let backupStats: fs.Stats
     try {
@@ -357,6 +373,10 @@ export class SkillInstaller {
    * obsolete-cleanup path that deletes the only complete copy.
    */
   async recoverInterruptedInstallWithBaseline(destPath: string, baselineHash: string | null): Promise<void> {
+    // A stashed `.bak.stash-*` is the only complete copy when a retry crashed
+    // right after freeing the rollback slot. Promote it before the baseline
+    // comparison so neither the partial destination nor a missing `.bak` hides it.
+    await this.restoreStashedBackup(destPath)
     const backupPath = this.getBackupPath(destPath)
     const cleanupPath = this.getCleanupPath(destPath)
     const [backupExists, cleanupExists] = await Promise.all([pathExists(backupPath), pathExists(cleanupPath)])
@@ -537,6 +557,7 @@ export class SkillInstaller {
       throw error
     }
 
+    const entryNames = new Set(entries.map((entry) => entry.name))
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
       const backupMatch = entry.name.match(/^\.(.+)\.bak$/)
@@ -546,6 +567,28 @@ export class SkillInstaller {
         // when obsolete-backup staging failed and left the `.bak` behind for retry.
         if (options.skipFolderNames?.has(backupMatch[1])) continue
         await this.recoverInterruptedInstall(path.join(storageRoot, backupMatch[1]))
+        continue
+      }
+
+      // A `.bak.stash-*` with no `.bak` is the only complete copy after a retry
+      // crashed right after `rename(.bak, .bak.stash-*)`. The sweep only looked
+      // for `.bak`/`.cleanup`, so that copy was stranded. Promote it and run the
+      // generic restore; catalogued folders are still skipped here because their
+      // baseline-aware pass already restores stashes.
+      const stashMatch = entry.name.match(/^\.(.+)\.bak\.stash-.*$/)
+      if (stashMatch?.[1]) {
+        if (options.skipFolderNames?.has(stashMatch[1])) continue
+        const folderName = stashMatch[1]
+        if (entryNames.has(`.${folderName}.bak`)) continue
+        const destPath = path.join(storageRoot, folderName)
+        await this.restoreStashedBackup(destPath)
+        // Only run the generic restore for uncatalogued folders; catalogued ones
+        // were handled (including their stashes) by the baseline-aware pass.
+        if (!options.skipFolderNames || options.skipFolderNames.size === 0) {
+          await this.recoverInterruptedInstall(destPath)
+        } else if (!options.skipFolderNames.has(folderName)) {
+          await this.recoverInterruptedInstall(destPath)
+        }
         continue
       }
 
@@ -733,6 +776,77 @@ export class SkillInstaller {
 
   private getCleanupPath(destPath: string): string {
     return path.join(path.dirname(destPath), `.${path.basename(destPath)}.cleanup`)
+  }
+
+  /**
+   * List stranded `.bak.stash-*` copies for a destination. The stash frees the
+   * rollback slot when a preserved `.bak` would otherwise block
+   * `rename(dest, .bak)` on POSIX. If the process exits right after
+   * `rename(.bak, .bak.stash-*)`, the stash is the only complete copy while
+   * `.bak` is missing, so startup recovery must promote it back instead of
+   * leaving it undiscoverable. Returns sorted paths (oldest first by timestamp
+   * name) so the newest can be promoted; tolerant of mocked/unreadable roots.
+   */
+  private async listStashedBackupPaths(destPath: string): Promise<string[]> {
+    const backupPath = this.getBackupPath(destPath)
+    const dir = path.dirname(destPath)
+    const prefix = `${path.basename(backupPath)}.stash-`
+    try {
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true })
+      if (!Array.isArray(entries)) return []
+      const matches: string[] = []
+      for (const entry of entries) {
+        try {
+          if (typeof entry.name !== 'string' || !entry.name.startsWith(prefix)) continue
+          if (typeof entry.isDirectory === 'function' && !entry.isDirectory()) continue
+        } catch {
+          continue
+        }
+        matches.push(path.join(dir, entry.name))
+      }
+      matches.sort()
+      return matches
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+      // Unreadable roots must not block recovery; the stash stays for retry.
+      return []
+    }
+  }
+
+  /**
+   * Promote the newest `.bak.stash-*` back to `.bak` when the rollback slot is
+   * empty. Called at the start of every recovery path and before a new publish
+   * frees the slot again, so a crash between `rename(.bak, stash)` and the next
+   * `rename(dest, .bak)` cannot strand the only complete tree.
+   */
+  private async restoreStashedBackup(destPath: string): Promise<void> {
+    const backupPath = this.getBackupPath(destPath)
+    try {
+      if (await pathExists(backupPath)) return
+    } catch {
+      return
+    }
+    const stashes = await this.listStashedBackupPaths(destPath)
+    if (stashes.length === 0) return
+    const newest = stashes[stashes.length - 1]
+    try {
+      await fs.promises.rename(newest, backupPath)
+      logger.info('Recovered stashed skill backup to rollback slot', { destPath, backupPath, stashed: newest })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+  }
+
+  /**
+   * Best-effort removal of every `.bak.stash-*` marker once a verified install
+   * commits. Only the committing publish knows the replacement is durable, so
+   * older stashes from earlier crashes are obsolete here as well.
+   */
+  private async removeAllStashedBackups(destPath: string): Promise<void> {
+    const stashes = await this.listStashedBackupPaths(destPath)
+    for (const stashPath of stashes) {
+      await this.safeRemoveDirectory(stashPath, 'stashed skill backup')
+    }
   }
 
   private async removeCommittedCleanup(destPath: string): Promise<void> {

@@ -1341,6 +1341,54 @@ describe('SkillService authoring and remote updates', () => {
     await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
+  it('recovers a stashed backup stranded by a crash right after freeing the rollback slot', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const oldDir = path.join(root, 'old-stash-crash')
+    const sourceDir = path.join(root, 'source-stash-crash')
+    await writeSkill(oldDir, { supportingContent: 'echo old\n' })
+    await writeSkill(sourceDir, { supportingContent: 'echo new\n' })
+    await fs.promises.writeFile(path.join(oldDir, 'scripts', 'run.sh'), 'echo old-edited\n', 'utf-8')
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    // Partial replacement plus the only complete copy in `.bak`.
+    await fs.promises.cp(sourceDir, destPath, { recursive: true })
+    await fs.promises.rm(path.join(destPath, 'scripts', 'run.sh'))
+    await fs.promises.cp(oldDir, backupPath, { recursive: true })
+    const cleanOldDir = path.join(root, 'clean-old-stash-crash')
+    await writeSkill(cleanOldDir, { supportingContent: 'echo old\n' })
+    const cleanOldHash = await installer.computeContentHash(cleanOldDir)
+    await installer.recoverInterruptedInstallWithBaseline(destPath, cleanOldHash)
+    // Simulate a retry that stashed `.bak` aside and then crashed before
+    // `rename(dest, .bak)`: only `dest` (partial) and `.bak.stash-*` (complete)
+    // remain, with no `.bak` for the sweep to find.
+    const stashCandidates = await fs.promises.readdir(skillsRoot)
+    for (const name of stashCandidates) {
+      if (name.startsWith('.writer.bak.stash-')) {
+        await fs.promises.rm(path.join(skillsRoot, name), { recursive: true, force: true })
+      }
+    }
+    const stashPath = `${backupPath}.stash-${Date.now()}-test`
+    await fs.promises.rename(backupPath, stashPath)
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+
+    // Startup recovery must promote the stash back to the rollback slot instead
+    // of leaving it stranded.
+    await installer.recoverInterruptedInstallWithBaseline(destPath, cleanOldHash)
+    await expect(fs.promises.access(path.join(backupPath, 'SKILL.md'))).resolves.toBeUndefined()
+    await expect(fs.promises.readFile(path.join(backupPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo old-edited\n'
+    )
+
+    // The next retry then installs the complete source and frees the slot.
+    const prepared = await installer.prepareInstall(sourceDir, destPath, cleanOldHash)
+    await prepared.commit()
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo new\n')
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    const remaining = (await fs.promises.readdir(skillsRoot)).filter((name) => name.startsWith('.writer.bak.stash-'))
+    expect(remaining).toEqual([])
+  })
+
   it('preserves both trees when the destination descriptor stat fails transiently during baseline recovery', async () => {
     const destPath = path.join(skillsRoot, 'writer')
     const backupPath = path.join(skillsRoot, '.writer.bak')
