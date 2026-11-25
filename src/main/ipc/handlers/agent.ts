@@ -18,6 +18,7 @@ import { previewAgentSystemPrompt, resolveAgentPromptInstructions } from '@main/
 import { logFailure } from '@main/core/logger/logFailure'
 import { agentAvatarService } from '@main/services/AgentAvatarService'
 import type { AgentMemoryFile, agentRequestSchemas } from '@shared/ipc/schemas/agent'
+import type { agentFileSnapshotRequestSchemas } from '@shared/ipc/schemas/agentFileSnapshot'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('AgentMemory')
@@ -230,7 +231,24 @@ async function writeMemoryFile(
   })
 }
 
-export const agentHandlers: IpcHandlersFor<typeof agentRequestSchemas> = {
+export const agentHandlers: IpcHandlersFor<typeof agentRequestSchemas & typeof agentFileSnapshotRequestSchemas> = {
+  'agent.file_snapshot.state': async ({ sessionId }) => {
+    const attest = () => application.get('AgentSessionRuntimeService').attestSnapshotRound(sessionId)
+    const state = await application.get('AgentFileSnapshotService').getUndoState(sessionId, attest)
+    return {
+      replyId: state.replyId,
+      revision: state.revision,
+      canUndo: state.canUndo,
+      reason: state.reason,
+      files: state.files.map((file) => ({ path: file.path, status: file.status }))
+    }
+  },
+  'agent.file_snapshot.undo': (input) =>
+    application
+      .get('AgentFileSnapshotService')
+      .undoCurrentRound(input, () =>
+        application.get('AgentSessionRuntimeService').attestSnapshotRound(input.sessionId)
+      ),
   'agent.set_avatar': (input) => agentAvatarService.apply(input),
   'agent.memory.read': async ({ agentId }) => {
     const { root, directory } = await resolveAgentDirectory(agentId)

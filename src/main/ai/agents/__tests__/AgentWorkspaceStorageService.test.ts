@@ -47,6 +47,33 @@ describe(`workspace storage protocol (${process.platform})`, () => {
     await rm(root, { recursive: true, force: true })
   })
 
+  it('persists trusted evidence only after restore commits', async () => {
+    await archive()
+    expect(await service.trustedRestoreSince(workspace.path)).toBeNull()
+    const before = Date.now()
+    await restore()
+    const entries = JSON.parse(await readFile(path.join(root, 'trusted-restores.json'), 'utf8'))
+    expect(entries).toMatchObject({
+      version: 1,
+      entries: [{ workspacePath: workspace.path, operationId: expect.any(String) }]
+    })
+    expect(await service.trustedRestoreSince(workspace.path)).toBeGreaterThanOrEqual(before)
+    expect(await service.trustedRestoreSince(path.join(root, 'other'))).toBeNull()
+  })
+
+  it('commits restore when the trusted evidence path is unavailable', async () => {
+    await archive()
+    vi.mocked(application.getPath).mockImplementation((key) => {
+      if (key === 'feature.agents.file_snapshots') throw new Error('path unavailable')
+      return root
+    })
+
+    await expect(restore()).resolves.toBeUndefined()
+    expect(await output()).toBe('recoverable output')
+    await expect(readFile(`${workspace.path}.storage.json`)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await service.trustedRestoreSince(workspace.path)).toBeNull()
+  })
+
   it('round trips output, binary and hidden files, and empty directories', async () => {
     await archive()
     expect(existsSync(workspace.path)).toBe(false)

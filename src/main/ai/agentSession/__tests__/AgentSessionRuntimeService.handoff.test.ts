@@ -1,8 +1,13 @@
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { eq } from 'drizzle-orm'
 import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -22,6 +27,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { MessageSnapshot } from '@shared/data/types/message'
 import { AsyncEventQueue } from '@shared/utils/async'
 
+import { AgentFileSnapshotService, type SnapshotRound } from '../AgentFileSnapshotService'
 import { AgentSessionRuntimeService } from '../AgentSessionRuntimeService'
 
 const dbh = setupTestDatabase()
@@ -38,7 +44,9 @@ const snapshot: MessageSnapshot = {
   model: { id: 'model', name: 'Model', provider: 'test' }
 }
 
-async function fixture(opts: { headless?: boolean; redirect?: boolean; recovery?: boolean } = {}) {
+async function fixture(
+  opts: { headless?: boolean; redirect?: boolean; recovery?: boolean; retainOnStop?: boolean } = {}
+) {
   dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' }).run()
   dbh.db
     .insert(userModelTable)
@@ -132,6 +140,7 @@ async function fixture(opts: { headless?: boolean; redirect?: boolean; recovery?
         if (blockClose) await closeGate.promise
         queue.close()
       },
+      ...(opts.retainOnStop && { retainOnStop: true, interrupt: () => emit({ type: 'stop-confirmed' }) }),
       reconcile: async () => 'current',
       retainWhileIdle: true
     })
@@ -288,6 +297,36 @@ async function fixture(opts: { headless?: boolean; redirect?: boolean; recovery?
       blockClose = true
     }
   }
+}
+
+async function snapshotFixture(retainOnStop = false) {
+  const testDir = await mkdtemp(path.join(os.tmpdir(), 'snapshot-handoff-'))
+  const workspace = path.join(testDir, 'workspace')
+  const snapshotRoot = path.join(testDir, 'snapshots')
+  await mkdir(workspace)
+  onTestFinished(() => rm(testDir, { recursive: true, force: true }))
+  const snapshots = new AgentFileSnapshotService()
+  MockApplicationUtils.setService('AgentFileSnapshotService', snapshots)
+  vi.spyOn(application, 'getPath').mockReturnValue(snapshotRoot)
+  const f = await fixture({ retainOnStop })
+  const finish = f.openB()
+  await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+  const round = f.service.getLiveSnapshotRound('root')!
+  const target = path.join(workspace, 'file')
+  await writeFile(target, 'before')
+  const { attemptId } = await snapshots.protectWrite({
+    round,
+    callId: 'write',
+    runtime: 'pi',
+    toolName: 'write',
+    intent: { toolName: 'write', input: { content: 'after' } },
+    filePath: target,
+    cwd: workspace
+  })
+  await writeFile(target, 'after')
+  await snapshots.settleWrite({ round, attemptId: attemptId!, outcome: 'success' })
+  const attest = () => f.service.attestSnapshotRound('root')
+  return { ...f, finish, snapshots, round, target, snapshotRoot, attest }
 }
 
 function failReplyWrites() {
@@ -547,6 +586,82 @@ it.each([undefined, ['previous-call'], ['current-call', 'previous-call']])(
   }
 )
 
+it('restores snapshot ownership when an autonomous reply releases the deferred user reply', async () => {
+  const testDir = await mkdtemp(path.join(os.tmpdir(), 'snapshot-deferred-'))
+  const workspace = path.join(testDir, 'workspace')
+  await mkdir(workspace)
+  onTestFinished(() => rm(testDir, { recursive: true, force: true }))
+  const snapshots = new AgentFileSnapshotService()
+  MockApplicationUtils.setService('AgentFileSnapshotService', snapshots)
+  const f = await fixture({ headless: true })
+  vi.spyOn(application, 'getPath').mockReturnValue(path.join(testDir, 'snapshots'))
+  f.openB()
+  await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+  const original = f.service.getLiveSnapshotRound('root')!
+  const target = path.join(workspace, 'file')
+  await writeFile(target, 'before')
+  const first = await snapshots.protectWrite({
+    round: original,
+    callId: 'first',
+    runtime: 'pi',
+    toolName: 'write',
+    intent: { toolName: 'write', input: { content: 'first' } },
+    filePath: target,
+    cwd: workspace
+  })
+  await writeFile(target, 'first')
+  await snapshots.settleWrite({
+    round: original,
+    attemptId: first.attemptId!,
+    outcome: 'success'
+  })
+  await f.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } })
+  f.suspended.resolve()
+  await vi.waitFor(() => expect(f.starts).toHaveLength(1))
+  const autonomous = f.service.getLiveSnapshotRound('root')!
+  expect(autonomous.replyId).not.toBe(original.replyId)
+  const goalFile = path.join(workspace, 'goal')
+  await snapshots.protectWrite({
+    round: autonomous,
+    callId: 'goal',
+    runtime: 'pi',
+    toolName: 'write',
+    intent: { toolName: 'write', input: { content: 'after' } },
+    filePath: goalFile,
+    cwd: workspace
+  })
+  f.blockPersistence()
+  const finishAutonomous = f.open(f.starts[0])
+  await f.emit({ type: 'turn-complete' })
+  await f.persistenceEntered
+  await f.emit({ type: 'autonomous-turn-state', state: 'finished' })
+  const resumed = f.service.getLiveSnapshotRound('root')!
+  expect(resumed.replyId).toBe(original.replyId)
+  const second = await snapshots.protectWrite({
+    round: resumed,
+    callId: 'second',
+    runtime: 'pi',
+    toolName: 'write',
+    intent: { toolName: 'write', input: { content: 'second' } },
+    filePath: target,
+    cwd: workspace
+  })
+  await writeFile(target, 'second')
+  await snapshots.settleWrite({
+    round: resumed,
+    attemptId: second.attemptId!,
+    outcome: 'success'
+  })
+  const manifest = JSON.parse(
+    await readFile(path.join(testDir, 'snapshots/root', original.replyId, 'manifest.json'), 'utf8')
+  )
+  expect(manifest.files[0].attempts).toHaveLength(2)
+  expect(manifest.inputMessageIds).toEqual([f.user.id])
+  f.persistenceGate.resolve()
+  await finishAutonomous()
+  await vi.waitFor(() => expect(f.starts).toHaveLength(2))
+})
+
 // A failed autonomous placeholder must neither discard its facts nor lend them to the waiting user.
 it.each([
   ['before-failure', false],
@@ -771,6 +886,46 @@ it('keeps queued input unwritten through nested pause holds, then sends it once 
   expect(f.service.isSessionBusy('root')).toBe(false)
 })
 
+it('withdraws an admitted empty round when Stop clears the queue and preserves the previous Undo', async () => {
+  const f = await snapshotFixture(true)
+  const admitted = Promise.withResolvers<SnapshotRound>()
+  const gate = Promise.withResolvers<void>()
+  onTestFinished(() => gate.resolve())
+  const admitRound = f.snapshots.admitRound.bind(f.snapshots)
+  vi.spyOn(f.snapshots, 'admitRound').mockImplementation(async (round) => {
+    const rollback = await admitRound(round)
+    admitted.resolve(round)
+    await gate.promise
+    return rollback
+  })
+  const queued = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Withdraw this' }] } }
+  })
+  f.service.enqueueUserMessage('root', queued)
+  await f.emit({ type: 'turn-complete' })
+  await f.finish()
+  const withdrawn = await admitted.promise
+  const stopped = f.service.stopSession('root', 'user-requested')
+  gate.resolve()
+  await stopped
+  await vi.waitFor(() => expect(f.service.isSessionBusy('root')).toBe(false))
+  expect(f.starts).toEqual([])
+  expect(f.service.getLiveSnapshotRound('root')).toBeUndefined()
+  expect(f.attest()).toBe(f.round.replyId)
+  expect(withdrawn.replyId).not.toBe(f.round.replyId)
+  expect((await readdir(path.join(f.snapshotRoot, 'root'))).sort()).toEqual([f.round.replyId, 'current.json'].sort())
+  const state = await f.snapshots.getUndoState('root', f.attest)
+  expect(state).toMatchObject({ canUndo: true, reason: null, replyId: f.round.replyId })
+  await expect(
+    f.snapshots.undoCurrentRound({ ...f.round, expectedRevision: state.revision! }, f.attest)
+  ).resolves.toEqual({
+    reason: null,
+    files: [{ path: f.target, status: 'restored' }]
+  })
+  expect(await readFile(f.target, 'utf8')).toBe('before')
+})
+
 it('terminalizes a queued placeholder when preparation fails before native submission', async () => {
   const f = await fixture()
   const finishB = f.openB()
@@ -884,6 +1039,37 @@ it('waits for both final native observations and blocked stream persistence befo
   expect(contexts.context(f.context.id).checkpointMapping?.root?.sources['native-final']?.messageId).toBe(f.replyB.id)
   expect(f.service.hasBusySessions()).toBe(false)
   hold.dispose()
+})
+
+it('finishes the snapshot once a timed-out close succeeds late and makes Undo available', async () => {
+  const f = await snapshotFixture()
+  const active = await f.snapshots.getUndoState('root', f.attest)
+  expect(active).toMatchObject({ canUndo: false, reason: 'turn-active' })
+  f.blockClose()
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  const stopping = f.service.stopSession('root', 'user-requested')
+  await vi.advanceTimersByTimeAsync(20_000)
+  await stopping
+  vi.useRealTimers()
+  expect(await f.snapshots.getUndoState('root', f.attest)).toMatchObject({
+    canUndo: false,
+    reason: 'turn-active',
+    revision: active.revision
+  })
+  f.closeGate.resolve()
+  await vi.waitFor(() => expect(f.service.hasBusySessions()).toBe(false))
+  const finished = await f.snapshots.getUndoState('root', f.attest)
+  expect(finished).toMatchObject({ canUndo: true, reason: null, revision: String(BigInt(active.revision!) + 1n) })
+  await expect(
+    f.snapshots.undoCurrentRound({ ...f.round, expectedRevision: finished.revision! }, f.attest)
+  ).resolves.toEqual({
+    reason: null,
+    files: [{ path: f.target, status: 'restored' }]
+  })
+  expect(await readFile(f.target, 'utf8')).toBe('before')
 })
 
 it('retains a failed terminal write for retry and reports it to backup without resending input', async () => {

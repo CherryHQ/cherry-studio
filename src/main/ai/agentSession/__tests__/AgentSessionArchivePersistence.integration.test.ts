@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
+    AgentFileSnapshotService: { purgeSessions: async () => {} },
     AiStreamManager: {
       isWriteQuiesced: false,
       withDispatchLock: (_topicId: string, operation: () => Promise<unknown>) => operation(),

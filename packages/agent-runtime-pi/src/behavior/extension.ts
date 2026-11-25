@@ -125,6 +125,7 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
           args: event.input as JsonValue,
           nested: event.parentToolCallId !== undefined
         }
+        await gate.settle?.(gated, event.isError)
         const content: ToolResultEvent['content'] = []
         let changed = false
         let isError = event.isError

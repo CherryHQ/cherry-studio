@@ -239,6 +239,7 @@ export type GateVerdict = { readonly block?: string; readonly args?: JsonValue }
 /** For handlers that run where the harness cannot commit, such as Durable's tool gate. */
 export type GatePorts = Pick<HarnessPorts, 'memory' | 'clock'>
 export interface GateHandlers {
+  settle?(call: GateCall, isError: boolean): Promise<void>
   /**
    * Block the call (the reason becomes its error result) or rewrite its arguments. `call.signal` aborts when the call's
    * turn stops, and whatever `before` waits for (a person's approval) is withdrawn then.

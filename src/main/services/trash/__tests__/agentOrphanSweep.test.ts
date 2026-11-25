@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -11,6 +12,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { AgentFileSnapshotService } from '@main/ai/agentSession/AgentFileSnapshotService'
 import { PiRuntimeDriver } from '@main/ai/runtime/pi/PiRuntimeDriver'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentSessionRuntimeDriver } from '@main/ai/runtime/types'
@@ -327,6 +329,35 @@ describe('sweepAgentOrphans', () => {
 
       expect(failedDrivers).toEqual(['failing-runtime'])
       expect(removed).toContain('/tmp/pi.jsonl')
+    })
+
+    it('reclaims a native transcript when the snapshot directory is unreadable', async () => {
+      const snapshotsRoot = path.join(root, '.file-snapshots')
+      mkdirSync(snapshotsRoot)
+      const transcript = path.join(root, 'orphan.jsonl')
+      writeFileSync(transcript, 'old transcript')
+      registerDriver('pi', async () => {
+        await fs.unlink(transcript)
+        return { removed: [transcript] }
+      })
+      const get = applicationGet.getMockImplementation()!
+      const getPath = (application.getPath as Mock).getMockImplementation()!
+      const snapshots = new AgentFileSnapshotService()
+      applicationGet.mockImplementation((name: string) => (name === 'AgentFileSnapshotService' ? snapshots : get(name)))
+      ;(application.getPath as Mock).mockImplementation((key: string) =>
+        key === 'feature.agents.file_snapshots' ? snapshotsRoot : getPath(key)
+      )
+      const readDir = fs.readdir.bind(fs)
+      const unreadable = vi.spyOn(fs, 'readdir').mockImplementation((...args) => {
+        if (args[0] === snapshotsRoot) return Promise.reject(Object.assign(new Error('unreadable'), { code: 'EACCES' }))
+        return readDir(...args)
+      })
+      try {
+        await expect(sweepAgentOrphans()).resolves.toEqual({ removed: [transcript], failedDrivers: [] })
+        expect(existsSync(transcript)).toBe(false)
+      } finally {
+        unreadable.mockRestore()
+      }
     })
   })
 })

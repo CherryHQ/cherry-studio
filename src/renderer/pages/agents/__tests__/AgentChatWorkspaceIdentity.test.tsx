@@ -130,9 +130,11 @@ describe('AgentChat top-bar workspace identity', () => {
     vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) => ({
       ok: true,
       data:
-        route === 'computer_use.get_approvals'
-          ? []
-          : { pathKind: 'directory', targets: [{ id: 'file_manager', kind: 'file_manager' }] }
+        route === 'agent.file_snapshot.state'
+          ? { replyId: null, revision: null, files: [], canUndo: false, reason: 'no-round' }
+          : route === 'computer_use.get_approvals'
+            ? []
+            : { pathKind: 'directory', targets: [{ id: 'file_manager', kind: 'file_manager' }] }
     }))
   })
 

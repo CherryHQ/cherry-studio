@@ -128,6 +128,25 @@ export const defaultServiceInstances = {
     drainInFlight: vi.fn(async () => ({ stragglerIds: [] })),
     listActiveWork: vi.fn(() => [])
   },
+  AgentFileSnapshotService: {
+    sweepOrphans: vi.fn(async () => []),
+    purgeSessions: vi.fn(async () => undefined),
+    admitRound: vi.fn(async () => undefined),
+    resumeRound: vi.fn(async () => undefined),
+    extendRoundInputs: vi.fn(async () => undefined),
+    markRoundFinished: vi.fn(async () => undefined),
+    protectWrite: vi.fn(async () => ({ reason: 'no-round' as const })),
+    settleWrite: vi.fn(async () => undefined),
+    getUndoState: vi.fn(async (sessionId: string) => ({
+      sessionId,
+      replyId: null,
+      revision: null,
+      files: [],
+      canUndo: false,
+      reason: 'no-round' as const
+    })),
+    undoCurrentRound: vi.fn(async () => ({ files: [], reason: 'round-mismatch' as const }))
+  },
   PowerService: {
     preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
     onResume: vi.fn(() => ({ dispose: vi.fn() }))
