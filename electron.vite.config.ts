@@ -32,10 +32,12 @@ const { buildExternalApp, sourceFiles: externalAppSources } = createRequire(impo
 )
 
 const electronBuilderConfig: unknown = parse(readFileSync(resolve(__dirname, 'electron-builder.yml'), 'utf8'))
+
 const releaseInfo =
   electronBuilderConfig && typeof electronBuilderConfig === 'object' && 'releaseInfo' in electronBuilderConfig
     ? electronBuilderConfig.releaseInfo
     : undefined
+
 const bundledReleaseNotes =
   releaseInfo && typeof releaseInfo === 'object' && 'releaseNotes' in releaseInfo ? releaseInfo.releaseNotes : undefined
 
