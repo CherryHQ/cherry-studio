@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
 import { buildBootstrapInstructions, SOUL_CONTENT_THRESHOLD } from './bootstrap'
@@ -30,7 +31,7 @@ async function resolveFile(dir: string, name: string, failOnError = false): Prom
 
     return undefined
   } catch (error) {
-    if (failOnError && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    if (failOnError && getErrorCode(error) !== 'ENOENT') throw error
     // exact match not found, try case-insensitive
   }
 
