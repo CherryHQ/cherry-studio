@@ -120,6 +120,7 @@ export interface BuildAgentParamsInput {
 
 export interface BuiltAgentParams {
   sdkConfig: SdkConfig
+  endpointType: EndpointType | undefined
   /** Non-secret receipt for the credential path selected for this request. */
   credentialReceipt: ServingCredentialReceipt
   tools: ToolSet | undefined
@@ -395,6 +396,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   return {
     sdkConfig,
+    endpointType,
     credentialReceipt,
     tools,
     plugins: contributions.modelAdapters,

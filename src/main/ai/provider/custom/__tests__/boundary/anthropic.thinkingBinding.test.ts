@@ -1,6 +1,6 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
-import { wrapLanguageModel } from 'ai'
+import { generateText, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { type AiRequestContext, fromAISDK, toAISDK } from '@cherrystudio/ai-core'
@@ -10,10 +10,14 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { omitCompactedAnthropicThinking } from '../../../../messages/anthropicThinking'
 import { toModelMessages } from '../../../../messages/messageRules'
-import { anthropicThinkingBindingFeature } from '../../../../runtime/aiSdk/params/features/anthropicThinkingBinding'
+import {
+  anthropicThinkingBindingFeature,
+  anthropicThinkingReplayFeature
+} from '../../../../runtime/aiSdk/params/features/anthropicThinkingBinding'
 import { buildContextOptions } from '../../../../runtime/aiSdk/params/features/contextBuild'
 import type { RequestScope } from '../../../../runtime/aiSdk/params/scope'
 import { dropEmptyContentParts } from '../../../../streamManager/persistence/PersistenceBackend'
+import { createAihubmix } from '../../aihubmix/aihubmixProvider'
 
 const modelId = 'claude-sonnet-5-5'
 const directURL = 'https://api.anthropic.com/v1'
@@ -79,6 +83,73 @@ async function send({
 }
 
 describe('Anthropic Messages thinking binding', () => {
+  it('keeps signed and redacted state on the AiHubMix Messages route that returned it', async () => {
+    const originalUrl = 'https://fixture.invalid/anthropic/v1'
+    const anotherUrl = 'https://fixture.invalid/other/v1'
+    const signed = { type: 'thinking', thinking: '', signature: 'signed-original' }
+    const redacted = { type: 'redacted_thinking', data: 'opaque-original' }
+    const answer = { type: 'text', text: 'Visible reply' }
+    const requests: Array<{ url: string; body: unknown }> = []
+    const modelAt = async (baseURL: string) => {
+      const providerSettings = {
+        apiKey: 'fixture',
+        baseURL: 'https://fixture.invalid/v1',
+        endpointBaseURLs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: baseURL },
+        fetch: async (url, init) => {
+          requests.push({ url: String(url), body: JSON.parse(String(init?.body)) })
+          return Response.json({
+            id: 'message',
+            type: 'message',
+            role: 'assistant',
+            model: modelId,
+            content: [signed, redacted, answer],
+            stop_reason: 'end_turn',
+            usage: { input_tokens: 10, output_tokens: 5 }
+          })
+        }
+      } satisfies Parameters<typeof createAihubmix>[0]
+      const scope = {
+        request: {},
+        provider: { id: 'aihubmix' },
+        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        sdkConfig: { modelId, providerId: 'aihubmix', providerSettings }
+      } as RequestScope
+      const context = { middlewares: [] } as unknown as AiRequestContext
+      if (anthropicThinkingReplayFeature.applies?.(scope)) {
+        for (const plugin of anthropicThinkingReplayFeature.contributeModelAdapters?.(scope) ?? []) {
+          await plugin.configureContext?.(context)
+        }
+      }
+      return wrapLanguageModel({
+        model: createAihubmix(providerSettings)(modelId),
+        middleware: context.middlewares ?? []
+      })
+    }
+
+    const first = await generateText({ model: await modelAt(originalUrl), prompt: 'Question', maxRetries: 0 })
+    for (const baseURL of [anotherUrl, originalUrl]) {
+      await generateText({
+        model: await modelAt(baseURL),
+        messages: [
+          { role: 'user', content: 'Question' },
+          ...first.response.messages,
+          { role: 'user', content: 'Follow-up' }
+        ],
+        maxRetries: 0
+      })
+      expect(requests.at(-1)).toMatchObject({
+        url: `${baseURL}/messages`,
+        body: {
+          messages: [
+            { role: 'user' },
+            { role: 'assistant', content: baseURL === originalUrl ? [signed, redacted, answer] : [answer] },
+            { role: 'user' }
+          ]
+        }
+      })
+    }
+  })
+
   it('sends the original signed thinking and delegates prefix mismatch handling to Claude', async () => {
     const { body, headers } = await send({
       callOptions: { providerOptions: { anthropic: { thinking: { type: 'adaptive', display: 'summarized' } } } }

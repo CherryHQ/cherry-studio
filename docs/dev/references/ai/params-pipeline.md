@@ -5,7 +5,10 @@ sources:
   - src/main/ai/runtime/aiSdk/params/buildAgentParams.ts
   - src/main/ai/runtime/aiSdk/params/feature.ts
   - src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts
+  - src/main/ai/runtime/aiSdk/params/features/providerStateReplay.ts
   - src/main/ai/runtime/aiSdk/params/features/geminiHistorySignatureReplay.ts
+  - src/main/ai/runtime/aiSdk/params/features/anthropicThinkingBinding.ts
+  - src/main/ai/runtime/aiSdk/params/features/openrouterReasoning.ts
   - src/main/ai/runtime/aiSdk/params/features/qwenAnthropicWebTools.ts
   - src/main/ai/runtime/aiSdk/params/features/toolSchemaCompatibility.ts
 ---
@@ -20,7 +23,8 @@ into everything `Agent.stream()` needs:
 
 ```ts
 interface BuiltAgentParams {
-  sdkConfig: SdkConfig             // providerId + providerSettings + modelId
+  sdkConfig: SdkConfig              // providerId + providerSettings + modelId
+  endpointType: EndpointType | undefined
   tools: ToolSet | undefined        // active + meta-tools after defer
   plugins: AiPlugin<any, any>[]     // model-adapter plugins (ordered)
   system: string | undefined        // assembled system prompt
@@ -69,14 +73,14 @@ unrecognized. Normalization can relax the constraints sent to the provider. MCP
 tools still validate against the original schema, and gateway callers validate
 their own tools.
 
-Chat requests to Gemini 3 and 4 on `google-generate-content` record the serving
-route with signed response parts. The route includes the provider connection,
-protocol, SDK adapter, wire model, and Base URL. When a completed turn comes
-from a different route, replay omits its signed thinking and drops signatures
-from assistant text and client tool calls. The original history remains
-available on the serving route. For older text and tool calls without a route,
-replay uses the stored provider and model identity when available. The Google
-adapter suppresses signature backfill for marked tool calls.
+Chat records the serving route with replayable state from Gemini Generate
+Content, Anthropic Messages, and the OpenRouter chat adapter. The route includes
+the provider connection, protocol, SDK adapter, wire model, and Base URL. Replay
+on a different route within those adapters omits state from completed turns and
+retains ordinary text and client tool history. The original history remains
+available on the serving route. Gemini 3 and 4 use the stored provider and model
+identity for older text and tool calls when available. The Google adapter
+suppresses signature backfill for marked tool calls.
 
 ## RequestFeature
 

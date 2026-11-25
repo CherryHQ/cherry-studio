@@ -659,6 +659,7 @@ export class AiService extends BaseService {
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
+      endpointType,
       credentialReceipt,
       tools,
       plugins,
@@ -798,6 +799,7 @@ export class AiService extends BaseService {
 
     const agent = new Agent({
       contextOwner: request.contextOwner,
+      endpointType,
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,

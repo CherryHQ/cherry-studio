@@ -10,12 +10,18 @@ export function getReplayRouteId(
   config: SdkConfig
 ): string {
   const settings = config.providerSettings
-  const configuredUrl =
-    endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT && 'geminiBaseURL' in settings && settings.geminiBaseURL
+  const geminiUrl =
+    endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT && 'geminiBaseURL' in settings
       ? settings.geminiBaseURL
-      : 'baseURL' in settings
-        ? settings.baseURL
-        : undefined
+      : undefined
+  const anthropicUrl =
+    endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && 'anthropicBaseURL' in settings
+      ? settings.anthropicBaseURL
+      : undefined
+  const endpointUrl =
+    endpointType && 'endpointBaseURLs' in settings ? settings.endpointBaseURLs?.[endpointType] : undefined
+  const configuredUrl =
+    geminiUrl || anthropicUrl || endpointUrl || ('baseURL' in settings ? settings.baseURL : undefined)
   const url = typeof configuredUrl === 'string' ? URL.parse(configuredUrl) : null
   const route = [
     connectionId,
@@ -24,7 +30,7 @@ export function getReplayRouteId(
     config.modelId,
     url?.origin,
     url?.pathname.replace(/\/+$/, ''),
-    url?.searchParams.get('api-version'),
+    url?.searchParams.get('api-version') ?? ('apiVersion' in settings ? settings.apiVersion : undefined),
     'project' in settings ? settings.project : undefined,
     'location' in settings ? settings.location : undefined
   ]

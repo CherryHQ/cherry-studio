@@ -4,14 +4,18 @@ import { generateId, type LanguageModelMiddleware, type ProviderMetadata } from 
 import { definePlugin } from '@cherrystudio/ai-core'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
+import { getReplayRouteId } from '../../../../provider/replayRoute'
 import type { RequestFeature } from '../feature'
+import { createProviderStateReplayMiddleware } from './providerStateReplay'
+
+function getReasoningDetails(metadata: ProviderMetadata | undefined) {
+  const details = metadata?.openrouter?.reasoning_details
+  return Array.isArray(details) && details.length > 0 ? details : undefined
+}
 
 function getReplayMetadata(metadata: ProviderMetadata | undefined): ProviderMetadata | undefined {
-  const details = metadata?.openrouter?.reasoning_details
-  if (Array.isArray(details) && details.length > 0) {
-    return { openrouter: { reasoning_details: details } }
-  }
-  return undefined
+  const details = getReasoningDetails(metadata)
+  return details && { openrouter: { reasoning_details: details } }
 }
 
 /**
@@ -19,7 +23,7 @@ function getReplayMetadata(metadata: ProviderMetadata | undefined): ProviderMeta
  *
  * @returns LanguageModelMiddleware - a middleware filter redacted block
  */
-export function createOpenrouterReasoningMiddleware(): LanguageModelMiddleware {
+function createOpenrouterReasoningMiddleware(): LanguageModelMiddleware {
   const REDACTED_BLOCK = '[REDACTED]'
   return {
     specificationVersion: 'v3',
@@ -76,20 +80,32 @@ export function createOpenrouterReasoningMiddleware(): LanguageModelMiddleware {
   }
 }
 
-const createOpenrouterReasoningPlugin = () =>
-  definePlugin({
-    name: 'openrouter-reasoning',
-    enforce: 'pre',
-
-    configureContext: (context) => {
-      context.middlewares = context.middlewares || []
-      context.middlewares.push(createOpenrouterReasoningMiddleware())
-    }
-  })
-
 /** Preserve OpenRouter reasoning metadata and remove redaction markers from displayed text. */
 export const openrouterReasoningFeature: RequestFeature = {
   name: 'openrouter-reasoning',
-  applies: (scope) => scope.provider.id === SystemProviderIds.openrouter,
-  contributeModelAdapters: () => [createOpenrouterReasoningPlugin()]
+  applies: (scope) => scope.sdkConfig.providerId === SystemProviderIds.openrouter,
+  contributeModelAdapters: ({ request, provider, endpointType, sdkConfig }) => [
+    definePlugin({
+      name: 'openrouter-reasoning',
+      enforce: 'pre',
+      configureContext: (context) => {
+        context.middlewares ??= []
+        if (request.contextOwner !== 'caller') {
+          context.middlewares.push(
+            createProviderStateReplayMiddleware({
+              routeId: getReplayRouteId(provider.id, endpointType, sdkConfig),
+              hasState: (metadata) => getReasoningDetails(metadata) !== undefined,
+              omitState: (part) => {
+                if (part.type === 'reasoning') return undefined
+                const openrouter = { ...part.providerOptions?.openrouter }
+                delete openrouter.reasoning_details
+                return { ...part, providerOptions: { ...part.providerOptions, openrouter } }
+              }
+            })
+          )
+        }
+        context.middlewares.push(createOpenrouterReasoningMiddleware())
+      }
+    })
+  ]
 }
