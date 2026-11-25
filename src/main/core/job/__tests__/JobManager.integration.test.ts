@@ -44,6 +44,7 @@ import { drainTrailingDispatch } from './_helpers'
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
     'settled.late-finalize': { message: string }
+    'failure.arbitrary': { label: string }
   }
 }
 
@@ -191,6 +192,61 @@ describe('JobManager integration', () => {
   beforeAll(() => {
     BaseService.resetInstances()
   })
+
+  it.each([
+    { label: 'null', rejection: null, message: 'null' },
+    { label: 'undefined', rejection: undefined, message: 'undefined' },
+    { label: 'string', rejection: 'provider unavailable', message: 'provider unavailable' },
+    { label: 'message object', rejection: { message: 'provider unavailable' }, message: 'provider unavailable' },
+    { label: 'empty Error message', rejection: new Error(''), message: 'Error' },
+    { label: 'invalid message field', rejection: { message: 42 }, message: '[object Object]' },
+    {
+      label: 'unreadable message and conversion',
+      rejection: {
+        get message() {
+          throw new Error('unreadable message')
+        },
+        [Symbol.toPrimitive]() {
+          throw new Error('unprintable rejection')
+        }
+      },
+      message: 'Unknown job failure'
+    }
+  ])(
+    'retries arbitrary handler rejection $label and resolves a persisted terminal failure',
+    async ({ label, rejection, message }) => {
+      let attempts = 0
+      const handler: JobHandler = {
+        recovery: 'abandon',
+        defaultRetryPolicy: { maxAttempts: 2, backoff: 'fixed', baseDelayMs: 1, maxDelayMs: 1 },
+        async execute() {
+          attempts += 1
+          throw rejection
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({ handlers: [['failure.arbitrary', handler]] })
+      const unhandled: unknown[] = []
+      const onUnhandled = (error: unknown) => unhandled.push(error)
+      process.on('unhandledRejection', onUnhandled)
+
+      try {
+        const handle = jobManager.enqueue('failure.arbitrary', { label }, { maxAttempts: 2 })
+        const terminal = await handle.finished
+        await drainAllQueues(jobManager)
+
+        expect(attempts).toBe(2)
+        expect(terminal).toMatchObject({
+          status: 'failed',
+          error: { code: 'JOB_HANDLER_THREW', message, retryable: true }
+        })
+        expect(jobService.getById(handle.id)).toMatchObject({ status: 'failed', error: terminal.error })
+        expect(unhandled).toEqual([])
+      } finally {
+        process.off('unhandledRejection', onUnhandled)
+        await teardownManager(scheduler, jobManager)
+      }
+    }
+  )
 
   describe('startup recovery', () => {
     it('abandon: turns every non-terminal job into cancelled', async () => {

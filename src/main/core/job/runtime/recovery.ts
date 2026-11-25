@@ -22,7 +22,7 @@ const cancelledByRecovery: JobError = {
 }
 
 /** A job's startup recovery strategy: its own override, else its handler's. */
-function strategyOf(row: JobRow, handler: JobHandler): RecoveryStrategy {
+function strategyOf(row: JobRow, handler: Pick<JobHandler, 'recovery'>): RecoveryStrategy {
   return row.recovery ?? handler.recovery
 }
 
@@ -36,7 +36,11 @@ function strategyOf(row: JobRow, handler: JobHandler): RecoveryStrategy {
  *
  * @param leftoverJobIds - Rows that were non-terminal when JobManager initialized
  */
-export function abandonLeftovers(type: string, handler: JobHandler, leftoverJobIds: ReadonlySet<string>): void {
+export function abandonLeftovers(
+  type: string,
+  handler: Pick<JobHandler, 'recovery'>,
+  leftoverJobIds: ReadonlySet<string>
+): void {
   try {
     const ids = jobService
       .getActiveByType(type)

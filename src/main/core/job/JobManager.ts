@@ -13,6 +13,7 @@ import {
   SERVICE_STOP_TIMEOUT_MS,
   ServicePhase
 } from '@main/core/lifecycle'
+import { getErrorCode } from '@main/utils/error'
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { isTerminalStatus, JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
@@ -35,6 +36,29 @@ import {
 } from './types'
 
 const logger = loggerService.withContext('JobManager')
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Handlers and lifecycle callbacks may reject arbitrary values; only a readable string message is consumed here.
+function readFailureMessage(error: unknown): string | undefined {
+  try {
+    if (error === null || (typeof error !== 'object' && typeof error !== 'function')) return undefined
+
+    // oxlint-disable-next-line anti-slop/no-reflect-get -- Rejections may have virtual Proxy fields; unreadable message getters remain contained by this boundary.
+    const message = Reflect.get(error, 'message')
+
+    return typeof message === 'string' ? message : undefined
+  } catch {
+    return undefined
+  }
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Rejection values need the existing String fallback, including empty Error messages, without allowing conversion failures to strand a job.
+function stringifyFailure(error: unknown): string {
+  try {
+    return String(error)
+  } catch {
+    return 'Unknown job failure'
+  }
+}
 
 /** Default retry policy used when handler does not declare one. */
 const DEFAULT_RETRY_POLICY: RetryPolicy = {
@@ -642,8 +666,9 @@ export class JobManager extends BaseService {
       throw new Error(`JobManager: handler for type "${type}" is already registered`)
     }
 
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Compatibility: the heterogeneous registry erases payload types; persisted schedule inputs still have no per-kind codec.
     this.handlers.set(type, handler as JobHandler)
-    abandonLeftovers(type, handler as JobHandler, this.leftoverJobIds)
+    abandonLeftovers(type, handler, this.leftoverJobIds)
     logger.info('Handler registered', { type, recovery: handler.recovery })
   }
 
@@ -925,7 +950,7 @@ export class JobManager extends BaseService {
       } catch (err) {
         logger.warn('Failed to persist nextRun after pause release', {
           scheduleId: id,
-          err: (err as Error).message
+          err
         })
       }
     }
@@ -939,7 +964,8 @@ export class JobManager extends BaseService {
    * at the call sites AFTER their idempotency check, so an idempotency hit
    * does not register a stray in-memory queue entry.
    */
-  private prepareEnqueue<K extends JobType>(type: K, input: JobPayloadOf<K>, opts: EnqueueOptions) {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted schedules and public template updates carry opaque payloads; size, registration and queue policy are checked before storing them unchanged.
+  private prepareEnqueue(type: string, input: unknown, opts: EnqueueOptions) {
     const handler = this.handlers.get(type)
 
     if (!handler) {
@@ -1021,6 +1047,11 @@ export class JobManager extends BaseService {
    * @throws Error with code `JOB_PAYLOAD_TOO_LARGE` if input JSON exceeds 1MB
    */
   enqueue<K extends JobType>(type: K, input: JobPayloadOf<K>, opts: EnqueueOptions = {}): JobHandle {
+    return this.enqueueStored(type, input, opts)
+  }
+
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored schedule templates are string/unknown at their real boundary; the public enqueue API retains its registry-derived payload type.
+  private enqueueStored(type: string, input: unknown, opts: EnqueueOptions): JobHandle {
     const { handler, queueName, insertRow } = this.prepareEnqueue(type, input, opts)
 
     if (opts.idempotencyKey) {
@@ -1468,9 +1499,13 @@ export class JobManager extends BaseService {
     try {
       application.get('SchedulerService').validateTrigger(trigger)
     } catch (err) {
-      throw this.makeError(JOB_ERROR_CODES.SCHEDULE_TRIGGER_INVALID, `Invalid trigger: ${(err as Error).message}`, {
-        kind: trigger.kind
-      })
+      throw this.makeError(
+        JOB_ERROR_CODES.SCHEDULE_TRIGGER_INVALID,
+        `Invalid trigger: ${readFailureMessage(err) ?? stringifyFailure(err)}`,
+        {
+          kind: trigger.kind
+        }
+      )
     }
   }
 
@@ -1545,7 +1580,7 @@ export class JobManager extends BaseService {
 
     if (triggered) return true
     // Fallback path (non-cron OR cron not currently armed in this process).
-    this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
+    this.enqueueStored(schedule.type, schedule.jobInputTemplate, {
       scheduleId: schedule.id
     })
 
@@ -1560,7 +1595,7 @@ export class JobManager extends BaseService {
     } catch (err) {
       logger.warn('Failed to persist manual schedule fire — schedule state may be stale', {
         scheduleId: schedule.id,
-        err: (err as Error).message
+        err
       })
     }
 
@@ -1980,12 +2015,12 @@ export class JobManager extends BaseService {
           isAbort && !isTimeout
             ? {
                 code: JOB_ERROR_CODES.CANCELLED,
-                message: cancelMessage || (err as Error).message || 'Cancelled',
+                message: cancelMessage || readFailureMessage(err) || 'Cancelled',
                 retryable: false
               }
             : {
                 code: isTimeout ? JOB_ERROR_CODES.HANDLER_TIMEOUT : JOB_ERROR_CODES.HANDLER_THREW,
-                message: (err as Error).message || String(err),
+                message: readFailureMessage(err) || stringifyFailure(err),
                 retryable: true
               }
 
@@ -2026,7 +2061,7 @@ export class JobManager extends BaseService {
           try {
             await this.finalizeJob(row.id, 'failed', undefined, {
               code: JOB_ERROR_CODES.HANDLER_THREW,
-              message: `Internal leaked: ${(outerErr as Error)?.message ?? String(outerErr)}`,
+              message: `Internal leaked: ${readFailureMessage(outerErr) ?? stringifyFailure(outerErr)}`,
               retryable: false
             })
           } catch (settleErr) {
@@ -2115,7 +2150,7 @@ export class JobManager extends BaseService {
       } catch (settledErr) {
         logger.warn('handler.onSettled threw — ignoring', {
           jobId,
-          err: (settledErr as Error).message
+          err: settledErr
         })
       }
     }
@@ -2223,7 +2258,7 @@ export class JobManager extends BaseService {
       })
       await this.finalizeJob(jobId, 'failed', undefined, {
         code: JOB_ERROR_CODES.HANDLER_THREW,
-        message: `Retry persist failed: ${(retryWriteErr as Error).message}; original: ${error.message}`,
+        message: `Retry persist failed: ${readFailureMessage(retryWriteErr) ?? stringifyFailure(retryWriteErr)}; original: ${error.message}`,
         retryable: true
       })
 
@@ -2285,7 +2320,7 @@ export class JobManager extends BaseService {
         } catch (err) {
           logger.warn('Failed to clear nextRun for spent once schedule', {
             scheduleId: schedule.id,
-            err: (err as Error).message
+            err
           })
         }
       }
@@ -2323,18 +2358,15 @@ export class JobManager extends BaseService {
       const firedAt = Date.now()
 
       try {
-        this.enqueue(currentSchedule.type as JobType, currentSchedule.jobInputTemplate as never, {
+        this.enqueueStored(currentSchedule.type, currentSchedule.jobInputTemplate, {
           scheduleId: currentSchedule.id
         })
       } catch (err) {
-        const e = err as Error & { code?: string }
-        logger.error('Schedule fire failed', {
+        logger.error('Schedule fire failed', err, {
           operation: 'job.schedule.fire',
           scheduleId: currentSchedule.id,
           type: currentSchedule.type,
-          code: e.code,
-          message: e.message,
-          stack: e.stack
+          code: getErrorCode(err)
         })
       } finally {
         try {
@@ -2349,7 +2381,7 @@ export class JobManager extends BaseService {
         } catch (markErr) {
           logger.warn('markFired failed — nextRun may be stale', {
             scheduleId: schedule.id,
-            err: (markErr as Error).message
+            err: markErr
           })
         }
       }
@@ -2365,7 +2397,7 @@ export class JobManager extends BaseService {
     } catch (err) {
       logger.warn('Failed to persist nextRun after arming schedule', {
         scheduleId: schedule.id,
-        err: (err as Error).message
+        err
       })
     }
 
@@ -2499,14 +2531,14 @@ export class JobManager extends BaseService {
         } catch (err) {
           logger.warn('handler.onMissed threw — ignoring', {
             scheduleId: schedule.id,
-            err: (err as Error).message
+            err
           })
         }
       }
 
       if (action.shouldEnqueue) {
         const scheduledAt = nowMs + action.enqueueDelayMs
-        this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
+        this.enqueueStored(schedule.type, schedule.jobInputTemplate, {
           scheduleId: schedule.id,
           scheduledAt
         })
@@ -2536,13 +2568,13 @@ export class JobManager extends BaseService {
     try {
       byTtl = jobService.pruneTerminalOlderThan(cutoff)
     } catch (err) {
-      logger.error('GC: pruneTerminalOlderThan failed', { err: (err as Error).message })
+      logger.error('GC: pruneTerminalOlderThan failed', { err })
     }
 
     try {
       byCount = jobService.pruneTerminalKeepLatestPerSchedule(GC_KEEP_PER_SCHEDULE)
     } catch (err) {
-      logger.error('GC: pruneTerminalKeepLatestPerSchedule failed', { err: (err as Error).message })
+      logger.error('GC: pruneTerminalKeepLatestPerSchedule failed', { err })
     }
 
     if (byTtl + byCount > 0) {
