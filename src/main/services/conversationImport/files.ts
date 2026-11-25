@@ -22,6 +22,7 @@ export async function readJsonl(
   signal: AbortSignal
 ): Promise<{
   lines: { text: string; line: number }[]
+  unterminatedLine?: number
   fingerprint: string
   bytes: number
 }> {
@@ -49,5 +50,5 @@ export async function readJsonl(
     if (remainder.length > IMPORT_LIMITS.line) throw new Error('line_limit')
   }
   if (remainder.length) lines.push({ text: remainder.toString('utf8'), line: ++number })
-  return { lines, fingerprint: hash.digest('hex'), bytes }
+  return { lines, unterminatedLine: remainder.length ? number : undefined, fingerprint: hash.digest('hex'), bytes }
 }
