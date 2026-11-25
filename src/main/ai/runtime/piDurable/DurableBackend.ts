@@ -118,7 +118,7 @@ export class DurableBackend {
         backendId: runtimeId(context.backendId),
         openStorage: async () => root.storage,
         harness: {
-          settings: { retry: { enabled: false } },
+          settings: { retry: { enabled: false, resumeInterrupted: true } },
           telemetry: createPiTelemetry({
             isEnabled: () => application.get('PreferenceService').get('app.developer_mode.enabled'),
             getParent: (attributes) => {

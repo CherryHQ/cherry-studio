@@ -13,6 +13,8 @@ request options and usage callbacks even when their Cherry Provider is the same.
 The desktop Harness disables native provider retries for roots and children. The shared
 [gateway binding](../pi/README.md#model-requests) uses `ai-retry` before the first content chunk.
 A final failure retains its upstream error; later user input can start a new run.
+The patched Harness applies its native retry budget and backoff to generation interrupted
+by host exit so reopened work can resume.
 
 `durableDesktop.ts` installs native coding tools, codemode and tool search, Cherry's
 prompt and selected skills. `durableMcp.ts` connects Cherry-selected MCP servers through
