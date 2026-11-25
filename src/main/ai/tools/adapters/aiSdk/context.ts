@@ -120,7 +120,7 @@ export function getRequestContext(options: ToolExecutionOptions): RequestContext
 
 function isRequestContext(value: unknown): value is RequestContext {
   if (typeof value !== 'object' || value === null) return false
-  const candidate = value as Partial<RequestContext>
 
-  return typeof candidate.requestId === 'string'
+  // The typed application writer owns optional fields; this marker recovers its context across the SDK's opaque slot.
+  return 'requestId' in value && typeof value.requestId === 'string'
 }

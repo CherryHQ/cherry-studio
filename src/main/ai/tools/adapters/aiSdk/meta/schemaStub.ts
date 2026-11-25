@@ -5,7 +5,7 @@
  * signature back in one round-trip.
  */
 
-import { asSchema, type JSONSchema7 } from 'ai'
+import { asSchema, type JSONSchema7, type Tool } from 'ai'
 
 import type { ToolEntry } from '../types'
 import { schemaToJSDoc } from './formatJsDoc'
@@ -16,12 +16,11 @@ import { schemaToJSDoc } from './formatJsDoc'
  * is the shape the model actually sees inline. Returns undefined on any failure so
  * the stub degrades to a description-only signature.
  */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Opaque tool definitions also reach this helper; SDK schema conversion may fail and intentionally falls back to description-only output.
-export async function serializeToolSchema(schema: unknown): Promise<JSONSchema7 | undefined> {
+export async function serializeToolSchema(schema: Tool['inputSchema'] | undefined): Promise<JSONSchema7 | undefined> {
   if (!schema) return undefined
 
   try {
-    return await asSchema(schema as Parameters<typeof asSchema>[0]).jsonSchema
+    return await asSchema(schema).jsonSchema
   } catch {
     return undefined
   }

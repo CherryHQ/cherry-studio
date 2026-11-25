@@ -86,13 +86,13 @@ const mcpResourceReadTool = tool({
     // cannot resolve, means prompt (the execute below rejects it anyway).
     try {
       const { request } = getToolCallContext(options)
-      const { serverId, uri } = input as { serverId: string; uri: string }
+      const { serverId, uri } = input
 
       // Embedded bytes were already delivered by an authorized tool call; no server read occurs.
       if (request.mcpToolResources?.has(mcpToolResourceKey(serverId, uri))) return false
 
       const server = resolveMcpResourceServers(request.assistant, request.mcpResourceServerIds).find(
-        (candidate) => candidate.id === (input as { serverId?: string }).serverId
+        (candidate) => candidate.id === serverId
       )
 
       return server ? isMcpResourceReadForcePrompt(server) : true

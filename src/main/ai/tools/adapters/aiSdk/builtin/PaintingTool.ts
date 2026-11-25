@@ -4,11 +4,11 @@
  * The model supplies a prompt, model-supported canonical parameters, and optional image references.
  * The actual generation/editing (painting-model resolution, vendor
  * mapping, persistence) lives in the shared `painting` core so the Claude Code
- * MCP bridge runs the exact same logic; this file is just the AI-SDK `dynamicTool()`
+ * MCP bridge runs the exact same logic; this file is just the AI-SDK dynamic-tool
  * wrapper.
  */
 
-import { dynamicTool } from 'ai'
+import { tool } from 'ai'
 
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
@@ -28,17 +28,18 @@ export { GENERATE_IMAGE_TOOL_NAME }
 function buildGenerateImageTool(configuredModel?: ConfiguredPaintingModel) {
   const inputSchema = buildGenerateImageToolSchema(configuredModel?.support)
 
-  return dynamicTool({
+  return tool<unknown, PaintingResult>({
+    type: 'dynamic',
     description: GENERATE_IMAGE_DESCRIPTION,
     inputSchema,
     execute: async (input, options) => {
-      const parsed = inputSchema.parse(input) as GenerateImageToolInput
+      const parsed = inputSchema.parse(input)
 
       return configuredModel === undefined
         ? generateImageFromPrompt(parsed, getToolCallContext(options).request.abortSignal)
         : generateImageFromPrompt(parsed, getToolCallContext(options).request.abortSignal, configuredModel)
     },
-    toModelOutput: ({ output }) => paintingModelOutput(output as PaintingResult)
+    toModelOutput: ({ output }) => paintingModelOutput(output)
   })
 }
 

@@ -177,6 +177,8 @@ export async function readScopedMcpResource(
   } catch (error) {
     logger.warn('Failed to read or persist an MCP resource', { serverId: server.id, uri, error })
 
-    return { error: `Failed to read ${uri} from ${server.name}: ${(error as Error).message}` }
+    const message = error !== null && typeof error === 'object' && 'message' in error ? error.message : undefined
+
+    return { error: `Failed to read ${uri} from ${server.name}: ${message ?? String(error)}` }
   }
 }

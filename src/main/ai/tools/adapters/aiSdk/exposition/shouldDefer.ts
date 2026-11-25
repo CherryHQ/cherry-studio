@@ -66,7 +66,7 @@ async function resolveAutoDeferred(
 async function estimateAutoTokens(entries: readonly ToolEntry[]): Promise<number> {
   const perEntry = await Promise.all(
     entries.map(async (entry) => {
-      const tool = entry.tool as { description?: string; inputSchema?: unknown }
+      const tool = entry.tool
       const schema = await serializeToolSchema(tool.inputSchema)
 
       return countToolTokens({ name: entry.name, description: tool.description, schema }, tokenxTokenizer)

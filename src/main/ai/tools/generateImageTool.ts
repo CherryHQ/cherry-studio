@@ -128,9 +128,7 @@ function resolveToolModes(support: ImageGenerationSupport | null | undefined): T
 }
 
 /** Build the runtime tool contract from one model capability block. */
-export function buildGenerateImageToolSchema(
-  support: ImageGenerationSupport | null | undefined
-): z.ZodObject<Record<string, z.ZodType>> {
+export function buildGenerateImageToolSchema(support: ImageGenerationSupport | null | undefined) {
   const modes = resolveToolModes(support)
   const params = new Map<CanonicalParamKey, Array<{ mode: ToolMode; spec: SupportSpec }>>()
 
@@ -139,6 +137,7 @@ export function buildGenerateImageToolSchema(
 
     if (!modeSupports) continue
 
+    // SAFETY: The registry-owned supports record has canonical parameter keys and SupportSpec values; Object.entries loses the key union.
     for (const [key, spec] of Object.entries(modeSupports) as Array<[CanonicalParamKey, SupportSpec]>) {
       const entries = params.get(key) ?? []
       entries.push({ mode, spec })
@@ -146,15 +145,13 @@ export function buildGenerateImageToolSchema(
     }
   }
 
-  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Model capabilities add heterogeneous Zod fields after the prompt seed; the mutable builder needs the full schema value contract.
-  const inputShape: Record<string, z.ZodType> = { prompt: GENERATE_IMAGE_PROMPT_FIELD }
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- Model-selected canonical keys need heterogeneous validators; fixed prompt and edit fields keep their own types below.
+  const inputShape: Record<string, z.ZodType> = {}
 
   for (const [key, entries] of params) {
     const variants = entries.map(({ spec }) => constrainedParamSchema(key, spec))
 
-    const schema = (
-      variants.length === 1 ? variants[0] : z.union(variants as [z.ZodType, z.ZodType, ...z.ZodType[]])
-    ).describe(
+    const schema = (variants.length === 1 ? variants[0] : z.union(variants)).describe(
       describeParam(
         key,
         entries[0].spec,
@@ -164,6 +161,8 @@ export function buildGenerateImageToolSchema(
 
     inputShape[key] = schema.optional()
   }
+
+  const schema = z.object({ prompt: GENERATE_IMAGE_PROMPT_FIELD, ...inputShape }).strict()
 
   if (modes.includes('edit')) {
     const maxInputImages = editInputImageLimit(support)
@@ -175,10 +174,10 @@ export function buildGenerateImageToolSchema(
     )
 
     const editOnly = !modes.includes('generate')
-    inputShape.image_ids = editOnly ? describedImageIds : describedImageIds.optional()
+    return schema.extend({ image_ids: editOnly ? describedImageIds : describedImageIds.optional() })
   }
 
-  return z.object(inputShape).strict()
+  return schema
 }
 
 /** Fallback contract used when the configured model has no registry capability block. */

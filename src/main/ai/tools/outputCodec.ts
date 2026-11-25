@@ -49,7 +49,7 @@ export function makeEntitiesCodec({ contentKey }: { contentKey: string }): ToolO
         const item = value[index]
 
         if (typeof item !== 'object' || item === null || Array.isArray(item)) return null
-        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Probe the configured text field before validating the complete opaque entity as JSON metadata.
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the record container is known here; the field stays unknown until the string check and complete JSON validation below.
         const content = (item as Record<string, unknown>)[contentKey]
 
         if (typeof content !== 'string') return null
@@ -82,7 +82,7 @@ export function makeTextFieldCodec({ textKey }: { textKey: string }): ToolOutput
   return {
     deflate(value) {
       if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
-      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The selected field is checked first; acceptsJsonMetadata establishes the skeleton's JSON contract afterward.
+      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the record container is known here; the field stays unknown until the string check and complete JSON validation below.
       const text = (value as Record<string, unknown>)[textKey]
 
       if (typeof text !== 'string') return null

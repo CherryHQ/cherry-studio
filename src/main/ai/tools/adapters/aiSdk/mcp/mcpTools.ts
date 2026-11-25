@@ -1,6 +1,6 @@
 import type { InferSchema } from '@ai-sdk/provider-utils'
 import type { CallToolResult } from '@modelcontextprotocol/client'
-import { type JSONSchema7, type Tool } from 'ai'
+import { type JSONSchema7, tool, type Tool } from 'ai'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -57,10 +57,11 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
     type: 'mcp' as const
   }
 
-  return {
+  return tool<InferSchema<ReturnType<typeof createMcpInputSchema>>, CallToolResult>({
     type: 'function',
     description: mcpTool.description || mcpTool.name,
     metadata: { cherry: { tool: metadata } },
+    // SAFETY: MCP and AI SDK declarations model different schema dialects; the dialect-aware validator receives the unchanged server schema.
     inputSchema: createMcpInputSchema(mcpTool.inputSchema as JSONSchema7),
     needsApproval: async () => forcePrompt,
     execute: async (args: InferSchema<ReturnType<typeof createMcpInputSchema>>, options) => {
@@ -100,9 +101,9 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
     },
     toModelOutput({ output }) {
       // Model and wire capabilities are applied by the request's media routing.
-      return mcpResultToModelOutput(output as CallToolResult, mcpTool.serverId)
+      return mcpResultToModelOutput(output, mcpTool.serverId)
     }
-  }
+  })
 }
 
 function toEntry(mcpTool: McpTool, server: McpServer): ToolEntry {

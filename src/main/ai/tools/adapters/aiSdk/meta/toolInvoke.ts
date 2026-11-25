@@ -165,7 +165,7 @@ export function createToolInvokeTool(
  */
 // oxlint-disable-next-line anti-slop/no-unknown-returns -- The selected tool's validator may transform its input; execute and formatting must receive that exact value.
 async function validateParams(entry: ToolEntry, params: NonNullable<ToolInvokeInput['params']>): Promise<unknown> {
-  const validate = asSchema(entry.tool.inputSchema as Parameters<typeof asSchema>[0]).validate
+  const validate = asSchema(entry.tool.inputSchema).validate
 
   if (!validate) return params
 

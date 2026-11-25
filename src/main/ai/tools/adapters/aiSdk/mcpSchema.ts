@@ -4,14 +4,15 @@ import { jsonSchema, type JSONSchema7 } from 'ai'
 const jsonSchemaValidator = new CfWorkerJsonSchemaValidator({ shortcircuit: false })
 
 export function createMcpJsonSchemaValidator<T = unknown>(schema: JSONSchema7) {
-  const validate = jsonSchemaValidator.getValidator(schema as never)
+  // SAFETY: CfWorker honors declared Draft-07 schemas, including tuple items; the SDK parameter declaration only models 2020-12.
+  const validate = jsonSchemaValidator.getValidator<T>(schema as Parameters<typeof jsonSchemaValidator.getValidator>[0])
 
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- MCP tool inputs stay untyped until the selected server-provided JSON schema validator accepts them.
   return (value: unknown) => {
     const result = validate(value)
 
     return result.valid
-      ? { success: true as const, value: result.data as T }
+      ? { success: true as const, value: result.data }
       : { success: false as const, error: new Error(result.errorMessage) }
   }
 }

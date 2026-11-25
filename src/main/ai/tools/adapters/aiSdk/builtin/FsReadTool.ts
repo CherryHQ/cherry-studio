@@ -191,7 +191,7 @@ export async function executeFsRead(
   try {
     stats = await fsp.stat(absolutePath)
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code
+    const code = err !== null && typeof err === 'object' && 'code' in err ? err.code : undefined
 
     if (code === 'ENOENT') {
       return { kind: 'error', code: 'not-found', message: `File not found: ${requestedPath}` }

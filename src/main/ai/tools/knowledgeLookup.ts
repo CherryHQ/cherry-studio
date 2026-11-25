@@ -26,6 +26,7 @@ import * as z from 'zod'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
+import type { KnowledgeBaseDiscoveryScope } from '@main/features/knowledge/types'
 import type {
   KbGrepOutput,
   KbListInput,
@@ -777,12 +778,10 @@ async function listKnowledgeBases(
   }
 }
 
-function toKnowledgeBaseDiscoveryScope(allowedIds: readonly string[]) {
+function toKnowledgeBaseDiscoveryScope(allowedIds: readonly string[]): KnowledgeBaseDiscoveryScope {
   const [first, ...rest] = allowedIds
 
-  return first === undefined
-    ? { kind: 'unrestricted' as const }
-    : { kind: 'restricted' as const, baseIds: [first, ...rest] as readonly [string, ...string[]] }
+  return first === undefined ? { kind: 'unrestricted' } : { kind: 'restricted', baseIds: [first, ...rest] }
 }
 
 export function knowledgeListModelOutput(
@@ -889,13 +888,7 @@ function buildOutputItem(
 function deriveSampleSource(item: KnowledgeItem): string | null {
   switch (item.type) {
     case 'file': {
-      const legacyFile = (item.data as { file?: { origin_name?: string; name?: string } }).file
-
-      const value =
-        legacyFile?.origin_name?.trim() ||
-        legacyFile?.name?.trim() ||
-        item.data.source.trim() ||
-        item.data.relativePath.trim()
+      const value = item.data.source.trim() || item.data.relativePath.trim()
 
       return value ? value : null
     }
