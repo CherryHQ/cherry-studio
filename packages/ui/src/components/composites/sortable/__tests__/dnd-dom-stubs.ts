@@ -29,7 +29,8 @@ export function installDndDomStubs() {
   vi.stubGlobal('ResizeObserver', StubObserver)
   window.PointerEvent = StubPointerEvent as unknown as typeof PointerEvent
   HTMLElement.prototype.setPointerCapture = () => {}
-  window.matchMedia = () => ({ matches: false }) as MediaQueryList
+  window.matchMedia = () =>
+    ({ matches: false, addEventListener() {}, removeEventListener() {} }) as unknown as MediaQueryList
   document.elementFromPoint = () => null
   Element.prototype.scrollIntoView = () => {}
   Element.prototype.getAnimations = () => []
