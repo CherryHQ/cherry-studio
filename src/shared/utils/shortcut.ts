@@ -325,10 +325,7 @@ const getEventKeyToken = (event: KeyboardEventLike) => {
   return token && !isShortcutModifier(token) ? token : undefined
 }
 
-export const getShortcutBindingFromKeyboardEvent = (
-  event: KeyboardEventLike,
-  platform?: 'darwin' | 'win32' | 'linux'
-): ShortcutBinding => {
+export const getShortcutBindingFromKeyboardEvent = (event: KeyboardEventLike, platform?: string): ShortcutBinding => {
   const binding: ShortcutToken[] = []
 
   if (platform === 'darwin') {

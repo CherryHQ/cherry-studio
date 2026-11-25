@@ -133,6 +133,17 @@ describe('command shortcut preferences', () => {
 })
 
 describe('resolveCommandKeybinding', () => {
+  it.each(['freebsd', 'constructor'])('keeps platform restrictions and base bindings for %s', (platform) => {
+    expect(getCommandDefaultShortcutPreference('tab.open_1', platform)?.binding).toEqual(['Alt', '1'])
+    expect(
+      resolveCommandKeybinding({
+        command: 'screenshot.capture',
+        context: { 'feature.screenshot.enabled': true },
+        platform
+      })
+    ).toBeUndefined()
+  })
+
   it('uses user preference when provided', () => {
     const resolved = resolveCommandKeybinding({
       command: 'topic.create',

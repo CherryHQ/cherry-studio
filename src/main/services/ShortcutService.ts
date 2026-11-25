@@ -11,19 +11,16 @@ import type {
   PreferenceKeyType,
   PreferenceShortcutType
 } from '@shared/data/preference/preferenceTypes'
+import { isPreferenceKey } from '@shared/data/preference/preferenceUtils'
 import { IpcChannel } from '@shared/IpcChannel'
-import type {
-  CommandShortcutPreferenceKey,
-  ContextReader,
-  ContextValue,
-  SupportedPlatform
-} from '@shared/types/command'
+import type { CommandShortcutPreferenceKey, ContextReader, ContextValue } from '@shared/types/command'
 import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
 import {
   collectContextKeys,
   type CommandId,
   evaluateContextExpr,
   findCommandDefinition,
+  isPlatformSupported,
   REGISTERED_KEYBINDINGS,
   resolveCommandByKeybinding,
   resolveCommandKeybinding
@@ -47,7 +44,7 @@ const relevantKeybindings = mainKeybindings.filter(
     !(isMac && rule.command === 'app.settings.open') &&
     // The native app menu owns the window-close accelerator on macOS.
     rule.command !== 'app.window.close' &&
-    (!rule.supportedPlatforms || rule.supportedPlatforms.includes(process.platform as SupportedPlatform))
+    isPlatformSupported(rule, process.platform)
 )
 
 const globalKeybindings = relevantKeybindings.filter((rule) => rule.global)
@@ -59,9 +56,7 @@ const contextKeys = Array.from(
     globalKeybindings.flatMap((rule) => {
       const command = findCommandDefinition(rule.command)
 
-      return [...collectContextKeys(command?.enablement), ...collectContextKeys(rule.when)].filter(
-        (key) => key !== 'platform'
-      )
+      return [...collectContextKeys(command?.enablement), ...collectContextKeys(rule.when)].filter(isPreferenceKey)
     })
   )
 )
@@ -123,7 +118,7 @@ export class ShortcutService extends BaseService {
 
     for (const key of contextKeys) {
       this.registerDisposable(
-        preferenceService.subscribeChange(key as PreferenceKeyType, () => {
+        preferenceService.subscribeChange(key, () => {
           logger.debug(`Shortcut dependency changed: ${key}`)
           this.reregisterShortcuts()
         })
@@ -145,12 +140,15 @@ export class ShortcutService extends BaseService {
         const context: ContextReader = (key) => {
           if (key === 'platform') return process.platform
 
-          return toContextValue(preferenceService.get(key as PreferenceKeyType))
+          return isPreferenceKey(key) ? toContextValue(preferenceService.get(key)) : undefined
         }
 
-        const preferences = Object.fromEntries(
-          localKeybindings.map((rule) => [rule.command, preferenceService.get(rule.preferenceKey)])
-        ) as Partial<Record<CommandId, PreferenceShortcutType>>
+        const preferences: Partial<Record<CommandId, PreferenceShortcutType>> = Object.fromEntries(
+          localKeybindings.map((rule): [CommandId, PreferenceShortcutType] => [
+            rule.command,
+            preferenceService.get(rule.preferenceKey)
+          ])
+        )
 
         const command = resolveCommandByKeybinding({
           binding: getShortcutBindingFromKeyboardEvent(
@@ -162,11 +160,11 @@ export class ShortcutService extends BaseService {
               altKey: input.alt,
               shiftKey: input.shift
             },
-            process.platform as SupportedPlatform
+            process.platform
           ),
           preferences,
           context,
-          platform: process.platform as SupportedPlatform,
+          platform: process.platform,
           scope: 'main',
           canExecuteCommand: (candidate) => localCommands.has(candidate) && this.handlers.has(candidate)
         })
@@ -225,7 +223,7 @@ export class ShortcutService extends BaseService {
         return process.platform
       }
 
-      return toContextValue(preferenceService.get(key as PreferenceKeyType))
+      return isPreferenceKey(key) ? toContextValue(preferenceService.get(key)) : undefined
     }
 
     for (const rule of globalKeybindings) {
@@ -235,13 +233,13 @@ export class ShortcutService extends BaseService {
         continue
       }
 
-      const rawPref = preferenceService.get(rule.preferenceKey) as PreferenceShortcutType | undefined
+      const rawPref = preferenceService.get(rule.preferenceKey)
 
       const resolved = resolveCommandKeybinding({
         command: rule.command,
         preference: rawPref,
         context,
-        platform: process.platform as SupportedPlatform
+        platform: process.platform
       })
 
       if (!resolved?.enabled || !resolved.binding.length) continue
@@ -281,7 +279,10 @@ export class ShortcutService extends BaseService {
         try {
           globalShortcut.unregister(accelerator)
         } catch (error) {
-          logger.debug(`Failed to unregister shortcut accelerator: ${accelerator}`, error as Error)
+          logger.debug(
+            `Failed to unregister shortcut accelerator: ${accelerator}`,
+            typeof error === 'object' || error === undefined ? error : { error }
+          )
         }
 
         this.registeredAccelerators.delete(accelerator)
@@ -327,7 +328,10 @@ export class ShortcutService extends BaseService {
       try {
         globalShortcut.unregister(accelerator)
       } catch (error) {
-        logger.debug(`Failed to unregister shortcut accelerator: ${accelerator}`, error as Error)
+        logger.debug(
+          `Failed to unregister shortcut accelerator: ${accelerator}`,
+          typeof error === 'object' || error === undefined ? error : { error }
+        )
       }
     }
 

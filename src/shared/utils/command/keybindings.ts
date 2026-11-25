@@ -16,7 +16,7 @@ export interface ResolveCommandKeybindingOptions {
   command: CommandId
   preference?: PreferenceShortcutType | null
   context: ContextReader
-  platform?: SupportedPlatform
+  platform?: string
 }
 
 export interface ResolvedCommandKeybinding {
@@ -36,7 +36,7 @@ export interface ResolveCommandByKeybindingOptions {
   binding: ShortcutBinding
   preferences?: Partial<Record<CommandId, PreferenceShortcutType | null | undefined>>
   context: ContextReader
-  platform?: SupportedPlatform
+  platform?: string
   scope?: CommandScope
   canExecuteCommand?: (command: CommandId) => boolean
 }
@@ -141,9 +141,12 @@ const getRuleBaseBinding = (defaultBinding: PlatformDefaultBinding): ShortcutBin
 
 const getRulePlatformBinding = (
   defaultBinding: PlatformDefaultBinding,
-  platform?: SupportedPlatform
+  platform?: string
 ): ShortcutBinding | undefined => {
-  if (!platform || !isPlatformBindingMap(defaultBinding)) {
+  if (
+    (platform !== 'darwin' && platform !== 'win32' && platform !== 'linux') ||
+    !isPlatformBindingMap(defaultBinding)
+  ) {
     return undefined
   }
 
@@ -163,7 +166,7 @@ const getSharedDefaultBinding = (rule: RegisteredKeybindingRule): ShortcutBindin
 
 const getDefaultShortcutPreferenceForRule = (
   rule: RegisteredKeybindingRule,
-  platform?: SupportedPlatform
+  platform?: string
 ): ResolvedCommandShortcutPreference => {
   const fallback = DefaultPreferences.default[rule.preferenceKey]
   const platformBinding = getRulePlatformBinding(rule.defaultBinding, platform)
@@ -182,7 +185,7 @@ const getDefaultShortcutPreferenceForRule = (
 const resolvePreferredBinding = (
   rule: RegisteredKeybindingRule,
   preference: PreferenceShortcutType | null | undefined,
-  platform?: SupportedPlatform
+  platform?: string
 ): ShortcutBinding | undefined => {
   if (preference == null) {
     return undefined
@@ -204,7 +207,7 @@ const resolvePreferredBinding = (
 
 export const getCommandDefaultShortcutPreference = (
   command: CommandId,
-  platform?: SupportedPlatform
+  platform?: string
 ): ResolvedCommandShortcutPreference | undefined => {
   const rule = findKeybindingRule(command)
 
@@ -218,7 +221,7 @@ export const getCommandDefaultShortcutPreference = (
 export const resolveCommandShortcutPreference = (
   command: CommandId,
   preference?: PreferenceShortcutType | null,
-  platform?: SupportedPlatform
+  platform?: string
 ): ResolvedCommandShortcutPreference | undefined => {
   const rule = findKeybindingRule(command)
 
