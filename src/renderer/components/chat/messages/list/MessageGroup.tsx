@@ -284,13 +284,38 @@ const MessageGroup = ({
         : Math.abs(horizontalWheelDelta) > Math.abs(verticalWheelDelta)
           ? horizontalWheelDelta
           : 0
+      if (horizontalDelta !== 0) {
+        for (let scroller = target; scroller && scroller !== groupContainer; scroller = scroller.parentElement) {
+          const limit = scroller.scrollWidth - scroller.clientWidth
+          if (limit <= 0) continue
+          const { overflowX, overscrollBehaviorX, direction } = getComputedStyle(scroller)
+          if (!/^(auto|scroll|overlay)$/.test(overflowX)) continue
+          const position = direction === 'rtl' ? limit + scroller.scrollLeft : scroller.scrollLeft
+          const canScroll = horizontalDelta < 0 ? position > 0 : Math.ceil(position) < limit
+          if (!canScroll && overscrollBehaviorX !== 'contain' && overscrollBehaviorX !== 'none') continue
+
+          // A shifted vertical wheel is not translated to horizontal scrolling on every platform.
+          if (event.shiftKey && horizontalWheelDelta === 0) {
+            event.preventDefault()
+            event.stopPropagation()
+            if (canScroll)
+              scroller.scrollLeft += normalizeWheelDelta(event.deltaY, event.deltaMode, scroller.clientWidth)
+          }
+          return
+        }
+      }
+
       const inMessageColumn = Boolean(target?.closest('.message-content-container'))
 
       // Column owns vertical while it can scroll. At its boundary the group's
       // overflow-y:hidden blocks chaining, so forward vertical-dominant wheels
       // to the list runtime — but keep dominant-horizontal pans on the row.
       if (inMessageColumn) {
-        if (verticalWheelDelta !== 0 && findVerticalWheelConsumer(target, verticalWheelDelta, groupContainer)) {
+        if (
+          !event.shiftKey &&
+          verticalWheelDelta !== 0 &&
+          findVerticalWheelConsumer(target, verticalWheelDelta, groupContainer)
+        ) {
           return
         }
         if (horizontalDelta === 0) {
