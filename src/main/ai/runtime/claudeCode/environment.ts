@@ -90,18 +90,17 @@ export type ClaudeSlotTrustMode = 'sdk-dialect' | 'gateway-forwarding'
  * trusted. Without a model record (primary path) the provider default stands in.
  *
  * `sdk-dialect` prefers Anthropic Messages when configured (direct Claude SDK
- * routes). `gateway-forwarding` matches `buildAgentParams` / gateway routing and
- * uses `endpointTypes[0]` without that preference.
+ * routes). Internal Claude gateway requests also prefer Anthropic Messages in
+ * `resolveGatewayRequest`, so `gateway-forwarding` uses the same preference.
  */
 export function isTrustedClaudeSlot(
   provider?: Provider | null,
   model?: Model | null,
-  trustMode: ClaudeSlotTrustMode = 'sdk-dialect'
+  _trustMode: ClaudeSlotTrustMode = 'sdk-dialect'
 ): boolean {
   if (provider == null) return false
   if (model == null) return isTrustedClaudeChannel(provider)
-  const preferredEndpoint = trustMode === 'sdk-dialect' ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
-  const endpoint = resolveEffectiveEndpoint(provider, model, preferredEndpoint).endpointType
+  const endpoint = resolveEffectiveEndpoint(provider, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType
   return isTrustedClaudeEndpoint(
     provider,
     endpoint,
