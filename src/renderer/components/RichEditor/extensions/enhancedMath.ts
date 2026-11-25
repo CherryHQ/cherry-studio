@@ -77,6 +77,7 @@ const backslashMath = (block: boolean) => {
         if (lexingProtectedSpans) return undefined
 
         if (block) {
+          // SAFETY: Our @tiptap/markdown patch exposes the original active Marked lexer; core's helper declaration omits it.
           const { lexer } = helper as typeof helper & {
             lexer?: {
               blockTokens?: (src: string, tokens?: MarkdownToken[], lastParagraphClipped?: boolean) => MarkdownToken[]
@@ -143,6 +144,7 @@ const backslashMath = (block: boolean) => {
             /[`<@]|(?:https?|ftp):\/\/|www\.|(?:^|[^\\])(?:\\\\)*\[/i.test(src)
 
           if (needsMask) {
+            // SAFETY: The patched helper carries the active Marked lexer's options identity and reference links, which core's declaration omits.
             const lexer = (helper as typeof helper & { lexer?: { options: object; tokens: { links: unknown } } }).lexer
             const instance = lexer?.options ?? helper
             const references = JSON.stringify(lexer?.tokens.links ?? {})

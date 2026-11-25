@@ -19,9 +19,7 @@ interface EnhancedImageOptions extends ImageOptions {
 // Enhanced Image extension that emits events for image upload
 export const EnhancedImage = Image.extend<EnhancedImageOptions>({
   addOptions() {
-    // @tiptap/extension-image@3.26 made `inline`/`resize` required options. Spreading the
-    // optional `this.parent?.()` widens them to optional, so cast back to our extended
-    // option type — the parent extension always provides the real defaults at runtime.
+    // SAFETY: Image.extend inherits complete parent defaults, including inline/resize; the optional parent declaration loses that guarantee.
     return {
       ...this.parent?.(),
       allowBase64: true,
@@ -82,7 +80,7 @@ export const EnhancedImage = Image.extend<EnhancedImageOptions>({
   },
 
   addExtensions() {
-    const base = (this.parent?.() as any[]) || []
+    const base = this.parent?.() ?? []
 
     return [
       ...base,

@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
 import { MenuList } from '@cherrystudio/ui'
+import { getEventTargetNode } from '@renderer/utils/dom'
 
 export interface ActionMenuItem {
   key: string
@@ -27,7 +28,7 @@ export const ActionMenu: FC<ActionMenuProps> = ({ show, position, items, onClose
     if (!show) return
 
     const onDocMouseDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      if (ref.current && !ref.current.contains(getEventTargetNode(e.target))) {
         onClose()
       }
     }

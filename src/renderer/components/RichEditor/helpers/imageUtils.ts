@@ -131,6 +131,7 @@ export async function getImageInfo(file: File): Promise<{
 export async function blobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
+    // SAFETY: This private reader only calls readAsArrayBuffer; successful load supplies that mode's ArrayBuffer result.
     reader.onload = () => resolve(reader.result as ArrayBuffer)
     reader.onerror = () => reject(new Error('读取 Blob 失败'))
     reader.readAsArrayBuffer(blob)

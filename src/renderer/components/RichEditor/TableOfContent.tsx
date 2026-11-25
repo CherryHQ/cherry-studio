@@ -15,15 +15,10 @@ export const ToCItem: React.FC<ToCItemProps> = ({ item, onItemClick }) => {
   const isActive = item.isActive
   const isScrolledOver = item.isScrolledOver
   const className = `toc-item ${isActive ? 'is-active' : ''} ${isScrolledOver ? 'is-scrolled-over' : ''}`
+  const itemStyle: React.CSSProperties & { '--level': number } = { '--level': item.level }
 
   return (
-    <div
-      className={className}
-      style={
-        {
-          '--level': item.level
-        } as React.CSSProperties
-      }>
+    <div className={className} style={itemStyle}>
       <a href={`#${item.id}`} onClick={(e) => onItemClick(e, item.id)} data-item-index={item.itemIndex}>
         {item.textContent}
       </a>
@@ -93,7 +88,7 @@ export const ToC: React.FC<ToCProps> = ({ items = [], editor, scrollContainerRef
     e.preventDefault()
 
     if (editor && scrollContainerRef?.current) {
-      const element = editor.view.dom.querySelector(`[data-toc-id="${id}"]`) as HTMLElement
+      const element = editor.view.dom.querySelector(`[data-toc-id="${id}"]`)
 
       if (element) {
         const container = scrollContainerRef.current

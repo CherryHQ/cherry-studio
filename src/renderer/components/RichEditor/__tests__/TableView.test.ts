@@ -60,7 +60,7 @@ async function mountTable(widths: [unknown, unknown]) {
 }
 
 describe('RichEditor table DOM boundaries', () => {
-  it('uses the minimum width for a malformed imported column without corrupting valid widths', async () => {
+  it('uses minimum widths consistently in live and serialized tables with a malformed imported column', async () => {
     const view = await mountTable([80, 'invalid-width'])
     const columns = view.colgroup.querySelectorAll('col')
 
@@ -68,6 +68,14 @@ describe('RichEditor table DOM boundaries', () => {
     expect(columns[1].style.minWidth).toBe('40px')
     expect(view.table.style.minWidth).toBe('120px')
     expect(view.table.style.width).toBe('')
+
+    const html = editors.at(-1)?.getHTML()
+    if (!html) throw new Error('Expected the mounted table document')
+    const exported = new DOMParser().parseFromString(html, 'text/html')
+    const exportedColumns = exported.querySelectorAll('col')
+    expect(exportedColumns[0].style.width).toBe('80px')
+    expect(exportedColumns[1].style.minWidth).toBe('40px')
+    expect(exported.querySelector('table')?.style.minWidth).toBe('120px')
   })
 
   it('recognizes adopted action elements while leaving text mutations to the editor', async () => {

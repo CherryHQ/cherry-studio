@@ -12,6 +12,7 @@ export interface CodeBlockHighlightOptions extends CodeBlockOptions {
 
 export const CodeBlockHighlight = CodeBlock.extend<CodeBlockHighlightOptions>({
   addOptions() {
+    // SAFETY: The actual CodeBlock parent supplies enableTabIndentation/tabSize defaults; its optional parent declaration erases their required presence.
     return {
       ...this.parent?.(),
       languageClassPrefix: 'language-',

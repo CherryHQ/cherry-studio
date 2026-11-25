@@ -29,8 +29,8 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
         key: new PluginKey('placeholder'),
         props: {
           decorations: ({ doc, selection }) => {
-            // Tiptap keeps this plugin instance when React updates editor options, so
-            // read the currently configured extension instead of the creation-time options.
+            // Tiptap reuses this plugin across React option updates, so read the current extension options.
+            // SAFETY: This app registers its own named Placeholder extension; Tiptap's current extension registry erases the configured option generic.
             const options =
               (this.editor.options.extensions.find((extension) => extension.name === this.name)?.options as
                 | PlaceholderOptions

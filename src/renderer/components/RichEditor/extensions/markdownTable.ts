@@ -17,6 +17,7 @@ export const MarkdownTable = Table.extend({
   markdownTokenName: 'table',
 
   parseMarkdown(token, helpers) {
+    // SAFETY: Tiptap dispatches Marked's table tokens here; their native header/rows/cell.tokens contract is erased by MarkdownToken.
     const tableToken = token as MarkdownToken & {
       header?: Array<{ tokens?: MarkdownToken[] }>
       rows?: Array<Array<{ tokens?: MarkdownToken[] }>>

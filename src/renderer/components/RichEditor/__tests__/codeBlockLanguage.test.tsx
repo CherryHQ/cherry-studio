@@ -1,4 +1,4 @@
-import { cleanup, render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { useRef } from 'react'
@@ -31,6 +31,24 @@ afterEach(async () => {
 })
 
 describe('code block language search', () => {
+  it('displays malformed language attributes as plain text without dropping the code', async () => {
+    const { result } = renderHook(() => useRef<RichEditorRef>(null))
+    const ref = result.current
+    const source = 'const answer = 42'
+    render(<RichEditor ref={ref} initialContent={'```text\noriginal\n```'} autoFocus={false} />)
+    await screen.findByRole('button', { name: 'Language' })
+
+    act(() => {
+      ref.current?.executeCommand('setContent', {
+        type: 'doc',
+        content: [{ type: 'codeBlock', attrs: { language: 42 }, content: [{ type: 'text', text: source }] }]
+      })
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Language' })).toHaveTextContent('text'))
+    expect(ref.current?.getContent()).toContain(source)
+  })
+
   it('filters languages and preserves the selected language and code through a Markdown round trip', async () => {
     const user = userEvent.setup()
     const { result } = renderHook(() => useRef<RichEditorRef>(null))

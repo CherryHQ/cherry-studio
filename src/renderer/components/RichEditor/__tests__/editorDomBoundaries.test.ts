@@ -60,7 +60,10 @@ describe('editor native DOM boundaries', () => {
     nested.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: popupText }))
     expect(hoverEnd).not.toHaveBeenCalled()
 
-    nested.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: window }))
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    elements.push(frame)
+    nested.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: frame.contentWindow }))
     expect(hoverEnd).toHaveBeenCalledTimes(1)
     nested.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
     nested.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: null }))
@@ -101,7 +104,10 @@ describe('editor native DOM boundaries', () => {
     expect(editor.state.selection.$from.parent.type.name).toBe('paragraph')
     expect(editor.state.selection.$from.parent.content.size).toBe(0)
 
-    editor.view.dom.dispatchEvent(new MouseEvent('mouseleave', { relatedTarget: window }))
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    elements.push(frame)
+    editor.view.dom.dispatchEvent(new MouseEvent('mouseleave', { relatedTarget: frame.contentWindow }))
     button.click()
     expect(editor.state.doc.childCount).toBe(2)
   })

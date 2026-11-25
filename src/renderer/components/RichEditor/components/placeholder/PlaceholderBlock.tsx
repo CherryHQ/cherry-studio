@@ -49,12 +49,12 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ icon, message, onCl
         minHeight: 80
       }}
       onMouseEnter={(e) => {
-        const target = e.currentTarget as HTMLElement
+        const target = e.currentTarget
         target.style.borderColor = colors.hoverBorder
         target.style.backgroundColor = colors.hoverBackground
       }}
       onMouseLeave={(e) => {
-        const target = e.currentTarget as HTMLElement
+        const target = e.currentTarget
         target.style.borderColor = colors.border
         target.style.backgroundColor = colors.background
       }}>

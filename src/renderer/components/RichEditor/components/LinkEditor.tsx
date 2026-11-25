@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Flex, Input } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { getEventTargetElement, getEventTargetNode } from '@renderer/utils/dom'
 
 interface LinkEditorProps {
   /** Whether the editor is visible */
@@ -63,10 +64,15 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
     if (!visible) return
 
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement
+      const target = getEventTargetNode(event.target)
+      const element = getEventTargetElement(event.target)
 
       // Don't close if clicking within the editor or on a link
-      if (containerRef.current?.contains(target) || target.closest('a[href]') || target.closest('[data-link-editor]')) {
+      if (
+        containerRef.current?.contains(target) ||
+        element?.closest('a[href]') ||
+        element?.closest('[data-link-editor]')
+      ) {
         return
       }
 
