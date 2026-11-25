@@ -189,7 +189,11 @@ const normalizeAspectRatio = (value: JSONValue | undefined): `${number}:${number
   if (typeof value !== 'string') return undefined
   const normalized = value.replace(/^ASPECT_/i, '').replace('_', ':')
 
-  return /^\d+:\d+$/.test(normalized) ? (normalized as `${number}:${number}`) : undefined
+  if (!/^\d+:\d+$/.test(normalized) || !normalized.split(':').every((part) => Number.isFinite(Number(part))))
+    return undefined
+
+  // SAFETY: The pattern gives two decimal text members and both numeric conversions are finite; provider support remains unchecked.
+  return normalized as `${number}:${number}`
 }
 
 const normalizeImageSize = (value: JSONValue | undefined) => {

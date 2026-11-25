@@ -495,6 +495,58 @@ describe('CherryIN Anthropic strict tools', () => {
 })
 
 describe('CherryIN Google image options', () => {
+  it.each([`${'9'.repeat(400)}:1`, `1:${'9'.repeat(400)}`])(
+    'uses the SDK default ratio for numeric overflow: %s',
+    async (aspectRatio) => {
+      let requestBody = ''
+      const fetch: typeof globalThis.fetch = async (_input, init) => {
+        requestBody = String(init?.body)
+        return new Response(JSON.stringify({ predictions: [{ bytesBase64Encoded: 'IMG' }] }), {
+          headers: { 'content-type': 'application/json' }
+        })
+      }
+      const result = await createCherryIn({ apiKey: 'test-key', fetch })
+        .image('imagen-4.0-generate-001')
+        .doGenerate({
+          prompt: 'a fox',
+          n: 1,
+          size: undefined,
+          aspectRatio: undefined,
+          seed: undefined,
+          files: undefined,
+          mask: undefined,
+          providerOptions: { cherryin: { aspectRatio } }
+        })
+      expect(result.images).toEqual(['IMG'])
+      expect(JSON.parse(requestBody).parameters.aspectRatio).toBe('1:1')
+    }
+  )
+
+  it.each([
+    { aspectRatio: 'ASPECT_0_1', normalized: '0:1' },
+    { aspectRatio: 'ASPECT_016_09', normalized: '016:09' },
+    { aspectRatio: '7:5', normalized: '7:5' }
+  ])('leaves finite ratio support validation to the SDK: $aspectRatio', async ({ aspectRatio, normalized }) => {
+    const fetch: typeof globalThis.fetch = async () =>
+      new Response(JSON.stringify({ predictions: [{ bytesBase64Encoded: 'IMG' }] }), {
+        headers: { 'content-type': 'application/json' }
+      })
+    await expect(
+      createCherryIn({ apiKey: 'test-key', fetch })
+        .image('imagen-4.0-generate-001')
+        .doGenerate({
+          prompt: 'a fox',
+          n: 1,
+          size: undefined,
+          aspectRatio: undefined,
+          seed: undefined,
+          files: undefined,
+          mask: undefined,
+          providerOptions: { cherryin: { aspectRatio } }
+        })
+    ).rejects.toMatchObject({ argument: 'providerOptions', cause: { value: { aspectRatio: normalized } } })
+  })
+
   it.each([
     { imageConfig: { imageSize: '4K', aspectRatio: '1:1' }, imageSize: undefined, expectedSize: '4K' },
     { imageConfig: { imageSize: '4K', aspectRatio: '1:1' }, imageSize: '2k', expectedSize: '2K' },
