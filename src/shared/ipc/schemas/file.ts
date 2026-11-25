@@ -187,7 +187,11 @@ export const fileRequestSchemas = {
   // `activate` releases the buffered mutations once the renderer mirror is listening.
   // See docs/dev/references/file/directory-tree.md.
   'file.tree.create': defineRoute({
-    input: z.strictObject({ rootPath: AbsoluteFilePathSchema, options: DirectoryTreeOptionsSchema.optional() }),
+    input: z.strictObject({
+      rootPath: AbsoluteFilePathSchema,
+      options: DirectoryTreeOptionsSchema.optional(),
+      refresh: z.boolean().optional()
+    }),
     // Output schemas are not parsed at runtime, and `SerializedTreeNode` is recursive —
     // mirror it as a type instead of hand-writing a `z.lazy` shape nobody validates.
     output: z.custom<CreateTreeIpcResult>()

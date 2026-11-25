@@ -21,7 +21,7 @@ await tab.goto('https://example.com')
 await tab.getAXState()
 ```
 
-`computer.getApp(nameOrId)` returns an application proxy and emits initial AX state. Proxies retain target identity, not native resources. A new run must observe again before acting; stale Computer refs cannot survive an action. The host rechecks permission and ownership for each call, including rebinding. Scope remains the conversation's browser pane and authorized desktop applications.
+`computer.getApp(nameOrId)` returns an application proxy and emits initial AX state. Proxies retain target identity, not native resources. A new run must observe again before acting; stale Computer refs cannot survive an action. The host rechecks permission and ownership for each call, including rebinding. Browser proxies keep their exact page binding despite user selection. `browser.listTabs()` enumerates only the conversation’s pages; `browser.getTab({ tabId })` acquires one and `browser.newTab(url)` creates an independent page. Scope remains the conversation’s browser pages and authorized desktop applications.
 
 Browser actions do not automatically capture AX state. Explicit observations return bounded full trees, so internal snapshots cannot consume a model-facing diff baseline. Computer refs include an observation generation. Screenshot-only observations do not grant element refs. Computer AX output uses `tree.elements` and byte-bounded pages from one captured snapshot. `getAXState({ cursor })` consumes the next page without native recapture, revalidating the task and app lease. Actions, fresh observations and rebinding invalidate cursors; only delivered nodes receive usable refs. Native `tree.truncated` and output pagination remain separate. The JS return retains its display outline, but model output emits only structured nodes to avoid doubling the budget. Initial binding uses a smaller page to leave room for documentation; read one page per cell. Browser and Computer usage instructions are versioned in [Browser API](../../../../resources/skills/cherry-browser/references/api.md) and [Computer API](../../../../resources/skills/cherry-computer/references/api.md), emitted once per surface and available again through `documentation()`.
 
@@ -116,7 +116,7 @@ for launch. Existing running applications remain usable.
 
 Browser navigation keeps caller cancellation across guest replacement and binds
 subsequent navigation commands to the new guest. The completed result explicitly
-invalidates the old tab handle; the model must reacquire the conversation tab.
+invalidates the old tab handle; the model must reacquire the returned tab ID with `browser.getTab({ tabId: result.tabId })`.
 
 Initial tab observations blocked by a dialog still return the tab handle and dialog
 metadata, allowing `handleDialog()` recovery. Result-formatting errors from guest

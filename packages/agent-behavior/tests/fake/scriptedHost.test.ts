@@ -19,14 +19,16 @@ const call = { thread, key: callKeyOf('call-1') }
 const tool = { callId: 'call-1', callKey: call.key, name: 'bash', args: {} }
 
 describe('scripted host', () => {
-  // Catches a host that answers instantly, which would make Stage B's awaiting-approval rules (D23, slot counting) untestable.
-  it('keeps an unanswered approval pending and visible until an answer is queued', async () => {
+  // Catches a host that answers instantly, which would make a stop during a pending approval (G-C1) untestable.
+  it('keeps an unanswered approval pending until an answer is queued', async () => {
     const host = createScriptedHost({ settings })
+    let settled = false
     const answer = host.approvals.ask({ call, tool, presentation: 'stream' }, new AbortController().signal)
-    expect(await host.approvals.outcomes(thread, [])).toEqual([{ call, state: 'pending' }])
+    void answer.then(() => (settled = true))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(settled).toBe(false)
     host.answerApproval({ kind: 'denied', feedback: 'no' })
     expect(await answer).toEqual({ kind: 'denied', feedback: 'no' })
-    expect(await host.approvals.outcomes(thread, [call])).toEqual([{ call, state: 'denied', feedback: 'no' }])
     expect(host.asked.approvals).toBe(1)
   })
 
@@ -40,14 +42,13 @@ describe('scripted host', () => {
     expect(await host.questions.ask({ call, questions: [] }, signal)).toEqual({ status: 'unavailable' })
   })
 
-  // Catches an aborted ask that lingers as pending and keeps a goal waiting on a person who was never asked.
-  it('rejects an aborted ask and drops its pending outcome', async () => {
+  // Catches an aborted ask that never settles, so the turn's stop would wait on a person who was never asked.
+  it('rejects an aborted ask', async () => {
     const host = createScriptedHost({ settings })
     const controller = new AbortController()
     const answer = host.approvals.ask({ call, tool, presentation: 'stream' }, controller.signal)
     controller.abort(new Error('turn stopped'))
     await expect(answer).rejects.toThrow('turn stopped')
-    expect(await host.approvals.outcomes(thread, [])).toEqual([])
   })
 
   // Catches an aborted ask that stays queued and swallows the next answer meant for a live ask.
@@ -60,22 +61,6 @@ describe('scripted host', () => {
     const live = host.questions.ask({ call, questions: [] }, new AbortController().signal)
     host.answerQuestion({ status: 'declined' })
     expect(await live).toEqual({ status: 'declined' })
-  })
-
-  // Catches outcomes leaking across conversations or ignoring the requested calls, which would hand a goal another thread's approval state.
-  it('reports outcomes only for the asked thread and calls', async () => {
-    const host = createScriptedHost({ settings })
-    const other = { thread, key: callKeyOf('call-2') }
-    const elsewhere = { thread: 'u' as ThreadId, key: call.key }
-    const signal = new AbortController().signal
-    void host.approvals.ask({ call, tool, presentation: 'stream' }, signal)
-    void host.approvals.ask({ call: other, tool, presentation: 'stream' }, signal)
-    void host.approvals.ask({ call: elsewhere, tool, presentation: 'stream' }, signal)
-    expect(await host.approvals.outcomes(thread, [other])).toEqual([{ call: other, state: 'pending' }])
-    expect(await host.approvals.outcomes(thread, [])).toEqual([
-      { call, state: 'pending' },
-      { call: other, state: 'pending' }
-    ])
   })
 
   // Catches content-addressed saves that fail or move on a rerun, which design §6.3 P5 relies on being harmless.

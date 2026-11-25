@@ -89,9 +89,9 @@ it('switches registries, browses subsequent raw offsets, searches and installs t
   expect(await screen.findByText('PDF tools')).toBeVisible()
   expect(screen.queryByText('React patterns')).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /remove subscription/i })).not.toBeInTheDocument()
-  expect(urls).toContain('https://claude-plugins.dev/api/skills?limit=20&offset=1')
+  expect(urls).toContain('https://api.claude-plugins.dev/api/skills/search?limit=20&offset=1')
   await user.type(screen.getByRole('textbox', { name: 'Search skills' }), 'pdf')
-  await waitFor(() => expect(urls).toContain('https://claude-plugins.dev/api/skills?q=pdf&limit=20'))
+  await waitFor(() => expect(urls).toContain('https://api.claude-plugins.dev/api/skills/search?q=pdf&limit=20'))
   await user.click(await screen.findByRole('button', { name: /PDF tools Work with PDF/ }))
   await user.click(screen.getByRole('button', { name: 'Install now' }))
   await waitFor(() =>

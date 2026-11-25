@@ -61,6 +61,18 @@ jobs:
           PLATFORM: ${{ inputs.platform }}
         run: echo "targets=$(node scripts/release/targets.js "$PLATFORM")" >> "$GITHUB_OUTPUT"
 
+      - name: Check out preview source interface
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ steps.source.outputs.source_sha }}
+          path: preview-source
+
+      - name: Validate preview tool preparation interface
+        shell: bash
+        run: |
+          node -e 'const tools = require("./preview-source/scripts/download-binaries.js"); if (tools.PACKAGING_DOWNLOAD_VERSION !== 1) throw new Error("Preview source does not support packaging tool assets v1"); require("node:fs").accessSync("preview-source/scripts/release/prepare-tools.js")'
+
   bundle:
     name: Build JS ${{ matrix.edition }}
     needs: resolve
@@ -214,6 +226,31 @@ jobs:
       - name: Verify JS bundle
         run: node scripts/release/js-bundle.js verify ${{ matrix.edition }}
 
+      - name: Locate bundled tool asset cache
+        id: tools
+        shell: bash
+        run: node scripts/release/prepare-tools.js cache-info ${{ matrix.target.platform }} ${{ matrix.target.arch }} >> "$GITHUB_OUTPUT"
+
+      - name: Restore bundled tool assets
+        id: tool-assets
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.tools.outputs.path }}
+          key: ${{ steps.tools.outputs.key }}
+          restore-keys: ${{ steps.tools.outputs.prefix }}
+
+      - name: Prepare bundled tools
+        run: node scripts/release/prepare-tools.js prepare ${{ matrix.target.platform }} ${{ matrix.target.arch }}
+        env:
+          CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
+
+      - name: Save bundled tool assets
+        if: matrix.edition == 'global' && steps.tool-assets.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.tools.outputs.path }}
+          key: ${{ steps.tool-assets.outputs.cache-primary-key }}
+
       - name: Enable Linux ARM64 addon builds
         if: matrix.target.platform == 'linux' && matrix.target.arch == 'arm64'
         uses: docker/setup-qemu-action@v3
@@ -226,6 +263,7 @@ jobs:
           sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
           pnpm exec electron-builder --linux --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
+          CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Build Mac
@@ -234,6 +272,7 @@ jobs:
           sudo -H pip install setuptools
           pnpm exec electron-builder --mac --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
+          CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -246,6 +285,7 @@ jobs:
         if: matrix.target.platform == 'windows'
         run: pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
+          CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           NODE_OPTIONS: --max-old-space-size=8192
 

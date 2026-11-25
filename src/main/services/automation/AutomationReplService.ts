@@ -7,12 +7,12 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase, Signal } from '@main/core/lifecycle'
 import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
 import type { UtilityProcessInstance } from '@main/core/utilityProcess/types'
 import type { BrowserControlSession } from '@main/features/browser'
 import type { ComputerUseTask } from '@main/services/ComputerUseService'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { ComputerUseApp } from '@shared/ipc/schemas/computerUse'
 
 import browserDocumentation from '../../../../resources/skills/cherry-browser/references/api.md?raw'
@@ -46,6 +46,7 @@ const MAX_SESSIONS = 16
 const READ_OPERATIONS = new Set([
   'documentation',
   'getTab',
+  'listTabs',
   'getAXState',
   'getScreenshot',
   'getAXStateAndScreenshot',
@@ -326,7 +327,9 @@ export class AutomationReplService extends BaseService {
               }
               if (
                 !documentedInCell.has(domain) &&
-                (name === 'documentation' || ((name === 'getTab' || name === 'getApp') && !state.documents.has(domain)))
+                (name === 'documentation' ||
+                  ((name === 'getTab' || name === 'newTab' || name === 'listTabs' || name === 'getApp') &&
+                    !state.documents.has(domain)))
               ) {
                 documents.push({
                   type: 'text',

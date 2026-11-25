@@ -1,8 +1,9 @@
 /**
  * Build-script coverage for download-binaries.js: the `zip-tree` extraction mode
  * (real extraction against a committed fixture, no fs mocking — the platform
- * unzip/Expand-Archive branch actually runs), the shippability rules in
- * verifyBundledBinaries, and the shared-cache linking and reclaim logic.
+ * unzip branch actually runs), the in-process Windows zip extraction that
+ * replaced Expand-Archive, the shippability rules in verifyBundledBinaries, and
+ * the shared-cache linking and reclaim logic.
  */
 import * as fs from 'node:fs'
 import { createRequire } from 'node:module'
@@ -15,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   cachedVersionDir,
   extract,
+  extractZipArchive,
   materialize,
   sweepUnreferencedVersions,
   TOOLS,
@@ -40,10 +42,10 @@ afterEach(() => {
 })
 
 describe('extract – zip-tree mode', () => {
-  it('extracts the full directory tree under pkg.dir', () => {
+  it('extracts the full directory tree under pkg.dir', async () => {
     const outputDir = makeTmpDir('dl-zip-tree-')
 
-    extract(FIXTURE_ZIP, 'zip-tree', outputDir, { dir: 'git' })
+    await extract(FIXTURE_ZIP, 'zip-tree', outputDir, { dir: 'git' })
 
     // Whole tree preserved, not just listed binaries.
     expect(fs.readFileSync(path.join(outputDir, 'git', 'cmd', 'git.txt'), 'utf8')).toBe('fake git launcher\n')
@@ -52,16 +54,79 @@ describe('extract – zip-tree mode', () => {
     )
   })
 
-  it('wipes a stale tree before extracting so old-version files cannot linger', () => {
+  it('wipes a stale tree before extracting so old-version files cannot linger', async () => {
     const outputDir = makeTmpDir('dl-zip-tree-stale-')
     const staleFile = path.join(outputDir, 'git', 'cmd', 'stale-from-old-version.txt')
     fs.mkdirSync(path.dirname(staleFile), { recursive: true })
     fs.writeFileSync(staleFile, 'leftover', 'utf8')
 
-    extract(FIXTURE_ZIP, 'zip-tree', outputDir, { dir: 'git' })
+    await extract(FIXTURE_ZIP, 'zip-tree', outputDir, { dir: 'git' })
 
     expect(fs.existsSync(staleFile)).toBe(false)
     expect(fs.existsSync(path.join(outputDir, 'git', 'cmd', 'git.txt'))).toBe(true)
+  })
+})
+
+describe('extractZipArchive – in-process Windows zip extraction', () => {
+  it('extracts the whole fixture tree, nested payload included', async () => {
+    const dest = makeTmpDir('dl-extract-zip-')
+
+    await extractZipArchive(FIXTURE_ZIP, dest)
+
+    expect(fs.readFileSync(path.join(dest, 'cmd', 'git.txt'), 'utf8')).toBe('fake git launcher\n')
+    expect(fs.readFileSync(path.join(dest, 'mingw64', 'bin', 'tool.txt'), 'utf8')).toBe('fake mingw payload\n')
+  })
+
+  it('throws naming the archive on corrupt input instead of silently producing an empty tree', async () => {
+    const dir = makeTmpDir('dl-extract-zip-junk-')
+    const junk = path.join(dir, 'corrupt.zip')
+    fs.writeFileSync(junk, 'definitely not a zip archive')
+    const dest = path.join(dir, 'out')
+
+    let thrown: unknown
+    try {
+      await extractZipArchive(junk, dest)
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toContain('failed to extract corrupt.zip')
+    expect((thrown as Error).cause).toBeInstanceOf(Error)
+    expect(fs.readdirSync(dest)).toEqual([])
+  })
+})
+
+describe('extract – zip mode on Windows', () => {
+  /** Run `fn` as if on win32; extraction is in-process, so the branch runs on any host. */
+  async function asWindows(fn: () => Promise<void>) {
+    const realPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    try {
+      await fn()
+    } finally {
+      Object.defineProperty(process, 'platform', realPlatform)
+    }
+  }
+
+  it('extracts in-process and copies the declared binary out of the stripped prefix', async () => {
+    const outputDir = makeTmpDir('dl-zip-win32-')
+
+    await asWindows(() => extract(FIXTURE_ZIP, 'zip', outputDir, { binaries: ['git.txt'], strip: 'cmd' }))
+
+    expect(fs.readFileSync(path.join(outputDir, 'git.txt'), 'utf8')).toBe('fake git launcher\n')
+    // Only the declared binaries land in outputDir — the temp tree is cleaned up.
+    expect(fs.readdirSync(outputDir)).toEqual(['git.txt'])
+  })
+
+  it('fails as extraction when a declared binary is missing, not as a downstream copy ENOENT', async () => {
+    const outputDir = makeTmpDir('dl-zip-win32-missing-')
+
+    await expect(
+      asWindows(() => extract(FIXTURE_ZIP, 'zip', outputDir, { binaries: ['git.exe'], strip: 'cmd' }))
+    ).rejects.toThrow(/archive mingit-tree\.zip did not contain cmd\/git\.exe/)
+    // The finally cleanup still ran: no __extract_tmp debris survives the throw.
+    expect(fs.readdirSync(outputDir)).toEqual([])
   })
 })
 

@@ -2,6 +2,9 @@ import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import { isGemini3Model, isGemini4Model } from '@shared/utils/model'
+
+import type { RequestFeature } from '../feature'
 
 const logger = loggerService.withContext('skipGeminiThoughtSignaturePlugin')
 
@@ -86,10 +89,6 @@ const createSkipGeminiThoughtSignaturePlugin = () =>
       context.middlewares.push(createSkipGeminiThoughtSignatureMiddleware())
     }
   })
-
-import { isGemini3Model, isGemini4Model } from '@shared/utils/model'
-
-import type { RequestFeature } from '../feature'
 
 /** Inject thought_signature on tool calls for Gemini 3/4 via OpenAI-compat API. */
 export const skipGeminiThoughtSignatureFeature: RequestFeature = {

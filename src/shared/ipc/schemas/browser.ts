@@ -15,6 +15,7 @@ export const browserRequestSchemas = {
     input: z.strictObject({
       sessionId: z.uuid(),
       scope: z.enum(['agent', 'topic']).optional(),
+      pageId: z.uuid(),
       webviewId: z.number().int().positive()
     }),
     output: z.strictObject({ tabId: z.uuid() })
@@ -63,6 +64,21 @@ export type BrowserEventSchemas = {
     expiresAt: number
   }
   'browser.cursor.state': BrowserCursorState
-  'browser.guest.ensure_requested': { sessionId: string; scope?: 'agent' | 'topic'; url?: string }
-  'browser.pane.open_requested': { sessionId: string; scope?: 'agent' | 'topic'; url?: string }
+  'browser.guest.ensure_requested': {
+    sessionId: string
+    scope?: 'agent' | 'topic'
+    url?: string
+    pageId: string
+    action: 'create' | 'navigate'
+    activate: boolean
+  }
+  'browser.pane.open_requested': { sessionId: string; scope?: 'agent' | 'topic'; url?: string; pageId?: string }
+  'browser.page.execution': {
+    sessionId: string
+    scope: 'agent' | 'topic'
+    pageId: string
+    tabId: string
+    executing: boolean
+    webviewId: number
+  }
 }

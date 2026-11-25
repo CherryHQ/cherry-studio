@@ -8,7 +8,6 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   isAgentSessionWorkspaceError,
   prepareAgentSessionWorkspaceDirectory
@@ -18,6 +17,7 @@ import type { Disposable } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
@@ -400,10 +400,6 @@ export class ChannelMessageHandler {
         return
       }
 
-      // TODO(channel-perm-override): channel-level permission_mode used to mutate
-      // session.configuration in-place; with config now living on agent, this
-      // override needs to flow as a per-dispatch option instead. Tracked separately.
-
       const workDir = session.workspace?.path
       const hasAttachments = !!(message.images?.length || message.files?.length)
       if (hasAttachments) {
@@ -536,8 +532,6 @@ export class ChannelMessageHandler {
     try {
       switch (command.command) {
         case 'new': {
-          // TODO(channel-perm-override): channel.permissionMode no longer
-          // applied here — config lives on agent now. Tracked separately.
           const newSession = this.createSessionForConversation(agentId, adapter.channelId, conversationIdOf(command))
           const trackerKey = conversationKey(agentId, adapter.channelId, conversationIdOf(command))
           this.sessionTracker.set(trackerKey, newSession.id)
@@ -898,11 +892,16 @@ export class ChannelMessageHandler {
     }
 
     try {
+      const channel = channelService.getChannel(adapter.channelId)
+      if (!channel?.isActive || channel.agentId !== session.agentId) {
+        throw new AgentSessionRunNotStartedError('session-invalid')
+      }
       const started = await startAgentSessionRun({
         sessionId: session.id,
         userParts,
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
         headless: true,
+        permissionModeOverride: channel.permissionMode ?? undefined,
         requireIdle: { expectedAgentId: session.agentId }
       })
       // No durable channel queue exists; fail visibly rather than retaining an in-memory waiter.

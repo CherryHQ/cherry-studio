@@ -22,14 +22,21 @@ fi
 
 # Relative paths work for both Git Bash and native Windows curl/jq.
 TEMP_DIR=$(mktemp -d .gitcode-sync.XXXXXX)
-trap 'rm -rf "$TEMP_DIR"' EXIT
+pids=()
+cleanup() {
+  for pid in ${pids[@]+"${pids[@]}"}; do kill "$pid" 2>/dev/null || true; done
+  wait || true
+  rm -rf "$TEMP_DIR"
+}
+trap cleanup EXIT
 jq -n --arg tag "$TAG" --arg name "$RELEASE_NAME" --arg status "$RELEASE_STATUS" \
   --rawfile body release_body.txt \
   '{tag_name: $tag, name: $name, body: $body, target_commitish: "main"} |
    if $status == "" then . else .release_status = $status end' > "$TEMP_DIR/payload.json"
 
 if [ "${RELEASE_FROM_COS:-false}" = "true" ]; then
-  mapfile -t assets < release-assets.txt
+  assets=()
+  while IFS= read -r file; do assets+=("$file"); done < release-assets.txt
 else
   assets=(release-assets/*)
 fi
@@ -62,14 +69,16 @@ curl --fail-with-body -sS --connect-timeout 30 --max-time 60 -X "$METHOD" \
   -H "Authorization: Bearer $GITCODE_TOKEN" -H 'Content-Type: application/json; charset=utf-8' \
   --data-binary "@$TEMP_DIR/payload.json" "$URL" > "$TEMP_DIR/release.json"
 
-upload_file() {
+upload_file() (
   local file="$1" filename encoded_filename info upload_url attempt
+  local work
+  work=$(mktemp -d "$TEMP_DIR/asset.XXXXXX")
   filename=$(basename "$file")
   encoded_filename=$(printf '%s' "$filename" | jq -sRr @uri)
   if [ "${RELEASE_FROM_COS:-false}" = "true" ] && [ "${RELEASE_VIA_SCF:-false}" != "true" ]; then
     echo "Downloading $filename from COS"
-    python "$(dirname "$0")/release-cos.py" get-asset "$file" "$TEMP_DIR/$filename"
-    file="$TEMP_DIR/$filename"
+    python "$(dirname "$0")/release-cos.py" get-asset "$file" "$work/$filename"
+    file="$work/$filename"
   fi
   for attempt in 1 2 3; do
     echo "Uploading $filename (attempt $attempt/3)"
@@ -79,9 +88,9 @@ upload_file() {
     elif [ "${RELEASE_VIA_SCF:-false}" = "true" ]; then
       if python "$(dirname "$0")/gitcode-scf.py" upload "$file" <<< "$info"; then return 0; fi
     elif upload_url=$(jq -er '.url | select(length > 0)' <<< "$info") &&
-      jq -r '.headers | to_entries[] | "header = " + ((.key + ": " + .value) | tojson)' <<< "$info" > "$TEMP_DIR/headers" &&
-      curl --fail -sS --connect-timeout 30 --max-time 3600 -X PUT -K "$TEMP_DIR/headers" \
-        --data-binary "@$file" "$upload_url" > "$TEMP_DIR/upload-response"; then
+      jq -r '.headers | to_entries[] | "header = " + ((.key + ": " + .value) | tojson)' <<< "$info" > "$work/headers" &&
+      curl --fail -sS --connect-timeout 30 --max-time 3600 -X PUT -K "$work/headers" \
+        --data-binary "@$file" "$upload_url" > "$work/upload-response"; then
       if [ "${RELEASE_FROM_COS:-false}" = "true" ]; then rm "$file"; fi
       return 0
     fi
@@ -89,13 +98,25 @@ upload_file() {
   done
   echo "Failed to upload $filename after three attempts" >&2
   return 1
+)
+
+wait_uploads() {
+  local failed=0 pid
+  for pid in ${pids[@]+"${pids[@]}"}; do
+    if ! wait "$pid"; then failed=1; fi
+  done
+  pids=()
+  return "$failed"
 }
 
 # Publish update pointers only after their packages are available.
 for file in "${assets[@]}"; do
   case "$file" in *.yml|*.yaml|*.json) continue ;; esac
-  upload_file "$file"
+  upload_file "$file" &
+  pids+=("$!")
+  if [ "${#pids[@]}" = 4 ]; then wait_uploads; fi
 done
+wait_uploads
 for file in "${assets[@]}"; do
   case "$file" in *.yml|*.yaml|*.json) upload_file "$file" ;; esac
 done

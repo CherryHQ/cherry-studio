@@ -119,6 +119,7 @@ export function useChatRuntimeState({
   composerModelId,
   onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
+  const [scrollToBottomOnSend] = usePreference('chat.message.scroll_to_bottom_on_send')
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
@@ -478,6 +479,8 @@ export function useChatRuntimeState({
   finishRef.current = handleExecutionFinish
 
   const shouldRenderHomeComposer = false
+  const isTurnBusy =
+    isTopicStreamPending || isTopicAwaitingApproval || turnPhase === 'persisting' || turnPhase === 'opening'
 
   const { actions: chatWriteActions, retryFailedMessage } = useChatWriteActions({
     topic,
@@ -490,12 +493,7 @@ export function useChatRuntimeState({
     cache,
     seedReservedMessages,
     scrollToBottom,
-    startNewContextBlocked:
-      isHistoryLoading ||
-      isTopicStreamPending ||
-      isTopicAwaitingApproval ||
-      turnPhase === 'persisting' ||
-      turnPhase === 'opening',
+    startNewContextBlocked: isHistoryLoading || isTurnBusy,
     assistant,
     composerModelId
   })
@@ -515,20 +513,21 @@ export function useChatRuntimeState({
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
         const sent = await send({ text, options })
-        if (sent) scrollToBottom()
+        if (sent && scrollToBottomOnSend) scrollToBottom()
         return sent
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [scrollToBottom, send]
+    [scrollToBottom, scrollToBottomOnSend, send]
   )
 
   return {
     messages: displayMessages,
     partsByMessageId,
     streamingLayers,
+    isTurnBusy,
     shouldRenderHomeComposer,
     chatWriteActions,
     bindMessageListRuntime,

@@ -1,10 +1,10 @@
 import { application } from '@application'
-import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import type { ConversationCompletedEvent, ConversationUnsuccessfulEvent } from '@main/ai/streamManager'
 import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { stripCitationMarkers } from '@main/ai/utils/citationIds'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
+import { extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import { CONVERSATION_NOTIFICATION_ACTION_KEY } from '@shared/types/notification'
 

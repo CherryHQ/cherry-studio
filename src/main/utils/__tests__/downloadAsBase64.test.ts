@@ -1,9 +1,13 @@
 import { net } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { fetchRemoteBytesWithUrl } from '../remoteFetch'
+
+vi.mock('../remoteFetch', () => ({ fetchRemoteBytesWithUrl: vi.fn() }))
+
 const mockNetFetch = vi.mocked(net.fetch)
 
-const { downloadImageAsBase64 } = await import('../downloadAsBase64')
+const { downloadImageAsBase64, downloadPublicImageAsBase64, MAX_FILE_SIZE_BYTES } = await import('../downloadAsBase64')
 
 function binaryResponse(bytes: Uint8Array, headers: Record<string, string> = {}): Response {
   return {
@@ -99,5 +103,34 @@ describe('downloadImageAsBase64', () => {
     mockNetFetch.mockResolvedValue(binaryResponse(PDF_BYTES, { 'content-type': 'image/png' }))
 
     await expect(downloadImageAsBase64('https://example.com/download')).resolves.toBeNull()
+  })
+})
+
+describe('downloadPublicImageAsBase64', () => {
+  it('uses bounded public fetching and returns validated image bytes', async () => {
+    const url = 'https://example.com/generated'
+    const signal = new AbortController().signal
+    vi.mocked(fetchRemoteBytesWithUrl).mockResolvedValueOnce({
+      body: Buffer.from(WEBP_BYTES),
+      headers: { 'content-type': 'application/octet-stream' },
+      url: 'https://example.com/generated.webp'
+    })
+
+    await expect(downloadPublicImageAsBase64(url, signal)).resolves.toEqual({
+      data: Buffer.from(WEBP_BYTES).toString('base64'),
+      media_type: 'image/webp'
+    })
+    expect(fetchRemoteBytesWithUrl).toHaveBeenCalledWith(url, {
+      allowPrivateNetwork: false,
+      maxRedirects: 3,
+      maxBytes: MAX_FILE_SIZE_BYTES,
+      signal
+    })
+  })
+
+  it('returns no image when the public download fails', async () => {
+    vi.mocked(fetchRemoteBytesWithUrl).mockRejectedValueOnce(new Error('HTTP error: 403'))
+
+    await expect(downloadPublicImageAsBase64('https://example.com/generated')).resolves.toBeNull()
   })
 })

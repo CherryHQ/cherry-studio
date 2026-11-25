@@ -3,6 +3,7 @@ import type { ComponentProps, PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as SettingsPrimitives from '@renderer/components/SettingsPrimitives'
 import { toast } from '@renderer/services/toast'
 
 import ApiGatewaySettings from '../ApiGatewaySettings'
@@ -62,7 +63,8 @@ vi.mock('@renderer/components/icons/GatewayIcon', () => ({
   GatewayIcon: () => <span />
 }))
 
-vi.mock('@renderer/components/SettingsPrimitives', () => ({
+vi.mock('@renderer/components/SettingsPrimitives', async (importOriginal) => ({
+  SettingsPageHeader: (await importOriginal<typeof SettingsPrimitives>()).SettingsPageHeader,
   SettingGroup: ({ children }: PropsWithChildren) => <section>{children}</section>,
   SettingRowTitle: ({ children }: PropsWithChildren) => <div>{children}</div>,
   SettingsContentColumn: ({ children }: PropsWithChildren) => <div>{children}</div>,

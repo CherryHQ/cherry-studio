@@ -12,6 +12,7 @@ The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, in
 | `cases.ts` | Case IDs, titles, task tags, phases, required capabilities, and selection |
 | `cli.ts`, `phases.ts` | CLI entry points and one Playwright invocation per selected phase |
 | `installation.ts`, `artifacts.ts` | Release installation, asset selection, and hashing |
+| `installationEvidence.ts` | Artifact identity record written by both run modes, plus its archive assertion |
 | `macRuntime.ts` | Isolated Developer ID signing for macOS development notification tests |
 | `windowsNotificationShortcut.ts` | Register the SDK shortcut with the Windows shell and remove the unchanged owned copy |
 | `lifecycle.ts` | Start, reuse, restart, and stop the owned application |
@@ -45,6 +46,7 @@ rechecking ownership. A surviving unknown process still blocks termination.
 Before each new CDP connection, including scenario reconnections, the controller prepares Windows targets by closing non-main windows. Both branch and installer launches enable the main-process inspector for this compatibility step.
 Pre-main restart dialogs can use that verified inspector owner before CDP is ready; command and
 runner ancestry checks still apply. Electron termination continues to require CDP ownership.
+After verified Windows processes exit, the controller waits up to 60 seconds for the CDP listener to disappear. If it remains, the error reports the listener PID.
 Windows native dialogs can expose their controls as UIA panes. The adapters match
 native classes and control IDs inside owned windows, and verify address-bar focus
 with Win32 `GetGUIThreadInfo` before sending the directory-navigation key.
@@ -115,18 +117,27 @@ and settings rather than the developer's CLI configuration. Before each UI conne
 the controller verifies the owned process's home, temporary and CLI configuration paths
 and Windows AppData path. It rejects an older running instance whose paths escape the profile.
 
-For branch runs selecting `all`, the workflow closes the regression instance and reuses the same build
-for the standalone smoke suite with isolated per-test profiles and no retries. Each platform's
-smoke HTML/JSON report is bundled separately and its counts appear in the aggregate summary.
-A failed smoke run fails both platform and aggregate jobs; release-installer runs use the regression suite.
-For a narrower branch run, set `settings_search_smoke=true` to add only
-`tests/e2e/smoke/settingsSearchKeepOpen.test.ts` after the selected regression cases.
+For OpenClaw coverage, the disposable Windows runner puts the pinned Node.js directory first in the machine PATH.
+Cherry Studio discovers system CLIs from the registry PATH, so the workflow checks the Node version and executes
+`openclaw config schema` using that same PATH before launching the application.
+
+Manual branch runs select `suite=all` (default), `suite=regression`, or `suite=smoke`.
+`task` applies only to desktop regression. Select `suite=regression` for a focused
+run without standalone smoke. Scheduled branch runs select both suites.
+Branch runs build the application once per platform. The desktop regression and
+standalone smoke jobs independently restore the matching build and prepare native
+dependencies on their own runners. Standalone smoke uses isolated per-test profiles
+and no retries. Each desktop regression job uploads its sanitized report as soon
+as it finishes. The aggregate bundles the expected suite and platform reports,
+and blocks a passing verdict if a selected job fails or a required report is missing.
+Release tags use the installer
+for regression with `suite=all` or `suite=regression`. Standalone smoke requires a branch checkout.
 
 The workflow keeps one separately timed step per phase (21 today). Failed steps remain failed;
 explicit `!cancelled()` guards allow later phases to collect results. The GitHub reporter runs after
 credential redaction and annotates failed cases before the final report is available. Each phase calls
 `run-phase`; the controller intersects it with the selected task and returns immediately for unselected phases.
-The owned application remains available between phases; the workflow stops it after all phases, before standalone smoke and final cleanup.
+The owned application remains available between phases; the workflow stops it after all phases, before uploading the regression report.
 `cases.ts` is the execution manifest. Each case declares `tasks`: the first entry is
 its module task, followed by any focused tasks. Module names follow the case library's
 modules, using English kebab-case without execution-order prefixes. For example,
@@ -171,7 +182,7 @@ Capability probes are preflight checks, not evidence that a product interaction 
 
 ## Combined report
 
-Initialize with `--provider-mode real` (default) or `--provider-mode mock`. Mock runs
+Mock runs
 call `mock-start --run-dir ...` before preflight and launch. The controller uses the
 exact aiMock version in `package.json` and `pnpm-lock.yaml`, binds a free loopback
 port, and records PID, token, port and version in `mock.json`. It verifies the worker
@@ -179,12 +190,11 @@ command, listener and authenticated identity before reuse. `mock-stop` and `clea
 stop only the recorded worker, including when application cleanup fails. Workflow
 cleanup runs with `always()`; runner teardown remains the fallback on hard cancellation.
 
-JSON, Markdown and JUnit reports retain the configured provider mode and mock version.
+JSON, Markdown and JUnit reports retain the mock provider provenance and version.
 Mock verdicts use `mock_*`, including tag runs; they are not release acceptance.
-Aggregation blocks missing provider provenance, mixed real/mock platforms, or evidence
-that differs from the requested mode. Older reports without provider provenance must
-be rerun. Cases using their own fixtures record `data-source` annotations, retained in
-JSON and platform Markdown, even when the configured backend is real.
+Aggregation blocks missing mock provider provenance or service versions. Older reports
+without this provenance must be rerun. Cases using their own fixtures record `data-source` annotations, retained in
+JSON and platform Markdown.
 
 The aggregate job publishes `test-report`. Download and extract
 it, then open `index.html` to browse every platform and phase in one HTML
@@ -199,6 +209,14 @@ assembly, or upload fails, temporary artifacts are retained for diagnosis.
 When the platform jobs succeeded, an aggregate-only rerun can recover missing
 temporary artifacts from the previous bundle. Failed platform jobs never fall
 back to old evidence. Rerunning a job replaces its same-named artifact.
+
+Every run must publish `evidence/<platform>/release/installation.json`, the record of the
+binary that was exercised: `release-installer` for a tag run (installer name, SHA-256,
+installed executable) and `source-checkout` for a branch run (commit, ref, target checkout).
+Without it a verdict cannot be attributed to an artifact, so `verify-evidence --run-dir`
+fails the platform job before its upload, and `verify-evidence --aggregate-root` fails the
+aggregate job before `test-report` is published. Both run as their own steps so the
+evidence upload still happens and the incomplete bundle stays downloadable for triage.
 
 Each phase retains a blob report with a platform/phase-specific filename. The aggregate
 job uses Playwright's built-in `merge-reports` with an explicit test root for cross-OS

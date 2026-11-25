@@ -4,9 +4,9 @@ import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryUiModule from '@cherrystudio/ui'
+import type { AvailableChannel } from '@renderer/components/channel/channelTypes'
 
 import ChannelDetail from '../ChannelDetail'
-import type { AvailableChannel } from '../channelTypes'
 
 const channelMocks = vi.hoisted(() => ({
   channels: [] as Array<Record<string, unknown>>,
@@ -17,7 +17,7 @@ const channelMocks = vi.hoisted(() => ({
 }))
 
 const agentMocks = vi.hoisted(() => ({
-  agents: [{ id: 'agent-1', name: 'Agent One' }]
+  agents: [] as Array<Record<string, unknown>>
 }))
 
 vi.mock('@logger', () => ({
@@ -141,6 +141,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       </div>
     ),
     DialogContent: passthrough('div'),
+    DialogDescription: passthrough('p'),
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('h2'),
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
@@ -220,10 +221,19 @@ describe('ChannelDetail', () => {
     available: true,
     defaultConfig: { token_path: '', allowed_chat_ids: [] }
   }
+  const qqChannelDef: AvailableChannel = {
+    type: 'qq',
+    name: 'QQ',
+    titleKey: 'agent.channels.qq.title',
+    description: 'agent.channels.qq.description',
+    available: true,
+    defaultConfig: { app_id: '', client_secret: '', allowed_chat_ids: [] }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
     HTMLElement.prototype.scrollIntoView = vi.fn()
+    agentMocks.agents = [{ id: 'agent-1', name: 'Agent One', type: 'claude-code', configuration: {} }]
     channelMocks.channels = [
       {
         id: 'channel-1',
@@ -438,6 +448,27 @@ describe('ChannelDetail', () => {
     }
   })
 
+  it('preserves a QQ allowlist saved just before changing mention-only in the same stale dialog', async () => {
+    const user = userEvent.setup()
+    let saved = { app_id: 'app-id', client_secret: 'secret', allowed_chat_ids: [] as string[], mention_only: true }
+    channelMocks.channels = [{ ...channelMocks.channels[0], type: 'qq', config: saved }]
+    const applyUpdate = async (
+      _id: string,
+      { config, configPatch }: { config?: typeof saved; configPatch?: Partial<typeof saved> }
+    ) => {
+      saved = config ?? { ...saved, ...configPatch }
+      return { ...channelMocks.channels[0], config: saved }
+    }
+    channelMocks.updateChannel.mockImplementationOnce(applyUpdate).mockImplementationOnce(applyUpdate)
+    render(<ChannelDetail channelDef={qqChannelDef} />)
+    await user.click(await screen.findByRole('button', { name: 'common.edit' }))
+
+    await user.type(screen.getByPlaceholderText('agent.channels.qq.chatIdsPlaceholder'), 'chat-1')
+    await user.click(screen.getByRole('switch', { name: 'agent.channels.qq.mentionOnlyLabel' }))
+
+    await waitFor(() => expect(saved).toMatchObject({ allowed_chat_ids: ['chat-1'], mention_only: false }))
+  })
+
   it('keeps the mention toggle when a companion Feishu field is saved while updates are pending', async () => {
     const user = userEvent.setup()
     const config = { app_id: 'app-id', app_secret: 'old-secret', mention_only: true, allowed_chat_ids: [] }
@@ -488,6 +519,20 @@ describe('ChannelDetail', () => {
     }
   })
 
+  // Pi has no Plan mode; a saved Plan override made every inbound turn on the channel fail.
+  it('offers only the permission modes the bound Agent runtime can run', async () => {
+    agentMocks.agents = [{ id: 'agent-1', name: 'Agent One', type: 'pi', configuration: {} }]
+    channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'default' }]
+    render(<ChannelDetail channelDef={channelDef} />)
+
+    const editTooltip = await screen.findByText('common.edit')
+    fireEvent.click(within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button'))
+    await screen.findByDisplayValue('Telegram channel')
+
+    expect(screen.getByText('agent.settings.tooling.permissionMode.acceptEdits.title')).toBeInTheDocument()
+    expect(screen.queryByText('agent.settings.tooling.permissionMode.plan.title')).not.toBeInTheDocument()
+  })
+
   it('sends null permissionMode when clearing an existing override to inherit', async () => {
     render(<ChannelDetail channelDef={channelDef} />)
 
@@ -499,7 +544,7 @@ describe('ChannelDetail', () => {
     expect(nameInput).toHaveFocus()
     expect(nameInput.selectionStart).toBe(nameInput.selectionEnd)
 
-    fireEvent.click(screen.getByText('agent.channels.security.inheritFromAgent'))
+    fireEvent.click(screen.getByText('agent.channels.security.inheritFromAgentMode'))
 
     await waitFor(() => {
       expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', { permissionMode: null })

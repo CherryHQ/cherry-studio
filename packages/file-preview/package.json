@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/file-preview",
-  "version": "0.3.0",
+  "version": "0.5.2",
   "description": "Portable read-only document preview for Cherry Studio",
   "license": "MIT",
   "repository": {
@@ -35,9 +35,11 @@
     "build": "vite build",
     "prepack": "pnpm build",
     "test": "pnpm --workspace-root test:pkg:file-preview",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/file-preview/tsconfig.json"
   },
   "dependencies": {
+    "katex": "0.16.22",
+    "yaml": "^2.8.1",
     "zod": "^4.1.5"
   },
   "devDependencies": {
@@ -51,7 +53,7 @@
     "echarts": "^6.1.0",
     "exceljs": "^4.4.0",
     "fast-formula-parser": "^1.0.19",
-    "fast-xml-parser": "5.5.6",
+    "fast-xml-parser": "5.12.1",
     "i18next": "^23.11.5",
     "jszip": "^3.10.1",
     "lucide-react": "^0.545.0",

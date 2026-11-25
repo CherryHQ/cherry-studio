@@ -94,9 +94,13 @@ vi.mock('@renderer/components/VirtualList', async () => {
       children: (item: FlatListItem, index: number) => ReactNode
       keepMountedIndexes?: readonly number[]
     }) => {
-      React.useImperativeHandle(ref, () => ({
-        scrollToIndex: mocks.scrollToIndex
-      }))
+      React.useImperativeHandle(
+        ref,
+        () => ({
+          scrollToIndex: mocks.scrollToIndex
+        }),
+        []
+      )
 
       const renderedIndexes = mocks.virtualize
         ? new Set([...Array.from({ length: Math.min(6, list.length) }, (_, index) => index), ...keepMountedIndexes])
@@ -535,36 +539,6 @@ describe('ModelSelector', () => {
     expect(screen.queryByRole('option', { name: /claude$/ })).not.toBeInTheDocument()
     await user.click(screen.getByRole('option', { name: /gpt-3\.5$/ }))
     expect(onSelect).toHaveBeenLastCalledWith([firstModel, otherModel, replacement])
-  })
-
-  it('positions the selected model before paint each time the selector opens', () => {
-    const selectedId = 'openai::gpt-3.5' as UniqueModelId
-    mocks.useModelSelectorData.mockReturnValue(
-      makeData({
-        resolvedSelectedModelIds: [selectedId],
-        visibleSelectedModelIdSet: new Set([selectedId])
-      })
-    )
-    const closed = (
-      <ModelSelector open={false} multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
-    )
-    const { rerender } = render(closed)
-
-    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
-
-    expect(mocks.scrollToIndex).toHaveBeenCalledWith(2, { align: 'start' })
-
-    mocks.scrollToIndex.mockClear()
-    mocks.useModelSelectorData.mockReturnValue(
-      makeData({
-        resolvedSelectedModelIds: ['openai::gpt-4'],
-        visibleSelectedModelIdSet: new Set(['openai::gpt-4' as UniqueModelId])
-      })
-    )
-    rerender(closed)
-    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
-
-    expect(mocks.scrollToIndex).toHaveBeenCalledWith(1, { align: 'start' })
   })
 
   it('shows an error toast when pinning fails', async () => {

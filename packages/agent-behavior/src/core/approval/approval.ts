@@ -7,7 +7,12 @@ import type { ApprovalAnswer, ApprovalHostFacts, Attendance, PermissionMode } fr
 /** What the gate does with one call (D34): run it (perhaps with rewritten arguments), ask a person, or block it. */
 export type ApprovalDecision =
   | { readonly kind: 'allow'; readonly args?: JsonValue }
-  | { readonly kind: 'ask'; readonly presentation: 'stream' | 'message'; readonly args?: JsonValue }
+  | {
+      readonly kind: 'ask'
+      readonly presentation: 'stream' | 'message'
+      readonly args?: JsonValue
+      readonly details?: JsonValue
+    }
   | { readonly kind: 'block'; readonly reason: string }
 
 const REJECTED_HEADER =
@@ -30,6 +35,14 @@ export const deniedReason = (feedback?: string): string => {
   return said
     ? `${REJECTED_HEADER} To tell you how to proceed, the user said:\n${said}`
     : `${REJECTED_HEADER} Wait for the user's instructions instead of retrying it.`
+}
+
+/** The approval answer the gate blocked `result`'s call for, read from its history; undefined for any other result. */
+export function blockedByApproval(
+  result: Extract<HistoryEntry, { kind: 'tool-result' }>
+): 'denied' | 'unavailable' | undefined {
+  if (result.blocked === NOBODY_TO_APPROVE) return 'unavailable'
+  return result.blocked?.startsWith(REJECTED_HEADER) ? 'denied' : undefined
 }
 
 /** Plan mode is the host's `plan` permission mode or an active `cherry.plan` record (PR-3d adds the tools that write it). */
@@ -82,6 +95,7 @@ export function decideApproval(
   plan: PlanState | undefined
 ): ApprovalDecision {
   let mode = permissionMode
+  if (host.mandatoryBlock) return { kind: 'block', reason: host.mandatoryBlock }
   if (host.disabled) return { kind: 'block', reason: `Tool "${call.tool}" is disabled for this agent.` }
   if (host.sqliteGuard) return { kind: 'block', reason: host.sqliteGuard }
   if (host.delegation === 'unattended')
@@ -114,7 +128,12 @@ export function decideApproval(
             : UNATTENDED
     }
   }
-  return { kind: 'ask', presentation: attendance === 'stream' ? 'stream' : 'message', ...rewritten }
+  return {
+    kind: 'ask',
+    presentation: attendance === 'stream' ? 'stream' : 'message',
+    ...rewritten,
+    ...(host.commandPolicy === undefined ? {} : { details: host.commandPolicy.details })
+  }
 }
 
 /** D35: what the person's answer does to the call; memoized under `cherry.approval:<callKey>`. */

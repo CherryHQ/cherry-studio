@@ -55,7 +55,7 @@ describe('ComposerCore', () => {
     const onMount = vi.fn()
     const onUnmount = vi.fn()
     const view = render(renderComposer([], onMount, onUnmount))
-    const input = screen.getByRole('textbox', { name: 'composer input' }) as HTMLTextAreaElement
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'composer input' })
 
     fireEvent.change(input, { target: { value: 'draft with attachment' } })
     fireEvent.click(screen.getByRole('button', { name: 'add attachment' }))

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import AdmZip from 'adm-zip'
+import JSZip from 'jszip'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { readMarkdownFromResponseZip } from '../resultPersistence'
@@ -19,10 +19,10 @@ describe('readMarkdownFromResponseZip integration', () => {
     tempRoots.push(tempRoot)
     const tempDir = path.join(tempRoot, 'downloads')
 
-    const zip = new AdmZip()
-    zip.addFile('bundle/output.md', Buffer.from('# real output'))
-    zip.addFile('bundle/images/page-1.png', Buffer.from('png-bytes'))
-    const zipBytes = new Uint8Array(zip.toBuffer())
+    const zip = new JSZip()
+    zip.file('bundle/output.md', Buffer.from('# real output'))
+    zip.file('bundle/images/page-1.png', Buffer.from('png-bytes'))
+    const zipBytes = await zip.generateAsync({ type: 'arraybuffer' })
 
     await expect(
       readMarkdownFromResponseZip({

@@ -9,7 +9,7 @@ const Qwen = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const QwenIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Qwen, {
   Avatar: QwenAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#F1EDFF'
 })
 
 export default QwenIcon
