@@ -22,6 +22,7 @@ interface ChatComposerSlotBaseProps {
   contextUsage: ChatContextUsageSource | null
   lastUsedModelId?: UniqueModelId | null
   lastUsedModelPending?: boolean
+  providerQuotaExhausted: boolean
   onSend: (
     text: string,
     options?: {
@@ -49,6 +50,7 @@ function ChatComposerSlot({
   contextUsage,
   lastUsedModelId,
   lastUsedModelPending,
+  providerQuotaExhausted,
   onSend,
   chatTarget,
   onNewTopic,
@@ -69,6 +71,7 @@ function ChatComposerSlot({
         contextUsage={contextUsage}
         lastUsedModelId={lastUsedModelId}
         lastUsedModelPending={lastUsedModelPending}
+        providerQuotaExhausted={providerQuotaExhausted}
         assistantId={topic.assistantId}
         onSend={onSend}
         chatTarget={chatTarget}
@@ -88,6 +91,7 @@ function ChatComposerSlot({
         contextUsage={contextUsage}
         lastUsedModelId={lastUsedModelId}
         lastUsedModelPending={lastUsedModelPending}
+        providerQuotaExhausted={providerQuotaExhausted}
         assistantId={topic.assistantId}
         onSend={onSend}
         chatTarget={chatTarget}

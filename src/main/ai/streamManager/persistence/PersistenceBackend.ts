@@ -8,6 +8,7 @@
  * never synthesise UIMessages or repeat projection logic.
  */
 
+import { hasAnthropicThinkingCredential } from '@main/ai/messages/anthropicThinking'
 import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import {
@@ -112,6 +113,7 @@ export function finalizeInterruptedParts(
 export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessagePart[] {
   const filtered = parts.filter((part) => {
     if (part.type !== 'text' && part.type !== 'reasoning') return true
+    if (part.type === 'reasoning' && hasAnthropicThinkingCredential(part.providerMetadata)) return true
     return part.text.trim().length > 0
   })
   return filtered.length === parts.length ? parts : filtered
