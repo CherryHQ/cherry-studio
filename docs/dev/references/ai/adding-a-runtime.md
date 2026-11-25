@@ -133,16 +133,17 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        `steer-boundary` with input IDs when native placement is evidenced. Keep original product
        snapshots/headless policy on the existing session entry, including unknown admission across
        replacement. Prepare the native binding before dispatch, fence stale callbacks by generation,
-       and reconcile retained inputs without automatically resending. Pi/Durable reserve the reply
+       and reconcile retained inputs without automatically resending. Pi/Durable associate steered inputs with the active Run
        synchronously before the next provider request; Claude command-start alone is not placement. A driver that returns unplaced inputs
        for the next turn emits `steer-undelivered`; Pi instead records native queued
        inputs as aborted when execution ends without placing them, without automatic resend.
        Claude uses native next-priority admission across the turn boundary and never
-       returns an accepted input for host resend.
+       returns an accepted input for host resend. If native completion precedes placement, emit
+       `run-started` for that distinct execution instead of joining the completed Run.
      - `followUp(input)` — native admission for a message sent while native work runs. The
        runtime persists the input in its own queue at once, so it survives a crash; the host
        prefers `redirect` for an open turn, then `followUp`, then its own queue. Emit
-       `steer-boundary` with the input ID and `followUp: true` when the runtime places it, after
+       `run-started` with the input ID when the runtime starts a distinct execution, after
        the content that answers the input before it, so each input gets its own reply. Report a
        refused submission through `input-submission`, and emit `steer-undelivered` for one that
        fails before it reaches the runtime. Return false when no native work runs or the text is a

@@ -3241,7 +3241,7 @@ describe('desktop Pi Durable connection', () => {
     held.open()
     await done(events)
 
-    const boundaries = events.filter((event) => event.type === 'steer-boundary')
+    const boundaries = events.filter((event) => event.type === 'run-started')
     expect(boundaries).toEqual([expect.objectContaining({ inputIds: [second.id] })])
     const boundary = events.indexOf(boundaries[0])
     expect(projectionIndex(events, 'first answer')).toBeLessThan(boundary)
@@ -3284,6 +3284,29 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
   })
 
+  it('retains an earlier input failure when a steer joins the same run', async () => {
+    const held = gate()
+    script = respondingModel((call) => {
+      const last = JSON.stringify(call.messages.findLast((entry) => entry.role === 'user'))
+      if (last.includes('correction')) return assistantReply('corrected answer')
+      return held.wait(assistantReply('truncated answer', 'length'))
+    })
+    const { connection, events, nativeInputs } = await connect()
+    const first = message('first')
+    await connection.send({ message: first })
+    await held.reached
+    const steer = message('correction')
+    expect(connection.redirect({ message: steer })).toBe(true)
+    await expect.poll(() => nativeInputs.some((state) => state.inputId === steer.id)).toBe(true)
+    held.open()
+    await expect.poll(() => events.some((event) => event.type === 'error'), { timeout: 10000 }).toBe(true)
+    expect(events).toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [steer.id] }))
+    expect(events.filter((event) => event.type === 'run-started')).toEqual([])
+    const failure = events.find((event) => event.type === 'error')!
+    if (failure.type !== 'error') throw new Error('Missing Run failure')
+    expect(serializeError(failure.error)).toMatchObject({ reason: 'output-truncated', finishReason: 'length' })
+  })
+
   // AC4: a send that races running native work used to fail with "Durable already has an active submission".
   it('admits a send that arrives while native work runs', async () => {
     const held = answerByInput()
@@ -3296,7 +3319,7 @@ describe('desktop Pi Durable connection', () => {
     await done(events)
 
     expect(text(events)).toContain('second answer')
-    expect(events).toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+    expect(events).toContainEqual(expect.objectContaining({ type: 'run-started', inputIds: [second.id] }))
     expect(nativeInputs.some((state) => state.inputId === second.id && state.outcome === 'completed')).toBe(true)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
@@ -3318,7 +3341,7 @@ describe('desktop Pi Durable connection', () => {
 
     expect(nativeInputs.findLast((state) => state.inputId === second.id)).toMatchObject({ outcome: 'aborted' })
     expect(text(events)).not.toContain('second answer')
-    expect(events).not.toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+    expect(events).not.toContainEqual(expect.objectContaining({ type: 'run-started', inputIds: [second.id] }))
   })
 
   it('recovers an unsent message when native withdrawal committed before the desktop projection', async () => {
@@ -3408,7 +3431,7 @@ describe('desktop Pi Durable connection', () => {
     expect(reopened.events).toContainEqual(
       expect.objectContaining({ type: 'autonomous-turn-state', state: 'started', recoveredInputId: user.id })
     )
-    expect(reopened.events).toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+    expect(reopened.events).toContainEqual(expect.objectContaining({ type: 'run-started', inputIds: [second.id] }))
     expect(text(reopened.events)).toContain('second answer')
     expect(reopened.nativeInputs.some((state) => state.inputId === second.id && state.outcome === 'completed')).toBe(
       true
