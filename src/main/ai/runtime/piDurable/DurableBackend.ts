@@ -69,23 +69,26 @@ export class DurableBackend {
     }
   }
 
+  static async readWork(backendId: string, storage: Storage) {
+    const { readDurableWork } = await import('@cherrystudio/agent-runtime-pi-durable')
+    return readDurableWork(storage, (root) => !!contexts.rootForThread(backendId, root))
+  }
+
   static async open(
     input: AgentRuntimeConnectInput,
     context: AgentSessionContextRow,
     discovered?: DurableRecoveryWork
   ) {
-    const [{ BACKGROUND_CONTEXT }, { createRegistry }, { createPiDurableRuntime, readDurableWork }] = await Promise.all(
-      [
-        import('@earendil-works/chord/context'),
-        import('@earendil-works/pi-durable'),
-        import('@cherrystudio/agent-runtime-pi-durable')
-      ]
-    )
+    const [{ BACKGROUND_CONTEXT }, { createRegistry }, { createPiDurableRuntime }] = await Promise.all([
+      import('@earendil-works/chord/context'),
+      import('@earendil-works/pi-durable'),
+      import('@cherrystudio/agent-runtime-pi-durable')
+    ])
     const owner = new DurableBackend(createRegistry())
     const root = await prepareDurableRoot(context.id)
     let storageOwned = true
     try {
-      const recovery = discovered ?? (await readDurableWork(root.storage))
+      const recovery = discovered ?? (await DurableBackend.readWork(context.backendId, root.storage))
       const pending: DurableRoot[] = []
       const rootContexts = new Map<ThreadId, string>()
       for (const nativeId of new Set(recovery.roots.values())) {

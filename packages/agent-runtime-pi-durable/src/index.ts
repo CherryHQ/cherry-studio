@@ -1,6 +1,6 @@
 export { acknowledgeChildArchive, readDurableWork, recoveryIndex, type DurableRecoveryWork } from './recovery'
 export { readDurableInput } from './inputLookup'
-export { readDurableReply } from './replyHistory'
+export { areDurableInputsAbsent, readDurableReply } from './replyHistory'
 export { createPiDurableRuntime } from './runtime'
 export type {
   PiDurableRuntime,

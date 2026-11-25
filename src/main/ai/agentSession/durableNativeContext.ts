@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 
+import type { Context } from '@earendil-works/chord/context'
 import type { Storage, Tx, ConversationId } from '@earendil-works/pi-durable'
 
 import { application } from '@application'
@@ -11,13 +12,14 @@ import type { AgentRuntimeBackendRow } from '@data/db/schemas/agentRuntimeBacken
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { loggerService } from '@logger'
 
+const PRODUCT_CONTEXT_KIND = 'cherry.product-context'
 const DURABLE_STORAGE_ERROR_I18N_KEY = 'durable_storage_failed'
 const logger = loggerService.withContext('durableNativeContext')
 
 export async function durableContextIdentity() {
   const { defineDoc } = await import('@earendil-works/pi-durable')
   return defineDoc({
-    kind: 'cherry.product-context',
+    kind: PRODUCT_CONTEXT_KIND,
     version: 1,
     scope: 'conversation',
     history: 'latest',
@@ -212,6 +214,21 @@ export async function reconcileDurableBackend(backendId: string): Promise<Storag
   }
 }
 
+export async function matchesDurableContext(
+  storage: Storage,
+  id: ConversationId,
+  contextId: string,
+  ctx: Context
+): Promise<boolean> {
+  const address = await storage.findDocument(
+    { kind: PRODUCT_CONTEXT_KIND, scope: { kind: 'conversation', conversationId: id } },
+    'current',
+    ctx
+  )
+  const doc = address && (await storage.document(address.id, 'current', ctx))
+  return doc?.version === 1 && doc.value.contextId === contextId
+}
+
 /** Recover the native identity from the same commit that created the root conversation. */
 export async function prepareDurableRoot(contextId: string) {
   const context = contexts.context(contextId)
@@ -230,24 +247,16 @@ export async function prepareDurableRoot(contextId: string) {
   const { nativeContext } = await loadDurableStorage()
   const identity = await durableContextIdentity()
   try {
-    const matches = async (id: ConversationId) => {
-      const address = await storage.findDocument(
-        { kind: identity.definition.kind, scope: { kind: 'conversation', conversationId: id } },
-        'current',
-        nativeContext
-      )
-      return address && (await storage.document(address.id, 'current', nativeContext))?.value.contextId === contextId
-    }
     let nativeId = context.nativeThreadId ?? undefined
     if (nativeId) {
-      if (!(await matches(Number(nativeId) as ConversationId)))
+      if (!(await matchesDurableContext(storage, Number(nativeId) as ConversationId, contextId, nativeContext)))
         throw new Error('Durable context identity does not match')
     } else {
       let cursor: Parameters<Storage['scanConversations']>[2]
       do {
         const page = await storage.scanConversations({}, 256, cursor, nativeContext)
         for (const conversation of page.items) {
-          if (!(await matches(conversation.id))) continue
+          if (!(await matchesDurableContext(storage, conversation.id, contextId, nativeContext))) continue
           if (nativeId) throw new Error('Durable context identity does not match')
           nativeId = String(conversation.id)
         }

@@ -4,7 +4,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 
 import { finalizeInterruptedParts } from '../streamManager'
 
-/** A `pi-durable` delivery request dispatched to Durable; its record, not a host repair, settles the reply. */
+/** The original Durable target whose submission state governs recovery of this delivery. */
 export function durableDeliveryTarget(request: AgentSessionMessageEntity) {
   const target = agentSessionMessageService.inputTarget(request.sessionId, request.id)
   return target?.kind === 'pi-durable' && !target.locallyHandled ? target : undefined

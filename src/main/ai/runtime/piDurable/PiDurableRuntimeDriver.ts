@@ -101,16 +101,13 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
     return this.operations.queue(backend.id, async () => {
       if (!canWrite() || this.backends.get(backend.id)?.owner || !contexts.backend(backend.id).needsRecoveryCheck)
         return
-      const [{ readDurableWork }, { BACKGROUND_CONTEXT }] = await Promise.all([
-        import('@cherrystudio/agent-runtime-pi-durable'),
-        import('@earendil-works/chord/context')
-      ])
+      const { BACKGROUND_CONTEXT } = await import('@earendil-works/chord/context')
       const storage = await openDurableStorage(backend, 'ro')
       let work: DurableRecoveryWork
       let root: AgentSessionContextRow
       let request: AgentRuntimeConnectInput
       try {
-        work = await readDurableWork(storage)
+        work = await DurableBackend.readWork(backend.id, storage)
         const roots = [...new Set(work.roots.values())].map((id) => contexts.rootForThread(backend.id, id))
         if (!roots.length) {
           if (work.needsInventory && canWrite()) {
@@ -217,13 +214,10 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   private async clearIfSettled(backendId: string): Promise<void> {
-    const [{ readDurableWork }, { BACKGROUND_CONTEXT }] = await Promise.all([
-      import('@cherrystudio/agent-runtime-pi-durable'),
-      import('@earendil-works/chord/context')
-    ])
+    const { BACKGROUND_CONTEXT } = await import('@earendil-works/chord/context')
     const storage = await openDurableStorage(contexts.backend(backendId), 'ro')
     try {
-      if (!(await readDurableWork(storage)).roots.size) contexts.markRecoveryCheck(backendId, false)
+      if (!(await DurableBackend.readWork(backendId, storage)).roots.size) contexts.markRecoveryCheck(backendId, false)
     } finally {
       await storage.close(BACKGROUND_CONTEXT)
     }

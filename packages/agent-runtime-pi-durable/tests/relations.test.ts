@@ -153,8 +153,9 @@ it('finishes the legacy inventory after an interrupted first indexed reopen', as
     createdAt: 1,
     updatedAt: 1
   }
+  const head = await harness.commit((tx) => tx.appendEntry(a.id, { kind: 'cherry.goal', data: goal }), ctx)
   const { child, task } = await harness.commit(async (tx) => {
-    await tx.appendEntry(a.id, { kind: 'cherry.goal', data: goal })
+    await tx.forkConversation(a.id, head.id, { ownership: { kind: 'ownerless' } })
     const task = await tx.createTask(owner, null, { conversationId: b.id, ownership: { kind: 'conversation' } })
     const child = await tx.createConversation({ ownership: { kind: 'task', taskId: task } })
     return { task, child }
@@ -167,11 +168,14 @@ it('finishes the legacy inventory after an interrupted first indexed reopen', as
   const required = [String(a.id), String(b.id), String(child.id)].sort()
   try {
     expect([...(await readDurableWork(storage)).roots.keys()].sort()).toEqual(required)
+    expect([...(await readDurableWork(storage, () => false)).roots.keys()]).toEqual([String(a.id)])
     // This is the first root's committed onOpen disarm, before bind commits initialized=true.
     await harness.commit(async (tx) => {
       await tx.appendEntry(a.id, { kind: 'cherry.goal', data: { ...goal, revision: 2, armed: false } })
       const index = await tx.doc(recoveryIndex)
       index.behavior[a.id] = true
+      index.behavior[b.id] = true
+      index.archives[child.id] = true
     }, ctx)
   } finally {
     await harness.close(ctx)
@@ -179,6 +183,7 @@ it('finishes the legacy inventory after an interrupted first indexed reopen', as
   const reopened = await openNodeSqliteStorage(path)
   try {
     expect([...(await readDurableWork(reopened)).roots.keys()].sort()).toEqual(required)
+    expect([...(await readDurableWork(reopened, () => false)).roots.keys()]).toEqual([String(a.id)])
   } finally {
     await reopened.close(ctx)
   }

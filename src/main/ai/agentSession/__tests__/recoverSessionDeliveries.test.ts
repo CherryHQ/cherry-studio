@@ -94,7 +94,11 @@ it('keeps the original delivery pending when its captured Durable target cannot 
   await service._doInit()
 
   await service.drainSessionQueues(['target'])
-  expect(recoverPendingReplies).toHaveBeenCalledWith({ sessionId: 'target', runId: reply.id })
+  expect(recoverPendingReplies).toHaveBeenCalledWith({
+    sessionId: 'target',
+    runId: reply.id,
+    deliveryInputId: request.id
+  })
   expect(messages.getSessionMessage('target', reply.id).status).toBe('pending')
   expect(messages.getSessionMessage('target', request.id).delivery?.status).toBe('delivering')
 })

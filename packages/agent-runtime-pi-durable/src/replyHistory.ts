@@ -1,11 +1,12 @@
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import type { Cursor, EntryId, Storage } from '@earendil-works/pi-durable'
 
-import type { InputId, NativeInputId, Thread } from '@cherrystudio/agent-runtime'
+import type { InputId, NativeInputId, Thread, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { conversationId } from './behavior/history'
 import { ContentProjection } from './content'
-import { lookupSubmission, submissionState } from './inputLookup'
+import { lookupSubmission, productInputId, submissionState } from './inputLookup'
+import { nonterminalTaskStates } from './recovery'
 
 /** Reads the committed response to one product Run without opening a Harness. */
 export async function readDurableReply(
@@ -60,4 +61,32 @@ export async function readDurableReply(
     } while (cursor && !nextInput)
   }
   return { outcome, messages: content.seal().filter((message) => message.role === 'assistant') }
+}
+
+/** A pre-submit crash is recoverable only when every input can be ruled out on its idle root. */
+export async function areDurableInputsAbsent(storage: Storage, threadId: ThreadId, inputs: ReadonlySet<string>) {
+  const ctx = BACKGROUND_CONTEXT
+  const id = conversationId(threadId)
+  const thread = await storage.conversation(id, ctx)
+  if (!thread || thread.owner || !inputs.size) return false
+  for (const status of nonterminalTaskStates)
+    if ((await storage.scanTasks({ conversationId: id, status }, 1, undefined, ctx)).items.length) return false
+  let cursor: Cursor | undefined
+  do {
+    const page = await storage.scanSubmissions({ conversationId: id }, 128, cursor, ctx)
+    for (const record of page.items) {
+      if (record.status === 'queued' || record.status === 'placed') return false
+      if (record.requestId) {
+        if (inputs.has(record.requestId)) return false
+        continue
+      }
+      if (record.type !== 'input') continue
+      // Before native request keys, only a placed entry could identify its product input.
+      const entry = record.entry && (await storage.entry(id, record.entry, ctx))?.entry
+      const inputId = entry && entry.conversationId === id && productInputId(entry.data)
+      if (!inputId || inputs.has(inputId)) return false
+    }
+    cursor = page.next
+  } while (cursor)
+  return true
 }

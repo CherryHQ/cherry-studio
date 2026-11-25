@@ -10,6 +10,7 @@ import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { childTimeline } from '@test-helpers/childTimeline'
 import { setupTestDatabase } from '@test-helpers/db'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- The integration test connects the renderer subscriber over an in-process IPC fixture.
 import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
 import { eq } from 'drizzle-orm'
@@ -32,6 +33,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { savedChildView } from '@main/ai/agentSession/childArchive'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
@@ -548,8 +550,8 @@ describe('desktop Pi Durable connection', () => {
     })
     runtimeDriverRegistry.register(driver)
   }
-  async function savedAnswer(current: Awaited<ReturnType<typeof connect>>) {
-    await done(current.events)
+  async function savedAnswer(current: Awaited<ReturnType<typeof connect>>, timeout?: number) {
+    await done(current.events, timeout)
     const complete = current.events.findLast((event) => event.type === 'turn-complete')!
     if (complete.type !== 'turn-complete' || !complete.forkAnchor) throw new Error('Missing committed checkpoint')
     return messages.saveMessage({
@@ -783,6 +785,42 @@ describe('desktop Pi Durable connection', () => {
     const secondFork = await new AgentSessionForkOperations().fork(forkId, older.id)
     expect(prepareDurableBranch(secondFork).backendId).toBe(forkContext.backendId)
     expect(reopened.events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('opens a surviving fork when its deleted source left a finished child in a legacy store', async () => {
+    sharedHosts()
+    const sourceId = input.sessionId
+    setScript([
+      assistantReply(
+        [subagentCall('spawn', { description: 'research', prompt: 'child work', background: false, fork: false })],
+        'toolUse'
+      ),
+      assistantReply('finished child'),
+      assistantReply('finished parent')
+    ])
+    const parent = await connect()
+    await parent.connection.send({ message: message('delegate') })
+    const answer = await savedAnswer(parent, CHILD_WAIT.timeout)
+    const root = contexts.context(parent.connection.contextId!)
+    expect(contexts.children(root.id)).toHaveLength(1)
+    const forkId = await new AgentSessionForkOperations().fork(sourceId, answer.id)
+    await parent.connection.close()
+    dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, sourceId)).run()
+    const { recoveryIndex } = await import('@cherrystudio/agent-runtime-pi-durable')
+    const native = createSession(await openDurableStorage(contexts.backend(root.backendId)))
+    try {
+      await native.commit(async (tx) => {
+        Object.assign(await tx.doc(recoveryIndex), { initialized: false, behavior: {}, archives: {} })
+      }, BACKGROUND_CONTEXT)
+    } finally {
+      await native.close(BACKGROUND_CONTEXT)
+    }
+    input = { ...input, sessionId: forkId }
+    setScript([assistantReply('surviving fork answer')])
+    const reopened = await connect()
+    await reopened.connection.send({ message: message('continue fork') })
+    await done(reopened.events)
+    expect(text(reopened.events)).toContain('surviving fork answer')
   })
 
   it('routes concurrent roots to their own workspace, approval channel and model registration', async () => {
@@ -2783,6 +2821,68 @@ describe('desktop Pi Durable connection', () => {
       expect(script.calls).toHaveLength(0)
     }
   )
+
+  it('interrupts a delivery lost between local binding and native submission and starts the next request', async () => {
+    sharedHosts()
+    const { connection } = await connect()
+    const { sessionId, agentId } = input
+    const sender = uuid()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: sender, agentId, workspaceId: snapshot.session.workspace.id, name: 'Sender', orderKey: 'a1' })
+      .run()
+    const target = {
+      senderAgentId: agentId,
+      senderSessionId: sender,
+      receiverSessionId: sessionId,
+      replyPolicy: 'none' as const
+    }
+    const first = messages.acceptSessionDelivery({ ...target, content: 'first delivery' })
+    const run = messages.saveMessage({
+      sessionId,
+      parentId: first.id,
+      message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    messages.transitionSessionDelivery(sessionId, first.id, 'delivering', { expected: ['accepted'], turnRef: run.id })
+    prepareNativeSubmission(sessionId, first.id, connection.contextId!, 'follow-up')
+    await connection.close()
+    const next = messages.acceptSessionDelivery({ ...target, content: 'next delivery' })
+    BaseService.resetInstances()
+    const runtime = new AgentSessionRuntimeService()
+    const deliveries = new AgentSessionDeliveryService()
+    let submitting = true
+    let sent: string | undefined
+    MockApplicationUtils.setService('AgentSessionRuntimeService', runtime)
+    MockApplicationUtils.setService('AiStreamManager', {
+      hasLiveStream: () => false,
+      hasTerminalPersistenceInFlight: () => false,
+      hasUnsettledTopicWork: () => submitting,
+      withDispatchLock: (_topic: string, action: () => Promise<void>) => action(),
+      whenTerminalDispatchSettled: async () => {},
+      send: ({ models }: { models: { request: { messages: { id: string }[] } }[] }) => {
+        sent = models[0].request.messages[0].id
+      }
+    })
+    try {
+      await deliveries._doInit()
+      await deliveries.drainSessionQueues([sessionId])
+      expect(messages.getSessionMessage(sessionId, run.id).status).toBe('pending')
+      submitting = false
+      deliveries.kick(sessionId)
+      await deliveries.drainSessionQueues([sessionId])
+      expect(messages.getSessionMessage(sessionId, run.id).status).toBe('paused')
+      expect(messages.getSessionMessage(sessionId, first.id).delivery).toMatchObject({
+        status: 'consumed',
+        outcome: 'interrupted'
+      })
+      expect(messages.getSessionMessage(sessionId, next.id).delivery?.status).toBe('delivering')
+      expect(sent).toBe(next.id)
+    } finally {
+      await deliveries._doStop()
+      await runtime._doDestroy()
+      MockApplicationUtils.resetServices()
+    }
+  })
 
   it('recovers a completed tool into its original part and stores the full result before publishing', async () => {
     const text = 'native tool output '.repeat(2050) + 'end of tool result'

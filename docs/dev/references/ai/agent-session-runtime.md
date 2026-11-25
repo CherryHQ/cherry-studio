@@ -597,9 +597,11 @@ indexed `delivery_turn_ref`:
   evidence of deletion, not proof that execution never started;
 - placeholder still `pending` — execution may already have produced external side effects;
   terminalize interrupted parts, discard the Session resume token, finalize `interrupted`, and do
-  not rerun the Agent. A `pi-durable` request whose input Durable admitted is the exception: Durable
-  owns its outcome, so the placeholder stays `pending` and the delivery owner opens that Session.
-  Durable resumes or settles the input, and the reply's terminal event finalizes the delivery;
+  not rerun the Agent. For a request bound to Pi Durable, Main reads the original native store.
+  A terminal receipt settles the reply, and unfinished native work resumes through its owning runtime.
+  If the original idle thread confirms that none of the reply's inputs were submitted, the delivery
+  is interrupted and the next request can proceed. An unreadable store or ambiguous legacy input
+  keeps the delivery pending;
 - placeholder terminal — run only the idempotent finalizer.
 
 The generic pending-assistant sweep excludes rows referenced by `delivery_turn_ref`; therefore its

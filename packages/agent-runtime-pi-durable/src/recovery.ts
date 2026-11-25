@@ -37,21 +37,46 @@ export const recoveryIndex = defineDoc({
 
 export interface DurableRecoveryWork {
   readonly needsInventory: boolean
+  readonly legacyBehavior: readonly ThreadId[]
   readonly roots: Map<ThreadId, ThreadId>
   readonly abandoned: Set<TaskId>
   readonly modelRefs: ReadonlyMap<ThreadId, ModelRef[]>
 }
 
-const nonterminal = ['pending', 'running', 'sleeping', 'waiting', 'completing'] as const satisfies readonly TaskState<
-  null,
-  null
->['status'][]
+export const nonterminalTaskStates = [
+  'pending',
+  'running',
+  'sleeping',
+  'waiting',
+  'completing'
+] as const satisfies readonly TaskState<null, null>['status'][]
 
-export async function readDurableWork(storage: Storage): Promise<DurableRecoveryWork> {
+async function needsBehaviorRecovery(storage: Storage, id: ConversationId) {
+  const history: HistoryEntry[] = []
+  let entryCursor: Cursor | undefined
+  do {
+    const page = await storage.scanEntries({ conversationId: id, order: 'ascending' }, 128, entryCursor, ctx)
+    for (const entry of page.items) {
+      if (entry.conversationId !== id) continue
+      const item = decodeEntry({ kind: entry.kind, data: entry.data, id: runtimeId(String(entry.id)) })
+      if (item) history.push(item)
+    }
+    entryCursor = page.next
+  } while (entryCursor)
+  return needsReopen(history)
+}
+
+export async function readDurableWork(
+  storage: Storage,
+  hasProductHost: (root: ThreadId) => boolean = () => true
+): Promise<DurableRecoveryWork> {
+  const archives = new Set<ConversationId>()
+  const behavior = new Set<ConversationId>()
+  const legacyBehavior: ThreadId[] = []
   const ids = new Set<ConversationId>()
   const pinnedModels: { conversation: ConversationId; model: ModelRef }[] = []
   const abandoned = new Set<TaskId>()
-  for (const status of nonterminal) {
+  for (const status of nonterminalTaskStates) {
     let cursor: Cursor | undefined
     do {
       const page = await storage.scanTasks({ status }, 128, cursor, ctx)
@@ -96,8 +121,8 @@ export async function readDurableWork(storage: Storage): Promise<DurableRecovery
       typeof doc.value.archives !== 'object'
     )
       throw new Error('Invalid Durable recovery index')
-    for (const key of [...Object.keys(doc.value.behavior), ...Object.keys(doc.value.archives)])
-      ids.add(Number(key) as ConversationId)
+    for (const key of Object.keys(doc.value.behavior)) behavior.add(Number(key) as ConversationId)
+    for (const key of Object.keys(doc.value.archives)) archives.add(Number(key) as ConversationId)
   }
   if (doc?.value.initialized !== true) {
     let cursor: Cursor | undefined
@@ -106,41 +131,35 @@ export async function readDurableWork(storage: Storage): Promise<DurableRecovery
       for (const conversation of conversations.items) {
         // Old children may have completed after their last product archive write.
         if (conversation.owner) {
-          ids.add(conversation.id)
+          archives.add(conversation.id)
           continue
         }
-        const history: HistoryEntry[] = []
-        let entryCursor: Cursor | undefined
-        do {
-          const page = await storage.scanEntries(
-            { conversationId: conversation.id, order: 'ascending' },
-            128,
-            entryCursor,
-            ctx
-          )
-          for (const entry of page.items) {
-            const item = decodeEntry({ kind: entry.kind, data: entry.data, id: runtimeId(String(entry.id)) })
-            if (item) history.push(item)
-          }
-          entryCursor = page.next
-        } while (entryCursor)
-        if (needsReopen(history)) ids.add(conversation.id)
+        if (await needsBehaviorRecovery(storage, conversation.id)) {
+          ids.add(conversation.id)
+          legacyBehavior.push(runtimeId(String(conversation.id)))
+        }
       }
       cursor = conversations.next
     } while (cursor)
   }
   const roots = new Map<ThreadId, ThreadId>()
-  async function resolve(id: ConversationId): Promise<ThreadId> {
+  async function resolve(id: ConversationId, skipUnhosted: boolean): Promise<ThreadId | undefined> {
     const thread = runtimeId<'thread'>(String(id))
     const known = roots.get(thread)
     if (known) return known
     const conversation = await storage.conversation(id, ctx)
     if (!conversation) throw new Error('Durable work lost its original conversation')
-    const root = conversation.owner ? await resolve(conversation.owner.conversationId) : thread
+    const root = conversation.owner ? await resolve(conversation.owner.conversationId, skipUnhosted) : thread
+    if (!root || (skipUnhosted && !conversation.owner && !hasProductHost(root))) return
     roots.set(thread, root)
     return root
   }
-  for (const id of ids) await resolve(id)
+  for (const id of ids) await resolve(id, false)
+  for (const id of behavior) {
+    // A behavior hint can outlive the goal or child that recorded it until the next clean close.
+    if (!(await resolve(id, true)) && (await needsBehaviorRecovery(storage, id))) await resolve(id, false)
+  }
+  for (const id of archives) await resolve(id, true)
   const modelRefs = new Map<ThreadId, ModelRef[]>()
   const owners = new Map<string, { root: ThreadId; modelId: string }>()
   for (const { conversation, model } of pinnedModels) {
@@ -156,7 +175,7 @@ export async function readDurableWork(storage: Storage): Promise<DurableRecovery
     refs.push(model)
     modelRefs.set(root, refs)
   }
-  return { roots, abandoned, modelRefs, needsInventory: doc?.value.initialized !== true }
+  return { roots, abandoned, modelRefs, legacyBehavior, needsInventory: doc?.value.initialized !== true }
 }
 
 export async function acknowledgeChildArchive(tx: Tx, id: ConversationId, through: EntryId): Promise<void> {

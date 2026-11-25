@@ -923,10 +923,8 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
         await harness.commit(async (tx) => {
           const index = await tx.doc(recoveryIndex)
           if (!index.initialized) {
-            for (const thread of threads) {
-              index.behavior[thread] = true
-              if (work.roots.get(thread) !== thread) index.archives[thread] = true
-            }
+            for (const thread of work.legacyBehavior) index.behavior[thread] = true
+            for (const thread of threads) if (work.roots.get(thread) !== thread) index.archives[thread] = true
             index.initialized = true
           }
         }, context)

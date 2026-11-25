@@ -561,7 +561,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  recoverPendingReplies(scope?: { sessionId: string; runId: string }): Promise<void> {
+  recoverPendingReplies(scope?: { sessionId: string; runId: string; deliveryInputId?: string }): Promise<void> {
     if (this.isShuttingDown || this.isWriteQuiesced) return Promise.resolve()
     const work = recoverDurableReplies(
       (event) => this._onTurnTerminal.fire(event),
@@ -569,6 +569,9 @@ export class AgentSessionRuntimeService extends BaseService {
         !this.isShuttingDown &&
         !this.isWriteQuiesced &&
         !this.blockedRecovery.has(sessionId) &&
+        (!scope?.deliveryInputId ||
+          (!this.isSessionBusyForArchive(sessionId) &&
+            !application.get('AiStreamManager').hasUnsettledTopicWork(buildAgentSessionTopicId(sessionId)))) &&
         !this.forks.edits.has(sessionId) &&
         !this.entryForTurn(sessionId, (turn) => turn.assistantMessageId === runId),
       scope,

@@ -483,7 +483,9 @@ export class AgentSessionDeliveryService extends BaseService {
       const target = durableDeliveryTarget(delivering)
       if (target) {
         if (!target.threadId) return true
-        await application.get('AgentSessionRuntimeService').recoverPendingReplies({ sessionId, runId: assistant.id })
+        await application
+          .get('AgentSessionRuntimeService')
+          .recoverPendingReplies({ sessionId, runId: assistant.id, deliveryInputId: delivering.id })
       } else {
         agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)
       }

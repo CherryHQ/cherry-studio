@@ -1,9 +1,11 @@
+import type { ConversationId } from '@earendil-works/pi-durable'
+
 import { runtimeId } from '@cherrystudio/agent-runtime'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import type { AgentSessionTurnTerminalEvent } from '@main/ai/agentSession/AgentSessionRuntimeService'
-import { openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
+import { matchesDurableContext, openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
 import { nativeOutcomeTerminal } from '@main/ai/agentSession/nativeSubmission'
 import { projectRuntimeMessage } from '@main/ai/agentSession/ThreadMessageProjection'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -17,12 +19,12 @@ const logger = loggerService.withContext('recoverDurableReplies')
 export async function recoverDurableReplies(
   onTerminal: (event: AgentSessionTurnTerminalEvent) => void,
   isWritable: (sessionId: string, runId: string) => boolean = () => true,
-  scope?: { sessionId: string; runId: string },
+  scope?: { sessionId: string; runId: string; deliveryInputId?: string },
   liveTimeline?: (sessionId: string) => { lastPos: number } | undefined
 ): Promise<void> {
   const pending = messages.pendingReplyInputs({ ...scope, durableOnly: true })
   if (!pending.length) return
-  const [{ readDurableReply }, { BACKGROUND_CONTEXT }] = await Promise.all([
+  const [{ areDurableInputsAbsent, readDurableReply }, { BACKGROUND_CONTEXT }] = await Promise.all([
     import('@cherrystudio/agent-runtime-pi-durable'),
     import('@earendil-works/chord/context')
   ])
@@ -44,10 +46,25 @@ export async function recoverDurableReplies(
                 nativeInputId: nativeInputId ? runtimeId(nativeInputId) : undefined
               }))
             )
-            const terminal = history && nativeOutcomeTerminal(history.outcome)
-            if (!history || !terminal || !isWritable(sessionId, runId)) continue
+            let terminal = history && nativeOutcomeTerminal(history.outcome)
+            if (
+              !history &&
+              scope?.deliveryInputId &&
+              rows.some((row) => row.inputId === scope.deliveryInputId) &&
+              rows.every((row) => !row.nativeInputId) &&
+              (await matchesDurableContext(
+                storage,
+                Number(threadId) as ConversationId,
+                contextId,
+                BACKGROUND_CONTEXT
+              )) &&
+              (await areDurableInputsAbsent(storage, runtimeId(threadId), new Set(rows.map((row) => row.inputId))))
+            ) {
+              terminal = { status: 'paused' }
+            }
+            if (!terminal || !isWritable(sessionId, runId)) continue
             const error = terminal.status === 'error' ? serializeError(terminal.error) : undefined
-            const sources = history.messages.map((source) =>
+            const sources = (history?.messages ?? []).map((source) =>
               projectRuntimeMessage(source, source.parts as CherryUIMessage['parts'], (message) =>
                 metadata.decorate(message)
               )
