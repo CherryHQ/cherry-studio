@@ -18,6 +18,7 @@ import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useIsScrollViewportOwned } from '@renderer/hooks/useScrollViewportOwnership'
 import { codeViewerSelectionManager } from '@renderer/services/CodeViewerSelectionManager'
+import { isElementNode } from '@renderer/utils/dom'
 import { ImageCaptureEvent } from '@renderer/utils/image'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
@@ -258,7 +259,7 @@ const CodeViewer = ({
     // 查找选区起始和结束位置对应的行号
     const findLineAndOffset = (node: Node, offset: number): { line: number; offset: number } | null => {
       // 向上查找包含 data-index 属性的元素
-      let element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement
+      let element = isElementNode(node) ? node : node.parentElement
 
       // 跳过行号元素，找到实际的行内容
       while (element) {
@@ -863,6 +864,17 @@ const CodeViewer = ({
 
   if (!expanded && !capture) blockStyle.height = height
 
+  const scrollerStyle: React.CSSProperties & { '--gutter-width': string; '--line-height': string } = {
+    '--gutter-width': `${gutterDigits}ch`,
+    '--line-height': `${lineHeight}px`,
+    fontSize,
+    paddingBlock: Math.round(fontSize / 2),
+    tabSize: 2,
+    height: expanded || capture ? undefined : height,
+    maxHeight: expanded || capture ? undefined : maxHeight,
+    overflowY: capture ? 'visible' : expanded ? 'hidden' : 'auto'
+  }
+
   return (
     <div
       ref={shikiThemeRef}
@@ -874,18 +886,7 @@ const CodeViewer = ({
         ref={scrollerRef}
         className="shiki-scroller selectable relative block [scrollbar-color:auto] overflow-x-auto rounded-[inherit] pr-0 pl-[1em]"
         onScroll={handleScroll}
-        style={
-          {
-            '--gutter-width': `${gutterDigits}ch`,
-            '--line-height': `${lineHeight}px`,
-            fontSize,
-            paddingBlock: Math.round(fontSize / 2),
-            tabSize: 2,
-            height: expanded || capture ? undefined : height,
-            maxHeight: expanded || capture ? undefined : maxHeight,
-            overflowY: capture ? 'visible' : expanded ? 'hidden' : 'auto'
-          } as React.CSSProperties
-        }>
+        style={scrollerStyle}>
         <div
           ref={listRef}
           className="shiki-list"

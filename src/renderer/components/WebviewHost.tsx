@@ -14,7 +14,7 @@ import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { loggerService } from '@logger'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
-import { WEBVIEW_KEYDOWN_CHANNEL, type WebviewKeyPayload } from '@shared/utils/webviewKey'
+import { WEBVIEW_KEYDOWN_CHANNEL, WebviewKeyPayloadSchema } from '@shared/utils/webviewKey'
 
 const logger = loggerService.withContext('WebviewHost')
 
@@ -167,11 +167,11 @@ export function WebviewHost({
     const handleGuestKeydown = (event: IpcMessageEvent) => {
       if (event.channel !== WEBVIEW_KEYDOWN_CHANNEL) return
 
-      const payload = event.args[0] as WebviewKeyPayload | undefined
+      const result = WebviewKeyPayloadSchema.safeParse(event.args[0])
 
-      if (!payload?.isTrusted || document.activeElement !== webview) return
+      if (!result.success || !result.data.isTrusted || document.activeElement !== webview) return
 
-      const replayed = new KeyboardEvent('keydown', { ...payload, cancelable: true })
+      const replayed = new KeyboardEvent('keydown', { ...result.data, cancelable: true })
       Object.defineProperty(replayed, 'target', { get: () => webview })
       window.dispatchEvent(replayed)
     }

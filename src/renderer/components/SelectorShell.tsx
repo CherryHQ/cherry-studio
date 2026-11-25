@@ -29,6 +29,7 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
+import { getEventTargetNode, isElementNode } from '@renderer/utils/dom'
 
 type PopoverContentProps = ComponentPropsWithoutRef<typeof PopoverContent>
 
@@ -679,9 +680,9 @@ export function SelectorShell({
               }}
               onInteractOutside={(event) => {
                 const originalEvent = event.detail?.originalEvent
-                const originalTarget = (originalEvent?.target ?? event.target) as Element | null
+                const originalTarget = getEventTargetNode(originalEvent?.target ?? event.target)
 
-                if (originalTarget?.closest?.('[data-entity-context-menu-root]')) {
+                if (isElementNode(originalTarget) && originalTarget.closest('[data-entity-context-menu-root]')) {
                   event.preventDefault()
                 }
 

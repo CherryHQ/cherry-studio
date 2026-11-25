@@ -46,6 +46,9 @@ const reasonKeys = {
   source_unavailable: 'settings.browser.cookieSourceUnavailable'
 } as const satisfies Record<BrowserImportReason, string>
 
+// SAFETY: reasonKeys is a private, exhaustive BrowserImportReason literal; Object.keys erases that closed key union.
+const reasons = Object.keys(reasonKeys) as BrowserImportReason[]
+
 function profileLabel(source: BrowserImportSource): string {
   return [...new Set([source.displayName || source.profile, source.account].filter(Boolean))].join(' · ')
 }
@@ -197,7 +200,7 @@ function BrowserImportContent({
               <div key={item.label} className="space-y-1 text-sm">
                 <p>{item.label}</p>
                 <p className="text-muted-foreground tabular-nums">{t('settings.browser.result', item)}</p>
-                {(Object.keys(reasonKeys) as BrowserImportReason[]).map((reason) => {
+                {reasons.map((reason) => {
                   const count = item.reasons?.[reason]
 
                   return count ? (

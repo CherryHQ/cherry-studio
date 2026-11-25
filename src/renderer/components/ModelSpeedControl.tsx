@@ -377,7 +377,11 @@ export function ModelSpeedControl({
             value={displayedEffort}
             aria-label={effortControlLabel}
             className="mt-2 gap-0"
-            onValueChange={(effort) => onReasoningEffortChange(effort as ThinkingOption)}>
+            onValueChange={(value) => {
+              const effort = reasoningOptions.find((option) => option === value)
+
+              if (effort !== undefined) onReasoningEffortChange(effort)
+            }}>
             {reasoningOptions.map((effort) => (
               <label
                 key={effort}
@@ -429,7 +433,11 @@ export function ModelSpeedControl({
               value={effectiveServiceTier}
               aria-label={serviceTierControlLabel}
               className="gap-0"
-              onValueChange={(tier) => onServiceTierChange?.(tier as ServiceTierSelection)}>
+              onValueChange={(value) => {
+                const tier = serviceTierOptions.find((option) => option === value)
+
+                if (tier !== undefined) onServiceTierChange?.(tier)
+              }}>
               {serviceTierOptions.map((tier) => (
                 <label
                   key={tier}

@@ -231,6 +231,7 @@ export function PermissionModeSelect({
         onValueChange={(next) => {
           // Radix's hidden native select can briefly emit an empty value while its dynamic options change.
           const nextCard = cards.find((card) => card.mode === next)
+
           if (!nextCard) return
 
           if (nextCard.mode === 'bypassPermissions' && value !== 'bypassPermissions') {

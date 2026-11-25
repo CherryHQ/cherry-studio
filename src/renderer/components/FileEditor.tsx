@@ -147,7 +147,10 @@ export default function FileEditor({
   const [loadFailed, setLoadFailed] = useState(false)
   const [virtualizer] = useState(() => new Virtualizer())
   const lastEdit = useRef<string | null>(null)
-  const [input, setInput] = useState(() => ({ value, file: { name: fileName, contents: value } as FileContents }))
+  const [input, setInput] = useState<{ value: string; file: FileContents }>(() => ({
+    value,
+    file: { name: fileName, contents: value }
+  }))
   const liveContents = useRef(value)
   const [commentDraft, setCommentDraft] = useState<{ start: number; end: number } | null>(null)
   const commentable = onLineComment !== undefined
@@ -301,6 +304,18 @@ export default function FileEditor({
     [expanded, virtualizer]
   )
 
+  const fileStyle: CSSProperties & {
+    '--diffs-font-family': string
+    '--diffs-font-size': string
+    '--diffs-line-height': string
+    '--diffs-tab-size': number
+  } = {
+    '--diffs-font-family': 'var(--code-font-family)',
+    '--diffs-font-size': `${fontSize}px`,
+    '--diffs-line-height': `${lineHeight}px`,
+    '--diffs-tab-size': tabSize
+  }
+
   const surface = (
     <div
       ref={attachViewport}
@@ -328,14 +343,7 @@ export default function FileEditor({
               )
             : undefined
         }
-        style={
-          {
-            '--diffs-font-family': 'var(--code-font-family)',
-            '--diffs-font-size': `${fontSize}px`,
-            '--diffs-line-height': `${lineHeight}px`,
-            '--diffs-tab-size': tabSize
-          } as CSSProperties
-        }
+        style={fileStyle}
       />
       {scrollPastEnd && !expanded ? <div aria-hidden style={{ height: `calc(100% - ${lineHeight}px)` }} /> : null}
     </div>

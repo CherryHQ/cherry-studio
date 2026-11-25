@@ -2,6 +2,7 @@ import { ChevronRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { getEventTargetElement } from '@renderer/utils/dom'
 
 /**
  * 水平滚动容器
@@ -47,9 +48,9 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
   const handleContainerClick = (e: React.MouseEvent) => {
     if (expandable) {
       // 确保不是点击了其他交互元素（如 tag 的关闭按钮）
-      const target = e.target as HTMLElement
+      const target = getEventTargetElement(e.target)
 
-      if (!target.closest('[data-no-expand]')) {
+      if (target && !target.closest('[data-no-expand]')) {
         setIsExpanded(!isExpanded)
       }
     }

@@ -157,6 +157,7 @@ const LanguageSelect = (props: Props) => {
 
   const filterOption = useCallback((option: LanguageComboboxOption, search: string) => {
     const normalizedSearch = search.trim().toLowerCase()
+
     return [option.searchText, option.value].filter(Boolean).join(' ').toLowerCase().includes(normalizedSearch)
   }, [])
 

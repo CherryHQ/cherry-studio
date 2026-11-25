@@ -73,11 +73,11 @@ export const OgCard = ({ link, show }: Props) => {
 }
 
 const Container = ({ children }: PropsWithChildren<{}>) => {
-  const cardStyle = {
+  const cardStyle: CSSProperties & Record<`--og-card-${string}`, string> = {
     '--og-card-shadow': 'none',
     '--og-card-shadow-hover': 'none',
     '--og-card-radius': '8px'
-  } as CSSProperties
+  }
 
   return (
     <div
