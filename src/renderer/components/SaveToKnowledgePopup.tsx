@@ -203,6 +203,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
 
     return Object.entries(CONTENT_TYPE_CONFIG)
       .map(([type, config]) => {
+        // SAFETY: The module-owned CONTENT_TYPE_CONFIG declares exactly the ContentType keys; Object.entries erases them.
         const contentType = type as ContentType
         const count = contentStats[contentType] || 0
 
@@ -548,7 +549,9 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
                   : 'chat.save.knowledge.select.content.tip',
                 {
                   count: formState.selectedCount,
-                  ...(isConversationMode && { messages: (contentStats as TopicContentStats)?.messages || 0 })
+                  ...(isConversationMode && {
+                    messages: contentStats && 'messages' in contentStats ? contentStats.messages || 0 : 0
+                  })
                 }
               )}
             </span>
