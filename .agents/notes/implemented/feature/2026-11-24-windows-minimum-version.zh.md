@@ -12,7 +12,7 @@ Status: implemented
 
 受支持的最低版本为 Windows 10 1809（内部版本 17763，64 位 x64/ARM64）或更高版本（含 Windows 11）。Windows 7、8、8.1 不受支持，通过第三方兼容层启动也不属于官方支持。约定由四处共用同一真相来源 `src/shared/utils/osSupport.ts` 中的 `isSupportedWindowsRelease` 来执行：
 
-- NSIS 安装程序在 `customInit` 中新增 `checkWindowsVersion` 步骤，读取 `CurrentMajorVersionNumber`/`CurrentBuildNumber`，在安装应用之前以中英双语提示中止安装。`preInit` 会保存模板创建的初始目录，中止路径仅对该目录做尽力而为的空目录清理（先切走工作目录），绝不删除 `initMultiUser` 选定的最终目录；由于模板在任何自定义钩子之前就已执行 `SetOutPath $INSTDIR`，完美无残留的中止是不可能的。
+- NSIS 安装程序在 `customInit` 中新增 `checkWindowsVersion` 步骤，读取 `CurrentMajorVersionNumber`/`CurrentBuildNumber`，在安装应用之前以中英双语提示中止安装。安装程序刻意不做任何目录清理：electron-builder 模板在任何自定义钩子之前就已执行 `SetOutPath $INSTDIR`，无法确认空目录归属（例如已存在的空 `/D=` 目标或 `initMultiUser` 选定的按用户目录），删除会带来用户数据风险。所有仅安装程序使用的符号都位于 `!ifndef BUILD_UNINSTALLER` 之内，且未定义 `preInit` 宏，因此卸载程序编译不受影响。
 - 主进程新增同步 preboot 门禁 `src/main/core/preboot/osSupportGate.ts` 中的 `runOsSupportGate`，在 `resolveUserDataLocation()` 之前运行。`main.ts` 首先导入 `osSupportEarlyGate`，使门禁在任何 profile 相关导入（`bootConfig`/`LoggerService`）求值之前就在模块求值期执行。版本过低时显示中英双语错误对话框，不依赖 i18n 目录（通过 `app.getPreferredSystemLanguages()` 在 pre-ready 阶段安全获取语言，仅用 console + dialog，不写文件日志），然后以退出码 1 退出，不触碰用户数据与 `%APPDATA%/<App>/logs`。
 - `AppUpdaterService` 在不受支持的 Windows 版本上跳过所有更新检查路径（`performUpdateCheck`、`queryUpdateAvailability`、`getLatestReleaseNotes`），按已是最新版本上报，并发送 `X-OS-Release` 请求头，便于服务端未来按系统版本过滤。`artifact-build-completed.js` 将 `minimumSystemVersion: 10.0.17763` 写在更新 manifest 根节点（`updateInfo` 之外同时写 `releaseInfo`，因为差分包会把 `updateInfo` 复制到 `files[0]` 而旧版 updater 会忽略），使未带门禁的老客户端收不到首个带门禁的版本。
 - 安装文档与常见问题以中英双语声明同一最低版本，说明兼容层启动不属于官方支持，并将存档的 GitHub Releases 标记为仅供参考，不再提供支持与安全更新。

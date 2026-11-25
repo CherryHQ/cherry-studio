@@ -13,13 +13,6 @@
 
 ; https://github.com/electron-userland/electron-builder/issues/1122
 !ifndef BUILD_UNINSTALLER
-  ; Holds the $INSTDIR value that the electron-builder template creates with
-  ; `SetOutPath $INSTDIR` at the top of `.onInit`, before `initMultiUser` may
-  ; rewrite $INSTDIR. Saved in `preInit` so the abort path cleans up only the
-  ; directory the template created, never the final user-selected directory
-  ; (which may pre-exist empty and must not be deleted by this check).
-  Var osSupportInitialInstDir
-
   ; Check VC++ Redistributable based on architecture stored in $1
   Function checkVCRedist
     ${If} $1 == "arm64"
@@ -121,17 +114,6 @@
       Pop $R1
       Pop $R0
   FunctionEnd
-!endif
-
-!macro preInit
-  ; Capture the directory the template just created with `SetOutPath $INSTDIR`
-  ; before `initMultiUser` can rewrite $INSTDIR. The OS gate in `customInit`
-  ; must only attempt cleanup of this directory — never the final $INSTDIR,
-  ; which may be a pre-existing empty per-user directory this invocation did
-  ; not create. See `customInit` for the best-effort empty-dir cleanup and its
-  ; template-ordering limitation.
-  StrCpy $osSupportInitialInstDir $INSTDIR
-!macroend
 
 !macro customInit
   Push $0
@@ -144,15 +126,16 @@
   ; Windows 7/8/8.1 and earlier cannot run this build (Electron 23+ requires
   ; Windows 10+); third-party compatibility layers are not supported either.
   ; NOTE: the electron-builder template issues `SetOutPath $INSTDIR` in
-  ; `.onInit` before `preInit`/`customInit` run, which creates $INSTDIR
-  ; (including a `/D=` destination that did not exist). There is no hook
-  ; before that first creation, so a perfect no-change abort is impossible.
-  ; Best effort below: leave the working directory before removing, and only
-  ; remove the template-created initial directory when it is empty — never
-  ; the final $INSTDIR selected by `initMultiUser`, which may pre-exist empty.
-  ; `RMDir` only succeeds on empty directories, so an existing install with
-  ; files is never deleted. The copy below promises "not installed" rather
-  ; than zero filesystem side effects for this reason.
+  ; `.onInit` before `customInit` runs, which creates $INSTDIR (including a
+  ; `/D=` destination that did not exist). There is no hook before that first
+  ; creation, so a perfect no-change abort is impossible. This gate
+  ; deliberately performs no directory cleanup: removing the directory could
+  ; delete a pre-existing empty directory this invocation never created
+  ; (e.g. a `/D=` destination that already existed empty, or the per-user
+  ; directory selected by `initMultiUser`). Leaving at most one empty
+  ; template-created directory behind is safer than deleting user data.
+  ; The copy below promises "not installed" rather than zero filesystem
+  ; side effects for this reason.
   Call checkWindowsVersion
   ${If} $0 != "1"
     StrCpy $4 "https://cherryai.com/"
@@ -171,13 +154,10 @@
       Supported downloads and documents:$\r$\n\
       $4"
     ExecShell "open" "$4"
-    ; Best-effort cleanup of the template-created directory only. Leave the
-    ; working directory first: when $INSTDIR is the working directory Windows
-    ; refuses to remove it, leaving the `/D=` destination behind. Never clean
-    ; the final $INSTDIR here — after `initMultiUser` it may be a pre-existing
-    ; empty per-user directory this invocation did not create.
-    SetOutPath $TEMP
-    RMDir "$osSupportInitialInstDir"
+    ; Deliberately no RMDir/SetOutPath cleanup here. The template creates
+    ; $INSTDIR before this gate runs, so ownership cannot be established and
+    ; cleanup could delete a pre-existing empty directory. Just abort before
+    ; any application files are laid down.
     Abort
   ${EndIf}
 
@@ -269,3 +249,4 @@
     Pop $1
     Pop $0
 !macroend
+!endif
