@@ -62,7 +62,7 @@ export function buildParamsSchema(
   const shape: Record<string, z.ZodTypeAny> = {}
 
   for (const key of IMAGE_PARAM_CATALOG_KEYS) {
-    shape[key] = paramCatalogEntry(key).schema.catch(undefined)
+    shape[key] = IMAGE_PARAM_CATALOG[key].schema.catch(undefined)
   }
 
   const supports = resolveModeSupports(support, mode)
