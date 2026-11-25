@@ -1,10 +1,10 @@
 import { dataApiService } from '@data/DataApiService'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import type { SerializedError } from '@renderer/types/error'
-import { fetchGenerate } from '@renderer/utils/aiGeneration'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
+import { readDefaultModel } from '@renderer/utils/model'
 import type { DiagnosisResult } from '@shared/data/types/uiParts'
 import {
   classifyErrorCategory,
@@ -27,12 +27,53 @@ export interface DiagnosisContext {
   modelId?: string
 }
 
-async function getCherryAiDefaultFreeModel(): Promise<Model> {
-  const model = await dataApiService.get(`/models/${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`)
-  if (!model) {
-    throw new Error(`Diagnosis model not found: ${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`)
+// Name, code, and a truncated message only: provider failures can echo the request body.
+function failureReason(error: unknown): string {
+  const detail = error instanceof Error ? `${error.name}: ${error.message.slice(0, 120)}` : String(error).slice(0, 120)
+  const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+  return typeof code === 'string' && code ? `${detail} (code ${code})` : detail
+}
+
+async function requireDiagnosisPermission() {
+  const key = 'app.privacy.data_collection.enabled'
+  if ((await preferenceService.getAuthoritative(key)) !== true || preferenceService.getCachedValue(key) === false) {
+    throw new Error(i18n.t('error.diagnosis.free_model_unavailable'))
   }
-  return model
+}
+
+async function generateDiagnosis(system: string, prompt: string): Promise<string> {
+  await requireDiagnosisPermission()
+  const unavailable = () => new Error(i18n.t('error.diagnosis.default_model_unavailable'))
+  const model = await readDefaultModel().catch((error: unknown) => {
+    logger.warn('Unable to resolve the default model for AI diagnosis', { reason: failureReason(error) })
+    return undefined
+  })
+  if (!model?.isEnabled) throw unavailable()
+  const provider = await dataApiService.get(`/providers/${model.providerId}`).catch((error: unknown) => {
+    logger.warn('Unable to load the diagnosis provider', { providerId: model.providerId, reason: failureReason(error) })
+    return undefined
+  })
+  if (!provider?.isEnabled) throw unavailable()
+
+  await requireDiagnosisPermission()
+  const result = await ipcApi
+    .request('ai.text.generate', {
+      uniqueModelId: model.id,
+      reasoningEffort: 'none',
+      // Diagnosis only needs a short text answer, never tool calls.
+      disableTools: true,
+      system,
+      prompt,
+      // Surface the real failure: a retry may switch key or model and hide it.
+      requestOptions: { maxRetries: 0 }
+    })
+    .catch((error: unknown) => {
+      logger.warn('AI diagnosis request failed', { uniqueModelId: model.id, reason: failureReason(error) })
+      return undefined
+    })
+  const text = result?.text.trim()
+  if (!text) throw unavailable()
+  return text
 }
 
 function buildContextHint(errorInfo: Record<string, unknown>, context?: DiagnosisContext): string {
@@ -290,31 +331,25 @@ The examples above demonstrate structure only. Write all four diagnosis fields i
 
   const content = JSON.stringify(errorInfo)
 
+  const response = await generateDiagnosis(prompt, content)
   try {
-    const model = await getCherryAiDefaultFreeModel()
-    const response = await fetchGenerate({ prompt, content, model, throwOnError: true })
-    if (!response) {
-      throw new Error(`Empty response from model: ${model.id}`)
-    }
     return parseResponse(response)
-  } catch (error) {
-    logger.error('Free diagnosis model unavailable', error as Error)
+  } catch {
     throw new Error(i18n.t('error.diagnosis.free_model_unavailable'))
   }
 }
 
-/** Faithful translation of an error's own text into `language`; '' when the free model is unavailable. */
+export async function classifyErrorByAI(error: SerializedError, language: string): Promise<string> {
+  const prompt = `You are an error diagnosis assistant for Cherry Studio. Summarize this error in one sentence (max 30 words) in ${language}. Return ONLY the summary text, no JSON, no markdown, no quotes.`
+  const content = `Error: ${error.name}: ${error.message}`
+
+  return generateDiagnosis(prompt, content)
+}
+
+/** Faithful translation of an error's own text into `language`; '' when diagnosis is not allowed or unavailable. */
 export async function translateErrorByAI(text: string, language: string): Promise<string> {
   const prompt = `Translate this error message from an AI chat app into ${language}. Keep error codes, HTTP statuses, model and provider names, ports, URLs and other identifiers exactly as written. If it is long, keep only the sentences that state the cause and what to do. If it is already in ${language}, return it unchanged. Return only the translated text, with no quotes or markdown.`
-
-  try {
-    const model = await getCherryAiDefaultFreeModel()
-    // Key-name redaction would blank provider explanations such as `max_tokens: 100000 > 64000`.
-    const content = redactHomeDirectories(redactSecretTokens(redactCredentialSchemes(text)))
-    const response = await fetchGenerate({ prompt, content, model, throwOnError: true })
-    return response?.trim() || ''
-  } catch (error) {
-    logger.warn('Free model unavailable for error translation', error as Error)
-    return ''
-  }
+  // Key-name redaction would blank provider explanations such as `max_tokens: 100000 > 64000`.
+  const content = redactHomeDirectories(redactSecretTokens(redactCredentialSchemes(text)))
+  return generateDiagnosis(prompt, content).catch(() => '')
 }

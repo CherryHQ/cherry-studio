@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ErrorNotice, type ErrorNoticeAction } from '@renderer/components/ErrorNotice'
 import { useProviderById } from '@renderer/hooks/useProvider'
@@ -26,10 +27,7 @@ import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('ErrorBlock')
 
-/** A slow or unreachable summarizer must not leave the card on its placeholder. */
-const SUMMARY_TIMEOUT_MS = 8000
-
-/** Short conclusion + one-sentence cause/next step; `unknown` has no fixed info (translation or raw text). */
+/** Short conclusion + one-sentence cause/next step; `unknown` has no fixed info (AI diagnosis or raw text). */
 const NOTICE_KEYS: Record<ErrorCategory, { readonly title: string; readonly info?: string }> = {
   auth: { title: 'error.notice.auth.title', info: 'error.notice.auth.info' },
   bad_request: { title: 'error.notice.bad_request.title', info: 'error.notice.bad_request.info' },
@@ -40,6 +38,7 @@ const NOTICE_KEYS: Record<ErrorCategory, { readonly title: string; readonly info
   rate_limit: { title: 'error.notice.rate_limit.title', info: 'error.notice.rate_limit.info' },
   context_length: { title: 'error.notice.context_length.title', info: 'error.notice.context_length.info' },
   payload: { title: 'error.notice.payload.title', info: 'error.notice.payload.info' },
+  prefill_memory: { title: 'settings.doctor.error_category.prefill_memory', info: 'error.diagnosis.prefill_memory' },
   network: { title: 'error.notice.network.title', info: 'error.notice.network.info' },
   proxy: { title: 'error.notice.proxy.title', info: 'error.notice.proxy.info' },
   stream: { title: 'error.notice.stream.title', info: 'error.notice.stream.info' },
@@ -113,13 +112,10 @@ const MessageErrorInfo: React.FC<{
   } = useMessageListActions()
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
-  const [storedSummary, setStoredSummary] = useState<{ readonly fault: string; readonly text: string } | undefined>(
-    undefined
-  )
-  const errorRef = useRef(error)
-  const messageRef = useRef(message)
-  errorRef.current = error
-  messageRef.current = message
+  const [dataCollectionEnabled] = usePreference('app.privacy.data_collection.enabled')
+  const [diagnosis, setDiagnosis] = useState<
+    { readonly fault: string; readonly status: 'loading' | 'done' | 'failed'; readonly text: string } | undefined
+  >(undefined)
 
   const errorBag = error as Record<string, unknown> | undefined
   const errorMessage = error?.message ?? undefined
@@ -150,7 +146,7 @@ const MessageErrorInfo: React.FC<{
         ? t(appOwnedErrorKey)
         : t(localModelFailure ? NOTICE_KEYS.model.title : NOTICE_KEYS[category].title)
 
-  const summaryFault = [
+  const diagnosisFault = [
     message.id,
     partId,
     message.persistedAt ?? '',
@@ -158,50 +154,35 @@ const MessageErrorInfo: React.FC<{
     errorMessage ?? '',
     i18n.language
   ].join('\0')
-  // Fault identity omits status and app i18n key, so a newly classifiable error would keep the previous class's summary.
-  const summaryEligible =
+  const canDiagnose =
+    !!dataCollectionEnabled &&
     claudeCodeExitCategory === undefined &&
     !localModelFailure &&
     !hasAppOwnedI18nKey &&
     category === 'unknown' &&
     !!errorMessage &&
-    !isLikelyInLanguage(errorMessage, i18n.language) &&
     !!error &&
     !!diagnoseMessageError
-  const summarySettled = summaryEligible && storedSummary?.fault === summaryFault
-  const translation = summarySettled ? storedSummary.text : ''
+  // A new occurrence or UI language drops the previous answer; turning data collection off hides it.
+  const currentDiagnosis = canDiagnose && diagnosis?.fault === diagnosisFault ? diagnosis : undefined
+  const isDiagnosing = currentDiagnosis?.status === 'loading'
 
-  useEffect(() => {
-    const currentError = errorRef.current
-    if (!summaryEligible || !currentError) return
-    let cancelled = false
-    const fault = summaryFault
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<string>((resolve) => {
-      timer = setTimeout(() => resolve(''), SUMMARY_TIMEOUT_MS)
-    })
-    void Promise.race([
-      diagnoseMessageError({
-        message: messageRef.current,
-        partId,
-        error: currentError,
-        language: i18n.language
-      }),
-      timeout
-    ])
-      .then((result) => {
-        if (cancelled) return
-        const summary = typeof result === 'string' ? result : (result?.summary ?? '')
-        setStoredSummary({ fault, text: summary })
-      })
-      .catch(() => {
-        if (!cancelled) setStoredSummary({ fault, text: '' })
-      })
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
+  const onDiagnose = async () => {
+    if (!canDiagnose || !error || !diagnoseMessageError || isDiagnosing) return
+    const fault = diagnosisFault
+    const settle = (status: 'done' | 'failed', text: string) =>
+      setDiagnosis((previous) => (previous?.fault === fault ? { fault, status, text } : previous))
+    setDiagnosis({ fault, status: 'loading', text: '' })
+    try {
+      const result = await diagnoseMessageError({ message, partId, error, language: i18n.language })
+      settle('done', typeof result === 'string' ? result : (result?.summary ?? ''))
+    } catch (diagnosisFailure) {
+      settle(
+        'failed',
+        diagnosisFailure instanceof Error ? diagnosisFailure.message : t('error.diagnosis.free_model_unavailable')
+      )
     }
-  }, [diagnoseMessageError, i18n.language, partId, summaryEligible, summaryFault])
+  }
 
   const info = ((): ReactNode => {
     if (cherryCloudQuotaRejection) return cloudPresentation.text
@@ -232,8 +213,8 @@ const MessageErrorInfo: React.FC<{
     if (infoKey) {
       return t(infoKey, { provider: providerName })
     }
-    if (translation) return translation
-    if (summaryEligible && !summarySettled) return t('error.notice.unknown.summarizing')
+    if (currentDiagnosis?.status === 'done' && currentDiagnosis.text) return currentDiagnosis.text
+    if (currentDiagnosis?.status === 'failed') return <span role="status">{currentDiagnosis.text}</span>
     const original = providerErrorText(error)
     return original && !isLikelyInLanguage(original, i18n.language)
       ? t('error.notice.unknown.original', { message: original })
@@ -283,6 +264,12 @@ const MessageErrorInfo: React.FC<{
     }
   } else if (canRetry) {
     action = { label: t('common.retry'), onClick: () => void retry() }
+  } else if (canDiagnose) {
+    action = {
+      label: t(isDiagnosing ? 'error.diagnosis.ai_loading' : 'error.diagnosis.ai_button'),
+      disabled: isDiagnosing,
+      onClick: () => void onDiagnose()
+    }
   }
 
   return (
@@ -291,6 +278,7 @@ const MessageErrorInfo: React.FC<{
       role="group"
       title={title}
       info={info}
+      wrapInfo={currentDiagnosis?.status === 'failed'}
       action={action}
       onOpenDetail={openErrorDetail ? showErrorDetail : undefined}
       onDismiss={removeMessageErrorPart ? onRemoveErrorPart : undefined}

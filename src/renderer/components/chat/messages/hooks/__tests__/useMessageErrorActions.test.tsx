@@ -8,7 +8,7 @@ import type { MessageListItem } from '../../types'
 import { toMessageListItem } from '../../utils/messageListItem'
 
 const mocks = vi.hoisted(() => ({
-  translateErrorByAI: vi.fn(),
+  classifyErrorByAI: vi.fn(),
   diagnosisModuleEvaluated: vi.fn(),
   errorDetailModuleEvaluated: vi.fn(),
   showErrorDetailPopup: vi.fn()
@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/utils/errorDiagnosis', () => {
   mocks.diagnosisModuleEvaluated()
-  return { translateErrorByAI: mocks.translateErrorByAI }
+  return { classifyErrorByAI: mocks.classifyErrorByAI }
 })
 
 vi.mock('@renderer/components/ErrorDetailModal', () => {
@@ -32,7 +32,7 @@ const modulesEvaluatedDuringHookImport = {
 
 describe('useMessageErrorActions', () => {
   beforeEach(() => {
-    mocks.translateErrorByAI.mockReset()
+    mocks.classifyErrorByAI.mockReset()
     mocks.showErrorDetailPopup.mockReset()
     vi.clearAllMocks()
   })
@@ -46,7 +46,7 @@ describe('useMessageErrorActions', () => {
       status: 'error'
     } satisfies MessageListItem
     const error = { message: 'provider unavailable', name: 'ProviderError', stack: '' }
-    mocks.translateErrorByAI.mockResolvedValueOnce('服务商不可用')
+    mocks.classifyErrorByAI.mockResolvedValueOnce('服务商不可用')
 
     const { result } = renderHook(() =>
       useMessageErrorActions({ errorSource: 'chat', getDoctorSubject: () => undefined })
