@@ -13,7 +13,8 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
-  Switch
+  Switch,
+  Tooltip
 } from '@cherrystudio/ui'
 
 export type CapabilityItem = {
@@ -48,17 +49,30 @@ export function CapabilityIconTile({ children }: { children: ReactNode }) {
   )
 }
 
+/** A second, labelled switch on a row (a tool's Auto Approve), independent of the enable switch. */
+export type CapabilityRowAutoApprove = {
+  label: string
+  checked: boolean
+  disabled: boolean
+  /** Explains why the switch is locked or unavailable. */
+  tooltip?: string
+  onToggle: (enabled: boolean) => void
+}
+
 export function CapabilityRow({
   item,
   checked,
   disabled = false,
-  onToggle
+  onToggle,
+  autoApprove
 }: {
   item: CapabilityItem
   checked: boolean
   disabled?: boolean
   onToggle: (enabled: boolean) => void
+  autoApprove?: CapabilityRowAutoApprove
 }) {
+  const { t } = useTranslation()
   const toggleDisabled = Boolean(disabled || item.locked || item.pending || (item.pickable === false && !checked))
 
   return (
@@ -84,14 +98,42 @@ export function CapabilityRow({
         ) : null}
       </div>
       {item.pending ? <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" /> : null}
-      <Switch
-        size="sm"
-        aria-label={item.name}
-        aria-busy={item.pending || undefined}
-        checked={checked || Boolean(item.pending)}
-        disabled={toggleDisabled}
-        onCheckedChange={onToggle}
-      />
+      {autoApprove ? (
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground">{autoApprove.label}</span>
+          <Tooltip content={autoApprove.tooltip} isDisabled={!autoApprove.tooltip}>
+            <Switch
+              size="xs"
+              aria-label={`${autoApprove.label} ${item.name}`}
+              checked={autoApprove.checked}
+              disabled={autoApprove.disabled}
+              onCheckedChange={autoApprove.onToggle}
+            />
+          </Tooltip>
+        </div>
+      ) : null}
+      {autoApprove ? (
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground">{t('library.action.enable')}</span>
+          <Switch
+            size="sm"
+            aria-label={`${t('library.action.enable')} ${item.name}`}
+            aria-busy={item.pending || undefined}
+            checked={checked || Boolean(item.pending)}
+            disabled={toggleDisabled}
+            onCheckedChange={onToggle}
+          />
+        </div>
+      ) : (
+        <Switch
+          size="sm"
+          aria-label={item.name}
+          aria-busy={item.pending || undefined}
+          checked={checked || Boolean(item.pending)}
+          disabled={toggleDisabled}
+          onCheckedChange={onToggle}
+        />
+      )}
     </div>
   )
 }

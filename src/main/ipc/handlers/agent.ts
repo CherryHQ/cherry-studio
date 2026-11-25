@@ -15,6 +15,7 @@ import {
 } from '@main/ai/agents/agentDataDirectory'
 import { withAgentMemoryFileLock } from '@main/ai/agents/agentMemoryFileLock'
 import { previewAgentSystemPrompt, resolveAgentPromptInstructions } from '@main/ai/runtime/agentPromptPreview'
+import { listBuiltinToolPolicies, toMcpRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
 import { logFailure } from '@main/core/logger/logFailure'
 import { agentAvatarService } from '@main/services/AgentAvatarService'
 import type { AgentMemoryFile, agentRequestSchemas } from '@shared/ipc/schemas/agent'
@@ -248,6 +249,11 @@ export const agentHandlers: IpcHandlersFor<typeof agentRequestSchemas> = {
     const errorMessage = await shell.openPath(directory)
     if (errorMessage) throw new Error(`Failed to open agent memory folder: ${errorMessage}`)
   },
+  // The edit dialog renders Auto Approve switches from this effective policy: 'auto' tools are
+  // always pre-approved and 'required'/'delegation' tools always prompt, regardless of the
+  // persisted per-agent allowedTools list, so the switch must show (and lock to) that truth.
+  'agent.list_builtin_tool_policies': async () =>
+    listBuiltinToolPolicies().map((entry) => ({ runtimeName: toMcpRuntimeName(entry), approval: entry.approval })),
   'agent.system_prompt.preview': (draft) => previewAgentSystemPrompt(draft),
   'agent.system_prompt.resolve_instructions': (draft) => resolveAgentPromptInstructions(draft)
 }

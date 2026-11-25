@@ -85,6 +85,7 @@ type AgentEditFormValues = {
   mcps: string[]
   knowledgeBaseIds: string[]
   skillIds: string[]
+  allowedTools: string[]
   disabledTools: string[]
   permissionMode: string
   envVarsText: string
@@ -129,6 +130,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     mcps: [...form.mcps],
     knowledgeBaseIds: [...form.knowledgeBaseIds],
     skillIds: [...form.skillIds],
+    allowedTools: [...form.allowedTools],
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
@@ -164,6 +166,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     mcps: [...values.mcps],
     knowledgeBaseIds: [...values.knowledgeBaseIds],
     skillIds: [...values.skillIds],
+    allowedTools: [...values.allowedTools],
     disabledTools: [...values.disabledTools],
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
@@ -198,6 +201,7 @@ function advanceAgentFormBaseline(
   if (hasOwn(payload, 'mcps')) next.mcps = [...submitted.mcps]
   if (hasOwn(payload, 'knowledgeBaseIds')) next.knowledgeBaseIds = [...submitted.knowledgeBaseIds]
   if (hasOwn(payload, 'skillUpdates')) next.skillIds = [...submitted.skillIds]
+  if (hasOwn(payload, 'allowedTools')) next.allowedTools = [...submitted.allowedTools]
   if (hasOwn(payload, 'disabledTools')) next.disabledTools = [...submitted.disabledTools]
 
   const configuration = payload.configuration
@@ -228,6 +232,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('mcps', next.mcps, { shouldDirty: true })
   form.setValue('knowledgeBaseIds', next.knowledgeBaseIds, { shouldDirty: true })
   form.setValue('skillIds', next.skillIds, { shouldDirty: true })
+  form.setValue('allowedTools', next.allowedTools, { shouldDirty: true })
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
@@ -681,6 +686,12 @@ function AgentEditDialogContent({
           agentType={resource.type}
           disabledTools={values.disabledTools}
           onDisabledToolsChange={(next) => form.setValue('disabledTools', next, { shouldDirty: true })}
+          allowedTools={resource.type === 'claude-code' ? values.allowedTools : undefined}
+          onAllowedToolsChange={
+            resource.type === 'claude-code'
+              ? (next) => form.setValue('allowedTools', next, { shouldDirty: true })
+              : undefined
+          }
           hasKnowledgeScope={values.knowledgeBaseIds.length > 0}
         />
       ) : null}

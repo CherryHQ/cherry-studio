@@ -78,6 +78,18 @@ export const AgentSystemPromptPreviewSchema = z.object({
 })
 export type AgentSystemPromptPreview = z.infer<typeof AgentSystemPromptPreviewSchema>
 
+/**
+ * Renderer-facing view of a Cherry-owned MCP tool's approval policy. The policy itself lives
+ * main-side (`builtinToolPolicyRegistry`); this is only the display contract the agent edit
+ * dialog needs to render honest Auto Approve switches.
+ */
+export interface BuiltinToolPolicyInfo {
+  /** Claude-style MCP runtime name, e.g. `mcp__cherry-tools__generate_image`. */
+  runtimeName: string
+  /** 'auto' is always auto-approved; 'required' always prompts; 'delegation' is never auto-approvable. */
+  approval: 'auto' | 'required' | 'delegation'
+}
+
 export const agentRequestSchemas = {
   'agent.set_avatar': defineRoute({
     input: z.strictObject({
@@ -106,6 +118,10 @@ export const agentRequestSchemas = {
   'agent.memory.open_folder': defineRoute({
     input: AgentIdInputSchema,
     output: z.void()
+  }),
+  'agent.list_builtin_tool_policies': defineRoute({
+    input: z.void(),
+    output: z.custom<BuiltinToolPolicyInfo[]>()
   }),
   /** The editable and inspectable system prompt blocks for this draft. */
   'agent.system_prompt.preview': defineRoute({

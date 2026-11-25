@@ -1803,7 +1803,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
       mcps: [],
-      allowedTools: [],
+      allowedTools: ['Bash', 'Write'],
       disabledTools: ['Bash', 'Read'],
       configuration: {}
     })
@@ -1816,6 +1816,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read']))
+    expect(settings.allowedTools).toContain('Write')
+    expect(settings.allowedTools).not.toContain('Bash')
+    expect(settings.allowedTools).not.toContain('Read')
     // The injected cherry-tools/agent-memory servers are always pre-approved via the allowlist.
   })
 

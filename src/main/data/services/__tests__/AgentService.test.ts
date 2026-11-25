@@ -493,6 +493,17 @@ describe('AgentService', () => {
         })
       })
     })
+
+    it('defaults tool policy lists to empty arrays (backward-safe)', async () => {
+      const agent = createAgentForTest({
+        type: 'claude-code',
+        name: 'Disabled Tools Default',
+        model: TEST_MODEL_ID
+      })
+      const reloaded = agentService.getAgent(agent.id)
+      expect(reloaded?.disabledTools).toEqual([])
+      expect(reloaded?.allowedTools).toEqual([])
+    })
   })
 
   describe('ensureBuiltinAgent', () => {
@@ -989,6 +1000,23 @@ describe('AgentService', () => {
 
       const reloaded = agentService.getAgent(created.id)
       expect(reloaded?.disabledTools).toEqual(['Bash', 'Workflow'])
+    })
+  })
+
+  describe('allowedTools round-trip', () => {
+    it('persists per-tool auto-approval on create and update', async () => {
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Auto-Approved Tools',
+        model: TEST_MODEL_ID,
+        allowedTools: ['Read']
+      })
+      expect(created.allowedTools).toEqual(['Read'])
+
+      const updated = agentService.updateAgent(created.id, { allowedTools: ['Read', 'Bash'] })
+      expect(updated?.allowedTools).toEqual(['Read', 'Bash'])
+
+      expect(agentService.getAgent(created.id)?.allowedTools).toEqual(['Read', 'Bash'])
     })
   })
 

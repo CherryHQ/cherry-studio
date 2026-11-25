@@ -23,7 +23,7 @@
     },
     {
       "path": "docs/dev/references/ai/adding-a-runtime.md",
-      "sources": ["src/main/ai/runtime/registerDrivers.ts","src/main/ai/runtime/types.ts","src/shared/ai/agentRuntimeCapabilities.ts"]
+      "sources": ["src/main/ai/runtime/claudeCode/settingsBuilder.ts","src/main/ai/runtime/registerDrivers.ts","src/main/ai/runtime/types.ts","src/renderer/components/resourceCatalog/dialogs/edit/AgentEditDialog.tsx","src/shared/ai/agentRuntimeCapabilities.ts","src/shared/data/api/schemas/agents.ts"]
     },
     {
       "path": "docs/dev/references/ai/agent-lifecycle.md",
