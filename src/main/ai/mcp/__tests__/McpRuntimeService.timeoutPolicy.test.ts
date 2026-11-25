@@ -58,11 +58,18 @@ describe('McpRuntimeService.callTool timeout policy', () => {
   })
 
   /** Real SDK client wired to an in-memory server whose tool handler is `handler`. */
-  async function connectRealClient(handler: CallHandler): Promise<ClientMcpConnection> {
+  async function connectRealClient(handler: CallHandler, visibility?: 'app' | 'model'): Promise<ClientMcpConnection> {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
     const server = new Server({ name: 'slow', version: '1.0.0' }, { capabilities: { tools: {} } })
     server.setRequestHandler('tools/list', async () => ({
-      tools: [{ name: 'slow-tool', description: 'slow', inputSchema: { type: 'object' } }]
+      tools: [
+        {
+          name: 'slow-tool',
+          description: 'slow',
+          inputSchema: { type: 'object' },
+          ...(visibility ? { _meta: { ui: { visibility: [visibility] } } } : {})
+        }
+      ]
     }))
     server.setRequestHandler('tools/call', async (request, context) =>
       handler(request as Parameters<CallHandler>[0], {
@@ -83,6 +90,29 @@ describe('McpRuntimeService.callTool timeout policy', () => {
   function serverWith(policy: { timeout?: number; longRunning?: boolean }): McpServerEntity {
     return { id: 'srv', name: 'srv', isActive: true, ...policy }
   }
+
+  it('blocks a direct model call to an App-only tool before it reaches the server', async () => {
+    getByIdMock.mockReturnValue(serverWith({ timeout: 30 }))
+    let callCount = 0
+    const client = await connectRealClient(async () => {
+      callCount++
+      return { content: [{ type: 'text', text: 'app result' }] }
+    }, 'app')
+    const service = new McpRuntimeService()
+    vi.spyOn(service as any, 'getOrCreateConnection').mockResolvedValue(client)
+    const args = { serverId: 'srv', name: 'slow-tool', args: {} }
+
+    try {
+      await expect(service.callTool({ ...args, audience: 'model' })).rejects.toThrow(/unavailable to the model/)
+      expect(callCount).toBe(0)
+      await expect(service.callTool({ ...args, audience: 'app' })).resolves.toMatchObject({
+        content: [{ type: 'text', text: 'app result' }]
+      })
+      expect(callCount).toBe(1)
+    } finally {
+      await client.close()
+    }
+  })
 
   it('terminates a call at the per-server timeout', async () => {
     getByIdMock.mockReturnValue(serverWith({ timeout: 1 }))
