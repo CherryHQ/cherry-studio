@@ -23,7 +23,12 @@ function getToolState(toolId: CodeCliId, configs: CodeCliConfigs): CodeCliToolSt
   // Dev profiles written before `modelId: UniqueModelId | null` may hold the
   // legacy '' sentinel; normalize on read (this is the preference's only read
   // choke point) so the next write self-heals. No migration needed.
-  const legacyIds = Object.keys(state.providers).filter((id) => (state.providers[id].modelId as string) === '')
+  const legacyIds = Object.keys(state.providers).filter((id) => {
+    // Stored preferences may still contain the empty-string sentinel that predates branded model IDs.
+    const stored: { modelId: string | null } = state.providers[id]
+
+    return stored.modelId === ''
+  })
 
   if (legacyIds.length === 0) return state
   const providers = { ...state.providers }
@@ -88,7 +93,7 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
       providerId: string,
       partial: Pick<CliProviderConfig, 'modelId'> & Partial<CliProviderConfig>
     ): Promise<string> => {
-      const toolId = selectedCliTool as CodeCliId
+      const toolId = selectedCliTool
       const existing = getToolState(toolId, configsRef.current).providers[providerId]
       const nextConfig = 'config' in partial ? partial.config : existing?.config
       const next: CliProviderConfig = { modelId: partial.modelId }
@@ -110,7 +115,7 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
 
   const deleteProviderConfig = useCallback(
     async (providerId: string) => {
-      const toolId = selectedCliTool as CodeCliId
+      const toolId = selectedCliTool
       await patchToolState(toolId, (prev) => {
         const nextProviders = { ...prev.providers }
         delete nextProviders[providerId]
@@ -127,7 +132,7 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
 
   const setCurrentProvider = useCallback(
     async (providerId: string | null) => {
-      const toolId = selectedCliTool as CodeCliId
+      const toolId = selectedCliTool
       await patchToolState(toolId, (prev) => ({ ...prev, current: providerId }))
     },
     [patchToolState, selectedCliTool]
@@ -135,7 +140,7 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
 
   const reorderProviders = useCallback(
     async (orderedIds: string[]) => {
-      const toolId = selectedCliTool as CodeCliId
+      const toolId = selectedCliTool
       await patchToolState(toolId, (prev) => {
         const nextProviders = { ...prev.providers }
 

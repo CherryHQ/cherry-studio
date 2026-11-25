@@ -13,6 +13,7 @@ import { isMac, isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
+import { getErrorCode } from '@main/utils/error'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import {
@@ -240,7 +241,7 @@ export class CodeCliService extends BaseService {
       } catch (error) {
         signal.throwIfAborted()
 
-        if ((error as { code?: unknown }).code === 44) return false
+        if (error !== null && typeof error === 'object' && 'code' in error && error.code === 44) return false
         throw error
       }
     }
@@ -264,7 +265,7 @@ export class CodeCliService extends BaseService {
     } catch (error) {
       signal.throwIfAborted()
 
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+      if (getErrorCode(error) === 'ENOENT') return false
       throw error
     }
   }
@@ -316,6 +317,7 @@ export class CodeCliService extends BaseService {
         return terminal
       }
     } catch (error) {
+      // SAFETY: Native Node child-process probes reject with Errors; pass the original instance to debug unchanged.
       logger.debug(`Terminal ${terminal.id} not available:`, error as Error)
     }
 
@@ -374,6 +376,7 @@ export class CodeCliService extends BaseService {
           return await this.checkPathTerminalAvailability(terminal)
       }
     } catch (error) {
+      // SAFETY: Native Node child-process probes reject with Errors; pass the original instance to debug unchanged.
       logger.debug(`Windows terminal ${terminal.id} not available:`, error as Error)
 
       return null
@@ -417,7 +420,7 @@ export class CodeCliService extends BaseService {
       // Wait for all checks to complete with a global timeout
       const results = await Promise.allSettled(
         terminalPromises.map((p) =>
-          Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))])
+          Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))])
         )
       )
 
@@ -425,7 +428,7 @@ export class CodeCliService extends BaseService {
       let hasProbeFailure = false
       results.forEach((result, index) => {
         if (result.status === 'fulfilled' && result.value) {
-          availableTerminals.push(result.value as TerminalConfig)
+          availableTerminals.push(result.value)
         } else if (result.status === 'rejected') {
           hasProbeFailure = true
           logger.debug(`Terminal check failed for ${terminalList[index].id}:`, result.reason)

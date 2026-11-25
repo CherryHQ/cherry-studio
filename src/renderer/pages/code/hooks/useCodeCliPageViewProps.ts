@@ -7,7 +7,6 @@ import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
-import type { CodeCliId } from '@shared/data/preference/preferenceTypes'
 import {
   CLI_OWN_LOGIN_PROVIDER_ID,
   CodeCli,
@@ -103,7 +102,7 @@ export function useCodeCliPageViewProps(
     const summaries: Record<string, string> = {}
 
     for (const tool of CLI_TOOLS) {
-      const state = configs[tool.value as CodeCliId]
+      const state = configs[tool.value]
       const currentId = state?.current
 
       if (!currentId) continue
