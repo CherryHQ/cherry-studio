@@ -190,7 +190,6 @@ describe('AiSdkToOpenAiResponsesSse', () => {
           id: 'rs_native',
           status: 'completed',
           summary: [{ type: 'summary_text', text: 'first second' }],
-          content: [{ type: 'reasoning_text', text: 'first second' }],
           encrypted_content: 'final-ciphertext'
         }
       ])

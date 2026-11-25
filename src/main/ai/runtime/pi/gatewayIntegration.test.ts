@@ -150,6 +150,7 @@ describe('native Pi through the production gateway', () => {
   let failStream = false
   let upstreamClosed = false
   let protocol: InputFormat = 'openai'
+  let plaintextResponse = false
   let geminiEvents: unknown[] | undefined
   const requests: Array<Record<string, unknown>> = []
   let call: (body: Record<string, unknown>) => { content?: string; tool_calls?: unknown[] }
@@ -208,6 +209,7 @@ describe('native Pi through the production gateway', () => {
     failStream = false
     upstreamClosed = false
     protocol = 'openai'
+    plaintextResponse = false
     geminiEvents = undefined
     mocks.messageId = 'original-answer'
     mocks.attribution = undefined
@@ -291,7 +293,9 @@ describe('native Pi through the production gateway', () => {
           id: `rs_native_${requests.length}`,
           status: 'completed',
           summary: [],
-          encrypted_content: 'encrypted-native-state'
+          ...(plaintextResponse
+            ? { content: [{ type: 'reasoning_text', text: 'native plaintext' }] }
+            : { encrypted_content: 'encrypted-native-state' })
         }
         const message = {
           type: 'message',
@@ -964,47 +968,50 @@ describe('native Pi through the production gateway', () => {
   })
 
   // Catches metadata stripped by the production stream pipeline before native Pi can replay it.
-  it.each(['openai', 'xai-responses'])(
-    'replays encrypted-only %s reasoning through native Pi',
-    async (adapterFamily) => {
-      protocol = 'openai-responses'
-      const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
-      dbh.db
-        .update(userProviderTable)
-        .set({
-          endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: url, adapterFamily } },
-          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
-        })
-        .where(eq(userProviderTable.providerId, 'port'))
-        .run()
-      const binding = await createPiGatewayModelBinding(
-        { sessionId: 'session' },
-        providerService.getByProviderId('port'),
-        modelService.getByKey('port', 'wire-model')
-      )
-      const directory = tempDir('gateway-responses')
-      session = await openSession({
-        ...binding,
-        cwd: directory,
-        agentDir: directory,
-        settings: { retry: { enabled: false } }
+  it.each([
+    { adapterFamily: 'openai', state: 'encrypted' },
+    { adapterFamily: 'xai-responses', state: 'encrypted' },
+    { adapterFamily: 'openai', state: 'plaintext' }
+  ] as const)('replays $state $adapterFamily reasoning through native Pi', async ({ adapterFamily, state }) => {
+    protocol = 'openai-responses'
+    plaintextResponse = state === 'plaintext'
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: url, adapterFamily } },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
       })
-      await sendUser('first question')
-      expect(outcome()).toBe('completed')
-      await sendUser('continue')
-      expect(outcome()).toBe('completed')
-      expect(requests).toHaveLength(2)
-      expect(requests[1].input).toContainEqual(
-        expect.objectContaining({
-          type: 'reasoning',
-          id: 'rs_native_1',
-          summary: [],
-          encrypted_content: 'encrypted-native-state'
-        })
-      )
-      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(2)
-    }
-  )
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const directory = tempDir('gateway-responses')
+    session = await openSession({
+      ...binding,
+      cwd: directory,
+      agentDir: directory,
+      settings: { retry: { enabled: false } }
+    })
+    await sendUser('first question')
+    expect(outcome()).toBe('completed')
+    await sendUser('continue')
+    expect(outcome()).toBe('completed')
+    expect(requests).toHaveLength(2)
+    expect(requests[1].input).toContainEqual(
+      expect.objectContaining({
+        type: 'reasoning',
+        summary: [],
+        ...(plaintextResponse
+          ? { content: [{ type: 'reasoning_text', text: 'native plaintext' }] }
+          : { id: 'rs_native_1', encrypted_content: 'encrypted-native-state' })
+      })
+    )
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(2)
+  })
 
   it.each([
     { format: 'anthropic', endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES },
@@ -1380,9 +1387,12 @@ describe('native Pi through the production gateway', () => {
     expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(1)
   })
 
-  it('replays encrypted Chat reasoning through the native consumer and production converter exactly once', async () => {
+  it.each(['encrypted_content', 'reasoning_details'] as const)('replays Chat %s once', async (field) => {
     const details = [{ type: 'reasoning.encrypted', id: 'r1', format: 'anthropic-claude-v1', data: 'opaque' }]
-    const metadata = { openrouter: { reasoning_details: details } }
+    const metadata: NonNullable<Extract<UIMessageChunk, { type: 'reasoning-end' }>['providerMetadata']> =
+      field === 'encrypted_content'
+        ? { openaiCompatible: { reasoningEncryptedContent: 'opaque' } }
+        : { openrouter: { reasoning_details: details } }
     let step = 0
     const upstream = vi.spyOn(mocks.ai!, 'streamText').mockImplementation(async () => ({
       kind: 'chunks',
@@ -1417,34 +1427,36 @@ describe('native Pi through the production gateway', () => {
     const user = { role: 'user' as const, content: 'look up example', timestamp: 1 }
     const answer = await binding.modelRuntime.completeSimple(binding.model, normalizeContext({ messages: [user] }))
     expect(answer.stopReason).toBe('toolUse')
-    const thinking = answer.content.find((part) => part.type === 'thinking')
-    expect(thinking?.thinkingSignature && JSON.parse(thinking.thinkingSignature)).toEqual(details)
+    expect(answer.content).toContainEqual(expect.objectContaining({ type: 'thinking', thinking: '' }))
+    const toolResult = {
+      role: 'toolResult' as const,
+      toolCallId: 'lookup_1',
+      toolName: 'lookup',
+      content: [{ type: 'text' as const, text: 'found' }],
+      isError: false,
+      timestamp: 2
+    }
     const result = await binding.modelRuntime.completeSimple(
       binding.model,
-      normalizeContext({
-        messages: [
-          user,
-          answer,
-          {
-            role: 'toolResult',
-            toolCallId: 'lookup_1',
-            toolName: 'lookup',
-            content: [{ type: 'text', text: 'found' }],
-            isError: false,
-            timestamp: 2
-          }
-        ]
-      })
+      normalizeContext({ messages: [user, answer, toolResult] })
     )
     expect(result.stopReason).toBe('stop')
-    expect(upstream.mock.calls[1][0].messages).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          role: 'assistant',
-          parts: expect.arrayContaining([expect.objectContaining({ type: 'reasoning', providerMetadata: metadata })])
-        })
-      ])
+    const assistant = upstream.mock.calls[1][0].messages?.find((message) => message.role === 'assistant')
+    expect(assistant?.parts.filter((part) => part.type === 'reasoning')).toEqual([
+      expect.objectContaining({ type: 'reasoning', text: '', providerMetadata: metadata })
+    ])
+    const foreignAnswer = { ...answer, cherryReplayRouteId: 'foreign-route' }
+    await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({
+        messages: [user, foreignAnswer, toolResult, { ...user, content: 'Follow-up', timestamp: 3 }]
+      })
     )
+    const foreignAssistant = upstream.mock.calls[2][0].messages?.find((message) => message.role === 'assistant')
+    expect(foreignAssistant?.parts).toContainEqual(
+      expect.objectContaining({ type: 'dynamic-tool', state: 'output-available', output: 'found' })
+    )
+    expect(foreignAssistant?.parts.some((part) => part.type === 'reasoning')).toBe(false)
   })
 
   it.each([

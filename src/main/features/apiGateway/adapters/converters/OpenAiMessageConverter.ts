@@ -49,6 +49,7 @@ export interface ExtendedChatCompletionCreateParams extends ChatCompletionCreate
  */
 interface ExtendedAssistantMessage extends ChatCompletionAssistantMessageParam {
   reasoning_content?: string | null
+  encrypted_content?: string | null
   reasoning_details?: JSONValue[]
 }
 
@@ -162,12 +163,17 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
   ): CherryUIMessage | null {
     const parts: CherryUIMessage['parts'] = []
 
-    // reasoning_content (DeepSeek-style thinking)
-    if (msg.reasoning_content || msg.reasoning_details?.length) {
+    const encryptedContent = typeof msg.encrypted_content === 'string' ? msg.encrypted_content : undefined
+    if (msg.reasoning_content || msg.reasoning_details?.length || encryptedContent) {
       const p: ReasoningUIPart = {
         type: 'reasoning',
         text: msg.reasoning_content ?? '',
-        ...(msg.reasoning_details && { providerMetadata: { openrouter: { reasoning_details: msg.reasoning_details } } })
+        ...((msg.reasoning_details || encryptedContent) && {
+          providerMetadata: {
+            ...(msg.reasoning_details && { openrouter: { reasoning_details: msg.reasoning_details } }),
+            ...(encryptedContent && { openaiCompatible: { reasoningEncryptedContent: encryptedContent } })
+          }
+        })
       }
       parts.push(p)
     }

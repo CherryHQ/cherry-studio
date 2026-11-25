@@ -106,6 +106,7 @@ export function finalizeInterruptedParts(
  * and `reasoning` parts. The AI SDK accumulator can leave these behind at step
  * boundaries (e.g. a final text step that produced no output); persisting them
  * yields invisible message blocks that still inject layout spacing on render.
+ * Empty reasoning with provider replay state must survive storage.
  *
  * Returns the original array by reference when nothing is dropped, so a clean
  * turn keeps a stable identity (matching `finalizeInterruptedParts`).
@@ -113,7 +114,16 @@ export function finalizeInterruptedParts(
 export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessagePart[] {
   const filtered = parts.filter((part) => {
     if (part.type !== 'text' && part.type !== 'reasoning') return true
-    if (part.type === 'reasoning' && hasAnthropicThinkingCredential(part.providerMetadata)) return true
+    if (
+      part.type === 'reasoning' &&
+      (hasAnthropicThinkingCredential(part.providerMetadata) ||
+        Object.values(part.providerMetadata ?? {}).some(
+          ({ reasoningEncryptedContent }) =>
+            typeof reasoningEncryptedContent === 'string' && reasoningEncryptedContent.length > 0
+        ))
+    ) {
+      return true
+    }
     return part.text.trim().length > 0
   })
   return filtered.length === parts.length ? parts : filtered

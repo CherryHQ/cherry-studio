@@ -37,11 +37,13 @@ export const conversationStateReplayFeature: RequestFeature = {
               ...(responses && { responsesOptionsKey: sdkConfig.providerOptionsKey }),
               hasState: (metadata) =>
                 geminiSignatures(metadata).length > 0 ||
+                typeof metadata?.openaiCompatible?.reasoningEncryptedContent === 'string' ||
                 (responses &&
                   namespaces.some(
                     (key) =>
                       typeof metadata?.[key]?.itemId === 'string' ||
-                      typeof metadata?.[key]?.reasoningEncryptedContent === 'string'
+                      typeof metadata?.[key]?.reasoningEncryptedContent === 'string' ||
+                      metadata?.[key]?.rawReasoningContent === true
                   )),
               omitState: (part) => {
                 const providerOptions = { ...part.providerOptions }
