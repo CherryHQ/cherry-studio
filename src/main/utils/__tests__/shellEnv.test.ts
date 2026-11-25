@@ -239,6 +239,19 @@ describe('shellEnv – Windows registry PATH', () => {
     expect(segments.indexOf('C:\\Git\\cmd')).toBeLessThan(segments.length - 1)
   })
 
+  it('strips NUL bytes from captured env values so spawn accepts them', async () => {
+    // Windows registry PATH values (REG_EXPAND_SZ) and corrupted profiles can
+    // carry embedded NULs; Node rejects spawn env values containing them.
+    mockRegistryPaths({ system: 'C:\\Windows;C:\\Tools\0' })
+
+    const env = await refreshShellEnv()
+    for (const [key, value] of Object.entries(env)) {
+      expect(key).not.toContain('\0')
+      expect(value).not.toContain('\0')
+    }
+    expect(env.Path).toContain('C:\\Tools')
+  })
+
   // -- cache isolation ------------------------------------------------------
 
   it('returns a copy so a caller mutating the result cannot poison the cache', async () => {
