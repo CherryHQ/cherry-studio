@@ -1002,8 +1002,47 @@ describe('CodeCliService', () => {
         const launch = vi.mocked(spawn).mock.calls.at(-1)
         expect(launch).toBeDefined()
         expect(launch![0]).toBe('cmd')
-        expect(launch![1]).toEqual(['/c', batPath])
-        expect(launch![2]).toMatchObject({ shell: true, detached: true })
+        expect(launch![1]).toEqual(['/c', 'start', '""', 'cmd', '/c', batPath])
+        expect(launch![2]).toMatchObject({ shell: false, detached: true })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('launches PowerShell through start with single-quoted bat path and shell: false', async () => {
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { spawn } = await import('node:child_process')
+        const { codeCliService } = await loadModules()
+
+        vi.spyOn(codeCliService, 'getAvailableTerminals').mockResolvedValue([
+          { id: TerminalApp.POWERSHELL, name: 'PowerShell' }
+        ])
+
+        const result = await codeCliService.openTerminal({
+          executable: 'C:\\Tools\\claude.cmd',
+          args: [],
+          env: {},
+          usesCherryExecutionEnv: false,
+          terminal: TerminalApp.POWERSHELL
+        })
+
+        expect(result.success).toBe(true)
+        const writeCall = vi.mocked(fs.writeFileSync).mock.calls.at(-1)
+        const [batPath] = writeCall! as unknown as [string, string]
+        const launch = vi.mocked(spawn).mock.calls.at(-1)
+        expect(launch![0]).toBe('cmd')
+        expect(launch![1]).toEqual([
+          '/c',
+          'start',
+          '""',
+          'powershell',
+          '-NoExit',
+          '-Command',
+          `& '${batPath.replace(/'/g, "''")}'`
+        ])
+        expect(launch![2]).toMatchObject({ shell: false, detached: true })
       } finally {
         vi.useRealTimers()
       }

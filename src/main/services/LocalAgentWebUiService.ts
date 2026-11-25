@@ -181,10 +181,16 @@ export class LocalAgentWebUiService extends BaseService {
   private async stopChild(entry: WebUiProcess) {
     const child = entry.child
     if (!child) return
-    await terminateProcessTree(child, false, 'Agent Web UI')
-    if (!(await waitForProcessExit(child, 3000))) {
+    if (process.platform === 'win32') {
+      // Headless Windows console trees ignore non-forced taskkill /T, avoiding a 3s stall on every stop.
       await terminateProcessTree(child, true, 'Agent Web UI')
-      if (!(await waitForProcessExit(child, 1000))) throw new Error('Web UI did not stop')
+      if (!(await waitForProcessExit(child, 3000))) throw new Error('Web UI did not stop')
+    } else {
+      await terminateProcessTree(child, false, 'Agent Web UI')
+      if (!(await waitForProcessExit(child, 3000))) {
+        await terminateProcessTree(child, true, 'Agent Web UI')
+        if (!(await waitForProcessExit(child, 1000))) throw new Error('Web UI did not stop')
+      }
     }
     if (entry.child === child) entry.child = undefined
     entry.authentication = undefined

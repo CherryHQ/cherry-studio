@@ -135,10 +135,16 @@ export class CodeBuddyWebUiService extends BaseService {
   private async stopChild() {
     const child = this.child
     if (!child) return
-    await terminateProcessTree(child, false, 'CodeBuddy Web UI')
-    if (!(await waitForProcessExit(child, 3000))) {
+    if (process.platform === 'win32') {
+      // Headless Windows console trees ignore non-forced taskkill /T, avoiding a 3s stall on every stop.
       await terminateProcessTree(child, true, 'CodeBuddy Web UI')
-      if (!(await waitForProcessExit(child, 1000))) throw new Error('CodeBuddy Web UI did not stop')
+      if (!(await waitForProcessExit(child, 3000))) throw new Error('CodeBuddy Web UI did not stop')
+    } else {
+      await terminateProcessTree(child, false, 'CodeBuddy Web UI')
+      if (!(await waitForProcessExit(child, 3000))) {
+        await terminateProcessTree(child, true, 'CodeBuddy Web UI')
+        if (!(await waitForProcessExit(child, 1000))) throw new Error('CodeBuddy Web UI did not stop')
+      }
     }
     if (this.child === child) this.child = undefined
   }

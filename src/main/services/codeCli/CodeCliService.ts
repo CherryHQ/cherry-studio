@@ -1085,7 +1085,8 @@ export class CodeCliService extends BaseService {
         stdio: 'ignore',
         cwd: directory,
         env: processEnv,
-        shell: isWin
+        // All configured terminals are native executables; shell: true breaks spaces and & in PowerShell/WSL args.
+        shell: false
       })
       // spawn() fails asynchronously (e.g. ENOENT when the fallback terminal is
       // missing); without a listener that becomes an uncaught exception after
