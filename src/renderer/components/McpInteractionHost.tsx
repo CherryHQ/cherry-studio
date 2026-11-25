@@ -59,6 +59,7 @@ function choices(field: FormField) {
 
 function McpInteractionDialog({ current, remove }: { current: Interaction; remove: (id: string) => void }) {
   const { t } = useTranslation()
+  // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Main checks canonical elicitation fields with URL compatibility but forwards raw extensions; this existing view does not validate all FormField extensions.
   const params = (current.payload as { params?: ElicitationParams })?.params ?? {}
   const schema = params.requestedSchema
 
