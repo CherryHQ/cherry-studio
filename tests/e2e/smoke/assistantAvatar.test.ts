@@ -320,7 +320,7 @@ test('persists an uploaded assistant avatar and freezes past message avatars aft
   await expect.poll(async () => (await readAssistant(page, assistant.name)).avatarFileId).toBeUndefined()
   await expect(page.getByRole('button', { name: 'Remove image', exact: true })).toBeHidden()
   expect((await readAssistant(page, assistant.name)).emoji).toBe('🦊')
-  await page.keyboard.press('Escape')
+  await resetDialog.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(resetDialog).toBeHidden()
   await expectEmoji(leadingSlot(page, assistant.name), '🦊')
   await expectDecodedImage(messageAvatar(page, 'avatar turn').locator('img'))
