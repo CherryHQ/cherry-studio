@@ -188,8 +188,8 @@ const BaseNavigatorContent = ({
       if (from < 0 || to < 0 || from === to) return
       persist = () => onReorderGroup(active.groupId, from < to ? { after: over.groupId } : { before: over.groupId })
     } else {
+      // SAFETY: This DndContext's base draggables register their typed row via SortableKnowledgeBaseRow; the SDK erases that data type.
       const base = active.base as KnowledgeBaseListItem
-      const targetGroupId = over.groupId as string | null
 
       const anchor: OrderRequest =
         over.type === 'base'
@@ -198,9 +198,10 @@ const BaseNavigatorContent = ({
             : { after: over.base.id }
           : { position: 'last' }
 
-      const targetSection = sections.find((section) => section.groupId === targetGroupId)
+      const targetSection = sections.find((section) => section.groupId === over.groupId)
 
       if (!targetSection) return
+      const targetGroupId = targetSection.groupId
       setCollapsedValues((values) => values.filter((value) => value !== (targetGroupId ?? UNGROUPED_SECTION_VALUE)))
       persist = () => onReorderBase(base.id, { groupId: targetGroupId, anchor })
     }

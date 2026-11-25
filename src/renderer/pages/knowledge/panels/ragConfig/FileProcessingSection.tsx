@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import LocalModelDownloadPopup from '@renderer/components/popups/LocalModelDownloadPopup'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { FILE_PROCESSOR_LOCAL_MODEL } from '@shared/data/presets/fileProcessing'
 import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localModel'
 
@@ -22,7 +21,7 @@ const openFileProcessingSettings = () => openSettingsTab('/settings/file-process
  * quietly downloading the wrong model.
  */
 const requiresLocalOcrModel = (processorId: string) =>
-  FILE_PROCESSOR_LOCAL_MODEL[processorId as FileProcessorId] === 'ocr'
+  Object.entries(FILE_PROCESSOR_LOCAL_MODEL).some(([id, capability]) => id === processorId && capability === 'ocr')
 
 interface FileProcessingSectionProps {
   fileProcessorId: string | null
