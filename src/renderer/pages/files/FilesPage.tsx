@@ -1150,7 +1150,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
                             onSelect={() => previewMenuActions.onDelete(previewMenuFile.id)}>
                             {previewMenuFile.origin === 'external'
                               ? t('files.remove_from_library')
-                              : t('files.delete.label')}
+                              : t('recycle_bin.move.confirm_action')}
                           </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
