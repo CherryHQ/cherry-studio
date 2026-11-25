@@ -20,6 +20,7 @@ export {
   createCompressionAdapter,
   createContextMiddleware,
   resolveCompressionOutputTokens,
+  estimateSummarizeInputTokens,
   type SummarizeMessagesOptions,
   summarizeModelMessages
 } from './middleware'

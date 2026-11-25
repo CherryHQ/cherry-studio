@@ -28,6 +28,7 @@ import {
   compactModelMessages,
   createCompressionAdapter,
   definePlugin,
+  estimateSummarizeInputTokens,
   fromAISDK,
   getContextTokens,
   groupIntoTurns,
@@ -325,7 +326,7 @@ export const inLoopCompactionFeature: RequestFeature = {
         // window instead of a fixed constant.
         const { maxOutputTokens, maxInputTokens } = resolveSummarizeBudget(
           compressionWindow,
-          estimateModelMessagesSync(candidate, { dialect, tokenizer: tokenxTokenizer })
+          estimateSummarizeInputTokens(candidate, keepRecentTurns)
         )
         // Summarizing is a full model round-trip in the middle of a tool loop —
         // seconds of apparent silence. Announce it so the UI can say so; the

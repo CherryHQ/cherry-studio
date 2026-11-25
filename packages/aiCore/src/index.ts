@@ -85,6 +85,7 @@ export {
   Offloader,
   PERSISTED_OUTPUT_TAG,
   resolveCompressionOutputTokens,
+  estimateSummarizeInputTokens,
   summarizeModelMessages,
   toAISDK
 } from './core/context'

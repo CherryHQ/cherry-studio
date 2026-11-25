@@ -9,7 +9,7 @@ import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import type { ModelMessage, UIMessage } from 'ai'
 
 import { application } from '@application'
-import { ContextPrompts, summarizeModelMessages } from '@cherrystudio/ai-core'
+import { ContextPrompts, estimateSummarizeInputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
@@ -44,8 +44,6 @@ import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
 import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
-import { estimateModelMessagesSync } from '../../tokens/footprint'
-import { tokenxTokenizer } from '../../tokens/textTokenizer'
 import type { AiStreamRequest } from '../../types'
 import { AiStreamAdmissionError } from '../admission'
 import { PersistenceListener } from '../listeners/PersistenceListener'
@@ -1045,7 +1043,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       )
       const { maxOutputTokens, maxInputTokens } = resolveSummarizeBudget(
         compressionWindow,
-        estimateModelMessagesSync(modelMessages, { dialect, tokenizer: tokenxTokenizer })
+        estimateSummarizeInputTokens(modelMessages)
       )
       compactionSink?.(anchorId, { status: 'compacting', phase: 'turn-start', startedAt })
       const summary = await summarizeModelMessages(modelMessages, compressionModel.languageModel, {

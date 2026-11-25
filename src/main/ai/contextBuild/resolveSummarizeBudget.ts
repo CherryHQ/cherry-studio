@@ -13,7 +13,7 @@ import { COMPACTION_INPUT_SAFETY_RATIO, COMPACTION_MIN_INPUT_BUDGET } from '../c
 
 /** Headroom over the estimated input: estimator error plus the summarize instructions. */
 const ESTIMATED_INPUT_HEADROOM_RATIO = 1.15
-const ESTIMATED_INPUT_OVERHEAD_TOKENS = 512
+const ESTIMATED_INPUT_OVERHEAD_TOKENS = 0
 
 /**
  * @param estimatedInputTokens Estimated size of the assembled summarize input. When it is small,
@@ -52,7 +52,14 @@ export function resolveSummarizeBudget(
   const availableInput = Math.max(0, compressionWindow - maxOutputTokens)
   const maxInputTokens = Math.min(
     availableInput,
-    Math.max(COMPACTION_MIN_INPUT_BUDGET, Math.floor(availableInput * COMPACTION_INPUT_SAFETY_RATIO))
+    Math.max(
+      COMPACTION_MIN_INPUT_BUDGET,
+      Math.floor(availableInput * COMPACTION_INPUT_SAFETY_RATIO),
+      // Small compressors cannot afford another input-only safety reduction:
+      // the total window already carries the 10% margin. Whole tool calls and
+      // carried summaries may need all input room left beside the output.
+      compressionWindow < 20_000 ? availableInput : 0
+    )
   )
   return { maxOutputTokens, maxInputTokens }
 }

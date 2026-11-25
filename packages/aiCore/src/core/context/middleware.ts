@@ -14,8 +14,11 @@ import type { LanguageModelV3Message, LanguageModelV3Prompt, LanguageModelV3Stre
 import { generateText, type LanguageModel, type LanguageModelMiddleware, type ModelMessage, pruneMessages } from 'ai'
 
 import { fromAISDK, repairToolResultNames, toAISDK } from './adapter'
+import { planCompaction } from './durableCompaction'
 import { Janitor, summarizeHistory, type SummarizeHistoryOptions } from './janitor'
 import { fromModelMessages } from './modelMessageAdapter'
+import { ContextPrompts } from './prompts'
+import { estimateObject } from './tokenUtils'
 import { type TruncateOptions, truncateToolResults } from './truncator'
 import type { ContextLogger, ContextMessage } from './types'
 import { getContextInputTokens } from './usage'
@@ -368,6 +371,18 @@ export function createCompressionAdapter(
     // placeholder — i.e. the history was silently dropped.
     return text
   }
+}
+
+/** Estimate exactly the fold altitude consumed by the chunker, including its instruction.
+ * Recent turns and standing system messages never enter this request.
+ */
+export function estimateSummarizeInputTokens(messages: ModelMessage[], keepRecentTurns?: number): number {
+  const ir = fromModelMessages(messages)
+  const fold =
+    keepRecentTurns === undefined
+      ? ir.filter((message) => message.role !== 'system')
+      : planCompaction(ir, { keepRecentTurns }).toSummarize
+  return estimateObject([...fold, { role: 'user', content: ContextPrompts.CONTEXT_COMPACTION_INSTRUCTION }])
 }
 
 /** Options for {@link summarizeModelMessages}. */
