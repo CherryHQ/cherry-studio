@@ -1,8 +1,7 @@
-import { FILE_TYPE } from '@renderer/types/file'
 import type { NotesTreeNode } from '@renderer/types/note'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema, FILE_TYPE } from '@shared/types/file'
 import type { DirectoryTreeOptions } from '@shared/utils/file'
 
 export const NOTES_TREE_OPTIONS: DirectoryTreeOptions = {

@@ -1,0 +1,865 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { McpServer } from '@modelcontextprotocol/server'
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { assistantDataService } from '@data/services/AssistantService'
+import { prepareAgentConfigApproval, previewAgentConfigChange } from '@main/ai/agents/agentConfigTool'
+import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { BUILTIN_AGENT_ROLE, CHERRY_SUPPORT_AGENT_ID, isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+
+import { createAssistantServer } from '../assistant'
+import { type AutonomyToolsContext, registerAutonomyTools } from '../cherryAutonomyTools'
+import { callBuiltinTool, listBuiltinTools, toolText } from './builtinMcpClient'
+
+const DEFAULT_MODEL = 'wire::default-model'
+const OTHER_MODEL = 'wire::other-model'
+const USER_SKILL = 'user-skill'
+const BUILTIN_SKILL = 'builtin-skill'
+const KNOWLEDGE_BASE = '6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b'
+
+describe('Agent create and configure tools', () => {
+  const dbh = setupTestDatabase()
+  let agentsDataDir: string
+
+  const assistantServer = () => createAssistantServer(DEFAULT_MODEL)
+
+  function cherryToolsServer(agentId: string, sessionId = 'session-unused') {
+    const agent = agentService.getAgent(agentId)
+    const context: AutonomyToolsContext = {
+      agentId,
+      sessionId,
+      workspaceSource: { type: 'system' },
+      workspacePath: agentsDataDir,
+      trustedNotifyChannels: [],
+      allowAnyOwnedNotifyChannel: false,
+      resourceCreateEnabled: resolveAgentCapabilities(agent).createResources,
+      selfConfigEnabled: !isProtectedBuiltinAgentRole(agent?.configuration?.builtin_role)
+    }
+    return () => {
+      const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
+      registerAutonomyTools(server, context)
+      return server
+    }
+  }
+
+  let approvalCount = 0
+  /** A pending approval as a runtime registers it; the preview reads the call from here. */
+  function pendingApproval(toolName: string, input: Record<string, unknown>, sessionId = 'session-unused') {
+    const approvalId = `approval-${++approvalCount}`
+    toolApprovalRegistry.register({
+      approvalId,
+      sessionId,
+      toolCallId: approvalId,
+      toolName,
+      originalInput: input,
+      resolve: () => {}
+    })
+    return approvalId
+  }
+
+  function seedAgent(id: string, overrides: Partial<Parameters<typeof agentService.createAgentWithId>[1]> = {}) {
+    return agentService.createAgentWithId(id, {
+      type: 'pi-durable',
+      name: `Agent ${id}`,
+      description: 'Original description',
+      instructions: 'Original instructions',
+      model: DEFAULT_MODEL,
+      mcps: ['mcp-1'],
+      configuration: { avatar: '🦊', permission_mode: 'default', env_vars: { TOKEN: 'secret' } },
+      ...overrides
+    })
+  }
+
+  /** Built-in roles are reserved on create, so a test seeds one by writing the role afterwards. */
+  function seedBuiltinAgent(role: (typeof BUILTIN_AGENT_ROLE)[keyof typeof BUILTIN_AGENT_ROLE]) {
+    // Main only trusts the Support role on its reserved ID.
+    const id = role === BUILTIN_AGENT_ROLE.SUPPORT ? CHERRY_SUPPORT_AGENT_ID : `builtin-${role}`
+    const agent = seedAgent(id)
+    application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        agentService.updateAgentTx(tx, id, { configuration: { ...agent.configuration, builtin_role: role } })
+      )
+    return id
+  }
+
+  /** An uploaded avatar image in the Agent's avatar slot, shown instead of its stored emoji. */
+  function uploadAvatar(agentId: string) {
+    const fileId = `avatar-${agentId}`
+    dbh.db
+      .insert(fileEntryTable)
+      .values({
+        id: fileId,
+        name: 'avatar',
+        ext: 'webp',
+        size: 1,
+        origin: 'internal',
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: Date.now()
+      })
+      .run()
+    application.get('DbService').withWriteTx((tx) => agentService.setAvatarSlotTx(tx, agentId, fileId as never))
+  }
+
+  function createSession(agentId: string) {
+    const workspace = agentWorkspaceService.findOrCreateByPath(agentsDataDir)
+    return agentSessionService.create({
+      agentId,
+      name: 'Session',
+      workspace: { type: 'user', workspaceId: workspace.id }
+    })
+  }
+
+  function skillEnabledFor(agentId: string, skillId: string): boolean {
+    return agentGlobalSkillService.list({ agentId }).find((skill) => skill.id === skillId)?.isEnabled ?? false
+  }
+
+  function liveAgents(): AgentEntity[] {
+    return agentService.listAgents().agents
+  }
+
+  beforeEach(() => {
+    agentsDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-agent-config-tools-'))
+    const getPath = vi.mocked(application.getPath).getMockImplementation()!
+    vi.spyOn(application, 'getPath').mockImplementation((key, file) => {
+      if (key === 'feature.agents.data') return path.join(agentsDataDir, file ?? '')
+      if (key === 'feature.provider_registry.data') return path.resolve('packages/provider-registry/data', file ?? '')
+      return getPath(key, file)
+    })
+    MockApplicationUtils.setService('AgentJobsService', { waitForHeartbeat: vi.fn(async () => undefined) })
+    MockApplicationUtils.setService('AgentSessionRuntimeService', {
+      getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
+    })
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', DEFAULT_MODEL)
+
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'wire',
+        name: 'Wire provider',
+        isEnabled: true,
+        orderKey: 'a0',
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://openai.test/v1' } },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      })
+      .run()
+    dbh.db
+      .insert(userModelTable)
+      .values(
+        [
+          ['default-model', 'Default Model'],
+          ['other-model', 'Other Model']
+        ].map(([modelId, name], index) => ({
+          id: `wire::${modelId}`,
+          providerId: 'wire',
+          modelId,
+          name,
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+          supportsStreaming: true,
+          isEnabled: true,
+          orderKey: `a${index}`,
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        }))
+      )
+      .run()
+    dbh.db
+      .insert(agentGlobalSkillTable)
+      .values([
+        {
+          id: USER_SKILL,
+          name: 'Code Review',
+          folderName: 'code-review',
+          source: 'owner/repo',
+          contentHash: 'a',
+          isEnabled: true
+        },
+        {
+          id: BUILTIN_SKILL,
+          name: 'Built-in',
+          folderName: 'builtin',
+          source: 'builtin',
+          contentHash: 'b',
+          isEnabled: true
+        }
+      ])
+      .run()
+    dbh.db
+      .insert(knowledgeBaseTable)
+      .values({
+        id: KNOWLEDGE_BASE,
+        name: 'Handbook',
+        orderKey: 'a0',
+        status: 'completed',
+        chunkSize: 1024,
+        chunkOverlap: 200
+      })
+      .run()
+    dbh.db.insert(mcpServerTable).values({ id: 'mcp-1', name: 'Search', isActive: true }).run()
+  })
+
+  afterEach(() => {
+    toolApprovalRegistry.clear()
+    MockApplicationUtils.resetServices()
+    MockMainPreferenceServiceUtils.resetMocks()
+    vi.restoreAllMocks()
+    fs.rmSync(agentsDataDir, { recursive: true, force: true })
+  })
+
+  describe('create_agent', () => {
+    it('creates a Pi Durable Agent that carries every supplied field and shows up in the Agent list', async () => {
+      const result = await callBuiltinTool(assistantServer, 'create_agent', {
+        name: 'Reviewer',
+        emoji: '🧐',
+        description: 'Reviews pull requests',
+        instructions: 'Review the diff.',
+        model: OTHER_MODEL,
+        permissionMode: 'acceptEdits',
+        skillIds: [USER_SKILL],
+        knowledgeBaseIds: [KNOWLEDGE_BASE],
+        mcpServerIds: ['mcp-1'],
+        disabledTools: ['bash'],
+        language: 'English',
+        heartbeat: { enabled: true, intervalMinutes: 45, timeoutMinutes: 5 }
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const output = result.structuredContent as { agentId: string; summary: string[] }
+      const agent = agentService.getAgent(output.agentId)!
+      expect(agent).toMatchObject({
+        type: 'pi-durable',
+        name: 'Reviewer',
+        description: 'Reviews pull requests',
+        instructions: 'Review the diff.',
+        model: OTHER_MODEL,
+        mcps: ['mcp-1'],
+        knowledgeBaseIds: [KNOWLEDGE_BASE],
+        disabledTools: ['bash']
+      })
+      expect(agent.configuration).toMatchObject({
+        avatar: '🧐',
+        permission_mode: 'acceptEdits',
+        language: 'English',
+        heartbeat_enabled: true,
+        heartbeat_interval: 45,
+        heartbeat_timeout_minutes: 5
+      })
+      expect(skillEnabledFor(agent.id, USER_SKILL)).toBe(true)
+      expect(liveAgents().map((entry) => entry.id)).toContain(agent.id)
+      expect(result.structuredContent).toMatchObject({ ok: true, name: 'Reviewer', emoji: '🧐' })
+      expect(output.summary).toContain('Model: Other Model')
+      expect(result.structuredContent).toMatchObject({
+        highlights: ['Other Model', 'Auto-accept Edits', 'Heartbeat check']
+      })
+    })
+
+    it('puts the new Agent at the top of the Agent list, above existing ones', async () => {
+      seedAgent('older')
+
+      const result = await callBuiltinTool(assistantServer, 'create_agent', { name: 'Newest', instructions: 'Help.' })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const { agentId } = result.structuredContent as { agentId: string }
+      expect(liveAgents().map((agent) => agent.id)).toEqual([agentId, 'older'])
+    })
+
+    it('uses the default model when none is given and falls back to ✨ for an invalid emoji', async () => {
+      const result = await callBuiltinTool(assistantServer, 'create_agent', {
+        name: 'Helper',
+        emoji: 'not an emoji',
+        instructions: 'Help.'
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const agent = agentService.getAgent((result.structuredContent as { agentId: string }).agentId)!
+      expect(agent.model).toBe(DEFAULT_MODEL)
+      expect(agent.configuration?.avatar).toBe('✨')
+    })
+
+    it.each([
+      ['skill', { skillIds: ['missing-skill'] }, 'Unknown skill ID: missing-skill'],
+      ['knowledge base', { knowledgeBaseIds: ['missing-kb'] }, 'Unknown knowledge base ID: missing-kb'],
+      ['MCP server', { mcpServerIds: ['missing-mcp'] }, 'Unknown MCP server ID: missing-mcp'],
+      ['built-in skill', { skillIds: [BUILTIN_SKILL] }, `Unknown skill ID: ${BUILTIN_SKILL}`]
+    ])('rejects an uninstalled %s ID without creating an Agent', async (_kind, fields, message) => {
+      const result = await callBuiltinTool(assistantServer, 'create_agent', {
+        name: 'Reviewer',
+        instructions: 'Review.',
+        ...fields
+      })
+
+      expect(result.isError).toBe(true)
+      expect(toolText(result)).toContain(message)
+      expect(liveAgents()).toEqual([])
+    })
+
+    it('refuses bypassPermissions', async () => {
+      const result = await callBuiltinTool(assistantServer, 'create_agent', {
+        name: 'Reviewer',
+        instructions: 'Review.',
+        permissionMode: 'bypassPermissions'
+      })
+
+      expect(result.isError).toBe(true)
+      expect(toolText(result)).toContain('bypassPermissions')
+      expect(liveAgents()).toEqual([])
+    })
+  })
+
+  describe('create_assistant', () => {
+    function liveAssistantIds(): string[] {
+      return assistantDataService.list({ page: 1, limit: 100 }).items.map((assistant) => assistant.id)
+    }
+
+    it('creates an Assistant that carries every supplied field and shows up in the Assistant list', async () => {
+      const result = await callBuiltinTool(assistantServer, 'create_assistant', {
+        name: 'Translator',
+        emoji: '🌐',
+        description: 'Translates documents',
+        prompt: 'Translate faithfully.',
+        model: OTHER_MODEL,
+        knowledgeBaseIds: [KNOWLEDGE_BASE],
+        mcpServerIds: ['mcp-1'],
+        webSearch: true,
+        language: '中文'
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const output = result.structuredContent as { assistantId: string; kind: string; summary: string[] }
+      expect(output.kind).toBe('assistant')
+      const assistant = assistantDataService.getById(output.assistantId)
+      expect(assistant).toMatchObject({
+        name: 'Translator',
+        emoji: '🌐',
+        description: 'Translates documents',
+        prompt: 'Translate faithfully.',
+        modelId: OTHER_MODEL,
+        knowledgeBaseIds: [KNOWLEDGE_BASE],
+        mcpServerIds: ['mcp-1']
+      })
+      expect(assistant.settings).toMatchObject({
+        enableWebSearch: true,
+        replyLanguage: { mode: 'custom', language: '中文' }
+      })
+      expect(liveAssistantIds()).toContain(assistant.id)
+      expect(output.summary).toContain('Web search: Enabled')
+      expect(result.structuredContent).toMatchObject({
+        highlights: ['Other Model', 'Web search', 'Knowledge: Handbook']
+      })
+    })
+
+    it('puts the new Assistant at the top of the Assistant list, while the create wizard path still appends', async () => {
+      const older = assistantDataService.create({ name: 'Older', prompt: 'Old.' })
+
+      const result = await callBuiltinTool(assistantServer, 'create_assistant', { name: 'Newest', prompt: 'Help.' })
+      const later = assistantDataService.create({ name: 'Later', prompt: 'Later.' })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const { assistantId } = result.structuredContent as { assistantId: string }
+      expect(liveAssistantIds()).toEqual([assistantId, older.id, later.id])
+    })
+
+    it('uses the default model and leaves the reply language unconstrained when none is given', async () => {
+      const result = await callBuiltinTool(assistantServer, 'create_assistant', { name: 'Helper', prompt: 'Help.' })
+
+      const assistant = assistantDataService.getById((result.structuredContent as { assistantId: string }).assistantId)
+      expect(assistant.modelId).toBe(DEFAULT_MODEL)
+      expect(assistant.settings.replyLanguage).toBeUndefined()
+    })
+
+    it.each([
+      ['knowledge base', { knowledgeBaseIds: ['missing-kb'] }, 'Unknown knowledge base ID: missing-kb'],
+      ['MCP server', { mcpServerIds: ['missing-mcp'] }, 'Unknown MCP server ID: missing-mcp']
+    ])('rejects an uninstalled %s ID without creating an Assistant', async (_kind, fields, message) => {
+      const result = await callBuiltinTool(assistantServer, 'create_assistant', {
+        name: 'Helper',
+        prompt: 'Help.',
+        ...fields
+      })
+
+      expect(result.isError).toBe(true)
+      expect(toolText(result)).toContain(message)
+      expect(liveAssistantIds()).toEqual([])
+    })
+  })
+
+  describe('update_agent', () => {
+    // Catches an approved emoji written only as the hidden fallback while the uploaded image stays on screen.
+    it.each([
+      ['a new emoji', '🐼'],
+      ['the emoji already stored behind the image', '🦊']
+    ])('replaces an uploaded avatar image with %s', async (_case, emoji) => {
+      seedAgent('target')
+      uploadAvatar('target')
+      expect(agentService.getAgent('target')?.avatarFileId).toBeDefined()
+
+      const result = await callBuiltinTool(assistantServer, 'update_agent', { agentId: 'target', emoji })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      expect(agentService.getAgent('target')?.avatarFileId).toBeUndefined()
+      expect(agentService.getAgent('target')?.configuration?.avatar).toBe(emoji)
+      expect((result.structuredContent as { summary: string[] }).summary).toContain(`Avatar: Uploaded image → ${emoji}`)
+    })
+
+    it('changes only the given fields and reports each one as current → new', async () => {
+      seedAgent('target')
+
+      const result = await callBuiltinTool(assistantServer, 'update_agent', {
+        agentId: 'target',
+        description: 'Sharper description',
+        model: OTHER_MODEL
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      expect(agentService.getAgent('target')).toMatchObject({
+        description: 'Sharper description',
+        model: OTHER_MODEL,
+        instructions: 'Original instructions',
+        mcps: ['mcp-1'],
+        configuration: { avatar: '🦊', permission_mode: 'default', env_vars: { TOKEN: 'secret' } }
+      })
+      expect((result.structuredContent as { summary: string[] }).summary).toEqual([
+        'Description: Original description → Sharper description',
+        'Model: Default Model → Other Model'
+      ])
+    })
+
+    // Catches an approval whose before and after read the same because the edit sits past the shortened prefix.
+    it('shows a prompt edit past the shortened prefix and offers both full texts', () => {
+      const before = `${'Keep answers short and cite sources. '.repeat(3)}Reply in English.`
+      const after = `${'Keep answers short and cite sources. '.repeat(3)}Reply in French.`
+      seedAgent('target', { instructions: before })
+
+      const preview = previewAgentConfigChange(
+        pendingApproval('mcp__assistant__update_agent', { agentId: 'target', instructions: after })
+      )
+
+      expect(preview).toMatchObject({ ok: true, details: [{ field: 'System Prompt', from: before, to: after }] })
+      const [, from, to] = /^System Prompt: (.*) → (.*)$/.exec((preview as { summary: string[] }).summary[0]) ?? []
+      expect(from).toContain('English')
+      expect(to).toContain('French')
+    })
+
+    // Catches a whitespace-only edit whose summary reads the same on both sides and offers no full text to compare.
+    it('shows a whitespace-only prompt edit and offers both full texts', () => {
+      seedAgent('target', { instructions: 'Use:\n  print(1)' })
+
+      const preview = previewAgentConfigChange(
+        pendingApproval('mcp__assistant__update_agent', { agentId: 'target', instructions: 'Use:\nprint(1)' })
+      )
+
+      expect(preview).toMatchObject({
+        ok: true,
+        details: [{ field: 'System Prompt', from: 'Use:\n  print(1)', to: 'Use:\nprint(1)' }]
+      })
+      const [, from, to] = /^System Prompt: (.*) → (.*)$/.exec((preview as { summary: string[] }).summary[0]) ?? []
+      expect(from).not.toBe(to)
+    })
+
+    // Catches a model switch that looks like a no-op because both models share a display name.
+    it('tells apart two models that share a display name', () => {
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: 'wire::default-model-2',
+          providerId: 'wire',
+          modelId: 'default-model-2',
+          name: 'Default Model',
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+          supportsStreaming: true,
+          isEnabled: true,
+          orderKey: 'a2',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        })
+        .run()
+      seedAgent('target')
+
+      const preview = previewAgentConfigChange(
+        pendingApproval('mcp__assistant__update_agent', { agentId: 'target', model: 'wire::default-model-2' })
+      )
+
+      expect(preview).toMatchObject({
+        ok: true,
+        summary: ['Model: Default Model (wire::default-model) → Default Model (wire::default-model-2)']
+      })
+    })
+
+    // Catches a model change that silently clears saved plan/small models or rewrites the reasoning effort.
+    it('lists the plan model, small model and reasoning effort a model change rewrites', async () => {
+      seedAgent('target', {
+        planModel: OTHER_MODEL,
+        smallModel: OTHER_MODEL,
+        configuration: { avatar: '🦊', permission_mode: 'default', reasoning_effort: 'high' }
+      })
+
+      const result = await callBuiltinTool(assistantServer, 'update_agent', { agentId: 'target', model: OTHER_MODEL })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const agent = agentService.getAgent('target')
+      expect(agent).toMatchObject({ model: OTHER_MODEL, configuration: { reasoning_effort: 'default' } })
+      expect(agent?.planModel).toBeUndefined()
+      expect(agent?.smallModel).toBeUndefined()
+      expect((result.structuredContent as { summary: string[] }).summary).toEqual([
+        'Model: Default Model → Other Model',
+        'Plan model: Other Model → Follow current model',
+        'Small model: Other Model → Follow current model',
+        'Reasoning effort: High → Default'
+      ])
+    })
+
+    it.each([
+      ['bypassPermissions', { permissionMode: 'bypassPermissions' }],
+      ['environment variables', { env_vars: { TOKEN: 'leaked' } }]
+    ])('refuses %s and leaves the Agent untouched', async (_case, fields) => {
+      seedAgent('target')
+
+      const result = await callBuiltinTool(assistantServer, 'update_agent', { agentId: 'target', ...fields })
+
+      expect(result.isError).toBe(true)
+      expect(agentService.getAgent('target')?.configuration).toMatchObject({
+        permission_mode: 'default',
+        env_vars: { TOKEN: 'secret' }
+      })
+    })
+
+    it.each(Object.values(BUILTIN_AGENT_ROLE))('refuses the built-in %s Agent', async (role) => {
+      const id = seedBuiltinAgent(role)
+
+      const result = await callBuiltinTool(assistantServer, 'update_agent', { agentId: id, description: 'Changed' })
+
+      expect(result.isError).toBe(true)
+      expect(toolText(result)).toContain('built-in Agent')
+      expect(agentService.getAgent(id)?.description).toBe('Original description')
+    })
+
+    it('previews the approval summary without writing', () => {
+      seedAgent('target')
+
+      expect(
+        previewAgentConfigChange(
+          pendingApproval('mcp__assistant__update_agent', { agentId: 'target', language: 'off' })
+        )
+      ).toEqual({ ok: true, summary: ['Reply language: Follow global setting → No constraint'] })
+      expect(agentService.getAgent('target')?.configuration).not.toHaveProperty('language')
+      expect(
+        previewAgentConfigChange(
+          pendingApproval('mcp__assistant__update_agent', { agentId: 'target', permissionMode: 'bypassPermissions' })
+        )
+      ).toEqual({ ok: false })
+    })
+
+    // Catches an Allow on a card that showed only the description, while approving would now also rewrite the mode.
+    it('refuses an Allow once the Agent changed after its card was previewed', () => {
+      seedAgent('target', { configuration: { avatar: '🦊', permission_mode: 'auto' } })
+      const input = { agentId: 'target', description: 'New description', permissionMode: 'auto' }
+      const outdated = pendingApproval('mcp__assistant__update_agent', input)
+      const current = pendingApproval('mcp__assistant__update_agent', input)
+      expect(previewAgentConfigChange(outdated)).toEqual({
+        ok: true,
+        summary: ['Description: Original description → New description']
+      })
+
+      agentService.updateAgent('target', { configuration: { permission_mode: 'default' } })
+      previewAgentConfigChange(current)
+
+      expect(prepareAgentConfigApproval(outdated, { approved: true })).toMatchObject({
+        decision: { approved: false, reason: expect.stringContaining('Call the tool again') }
+      })
+      expect(prepareAgentConfigApproval(current, { approved: true })).toMatchObject({
+        decision: { approved: true },
+        executionInput: expect.any(Function)
+      })
+    })
+
+    it('checks the Agent version again in the write transaction after approval', async () => {
+      seedAgent('target')
+      const approvalId = pendingApproval('mcp__assistant__update_agent', {
+        agentId: 'target',
+        description: 'Approved text'
+      })
+      expect(previewAgentConfigChange(approvalId).ok).toBe(true)
+      const { executionInput } = prepareAgentConfigApproval(approvalId, { approved: true })
+      const input = executionInput!()
+      agentService.updateAgent('target', { description: 'User edit' })
+
+      const result = await callBuiltinTool(assistantServer, 'update_agent', input)
+
+      expect(result.isError).toBe(true)
+      expect(agentService.getAgent('target')?.description).toBe('User edit')
+    })
+
+    // Catches an approved model change that writes a model the user disabled after the preview.
+    it.each([
+      [
+        'the model',
+        () => dbh.db.update(userModelTable).set({ isEnabled: false }).where(eq(userModelTable.id, OTHER_MODEL)).run()
+      ],
+      [
+        'its provider',
+        () =>
+          dbh.db
+            .update(userProviderTable)
+            .set({ isEnabled: false })
+            .where(eq(userProviderTable.providerId, 'wire'))
+            .run()
+      ]
+    ])('refuses an approved model change once %s is disabled', async (_case, disable) => {
+      seedAgent('target')
+      const approvalId = pendingApproval('mcp__assistant__update_agent', { agentId: 'target', model: OTHER_MODEL })
+      expect(previewAgentConfigChange(approvalId).ok).toBe(true)
+      const input = prepareAgentConfigApproval(approvalId, { approved: true }).executionInput!()
+      disable()
+
+      const result = await callBuiltinTool(assistantServer, 'update_agent', input)
+
+      expect(result.isError).toBe(true)
+      expect(toolText(result)).toContain('disabled')
+      expect(agentService.getAgent('target')?.model).toBe(DEFAULT_MODEL)
+    })
+
+    it('rejects a reviewed update if skill bindings change independently before it writes', async () => {
+      seedAgent('target')
+      const approvalId = pendingApproval('mcp__assistant__update_agent', {
+        agentId: 'target',
+        description: 'Approved text'
+      })
+      expect(previewAgentConfigChange(approvalId).ok).toBe(true)
+      const input = prepareAgentConfigApproval(approvalId, { approved: true }).executionInput!()
+      agentGlobalSkillService.upsertJoin('target', USER_SKILL, true)
+
+      const result = await callBuiltinTool(assistantServer, 'update_agent', input)
+
+      expect(result.isError).toBe(true)
+      expect(agentService.getAgent('target')?.description).toBe('Original description')
+      expect(skillEnabledFor('target', USER_SKILL)).toBe(true)
+    })
+
+    it('shows a schedule-only heartbeat change while the heartbeat is off', () => {
+      seedAgent('target')
+
+      const preview = previewAgentConfigChange(
+        pendingApproval('mcp__assistant__update_agent', { agentId: 'target', heartbeat: { intervalMinutes: 60 } })
+      )
+
+      expect(preview).toMatchObject({ ok: true, summary: [expect.stringContaining('60 min')] })
+    })
+
+    // The approval shows the new resource instead of its raw arguments, which carry the whole prompt.
+    it('previews a create as the resource it would make, without writing', () => {
+      seedAgent('caller')
+      const session = createSession('caller')
+
+      expect(
+        previewAgentConfigChange(
+          pendingApproval(
+            'mcp__cherry_tools__agent_create',
+            { name: 'Reviewer', emoji: '🧐', description: 'Reviews pull requests', instructions: 'Review.' },
+            session.id
+          )
+        )
+      ).toMatchObject({
+        ok: true,
+        resource: { kind: 'agent', name: 'Reviewer', emoji: '🧐', description: 'Reviews pull requests' }
+      })
+      expect(
+        previewAgentConfigChange(
+          pendingApproval('mcp__assistant__create_assistant', { name: 'Translator', prompt: 'Translate.' }, session.id)
+        )
+      ).toMatchObject({ ok: true, resource: { kind: 'assistant', name: 'Translator' } })
+      expect(agentService.listAgents().agents.map((agent) => agent.name)).not.toContain('Reviewer')
+      expect(assistantDataService.list({ page: 1, limit: 100 }).items.map((item) => item.name)).not.toContain(
+        'Translator'
+      )
+    })
+
+    it('creates with the reviewed model if the default changes, and the plan cannot be replayed', async () => {
+      seedAgent('caller')
+      const session = createSession('caller')
+      const approvalId = pendingApproval(
+        'mcp__assistant__create_agent',
+        { name: 'Reviewer', instructions: 'Review.' },
+        session.id
+      )
+      expect(previewAgentConfigChange(approvalId)).toMatchObject({
+        ok: true,
+        resource: { highlights: expect.arrayContaining(['Default Model']) }
+      })
+      MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', OTHER_MODEL)
+      const input = prepareAgentConfigApproval(approvalId, { approved: true }).executionInput!()
+
+      const result = await callBuiltinTool(assistantServer, 'create_agent', input)
+      expect(result.isError, toolText(result)).not.toBe(true)
+      expect(
+        agentService
+          .listAgents()
+          .agents.filter((agent) => agent.name === 'Reviewer')
+          .map((agent) => agent.model)
+      ).toEqual([DEFAULT_MODEL])
+      expect((await callBuiltinTool(assistantServer, 'create_agent', input)).isError).toBe(true)
+    })
+
+    // Catches a card naming the saved Agent model while Cherry Assistant's server creates with the session's model.
+    it("previews a Cherry Assistant create with the session's model when the default model cannot be used", () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'wire::missing-model')
+      seedAgent('caller')
+      const workspace = agentWorkspaceService.findOrCreateByPath(agentsDataDir)
+      const session = agentSessionService.create({
+        agentId: 'caller',
+        name: 'Session',
+        model: OTHER_MODEL,
+        workspace: { type: 'user', workspaceId: workspace.id }
+      })
+
+      expect(
+        previewAgentConfigChange(
+          pendingApproval('mcp__assistant__create_assistant', { name: 'Translator', prompt: 'Translate.' }, session.id)
+        )
+      ).toMatchObject({ ok: true, resource: { highlights: ['Other Model'] } })
+    })
+
+    it('previews nothing for an approval that is not an Agent settings change', () => {
+      seedAgent('target')
+
+      expect(previewAgentConfigChange('missing-approval')).toEqual({ ok: false })
+      expect(
+        previewAgentConfigChange(pendingApproval('mcp__cherry-tools__kb_manage', { agentId: 'target', name: 'x' }))
+      ).toEqual({ ok: false })
+    })
+  })
+
+  describe('agent_list', () => {
+    it('lists live Agents with their identity and marks built-in ones read-only', async () => {
+      seedAgent('live')
+      seedAgent('trashed')
+      agentService.deleteAgent('trashed')
+      const assistantId = seedBuiltinAgent(BUILTIN_AGENT_ROLE.ASSISTANT)
+
+      const result = await callBuiltinTool(cherryToolsServer('live', createSession('live').id), 'agent_list')
+
+      const { agents } = JSON.parse(toolText(result)) as { agents: Array<Record<string, unknown>> }
+      expect(agents.map((agent) => agent.id).sort()).toEqual([assistantId, 'live'])
+      expect(agents.find((agent) => agent.id === 'live')).toMatchObject({
+        name: 'Agent live',
+        emoji: '🦊',
+        description: 'Original description',
+        model: DEFAULT_MODEL,
+        readOnly: false
+      })
+      expect(agents.find((agent) => agent.id === assistantId)?.readOnly).toBe(true)
+    })
+  })
+
+  describe('agent_create and assistant_create (every user-created Agent)', () => {
+    it('lets a plain Agent create an Agent that appears in the list, defaulting to the caller model', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', null)
+      seedAgent('plain', { model: OTHER_MODEL })
+
+      const result = await callBuiltinTool(cherryToolsServer('plain'), 'agent_create', {
+        name: 'Note Taker',
+        instructions: 'Take notes.'
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const created = agentService.getAgent((result.structuredContent as { agentId: string }).agentId)!
+      expect(created).toMatchObject({ type: 'pi-durable', name: 'Note Taker', model: OTHER_MODEL })
+      expect(liveAgents().map((agent) => agent.id)).toContain(created.id)
+    })
+
+    it('lets a plain Agent create an Assistant', async () => {
+      seedAgent('plain')
+
+      const result = await callBuiltinTool(cherryToolsServer('plain'), 'assistant_create', {
+        name: 'Summarizer',
+        prompt: 'Summarize.'
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const { assistantId } = result.structuredContent as { assistantId: string }
+      expect(assistantDataService.getById(assistantId)).toMatchObject({ name: 'Summarizer', modelId: DEFAULT_MODEL })
+      expect(assistantDataService.list({ page: 1, limit: 100 }).items[0]?.id).toBe(assistantId)
+    })
+
+    it.each(Object.values(BUILTIN_AGENT_ROLE))(
+      'is not offered to the built-in %s Agent, which cannot create or change these settings',
+      async (role) => {
+        const names = (await listBuiltinTools(cherryToolsServer(seedBuiltinAgent(role)))).map((tool) => tool.name)
+
+        expect(names).not.toContain('agent_create')
+        expect(names).not.toContain('assistant_create')
+        expect(names).not.toContain('config_update')
+        expect(names).toContain('config')
+      }
+    )
+  })
+
+  describe('config_update (self)', () => {
+    it("changes the calling Agent's own fields", async () => {
+      seedAgent('self')
+
+      const result = await callBuiltinTool(cherryToolsServer('self'), 'config_update', {
+        instructions: 'New instructions',
+        skillIds: [USER_SKILL]
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      expect(agentService.getAgent('self')?.instructions).toBe('New instructions')
+      expect(skillEnabledFor('self', USER_SKILL)).toBe(true)
+    })
+
+    it('keeps built-in skills enabled when it replaces the skill set', async () => {
+      seedAgent('self')
+      expect(skillEnabledFor('self', BUILTIN_SKILL)).toBe(true)
+
+      await callBuiltinTool(cherryToolsServer('self'), 'config_update', { skillIds: [USER_SKILL] })
+
+      expect(skillEnabledFor('self', BUILTIN_SKILL)).toBe(true)
+    })
+
+    it.each([
+      ['bypassPermissions', { permissionMode: 'bypassPermissions' }],
+      ['environment variables', { env_vars: { TOKEN: 'leaked' } }],
+      ['a rename (approval-free on config)', { name: 'Renamed' }]
+    ])('refuses %s', async (_case, fields) => {
+      seedAgent('self')
+
+      const result = await callBuiltinTool(cherryToolsServer('self'), 'config_update', fields)
+
+      expect(result.isError).toBe(true)
+      expect(agentService.getAgent('self')).toMatchObject({
+        name: 'Agent self',
+        configuration: { permission_mode: 'default', env_vars: { TOKEN: 'secret' } }
+      })
+    })
+
+    it('previews against the Agent that owns the Session', () => {
+      seedAgent('self')
+      const session = createSession('self')
+
+      // Pi names the server `cherry_tools`.
+      expect(
+        previewAgentConfigChange(pendingApproval('mcp__cherry_tools__config_update', { emoji: '🐼' }, session.id))
+      ).toEqual({ ok: true, summary: ['Avatar: 🦊 → 🐼'] })
+    })
+  })
+})

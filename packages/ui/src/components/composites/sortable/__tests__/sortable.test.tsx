@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { KeyboardSensor, PointerSensor, useDragDropManager } from '@dnd-kit/react'
+import { installDndDomStubs } from '@test-mocks/dndDomStubs'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ReorderableList } from '../../reorderable-list'
 import Sortable from '../sortable'
-import { installDndDomStubs } from './dnd-dom-stubs'
 
 type Item = { id: string }
 type Manager = NonNullable<ReturnType<typeof useDragDropManager>>

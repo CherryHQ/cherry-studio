@@ -1,8 +1,8 @@
 import type { StopCondition, ToolSet } from 'ai'
 
 import { application } from '@application'
+import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 
-import { isAgentSessionTopic } from '../../../../agentSession/topic'
 import { trackSteerYieldStopCondition } from '../../loop/toolLoopTermination'
 import type { RequestFeature } from '../feature'
 

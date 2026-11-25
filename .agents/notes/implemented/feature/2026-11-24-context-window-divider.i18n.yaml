@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-24-context-window-divider.md
+2026-11-24-context-window-divider.md: 3d2c2c30cb0c9ff7c86da3993fafe7fe3704bee7
+2026-11-24-context-window-divider.zh.md: 24de792e68b06bf8326e7205d6e2121d36f807b6

@@ -5,6 +5,7 @@ import {
   InboxDoc,
   CompactionEntry,
   LiveDoc,
+  ToolResultEntry,
   ToolTask,
   type ConversationId,
   type Cursor,
@@ -31,6 +32,14 @@ import type { GoalOwner } from '@cherrystudio/agent-behavior'
 import { runtimeId, type JsonValue, type ThreadId } from '@cherrystudio/agent-runtime'
 
 export const threadId = (id: ConversationId): ThreadId => runtimeId(String(id))
+
+const BLOCKED_PREFIX = 'Tool call blocked: '
+/** The reason the gate blocked a call with, from the `blocked` diagnostic the Harness stores with its result. */
+function blockedReason(entry: EntryRecord): string | undefined {
+  if (!ToolResultEntry.is(entry)) return undefined
+  const message = entry.data.diagnostics.find(({ code }) => code === 'blocked')?.message
+  return message?.startsWith(BLOCKED_PREFIX) ? message.slice(BLOCKED_PREFIX.length) : undefined
+}
 
 export const nativeSummaryUsage = defineDoc({
   kind: 'cherry.native-summary-usage',
@@ -238,6 +247,7 @@ export class HistoryFold {
           const at = this.history.length
           if (entry.byTaskId === undefined)
             this.#fallbacks.set(message.toolCallId, [...(this.#fallbacks.get(message.toolCallId) ?? []), at])
+          const blocked = blockedReason(entry)
           this.#push({
             kind: 'tool-result',
             id,
@@ -246,7 +256,8 @@ export class HistoryFold {
             tool: message.toolName,
             text,
             isError: message.isError,
-            details: message.details
+            details: message.details,
+            ...(blocked === undefined ? {} : { blocked })
           })
         }
       }

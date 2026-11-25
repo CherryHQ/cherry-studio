@@ -104,6 +104,7 @@ export const exaMcp: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG['exa-mcp'],
   async execute(context) {
     const { call } = context
+    if (call.capability === 'searchImages') throw new TypeError('Expected keyword search or page fetch')
     const isSearch = call.capability === 'searchKeywords'
     const args =
       call.capability === 'searchKeywords'

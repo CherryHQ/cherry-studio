@@ -7,9 +7,9 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
-import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentNotificationContext } from '../agentMcpServers'
 import type { AgentSessionUsageCapture } from '../types'
 import {

@@ -5,8 +5,8 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
-import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
+import { extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
 import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 
@@ -37,7 +37,10 @@ export async function findPersistedToolOutput(
   return { found: false }
 }
 
-async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<unknown> {
+export async function resolvePersistedToolOutput(
+  output: PersistedToolOutput,
+  { allowExcerpt = true }: { allowExcerpt?: boolean } = {}
+): Promise<unknown> {
   const ref = output.$persistedToolOutput
   const readBlob = async (blob: PersistedToolOutputBlobRef): Promise<string> => {
     try {
@@ -46,6 +49,7 @@ async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<
       const { content } = await application.get('FileManager').read(blob.fileEntryId, { encoding: 'text' })
       return content
     } catch (error) {
+      if (!allowExcerpt) throw error
       logger.warn('persisted tool output unavailable, serving excerpt', { fileEntryId: blob.fileEntryId, error })
       return `${blob.head}\n\n[persisted output no longer available — showing excerpt of ${blob.totalChars} chars]\n\n${blob.tail}`
     }
