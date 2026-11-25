@@ -1728,6 +1728,8 @@
   "error.pi_durable_observation_interrupted": "Quan sát Pi durable runtime đã bị gián đoạn. Lượt đã dừng trước khi hoàn tất. Hãy gửi lại tin nhắn. Phiên sẽ tự động kết nối lại.",
   "error.pi_observation_interrupted": "Quan sát Pi runtime đã bị gián đoạn. Lượt đã dừng trước khi hoàn tất. Hãy gửi lại tin nhắn. Phiên sẽ tự động kết nối lại.",
   "error.pi_observation_interrupted_detail": "Lý do: {{reason}}",
+  "error.pi_retired_history_validation_failed": "Xác thực di chuyển phiên đã ngừng của Pi runtime thất bại. Lịch sử đã di chuyển không được lưu.",
+  "error.pi_retired_history_validation_failed_detail": "Phiên {{sessionId}} — Hãy mở lại phiên; quá trình di chuyển sẽ tự động thử lại.",
   "error.prompt": "Lời nhắc",
   "error.provider": "Nhà cung cấp",
   "error.providerId": "ID nhà cung cấp",

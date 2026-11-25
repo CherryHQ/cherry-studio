@@ -134,4 +134,32 @@ describe('PiObservationError', () => {
     expect(serialized.i18nKey).toBe('pi_observation_interrupted')
     expect(serialized.detailI18nKey).toBe('pi_observation_interrupted_detail')
   })
+
+  it('redacts credentials from log context while keeping runtime identity', () => {
+    const error = new PiObservationError({
+      runtime: 'pi',
+      kind: 'outcome',
+      reason: 'failed',
+      sessionId: 'session-cred',
+      causeMessage: '401 Unauthorized: api_key = "sk-ant-real-secret"'
+    })
+
+    const context = error.toLogContext()
+    expect(context).toMatchObject({ runtime: 'pi', kind: 'outcome', sessionId: 'session-cred' })
+    expect(JSON.stringify(context)).not.toContain('sk-ant-real-secret')
+  })
+
+  it('reports a durable interruption as an unknown outcome that resumes', () => {
+    const error = new PiObservationError({
+      runtime: 'pi-durable',
+      kind: 'closed',
+      reason: 'source-lost',
+      sessionId: 'session-durable'
+    })
+
+    // A reopened Durable input can resume, so a fresh submission would run
+    // twice: the copy must not unconditionally ask for a resubmission.
+    expect(error.message).toContain('unknown outcome')
+    expect(error.message).toContain('does not resume automatically')
+  })
 })

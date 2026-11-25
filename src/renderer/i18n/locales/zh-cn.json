@@ -1728,6 +1728,8 @@
   "error.pi_durable_observation_interrupted": "Pi 持久运行时观察已中断。轮次在完成前已停止；请重新发送消息——会话将自动重连。",
   "error.pi_observation_interrupted": "Pi 运行时观察已中断。轮次在完成前已停止；请重新发送消息——会话将自动重连。",
   "error.pi_observation_interrupted_detail": "原因：{{reason}}",
+  "error.pi_retired_history_validation_failed": "Pi 运行时退役会话迁移验证失败。迁移的历史记录未保存。",
+  "error.pi_retired_history_validation_failed_detail": "会话 {{sessionId}} — 请重新打开会话；迁移将自动重试。",
   "error.prompt": "提示词",
   "error.provider": "提供商",
   "error.providerId": "提供商 ID",

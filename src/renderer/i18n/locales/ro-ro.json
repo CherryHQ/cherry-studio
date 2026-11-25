@@ -1730,6 +1730,8 @@
   "error.pi_durable_observation_interrupted": "Observarea runtime-ului durabil Pi a fost întreruptă. Tura a fost oprită înainte de finalizare; trimiteți din nou mesajul. Sesiunea se reconectează automat.",
   "error.pi_observation_interrupted": "Observarea runtime-ului Pi a fost întreruptă. Tura a fost oprită înainte de finalizare; trimiteți din nou mesajul. Sesiunea se reconectează automat.",
   "error.pi_observation_interrupted_detail": "Motiv: {{reason}}",
+  "error.pi_retired_history_validation_failed": "Validarea migrării sesiunii retrase a runtime-ului Pi a eșuat. Istoricul migrat nu a fost salvat.",
+  "error.pi_retired_history_validation_failed_detail": "Sesiunea {{sessionId}} — Redeschideți sesiunea; migrarea va fi reîncercată automat.",
   "error.prompt": "Prompt",
   "error.provider": "Furnizor",
   "error.providerId": "ID furnizor",

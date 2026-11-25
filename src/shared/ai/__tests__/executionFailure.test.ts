@@ -99,4 +99,25 @@ required service tier.`,
     expect(executionFailureSchema.safeParse(large).success).toBe(true)
     expect(new TextEncoder().encode(JSON.stringify(large)).length).toBeLessThanOrEqual(4096)
   })
+
+  it('keeps local Pi observation loss on the runtime layer with stream retry guidance', () => {
+    const failure = toExecutionFailure(
+      {
+        name: 'PiObservationError',
+        message:
+          'Pi runtime observation interrupted (gap: disconnected). The turn was stopped before completion; send your message again — the session reconnects automatically.',
+        stack: null,
+        runtime: 'pi',
+        kind: 'gap',
+        sessionId: 'session-1',
+        providerErrorCategory: 'stream',
+        isRetryable: true
+      },
+      'openai::gpt-4o'
+    )
+
+    expect(failure.failure.reasonCode).toBe('stream_interrupted')
+    expect(failure.failure.source.layer).toBe('runtime')
+    expect(failure.retryable).toBe(true)
+  })
 })

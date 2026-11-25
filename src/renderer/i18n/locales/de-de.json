@@ -1728,6 +1728,8 @@
   "error.pi_durable_observation_interrupted": "Pi-Durable-Laufzeitbeobachtung wurde unterbrochen. Die Runde wurde vor Abschluss gestoppt; senden Sie Ihre Nachricht erneut. Die Sitzung wird automatisch neu verbunden.",
   "error.pi_observation_interrupted": "Pi-Laufzeitbeobachtung wurde unterbrochen. Die Runde wurde vor Abschluss gestoppt; senden Sie Ihre Nachricht erneut. Die Sitzung wird automatisch neu verbunden.",
   "error.pi_observation_interrupted_detail": "Grund: {{reason}}",
+  "error.pi_retired_history_validation_failed": "Die Pi-Laufzeitmigration der stillgelegten Sitzung ist bei der Validierung fehlgeschlagen. Der migrierte Verlauf wurde nicht gespeichert.",
+  "error.pi_retired_history_validation_failed_detail": "Sitzung {{sessionId}} — Öffnen Sie die Sitzung erneut; die Migration wird automatisch erneut versucht.",
   "error.prompt": "Prompt",
   "error.provider": "Anbieter",
   "error.providerId": "Anbieter-ID",

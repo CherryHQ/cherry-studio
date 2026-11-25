@@ -1728,6 +1728,8 @@
   "error.pi_durable_observation_interrupted": "Pi durable ランタイムの監視が中断されました。ターンは完了前に停止しました。メッセージを再送してください。セッションは自動的に再接続します。",
   "error.pi_observation_interrupted": "Pi ランタイムの監視が中断されました。ターンは完了前に停止しました。メッセージを再送してください。セッションは自動的に再接続します。",
   "error.pi_observation_interrupted_detail": "理由: {{reason}}",
+  "error.pi_retired_history_validation_failed": "Pi ランタイムの旧セッション移行の検証に失敗しました。移行された履歴は保存されませんでした。",
+  "error.pi_retired_history_validation_failed_detail": "セッション {{sessionId}} — セッションを開き直してください。移行は自動的に再試行されます。",
   "error.prompt": "プロンプトを表示する",
   "error.provider": "プロバイダー",
   "error.providerId": "プロバイダーID",

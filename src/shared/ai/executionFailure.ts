@@ -61,13 +61,23 @@ export function toExecutionFailure(
   const reasonCode = layer === 'host' ? 'internal' : (reasons[category] ?? 'unknown')
   const providerId = safeText(error.providerId ?? modelId?.split('::')[0], 128)
   const model = safeText(modelId ?? error.modelId, 128)
+  // Local Pi observation loss (gap/closed) is a runtime transport break, not a
+  // provider failure: keep the `stream_interrupted` reason for retry guidance
+  // while carrying runtime ownership so remote metadata does not attribute a
+  // local feed close (e.g. after a backlog overflow) to the provider.
+  const record = error as unknown as Record<string, unknown>
+  const isPiObservationLoss =
+    (record.runtime === 'pi' || record.runtime === 'pi-durable') && (record.kind === 'gap' || record.kind === 'closed')
   const value: ExecutionFailure = {
     message,
     retryable: error.isRetryable === true && !['auth', 'permission', 'quota', 'internal'].includes(reasonCode),
     failure: {
       version: 1,
       reasonCode,
-      source: { layer: layer ?? (status || error.providerErrorCategory ? 'provider' : 'runtime') },
+      source: {
+        layer:
+          layer ?? (isPiObservationLoss ? 'runtime' : status || error.providerErrorCategory ? 'provider' : 'runtime')
+      },
       context: {
         ...(status && status >= 100 && status <= 599 ? { statusCode: status } : {}),
         ...(providerId ? { providerId } : {}),

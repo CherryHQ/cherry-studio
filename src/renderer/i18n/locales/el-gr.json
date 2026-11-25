@@ -1728,6 +1728,8 @@
   "error.pi_durable_observation_interrupted": "Η παρατήρηση του Pi durable runtime διακόπηκε. Ο γύρος σταμάτησε πριν ολοκληρωθεί. Στείλτε ξανά το μήνυμά σας. Η συνεδρία θα επανασυνδεθεί αυτόματα.",
   "error.pi_observation_interrupted": "Η παρατήρηση του Pi runtime διακόπηκε. Ο γύρος σταμάτησε πριν ολοκληρωθεί. Στείλτε ξανά το μήνυμά σας. Η συνεδρία θα επανασυνδεθεί αυτόματα.",
   "error.pi_observation_interrupted_detail": "Αιτία: {{reason}}",
+  "error.pi_retired_history_validation_failed": "Η επικύρωση της μετεγκατάστασης της αποσυρμένης συνεδρίας του Pi runtime απέτυχε. Το ιστορικό δεν αποθηκεύτηκε.",
+  "error.pi_retired_history_validation_failed_detail": "Συνεδρία {{sessionId}} — Ανοίξτε ξανά τη συνεδρία· η μετεγκατάσταση θα επαναληφθεί αυτόματα.",
   "error.prompt": "Προτροπή",
   "error.provider": "πάροχος",
   "error.providerId": "Αναγνωριστικό παρόχου",

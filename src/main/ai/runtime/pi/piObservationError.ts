@@ -1,4 +1,6 @@
+import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { classifyErrorCategory, extractHttpStatus, type ErrorCategory } from '@shared/utils/errorCategory'
+import { redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
 export type PiObservationFailureKind = 'gap' | 'closed' | 'diagnostic' | 'outcome'
 export type PiObservationRuntime = 'pi' | 'pi-durable'
@@ -24,6 +26,17 @@ const RETRYABLE_OBSERVATION_CATEGORIES: ReadonlySet<ErrorCategory> = new Set([
 
 function isObservationLoss(kind: PiObservationFailureKind): boolean {
   return kind === 'gap' || kind === 'closed'
+}
+
+/**
+ * Bounded redaction for log context: provider text can carry credentials
+ * (`api_key = "secret"`, bare tokens) that must not reach disk verbatim.
+ * Keeps runtime/session identity while stripping secrets and bounding length.
+ */
+function safeLogText(text: string): string {
+  const safe = getSafeProviderErrorMessage({ message: text })
+  const bounded = safe || redactSecretText(text).slice(0, 500)
+  return redactSecretTokens(bounded).slice(0, 500)
 }
 
 /**
@@ -91,13 +104,13 @@ export class PiObservationError extends Error {
     return {
       runtime: this.runtime,
       kind: this.kind,
-      reason: this.reason,
+      reason: safeLogText(this.reason),
       sessionId: this.sessionId,
       ...(this.statusCode !== undefined ? { statusCode: this.statusCode } : {}),
       ...(this.providerErrorCategory ? { providerErrorCategory: this.providerErrorCategory } : {}),
       ...(this.backendId ? { backendId: this.backendId } : {}),
       ...(this.nativeThreadId ? { nativeThreadId: this.nativeThreadId } : {}),
-      ...(this.causeMessage ? { causeMessage: this.causeMessage } : {})
+      ...(this.causeMessage ? { causeMessage: safeLogText(this.causeMessage) } : {})
     }
   }
 }
@@ -119,8 +132,13 @@ export function describePiObservationFailure(details: PiObservationErrorDetails)
         : details.kind === 'outcome'
           ? `${runtimeLabel(details.runtime)} turn failed (${details.reason})`
           : `${runtimeLabel(details.runtime)} reported an error (${details.reason})`
+  // Durable can resume a placed input on reopen, so a fresh submission would
+  // run twice: report the outcome as unknown and only resend when the original
+  // does not resume instead of unconditionally asking for a resubmission.
   const recovery =
-    'The turn was stopped before completion; send your message again — the session reconnects automatically.'
+    details.runtime === 'pi-durable'
+      ? 'The turn stopped with an unknown outcome; if the original message does not resume automatically, send it again — the session reconnects automatically.'
+      : 'The turn was stopped before completion; send your message again — the session reconnects automatically.'
   const cause = details.causeMessage ? ` Detail: ${details.causeMessage}` : ''
   return `${base}. ${recovery}${cause}`
 }

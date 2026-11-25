@@ -1728,6 +1728,8 @@
   "error.pi_durable_observation_interrupted": "Pi 持久執行階段觀察已中斷。輪次在完成前已停止；請重新傳送訊息，會話將自動重新連線。",
   "error.pi_observation_interrupted": "Pi 執行階段觀察已中斷。輪次在完成前已停止；請重新傳送訊息，會話將自動重新連線。",
   "error.pi_observation_interrupted_detail": "原因：{{reason}}",
+  "error.pi_retired_history_validation_failed": "Pi 執行階段退役工作階段遷移驗證失敗。遷移的歷史記錄未儲存。",
+  "error.pi_retired_history_validation_failed_detail": "工作階段 {{sessionId}} — 請重新開啟工作階段；遷移將自動重試。",
   "error.prompt": "提示詞",
   "error.provider": "供應商",
   "error.providerId": "供應商 ID",
