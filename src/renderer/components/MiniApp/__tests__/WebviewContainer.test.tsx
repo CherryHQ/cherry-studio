@@ -35,7 +35,7 @@ vi.mock('react-i18next', () => ({
 
 import { ipcApi } from '@renderer/ipc'
 import type { MiniAppKind } from '@shared/data/types/miniApp'
-import { WEBVIEW_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
+import { WEBVIEW_KEYDOWN_CHANNEL, type WebviewKeyPayload } from '@shared/utils/webviewKey'
 
 import WebviewContainer from '../WebviewContainer'
 
@@ -83,13 +83,24 @@ const focusOn = (element: Element | null) => {
   Object.defineProperty(document, 'activeElement', { value: element, configurable: true })
 }
 
+const guestFindKey = {
+  key: 'f',
+  code: 'KeyF',
+  ctrlKey: true,
+  metaKey: false,
+  shiftKey: false,
+  altKey: false,
+  repeat: false,
+  isTrusted: true
+} satisfies WebviewKeyPayload
+
 /**
  * Injects the relay message a SITE guest's preload sends. It proves what the host does
  * with one — never that anything emits it: a LOCAL mini app has no relay preload at all
  * (`WebviewService`, "yields the preload slot to a LOCAL mini app"), so every case below
  * is scoped to `kind: 'site'` on purpose and none of them covers a local app's shortcuts.
  */
-const sendGuestKey = (webview: Element, payload: Record<string, unknown>) => {
+const sendGuestKey = (webview: Element, payload: unknown) => {
   act(() => {
     webview.dispatchEvent(
       Object.assign(new Event('ipc-message'), { channel: WEBVIEW_KEYDOWN_CHANNEL, args: [payload] })
@@ -215,7 +226,7 @@ describe('WebviewContainer', () => {
     focusOn(webview)
     const { seen, stop } = captureWindowKeydown()
 
-    sendGuestKey(webview, { key: 'f', code: 'KeyF', ctrlKey: true, shiftKey: false, isTrusted: true })
+    sendGuestKey(webview, guestFindKey)
     stop()
 
     expect(seen).toHaveLength(1)
@@ -224,12 +235,29 @@ describe('WebviewContainer', () => {
     expect(seen[0].target).toBe(webview)
   })
 
+  it.each([
+    null,
+    { ...guestFindKey, isTrusted: 'true' },
+    { ...guestFindKey, ctrlKey: 'yes' },
+    { ...guestFindKey, key: null },
+    { key: 'f', code: 'KeyF', ctrlKey: true, isTrusted: true }
+  ])('drops malformed IPC key data before replaying a host keydown', (payload) => {
+    const webview = attachedWebview(renderWebview({ kind: 'site' }))
+    focusOn(webview)
+    const { seen, stop } = captureWindowKeydown()
+
+    sendGuestKey(webview, payload)
+    stop()
+
+    expect(seen).toHaveLength(0)
+  })
+
   it('drops a keydown the guest page synthesized instead of a real key press', () => {
     const webview = attachedWebview(renderWebview({ kind: 'site' }))
     focusOn(webview)
     const { seen, stop } = captureWindowKeydown()
 
-    sendGuestKey(webview, { key: 'f', code: 'KeyF', ctrlKey: true, isTrusted: false })
+    sendGuestKey(webview, { ...guestFindKey, isTrusted: false })
     stop()
 
     expect(seen).toHaveLength(0)
@@ -240,7 +268,7 @@ describe('WebviewContainer', () => {
     focusOn(document.body)
     const { seen, stop } = captureWindowKeydown()
 
-    sendGuestKey(webview, { key: 'f', code: 'KeyF', ctrlKey: true, isTrusted: true })
+    sendGuestKey(webview, guestFindKey)
     stop()
 
     expect(seen).toHaveLength(0)
