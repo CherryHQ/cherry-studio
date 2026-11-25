@@ -30,6 +30,7 @@ import type {
 } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import type { OutputFor } from '@shared/ipc/types'
 import type { FileUrlString } from '@shared/types/file'
 
 import type { ActionAvailabilityInput } from '../actions/actionTypes'
@@ -385,6 +386,7 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 } as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
+  openMcpApp?: (messageId: string, toolCallId: string, requestId: string) => Promise<OutputFor<'mcp.app.open'>>
   addGeneratedImageToComposer?: (image: { url: string; name: string }) => void | Promise<void>
   openForkSourceSession?: (sessionId: string) => Promise<void>
   /** Sends again a user message (status `paused`) that the runtime withdrew before the agent received it. */
