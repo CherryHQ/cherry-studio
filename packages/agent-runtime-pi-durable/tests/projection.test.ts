@@ -54,6 +54,38 @@ const live = (attempt = 1): LiveState => ({
   generation: { attempt, message: JSON.parse(JSON.stringify(fauxAssistantMessage('same text'))) }
 })
 
+it.each(['', 'partial answer'])('retains the provider failure alongside %j content', (text) => {
+  const failure = {
+    ...entry(10, text),
+    model: [fauxAssistantMessage(text || [], { stopReason: 'error', errorMessage: '429: CONCURRENCY_LIMITED' })]
+  }
+  const { projection } = setup(view([failure]))
+  expect(projection.feed.snapshot.messages[0]).toMatchObject({
+    metadata: { error: { code: 'model-error', message: '429: CONCURRENCY_LIMITED' } }
+  })
+  expect(projection.feed.snapshot.messages[0].parts).toEqual(text ? [{ type: 'text', text, state: 'done' }] : [])
+})
+
+it('retains every failed attempt when a later attempt succeeds', () => {
+  const failed = (id: number, byTaskId: TaskId): EntryRecord => ({
+    ...entry(id, '', byTaskId),
+    model: [fauxAssistantMessage([], { stopReason: 'error', errorMessage: '429: CONCURRENCY_LIMITED' })]
+  })
+  const entries = [failed(10, 8 as TaskId), failed(11, taskId), failed(12, taskId)]
+  const { projection, update } = setup(view(entries))
+  const before = projection.feed.snapshot.messages
+  expect(before.slice(0, 3).every((message) => message.metadata?.error?.message === '429: CONCURRENCY_LIMITED')).toBe(
+    true
+  )
+  update(view([...entries, entry(13, 'Recovered')]))
+  expect(projection.feed.snapshot.messages[0]).toMatchObject({
+    metadata: { error: { message: '429: CONCURRENCY_LIMITED' } }
+  })
+  expect(projection.feed.snapshot.messages.slice(0, 3)).toEqual(before)
+  expect(projection.feed.snapshot.messages[3].parts).toEqual([{ type: 'text', text: 'Recovered', state: 'done' }])
+  expect(before[2]).toMatchObject({ metadata: { error: { message: '429: CONCURRENCY_LIMITED' } } })
+})
+
 it('keeps complete isolated history when updating a view without observers', () => {
   const projection = new DurableProjection({ backendId: runtimeId('backend'), id: runtimeId('1') }, (error) => {
     throw error

@@ -21,6 +21,7 @@ import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
   resolveDelegationApproval,
+  resolveMcpSkillToolAccess,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { type CommandCheck, checkCommand, type CommandDialect } from '@main/ai/toolApproval/commandPolicy'
@@ -127,7 +128,7 @@ const bashRepeatWithoutProgress = (ctx: ToolGuardContext): GuardHit | null => {
 }
 
 const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' | 'enforce'): GuardHit | null => {
-  const policy = findBuiltinToolPolicy(ctx.toolName, ctx.mountedServers)
+  const policy = findBuiltinToolPolicy(ctx.toolName, ctx.mountedServers, ctx.input)
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
 }
 
@@ -188,7 +189,12 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
     id: 'disabled-tool',
     bypassBehavior: 'enforce',
-    match: { when: (ctx) => (ctx.toolName && ctx.isDisabled(ctx.toolName) ? {} : null) },
+    match: {
+      when: (ctx) =>
+        ctx.isDisabled(ctx.toolName) || resolveMcpSkillToolAccess(ctx.toolName, ctx.input ?? {})?.enabled === false
+          ? {}
+          : null
+    },
     effect: 'deny',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool is disabled for this agent.`
   },
