@@ -319,16 +319,16 @@ describe('FFmpeg bundle manifest', () => {
   it.each(['x64', 'arm64'] as const)('pins the immutable Linux %s shared tree', (arch) => {
     const pkg = packages[`linux-${arch}`]
     const checksums = {
-      x64: '79cda3bc8509338b841551706a24c0e50f2d2ec237a1d85898fb799123c6c728',
-      arm64: 'bb64860ec2993ad6688239f58a32b81e91cf5e0f7a3b9efa80bff1c84b955a3f'
+      x64: '01ed4abb1c40da6433c36f6131e9d338d22126cd51be5e684c05058d83c021bf',
+      arm64: '7fe5183e3bbc8fcd359109547692c13dbf634316234cddfb006d2377c36f801f'
     }
     expect(pkg.url).toBe(
-      `https://github.com/CherryHQ/cherry-studio-ffmpeg-lgpl/releases/download/ffmpeg-lgpl-v8.1.2-r2/ffmpeg-lgpl-v8.1.2-linux-${arch}.tar.gz`
+      `https://github.com/CherryHQ/cherry-studio-ffmpeg-lgpl/releases/download/ffmpeg-lgpl-v8.1.3-r1/ffmpeg-lgpl-v8.1.3-linux-${arch}.tar.gz`
     )
     expect(pkg.sha256).toBe(checksums[arch])
     expect(pkg.stripComponents).toBe(1)
     expect(pkg.dir).toBe('ffmpeg')
-    expect(pkg.version).toBe('ffmpeg-lgpl-v8.1.2-r2')
+    expect(pkg.version).toBe('ffmpeg-lgpl-v8.1.3-r1')
     expect(pkg.executableFiles).toEqual(['ffmpeg/bin/ffmpeg', 'ffmpeg/bin/ffprobe'])
     expect(pkg.tree).toEqual({
       executables: ['bin/ffmpeg', 'bin/ffprobe'],
