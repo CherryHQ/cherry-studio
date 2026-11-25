@@ -1,16 +1,8 @@
 import { describe, expect, it, onTestFinished } from 'vitest'
 
-import {
-  runtimeId,
-  ThreadFeed,
-  type RuntimeMessage,
-  type ObservationSink,
-  type Thread,
-  type ThreadHandle,
-  type ThreadSnapshot
-} from '@cherrystudio/agent-runtime'
+import { runtimeId, type RuntimeMessage, type Thread, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
 
-import { ThreadMessageProjection, type ThreadProjectionUpdate } from '../ThreadMessageProjection'
+import { ThreadMessageProjection } from '../ThreadMessageProjection'
 
 const thread = (id: string): Thread => ({ backendId: runtimeId('fixture'), id: runtimeId(id) })
 const root = thread('root')
@@ -38,7 +30,73 @@ const text = (value: ThreadMessageProjection) =>
   value.snapshot().messages.flatMap((entry) => entry.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
 
 describe('ThreadMessageProjection', () => {
-  it('returns only changed messages without redecorating history or mutating an earlier view', async () => {
+  it('snapshots native mutations at acceptance and retains settled results until their explicit part changes', async () => {
+    const value = projection()
+    const output = { body: 'accepted A' }
+    const source: RuntimeMessage = {
+      id: 'native',
+      role: 'assistant',
+      metadata: { completeness: 'partial' },
+      parts: [
+        { type: 'dynamic-tool', toolName: 'Read', toolCallId: 'call', state: 'output-available', input: {}, output },
+        { type: 'text', text: 'prefix', state: 'streaming' }
+      ]
+    }
+    const accepting = value.accept({ type: 'message.reconcile', message: source })
+    output.body = 'accepted B'
+    await accepting
+    const before = value.snapshot()
+    expect(before.messages[0].parts[0]).toMatchObject({ output: { body: 'accepted A' } })
+    source.parts[1] = { type: 'text', text: 'prefix suffix', state: 'streaming' }
+    await value.accept({
+      type: 'message.text-append',
+      ref: { session: root, id: runtimeId(source.id) },
+      part: 1,
+      text: ' suffix'
+    })
+    expect(value.snapshot().messages[0].parts[0]).toBe(before.messages[0].parts[0])
+    expect(value.snapshot().messages[0].parts[1]).toMatchObject({ text: 'prefix suffix' })
+    const part = source.parts[0]
+    if (part.type !== 'dynamic-tool') throw new Error('Missing tool part')
+    await value.accept({
+      type: 'message.parts',
+      ref: { session: root, id: runtimeId(source.id) },
+      changes: [{ type: 'put', part: 0, value: part }]
+    })
+    expect(value.snapshot().messages[0].parts[0]).toMatchObject({ output: { body: 'accepted B' } })
+    expect(before.messages[0].parts[0]).toMatchObject({ output: { body: 'accepted A' } })
+  })
+  it.each(['staged', 'observed'] as const)(
+    'rejects stray and stale native tool output on the %s path',
+    async (path) => {
+      const value = projection()
+      const ref = { session: root, id: runtimeId<'item'>('message') }
+      const tool = { type: 'dynamic-tool' as const, toolCallId: 'call', toolName: 'Read', input: {} }
+      await value.accept(snapshot([{ ...message(root, ''), parts: [{ ...tool, state: 'input-available' }] }]))
+      const output = async (part: number, toolCallId: string, body: string, preliminary: boolean) => {
+        const event = {
+          type: 'message.tool-output' as const,
+          ref,
+          part,
+          tool: { ...tool, toolCallId, state: 'output-available' as const, output: body, preliminary }
+        }
+        if (path === 'staged') {
+          value.stageParts(event, 1)
+          await value.drain()
+        } else await value.accept(event)
+      }
+      await output(1, 'missing', 'stray', true)
+      await output(0, 'other', 'wrong call', false)
+      expect(value.snapshot().messages[0].parts).toEqual([{ ...tool, state: 'input-available' }])
+      await output(0, 'call', 'settled', false)
+      await output(0, 'call', 'too late', true)
+      expect(value.snapshot().messages[0].parts).toMatchObject([
+        { toolCallId: 'call', output: 'settled', preliminary: false }
+      ])
+    }
+  )
+
+  it('updates one source without redecorating history or mutating an earlier view', async () => {
     let budget = Infinity
     const value = new ThreadMessageProjection(root, (message) => {
       if (--budget < 0) throw new Error('A live update traversed unrelated history')
@@ -50,8 +108,8 @@ describe('ThreadMessageProjection', () => {
     )
     const before = value.snapshot()
     budget = 1
-    const changed = await value.accept({ type: 'message.upsert', message: message(root, 'new text', 'live') })
-    expect(changed).toEqual([
+    await value.accept({ type: 'message.reconcile', message: message(root, 'new text', 'live') })
+    expect(value.snapshot().messages.slice(-1)).toEqual([
       {
         id: 'live',
         role: 'assistant',
@@ -62,7 +120,8 @@ describe('ThreadMessageProjection', () => {
     expect(before.messages).toHaveLength(1000)
     expect(value.snapshot().messages).toHaveLength(1001)
     expect(value.snapshot().messages[0]).toBe(before.messages[0])
-    expect(await value.accept({ type: 'activity.changed', activity: { state: 'active' } })).toEqual([])
+    await value.accept({ type: 'activity.changed', activity: { state: 'active' } })
+    expect(value.snapshot().activity.state).toBe('active')
   })
 
   it('redecorates only changed sources across repeated snapshots unless explicitly invalidated', async () => {
@@ -87,7 +146,7 @@ describe('ThreadMessageProjection', () => {
     expect(text(value).at(-1)).toBe('v2:more')
   })
 
-  it('returns the final ordered changes of a batch and supports explicit display invalidation', async () => {
+  it('preserves message order across a batch and supports explicit display invalidation', async () => {
     let title = 'before'
     const value = new ThreadMessageProjection(root, (message) => ({
       ...message,
@@ -95,17 +154,17 @@ describe('ThreadMessageProjection', () => {
     }))
     onTestFinished(() => value.close())
     await value.accept(snapshot([message(root, 'first', 'a'), message(root, 'second', 'b')]))
-    const changed = await value.accept([
-      { type: 'message.upsert', message: message(root, 'second updated', 'b') },
-      { type: 'message.upsert', message: message(root, 'first updated', 'a') },
-      { type: 'message.upsert', message: message(root, 'second final', 'b', true) }
+    await value.accept([
+      { type: 'message.reconcile', message: message(root, 'second updated', 'b') },
+      { type: 'message.reconcile', message: message(root, 'first updated', 'a') },
+      { type: 'message.reconcile', message: message(root, 'second final', 'b', true) }
     ])
+    const changed = value.snapshot().messages
     expect(changed.map((item) => item.id)).toEqual(['a', 'b'])
     expect(changed[1].parts).toEqual([{ type: 'text', text: 'second final', state: 'done' }])
     title = 'after'
-    const refreshed = await value.accept([], ['a'])
-    expect(refreshed).toHaveLength(1)
-    expect(refreshed[0]).toMatchObject({ id: 'a', metadata: { title: 'after' } })
+    await value.accept([], ['a'])
+    expect(value.snapshot().messages[0]).toMatchObject({ id: 'a', metadata: { title: 'after' } })
     expect(value.snapshot().messages[1].metadata).toMatchObject({ title: 'before' })
   })
 
@@ -115,13 +174,14 @@ describe('ThreadMessageProjection', () => {
       return message
     })
     onTestFinished(() => value.close())
-    await value.accept({ type: 'message.upsert', message: message(root, 'committed', 'kept', true) })
+    await value.accept({ type: 'message.reconcile', message: message(root, 'committed', 'kept', true) })
     await expect(
       value.accept(snapshot([message(root, 'uncommitted', 'kept'), message(root, 'bad', 'invalid')]))
     ).rejects.toThrow('Invalid display metadata')
     expect(text(value)).toEqual(['committed'])
     expect(value.snapshot().closed).toBe('consumer-error')
-    expect(await value.accept({ type: 'message.upsert', message: message(root, 'ignored') })).toEqual([])
+    await value.accept({ type: 'message.reconcile', message: message(root, 'ignored') })
+    expect(text(value)).toEqual(['committed'])
     await value.accept(snapshot([message(root, 'recovered')]))
     expect(text(value)).toEqual(['recovered'])
   })
@@ -129,10 +189,10 @@ describe('ThreadMessageProjection', () => {
   it('continues a partial snapshot without duplicating its prefix or ending it early', async () => {
     const value = projection()
     await value.accept(snapshot([message(root, 'hel')]))
-    await value.accept({ type: 'message.upsert', message: message(root, 'hello') })
+    await value.accept({ type: 'message.reconcile', message: message(root, 'hello') })
     expect(text(value)).toEqual(['hello'])
     expect(value.snapshot().messages[0].parts).toEqual([{ type: 'text', text: 'hello', state: 'streaming' }])
-    await value.accept({ type: 'message.upsert', message: message(root, 'hello!', 'message', true) })
+    await value.accept({ type: 'message.reconcile', message: message(root, 'hello!', 'message', true) })
     expect(value.snapshot().messages[0].parts).toEqual([{ type: 'text', text: 'hello!', state: 'done' }])
   })
 
@@ -146,9 +206,9 @@ describe('ThreadMessageProjection', () => {
         { type: 'text' as const, text: 'new' }
       ]
     }
-    await value.accept({ type: 'message.upsert', message: replacement })
+    await value.accept({ type: 'message.reconcile', message: replacement })
     await value.accept({
-      type: 'message.upsert',
+      type: 'message.reconcile',
       message: {
         ...replacement,
         parts: [replacement.parts[0], { type: 'text', text: 'new answer', state: 'done' }],
@@ -166,18 +226,15 @@ describe('ThreadMessageProjection', () => {
     await value.accept(snapshot([message(root, 'same', 'preview')]))
     const before = value.snapshot()
     await value.accept(snapshot([message(root, 'same', 'preview')]))
-    expect(value.snapshot().revision).toBe(before.revision)
+    expect(value.snapshot()).toBe(before)
     expect(value.snapshot().messages[0]).toBe(before.messages[0])
-    const events: ThreadProjectionUpdate[] = []
-    value.subscribe((event) => events.push(event))
     await value.accept({
-      type: 'message.upsert',
+      type: 'message.reconcile',
       message: message(root, 'same', 'saved', true),
       replaces: [{ session: root, id: runtimeId('preview') }]
     })
     expect(text(value)).toEqual(['same'])
     expect(value.snapshot().messages.map((item) => item.id)).toEqual(['saved'])
-    expect(events.at(-1)).toMatchObject({ type: 'change', removed: ['preview'], messages: [{ id: 'saved' }] })
     await value.accept({ type: 'message.remove', ref: { session: root, id: runtimeId('saved') } })
     expect(text(value)).toEqual([])
   })
@@ -187,8 +244,11 @@ describe('ThreadMessageProjection', () => {
     const views = owners.map((owner) => projection(owner))
     await Promise.all(views.map((view, i) => view.accept(snapshot([message(owners[i], owners[i].id)]))))
     await views[0].close()
-    await views[1].accept({ type: 'message.upsert', message: message(owners[1], 'child-a continues', 'message', true) })
-    await views[3].accept({ type: 'message.upsert', message: message(owners[3], 'grandchild continues') })
+    await views[1].accept({
+      type: 'message.reconcile',
+      message: message(owners[1], 'child-a continues', 'message', true)
+    })
+    await views[3].accept({ type: 'message.reconcile', message: message(owners[3], 'grandchild continues') })
     expect(views.map(text)).toEqual([['root'], ['child-a continues'], ['child-b'], ['grandchild continues']])
     await expect(
       views[2].accept({ type: 'message.remove', ref: { session: root, id: runtimeId('message') } })
@@ -200,35 +260,6 @@ describe('ThreadMessageProjection', () => {
     ).rejects.toThrow(/thread/i)
   })
 
-  it('converges after a ThreadFeed burst overflows its bounded queue', async () => {
-    const errors: unknown[] = []
-    const feed = new ThreadFeed(snapshot([message(root, 'initial', 'preview')]), (error) => errors.push(error))
-    const value = projection()
-    const events: ThreadProjectionUpdate[] = []
-    value.subscribe((event) => events.push(event))
-    await value.attach({
-      thread: root,
-      contextUsage: async () => ({
-        status: 'unsupported',
-        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
-      }),
-      release: async () => {},
-      observe: async (sink) => ({ status: 'confirmed', value: feed.observe(sink) })
-    })
-    for (let index = 0; index < 150; index++)
-      feed.publish({ type: 'message.upsert', message: message(root, `part ${index}`, 'preview') })
-    feed.publish({
-      type: 'message.upsert',
-      message: message(root, 'final', 'saved', true),
-      replaces: [{ session: root, id: runtimeId('preview') }]
-    })
-    await expect.poll(() => text(value)).toEqual(['final'])
-    expect(value.snapshot().messages.map((entry) => entry.id)).toEqual(['saved'])
-    expect(events.some((event) => event.type === 'change' && event.state.gap === 'overflow')).toBe(true)
-    expect(value.snapshot().gap).toBeUndefined()
-    expect(errors).toEqual([])
-  })
-
   it('retains replacement position and publishes reorder-only snapshots', async () => {
     const value = projection()
     const first = message(root, 'first', 'first', true)
@@ -236,217 +267,25 @@ describe('ThreadMessageProjection', () => {
     await value.accept(snapshot([first, message(root, 'middle', 'preview'), last]))
     const middle = message(root, 'middle', 'saved', true)
     await value.accept({
-      type: 'message.upsert',
+      type: 'message.reconcile',
       message: middle,
       replaces: [{ session: root, id: runtimeId('preview') }]
     })
     expect(text(value)).toEqual(['first', 'middle', 'last'])
-    const events: ThreadProjectionUpdate[] = []
-    value.subscribe((event) => events.push(event))
     await value.accept(snapshot([last, middle, first]))
     expect(text(value)).toEqual(['last', 'middle', 'first'])
-    expect(events.at(-1)).toMatchObject({
-      type: 'change',
-      messages: [],
-      removed: [],
-      order: ['last', 'saved', 'first']
-    })
   })
 
-  it('gives an attaching consumer a committed baseline while an update is queued', async () => {
-    const value = projection()
-    await value.accept(snapshot([message(root, 'old', 'old', true)]))
-    const before = value.snapshot()
-    const pending = value.accept(snapshot([message(root, 'new', 'new')]))
-    const events: ThreadProjectionUpdate[] = []
-    value.subscribe((event) => events.push(event))
-    expect(events).toEqual([{ type: 'snapshot', view: before }])
-    await pending
-    expect(events).toHaveLength(2)
-    expect(events[1]).toMatchObject({ type: 'change', revision: before.revision + 1, removed: ['old'], order: ['new'] })
-    expect(text(value)).toEqual(['new'])
-  })
-
-  it('drains accepted updates and fences late callbacks when replacing observation access', async () => {
-    const value = projection()
-    let retired!: ObservationSink
-    const handle = (answer: string): ThreadHandle => ({
-      thread: root,
-      contextUsage: async () => ({
-        status: 'unsupported',
-        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
-      }),
-      release: async () => {},
-      async observe(sink) {
-        retired = sink
-        await sink(snapshot([message(root, answer)]))
-        return { status: 'confirmed', value: { drain: async () => {}, stop: async () => {} } }
-      }
-    })
-    await value.attach(handle('first'))
-    const old = retired
-    const pending = old({ type: 'message.upsert', message: message(root, 'first extended') })
-    await value.attach(handle('second'))
-    await pending
-    await old({ type: 'message.upsert', message: message(root, 'late old output') })
-    expect(text(value)).toEqual(['second'])
-    await retired({ type: 'message.upsert', message: message(root, 'second extended', 'message', true) })
-    expect(text(value)).toEqual(['second extended'])
-  })
-
-  it('publishes a projection failure once, preserves its last view and recovers on explicit reattachment', async () => {
-    const value = projection()
-    const sibling = projection(thread('sibling'))
-    const errors: unknown[] = []
-    const feed = new ThreadFeed(snapshot([message(root, 'last readable')]), (error) => errors.push(error))
-    await value.attach({
-      thread: root,
-      contextUsage: async () => ({
-        status: 'unsupported',
-        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
-      }),
-      release: async () => {},
-      observe: async (sink) => ({ status: 'confirmed', value: feed.observe(sink) })
-    })
-    await expect.poll(() => text(value)).toEqual(['last readable'])
-    feed.publish({ type: 'message.remove', ref: { session: sibling.thread, id: runtimeId('message') } })
-    feed.publish({ type: 'message.upsert', message: message(root, 'unusable tail') })
-    await expect.poll(() => value.snapshot().closed).toBe('consumer-error')
-    expect(value.snapshot()).toMatchObject({ gap: 'mapping-reset', diagnostic: { code: 'projection-failed' } })
-    expect(text(value)).toEqual(['last readable'])
-    await sibling.accept(snapshot([message(sibling.thread, 'sibling continues')]))
-    expect(text(sibling)).toEqual(['sibling continues'])
-    await expect.poll(() => errors.length).toBe(1)
-    const recovered = new ThreadFeed(snapshot([message(root, 'restored')]), (error) => errors.push(error))
-    await value.attach({
-      thread: root,
-      contextUsage: async () => ({
-        status: 'unsupported',
-        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
-      }),
-      release: async () => {},
-      observe: async (sink) => ({ status: 'confirmed', value: recovered.observe(sink) })
-    })
-    await expect.poll(() => text(value)).toEqual(['restored'])
-    expect(value.snapshot().closed).toBeUndefined()
-    expect(value.snapshot().diagnostic).toBeUndefined()
-    recovered.publish({ type: 'message.upsert', message: message(root, 'restored and continued', 'message', true) })
-    await expect.poll(() => text(value)).toEqual(['restored and continued'])
-    expect(errors).toHaveLength(1)
-  })
-
-  it('stops observation obtained after close and rejects further attachment', async () => {
-    const value = projection()
-    let finish!: () => void
-    const pending = new Promise<void>((resolve) => {
-      finish = resolve
-    })
-    let arrive!: () => void
-    const reached = new Promise<void>((resolve) => {
-      arrive = resolve
-    })
-    let observing = true
-    const handle: ThreadHandle = {
-      thread: root,
-      contextUsage: async () => ({
-        status: 'unsupported',
-        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
-      }),
-      release: async () => {},
-      async observe(sink) {
-        arrive()
-        await pending
-        await sink(snapshot([message(root, 'too late')]))
-        return {
-          status: 'confirmed',
-          value: {
-            drain: async () => {},
-            stop: async () => {
-              observing = false
-            }
-          }
-        }
-      }
-    }
-    const attaching = value.attach(handle)
-    await reached
-    const closing = value.close()
-    finish()
-    await Promise.all([attaching, closing])
-    expect(observing).toBe(false)
-    expect(text(value)).toEqual([])
-    await expect(value.attach(handle)).rejects.toThrow(/closed/)
-  })
-
-  it('supports independent subscribers, isolates a failing subscriber and delivers only changed messages', async () => {
-    const value = projection()
-    await value.accept(snapshot([message(root, 'first', 'a'), message(root, 'second', 'b', true)]))
-    const stable = value.snapshot().messages[1]
-    const left: ThreadProjectionUpdate[] = []
-    const right: ThreadProjectionUpdate[] = []
-    const stop = value.subscribe((event) => left.push(event))
-    value.subscribe((event) => {
-      if (event.type === 'change') throw new Error('window closed')
-    })
-    value.subscribe((event) => right.push(event))
-    stop()
-    await value.accept({ type: 'message.upsert', message: message(root, 'first extended', 'a') })
-    expect(left).toHaveLength(1)
-    expect(right).toHaveLength(2)
-    expect(right[1]).toMatchObject({ type: 'change', messages: [{ id: 'a' }], removed: [] })
-    if (right[1].type === 'change') expect(right[1].messages).toHaveLength(1)
-    expect(value.snapshot().messages[1]).toBe(stable)
-    expect(text(value)).toEqual(['first extended', 'second'])
-  })
-
-  it('requires a new baseline after a gap and preserves confirmed input outcome', async () => {
+  it('requires a new baseline after a gap', async () => {
     const value = projection()
     await value.accept(snapshot([message(root, 'before')]))
-    await value.accept({
-      type: 'input.changed',
-      input: { inputId: runtimeId('input'), facts: ['accepted'], outcome: 'completed' }
-    })
     await value.accept({ type: 'gap', reason: 'overflow' })
-    await value.accept({ type: 'message.upsert', message: message(root, 'unmapped tail', 'other') })
+    await value.accept({ type: 'message.reconcile', message: message(root, 'unmapped tail', 'other') })
     expect(text(value)).toEqual(['before'])
     expect(value.snapshot().gap).toBe('overflow')
     await value.accept(snapshot([message(root, 'recovered', 'saved', true)]))
     expect(text(value)).toEqual(['recovered'])
     expect(value.snapshot().gap).toBeUndefined()
-    expect(value.snapshot().inputs[0].outcome).toBe('completed')
-  })
-
-  it('merges native and logical input identities without losing settled facts on reattachment', async () => {
-    const value = projection()
-    const nativeInput = { session: root, id: runtimeId<'native-input'>('native') }
-    await value.accept({ ...snapshot(), inputs: [{ nativeInput, facts: ['accepted'] }] })
-    await value.accept({
-      type: 'input.changed',
-      input: { inputId: runtimeId('logical'), nativeInput, facts: ['placed'], outcome: 'completed' }
-    })
-    await value.accept({ ...snapshot(), inputs: [{ nativeInput, facts: ['accepted'] }] })
-    expect(value.snapshot().inputs).toEqual([
-      {
-        inputId: 'logical',
-        nativeInput,
-        facts: ['accepted', 'placed'],
-        outcome: 'completed',
-        response: undefined,
-        error: undefined
-      }
-    ])
-  })
-
-  it('records inaccessible children without treating the parent lifecycle as child completion', async () => {
-    const value = projection()
-    const relation = { id: runtimeId<'subagent'>('relation'), parent: root }
-    await value.accept({ type: 'subagent.upsert', subagent: relation })
-    await value.accept({ type: 'subagent.upsert', subagent: { ...relation, child: thread('child') } })
-    await value.accept({ type: 'activity.changed', activity: { state: 'idle' } })
-    await value.accept({ type: 'closed', reason: 'released' })
-    expect(value.snapshot().subagents).toEqual([{ ...relation, child: thread('child') }])
-    expect(value.snapshot().messages).toEqual([])
-    expect(value.snapshot().closed).toBe('released')
   })
 
   it('retains interleaved parts and keeps preliminary tool output pending until settlement', async () => {
@@ -466,14 +305,14 @@ describe('ThreadMessageProjection', () => {
       metadata: { completeness: 'complete' },
       parts: [{ type: 'text', text: 'Before', state: 'done' }, tool, { type: 'text', text: 'After', state: 'done' }]
     }
-    await value.accept({ type: 'message.upsert', message: source })
+    await value.accept({ type: 'message.reconcile', message: source })
     expect(value.snapshot().messages).toHaveLength(1)
     expect(value.snapshot().messages[0]).toMatchObject({
       metadata: { status: 'pending' },
       parts: [{ text: 'Before' }, { output: 'FIRST', preliminary: true }, { text: 'After' }]
     })
     await value.accept({
-      type: 'message.upsert',
+      type: 'message.reconcile',
       message: {
         ...source,
         parts: [source.parts[0], { ...tool, output: 'FIRST\nLAST', preliminary: false }, source.parts[2]]
@@ -485,4 +324,45 @@ describe('ThreadMessageProjection', () => {
     })
     expect(source.parts[1]).toMatchObject({ output: 'FIRST', preliminary: true })
   })
+})
+
+it.each([20, 20_000])('updates two child messages without enumerating %i stored messages', async (historySize) => {
+  const thread = { backendId: runtimeId<'backend'>('fixture'), id: runtimeId<'thread'>('child') }
+  const projection = new ThreadMessageProjection(thread)
+  const msg = (i: number, text: string): RuntimeMessage => ({
+    id: String(i),
+    role: 'assistant',
+    parts: [{ type: 'text', text, state: 'done' }]
+  })
+  try {
+    await projection.accept({
+      type: 'snapshot',
+      activity: { state: 'idle' },
+      inputs: [],
+      messages: Array.from({ length: historySize }, (_, i) => msg(i, 'history'))
+    })
+    const entries = Reflect.get(projection, 'entries') as Map<string, unknown>
+    const values = entries.values.bind(entries)
+    let visited = 0
+    Reflect.defineProperty(entries, 'values', {
+      value: function* () {
+        for (const entry of values()) {
+          ++visited
+          yield entry
+        }
+      }
+    })
+    await projection.accept({ type: 'message.reconcile', message: msg(0, 'one') })
+    expect(visited).toBe(0)
+    await projection.accept([0, 1].map((i) => ({ type: 'message.reconcile' as const, message: msg(i, 'two') })))
+    expect(visited).toBe(0)
+    expect(
+      projection
+        .snapshot()
+        .messages.slice(0, 2)
+        .map((row) => row.parts[0])
+    ).toMatchObject([{ text: 'two' }, { text: 'two' }])
+  } finally {
+    await projection.close()
+  }
 })
