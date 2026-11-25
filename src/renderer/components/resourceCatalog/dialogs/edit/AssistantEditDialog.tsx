@@ -550,20 +550,23 @@ function AssistantEditDialogContent({
           portalContainer={dialogContentElement}
         />
       ) : null}
-      {page === 'context' ? (
-        <AssistantContextPage
-          storedOverrideEnabled={hadStoredOverrideAtOpenRef.current}
-          storedMaxMessages={savedResource.settings.contextSettings?.maxMessages}
-          baselineMaxMessages={formBaseline.contextMaxMessages}
-          storedCompressWindow={savedResource.settings.contextSettings?.compressWindow}
-          baselineCompressWindow={formBaseline.contextCompressWindow}
-          form={form}
-          modelFilter={modelFilter}
-          isModelDisabled={isModelDisabled}
-          portalContainer={dialogContentElement}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-        />
+      {open ? (
+        // Stays mounted while the dialog is open so a rejected draft and its error survive Back.
+        <div hidden={page !== 'context'}>
+          <AssistantContextPage
+            overflowSeededRef={hadStoredOverrideAtOpenRef}
+            storedMaxMessages={savedResource.settings.contextSettings?.maxMessages}
+            baselineMaxMessages={formBaseline.contextMaxMessages}
+            storedCompressWindow={savedResource.settings.contextSettings?.compressWindow}
+            baselineCompressWindow={formBaseline.contextCompressWindow}
+            form={form}
+            modelFilter={modelFilter}
+            isModelDisabled={isModelDisabled}
+            portalContainer={dialogContentElement}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+          />
+        </div>
       ) : null}
       {page === 'parameters' ? (
         <FormField
@@ -919,7 +922,7 @@ function AssistantSettingsCards({
 
 /** Message count plus the context override (compression and truncation), seeded from the globals. */
 function AssistantContextPage({
-  storedOverrideEnabled,
+  overflowSeededRef,
   storedMaxMessages,
   baselineMaxMessages,
   storedCompressWindow,
@@ -931,7 +934,8 @@ function AssistantContextPage({
   modelLabels,
   setModelLabels
 }: {
-  storedOverrideEnabled: boolean
+  /** True once the overflow fields hold stored or seeded values for this dialog session. */
+  overflowSeededRef: { current: boolean }
   storedMaxMessages: number | null | undefined
   baselineMaxMessages: number | null
   storedCompressWindow: number | null | undefined
@@ -954,7 +958,7 @@ function AssistantContextPage({
   return (
     <div className="grid gap-4">
       <ContextManagementFields
-        storedOverrideEnabled={storedOverrideEnabled}
+        overflowSeededRef={overflowSeededRef}
         storedMaxMessages={storedMaxMessages}
         baselineMaxMessages={baselineMaxMessages}
         storedCompressWindow={storedCompressWindow}
@@ -980,7 +984,7 @@ function AssistantContextPage({
 }
 
 function ContextManagementFields({
-  storedOverrideEnabled,
+  overflowSeededRef,
   storedMaxMessages,
   baselineMaxMessages,
   storedCompressWindow,
@@ -993,7 +997,8 @@ function ContextManagementFields({
   setModelLabels,
   globalDefaults
 }: {
-  storedOverrideEnabled: boolean
+  /** True once the overflow fields hold stored or seeded values for this dialog session. */
+  overflowSeededRef: { current: boolean }
   storedMaxMessages: number | null | undefined
   baselineMaxMessages: number | null
   storedCompressWindow: number | null | undefined
@@ -1016,11 +1021,10 @@ function ContextManagementFields({
 }) {
   const { t } = useTranslation()
   const values = form.watch()
-  // Only re-seed from globals when an assistant WITHOUT a stored override is
-  // customized — an ON→OFF→ON round trip on a stored override must preserve
-  // the saved values. Page navigation unmounts this section, so the flag must
-  // come from the committed baseline, not the live toggle.
-  const hadStoredOverride = useRef(storedOverrideEnabled)
+  // Seed from globals only the first time an assistant WITHOUT a stored override is
+  // customized in this dialog session. A later OFF→ON round trip, with or without
+  // leaving the page, must keep the values the user already edited. The flag lives
+  // on the dialog, not this section, because page navigation can unmount the section.
   const [recentDraft, setRecentDraft] = useState<number | null | undefined>(undefined)
   const effectiveRecent =
     values.contextMaxMessages === baselineMaxMessages
@@ -1033,7 +1037,8 @@ function ContextManagementFields({
   const effectiveWindow = outgoingWindow === undefined ? globalDefaults.compressWindow : outgoingWindow
 
   const onOverrideToggle = (checked: boolean) => {
-    if (checked && !hadStoredOverride.current) {
+    if (checked && !overflowSeededRef.current) {
+      overflowSeededRef.current = true
       form.setValue('contextCompressEnabled', globalDefaults.compressEnabled, { shouldDirty: true })
       form.setValue('contextTruncateThreshold', globalDefaults.truncateThreshold, { shouldDirty: true })
       form.setValue('contextCompressModelId', globalDefaults.compressModelId, { shouldDirty: true })

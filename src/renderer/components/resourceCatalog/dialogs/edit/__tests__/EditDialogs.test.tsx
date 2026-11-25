@@ -2175,11 +2175,13 @@ describe('edit dialogs', () => {
     await user.type(recent, '7')
     await user.tab()
     await act(async () => refresh.resolve())
+    // Wait for the footer's live region itself, not just the field error, so the
+    // revert below cannot beat the save that sets the footer error.
+    const footer = () => document.querySelector('form [aria-live="polite"]') as HTMLElement
     await waitFor(() =>
-      expect(
-        screen.getAllByText('Set a positive whole-number recent limit A and a whole-number window B greater than A.')
-          .length
-      ).toBeGreaterThan(0)
+      expect(footer()).toHaveTextContent(
+        'Set a positive whole-number recent limit A and a whole-number window B greater than A.'
+      )
     )
     // Wait past the 500ms autosave debounce so a guardless build would fire the
     // second PATCH here; a shorter wait can pass even with the guard removed.
@@ -2228,11 +2230,13 @@ describe('edit dialogs', () => {
     await user.type(recent, '7')
     await user.tab()
     await act(async () => refresh.resolve())
+    // Wait for the footer's live region itself, not just the field error, so the
+    // revert below cannot beat the save that sets the footer error.
+    const footer = () => document.querySelector('form [aria-live="polite"]') as HTMLElement
     await waitFor(() =>
-      expect(
-        screen.getAllByText('Set a positive whole-number recent limit A and a whole-number window B greater than A.')
-          .length
-      ).toBeGreaterThan(0)
+      expect(footer()).toHaveTextContent(
+        'Set a positive whole-number recent limit A and a whole-number window B greater than A.'
+      )
     )
     // Revert both fields to the committed A=3/B=8: the save intent disappears,
     // so only the explicit clear can remove the footer error.
@@ -2242,11 +2246,7 @@ describe('edit dialogs', () => {
     await user.clear(rounds)
     await user.type(rounds, '8')
     await user.tab()
-    await waitFor(() =>
-      expect(
-        screen.queryByText('Set a positive whole-number recent limit A and a whole-number window B greater than A.')
-      ).toBeNull()
-    )
+    await waitFor(() => expect(footer()).toBeEmptyDOMElement())
     await new Promise((resolve) => setTimeout(resolve, 700))
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
   })
