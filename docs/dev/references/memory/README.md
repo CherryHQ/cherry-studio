@@ -1,7 +1,7 @@
 ---
 description: Entry point for managed shared/private memory, legacy migration, Knowledge Base, and graph memory
 sources:
-  - src/main/ai/agents/prompt.ts
+  - src/main/ai/agents/prompt/promptContext.ts
   - src/main/ai/memory
   - src/main/ai/mcp/servers/memory.ts
   - src/main/features/knowledge

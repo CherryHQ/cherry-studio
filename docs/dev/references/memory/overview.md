@@ -1,7 +1,7 @@
 ---
 description: Shared and private managed file memory, legacy migration, Knowledge Base, and independent graph memory
 sources:
-  - src/main/ai/agents/prompt.ts
+  - src/main/ai/agents/prompt/promptContext.ts
   - src/main/ai/memory
   - src/main/ai/mcp/servers/memory.ts
   - src/main/features/knowledge
