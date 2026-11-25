@@ -1,16 +1,21 @@
+import { access, constants } from 'node:fs/promises'
 import pathModule from 'node:path'
 
 import { loggerService } from '@logger'
-import { getPathStatus, probeReadable } from '@main/utils/file'
+import { logFailure } from '@main/core/logger/logFailure'
+import { stat } from '@main/utils/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { markReportingHandled } from '@shared/utils/errorReporting'
 import { normalizeExt } from '@shared/utils/file'
 import { redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
+import { classifyFileFailure } from './failureFacts'
 import { writeFileToClipboard } from './internal/system/clipboard'
 import { assertOpenableTarget, assertSafePathForDefaultOpen } from './internal/system/openGuard'
 import { open as internalOpen, showInFolder as internalShowInFolder } from './internal/system/shell'
+import { isInsideManagedStorage } from './utils/managedStorageGuard'
 
 const logger = loggerService.withContext('file/system')
 
@@ -65,21 +70,44 @@ export async function showInFolder(path: AbsoluteFilePath): Promise<void> {
 
 export type ClipboardCopyStatus = { ok: true } | { ok: false; reason: 'missing' | 'inaccessible' }
 
-export async function getClipboardCopyStatus(path: AbsoluteFilePath): Promise<ClipboardCopyStatus> {
-  const status = await getPathStatus(path)
-  if (!status.ok) return { ok: false, reason: status.reason }
-  const readable = await probeReadable(path)
-  return readable === 'readable'
-    ? { ok: true }
-    : { ok: false, reason: readable === 'missing' ? 'missing' : 'inaccessible' }
+async function assertClipboardTarget(path: AbsoluteFilePath): Promise<void> {
+  await stat(path)
+  await access(path, constants.R_OK)
 }
 
-export async function copyFileToClipboard(path: AbsoluteFilePath): Promise<void> {
-  const status = await getClipboardCopyStatus(path)
-  if (!status.ok)
-    throw new IpcError(fileErrorCodes.COPY_TARGET_UNAVAILABLE, 'The file is unavailable for copying', {
+function clipboardFailureReason(error: unknown): 'missing' | 'inaccessible' {
+  const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+  return code === 'ENOENT' || code === 'ENOTDIR' ? 'missing' : 'inaccessible'
+}
+
+export async function getClipboardCopyStatus(path: AbsoluteFilePath): Promise<ClipboardCopyStatus> {
+  try {
+    await assertClipboardTarget(path)
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, reason: clipboardFailureReason(error) }
+  }
+}
+
+export async function copyFileToClipboard(path: AbsoluteFilePath, externalPath?: boolean): Promise<void> {
+  try {
+    await assertClipboardTarget(path)
+  } catch (error) {
+    // Unverifiable raw paths retain reporting eligibility instead of hiding a managed-storage fault.
+    const external = externalPath ?? !(await isInsideManagedStorage(path).catch(() => true))
+    logFailure(
+      logger,
+      'Clipboard target unavailable',
+      error,
+      'file.copy_to_clipboard',
+      classifyFileFailure(error, external)
+    )
+    const failure = new IpcError(fileErrorCodes.COPY_TARGET_UNAVAILABLE, 'The file is unavailable for copying', {
       path,
-      reason: status.reason
+      reason: clipboardFailureReason(error)
     })
+    markReportingHandled(failure)
+    throw failure
+  }
   await writeFileToClipboard(path)
 }

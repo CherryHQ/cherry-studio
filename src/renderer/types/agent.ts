@@ -1,5 +1,3 @@
-import * as z from 'zod'
-
 /**
  * Renderer-only agent UI / form types.
  *
@@ -7,6 +5,8 @@ import * as z from 'zod'
  * `@shared/data/types/agent` — import them from there directly. This file
  * intentionally does not re-export them.
  */
+import * as z from 'zod'
+
 import type { Tool } from '@shared/ai/tool'
 import {
   AgentBaseSchema,

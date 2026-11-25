@@ -1347,10 +1347,10 @@ describe('release workflow gates', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
 
     expect(workflow.permissions).toEqual({ contents: 'read' })
-    for (const job of Object.values(workflow.jobs) as {
+    for (const job of Object.values<{
       permissions?: { contents?: string }
       steps: { name?: string; uses?: string; run?: string; env?: Record<string, string> }[]
-    }[]) {
+    }>(workflow.jobs)) {
       expect(job.permissions?.contents).not.toBe('write')
       for (const step of job.steps) {
         expect(step.uses ?? '').not.toMatch(/release-action|action-gh-release/)

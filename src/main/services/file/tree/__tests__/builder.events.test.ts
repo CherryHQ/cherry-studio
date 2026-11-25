@@ -10,8 +10,9 @@ import type { TreeMutationEvent } from '@shared/utils/file'
 
 import * as watcherModule from '../../watcher'
 import type { WatcherEvent } from '../../watcher'
-import { createDirectoryTree, type DirectoryTreeBuilder } from '../builder'
+import type { DirectoryTreeBuilder } from '../builder'
 import { tryTestRipgrepPath } from './ripgrepTestUtils'
+import { createObservedDirectoryTree as createDirectoryTree } from './treeTestUtils'
 
 const delayedStat = vi.hoisted(() => ({
   path: '',

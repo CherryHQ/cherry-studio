@@ -3,9 +3,23 @@ import os from 'node:os'
 import path from 'node:path'
 
 import sharp from 'sharp'
+import type * as SharpModule from 'sharp'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type { FileUIPart } from '@shared/data/types/message'
+
+const sharpCalls = vi.hoisted(() => ({ count: 0 }))
+vi.mock('sharp', async (importOriginal) => {
+  const actual = (await importOriginal<typeof SharpModule>()).default
+  // A proxy keeps `sharp.prototype` spies working while counting decoder instances.
+  const counted = new Proxy(actual, {
+    apply: (target, self, args) => {
+      sharpCalls.count++
+      return Reflect.apply(target, self, args)
+    }
+  })
+  return { default: counted }
+})
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
@@ -259,5 +273,29 @@ describe('attachment image padding', () => {
     } finally {
       await fs.rm(directory, { recursive: true, force: true })
     }
+  })
+})
+
+describe('materializeNativeFilePart — repeated history images', () => {
+  it('decodes each image once and repeats the same valid, padded and rejected decisions', async () => {
+    const image = (edge: number) =>
+      sharp({ create: { width: edge, height: edge, channels: 3, background: '#808080' } })
+        .png()
+        .toBuffer()
+    const parts = [...(await Promise.all([image(3), image(48)])).map((bytes) => bytes.toString('base64')), 'AAAB'].map(
+      (payload) => filePart({ url: `data:image/png;base64,${payload}`, mediaType: 'image/png' })
+    )
+    const first = await Promise.all(parts.map((part) => materializeNativeFilePart(part)))
+    const decodes = sharpCalls.count
+    const again = await Promise.all(parts.map((part) => materializeNativeFilePart({ ...part })))
+
+    expect(sharpCalls.count).toBe(decodes)
+    expect(again).toEqual(first)
+    expect(await sharp(Buffer.from(first[0]!.url.split(',')[1], 'base64')).metadata()).toMatchObject({
+      width: 15,
+      height: 15
+    })
+    expect(first[1]).toEqual(parts[1])
+    expect(first[2]).toBeNull()
   })
 })

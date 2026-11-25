@@ -97,7 +97,6 @@ if (tasks.some((task) => task.startsWith('types-')) || projects.length) {
 }
 for (const task of tasks) run(checkTasks[task].args)
 if (projects.length) {
-  if (projects.includes('main')) run(['rebuild:node'])
   const files =
     values.group === 'platform'
       ? execFileSync('git', ['ls-files', '-z', '--', 'src/main', 'src/shared', 'native/system-speech'], {

@@ -21,7 +21,14 @@ export const agentSessionMessageTable = sqliteTable(
     // `data` stores MessageData (`{ parts }`); Drizzle handles
     // JSON.stringify/parse automatically via `{ mode: 'json' }`.
     data: text({ mode: 'json' })
-      .$type<MessageData & { runtimeAnchor?: unknown; nativeSessionId?: string; deliveryReplyAnchor?: string }>()
+      .$type<
+        MessageData & {
+          runtimeAnchor?: unknown
+          nativeSessionId?: string
+          deliveryReplyAnchor?: string
+          locallyHandled?: boolean
+        }
+      >()
       .notNull(),
     searchableText: text().notNull().default(''),
     status: text().notNull(),
@@ -31,6 +38,9 @@ export const agentSessionMessageTable = sqliteTable(
     runtimeResumeToken: text(),
     inputContextId: text().references(() => agentSessionContextTable.id),
     nativeInputId: text(),
+    // On an input: the reply Main opened for it. Queued inputs are saved before their replies,
+    // so row ancestry cannot say which reply answers which input. No FK, like deliveryTurnRef.
+    replyId: text(),
     // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
     // message edits cannot forge sender identity or mutate delivery lifecycle.
     delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),

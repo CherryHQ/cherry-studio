@@ -6,10 +6,13 @@ The package implements native execution; `agent-behavior` owns product rules.
 ## Host services
 
 The connection reuses Pi's gateway model binding, behavior host, approval facts,
-shell configuration and tool rendering. Each native provider call reaches Cherry's
-internal gateway, which owns upstream credentials and billing. Root and child bindings share
+shell configuration and tool rendering. Each native provider call passes protocol request/event objects to Cherry's
+gateway in process, which owns upstream credentials and billing without an internal HTTP/JSON/SSE round trip. Root and child bindings share
 the backend model registry and are restored before native execution resumes. Each binding uses its own native provider registration, preserving other models' routes,
 request options and usage callbacks even when their Cherry Provider is the same.
+The desktop Harness disables native provider retries for roots and children. The shared
+[gateway binding](../pi/README.md#model-requests) uses `ai-retry` before the first content chunk.
+A final failure retains its upstream error; later user input can start a new run.
 
 `durableDesktop.ts` installs native coding tools, codemode and tool search, Cherry's
 prompt and selected skills. `durableMcp.ts` connects Cherry-selected MCP servers through
@@ -27,8 +30,8 @@ The backend supplies Pi's native `HarnessOptions.telemetry`. Durable owns submis
 spans, including tool identity, outcomes, committed-entry events and replay links. Cherry bridges
 them to its existing developer-mode OTel provider and viewer. Native persisted carriers freeze the
 initiating session and parent across recovery; roots without carriers remain untraced until a new
-traced submission. Gateway SDK calls inherit the native phase parent through internal usage capture.
-Pi model spans are suppressed because the SDK already records the request and usage; HTTP tracing
+traced submission. Gateway SDK calls inherit the native phase parent through the typed in-process call context.
+Pi model spans are suppressed because the SDK already records the request and usage; upstream HTTP tracing
 retains wire bodies and the gateway remains the sole billing writer.
 
 ## Storage and projection
@@ -46,7 +49,13 @@ its final path. An initialization failure before publication leaves the same res
 retryable. Reopening checks identity and never creates or replaces a SQLite file.
 
 Pi Durable owns its transcript, task graph, submissions and behavior records. Product
-messages remain display projections. Root SDK message views pass through `ThreadMessageProjection`;
+messages retain display history. For a branch without previous native input, the Session host
+supplies that branch's history as model-only reference context before its first input. The driver
+initializes a passive native reference entry separately from command text, using native request-ID
+deduplication across reopening. Initialization starts no model run and stays out of product
+projections and behavior-authorizing user history. Both ordinary submissions and autonomous goal
+rounds receive it. This creates no source-message entries or historical checkpoints; fresh bindings
+capture the selected product position, and subsequent input uses native history. Root SDK message views pass through `ThreadMessageProjection`;
 Main's `RootMessageProjection` groups them into product replies for the stream manager. Every child has an independent `ChildThreadProjection`,
 archive and shared `ai.projection.*` subscription. Parent parts contain task metadata
 and navigation, not the child's streamed body. Accepted child text remains the user's
@@ -57,6 +66,22 @@ associated with its product input once; later snapshots and autonomous child-res
 turns do not repeat a prior input's response association.
 The adapter delivers content, input outcomes and foreground settlement from one native revision.
 The connection consumes that batch; it does not poll pending inputs or infer completion from idle.
+It reports an input only when its state changes and reconsiders a child's status and release on
+snapshots, activity changes and input changes.
+An `aborted` outcome, including one caused by user Stop, settles the turn as paused; `failed` and
+`unanswered` outcomes report an error carrying their native reason.
+A message sent while native work runs is submitted with Durable's `follow-up` busy policy and
+persisted at once. The Work composer sends it immediately instead of holding it in its follow-up
+dock, because the descriptor declares `nativeFollowUp`; the connection has no single-submission gate and Main keeps no queue for it. Durable places it at the next run
+boundary, in the same batch as the preceding answer. The connection announces the placement with
+`steer-boundary` after that batch's projection, so the preceding answer stays in its reply and Main
+opens a new one. The event marks the placement as a follow-up: Main holds it while the previous reply
+is still starting, so it never joins that reply, while steers placed into the running turn still share
+its continuation. Durable reports the preceding input's outcome only when the run ends, so Main
+settles that reply as answered at the boundary and replaces it if the outcome is not `completed`;
+cycle completion reads only the input that owns the current reply. A follow-up whose submission
+fails before it reaches Durable moves to Main's queue.
+`/compact` still waits in Main's queue, and input is refused while compacting.
 Product snapshots and headless policy stay on the Main session entry under the input ID, including
 unknown admission across connection replacement. The successor reconciles the original binding
 without resending, while generation checks reject stale callbacks.
@@ -68,8 +93,19 @@ cancellation and ownership semantics.
 
 ## Stop, close and reopen
 
-- User Stop calls `interrupt()` before closing, records the shared stop policy and
-  cancels the native foreground scope. Unconsumed input is withdrawn.
+- User Stop calls `interrupt()` and keeps the access open. It records the shared stop policy,
+  cancels the native foreground scope and stops running background children. Unconsumed input is
+  withdrawn, including queued follow-ups, which receive an `aborted` outcome without being placed;
+  Main marks each such message `paused`, shown as not sent with Resend and Edit. The connection emits
+  `stop-confirmed` after the stopped turn's terminal event; the
+  next message reuses the same access. An unconfirmed stop, including a native interrupt that never
+  returns, closes the access after 20 seconds. If Durable completed or failed the input before the stop
+  landed, Main replaces the paused reply with that outcome. When that outcome arrived before Stop
+  registered, Main reads it from Durable's input record. A reply that a background run continued after
+  its input ended stays paused. Deliveries receive one terminal event for the stopped reply.
+- A gap is followed by a recovery snapshot. A failed child projection write is logged and
+  reattaches that child from a fresh native snapshot. The backend error hook carries diagnostics
+  only: it is logged and neither ends a turn nor closes a root.
 - Releasing one root does not shut down its peers. Final backend release closes and joins the native scheduler without marking ordinary
   unfinished root work cancelled. It awaits observation queues and in-flight callbacks before
   flushing child archives; observation detach and access release happen last. Backup uses the
@@ -78,6 +114,15 @@ cancellation and ownership semantics.
 - Reopening restores the same backend and conversation, rebinds child models, applies
   shared `onOpen`, then resumes the scheduler. Shared policy disarms goals and stops
   interrupted background children; shutdown is not a promise to resume every child.
+- After an unclean exit, a placed input without an outcome resumes on reopen. The connection
+  names it in `recoveredInputId`, and its output continues the reply Main linked to that input
+  when it opened it (`reply_id`); queued inputs are saved before their replies, so row ancestry
+  cannot identify that reply. A queued input that has no reply yet gets a new one. Follow-ups
+  still queued are placed and answered after it. A pending reply whose input already has a
+  Durable outcome is rebuilt from committed entries with that outcome; a reply already stored
+  with a terminal status is not rebuilt. Boot recovery leaves admitted delivery turns pending and
+  opens their Sessions so Durable finishes them; a Session that cannot connect ends its delivery
+  turn as an error.
 - Closing a child panel only detaches its projection subscription.
 
 Background continuation keeps one child identity. Independent continuation of an ended
@@ -91,8 +136,21 @@ Native fork creation and its new product-context identity commit together. The o
 `PiDurableRuntimeConnection.test.ts` uses the real runtime and SQLite with a scripted
 provider. It covers approved argument edits, question answers, incremental output,
 native identity on reopen, independent background output and continuation, late steer
-attribution, repeated snapshots, and the difference between stop and shutdown.
+attribution, repeated snapshots, the difference between stop and shutdown, Stop without
+closing, resynchronization after a child projection fault and after a root observation overflow, a
+backend diagnostic that leaves the turn and its access running, naming the input that reopening
+resumes, and native follow-up admission: placement after the preceding answer, a send during running
+work, Stop withdrawal, a submission that throws and answering after reopen.
+`AgentSessionRuntimeService.projection.test.ts` covers continuing a resumed input, outcome rebuilds,
+the Stop/completion race in both orders with one terminal event, Stop on a background continuation, a
+native interrupt that never returns, placed follow-ups getting their own replies in Main, including
+one placed before the previous reply opens, and withdrawn input; `recoverSessionDeliveries.test.ts`
+covers boot delivery recovery, including a Session that cannot connect.
 `durableMcp.test.ts` runs an actual linked MCP server through the native tool loop.
 The storage and child-projection suites cover strict reopen, interrupted binding
-recovery and asynchronous archive reconciliation. These tests do not replace Electron
-or live-provider acceptance, nor do they prove recovery after a process kill.
+recovery and asynchronous archive reconciliation.
+
+`tests/e2e/smoke/piDurableTurnAuthority.test.ts` runs the built Electron app against a local mock
+provider: a queued follow-up, steer, Stop with subagent content and the next message, and killing
+Main mid-turn. Run it with `pnpm test:e2e tests/e2e/smoke/piDurableTurnAuthority.test.ts` after the
+[e2e prerequisites](../../../../../tests/e2e/README.md). Live providers stay unverified.
