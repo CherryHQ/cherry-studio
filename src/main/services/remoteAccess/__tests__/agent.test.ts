@@ -1265,7 +1265,7 @@ describe('remote agent access', () => {
     expect(await call('agent.sessions.create', create)).toEqual(receipt)
     expect(await call('agent.sessions.create', { ...create, commandId: randomUUID() })).toMatchObject({
       status: 'rejected',
-      error: { reason: 'TARGET_UNAVAILABLE' }
+      error: { reason: 'MODEL_UNAVAILABLE' }
     })
   })
 

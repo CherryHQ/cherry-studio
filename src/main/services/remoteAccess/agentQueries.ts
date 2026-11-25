@@ -28,12 +28,12 @@ import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { SerializedError } from '@shared/types/error'
+import { createCherryCloudModelAccess } from '@shared/utils/cherryCloudModelAvailability'
 
 import { DEFAULT_PAGE, pageOf, queryPage } from './agentPagination'
 import { toMessageUsage } from './agentUsage'
@@ -367,13 +367,10 @@ function selectableModels(agentId: string, selected?: { providerId: string; mode
   const agent = agentService.getAgent(agentId)
   if (!agent) throw new RemoteRpcError('NOT_FOUND', 'Agent not found')
   const providers = new Map(providerService.list({ enabled: true }).map((provider) => [provider.id, provider]))
-  const cloud = application.get('CherryCloudService').getAccountReceipt().models
-  const available = new Set(cloud.freshness !== 'unknown' ? cloud.value.availableModelIds.agent : [])
-  const exhausted = new Set(cloud.freshness === 'fresh' ? cloud.value.quotaExhaustedModelIds : [])
+  const cloud = createCherryCloudModelAccess(application.get('CherryCloudService').getAccountReceipt().models)
   return modelService.list({ enabled: true, providerId: selected?.providerId }).flatMap((model) => {
     const provider = providers.get(model.providerId)
-    if (!provider || !isAgentModelSelectable(agent.type, model, provider)) return []
-    if (isManagedCherryCloudModel(provider.id) && (!available.has(model.id) || exhausted.has(model.id))) return []
+    if (!provider || !isAgentModelSelectable(agent.type, model, provider) || !cloud.isSelectable(model, true)) return []
     const identity = parseUniqueModelId(model.id)
     if (selected && identity.modelId !== selected.modelId) return []
     const summary = modelOptionSchema.safeParse({
@@ -432,7 +429,7 @@ export function listSessions(query: AgentParams<'agent.sessions.list'>): {
 export function createSessionTx(tx: DbOrTx, sessionId: string, input: AgentParams<'agent.sessions.create'>): void {
   const model = input.model ? selectableModels(input.agentId, input.model)[0]?.id : undefined
   if (input.model && !model)
-    throw new RemoteRpcError('TARGET_UNAVAILABLE', 'Selected session model is no longer available')
+    throw new RemoteRpcError('MODEL_UNAVAILABLE', 'Selected session model is no longer available')
   notFound(() =>
     agentSessionService.createTx(tx, sessionId, {
       agentId: input.agentId,

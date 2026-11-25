@@ -67,7 +67,8 @@ A desktop advertising `connection.hello.agentSessionModelSelection` accepts `age
 under the Agent grant. Supply the Agent ID, optional search text, and page parameters. Each choice
 carries model and provider IDs and display names. The desktop applies its Agent model picker rules.
 Pass the selected `{ providerId, modelId }` as `model` on `agent.sessions.create`. Creation rechecks
-availability and commits the selection with the Session. Omitting it follows the Agent default.
+availability, rejecting a stale choice with `MODEL_UNAVAILABLE`, and commits the selection with the
+Session. Omitting it follows the Agent default.
 A changed selection requires a new command ID. Hosts without the capability support the existing
 default creation flow.
 
