@@ -12,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
-  Input,
   Label,
   ScrollArea,
   Select,
@@ -25,6 +24,8 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ChannelConfigDialog } from '@renderer/components/channel/ChannelConfigDialog'
+import type { AvailableChannel, ChannelData, ChannelUpdates } from '@renderer/components/channel/channelTypes'
 import CopyButton from '@renderer/components/CopyButton'
 import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import {
@@ -39,11 +40,11 @@ import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
+import { normalizePermissionMode } from '@shared/ai/agentPermissionMode'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { AgentPermissionMode, AgentType } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelStatus } from '@shared/data/types/channel'
-
-import { getFormForType } from './ChannelForms'
-import type { AvailableChannel, ChannelData, ChannelUpdates } from './channelTypes'
 
 const logger = loggerService.withContext('ChannelDetail')
 
@@ -191,40 +192,29 @@ const ChannelLogModal: FC<{
 type EditModalProps = {
   open: boolean
   channel: ChannelData | null
-  agents: Array<{ id: string; name: string }>
+  agents: ChannelAgentOption[]
   onClose: () => void
   onSave: (id: string, updates: ChannelUpdates) => void
   onDelete: (id: string) => void
 }
 
+/** An Agent a channel can bind to, with what decides which permission overrides the channel may pick. */
+type ChannelAgentOption = { id: string; name: string; type: AgentType; permissionMode: AgentPermissionMode }
+
 const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, onSave, onDelete }) => {
   const { t } = useTranslation()
-  const [name, setName] = useState('')
   const [agentId, setAgentId] = useState<string | null>(null)
-  const lastChannelRef = useRef<ChannelData | null>(channel)
   // `null` = "No work directory" (system workspace); a string binds the channel to that user workspace.
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
   useDataChange('/agent-workspaces', () => void refetchWorkspaces())
 
-  if (channel) {
-    lastChannelRef.current = channel
-  }
-  const renderedChannel = channel ?? (!open ? lastChannelRef.current : null)
-
   useEffect(() => {
     if (channel) {
-      setName(channel.name)
       setAgentId(channel.agentId ?? null)
       setWorkspaceId(channel.workspace?.type === AGENT_WORKSPACE_TYPE.USER ? channel.workspace.workspaceId : null)
     }
   }, [channel])
-
-  const handleNameBlur = useCallback(() => {
-    if (channel && name.trim() && name.trim() !== channel.name) {
-      onSave(channel.id, { name: name.trim() })
-    }
-  }, [channel, name, onSave])
 
   const handleAgentChange = useCallback(
     (value: string) => {
@@ -252,6 +242,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
     [channel, onSave]
   )
 
+  const boundAgent = agents.find((agent) => agent.id === agentId)
   const isSystemWorkspace = workspaceId === null
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
@@ -264,74 +255,49 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
     [channel, onSave]
   )
 
-  const FormComponent = renderedChannel ? getFormForType(renderedChannel.type) : null
-
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent
-        closeOnOverlayClick={false}
-        className="flex max-h-[calc(100dvh-2rem)] max-w-125 flex-col overflow-hidden"
-        closeLabel={t('common.close')}>
-        {renderedChannel && (
-          <>
-            <DialogHeader className="shrink-0">
-              <DialogTitle>{renderedChannel.name}</DialogTitle>
-            </DialogHeader>
-            <ScrollArea contentProps={{ className: 'flex flex-col gap-4' }} className="min-h-0">
-              <div>
-                <Label className="mb-1 block text-xs">{t('common.name')}</Label>
-                <Input
-                  autoFocus
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onBlur={handleNameBlur}
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div>
-                <Label className="mb-1 block text-xs">{t('agent.channels.bindAgent')}</Label>
-                <Select value={agentId ?? NO_AGENT_VALUE} onValueChange={handleAgentChange}>
-                  <SelectTrigger size="sm" className="w-full">
-                    <SelectValue placeholder={t('agent.channels.selectAgent')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_AGENT_VALUE}>{t('common.none')}</SelectItem>
-                    {agents.map((agent) => (
-                      <SelectItem key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {/* Workspace is a secondary detail — channel sessions default to "No work directory". */}
-                <div className="mt-2 flex items-center gap-1.5 text-muted-foreground text-xs">
-                  <span>{t('agent.session.display.workdir')}</span>
-                  <WorkspaceSelector
-                    value={workspaceId}
-                    onChange={handleWorkspaceChange}
-                    align="start"
-                    trigger={
-                      <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-muted-foreground">
-                        {isSystemWorkspace ? <CircleSlash className="size-3.5" /> : <Folder className="size-3.5" />}
-                        <span className="max-w-40 truncate">{workspaceLabel}</span>
-                        <ChevronDown className="size-3.5" />
-                      </Button>
-                    }
-                  />
-                </div>
-              </div>
-              {FormComponent && (
-                <FormComponent
-                  channel={renderedChannel}
-                  onConfigChange={handleUpdate}
-                  onRemove={() => channel && onDelete(channel.id)}
-                />
-              )}
-            </ScrollArea>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+    <ChannelConfigDialog
+      open={open}
+      channel={channel}
+      onClose={onClose}
+      onConfigChange={handleUpdate}
+      // Only modes the bound Agent's runtime can run, so Pi never offers Plan.
+      agentPermissionMode={boundAgent?.permissionMode}
+      permissionModes={boundAgent ? AGENT_RUNTIME_CAPABILITIES[boundAgent.type].permissionModes : undefined}
+      onRemove={() => channel && onDelete(channel.id)}>
+      <div>
+        <Label className="mb-1 block text-xs">{t('agent.channels.bindAgent')}</Label>
+        <Select value={agentId ?? NO_AGENT_VALUE} onValueChange={handleAgentChange}>
+          <SelectTrigger size="sm" className="w-full">
+            <SelectValue placeholder={t('agent.channels.selectAgent')} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_AGENT_VALUE}>{t('common.none')}</SelectItem>
+            {agents.map((agent) => (
+              <SelectItem key={agent.id} value={agent.id}>
+                {agent.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {/* Workspace is a secondary detail — channel sessions default to "No work directory". */}
+        <div className="mt-2 flex items-center gap-1.5 text-muted-foreground text-xs">
+          <span>{t('agent.session.display.workdir')}</span>
+          <WorkspaceSelector
+            value={workspaceId}
+            onChange={handleWorkspaceChange}
+            align="start"
+            trigger={
+              <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-muted-foreground">
+                {isSystemWorkspace ? <CircleSlash className="size-3.5" /> : <Folder className="size-3.5" />}
+                <span className="max-w-40 truncate">{workspaceLabel}</span>
+                <ChevronDown className="size-3.5" />
+              </Button>
+            }
+          />
+        </div>
+      </div>
+    </ChannelConfigDialog>
   )
 }
 
@@ -339,7 +305,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
 
 const ChannelInstanceRow: FC<{
   channel: ChannelData
-  agents: Array<{ id: string; name: string }>
+  agents: ChannelAgentOption[]
   connectionStatus: ChannelStatus | undefined
   onEdit: () => void
   onDelete: () => void
@@ -443,9 +409,20 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   const { t } = useTranslation()
 
   // SWR-managed remote data
-  const { channels, isLoading, mutate, createChannel, updateChannel, deleteChannel } = useChannels(channelDef.type)
+  const { channels, isLoading, mutate, createChannel, updateChannel, deleteChannel } = useChannels({
+    type: channelDef.type
+  })
   const { agents: agentList } = useAgents()
-  const agents = useMemo(() => (agentList ?? []).map((a) => ({ id: a.id, name: a.name ?? a.id })), [agentList])
+  const agents = useMemo<ChannelAgentOption[]>(
+    () =>
+      (agentList ?? []).map((a) => ({
+        id: a.id,
+        name: a.name ?? a.id,
+        type: a.type,
+        permissionMode: normalizePermissionMode(a.configuration?.permission_mode)
+      })),
+    [agentList]
+  )
 
   const channelList: ChannelData[] = useMemo(
     () =>
