@@ -40,11 +40,14 @@ export const useNotesSettings = () => {
 
   const settings: NotesSettings = {
     isFullWidth: values.isFullWidth,
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Compatibility: legacy preference strings are unchecked; RichEditor owns the existing non-serif font fallback.
     fontFamily: values.fontFamily as NotesSettings['fontFamily'],
     fontSize: values.fontSize,
     showTableOfContents: values.showTableOfContents,
     lineBreaks: values.lineBreaks,
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Compatibility: NotesEditor combines both raw mode strings; defaulting either alone can enable editing of a read-only document.
     defaultViewMode: values.defaultViewMode as NotesSettings['defaultViewMode'],
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Compatibility: retain unknown historic modes for NotesEditor's current read-only fallback instead of coercing them to editable preview.
     defaultEditMode: values.defaultEditMode as NotesSettings['defaultEditMode'],
     showTabStatus: values.showTabStatus
   }
@@ -75,6 +78,7 @@ export const useNotesSettings = () => {
     updateSettings,
     notesPath: values.notesPath,
     updateNotesPath,
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Compatibility: sorting handles unknown stored strings with its lexical fallback; retain the raw preference and menu selection state.
     sortType: values.sortType as NotesSortType,
     updateSortType
   }
