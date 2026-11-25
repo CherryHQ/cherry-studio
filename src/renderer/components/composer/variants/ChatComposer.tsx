@@ -1724,8 +1724,7 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
-        // Save-only edits stay available out of quota; only the resend is held.
-        if (quotaBlocksSend) return
+        if (quotaBlocksSend && editingMessageForCurrentTopic.message.role !== 'assistant') return
         await commitEditedMessage(draft, true)
         return
       }
