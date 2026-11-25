@@ -2738,9 +2738,9 @@ describe('desktop Pi Durable connection', () => {
     await prefs.set('chat.context_settings.enabled', true)
     await prefs.set('chat.context_settings.compress.enabled', false)
     const connection = await finishedChild()
-    const view = (await connection.childProjection('spawn'))!
+    const view = childTimeline(input.sessionId, 'spawn')!
     const unsubscribe = view.subscribe(() => {})
-    const [child] = await connection['childResources']()
+    const child = (await connection['observeChild'](contexts.context(view.snapshot().contextId).nativeThreadId!))!
     const configure = vi.spyOn(child.handle.durable, 'configure')
     await prefs.set('chat.context_settings.compress.enabled', true)
     await prefs.set('chat.context_settings.compress.threshold_percent', 60)
@@ -2756,10 +2756,10 @@ describe('desktop Pi Durable connection', () => {
 
   it('accepts child steering when concurrent commits invalidate policy measurements', async () => {
     const connection = await finishedChild()
-    const view = (await connection.childProjection('spawn'))!
+    const view = childTimeline(input.sessionId, 'spawn')!
     const updates: string[] = []
     const unsubscribe = view.subscribe((update) => updates.push(JSON.stringify(update)))
-    const [child] = await connection['childResources']()
+    const child = (await connection['observeChild'](contexts.context(view.snapshot().contextId).nativeThreadId!))!
     const usage = vi.spyOn(child.handle, 'contextUsage')
     const invalidated = {
       status: 'unknown',
