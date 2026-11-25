@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 import type { Pluggable } from 'unified'
 
 import {
-  useMessageRenderConfig,
-  useOptionalMessageListActions
+  useOptionalMessageListActions,
+  useOptionalMessageRenderConfig
 } from '@renderer/components/chat/messages/MessageListProvider'
 import { AppMarkdown, MarkdownHostProvider } from '@renderer/components/markdown'
 import type { FileLocation } from '@renderer/types/fileLocation'
@@ -35,7 +35,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
   linkifyFilePaths = false
 }) => {
   const { t } = useTranslation()
-  const { mathEnableSingleDollar } = useMessageRenderConfig()
+  const { mathEnableSingleDollar } = useOptionalMessageRenderConfig()
   const actions = useOptionalMessageListActions()
   const isStreaming = block.status === 'streaming'
   const content =

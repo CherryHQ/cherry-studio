@@ -19,7 +19,7 @@ vi.mock('@renderer/utils/platform', () => ({
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false }),
+  useOptionalMessageRenderConfig: () => ({ mathEnableSingleDollar: false }),
   useOptionalMessageListActions: () => ({ navigateToRoute: mocks.navigateToRoute })
 }))
 

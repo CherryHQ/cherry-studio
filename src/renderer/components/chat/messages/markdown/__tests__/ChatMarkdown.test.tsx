@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false }),
+  useOptionalMessageRenderConfig: () => ({ mathEnableSingleDollar: false }),
   useOptionalMessageListActions: () => mocks.actions
 }))
 vi.mock('react-i18next', () => {

@@ -735,4 +735,42 @@ describe('PermissionRequestComposer', () => {
       expect(screen.getByText('bypassPermissions')).toBeInTheDocument()
     })
   })
+
+  it('renders ACP text content previews outside MessageListProvider without crashing', async () => {
+    render(
+      <PermissionRequestComposer
+        request={makeRequest({
+          toolResponse: {
+            id: 'acp-write-1',
+            toolCallId: 'acp-write-1',
+            status: 'pending',
+            arguments: {
+              localAcpTool: {
+                title: 'Write',
+                kind: 'edit',
+                status: 'pending',
+                content: [
+                  {
+                    type: 'content',
+                    content: {
+                      type: 'text',
+                      text: 'Requesting approval to write **tool_kimi.txt**'
+                    }
+                  }
+                ]
+              }
+            },
+            tool: {
+              id: 'ACP: WriteFile',
+              name: 'ACP: WriteFile',
+              type: 'builtin'
+            }
+          }
+        })}
+        onRespond={vi.fn()}
+      />
+    )
+
+    expect(await screen.findByText('tool_kimi.txt')).toBeInTheDocument()
+  })
 })
