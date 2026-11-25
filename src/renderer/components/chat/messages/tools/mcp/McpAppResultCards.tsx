@@ -35,7 +35,7 @@ async function release(id: string) {
   }
 }
 
-function McpAppResultView({ open, messageId, toolCallId, onClose }: ResultCardProps & { onClose: () => void }) {
+function McpAppResultView({ open, messageId, toolCallId }: ResultCardProps) {
   const { t } = useTranslation()
   const [state, setState] = useState<ViewState>({ kind: 'opening' })
   const [height, setHeight] = useState(180)
@@ -90,60 +90,52 @@ function McpAppResultView({ open, messageId, toolCallId, onClose }: ResultCardPr
   }, [close, launch])
 
   return (
-    <div className="rounded-md border border-border p-2">
+    <>
       {state.kind === 'error' && (
-        <p role="alert" className="mb-2 text-sm text-muted-foreground">
-          {t('message.tools.mcp_app.failed')}
-        </p>
+        <>
+          <p role="alert" className="mb-2 text-sm text-muted-foreground">
+            {t('message.tools.mcp_app.failed')}
+          </p>
+          <Button size="sm" variant="outline" onClick={() => void launch()}>
+            {t('common.retry')}
+          </Button>
+        </>
       )}
       {state.kind === 'review' && (
-        <p className="mb-2 break-all text-sm text-muted-foreground">
-          {t('message.tools.mcp_app.origins', { origins: state.view.origins.join(', ') })}
-        </p>
-      )}
-      <div className="flex items-center gap-2">
-        {state.kind === 'review' && (
+        <>
+          <p className="mb-2 break-all text-sm text-muted-foreground">
+            {t('message.tools.mcp_app.origins', { origins: state.view.origins.join(', ') })}
+          </p>
           <Button
             size="sm"
             variant="outline"
             onClick={() => setState({ kind: 'mounted', view: state.view, ready: false })}>
             {t('common.confirm')}
           </Button>
-        )}
-        {state.kind === 'error' && (
-          <Button size="sm" variant="outline" onClick={() => void launch()}>
-            {t('common.retry')}
-          </Button>
-        )}
-        {(state.kind === 'opening' || (state.kind === 'mounted' && !state.ready)) && (
-          <span role="status" className="text-sm text-muted-foreground">
-            {t('common.loading')}
-          </span>
-        )}
-        <Button size="sm" variant="ghost" onClick={onClose}>
-          {t('common.close')}
-        </Button>
-      </div>
+        </>
+      )}
+      {(state.kind === 'opening' || (state.kind === 'mounted' && !state.ready)) && (
+        <p role="status" className="mb-2 text-sm text-muted-foreground">
+          {t('common.loading')}
+        </p>
+      )}
       {state.kind === 'mounted' && (
         <webview
           key={state.view.id}
           src={state.view.src}
           partition={state.view.partition}
           aria-label={t('message.tools.mcp_app.open')}
-          className="mt-2 flex w-full overflow-hidden rounded-sm"
+          className="flex w-full overflow-hidden rounded-sm"
           style={{ height }}
         />
       )}
-    </div>
+    </>
   )
 }
 
 function McpAppResultCard(props: ResultCardProps) {
-  const { t } = useTranslation()
   const slot = useRef<HTMLDivElement>(null)
-  const reopenButton = useRef<HTMLButtonElement>(null)
   const [hasEnteredView, setHasEnteredView] = useState(false)
-  const [closed, setClosed] = useState(false)
 
   useEffect(() => {
     const element = slot.current
@@ -160,21 +152,7 @@ function McpAppResultCard(props: ResultCardProps) {
 
   return (
     <div ref={slot} className="my-2 min-h-8 min-w-0">
-      {closed ? (
-        <Button ref={reopenButton} size="sm" variant="outline" onClick={() => setClosed(false)}>
-          {t('message.tools.mcp_app.open')}
-        </Button>
-      ) : (
-        hasEnteredView && (
-          <McpAppResultView
-            {...props}
-            onClose={() => {
-              setClosed(true)
-              requestAnimationFrame(() => reopenButton.current?.focus())
-            }}
-          />
-        )
-      )}
+      {hasEnteredView && <McpAppResultView {...props} />}
     </div>
   )
 }
