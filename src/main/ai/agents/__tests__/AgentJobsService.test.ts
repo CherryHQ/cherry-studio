@@ -6,8 +6,7 @@
  * state-aware pause/resume no-ops, and trigger equality filtering.
  */
 
-import '@data/services/AgentSessionMessageService'
-import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
+import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
@@ -17,10 +16,10 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
@@ -949,28 +948,17 @@ describe('AgentJobsService', () => {
 
       it('preserves a selected pre-existing conversation and its history when the task is deleted', async () => {
         const sessionId = createOrdinarySession('history')
-        dbh.db
-          .insert(agentSessionMessageTable)
-          .values({
-            id: 'pre-existing-message',
-            sessionId,
-            parentId: seedSessionRoot(dbh.db, sessionId),
-            role: 'user',
-            data: { parts: [{ type: 'text', text: 'keep my history' }] },
-            status: 'success'
-          })
-          .run()
+        const saved = agentSessionMessageService.saveMessage({
+          sessionId,
+          message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'keep my history' }] } }
+        })
         const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
 
         await lifecycle.deleteTaskWithSessions(task.id)
         expect(agentSessionService.getById(sessionId)?.id).toBe(sessionId)
-        expect(
-          dbh.db
-            .select()
-            .from(agentSessionMessageTable)
-            .where(eq(agentSessionMessageTable.id, 'pre-existing-message'))
-            .get()?.data
-        ).toMatchObject({ parts: [{ type: 'text', text: 'keep my history' }] })
+        expect(agentSessionMessageService.getSessionMessage(sessionId, saved.id).data.parts).toEqual([
+          { type: 'text', text: 'keep my history' }
+        ])
         expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((session) => session.id)).toContain(
           sessionId
         )
