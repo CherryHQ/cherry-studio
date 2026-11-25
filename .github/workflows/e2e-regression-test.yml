@@ -652,6 +652,18 @@ jobs:
         shell: bash
         run: pnpm exec tsx scripts/e2e/regression/cli.ts finalize --run-dir "$RUN_DIR"
 
+      # The published contract is evidence/<platform>/release/installation.json: the aggregate job
+      # nests this artifact under evidence/<platform>/, and the QA ledger reads the tested artifact's
+      # identity from that path. upload-artifact only honours `if-no-files-found` when *no* matching
+      # file exists, so a missing installation.json next to report/ and evidence/ uploads silently and
+      # leaves the run with an empty artifact identity. The archive is therefore asserted here, before
+      # the upload, and the check is a separate step (not folded into `finalize`) so the evidence upload
+      # below still runs on failure and the failing platform is named by the step, not by ENOENT.
+      - name: Verify artifact identity evidence
+        if: always() && steps.platform_report.outcome == 'success'
+        shell: bash
+        run: pnpm exec tsx scripts/e2e/regression/cli.ts verify-evidence --run-dir "$RUN_DIR"
+
       - name: Upload platform report and evidence
         if: always() && steps.platform_report.outcome == 'success'
         uses: actions/upload-artifact@v7
@@ -665,7 +677,9 @@ jobs:
             ${{ runner.temp }}/cherry-regression/evidence
             ${{ runner.temp }}/cherry-regression/agent-workspace
             ${{ runner.temp }}/cherry-regression/fixtures
-            ${{ runner.temp }}/cherry-regression/release/installation.json
+            ${{ runner.temp }}/cherry-regression/release
+            !${{ runner.temp }}/cherry-regression/release/*.dmg
+            !${{ runner.temp }}/cherry-regression/release/*.exe
 
       - name: Validate platform result
         if: always() && steps.controller-dependencies.outcome == 'success'
@@ -847,6 +861,16 @@ jobs:
           cp -a platform-reports combined-report/evidence
           mv combined-report/combined-report.md combined-report/summary.md
           test -f combined-report/index.html
+
+      # Asserts the aggregate path itself, not just the per-platform run directory: this is the copy
+      # that turns each platform artifact into evidence/<platform>/, so a platform artifact that lost
+      # its record (or an upload path that stopped matching) fails here instead of shipping a
+      # test-report whose evidence/<platform>/release/installation.json is absent. The upload below
+      # keeps its own `always()` guard so the incomplete bundle is still published for triage.
+      - name: Verify artifact identity evidence
+        if: needs.resolve.outputs.regression == 'true' && steps.assemble-report.outcome == 'success'
+        shell: bash
+        run: pnpm exec tsx scripts/e2e/regression/cli.ts verify-evidence --aggregate-root combined-report
 
       - name: Upload aggregate report
         id: upload-report
