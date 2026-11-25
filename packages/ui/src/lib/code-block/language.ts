@@ -229,6 +229,7 @@ export function loadCodeBlockLanguage(language: string, config?: LanguageConfig)
 
       for (const candidate of candidates) {
         const name = langNames.find((name) => name === candidate)
+
         if (name === undefined) continue
 
         const support = loadLanguage(name)

@@ -95,6 +95,7 @@ export const rehypeStreamingMath: Plugin<[Pluggable], Root> = function (mathRend
 
         // KaTeX's error position skips suffixes that cannot repair an earlier invalid token.
         const cause = failure.cause
+
         const limit =
           cause?.name === 'ParseError' &&
           'position' in cause &&
