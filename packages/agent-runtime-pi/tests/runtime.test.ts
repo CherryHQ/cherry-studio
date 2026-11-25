@@ -981,17 +981,17 @@ it.each([false, true])('retains nested results across outer failure and reopen (
       callProviderMetadata: { pi: { parentToolCallId: 'script' } }
     })
   expect(
-    events.some(
-      (event) =>
-        event.type === 'message.reconcile' &&
-        event.message.parts.some(
+    events
+      .flatMap(observationReplay())
+      .some((message) =>
+        message.parts.some(
           (part) =>
             part.type === 'dynamic-tool' &&
             part.toolName === 'leaf' &&
             part.state === 'output-available' &&
             part.preliminary
         )
-    )
+      )
   ).toBe(true)
   await runtime.shutdown()
   const reopenedRuntime = confirmed(await createPiRuntime({ backendId: runtimeId('reopened') }))
