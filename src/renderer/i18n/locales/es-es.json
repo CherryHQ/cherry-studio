@@ -1963,7 +1963,6 @@
   "history_import.line": "Línea {{line}}",
   "history_import.losses": "Registros omitidos: {{skipped}} · Bloques convertidos: {{downgraded}}",
   "history_import.no_target": "Crea o configura un agente por el flujo habitual; vuelve y actualiza la lista.",
-  "history_import.preview": "Vista previa",
   "history_import.problems.branch": "Selecciona una rama. No se puede importar sin el historial padre.",
   "history_import.problems.changed": "El origen o la comprobación de importación ha cambiado o ha caducado. Vuelve a importar.",
   "history_import.problems.directory": "Elige una carpeta de trabajo local válida u omite la conversación.",

@@ -1963,7 +1963,6 @@
   "history_import.line": "Ligne {{line}}",
   "history_import.losses": "Enregistrements ignorés : {{skipped}} · Blocs convertis : {{downgraded}}",
   "history_import.no_target": "Créez ou configurez un agent par le parcours habituel, puis revenez et actualisez.",
-  "history_import.preview": "Aperçu",
   "history_import.problems.branch": "Sélectionnez une branche. Un historique parent manquant empêche l’importation.",
   "history_import.problems.changed": "La source ou la vérification d’importation a changé ou a expiré. Relancez l’importation.",
   "history_import.problems.directory": "Choisissez un dossier de travail local valide ou ignorez cette conversation.",
