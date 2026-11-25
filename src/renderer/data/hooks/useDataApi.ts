@@ -1023,6 +1023,7 @@ function useInfiniteCacheWriter<Page>(resolvedPath: string, options?: InfiniteCa
           if (!key) break
           entries.push({ key, page, serializedKey: unstable_serialize(key) })
           previousPage = page ? {} : null
+
           if (typeof page === 'object' && page !== null && 'nextCursor' in page)
             previousPage = { nextCursor: page.nextCursor }
         }

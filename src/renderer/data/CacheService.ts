@@ -174,6 +174,7 @@ export class CacheService {
    */
   get<K extends UseCacheKey>(key: K): InferUseCacheValue<K> | undefined {
     getUseCacheDefaultValue(key)
+
     return this.getInternal(key)
   }
 
@@ -354,6 +355,7 @@ export class CacheService {
    */
   has<K extends UseCacheKey>(key: K): boolean {
     getUseCacheDefaultValue(key)
+
     return this.hasInternal(key)
   }
 
@@ -405,6 +407,7 @@ export class CacheService {
    */
   delete<K extends UseCacheKey>(key: K): boolean {
     getUseCacheDefaultValue(key)
+
     return this.deleteInternal(key)
   }
 
@@ -507,6 +510,7 @@ export class CacheService {
    */
   getShared<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
     getSharedCacheDefaultValue(key)
+
     return this.getSharedInternal(key)
   }
 
@@ -537,6 +541,7 @@ export class CacheService {
    */
   getSharedSnapshot<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
     getSharedCacheDefaultValue(key)
+
     return this.sharedCache.get(key)?.value
   }
 
@@ -625,6 +630,7 @@ export class CacheService {
    */
   hasShared<K extends SharedCacheKey>(key: K): boolean {
     getSharedCacheDefaultValue(key)
+
     return this.hasSharedInternal(key)
   }
 
@@ -654,6 +660,7 @@ export class CacheService {
    */
   deleteShared<K extends SharedCacheKey>(key: K): boolean {
     getSharedCacheDefaultValue(key)
+
     return this.deleteSharedInternal(key)
   }
 
@@ -1234,8 +1241,10 @@ export class CacheService {
       if (message.type === 'shared') {
         if (findMatchingSharedCacheSchemaKey(message.key) === undefined) {
           logger.warn('Rejected invalid shared cache key', { key: message.key })
+
           return
         }
+
         if (!this.sharedCacheReady) this.sharedKeysUpdatedDuringInitialSync.add(message.key)
 
         if (message.value === undefined) {

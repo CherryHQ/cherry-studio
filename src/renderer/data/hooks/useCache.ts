@@ -256,6 +256,7 @@ export function useSharedCache<K extends SharedCacheKey>(
     (newValue: CacheSetStateAction<InferSharedCacheValue<K>>) => {
       if (typeof newValue === 'function') {
         const storedValue = cacheService.getShared(key)
+
         // SAFETY: Both branches contain this key's value; the cast only exposes a shallow readonly updater view.
         const prev = (storedValue !== undefined ? storedValue : fallbackValue) as ReadonlyValue<
           InferSharedCacheValue<K>

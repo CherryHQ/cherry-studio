@@ -338,6 +338,7 @@ export function useReorder<Cache>(...[collectionUrl, options]: ReorderArgs<Cache
 
   const orderPath = `${collectionUrl}/:id/order` as const
   const batchPath = collectionUrl === '/knowledge-bases' ? null : (`${collectionUrl}/order:batch` as const)
+
   const { trigger: patchOrder } = useMutation(
     'PATCH',
     orderPath,
@@ -431,6 +432,7 @@ export function useReorder<Cache>(...[collectionUrl, options]: ReorderArgs<Cache
 
       try {
         if (optimistic !== undefined) await writeCurrent(optimistic)
+
         if (mutationParams) await patchBatch({ params: mutationParams, body: { moves } })
         else await patchBatch({ body: { moves } })
       } catch (err) {

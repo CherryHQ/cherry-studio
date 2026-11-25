@@ -72,10 +72,9 @@ export function createInfiniteQueryRetentionMiddleware(options: InfiniteQueryRet
         if (!enabled || !currentGetKey || !pages?.length) return
 
         const pageKeys: string[] = []
-        let previousPage: unknown = null
 
         for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
-          const pageKey = currentGetKey(pageIndex, isParallel ? null : previousPage)
+          const pageKey = currentGetKey(pageIndex, isParallel || pageIndex === 0 ? null : pages[pageIndex - 1])
 
           if (!pageKey) break
 
@@ -84,7 +83,6 @@ export function createInfiniteQueryRetentionMiddleware(options: InfiniteQueryRet
           if (cache.get(serializedPageKey) === undefined) return
 
           pageKeys.push(serializedPageKey)
-          previousPage = pages[pageIndex]
         }
 
         if (pageKeys.length === pages.length) {
