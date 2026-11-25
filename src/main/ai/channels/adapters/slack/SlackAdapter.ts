@@ -307,7 +307,7 @@ class SlackAdapter extends ChannelAdapter {
       throw new Error(`Failed to open Socket Mode connection: HTTP ${response.status}`)
     }
 
-    const data = (await response.json()) as { ok: boolean; url?: string; error?: string }
+    const data = SlackApiResponseSchema.extend({ url: z.string().optional() }).parse(await response.json())
 
     if (!data.ok || !data.url) {
       throw new Error(`Socket Mode connection failed: ${data.error ?? 'no URL returned'}`)
@@ -499,12 +499,12 @@ class SlackAdapter extends ChannelAdapter {
       return
     }
 
-    if (['new', 'compact', 'help'].includes(command)) {
+    if (command === 'new' || command === 'compact' || command === 'help') {
       this.emit('command', {
         chatId,
         userId,
         userName,
-        command: command as 'new' | 'compact' | 'help'
+        command
       })
     }
   }
