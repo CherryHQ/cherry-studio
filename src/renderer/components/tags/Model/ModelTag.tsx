@@ -89,7 +89,7 @@ export function modelMatchesDisplayTag(
   }
 
   if (tag === SERVER_TOOL.WEB_SEARCH) {
-    return provider ? isBuiltinWebSearchAvailable(model as Model, provider) : false
+    return provider ? isBuiltinWebSearchAvailable(model, provider) : false
   }
 
   const inputModality = INPUT_MODALITY_BY_DISPLAY_TAG[tag]
