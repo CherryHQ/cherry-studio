@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { isGemini3Model, isGemini4Model } from '@shared/utils/model'
 
 import type { RequestFeature } from '../feature'
+import { geminiSignatures } from './geminiHistorySignatureReplay'
 
 const logger = loggerService.withContext('skipGeminiThoughtSignaturePlugin')
 
@@ -42,9 +43,10 @@ function createSkipGeminiThoughtSignatureMiddleware(): LanguageModelMiddleware {
             content: message.content.map((part) => {
               // Case: OpenAI-compatible path - add extra_content for tool-call parts
               // All tool-calls need the signature for Gemini OpenAI-compatible API
-              if (part.type !== 'tool-call') {
+              if (part.type !== 'tool-call' || part.providerOptions?.cherry?.omitGeminiThoughtSignature === true) {
                 return part
               }
+              const recordedSignature = geminiSignatures(part.providerOptions)[0]?.[1]
               const extraContent = part.providerOptions?.openaiCompatible?.extra_content
               const extra =
                 extraContent && typeof extraContent === 'object' && !Array.isArray(extraContent) ? extraContent : {}
@@ -57,13 +59,16 @@ function createSkipGeminiThoughtSignatureMiddleware(): LanguageModelMiddleware {
                 ...part,
                 providerOptions: {
                   ...part.providerOptions,
+                  ...(recordedSignature && {
+                    google: { ...part.providerOptions?.google, thoughtSignature: recordedSignature }
+                  }),
                   openaiCompatible: {
                     ...part.providerOptions?.openaiCompatible,
                     extra_content: {
                       ...extra,
                       google: {
                         ...google,
-                        thought_signature: google.thought_signature ?? MAGIC_STRING
+                        thought_signature: google.thought_signature ?? recordedSignature ?? MAGIC_STRING
                       }
                     }
                   }

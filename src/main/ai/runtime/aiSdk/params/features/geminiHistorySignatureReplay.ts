@@ -9,10 +9,10 @@ import { getReplayEndpoint, getReplayRouteId } from '../../../../provider/replay
 import type { RequestFeature } from '../feature'
 import { createProviderStateReplayMiddleware } from './providerStateReplay'
 
-function geminiSignatures(options: SharedV3ProviderOptions | undefined): Array<[string, string]> {
+export function geminiSignatures(options: SharedV3ProviderOptions | undefined): Array<[string, string]> {
   const signatures: Array<[string, string]> = []
-  for (const namespace of ['google', 'vertex', 'googleVertex']) {
-    const signature = options?.[namespace]?.thoughtSignature
+  for (const [namespace, optionsValue] of Object.entries(options ?? {})) {
+    const signature = optionsValue?.thoughtSignature
     if (typeof signature === 'string' && signature.trim()) signatures.push([namespace, signature])
   }
   return signatures
@@ -61,23 +61,19 @@ export const geminiHistorySignatureReplayFeature: RequestFeature = {
         return part.type === 'tool-call' && foreign?.get(`tool:${part.toolCallId}`) === true
       },
       omitState: (part) => {
+        if (part.type === 'tool-call' && part.providerExecuted) return part
+        const providerOptions = { ...part.providerOptions }
         if (part.type === 'text' || part.type === 'file') {
-          const providerOptions = { ...part.providerOptions }
           for (const [namespace] of geminiSignatures(part.providerOptions)) {
             const options = { ...providerOptions[namespace] }
             delete options.thoughtSignature
             providerOptions[namespace] = options
           }
-          return { ...part, providerOptions }
         }
-        if (part.type !== 'tool-call' || part.providerExecuted) return part
-        return {
-          ...part,
-          providerOptions: {
-            ...part.providerOptions,
-            cherry: { ...part.providerOptions?.cherry, omitGeminiThoughtSignature: true }
-          }
+        if (part.type === 'tool-call') {
+          providerOptions.cherry = { ...providerOptions.cherry, omitGeminiThoughtSignature: true }
         }
+        return { ...part, providerOptions }
       }
     })
 

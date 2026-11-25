@@ -83,9 +83,10 @@ encrypted reasoning, and Responses item references.
 Completed turns retain ordinary text and tool pairs when their tagged state is
 omitted on a new route. The saved history can replay again on the original
 route. Older Gemini 3 and 4 text and tool calls can use the recorded provider and
-model identity. The Google adapter suppresses signature backfill for marked tool
-calls. A tool result in the active turn stays on the route that produced its
-required state, including when that route was a Chat fallback.
+model identity. The native and compatible Gemini paths suppress signature
+backfill for marked tool calls. A tool result in the active turn stays on the
+route that produced its required state, including when that route was a Chat
+fallback.
 
 ## RequestFeature
 

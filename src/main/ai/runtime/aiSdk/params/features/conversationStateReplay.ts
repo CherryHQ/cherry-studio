@@ -3,6 +3,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { getReplayEndpoint, getReplayRouteId, needsPlainToolReasoning } from '../../../../provider/replayRoute'
 import type { RequestFeature } from '../feature'
+import { geminiSignatures } from './geminiHistorySignatureReplay'
 import { createProviderStateReplayMiddleware } from './providerStateReplay'
 
 export const conversationStateReplayFeature: RequestFeature = {
@@ -35,16 +36,26 @@ export const conversationStateReplayFeature: RequestFeature = {
               requirePlainReasoning: needsPlainToolReasoning(endpoint, model),
               ...(responses && { responsesOptionsKey: sdkConfig.providerOptionsKey }),
               hasState: (metadata) =>
-                responses &&
-                namespaces.some(
-                  (key) =>
-                    typeof metadata?.[key]?.itemId === 'string' ||
-                    typeof metadata?.[key]?.reasoningEncryptedContent === 'string'
-                ),
+                geminiSignatures(metadata).length > 0 ||
+                (responses &&
+                  namespaces.some(
+                    (key) =>
+                      typeof metadata?.[key]?.itemId === 'string' ||
+                      typeof metadata?.[key]?.reasoningEncryptedContent === 'string'
+                  )),
               omitState: (part) => {
                 const providerOptions = { ...part.providerOptions }
+                const signatures = geminiSignatures(part.providerOptions)
+                for (const [key] of signatures) {
+                  const options = { ...providerOptions[key] }
+                  delete options.thoughtSignature
+                  providerOptions[key] = options
+                }
+                if (part.type === 'tool-call' && signatures.length > 0) {
+                  providerOptions.cherry = { ...providerOptions.cherry, omitGeminiThoughtSignature: true }
+                }
                 for (const key of namespaces) {
-                  if (!providerOptions[key]) continue
+                  if (!responses || !providerOptions[key]) continue
                   const options = { ...providerOptions[key] }
                   delete options.itemId
                   delete options.reasoningEncryptedContent
