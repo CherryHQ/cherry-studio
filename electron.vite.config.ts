@@ -31,17 +31,13 @@ const { buildExternalApp, sourceFiles: externalAppSources } = createRequire(impo
   './native/external-app/build.cjs'
 )
 
-type ElectronBuilderConfig = {
-  releaseInfo?: {
-    releaseNotes?: unknown
-  }
-}
-
-const electronBuilderConfig = parse(
-  readFileSync(resolve(__dirname, 'electron-builder.yml'), 'utf8')
-) as ElectronBuilderConfig
-
-const bundledReleaseNotes = electronBuilderConfig.releaseInfo?.releaseNotes
+const electronBuilderConfig: unknown = parse(readFileSync(resolve(__dirname, 'electron-builder.yml'), 'utf8'))
+const releaseInfo =
+  electronBuilderConfig && typeof electronBuilderConfig === 'object' && 'releaseInfo' in electronBuilderConfig
+    ? electronBuilderConfig.releaseInfo
+    : undefined
+const bundledReleaseNotes =
+  releaseInfo && typeof releaseInfo === 'object' && 'releaseNotes' in releaseInfo ? releaseInfo.releaseNotes : undefined
 
 const bundledReleaseHistory = parseReleaseHistory(
   readFileSync(resolve(__dirname, 'resources/cherry-studio/release-history.json'), 'utf8')
@@ -76,7 +72,9 @@ export function resolveSentryBuildSettings(env: NodeJS.ProcessEnv) {
 export function resolveRendererEdition(value: string | undefined): AppEdition {
   const edition = value?.trim().toLowerCase() || 'global'
 
-  if (APP_EDITIONS.includes(edition as AppEdition)) return edition as AppEdition
+  const matchedEdition = APP_EDITIONS.find((candidate) => candidate === edition)
+
+  if (matchedEdition !== undefined) return matchedEdition
   throw new Error(`Unsupported renderer edition: ${edition}`)
 }
 
