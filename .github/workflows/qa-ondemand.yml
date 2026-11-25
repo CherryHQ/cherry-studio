@@ -1,8 +1,13 @@
 name: QA On-Demand Test
+run-name: "QA On-Demand · ${{ inputs.spec }} · ${{ inputs.platform }} · ${{ inputs.ref }}${{ inputs.op_id != '' && format(' [op:{0}]', inputs.op_id) || '' }}"
 
 on:
   workflow_dispatch:
     inputs:
+      op_id:
+        description: "Optional dispatch correlation id, 16 lowercase hex chars; echoed as a trailing [op:<id>] run-title marker"
+        type: string
+        default: ""
       platform:
         description: "Hosted platform"
         type: choice
@@ -63,6 +68,16 @@ jobs:
       runner: ${{ steps.ref.outputs.runner }}
       timeout: ${{ steps.ref.outputs.timeout }}
     steps:
+      - name: Validate dispatch correlation id
+        if: inputs.op_id != ''
+        shell: bash
+        env:
+          QA_OP_ID: ${{ inputs.op_id }}
+        run: |
+          if ! printf '%s' "$QA_OP_ID" | grep -Eq '^[0-9a-f]{16}$'; then
+            echo "op_id must be 16 lowercase hex characters" >&2
+            exit 1
+          fi
       - name: Define isolated run directories
         shell: bash
         run: |

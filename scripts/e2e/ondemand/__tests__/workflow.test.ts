@@ -32,6 +32,17 @@ it('dispatches one validated platform and retains the machine-readable verdict a
   expect(prepare).toBeLessThan(execute)
   expect(steps[prepare].if).toBe("needs.resolve.outputs.mode == 'branch'")
   expect(steps[prepare].run).toContain('exec dotenv -v CHERRY_EDITION=global -- electron-vite build')
+  // Dispatch identity: the caller must be able to prove which run it created from the run title alone.
+  expect(workflow.on.workflow_dispatch.inputs.op_id).toMatchObject({ type: 'string', default: '' })
+  const runName: string = workflow['run-name']
+  expect(runName.trimEnd()).toMatch(/format\(' \[op:\{0\}\]', inputs\.op_id\) \|\| '' \}\}$/)
+  const guard = workflow.jobs.resolve.steps.find(
+    (step: { name?: string }) => step.name === 'Validate dispatch correlation id'
+  )
+  expect(guard.if).toBe("inputs.op_id != ''")
+  expect(guard.env.QA_OP_ID).toBe('${{ inputs.op_id }}')
+  // The id reaches the shell only through env; interpolating it into the script body would allow injection.
+  expect(guard.run).not.toContain('${{')
 })
 
 it('keeps unrelated workflow diagnostics blocking the CI gate', () => {
