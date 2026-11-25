@@ -2,7 +2,7 @@ import { application } from '@application'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { t } from '@main/i18n'
-import { transcodeToEntityWebp } from '@main/utils/image'
+import { assertEntityImageDecodable } from '@main/utils/image'
 import type { InputFor } from '@shared/ipc/types'
 import { Mutex } from '@shared/utils/async'
 
@@ -50,7 +50,7 @@ class AgentAvatarService {
       if (backup.fileEntryId) {
         try {
           const { content } = await application.get('FileManager').read(backup.fileEntryId, { encoding: 'binary' })
-          await transcodeToEntityWebp(content)
+          await assertEntityImageDecodable(content)
         } catch (error) {
           throw new Error(t('agent.avatar_tool.unreadable_backup'), { cause: error })
         }

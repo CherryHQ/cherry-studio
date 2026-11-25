@@ -2,6 +2,7 @@ import '@data/services/AgentSessionMessageService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
+import sharp from 'sharp'
 import { v7 as uuidv7 } from 'uuid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,14 +30,20 @@ vi.mock('@application', async () => {
     FileManager: { ...defaultServiceInstances.FileManager, createInternalEntry, permanentDelete, read: readImage }
   })
 })
-vi.mock('@main/utils/image', () => ({ transcodeToEntityWebp: transcode }))
+vi.mock(import('@main/utils/image'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  transcodeToEntityWebp: transcode
+}))
 
 const { agentAvatarService } = await import('../AgentAvatarService')
+const avatarBytes = await sharp({ create: { width: 32, height: 32, channels: 3, background: '#f80' } })
+  .webp()
+  .toBuffer()
 
 describe('agent avatar', () => {
   const dbh = setupTestDatabase()
   const agentId = 'avatar-agent'
-  const image = { kind: 'image' as const, data: new Uint8Array([1, 2, 3]) }
+  const image = { kind: 'image' as const, data: avatarBytes }
   beforeEach(() => {
     MockMainDbServiceUtils.setDb(dbh.db)
     transcode.mockReset().mockImplementation(async (bytes: Uint8Array) => bytes)
@@ -63,7 +70,7 @@ describe('agent avatar', () => {
           id,
           name: 'image',
           ext: 'webp',
-          size: 3,
+          size: avatarBytes.length,
           origin: 'internal',
           cleanupPolicy: 'delete_when_unreferenced',
           createdAt: 1
@@ -151,10 +158,18 @@ describe('agent avatar', () => {
       expect(currentId).not.toBe(previousId)
       expect(agentAvatarService.isToolEnabled(callerId)).toBe(true)
 
-      transcode.mockImplementationOnce(async (bytes: Uint8Array) => {
-        agentService.updateAgent(callerId, { disabledTools: ['mcp__cherry_tools__agent_avatar'] })
-        return bytes
-      })
+      const disable = () => agentService.updateAgent(callerId, { disabledTools: ['mcp__cherry_tools__agent_avatar'] })
+      if (action === 'replace') {
+        transcode.mockImplementationOnce(async () => {
+          disable()
+          return image.data
+        })
+      } else {
+        readImage.mockImplementationOnce(async () => {
+          disable()
+          return { content: image.data, mime: 'image/webp' }
+        })
+      }
       const pending =
         action === 'replace'
           ? agentAvatarService.replaceWithBackup(callerId, agentId, image.data, signal)
@@ -176,7 +191,10 @@ describe('agent avatar', () => {
     const previousId = agentService.getAgent(agentId)?.avatarFileId
     await agentAvatarService.replaceWithBackup(agentId, agentId, image.data, signal)
     const currentId = agentService.getAgent(agentId)?.avatarFileId
-    transcode.mockRejectedValueOnce(new Error('Invalid WebP data'))
+    const jpeg = await sharp(image.data).jpeg().toBuffer()
+    const truncated = jpeg.subarray(0, jpeg.length - 8)
+    await expect(sharp(truncated).metadata()).resolves.toMatchObject({ width: 32, height: 32 })
+    readImage.mockResolvedValueOnce({ content: truncated, mime: 'image/jpeg' })
 
     await expect(agentAvatarService.restoreBackup(agentId, agentId, signal)).rejects.toThrow(
       t('agent.avatar_tool.unreadable_backup')
