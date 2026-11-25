@@ -34,7 +34,7 @@ function fixture(beforeRead?: () => Promise<void>, decorate?: MessageDecorator) 
   const workspaceId = randomUUID()
   dbh.db
     .insert(agentWorkspaceTable)
-    .values({ id: workspaceId, name: 'Work', type: 'user', path: '/test', orderKey: 'a0' })
+    .values({ id: workspaceId, name: 'Work', type: 'user', path: `/test/${workspaceId}`, orderKey: 'a0' })
     .run()
   const root = randomUUID()
   dbh.db.insert(agentSessionTable).values({ id: root, workspaceId, name: 'Root', orderKey: 'a0' }).run()
@@ -97,6 +97,80 @@ function fixture(beforeRead?: () => Promise<void>, decorate?: MessageDecorator) 
     }
   }
 }
+
+it.each(['', 'partial answer'])(
+  'keeps a failed child reply and its cause through archive recovery (%j)',
+  async (text) => {
+    const f = fixture()
+    await f.projection.attach()
+    const failed = {
+      ...f.item('failure', text),
+      parts: text ? f.item('failure', text).parts : [],
+      metadata: {
+        completeness: 'complete' as const,
+        error: { operation: 'input', code: 'model-error', message: '429: CONCURRENCY_LIMITED' }
+      }
+    }
+    await f.send({ type: 'message.upsert', message: failed })
+    await f.projection.flush()
+    const expected = {
+      parts: [
+        ...(text ? [{ type: 'text', text, state: 'done' }] : []),
+        { type: 'data-error', data: { message: '429: CONCURRENCY_LIMITED', reason: 'model-error' } }
+      ]
+    }
+    expect(f.projection.snapshot().messages).toMatchObject([expected])
+    f.archive.messages = [failed]
+    f.archive.aliases = { failure: 'failure' }
+    await f.send({ type: 'activity.changed', activity: { state: 'idle' } })
+    await f.projection.flush()
+    expect(savedChildView(contexts.context(f.context.id)).messages).toMatchObject([expected])
+    await f.projection.stop()
+    const reopened = new ChildThreadProjection(contexts.context(f.context.id), f.handle, () => f.archive)
+    projections.push(reopened)
+    await reopened.attach()
+    expect(reopened.snapshot().messages).toMatchObject([expected])
+  }
+)
+
+it('retains a failed attempt after the native input completes successfully', async () => {
+  const f = fixture()
+  const prompt: RuntimeMessage = { ...f.item('prompt', 'Inspect'), role: 'user' }
+  const failed: RuntimeMessage = {
+    ...f.item('attempt', ''),
+    parts: [],
+    metadata: {
+      completeness: 'complete',
+      error: { operation: 'input', code: 'model-error', message: '429: CONCURRENCY_LIMITED' }
+    }
+  }
+  f.archive.messages = [prompt, failed]
+  await f.projection.attach()
+  const answer = f.item('answer', 'Recovered')
+  f.archive.messages = [prompt, failed, answer]
+  await f.send({ type: 'message.upsert', message: answer })
+  await f.send({
+    type: 'input.changed',
+    input: {
+      nativeInput: { session: f.handle.thread, id: runtimeId('input') },
+      facts: ['accepted', 'placed'],
+      outcome: 'completed'
+    }
+  })
+  await f.projection.flush()
+  const expected = [
+    { role: 'user' },
+    {
+      metadata: { status: 'success' },
+      parts: [
+        { type: 'data-error', data: { message: '429: CONCURRENCY_LIMITED' } },
+        { type: 'text', text: 'Recovered' }
+      ]
+    }
+  ]
+  expect(f.projection.snapshot().messages).toMatchObject(expected)
+  expect(savedChildView(contexts.context(f.context.id)).messages).toMatchObject(expected)
+})
 
 // Catches closing or backing up before an entered observation applies the final native tail.
 it.each(['stop', 'drain'] as const)('joins blocked observation delivery before %s flushes', async (action) => {
@@ -745,4 +819,155 @@ it('keeps a child observation newer than its pending context read without writin
   expect(f.projection.snapshot().revision).toBe(revision)
   await f.projection.stop()
   expect(application.get('CacheService').getShared(key)).toBeUndefined()
+})
+
+// Catches archive rereads that redecorate or rewrite unchanged history, and incremental state a reopen would not rebuild.
+it('decorates and saves only changed committed history and matches a reopened projection', async () => {
+  const decorated: string[] = []
+  const decorate: MessageDecorator = (message) => {
+    decorated.push(message.id)
+    return message
+  }
+  const f = fixture(undefined, decorate)
+  await f.projection.attach()
+  f.archive.messages = ['one', 'two', 'three'].map((text) => f.item(`entry-${text}`, text))
+  await f.projection.drain()
+  const saves = vi.spyOn(contexts, 'saveProjectionTx')
+  decorated.length = 0
+  await f.projection.drain()
+  expect(decorated).toEqual([])
+  expect(saves).not.toHaveBeenCalled()
+
+  f.archive.messages = [...f.archive.messages, f.item('entry-four', 'four')]
+  await f.projection.drain()
+  expect(decorated).toEqual(['entry-four'])
+  expect(saves).toHaveBeenCalledTimes(1)
+  decorated.length = 0
+  await f.projection.refreshDecoration(['entry-two'])
+  await f.projection.drain()
+  expect(decorated).toEqual(['entry-two'])
+
+  const warm = f.projection.snapshot().messages
+  expect(warm.map((message) => message.parts)).toEqual(
+    ['one', 'two', 'three', 'four'].map((text) => [{ type: 'text', text, state: 'done' }])
+  )
+  saves.mockClear()
+  const reopened = new ChildThreadProjection(contexts.context(f.context.id), f.handle, async () => f.archive, decorate)
+  projections.push(reopened)
+  await reopened.attach()
+  await reopened.drain()
+  expect(reopened.snapshot().messages).toEqual(warm)
+  expect(saves).not.toHaveBeenCalled()
+})
+
+// Catches every reopen rewriting saved tool messages whose parts hold undefined fields, which JSON storage drops.
+it('does not rewrite saved messages when a reopened archive has undefined part fields', async () => {
+  const f = fixture()
+  await f.projection.attach()
+  f.archive.messages = [
+    {
+      id: 'entry-tool',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'call-read',
+          toolName: 'read',
+          state: 'output-available',
+          input: { path: 'image.png' },
+          output: { content: [{ type: 'text', text: 'read' }], nestedCalls: undefined, isError: false }
+        }
+      ],
+      metadata: { completeness: 'complete' }
+    }
+  ]
+  await f.projection.drain()
+  const writes = vi.spyOn(messages, 'saveMessagesTx')
+  const reopened = new ChildThreadProjection(contexts.context(f.context.id), f.handle, async () => f.archive)
+  projections.push(reopened)
+  await reopened.attach()
+  await reopened.drain()
+  expect(reopened.snapshot().messages).toMatchObject([{ parts: [{ type: 'dynamic-tool', toolCallId: 'call-read' }] }])
+  expect(writes).not.toHaveBeenCalled()
+})
+
+// Catches flushes that re-read the context checkpoint for every input instead of binding inputs as they change.
+it('binds a changed input once instead of on every flush', async () => {
+  const f = fixture()
+  const user = messages.saveMessage({
+    sessionId: f.context.sessionId,
+    message: { role: 'user', data: { parts: [{ type: 'text', text: 'question' }] } }
+  })
+  prepareNativeSubmission(f.context.sessionId, user.id, f.context.id, 'steer')
+  await f.projection.attach()
+  await f.projection.refresh()
+  await f.send({
+    type: 'input.changed',
+    input: {
+      inputId: runtimeId(user.id),
+      nativeInput: { session: f.handle.thread, id: runtimeId('native-question') },
+      facts: ['placed']
+    }
+  })
+  await f.projection.flush()
+  expect(messages.inputBinding(f.context.sessionId, user.id)?.nativeInputId).toBe('native-question')
+  const reads = vi.spyOn(contexts, 'context')
+  for (const text of ['A', 'AB', 'ABC']) {
+    await f.send({ type: 'message.upsert', message: f.item('preview', text, 'partial') })
+    await f.projection.flush()
+  }
+  expect(reads).not.toHaveBeenCalled()
+})
+
+// Catches every archive read announcing all response owners again.
+it('reports each response owner once', async () => {
+  const f = fixture()
+  projections.splice(projections.indexOf(f.projection), 1)
+  const reported: [string, string][] = []
+  const projection = new ChildThreadProjection(
+    f.context,
+    f.handle,
+    async () => ({ ...f.archive, responseIds: { 'response-one': 'entry-one' } }),
+    undefined,
+    (responseId, messageId) => reported.push([responseId, messageId])
+  )
+  projections.push(projection)
+  await projection.attach()
+  f.archive.messages = [f.item('entry-one', 'one')]
+  await projection.drain()
+  f.archive.messages = [...f.archive.messages, f.item('entry-two', 'two')]
+  await projection.drain()
+  await projection.drain()
+  expect(reported).toEqual([['response-one', projection.snapshot().messages[0].id]])
+})
+
+// Catches retry status leaking between children, into archives, or surviving settlement.
+it('overlays only the latest live retry status without persisting it', async () => {
+  const first = fixture()
+  const second = fixture()
+  await first.projection.attach()
+  await second.projection.attach()
+  first.projection.retry({ state: 'retrying', modelId: 'model-A', attempt: 2, reason: 'http 429' })
+  first.projection.retry({ state: 'retrying', modelId: 'model-A', attempt: 3, reason: 'http 503' })
+  expect(first.projection.snapshot().messages.flatMap((m) => m.parts)).toEqual([
+    { type: 'data-retry', id: 'retry', data: { state: 'retrying', modelId: 'model-A', attempt: 3, reason: 'http 503' } }
+  ])
+  expect(second.projection.snapshot().messages).toEqual([])
+  const answer = first.item('answer', 'recovered')
+  first.archive.messages = [answer]
+  await first.send({ type: 'message.upsert', message: answer })
+  await first.projection.drain()
+  expect(
+    first.projection
+      .snapshot()
+      .messages.flatMap((m) => m.parts)
+      .filter((p) => p.type === 'data-retry')
+  ).toHaveLength(1)
+  expect(JSON.stringify(savedChildView(contexts.context(first.context.id)))).not.toContain('data-retry')
+  first.projection.retry({ state: 'settled' })
+  expect(first.projection.snapshot().messages.flatMap((m) => m.parts)).toEqual(answer.parts)
+  expect(JSON.stringify(savedChildView(contexts.context(first.context.id)))).toContain('recovered')
+  first.projection.retry({ state: 'retrying', modelId: 'model-A', attempt: 2, reason: 'http 429' })
+  await first.projection.stop()
+  expect(JSON.stringify(first.projection.snapshot())).not.toContain('data-retry')
 })

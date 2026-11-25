@@ -13,6 +13,7 @@ import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { ISeeder } from '@data/db/types'
 
 const BOOTSTRAP_MARKER_KEY = 'seedRunner:bootstrapCompleted'
+const EXTERNAL_SKILL_EXPORT_KEY = 'agent.skills.external_export.enabled'
 
 function createSeeder(overrides: Partial<ISeeder> = {}): ISeeder {
   return {
@@ -204,8 +205,31 @@ describe('SeedRunner', () => {
     const preference = dbh.db
       .select()
       .from(preferenceTable)
-      .where(eq(preferenceTable.key, 'agent.skills.external_export.enabled'))
+      .where(eq(preferenceTable.key, EXTERNAL_SKILL_EXPORT_KEY))
       .get()
     expect(preference?.value).toBe(false)
+  })
+
+  it.each([
+    { saved: undefined, expected: false },
+    { saved: false, expected: false },
+    { saved: true, expected: true }
+  ])('uses $expected when upgrading an installation with export preference $saved', ({ saved, expected }) => {
+    dbh.db
+      .insert(appStateTable)
+      .values({ key: BOOTSTRAP_MARKER_KEY, value: { completedAt: 1 } })
+      .run()
+    dbh.db.insert(preferenceTable).values({ scope: 'default', key: 'app.language', value: 'en-US' }).run()
+    if (saved !== undefined) {
+      dbh.db.insert(preferenceTable).values({ scope: 'default', key: EXTERNAL_SKILL_EXPORT_KEY, value: saved }).run()
+    }
+
+    const readExportPreference = () =>
+      dbh.db.select().from(preferenceTable).where(eq(preferenceTable.key, EXTERNAL_SKILL_EXPORT_KEY)).get()?.value
+
+    new SeedRunner(dbh.db).runAll(seeders)
+    expect(readExportPreference()).toBe(expected)
+    new SeedRunner(dbh.db).runAll(seeders)
+    expect(readExportPreference()).toBe(expected)
   })
 })

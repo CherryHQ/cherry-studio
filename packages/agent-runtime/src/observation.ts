@@ -6,6 +6,7 @@ import type {
   RuntimeMessage,
   ThreadSnapshot
 } from './contracts'
+import { immutable } from './immutable'
 
 /** Bounded delivery for normalized facts; never schedules native execution. */
 export class ThreadFeed {
@@ -14,24 +15,23 @@ export class ThreadFeed {
     stop(): void
   }>()
   private ended = false
+  private value: ThreadSnapshot
 
   constructor(
-    private value: ThreadSnapshot,
-    private readonly report: (error: unknown) => void,
-    // oxlint-disable-next-line no-restricted-globals -- Isolate caller-owned snapshots by default.
-    private readonly copy: <T extends ObservationPayload>(value: T) => T = (value) => structuredClone(value)
+    value: ThreadSnapshot,
+    private readonly report: (error: unknown) => void
   ) {
-    this.value = this.copy(value)
+    this.value = immutable(value)
   }
 
+  /** The current frozen snapshot, shared with observers rather than copied. */
   get snapshot(): ThreadSnapshot {
-    return this.copy(this.value)
+    return this.value
   }
 
   get state(): Omit<ThreadSnapshot, 'messages'> {
     const { type, inputs, activity, contextUsage, subagents } = this.value
-    // oxlint-disable-next-line no-restricted-globals -- Copy only non-message state for internal reads; never traverse history here.
-    return structuredClone({ type, inputs, activity, contextUsage, subagents })
+    return immutable({ type, inputs, activity, contextUsage, subagents })
   }
 
   get messageIds(): string[] {
@@ -39,9 +39,7 @@ export class ThreadFeed {
   }
 
   message(id: string | undefined): RuntimeMessage | undefined {
-    const message = this.value.messages.find((message) => message.id === id)
-    // oxlint-disable-next-line no-restricted-globals -- Copy one selected message instead of the complete history for adapter lookups.
-    return message && structuredClone(message)
+    return this.value.messages.find((message) => message.id === id)
   }
 
   messageInputId(id: string): InputId | undefined {
@@ -50,7 +48,7 @@ export class ThreadFeed {
 
   publish(event: ObservationPayload): void {
     if (this.ended) return
-    const next = this.copy(event)
+    const next = immutable(event)
     switch (next.type) {
       case 'snapshot':
         this.value = next
@@ -93,6 +91,7 @@ export class ThreadFeed {
         }
         break
     }
+    this.value = immutable(this.value)
     for (const observer of this.observers) observer.send(next)
   }
 
@@ -102,7 +101,8 @@ export class ThreadFeed {
 
   /**
    * Capture cloneable adapter metadata synchronously on publication without mutating the supplied facts.
-   * The feed copies each captured value before asynchronous delivery can advance past it.
+   * Each captured value is frozen before asynchronous delivery can advance past it; published facts
+   * and unchanged messages are shared, not copied, so pending frames do not multiply history.
    */
   observeCaptured<T>(
     sink: (value: T) => void | Promise<void>,
@@ -117,8 +117,7 @@ export class ThreadFeed {
     let lost = false
     type Delivery = { value: T; through: number; shouldClose: boolean; recovery?: T }
     const captureFrame = (event: ObservationPayload, delivery: Parameters<typeof capture>[1]) =>
-      // oxlint-disable-next-line no-restricted-globals -- Isolate each asynchronous observer once; baseline/recovery intentionally include the full snapshot.
-      structuredClone(capture(event, delivery))
+      immutable(capture(event, delivery))
     let pending: Delivery[] = [{ value: captureFrame(this.value, 'baseline').value, through: sent, shouldClose: false }]
     const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
     const settle = () => {
@@ -184,6 +183,7 @@ export class ThreadFeed {
             lost = true
             const closed: ObservationPayload = { type: 'closed', reason: 'source-lost' }
             pending = [
+              ...(started ? [] : [pending[0]]),
               { value: captureFrame(gap, 'update').value, through: delivered, shouldClose: false },
               { value: captureFrame(closed, 'update').value, through: sent, shouldClose: true }
             ]

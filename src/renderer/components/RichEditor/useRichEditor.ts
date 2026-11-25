@@ -11,6 +11,7 @@ import { loggerService } from '@logger'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { notesMigrationLock } from '@renderer/services/notesMigrationLock'
+import { toFileUrl } from '@shared/utils/file'
 
 import { createRichEditorExtensions } from './createExtensions'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
@@ -499,7 +500,8 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         // Insert image into editor using local file path. In-flight pastes must
         // finish even if migration locked the editor before async work settled.
         if (editor && !editor.isDestroyed) {
-          const imageUrl = `file://${physicalPath}`
+          // The editor writes image destinations inside Markdown parentheses.
+          const imageUrl = toFileUrl(physicalPath).replaceAll('(', '%28').replaceAll(')', '%29')
           const alt = `${entry.name}${entry.ext ? `.${entry.ext}` : ''}`
           editor.chain().focus().setImage({ src: imageUrl, alt }).run()
           publishMarkdownFromEditor(editor)

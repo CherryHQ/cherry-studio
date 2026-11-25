@@ -1045,10 +1045,12 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'loveapi:claude-opus-5-5[1m]'
     })
     expect(request?.settings.env?.CLAUDE_CODE_SUBAGENT_MODEL).toBe('loveapi:claude-opus-5-5[1m]')
+    expect.soft(request?.settings.env?.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL).toBe('loveapi:claude-opus-5-5[1m]')
     expect(request?.options.env).toMatchObject({
       CLAUDE_CODE_SUBAGENT_MODEL: 'loveapi:claude-opus-5-5[1m]',
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api'
     })
+    expect.soft(request?.options.env?.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL).toBe('loveapi:claude-opus-5-5[1m]')
   })
 
   it('keeps the gateway route unsuffixed on the first-party Anthropic endpoint', async () => {
@@ -1176,7 +1178,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
         ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api',
         CLAUDE_CODE_SUBAGENT_MODEL: 'openai:gpt-main-api'
       })
+      expect.soft(env).toMatchObject({ CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: 'openai:gpt-main-api' })
       expect(env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL_FORCE')
+      expect(env).not.toHaveProperty('CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL_FORCE')
     }
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
   })
@@ -1221,6 +1225,77 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     }
   })
 
+  it.each([
+    [undefined, 'openai:gpt-main-api'],
+    ['', 'openai:gpt-main-api'],
+    [' \t ', 'openai:gpt-main-api'],
+    ['other:wf-api', 'other:wf-api'],
+    ['openrouter:anthropic/claude:beta', 'openrouter:anthropic/claude:beta'],
+    ['sonnet', 'sonnet'],
+    [' sonnet ', ' sonnet '],
+    ['claude-sonnet-4-6-code', 'claude-sonnet-4-6-code'],
+    ['inherit', 'inherit']
+  ])(
+    'resolves the gateway workflow sub-agent pin %j to %j, preserving explicit bare IDs and inherit',
+    async (pin, expected) => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'openai::gpt-main',
+        planModel: 'openai::gpt-plan',
+        smallModel: 'other::small'
+      })
+      mocks.getProviderByProviderId.mockImplementation((providerId: string) => ({
+        id: providerId,
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
+      }))
+      mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+        id: modelId,
+        apiModelId: `${modelId}-api`
+      }))
+      mocks.buildSessionSettings.mockResolvedValue({ env: { CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: pin } })
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+      for (const env of [request?.settings.env, request?.options.env]) {
+        expect.soft(env).toMatchObject({
+          ANTHROPIC_MODEL: 'openai:gpt-main-api',
+          ANTHROPIC_DEFAULT_OPUS_MODEL: 'openai:gpt-main-api',
+          ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api',
+          CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: expected,
+          CLAUDE_CODE_SUBAGENT_MODEL: 'openai:gpt-main-api'
+        })
+      }
+    }
+  )
+
+  it('defaults the gateway workflow sub-agent independently of an explicit Task pin', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'openai::gpt-main',
+      planModel: 'openai::gpt-plan',
+      smallModel: 'other::small'
+    })
+    mocks.getProviderByProviderId.mockImplementation((providerId: string) => ({
+      id: providerId,
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
+    }))
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.buildSessionSettings.mockResolvedValue({ env: { CLAUDE_CODE_SUBAGENT_MODEL: 'other:task-api' } })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    for (const env of [request?.settings.env, request?.options.env]) {
+      expect.soft(env).toMatchObject({
+        CLAUDE_CODE_SUBAGENT_MODEL: 'other:task-api',
+        CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: 'openai:gpt-main-api'
+      })
+    }
+  })
+
   it('preserves explicit timeout controls for local API gateway routes', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
     mocks.getProviderByProviderId.mockReturnValue({
@@ -1248,7 +1323,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
-  it('bypasses the materialized API gateway host without making the rebuild baseline stale', async () => {
+  it('bypasses the materialized API gateway host and removes IPv6 CIDR without making the rebuild baseline stale', async () => {
     const proxyUrl = 'http://remote-proxy.example:7890'
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
     mocks.getProviderByProviderId.mockReturnValue({
@@ -1257,8 +1332,13 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main' })
     mocks.internalGateway = { baseUrl: 'http://127.0.0.2:23333', apiKey: 'gateway-key' }
-    mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: proxyUrl })
-    mocks.buildSessionSettings.mockResolvedValue({ env: { HTTP_PROXY: proxyUrl } })
+    mocks.getProxyEnvironment.mockReturnValue({
+      HTTP_PROXY: proxyUrl,
+      NO_PROXY: 'fe80::/10,::ffff:127.0.0.0/104'
+    })
+    mocks.buildSessionSettings.mockResolvedValue({
+      env: { HTTP_PROXY: proxyUrl, NO_PROXY: 'fe80::/10,::ffff:127.0.0.0/104' }
+    })
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
     const current = await deriveConnectionConfig('session-1')
@@ -1266,8 +1346,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     if (!request || !current.ok) throw new Error('expected materialized request and current config')
     expect(request.settings.env).toMatchObject({
       ANTHROPIC_BASE_URL: 'http://127.0.0.2:23333',
-      NO_PROXY: 'localhost,127.0.0.1,::1,[::1],127.0.0.2',
-      no_proxy: 'localhost,127.0.0.1,::1,[::1],127.0.0.2'
+      NO_PROXY: 'localhost,127.0.0.1,::1,127.0.0.2',
+      no_proxy: 'localhost,127.0.0.1,::1,127.0.0.2'
     })
     expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
   })
@@ -1479,6 +1559,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     expect(request?.settings.env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL')
     expect(request?.options.env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL')
+    expect(request?.settings.env).not.toHaveProperty('CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL')
+    expect(request?.options.env).not.toHaveProperty('CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_CUSTOM_HEADERS')
@@ -1756,6 +1838,24 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['language'])
   })
 
+  it('rebuilds a warm connection when prompt overrides or the native prompt switch change', async () => {
+    const base = { id: 'agent-1', model: 'provider-1::model-1', disabledTools: [], mcps: [] }
+    mocks.getAgent.mockReturnValue(base)
+    const original = await deriveSignature()
+
+    const configuration = { prompt_overrides: { report_artifacts: 'Report in one sentence.' } }
+    mocks.getAgent.mockReturnValue({ ...base, configuration })
+    const overridden = await deriveSignature()
+    expect(overridden.rebuildSignature).not.toBe(original.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      ...base,
+      configuration: { ...configuration, claude_code_native_prompt_enabled: false }
+    })
+    const withoutNativePrompt = await deriveSignature()
+    expect(withoutNativePrompt.rebuildSignature).not.toBe(overridden.rebuildSignature)
+  })
+
   it('changes the rebuild signature when the global agent.language preference changes', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -1780,6 +1880,17 @@ describe('deriveConnectionConfig', () => {
         (name) => english.rebuildFactFingerprints[name] !== chinese.rebuildFactFingerprints[name]
       )
     ).toEqual(['language'])
+  })
+
+  it('picks up a lower task threshold on the next warm connection reconcile', async () => {
+    mocks.getSessionById.mockReturnValue({ ...sessionWithWorkspace, isTaskReuseTarget: true })
+    let percent = 80
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'chat.context_settings.compress.threshold_percent' ? percent : undefined
+    )
+    const initial = await deriveSignature()
+    percent = 60
+    expect((await deriveSignature()).rebuildSignature).not.toBe(initial.rebuildSignature)
   })
 
   it('changes only the prompt username rebuild fact when the user name changes', async () => {
@@ -1869,7 +1980,7 @@ describe('deriveConnectionConfig', () => {
 
     mocks.getProxyEnvironment.mockReturnValue({
       HTTP_PROXY: proxyUrl,
-      NO_PROXY: 'service.internal,localhost,127.0.0.1,::1,[::1]'
+      NO_PROXY: 'service.internal,localhost,127.0.0.1,::1'
     })
     const fromUppercase = await deriveSignature()
 
@@ -1921,7 +2032,7 @@ describe('deriveConnectionConfig', () => {
       configuration: {
         env_vars: {
           HTTP_PROXY: proxyUrl,
-          NO_PROXY: 'service.internal,localhost,127.0.0.1,::1,[::1]'
+          NO_PROXY: 'service.internal,localhost,127.0.0.1,::1'
         }
       }
     })

@@ -7,7 +7,9 @@ Concurrent handles share one execution source; release stops observation, while 
 in one captured batch. Native text/thinking updates synchronously capture the current
 block's full text before asynchronous processing; they do not copy unrelated blocks or
 the complete native partial. End events still apply authoritative text corrections, and
-completed tool arguments are captured separately. `backgroundResults` reads existing behavior records and notification inputs;
+completed tool arguments are captured separately. Other native events and context rebuilds are
+captured with `immutable()`, which copies their containers and shares strings such as image data;
+the frozen values then pass into observation without another copy. `backgroundResults` reads existing behavior records and notification inputs;
 its pending and notification IDs name the current triggering tool calls, including continuations.
 Results remain pending through report delivery and parent generation, including the gap before that
 generation starts. Lifecycle and ledger callbacks publish them through the same ordered projection.

@@ -1,3 +1,4 @@
+import { ParameterSupportSchema } from '../schemas/model'
 import { openaiCompatible } from './_api'
 import { defineCreator } from './types'
 
@@ -122,6 +123,10 @@ export default defineCreator({
   // web-search limitations); gpt-5.x sub-versions use the `none` tier and are fine.
   webSearchUnsupportedEfforts: [{ pattern: '^gpt-5(?![.-]\\d)(?!.*chat)', efforts: ['minimal'] }],
   models: [
+    {
+      id: 'gpt-5-6-luna',
+      parameterSupport: ParameterSupportSchema.parse({ topP: { supported: false } })
+    },
     {
       id: 'gpt-image-2-6-flare',
       name: 'GPT Image 2.6 Flare',

@@ -1,5 +1,3 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Unit tests for remotePollJobHandler.
  *
@@ -9,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * stage), abort during sleep, and the critical A1 invariant — apiKey is never
  * written to jobTable.metadata.
  */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { JobContext } from '@main/core/job/types'
 
 import type { FileProcessingJobPayload } from '../shared'

@@ -28,7 +28,7 @@ import type {
   MessageStatus,
   ModelSnapshot
 } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { FileUrlString } from '@shared/types/file'
 
@@ -276,6 +276,8 @@ export interface MessageRenderConfig {
   collapseCompletedToolHistory: boolean
   /** Open tool groups and the finished process by default, so each step reads without a click. */
   expandToolSteps: boolean
+  /** Open running (live) nested tool groups by default; Agent keeps them visible while the turn runs. */
+  expandLiveToolSteps: boolean
   keepIntermediateAssistantText: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
@@ -298,6 +300,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
   expandToolSteps: false,
+  expandLiveToolSteps: false,
   keepIntermediateAssistantText: false,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
@@ -338,6 +341,8 @@ export interface MessageListState {
   afterMessages?: ReactNode
   /** Optional adapter-owned content rendered after one message's body. */
   messageTail?: MessageTailSlot
+  /** Optional adapter-owned content rendered above the list group that opens with this message. */
+  messageHead?: MessageTailSlot
   /** Renders the live turn's processing status inline, replacing the default placeholder. Receives
    *  that placeholder as a fallback, so an override (e.g. an ephemeral agent api-retry line) can take
    *  over while active and fall back to the placeholder otherwise. Called only in the message that owns
@@ -382,6 +387,10 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 export interface MessageListActions {
   addGeneratedImageToComposer?: (image: { url: string; name: string }) => void | Promise<void>
   openForkSourceSession?: (sessionId: string) => Promise<void>
+  /** Sends again a user message (status `paused`) that the runtime withdrew before the agent received it. */
+  resendUnsentMessage?: (message: MessageListItem) => void
+  /** Moves such a withdrawn user message back into the composer. */
+  editUnsentMessage?: (message: MessageListItem) => void
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)
   bindMessageRuntime?: (messageId: string, runtime: MessageRuntime) => void | (() => void)
@@ -414,6 +423,8 @@ export interface MessageListActions {
   openExternalUrl?: (url: string) => void | Promise<void>
   navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void | Promise<void>
   openUserProfile?: () => void | Promise<void>
+  /** Opens or closes the profile of the conversation's current Assistant or Agent. */
+  toggleAuthorProfile?: () => void
   copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>
   copyRichContent?: (
     content: { plainText: string; html: string; customFormats?: Record<string, string> },
@@ -451,6 +462,8 @@ export interface MessageListActions {
     target: MessageExportTarget
   ) => void | Promise<void>
   deleteSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
+  /** Deletes every loaded, selectable message older than `messageId`, after confirmation. */
+  deleteMessagesBefore?: (messageId: string) => void | Promise<void>
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
   canEditMessage?: (message: MessageListItem) => boolean
@@ -477,6 +490,8 @@ export interface MessageListActions {
   deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>
   deleteMessageGroupWithConfirm?: (messageIds: readonly string[]) => void | Promise<void>
   regenerateMessage?: (messageId: string) => void | Promise<void>
+  /** Regenerate a specific reply with an explicit model (per-reply retry identity). */
+  regenerateMessageUsingModel?: (messageId: string, modelId: UniqueModelId) => void | Promise<void>
 }
 
 export interface MessageListMeta {

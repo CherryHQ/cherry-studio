@@ -1,7 +1,3 @@
-import { MockApplicationUtils } from '@test-mocks/main/application'
-import type { WebContents } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * `DirectoryTreeManager` state machine, exercised against a fake builder.
  *
@@ -12,6 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * and teardown are manager-level protocol, not filesystem behavior, so they are
  * covered here with no binary dependency and always execute.
  */
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import type { WebContents } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import type * as lifecycleModule from '@main/core/lifecycle'
 import type { ManagedWindow } from '@main/core/window/types'

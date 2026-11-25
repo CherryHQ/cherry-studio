@@ -198,7 +198,12 @@ export function useS3RestoreModal({
       toast.success(t('message.restore.success'))
       setIsRestoreModalVisible(false)
     } catch (error) {
-      toast.error(getLocalizedBackupErrorMessage(error, 'message.restore.failed'))
+      void popup.error({
+        title: t('message.restore.failed'),
+        content: getLocalizedBackupErrorMessage(error, 'message.restore.failed'),
+        centered: true,
+        maskClosable: false
+      })
     } finally {
       setRestoring(false)
     }
@@ -258,6 +263,7 @@ export function S3RestoreModal({
             disabled={loadingFiles}
             searchable
             filterOption={(option, search) => option.label.toLowerCase().includes(search.toLowerCase())}
+            emptyText={t('common.no_results')}
           />
           {loadingFiles && (
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
