@@ -66,6 +66,7 @@
 | Document | Description |
 |----------|-------------|
 | [API Gateway Reference](./references/api-gateway/README.md) | API gateway purpose, start and stop controls, automatic startup, and HTTP protocol reference |
+| [Generation Protocol Compatibility](./references/api-gateway/protocol-compatibility.md) | Supported generation protocol conversions, adapter-specific controls, unsupported requests, and verification limits |
 | [Remote Agent Access (Design)](./references/api-gateway/remote-agent-access.md) | JSON-RPC remote access architecture, device-level authorization, shared protocol package, and staged desktop/mobile implementation plan |
 | [Remote Connectivity Design](./references/api-gateway/remote-connectivity.md) | Identity-based remote connectivity design and first implementation boundaries for DNS-SD discovery, configured endpoints and serial reconnect |
 

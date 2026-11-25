@@ -429,3 +429,14 @@ describe('GeminiMessageConverter.extractProviderOptions', () => {
     expect(options).toEqual({ google: { thinkingConfig: { thinkingBudget: -1 } } })
   })
 })
+
+it('rejects multiple Gemini candidates instead of returning only the first', () => {
+  expect(() => converter.extractStreamOptions(request({ generationConfig: { candidateCount: 2 } }))).toThrow(
+    /Multiple Gemini candidates/
+  )
+})
+
+it('rejects native Gemini built-ins instead of silently omitting the requested tool', () => {
+  const builtIn = { googleSearch: {}, functionDeclarations: [] }
+  expect(() => converter.extractStreamOptions(request({ tools: [builtIn] }))).toThrow(/Gemini built-in tools/)
+})

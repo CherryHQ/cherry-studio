@@ -26,6 +26,7 @@ import { loggerService } from '@logger'
 
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
 import { BaseStreamAdapter } from './BaseStreamAdapter'
+import { readNativeLogprobs } from './nativeMetadata'
 
 const logger = loggerService.withContext('AiSdkToOpenAiSse')
 
@@ -104,6 +105,7 @@ interface ToolCallState {
  */
 export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   private reasoningDetails?: JSONValue[]
+  private logprobs?: NonNullable<ChatCompletion['choices'][number]['logprobs']>['content']
   private createdTimestamp: number
   private toolCalls: Map<string, ToolCallState> = new Map()
   private currentToolCallIndex = 0
@@ -205,6 +207,15 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
+    const native = metadata.providerMetadata?.openai ?? metadata.providerMetadata?.azure
+    const logprobs = readNativeLogprobs(native?.logprobs)
+    if (logprobs !== undefined) {
+      this.logprobs = logprobs.map((entry) => ({
+        ...entry,
+        bytes: entry.bytes ?? null,
+        top_logprobs: entry.top_logprobs.map((top) => ({ ...top, bytes: top.bytes ?? null }))
+      }))
+    }
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
     if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
       this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
@@ -357,7 +368,8 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
         {
           index: 0,
           delta: this.reasoningDetails !== undefined ? { reasoning_details: this.reasoningDetails } : {},
-          finish_reason: this.finishReason || 'stop'
+          finish_reason: this.finishReason || 'stop',
+          ...(this.logprobs !== undefined && { logprobs: { content: this.logprobs, refusal: null } })
         }
       ],
       usage: this.buildUsage()
@@ -415,7 +427,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
           index: 0,
           message,
           finish_reason: this.finishReason || 'stop',
-          logprobs: null
+          logprobs: this.logprobs !== undefined ? { content: this.logprobs, refusal: null } : null
         }
       ],
       usage: this.buildUsage()

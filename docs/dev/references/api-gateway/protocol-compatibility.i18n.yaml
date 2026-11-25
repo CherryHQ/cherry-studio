@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write docs/dev/references/api-gateway/protocol-compatibility.md
+protocol-compatibility.md: 036c26860b9c9b5cc0da4c8dfef60378240c6541
+protocol-compatibility.zh.md: 0d2c3e3a395faa7196427d35575c275edaf395bd

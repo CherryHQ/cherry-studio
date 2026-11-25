@@ -5,6 +5,7 @@
  * Uses types from @cherrystudio/openai SDK.
  */
 
+import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { jsonSchema, tool } from 'ai'
@@ -18,6 +19,13 @@ import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
+import {
+  mergeGatewayProviderOptions,
+  nativeOpenAiOptions,
+  openAiOutput,
+  openAiToolChoice,
+  parallelToolOptions
+} from './openAiRequestOptions'
 import type { ReasoningEffort } from './providerOptionsMapper'
 import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
 import { isBlankToolName } from './toolName'
@@ -40,6 +48,20 @@ interface FunctionOutputConversion {
   relocatedParts: Array<TextUIPart | FileUIPart>
 }
 
+function inputFilePart(
+  item: OpenAI.Responses.ResponseInputFile | OpenAI.Responses.ResponseInputFileContent
+): FileUIPart {
+  if (item.file_id || !(item.file_data || item.file_url)) {
+    throw new UnsupportedFunctionalityError({
+      functionality: 'Provider-bound Responses file_id; supply file_data or file_url'
+    })
+  }
+  const dataUrlType = item.file_data ? parseDataUrl(item.file_data)?.mediaType : undefined
+  const mediaType = dataUrlType ?? mime.getType(item.filename ?? item.file_url ?? '') ?? 'application/octet-stream'
+  const url = item.file_url ?? (dataUrlType ? item.file_data! : `data:${mediaType};base64,${item.file_data}`)
+  return { type: 'file', mediaType, url, ...(item.filename ? { filename: item.filename } : {}) }
+}
+
 function functionOutputAttachmentAnchor(callId: string, kind: string, index: number): string {
   return `[tool-result attachment call_id=${JSON.stringify(callId)} ${kind}=${index}]`
 }
@@ -52,8 +74,8 @@ function functionOutputAttachmentAnchor(callId: string, kind: string, index: num
  * no media tool content downstream — inlining base64 blows up the prompt
  * (#17078). Instead each media item becomes a `file` part relocated into a user
  * message right after the tool call, and the output keeps a placeholder
- * pointing at it. Only provider-bound `file_id`-only items (not resolvable
- * cross-vendor) are downgraded to a placeholder alone.
+ * pointing at it. Provider-bound file IDs fail because they cannot be resolved
+ * against an unrelated provider account.
  */
 function functionOutputToConversion(callId: string, output: FunctionCallOutput['output']): FunctionOutputConversion {
   if (typeof output === 'string') return { output, relocatedParts: [] }
@@ -72,14 +94,10 @@ function functionOutputToConversion(callId: string, output: FunctionCallOutput['
     } else if (item.type === 'input_image' && item.image_url) {
       const mediaType = parseDataUrl(item.image_url)?.mediaType ?? 'image/*'
       attach('image', { type: 'file', mediaType, url: item.image_url })
-    } else if (item.type === 'input_file' && (item.file_data || item.file_url)) {
-      const dataUrlType = item.file_data ? parseDataUrl(item.file_data)?.mediaType : undefined
-      const mediaType = dataUrlType ?? mime.getType(item.filename ?? item.file_url ?? '') ?? 'application/octet-stream'
-      const url = item.file_url ?? (dataUrlType ? item.file_data! : `data:${mediaType};base64,${item.file_data}`)
-      attach('file', { type: 'file', mediaType, url, ...(item.filename ? { filename: item.filename } : {}) })
+    } else if (item.type === 'input_file') {
+      attach('file', inputFilePart(item))
     } else {
-      // file_id-only items reference provider-hosted files we can't resolve.
-      lines.push(`[unsupported ${item.type} tool output item omitted]`)
+      throw new UnsupportedFunctionalityError({ functionality: `Responses tool output: ${item.type}` })
     }
   }
   return { output: lines.join('\n'), relocatedParts }
@@ -99,6 +117,7 @@ function reasoningItemText(item: OpenAI.Responses.ResponseReasoningItem): string
  */
 export type ResponsesCreateParams = ResponseCreateParams & {
   reasoning_effort?: ReasoningEffort
+  top_logprobs?: number
 }
 
 /**
@@ -193,7 +212,9 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
         if (relocatedParts?.length) {
           messages.push({ id: nextUIMessageId(), role: 'user', parts: [...relocatedParts] })
         }
+        continue
       }
+      throw new UnsupportedFunctionalityError({ functionality: 'Responses non-function input item' })
     }
 
     return messages
@@ -243,11 +264,21 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
         parts.push(p)
       } else if (part.type === 'input_image') {
         const img = part
-        if (img.image_url) {
-          const mediaType = parseDataUrl(img.image_url)?.mediaType ?? 'image/*'
-          const p: FileUIPart = { type: 'file', mediaType, url: img.image_url }
-          parts.push(p)
+        if (img.file_id || !img.image_url) {
+          throw new UnsupportedFunctionalityError({
+            functionality: 'Provider-bound Responses image file_id; supply image_url'
+          })
         }
+        const mediaType = parseDataUrl(img.image_url)?.mediaType ?? 'image/*'
+        const p: FileUIPart = {
+          type: 'file',
+          mediaType,
+          url: img.image_url,
+          providerMetadata: { openai: { imageDetail: img.detail } }
+        }
+        parts.push(p)
+      } else if (part.type === 'input_file') {
+        parts.push(inputFilePart(part))
       }
     }
 
@@ -283,7 +314,9 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     const droppedTools: Array<{ index: number; path: string; name: string; description?: string | null }> = []
 
     for (const [index, toolDef] of tools.entries()) {
-      if (toolDef.type !== 'function') continue
+      if (toolDef.type !== 'function') {
+        throw new UnsupportedFunctionalityError({ functionality: `Responses built-in tool: ${toolDef.type}` })
+      }
       if (isBlankToolName(toolDef.name)) {
         droppedTools.push({
           index,
@@ -322,10 +355,23 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
    * Extract stream/generation options from Responses API params
    */
   extractStreamOptions(params: ResponsesCreateParams): StreamTextOptions {
+    if (params.previous_response_id || params.conversation || params.background || params.store === true) {
+      throw new UnsupportedFunctionalityError({
+        functionality: 'Stateful, stored or background Responses; replay full history with store:false'
+      })
+    }
+    const unsupportedInclude = params.include?.filter(
+      (item) => !['reasoning.encrypted_content', 'message.output_text.logprobs'].includes(item)
+    )
+    if (unsupportedInclude?.length) {
+      throw new UnsupportedFunctionalityError({ functionality: `Responses include: ${unsupportedInclude.join(', ')}` })
+    }
     return {
       maxOutputTokens: params.max_output_tokens ?? undefined,
       temperature: params.temperature ?? undefined,
-      topP: params.top_p ?? undefined
+      topP: params.top_p ?? undefined,
+      toolChoice: openAiToolChoice(params.tool_choice),
+      output: openAiOutput(params.text?.format)
     }
   }
 
@@ -339,8 +385,27 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     maxOutputTokens?: number,
     overrideReasoning = false
   ): ProviderOptions | undefined {
-    if (overrideReasoning) return undefined
-    return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
+    const reasoning = overrideReasoning
+      ? undefined
+      : mapReasoningEffortToProviderOptions(
+          provider,
+          model,
+          params.reasoning?.effort ?? params.reasoning_effort,
+          maxOutputTokens
+        )
+    const parallel = parallelToolOptions(provider, model, params.parallel_tool_calls)
+    const wantsLogprobs = params.include?.includes('message.output_text.logprobs')
+    const native = nativeOpenAiOptions(provider, model, {
+      ...(params.service_tier != null && { serviceTier: params.service_tier }),
+      ...(params.reasoning?.summary != null && { reasoningSummary: params.reasoning.summary }),
+      ...(params.text?.verbosity != null && { textVerbosity: params.text.verbosity }),
+      ...(params.truncation != null && { truncation: params.truncation }),
+      ...(params.include?.length && { include: params.include }),
+      ...(wantsLogprobs || params.top_logprobs ? { logprobs: params.top_logprobs || true } : {}),
+      ...(params.text?.format?.type === 'json_schema' &&
+        params.text.format.strict != null && { strictJsonSchema: params.text.format.strict })
+    })
+    return mergeGatewayProviderOptions(reasoning, parallel, native)
   }
 }
 
