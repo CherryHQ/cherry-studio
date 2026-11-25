@@ -35,14 +35,14 @@ import {
 } from '@renderer/hooks/command'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { getCommandShortcutLabel } from '@renderer/utils/command'
+import { getEventTargetNode } from '@renderer/utils/dom'
 import { isMac, platform } from '@renderer/utils/platform'
 import type {
   MenuLocation,
   MenuPresentationMode,
   NativePopupMenuItem,
   NativePopupMenuModel,
-  ResolvedMenuItem,
-  SupportedPlatform
+  ResolvedMenuItem
 } from '@shared/types/command'
 import { type CommandId, findKeybindingRule, resolveMenuPresentationMode } from '@shared/utils/command'
 
@@ -126,6 +126,13 @@ export type CommandContextMenuExtraItem =
 type CommandContextMenuItem = ResolvedMenuItem<CommandId> | CommandContextMenuExtraItem
 
 type ExtraRenderableMenuItem = Extract<CommandContextMenuExtraItem, { type: 'item' | 'submenu' }>
+
+function isExtraItemsPromise(
+  value: MaybePromise<readonly CommandContextMenuExtraItem[]>
+): value is PromiseLike<readonly CommandContextMenuExtraItem[]> {
+  // oxlint-disable-next-line anti-slop/no-reflect-get -- Promise resolution reads then directly; a has check would reject get-only Proxy thenables.
+  return value instanceof Promise || typeof Reflect.get(value, 'then') === 'function'
+}
 
 type CommandContextMenuExtraItemsResolver = (
   event: React.MouseEvent
@@ -413,7 +420,7 @@ export function CommandContextMenu({
       return getCommandShortcutLabel(command, preference, {
         context,
         isMac,
-        platform: platform as SupportedPlatform
+        platform
       })
     },
     [context, shortcutPreferences]
@@ -494,8 +501,8 @@ export function CommandContextMenu({
 
       // Apply sync results immediately so the menu opens with items in the same tick
       // (otherwise tests that fire contextMenu + assert synchronously would miss them).
-      if (!(resolved instanceof Promise) && typeof (resolved as PromiseLike<unknown>)?.then !== 'function') {
-        setResolvedExtraItems(resolved as readonly CommandContextMenuExtraItem[])
+      if (!isExtraItemsPromise(resolved)) {
+        setResolvedExtraItems(resolved)
 
         return
       }
@@ -583,7 +590,7 @@ export function CommandContextMenu({
             return
           }
 
-          return window.api.command.showNativePopupMenu(nativeModel as never, anchor).then((result) => {
+          return window.api.command.showNativePopupMenu(nativeModel, anchor).then((result) => {
             if (extraItemsRequestIdRef.current !== requestId || !request.isCurrent()) {
               return
             }
@@ -637,8 +644,9 @@ export function CommandContextMenu({
             // 菜单卸载时 Radix 会把焦点还原到打开前的元素（右键聚焦的行），
             // 打掉刚挂载的 rename 输入框。仅当关闭瞬间焦点已被菜单外元素持有时拦截。
             const active = document.activeElement
+            const target = getEventTargetNode(e.target)
 
-            if (active && active !== document.body && !(e.target as HTMLElement).contains(active)) {
+            if (active && active !== document.body && target && !target.contains(active)) {
               e.preventDefault()
             }
           }}>
@@ -841,7 +849,7 @@ export function CommandPopupMenu({
       return getCommandShortcutLabel(command, preference, {
         context,
         isMac,
-        platform: platform as SupportedPlatform
+        platform
       })
     },
     [context, shortcutPreferences]
@@ -877,7 +885,7 @@ export function CommandPopupMenu({
   const handleNativeClick = useCallback(
     async (event: React.MouseEvent) => {
       if (mode !== 'native') return
-      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+      const rect = event.currentTarget.getBoundingClientRect()
       const anchor = { x: Math.round(rect.left), y: Math.round(rect.bottom) }
       const nativeItems = combinedItems.map(toNativePopupMenuItem)
 
@@ -965,12 +973,12 @@ export function CommandPopupMenu({
     // asChild clone preserves the trigger's own onClick (e.g. stopPropagation) while
     // attaching the native-popup handler on the same element — wrapping in a parent
     // span would be blocked by the child's stopPropagation.
-    if (React.isValidElement(children)) {
-      const childProps = (children.props ?? {}) as { onClick?: (event: React.MouseEvent) => void }
+    if (React.isValidElement<{ onClick?: unknown }>(children)) {
+      const childOnClick = children.props.onClick
 
-      return React.cloneElement(children as React.ReactElement<{ onClick?: (event: React.MouseEvent) => void }>, {
+      return React.cloneElement(children, {
         onClick: (event: React.MouseEvent) => {
-          childProps.onClick?.(event)
+          if (typeof childOnClick === 'function') childOnClick(event)
 
           if (!event.defaultPrevented) {
             void handleNativeClick(event)

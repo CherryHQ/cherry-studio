@@ -865,6 +865,28 @@ describe('CommandContextMenu', () => {
     expect(screen.getByTestId('menu-content')).toBeInTheDocument()
   })
 
+  it('resolves cherry items from a thenable whose proxy does not report then as present', async () => {
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+    const items: readonly CommandContextMenuExtraItem[] = [
+      { type: 'item', id: 'tool:proxy', label: 'Proxy Tool', onSelect: vi.fn() }
+    ]
+    const promise = Promise.resolve(items)
+    const thenable = new Proxy<PromiseLike<readonly CommandContextMenuExtraItem[]>>(
+      { then: promise.then.bind(promise) },
+      { has: () => false }
+    )
+
+    renderMenu({
+      location: 'chat.message.context',
+      pendingExtraItems: [{ type: 'item', id: 'tool:pending', label: 'Loading Tool', onSelect: vi.fn() }],
+      getExtraItems: () => thenable
+    })
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger' }))
+
+    expect(screen.getByText('Loading Tool')).toBeInTheDocument()
+    expect(await screen.findByText('Proxy Tool')).toBeInTheDocument()
+  })
+
   it('renders async extra items in cherry mode', async () => {
     const onSelect = vi.fn()
     preferenceValues['menu.presentation_mode'] = 'cherry'

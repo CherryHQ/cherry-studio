@@ -98,6 +98,16 @@ describe('getCommandShortcutLabel', () => {
     ).toBeUndefined()
   })
 
+  it('keeps unsupported operating systems excluded from restricted commands', () => {
+    expect(
+      getCommandShortcutLabel('selection.toggle', undefined, {
+        context: { 'feature.selection.enabled': true },
+        isMac: false,
+        platform: 'freebsd'
+      })
+    ).toBe('')
+  })
+
   it('returns empty label when unavailable', () => {
     expect(getCommandShortcutLabel('topic.create', { binding: [], enabled: true }, { context: {}, isMac: true })).toBe(
       ''

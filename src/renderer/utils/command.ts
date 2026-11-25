@@ -24,7 +24,7 @@ export const resolveCommandPlatform = (platform: string | undefined): SupportedP
 export const resolveCommandPresentationKeybinding = (
   command: CommandId,
   preference: PreferenceShortcutType | null | undefined,
-  options: { context: ContextReader; platform?: SupportedPlatform }
+  options: { context: ContextReader; platform?: string }
 ): ResolvedCommandKeybinding | undefined => {
   const definition = findCommandDefinition(command)
   const rule = findKeybindingRule(command)
@@ -37,7 +37,7 @@ export const resolveCommandPresentationKeybinding = (
     return undefined
   }
 
-  const shortcut = resolveCommandShortcutPreference(command, preference, options.platform)
+  const shortcut = resolveCommandShortcutPreference(command, preference, resolveCommandPlatform(options.platform))
 
   if (!shortcut) return undefined
 
@@ -55,7 +55,7 @@ export const getCommandShortcutLabel = (
   options: {
     context: ContextReader
     isMac: boolean
-    platform?: SupportedPlatform
+    platform?: string
   }
 ): string => {
   const resolved = resolveCommandPresentationKeybinding(command, preference, options)
