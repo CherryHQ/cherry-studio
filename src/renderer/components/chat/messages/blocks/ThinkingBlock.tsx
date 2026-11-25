@@ -15,8 +15,8 @@ import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
 
 const THINKING_PREVIEW_MIN_DURATION_MS = 1000
-const THINKING_CONTENT_PANEL_CLASSNAME =
-  'mt-1.5 max-h-[min(32rem,60dvh)] overflow-auto rounded-xl bg-muted text-[13px] leading-5 text-muted-foreground'
+const THINKING_CONTENT_PANEL_BASE_CLASSNAME = 'mt-1.5 rounded-xl bg-muted text-[13px] leading-5 text-muted-foreground'
+const THINKING_CONTENT_PANEL_CAPPED_CLASSNAME = `${THINKING_CONTENT_PANEL_BASE_CLASSNAME} max-h-[min(32rem,60dvh)] overflow-auto`
 
 function getThinkingPreviewKey(preview: string): string {
   return preview
@@ -191,7 +191,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
         hidden={!isExpanded}
         type="auto"
         contentProps={{ className: 'px-4 py-3' }}
-        className={THINKING_CONTENT_PANEL_CLASSNAME}>
+        className={isStreaming ? THINKING_CONTENT_PANEL_CAPPED_CLASSNAME : THINKING_CONTENT_PANEL_BASE_CLASSNAME}>
         <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
       </ScrollArea>
     </div>

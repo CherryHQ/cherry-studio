@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { deniedReason } from '../../../src/core/approval/approval'
 import type { Step } from '../../../src/core/decisions'
 import { admitRound, decideAtIdle, decideRoundWithdrawn, type IdleDecision } from '../../../src/core/driver/idle'
 import type { HistoryEntry, LiveFacts, RoundDetails } from '../../../src/core/facts'
@@ -106,27 +107,20 @@ describe('decideAtIdle: the goal (fixtures 4–6, 8)', () => {
     expect(idle(four, ended()).result).toEqual({ kind: 'stop-goal', code: 'no_progress' })
   })
 
-  // Catches a gate that blocks repeats but never stops the goal (R4), and a denial that stops it from a human turn or
-  // from another conversation's call with the same key (D9).
+  // Catches a gate that blocks repeats but never stops the goal (R4), and a denial that stops it from a human turn (D9).
   it('stops after the fifth identical call and on a denial in a goal round only', () => {
     const same = callTo('read', { p: 1 })
     const repeats = [goalEntry(goal()), ...round(1, assistant('x', { calls: [same, same, same, same, same] }))]
     expect(idle(repeats, ended()).result).toEqual({ kind: 'stop-goal', code: 'no_progress' })
     const risky = callTo('bash', {}, 'k9')
-    const denied = (thread: string) => ({
-      approvals: [{ call: { thread: thread as never, key: risky.callKey }, state: 'denied' as const }]
-    })
-    const inRound = [
-      goalEntry(goal()),
-      ...round(1, assistant('x', { calls: [risky] }), result('bash', { callId: 'k9' }))
-    ]
-    expect(idle(inRound, ended(), denied('parent'))).toMatchObject({
+    const denied = result('bash', { callId: 'k9', isError: true, blocked: deniedReason() })
+    const inRound = [goalEntry(goal()), ...round(1, assistant('x', { calls: [risky] }), denied)]
+    expect(idle(inRound, ended())).toMatchObject({
       result: { kind: 'stop-goal', code: 'approval_denied' },
       ops: [{ record: { value: { lastStop: { message: 'tool call k9 was denied' } } } }]
     })
-    expect(idle(inRound, ended(), denied('child')).result).toMatchObject({ kind: 'start-round' })
-    const human = [goalEntry(goal()), user(), assistant('x', { calls: [risky] })]
-    expect(idle(human, ended(), denied('parent')).result).toMatchObject({ kind: 'start-round' })
+    const human = [goalEntry(goal()), user(), assistant('x', { calls: [risky] }), denied]
+    expect(idle(human, ended()).result).toMatchObject({ kind: 'start-round' })
   })
 
   // Catches a resumed goal reusing the round key of the round the reopen withdrew (armSeq, fixture 8).

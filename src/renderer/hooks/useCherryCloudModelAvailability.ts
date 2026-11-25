@@ -3,8 +3,12 @@ import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
 import { ipcApi } from '@renderer/ipc'
-import { isManagedCherryAiProviderId, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  isManagedCherryAiProviderId,
+  isManagedCherryCloudModel
+} from '@shared/data/presets/cherryai'
+import { createUniqueModelId, type Model } from '@shared/data/types/model'
 
 import { useCherryCloudReceipt } from './useCherryCloudReceipt'
 
@@ -44,6 +48,12 @@ export function useCherryCloudModelAvailability(enabled = true) {
     const agentModelIds = new Set(cloudAvailability?.availableModelIds.agent)
     const generalModelIds = new Set(cloudAvailability?.availableModelIds.general)
     const settled = availabilityFreshness === 'fresh'
+    const amdActivationRequiredModels = cloudAvailability?.amdActivationRequiredModels ?? []
+    const signInRequiredModels = cloudAvailability?.signInRequiredModels ?? []
+    const catalogModelIds = cloudAvailability?.catalogModelIds ? new Set(cloudAvailability.catalogModelIds) : null
+    const amdActivationRequiredIds = new Set(
+      amdActivationRequiredModels.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id))
+    )
 
     return {
       /** False until a server snapshot arrives, including after a status reset. */
@@ -52,6 +62,15 @@ export function useCherryCloudModelAvailability(enabled = true) {
       availabilityFreshness,
       scopeId,
       revision: receipt?.status.revision,
+      /** AMD models the account must authorize with AMD before use; offered as locked rows, not stored models. */
+      amdActivationRequiredModels,
+      /** Standalone models a signed-out user can unlock by signing in. */
+      signInRequiredModels,
+      isAmdActivationRequired: (model: Pick<Model, 'id' | 'providerId'>) =>
+        settled && amdActivationRequiredIds.has(model.id),
+      /** A Cloud model the server no longer lists at all, so no sign-in or plan can bring it back. */
+      isModelDelisted: (model: Pick<Model, 'id' | 'providerId'>) =>
+        settled && isManagedCherryCloudModel(model.providerId) && !!catalogModelIds && !catalogModelIds.has(model.id),
       /** Hidden until the first snapshot arrives, then hidden wherever the server does not enable it. */
       isModelHidden: (model: Pick<Model, 'id' | 'providerId'>, includeAgentOnlyModels: boolean) =>
         isManagedCherryCloudModel(model.providerId) &&

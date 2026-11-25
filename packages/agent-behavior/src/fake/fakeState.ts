@@ -165,7 +165,9 @@ export function unansweredCalls(entries: readonly StoredEntry[], at: number): re
   )
   return reply.toolCalls.filter((call) => !answered.has(call.callId))
 }
-export const resultEntry = (id: ItemId, call: ToolCallFact, result: ToolResultFact): HistoryEntry => ({
+/** A result as the fake stores it: what the tool returned, or the gate's block with its reason. */
+export type FakeResult = ToolResultFact & { readonly blocked?: string }
+export const resultEntry = (id: ItemId, call: ToolCallFact, result: FakeResult): HistoryEntry => ({
   kind: 'tool-result',
   id,
   callId: call.callId,
