@@ -211,7 +211,7 @@ Cross-platform implementation requirements (proposals, not tested platform guara
 ### Verification plan
 
 **This document-only proposal:** acceptance is scoped pairing generation/check plus `npm_config_verify_deps_before_run=false pnpm docs:check` green and maintainer review of evidence, scope, and policy choices. No product tests, dependency rebuild, or runtime changes are authorized.
-Under the [Agent Note rules](../../README.md), this triplet belongs in `proposed/architecture/` until implementation is complete; implementation requires Approval on the current Spec head.
+Under the [Agent Note rules](../../README.md), this triplet belongs in `proposed/architecture/` until implementation is complete; implementation may begin once this Spec PR exists, without a separate Approval gate.
 Reference frontmatter, structure, and index discovery apply to `docs/dev/references/`, not this proposal (`scripts/docsGovernance/verify-doc-frontmatter.ts:55-58`, `scripts/docsGovernance/verify-doc-structure.ts:62-63`, `scripts/docsGovernance/gen-doc-index.ts:59-60,82-92`).
 Link checking recursively scans `docs/` and `.agents/` (`scripts/docsGovernance/check-doc-links.ts:86-92`). Do not run `docs:index` or edit generated `docs/dev/README.md` / `docs/dev/sources-index.json` for this note.
 

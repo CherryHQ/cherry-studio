@@ -149,7 +149,7 @@ P0 不停止轮次，也不删除数据。发布门槛是可信且成本有界�
 
 ### Verification plan
 
-**本次仅文档提案：**验收要求限定范围的配对生成 / 检查及 `npm_config_verify_deps_before_run=false pnpm docs:check` 通过，并由维护者评审证据、范围和策略选择。未授权产品测试、依赖重建或运行时变更。根据 [Agent Note 规则](../../README.md)，此三件套在实现完成前应位于 `proposed/architecture/`；开始实现需要当前 Spec 头提交获得 Approval。参考文档的前置元数据、结构和索引发现适用于 `docs/dev/references/`，不适用于此提案（`scripts/docsGovernance/verify-doc-frontmatter.ts:55-58`、`scripts/docsGovernance/verify-doc-structure.ts:62-63`、`scripts/docsGovernance/gen-doc-index.ts:59-60,82-92`）。链接检查递归扫描 `docs/` 和 `.agents/`（`scripts/docsGovernance/check-doc-links.ts:86-92`）。不要为此说明运行 `docs:index` 或编辑生成的 `docs/dev/README.md` / `docs/dev/sources-index.json`。
+**本次仅文档提案：**验收要求限定范围的配对生成 / 检查及 `npm_config_verify_deps_before_run=false pnpm docs:check` 通过，并由维护者评审证据、范围和策略选择。未授权产品测试、依赖重建或运行时变更。根据 [Agent Note 规则](../../README.md)，此三件套在实现完成前应位于 `proposed/architecture/`；Spec PR 创建后即可开始实现，无需单独 Approval。参考文档的前置元数据、结构和索引发现适用于 `docs/dev/references/`，不适用于此提案（`scripts/docsGovernance/verify-doc-frontmatter.ts:55-58`、`scripts/docsGovernance/verify-doc-structure.ts:62-63`、`scripts/docsGovernance/gen-doc-index.ts:59-60,82-92`）。链接检查递归扫描 `docs/` 和 `.agents/`（`scripts/docsGovernance/check-doc-links.ts:86-92`）。不要为此说明运行 `docs:index` 或编辑生成的 `docs/dev/README.md` / `docs/dev/sources-index.json`。
 
 后续实现应使用带明确文件路径的命令。Vitest 主进程项目名为 `main`，包含 `src/main` 测试（`vitest.config.ts:37-57`）。现有入口包括下列存储监控、工作区存储、生命周期、运行时宿主和孤立数据清理测试（均存在；锚点为文件首行）。
 
