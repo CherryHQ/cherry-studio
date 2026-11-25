@@ -603,6 +603,25 @@ describe('writeCliConfigDraft', () => {
         expect(writes).toEqual([])
       })
 
+      it('resolves delimiter-containing raw role IDs within the selected provider before writing', async () => {
+        mockGet({
+          ...boundProviders,
+          '/models/anthropic::claude-main': () => ({ id: 'anthropic::claude-main', name: 'Main', apiKeyId: null }),
+          '/models/anthropic::vendor::haiku': () => ({ id: 'anthropic::vendor::haiku', name: 'Haiku', apiKeyId: 'k2' }),
+          '/models/': () => null
+        })
+        await expect(
+          writeCliConfigDraft({
+            cliTool: CodeCli.CLAUDE_CODE,
+            modelId: 'anthropic::claude-main',
+            configBlob: detailedBlob('vendor::haiku'),
+            writePrimaryModel: false
+          })
+        ).rejects.toThrow('single credential')
+        expect(dataApiService.get).toHaveBeenCalledWith('/models/anthropic::vendor::haiku')
+        expect(writes).toEqual([])
+      })
+
       it('rejects when the context model is bound but a role model is not', async () => {
         mockGet({
           ...boundProviders,

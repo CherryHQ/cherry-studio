@@ -155,7 +155,8 @@ async function assertClaudeRoleKeyBindings(
   for (const role of CLAUDE_MODEL_ROLES) {
     const value = stripClaudeOneMMarker(stringValue(env[role.model]) ?? '').trim()
     if (!value) continue
-    const roleUniqueId = isUniqueModelId(value) ? value : `${context.provider.id}::${value}`
+    // Direct Claude selectors store provider-facing raw IDs, even when they contain ::.
+    const roleUniqueId = `${context.provider.id}::${value}`
     // Genuine absence (unknown alias) carries no verifiable binding; treat it like an absent
     // one. A real read failure is not absence: propagate it so the write aborts instead of
     // silently writing a credential whose role bindings could not be verified.
