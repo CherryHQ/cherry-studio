@@ -31,12 +31,11 @@ const CATALOG_FIELDS = ['id', 'serverId', 'serverName', 'type'] as const
 
 /** Drops Cherry's catalog bookkeeping before a tool/prompt/resource goes on the wire. */
 export function stripCatalogFields<T extends object>(entry: T): Omit<T, (typeof CATALOG_FIELDS)[number]> {
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening -- Removing catalog bookkeeping does not validate extension/schema values; preserve the remaining native fields, including symbol keys.
-  const result: Record<string, unknown> = { ...(entry as Record<string, unknown>) }
+  const result = { ...entry }
 
-  for (const field of CATALOG_FIELDS) delete result[field]
+  for (const field of CATALOG_FIELDS) Reflect.deleteProperty(result, field)
 
-  return result as Omit<T, (typeof CATALOG_FIELDS)[number]>
+  return result
 }
 
 function toSdkTool(tool: McpTool): Tool {

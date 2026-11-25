@@ -30,7 +30,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { type CherryDocumentContext, registerDocumentTools } from '@main/ai/mcp/servers/cherryDocumentTools'
 import { modelOutputToMcpResult } from '@main/ai/mcp/toolResult'
-import { buildGenerateImageToolSchema, type GenerateImageToolInput } from '@main/ai/tools/generateImageTool'
+import { buildGenerateImageToolSchema } from '@main/ai/tools/generateImageTool'
 import {
   GENERATE_IMAGE_DESCRIPTION,
   generateImageFromPrompt,
@@ -114,7 +114,7 @@ function registerBuiltinTools(server: McpServer): void {
     { description: GENERATE_IMAGE_DESCRIPTION, inputSchema: buildGenerateImageToolSchema(configuredModel?.support) },
     async (input, ctx) => {
       const signal = ctx.mcpReq.signal
-      const result = await generateImageFromPrompt(input as GenerateImageToolInput, signal, configuredModel)
+      const result = await generateImageFromPrompt(input, signal, configuredModel)
       const text = paintingModelOutput(result).value
       // On failure `result` is the model-facing note — text only, no image to attach.
       const images = isPaintingError(result) ? [] : await readGeneratedImages(result, signal)

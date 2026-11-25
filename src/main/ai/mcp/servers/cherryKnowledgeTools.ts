@@ -85,10 +85,9 @@ type KnowledgeScope =
 function resolveKnowledgeScope({ allKnowledgeBases, baseIds: boundBaseIds }: KnowledgeAccess): KnowledgeScope {
   if (allKnowledgeBases) return { kind: 'unrestricted' }
 
-  // The tuple cast is sound only right here, guarded by the length check: everything downstream
-  // then sees a provably non-empty `baseIds`, so no path can hand the core an empty allow-list.
   if (boundBaseIds.length === 0) return { kind: 'none' }
 
+  // SAFETY: The length check proves this readonly list is nonempty; it does not validate ID format, existence or authorization.
   return { kind: 'restricted', baseIds: boundBaseIds as readonly [string, ...string[]] }
 }
 

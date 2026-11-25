@@ -120,6 +120,7 @@ const descriptions: Record<keyof typeof interactionSchemas, string> = {
 
 const interactionToolDefinitions = Object.entries(interactionSchemas).map(([name, schema]) => ({
   name,
+  // SAFETY: Entries come from the local interactionSchemas literal; descriptions exhaustively covers those same keys.
   description: descriptions[name as keyof typeof interactionSchemas],
   inputSchema: schema
 }))

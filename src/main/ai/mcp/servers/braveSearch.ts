@@ -104,6 +104,7 @@ const braveDescriptionsResponseSchema = z.object({
 })
 
 type BravePoiResponse = z.infer<typeof bravePoiResponseSchema>
+
 type BraveDescription = z.infer<typeof braveDescriptionsResponseSchema>
 
 async function performWebSearch(apiKey: string, query: string, count: number = 10, offset: number = 0) {
@@ -233,6 +234,7 @@ function formatLocalResults(poisData: BravePoiResponse, descData: BraveDescripti
 
         const weekPeriods = poi.opening_hours?.days?.flat()
         const periods = weekPeriods?.length ? weekPeriods : (poi.opening_hours?.current_day ?? [])
+
         const hours = periods
           .map((period) => {
             const day = period.full_name || period.abbr_name || ''
@@ -242,6 +244,7 @@ function formatLocalResults(poisData: BravePoiResponse, descData: BraveDescripti
           })
           .filter(Boolean)
           .join(', ')
+
         const description = descData.results?.find((entry) => entry?.id === poi.id)?.description
 
         return `Name: ${poi.title}
