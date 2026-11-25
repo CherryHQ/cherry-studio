@@ -1,5 +1,7 @@
+import { normalizeAgentLanguageInput } from '@shared/ai/agentForm'
+import type { AgentLanguageMode } from '@shared/ai/agentForm'
 import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
-import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
+import type { Assistant, AssistantReplyLanguage, AssistantSettings } from '@shared/data/types/assistant'
 import { AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS, McpModeSchema } from '@shared/data/types/assistant'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 
@@ -46,6 +48,10 @@ export interface AssistantFormState {
   enableBrowser: boolean
   enableSharedMemory: boolean
   mcpMode: AssistantSettings['mcpMode']
+  /** `settings.replyLanguage` in the Agent form's shape, so both share the reply language select. */
+  languageMode: AgentLanguageMode
+  /** Draft label; only meaningful when `languageMode` is custom. */
+  languageCustom: string
   // context management (P2-D assistant override). `contextOverrideEnabled` is
   // the master switch for the OFFLOAD + COMPRESSION fields only.
   contextOverrideEnabled: boolean
@@ -96,6 +102,8 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     enableBrowser: settings.enableBrowser ?? true,
     enableSharedMemory: settings.enableSharedMemory === true,
     mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
+    languageMode: settings.replyLanguage?.mode ?? 'off',
+    languageCustom: settings.replyLanguage?.mode === 'custom' ? settings.replyLanguage.language : '',
     // Only an offload/compression field means "override": a lone maxMessages is
     // the scope control saved on its own.
     contextOverrideEnabled: ctx != null && (ctx.truncateThreshold !== undefined || ctx.compress !== undefined),
@@ -162,6 +170,8 @@ export function diffAssistantUpdate(
         baseline.contextCompressThresholdPercent !== form.contextCompressThresholdPercent ||
         baseline.contextCompressModelId !== form.contextCompressModelId))
 
+  const replyLanguage = diffReplyLanguage(baseline, form)
+
   const settings: NonNullable<UpdateAssistantDto['settings']> = {
     ...(baseline.temperature !== form.temperature ? { temperature: form.temperature } : {}),
     ...(baseline.enableTemperature !== form.enableTemperature ? { enableTemperature: form.enableTemperature } : {}),
@@ -175,6 +185,7 @@ export function diffAssistantUpdate(
     ...(baseline.enableBrowser !== form.enableBrowser ? { enableBrowser: form.enableBrowser } : {}),
     ...(baseline.enableSharedMemory !== form.enableSharedMemory ? { enableSharedMemory: form.enableSharedMemory } : {}),
     ...(baseline.mcpMode !== form.mcpMode ? { mcpMode: form.mcpMode } : {}),
+    ...(replyLanguage ? { replyLanguage } : {}),
     ...(customParametersChanged ? { customParameters: form.customParameters } : {}),
     ...(contextSettingsChanged
       ? {
@@ -252,6 +263,19 @@ export function diffAssistantSaveIntent(
     kind: 'update',
     payload: diff.dto
   }
+}
+
+/** The reply language to save, or `undefined` when it is unchanged or an "Other language" draft is not valid yet. */
+function diffReplyLanguage(baseline: AssistantFormState, form: AssistantFormState): AssistantReplyLanguage | undefined {
+  if (form.languageMode !== 'custom') {
+    return baseline.languageMode === form.languageMode ? undefined : { mode: form.languageMode }
+  }
+  const language = normalizeAgentLanguageInput(form.languageCustom)
+  if (language === null) return undefined
+  if (baseline.languageMode === 'custom' && normalizeAgentLanguageInput(baseline.languageCustom) === language) {
+    return undefined
+  }
+  return { mode: 'custom', language }
 }
 
 /** Order-insensitive id-set equality; junction tables don't carry ordering. */

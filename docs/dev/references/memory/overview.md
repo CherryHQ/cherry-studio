@@ -1,7 +1,7 @@
 ---
 description: Current shared/private memory behavior, conversation extraction and recall, Dreaming, recovery, and legacy-file boundaries
 sources:
-  - src/main/ai/agents/prompt.ts
+  - src/main/ai/agents/prompt/promptContext.ts
   - src/main/ai/memory
   - src/main/ai/mcp/servers/cherryAutonomyTools.ts
   - src/main/ai/mcp/servers/memory.ts

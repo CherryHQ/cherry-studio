@@ -1,13 +1,14 @@
 import { isEqual } from 'es-toolkit/compat'
 import { type ReactNode, type RefObject, use, useLayoutEffect, useMemo, useRef } from 'react'
 
+import type { KeyboardLayerProps } from '@cherrystudio/ui'
 import {
   CommandFocusHostContext,
   CommandFocusScopeContext,
   CommandFocusScopeState,
   type FocusScopeOptions
 } from '@renderer/hooks/command'
-import { CommandRuntimeContext, type CommandRuntime } from '@renderer/hooks/command'
+import { CommandRuntimeContext, type CommandRuntime, useCommandHandler } from '@renderer/hooks/command'
 import type { ContextValue } from '@shared/types/command'
 
 function ScopeProvider({
@@ -104,17 +105,18 @@ export function CommandFocusScope({
   )
 }
 
+function ConsumeHostCloseShortcut() {
+  useCommandHandler('tab.close', () => {})
+  return null
+}
+
 export function CommandKeyboardLayer({
   children,
   element,
   active,
+  guardHostClose,
   releaseAfterFocusRestore
-}: {
-  children: ReactNode
-  element: HTMLElement | null
-  active: boolean
-  releaseAfterFocusRestore?: (cleanup: () => void) => void
-}) {
+}: KeyboardLayerProps) {
   return (
     <ScopeProvider
       boundary
@@ -125,6 +127,7 @@ export function CommandKeyboardLayer({
         context: () => ({ 'resource.focused': false }),
         boundary: true
       }}>
+      {guardHostClose ? <ConsumeHostCloseShortcut /> : null}
       {children}
     </ScopeProvider>
   )

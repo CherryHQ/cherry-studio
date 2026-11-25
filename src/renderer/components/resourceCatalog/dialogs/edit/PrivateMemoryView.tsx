@@ -1,16 +1,25 @@
+import { FolderOpen, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ScrollArea } from '@cherrystudio/ui'
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+  ScrollArea
+} from '@cherrystudio/ui'
 import { MarkdownHostProvider, StaticMarkdown } from '@renderer/components/markdown'
+import { PromptEditorIconButton } from '@renderer/components/PromptEditorField'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { OutputFor } from '@shared/ipc/types'
 
-export function usePrivateMemoryIndex(agentId: string, activeTab: boolean, revision: number) {
+function usePrivateMemoryIndex(agentId: string, revision: number) {
   const [index, setIndex] = useState<OutputFor<'memory.private.list'> | null>()
   useEffect(() => {
-    if (!activeTab) return
     let active = true
     setIndex(undefined)
     void ipcApi.request('memory.private.list', { agentId }).then(
@@ -24,11 +33,57 @@ export function usePrivateMemoryIndex(agentId: string, activeTab: boolean, revis
     return () => {
       active = false
     }
-  }, [agentId, activeTab, revision])
+  }, [agentId, revision])
   return index
 }
 
-export function PrivateMemoryView({
+export function PrivateMemoryPage({ agentId, openFolder }: { agentId: string; openFolder: () => Promise<void> }) {
+  const { t } = useTranslation()
+  const [revision, refresh] = useState(0)
+  const [path, select] = useState('MEMORY.md')
+  const index = usePrivateMemoryIndex(agentId, revision)
+  return (
+    <>
+      <div className="flex shrink-0 items-center justify-between gap-3">
+        <span className="truncate text-muted-foreground text-xs">{path}</span>
+        <div className="flex items-center gap-1.5">
+          <PromptEditorIconButton
+            label={t('agent.memory.open_folder')}
+            icon={<FolderOpen className="size-3" />}
+            onClick={() => void openFolder()}
+            showLabel
+          />
+          <PromptEditorIconButton
+            label={t('agent.memory.refresh')}
+            icon={<RefreshCw className="size-3" />}
+            onClick={() => refresh((value) => value + 1)}
+          />
+          {index?.files.some((file) => file !== 'MEMORY.md') && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="ghost" size="icon-sm" aria-label={t('common.more')}>
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuRadioGroup value={path} onValueChange={select} className="max-h-56 overflow-y-auto">
+                  {['MEMORY.md', ...index.files.filter((file) => file !== 'MEMORY.md')].map((file) => (
+                    <DropdownMenuRadioItem key={file} value={file}>
+                      <span className="max-w-64 truncate">{file}</span>
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+      </div>
+      <PrivateMemoryView key={revision} agentId={agentId} index={index} path={path} select={select} />
+    </>
+  )
+}
+
+function PrivateMemoryView({
   agentId,
   index,
   path,
