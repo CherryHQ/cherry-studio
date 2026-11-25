@@ -31,6 +31,7 @@ export const agentSessionMessageTable = sqliteTable(
     // On an input: the reply Main opened for it. Queued inputs are saved before their replies,
     // so row ancestry cannot say which reply answers which input. No FK, like deliveryTurnRef.
     replyId: text(),
+    pos: integer(),
     // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
     // message edits cannot forge sender identity or mutate delivery lifecycle.
     delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),
@@ -58,6 +59,12 @@ export const agentSessionMessageTable = sqliteTable(
     index('agent_session_message_created_at_id_idx').on(desc(t.createdAt), asc(t.id)),
     // Backs findPendingAssistantMessageIds (boot reconcile); avoids a full SCAN. Plain, not
     // partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
+    index('agent_session_message_reply_idx')
+      .on(t.sessionId, t.replyId)
+      .where(sql`${t.replyId} IS NOT NULL`),
+    index('agent_session_message_pending_reply_idx')
+      .on(t.sessionId)
+      .where(sql`${t.role} = 'assistant' AND ${t.status} = 'pending'`),
     index('agent_session_message_status_idx').on(t.status),
     // Backs the model_id FK's ON DELETE SET NULL — same rationale as message_model_id_idx.
     index('agent_session_message_model_id_idx').on(t.modelId),
@@ -91,7 +98,7 @@ export type AgentSessionMessageStoredData = Omit<MessageData, 'parts'> & {
 export type AgentSessionMessageRow = typeof agentSessionMessageTable.$inferSelect
 export type InsertAgentSessionMessageRow = typeof agentSessionMessageTable.$inferInsert
 
-/** One ordered body part of an agent-session message; `payload` is the unmodified AI SDK part. */
+/** One ordered body part of an agent-session message. */
 export const agentSessionMessagePartTable = sqliteTable(
   'agent_session_message_part',
   {
@@ -105,11 +112,13 @@ export const agentSessionMessagePartTable = sqliteTable(
     seq: integer().notNull(),
     type: text().notNull(),
     payload: text({ mode: 'json' }).$type<CherryMessagePart>().notNull(),
+    pos: integer(),
     ...createUpdateTimestamps
   },
   (t) => [
     uniqueIndex('agent_session_message_part_message_seq_uniq').on(t.messageId, t.seq),
-    index('agent_session_message_part_session_idx').on(t.sessionId)
+    index('agent_session_message_part_session_idx').on(t.sessionId),
+    uniqueIndex('agent_session_message_part_pos_uniq').on(t.sessionId, t.pos)
   ]
 )
 

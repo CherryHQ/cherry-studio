@@ -1,13 +1,14 @@
 import type { AgentToolResult, ToolDefinition } from '@earendil-works/pi-coding-agent'
 import * as z from 'zod'
 
+import { type LivePartInput } from '@cherrystudio/agent-runtime'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_EXEC_TOOL_NAME, PI_TOOL_SEARCH_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 /** pi transport tag consumed by the renderer's tool-part routing (D8). */
 export const PI_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
@@ -66,6 +67,35 @@ function toolProviderMetadata(toolName: string, nativeTool?: ReturnType<typeof r
 export class PiMessageMetadata {
   constructor(private readonly resolveToolMetadata?: (name: string) => ReturnType<typeof resolvePiMcpToolMetadata>) {}
 
+  decorateTool<T extends Extract<CherryMessagePart, { type: 'dynamic-tool' }>>(part: T): T {
+    const metadata = toolProviderMetadata(part.toolName, this.resolveToolMetadata?.(part.toolName))
+    const decoration = {
+      providerExecuted: true,
+      callProviderMetadata: { ...metadata, pi: { ...part.callProviderMetadata?.pi, ...metadata.pi } }
+    }
+    return part.state === 'output-available'
+      ? {
+          ...part,
+          ...decoration,
+          output: projectPiToolOutput(part.toolName, part.output),
+          resultProviderMetadata: metadata
+        }
+      : { ...part, ...decoration }
+  }
+
+  decorateLive(event: LivePartInput): LivePartInput {
+    if (event.type === 'message.tool-output') return { ...event, tool: this.decorateTool(event.tool) }
+    if (event.type !== 'message.parts') return event
+    return {
+      ...event,
+      changes: event.changes.map((edit) =>
+        edit.type === 'put' && edit.value.type === 'dynamic-tool'
+          ? { ...edit, value: this.decorateTool(edit.value) }
+          : edit
+      )
+    }
+  }
+
   decorate(message: CherryUIMessage, unchangedParts?: ReadonlySet<number>): CherryUIMessage {
     const artifacts: CherryUIMessage['parts'] = []
     const existingCalls = new Set(
@@ -108,20 +138,7 @@ export class PiMessageMetadata {
       parts: [
         ...message.parts.map((part, index) => {
           if (unchangedParts?.has(index)) return part
-          if (part.type !== 'dynamic-tool') return part
-          const metadata = toolProviderMetadata(part.toolName, this.resolveToolMetadata?.(part.toolName))
-          const decoration = {
-            providerExecuted: true,
-            callProviderMetadata: { ...metadata, pi: { ...part.callProviderMetadata?.pi, ...metadata.pi } }
-          }
-          return part.state === 'output-available'
-            ? {
-                ...part,
-                ...decoration,
-                output: projectPiToolOutput(part.toolName, part.output),
-                resultProviderMetadata: metadata
-              }
-            : { ...part, ...decoration }
+          return part.type === 'dynamic-tool' ? this.decorateTool(part) : part
         }),
         ...artifacts
       ]

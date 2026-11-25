@@ -1,15 +1,15 @@
 import * as z from 'zod'
 
-import { application } from '@application'
 import { isPersistedToolOutput, type DeferredToolResultRef } from '@shared/ai/transport'
 
-import { findPersistedToolOutput, resolvePersistedToolOutput } from './persistedToolOutput'
+import { findPersistedToolOutput, resolvePersistedToolOutput, resolveToolResultRead } from './persistedToolOutput'
 
 const imageSchema = z.object({ type: z.literal('image'), data: z.string(), mimeType: z.string().startsWith('image/') })
 const resourceIdentitySchema = z.object({
   topicId: z.string().min(1),
   messageId: z.string().min(1),
   toolCallId: z.string().min(1),
+  partId: z.string().min(1).optional(),
   imageIndex: z
     .string()
     .regex(/^(0|[1-9]\d*)$/)
@@ -25,6 +25,7 @@ export function parseToolResultImageUrl(url: URL) {
       topicId: decodeURIComponent(segments[0]),
       messageId: decodeURIComponent(segments[1]),
       toolCallId: decodeURIComponent(segments[2]),
+      ...(url.searchParams.has('part') && { partId: url.searchParams.get('part') }),
       imageIndex: segments[3]
     })
     return parsed.success ? parsed.data : undefined
@@ -43,7 +44,7 @@ export function projectToolResultImageResources(output: unknown, ref: DeferredTo
     if (image.success) {
       return {
         type: 'resource_link',
-        uri: `cherry-media://tool-result/${prefix}/${imageIndex++}`,
+        uri: `cherry-media://tool-result/${prefix}/${imageIndex++}${ref.partId ? `?part=${encodeURIComponent(ref.partId)}` : ''}`,
         name: 'image',
         mimeType: image.data.mimeType
       }
@@ -55,8 +56,11 @@ export function projectToolResultImageResources(output: unknown, ref: DeferredTo
 }
 
 export async function readToolResultImage(ref: DeferredToolResultRef, imageIndex: number) {
-  const live = application.get('AiStreamManager').getDeferredToolOutput(ref.topicId, ref.toolCallId, ref.messageId)
-  const result = live.found ? live : await findPersistedToolOutput(ref.topicId, ref.messageId, ref.toolCallId)
+  const { topicId, toolCallId } = ref
+  const resolved = resolveToolResultRead(ref)
+  if (!resolved) return undefined
+  const { live, messageId } = resolved
+  const result = live.found ? live : await findPersistedToolOutput(topicId, messageId, toolCallId)
   if (!result.found) return undefined
   let index = 0
   const find = (value: unknown, depth: number): z.infer<typeof imageSchema> | undefined => {

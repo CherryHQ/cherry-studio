@@ -2,27 +2,32 @@ import { isDeepStrictEqual } from 'node:util'
 
 import { cloneObservationValue, snapshotToolPart } from '@cherrystudio/agent-runtime'
 import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjection'
+import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 /** Results are admitted by actual tool updates; text publication only reuses their compact parts. */
 export class AcceptedToolResults {
   private readonly results = new Map<
     string,
-    { source: unknown; output: unknown; part: CherryMessagePart; serializedBytes: Buffer }
+    { source: unknown; output: unknown; part: CherryMessagePart; partId?: string }
   >()
 
   constructor(private readonly topicId: string) {}
 
-  accept(messageId: string, part: Extract<CherryMessagePart, { state: 'output-available' }>): CherryMessagePart {
+  accept(
+    messageId: string,
+    part: Extract<CherryMessagePart, { state: 'output-available' }>,
+    partId?: string
+  ): CherryMessagePart {
     const accepted = snapshotToolPart(part)
     const output = accepted.output
     const serialized = JSON.stringify(output) ?? 'null'
-    const projected = projectMessagePartForRenderer(accepted, this.topicId, messageId, serialized)
+    const projected = projectMessagePartForRenderer(accepted, this.topicId, messageId, serialized, partId)
     this.results.set(`${messageId}\0${part.toolCallId}`, {
       source: part.output,
       output,
       part: projected,
-      serializedBytes: Buffer.from(serialized)
+      partId
     })
     return projected
   }
@@ -30,11 +35,17 @@ export class AcceptedToolResults {
   project(
     messageId: string,
     part: Extract<CherryMessagePart, { state: 'output-available' }>,
-    onChange?: () => void
+    onChange?: () => void,
+    partId?: string
   ): CherryMessagePart {
-    const known = this.results.get(`${messageId}\0${part.toolCallId}`)
-    if (!known || known.source !== part.output) {
-      const projected = this.accept(messageId, part)
+    const key = `${messageId}\0${part.toolCallId}`
+    if (isDeferredToolOutput(part.output)) {
+      if (this.results.delete(key)) onChange?.()
+      return projectMessagePartForRenderer(part, this.topicId, messageId, undefined, partId)
+    }
+    const known = this.results.get(key)
+    if (!known || known.source !== part.output || known.partId !== partId) {
+      const projected = this.accept(messageId, part, partId)
       onChange?.()
       return projected
     }
@@ -47,12 +58,9 @@ export class AcceptedToolResults {
     return projected
   }
 
-  get(
-    messageId: string,
-    toolCallId: string
-  ): { found: true; output: unknown; serializedBytes: Buffer } | { found: false } {
+  get(messageId: string, toolCallId: string): { found: true; output: unknown } | { found: false } {
     const entry = this.results.get(`${messageId}\0${toolCallId}`)
-    return entry ? { found: true, output: entry.output, serializedBytes: entry.serializedBytes } : { found: false }
+    return entry ? { found: true, output: entry.output } : { found: false }
   }
 
   clear(): void {

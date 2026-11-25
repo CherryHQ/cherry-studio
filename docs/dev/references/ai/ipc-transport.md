@@ -43,7 +43,7 @@ Detach only removes a delivery lease. It never aborts a model or releases a nati
 
 `streamDispatchService` returns and broadcasts the admission result, including reserved messages, active executions and branch-preservation facts. Existing optimistic-message consumers keep this result path. Blocked admission uses the existing localized toast; request failures reach the command caller. The service does not serialize submissions: Main arbitrates concurrent input, chat steering and Agent follow-ups.
 
-`useStreamCommands` retains local input messages for temporary views, fences late command failures after a topic switch, and reads runtime errors from the same shared projection used by the message list. It does not create another stream subscription or parse model chunks.
+Quick Assistant keeps submitted inputs in its temporary conversation. Home and Agent Chat read inputs from their history queries. `useStreamCommands` sends commands, fences late failures after a topic switch, and reports runtime errors from the shared projection.
 
 ## Tool result reads
 

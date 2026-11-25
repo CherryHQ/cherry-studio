@@ -47,13 +47,12 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: () => ({ activeExecutions: [], sendMessage: vi.fn(), stop: vi.fn() })
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({ overlay: {}, liveAssistants: [], disposeOverlay: vi.fn(), reset: vi.fn() })
-}))
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({ useHistoryReplies: () => [] }))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({ useTopicSpeech: () => {} }))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({ useTopicCompletion: () => {} }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
-  useTopicOverlayHandoffOnTerminal: () => {}
+  useTopicStreamStatus: () => ({ isPending: false })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({

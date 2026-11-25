@@ -107,7 +107,15 @@ export class AgentSessionForkOperations {
     const agent = source.session.agentId ? agentService.getAgent(source.session.agentId) : undefined
     const driver = agent ? runtimeDriverRegistry.getAgentSessionDriver(agent.type) : undefined
     const facts = agentSessionForkService.readHistoryBoundaries(sessionId, [target.messageId])[0]
-    const editFailure = facts ? getEditFailure(driver, facts, facts.parent) : 'invalid_target'
+    const editFailure = facts
+      ? getEditFailure(
+          driver?.fork && driver.isForkCheckpoint
+            ? { type: driver.type, isForkCheckpoint: driver.isForkCheckpoint.bind(driver) }
+            : undefined,
+          facts,
+          facts.parent
+        )
+      : 'invalid_target'
     if (editFailure) throw new AgentSessionEditError(editFailure)
     // oxlint-disable-next-line no-restricted-globals -- Fork once: detach the selected prefix before rewriting IDs and metadata.
     const prefix = structuredClone(source.prefix)

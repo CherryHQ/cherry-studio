@@ -142,6 +142,47 @@ describe('ToolResultService', () => {
     stopReopened()
   })
 
+  it('invalidates every detail of one archive row without visiting other rows', async () => {
+    let output = 'first'
+    bridge((input) => (input.purpose === 'full' ? { status: 'ready', purpose: 'full', output } : ready(output)))
+    const service = new ToolResultService()
+    let visits = 0
+    const older: DeferredToolResultRef = {
+      get topicId() {
+        visits++
+        return ref.topicId
+      },
+      messageId: 'earlier',
+      toolCallId: ref.toolCallId
+    }
+    const addressed = { ...ref, partId: 'stable-part' }
+    const stop = service.subscribe(addressed, preview, () => {})
+    await Promise.all([service.read(older), service.read(addressed), service.read(addressed, full)])
+    visits = 0
+    output = 'second'
+    service.invalidateMessage(ref.topicId, ref.messageId)
+    expect(visits).toBe(0)
+    await expect(service.read(addressed)).resolves.toEqual(ready('second'))
+    expect(service.getSnapshot(addressed, full)).toEqual({ status: 'idle' })
+    expect(service.getSnapshot(older)).toEqual(ready('first'))
+    stop()
+  })
+
+  it('uses stable part identity across display rows and the archive call identity for older refs', async () => {
+    bridge(() => ready('stored'))
+    const service = new ToolResultService()
+    const stored = { ...ref, partId: 'stable-part' }
+    const other = { ...ref, partId: 'another-part' }
+    await Promise.all([service.read(stored), service.read(other), service.read(ref)])
+    service.invalidate({ ...stored, messageId: 'different-display-row' })
+    expect(service.getSnapshot(stored)).toEqual({ status: 'idle' })
+    expect(service.getSnapshot(other)).toEqual(ready('stored'))
+    expect(service.getSnapshot(ref)).toEqual(ready('stored'))
+    service.invalidate(ref)
+    expect(service.getSnapshot(other)).toEqual({ status: 'idle' })
+    expect(service.getSnapshot(ref)).toEqual({ status: 'idle' })
+  })
+
   it('isolates preview, full and text-range cursors for the same tool identity', async () => {
     bridge((input) =>
       input.purpose === 'text-range'

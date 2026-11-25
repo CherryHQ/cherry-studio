@@ -8,9 +8,9 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import {
   DEFER_TOOL_OUTPUT_BYTES,
+  projectAgentNonTextPart,
   projectMessagePartForRenderer,
-  projectStreamChunkForRenderer,
-  shouldDeferToolOutput
+  projectStreamChunkForRenderer
 } from '../messageOutputProjection'
 
 const TOPIC_ID = 'agent-session:session-1'
@@ -19,6 +19,26 @@ const TOOL_CALL_ID = 'call-1'
 
 const small = { content: 'x'.repeat(16) }
 const large = { content: 'x'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1) }
+it('publishes and invalidates the same archive address for an already-deferred result', () => {
+  const { patch, ref } = projectAgentNonTextPart(TOPIC_ID, {
+    type: 'part-put',
+    archiveMessageId: MESSAGE_ID,
+    partId: 'part',
+    part: {
+      type: 'dynamic-tool',
+      state: 'output-available',
+      toolName: 'read',
+      toolCallId: TOOL_CALL_ID,
+      input: {},
+      output: {
+        $deferredToolResult: { topicId: 'old-topic', toolCallId: 'old-call', messageId: MESSAGE_ID, partId: 'part' }
+      }
+    }
+  })
+  expect(ref).toEqual({ topicId: TOPIC_ID, toolCallId: TOOL_CALL_ID, messageId: MESSAGE_ID, partId: 'part' })
+  expect(patch.part).toMatchObject({ output: { $deferredToolResult: ref } })
+})
+
 const largeAgentWebSearch = {
   content: [
     {
@@ -110,18 +130,19 @@ describe('message tool-output projection', () => {
     const projection = new MessageProjection({ ...state, messages: [first] })
     let view = projection.snapshot()
     projection.subscribe((update) => {
+      if (update.type === 'parts') throw new Error('Expected a structural update')
       view = applyMessageProjectionUpdate(view, update)!
     })
     const replacement = { ...first, parts: parts('b'.repeat(64 * 1024)) }
     const revision = view.revision
-    projection.update({ ...state, messages: [replacement] }, true, [
+    projection.updateAccepted({ ...state, messages: [replacement] }, true, [
       { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID }
     ])
     expect(view.revision).toBe(revision + 1)
     expect(view.messages[0]).toEqual(first)
     expect(view.messages[0]).toEqual(replacement)
     expect(parts('b'.repeat(64 * 1024))).toEqual(replacement.parts)
-    projection.update({ ...state, messages: [{ ...first, parts: [] }] }, true)
+    projection.updateAccepted({ ...state, messages: [{ ...first, parts: [] }] }, true)
     expect(view.messages[0].parts).toEqual([])
     projection.dispose()
   })
@@ -305,7 +326,6 @@ describe('message tool-output projection', () => {
       output: unknown
     }
     expect(projected.output).toBe(deep)
-    expect(shouldDeferToolOutput(deep)).toBe(false)
   })
 
   it('does nothing without a message id to address the result by', () => {

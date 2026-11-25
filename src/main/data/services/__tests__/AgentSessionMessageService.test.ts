@@ -230,6 +230,173 @@ describe('AgentSessionMessageService', () => {
         message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
       })
 
+    it('archives oversized success metadata without changing the value returned by copy or full detail', () => {
+      pendingReply()
+      const output = { value: '结果' }
+      const resultProviderMetadata = { native: { result: 'x'.repeat(65_536) } }
+      const success = {
+        type: 'dynamic-tool' as const,
+        state: 'output-available' as const,
+        input: {},
+        toolName: 'run',
+        toolCallId: 'call-1',
+        output,
+        resultProviderMetadata
+      }
+      agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        order: [tool],
+        parts: new Map([[tool, success]]),
+        positions: new Map([[tool, 1]])
+      })
+      const stored = dbh.db
+        .select({ payload: agentSessionMessagePartTable.payload })
+        .from(agentSessionMessagePartTable)
+        .where(eq(agentSessionMessagePartTable.id, tool))
+        .get()!.payload
+      expect(Buffer.byteLength(JSON.stringify(stored))).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)
+      expect(stored).toMatchObject({ output: { $deferredToolResult: { toolCallId: 'call-1' } } })
+      expect(agentSessionMessageService.getSessionToolOutput(SESSION_ID, ASSISTANT_MESSAGE_ID, 'call-1', tool)).toEqual(
+        { found: true, output }
+      )
+      expect(
+        agentSessionMessageService.getSessionToolOutputRange(SESSION_ID, ASSISTANT_MESSAGE_ID, 'call-1', 0, tool)
+      ).toEqual({
+        bytes: Buffer.from(JSON.stringify(output)),
+        hasMore: false
+      })
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual([
+        success
+      ])
+    })
+
+    it('keeps a failed tool result and its native detail readable under the archived part ID', () => {
+      pendingReply()
+      const errorText = '错'.repeat(22_000)
+      const metadata = { pi: { result: { content: [{ type: 'text', text: errorText }] } } }
+      const failure = {
+        type: 'dynamic-tool' as const,
+        toolName: 'bash',
+        toolCallId: 'call-1',
+        state: 'output-error' as const,
+        input: {},
+        errorText,
+        resultProviderMetadata: metadata
+      }
+      agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        order: [tool],
+        parts: new Map([[tool, failure]]),
+        positions: new Map([[tool, 1]])
+      })
+      const row = dbh.db
+        .select({ payload: agentSessionMessagePartTable.payload })
+        .from(agentSessionMessagePartTable)
+        .where(eq(agentSessionMessagePartTable.id, tool))
+        .get()!
+      expect(Buffer.byteLength(JSON.stringify(row.payload))).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)
+      expect(row.payload).toMatchObject({ state: 'output-error' })
+      expect(agentSessionMessageService.resolveToolResultMessageId(SESSION_ID, tool, 'call-1')).toBe(
+        ASSISTANT_MESSAGE_ID
+      )
+      expect(agentSessionMessageService.getSessionToolOutput(SESSION_ID, ASSISTANT_MESSAGE_ID, 'call-1')).toMatchObject(
+        {
+          found: true,
+          output: { content: [{ text: errorText }], resultProviderMetadata: metadata }
+        }
+      )
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual([
+        failure
+      ])
+    })
+
+    it('saves a part at its original position after a later steer commits', () => {
+      pendingReply()
+      const steer = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { role: 'user', data: { parts: [{ type: 'text', text: 'Steer' }] } }
+      })
+      dbh.db.update(agentSessionMessageTable).set({ pos: 11 }).where(eq(agentSessionMessageTable.id, steer.id)).run()
+      dbh.db.update(agentSessionTable).set({ lastPos: 11 }).where(eq(agentSessionTable.id, SESSION_ID)).run()
+
+      const timeline = () =>
+        dbh.sqlite
+          .prepare(
+            `SELECT id, pos FROM agent_session_message WHERE session_id = ? AND pos IS NOT NULL
+             UNION ALL SELECT id, pos FROM agent_session_message_part WHERE session_id = ? AND pos IS NOT NULL
+             ORDER BY pos`
+          )
+          .all(SESSION_ID, SESSION_ID)
+
+      const order = [first, tool]
+      agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        order,
+        parts: new Map([[tool, toolPart]]),
+        positions: new Map([[tool, 12]])
+      })
+      expect(timeline()).toEqual([
+        { id: steer.id, pos: 11 },
+        { id: tool, pos: 12 }
+      ])
+      expect(partRows().map(({ id }) => id)).toEqual([tool])
+
+      const answer = { type: 'text' as const, text: 'First body' }
+      agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        order,
+        parts: new Map([[first, answer]]),
+        positions: new Map([[first, 10]])
+      })
+      const expected = [
+        { id: first, pos: 10 },
+        { id: steer.id, pos: 11 },
+        { id: tool, pos: 12 }
+      ]
+      expect(timeline()).toEqual(expected)
+      expect(dbh.db.select({ pos: agentSessionTable.lastPos }).from(agentSessionTable).get()?.pos).toBe(12)
+
+      const corrected = { ...answer, text: 'Corrected body' }
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        partIds: order,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [corrected, toolPart] }
+        }
+      })
+      expect(timeline()).toEqual(expected)
+      expect(agentSessionMessageService.getStoredMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID)).toMatchObject([
+        { partId: first, pos: 10, payload: corrected },
+        { partId: tool, pos: 12, payload: { output: { $deferredToolResult: { partId: tool, toolCallId: 'call-1' } } } }
+      ])
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual([
+        corrected,
+        toolPart
+      ])
+    })
+
+    it('cannot write a completed part under another Run', () => {
+      pendingReply()
+      const answer = { type: 'text' as const, text: 'Original answer' }
+      agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        order: [first],
+        parts: new Map([[first, answer]])
+      })
+      const another = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      expect(() =>
+        agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, another.id, {
+          order: [first],
+          parts: new Map([[first, { type: 'text', text: 'wrong owner' }]])
+        })
+      ).toThrow('different message')
+      expect(agentSessionMessageService.getStoredMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID)).toEqual([
+        { partId: first, payload: answer }
+      ])
+      expect(agentSessionMessageService.getStoredMessageParts(SESSION_ID, another.id)).toEqual([])
+    })
+
     it('writes each completed part alone and settles the reply without rewriting them', () => {
       pendingReply()
       const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
@@ -1064,7 +1231,9 @@ describe('AgentSessionMessageService', () => {
       })
       expect(agentSessionMessageService.listRecoverableSessionDeliveries()).toHaveLength(1)
 
-      const consumed = agentSessionMessageService.updateSessionDeliveryStatus('target', accepted.id, 'consumed')
+      const consumed = agentSessionMessageService.transitionSessionDelivery('target', accepted.id, 'consumed', {
+        expected: ['delivering']
+      })
       expect(consumed?.delivery).toMatchObject({ status: 'consumed', statusAt: expect.any(String) })
       expect(agentSessionMessageService.listRecoverableSessionDeliveries()).toEqual([])
     })
@@ -1548,12 +1717,14 @@ describe('AgentSessionMessageService', () => {
       }
     })
 
-    const originalIds = agentSessionMessageService.getSessionMessageBody(SESSION_ID, ASSISTANT_MESSAGE_ID).ids
+    const partIds = () =>
+      agentSessionMessageService.getStoredMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID).map(({ partId }) => partId)
+    const originalIds = partIds()
     expect(agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-1', 'connection closed')).toBe(true)
 
     const saved = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
     expect(saved.data.parts?.[0]).toMatchObject({ state: 'output-error', errorText: 'connection closed' })
-    expect(agentSessionMessageService.getSessionMessageBody(SESSION_ID, ASSISTANT_MESSAGE_ID).ids).toEqual(originalIds)
+    expect(partIds()).toEqual(originalIds)
     // A second sweep (another abort, or shutdown after the same teardown) must not rewrite the row.
     expect(agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-1', 'connection closed')).toBe(
       false
@@ -1710,17 +1881,42 @@ describe('AgentSessionMessageService', () => {
     expect(saved.updatedAt).toBe('2023-11-14T22:13:20.000Z')
   })
 
-  it('writes neither user nor pending assistant when the session agent changed before the transaction', async () => {
+  it('rolls back the first message when the second message in a batch is invalid', () => {
     expect(() =>
-      agentSessionMessageService.saveMessages(
-        {
+      application.get('DbService').withWriteTx((tx) =>
+        agentSessionMessageService.saveMessagesTx(tx, {
           sessionId: SESSION_ID,
           messages: [
-            { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'run' }] } },
-            { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+            { id: USER_MESSAGE_ID, role: 'user', data: { parts: [{ type: 'text', text: 'run' }] } },
+            { id: 'invalid-id', role: 'assistant', data: { parts: [] } }
           ]
-        },
-        'agent-that-no-longer-owns-session'
+        })
+      )
+    ).toThrow('Agent session message id must be a UUID')
+    expect(
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID)).all()
+    ).toEqual([])
+  })
+
+  it('writes neither user nor pending assistant when the session agent changed before the transaction', async () => {
+    expect(() =>
+      dbh.db.transaction((tx) =>
+        agentSessionMessageService.saveMessagesTx(
+          tx,
+          {
+            sessionId: SESSION_ID,
+            messages: [
+              {
+                id: USER_MESSAGE_ID,
+                role: 'user',
+                status: 'success',
+                data: { parts: [{ type: 'text', text: 'run' }] }
+              },
+              { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+            ]
+          },
+          'agent-that-no-longer-owns-session'
+        )
       )
     ).toThrow(`Session with id '${SESSION_ID}' not found`)
 
@@ -1739,20 +1935,28 @@ describe('AgentSessionMessageService', () => {
       .where(eq(agentTable.id, 'agent-a'))
 
     expect(() =>
-      agentSessionMessageService.saveMessages(
-        {
-          sessionId: SESSION_ID,
-          messages: [
-            { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'run' }] } },
-            { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
-          ]
-        },
-        {
-          id: 'agent-a',
-          updatedAt: new Date(agent.updatedAt).toISOString(),
-          model: 'provider::validated-model',
-          type: 'claude-code'
-        }
+      dbh.db.transaction((tx) =>
+        agentSessionMessageService.saveMessagesTx(
+          tx,
+          {
+            sessionId: SESSION_ID,
+            messages: [
+              {
+                id: USER_MESSAGE_ID,
+                role: 'user',
+                status: 'success',
+                data: { parts: [{ type: 'text', text: 'run' }] }
+              },
+              { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+            ]
+          },
+          {
+            id: 'agent-a',
+            updatedAt: new Date(agent.updatedAt).toISOString(),
+            model: 'provider::validated-model',
+            type: 'claude-code'
+          }
+        )
       )
     ).toThrow("Agent 'agent-a' was modified by another user")
 
@@ -1791,20 +1995,28 @@ describe('AgentSessionMessageService', () => {
     const [agent] = dbh.db.select().from(agentTable).where(eq(agentTable.id, 'legacy-agent')).all()
 
     expect(() =>
-      agentSessionMessageService.saveMessages(
-        {
-          sessionId: SESSION_ID,
-          messages: [
-            { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'run' }] } },
-            { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
-          ]
-        },
-        {
-          id: 'legacy-agent',
-          updatedAt: new Date(agent.updatedAt).toISOString(),
-          model: 'legacy::model',
-          type: 'claude-code'
-        }
+      dbh.db.transaction((tx) =>
+        agentSessionMessageService.saveMessagesTx(
+          tx,
+          {
+            sessionId: SESSION_ID,
+            messages: [
+              {
+                id: USER_MESSAGE_ID,
+                role: 'user',
+                status: 'success',
+                data: { parts: [{ type: 'text', text: 'run' }] }
+              },
+              { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+            ]
+          },
+          {
+            id: 'legacy-agent',
+            updatedAt: new Date(agent.updatedAt).toISOString(),
+            model: 'legacy::model',
+            type: 'claude-code'
+          }
+        )
       )
     ).not.toThrow()
   })
@@ -1991,7 +2203,8 @@ describe('AgentSessionMessageService', () => {
         kind: 'projection',
         routeParams: { sessionId: SESSION_ID },
         entityIds: [USER_MESSAGE_ID]
-      }
+      },
+      { endpoint: '/agent-sessions/:sessionId/messages/:messageId', entityIds: [USER_MESSAGE_ID] }
     ])
   })
 
@@ -2148,13 +2361,15 @@ describe('AgentSessionMessageService', () => {
       '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e006'
     ]
     const text = (value: string) => ({ parts: [{ type: 'text' as const, text: value }] })
-    agentSessionMessageService.saveMessages({
-      sessionId: SESSION_ID,
-      messages: [
-        { id: branch, role: 'user', data: text('branch') },
-        { id: older, role: 'assistant', data: text('older sibling') }
-      ]
-    })
+    dbh.db.transaction((tx) =>
+      agentSessionMessageService.saveMessagesTx(tx, {
+        sessionId: SESSION_ID,
+        messages: [
+          { id: branch, role: 'user', data: text('branch') },
+          { id: older, role: 'assistant', data: text('older sibling') }
+        ]
+      })
+    )
     for (const [parentId, id] of [
       [branch, newer],
       [newer, deeper],
@@ -2169,13 +2384,15 @@ describe('AgentSessionMessageService', () => {
     dbh.db.update(agentSessionMessageTable).set({ createdAt: 1 }).where(eq(agentSessionMessageTable.id, older)).run()
 
     const resolveTip = vi.spyOn(agentSessionMessageService, 'branchTip')
-    agentSessionMessageService.saveMessages({
-      sessionId: SESSION_ID,
-      messages: [
-        { id: branch, role: 'user', data: text('branch edited') },
-        { id: appended, role: 'assistant', data: text('appended') }
-      ]
-    })
+    dbh.db.transaction((tx) =>
+      agentSessionMessageService.saveMessagesTx(tx, {
+        sessionId: SESSION_ID,
+        messages: [
+          { id: branch, role: 'user', data: text('branch edited') },
+          { id: appended, role: 'assistant', data: text('appended') }
+        ]
+      })
+    )
 
     const parentOf = (id: string) =>
       dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, id)).get()!.parentId
@@ -2193,22 +2410,24 @@ describe('AgentSessionMessageService', () => {
   it('keeps the session timestamp aligned with a newly saved message batch', async () => {
     vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_001_000).mockReturnValue(1_700_000_002_000)
 
-    agentSessionMessageService.saveMessages({
-      sessionId: SESSION_ID,
-      messages: [
-        {
-          id: USER_MESSAGE_ID,
-          role: 'user',
-          data: { parts: [{ type: 'text', text: 'hello' }] }
-        },
-        {
-          id: ASSISTANT_MESSAGE_ID,
-          role: 'assistant',
-          status: 'pending',
-          data: { parts: [] }
-        }
-      ]
-    })
+    dbh.db.transaction((tx) =>
+      agentSessionMessageService.saveMessagesTx(tx, {
+        sessionId: SESSION_ID,
+        messages: [
+          {
+            id: USER_MESSAGE_ID,
+            role: 'user',
+            data: { parts: [{ type: 'text', text: 'hello' }] }
+          },
+          {
+            id: ASSISTANT_MESSAGE_ID,
+            role: 'assistant',
+            status: 'pending',
+            data: { parts: [] }
+          }
+        ]
+      })
+    )
 
     const rows = await dbh.db.select().from(agentSessionMessageTable)
     const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
@@ -3507,6 +3726,13 @@ describe('AgentSessionMessageService', () => {
       })
 
       const deferredPage = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
+      const sidecar = vi.spyOn(agentSessionToolOutputTable.output, 'mapFromDriverValue')
+      const rendered = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        deferToolOutputs: true
+      })
+      expect(rendered).toEqual(deferredPage.items[0])
+      expect(sidecar.mock.calls.length).toBe(0)
+      sidecar.mockRestore()
       const deferredLargePart = deferredPage.items[0]?.data.parts?.[1] as { output?: unknown } | undefined
       expect(isDeferredToolOutput(deferredLargePart?.output)).toBe(true)
 
