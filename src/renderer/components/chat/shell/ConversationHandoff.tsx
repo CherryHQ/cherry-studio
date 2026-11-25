@@ -46,13 +46,14 @@ function HandoffModelPicker({
   }
   const label = (model: Model) => (
     <span className="flex min-w-0 flex-col">
-      <span>{modelLabel(model)}</span>
-      <code className="text-xs text-muted-foreground">{model.providerId}</code>
+      <span className="break-words">{modelLabel(model)}</span>
+      <code className="break-all text-xs text-muted-foreground">{model.providerId}</code>
     </span>
   )
   return (
     <SelectDropdown
       items={models}
+      triggerClassName="h-auto min-h-9 py-2"
       selectedId={selectedId}
       onSelect={(id) => onSelect(id as UniqueModelId)}
       placeholder={t('handoff.model')}
