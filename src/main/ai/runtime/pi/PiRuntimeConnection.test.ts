@@ -21,6 +21,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import type * as AgentPromptModule from '@main/ai/agents/prompt/buildAgentPrompt'
 import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
@@ -42,7 +43,6 @@ import {
   tempDir
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, subagentCall, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
-import type * as AgentPromptModule from '../agentPrompt'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import * as piBehaviorHost from './piBehaviorHost'
 import type { PiConnectionSnapshot } from './piConnectionSignature'
@@ -83,7 +83,7 @@ vi.mock('./piConnectionSignature', () => ({
   PiInvalidConnectionSnapshotError: class extends Error {}
 }))
 vi.mock('./gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks.binding }))
-vi.mock('@main/ai/runtime/agentPrompt', () => ({ buildAgentRuntimePrompt: mocks.prompt }))
+vi.mock('@main/ai/agents/prompt/buildAgentPrompt', () => ({ buildAgentPrompt: mocks.prompt }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
   buildAgentMcpServers: () => ({})
@@ -266,8 +266,10 @@ describe('desktop Pi root connection', () => {
   }
 
   it('delivers a saved edited handoff as system context when the next model resumes native history', async () => {
-    const { buildAgentRuntimePrompt } = await vi.importActual<typeof AgentPromptModule>('../agentPrompt')
-    mocks.prompt.mockImplementation(buildAgentRuntimePrompt)
+    const { buildAgentPrompt } = await vi.importActual<typeof AgentPromptModule>(
+      '@main/ai/agents/prompt/buildAgentPrompt'
+    )
+    mocks.prompt.mockImplementation(buildAgentPrompt)
     const first = await connect()
     await first.connection.send({ message: message('Original task context: export.ts') })
     await done(first.events)

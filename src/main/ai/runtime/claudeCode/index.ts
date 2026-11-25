@@ -4,6 +4,7 @@ export { ClaudeCodeProcessManager, spawnClaudeCodeProcess } from './ClaudeCodePr
 export { ClaudeCodeSessionStateService } from './ClaudeCodeSessionStateService'
 export { ClaudeCodeWarmQueryManager } from './ClaudeCodeWarmQueryManager'
 export { createClaudeCodeRuntimeDriver } from './loaders'
+export { buildClaudeAgentPrompt } from './settingsBuilder'
 export { ClaudeForkCheckpointSchema } from './forkCheckpoint'
 export { readClaudeTranscriptEvidence } from './transcriptEvidence'
 export type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './types'

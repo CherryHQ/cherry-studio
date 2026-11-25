@@ -66,6 +66,12 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
     wireDialect: 'adaptive-always'
   },
   {
+    pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-fable-5[.-]2(?:$|[\\[ @:-])',
+    effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+    toggle: false,
+    wireDialect: 'adaptive-always'
+  },
+  {
     pattern: '^(?:anthropic\\.)?claude-fable',
     effort: ['low', 'medium', 'high', 'max'],
     toggle: false,

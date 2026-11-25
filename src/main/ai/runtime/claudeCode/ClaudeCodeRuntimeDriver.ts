@@ -187,6 +187,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.knowledgeBaseIds,
       this.input.serviceTier,
       this.input.headless === true,
+      this.input.permissionModeOverride,
       this.input.branchHead
     )
     if (!request) {
@@ -271,6 +272,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
     this.bindApprovalEmitter()
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
+    this.toolPolicySnapshot?.setPermissionMode(request.connectionConfig?.live.toolPolicy.permissionMode ?? undefined)
     registerMcpSessionCatalogSync(
       this.input.sessionId,
       this.input.agentId,
@@ -368,14 +370,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
   }
 
-  async reconcile(input: {
-    modelId: UniqueModelId
-    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
-    serviceTier?: AgentRuntimeConnectInput['serviceTier']
-    knowledgeBaseIds?: readonly string[]
-    fastMode?: boolean
-    headless?: boolean
-  }): Promise<AgentRuntimeReconcileResult> {
+  async reconcile(input: Parameters<AgentRuntimeConnection['reconcile']>[0]): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
     // gate and the subprocess on different policies.
@@ -387,14 +382,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return run
   }
 
-  private async reconcileOnce(input: {
-    modelId: UniqueModelId
-    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
-    serviceTier?: AgentRuntimeConnectInput['serviceTier']
-    knowledgeBaseIds?: readonly string[]
-    fastMode?: boolean
-    headless?: boolean
-  }): Promise<AgentRuntimeReconcileResult> {
+  private async reconcileOnce(
+    input: Parameters<AgentRuntimeConnection['reconcile']>[0]
+  ): Promise<AgentRuntimeReconcileResult> {
     if (!this.handle) return 'rebuild'
     const derived = await deriveConnectionConfig(
       this.input.sessionId,
@@ -403,7 +393,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.fastMode === true,
       input.knowledgeBaseIds,
       input.serviceTier,
-      input.headless === true
+      input.headless === true,
+      input.permissionModeOverride
     )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig
@@ -423,7 +414,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           const changed = await this.handle.claude.setPermissionMode(permissionMode)
           if (changed.status !== 'confirmed') throw new Error(changed.error.message)
           // Approval must use the confirmed mode while the tool catalog is refreshing.
-          this.toolPolicySnapshot?.setPermissionMode(permissionMode)
+          this.toolPolicySnapshot?.setPermissionMode(fresh.live.toolPolicy.permissionMode ?? undefined)
         }
         await this.toolPolicySnapshot?.update(agent)
       } catch (error) {
