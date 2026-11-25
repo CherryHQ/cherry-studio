@@ -317,12 +317,7 @@ export class ComputerUseService extends BaseService {
     const client = await this.getClient(task)
     this.assertAvailable(task, control.app.id)
 
-    const executor = client as ComputerUseClient & {
-      perform?: (
-        action: Action,
-        options: { signal: AbortSignal }
-      ) => Promise<{ status: 'completed'; appSessionId: string }>
-    }
+    const executor: { perform?: ComputerUseClient['perform'] } = client
 
     const options = { signal: this.signal(task, signal) }
 

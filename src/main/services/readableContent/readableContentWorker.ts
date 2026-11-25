@@ -77,6 +77,7 @@ if (!parentPort) {
   throw new Error('Readable content worker requires a parent port')
 }
 
+// SAFETY: ReadableContentService.runWorker supplies this exact input union; Node's structured-clone workerData API erases its static type.
 const input = workerData as ReadableContentWorkerInput
 
 try {

@@ -128,6 +128,8 @@ export class ComputerAutomationSession {
     }
 
     if (!Object.hasOwn(schemas, name)) throw new ComputerUseError('INVALID_ARGUMENT', 'Unknown application method')
+
+    // SAFETY: The own-property check restricts the method to this private schema literal before parsing its raw arguments.
     schemas[name as keyof typeof schemas].parse(args)
     const snapshot = binding.snapshot
 
@@ -246,6 +248,7 @@ export class ComputerAutomationSession {
           offset: page.offset,
           returned: 0,
           total: available.elements.length,
+          // SAFETY: The UUID starts pagination; the final-page path clears this mutable cursor to undefined.
           nextCursor: randomUUID() as string | undefined
         }
       : undefined

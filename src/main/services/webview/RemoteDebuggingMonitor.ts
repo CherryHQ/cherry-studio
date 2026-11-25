@@ -1,12 +1,26 @@
 import { get, type IncomingMessage } from 'node:http'
 import { json } from 'node:stream/consumers'
 
-import type { Protocol } from 'devtools-protocol'
 import WebSocket from 'ws'
+import * as z from 'zod'
 
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('RemoteDebuggingMonitor')
+
+const debuggerVersionSchema = z.object({ webSocketDebuggerUrl: z.string() })
+
+const debuggerNotificationSchema = z.object({
+  id: z.number().optional(),
+  error: z.unknown().optional(),
+  method: z.string().optional(),
+  params: z
+    .object({
+      targetInfo: z.object({ targetId: z.string(), attached: z.boolean() }).optional(),
+      targetId: z.string().optional()
+    })
+    .optional()
+})
 
 export class RemoteDebuggingMonitor {
   private readonly targets = new Map<string, boolean>()
@@ -87,7 +101,7 @@ export class RemoteDebuggingMonitor {
           .on('error', reject)
       })
 
-      const version = (await json(response)) as { webSocketDebuggerUrl: string }
+      const version = debuggerVersionSchema.parse(await json(response))
 
       if (this.stopped || generation !== this.generation) return
       const address = new URL(version.webSocketDebuggerUrl)
@@ -111,12 +125,7 @@ export class RemoteDebuggingMonitor {
         if (this.socket !== socket) return
 
         try {
-          const message = JSON.parse(data.toString()) as {
-            id?: number
-            error?: unknown
-            method?: string
-            params?: { targetInfo?: Protocol.Target.TargetInfo; targetId?: string }
-          }
+          const message = debuggerNotificationSchema.parse(JSON.parse(data.toString()))
 
           if (message.id === 1 && message.error) {
             socket.close()
@@ -127,7 +136,7 @@ export class RemoteDebuggingMonitor {
           if (message.method === 'Target.targetCreated' || message.method === 'Target.targetInfoChanged') {
             const info = message.params?.targetInfo
 
-            if (info && typeof info.targetId === 'string' && typeof info.attached === 'boolean') {
+            if (info) {
               this.updateTarget(info.targetId, info.attached)
             }
           } else if (message.method === 'Target.targetDestroyed' && message.params?.targetId) {

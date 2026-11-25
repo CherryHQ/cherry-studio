@@ -131,6 +131,7 @@ export class OfficialAnnouncementService extends BaseService {
         darwin: 'macos',
         linux: 'linux'
       }
+
       const platform = platforms[process.platform]
 
       if (!platform) return

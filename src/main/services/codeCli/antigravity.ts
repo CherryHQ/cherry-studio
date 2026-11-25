@@ -4,6 +4,7 @@ import type { JSONObject, JSONValue } from '@ai-sdk/provider'
 
 import { application } from '@application'
 import { providerService } from '@data/services/ProviderService'
+import { getErrorCode } from '@main/utils/error'
 import { atomicWriteFile } from '@main/utils/file'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -35,7 +36,7 @@ async function ensureGeminiModeSettings(): Promise<string> {
 
     settings = parsed
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+    if (getErrorCode(error) !== 'ENOENT') {
       throw new Error('Failed to read Antigravity CLI settings', { cause: error })
     }
   }

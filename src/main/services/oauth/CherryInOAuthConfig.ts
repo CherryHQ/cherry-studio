@@ -21,7 +21,7 @@ export class CherryInOAuthServiceError extends Error {
 }
 
 export function validateCherryInApiHost(apiHost: string): void {
-  if (!(CHERRYIN_CONFIG.ALLOWED_HOSTS as readonly string[]).includes(apiHost)) {
+  if (!CHERRYIN_CONFIG.ALLOWED_HOSTS.some((host) => host === apiHost)) {
     throw new CherryInOAuthServiceError(`Unauthorized API host: ${apiHost}`)
   }
 }

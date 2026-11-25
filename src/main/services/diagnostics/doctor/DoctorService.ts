@@ -63,6 +63,7 @@ function runContext(signal: AbortSignal, memo: RunMemo, subject: DoctorSubject |
         memo.set(key, shared)
       }
 
+      // SAFETY: Each internal probe owns its memo key and result type for this run; the heterogeneous map erases that association.
       return shared as ReturnType<typeof factory>
     }
   }
@@ -252,6 +253,7 @@ export class DoctorService extends BaseService {
   }
 
   private defaultCheckIds(tier: DoctorRunTier, subject: DoctorSubject | null): DoctorCheckId[] {
+    // SAFETY: The closed catalog satisfies an exhaustive DoctorCheckId record; Object.keys erases its literal key types.
     return (Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]).filter((id) => {
       const meta = DOCTOR_CHECK_CATALOG[id]
 

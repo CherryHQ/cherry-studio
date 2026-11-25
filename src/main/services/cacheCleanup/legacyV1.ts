@@ -174,9 +174,10 @@ function sqliteHasTable(targetPath: string, tableName: string, requiredColumns: 
     if (requiredColumns.length === 0) return true
 
     const columns = new Set(
-      (db.prepare(`PRAGMA table_info(\`${tableName}\`)`).all() as Array<{ name: unknown }>).map((row) =>
-        String(row.name)
-      )
+      db
+        .prepare<[], { name: string }>(`PRAGMA table_info(\`${tableName}\`)`)
+        .all()
+        .map((row) => String(row.name))
     )
 
     return requiredColumns.every((column) => columns.has(column))

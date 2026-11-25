@@ -1,5 +1,6 @@
 import { net } from 'electron'
 import { valid as semverValid } from 'semver'
+import { z } from 'zod'
 
 const PACKAGE_NAME = '@anthropic-ai/claude-code-win32-arm64'
 
@@ -26,19 +27,16 @@ export async function resolveClaudeNpmPackage(
 
   if (!response.ok) throw new Error(`Claude npm metadata request failed: HTTP ${response.status}`)
 
-  const metadata = (await response.json()) as {
-    name?: unknown
-    version?: unknown
-    dist?: { integrity?: unknown }
-  }
+  const metadata: unknown = await response.json()
+  const identity = z.object({ name: z.literal(PACKAGE_NAME), version: z.string() }).safeParse(metadata)
+  const resolved = identity.success ? semverValid(identity.data.version) : null
 
-  const resolved = typeof metadata.version === 'string' ? semverValid(metadata.version) : null
-
-  if (metadata.name !== PACKAGE_NAME || !resolved || (semverValid(version) && resolved !== version)) {
+  if (!identity.success || !resolved || (semverValid(version) && resolved !== version)) {
     throw new Error('Claude npm metadata does not match the requested platform and version')
   }
 
-  const integrity = metadata.dist?.integrity
+  const distribution = z.object({ dist: z.object({ integrity: z.string() }) }).safeParse(metadata)
+  const integrity = distribution.success ? distribution.data.dist.integrity : undefined
   const digest = typeof integrity === 'string' ? /^sha512-([A-Za-z0-9+/]{86}==)$/.exec(integrity)?.[1] : undefined
 
   if (!digest) throw new Error('Claude npm package is missing a valid SHA-512 integrity digest')

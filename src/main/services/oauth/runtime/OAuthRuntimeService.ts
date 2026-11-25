@@ -67,7 +67,8 @@ function isTerminalRefreshError(error: unknown): boolean {
 export class OAuthRuntimeService extends BaseService {
   private readonly logger = loggerService.withContext('OAuthRuntimeService')
   private readonly tokenStore: OAuthTokenStore = new ProviderAuthConfigOAuthTokenStore()
-  private readonly definitions = oauthProviderDefinitions
+  private readonly definitions: Readonly<Partial<Record<string, OAuthRuntimeProviderDefinition>>> =
+    oauthProviderDefinitions
   private readonly transports = new Map<string, LoopbackCallbackTransport>()
   private readonly refreshPromises = new Map<string, Promise<RefreshResult>>()
   private readonly activeSignIns = new Map<string, ActiveSignIn>()
@@ -116,7 +117,7 @@ export class OAuthRuntimeService extends BaseService {
   }
 
   private getDefinition(providerId: string): OAuthRuntimeProviderDefinition {
-    const definition = this.definitions[providerId as keyof typeof this.definitions]
+    const definition = Object.hasOwn(this.definitions, providerId) ? this.definitions[providerId] : undefined
 
     if (!definition) {
       throw new OAuthServiceError(`No OAuth provider registered for provider: ${providerId}`)

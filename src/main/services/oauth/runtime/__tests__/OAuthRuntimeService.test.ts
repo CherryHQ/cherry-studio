@@ -114,6 +114,15 @@ describe('OAuthRuntimeService', () => {
     service.initializeForTest()
   })
 
+  it.each(['missing-provider', 'constructor', 'toString', '__proto__'])(
+    'rejects unregistered provider %s with the provider error',
+    async (providerId) => {
+      await expect(service.signIn('win-1', providerId, 'unregistered')).rejects.toThrow(
+        `No OAuth provider registered for provider: ${providerId}`
+      )
+    }
+  )
+
   it('does not open the browser until the callback port is listening', async () => {
     let listening!: () => void
     h.transportMock.ready = new Promise<void>((resolve) => {

@@ -167,11 +167,11 @@ export class RemoteAccessService extends BaseService {
 
     socket.binaryType = 'arraybuffer'
 
-    const entry = {
+    const entry: NonNullable<ReturnType<typeof this.connections.get>> = {
       address,
       openedAt: Date.now(),
       abort: new AbortController(),
-      remote: undefined as RemoteConnection | undefined
+      remote: undefined
     }
 
     this.connections.set(socket, entry)

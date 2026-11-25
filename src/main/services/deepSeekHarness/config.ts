@@ -46,6 +46,7 @@ interface HeldLock {
 }
 
 const LockOwnerSchema = z.object({ version: z.literal(1), pid: z.number().int().positive(), token: z.string().min(1) })
+
 type LockOwner = z.infer<typeof LockOwnerSchema>
 
 const SETTINGS_FILE = 'settings.yaml'

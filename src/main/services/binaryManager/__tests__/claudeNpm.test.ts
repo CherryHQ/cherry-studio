@@ -35,6 +35,8 @@ describe('Claude npm platform package', () => {
   )
 
   it.each([
+    null,
+    7,
     { ...metadata, name: '@anthropic-ai/claude-code-win32-x64' },
     { ...metadata, version: '2.1.311' },
     { ...metadata, version: '../../outside' }
@@ -42,6 +44,26 @@ describe('Claude npm platform package', () => {
     vi.mocked(net.fetch).mockResolvedValue(Response.json(invalid))
     await expect(resolveClaudeNpmPackage('https://registry.npmjs.org', '2.1.312')).rejects.toThrow('does not match')
   })
+
+  it('accepts metadata extensions without changing the verified archive', async () => {
+    vi.mocked(net.fetch).mockResolvedValue(
+      Response.json({ ...metadata, future: { arbitrary: true }, dist: { ...metadata.dist, unpackedSize: 123 } })
+    )
+
+    const result = await resolveClaudeNpmPackage('https://registry.npmjs.org', 'latest')
+
+    expect(result.version).toBe('2.1.312')
+    expect(result.toolSpec).toContain(`checksum="sha512:${createHash('sha512').update(PACKAGE_BYTES).digest('hex')}"`)
+  })
+
+  it.each([null, 'invalid distribution', { integrity: 42 }])(
+    'rejects malformed distribution metadata',
+    async (dist) => {
+      vi.mocked(net.fetch).mockResolvedValue(Response.json({ ...metadata, dist }))
+
+      await expect(resolveClaudeNpmPackage('https://registry.npmjs.org', 'latest')).rejects.toThrow('SHA-512')
+    }
+  )
 
   it('uses the alternate public registry without overriding a custom source', () => {
     expect(claudeNpmRegistries('https://registry.npmmirror.com/')).toEqual([

@@ -28,7 +28,8 @@ export function createPinnedDispatcher(target: ResolvedRemoteFetchUrl): Dispatch
               {
                 ...opts,
                 path: authority,
-                headers: { ...(opts.headers as Record<string, string>), host: authority }
+                // SAFETY: ProxyAgent's private client dispatches CONNECT with its own proxy-header object, not arbitrary business request headers.
+                headers: { ...(opts.headers as NonNullable<ProxyAgent.Options['headers']>), host: authority }
               },
               handler
             )

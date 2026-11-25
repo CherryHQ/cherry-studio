@@ -97,11 +97,10 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
       }
     } catch (error) {
       if (isWebSearchError(error) && error.kind === 'configuration') {
-        const code: WebSearchConfigErrorCode = ['api_key_missing', 'api_host_missing', 'api_host_invalid'].includes(
-          error.code
-        )
-          ? (error.code as WebSearchConfigErrorCode)
-          : 'capability_unsupported'
+        const code: WebSearchConfigErrorCode =
+          error.code === 'api_key_missing' || error.code === 'api_host_missing' || error.code === 'api_host_invalid'
+            ? error.code
+            : 'capability_unsupported'
 
         throw new WebSearchConfigError(code, error.message, { cause: error })
       }

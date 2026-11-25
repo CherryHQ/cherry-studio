@@ -1,6 +1,8 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 
+import { getErrorCode } from '@main/utils/error'
+
 interface MeasurementOptions {
   isCurrent?: () => boolean
   maxNodes?: number
@@ -82,7 +84,7 @@ export async function measureToolInstalledSize(
 
     return { sizeBytes }
   } catch (error) {
-    const reason = error instanceof Error ? ((error as NodeJS.ErrnoException).code ?? error.message) : 'io_failed'
+    const reason = error instanceof Error ? (getErrorCode(error) ?? error.message) : 'io_failed'
 
     return { sizeBytes: null, reason }
   }

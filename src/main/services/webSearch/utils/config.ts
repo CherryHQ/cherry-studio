@@ -177,6 +177,7 @@ export async function getProviderById<TProviderId extends WebSearchProvider['id'
 
   const provider = mergeWebSearchProviderPreset(preset, override)
 
+  // SAFETY: Preset lookup uses providerId; merging and both key-inheritance helpers preserve id but erase its literal type.
   return inheritZhipuModelProviderApiKeys(inheritExaMcpApiKeys(provider, providerOverrides)) as WebSearchProvider & {
     id: TProviderId
   }

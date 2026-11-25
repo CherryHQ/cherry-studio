@@ -151,6 +151,7 @@ export class ExportService {
       switch (token.type) {
         case 'heading_open':
           // 获取标题级别 (h1 -> h6)
+          // SAFETY: The default MarkdownIt parser's ATX/Setext heading rules emit only h1-h6, matching docx's six heading constants.
           const level = parseInt(token.tag.slice(1)) as 1 | 2 | 3 | 4 | 5 | 6
           elements.push(
             new Paragraph({

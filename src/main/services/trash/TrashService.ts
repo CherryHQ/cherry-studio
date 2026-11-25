@@ -87,8 +87,10 @@ export class TrashService extends BaseService {
       throw new Error(`Trash purge resolved with non-terminal status: ${snapshot.status}`)
     }
 
+    // SAFETY: This new trash.purge handle receives its handler's persisted result; failed/cancelled executions retain null output, handled below.
     const output = snapshot.output as
       | { reclaimed?: boolean; retainedReferencedFileCount?: number; purged?: Record<string, number> }
+      | null
       | undefined
 
     return {

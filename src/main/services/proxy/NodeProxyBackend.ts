@@ -13,9 +13,6 @@ import type { ProxyEndpoint } from './proxyRouting'
 const agentProtocolSchema = z.object({ protocol: z.string().optional() })
 const agentPortSchema = z.object({ defaultPort: z.number().optional() })
 
-const SOCKS_DISPATCHER_SYMBOL = Symbol.for('undici.globalDispatcher.1')
-const globalDispatcherRegistry = globalThis as typeof globalThis & Record<symbol, Dispatcher | undefined>
-
 interface HttpProxyAgents {
   http: http.Agent
   https: http.Agent
@@ -62,7 +59,6 @@ export class NodeProxyBackend {
   private httpProxyAgents: HttpProxyAgents | null = null
   private readonly proxyBypassRuleMatcher = new ProxyBypassRuleMatcher()
   private readonly originalGlobalDispatcher: Dispatcher
-  private readonly originalSocksDispatcher: Dispatcher
   private readonly originalHttpGet: typeof http.get
   private readonly originalHttpRequest: typeof http.request
   private readonly originalHttpsGet: typeof https.get
@@ -71,7 +67,6 @@ export class NodeProxyBackend {
 
   constructor(private logger?: NodeProxyLogger) {
     this.originalGlobalDispatcher = getGlobalDispatcher()
-    this.originalSocksDispatcher = globalDispatcherRegistry[SOCKS_DISPATCHER_SYMBOL] ?? this.originalGlobalDispatcher
     this.originalHttpGet = http.get
     this.originalHttpRequest = http.request
     this.originalHttpsGet = https.get
@@ -136,7 +131,7 @@ export class NodeProxyBackend {
   private bindHttpMethod(originalMethod: Function, agent: http.Agent, defaultProtocol = 'http:') {
     return (...args: any[]) => {
       let url: string | URL | undefined
-      let options: http.RequestOptions | https.RequestOptions
+      let options: https.RequestOptions
       let callback: ((res: http.IncomingMessage) => void) | undefined
 
       if (typeof args[0] === 'string' || args[0] instanceof URL) {
@@ -179,7 +174,7 @@ export class NodeProxyBackend {
         const tlsStance = options.agent.options.rejectUnauthorized
 
         if (typeof tlsStance === 'boolean') {
-          ;(options as https.RequestOptions).rejectUnauthorized = tlsStance
+          options.rejectUnauthorized = tlsStance
         }
       }
 
@@ -192,7 +187,6 @@ export class NodeProxyBackend {
   private setGlobalFetchProxy(endpoint: ProxyEndpoint | null): void {
     if (!endpoint) {
       setGlobalDispatcher(this.originalGlobalDispatcher)
-      globalDispatcherRegistry[SOCKS_DISPATCHER_SYMBOL] = this.originalSocksDispatcher
       void this.proxyDispatcher?.close()
       this.proxyDispatcher = null
       axios.defaults.adapter = this.originalAxiosAdapter
@@ -225,11 +219,10 @@ export class NodeProxyBackend {
         userId: endpoint.userId,
         password: endpoint.password
       }),
-      this.originalSocksDispatcher,
+      this.originalGlobalDispatcher,
       (origin) => this.proxyBypassRuleMatcher.isByPass(origin, this.logger),
       this.logger
     )
     setGlobalDispatcher(this.proxyDispatcher)
-    globalDispatcherRegistry[SOCKS_DISPATCHER_SYMBOL] = this.proxyDispatcher
   }
 }

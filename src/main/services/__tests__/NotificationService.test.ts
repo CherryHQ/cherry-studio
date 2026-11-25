@@ -1273,7 +1273,7 @@ describe('NotificationService', () => {
   ])('records a terminal failure from the real stream manager: %s', async (topicId, message, active) => {
     mocks.isActiveInFocusedWindow.mockResolvedValue(active)
     mocks.getWindowInfosByType.mockReturnValue(active ? [mainWindowInfo({ isFocused: true })] : [])
-    const manager = new AiStreamManager(application.get('RuntimeActivityService'), { gracePeriodMs: 1 })
+    const manager = new AiStreamManager({ gracePeriodMs: 1 })
     const originalGet = vi.mocked(application.get).getMockImplementation()!
     vi.mocked(application.get).mockImplementation(((name: string) => {
       if (name === 'AiStreamManager') return manager
