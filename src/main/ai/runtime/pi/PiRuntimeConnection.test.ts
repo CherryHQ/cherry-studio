@@ -1289,7 +1289,7 @@ describe('desktop Pi root connection', () => {
   it('never initializes a missing file for a prepared but unresolved submission', async () => {
     const user = message('uncertain dispatch')
     const context = preparePiBranch(input.sessionId)
-    prepareNativeSubmission(input.sessionId, user.id, context.id, 'reject')
+    prepareNativeSubmission(input.sessionId, user.id, context.id)
     expect(context.bindingState).toBe('pending')
     await expect(connect()).rejects.toThrow('missing')
     expect(nativeFiles()).toEqual([])

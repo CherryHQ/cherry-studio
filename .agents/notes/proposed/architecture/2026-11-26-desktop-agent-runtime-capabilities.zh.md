@@ -10,7 +10,7 @@ Status: proposed
 
 ## Proposal
 
-每个输入操作绑定到实际能执行它的访问，保留输入 ID 和原生接纳结果。只读访问省略提交入口。插话说明空闲时的行为，原生后续输入说明能否在重启后恢复。交付结果未知时保留原目标。Main 负责调度，把当前连接的视图传给输入框，派发时重新校验。跨 harness 契约由[公共 runtime 包](../../../../packages/agent-runtime/README.md)持有。
+每个输入操作绑定到实际能执行它的访问，保留输入 ID 和原生接纳结果。只读访问省略提交入口。插话说明空闲时的行为，原生后续输入说明能否在重启后恢复。交付结果未知时保留原目标。Main 负责派发。Pi Durable 持久化已接纳的后续输入；缺少原生持久排队能力时，草稿留在输入框现有待发队列。跨 harness 契约由[公共 runtime 包](../../../../packages/agent-runtime/README.md)持有。
 
 本机 Agent 的发现、安装和启动共用组件声明。Main 拥有进程、终端登录、授权与产品归账。本机 Pi 走 Pi 包的原生 RPC，内建 Pi 走 SDK，Claude 走 Claude 包，普通 ACP 走[现有适配器](../../../../packages/agent-runtime-acp/README.md)。保留显式 ACP 命令和 Codex App Server 路由。实时 part 与能力变化只读取相关来源。切换旧会话恢复路径前必须确认原生历史身份。
 

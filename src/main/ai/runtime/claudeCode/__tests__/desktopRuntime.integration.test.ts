@@ -818,7 +818,7 @@ it.each(['rejected', 'unsupported', 'unknown'] as const)(
     const connection = await test.connect()
     const user = test.input('not accepted')
     const handle = (connection as unknown as { handle: ClaudeThreadHandle }).handle
-    vi.spyOn(handle.claude, 'submit').mockResolvedValue({
+    vi.spyOn(handle.claude.input!.followUp!, 'submit').mockResolvedValue({
       status,
       inputId: runtimeId(user.message.id),
       error: { operation: 'submit', code: 'fixture', message: status }

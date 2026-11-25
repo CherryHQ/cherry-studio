@@ -34,7 +34,7 @@ async function spawnEnvironment(configDir: (home: string) => string, env: Option
         }
       })
     )
-    await root.input!.submit({ inputId: inputId(), text: 'Spawn', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: inputId(), text: 'Spawn' })
     await expect.poll(() => spawned).toBeDefined()
     return spawned!
   } finally {

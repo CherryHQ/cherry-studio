@@ -51,6 +51,7 @@ import {
   type RuntimeError,
   type ThreadHandle,
   type ThreadInput,
+  type InputDraft,
   type Thread,
   type ThreadId,
   type Subagent,
@@ -94,7 +95,7 @@ export interface PiDurableRuntimeBehavior {
 }
 export type PiDurableSessionOptions = ConversationCreateOptions
 export interface PiDurableThreadHandle extends ThreadHandle {
-  readonly input: ThreadInput
+  readonly input: ThreadInput & Required<Pick<ThreadInput, 'steer'>>
   readonly durable: {
     observe(sink: (batch: DurableObservation) => void | Promise<void>): Promise<OperationResult<Observation>>
     relation(): Promise<Subagent | undefined>
@@ -139,6 +140,7 @@ export interface PiDurableRuntime extends AgentRuntime {
   settled(): Promise<void>
 }
 interface Entry {
+  managedChild: boolean
   ref: Thread
   conversation: Conversation
   projection: DurableProjection
@@ -484,6 +486,7 @@ export async function createPiDurableRuntime(
     if (existing) return existing
     const loading = (async (): Promise<OperationResult<Entry>> => {
       const projection = new DurableProjection(refFor(conversation.id), report)
+      let managedChild = false
       let detach: (() => void) | undefined
       let detachCommits: (() => void) | undefined
       try {
@@ -504,6 +507,7 @@ export async function createPiDurableRuntime(
               for (const entry of page.items) fold.addEntry(entry)
               cursor = page.next
             } while (cursor)
+            managedChild = !!behavior && !!view.conversation.owner && fold.origins.length > 0
             for (const conversationId of [...fold.newestTasks.keys()])
               for (const task of await pages((next) =>
                 committed.scanTasks({ conversationId, kind: ToolTask.definition.name }, 256, next, context)
@@ -669,6 +673,7 @@ export async function createPiDurableRuntime(
         )
         detach = attached.detach
         const entry: Entry = {
+          managedChild,
           ref: refFor(conversation.id),
           conversation,
           projection,
@@ -734,6 +739,112 @@ export async function createPiDurableRuntime(
         report(cause)
         return { status: 'unknown', error: error('observe', 'source-lost') }
       }
+    }
+    function submit(input: InputDraft, whenBusy: 'reject' | 'steer' | 'follow-up'): Promise<SubmitResult> {
+      if (unavailable()) return Promise.resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
+      entry.projection.beginAdmission(input.inputId)
+      const attempt = entry.admission.then(async (): Promise<SubmitResult> => {
+        if (unavailable()) {
+          return { ...rejected('submit', 'closed'), inputId: input.inputId }
+        }
+        try {
+          if (behavior && behaviorEntries) {
+            if (entry.managedChild) {
+              const receipt = await behavior.withCall(
+                entry.ref.id,
+                (ports) =>
+                  behaviorEntries!.messageSubagent(
+                    ports,
+                    entry.ref.id,
+                    input.text,
+                    input.inputId,
+                    new AbortController().signal
+                  ),
+                { inputId: input.inputId }
+              )
+              if (receipt.status === 'refused') {
+                return {
+                  status: 'rejected',
+                  inputId: input.inputId,
+                  error: { operation: 'submit', code: 'behavior-refused', message: receipt.reason }
+                }
+              }
+              const state = await readDurableInput(committedStorage, entry.ref, input.inputId).catch((cause) => {
+                report(cause)
+                return undefined
+              })
+              const facts = state?.facts ?? (['dispatch-started'] as const)
+              if (!state?.nativeInput) entry.projection.input({ inputId: input.inputId, facts })
+              return {
+                status: 'acknowledged',
+                inputId: input.inputId,
+                facts,
+                ...(state?.nativeInput && { nativeInput: state.nativeInput })
+              }
+            }
+            if (/^\/goal(?:\s|$)/.test(input.text)) {
+              await behavior.withCall(entry.ref.id, (ports) =>
+                behaviorEntries!.goalCommand(
+                  ports,
+                  entry.ref.id,
+                  input.text.slice('/goal'.length).trim(),
+                  input.inputId
+                )
+              )
+              native.resume()
+              const state: InputState = { inputId: input.inputId, facts: ['locally-handled'], outcome: 'completed' }
+              entry.projection.input(state)
+              return { status: 'acknowledged', inputId: input.inputId, facts: state.facts }
+            }
+          }
+          const submission = await entry.conversation.submit(
+            {
+              type: 'input',
+              content: input.text,
+              requestId: input.inputId,
+              whenBusy: whenBusy === 'follow-up' ? 'followUp' : whenBusy,
+              entry: { kind: 'cherry.user-input', data: { cherryInputId: input.inputId } }
+            },
+            context
+          )
+          let state: InputState = {
+            inputId: input.inputId,
+            nativeInput: { session: entry.ref, id: runtimeId(String(submission.id)) },
+            facts: ['accepted']
+          }
+          try {
+            const record = await submission.status(context)
+            state = submissionState(entry.ref, record, undefined, input.inputId)
+          } catch (cause) {
+            report(cause)
+            const known = entry.projection.feed.snapshot.inputs.find(
+              (value) => value.nativeInput?.id === String(submission.id)
+            )
+            state = { ...state, ...known, inputId: input.inputId }
+            entry.projection.input(state)
+          }
+          return {
+            status: 'acknowledged',
+            inputId: input.inputId,
+            nativeInput: state.nativeInput,
+            facts: state.facts
+          }
+        } catch (cause) {
+          if (!closing) report(cause)
+          return {
+            status: cause instanceof ConversationBusy ? 'rejected' : 'unknown',
+            inputId: input.inputId,
+            error: error('submit', closing ? 'closed' : cause instanceof ConversationBusy ? 'busy' : 'native-error')
+          }
+        }
+      })
+      const completed = attempt.then((result) => {
+        if (result.status === 'unknown') entry.projection.input({ inputId: input.inputId, facts: ['dispatch-started'] })
+        entry.projection.endAdmission(input.inputId, result.status === 'acknowledged')
+        return result
+      })
+      entry.admission = completed.then(() => {})
+      return track(completed)
     }
     return {
       thread: entry.ref,
@@ -913,123 +1024,13 @@ export async function createPiDurableRuntime(
           )
         )
       },
-      input: {
-        submit(input) {
-          if (unavailable()) return Promise.resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
-          if (!['reject', 'steer', 'follow-up'].includes(input.whenBusy))
-            return Promise.resolve({ status: 'unsupported', inputId: input.inputId, error: error('submit', 'policy') })
-          entry.projection.beginAdmission(input.inputId)
-          const attempt = entry.admission.then(async (): Promise<SubmitResult> => {
-            if (unavailable()) {
-              return { ...rejected('submit', 'closed'), inputId: input.inputId }
-            }
-            try {
-              if (behavior && behaviorEntries) {
-                const child = await native.commit(
-                  async (tx) =>
-                    (await tx.conversation(entry.conversation.id))?.owner &&
-                    (await originOf(tx, entry.conversation.id)),
-                  context
-                )
-                if (child) {
-                  const receipt = await behavior.withCall(
-                    entry.ref.id,
-                    (ports) =>
-                      behaviorEntries!.messageSubagent(
-                        ports,
-                        entry.ref.id,
-                        input.text,
-                        input.inputId,
-                        new AbortController().signal
-                      ),
-                    { inputId: input.inputId }
-                  )
-                  if (receipt.status === 'refused') {
-                    return {
-                      status: 'rejected',
-                      inputId: input.inputId,
-                      error: { operation: 'submit', code: 'behavior-refused', message: receipt.reason }
-                    }
-                  }
-                  const state = await readDurableInput(committedStorage, entry.ref, input.inputId).catch((cause) => {
-                    report(cause)
-                    return undefined
-                  })
-                  const facts = state?.facts ?? (['dispatch-started'] as const)
-                  if (!state?.nativeInput) entry.projection.input({ inputId: input.inputId, facts })
-                  return {
-                    status: 'acknowledged',
-                    inputId: input.inputId,
-                    facts,
-                    ...(state?.nativeInput && { nativeInput: state.nativeInput })
-                  }
-                }
-                if (/^\/goal(?:\s|$)/.test(input.text)) {
-                  await behavior.withCall(entry.ref.id, (ports) =>
-                    behaviorEntries!.goalCommand(
-                      ports,
-                      entry.ref.id,
-                      input.text.slice('/goal'.length).trim(),
-                      input.inputId
-                    )
-                  )
-                  native.resume()
-                  const state: InputState = { inputId: input.inputId, facts: ['locally-handled'], outcome: 'completed' }
-                  entry.projection.input(state)
-                  return { status: 'acknowledged', inputId: input.inputId, facts: state.facts }
-                }
-              }
-              const submission = await entry.conversation.submit(
-                {
-                  type: 'input',
-                  content: input.text,
-                  requestId: input.inputId,
-                  whenBusy: input.whenBusy === 'follow-up' ? 'followUp' : input.whenBusy,
-                  entry: { kind: 'cherry.user-input', data: { cherryInputId: input.inputId } }
-                },
-                context
-              )
-              let state: InputState = {
-                inputId: input.inputId,
-                nativeInput: { session: entry.ref, id: runtimeId(String(submission.id)) },
-                facts: ['accepted']
-              }
-              try {
-                const record = await submission.status(context)
-                state = submissionState(entry.ref, record, undefined, input.inputId)
-              } catch (cause) {
-                report(cause)
-                const known = entry.projection.feed.snapshot.inputs.find(
-                  (value) => value.nativeInput?.id === String(submission.id)
-                )
-                state = { ...state, ...known, inputId: input.inputId }
-                entry.projection.input(state)
-              }
-              return {
-                status: 'acknowledged',
-                inputId: input.inputId,
-                nativeInput: state.nativeInput,
-                facts: state.facts
-              }
-            } catch (cause) {
-              if (!closing) report(cause)
-              return {
-                status: cause instanceof ConversationBusy ? 'rejected' : 'unknown',
-                inputId: input.inputId,
-                error: error('submit', closing ? 'closed' : cause instanceof ConversationBusy ? 'busy' : 'native-error')
-              }
-            }
-          })
-          const completed = attempt.then((result) => {
-            if (result.status === 'unknown')
-              entry.projection.input({ inputId: input.inputId, facts: ['dispatch-started'] })
-            entry.projection.endAdmission(input.inputId, result.status === 'acknowledged')
-            return result
-          })
-          entry.admission = completed.then(() => {})
-          return track(completed)
-        }
-      },
+      input: entry.managedChild
+        ? { steer: { whenIdle: 'may-start', submit: (draft) => submit(draft, 'steer') } }
+        : {
+            submit: (draft) => submit(draft, 'reject'),
+            steer: { whenIdle: 'may-start', submit: (draft) => submit(draft, 'steer') },
+            followUp: { persistence: 'durable', submit: (draft) => submit(draft, 'follow-up') }
+          },
       observe: (sink) => observeCaptured(() => entry.projection.feed.observe(sink)),
       interrupt() {
         if (unavailable()) return Promise.resolve(rejected('interrupt', 'closed'))

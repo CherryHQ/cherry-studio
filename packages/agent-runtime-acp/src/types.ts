@@ -16,12 +16,13 @@ import type {
 import type {
   AgentRuntime,
   BackendId,
+  ThreadInput,
+  SubmitInput,
   InputDraft,
   InputId,
   Observation,
   ObservationPayload,
   OperationResult,
-  SubmitResult,
   Thread,
   ThreadHandle
 } from '@cherrystudio/agent-runtime'
@@ -88,9 +89,10 @@ export interface AcpObservationFrame {
 }
 
 export interface AcpThreadHandle extends ThreadHandle {
+  readonly input: Required<Pick<ThreadInput, 'submit'>>
   readonly acp: {
     state(): AcpSessionState
-    submit(input: AcpInputDraft): Promise<SubmitResult>
+    readonly submit: SubmitInput<AcpInputDraft>
     observe(sink: (frame: AcpObservationFrame) => void | Promise<void>): Promise<OperationResult<Observation>>
     setMode(modeId: string): Promise<OperationResult<void>>
     setConfigOption(configId: string, value: string | boolean): Promise<OperationResult<void>>

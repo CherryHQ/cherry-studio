@@ -5,13 +5,16 @@ import {
   type SessionUpdate,
   type RequestPermissionResponse
 } from '@agentclientprotocol/sdk'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
-import { runtimeId, type ObservationPayload, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
+import { runtimeId, type InputDraft, type ObservationPayload, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
 
 import { Projection } from '../src/projection'
 import type { AcpObservationFrame, AcpThreadHandle } from '../src/v1'
 import { configuration, confirmed, deferred, fixture, input } from './fixture'
+
+expectTypeOf<InputDraft & { whenBusy: 'steer' }>().not.toExtend<Parameters<AcpThreadHandle['input']['submit']>[0]>()
+expectTypeOf<keyof AcpThreadHandle['input']>().toEqualTypeOf<'submit'>()
 
 const fixtures: ReturnType<typeof fixture>[] = []
 const setup: typeof fixture = (...args) => {
@@ -184,7 +187,7 @@ describe('input, permission and cancellation', () => {
     })
     const a = confirmed(await runtime.create(configuration))
     const b = confirmed(await runtime.create(configuration))
-    await Promise.all([a.input!.submit(input()), b.input!.submit(input())])
+    await Promise.all([a.input.submit(input()), b.input.submit(input())])
     await Promise.all([finished(a, 'hello'), finished(b, 'hello')])
     const left = (await collect(a)).events[0] as ThreadSnapshot
     const right = (await collect(b)).events[0] as ThreadSnapshot
@@ -232,18 +235,19 @@ describe('input, permission and cancellation', () => {
       }
     })
     const handle = confirmed(await runtime.create(configuration))
-    expect(await handle.input!.submit({ ...input(), whenBusy: 'follow-up' })).toMatchObject({ status: 'unsupported' })
-    const [first, second] = await Promise.all([handle.input!.submit(input()), handle.input!.submit(input('busy'))])
+    expect(handle.input).not.toHaveProperty('followUp')
+    expect(handle.input).not.toHaveProperty('steer')
+    const [first, second] = await Promise.all([handle.input.submit(input()), handle.input.submit(input('busy'))])
     expect(first).toEqual({ status: 'acknowledged', inputId: 'hello', facts: ['dispatch-started'] })
     expect(second).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
-    expect(await handle.input!.submit(input())).toMatchObject({
+    expect(await handle.input.submit(input())).toMatchObject({
       status: 'rejected',
       error: { code: 'duplicate-input' }
     })
     end.resolve()
     await finished(handle, 'hello')
     expect(prompts).toBe(1)
-    expect(await handle.input!.submit(input())).toMatchObject({ status: 'rejected' })
+    expect(await handle.input.submit(input())).toMatchObject({ status: 'rejected' })
   })
 
   it.each([
@@ -255,7 +259,7 @@ describe('input, permission and cancellation', () => {
   ] as const)('preserves native %s as %s', async (stopReason, outcome) => {
     const { runtime } = setup({ 'session/prompt': () => ({ stopReason, _meta: { evidence: true } }) })
     const handle = confirmed(await runtime.create(configuration))
-    await handle.input!.submit(input())
+    await handle.input.submit(input())
     await finished(handle, 'hello')
     const { events } = await collect(handle)
     expect(events[0]).toMatchObject({ inputs: [{ outcome, facts: ['dispatch-started'] }] })
@@ -270,7 +274,7 @@ describe('input, permission and cancellation', () => {
       const { runtime } = setup({ 'session/prompt': () => JSON.parse(JSON.stringify(response)) })
       const handle = confirmed(await runtime.create(configuration))
       const { events } = await collect(handle)
-      expect(await handle.input!.submit(input())).toMatchObject({ status: 'acknowledged' })
+      expect(await handle.input.submit(input())).toMatchObject({ status: 'acknowledged' })
       await expect.poll(() => events.some((event) => event.type === 'gap')).toBe(true)
       const snapshot = (await collect(handle)).events[0]
       expect(snapshot).toMatchObject({
@@ -280,7 +284,7 @@ describe('input, permission and cancellation', () => {
       if (snapshot.type !== 'snapshot') throw new Error('Expected snapshot')
       expect(snapshot.inputs[0].outcome).toBeUndefined()
       expect(handle.acp.state().turns).toEqual([])
-      expect(await handle.input!.submit(input('next'))).toMatchObject({ status: 'rejected' })
+      expect(await handle.input.submit(input('next'))).toMatchObject({ status: 'rejected' })
     }
   )
 
@@ -293,7 +297,7 @@ describe('input, permission and cancellation', () => {
       }
     })
     const handle = confirmed(await runtime.create(configuration))
-    await handle.input!.submit(input())
+    await handle.input.submit(input())
     await finished(handle, 'hello')
     expect((await collect(handle)).events[0]).toMatchObject({
       inputs: [{ outcome: 'failed', error: { message: 'Tool already ran' } }]
@@ -335,7 +339,7 @@ describe('input, permission and cancellation', () => {
       }
     )
     const handle = confirmed(await f.runtime.create(configuration))
-    await handle.input!.submit(input())
+    await handle.input.submit(input())
     await offered.promise
     expect(await handle.interrupt!()).toMatchObject({ status: 'confirmed' })
     expect(signal?.aborted).toBe(true)
@@ -365,7 +369,7 @@ describe('input, permission and cancellation', () => {
       { callbacks: optionId ? { permission: async () => ({ outcome: { outcome: 'selected', optionId } }) } : {} }
     )
     const handle = confirmed(await runtime.create(configuration))
-    await handle.input!.submit(input())
+    await handle.input.submit(input())
     expect(await answer.promise).toEqual(
       optionId === 'once' ? { outcome: { outcome: 'selected', optionId } } : { outcome: { outcome: 'cancelled' } }
     )
@@ -380,7 +384,7 @@ describe('input, permission and cancellation', () => {
       }
     })
     const handle = confirmed(await f.runtime.create(configuration))
-    await handle.input!.submit(input())
+    await handle.input.submit(input())
     expect(await handle.interrupt!()).toMatchObject({ status: 'confirmed' })
     expect((await collect(handle)).events[0]).toMatchObject({ inputs: [{ outcome: 'completed' }] })
   })
@@ -396,14 +400,14 @@ describe('input, permission and cancellation', () => {
     })
     const handle = confirmed(await f.runtime.create(configuration))
     const { events } = await collect(handle)
-    await handle.input!.submit(input())
+    await handle.input.submit(input())
     await seen.promise
     f.disconnect()
     await expect.poll(() => events.some((event) => event.type === 'gap' && event.reason === 'disconnected')).toBe(true)
     const baseline = (await collect(handle)).events[0] as ThreadSnapshot
     expect(baseline.inputs[0]).not.toHaveProperty('outcome')
     expect(await handle.interrupt!()).toMatchObject({ status: 'unknown' })
-    expect(await handle.input!.submit(input('next'))).toMatchObject({ status: 'rejected' })
+    expect(await handle.input.submit(input('next'))).toMatchObject({ status: 'rejected' })
   })
 })
 
@@ -474,7 +478,7 @@ describe('projection and observation', () => {
       }
     })
     const handle = confirmed(await runtime.create(configuration))
-    await handle.input!.submit(input())
+    await handle.input.submit(input())
     await finished(handle, 'hello')
     expect((await collect(handle)).events[0]).toMatchObject({
       messages: [
@@ -531,7 +535,7 @@ describe('projection and observation', () => {
         frames.push(frame)
       })
     )
-    await handle.input!.submit(input())
+    await handle.input.submit(input())
     await finished(handle, 'hello')
     await observer.drain()
     const state = handle.acp.state()
@@ -588,7 +592,7 @@ describe('projection and observation', () => {
         if (slow.length === 1) await release.promise
       })
     )
-    await a.input!.submit(input())
+    await a.input.submit(input())
     await a.release()
     await end.promise
     await finished(b, 'hello')
@@ -597,7 +601,7 @@ describe('projection and observation', () => {
     expect(slow.some((event) => event.type === 'gap' && event.reason === 'overflow')).toBe(true)
     const baseline = (await collect(b)).events[0] as ThreadSnapshot
     expect(baseline.messages[0].parts).toMatchObject([{ text: '.'.repeat(120) }])
-    expect(await a.input!.submit(input('after-release'))).toMatchObject({ status: 'rejected' })
+    expect(await a.input.submit(input('after-release'))).toMatchObject({ status: 'rejected' })
   })
 
   it.each(['response', 'notification'] as const)(

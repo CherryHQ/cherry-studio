@@ -14,7 +14,6 @@ import {
 import {
   cloneHistoryData,
   runtimeId,
-  type BusyPolicy,
   type InputFact,
   type InputId,
   type InputState,
@@ -294,13 +293,12 @@ export class ClaudeOwner {
     projection: ClaudeProjection,
     inputId: InputId,
     content: SDKUserMessage['message']['content'],
-    policy: BusyPolicy
+    policy: 'steer' | 'follow-up'
   ): Promise<SubmitResult> {
     const refuse = (code: string, status: 'rejected' | 'unsupported' = 'rejected'): Promise<SubmitResult> =>
       Promise.resolve({ status, inputId, error: runtimeError('submit', code) })
     if (this.closing || this.lost || this.resetFrom || projection.thread.id !== this.activeSession)
       return refuse('closed')
-    if (policy !== 'steer' && policy !== 'follow-up') return refuse('busy-policy', 'unsupported')
     if (this.inputs.has(inputId) || this.nativeInputIds.has(inputId)) return refuse('duplicate-input')
     if (typeof content === 'string' ? !content.trim() : !content.length) return refuse('empty-input')
     try {

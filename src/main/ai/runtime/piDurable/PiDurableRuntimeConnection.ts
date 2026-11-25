@@ -8,7 +8,9 @@ import {
   hasProductInputId,
   isPartBatch,
   runtimeId,
+  type InputDraft,
   type InputState,
+  type SubmitResult,
   type Observation,
   type Subagent
 } from '@cherrystudio/agent-runtime'
@@ -71,7 +73,7 @@ function isCompactCommand(text: string) {
 }
 
 /** Durable answered the submission; the host already received it as `input-submission`. */
-class SubmissionRefused extends Error {}
+class InputNotDispatched extends Error {}
 
 export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   get contextId(): string | undefined {
@@ -287,14 +289,18 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
-  followUp(input: AgentRuntimeCommand): boolean {
+  get followUp() {
+    return this.handle?.input.followUp?.persistence === 'durable' ? this.submitFollowUp : undefined
+  }
+
+  private readonly submitFollowUp = (input: AgentRuntimeCommand): boolean => {
     const text = buildAgentUserContent(input.message)
     // `/compact` is a host command; it waits in the host queue and runs as compaction.
     if (!this.sending || this.closing || this.compacting || isCompactCommand(text)) return false
     this.queued.add(input.message.id)
     void this.submit(input, wrapSteerReminder(text), 'follow-up').catch((error) => {
       logger.warn('Durable follow-up submission failed', { sessionId: this.input.sessionId, error })
-      if (error instanceof SubmissionRefused) return
+      if (!(error instanceof InputNotDispatched)) return
       // It never reached Durable's queue, so the host queues it instead.
       this.queued.delete(input.message.id)
       this.events.push({ type: 'steer-undelivered', inputIds: [input.message.id] })
@@ -304,23 +310,43 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'follow-up' | 'steer') {
     const submitted = (async () => {
-      if (input.context?.length)
-        await this.handle!.durable.initializeContext(
-          buildAgentUserContent({ ...input.message, data: { parts: input.context } })
-        )
-      const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, whenBusy, {
-        text,
-        parts: input.message.data.parts
-      })
-      this.input.onInputPrepared?.(input.message.id, this.context!.id)
-      return this.handle!.input.submit(draft)
+      const handle = this.handle
+      const send = whenBusy === 'steer' ? handle?.input.steer.submit : handle?.input.followUp?.submit
+      if (!handle || !send) throw new InputNotDispatched('Pi Durable input operation is unavailable')
+      let draft: InputDraft
+      try {
+        if (input.context?.length)
+          await handle.durable.initializeContext(
+            buildAgentUserContent({ ...input.message, data: { parts: input.context } })
+          )
+        draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, {
+          text,
+          parts: input.message.data.parts
+        })
+        this.input.onInputPrepared?.(input.message.id, this.context!.id)
+      } catch (cause) {
+        throw new InputNotDispatched(cause instanceof Error ? cause.message : String(cause), { cause })
+      }
+      try {
+        return await send(draft)
+      } catch (cause) {
+        return {
+          status: 'unknown',
+          inputId: draft.inputId,
+          error: {
+            operation: 'submit',
+            code: 'missing-receipt',
+            message: cause instanceof Error ? cause.message : String(cause)
+          }
+        } satisfies SubmitResult
+      }
     })()
     this.admission = submitted.catch(() => undefined)
     const result = await submitted
     this.events.push({ type: 'input-submission', contextId: this.context!.id, result })
     applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
     if (result.status !== 'acknowledged') {
-      throw new SubmissionRefused(result.error.message)
+      throw new Error(result.error.message)
     }
   }
 
@@ -753,7 +779,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     const { sessionId } = projection.context
     const id = randomUUID()
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })
-    const draft = prepareNativeSubmission(sessionId, id, contextId, 'steer')
+    const draft = prepareNativeSubmission(sessionId, id, contextId)
     await projection.refresh()
     const [{ recoveryIndex }, { BACKGROUND_CONTEXT }] = await Promise.all([
       import('@cherrystudio/agent-runtime-pi-durable'),
@@ -762,7 +788,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     await this.runtime!.durable.commit(async (tx) => {
       ;(await tx.doc(recoveryIndex)).archives[handle.thread.id] = true
     }, BACKGROUND_CONTEXT)
-    const result = await handle.input.submit(draft)
+    const result = await handle.input.steer.submit(draft)
     applyNativeSubmissionResult(sessionId, contextId, result)
     await projection.refresh()
     if (result.status !== 'acknowledged') throw new Error(result.error.message)

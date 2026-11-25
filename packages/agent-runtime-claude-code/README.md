@@ -57,8 +57,9 @@ by a newer read, model change, reset or shutdown cannot overwrite that newer sta
 
 ## Input and control
 
-Root `input.submit` supports `steer` and `follow-up`, mapped to native `next` and
-`later` priority. Busy `reject` is unsupported because the SDK exposes no atomic
+Root `input.steer.submit` and `input.followUp.submit` map to native `next` and
+`later` priority. The SDK queue is volatile. Both operations accept structured content through
+`claude.input`. Busy rejection is unsupported because the SDK exposes no atomic
 rejection operation. Steering can become a later turn when no tool boundary remains.
 Native Agent/SendMessage own child continuation; no direct child send is fabricated.
 

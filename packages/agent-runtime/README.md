@@ -5,8 +5,9 @@ facts, interrupting foreground work, and releasing access/resources. This packag
 Claude SDK, Electron, or application dependency and does not schedule agent execution.
 
 `Thread` is the stable native context identity within a backend. `ThreadHandle` is a live access
-with observation and release operations. Its optional `input` exposes `submit`; observation-only
-access omits it. Concrete adapters validate `whenBusy` before dispatch. Releasing an access does not delete the thread
+with observation and release operations. A writable handle exposes its supported operations under
+`input`. `submit` rejects busy work, `steer.submit` declares what happens when idle, and
+`followUp.submit` declares the queue's persistence. An observation-only handle omits `input`. Releasing an access does not delete the thread
 or abort its work. The host stores product-session relationships separately from native context storage.
 
 Every handle exposes passive `contextUsage()`. Confirmed readings distinguish full context

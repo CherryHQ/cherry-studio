@@ -460,12 +460,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'reject' | 'steer'): Promise<void> {
-    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, whenBusy, {
+    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, {
       text,
       parts: input.message.data.parts
     })
     this.input.onInputPrepared?.(input.message.id, this.context!.id)
-    const result = await this.handle!.input.submit(draft)
+    const port = this.handle?.input
+    const send = whenBusy === 'steer' ? port?.steer.submit : port?.submit
+    if (!send) throw new Error('Pi input operation is unavailable')
+    const result = await send(draft)
     this.eventQueue.push({ type: 'input-submission', contextId: this.context!.id, result })
     applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
     if (result.status === 'acknowledged') {
@@ -707,9 +710,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       sessionId,
       message: { id: messageId, role: 'user', data: { parts: [{ type: 'text', text }] } }
     })
-    const draft = prepareNativeSubmission(sessionId, messageId, contextId, 'steer')
+    const draft = prepareNativeSubmission(sessionId, messageId, contextId)
     await projection.refresh()
-    const result = await handle.input.submit(draft)
+    const result = await handle.input.steer.submit(draft)
     applyNativeSubmissionResult(sessionId, contextId, result)
     await projection.refresh()
     if (result.status !== 'acknowledged') throw new Error(result.error.message)

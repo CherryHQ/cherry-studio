@@ -9,7 +9,7 @@ export type {
   Thread,
   ItemRef,
   NativeInputRef,
-  BusyPolicy,
+  SubmitInput,
   InputDraft,
   RuntimeError,
   OperationResult,

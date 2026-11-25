@@ -13,13 +13,12 @@ import type {
   AgentRuntime,
   LookupInput,
   BackendId,
-  BusyPolicy,
+  ThreadInput,
   RuntimeMessage,
   InputId,
   Observation,
   ObservationPayload,
   OperationResult,
-  SubmitResult,
   Subagent,
   Thread,
   ThreadHandle,
@@ -114,6 +113,10 @@ export interface ClaudeArchive {
   readonly retracted: readonly string[]
 }
 
+export interface ClaudeInput {
+  readonly inputId: InputId
+  readonly content: SDKUserMessage['message']['content']
+}
 export interface ClaudeThreadHandle extends ThreadHandle {
   readonly claude: {
     state(): { readonly active: boolean }
@@ -132,7 +135,7 @@ export interface ClaudeThreadHandle extends ThreadHandle {
     start(warm?: { query: WarmQuery; exited: Promise<void> }): OperationResult<void>
     supportedCommands(): Promise<OperationResult<Awaited<ReturnType<Query['supportedCommands']>>>>
     setPermissionMode(mode: Parameters<Query['setPermissionMode']>[0]): Promise<OperationResult<void>>
-    submit(inputId: InputId, content: SDKUserMessage['message']['content'], whenBusy: BusyPolicy): Promise<SubmitResult>
+    readonly input?: ThreadInput<ClaudeInput>
     observe(
       sink: ClaudeObservationSink,
       needsRecovery?: (batch: ClaudeObservation) => boolean

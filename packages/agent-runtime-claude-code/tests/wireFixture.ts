@@ -151,7 +151,7 @@ export async function wireFixture(
     await runtime.create({ cwd: directory, env: {}, model: options.model, spawnClaudeCodeProcess: () => process })
   )
   const view = await observe(root)
-  await root.input!.submit({ inputId: inputId(), text: 'Start wire replay', whenBusy: 'steer' })
+  await root.input!.steer!.submit({ inputId: inputId(), text: 'Start wire replay' })
   const sessionId = root.claude.sessionId
   return {
     root,

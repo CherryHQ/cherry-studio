@@ -253,7 +253,6 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
       inputId: input.inputId,
       error: failure('submit', code, code)
     })
-    if (input.whenBusy !== 'reject') return reject('unsupported-busy-policy', 'unsupported')
     if (state !== 'running' || !connection || owner.lost || connection.signal.aborted)
       return reject('source-unavailable')
     if (owner.inputs.has(input.inputId)) return reject('duplicate-input')

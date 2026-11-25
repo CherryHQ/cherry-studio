@@ -332,12 +332,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     )
     const contextId = this.context!.id
-    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'follow-up', {
+    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, {
       text: JSON.stringify(sdkMessage.message.content),
       parts: input.message.data.parts
     })
     this.input.onInputPrepared?.(input.message.id, contextId)
-    const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'follow-up')
+    const operation = this.handle?.claude.input?.followUp
+    if (!operation) throw new Error('Claude follow-up is unavailable')
+    const result = await operation.submit({ inputId: draft.inputId, content: sdkMessage.message.content })
     this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
@@ -377,12 +379,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     )
     const contextId = this.context!.id
-    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'steer', {
+    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, {
       text: JSON.stringify(sdkMessage.message.content),
       parts: input.message.data.parts
     })
     this.input.onInputPrepared?.(input.message.id, contextId)
-    const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'steer')
+    const operation = this.handle?.claude.input?.steer
+    if (!operation) throw new Error('Claude steer is unavailable')
+    const result = await operation.submit({ inputId: draft.inputId, content: sdkMessage.message.content })
     this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)

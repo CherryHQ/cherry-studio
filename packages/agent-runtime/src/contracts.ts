@@ -27,11 +27,9 @@ export interface NativeInputRef {
   readonly session: Thread
   readonly id: NativeInputId
 }
-export type BusyPolicy = 'reject' | 'steer' | 'follow-up'
 export interface InputDraft {
   readonly inputId: InputId
   readonly text: string
-  readonly whenBusy: BusyPolicy
 }
 export interface RuntimeError {
   readonly operation: string
@@ -222,8 +220,13 @@ export interface Observation {
   drain(): Promise<void>
   stop(): Promise<void>
 }
-export interface ThreadInput {
-  submit(input: InputDraft): Promise<SubmitResult>
+export type SubmitInput<D extends { readonly inputId: InputId } = InputDraft> = (
+  input: D & { readonly whenBusy?: never }
+) => Promise<SubmitResult>
+export interface ThreadInput<D extends { readonly inputId: InputId } = InputDraft> {
+  readonly submit?: SubmitInput<D>
+  readonly steer?: { readonly whenIdle: 'reject' | 'may-start'; readonly submit: SubmitInput<D> }
+  readonly followUp?: { readonly persistence: 'durable' | 'volatile' | 'unknown'; readonly submit: SubmitInput<D> }
 }
 export interface ThreadHandle {
   readonly thread: Thread
