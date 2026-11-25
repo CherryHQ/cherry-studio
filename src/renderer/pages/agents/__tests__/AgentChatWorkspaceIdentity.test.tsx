@@ -13,7 +13,11 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import AgentChat from '../AgentChat'
 import type { AgentConversationBootstrap } from '../useAgentConversationBootstrap'
 
-const history = vi.hoisted(() => ({ messages: [] as CherryUIMessage[], refresh: vi.fn() }))
+const history = vi.hoisted(() => ({
+  messages: [] as CherryUIMessage[],
+  persistedPartsByMessageId: {},
+  refresh: vi.fn()
+}))
 const defaultQuery = mockUseQuery.getMockImplementation()!
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
@@ -36,7 +40,7 @@ vi.mock('../components/AgentRightPane', () => ({
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
   useAgentSessionParts: () => ({
     messages: history.messages,
-    persistedPartsByMessageId: {},
+    persistedPartsByMessageId: history.persistedPartsByMessageId,
     isLoading: false,
     hasOlder: false,
     refresh: history.refresh
