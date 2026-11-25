@@ -1,6 +1,15 @@
 import { cacheService } from '@data/CacheService'
 import type { MessageUiState } from '@renderer/types/message'
 
+export const ASSISTANT_REPLY_DISCLOSURE = 'assistant-reply'
+
+export function revealCollapsedAssistantReply(messageId: string): void {
+  const { disclosures } = getCachedMessageUiState(messageId)
+  if (disclosures?.[ASSISTANT_REPLY_DISCLOSURE] === false) {
+    updateCachedMessageUiState(messageId, { disclosures: { ...disclosures, [ASSISTANT_REPLY_DISCLOSURE]: true } })
+  }
+}
+
 type MessageUiStateUpdate = MessageUiState | ((current: MessageUiState) => MessageUiState)
 
 function cacheKey(messageId: string) {

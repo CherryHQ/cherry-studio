@@ -193,6 +193,18 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
 }
 
 describe('messageMenuBarActions', () => {
+  it('offers collapse only in the overflow menu when the reply supports it', async () => {
+    const onCollapse = vi.fn()
+    const context = createActionContext({ onCollapse })
+    expect(resolveMessageMenuBarMenuActions(createActionContext()).some((action) => action.id === 'collapse')).toBe(
+      false
+    )
+    expect(resolveMessageMenuBarMenuActions(context).some((action) => action.id === 'collapse')).toBe(true)
+    expect(resolveMessageMenuBarToolbarActions(context).some((action) => action.id === 'collapse')).toBe(false)
+    await executeMessageMenuBarAction('collapse', context)
+    expect(onCollapse).toHaveBeenCalledOnce()
+  })
+
   it('uses the injected fork label and availability without owning session policy', async () => {
     const forkSession = vi.fn()
     const availability = vi.fn(() => ({ visible: true, enabled: true, reason: undefined as string | undefined }))

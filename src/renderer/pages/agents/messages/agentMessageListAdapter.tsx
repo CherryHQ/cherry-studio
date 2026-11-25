@@ -462,6 +462,7 @@ export function useAgentMessageListProviderValue({
   const agentRenderConfig = useMemo(
     () => ({
       ...renderConfig,
+      allowReplyCollapse: true,
       keepIntermediateAssistantText: true,
       expandToolSteps: false,
       expandLiveToolSteps: true
