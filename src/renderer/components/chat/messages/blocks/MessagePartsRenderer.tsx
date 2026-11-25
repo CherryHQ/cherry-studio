@@ -14,6 +14,7 @@
  * - data-video parts with same filePath → video block row
  */
 import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
+import { maxBy } from 'es-toolkit'
 import { Check, ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useCallback, useMemo } from 'react'
@@ -1379,13 +1380,13 @@ const MessageContentEntryView = React.memo(
 const ActiveMessageProcess = React.memo(
   function ActiveMessageProcess({
     items,
-    hasResultContent,
+    hasTrailingContent,
     isStreamLive,
     message,
     renderOptions
   }: {
     items: readonly LiveMessagePartLayoutItem[]
-    hasResultContent: boolean
+    hasTrailingContent: boolean
     isStreamLive: boolean
     message: MessageListItem
     renderOptions: RenderGroupedEntryOptions
@@ -1428,13 +1429,13 @@ const ActiveMessageProcess = React.memo(
                   settleStreamingReasoning: !isStreamLive,
                   toolDisplay: 'disclosure'
                 },
-                isLastProcess && !hasResultContent ? 'last' : 'settled'
+                isStreamLive && isLastProcess && !hasTrailingContent ? 'last' : 'settled'
               )}
             </React.Fragment>
           )
         })
       },
-      [hasResultContent, isStreamLive, items, message, renderOptions]
+      [hasTrailingContent, isStreamLive, items, message, renderOptions]
     )
 
     return (
@@ -1444,7 +1445,7 @@ const ActiveMessageProcess = React.memo(
     )
   },
   (previous, next) =>
-    previous.hasResultContent === next.hasResultContent &&
+    previous.hasTrailingContent === next.hasTrailingContent &&
     previous.isStreamLive === next.isStreamLive &&
     previous.message.id === next.message.id &&
     previous.message.role === next.message.role &&
@@ -1463,30 +1464,25 @@ const ActiveMessageProcess = React.memo(
 const MessageProcessLayout = React.memo(function MessageProcessLayout({
   collapseHistory,
   entries,
+  hasTrailingContent,
   isActive,
   isStreamLive,
   keepIntermediateAssistantText,
   message,
+  projectedLiveItems,
   renderOptions
 }: {
   collapseHistory: boolean
   entries: readonly PartEntry[]
+  hasTrailingContent: boolean
   isActive: boolean
   isStreamLive: boolean
   keepIntermediateAssistantText: boolean
   message: MessageListItem
+  projectedLiveItems: readonly LiveMessagePartLayoutItem[]
   renderOptions: RenderGroupedEntryOptions
 }) {
   const { expandToolSteps, thoughtAutoCollapse } = useMessageRenderConfig()
-  const projectedLiveItems = useMemo(
-    () =>
-      isActive
-        ? projectLiveMessageParts(entries, { keepIntermediateAssistantText }).filter(
-            (item) => item.kind !== 'part' || !isReportArtifactEntry(item.entry, message.id)
-          )
-        : [],
-    [entries, isActive, keepIntermediateAssistantText, message.id]
-  )
   const liveProcessBoundary = useMemo(() => findLastLiveProcessBoundaryIndex(projectedLiveItems), [projectedLiveItems])
   // Keep hard-boundary parts in process history while enabled text stays in the response lane.
   const liveProcessItems = projectedLiveItems
@@ -1538,7 +1534,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
       <>
         <ActiveMessageProcess
           items={liveProcessItems}
-          hasResultContent={liveResultItems.length > 0}
+          hasTrailingContent={hasTrailingContent}
           isStreamLive={isStreamLive}
           message={message}
           renderOptions={renderOptions}
@@ -1831,6 +1827,25 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       ),
     [displayEntries, message.id]
   )
+  const projectedLiveItems = useMemo(
+    () =>
+      isActiveTurnProcessing
+        ? projectLiveMessageParts(displayEntries, { keepIntermediateAssistantText }).filter(
+            (item) => item.kind !== 'part' || !isReportArtifactEntry(item.entry, message.id)
+          )
+        : [],
+    [displayEntries, isActiveTurnProcessing, keepIntermediateAssistantText, message.id]
+  )
+  // A process group can contain parts newer than the intermediate prose rendered after it.
+  const liveTail = useMemo(
+    () =>
+      maxBy(projectedLiveItems, (item) =>
+        item.kind === 'part' ? item.entry.index : (item.entries.at(-1)?.index ?? item.key)
+      ),
+    [projectedLiveItems]
+  )
+  const showTrailingPlaceholder =
+    isStreamLive && liveTail?.kind === 'part' && isSubstantiveAnswerPart(liveTail.entry.part)
   // Settled tool parts keep their identity across streaming chunks, so citations only re-resolve
   // when a source part changes, not on every text delta.
   const nextCitationSourceParts = useMemo(() => messageParts.filter(isCitationSourcePart), [messageParts])
@@ -1879,6 +1894,11 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   )
   const canRenderReportArtifacts =
     !isActiveTurnProcessing && unsettledTextPlayoutPartIds.size === 0 && reportArtifactToolResponses.length > 0
+  const placeholder = isActiveTurnProcessing ? (
+    <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
+      <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
+    </AnimatedBlockWrapper>
+  ) : null
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder.
@@ -1890,13 +1910,6 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     (!hasVisibleNonArtifactEntry && !canRenderReportArtifacts && subagentEntries.length === 0)
   ) {
     if (isActiveTurnProcessing) {
-      const placeholder = (
-        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
-        </AnimatedBlockWrapper>
-      )
-      // The status renderer replaces the placeholder while active (e.g. an api-retry line) and falls
-      // back to it otherwise.
       return (
         <AnimatePresence mode="sync">
           <MessageCompactionStatus messageId={message.id} fallback={<ActiveTurnStatusView fallback={placeholder} />} />
@@ -1921,15 +1934,13 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         key={`process-layout-${message.id}`}
         collapseHistory={collapseCompletedToolHistory}
         entries={displayEntries}
+        hasTrailingContent={liveTail?.kind === 'part'}
         isActive={isActiveTurnProcessing}
         isStreamLive={isStreamLive}
         keepIntermediateAssistantText={keepIntermediateAssistantText}
         message={message}
+        projectedLiveItems={projectedLiveItems}
         renderOptions={renderOptions}
-      />
-      <MessageCompactionStatus
-        messageId={message.id}
-        fallback={isActiveTurnProcessing ? <ActiveTurnStatusView fallback={null} /> : null}
       />
       {unsettledTextPlayoutPartIds.size === 0 && sessionToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`session-results-${message.id}`} enableAnimation={false} animation="fade">
@@ -1999,6 +2010,14 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
           </div>
         </AnimatedBlockWrapper>
       )}
+      <MessageCompactionStatus
+        messageId={message.id}
+        fallback={
+          isActiveTurnProcessing ? (
+            <ActiveTurnStatusView fallback={showTrailingPlaceholder ? placeholder : null} />
+          ) : null
+        }
+      />
     </AnimatePresence>
   )
 })

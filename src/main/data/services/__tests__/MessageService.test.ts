@@ -805,6 +805,13 @@ describe('MessageService', () => {
         '1970-01-01T00:00:00.200Z',
         '1970-01-01T00:00:00.100Z'
       ])
+      const scopedPage = messageService.listLiveCreatedInRangeMetadataPage({
+        fromMs: 100,
+        toMs: 300,
+        topicId: 'topic-range-a',
+        limit: 10
+      })
+      expect(scopedPage.items.map((message) => message.id)).toEqual(['range-tie-a', 'range-start'])
       for (const metadata of [...firstPage.items, ...secondPage.items]) {
         const entity = messageService.getById(metadata.id)
         expect(metadata).not.toHaveProperty('data')

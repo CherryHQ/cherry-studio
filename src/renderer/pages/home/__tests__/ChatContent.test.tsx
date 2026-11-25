@@ -1,11 +1,12 @@
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import type * as RendererIpc from '@renderer/ipc'
+import type * as EventServiceModule from '@renderer/services/EventService'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -68,14 +69,13 @@ vi.mock('@renderer/hooks/useTopicMessages', () => ({
   useTopicMessages: (...args: unknown[]) => mockUseTopicMessages(...args)
 }))
 
-vi.mock('@renderer/services/EventService', () => ({
-  EVENT_NAMES: {
-    LOCATE_MESSAGE: 'LOCATE_MESSAGE'
-  },
-  EventEmitter: {
-    emit: mockEventEmit
+vi.mock('@renderer/services/EventService', async (importOriginal) => {
+  const actual = await importOriginal<typeof EventServiceModule>()
+  return {
+    ...actual,
+    EventEmitter: { emit: mockEventEmit, on: actual.EventEmitter.on.bind(actual.EventEmitter) }
   }
-}))
+})
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: mockUseExecutionOverlay
@@ -540,6 +540,36 @@ describe('ChatContent', () => {
         })
       )
     })
+  })
+
+  // Catches the empty-chat greeting replacing a broken uploaded avatar with a generic robot.
+  it('greets with the saved emoji when the uploaded avatar fails to load', () => {
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: null,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    const assistantContext = {
+      assistant: {
+        id: 'assistant-1',
+        emoji: '🦊',
+        avatarSrc: 'file:///missing-avatar.png',
+        knowledgeBaseIds: [],
+        settings: { enableWebSearch: false }
+      }
+    } as never
+
+    render(<ChatContent topic={topic} assistantContext={assistantContext} />)
+
+    const greeting = screen.getByTestId('conversation-greeting')
+    fireEvent.error(greeting.querySelector('img')!)
+    expect(within(greeting).getAllByText('🦊').length).toBeGreaterThan(0)
+    expect(within(greeting).queryAllByText('🤖')).toHaveLength(0)
   })
 
   it('keeps the composer visible while topic history is loading', () => {

@@ -133,7 +133,7 @@ export class TopicService {
   notifyReadModelChange(
     topicIds: readonly string[],
     kind: 'membership' | 'projection',
-    options: { deleted?: boolean } = {}
+    options: { deleted?: boolean; artifactAssistantIds?: readonly (string | null)[] } = {}
   ): void {
     if (topicIds.length === 0) return
     const entityIds = [...new Set(topicIds)]
@@ -145,11 +145,15 @@ export class TopicService {
       options.deleted && entityIds.length === 1
         ? [{ endpoint: '/topics/:id', routeParams: { id: entityIds[0] }, entityIds }]
         : [{ endpoint: '/topics/:id', entityIds }]
+    const artifactEffects = [...new Set(options.artifactAssistantIds)].flatMap((id): DataApiDataChangeEffect[] =>
+      id ? [{ endpoint: '/assistants/:id/artifacts', kind: 'membership', routeParams: { id } }] : []
+    )
     notifyDataApiDataChange([
       { endpoint: '/topics', kind, entityIds },
       { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
       ...byIdEffects,
-      { endpoint: '/topics/latest' }
+      { endpoint: '/topics/latest' },
+      ...artifactEffects
     ])
   }
 
@@ -388,11 +392,10 @@ export class TopicService {
   /** Pin state and ordering go through `/pins` and `/topics/:id/order` — not this DTO. */
   update(id: string, dto: UpdateTopicDto): Topic {
     const dbService = application.get('DbService')
-    let ownerChanged = false
 
-    const topic = dbService.withWriteTx((tx) => {
+    const { row, previousAssistantId } = dbService.withWriteTx((tx) => {
       const [existing] = tx
-        .select({ id: topicTable.id, assistantId: topicTable.assistantId })
+        .select({ assistantId: topicTable.assistantId })
         .from(topicTable)
         .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
         .limit(1)
@@ -413,34 +416,33 @@ export class TopicService {
           assertActiveAssistantTx(tx, dto.assistantId)
         }
         updates.assistantId = dto.assistantId
-        ownerChanged = existing.assistantId !== dto.assistantId
       }
 
       const [row] = tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning().all()
       if (!row) throw DataApiErrorFactory.notFound('Topic', id)
 
-      return rowToTopic(row)
+      return { row, previousAssistantId: existing.assistantId }
     })
-    this.notifyReadModelChange([id], 'projection')
-    if (ownerChanged) this.memoryAccessRevoked.fire(id)
+    this.notifyReadModelChange([id], 'projection', {
+      artifactAssistantIds: previousAssistantId === row.assistantId ? [] : [previousAssistantId, row.assistantId]
+    })
+    if (previousAssistantId !== row.assistantId) this.memoryAccessRevoked.fire(id)
 
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
 
-    return topic
+    return rowToTopic(row)
   }
 
   /** Atomically update a topic's assistant and global order. */
   move(id: string, dto: MoveTopicDto): Topic {
-    let ownerChanged = false
-    const topic = application.get('DbService').withWriteTx((tx) => {
+    const { row, previousAssistantId } = application.get('DbService').withWriteTx((tx) => {
       const [target] = tx
-        .select({ id: topicTable.id, assistantId: topicTable.assistantId })
+        .select({ assistantId: topicTable.assistantId })
         .from(topicTable)
         .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
         .limit(1)
         .all()
       if (!target) throw DataApiErrorFactory.notFound('Topic', id)
-      ownerChanged = target.assistantId !== dto.assistantId
 
       assertActiveAssistantTx(tx, dto.assistantId)
 
@@ -472,11 +474,13 @@ export class TopicService {
 
       const [row] = tx.select().from(topicTable).where(eq(topicTable.id, id)).limit(1).all()
       if (!row) throw DataApiErrorFactory.notFound('Topic', id)
-      return rowToTopic(row)
+      return { row, previousAssistantId: target.assistantId }
     })
-    this.notifyReadModelChange([id], 'projection')
-    if (ownerChanged) this.memoryAccessRevoked.fire(id)
-    return topic
+    this.notifyReadModelChange([id], 'projection', {
+      artifactAssistantIds: previousAssistantId === row.assistantId ? [] : [previousAssistantId, row.assistantId]
+    })
+    if (previousAssistantId !== row.assistantId) this.memoryAccessRevoked.fire(id)
+    return rowToTopic(row)
   }
 
   /** Move an active topic to the Recycle Bin by default; permanently remove only a topic already there. */
@@ -625,7 +629,7 @@ export class TopicService {
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Topic', id)
 
-    this.notifyReadModelChange([id], 'membership')
+    this.notifyReadModelChange([id], 'membership', { artifactAssistantIds: [row.assistantId] })
     logger.info('Restored topic', { id })
     return rowToTopic(row)
   }

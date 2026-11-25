@@ -12,6 +12,7 @@ import { jobScheduleTable } from '@data/db/schemas/job'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { artifactService } from '@data/services/ArtifactService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
@@ -74,6 +75,7 @@ export class AgentWorkspaceService {
       )
       .run()
     if (result.changes !== 1) throw new Error('System workspace changed during relocation')
+    artifactService.rebaseWorkspaceArtifactsTx(tx, id, oldPath)
   }
 
   listStorageClaims(): { path: string; type: string }[] {
