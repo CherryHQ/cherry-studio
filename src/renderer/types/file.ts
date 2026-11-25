@@ -109,10 +109,13 @@ export type { ImageFileMetadata } from '@shared/data/types/legacyFile'
 
 export { isImageFileMetadata } from '@shared/data/types/legacyFile'
 
-export const isPastedTextFileMetadata = (file: unknown): file is PastedTextFileMetadata => {
-  return (
-    typeof file === 'object' &&
-    file !== null &&
-    (file as { composerFileKind?: unknown }).composerFileKind === COMPOSER_FILE_KIND.PASTED_TEXT
-  )
+const PastedTextFileReferenceSchema = z.object({
+  composerFileKind: z.literal(COMPOSER_FILE_KIND.PASTED_TEXT),
+  path: z.string()
+})
+
+export const isPastedTextFileReference = (
+  file: unknown
+): file is Pick<PastedTextFileMetadata, 'composerFileKind' | 'path'> => {
+  return PastedTextFileReferenceSchema.safeParse(file).success
 }

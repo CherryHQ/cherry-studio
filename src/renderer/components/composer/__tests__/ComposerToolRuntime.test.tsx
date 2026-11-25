@@ -67,7 +67,7 @@ import type { ComposerSerializedToken } from '../tokens'
 import { useComposerToolProviderLaunchers } from '../tools/ComposerToolProvider'
 import attachmentTool from '../tools/definitions/attachmentTool'
 import knowledgeBaseTool from '../tools/definitions/knowledgeBaseTool'
-import { type ComposerToolRegistration, defineTool, TopicType } from '../tools/types'
+import { type ComposerToolLauncher, type ComposerToolRegistration, defineTool, TopicType } from '../tools/types'
 
 const assistant = {
   id: 'assistant-1',
@@ -569,7 +569,7 @@ describe('ComposerActiveToolControls', () => {
           label: 'Fake menu tool',
           composer: {
             menuItems: {
-              createItems: vi.fn(() => [
+              createItems: vi.fn((): ComposerToolLauncher[] => [
                 {
                   active: true,
                   disabled: true,

@@ -119,7 +119,7 @@ describe('composer tool dependency contracts', () => {
       })
     )
     const extensions: string[][] = []
-    const extensionsTool = defineTool(
+    const extensionsTool = defineTool<readonly ['extensions']>(
       Object.freeze<ToolDefinition<readonly ['extensions']>>({
         key: 'extensions',
         label: 'Extensions',

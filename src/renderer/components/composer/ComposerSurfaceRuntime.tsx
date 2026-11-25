@@ -34,7 +34,7 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
-import { isPastedTextFileMetadata } from '@renderer/types/file'
+import { isPastedTextFileReference } from '@renderer/types/file'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import {
   getComposerShortcutLabel,
@@ -991,7 +991,7 @@ export default function ComposerSurfaceRuntime({
 
   const handleShowPastedTextFileInInput = useCallback(
     async (token: ComposerDraftToken, nodeViewProps: NodeViewProps) => {
-      const file = isPastedTextFileMetadata(token.payload) ? token.payload : undefined
+      const file = isPastedTextFileReference(token.payload) ? token.payload : undefined
       const editor = editorRef.current
 
       if (!file || !editor || editor.isDestroyed) return
@@ -1624,7 +1624,7 @@ export default function ComposerSurfaceRuntime({
       if (currentToken.kind !== 'file') return undefined
 
       const fileToken = currentToken
-      const pastedTextToken = isPastedTextFileMetadata(fileToken.payload) ? fileToken : undefined
+      const pastedTextToken = isPastedTextFileReference(fileToken.payload) ? fileToken : undefined
 
       return (
         <FileComposerToken
