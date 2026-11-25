@@ -9,6 +9,8 @@
  * and talking to them.
  */
 
+import { createHash } from 'node:crypto'
+
 import {
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
@@ -19,6 +21,7 @@ import {
 } from '@ai-sdk/provider-utils'
 import * as z from 'zod'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
 import { providerService } from '@main/data/services/ProviderService'
@@ -32,7 +35,7 @@ import {
   MODALITY,
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { formatApiHost, formatOllamaApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { deriveModelGroupName } from '@shared/utils/model'
 import {
@@ -627,6 +630,39 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
   }
 
   return endpointTypes.length > 0 ? endpointTypes : undefined
+}
+
+const KEY_MODEL_LIST_TTL_MS = 60_000
+const KEY_MODEL_LIST_TIMEOUT_MS = 2_000
+
+export async function listNewApiKeysForModel(
+  provider: Provider,
+  baseUrl: string,
+  modelId: string,
+  keys: readonly ApiKeyEntry[]
+): Promise<Set<string> | undefined> {
+  if (keys.length < 2) return undefined
+
+  const cache = application.get('CacheService')
+  const checks = keys.map(async (key) => {
+    const fingerprint = createHash('sha256').update(key.key).digest('hex')
+    const cacheKey = `new-api.models:${JSON.stringify([provider.id, baseUrl, key.id, fingerprint])}`
+    let models = cache.get<Promise<ReadonlySet<string> | undefined>>(cacheKey)
+    if (!models) {
+      models = getFromApi({
+        url: `${baseUrl}/models`,
+        headers: mergeHeaders(getProviderAppHeaders(provider), { Authorization: `Bearer ${key.key}` }),
+        responseSchema: NewApiModelsResponseSchema,
+        abortSignal: AbortSignal.timeout(KEY_MODEL_LIST_TIMEOUT_MS)
+      }).then(
+        (result) => new Set(result.data.map((model) => model.id)),
+        () => undefined
+      )
+      cache.set(cacheKey, models, KEY_MODEL_LIST_TTL_MS)
+    }
+    return (await models)?.has(modelId) ? key.id : undefined
+  })
+  return new Set((await Promise.all(checks)).filter((keyId) => keyId !== undefined))
 }
 
 const newApiFetcher: ModelFetcher = {

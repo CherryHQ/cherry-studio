@@ -1,7 +1,7 @@
 /**
  * Builds the `wrapModel` closure that wraps a resolved chat model with
- * ai-retry: same-provider API-key failover on 401/429 first, same-model
- * transient retry for other retryable API errors, then cross-model fallback.
+ * ai-retry: same-provider API-key failover on 401/429 or a model group rejection,
+ * then same-model transient retry and cross-model fallback.
  *
  * Fallbacks are built by the caller (`buildFallbackModels`) through
  * the same `buildAgentParams` pipeline as the primary, so each fallback model
@@ -78,6 +78,7 @@ export interface CreateRetryableWrapOptions {
 }
 
 const RETRY_BASE_DELAY_MS = 1_000
+const MODEL_NOT_IN_KEY_GROUP = /^Model ".+" is not supported by any configured account in this group$/
 
 function lazyFallbackRetryable(
   resolveFallback: FallbackResolver,
@@ -113,10 +114,9 @@ function apiKeyFallbackRetryable(
     if (!isErrorAttempt(context.current)) return undefined
     const attemptError = context.current.error
     const terminalError = RetryError.isInstance(attemptError) ? attemptError.lastError : attemptError
-    if (
-      !APICallError.isInstance(terminalError) ||
-      (terminalError.statusCode !== 401 && terminalError.statusCode !== 429)
-    ) {
+    if (!APICallError.isInstance(terminalError)) return undefined
+    const { statusCode, message } = terminalError
+    if (statusCode !== 401 && statusCode !== 429 && !(statusCode === 404 && MODEL_NOT_IN_KEY_GROUP.test(message))) {
       return undefined
     }
     const resolve = resolvedFallbacks[nextFallbackIndex]

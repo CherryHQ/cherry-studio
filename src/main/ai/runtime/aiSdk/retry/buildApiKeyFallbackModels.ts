@@ -4,7 +4,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 
 import type { AiChatRequest, AppProviderSettingsMap } from '../../../types'
 import { buildAgentParams } from '../params/buildAgentParams'
@@ -20,6 +20,7 @@ export interface BuildApiKeyFallbackModelsArgs {
   signal: AbortSignal | undefined
   extraFeatures: readonly RequestFeature[]
   primaryCredentialReceipt: ServingCredentialReceipt
+  keySnapshot?: readonly ApiKeyEntry[]
   createUsagePlugin: (credentialReceipt: ServingCredentialReceipt) => AiPlugin
 }
 
@@ -27,7 +28,7 @@ export interface BuildApiKeyFallbackModelsArgs {
 export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): FallbackResolver[] {
   if (args.request.apiKeyOverride !== undefined || !('id' in args.primaryCredentialReceipt)) return []
   const keys = resolveApiKeyFallbacks(
-    providerService.getApiKeys(args.provider.id, { enabled: true }),
+    args.keySnapshot ?? providerService.getApiKeys(args.provider.id, { enabled: true }),
     args.primaryCredentialReceipt
   )
   return keys.map((key) => async () => {

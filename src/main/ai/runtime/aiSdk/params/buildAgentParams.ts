@@ -30,7 +30,7 @@ import {
   MIN_TOOL_CALLS
 } from '@shared/data/types/assistant'
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import {
   finalizeWebToolRoutes,
@@ -122,6 +122,7 @@ export interface BuiltAgentParams {
   sdkConfig: SdkConfig
   /** Non-secret receipt for the credential path selected for this request. */
   credentialReceipt: ServingCredentialReceipt
+  keySnapshot?: readonly ApiKeyEntry[]
   tools: ToolSet | undefined
   plugins: AiPlugin<any, any>[]
   system: string | undefined
@@ -137,11 +138,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { request, signal, provider, model, assistant, extraFeatures, compactionSink } = input
 
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
-  const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
+  const { sdkConfig, credentialReceipt, keySnapshot } = await resolveSdkConfig(
     provider,
     model,
     resolvedEndpoint,
-    request.apiKeyOverride
+    request.apiKeyOverride,
+    Object.keys(request.requestOptions?.headers ?? {}).length > 0
   )
   applyHttpTrace(sdkConfig.providerSettings, {
     topicId: input.traceContext?.topicId ?? request.conversation.topicId,
@@ -396,6 +398,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   return {
     sdkConfig,
     credentialReceipt,
+    keySnapshot,
     tools,
     plugins: contributions.modelAdapters,
     system,

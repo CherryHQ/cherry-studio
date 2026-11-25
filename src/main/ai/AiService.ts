@@ -660,6 +660,7 @@ export class AiService extends BaseService {
     const {
       sdkConfig,
       credentialReceipt,
+      keySnapshot,
       tools,
       plugins,
       system,
@@ -742,6 +743,7 @@ export class AiService extends BaseService {
         signal,
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
+        keySnapshot,
         createUsagePlugin: (fallbackReceipt) =>
           createAiUsagePlugin(
             () => createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt }),
@@ -912,6 +914,7 @@ export class AiService extends BaseService {
     const {
       sdkConfig,
       credentialReceipt,
+      keySnapshot,
       tools,
       plugins,
       system,
@@ -950,6 +953,7 @@ export class AiService extends BaseService {
         signal,
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
+        keySnapshot,
         createUsagePlugin: (fallbackReceipt) =>
           createAiUsagePlugin(() =>
             createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt })

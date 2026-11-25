@@ -19,7 +19,7 @@ import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import {
   formatApiHost,
   formatOllamaApiHost,
@@ -58,8 +58,9 @@ import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { normalizeComfyuiBaseUrl } from './custom/comfyui/comfyuiHttp'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
-import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
+import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint, resolveWireModelId } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
+import { listNewApiKeysForModel } from './listModels'
 import { transformLmStudioRequestBody } from './lmstudio'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 import { transformZhipuRequestBody } from './zhipuWebSearch'
@@ -75,6 +76,7 @@ interface BuilderContext {
   baseConfig: BaseConfig
   resolvedBaseUrl: string
   apiKeyOverride?: string
+  hasRequestHeaders?: boolean
   endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
@@ -86,12 +88,14 @@ type ApiKeyBuilderContext = BuilderContext & {
 
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
+  hasRequestHeaders?: boolean
   resolvedEndpoint?: ResolvedEndpoint
 }
 
 export interface ResolvedProviderAiSdkConfig {
   config: ProviderConfig
   credentialReceipt: ServingCredentialReceipt
+  keySnapshot?: readonly ApiKeyEntry[]
 }
 
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
@@ -159,18 +163,19 @@ function deriveImageBaseURL(provider: Provider): string {
 
 type ProviderConfigBuilder = (ctx: BuilderContext) => ProviderConfig | Promise<ProviderConfig>
 
-interface ResolvedProviderConfigBuild {
-  config: ProviderConfig
-  credentialReceipt: ServingCredentialReceipt
-}
-
 type ConfigBuilderEntry = {
   match: (provider: Provider, aiSdkProviderId: AppProviderId) => boolean
-  build: (ctx: BuilderContext) => ResolvedProviderConfigBuild | Promise<ResolvedProviderConfigBuild>
+  build: (ctx: BuilderContext) => ResolvedProviderAiSdkConfig | Promise<ResolvedProviderAiSdkConfig>
 }
 
-function selectApiKey(ctx: BuilderContext): ApiKeyBuilderContext {
-  const resolved = providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride)
+function selectApiKey(
+  ctx: BuilderContext,
+  preferredKeyIds?: ReadonlySet<string>,
+  keySnapshot?: readonly ApiKeyEntry[]
+): ApiKeyBuilderContext {
+  const resolved = keySnapshot
+    ? providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride, preferredKeyIds, keySnapshot)
+    : providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride)
   return {
     ...ctx,
     baseConfig: { ...ctx.baseConfig, apiKey: resolved.value },
@@ -234,6 +239,7 @@ export async function resolveProviderAiSdkConfig(
     // for a key they never serve with.
     baseConfig: { baseURL, apiKey: '' },
     apiKeyOverride: options?.apiKeyOverride,
+    hasRequestHeaders: options?.hasRequestHeaders,
     endpointType,
     endpoint,
     aiSdkProviderId
@@ -400,13 +406,13 @@ export async function resolveProviderAiSdkConfig(
       match: (p) => matchesPreset(p, SystemProviderIds.cherryin),
       build: withSelectedApiKey(buildCherryinConfig)
     },
-    { match: (_, id) => id === 'newapi', build: withSelectedApiKey(buildNewApiConfig) },
+    { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
     { match: (_, id) => id === 'aihubmix', build: withSelectedApiKey(buildAiHubMixConfig) },
     { match: (_, id) => id === 'dmxapi', build: withSelectedApiKey(buildDmxapiConfig) }
   ]
 
   const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
-  let resolved: ResolvedProviderConfigBuild
+  let resolved: ResolvedProviderAiSdkConfig
   if (builder) {
     resolved = await builder.build(ctx)
   } else if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
@@ -422,10 +428,7 @@ export async function resolveProviderAiSdkConfig(
   // on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch
 
-  return {
-    config,
-    credentialReceipt: resolved.credentialReceipt
-  }
+  return resolved
 }
 
 // ── Config Builders ──
@@ -648,7 +651,7 @@ function buildComfyuiConfig(ctx: BuilderContext): ProviderConfig<'comfyui'> {
   }
 }
 
-function buildBedrockConfig(ctx: BuilderContext): ResolvedProviderConfigBuild {
+function buildBedrockConfig(ctx: BuilderContext): ResolvedProviderAiSdkConfig {
   const authConfig = providerService.getAuthConfig(ctx.actualProvider.id)
   const base = { providerId: 'bedrock' as const, endpoint: ctx.endpoint }
 
@@ -974,7 +977,7 @@ function formatNewApiBaseURL(baseURL: string, endpointType: EndpointType | undef
     : formatApiHost(host, true)
 }
 
-function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
+async function buildNewApiConfig(ctx: BuilderContext): Promise<ResolvedProviderAiSdkConfig> {
   const endpointType = ctx.endpointType
   let rawBaseURL: string
 
@@ -989,14 +992,32 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
     ? ctx.baseConfig.baseURL
     : formatNewApiBaseURL(rawBaseURL, endpointType)
 
+  const discover =
+    ctx.apiKeyOverride === undefined &&
+    endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+    baseURL &&
+    !isWithTrailingSharp(ctx.resolvedBaseUrl) &&
+    !ctx.hasRequestHeaders &&
+    !Object.keys(getExtraHeaders(ctx.actualProvider)).length &&
+    ctx.actualProvider.apiKeys.filter((key) => key.isEnabled).length >= 2
+  // Keep the credentials paired with the URL across the asynchronous lookup.
+  const keys = discover ? providerService.getApiKeys(ctx.actualProvider.id, { enabled: true }) : undefined
+  const preferredKeyIds = keys
+    ? await listNewApiKeysForModel(ctx.actualProvider, baseURL, resolveWireModelId(ctx.model, endpointType), keys)
+    : undefined
+  const selected = selectApiKey(ctx, preferredKeyIds, keys)
   return {
-    providerId: 'newapi',
-    endpoint: ctx.endpoint,
-    providerSettings: {
-      ...ctx.baseConfig,
-      baseURL,
-      endpointType: mapCherryinEndpointType(endpointType),
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
-    }
+    config: {
+      providerId: 'newapi',
+      endpoint: ctx.endpoint,
+      providerSettings: {
+        ...selected.baseConfig,
+        baseURL,
+        endpointType: mapCherryinEndpointType(endpointType),
+        headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+      }
+    },
+    credentialReceipt: selected.apiKeySelection,
+    keySnapshot: keys
   }
 }
