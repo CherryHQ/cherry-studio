@@ -16,6 +16,7 @@ import { app, protocol } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { MCP_APP_SCHEME_DECLARATION } from '@main/ai/mcp/mcpAppResource'
 import { serviceList } from '@main/core/application/serviceRegistry'
 // Preboot phase — order matters. See core/preboot/README.md.
 import { prepareBackupRestoreSession, runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
@@ -47,7 +48,11 @@ const isolatedRestoreSession = prepareBackupRestoreSession()
 initSentry()
 // Privileged schemes must be declared before the app is ready, and only ONCE per
 // process — startApp() itself awaits app.whenReady(), so this cannot move in there.
-protocol.registerSchemesAsPrivileged([CHERRY_MEDIA_SCHEME_DECLARATION, MINI_APP_SCHEME_DECLARATION])
+protocol.registerSchemesAsPrivileged([
+  CHERRY_MEDIA_SCHEME_DECLARATION,
+  MINI_APP_SCHEME_DECLARATION,
+  MCP_APP_SCHEME_DECLARATION
+])
 
 const logger = loggerService.withContext('MainEntry')
 
