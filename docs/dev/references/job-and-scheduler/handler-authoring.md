@@ -102,6 +102,8 @@ and do not prevent dispatch. Keep the observer synchronous and short.
 
 ## Settled event (`onSettled`)
 
+Handlers whose read models require the full seven-day terminal history can set `retainTerminalHistoryForTtl`. Count-based cleanup skips their jobs while time-based cleanup still expires them. Scheduled Agent task counts use the Agent ID in the job input, which survives schedule deletion.
+
 `onSettled?(event: JobSettledEvent<TPayload>)` fires once when a job reaches a terminal state (errors are caught + logged, never propagated). The event is a projection of the persisted terminal snapshot — no `jobService.getById` reverse lookup needed:
 
 | Field | Type | Notes |

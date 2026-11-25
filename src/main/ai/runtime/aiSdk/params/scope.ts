@@ -21,7 +21,7 @@ import type { AppProviderKey, SdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import type { ToolApplyScope } from '../../../tools/adapters/aiSdk/types'
-import type { AiChatRequest, AppProviderId } from '../../../types'
+import type { AiChatRequest, AiStreamRequest, AppProviderId } from '../../../types'
 import type { ResolvedReasoningInvocation } from '../../../utils/reasoningSerializers'
 import type { ResolvedCapabilities } from './capabilities'
 
@@ -29,7 +29,7 @@ export type { AppProviderKey, SdkConfig, ToolApplyScope }
 
 export interface RequestScope extends ToolApplyScope {
   readonly traceContext?: AgentRuntimeTraceContext
-  readonly request: AiChatRequest
+  readonly request: AiChatRequest & Pick<AiStreamRequest, 'messages'>
   readonly signal: AbortSignal | undefined
   readonly registry: ToolRegistry
   readonly model: Model

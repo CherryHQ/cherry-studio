@@ -9,7 +9,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { TopicStatusSnapshotEntry, TopicStreamStatus } from '@shared/ai/transport'
 
 import { useAgentSessionStreamStatuses } from '../useAgentSessionStreamStatuses'

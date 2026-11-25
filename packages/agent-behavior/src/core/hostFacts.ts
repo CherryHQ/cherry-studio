@@ -3,11 +3,6 @@ import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 import type { CallKey, GoalBudget } from './facts'
 
 export type CallRef = { readonly thread: ThreadId; readonly key: CallKey }
-export type ApprovalOutcome = {
-  readonly call: CallRef
-  readonly state: 'pending' | 'granted' | 'denied' | 'unavailable'
-  readonly feedback?: string
-}
 export type ToolCategory = 'read' | 'edit' | 'meta' | 'other'
 /** C10, C11: what the host knows about one call. [plan choice] PR-3c may add facts. */
 export type ApprovalHostFacts = {
@@ -101,7 +96,6 @@ export interface HostSettingsSnapshot {
 export interface CallInputs {
   readonly now: number
   readonly settings: HostSettingsSnapshot
-  readonly approvals: readonly ApprovalOutcome[]
   readonly models?: ModelFacts
   readonly verdict?: VerifierVerdict
   readonly args?: JsonValue

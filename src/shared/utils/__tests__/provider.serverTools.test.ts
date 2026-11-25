@@ -72,7 +72,22 @@ describe('Qwen Anthropic web tools', () => {
 })
 
 describe('server-tool model eligibility', () => {
-  it.each(['gemini-4-hydrogen', 'gemini-4-carbon'])(
+  it.each(['gemini', 'vertexai'])('serves Neon native tools alongside function calls on %s', (providerId) => {
+    const provider = bundledProviders.providers.find((entry) => entry.id === providerId)! as unknown as Provider
+    const selected = model('gemini-4-neon', { providerId, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+
+    expect(
+      resolveWebToolRoutes(selected, provider, {
+        webSearchEnabled: true,
+        modelToolsPreferred: true,
+        clientSearchAvailable: false,
+        clientFetchAvailable: false,
+        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+    ).toMatchObject({ webSearch: 'server', webFetch: 'server' })
+  })
+
+  it.each(['gemini-4-hydrogen', 'gemini-4-carbon', 'gemini-4-neon'])(
     'serves Vertex native search and URL context for %s on GenerateContent',
     (apiModelId) => {
       const vertex = bundledProviders.providers.find((p) => p.id === 'vertexai')! as unknown as Provider
@@ -92,7 +107,7 @@ describe('server-tool model eligibility', () => {
     }
   )
 
-  it.each(['gemini-4-hydrogen', 'gemini-4-carbon'])(
+  it.each(['gemini-4-hydrogen', 'gemini-4-carbon', 'gemini-4-neon'])(
     'keeps Vertex eligibility gates for %s and unlisted siblings',
     (apiModelId) => {
       const vertex = bundledProviders.providers.find((p) => p.id === 'vertexai')! as unknown as Provider
@@ -101,9 +116,9 @@ describe('server-tool model eligibility', () => {
 
       expect(isBuiltinWebSearchAvailable(embedding, vertex, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe(false)
       expect(isBuiltinWebSearchAvailable(model(apiModelId), custom, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe(false)
-      expect(isBuiltinWebSearchAvailable(model('gemini-4-neon'), vertex, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe(
-        false
-      )
+      expect(
+        isBuiltinWebSearchAvailable(model('gemini-4-unlisted'), vertex, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+      ).toBe(false)
     }
   )
 

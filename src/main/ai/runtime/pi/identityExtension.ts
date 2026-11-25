@@ -1,6 +1,6 @@
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 
-import { PromptBuilder } from '@main/ai/agents/prompt'
+import { PromptBuilder } from '@main/ai/agents/prompt/promptContext'
 
 export function createPiIdentityExtension(agentDataPath: string): ExtensionFactory {
   const builder = new PromptBuilder()

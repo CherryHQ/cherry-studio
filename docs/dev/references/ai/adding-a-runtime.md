@@ -172,7 +172,7 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        events if the runtime compacts its own history.
 
 3. **System prompt adapter** — call the runtime-neutral
-   `buildAgentRuntimePrompt()` from `src/main/ai/runtime/agentPrompt.ts`, then map its
+   `buildAgentPrompt()` from `src/main/ai/agents/prompt/buildAgentPrompt.ts`, then map its
    `{ base, append }` result into the SDK's native prompt representation. Pass resolved
    channel state and capability-gated citation guidance into the common materializer.
    Do not copy instruction precedence, built-in Agent fallback/provisioning, prompt-variable
@@ -214,7 +214,7 @@ known exceptions, only if you need them:
 These are the choices nothing enforces:
 
 - **Cherry prompt policy is runtime-neutral.** Every driver must consume
-  `buildAgentRuntimePrompt()` rather than assembling its own Cherry policy. A runtime may
+  `buildAgentPrompt()` rather than assembling its own Cherry policy. A runtime may
   supply native workspace/context mechanics, but it may not omit or fork instruction authority,
   built-in Agent resolution, channel security, citation/artifact guidance, or response language.
   Add common policy in the materializer and test that each driver carries it.

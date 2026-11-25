@@ -40,6 +40,7 @@ export function useMessageListRenderConfig() {
       thoughtAutoCollapse,
       collapseCompletedToolHistory: true,
       expandToolSteps: false,
+      expandLiveToolSteps: false,
       keepIntermediateAssistantText,
       showCitationMarkers,
       mathEnableSingleDollar,

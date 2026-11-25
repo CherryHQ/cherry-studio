@@ -58,6 +58,7 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -1091,11 +1092,13 @@ export class AgentSessionMessageService {
   listLiveCreatedInRangeMetadataPage({
     fromMs,
     toMs,
+    sessionId,
     cursor: rawCursor,
     limit
   }: {
     fromMs: number
     toMs: number
+    sessionId?: string
     cursor?: string
     limit: number
   }): CursorPaginationResponse<AgentSessionMessageRangeMetadata> {
@@ -1121,6 +1124,7 @@ export class AgentSessionMessageService {
           gte(sessionMessagesTable.createdAt, fromMs),
           lte(sessionMessagesTable.createdAt, toMs),
           isNull(sessionTable.deletedAt),
+          sessionId === undefined ? undefined : eq(sessionMessagesTable.sessionId, sessionId),
           cursor ? ordering.where(cursor) : undefined
         )
       )
@@ -1233,7 +1237,7 @@ export class AgentSessionMessageService {
       if (options.deferToolOutputs && item.role === 'assistant' && item.data.parts) {
         item.data = {
           ...item.data,
-          parts: projectMessagePartsForRenderer(item.data.parts, `agent-session:${sessionId}`, id)
+          parts: projectMessagePartsForRenderer(item.data.parts, buildAgentSessionTopicId(sessionId), id)
         }
       }
       return { ...item, siblings: siblingsByParent.get(parentId) ?? [] }
@@ -1898,9 +1902,10 @@ export class AgentSessionMessageService {
     this.assertExpectedAgentTx(tx, sessionId, expectedAgent)
     const timestampMs = Date.now()
     let parentId = params.parentId
-    const saved = messages.map((message) => {
+    const saved = messages.map((message, index) => {
       const result = this.upsertMessage(tx, { sessionId, runtimeResumeToken, message, parentId }, timestampMs)
-      parentId = this.branchTip(sessionId, result.entity.id, tx)
+      // Only a following message needs the tip; resolving it after the last one walks the branch for nothing.
+      if (index < messages.length - 1) parentId = this.branchTip(sessionId, result.entity.id, tx)
       return result
     })
     const activityTimestamp = saved.reduce<number | null>(
