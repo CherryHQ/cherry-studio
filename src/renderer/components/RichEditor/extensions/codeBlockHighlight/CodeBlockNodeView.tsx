@@ -33,9 +33,11 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
   const rawLanguage: unknown = node.attrs.language
   const language = typeof rawLanguage === 'string' && rawLanguage ? rawLanguage : 'text'
   const isSpecialView = SPECIAL_VIEWS.includes(language)
+
   const specialView = isSpecialView
     ? Object.entries(SPECIAL_VIEW_COMPONENTS).find(([key]) => key === language)?.[1]
     : null
+
   const isEditable = editor.isEditable
   // A new block has no source to preview yet, and typing into the hidden source would land outside it.
   const [showPreview, setShowPreview] = useState(() => node.textContent.trim().length > 0)

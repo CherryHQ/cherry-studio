@@ -24,6 +24,7 @@ const formulaFiberSchema = z.object({
   error: z.unknown().optional(),
   context: z.unknown().optional()
 })
+
 const formulaContextSchema = z.object({
   output: z.unknown().optional(),
   encrypted_output: z.unknown().optional(),

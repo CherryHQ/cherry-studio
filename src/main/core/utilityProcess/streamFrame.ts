@@ -2,6 +2,7 @@ import type { UtilityProcessStreamFrame, UtilityProcessStreamLimits } from './ty
 
 export function isStreamLimits(value: unknown): value is UtilityProcessStreamLimits {
   if (typeof value !== 'object' || value === null) return false
+
   if (
     !('maxFrameBytes' in value) ||
     !('maxBufferedBytes' in value) ||

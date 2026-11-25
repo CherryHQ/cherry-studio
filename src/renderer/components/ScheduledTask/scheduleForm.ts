@@ -6,6 +6,7 @@ import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 
 export const SCHEDULE_KINDS = ['hourly', 'daily', 'weekdays', 'weekly', 'interval', 'once', 'cron'] as const
+
 export type ScheduleKind = (typeof SCHEDULE_KINDS)[number]
 
 export type ScheduleFormState = {

@@ -15,6 +15,7 @@ export async function publishScheduledTaskResult(jobId: string): Promise<boolean
 
     if (typeof output !== 'object' || output === null || !('kind' in output) || output.kind !== 'executed') return false
   }
+
   const schedule = jobScheduleService.getById(job.scheduleId)
 
   if (!schedule) return false

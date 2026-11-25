@@ -22,6 +22,7 @@ interface McpToolsSectionProps {
 const MAX_NESTING_DEPTH = 5
 
 type SchemaProperties = NonNullable<McpTool['inputSchema']['properties']>
+
 type SchemaProperty = SchemaProperties[string]
 
 const getToolSchemaProperties = (tool: McpTool) => tool.inputSchema?.properties
@@ -96,29 +97,36 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
   // Render a single schema property and its nested children as a tree node.
   const renderProperty = (key: string, property: SchemaProperty, required: boolean, depth: number = 0) => {
     const fields = property !== null && typeof property === 'object' && !Array.isArray(property) ? property : undefined
+
     const type =
       typeof fields?.type === 'string'
         ? fields.type
         : Array.isArray(fields?.type)
           ? fields.type.filter((value) => typeof value === 'string')
           : undefined
+
     const description = typeof fields?.description === 'string' ? fields.description : undefined
+
     const items =
       fields?.items !== null && typeof fields?.items === 'object' && !Array.isArray(fields.items)
         ? fields.items
         : undefined
+
     const itemsType =
       typeof items?.type === 'string'
         ? items.type
         : Array.isArray(items?.type)
           ? items.type.filter((value) => typeof value === 'string')
           : undefined
+
     const itemType = type === 'array' && itemsType ? `${itemsType}[]` : type
     const enumValues = Array.isArray(fields?.enum) ? fields.enum : undefined
+
     const properties =
       fields?.properties !== null && typeof fields?.properties === 'object' && !Array.isArray(fields.properties)
         ? fields.properties
         : undefined
+
     const itemProperties =
       items?.properties !== null && typeof items?.properties === 'object' && !Array.isArray(items.properties)
         ? items.properties

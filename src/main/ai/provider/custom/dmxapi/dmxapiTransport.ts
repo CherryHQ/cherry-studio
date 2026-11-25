@@ -77,6 +77,7 @@ class DmxapiTransport implements ImageGenerationTransport {
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const bag = input.providerParams ?? {}
+
     const params: DmxapiProviderParams = {
       sequentialImageGeneration:
         typeof bag.sequentialImageGeneration === 'string' ? bag.sequentialImageGeneration : undefined,

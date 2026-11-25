@@ -42,9 +42,11 @@ const MAX_WAIT_MS = 5 * 60_000
 
 const FluxSubmitEnvelopeSchema = z.object({ output: z.array(z.unknown()).nullish() }).nullish()
 const FluxSubmitTaskSchema = z.object({ taskId: z.unknown().optional(), id: z.unknown().optional() }).nullish()
+
 const FluxPollEnvelopeSchema = z
   .object({ status: z.unknown().optional(), result: z.unknown().optional(), detail: z.unknown().optional() })
   .nullish()
+
 const FluxImageResultSchema = z.object({ sample: z.unknown().optional(), samples: z.unknown().optional() }).nullish()
 
 class AihubmixFluxTransport implements ImageGenerationTransport {

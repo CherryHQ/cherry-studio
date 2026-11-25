@@ -79,6 +79,7 @@ export async function typeText(
       if (!initial || typeof initial !== 'object' || !('editable' in initial) || !initial.editable) {
         throw new BrowserSessionError('not_found')
       }
+
       check()
       await options.focusInput?.(options)
       options = { ...options, focusInput: undefined }

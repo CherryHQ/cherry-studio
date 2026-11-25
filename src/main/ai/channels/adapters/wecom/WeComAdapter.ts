@@ -57,9 +57,11 @@ const IncomingEnvelopeSchema = z.object({
     mixed: z.unknown().optional()
   })
 })
+
 const IncomingTextSchema = z.object({ content: z.string() })
 const IncomingMediaSchema = z.object({ url: z.string(), aeskey: z.string().nullish() })
 const IncomingMixedSchema = z.object({ msg_item: z.array(z.unknown()).max(20) })
+
 const IncomingMixedItemSchema = z.object({
   msgtype: z.unknown().optional(),
   text: z.unknown().optional(),
@@ -400,6 +402,7 @@ export class WeComAdapter extends ChannelAdapter {
           text = voice.data.content
           break
         }
+
         case MessageType.Image:
           await download(IncomingMediaSchema.parse(body.image), MessageType.Image)
           break

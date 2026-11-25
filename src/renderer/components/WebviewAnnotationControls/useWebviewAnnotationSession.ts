@@ -119,6 +119,7 @@ interface ProvisionalNavigation {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest webview messages are raw cross-context values; match snapshot-ready session and request strings before accepting the signal.
 const snapshotEnvelope = (value: unknown) => {
   if (!value || typeof value !== 'object') return null
+
   if (
     !('type' in value) ||
     value.type !== 'snapshot_ready' ||

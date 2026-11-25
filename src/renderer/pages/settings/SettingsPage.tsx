@@ -24,6 +24,7 @@ import { getEventTargetElement } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
 
 const builtinTools = settingsMenu.filter((item) => item.groupKey === BUILTIN_TOOLS_GROUP_KEY)
+
 const transparentGroupStyle: CSSProperties & { '--settings-group-background': string } = {
   '--settings-group-background': 'transparent'
 }

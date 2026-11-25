@@ -147,10 +147,12 @@ export default function FileEditor({
   const [loadFailed, setLoadFailed] = useState(false)
   const [virtualizer] = useState(() => new Virtualizer())
   const lastEdit = useRef<string | null>(null)
+
   const [input, setInput] = useState<{ value: string; file: FileContents }>(() => ({
     value,
     file: { name: fileName, contents: value }
   }))
+
   const liveContents = useRef(value)
   const [commentDraft, setCommentDraft] = useState<{ start: number; end: number } | null>(null)
   const commentable = onLineComment !== undefined

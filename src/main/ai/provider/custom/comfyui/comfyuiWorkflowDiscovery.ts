@@ -31,6 +31,7 @@ export async function listWorkflows(
     options,
     LIST_TIMEOUT_MS
   )
+
   const entries = listingSchema.parse(rawEntries)
 
   const prefix = `${WORKFLOW_DIR}/`

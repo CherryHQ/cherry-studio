@@ -24,6 +24,7 @@ export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to
         const text = result.pages
           .flatMap((p) => {
             const prunedResult = p.prunedResult
+
             const recTexts =
               prunedResult && typeof prunedResult === 'object' && 'rec_texts' in prunedResult
                 ? prunedResult.rec_texts

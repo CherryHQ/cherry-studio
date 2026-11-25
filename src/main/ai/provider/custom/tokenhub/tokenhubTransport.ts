@@ -54,7 +54,9 @@ export type TokenhubTaskState = 'created' | 'queueing' | 'processing' | 'success
 const TokenhubSyncImageResponseSchema = z.looseObject({
   data: z.array(z.looseObject({ url: z.string().nullish(), b64_json: z.string().nullish() })).nullish()
 })
+
 const TokenhubViduSubmitResponseSchema = z.object({ task_id: z.string().nullish() })
+
 const TokenhubViduTaskResponseSchema = z.looseObject({
   state: z.string().nullish(),
   creations: z.array(z.looseObject({ url: z.string().nullish() })).nullish(),
@@ -63,6 +65,7 @@ const TokenhubViduTaskResponseSchema = z.looseObject({
 })
 
 type TokenhubSyncImageResponse = z.infer<typeof TokenhubSyncImageResponseSchema>
+
 type TokenhubViduTaskResponse = z.infer<typeof TokenhubViduTaskResponseSchema>
 
 /** Canonical camelCase params (the transport receives the vendorBag directly). */
@@ -193,6 +196,7 @@ class TokenhubTransport implements ImageGenerationTransport {
     }
 
     const rawBag = input.providerParams
+
     const bag: TokenhubProviderParams = {
       promptEnhancement: typeof rawBag.promptEnhancement === 'boolean' ? rawBag.promptEnhancement : undefined,
       imageResolution: typeof rawBag.imageResolution === 'string' ? rawBag.imageResolution : undefined,

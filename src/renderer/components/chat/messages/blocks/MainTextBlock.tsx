@@ -484,9 +484,11 @@ const MainTextBlock: React.FC<Props> = ({
         const rawIndex =
           (COMPOSER_TOKEN_MARKDOWN_ATTR in props ? props[COMPOSER_TOKEN_MARKDOWN_ATTR] : undefined) ??
           ('dataComposerTokenIndex' in props ? props.dataComposerTokenIndex : undefined)
+
         const rawBlock =
           (COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR in props ? props[COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR] : undefined) ??
           ('dataComposerTokenBlock' in props ? props.dataComposerTokenBlock : undefined)
+
         const tokenIndex = typeof rawIndex === 'string' ? Number.parseInt(rawIndex, 10) : NaN
 
         const token =

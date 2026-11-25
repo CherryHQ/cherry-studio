@@ -25,6 +25,7 @@ export function buildPiLoginPathPrefix(
 function readPiShellPathSetting(): string | undefined {
   try {
     const settings: unknown = JSON.parse(readFileSync(application.getPath('external.pi.settings_file'), 'utf8'))
+
     const shellPath =
       settings !== null && typeof settings === 'object' && 'shellPath' in settings ? settings.shellPath : undefined
 

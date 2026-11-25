@@ -235,6 +235,7 @@ export function findInvalidSecondaryEndpointUrl(
 
     // SAFETY: Drafts are keyed by EndpointType and written from endpoint selections; entries erases only the key union.
     const type = key as EndpointType
+
     if (type === primary) continue
     const value = trim(draft.baseUrl)
 

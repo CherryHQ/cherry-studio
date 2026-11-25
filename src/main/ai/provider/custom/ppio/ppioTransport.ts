@@ -70,14 +70,17 @@ const PpioTaskResultSchema = z.looseObject({
   }),
   images: z.array(z.looseObject({ image_url: z.string() })).nullish()
 })
+
 const PpioSyncResultSchema = z.looseObject({
   images: z
     .array(z.union([z.string(), z.looseObject({ image_url: z.string().nullish(), url: z.string().nullish() })]))
     .nullish()
 })
+
 const PpioSubmitResultSchema = z.object({ task_id: z.string() })
 
 export type PpioTaskResult = z.infer<typeof PpioTaskResultSchema>
+
 export type PpioSyncResult = z.infer<typeof PpioSyncResultSchema>
 
 /**

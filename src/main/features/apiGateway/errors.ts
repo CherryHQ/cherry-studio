@@ -173,6 +173,7 @@ function extractError(error: unknown) {
     providerErrorCategory?: unknown
     error?: unknown
   }
+
   const providerError = record(e.error)
 
   // Prefer `status` (HTTP libs / OpenAI APIError), then `statusCode` (AI-SDK APICallError / SerializedError).

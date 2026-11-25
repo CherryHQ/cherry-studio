@@ -243,6 +243,7 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
 
   const parsedDefaultModelId =
     !assistant?.modelId && !id && shouldLoadDefaultModel ? UniqueModelIdSchema.safeParse(defaultModelId) : undefined
+
   const modelId = assistant?.modelId ?? (parsedDefaultModelId?.success ? parsedDefaultModelId.data : undefined)
 
   const { model, isLoading: isModelLoading } = useModelById(modelId)

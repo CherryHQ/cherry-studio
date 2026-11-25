@@ -80,6 +80,7 @@ export async function uploadFile(
       redirect: 'error',
       signal
     } satisfies NonNullable<Parameters<typeof net.fetch>[1]> & { duplex: 'half' }
+
     const response = await net.fetch(safeUploadUrl, options)
 
     if (!response.ok) {

@@ -34,6 +34,7 @@ export interface SiliconImageModelConfig {
 
 const imageItemSchema = z.object({ url: z.unknown().optional(), b64_json: z.unknown().optional() })
 const imageItemsSchema = z.array(imageItemSchema)
+
 const imageResponseSchema = z.object({
   images: z.unknown().optional(),
   data: z.unknown().optional()

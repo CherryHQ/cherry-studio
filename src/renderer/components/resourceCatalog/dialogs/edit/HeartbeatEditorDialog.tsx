@@ -92,6 +92,7 @@ export function HeartbeatEditorDialog({
   const baseline = document && (hasHeartbeatTasks(document.content) ? document.content : '')
   const dirty = document !== null && content !== baseline
   const output = latest?.output
+
   const result =
     output && typeof output === 'object' && 'result' in output && typeof output.result === 'string'
       ? output.result

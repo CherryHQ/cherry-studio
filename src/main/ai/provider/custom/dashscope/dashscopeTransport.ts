@@ -76,10 +76,12 @@ const DashScopeTaskOutputSchema = z.looseObject({
     .nullish(),
   image_url: z.string().nullish()
 })
+
 const DashScopeTaskResultSchema = z.looseObject({ output: DashScopeTaskOutputSchema })
 const DashScopeSubmitResultSchema = z.object({ output: z.object({ task_id: z.string().nullish() }) })
 
 type DashScopeTaskOutput = z.infer<typeof DashScopeTaskOutputSchema>
+
 export type DashScopeTaskResult = z.infer<typeof DashScopeTaskResultSchema>
 
 /**
@@ -412,6 +414,7 @@ function buildWanxImageEditBody(input: ImageGenerationSubmitInput, bag: DashScop
 
 function buildRequestBody(input: ImageGenerationSubmitInput, descriptor: DashScopeModelDescriptor): JSONObject {
   const rawBag = input.providerParams
+
   const bag: DashScopeProviderParams = {
     negativePrompt: typeof rawBag.negativePrompt === 'string' ? rawBag.negativePrompt : undefined,
     style: typeof rawBag.style === 'string' ? rawBag.style : undefined,

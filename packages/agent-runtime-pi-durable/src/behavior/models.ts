@@ -21,6 +21,7 @@ export function meteredModels(models: Models, behavior: PiDurableBehavior): Mode
         output.end(await input.result())
       } catch (cause) {
         const reason = options?.signal?.aborted ? 'aborted' : 'error'
+
         const error: AssistantMessage = {
           role: 'assistant',
           content: [],

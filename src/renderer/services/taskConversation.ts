@@ -36,6 +36,7 @@ async function readTaskRunSession(task: ScheduledTaskEntity, runId: string, sign
 
   const output = job.output
   const outputResult = output !== null && typeof output === 'object' && 'result' in output ? output.result : undefined
+
   const legacySessionId =
     output !== null && typeof output === 'object' && 'sessionId' in output ? output.sessionId : undefined
 

@@ -85,6 +85,7 @@ export const checkTranslationValues = () => {
   const glossary = glossarySchema.parse(
     JSON.parse(fs.readFileSync(path.join(__dirname, 'i18n-glossary.json'), 'utf-8'))
   )
+
   const failures: string[] = []
   let checked = 0
 

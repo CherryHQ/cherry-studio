@@ -85,6 +85,7 @@ export function SkillsSettings() {
   // The scope lives in the route search so it survives the round-trip through the detail route.
   const search = useSearch({ from: '/settings/skills/' })
   const scope = search.scope ?? 'all'
+
   const setScope = (next: string) => {
     if (next === 'all' || next === 'system' || next === 'builtin') {
       void navigate({ to: '/settings/skills', search: { scope: next } })

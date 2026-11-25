@@ -62,6 +62,7 @@ export class ModelscopeTaskFailedError extends Error {
 }
 
 const submitResponseSchema = z.object({ task_id: z.string().min(1) })
+
 const taskResultSchema = z.object({
   task_status: z.string().nullish(),
   output_images: z.array(z.string()).nullish(),
@@ -69,6 +70,7 @@ const taskResultSchema = z.object({
 })
 
 export type ModelscopeTaskResult = z.infer<typeof taskResultSchema>
+
 export type ModelscopeTaskStatus = NonNullable<ModelscopeTaskResult['task_status']>
 
 export interface ModelscopeTransportSettings {

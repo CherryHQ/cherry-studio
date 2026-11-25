@@ -174,6 +174,7 @@ export function buildGenerateImageToolSchema(support: ImageGenerationSupport | n
     )
 
     const editOnly = !modes.includes('generate')
+
     return schema.extend({ image_ids: editOnly ? describedImageIds : describedImageIds.optional() })
   }
 

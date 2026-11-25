@@ -120,6 +120,7 @@ export async function decodeWebm(input: VoiceAudioInput, signal?: AbortSignal): 
     const config = await track.getDecoderConfig()
     const channels = await track.getNumberOfChannels()
     const description = config?.description
+
     const header =
       description &&
       (ArrayBuffer.isView(description)
