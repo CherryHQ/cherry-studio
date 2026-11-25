@@ -1,6 +1,3 @@
-import { cacheService } from '@data/CacheService'
-
-const TRANSLATION_TTL_MS = 60 * 60 * 1000
 const KANA = /[\p{Script=Hiragana}\p{Script=Katakana}]/u
 const SCRIPT_BY_LANGUAGE: Record<string, RegExp> = {
   el: /\p{Script=Greek}/u,
@@ -25,24 +22,4 @@ export function isLikelyInLanguage(text: string, language: string): boolean {
   if (base === 'ja' && !KANA.test(text)) return false
   const script = SCRIPT_BY_LANGUAGE[base]
   return script ? share(script) >= 0.5 : false
-}
-
-/**
- * `text` in the UI `language`: unchanged when it already reads that way, else a cached AI
- * translation. Resolves '' when no translation is available, and that miss is not cached.
- */
-export function translateErrorMessage(text: string, language: string): Promise<string> {
-  if (!text || isLikelyInLanguage(text, language)) return Promise.resolve(text)
-  const cacheKey = `error.translate.${language}:${text}`
-  const cached = cacheService.getCasual<Promise<string>>(cacheKey)
-  if (cached) return cached
-  const promise = import('@renderer/utils/errorDiagnosis')
-    .then(({ translateErrorByAI }) => translateErrorByAI(text, language))
-    .catch(() => '')
-    .then((translated) => {
-      if (!translated) cacheService.deleteCasual(cacheKey)
-      return translated
-    })
-  cacheService.setCasual<Promise<string>>(cacheKey, promise, TRANSLATION_TTL_MS)
-  return promise
 }
