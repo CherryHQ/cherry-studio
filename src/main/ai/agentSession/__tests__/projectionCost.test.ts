@@ -28,7 +28,7 @@ it.each([
   [1000, 10]
 ])(
   'retains output with %i history messages on %i independent threads',
-  async (historySize, threadCount) => {
+  (historySize, threadCount) => {
     const workspaceId = randomUUID()
     const sessionId = randomUUID()
     dbh.db
@@ -59,10 +59,11 @@ it.each([
     let decorated = 0
     let forwarded = 0
     const projections = Array.from({ length: threadCount }, (_, index) => {
-      const root = new RootMessageProjection(context.id)
+      const root = new RootMessageProjection(context.id, { lastPos: 0 })
       const metadata = new PiMessageMetadata()
+      const thread = { backendId: runtimeId<'backend'>('pi'), id: runtimeId<'thread'>(`thread-${index}`) }
       const view = new ThreadProjection(
-        { backendId: runtimeId('pi'), id: runtimeId(`thread-${index}`) },
+        thread,
         context.id,
         (update) => {
           forwarded += update.messages.length
@@ -73,82 +74,88 @@ it.each([
           return metadata.decorate(message)
         }
       )
-      return { root, view }
+      return { root, view, thread }
     })
-    try {
-      for (const { root, view } of projections) {
-        for (const message of history)
-          root.accept(
-            {
-              contextId: context.id,
-              messages: [{ ...message, metadata: undefined }],
-              live: [message.id],
-              removed: [],
-              replaces: {}
-            },
-            message.id
-          )
-        await view.accept({
-          events: [
-            {
-              type: 'snapshot',
-              messages: history,
-              inputs: [],
-              activity: { state: 'active' }
-            }
-          ],
-          live: [],
-          aliases: {}
-        })
-      }
-      decorated = 0
-      forwarded = 0
-      const timings: number[] = []
-      const cpu = process.cpuUsage()
-      const start = performance.now()
-      for (let step = 1; step <= 40; step++) {
-        for (const { view } of projections) {
-          const before = performance.now()
-          await view.accept({
+    for (const { root, view } of projections) {
+      for (const message of history)
+        root.accept(
+          {
+            contextId: context.id,
+            messages: [{ ...message, metadata: undefined }],
+            live: [message.id],
+            removed: [],
+            replaces: {}
+          },
+          message.id
+        )
+      view.accept({
+        events: [
+          {
+            type: 'snapshot',
+            messages: history,
+            inputs: [],
+            activity: { state: 'active' }
+          }
+        ],
+        live: [],
+        aliases: {}
+      })
+    }
+    decorated = 0
+    forwarded = 0
+    const timings: number[] = []
+    const cpu = process.cpuUsage()
+    const start = performance.now()
+    for (let step = 1; step <= 40; step++) {
+      for (const { root, view, thread } of projections) {
+        const before = performance.now()
+        if (step === 1) {
+          view.accept({
             events: [
               {
-                type: 'message.upsert',
+                type: 'message.reconcile',
                 message: {
                   id: 'live',
                   role: 'assistant',
                   metadata: { completeness: 'partial' },
-                  parts: [{ type: 'text', text: 'delta '.repeat(step), state: 'streaming' }]
+                  parts: [{ type: 'text', text: 'delta ', state: 'streaming' }]
                 }
               }
             ],
             live: ['live'],
             aliases: {}
           })
-          timings.push(performance.now() - before)
+        } else {
+          const [accepted] = root.changePart({
+            type: 'message.text-append',
+            ref: { session: thread, id: runtimeId('live') },
+            part: 0,
+            text: 'delta '
+          })
+          expect(accepted?.patch).toMatchObject({ type: 'part-append', text: 'delta ' })
         }
+        timings.push(performance.now() - before)
       }
-      const elapsedMs = performance.now() - start
-      const usage = process.cpuUsage(cpu)
-      timings.sort((a, b) => a - b)
-      expect(forwarded, 'A live update must not forward unrelated history').toBe(timings.length)
-      expect(decorated, 'A live update must not redecorate unrelated history').toBe(timings.length)
-      reports.push({
-        historySize,
-        threadCount,
-        events: timings.length,
-        decorated,
-        forwarded,
-        elapsedMs,
-        cpuMs: (usage.user + usage.system) / 1000,
-        p50Ms: timings[Math.floor(timings.length / 2)],
-        p95Ms: timings[Math.floor(timings.length * 0.95)]
-      })
-      for (const { root } of projections) {
-        expect(root.parts('reply')).toEqual([{ type: 'text', text: 'delta '.repeat(40), state: 'streaming' }])
-        expect(root.parts('history-0')).toEqual(history[0].parts)
-      }
-    } finally {
-      await Promise.all(projections.map(({ view }) => view.close()))
+    }
+    const elapsedMs = performance.now() - start
+    const usage = process.cpuUsage(cpu)
+    timings.sort((a, b) => a - b)
+    expect(forwarded, 'A live update must not forward unrelated history').toBe(threadCount)
+    expect(decorated, 'A live update must not redecorate unrelated history').toBe(threadCount)
+    reports.push({
+      historySize,
+      threadCount,
+      events: timings.length,
+      decorated,
+      forwarded,
+      elapsedMs,
+      cpuMs: (usage.user + usage.system) / 1000,
+      p50Ms: timings[Math.floor(timings.length / 2)],
+      p95Ms: timings[Math.floor(timings.length * 0.95)]
+    })
+    for (const { root } of projections) {
+      expect(root.parts('reply')).toEqual([{ type: 'text', text: 'delta '.repeat(40), state: 'streaming' }])
+      expect(root.parts('history-0')).toEqual(history[0].parts)
     }
   },
   30000

@@ -27,7 +27,8 @@ export async function createPiGatewayModelBinding(
   model: Model,
   onUsage?: (usage: Usage, nativeSessionId: string | undefined, responseId?: string) => void,
   sharedModels?: ModelRuntime,
-  onRetry?: (event: RetryPartData, nativeSessionId: string) => void
+  onRetry?: (event: RetryPartData, nativeSessionId: string) => void,
+  nativeProviders?: readonly [string, ...string[]]
 ) {
   if (!isPiCompatibleModel(provider, model)) {
     throw new Error(`Provider "${provider.id}" cannot be routed through the internal gateway for pi agents`)
@@ -62,8 +63,9 @@ export async function createPiGatewayModelBinding(
       refreshOnCreate: false
     }))
   // Native provider re-registration replaces its models and stream handler.
-  const providerName = sharedModels ? `cherry-gateway/${input.sessionId}/${randomUUID()}` : provider.id
-  modelRuntime.registerProvider(providerName, {
+  const providerName =
+    nativeProviders?.[0] ?? (sharedModels ? `cherry-gateway/${input.sessionId}/${randomUUID()}` : provider.id)
+  const registration: Parameters<ModelRuntime['registerProvider']>[1] = {
     name: provider.name,
     api,
     baseUrl: 'http://cherry-runtime.invalid',
@@ -108,8 +110,11 @@ export async function createPiGatewayModelBinding(
         })
       return stream
     }
-  })
-  await modelRuntime.setRuntimeApiKey(providerName, OBJECT_TRANSPORT_API_KEY)
+  }
+  for (const name of new Set(nativeProviders ?? [providerName])) {
+    modelRuntime.registerProvider(name, registration)
+    await modelRuntime.setRuntimeApiKey(name, OBJECT_TRANSPORT_API_KEY)
+  }
   const registered = modelRuntime.getModel(providerName, modelId)
   if (!registered) throw new Error(`Pi gateway model ${modelId} was not registered`)
   return { modelRuntime, model: registered, ...(onRetry && { onRetry }) }

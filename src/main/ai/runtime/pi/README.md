@@ -91,9 +91,9 @@ Large tool output is saved under `feature.agents.outputs`, which read tools may 
 
 ## Desktop ownership
 
-`ThreadMessageProjection` receives authoritative SDK messages from the runtime adapter. Main applies
-tool display metadata, and `RootMessageProjection` groups native messages into product replies without
-a second SDK reader. Child output uses an independent `ChildThreadProjection` and product archive;
+The root adapter forwards a native source snapshot for structural reconciliation and delivers text suffixes
+directly. Main applies display metadata at the boundary, and `RootMessageProjection` owns the accepted
+parts. Child output uses an independent `ChildThreadProjection` and product archive;
 the parent reply carries task-card metadata. Goal rounds and background delivery announce autonomous
 turn boundaries.
 Observation loss fails the turn and retires the owner.
