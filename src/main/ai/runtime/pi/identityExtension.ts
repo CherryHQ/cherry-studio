@@ -1,7 +1,7 @@
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 
 import { application } from '@application'
-import { PromptBuilder } from '@main/ai/agents/prompt'
+import { PromptBuilder } from '@main/ai/agents/prompt/promptContext'
 import { agentMemoryReference } from '@main/ai/memory/memoryPrompt'
 
 export function createPiIdentityExtension(agentDataPath: string, sessionId?: string): ExtensionFactory {

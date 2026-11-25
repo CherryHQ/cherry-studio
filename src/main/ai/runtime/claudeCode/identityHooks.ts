@@ -1,7 +1,7 @@
 import type { HookCallback, HookEvent, HookCallbackMatcher } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
-import { PromptBuilder } from '@main/ai/agents/prompt'
+import { PromptBuilder } from '@main/ai/agents/prompt/promptContext'
 import { agentMemoryReference } from '@main/ai/memory/memoryPrompt'
 import { openRuntimeMemoryGuard } from '@main/ai/memory/memoryRuntime'
 
