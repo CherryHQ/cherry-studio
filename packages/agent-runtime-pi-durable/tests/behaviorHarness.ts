@@ -29,6 +29,7 @@ import type { ThreadId } from '@cherrystudio/agent-runtime'
 import { createPiDurableBehavior, type PiDurableBehavior, type PiDurableBehaviorOptions } from '../src/behavior/harness'
 import { conversationId, DurableFolds, pages, threadId } from '../src/behavior/history'
 import { meteredModels } from '../src/behavior/models'
+import { readDurableWork } from '../src/recovery'
 
 export async function openDurableHarness(
   install: (ports: HarnessPorts) => void,
@@ -114,8 +115,10 @@ export async function openDurableHarness(
       onError: (error) => errors.push(error)
     })
     registry.install(behavior.extension)
+    const storage = await openNodeSqliteStorage(path)
+    const work = await readDurableWork(storage)
     native = await Harness.open(
-      await openNodeSqliteStorage(path),
+      storage,
       {
         models: meteredModels(models, behavior),
         registry,
@@ -127,7 +130,7 @@ export async function openDurableHarness(
       },
       context
     )
-    await behavior.bind(native)
+    await behavior.bind(native, work)
   }
   await open()
   const harness: ContractHarness = {

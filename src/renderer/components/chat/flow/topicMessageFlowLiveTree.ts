@@ -1,3 +1,4 @@
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -30,7 +31,7 @@ export interface TopicMessageFlowLiveState {
 interface BuildTopicMessageFlowLiveStateParams {
   topicId: string
   messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   activeNodeId: string | null
   streamingMessageIds?: ReadonlySet<string>
 }
@@ -89,7 +90,7 @@ export function buildTopicMessageFlowLiveState({
     const parentId = metadata.parentId
     if (parentId == null) return []
 
-    const parts = partsByMessageId[message.id] ?? message.parts ?? []
+    const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts ?? []
     const createdAt = metadata.createdAt ?? new Date().toISOString()
     const isStreamingMessage = streamingMessageIds?.has(message.id) ?? false
     const fallbackStatus = message.role === 'assistant' && parts.length === 0 ? 'pending' : 'success'
