@@ -9,7 +9,7 @@ export function toAgentProviderHeaders(
   if (!headers) return undefined
   const coerced: Record<string, string> = {}
 
-  for (const [name, value] of Object.entries(headers) as [string, unknown][]) {
+  for (const [name, value] of Object.entries<unknown>(headers)) {
     if (value == null || typeof value === 'object') continue
     coerced[name] = String(value)
   }

@@ -30,6 +30,7 @@ export function claudeControlEvents(control: ClaudeControl): AgentRuntimeEvent[]
       // Native input_tokens excludes cache buckets; display statistics count all input tokens.
       const inputTokens = noCacheTokens + cacheWriteTokens + cacheReadTokens
       const outputTokens = control.usage.output_tokens ?? 0
+
       const stats: MessageStats = {
         inputTokens,
         outputTokens,

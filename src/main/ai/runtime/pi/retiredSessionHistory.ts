@@ -11,7 +11,6 @@ import {
 import { loggerService } from '@logger'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { type RuntimeForkAnchor, RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
-import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 
 import { loadPiSdk } from './piSdk'
 
@@ -102,7 +101,6 @@ async function importHistory(sessionId: string): Promise<void> {
     if (
       pendingMessageIds.has(row.id) ||
       row.status === 'pending' ||
-      row.status === 'streaming' ||
       (row.deliveryStatus && row.deliveryStatus !== 'consumed')
     ) {
       excludedMessageIds.push(row.id)
@@ -111,8 +109,8 @@ async function importHistory(sessionId: string): Promise<void> {
 
     const content = buildAgentUserContent({
       ...row,
-      role: row.role as AgentSessionMessageEntity['role'],
-      status: row.status as AgentSessionMessageEntity['status'],
+      role: row.role,
+      status: row.status,
       delivery:
         row.delivery && row.deliveryStatus
           ? {

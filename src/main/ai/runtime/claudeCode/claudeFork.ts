@@ -31,6 +31,7 @@ async function findSession(configDir: string, sessionId: string): Promise<string
 
 export async function forkClaudeSession(input: RuntimeForkInput): Promise<RuntimeForkResult> {
   const checkpoint = parseClaudeForkCheckpoint(input.checkpoint)
+
   const entries = await readNativeForkHistory(async () => {
     const file = await findSession(checkpoint.configDir, checkpoint.runtimeSessionId)
     const bytes = await readForkPrefix(file)

@@ -1,5 +1,4 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
-import type { UIMessageChunk } from 'ai'
 
 import type {
   InputLookup,
@@ -20,7 +19,7 @@ import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
-import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
+import type { CherryUIMessage, CherryUIMessageChunk, MessageSnapshot } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -132,7 +131,7 @@ export interface RuntimeMessageProjection {
 export type AgentRuntimeEvent =
   | { type: 'message-projection'; projection: RuntimeMessageProjection }
   | { type: 'response-start'; responseId: string; messageId?: string }
-  | { type: 'chunk'; chunk: UIMessageChunk }
+  | { type: 'chunk'; chunk: CherryUIMessageChunk }
   | { type: 'tool-approval-request'; request: AgentRuntimeToolApprovalRequest }
   | {
       type: 'usage'

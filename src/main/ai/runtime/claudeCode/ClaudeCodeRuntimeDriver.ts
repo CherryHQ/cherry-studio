@@ -1253,7 +1253,7 @@ async function materializeUserContent(
   let turnAttachments: ReturnType<typeof collectAssistantFileAttachments> = []
 
   if (supportsAttachmentReads && firstPartyFileParts.length > 0) {
-    turnAttachments = collectAssistantFileAttachments([{ id: message.id, role: 'user', parts: firstPartyFileParts }])
+    turnAttachments = collectAssistantFileAttachments([{ parts: firstPartyFileParts }])
   }
 
   if (firstPartyImageParts.length > 0) {

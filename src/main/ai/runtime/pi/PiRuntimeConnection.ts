@@ -39,6 +39,7 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { getErrorCode } from '@main/utils/error'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
@@ -275,7 +276,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     try {
       files = readdirSync(sessionDir).filter((file) => file.endsWith(`_${nativeId}.jsonl`))
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      if (getErrorCode(error) !== 'ENOENT') throw error
       files = []
     }
 
@@ -316,6 +317,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
     })
 
+    // SAFETY: Pi's heterogeneous registration erases parameter/detail/render-state types; each tool retains its own schema, executor and renderers.
     const managedShellTools = [
       managedBashTool,
       ...(process.platform === 'win32'

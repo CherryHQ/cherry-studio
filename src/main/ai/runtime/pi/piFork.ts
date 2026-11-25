@@ -14,6 +14,7 @@ export async function forkPiSession(input: RuntimeForkInput): Promise<RuntimeFor
 
   if (!/^[a-zA-Z0-9-]+$/.test(checkpoint.runtimeSessionId)) throw new AgentSessionForkError('history_corrupt')
   const sessions = application.getPath('feature.agents.pi.sessions')
+
   const source = await readNativeForkHistory(async () => {
     const sourceFile = resolveResumeTokenSessionFile(checkpoint.runtimeSessionId, sessions)
 
@@ -28,6 +29,7 @@ export async function forkPiSession(input: RuntimeForkInput): Promise<RuntimeFor
 
     return prefix
   })
+
   const directory = path.join(input.artifactDirectory, 'pi')
   await mkdir(directory, { recursive: false })
   const snapshotFile = path.join(directory, 'source.jsonl')

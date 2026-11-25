@@ -35,6 +35,7 @@ import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeHooks')
 const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
+
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SDK tool arguments retain opaque values after container validation; consumers check their own fields.
 const ToolGuardInputSchema = z.custom<Readonly<Record<string, unknown>>>(
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK hooks expose opaque tool input; validate its container without rewriting arguments forwarded to approval handlers.

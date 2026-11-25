@@ -51,9 +51,11 @@ export function createPiMcpExtension(
           await server.connect(serverTransport)
           await clientTransport.start()
         },
+        // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Pi permits unknown params/result while this SDK declares records; preserve native frame forwarding and downstream classification.
         send: (message) => clientTransport.send(message as Parameters<InMemoryTransport['send']>[0]),
         close: () => clientTransport.close(),
         onMessage(listener) {
+          // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- The SDK permits id-less errors that Pi types omit; forward unchanged so Pi retains its own invalid-frame error path.
           clientTransport.onmessage = (message) => listener(message as Parameters<typeof listener>[0])
 
           return () => {

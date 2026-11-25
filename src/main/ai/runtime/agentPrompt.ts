@@ -60,7 +60,7 @@ export async function buildAgentRuntimePrompt({
   mcpInstructions,
   modelName
 }: BuildAgentRuntimePromptOptions): Promise<AgentRuntimePrompt> {
-  const builtinRole = agent.configuration?.builtin_role as string | undefined
+  const builtinRole = agent.configuration?.builtin_role
   const isAssistant = builtinRole === 'assistant'
   let instructions = agent.instructions
 

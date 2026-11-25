@@ -192,7 +192,7 @@ function stripKeywords(schema: unknown, keywords: ReadonlySet<string>): unknown 
  * merge root siblings over the referenced definition, so an empty `properties`
  * map would erase the referenced parameters.
  */
-function addMissingProperties(node: unknown): unknown {
+function addMissingProperties(node: unknown) {
   if (!isObjectRecord(node)) return node
 
   if (node.type !== 'object' || node.$ref !== undefined || Object.hasOwn(node, 'properties')) return node
@@ -219,7 +219,7 @@ function uniformEnumType(values: unknown[]): 'integer' | 'number' | 'boolean' | 
  * (TYPE_STRING)`, e.g. zod `z.union([z.literal(1), z.literal(2)])`). Replaces
  * it with the bare type; the original zod schema still validates locally.
  */
-function stripNonStringEnums(node: SchemaNode): SchemaNode {
+function stripNonStringEnums(node: SchemaNode) {
   const values = node.enum !== undefined ? node.enum : node.const !== undefined ? [node.const] : undefined
   const kind = Array.isArray(values) ? uniformEnumType(values) : undefined
 
@@ -245,7 +245,7 @@ function stripNonStringEnums(node: SchemaNode): SchemaNode {
  * into `nullable` + a typed schema. Nullability survives as its own branch;
  * the original zod schema still validates locally.
  */
-function expandTypeArrays(node: SchemaNode): SchemaNode {
+function expandTypeArrays(node: SchemaNode) {
   const type = node.type
 
   if (!Array.isArray(type) || type.length === 0 || type.some((entry) => typeof entry !== 'string')) return node
