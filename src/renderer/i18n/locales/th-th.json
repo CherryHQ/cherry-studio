@@ -971,6 +971,7 @@
   "chat.list.sort.title": "เรียงตาม",
   "chat.mcp.warning.gemini_web_search": "Gemini ไม่รองรับการใช้เครื่องมือค้นหาเว็บในตัวและ function calling พร้อมกัน",
   "chat.message.branches": "สลับสาขา",
+  "chat.message.context_window_excluded": "ข้อความด้านบนจะไม่ถูกส่งไปยังโมเดล (ข้อความล่าสุดที่เก็บ: {{limit}})",
   "chat.message.copy_latex": "คัดลอก LaTeX",
   "chat.message.flow.branches": "สาขา",
   "chat.message.flow.copy_topic.created": "คัดลอกไปยังการสนทนาใหม่",
