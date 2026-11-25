@@ -81,18 +81,24 @@ export function listRetiredAgentSessionMigrations(db: DbOrTx): RetiredAgentSessi
     .from(appStateTable)
     .where(like(appStateTable.key, `${MIGRATION_KEY_PREFIX}%`))
     .all()
-    .map((row) => row.value as RetiredAgentSessionMigration)
+    .map((row) => {
+      // SAFETY: This private prefix is written with this payload by queueRetiredAgentRuntimeMigration; JSON storage erases that association.
+      return row.value as RetiredAgentSessionMigration
+    })
 }
 
 export function getRetiredAgentSessionMigration(
   db: DbOrTx,
   sessionId: string
 ): RetiredAgentSessionMigration | undefined {
-  return db
+  const row = db
     .select()
     .from(appStateTable)
     .where(eq(appStateTable.key, `${MIGRATION_KEY_PREFIX}${sessionId}`))
-    .get()?.value as RetiredAgentSessionMigration | undefined
+    .get()
+
+  // SAFETY: The exact private key selects the typed payload written by queueRetiredAgentRuntimeMigration; the JSON column does not retain its type.
+  return row?.value as RetiredAgentSessionMigration | undefined
 }
 
 export function readRetiredAgentSessionHistory(db: DbOrTx, sessionId: string) {

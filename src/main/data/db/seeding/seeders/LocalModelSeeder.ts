@@ -13,7 +13,7 @@ import {
   LOCAL_EMBEDDING_PROVIDER_NAME,
   LOCAL_EMBEDDING_UNIQUE_MODEL_ID
 } from '@shared/data/presets/localEmbedding'
-import { MODEL_CAPABILITY, type ModelCapability } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
@@ -44,7 +44,7 @@ function createLocalEmbeddingModelRow(): LocalEmbeddingModelRow {
     name: LOCAL_EMBEDDING_MODEL_NAME,
     description: null,
     group: LOCAL_EMBEDDING_MODEL_GROUP,
-    capabilities: [MODEL_CAPABILITY.EMBEDDING] as ModelCapability[],
+    capabilities: [MODEL_CAPABILITY.EMBEDDING],
     inputModalities: null,
     outputModalities: null,
     endpointTypes: null,

@@ -800,7 +800,7 @@ export class JobService {
     return {
       id: row.id,
       type: row.type,
-      status: row.status as JobStatus,
+      status: row.status,
       priority: row.priority,
       queue: row.queue,
       idempotencyKey: row.idempotencyKey,

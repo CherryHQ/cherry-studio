@@ -27,10 +27,11 @@ export function readAppliedChain(sqlite: Database.Database): AppliedMigration[] 
     throw new Error('readAppliedChain: no __drizzle_migrations table — an unmigrated database cannot be journaled')
   }
 
-  const rows = sqlite.prepare('SELECT hash, created_at FROM __drizzle_migrations ORDER BY created_at').all() as Array<{
-    hash: string
-    created_at: number | string
-  }>
+  const rows = sqlite
+    .prepare<[], { hash: string; created_at: unknown }>(
+      'SELECT hash, created_at FROM __drizzle_migrations ORDER BY created_at'
+    )
+    .all()
 
   return rows.map((row) => ({ folderMillis: Number(row.created_at), hash: row.hash }))
 }

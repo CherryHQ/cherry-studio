@@ -1,6 +1,7 @@
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import type { RemoteFailure } from '@cherrystudio/remote-protocol'
+import type { CommandReceipt } from '@cherrystudio/remote-protocol/agent'
 
 import { createUpdateTimestamps } from './_columnHelpers'
 import { apiGatewayPairedDeviceTable } from './apiGatewayPairedDevice'
@@ -19,7 +20,7 @@ export const remoteCommandTable = sqliteTable(
     status: text().$type<'accepted' | 'applied' | 'rejected' | 'interrupted'>().notNull(),
     sessionId: text(),
     executionId: text(),
-    result: text({ mode: 'json' }).$type<unknown>(),
+    result: text({ mode: 'json' }).$type<CommandReceipt['result']>(),
     error: text({ mode: 'json' }).$type<RemoteFailure>(),
     admittedAt: integer().notNull(),
     ...createUpdateTimestamps

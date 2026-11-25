@@ -879,8 +879,10 @@ export class CacheService extends BaseService {
       if (message.type === 'shared') {
         if (findMatchingSharedCacheSchemaKey(message.key) === undefined) {
           logger.warn('Rejected invalid shared cache key', { key: message.key })
+
           return
         }
+
         // Capture pre-change value (TTL-aware) so subscribers see a consistent oldValue.
         // This path bypasses setShared/deleteShared and must notify independently.
         const oldValue = this.peekSharedEntry(message.key)?.value

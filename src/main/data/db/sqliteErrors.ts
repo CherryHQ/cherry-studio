@@ -247,11 +247,14 @@ export function classifySqliteError(e: unknown): SqliteConstraint | null {
  * defaults for all four constraint kinds.
  * Synchronous results are returned unchanged; thenables are adopted as native Promises.
  */
+/* eslint-disable @typescript-eslint/no-unused-vars -- The thenable test must infer arbitrary arguments without constraining their types. */
 export function withSqliteErrors<T>(
   operation: () => T,
   handlers: SqliteErrorHandlers
+  // oxlint-disable-next-line no-unused-vars, anti-slop/no-unknown-returns -- Only then's callability matters; its arguments and return value may be arbitrary.
 ): T extends { then: (...args: infer _Args) => unknown } ? Promise<Awaited<T>> : T
-export function withSqliteErrors(operation: () => unknown, handlers: SqliteErrorHandlers): unknown {
+/* eslint-enable @typescript-eslint/no-unused-vars */
+export function withSqliteErrors<T>(operation: () => T, handlers: SqliteErrorHandlers) {
   try {
     const result = operation()
 

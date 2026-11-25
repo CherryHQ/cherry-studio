@@ -596,7 +596,7 @@ export class AgentSessionMessageService {
             and(
               eq(sessionMessagesTable.sessionId, sessionId),
               or(
-                inArray(sessionMessagesTable.status, ['pending', 'streaming']),
+                eq(sessionMessagesTable.status, 'pending'),
                 inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
               )
             ),

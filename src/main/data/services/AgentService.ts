@@ -77,7 +77,7 @@ interface EnsureBuiltinAgentInput {
   builtinRole: BuiltinAgentRole
   configuration: AgentConfiguration
   name: string
-  preferredModelId: UniqueModelId | null
+  preferredModelId: string | null
   type: AgentType
   disabledTools?: readonly string[]
 }
@@ -638,7 +638,7 @@ export class AgentService {
     }
 
     const preferredModel = input.preferredModelId ? modelService.findByIdTx(tx, input.preferredModelId) : null
-    const model = preferredModel && isGatewayRoutableModel(preferredModel) ? input.preferredModelId : null
+    const model = preferredModel && isGatewayRoutableModel(preferredModel) ? preferredModel.id : null
     const agentId = input.builtinRole === BUILTIN_AGENT_ROLE.SUPPORT ? CHERRY_SUPPORT_AGENT_ID : uuidv4()
 
     const created = this.createAgentTx(tx, agentId, {

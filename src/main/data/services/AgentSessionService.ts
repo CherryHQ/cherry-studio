@@ -371,7 +371,7 @@ export class AgentSessionService {
   createTx(
     tx: DbOrTx,
     id: string,
-    dto: CreateAgentSessionDto,
+    dto: Omit<CreateAgentSessionDto, 'model'> & { model?: string | null },
     type: AgentSessionType = 'conversation',
     createdAt = Date.now(),
     taskId: string | null = null

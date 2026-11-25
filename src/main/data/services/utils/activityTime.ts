@@ -1,9 +1,9 @@
 import type { MessageStatus } from '@shared/data/types/message'
 
-const TERMINAL_MESSAGE_STATUSES = new Set<MessageStatus>(['success', 'error', 'paused'])
+const TERMINAL_MESSAGE_STATUSES: ReadonlySet<string> = new Set<MessageStatus>(['success', 'error', 'paused'])
 
 export function isTerminalMessageStatus(status: string): status is Exclude<MessageStatus, 'pending'> {
-  return TERMINAL_MESSAGE_STATUSES.has(status as MessageStatus)
+  return TERMINAL_MESSAGE_STATUSES.has(status)
 }
 
 /** User and assistant rows represent conversation activity; structural/system rows do not. */

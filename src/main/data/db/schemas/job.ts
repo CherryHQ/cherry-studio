@@ -1,7 +1,14 @@
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-import type { CatchUpPolicy, JobError, JobScheduleSnapshot, JobSnapshot, Trigger } from '@shared/data/api/schemas/jobs'
+import type {
+  CatchUpPolicy,
+  JobError,
+  JobScheduleSnapshot,
+  JobSnapshot,
+  JobStatus,
+  Trigger
+} from '@shared/data/api/schemas/jobs'
 
 import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
@@ -63,7 +70,7 @@ export const jobTable = sqliteTable(
   {
     id: uuidPrimaryKeyOrdered(),
     type: text().notNull(),
-    status: text().notNull(),
+    status: text().$type<JobStatus>().notNull(),
     priority: integer().notNull().default(0),
     queue: text().notNull(),
     idempotencyKey: text(),

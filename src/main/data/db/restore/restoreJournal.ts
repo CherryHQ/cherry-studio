@@ -4,6 +4,7 @@ import path from 'node:path'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { getErrorCode } from '@main/utils/error'
 
 /**
  * Restore promotion journal — the crash-safe contract between the backup
@@ -121,7 +122,7 @@ export function readRestoreJournal(): ReadJournalResult {
   try {
     raw = fs.readFileSync(journalFilePath(), 'utf8')
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (getErrorCode(error) === 'ENOENT') {
       return { kind: 'none' }
     }
 

@@ -1,7 +1,7 @@
 import { replayMigration, setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
-import { jobTable } from '@data/db/schemas/job'
+import { type JobRow, jobTable } from '@data/db/schemas/job'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { KnowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { FileItemDataSchema } from '@shared/data/types/knowledge'
@@ -30,7 +30,7 @@ describe('knowledge conversion recovery backfill (migration 0029)', () => {
       context: { dataId },
       processorId: 'mineru'
     })
-    const rows: Array<[id: string, type: string, status: string, input: unknown]> = [
+    const rows: Array<[id: string, type: string, status: JobRow['status'], input: unknown]> = [
       ['knowledge-running', 'file-processing.remote-poll', 'running', conversion(item.id)],
       ['knowledge-pending', 'file-processing.background-local', 'pending', conversion(item.id)],
       ['knowledge-delayed', 'file-processing.background', 'delayed', conversion(item.id)],

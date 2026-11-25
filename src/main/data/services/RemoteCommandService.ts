@@ -16,7 +16,7 @@ export interface RemoteCommandKey {
 }
 
 export type RemoteCommandOutcome =
-  | { status: 'applied'; sessionId?: string; executionId?: string; result?: unknown }
+  | { status: 'applied'; sessionId?: string; executionId?: string; result?: CommandReceipt['result'] }
   | { status: 'rejected'; error: RemoteFailure }
   | { status: 'interrupted'; error: RemoteFailure }
 
@@ -32,7 +32,7 @@ function toReceipt(row: RemoteCommandRow): CommandReceipt {
 
   if (row.executionId) receipt.executionId = row.executionId
 
-  if (row.result !== null && row.result !== undefined) receipt.result = row.result as CommandReceipt['result']
+  if (row.result !== null && row.result !== undefined) receipt.result = row.result
 
   if (row.error) receipt.error = row.error
 

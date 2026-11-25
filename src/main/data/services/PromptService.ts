@@ -504,11 +504,7 @@ export class PromptService {
   private assertPromptsExistTx(tx: Pick<DbType, 'select'>, ids: string[]): void {
     const uniqueIds = Array.from(new Set(ids))
 
-    const rows = tx
-      .select({ id: promptTable.id })
-      .from(promptTable)
-      .where(inArray(promptTable.id, uniqueIds))
-      .all() as Array<{ id: string }>
+    const rows = tx.select({ id: promptTable.id }).from(promptTable).where(inArray(promptTable.id, uniqueIds)).all()
 
     if (rows.length === uniqueIds.length) return
     const found = new Set(rows.map((r) => r.id))

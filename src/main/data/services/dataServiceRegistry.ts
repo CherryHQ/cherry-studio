@@ -61,5 +61,6 @@ export function getDataService<K extends keyof DataServiceMap>(name: K): DataSer
     )
   }
 
+  // SAFETY: Typed register/get calls share the same service-name key; the private Map erases that key-to-instance association.
   return instance as DataServiceMap[K]
 }

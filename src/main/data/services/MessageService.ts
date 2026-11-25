@@ -47,7 +47,6 @@ import {
   type TreeNode,
   type TreeResponse
 } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
@@ -84,7 +83,7 @@ export interface CreateUserMessageWithPlaceholdersInput {
   userMessage:
     | { mode: 'create'; dto: CreateMessageDto }
     | { mode: 'existing'; id: string }
-    | { mode: 'fill-reserved'; id: string; data: MessageData; modelId?: UniqueModelId }
+    | { mode: 'fill-reserved'; id: string; data: MessageData; modelId?: CreateMessageDto['modelId'] }
   /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
   siblingsGroupId?: number
   placeholders: AssistantPlaceholder[]

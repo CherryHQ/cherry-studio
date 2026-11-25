@@ -13,7 +13,6 @@ import {
 import { type AgentSessionMessageRow, agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { DbOrTx } from '@data/db/types'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { Serializable } from '@shared/types/serializable'
 import { SerializableSchema } from '@shared/utils/serializable'
 
@@ -181,7 +180,7 @@ export class AgentSessionForkService {
         agentId: source.agent.id,
         name: `${baseName}${separator}(${number})`,
         description: source.session.description,
-        model: (source.session.model ?? undefined) as UniqueModelId | undefined,
+        model: source.session.model ?? undefined,
         workspace:
           source.workspace.type === 'system' ? { type: 'system' } : { type: 'user', workspaceId: source.workspace.id }
       },

@@ -11,6 +11,7 @@ import { SEED_KEY_PREFIX } from '@data/db/seeding/SeedRunner'
 import { getLegacyProfilePaths } from '@main/core/paths/legacyProfilePaths'
 import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
+import { getErrorCode } from '@main/utils/error'
 
 import {
   LEGACY_PREREQUISITE_VERSION,
@@ -146,7 +147,7 @@ export function restoreInterruptedPortableTraySetting(executable: string, profil
   try {
     if (statIfPresent(executable + '.update-lock')) return 'busy'
   } catch (error) {
-    if (['EACCES', 'EPERM', 'EBUSY'].includes((error as NodeJS.ErrnoException).code ?? '')) return 'busy'
+    if (['EACCES', 'EPERM', 'EBUSY'].includes(getErrorCode(error) ?? '')) return 'busy'
     throw error
   }
 

@@ -40,6 +40,7 @@ type GroupRow = typeof groupTable.$inferSelect
 function rowToGroup(row: GroupRow): Group {
   return {
     id: row.id,
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- API writes own this domain, but legacy entity_type rows have no SQL CHECK; retain their existing read contract without claiming runtime validation.
     entityType: row.entityType as EntityType,
     name: row.name,
     orderKey: row.orderKey,

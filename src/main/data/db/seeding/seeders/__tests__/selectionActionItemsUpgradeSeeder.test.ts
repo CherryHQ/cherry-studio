@@ -99,4 +99,14 @@ describe('SelectionActionItemsUpgradeSeeder', () => {
 
     expect(readActionItems()).toEqual(upgraded)
   })
+
+  it('preserves future runners and extension fields while upgrading legacy actions', () => {
+    const future = { id: 'future-action', runner: 'future-runner', extension: { version: 2 } }
+    const legacy = { id: 'legacy-action', assistantId: 'assistant-1', extension: { enabled: false } }
+    writeActionItems([future, legacy])
+
+    new SeedRunner(dbh.db).runAll(ACTION_ITEM_SEEDERS)
+
+    expect(readActionItems()).toEqual([future, { ...legacy, runner: 'assistant' }, ASK_AGENT_DISABLED])
+  })
 })

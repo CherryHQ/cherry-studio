@@ -11,6 +11,7 @@ import type Database from 'better-sqlite3'
  * shorter-than-log checkpoint must abort loudly instead of proceeding.
  */
 export function checkpointTruncateAssert(sqlite: Database.Database): void {
+  // SAFETY: SQLite's fixed wal_checkpoint pragma returns busy/log/checkpointed numeric columns; negative log counts remain valid outside WAL mode.
   const [row] = sqlite.pragma('wal_checkpoint(TRUNCATE)') as Array<{
     busy: number
     log: number

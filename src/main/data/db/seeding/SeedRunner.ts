@@ -98,7 +98,10 @@ export class SeedRunner {
     const map = new Map<string, SeedJournal>()
 
     for (const row of rows) {
-      map.set(row.key, row.value as SeedJournal)
+      const value = row.value
+
+      if (value !== null && typeof value === 'object' && 'version' in value && typeof value.version === 'string')
+        map.set(row.key, { version: value.version })
     }
 
     return map

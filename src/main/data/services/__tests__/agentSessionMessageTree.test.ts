@@ -359,44 +359,46 @@ describe('Agent message tree', () => {
     dbh.db
       .insert(messages)
       .values(
-        [
-          {
-            id: 'left',
-            parentId: rootId,
-            sessionId,
-            role: 'user',
-            status: 'success',
-            data: { parts: [] },
-            createdAt: 1
-          },
-          {
-            id: 'right',
-            parentId: rootId,
-            sessionId,
-            role: 'user',
-            status: 'success',
-            data: { parts: [] },
-            createdAt: 2
-          },
-          {
-            id: 'left-reply',
-            parentId: 'left',
-            sessionId,
-            role: 'assistant',
-            status: 'success',
-            data: { parts: [] },
-            createdAt: 3
-          },
-          {
-            id: 'right-reply',
-            parentId: 'right',
-            sessionId,
-            role: 'assistant',
-            status: 'success',
-            data: { parts: [] },
-            createdAt: 4
-          }
-        ].filter((row) => replies || row.role === 'user')
+        (
+          [
+            {
+              id: 'left',
+              parentId: rootId,
+              sessionId,
+              role: 'user',
+              status: 'success',
+              data: { parts: [] },
+              createdAt: 1
+            },
+            {
+              id: 'right',
+              parentId: rootId,
+              sessionId,
+              role: 'user',
+              status: 'success',
+              data: { parts: [] },
+              createdAt: 2
+            },
+            {
+              id: 'left-reply',
+              parentId: 'left',
+              sessionId,
+              role: 'assistant',
+              status: 'success',
+              data: { parts: [] },
+              createdAt: 3
+            },
+            {
+              id: 'right-reply',
+              parentId: 'right',
+              sessionId,
+              role: 'assistant',
+              status: 'success',
+              data: { parts: [] },
+              createdAt: 4
+            }
+          ] satisfies (typeof messages.$inferInsert)[]
+        ).filter((row) => replies || row.role === 'user')
       )
       .run()
     dbh.db.update(sessions).set({ activeNodeId: head, updatedAt: 123 }).where(eq(sessions.id, sessionId)).run()

@@ -64,7 +64,7 @@ type TxLike = any
  * timestamps, no `role` column — so helpers make no other assumption.
  */
 export interface SingleFileRefTable extends SQLiteTable {
-  fileEntryId: AnyColumn
+  fileEntryId: AnyColumn<{ data: FileEntryId }>
   sourceId: AnyColumn
 }
 
@@ -88,7 +88,7 @@ export interface LogoColumns {
  * cheap at the low logo read frequency.
  */
 export function getSingleFileRefId(table: SingleFileRefTable, sourceId: string): FileEntryId | null {
-  const db: TxLike = application.get('DbService').getDb()
+  const db = application.get('DbService').getDb()
 
   const [row] = db
     .select({ fileEntryId: table.fileEntryId })
@@ -97,7 +97,7 @@ export function getSingleFileRefId(table: SingleFileRefTable, sourceId: string):
     .limit(1)
     .all()
 
-  return (row?.fileEntryId as FileEntryId | undefined) ?? null
+  return row?.fileEntryId ?? null
 }
 
 /** Remove the single-file ref row owned by `sourceId` in `table`, inside `tx`. */

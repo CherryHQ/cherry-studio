@@ -11,8 +11,11 @@ import { isCustomStatusResult, SuccessStatus } from '@shared/data/api/types'
 
 import { MiddlewareEngine } from './MiddlewareEngine'
 
-// Handler function type
-type HandlerFunction = (params: { params?: Record<string, string>; query?: any; body?: any }) => Promise<any>
+// Dynamic dispatch pairs each handler with the params extracted from its own route.
+type HandlerFunction = {
+  handle(input: { params?: Record<string, string>; query?: unknown; body?: unknown }): Promise<unknown>
+}['handle']
+
 type RuntimeHandlers = Record<string, Partial<Record<HttpMethod, HandlerFunction>>>
 
 const logger = loggerService.withContext('DataApi:Server')
@@ -30,8 +33,7 @@ export class ApiServer {
 
   private constructor(handlers: ApiImplementation) {
     this.middlewareEngine = new MiddlewareEngine()
-    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Runtime path dispatch erases endpoint-specific argument relationships; this view does not validate request payloads.
-    this.handlers = handlers as RuntimeHandlers
+    this.handlers = handlers
   }
 
   /**
@@ -175,6 +177,7 @@ export class ApiServer {
     for (const [pattern, methods] of Object.entries(this.handlers)) {
       if (!pattern.includes(':')) continue
       const handler = methods[method]
+
       if (handler) {
         const params = this.extractPathParams(pattern, path)
 

@@ -37,11 +37,18 @@ export function readActiveOverrideManifest(): CatalogManifest | null {
     if (!isCatalogManifestCompatible(manifest, app.getVersion())) return null
 
     for (const file of REMOTE_REGISTRY_FILES) {
-      const data = JSON.parse(
+      const data: unknown = JSON.parse(
         readFileSync(application.getPath('feature.provider_registry.override', file), 'utf-8')
-      ) as { version?: unknown }
+      )
 
-      if (typeof data.version !== 'string' || data.version !== manifest.files[file]) return null
+      if (
+        data === null ||
+        typeof data !== 'object' ||
+        !('version' in data) ||
+        typeof data.version !== 'string' ||
+        data.version !== manifest.files[file]
+      )
+        return null
     }
 
     return manifest

@@ -37,7 +37,7 @@ describe('Session tree storage constraints', () => {
     seedSessions(dbh)
     const root = service.captureHead('flat')
     const other = service.captureHead('branched')
-    const insert = (role: string, parentId: string | null) =>
+    const insert = (role: (typeof messages.$inferInsert)['role'], parentId: string | null) =>
       dbh.db
         .insert(messages)
         .values({ sessionId: 'flat', role, parentId, status: 'success', data: { parts: [] } })

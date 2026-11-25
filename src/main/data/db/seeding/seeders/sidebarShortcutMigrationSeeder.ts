@@ -137,6 +137,7 @@ export class SidebarShortcutMigrationSeeder implements ISeeder {
         typeof value.id === 'string' &&
         value.id.length > 0
       ) {
+        // SAFETY: The own-key check selects a declared key of the private legacy map; it does not validate the rest of the stored item.
         const legacyType = value.type as keyof typeof LEGACY_PROVIDER_BY_TYPE
 
         const target: SidebarShortcutTarget = {

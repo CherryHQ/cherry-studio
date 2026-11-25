@@ -61,6 +61,7 @@ const visibleStatusValues = ['enabled', 'pinned'] satisfies MiniAppStatus[]
 const visibleStatuses: ReadonlySet<MiniAppStatus> = new Set(visibleStatusValues)
 
 function brandId(raw: string): MiniAppId {
+  // SAFETY: Row mapping attaches the MiniAppId role to the stored appId; the brand does not change or validate its format.
   return raw as MiniAppId
 }
 
@@ -250,7 +251,8 @@ export class MiniAppService {
    * disabled tail.
    */
   update(appId: string, dto: UpdateMiniAppInput): MiniApp {
-    const hasStatusUpdate = dto.status !== undefined
+    const targetStatus = dto.status
+    const hasStatusUpdate = targetStatus !== undefined
     const hasCustomUpdate = customMutableFields.some((field) => hasOwnDefined(dto, field))
     const modelUpdates: Pick<UpdateMiniAppInput, 'aiModelId' | 'aiQuickModelId'> = {}
 
@@ -321,8 +323,7 @@ export class MiniAppService {
             updates.logoKey = logoCols.logoKey
           }
 
-          if (hasStatusUpdate) {
-            const targetStatus = dto.status as MiniAppStatus
+          if (targetStatus !== undefined) {
             updates.status = targetStatus
 
             if (existing.status !== targetStatus) {

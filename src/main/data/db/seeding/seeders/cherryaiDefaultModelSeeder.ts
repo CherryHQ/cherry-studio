@@ -18,7 +18,6 @@ import {
   CHERRYAI_PROVIDER_ID,
   CHERRYAI_PROVIDER_NAME
 } from '@shared/data/presets/cherryai'
-import type { ModelCapability } from '@shared/data/types/model'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
@@ -84,7 +83,7 @@ function createCherryAiDefaultModelRow(): CherryAiDefaultModelRow {
     name: CHERRYAI_DEFAULT_MODEL_NAME,
     description: null,
     group: CHERRYAI_DEFAULT_MODEL_GROUP,
-    capabilities: [] as ModelCapability[],
+    capabilities: [],
     inputModalities: null,
     outputModalities: null,
     endpointTypes: null,

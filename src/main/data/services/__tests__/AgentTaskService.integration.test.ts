@@ -204,7 +204,7 @@ describe('AgentTaskService active-Agent read contract', () => {
     expect(agentTaskService.getTask('agent-trashed', trashedTaskId)).toMatchObject({ id: trashedTaskId })
   })
 
-  it.each(['pending', 'delayed'])(
+  it.each(['pending', 'delayed'] as const)(
     'reports %s as queued until execution starts, then reports its actual outcome',
     (status) => {
       seedAgent('agent-active')

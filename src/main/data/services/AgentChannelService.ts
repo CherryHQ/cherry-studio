@@ -345,6 +345,7 @@ export class AgentChannelService {
         if (row.id === id) return false
         // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Persisted bot IDs remain unvalidated; non-string legacy values retain their existing trim failure instead of being silently ignored.
         const existingBotId = row.config[key] as string | null | undefined
+
         return existingBotId?.trim() === botId
       })
 
