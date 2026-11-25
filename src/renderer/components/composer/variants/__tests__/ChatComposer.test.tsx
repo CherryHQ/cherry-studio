@@ -20,6 +20,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { createUniqueModelId, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
+import type * as SharedModelUtils from '@shared/utils/model'
 
 import type * as ComposerSurfaceModule from '../../ComposerSurface'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
@@ -478,35 +479,15 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHos
 }))
 
 vi.mock('@renderer/utils/model', () => ({
-  // Mirrors the real reconcile logic using the mocked predicates below:
-  // canModelUseAssistantWebSearch = isWebSearchModel || isOpenRouterBuiltInWebSearchModel || isFunctionCallingModel.
-  // The first two predicates are stubbed to false here, so it reduces to the function-call check.
+  // Mirrors the real reconcile logic with no provider built-in search, which reduces to the function-call check.
   canModelUseAssistantWebSearch: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
-  isGPT5SeriesReasoningModel: (currentModel?: Model) => currentModel?.id.includes('gpt-5') ?? false,
   isOpenAIWebSearchModel: (currentModel?: Model) => currentModel?.providerId === 'openai',
   resolveReasoningEffortForModel: (currentModel: Model, currentEffort?: string) => {
     const supported = ['default', ...(currentModel.reasoning?.selectableEfforts ?? [])]
     if (supported.length === 1) return undefined
     return currentEffort && supported.includes(currentEffort) ? currentEffort : supported[0]
-  },
-  isAudioModel: () => false,
-  isAudioModels: () => false,
-  isEmbeddingModel: () => false,
-  isFunctionCallingModel: (currentModel?: Model) =>
-    currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
-  isGenerateImageModel: () => false,
-  isGenerateImageModels: () => false,
-  isOpenRouterBuiltInWebSearchModel: () => false,
-  isRerankModel: () => false,
-  isSupportedReasoningEffortModel: () => false,
-  isSupportedThinkingTokenModel: () => false,
-  isVideoModel: () => false,
-  isVideoModels: () => false,
-  isVisionModel: (currentModel?: Model) =>
-    currentModel?.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ?? false,
-  isVisionModels: () => false,
-  isWebSearchModel: () => false
+  }
 }))
 
 vi.mock('@renderer/data/hooks/useCache', async () => {
@@ -597,6 +578,10 @@ vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
   })
 }))
 
+vi.mock('../../ProviderQuotaNotice', () => ({
+  ProviderQuotaNotice: () => <div data-testid="provider-quota-notice" />
+}))
+
 vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
   useCherryCloudQuotaExhaustion: () => mocks.quotaExhaustion
 }))
@@ -609,7 +594,8 @@ vi.mock('@renderer/hooks/command', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/tab', () => ({
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useIsActiveTab: () => true
 }))
 
@@ -635,13 +621,21 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   })
 }))
 
-vi.mock('@shared/utils/model', () => ({
-  isFunctionCallingModel: (currentModel?: Model) =>
-    currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
-  isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false,
-  isReasoningModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.REASONING) ?? false,
-  isWebSearchModel: () => false
-}))
+vi.mock('@shared/utils/model', async (importOriginal) => {
+  const actual = await importOriginal<typeof SharedModelUtils>()
+  return {
+    isAudioModel: actual.isAudioModel,
+    isFunctionCallingModel: (currentModel?: Model) =>
+      currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
+    isGPT5SeriesReasoningModel: actual.isGPT5SeriesReasoningModel,
+    isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false,
+    isReasoningModel: (currentModel?: Model) =>
+      currentModel?.capabilities.includes(MODEL_CAPABILITY.REASONING) ?? false,
+    isVideoModel: actual.isVideoModel,
+    isVisionModel: actual.isVisionModel,
+    isWebSearchModel: () => false
+  }
+})
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18nextModule>()
@@ -929,6 +923,31 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
     render(<>{mocks.surfaceProps?.queueContent}</>)
     expect(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' })).toBeInTheDocument()
+  })
+
+  it('suggests a subscription after a provider ran out of quota, until the user sends or moves to Cherry Cloud', () => {
+    const queueHasNotice = () => {
+      const { unmount } = render(<>{mocks.surfaceProps?.queueContent}</>)
+      const shown = screen.queryByTestId('provider-quota-notice') !== null
+      unmount()
+      return shown
+    }
+
+    const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} providerQuotaExhausted />)
+    expect(queueHasNotice()).toBe(true)
+
+    mocks.topicPending = true
+    rerender(<ChatComposer topic={topic} onSend={vi.fn()} providerQuotaExhausted />)
+    expect(queueHasNotice()).toBe(false)
+
+    mocks.topicPending = false
+    mocks.model = {
+      ...model,
+      id: createUniqueModelId('cherryai-subscription', 'qwen'),
+      providerId: 'cherryai-subscription'
+    }
+    rerender(<ChatComposer topic={topic} onSend={vi.fn()} providerQuotaExhausted />)
+    expect(queueHasNotice()).toBe(false)
   })
   it('appends a screenshot and its message to the draft without sending', async () => {
     const onSend = vi.fn()
@@ -1257,6 +1276,7 @@ describe('ChatComposer', () => {
       ...model,
       id: 'openai::gpt-5',
       providerId: 'openai',
+      apiModelId: 'gpt-5',
       capabilities: [MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'effort' as const, values: ['minimal' as const, 'high' as const] }],

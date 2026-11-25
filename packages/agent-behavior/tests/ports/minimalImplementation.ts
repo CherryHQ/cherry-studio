@@ -20,7 +20,7 @@ export const harness: HarnessPorts = {
   lifecycle: { register }
 }
 export const host: HostPorts = {
-  approvals: { facts: unused, ask: unused, outcomes: unused },
+  approvals: { facts: unused, ask: unused },
   questions: { ask: unused },
   models: { find: unused, current: unused },
   verifier: { verify: unused },

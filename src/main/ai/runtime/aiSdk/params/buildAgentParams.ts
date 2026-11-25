@@ -2,7 +2,7 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { application } from '@application'
-import type { AiPlugin } from '@cherrystudio/ai-core'
+import { type AiPlugin, definePlugin } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { topicService } from '@data/services/TopicService'
@@ -80,7 +80,7 @@ import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
 import { resolveCapabilities } from './capabilities'
-import { collectFromFeatures } from './collectFromFeatures'
+import { collectFromFeatures, type FeatureContributions } from './collectFromFeatures'
 import { createCustomParamsFetch, selectCustomBodyParameters } from './customParamsFetch'
 import type { RequestFeature } from './feature'
 import { hasAnchorRow } from './features/contextBuild'
@@ -366,7 +366,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
           })
   const options = buildAgentOptions(
     scope,
-    contributions.stopConditions,
+    contributions,
     customParameters,
     requestedMaxOutputTokens,
     input.getRepairUsagePlugins
@@ -649,7 +649,7 @@ function resolveHasAnyKnowledgeBase(): boolean {
  */
 function buildAgentOptions(
   scope: RequestScope,
-  featureStopConditions: StopCondition<ToolSet>[],
+  contributions: FeatureContributions,
   customParameters: ReturnType<typeof extractAiSdkStandardParams>,
   requestedMaxOutputTokens: number | undefined,
   getRepairUsagePlugins?: () => AiPlugin[]
@@ -701,14 +701,45 @@ function buildAgentOptions(
       ...(topP !== undefined && { topP })
     }
 
-    if (Object.keys(customParameters.providerParams).length > 0) {
-      bodyParams = selectCustomBodyParameters(customParameters.providerParams, providerOptions, provider.id)
+    let { providerParams } = customParameters
+    if (Object.keys(providerParams).length > 0) {
+      bodyParams = selectCustomBodyParameters(providerParams, providerOptions, provider.id)
+      const customChoice = bodyParams.tool_choice
+      if (
+        endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+        (customChoice === 'auto' || customChoice === 'none' || customChoice === 'any' || customChoice === 'required')
+      ) {
+        delete bodyParams.tool_choice
+        providerParams = { ...providerParams }
+        delete providerParams.tool_choice
+        const type = customChoice === 'any' ? 'required' : customChoice
+        contributions.modelAdapters.push(
+          definePlugin({
+            name: 'anthropic-custom-tool-choice',
+            enforce: 'post',
+            configureContext: (context) => {
+              context.middlewares ??= []
+              context.middlewares.push({
+                specificationVersion: 'v3',
+                transformParams: async ({ params }) =>
+                  params.tools?.length && params.toolChoice === undefined ? { ...params, toolChoice: { type } } : params
+              })
+            }
+          })
+        )
+      }
       providerOptions = mergeCustomProviderParameters(
         providerOptions,
-        customParameters.providerParams,
+        providerParams,
         provider.id,
         sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
       )
+      if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES && typeof bodyParams.reasoning_effort === 'string') {
+        const { reasoning_effort, ...remainingBodyParams } = bodyParams
+        bodyParams = remainingBodyParams
+        const key = sdkConfig.providerOptionsKey
+        providerOptions[key] = { ...providerOptions[key], reasoningEffort: reasoning_effort }
+      }
     }
   }
 
@@ -783,7 +814,8 @@ function buildAgentOptions(
     : callerHeaders
   const toolCallLimit = resolveToolCallLimit(assistant)
   const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
-  const stopWhen = request.contextOwner === 'caller' ? undefined : composeStopWhen(baseStopWhen, featureStopConditions)
+  const stopWhen =
+    request.contextOwner === 'caller' ? undefined : composeStopWhen(baseStopWhen, contributions.stopConditions)
   const telemetry = buildTelemetry(scope)
 
   return {

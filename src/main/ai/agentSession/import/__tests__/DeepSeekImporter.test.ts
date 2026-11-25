@@ -47,29 +47,36 @@ describe('DeepSeek importer normalization', () => {
     }
   })
 
-  it('keeps missing-file metadata and warnings without creating a managed file', async () => {
-    const source = conversation()
-    source.title = ''
-    source.messages[0].fragments.push({
-      type: 'FILE',
-      files: [{ id: 'missing', file_name: 'missing.png', file_size: 3, is_image: true, export_path: null }]
-    })
-    const archive = await new DeepSeekImporter().open(await archiveFixture([], 3, source))
-    try {
-      expect(await archive.preview()).toEqual({ messages: 3, missingFiles: ['missing.png'] })
-      const result = await archive.load('sample', {
-        signal: new AbortController().signal,
-        files: {},
-        saveFile: () => {
-          throw new Error('An unavailable attachment must not create a managed file')
-        }
+  it.each([null, 'chat_sessions/missing.png'])(
+    'keeps history and warns about unavailable attachment %s',
+    async (exportPath) => {
+      const source = conversation()
+      source.title = ''
+      source.messages[0].fragments.push({
+        type: 'FILE',
+        files: [{ id: 'missing', file_name: 'missing.png', file_size: 3, is_image: true, export_path: exportPath }]
       })
-      expect(result.name).toBe('DeepSeek')
-      expect(result.messages[0].data.importedHistory?.missingFiles).toEqual([
-        { id: 'missing', name: 'missing.png', size: 3, isImage: true }
-      ])
-    } finally {
-      await archive.close()
+      const archive = await new DeepSeekImporter().open(await archiveFixture([], 3, source))
+      try {
+        expect(await archive.preview()).toEqual({ messages: 3, missingFiles: ['missing.png'] })
+        const result = await archive.load('sample', {
+          signal: new AbortController().signal,
+          files: {},
+          saveFile: () => {
+            throw new Error('An unavailable attachment must not create a managed file')
+          }
+        })
+        expect(result.name).toBe('DeepSeek')
+        expect(result.messages[0].data.parts).toEqual([
+          { type: 'text', text: 'Remember the word mango' },
+          { type: 'text', text: expect.stringContaining('missing.png') }
+        ])
+        expect(result.messages[0].data.importedHistory?.missingFiles).toEqual([
+          { id: 'missing', name: 'missing.png', size: 3, isImage: true }
+        ])
+      } finally {
+        await archive.close()
+      }
     }
-  })
+  )
 })
