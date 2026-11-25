@@ -419,7 +419,7 @@ export function useHomeMessageListProviderValue({
       if (!normalInteractionsEnabled) return () => {}
 
       const unsubscribes = [
-        EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, runtime.locateMessage),
+        EventEmitter.on(`${EVENT_NAMES.LOCATE_MESSAGE}:${messageId}`, runtime.locateMessage),
         EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, (targetId: string) => {
           if (targetId === messageId) {
             runtime.startEditing()
@@ -437,7 +437,7 @@ export function useHomeMessageListProviderValue({
       if (!normalInteractionsEnabled) return () => {}
 
       const unsubscribes = messageIds.map((messageId) =>
-        EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, () => runtime.locateMessage(messageId))
+        EventEmitter.on(`${EVENT_NAMES.LOCATE_MESSAGE}:${messageId}`, () => runtime.locateMessage(messageId))
       )
 
       return () => unsubscribes.forEach((unsub) => unsub())
@@ -449,14 +449,14 @@ export function useHomeMessageListProviderValue({
     const runtime = listRuntimeRef.current
 
     if (!runtime) {
-      void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+      void EventEmitter.emit(`${EVENT_NAMES.LOCATE_MESSAGE}:${messageId}`, highlight)
 
       return
     }
 
     runtime.locateMessage(messageId)
     window.requestAnimationFrame(() => {
-      void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+      void EventEmitter.emit(`${EVENT_NAMES.LOCATE_MESSAGE}:${messageId}`, highlight)
     })
   }, [])
 

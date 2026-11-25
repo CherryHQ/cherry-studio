@@ -3,7 +3,7 @@ import { useRef, useState } from 'react'
 import { describe, expect, it } from 'vitest'
 
 import type { ComposerDraftToken } from '@renderer/components/composer/tokens'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { EVENT_NAMES, EventEmitter, type RendererEvents } from '@renderer/services/EventService'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -29,7 +29,7 @@ function Harness({ draftText }: { draftText: string }) {
   return <textarea aria-label="Draft" value={text} readOnly />
 }
 
-const emit = (payload: unknown) =>
+const emit = (payload: RendererEvents[typeof EVENT_NAMES.INSERT_COMPOSER_SELECTION_REFERENCE]) =>
   act(async () => {
     await EventEmitter.emit(EVENT_NAMES.INSERT_COMPOSER_SELECTION_REFERENCE, payload)
   })

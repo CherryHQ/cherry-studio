@@ -1140,7 +1140,7 @@ const ChatComposerInner = ({
 
   const handleLocateEditingMessage = useCallback(() => {
     if (!editingMessageId) return
-    void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + editingMessageId, true)
+    void EventEmitter.emit(`${EVENT_NAMES.LOCATE_MESSAGE}:${editingMessageId}`, true)
   }, [editingMessageId])
 
   const restoreEditableMessageDraft = useEffectEvent((nextEditingMessage: NonNullable<typeof editingMessage>) => {
@@ -1453,9 +1453,7 @@ const ChatComposerInner = ({
   useEffect(() => {
     if (!layerActive) return
 
-    return EventEmitter.on(EVENT_NAMES.FOCUS_CHAT_COMPOSER, (payload) => {
-      const topicId = typeof payload === 'object' && payload ? (payload as { topicId?: string }).topicId : undefined
-
+    return EventEmitter.on(EVENT_NAMES.FOCUS_CHAT_COMPOSER, ({ topicId }) => {
       if (topicId !== streamScopeKey) return
       actionsRef.current.focus('end')
     })
@@ -1464,14 +1462,9 @@ const ChatComposerInner = ({
   useEffect(() => {
     if (!layerActive) return
 
-    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The renderer event bus erases payload types; verify topic ownership, URL and supported image input before materializing a reference.
-    return EventEmitter.on(EVENT_NAMES.ADD_CHAT_COMPOSER_IMAGE_REFERENCE, async (payload: unknown) => {
-      if (!payload || typeof payload !== 'object') return
-      const reference = payload as { topicId?: unknown; url?: unknown; name?: unknown }
-
+    return EventEmitter.on(EVENT_NAMES.ADD_CHAT_COMPOSER_IMAGE_REFERENCE, async (reference) => {
       if (
         reference.topicId !== streamScopeKey ||
-        typeof reference.url !== 'string' ||
         !supportsImageInputRef.current ||
         (!reference.url.startsWith('file://') && !reference.url.startsWith('data:image/'))
       ) {
@@ -1486,10 +1479,7 @@ const ChatComposerInner = ({
           throw new Error(`Unsupported image type: ${blob.type}`)
         }
 
-        const baseName =
-          typeof reference.name === 'string'
-            ? removeSpecialCharactersForFileName(removeFileExtension(reference.name))
-            : ''
+        const baseName = removeSpecialCharactersForFileName(removeFileExtension(reference.name))
 
         const name = baseName || 'image'
         const origin_name = `${name}.${extension}`

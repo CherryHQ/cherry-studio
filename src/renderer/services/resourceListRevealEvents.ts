@@ -1,11 +1,5 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-
-export type ResourceListRevealSource = 'agents' | 'assistants'
-
-export type ResourceListRevealPayload = {
-  source: ResourceListRevealSource
-  tabId: string
-}
+import type { ResourceListRevealPayload } from '@renderer/types/resourceCatalog'
 
 export function emitResourceListReveal(payload: ResourceListRevealPayload) {
   const emit = () => {

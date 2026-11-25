@@ -952,9 +952,7 @@ const AgentComposerInner = ({
   useEffect(() => {
     if (!layerActive) return
 
-    return EventEmitter.on(EVENT_NAMES.FOCUS_CHAT_COMPOSER, (payload) => {
-      const topicId = typeof payload === 'object' && payload ? (payload as { topicId?: string }).topicId : undefined
-
+    return EventEmitter.on(EVENT_NAMES.FOCUS_CHAT_COMPOSER, ({ topicId }) => {
       if (topicId !== sessionTopicId) return
       actionsRef.current.focus('end')
     })
@@ -963,13 +961,8 @@ const AgentComposerInner = ({
   useEffect(() => {
     if (!layerActive) return
 
-    return EventEmitter.on(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, (payload) => {
-      const data =
-        typeof payload === 'object' && payload
-          ? (payload as { topicId?: string; token?: ComposerDraftToken; updateOnly?: boolean })
-          : null
-
-      if (!data?.token || data.topicId !== sessionTopicId) return
+    return EventEmitter.on(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, (data) => {
+      if (data.topicId !== sessionTopicId) return
       data.updateOnly ? actionsRef.current.insertToken(data.token, true) : actionsRef.current.insertToken(data.token)
     })
   }, [actionsRef, layerActive, sessionTopicId])
@@ -978,12 +971,8 @@ const AgentComposerInner = ({
   useEffect(() => {
     if (!layerActive) return
 
-    return EventEmitter.on(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, (payload) => {
-      const data = payload as
-        | { topicId?: string; path?: string; kind?: 'file' | 'directory'; name?: string }
-        | undefined
-
-      if (!data?.path || data.topicId !== sessionTopicId) return
+    return EventEmitter.on(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, (data) => {
+      if (!data.path || data.topicId !== sessionTopicId) return
 
       if (data.kind === 'directory') {
         const key = getPathComparisonKey(data.path)

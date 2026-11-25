@@ -401,7 +401,7 @@ export function useAgentMessageListProviderValue({
     (messageId: string, runtime: MessageRuntime) => {
       if (!normalInteractionsEnabled) return () => {}
 
-      const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, runtime.locateMessage)]
+      const unsubscribes = [EventEmitter.on(`${EVENT_NAMES.LOCATE_MESSAGE}:${messageId}`, runtime.locateMessage)]
 
       return () => unsubscribes.forEach((unsub) => unsub())
     },
@@ -413,7 +413,7 @@ export function useAgentMessageListProviderValue({
       if (!normalInteractionsEnabled) return () => {}
 
       const unsubscribes = messageIds.map((messageId) =>
-        EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, () => runtime.locateMessage(messageId))
+        EventEmitter.on(`${EVENT_NAMES.LOCATE_MESSAGE}:${messageId}`, () => runtime.locateMessage(messageId))
       )
 
       return () => unsubscribes.forEach((unsub) => unsub())

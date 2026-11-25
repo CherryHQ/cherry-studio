@@ -247,7 +247,6 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
 
   useEffect(() => {
     const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, (baseId) => {
-      if (typeof baseId !== 'string') return
       selectBase(baseId)
     })
 

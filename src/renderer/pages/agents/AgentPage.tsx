@@ -16,11 +16,7 @@ import {
   createRecentSessionEntryFromSession,
   recordGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
-import {
-  type GlobalSearchAgentSessionMessageSelectionPayload,
-  type GlobalSearchAgentSessionSelectionPayload,
-  isGlobalSearchSelectionForTab
-} from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
+import { isGlobalSearchSelectionForTab } from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
 import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
 import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
@@ -36,7 +32,6 @@ import { useConversationCenterSurface } from '@renderer/hooks/useConversationCen
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -441,7 +436,7 @@ const AgentPage = () => {
 
   useEffect(() => {
     const unsubscribe = EventEmitter.on(EVENT_NAMES.REVEAL_ACTIVE_RESOURCE_LIST, (payload) => {
-      const { source, tabId } = payload as ResourceListRevealPayload
+      const { source, tabId } = payload
 
       if (source !== 'agents' || tabId !== currentTabId) return
       revealActiveSessionInResourceList()
@@ -830,17 +825,13 @@ const AgentPage = () => {
   })
 
   useEffect(() => {
-    const unsubscribeSession = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, (payload) => {
-      const selection = payload as GlobalSearchAgentSessionSelectionPayload
-
+    const unsubscribeSession = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, (selection) => {
       if (!selection.sessionId || !isGlobalSearchSelectionForTab(selection, currentTabId)) return
 
       handleGlobalSearchSessionSelect(selection.sessionId)
     })
 
-    const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, (payload) => {
-      const selection = payload as GlobalSearchAgentSessionMessageSelectionPayload
-
+    const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, (selection) => {
       if (!selection.sessionId || !selection.messageId || !isGlobalSearchSelectionForTab(selection, currentTabId))
         return
 

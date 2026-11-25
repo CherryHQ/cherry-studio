@@ -48,7 +48,7 @@ describe('dispatchLocateMessage', () => {
   const unsubscribes: Array<() => void> = []
 
   const subscribe = (messageId: string, listener: (highlight?: boolean) => void) => {
-    unsubscribes.push(EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, listener))
+    unsubscribes.push(EventEmitter.on(`${EVENT_NAMES.LOCATE_MESSAGE}:${messageId}`, listener))
   }
 
   beforeEach(() => {

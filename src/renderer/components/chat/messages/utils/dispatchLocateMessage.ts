@@ -20,7 +20,7 @@ export function dispatchLocateMessage(
   messageId: string,
   highlight?: boolean
 ): void {
-  const eventName = EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId
+  const eventName: `${typeof EVENT_NAMES.LOCATE_MESSAGE}:${string}` = `${EVENT_NAMES.LOCATE_MESSAGE}:${messageId}`
 
   if (!runtime) {
     void EventEmitter.emit(eventName, highlight)

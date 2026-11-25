@@ -27,8 +27,7 @@ export function ResourceEditDialogEventHost() {
   useEffect(
     () =>
       EventEmitter.on(EVENT_NAMES.OPEN_RESOURCE_EDIT_DIALOG, (payload) => {
-        // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- This unvalidated internal bus bridges typed openResourceEditDialog producers; the emitter does not validate the target at runtime.
-        setTarget(payload as ResourceEditDialogTarget)
+        setTarget(payload)
       }),
     []
   )

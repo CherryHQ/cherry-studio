@@ -1,29 +1,16 @@
 import { normalizeQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
+import type { ComposerDraftToken, ComposerDraftTokenKind } from '@renderer/types/composer'
 import {
   COMPOSER_INPUT_TOKEN_KINDS,
   type ComposerInputTokenKind,
-  type ComposerTokenKind,
   isComposerTokenKind
 } from '@renderer/utils/composerTokenPolicy'
 
-export type ComposerDraftTokenKind = ComposerTokenKind
+export type { ComposerDraftToken, ComposerDraftTokenKind } from '@renderer/types/composer'
 
 export const ACTIVE_COMPOSER_INPUT_TOKEN_KINDS = COMPOSER_INPUT_TOKEN_KINDS
 
 export type ActiveComposerInputTokenKind = ComposerInputTokenKind
-
-interface ComposerTokenFields {
-  id: string
-  label: string
-  icon?: string
-  description?: string
-  promptText?: string
-  payload?: unknown
-}
-
-export type ComposerDraftToken = {
-  [Kind in ComposerDraftTokenKind]: ComposerTokenFields & { kind: Kind }
-}[ComposerDraftTokenKind]
 
 export type ActiveComposerInputToken = Extract<ComposerDraftToken, { kind: ActiveComposerInputTokenKind }>
 

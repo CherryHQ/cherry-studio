@@ -34,12 +34,8 @@ export function useComposerSelectionReferenceInsertion<T extends SelectionRefere
   useEffect(() => {
     if (!layerActive) return
 
-    return EventEmitter.on(EVENT_NAMES.INSERT_COMPOSER_SELECTION_REFERENCE, (payload) => {
-      // SAFETY: AgentRightPane alone emits this event with a typed ComposerFileReference and topic ID
-      // in the same renderer; the untyped Emittery channel erases that payload contract.
-      const request = payload as { topicId?: string; reference?: ComposerFileReference } | undefined
-
-      if (!request?.reference || request.topicId !== topicId) return
+    return EventEmitter.on(EVENT_NAMES.INSERT_COMPOSER_SELECTION_REFERENCE, (request) => {
+      if (request.topicId !== topicId) return
       insertReference(request.reference)
     })
   }, [layerActive, topicId])

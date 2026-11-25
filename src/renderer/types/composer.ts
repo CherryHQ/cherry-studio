@@ -1,3 +1,4 @@
+import type { ComposerTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -21,3 +22,18 @@ export interface ComposerQueuedMessagePayload {
   /** Chat-only target snapshot. Agent-session queues leave this unset. */
   chatTarget?: ComposerChatTarget
 }
+
+export type ComposerDraftTokenKind = ComposerTokenKind
+
+interface ComposerTokenFields {
+  id: string
+  label: string
+  icon?: string
+  description?: string
+  promptText?: string
+  payload?: unknown
+}
+
+export type ComposerDraftToken = {
+  [Kind in ComposerDraftTokenKind]: ComposerTokenFields & { kind: Kind }
+}[ComposerDraftTokenKind]

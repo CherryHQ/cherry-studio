@@ -14,10 +14,10 @@ interface RequestTopicImageActionOptions {
   emit?: boolean
 }
 
-const TOPIC_IMAGE_EVENT_NAMES: Record<TopicImageActionType, string> = {
+const TOPIC_IMAGE_EVENT_NAMES = {
   copy: EVENT_NAMES.COPY_TOPIC_IMAGE,
   export: EVENT_NAMES.EXPORT_TOPIC_IMAGE
-}
+} satisfies Record<TopicImageActionType, string>
 
 const topicImageActionBus = createImageActionBus<Topic, 'topic', RequestTopicImageActionOptions>({
   targetKey: 'topic',

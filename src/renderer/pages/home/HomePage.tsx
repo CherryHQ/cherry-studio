@@ -15,11 +15,7 @@ import {
   createRecentTopicEntryFromTopic,
   recordGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
-import {
-  type GlobalSearchTopicMessageSelectionPayload,
-  type GlobalSearchTopicSelectionPayload,
-  isGlobalSearchSelectionForTab
-} from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
+import { isGlobalSearchSelectionForTab } from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
 import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
 import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
@@ -36,7 +32,6 @@ import { useConversationShellPaneState } from '@renderer/hooks/useConversationSh
 import { useModelById } from '@renderer/hooks/useModel'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import type { Topic } from '@renderer/types/topic'
@@ -335,7 +330,7 @@ const HomePage: FC = () => {
 
   useEffect(() => {
     const unsubscribe = EventEmitter.on(EVENT_NAMES.REVEAL_ACTIVE_RESOURCE_LIST, (payload) => {
-      const { source, tabId } = payload as ResourceListRevealPayload
+      const { source, tabId } = payload
 
       if (source !== 'assistants' || tabId !== currentTabId) return
       revealActiveTopicInResourceList()
@@ -660,17 +655,13 @@ const HomePage: FC = () => {
   })
 
   useEffect(() => {
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, (payload) => {
-      const selection = payload as GlobalSearchTopicSelectionPayload
-
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, (selection) => {
       if (!selection.topic || !isGlobalSearchSelectionForTab(selection, currentTabId)) return
 
       handleGlobalSearchTopicSelect(selection.topic)
     })
 
-    const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, (payload) => {
-      const selection = payload as GlobalSearchTopicMessageSelectionPayload
-
+    const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, (selection) => {
       if (!selection.topic || !selection.messageId || !isGlobalSearchSelectionForTab(selection, currentTabId)) return
 
       handleGlobalSearchTopicSelect(selection.topic, selection.messageId)

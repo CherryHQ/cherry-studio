@@ -65,3 +65,10 @@ export interface ResourceTypeUIConfig {
   icon: React.ElementType
   color: string
 }
+
+export type ResourceListRevealSource = 'agents' | 'assistants'
+
+export type ResourceListRevealPayload = {
+  source: ResourceListRevealSource
+  tabId: string
+}

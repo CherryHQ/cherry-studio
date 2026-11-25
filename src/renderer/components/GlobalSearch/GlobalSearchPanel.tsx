@@ -35,6 +35,12 @@ import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { emitResourceListReveal } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
+import type {
+  GlobalSearchAgentSessionMessageSelectionPayload,
+  GlobalSearchAgentSessionSelectionPayload,
+  GlobalSearchTopicMessageSelectionPayload,
+  GlobalSearchTopicSelectionPayload
+} from '@renderer/types/globalSearch'
 import { cn } from '@renderer/utils/style'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
@@ -64,12 +70,6 @@ import {
   GlobalSearchRow,
   GlobalSearchState
 } from './GlobalSearchResults'
-import type {
-  GlobalSearchAgentSessionMessageSelectionPayload,
-  GlobalSearchAgentSessionSelectionPayload,
-  GlobalSearchTopicMessageSelectionPayload,
-  GlobalSearchTopicSelectionPayload
-} from './globalSearchSelectionEvents'
 import {
   getGlobalSearchFooterItemId,
   getGlobalSearchOptionDomId,
