@@ -9,7 +9,9 @@ import type { RemoteErrorShape } from './frames'
 export function toRemoteError(error: unknown): RemoteErrorShape {
   try {
     if (error instanceof Error) {
-      const code = (error as { code?: unknown }).code
+      // oxlint-disable-next-line anti-slop/no-reflect-get -- Error codes may be virtual Proxy fields; the serialization guard contains unreadable properties and checks the primitive result below.
+      const code = Reflect.get(error, 'code')
+
       const shape: RemoteErrorShape = { name: String(error.name || 'Error'), message: String(error.message) }
 
       if (typeof error.stack === 'string') shape.stack = error.stack
@@ -38,12 +40,9 @@ function safeStringify(value: unknown): string {
 
 /** Rebuilds a plain Error from a remote shape; custom prototypes are deliberately not reconstructed. */
 export function fromRemoteError(remote: RemoteErrorShape): Error & { code?: string | number } {
-  const error = new Error(remote.message) as Error & { code?: string | number }
-  error.name = remote.name
-
-  if (remote.stack !== undefined) error.stack = remote.stack
-
-  if (remote.code !== undefined) error.code = remote.code
-
-  return error
+  return Object.assign(new Error(remote.message), {
+    name: remote.name,
+    ...(remote.stack !== undefined && { stack: remote.stack }),
+    ...(remote.code !== undefined && { code: remote.code })
+  })
 }

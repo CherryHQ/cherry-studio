@@ -140,6 +140,7 @@ export function isChildFrame(value: unknown): value is ChildFrame {
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stream envelopes arrive with only their identity validated; sequence, metadata and native byte payloads are checked here.
 function isStreamMessage(frame: Record<string, unknown>): boolean {
   const sequence = frame.sequence
+
   if (!isRequestId(frame.requestId) || typeof sequence !== 'number' || !Number.isSafeInteger(sequence)) return false
 
   if (frame.kind === 'stream-end' || frame.kind === 'stream-end-ack') return sequence >= 0

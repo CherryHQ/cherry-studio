@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 
 import { application } from '@application'
+import { getErrorCode } from '@main/utils/error'
 import { isOutsidePath } from '@main/utils/file'
 
 let cachedAppRoot: { input: string; realPath: string } | undefined
@@ -31,7 +32,7 @@ function resolveRendererPath(filePath: string): string | undefined {
     try {
       return join(realpathSync.native(candidate), ...missingSegments)
     } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
+      const code = getErrorCode(error)
 
       if (code !== 'ENOENT' && code !== 'ENOTDIR') return undefined
 

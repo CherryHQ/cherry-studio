@@ -2,12 +2,24 @@ import type { UtilityProcessStreamFrame, UtilityProcessStreamLimits } from './ty
 
 export function isStreamLimits(value: unknown): value is UtilityProcessStreamLimits {
   if (typeof value !== 'object' || value === null) return false
-  const limits = value as UtilityProcessStreamLimits
+  if (
+    !('maxFrameBytes' in value) ||
+    !('maxBufferedBytes' in value) ||
+    !('maxBufferedFrames' in value) ||
+    !('maxPendingWrites' in value)
+  )
+    return false
+  const { maxFrameBytes, maxBufferedBytes, maxBufferedFrames, maxPendingWrites } = value
 
   return (
-    [limits.maxFrameBytes, limits.maxBufferedBytes, limits.maxBufferedFrames, limits.maxPendingWrites].every(
+    typeof maxFrameBytes === 'number' &&
+    typeof maxBufferedBytes === 'number' &&
+    typeof maxBufferedFrames === 'number' &&
+    typeof maxPendingWrites === 'number' &&
+    [maxFrameBytes, maxBufferedBytes, maxBufferedFrames, maxPendingWrites].every(
       (n) => Number.isSafeInteger(n) && n > 0
-    ) && limits.maxFrameBytes <= limits.maxBufferedBytes
+    ) &&
+    maxFrameBytes <= maxBufferedBytes
   )
 }
 
