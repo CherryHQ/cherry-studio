@@ -220,14 +220,14 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
 }
 
 /** What the next request would carry: Pi's compaction-aware context without the markers the context filter omits. */
-export function modelContext(adapter: Adapter, thread: ThreadId): JsonValue[] {
+export function modelContext(adapter: Adapter, thread: ThreadId) {
   const conv = adapter.conversation(thread)
   const model = conv.native?.session.model
   if (!model) throw new Error(`Conversation ${thread} has no model`)
   const { messages } = buildSessionContext(conv.manager.getEntries(), conv.manager.getLeafId())
   const omit = adapter.installation.filter?.omit(thread, readFacts(adapter, thread)) ?? []
   const visible = withoutMarkers(messages, omittedMarkers(conv.manager.getBranch(), omit))
-  return JSON.parse(JSON.stringify(transformMessages(convertToLlm(visible), model))) as JsonValue[]
+  return transformMessages(convertToLlm(visible), model)
 }
 
 /** A child's native storage in its parent's persistence mode, starting from `fork.source` up to `fork.at` when forked. */

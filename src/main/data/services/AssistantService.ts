@@ -18,6 +18,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
@@ -106,9 +107,13 @@ const RECENT_TOPIC_LIMIT = 5
 const STATS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 export class AssistantDataService {
+  private readonly changed = new Emitter<readonly string[]>()
+  readonly onChanged = this.changed.event
+
   notifyReadModelChange(assistantIds: readonly string[], kind: 'membership' | 'projection'): void {
     if (assistantIds.length === 0) return
     const entityIds = [...new Set(assistantIds)]
+    this.changed.fire(entityIds)
     notifyDataApiDataChange([
       { endpoint: '/assistants', kind, entityIds },
       { endpoint: '/assistants/:id', entityIds }

@@ -940,7 +940,7 @@ export class SkillService {
 
     const contentHash = await this.installer.computeContentHash(skillDir)
     const destFolderName = existing?.folderName ?? folderName
-    const destPath = reimportingLocal ? skillDir : this.getSkillStoragePath(destFolderName)
+    const destPath = isInPlace && destFolderName === folderName ? skillDir : this.getSkillStoragePath(destFolderName)
 
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
     await this.installer.install(skillDir, destPath)

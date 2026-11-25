@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-25-anthropic-custom-tool-choice.md
+2026-11-25-anthropic-custom-tool-choice.md: b547f84e4f52b2647ed145c0999fdfe1a4985b40
+2026-11-25-anthropic-custom-tool-choice.zh.md: 24b4c350147a79de193f81fc91e354d32e217d3a
