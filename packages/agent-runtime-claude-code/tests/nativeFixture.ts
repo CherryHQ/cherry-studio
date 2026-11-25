@@ -8,7 +8,13 @@ import path from 'node:path'
 import type { SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { expect } from 'vitest'
 
-import { runtimeId, ThreadFeed, type OperationResult, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
+import {
+  isLivePartInput,
+  runtimeId,
+  ThreadFeed,
+  type OperationResult,
+  type ThreadSnapshot
+} from '@cherrystudio/agent-runtime'
 
 import {
   createClaudeCodeRuntime,
@@ -197,7 +203,9 @@ export async function observe(handle: ClaudeThreadHandle) {
     await handle.claude.observe((batch) => {
       batches.push(batch)
       native.push(...batch.native.flatMap((entry) => (entry.source === 'live' ? [entry.message] : [])))
-      for (const event of batch.events) state.publish(event)
+      for (const event of batch.events)
+        if (isLivePartInput(event)) state.publishPart(event)
+        else state.publish(event)
     })
   )
   return {

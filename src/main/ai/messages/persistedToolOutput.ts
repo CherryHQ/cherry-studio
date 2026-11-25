@@ -5,23 +5,39 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
+import { childTimelines } from '@main/ai/agentSession/childTimelines'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
-import type { PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
+import type { DeferredToolResultRef, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
 import { blobRefsOf, isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 
 const logger = loggerService.withContext('ai:persistedToolOutput')
+
+/** Resolve the live value first, then locate the archive row by stable part identity. */
+export function resolveToolResultRead({ topicId, messageId, toolCallId, partId }: DeferredToolResultRef) {
+  const manager = application.get('AiStreamManager')
+  const live = partId
+    ? manager.getDeferredToolOutput(topicId, toolCallId, messageId, partId)
+    : manager.getDeferredToolOutput(topicId, toolCallId, messageId)
+  if (live.found || !partId || !isAgentSessionTopic(topicId)) return { live, messageId }
+  const sessionId = extractAgentSessionId(topicId)
+  const child = childTimelines.toolResult(sessionId, partId, toolCallId)
+  if (child) return { live: child, messageId }
+  const owner = agentSessionMessageService.resolveToolResultMessageId(sessionId, partId, toolCallId)
+  return owner ? { live, messageId: owner } : undefined
+}
 
 export async function findPersistedToolOutput(
   topicId: string,
   messageId: string,
   toolCallId: string,
-  hydrate = true
+  hydrate = true,
+  partId?: string
 ): Promise<{ found: true; output: unknown } | { found: false }> {
   try {
     if (isAgentSessionTopic(topicId)) {
       const sessionId = extractAgentSessionId(topicId)
-      const direct = agentSessionMessageService.getSessionToolOutput(sessionId, messageId, toolCallId)
+      const direct = agentSessionMessageService.getSessionToolOutput(sessionId, messageId, toolCallId, partId)
       if (direct.found && hydrate && isPersistedToolOutput(direct.output)) {
         return { found: true, output: await resolvePersistedToolOutput(direct.output) }
       }

@@ -1,14 +1,20 @@
+import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ProjectionReaderProvider } from '@renderer/hooks/agent/ProjectionReaderProvider'
+import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import { ipcApi } from '@renderer/ipc'
+import { MessageProjectionService } from '@renderer/services/aiTransport/MessageProjectionService'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
+import type { ChildPartPlacement, LivePartPatch } from '@shared/ai/messageProjection'
 import type { AiToolResultResponse } from '@shared/ai/transport'
 import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
+import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { CherryTextMetaSchema } from '@shared/data/types/uiParts'
 
@@ -110,9 +116,8 @@ vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
   default: ({ hostname }: { hostname: string }) => <span data-hostname={hostname} />
 }))
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({
+vi.mock('react-i18next', () => {
+  const translation = {
     t: (key: string, params?: Record<string, number>) => {
       if (key === 'message.tools.groupHeader') return `${params?.count} tool calls`
       if (key === 'message.processing') return 'Processing'
@@ -137,8 +142,9 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.input.tools.open_file_error') return 'Failed to open file'
       return key
     }
-  })
-}))
+  }
+  return { initReactI18next: { type: '3rdParty', init: vi.fn() }, useTranslation: () => translation }
+})
 
 vi.mock('@iconify/react', () => ({
   addCollection: vi.fn(),
@@ -198,6 +204,7 @@ vi.mock('../../tools/MessageTools', () => {
           data-status={toolResponse?.status}
           data-tool-type={toolResponse?.tool?.type}
           data-tool-name={toolResponse?.tool?.name}
+          data-description={toolResponse?.arguments?.description}
           data-server-name={toolResponse?.tool?.serverName ?? ''}
         />
       ) : null
@@ -245,8 +252,8 @@ vi.mock('../../frame/MessageAttachments', () => ({
 
 vi.mock('../ToolBlockGroup', async (importOriginal) => ({
   __esModule: true,
-  hasToolIntent: (await importOriginal<typeof ToolBlockGroupModule>()).hasToolIntent,
-  ToolBlockGroup: ({ children, defaultExpanded, isLiveProgress, items }: any) => {
+  ...(await importOriginal<typeof ToolBlockGroupModule>()),
+  ToolBlockGroup: ({ children, defaultExpanded, isLiveProgress, header, items = header?.candidates }: any) => {
     mockToolBlockGroupRender(items)
     const [isExpanded, setIsExpanded] = React.useState(defaultExpanded ?? false)
     return (
@@ -352,6 +359,7 @@ const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem => ({
   ...overrides
 })
 
+const preloadApi = window.api
 let activityStore: KeyedMessageActivityStore
 
 const renderPartsTree = (
@@ -459,6 +467,7 @@ describe('MessagePartsRenderer', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
+        ...preloadApi,
         ...window.api,
         fs: {
           ...window.api?.fs,
@@ -638,6 +647,332 @@ describe('MessagePartsRenderer', () => {
         expectNodeBefore(screen.getByText('Here is the result.'), screen.getByRole('status'))
       }
     )
+
+    it('updates the mounted Agent tool card when only its streamed arguments change', async () => {
+      const ipc = projectionIpc()
+      const store = new MessageProjectionService()
+      const target = { kind: 'topic', topicId: 't' } as const
+      const stop = store.subscribe(target, () => {})
+      const attachment = ipc.attachments[0]
+      const call = {
+        type: 'dynamic-tool',
+        toolName: 'Agent',
+        toolCallId: 'agent',
+        state: 'input-streaming',
+        input: { description: 'Read' }
+      } as const
+      const row = { id: 'msg-1', role: 'assistant' as const, partIds: ['agent-part'], parts: [call] }
+      await act(async () => attachment.resolve({ ...target, revision: 0, executions: [], messages: [row] }))
+      activateTurn('streaming')
+      const tree = render(
+        <ProjectionReaderProvider reader={store.partsFor(target)}>
+          {renderPartsTree(row.parts, msg({ status: 'pending', partIds: row.partIds }), { openAgentToolFlow: vi.fn() })}
+        </ProjectionReaderProvider>
+      )
+      const card = screen.getByTestId('mock-message-tools')
+      expect(card).toHaveAttribute('data-description', 'Read')
+      act(() =>
+        ipc.emit(attachment.subscriptionId, {
+          kind: 'topic',
+          type: 'parts',
+          revision: 1,
+          patches: [{ type: 'part-put', partId: 'agent-part', part: { ...call, input: { description: 'Read file' } } }]
+        })
+      )
+      expect(card).toHaveAttribute('data-description', 'Read file')
+      tree.unmount()
+      stop()
+    })
+
+    it.each([20, 20_000])(
+      'finishes reasoning and opens the next addressed block without revisiting %i settled siblings',
+      async (count) => {
+        const ipc = projectionIpc()
+        const store = new MessageProjectionService()
+        const target = { kind: 'topic', topicId: 't' } as const
+        const stop = store.subscribe(target, () => {})
+        const attachment = ipc.attachments[0]
+        let settledReads = 0
+        const parts: CherryMessagePart[] = Array.from({ length: count }, () => ({
+          get type() {
+            settledReads++
+            return 'step-start' as const
+          }
+        }))
+        parts.push({ type: 'reasoning', text: 'First', state: 'streaming' })
+        const partIds = [...Array.from({ length: count }, (_, index) => String(index)), 'active']
+        await act(async () =>
+          attachment.resolve({
+            ...target,
+            executions: [],
+            revision: 0,
+            messages: [{ id: 'msg-1', role: 'assistant', parts, partIds }]
+          })
+        )
+        activateTurn('streaming')
+        const reader = store.partsFor(target)
+        const subscribe = (fn: () => void) => store.subscribe(target, fn)
+        function MountedRow() {
+          const view = React.useSyncExternalStore(subscribe, () => store.getSnapshot(target)).view!
+          const row = view.messages[0]
+          return (
+            <ProjectionReaderProvider reader={reader}>
+              {renderPartsTree(row.parts, msg({ partIds: row.partIds, status: 'pending' }))}
+            </ProjectionReaderProvider>
+          )
+        }
+        const tree = render(<MountedRow />)
+        expect(settledReads).toBeGreaterThan(0)
+        settledReads = 0
+        act(() =>
+          ipc.emit(attachment.subscriptionId, {
+            kind: 'topic',
+            type: 'parts',
+            revision: 1,
+            patches: [
+              { type: 'part-append', partId: 'active', text: ' thought' },
+              { type: 'part-finish', partId: 'active' }
+            ]
+          })
+        )
+        expect(reader.read('active')).toMatchObject({ state: 'done', text: 'First thought' })
+        expect(settledReads).toBe(0)
+        act(() =>
+          ipc.emit(attachment.subscriptionId, {
+            kind: 'topic',
+            type: 'parts',
+            revision: 2,
+            patches: [
+              { type: 'part-open', kind: 'text', messageId: 'msg-1', pos: count + 2, partId: 'answer' },
+              { type: 'part-append', partId: 'answer', text: 'Result' }
+            ]
+          })
+        )
+        expect(screen.getByTestId('mock-markdown')).toHaveTextContent('Result')
+        expect(settledReads).toBe(0)
+        tree.unmount()
+        stop()
+      }
+    )
+
+    it.each([20, 20_000])(
+      'inserts between two sources while keeping %i settled tools grouped and readable',
+      async (count) => {
+        const ipc = projectionIpc()
+        const store = new MessageProjectionService()
+        const target = { kind: 'child', sessionId: 's', toolCallId: 'parent' } as const
+        const stop = store.subscribe(target, () => {})
+        const attachment = ipc.attachments[0]
+        let oldReads = 0
+        const tools = Array.from({ length: count }, (_, i) => ({
+          ...toolPart(String(i), 'output-available', 'Read'),
+          get type() {
+            oldReads++
+            return 'dynamic-tool' as const
+          }
+        })) as CherryMessagePart[]
+        const parts: CherryMessagePart[] = [
+          ...tools,
+          { type: 'text', text: 'A1', state: 'done' },
+          { type: 'text', text: 'B1', state: 'done' }
+        ]
+        const ids = [...tools.map((_, i) => String(i)), 'a', 'b']
+        const row = { id: 'msg-1', role: 'assistant' as const, parts, partIds: ids }
+        await act(async () =>
+          attachment.resolve({
+            ...target,
+            active: true,
+            available: true,
+            canSubmit: true,
+            contextId: 'c',
+            revision: 0,
+            messages: [row]
+          })
+        )
+        activateTurn('streaming')
+        const reader = store.partsFor(target)
+        const mount = () =>
+          render(
+            <ProjectionReaderProvider reader={reader}>
+              {renderPartsTree(parts, msg({ status: 'pending', partIds: ids }))}
+            </ProjectionReaderProvider>
+          )
+        const before = mount()
+        expect(screen.getAllByTestId('child-tool-group')).toHaveLength(1)
+        oldReads = 0
+        const publish = (revision: number, patches: LivePartPatch<ChildPartPlacement>[]) =>
+          act(() => ipc.emit(attachment.subscriptionId, { kind: 'child', type: 'parts', revision, patches }))
+        publish(1, [
+          { type: 'part-open', messageId: row.id, afterPartId: 'a', partId: 'a2', kind: 'text' },
+          { type: 'part-append', partId: 'a2', text: 'A2' }
+        ])
+        expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual(['A1', 'A2', 'B1'])
+        expect(oldReads).toBe(0)
+        publish(2, [
+          {
+            type: 'part-add',
+            placement: { messageId: row.id, afterPartId: String(count - 1) },
+            partId: 'next-tool',
+            part: { type: 'dynamic-tool', state: 'input-available', toolCallId: 'next', toolName: 'Write', input: {} }
+          }
+        ])
+        expect(screen.getByTestId('child-tool-group-trigger')).toHaveTextContent('Write')
+        expect(oldReads).toBe(0)
+        expect(
+          store
+            .readParts(parts)
+            .slice(-3)
+            .map((part) => part.type === 'text' && part.text)
+        ).toEqual(['A1', 'A2', 'B1'])
+        before.unmount()
+        const late = mount()
+        expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual(['A1', 'A2', 'B1'])
+        expect(screen.getByTestId('child-tool-group-trigger')).toHaveTextContent('Write')
+        late.unmount()
+        stop()
+      }
+    )
+
+    it('preserves mounted markdown when another text block opens inside its result lane', async () => {
+      const ipc = projectionIpc()
+      const store = new MessageProjectionService()
+      const target = { kind: 'child', sessionId: 's', toolCallId: 'call' } as const
+      const stop = store.subscribe(target, () => {})
+      const attachment = ipc.attachments[0]
+      const ids = Array.from({ length: 70 }, (_, i) => String(i))
+      const parts = ids.map((id) => ({ type: 'text' as const, text: 'settled ' + id, state: 'done' as const }))
+      const row = { id: 'msg-1', role: 'assistant' as const, parts, partIds: ids }
+      await act(async () =>
+        attachment.resolve({
+          ...target,
+          active: true,
+          available: true,
+          canSubmit: true,
+          contextId: 'c',
+          revision: 0,
+          messages: [row]
+        })
+      )
+      activateTurn('streaming')
+      const mounted = render(
+        <ProjectionReaderProvider reader={store.partsFor(target)}>
+          {renderPartsTree(parts, msg({ status: 'pending', partIds: ids }))}
+        </ProjectionReaderProvider>
+      )
+      const settled = screen.getAllByTestId('mock-markdown')
+      act(() =>
+        ipc.emit(attachment.subscriptionId, {
+          kind: 'child',
+          type: 'parts',
+          revision: 1,
+          patches: [
+            { type: 'part-open', messageId: row.id, afterPartId: '65', partId: 'new', kind: 'text' },
+            { type: 'part-append', partId: 'new', text: 'inserted' }
+          ]
+        })
+      )
+      const result = screen.getAllByTestId('mock-markdown')
+      expect(result[66]).toHaveTextContent('inserted')
+      expect(settled.filter((node) => !node.isConnected)).toHaveLength(0)
+      mounted.unmount()
+      stop()
+    })
+
+    it.each([
+      { count: 70, withProcess: true, images: 0 },
+      { count: 70, withProcess: false, images: 0 },
+      { count: 31, withProcess: false, images: 2 }
+    ])(
+      'keeps selected text mounted through a committed correction ($count texts, $images images, process $withProcess)',
+      async ({ count, withProcess, images }) => {
+        const ipc = projectionIpc()
+        const store = new MessageProjectionService()
+        const target = { kind: 'topic', topicId: 'agent-session:s' } as const
+        const stop = store.subscribe(target, () => {})
+        const parts: CherryMessagePart[] = [
+          ...(withProcess ? [toolPart('read') as CherryMessagePart] : []),
+          ...Array.from({ length: count }, (_, i) => ({ type: 'text' as const, text: 'line ' + i })),
+          ...Array.from({ length: images }, (_, i) => ({
+            type: 'file' as const,
+            url: 'https://example.org/' + i + '.png',
+            mediaType: 'image/png'
+          }))
+        ]
+        const ids = parts.map(() => crypto.randomUUID())
+        await act(async () =>
+          ipc.attachments[0].resolve({
+            ...target,
+            revision: 0,
+            executions: [],
+            messages: [{ id: 'msg-1', role: 'assistant', parts, partIds: ids }]
+          })
+        )
+        const reader = store.partsFor(target)
+        const display = (body: CherryMessagePart[], message: MessageListItem) => (
+          <ProjectionReaderProvider reader={reader}>{renderPartsTree(body, message)}</ProjectionReaderProvider>
+        )
+        activateTurn('streaming')
+        const mounted = render(display(parts, msg({ status: 'pending', partIds: ids })))
+        const selected = screen.getByText('line 0')
+        const selection = window.getSelection()!
+        selection.selectAllChildren(selected)
+        const lastText = parts.length - images - 1
+        const last = screen.getByText('line ' + (count - 1))
+        const committed = toAgentSessionUIMessage({
+          id: 'msg-1',
+          role: 'assistant',
+          status: 'success',
+          partIds: ids,
+          data: { parts: parts.with(lastText, { type: 'text', text: 'committed line' }) }
+        } as AgentSessionMessageEntity)
+        finishTurn('done')
+        mounted.rerender(display(committed.parts, msg({ partIds: committed.partIds })))
+        if (withProcess) expect(screen.getByTestId('completed-process-trigger')).toBeInTheDocument()
+        if (images) expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-single', 'false')
+        expect(screen.getByText('committed line')).toBe(last)
+        expect(screen.getByText('line 0')).toBe(selected)
+        expect(selection.toString()).toBe('line 0')
+        expect(last.closest('[data-message-part-id]')).toHaveAttribute('data-message-part-id', ids[lastText])
+        mounted.unmount()
+        stop()
+      }
+    )
+
+    it('replaces an empty addressed block’s placeholder on its first suffix without a whole-row refresh', async () => {
+      const ipc = projectionIpc()
+      const store = new MessageProjectionService()
+      const target = { kind: 'topic', topicId: 't' } as const
+      const stop = store.subscribe(target, () => {})
+      const attachment = ipc.attachments[0]
+      const parts: CherryMessagePart[] = [{ type: 'text', text: '', state: 'streaming' }]
+      await act(async () => {
+        attachment.resolve({
+          ...target,
+          executions: [],
+          revision: 0,
+          messages: [{ id: 'msg-1', role: 'assistant', partIds: ['answer'], parts }]
+        })
+      })
+      activateTurn('streaming')
+      const tree = render(
+        <ProjectionReaderProvider reader={store.partsFor(target)}>
+          {renderPartsTree(parts, msg({ partIds: ['answer'], status: 'pending' }))}
+        </ProjectionReaderProvider>
+      )
+      expect(screen.getByRole('status')).toBeVisible()
+      act(() =>
+        ipc.emit(attachment.subscriptionId, {
+          kind: 'topic',
+          type: 'parts',
+          revision: 1,
+          patches: [{ type: 'part-append', partId: 'answer', text: 'First words' }]
+        })
+      )
+      expectNodeBefore(screen.getByTestId('mock-markdown'), screen.getByRole('status'))
+      expect(screen.getByTestId('mock-markdown')).toHaveTextContent('First words')
+      tree.unmount()
+      stop()
+    })
 
     it('renders text and data-code through markdown', () => {
       renderParts([
@@ -912,15 +1247,16 @@ describe('MessagePartsRenderer', () => {
       const user = userEvent.setup()
       const parts: CherryMessagePart[] = [{ type: 'text', text: 'one\ntwo\nthree\nfour\nfive\nsix' }]
       const toggle = () => screen.getByRole('button', { name: /Expand|Collapse/ })
-      const first = renderParts(parts, msg({ role: 'user' }))
+      const message = msg({ role: 'user', partIds: ['stored-user-text'] })
+      const first = renderParts(parts, message)
       await user.click(toggle())
       expect(toggle()).toHaveAttribute('aria-expanded', 'true')
       first.unmount()
-      const restored = renderParts(parts, msg({ role: 'user' }))
+      const restored = renderParts(parts, message)
       expect(toggle()).toHaveAttribute('aria-expanded', 'true')
       await user.click(toggle())
       restored.unmount()
-      const collapsed = renderParts(parts, msg({ role: 'user' }))
+      const collapsed = renderParts(parts, message)
       expect(toggle()).toHaveAttribute('aria-expanded', 'false')
       await user.click(toggle())
       collapsed.unmount()

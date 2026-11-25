@@ -64,7 +64,6 @@ function renderActions(
 ) {
   const scrollToBottom = vi.fn()
   const regenerate = vi.fn<Parameters<typeof useChatWriteActions>[0]['regenerate']>(async () => {})
-  const setMessages = vi.fn()
   const seedReservedMessages = vi.fn(async () => {})
   const { result, rerender } = renderHook(
     ({ composerModelId }) =>
@@ -73,9 +72,8 @@ function renderActions(
         uiMessages,
         activeNodeId,
         regenerate,
-        setMessages,
         stop,
-        refresh: vi.fn(async () => []),
+        refresh: vi.fn(async () => {}),
         cache,
         seedReservedMessages,
         scrollToBottom,
@@ -156,9 +154,8 @@ describe('useChatWriteActions — clear context', () => {
         uiMessages: [uiMsg('u1', 'user', 'vroot')],
         activeNodeId: 'u1',
         regenerate: vi.fn(async () => {}),
-        setMessages: vi.fn(),
         stop: vi.fn(async () => {}),
-        refresh: vi.fn(async () => []),
+        refresh: vi.fn(async () => {}),
         cache,
         seedReservedMessages,
         scrollToBottom,
@@ -486,7 +483,6 @@ describe('useChatWriteActions — regenerate', () => {
     await actions.regenerate('a1')
 
     expect(regenerate).toHaveBeenCalledWith({
-      messageId: 'a1',
       body: expect.objectContaining({
         parentAnchorId: 'u1',
         reasoningEffort: 'high',
@@ -504,7 +500,6 @@ describe('useChatWriteActions — regenerate', () => {
 
     expect(regenerate).toHaveBeenCalledWith(
       expect.objectContaining({
-        messageId: 'u1',
         body: expect.objectContaining({
           parentAnchorId: 'u1',
           mentionedModels: ['provider::model-b']
@@ -636,7 +631,6 @@ describe('useChatWriteActions — regenerate', () => {
     if (status === 'pending') {
       expect(streamOpen).not.toHaveBeenCalled()
       expect(regenerate).toHaveBeenCalledWith({
-        messageId: 'a1',
         body: expect.objectContaining({ parentAnchorId: 'u1' })
       })
       expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
@@ -713,7 +707,6 @@ describe('useChatWriteActions — regenerate', () => {
 
       expect(streamOpen).not.toHaveBeenCalled()
       expect(regenerate).toHaveBeenCalledWith({
-        messageId: 'a2',
         body: expect.objectContaining({ parentAnchorId: 'u1' })
       })
       expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')

@@ -10,10 +10,14 @@ export function extractAgentSessionId(topicId: string): string {
   if (!isAgentSessionTopic(topicId)) {
     throw new Error(`Not an agent session topicId: ${topicId}`)
   }
-  return topicId.slice(AGENT_SESSION_PREFIX.length)
+  return topicId.slice(AGENT_SESSION_PREFIX.length).split('/context/', 1)[0]
 }
 
 /** Build the topic id for an agent session. */
-export function buildAgentSessionTopicId(sessionId: string): string {
-  return `${AGENT_SESSION_PREFIX}${sessionId}`
+export function buildAgentSessionTopicId(sessionId: string, contextId?: string): string {
+  return contextId ? `${AGENT_SESSION_PREFIX}${sessionId}/context/${contextId}` : `${AGENT_SESSION_PREFIX}${sessionId}`
+}
+
+export function extractAgentContextId(topicId: string): string | undefined {
+  return topicId.split('/context/')[1]
 }

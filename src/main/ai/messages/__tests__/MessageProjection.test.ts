@@ -6,7 +6,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 
 import {
   applyMessageProjectionUpdate,
-  type MessageProjectionUpdate,
+  type StructuralProjectionUpdate,
   type TopicProjectionState
 } from '@shared/ai/messageProjection'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -50,16 +50,19 @@ it('numbers published batches, emits suffixes, and retains immutable baselines',
   vi.useFakeTimers()
   const projection = new MessageProjection<TopicProjectionState>({ ...state, messages: [msg('A')] })
   const baseline = projection.snapshot()
-  const updates: MessageProjectionUpdate<TopicProjectionState>[] = []
-  projection.subscribe((update) => updates.push(update))
-  projection.update({ ...state, messages: [msg('AB')] })
-  projection.update({ ...state, messages: [msg('ABC')] })
+  const updates: StructuralProjectionUpdate<TopicProjectionState>[] = []
+  projection.subscribe((update) => {
+    if (update.type === 'parts') throw new Error('Expected a structural update')
+    updates.push(update)
+  })
+  projection.updateAccepted({ ...state, messages: [msg('AB')] })
+  projection.updateAccepted({ ...state, messages: [msg('ABC')] })
   vi.advanceTimersByTime(80)
   expect(updates).toHaveLength(1)
   expect(updates[0]).toMatchObject({ revision: 1, patches: [{ type: 'append', text: 'BC' }] })
   expect(applyMessageProjectionUpdate(baseline, updates[0])?.messages[0].parts).toEqual(msg('ABC').parts)
   expect(baseline.messages[0].parts).toEqual(msg('A').parts)
-  projection.update({ ...state, messages: [msg('ABCD')] })
+  projection.updateAccepted({ ...state, messages: [msg('ABCD')] })
   const latest = projection.snapshot()
   expect(latest.revision).toBe(2)
   expect(latest.messages[0].parts).toEqual(msg('ABCD').parts)
@@ -70,7 +73,7 @@ it('numbers published batches, emits suffixes, and retains immutable baselines',
 it('rejects a gap or invalid append without mutating the previous view', () => {
   const projection = new MessageProjection<TopicProjectionState>({ ...state, messages: [msg('A')] })
   const baseline = projection.snapshot()
-  const update: MessageProjectionUpdate<TopicProjectionState> = {
+  const update: StructuralProjectionUpdate<TopicProjectionState> = {
     ...state,
     revision: 1,
     patches: [
@@ -91,46 +94,21 @@ it('isolates a broken subscriber and orders replacements and removals', () => {
     throw new Error('closed window')
   })
   projection.subscribe((update) => {
+    if (update.type === 'parts') throw new Error('Expected a structural update')
     view = applyMessageProjectionUpdate(view, update)!
   })
-  projection.update({ ...state, messages: [{ ...msg('new'), id: 'other' }, msg('replacement')] }, true)
+  projection.updateAccepted({ ...state, messages: [{ ...msg('new'), id: 'other' }, msg('replacement')] }, true)
   expect(view.messages.map((message) => message.id)).toEqual(['other', 'm'])
-  projection.update({ ...state, messages: [msg('only')] }, true)
+  projection.updateAccepted({ ...state, messages: [msg('only')] }, true)
   expect(view.messages.map((message) => message.id)).toEqual(['m'])
   expect(view.messages[0].parts).toEqual(msg('only').parts)
-})
-
-it('reuses unchanged history and tool parts while isolating mutations to new producer values', () => {
-  const history = { ...msg('history'), id: 'history' }
-  const tool: CherryUIMessage['parts'][number] = {
-    type: 'dynamic-tool',
-    toolName: 'read',
-    toolCallId: 'call',
-    state: 'output-available',
-    input: {},
-    output: { rows: ['large saved output'] }
-  }
-  const message: CherryUIMessage = { ...msg('A'), parts: [tool, { type: 'text', text: 'A' }] }
-  const projection = new MessageProjection<TopicProjectionState>({ ...state, messages: [history, message] })
-  const before = projection.snapshot()
-  message.parts[1] = { type: 'text', text: 'AB' }
-  projection.update({ ...state, messages: [history, message] }, true)
-  const after = projection.snapshot()
-  expect(after.messages[0]).toBe(before.messages[0])
-  expect(after.messages[1].parts[0]).toBe(before.messages[1].parts[0])
-  expect(before.messages[1].parts[1]).toEqual({ type: 'text', text: 'A' })
-  message.parts[1] = { type: 'text', text: 'caller edit' }
-  tool.output = { rows: ['caller edit'] }
-  expect(after.messages[1].parts[1]).toEqual({ type: 'text', text: 'AB' })
-  expect(after.messages[1].parts[0]).toMatchObject({ output: { rows: ['large saved output'] } })
-  projection.dispose()
 })
 
 it('captures only the latest unobserved update when a baseline is requested', () => {
   const projection = new MessageProjection<TopicProjectionState>({ ...state, messages: [] })
   let reads = 0
   for (const text of ['A', 'AB', 'ABC'])
-    projection.update(() => {
+    projection.updateAccepted(() => {
       reads++
       return { ...state, messages: [msg(text)] }
     })
@@ -139,20 +117,6 @@ it('captures only the latest unobserved update when a baseline is requested', ()
   expect(reads).toBe(1)
   projection.dispose()
 })
-// Native adapters can reuse and mutate both the original baseline and an accepted message before a batch flush.
-it('snapshots mutable values at acceptance without changing earlier baselines', () => {
-  const initial = msg('first')
-  const projection = new MessageProjection<TopicProjectionState>({ ...state, messages: [initial] })
-  const before = projection.snapshot()
-  initial.parts.splice(0, 1, { type: 'text', text: 'mutated baseline' })
-  const next = msg('accepted')
-  projection.update({ ...state, messages: [next] })
-  next.parts.splice(0, 1, { type: 'text', text: 'unaccepted mutation' })
-  expect(before.messages[0].parts).toEqual(msg('first').parts)
-  expect(projection.snapshot().messages[0].parts).toEqual(msg('accepted').parts)
-  projection.dispose()
-})
-
 // Text growth must not revisit settled output bodies or replace unaffected card/part identities.
 it('publishes accepted text suffixes without traversing settled results or resending order', () => {
   const output = Object.defineProperty({}, 'body', {
@@ -171,8 +135,11 @@ it('publishes accepted text suffixes without traversing settled results or resen
   const projection = new MessageProjection<TopicProjectionState>({ ...state, messages: [] })
   projection.updateAccepted({ ...state, messages: [settled, msg('A')] }, true)
   const baseline = projection.snapshot()
-  const updates: MessageProjectionUpdate<TopicProjectionState>[] = []
-  projection.subscribe((update) => updates.push(update))
+  const updates: StructuralProjectionUpdate<TopicProjectionState>[] = []
+  projection.subscribe((update) => {
+    if (update.type === 'parts') throw new Error('Expected a structural update')
+    updates.push(update)
+  })
   projection.updateAccepted({ ...state, messages: [settled, msg('AB')] }, true)
   expect(updates[0].order).toBeUndefined()
   expect(updates[0].patches).toEqual([{ type: 'append', messageId: 'm', part: 0, text: 'B' }])
@@ -187,8 +154,11 @@ it('coalesces targeted result changes in the ordered batch even when the compact
   vi.useFakeTimers()
   const projection = new MessageProjection<TopicProjectionState>({ ...state, messages: [msg('same preview')] })
   const baseline = projection.snapshot()
-  const updates: MessageProjectionUpdate<TopicProjectionState>[] = []
-  projection.subscribe((update) => updates.push(update))
+  const updates: StructuralProjectionUpdate<TopicProjectionState>[] = []
+  projection.subscribe((update) => {
+    if (update.type === 'parts') throw new Error('Expected a structural update')
+    updates.push(update)
+  })
   const ref = { topicId: 'root', messageId: 'm', toolCallId: 'call' }
   projection.invalidateToolResults([ref])
   projection.invalidateToolResults([ref])

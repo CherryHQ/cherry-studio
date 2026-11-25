@@ -13,14 +13,15 @@ export function useToolResult(
   const topicId = ref?.topicId
   const messageId = ref?.messageId
   const toolCallId = ref?.toolCallId
+  const partId = ref?.partId
   const readPurpose = typeof purpose === 'string' ? purpose : purpose.purpose
   const cursor = typeof purpose === 'object' && purpose.purpose === 'text-range' ? purpose.cursor : undefined
   const selection = useMemo(() => {
     if (!topicId || !messageId || !toolCallId) return undefined
     const options: AiToolResultReadOptions =
       readPurpose === 'text-range' ? { purpose: readPurpose, cursor } : { purpose: readPurpose }
-    return { ref: { topicId, messageId, toolCallId }, options }
-  }, [topicId, messageId, toolCallId, readPurpose, cursor])
+    return { ref: { topicId, messageId, toolCallId, ...(partId && { partId }) }, options }
+  }, [topicId, messageId, toolCallId, partId, readPurpose, cursor])
   const [result, setResult] = useState<{ selection: typeof selection; state: ToolResultSnapshot; generation: number }>({
     selection,
     state: selection ? toolResultService.getSnapshot(selection.ref, selection.options) : IDLE,

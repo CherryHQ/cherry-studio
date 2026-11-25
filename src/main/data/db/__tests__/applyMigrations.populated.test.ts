@@ -60,6 +60,14 @@ describe('applyMigrations over a populated database', () => {
   let sqlite: Database.Database
   let db: DbType
 
+  function insertPrePartStorageRoot(sessionId: string) {
+    sqlite
+      .prepare(`INSERT INTO agent_session_message
+      (id, session_id, role, data, status, created_at, updated_at)
+      VALUES (?, ?, 'root', '{}', 'success', 1, 1)`)
+      .run(`${sessionId}-root`, sessionId)
+  }
+
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-migrate-populated-'))
     sqlite = new Database(join(tempDir, 'test.db'))
@@ -811,7 +819,7 @@ describe('applyMigrations over a populated database', () => {
       filename: 'missing.pdf',
       providerMetadata: { cherry: { fileEntryId: '99999999-9999-7999-8999-999999999999' } }
     }
-    seedSessionRoot(db, 'session-attachment-migrate')
+    insertPrePartStorageRoot('session-attachment-migrate')
     sqlite
       .prepare(
         `INSERT INTO agent_session_message
@@ -876,7 +884,7 @@ describe('applyMigrations over a populated database', () => {
          VALUES ('session-agent-updated', 'Session', 'workspace-agent-updated', 'a0', ?, ?, ?)`
       )
       .run(now, now, now)
-    seedSessionRoot(db, 'session-agent-updated')
+    insertPrePartStorageRoot('session-agent-updated')
     sqlite
       .prepare(
         `INSERT INTO agent_session_message
@@ -995,7 +1003,7 @@ describe('applyMigrations over a populated database', () => {
          VALUES ('session-cleanup-rollback', 'Session', 'workspace-cleanup-rollback', 'a0', ?, ?, ?)`
       )
       .run(now, now, now)
-    seedSessionRoot(db, 'session-cleanup-rollback')
+    insertPrePartStorageRoot('session-cleanup-rollback')
     sqlite
       .prepare(
         `INSERT INTO agent_session_message

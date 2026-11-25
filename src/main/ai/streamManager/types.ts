@@ -3,9 +3,12 @@ import type { UIMessageChunk } from 'ai'
 
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import type { AcceptedToolResults } from '@main/ai/messages/AcceptedToolResults'
+import type { AgentControlChunk } from '@main/ai/runtime/types'
+import type { Event } from '@main/core/lifecycle'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
+import type { LivePartPatch, TimelinePlacement } from '@shared/ai/messageProjection'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
-import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
@@ -91,15 +94,30 @@ export interface StreamErrorResult extends TerminalOutcome {
 
 // ── StreamListener ──────────────────────────────────────────────────
 
-export type MessageStreamEvent =
-  | { type: 'error'; error: unknown }
-  | { type: 'message'; parts: CherryUIMessage['parts'] }
-  | { type: 'control'; chunk: UIMessageChunk }
+export type ExecutionPart = {
+  readonly partId: string
+  readonly pos: number | null
+  readonly payload: CherryMessagePart
+}
 
-/** One content producer per execution: either SDK chunks or authoritative message views. */
-export type AiStreamSource =
-  | { kind: 'chunks'; stream: ReadableStream<UIMessageChunk> }
-  | { kind: 'messages'; stream: ReadableStream<MessageStreamEvent> }
+export type MessageStreamEvent = { type: 'error'; error: unknown } | { type: 'control'; chunk: AgentControlChunk }
+
+export type AgentPartChange =
+  | Exclude<LivePartPatch<TimelinePlacement>, { type: 'part-put' | 'part-add' }>
+  | (Extract<LivePartPatch<TimelinePlacement>, { type: 'part-add' | 'part-put' }> & {
+      readonly archiveMessageId: string
+    })
+
+export interface AgentMessageStreamSource {
+  kind: 'messages'
+  stream: ReadableStream<MessageStreamEvent>
+  onPart: Event<AgentPartChange>
+  onMessageReconciled: Event<readonly ExecutionPart[]>
+  readParts(): readonly ExecutionPart[]
+}
+
+/** One content producer per execution: either SDK chunks or an Agent owner. */
+export type AiStreamSource = { kind: 'chunks'; stream: ReadableStream<UIMessageChunk> } | AgentMessageStreamSource
 
 export interface StreamListener {
   /** A durable caller (scheduled job) publishes its own final result. */
@@ -117,7 +135,10 @@ export interface StreamListener {
     attemptId?: number,
     sequence?: number
   ): void
-  onMessage?(message: CherryUIMessage, sourceModelId?: UniqueModelId, sourceKind?: AiStreamSource['kind']): void
+  readonly content?: {
+    readonly snapshot: (message: CherryUIMessage, source: AiStreamSource['kind']) => void
+    readonly part: (change: AgentPartChange) => void
+  }
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   /** The original exception is available only to in-process prompt listeners. */
@@ -134,6 +155,7 @@ export interface StreamListener {
  * running independently against the same listeners and siblingsGroupId.
  */
 export interface StreamExecution {
+  readMessage?: () => CherryUIMessage
   /** Stable user-task identity across retries and tool-approval continuations. */
   taskIds?: readonly string[]
   /** Agent input identity survives a queued turn receiving a new execution attempt. */

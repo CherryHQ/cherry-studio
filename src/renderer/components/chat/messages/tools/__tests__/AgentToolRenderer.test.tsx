@@ -5,13 +5,13 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import type * as CherryUi from '@cherrystudio/ui'
-import { PartsProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { SubagentStatusProvider } from '@renderer/components/chat/messages/blocks/SubagentStatusContext'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
-import { AgentToolRenderer, agentInlineResultPresentationRegistry, isValidAgentToolsType } from '../agent'
+import { AgentExecutionTimeline, agentInlineResultPresentationRegistry, isValidAgentToolsType } from '../agent'
 import { AskUserQuestionOptimisticInputProvider } from '../agent/AskUserQuestionOptimisticContext'
 import MessageTool from '../MessageTool'
 import MessageTools from '../MessageTools'
@@ -124,7 +124,7 @@ vi.mock('@renderer/components/icons/LoadingIcon', () => ({
   default: () => <span data-testid="loading-icon" />
 }))
 
-describe('AgentToolRenderer', () => {
+describe('AgentExecutionTimeline', () => {
   // Mock translations for tools
   const mockTranslations: Record<string, string> = {
     'message.tools.labels.bash': 'Bash',
@@ -268,7 +268,7 @@ describe('AgentToolRenderer', () => {
         partialArguments: '{"file_path": "/test.ts"'
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       // Should render the DEDICATED ReadTool component, not StreamingToolContent
       // ReadTool uses a friendly activity label, not just the raw tool name
@@ -284,7 +284,7 @@ describe('AgentToolRenderer', () => {
         partialArguments: '{"file_path": "/path/to/myfile.ts", "offset": 10'
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       // Should use dedicated ReadTool renderer
       expect(screen.getByText('Viewing')).toBeInTheDocument()
@@ -307,7 +307,7 @@ describe('AgentToolRenderer', () => {
         },
         response: { content: [{ type: 'text', text: 'written' }] }
       })
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
       expect(screen.getByText('qa-permission.txt', { exact: true })).toBeVisible()
     })
 
@@ -320,7 +320,7 @@ describe('AgentToolRenderer', () => {
         response: { plan, isAgent: false }
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
       fireEvent.click(screen.getByRole('button'))
 
       expect(screen.getAllByText('Release plan')).toHaveLength(1)
@@ -336,7 +336,7 @@ describe('AgentToolRenderer', () => {
         response: { plan: `  ${plan}\n`, isAgent: false }
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
       fireEvent.click(screen.getByRole('button'))
 
       expect(screen.getAllByText('Release plan')).toHaveLength(1)
@@ -359,7 +359,7 @@ describe('AgentToolRenderer', () => {
         }
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       expect(screen.getByText('Register the new SDK task tools')).toBeInTheDocument()
     })
@@ -374,7 +374,7 @@ describe('AgentToolRenderer', () => {
         }
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
       fireEvent.click(screen.getByRole('button'))
 
       expect(screen.getByTestId('collapse-content-TaskList')).toHaveTextContent('Build launch deck')
@@ -394,7 +394,7 @@ describe('AgentToolRenderer', () => {
         response: [{ type: 'text', text: 'Updated todo list' }]
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
       const trigger = screen.getByRole('button')
       expect(trigger).toHaveTextContent('Wire the renderer')
       fireEvent.click(trigger)
@@ -412,7 +412,7 @@ describe('AgentToolRenderer', () => {
         response: [{ type: 'text', text: 'Loaded design review instructions' }]
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
       expect(screen.getByText('design-review')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button'))
 
@@ -507,7 +507,7 @@ describe('AgentToolRenderer', () => {
         response: { isError: true, content: [{ type: 'text', text: errorText }] }
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       await user.click(screen.getByRole('button'))
       expect(await screen.findByText(errorText)).toBeVisible()
@@ -523,7 +523,7 @@ describe('AgentToolRenderer', () => {
         response: 'File written'
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       const link = screen.getByRole('link', { name: 'game.html' })
       expect(link).toBeInTheDocument()
@@ -540,7 +540,7 @@ describe('AgentToolRenderer', () => {
         partialArguments: '{"file_path": "/tmp/game.html", "content": "<html>'
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       expect(screen.getByText('game.html')).toBeInTheDocument()
       expect(screen.queryByRole('link', { name: 'game.html' })).not.toBeInTheDocument()
@@ -557,7 +557,7 @@ describe('AgentToolRenderer', () => {
         response: { isError: true, content: [{ type: 'text', text: errorText }] }
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       expect(screen.getByText('plane.html')).toBeInTheDocument()
       expect(screen.getAllByTestId('tooltip-content').some((element) => element.textContent === errorText)).toBe(true)
@@ -573,7 +573,7 @@ describe('AgentToolRenderer', () => {
         response: { isError: true, content: [{ type: 'text', text: 'EROFS: read-only file system' }] }
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       expect(screen.getByText('plane.html')).toBeInTheDocument()
       expect(screen.queryByRole('link', { name: 'plane.html' })).not.toBeInTheDocument()
@@ -600,7 +600,7 @@ describe('AgentToolRenderer', () => {
         }
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       expect(screen.getByText('Questions from Agent')).toBeInTheDocument()
       expect(screen.getByText('Choose logger')).toBeInTheDocument()
@@ -624,7 +624,7 @@ describe('AgentToolRenderer', () => {
         approval: { approved: false, reason: 'Need more context first' }
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       expect(screen.getByText('Denied')).toBeInTheDocument()
       expect(screen.getByText('Need more context first')).toBeInTheDocument()
@@ -652,7 +652,7 @@ describe('AgentToolRenderer', () => {
         }
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       expect(screen.getByText('Winston')).not.toBeVisible()
       fireEvent.click(screen.getAllByRole('button')[0])
@@ -697,7 +697,7 @@ describe('AgentToolRenderer', () => {
               answers: { 'Choose logger': 'Winston' }
             }
           }}>
-          <AgentToolRenderer toolResponse={toolResponse} />
+          <AgentExecutionTimeline toolResponse={toolResponse} />
         </AskUserQuestionOptimisticInputProvider>
       )
 
@@ -743,7 +743,7 @@ describe('AgentToolRenderer', () => {
       approval: { approved: false, reason: 'use a copy instead' }
     })
 
-    render(<AgentToolRenderer toolResponse={toolResponse} />)
+    render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
     expect(screen.getByText('Denied')).toBeInTheDocument()
     expect(screen.getByText('use a copy instead')).toBeInTheDocument()
@@ -1034,7 +1034,7 @@ describe('AgentToolRenderer', () => {
         response: 'Navigate link created: /app/agents'
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       expect(screen.getByText(/Agents/)).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button'))
@@ -1148,9 +1148,9 @@ describe('AgentToolRenderer', () => {
         data: { event: 'notification', taskId: 'child', status: 'completed' }
       } as CherryMessagePart
       const withParts = (parts: CherryMessagePart[]) => (
-        <PartsProvider value={{ reply: parts }}>
-          <AgentToolRenderer toolResponse={response} />
-        </PartsProvider>
+        <SubagentStatusProvider messageIds={['reply']} rows={{ reply: parts }}>
+          <AgentExecutionTimeline toolResponse={response} />
+        </SubagentStatusProvider>
       )
       const { rerender } = render(withParts([started]))
       expect(screen.getByText('message.tools.status.running')).toBeVisible()
@@ -1194,7 +1194,7 @@ describe('AgentToolRenderer', () => {
       render(
         <>
           {calls.map(({ id, title, model }) => (
-            <AgentToolRenderer
+            <AgentExecutionTimeline
               key={id}
               toolResponse={createToolResponse({
                 id,
@@ -1222,7 +1222,7 @@ describe('AgentToolRenderer', () => {
       const model =
         'OpenRouter Claude Sonnet 4.5 with a very long caller supplied model name that must remain fully readable'
       render(
-        <AgentToolRenderer
+        <AgentExecutionTimeline
           toolResponse={createToolResponse({
             tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
             status,
@@ -1249,7 +1249,7 @@ describe('AgentToolRenderer', () => {
     ])('omits the requested model for invalid or missing model input: %j', (arguments_) => {
       mockMessageListActions.mockReturnValue({ openAgentToolFlow: vi.fn() })
       render(
-        <AgentToolRenderer
+        <AgentExecutionTimeline
           toolResponse={createToolResponse({
             tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
             status: 'done',
@@ -1272,7 +1272,7 @@ describe('AgentToolRenderer', () => {
         response: 'ok'
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       fireEvent.click(screen.getByRole('button', { name: /Inspect renderer/ }))
       expect(openAgentToolFlow).toHaveBeenCalledWith({
@@ -1292,7 +1292,7 @@ describe('AgentToolRenderer', () => {
         response: 'ok'
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       const toolHeader = screen.getByText('View').closest('[role="button"]')!
 
@@ -1315,7 +1315,7 @@ describe('AgentToolRenderer', () => {
         response: '/workspace'
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
       await user.click(screen.getByRole('button'))
 
       const content = screen.getByTestId('collapse-content-Bash')
@@ -1334,7 +1334,7 @@ describe('AgentToolRenderer', () => {
         response: { isError: true, content: [{ type: 'text', text: errorText }] }
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
       await user.click(screen.getByRole('button'))
 
       const content = screen.getByTestId('collapse-content-Bash')
@@ -1352,7 +1352,7 @@ describe('AgentToolRenderer', () => {
         partialArguments: '{"command": "npm install",'
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
 
       expect(screen.getByText('Installing')).toBeInTheDocument()
       // Command should be visible in the dedicated renderer (ANSI colorizer splits tokens across spans)

@@ -41,6 +41,7 @@ import {
 } from '@data/services/retiredAgentRuntimeMigration'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
+import { recoverSessionDeliveries } from '@main/ai/agentSession/recoverSessionDeliveries'
 import { RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '@main/ai/runtime/types'
@@ -238,14 +239,14 @@ describe('retired DSH session migration', () => {
       const runtime = new AgentSessionRuntimeService()
       runtimeDriverRegistry.register(new PiRuntimeDriver())
       try {
-        await runtime.primeConnection('conversation')
+        await expect(runtime['commandConnection']('conversation')).rejects.toThrow()
         expect(getRetiredAgentSessionMigration(dbh.db, 'conversation')).toEqual(migration)
         expect(contexts).toEqual([])
 
         rmSync(sessions)
         mkdirSync(sessions)
         if (retry === 'dispatch') await ensureRetiredSessionHistory('conversation')
-        await runtime.primeConnection('conversation')
+        await runtime['commandConnection']('conversation')
         await vi.waitFor(() => expect(contexts[0]).toContain('cherry-pi-928'))
         expect(runtime.inspect('conversation')?.resumeToken).toBe(migration.resumeToken)
         expect(getRetiredAgentSessionMigration(dbh.db, 'conversation')).toBeUndefined()
@@ -932,7 +933,7 @@ describe('retired DSH session migration', () => {
             WHEN NEW.delivery_status = 'consumed'
             BEGIN SELECT RAISE(ABORT, 'delivery recovery interrupted'); END`)
           try {
-            await expect(runtime._doInit()).rejects.toThrow('delivery recovery interrupted')
+            expect(() => recoverSessionDeliveries()).toThrow('delivery recovery interrupted')
           } finally {
             dbh.sqlite.exec('DROP TRIGGER reject_delivery_recovery')
           }
@@ -947,6 +948,8 @@ describe('retired DSH session migration', () => {
           ).toHaveLength(0)
         }
         await runtime._doInit()
+        recoverSessionDeliveries()
+        await runtime._doAllReady()
         expect(agentSessionMessageService.getSessionMessage('conversation', 'user-2').delivery).toMatchObject({
           status: 'consumed',
           outcome: 'success'
@@ -1022,6 +1025,7 @@ describe('retired DSH session migration', () => {
     const runtime = new AgentSessionRuntimeService()
     try {
       await runtime._doInit()
+      await runtime._doAllReady()
       const token = agentSessionMessageService.getLastRuntimeResumeToken('conversation')!
       const file = resolveResumeTokenSessionFile(token, path.join(directory, 'sessions'))!
       const context = JSON.stringify(SessionManager.open(file, path.dirname(file), directory).buildContextEntries())
