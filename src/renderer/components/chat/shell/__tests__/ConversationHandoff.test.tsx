@@ -12,7 +12,8 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: () => ({
     providers: [
       { id: 'provider', name: 'Provider' },
-      { id: 'other', name: 'Other Provider' }
+      { id: 'other', name: 'Other Provider' },
+      { id: 'alias', name: 'Provider' }
     ]
   }),
   getProviderDisplayName: (provider: { name?: string } | undefined) => provider?.name
@@ -89,6 +90,18 @@ describe('ConversationHandoff', () => {
         expect.objectContaining({ modelId: 'other::a' })
       )
     )
+  })
+  it('distinguishes duplicate provider and model display names by provider identity', async () => {
+    const models = [
+      { id: 'provider::a', name: 'Same', providerId: 'provider' },
+      { id: 'alias::a', name: 'Same', providerId: 'alias' }
+    ] as unknown as Model[]
+    render(<ConversationHandoff sessionId="duplicate-provider-labels" hasMessages modelCandidates={models} />)
+    fireEvent.click(screen.getByText('handoff.create'))
+    fireEvent.click(screen.getByText('handoff.model'))
+    expect(await screen.findByText('Same | Provider (provider)')).toBeVisible()
+    fireEvent.click(screen.getByText('Same | Provider (alias)'))
+    expect(screen.getByText('Same | Provider (alias)')).toBeVisible()
   })
   it('offers at 80% without generating, saving or attaching', () => {
     const onNewTopic = vi.fn()

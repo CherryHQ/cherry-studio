@@ -29,6 +29,40 @@ interface Props {
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
 }
 
+function HandoffModelPicker({
+  models,
+  selectedId,
+  onSelect
+}: {
+  models: Model[]
+  selectedId: UniqueModelId | null
+  onSelect: (id: UniqueModelId) => void
+}) {
+  const { t } = useTranslation()
+  const { providers } = useProviders()
+  const modelLabel = (model: Model) => {
+    const provider = providers.find((item) => item.id === model.providerId)
+    return `${model.name} | ${getProviderDisplayName(provider) || getProviderDisplayNameById(model.providerId)}`
+  }
+  const label = (model: Model) => {
+    const name = modelLabel(model)
+    return models.some((other) => other.id !== model.id && modelLabel(other) === name)
+      ? `${name} (${model.providerId})`
+      : name
+  }
+  return (
+    <SelectDropdown
+      items={models}
+      selectedId={selectedId}
+      onSelect={(id) => onSelect(id as UniqueModelId)}
+      placeholder={t('handoff.model')}
+      emptyText={t('handoff.model')}
+      renderSelected={label}
+      renderItem={label}
+    />
+  )
+}
+
 // Dismissal outlives the keyed component: navigating away and back remounts
 // the handoff, and a dismissed offer must not reappear for the same session.
 const dismissedSessions = new Set<string>()
@@ -44,11 +78,6 @@ export function ConversationHandoff({
   onNewTopic
 }: Props) {
   const { t } = useTranslation()
-  const { providers } = useProviders()
-  const modelLabel = (model: Model) => {
-    const provider = providers.find((item) => item.id === model.providerId)
-    return `${model.name} | ${getProviderDisplayName(provider) || getProviderDisplayNameById(model.providerId)}`
-  }
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState(false)
@@ -188,14 +217,10 @@ export function ConversationHandoff({
             </p>
           ) : null}
           {needsModelChoice && modelCandidates ? (
-            <SelectDropdown
-              items={modelCandidates}
-              selectedId={chosenModelId ?? null}
-              onSelect={(id) => setChosenModelId(id as UniqueModelId)}
-              placeholder={t('handoff.model')}
-              emptyText={t('handoff.model')}
-              renderSelected={modelLabel}
-              renderItem={modelLabel}
+            <HandoffModelPicker
+              models={modelCandidates}
+              selectedId={chosenModel?.id ?? null}
+              onSelect={setChosenModelId}
             />
           ) : null}
           {draft ? (
