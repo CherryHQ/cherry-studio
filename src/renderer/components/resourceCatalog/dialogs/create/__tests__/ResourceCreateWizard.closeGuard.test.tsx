@@ -15,6 +15,8 @@ import type * as ReactModule from 'react'
 import { type ReactNode, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
+
 // Capture the close-control props the wizard hands to the UI dialog so the test can
 // drive overlay / Esc / pointer-down-outside deterministically (radix's real Esc
 // wiring doesn't fire onOpenChange reliably under jsdom).
@@ -101,7 +103,8 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' ')
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const { Form, FormField } = await importOriginal<typeof CherryStudioUi>()
   const React = await vi.importActual<typeof ReactModule>('react')
   type TestDialogRef = ((instance: HTMLDivElement | null) => void) | { current: HTMLDivElement | null } | null
 
@@ -177,7 +180,8 @@ vi.mock('@cherrystudio/ui', async () => {
     DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
     DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
     EmojiAvatar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    Form: ({ children }: { children: ReactNode }) => <>{children}</>,
+    Form,
+    FormField,
     MenuItem: ({ label, disabled, onClick }: { label: ReactNode; disabled?: boolean; onClick?: () => void }) => (
       <button type="button" disabled={disabled} onClick={onClick}>
         {label}
