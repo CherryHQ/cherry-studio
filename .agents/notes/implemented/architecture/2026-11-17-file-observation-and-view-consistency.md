@@ -39,6 +39,9 @@ src/main/services/file/
 │   ├── FileObservationService.ts
 │   └── WatchScope.ts
 ├── watcher.ts
+├── watcherProtocol.ts
+├── watcherWorker.ts
+├── nativeWatcher.ts
 ├── tree/
 │   ├── DirectoryTreeManager.ts
 │   └── builder.ts
@@ -79,7 +82,7 @@ src/renderer/components/chat/panes/
 |---|---|
 | Main `observation/FileObservationService.ts` | Lifecycle service owning physical scopes, internal leases, renderer subscriptions, invalidation revisions, and observation health |
 | Main `observation/WatchScope.ts` | Private per-scope instance wrapping `DirectoryWatcher`, readiness, reference counting, and closure; not another service/singleton |
-| Main `watcher.ts` | Chokidar adapter and existing dangling-presence wiring; only WatchScope owns native instances |
+| Main `watcher.ts`, `watcherProtocol.ts`, `watcherWorker.ts`, `nativeWatcher.ts` | Main adapter and dangling-presence wiring; the service owns one shared worker thread that runs native scope creation, filtering, fallback and closure |
 | Main `tree/builder.ts` and `tree/DirectoryTreeManager.ts` | Acquire observation leases; retain scan/index/projection and the existing renderer handoff; propagate loss of freshness and baseline resets |
 | Main `ipc/handlers/fileObservation.ts` | Thin owner/handle adapter; resolve entry/path requests through existing file boundaries and delegate to the observation service |
 | Shared `ipc/schemas/fileObservation.ts` | Own request/event schemas and inferred transport types; compose through `ipcSchemas.ts` and `src/main/ipc/handlers/ipcHandlers.ts`, without a second preload API |
@@ -91,6 +94,20 @@ src/renderer/components/chat/panes/
 | Artifact tree/pane and existing edit consumers | Consume those capabilities; delete duplicate lazy-list caches/handshakes and file-size-based preview invalidation |
 
 Runtime code stays inside existing process categories. Main's existing file barrel is the public boundary; `observation/` has no nested barrel. The renderer observation topic exposes one explicit re-export barrel with an enforced deep-import boundary. `DirectoryTreeSession.ts` remains a flat multi-instance class. Cross-process types derive from shared schemas; scope bookkeeping stays Main-only, and renderer read state stays renderer-only.
+
+### Native watcher execution
+
+The synchronous portion of chokidar shutdown must run off Main. Closing a workspace tree during terminal cleanup blocked Main for 2.77 seconds in an Electron trace, delaying unrelated input and IPC while the renderer itself remained responsive. Wrapping close in a Promise or timer preserves that blocking call site.
+
+`FileObservationService` owns one lazy `DirectoryWatcherHost` and its Node Worker. Scopes share the thread and chokidar's overlapping-handle reuse; each scope retains its own filters, health and close receipt. Structured filters transfer the loaded gitignore snapshot without evaluating serialized functions or widening the published observation scope. Final lease release suppresses Main events immediately, then waits for native closure, including retired fallback handles. Service shutdown also awaits worker exit. Unexpected worker exit makes existing scopes unavailable and a later acquisition starts a replacement.
+
+One thread per scope would multiply isolates and lose chokidar's cross-scope handle reuse. A separate OS process would add a process boundary to a task that needs event-loop isolation; the terminal's process model is independent of this decision.
+
+Fast resource release also requires avoiding per-directory native shutdown. On macOS, libuv 1.52.1 synchronously waits for FSEvents stream reconfiguration when closing each directory handle. Chokidar 4's directory handles therefore multiply operating-system registration waits; moving them to a Worker preserves that cost. Chokidar 6's default `auto` backend uses native recursive watching for unlimited-depth macOS and Windows trees, while finite-depth scopes retain per-directory watching. Its Node.js 22.22 minimum is covered by the repository's Node.js requirement and Electron 45's bundled Node.js 24.
+
+The library retains event normalization, initial discovery, symlink following, atomic writes, write stability and logical filters. A recursive native subscription can receive raw notifications from excluded descendants; the library filters and reconciles them before publishing events. Raw `fs.watch` alone lacks these contracts, and replacing the normalizer with Parcel would require rebuilding directory-child discovery and symlink semantics. Global polling would exchange native shutdown waits for recurring filesystem work. The existing Worker still isolates operating-system waits that remain even with fewer handles.
+
+Five alternating Electron-runtime trials on 40 directories and 1,000 files reduced native watch handles from 1,041 to one, and median close time from 11,322 ms to 10.95 ms. A real Electron observation service released a 455-directory, 2,921-file code tree in five completed trials with every scope registry returning to zero. Native workspace-fixture tests cover directory moves, external symlinks, equal-length writes, filtering, depth and closure. On the heavily loaded development host, native events in system-temp fixtures exceeded test deadlines; those failures remain distinct from the passing workspace-native and polling checks. Native notification delivery remains an operating-system constraint, not a fixed-latency guarantee.
 
 ### Why a separate observation service
 
@@ -235,6 +252,9 @@ Manual recovery follows the existing owners: directory refresh reacquires the ro
 
 ## Verification
 
+- Regression — `watcher.lifecycle.test.ts`: a blocked native close leaves the caller responsive, scope closure waits for the receipt, scopes share one thread, service closure joins worker exit, and an unexpected exit invalidates coverage before a replacement starts.
+- Regression — `watcher.errors.test.ts` and `watcher.test.ts`: polling recovery preserves delivery, final cleanup joins retired handles, and worker filters retain the scan's loaded gitignore snapshot, negation and forced `.git` exclusion.
+- Regression — macOS Electron 45.2.2 native-close replay and native sampling: the large-workspace close executes on the watcher thread while Main continues answering IPC; a smaller scope completes native closure and worker exit. The large scope later acknowledges closure with every scope/closing registry empty, and the same worker successfully observes and releases a new scope. This verifies release and reuse, without establishing faster native release.
 - AC1 — `useArtifactFileTreeModel.observation.test.tsx` and real Electron replay: collapse past idle release, delete/create externally, reopen to the replacement snapshot without a later event.
 - AC2 — `FileObservationService.test.ts`, `FilePreview.observation.test.tsx` and real Electron: equal-length writes with the tree closed, atomic replacement, deletion/recreation, explicit hidden/outside paths and symlink binding changes.
 - AC3 — `FileEditSessionManager.test.ts`, switching consumers and real Electron: independent clean/dirty instances accept disk changes or preserve their local draft and expose conflict; write failure, lost reply and conflict cancel a newer pending autosave without losing its draft.
@@ -248,6 +268,7 @@ Local validation ran on macOS. The Electron replay uses real filesystem operatio
 
 ## Consequences
 
+- A slow native close can delay other scopes on the observation thread. Main remains responsive, and cleanup stays pending until native acknowledgement; a timer is not proof of released resources.
 - Splitting scope and projection lifetimes can strand a lease or close a watcher while another consumer still needs it. Migrate the existing native ownership, retain explicit lease disposal, and verify tree/preview release order and window teardown; do not leave the builder's original watcher path active.
 - Physical watch sharing can accidentally broaden recursion or change filtering. Share only compatible scopes and measure native handle/scan behavior on a real code workspace.
 - Initial-read/activation/recovery races can publish stale content. Preserve the existing handoff protocol and prove the concrete race paths rather than relying on callback-count mocks.

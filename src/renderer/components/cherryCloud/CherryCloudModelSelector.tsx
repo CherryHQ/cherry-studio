@@ -1,9 +1,11 @@
 import { first } from 'es-toolkit/compat'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Pin } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Avatar, AvatarFallback } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   ModelSelector,
   ModelSelectorDetailCardContent,
@@ -18,12 +20,17 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { trackSubscriptionEntryView } from '@renderer/services/cherryCloudSubscriptionAnalytics'
 import { getModelLogoRef } from '@renderer/utils/model'
-import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  CHERRYAI_PROVIDER_ID,
+  isManagedCherryAiProviderId
+} from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { SubscriptionEntrySource } from '@shared/ipc/schemas/cherryCloud'
 
 import { getAmdActionLabelKey, openAmdRegistration } from './amdFreeModels'
-import { signInForModel } from './signInForModel'
+import { signInForModel, signInFromPicker } from './signInForModel'
 import {
   CHERRY_CLOUD_SELECTOR_PROVIDER_IDS,
   type CherryCloudOfferKind,
@@ -69,14 +76,19 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
     if (open) setActivated(true)
   }, [open])
   const { t } = useTranslation()
-  const { modelFilter, getModelPresentation, availability, prioritizedProviderIds } = useCherryCloudModelSelectorPolicy(
-    {
-      enabled,
-      includeAgentOnlyModels: includeAgentOnlyModels,
-      filter: filter,
-      prioritizedProviderIds: props.prioritizedProviderIds
-    }
-  )
+  const {
+    modelFilter,
+    getModelPresentation,
+    availability,
+    prioritizedProviderIds,
+    isCherryAIPinned,
+    setCherryAIPinned
+  } = useCherryCloudModelSelectorPolicy({
+    enabled,
+    includeAgentOnlyModels: includeAgentOnlyModels,
+    filter: filter,
+    prioritizedProviderIds: props.prioritizedProviderIds
+  })
   const { offers, paidPlan, canOfferSubscription, signedOut } = useCherryCloudModelSelectorOffers(
     enabled,
     includeAgentOnlyModels ?? false,
@@ -121,6 +133,20 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
   }
   const selectAfterSignInRef = useRef(selectAfterSignIn)
   selectAfterSignInRef.current = selectAfterSignIn
+  // Main refuses the built-in CherryAI models while signed out, so they act like the sign-in rows.
+  const presentModel = useCallback(
+    (model: Model, modelProvider: Provider) => {
+      const presentation = getModelPresentation(model, modelProvider)
+      if (!signedOut || !isManagedCherryAiProviderId(model.providerId)) return presentation
+      return {
+        ...presentation,
+        badge: <SubscriptionTag size={9} label={t('settings.subscription.sign_in')} className="h-full" />,
+        description: t('chat.input.quota_notice.sign_in_required'),
+        onAction: () => void signInFromPicker().then((signedIn) => signedIn && selectAfterSignInRef.current(model))
+      }
+    },
+    [getModelPresentation, signedOut, t]
+  )
   const actions = useMemo<ModelSelectorActionItem[]>(() => {
     const lockedRows = {
       sign_in: {
@@ -204,13 +230,28 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
     amdStatus,
     t
   ])
+  const pinLabel = t(isCherryAIPinned ? 'selector.common.unpin' : 'selector.common.pin')
   const composition = {
-    getModelPresentation,
+    getModelPresentation: presentModel,
     actions,
     providerGroups: [
       {
         id: CHERRYAI_PROVIDER_ID,
         providerIds: CHERRY_CLOUD_SELECTOR_PROVIDER_IDS,
+        titleAction: (
+          <Tooltip content={pinLabel} delay={500}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={pinLabel}
+              aria-pressed={isCherryAIPinned}
+              className="size-4 shrink-0 p-0 text-muted-foreground opacity-0 transition hover:opacity-100! focus-visible:opacity-100! group-hover:opacity-60 [&>svg]:translate-y-[1.5px]"
+              onClick={() => setCherryAIPinned((pinned) => !pinned)}>
+              <Pin className={cn('block size-3', isCherryAIPinned && '-rotate-45')} />
+            </Button>
+          </Tooltip>
+        ),
         trailing: paidPlan ? (
           <span className="truncate rounded-full border border-border px-1.5 font-medium text-[10px] text-foreground leading-4">
             {paidPlan.plan.display_name}

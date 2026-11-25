@@ -16,14 +16,16 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       (
         ({
-          'settings.general.image_upload': 'Image Upload',
-          'settings.general.emoji_picker': 'Emoji Picker',
-          'settings.general.avatar.reset': 'Reset Avatar'
+          'library.config.dialogs.create.avatar_upload': 'Image Upload',
+          'library.config.dialogs.create.avatar_random': 'Random avatar',
+          'library.config.dialogs.create.avatar_remove_image': 'Remove image'
         }) as Record<string, string>
       )[key] ?? key
   })
 }))
 vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(), prepareEntityImageBytes: vi.fn() }))
+const cropAvatar = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/components/Avatar/AvatarCropPopup', () => ({ AvatarCropPopup: { show: cropAvatar } }))
 vi.mock('@renderer/components/EmojiPicker', () => ({
   EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
     <button type="button" onClick={() => onEmojiClick('🎓')}>
@@ -44,12 +46,14 @@ const props = {
 }
 const file = new File(['image'], 'avatar.png', { type: 'image/png' })
 const bytes = new Uint8Array([1, 2, 3])
+const framed = { x: 10, y: 20, width: 64, height: 64 }
 const uploadLabel = 'Image Upload'
 
 beforeEach(() => {
   vi.mocked(ipcApi.request).mockReset().mockResolvedValue(undefined)
   vi.mocked(checkEntityImageSize).mockReset().mockReturnValue(null)
   vi.mocked(prepareEntityImageBytes).mockReset().mockResolvedValue(bytes)
+  cropAvatar.mockReset().mockResolvedValue(framed)
   invalidate.mockReset().mockResolvedValue(undefined)
   vi.mocked(dataApiService.get).mockResolvedValue({ emoji: '🤖', avatarSrc: 'file:///new.webp' })
 })
@@ -69,22 +73,21 @@ describe('AssistantAvatarPicker persistence', () => {
     const onChanged = vi.fn()
     render(<AssistantAvatarPicker {...props} onChanged={onChanged} />)
     const user = await openPicker()
-    await user.upload(screen.getByLabelText(uploadLabel), file)
+    await user.upload(screen.getByLabelText(uploadLabel, { selector: 'input' }), file)
     await waitFor(() => expect(onChanged).toHaveBeenCalledWith({ emoji: '🤖', avatarSrc: 'file:///new.webp' }))
     expect(checkEntityImageSize).toHaveBeenCalledWith(file)
-    expect(prepareEntityImageBytes).toHaveBeenCalledWith(file)
+    expect(prepareEntityImageBytes).toHaveBeenCalledWith(file, framed)
     expect(ipcApi.request).toHaveBeenCalledWith('assistant.set_avatar', {
       assistantId: 'assistant-1',
       avatar: { kind: 'image', data: bytes }
     })
     expect(invalidate).toHaveBeenCalledWith(['/assistants/assistant-1', '/assistants'])
-    expect(screen.queryByRole('button', { name: 'Reset Avatar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove image' })).not.toBeInTheDocument()
   })
 
   it('changes the emoji through its own IPC intent', async () => {
     render(<AssistantAvatarPicker {...props} />)
     const user = await openPicker()
-    await user.click(screen.getByRole('button', { name: 'Emoji Picker' }))
     await user.click(screen.getByRole('button', { name: 'Graduation cap' }))
     expect(ipcApi.request).toHaveBeenCalledWith('assistant.set_avatar', {
       assistantId: 'assistant-1',
@@ -95,7 +98,7 @@ describe('AssistantAvatarPicker persistence', () => {
   it('resets just the image slot', async () => {
     render(<AssistantAvatarPicker {...props} />)
     const user = await openPicker()
-    await user.click(screen.getByRole('button', { name: 'Reset Avatar' }))
+    await user.click(screen.getByRole('button', { name: 'Remove image' }))
     expect(ipcApi.request).toHaveBeenCalledWith('assistant.set_avatar', {
       assistantId: 'assistant-1',
       avatar: { kind: 'default' }
@@ -106,7 +109,7 @@ describe('AssistantAvatarPicker persistence', () => {
     vi.mocked(checkEntityImageSize).mockReturnValue('Too large')
     render(<AssistantAvatarPicker {...props} />)
     const user = await openPicker()
-    await user.upload(screen.getByLabelText(uploadLabel), file)
+    await user.upload(screen.getByLabelText(uploadLabel, { selector: 'input' }), file)
     expect(toast.error).toHaveBeenCalledWith('Too large')
     expect(prepareEntityImageBytes).not.toHaveBeenCalled()
     expect(ipcApi.request).not.toHaveBeenCalled()
@@ -117,11 +120,11 @@ describe('AssistantAvatarPicker persistence', () => {
     vi.mocked(ipcApi.request).mockRejectedValueOnce(new Error('Upload failed'))
     render(<AssistantAvatarPicker {...props} />)
     const user = await openPicker()
-    await user.upload(screen.getByLabelText(uploadLabel), file)
+    await user.upload(screen.getByLabelText(uploadLabel, { selector: 'input' }), file)
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Upload failed'))
     expect(screen.getByRole('img', { name: 'Avatar' })).toHaveAttribute('src', props.avatarSrc)
-    expect(screen.getByRole('button', { name: 'Reset Avatar' })).toBeEnabled()
-    await user.upload(screen.getByLabelText(uploadLabel), file)
+    expect(screen.getByRole('button', { name: 'Remove image' })).toBeEnabled()
+    await user.upload(screen.getByLabelText(uploadLabel, { selector: 'input' }), file)
     await waitFor(() => expect(ipcApi.request).toHaveBeenCalledTimes(2))
   })
 
@@ -134,9 +137,9 @@ describe('AssistantAvatarPicker persistence', () => {
     )
     render(<AssistantAvatarPicker {...props} />)
     const user = await openPicker()
-    await user.upload(screen.getByLabelText(uploadLabel), file)
-    expect(screen.getByRole('button', { name: 'Reset Avatar' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: 'Reset Avatar' }))
+    await user.upload(screen.getByLabelText(uploadLabel, { selector: 'input' }), file)
+    expect(screen.getByRole('button', { name: 'Remove image' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Remove image' }))
     await act(async () => finish(bytes))
     await waitFor(() => expect(ipcApi.request).toHaveBeenCalledTimes(1))
   })
@@ -151,7 +154,7 @@ describe('AssistantAvatarPicker persistence', () => {
     const onChanged = vi.fn()
     const { rerender } = render(<AssistantAvatarPicker {...props} onChanged={onChanged} />)
     const user = await openPicker()
-    await user.upload(screen.getByLabelText(uploadLabel), file)
+    await user.upload(screen.getByLabelText(uploadLabel, { selector: 'input' }), file)
     rerender(<AssistantAvatarPicker {...props} assistantId="assistant-2" onChanged={onChanged} />)
     await user.click(screen.getByRole('button', { name: 'Avatar' }))
     await act(async () => finish(bytes))
@@ -159,7 +162,7 @@ describe('AssistantAvatarPicker persistence', () => {
     expect(invalidate).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(onChanged).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Reset Avatar' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Remove image' })).toBeEnabled()
   })
 
   it('persists a preprocessed upload while its session remains active', async () => {
@@ -171,7 +174,7 @@ describe('AssistantAvatarPicker persistence', () => {
     )
     render(<AssistantAvatarPicker {...props} />)
     const user = await openPicker()
-    await user.upload(screen.getByLabelText(uploadLabel), file)
+    await user.upload(screen.getByLabelText(uploadLabel, { selector: 'input' }), file)
     expect(ipcApi.request).not.toHaveBeenCalled()
     await act(async () => finish(bytes))
     expect(ipcApi.request).toHaveBeenCalledWith('assistant.set_avatar', {
@@ -192,7 +195,7 @@ describe('AssistantAvatarPicker persistence', () => {
     const onChanged = vi.fn()
     const { unmount } = render(<AssistantAvatarPicker {...props} onChanged={onChanged} />)
     const user = await openPicker()
-    await user.click(screen.getByRole('button', { name: 'Reset Avatar' }))
+    await user.click(screen.getByRole('button', { name: 'Remove image' }))
     unmount()
     await act(async () => finish())
     expect(onChanged).not.toHaveBeenCalled()
@@ -208,12 +211,12 @@ describe('AssistantAvatarPicker persistence', () => {
     const onChanged = vi.fn()
     const { rerender } = render(<AssistantAvatarPicker {...props} onChanged={onChanged} />)
     const user = await openPicker()
-    await user.click(screen.getByRole('button', { name: 'Reset Avatar' }))
+    await user.click(screen.getByRole('button', { name: 'Remove image' }))
     rerender(<AssistantAvatarPicker {...props} assistantId="assistant-2" onChanged={onChanged} />)
     await user.click(screen.getByRole('button', { name: 'Avatar' }))
     await act(async () => finish())
     expect(onChanged).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Reset Avatar' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Remove image' })).toBeVisible()
     expect(ipcApi.request).toHaveBeenCalledWith('assistant.set_avatar', {
       assistantId: 'assistant-1',
       avatar: { kind: 'default' }
