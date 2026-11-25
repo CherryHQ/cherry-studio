@@ -47,6 +47,6 @@ describe('internal Claude gateway trust matches forwarding', () => {
     })
     expect(route.endpoint.endpointType).toBe(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
     expect(route.endpoint.baseUrl).toBe(provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
-    expect(isTrustedClaudeSlot(provider, model, 'gateway-forwarding')).toBe(!relay)
+    expect(isTrustedClaudeSlot(provider, model)).toBe(!relay)
   })
 })

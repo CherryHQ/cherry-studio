@@ -79,9 +79,6 @@ export const AUTO_COMPACT_TRIGGER_PCT = 80
 // (e.g. #18894: 256K declared / 128K real), causing auto-compaction to trigger too late.
 // Apply the conservative safety margin only to untrusted providers; Anthropic-official
 // channels report accurate windows and must not lose half their context to a blanket 0.6.
-/** How to pick the endpoint whose trust verdict budgets a slot. */
-export type ClaudeSlotTrustMode = 'sdk-dialect' | 'gateway-forwarding'
-
 /**
  * Whether a Claude Code channel reports accurate context windows. Decided by the
  * endpoint that actually serves the model — not the provider-wide default: a model
@@ -93,11 +90,7 @@ export type ClaudeSlotTrustMode = 'sdk-dialect' | 'gateway-forwarding'
  * routes). Internal Claude gateway requests also prefer Anthropic Messages in
  * `resolveGatewayRequest`, so `gateway-forwarding` uses the same preference.
  */
-export function isTrustedClaudeSlot(
-  provider?: Provider | null,
-  model?: Model | null,
-  _trustMode: ClaudeSlotTrustMode = 'sdk-dialect'
-): boolean {
+export function isTrustedClaudeSlot(provider?: Provider | null, model?: Model | null): boolean {
   if (provider == null) return false
   if (model == null) return isTrustedClaudeChannel(provider)
   const endpoint = resolveEffectiveEndpoint(provider, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType

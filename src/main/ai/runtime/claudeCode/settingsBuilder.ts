@@ -385,9 +385,7 @@ export async function buildClaudeCodeSessionSettings(
       output: requestedOutputTokens,
       provider,
       model: primaryModel,
-      trusted:
-        options?.primaryTrusted ??
-        (hasGatewaySlots ? isTrustedClaudeSlot(provider, primaryModel, 'gateway-forwarding') : undefined),
+      trusted: options?.primaryTrusted ?? (hasGatewaySlots ? isTrustedClaudeSlot(provider, primaryModel) : undefined),
       isGatewaySlot: false
     }
   ]
@@ -419,9 +417,7 @@ export async function buildClaudeCodeSessionSettings(
       ),
       provider: slotProvider,
       model: slotModel,
-      trusted:
-        gatewaySlot.trusted ??
-        (slotProvider != null ? isTrustedClaudeSlot(slotProvider, slotModel, 'gateway-forwarding') : undefined),
+      trusted: gatewaySlot.trusted ?? (slotProvider != null ? isTrustedClaudeSlot(slotProvider, slotModel) : undefined),
       providerId: gatewaySlot.providerId,
       isGatewaySlot: true
     })

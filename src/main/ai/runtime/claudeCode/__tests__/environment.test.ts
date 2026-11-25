@@ -254,7 +254,7 @@ describe('isTrustedClaudeSlot', () => {
   })
 
   it('matches internal Anthropic gateway forwarding when OpenAI is listed first', () => {
-    expect(isTrustedClaudeSlot(mixedProvider, dualDialectModel, 'gateway-forwarding')).toBe(true)
+    expect(isTrustedClaudeSlot(mixedProvider, dualDialectModel)).toBe(true)
   })
 
   it('does not trust the official OpenAI host when internal forwarding selects an Anthropic relay', () => {
@@ -267,6 +267,6 @@ describe('isTrustedClaudeSlot', () => {
         'anthropic-messages': { baseUrl: 'https://relay.example/v1' }
       }
     } as never
-    expect(isTrustedClaudeSlot(provider, dualDialectModel, 'gateway-forwarding')).toBe(false)
+    expect(isTrustedClaudeSlot(provider, dualDialectModel)).toBe(false)
   })
 })
