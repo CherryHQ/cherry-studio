@@ -11,7 +11,6 @@ import {
   inArray,
   isNotNull,
   isNull,
-  lt,
   lte,
   ne,
   notInArray,
@@ -108,11 +107,11 @@ import {
   deleteMessageProvenanceTx,
   refreshImportedHistoryMessageCountTx
 } from './importedSessionHistory'
-
-type SessionMessageRow = AgentSessionMessageRow & { provenance?: MessageProvenance | null }
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
+
+type SessionMessageRow = AgentSessionMessageRow & { provenance?: MessageProvenance | null }
 
 const logger = loggerService.withContext('AgentSessionMessageService')
 const SQLITE_INARRAY_CHUNK = 500
