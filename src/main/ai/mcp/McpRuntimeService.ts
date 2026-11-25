@@ -40,6 +40,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import type { InputFor, WindowId } from '@shared/ipc/types'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
+import type { McpAppReference } from '@shared/types/mcpApp'
 import type { McpSkillEntry } from '@shared/types/mcpSkills'
 import type { BuiltinMcpServerName } from '@shared/utils/mcp'
 import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
@@ -52,7 +53,7 @@ import type { McpForwardMethod, McpForwardOptions, McpForwardResult } from './co
 import type { McpResourceObservationState } from './connections/McpConnection'
 import { classifyMcpFailure, McpConfigurationError } from './failureFacts'
 import { isMcpCancellation } from './mcpAbort'
-import { isMcpToolVisibleTo, type McpToolAudience } from './mcpAppTool'
+import { getMcpAppResourceUri, isMcpToolVisibleTo, type McpToolAudience } from './mcpAppTool'
 import type { McpPackageService } from './McpPackageService'
 import { resolveMcpRequestOptions } from './mcpRequestOptions'
 import { mcpTransportKind } from './mcpTransportKind'
@@ -66,6 +67,7 @@ type CallToolArgs = {
   name: string
   args: unknown
   audience?: McpToolAudience
+  onAppResult?: (reference: McpAppReference) => void
   callId?: string
   /** Caller-isolation key (for example, topicId). */
   scope?: string
@@ -770,6 +772,7 @@ export class McpRuntimeService extends BaseService {
     name,
     args,
     audience,
+    onAppResult,
     callId,
     scope,
     signal,
@@ -810,11 +813,13 @@ export class McpRuntimeService extends BaseService {
         })
         const host = this.resolveInteractionContext(server.id, { ...interactionContext, requestId: toolCallId })
         const connection = await this.getOrCreateConnection(server, host ?? null, effectiveSignal)
+        let appResourceUri: string | undefined
         if (audience) {
           const definition = (await connection.listTools('use', effectiveSignal)).find((tool) => tool.name === name)
           if (!definition || !isMcpToolVisibleTo(definition, audience)) {
             throw new McpConfigurationError(`MCP tool is unavailable to the ${audience}: ${name}`)
           }
+          if (onAppResult) appResourceUri = getMcpAppResourceUri(definition)
           effectiveSignal.throwIfAborted()
         }
         const policy = resolveMcpRequestOptions(server)
@@ -843,6 +848,14 @@ export class McpRuntimeService extends BaseService {
             failure: { source: 'tool', kind: 'expected', reason: 'tool_result_error', outcome: 'failed' }
           })
           return response
+        }
+        if (appResourceUri) {
+          onAppResult?.({
+            serverId: server.id,
+            toolName: name,
+            serverKey: this.getServerKey(server),
+            resourceUri: appResourceUri
+          })
         }
         return clampToolResultImages(response, getServerLogger(server, { tool: name, callId: toolCallId }))
       } catch (error) {

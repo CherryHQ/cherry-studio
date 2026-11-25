@@ -91,6 +91,11 @@ discovery. The MCP runtime checks that same visibility on the originating
 connection before execution, including calls through deferred tools. The
 source catalog retains App-only entries for settings and App access.
 
+Successful Assistant MCP tool results can carry a host-issued App reference.
+When the saved result enters view, the desktop host rechecks the topic's MCP
+selection and the server's tool declaration. The App renders inline after any
+declared external origins have been confirmed.
+
 ### Tool catalog reads never block on MCP
 
 `McpCatalogService` splits the MCP tool catalog into a **read** facade and a

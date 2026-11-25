@@ -858,6 +858,11 @@ export function useHomeMessageListProviderValue({
     ]
   )
 
+  const openMcpApp = useCallback<NonNullable<MessageListActions['openMcpApp']>>(
+    (messageId, toolCallId, requestId) => ipcApi.request('mcp.app.open', { topicId, messageId, toolCallId, requestId }),
+    [topicId]
+  )
+
   const actions = useMemo<MessageListActions>(
     () => ({
       loadOlder,
@@ -877,6 +882,7 @@ export function useHomeMessageListProviderValue({
       openPath,
       openCitationsPanel,
       abortTool,
+      openMcpApp: normalInteractionsEnabled ? openMcpApp : undefined,
       ...selectionController.actions,
       updateMessageUiState: messageUiStateCache.updateMessageUiState,
       updateRenderConfig,
@@ -899,6 +905,7 @@ export function useHomeMessageListProviderValue({
       renderRegenerateModelPicker
     }),
     [
+      openMcpApp,
       abortTool,
       abortMessageTranslation,
       bindMessageGroupRuntime,
