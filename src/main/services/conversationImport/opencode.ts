@@ -51,6 +51,11 @@ function layouts(db: Database.Database): Layout[] {
   return result
 }
 
+function sessionsWithMessages(layout: Layout) {
+  return `SELECT s.id, s.title FROM ${layout.session} s
+          WHERE EXISTS (SELECT 1 FROM ${layout.message} m WHERE m.session_id = s.id)`
+}
+
 export const opencodeAdapter: HistorySourceAdapter = {
   source: 'opencode',
   async *discover(root, signal) {
@@ -63,9 +68,7 @@ export const opencodeAdapter: HistorySourceAdapter = {
         const candidates = db.transaction(() => {
           const candidates = new Map<string, { path: string; originalSessionId: string; title: string }>()
           for (const layout of layouts(db)) {
-            for (const raw of db
-              .prepare('SELECT id, title FROM ' + layout.session + ' ORDER BY id LIMIT 10001')
-              .iterate()) {
+            for (const raw of db.prepare(sessionsWithMessages(layout) + ' ORDER BY s.id LIMIT 10001').iterate()) {
               signal.throwIfAborted()
               const row = z.object({ id: z.string(), title: z.string().nullable() }).parse(raw)
               if (!candidates.has(row.id))
@@ -97,9 +100,9 @@ export const opencodeAdapter: HistorySourceAdapter = {
     try {
       return db.transaction(() => {
         const detected = layouts(db)
-        const layout = detected.find((l) =>
-          db.prepare('SELECT 1 FROM ' + l.session + ' WHERE id = ?').get(ref.originalSessionId)
-        )
+        const layout =
+          detected.find((l) => db.prepare(sessionsWithMessages(l) + ' AND s.id = ?').get(ref.originalSessionId)) ??
+          detected.find((l) => db.prepare('SELECT 1 FROM ' + l.session + ' WHERE id = ?').get(ref.originalSessionId))
         if (!layout) throw new Error('source_changed')
         const sessionColumns =
           'id, title, directory, version, revert' +

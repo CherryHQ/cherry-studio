@@ -304,7 +304,6 @@ export class ConversationImportService extends BaseService {
           if (end > Date.now()) throw new Error('clock_skew')
           if (end === Date.now()) await delay(1, undefined, { signal: scan.abort.signal })
           scan.abort.signal.throwIfAborted()
-          const nativeSessionId = randomUUID()
           const result = application.get('DbService').withWriteTx((tx) => {
             const agent = agentService.getImportTargetTx(tx, preview.targetAgentId)
             if (end >= Date.now()) throw new Error('clock_skew')
@@ -312,6 +311,7 @@ export class ConversationImportService extends BaseService {
             if (existing) {
               return { sessionId: existing.id, agentId: existing.agentId, existing: true }
             }
+            const nativeSessionId = agent.type === 'pi' ? randomUUID() : null
             const sessionId = randomUUID()
             const workspace = item.directory
               ? {
@@ -355,8 +355,8 @@ export class ConversationImportService extends BaseService {
                 updatedAt: message.timestamp
               }))
             )
-            queueImportedHistoryTx(tx, sessionId, nativeSessionId, session.messages.length)
-            return { sessionId, agentId: agent.id, existing: false }
+            if (nativeSessionId) queueImportedHistoryTx(tx, sessionId, nativeSessionId, session.messages.length)
+            return { sessionId, agentId: agent.id, existing: false, nativeSessionId }
           })
           if (result.existing) {
             outcomes.push({ ref, status: 'existing', sessionId: result.sessionId, agentId: result.agentId })
@@ -372,7 +372,7 @@ export class ConversationImportService extends BaseService {
             initialization: 'ready'
           }
           try {
-            await ensureImportedSessionHistory(result.sessionId)
+            if (result.nativeSessionId) await ensureImportedSessionHistory(result.sessionId)
           } catch {
             outcome.initialization = 'failed'
           }

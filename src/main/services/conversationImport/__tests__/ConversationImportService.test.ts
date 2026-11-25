@@ -734,6 +734,22 @@ describe('local history atomic import', () => {
     })
     expect(counts()).toEqual([0, 0, 0, 0])
   })
+  it('imports durable history without allocating a legacy Pi resume token', async () => {
+    dbh.db.update(agentTable).set({ type: 'pi-durable' }).where(eq(agentTable.id, 'other')).run()
+    await source('durable', ['2026-01-02T00:00:00Z', '2026-01-01T00:00:00Z'])
+    const p = await preview('other')
+    const [result] = await service.commit('window', p.previewId, [p.items[0].ref])
+    expect(result).toMatchObject({ agentId: 'other', status: 'imported', initialization: 'ready' })
+    const newest = agentSessionMessageService.listSessionMessages(result.sessionId!, { limit: 1 })
+    const older = agentSessionMessageService.listSessionMessages(result.sessionId!, {
+      limit: 1,
+      cursor: newest.nextCursor
+    })
+    expect([newest.items[0].role, older.items[0].role]).toEqual(['assistant', 'user'])
+    expect(newest.items[0].createdAt < older.items[0].createdAt).toBe(true)
+    expect(getImportedHistoryState(result.sessionId!)).toBeFalsy()
+    expect(agentSessionMessageService.getLastRuntimeResumeToken(result.sessionId!)).toBeFalsy()
+  })
   it('does not let a target change create an orphan workspace', async () => {
     await source()
     const p = await preview()

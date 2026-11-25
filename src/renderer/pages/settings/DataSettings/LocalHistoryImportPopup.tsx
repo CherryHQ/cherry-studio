@@ -1,3 +1,4 @@
+import { RotateCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,18 +17,22 @@ import {
   DialogTitle,
   Input,
   Label,
-  SearchInput,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
-import type { HistorySource } from '@shared/data/types/conversationImport'
+import {
+  HISTORY_IMPORT_BATCH_SIZE,
+  type HistorySource,
+  supportsHistoryImport
+} from '@shared/data/types/conversationImport'
 import type {
   ImportCandidate,
   ImportFilterCounts,
@@ -125,6 +130,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   const [scan, setScan] = useState<{ scanId: string; candidates: ImportCandidate[]; filtered?: ImportFilterCounts }>()
   const [selections, setSelections] = useState<ImportSelection[]>([])
   const [results, setResults] = useState<Result[]>()
+  const [displayLimit, setDisplayLimit] = useState(100)
   const [filter, setFilter] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
@@ -171,6 +177,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
       .then((found) => {
         if (active) {
           setRoot(found.root)
+          setDisplayLimit(100)
           setScan(found)
           setResults((current) => current?.filter((result) => result.status !== 'filtered'))
         }
@@ -206,14 +213,13 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
   async function chooseFolder() {
     return window.api.file.selectFolder({ title: t('history_import.folder'), properties: ['openDirectory'] })
   }
-  const selectedTarget = agents?.items.find((agent) => agent.id === target)
-  const targetValid = selectedTarget?.type === 'pi'
-  const visibleCandidates = (scan?.candidates ?? [])
-    .filter(
-      (item) =>
-        !completedRefs.has(item.ref) && (item.title + item.sourcePath).toLowerCase().includes(filter.toLowerCase())
-    )
-    .slice(0, 100)
+  const targets = agents?.items.filter((agent) => supportsHistoryImport(agent.type))
+  const targetValid = targets?.some((agent) => agent.id === target)
+  const matchingCandidates = (scan?.candidates ?? []).filter(
+    (item) =>
+      !completedRefs.has(item.ref) && (item.title + item.sourcePath).toLowerCase().includes(filter.toLowerCase())
+  )
+  const visibleCandidates = matchingCandidates.slice(0, displayLimit)
   const filteredCounts: ImportFilterCounts = {
     codex_guardian_review: scan?.filtered?.codex_guardian_review ?? 0,
     claude_no_user_task: scan?.filtered?.claude_no_user_task ?? 0
@@ -226,52 +232,59 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
       filteredCounts[result.reason]++
   const filteredTotal = filteredCounts.codex_guardian_review + filteredCounts.claude_no_user_task
   const selectedRefs = new Set(selections.map((item) => item.ref))
-  const visibleSelected = visibleCandidates.filter((item) => selectedRefs.has(item.ref)).length
+  const matchingSelected = matchingCandidates.filter((item) => selectedRefs.has(item.ref)).length
   async function importSelected() {
     if (!scan || !targetValid || !selections.length) return
-    const checked = await ipcApi.request('conversation_import.preview', {
-      scanId: scan.scanId,
-      targetAgentId: target,
-      selections
-    })
-    setReviewItems(checked.items)
-    const outcomes = await ipcApi.request('conversation_import.commit', {
-      previewId: checked.previewId,
-      refs: checked.items.map((item) => item.ref)
-    })
-    const nextResults: Result[] = outcomes.map((outcome) => {
-      const item = checked.items.find((item) => item.ref === outcome.ref)
-      return {
-        ...outcome,
-        preview: outcome.status === 'imported' ? item : undefined,
-        title: item?.title ?? '',
-        terminal:
-          (outcome.status === 'failed' || outcome.status === 'unprocessed') &&
-          ((item ? cannotImport(item) : false) || isTerminalProblem(outcome.reason ?? '')),
-        problemCodes: item ? blockingProblemCodes(item) : []
-      }
-    })
-    setResults((current) => [
-      ...(current ?? []).filter((result) => !outcomes.some((outcome) => outcome.ref === result.ref)),
-      ...nextResults
-    ])
-    const completed = new Set(
-      nextResults
-        .filter(
-          (outcome) =>
-            outcome.status === 'imported' ||
-            outcome.status === 'existing' ||
-            outcome.status === 'filtered' ||
-            outcome.terminal
-        )
-        .map((outcome) => outcome.ref)
-    )
-    setSelections((current) => current.filter((selection) => !completed.has(selection.ref)))
-    setIssuesOpen(
-      outcomes.some(
+    setReviewItems([])
+    let hasIssues = false
+    for (let start = 0; start < selections.length; start += HISTORY_IMPORT_BATCH_SIZE) {
+      const checked = await ipcApi.request('conversation_import.preview', {
+        scanId: scan.scanId,
+        targetAgentId: target,
+        selections: selections.slice(start, start + HISTORY_IMPORT_BATCH_SIZE)
+      })
+      setReviewItems((current) => [
+        ...current,
+        ...checked.items.filter((item) => item.diagnostics.some((diagnostic) => diagnostic.severity === 'error'))
+      ])
+      const outcomes = await ipcApi.request('conversation_import.commit', {
+        previewId: checked.previewId,
+        refs: checked.items.map((item) => item.ref)
+      })
+      const nextResults: Result[] = outcomes.map((outcome) => {
+        const item = checked.items.find((item) => item.ref === outcome.ref)
+        return {
+          ...outcome,
+          preview: outcome.status === 'imported' ? item : undefined,
+          title: item?.title ?? '',
+          terminal:
+            (outcome.status === 'failed' || outcome.status === 'unprocessed') &&
+            ((item ? cannotImport(item) : false) || isTerminalProblem(outcome.reason ?? '')),
+          problemCodes: item ? blockingProblemCodes(item) : []
+        }
+      })
+      setResults((current) => [
+        ...(current ?? []).filter((result) => !outcomes.some((outcome) => outcome.ref === result.ref)),
+        ...nextResults
+      ])
+      const completed = new Set(
+        nextResults
+          .filter(
+            (outcome) =>
+              outcome.status === 'imported' ||
+              outcome.status === 'existing' ||
+              outcome.status === 'filtered' ||
+              outcome.terminal
+          )
+          .map((outcome) => outcome.ref)
+      )
+      setSelections((current) => current.filter((selection) => !completed.has(selection.ref)))
+      hasIssues ||= outcomes.some(
         (result) => result.status === 'failed' || result.status === 'unprocessed' || result.initialization === 'failed'
       )
-    )
+      if (outcomes.some((result) => result.status === 'unprocessed' || result.reason === 'target_changed')) break
+    }
+    setIssuesOpen(hasIssues)
   }
   return (
     <>
@@ -283,7 +296,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
             resolve()
           }
         }}>
-        <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-3xl">
+        <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
               {t('history_import.title')} · {t(sourceLabels[source])}
@@ -294,142 +307,166 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
               {t('history_import.results.imported')} · {results.filter((result) => result.status === 'imported').length}
             </p>
           )}
-          <div className="min-h-0 space-y-4 overflow-y-auto">
-            <p className="text-sm text-muted-foreground">{t('history_import.description')}</p>
+          <div
+            className="min-h-0 space-y-4 overflow-y-auto"
+            onScroll={(event) => {
+              const panel = event.currentTarget
+              if (
+                visibleCandidates.length < matchingCandidates.length &&
+                panel.scrollHeight - panel.scrollTop - panel.clientHeight < 48
+              )
+                setDisplayLimit(visibleCandidates.length + 100)
+            }}>
             {scan && scan.candidates.every((item) => completedRefs.has(item.ref)) && filteredTotal > 0 && (
               <p className="text-sm text-muted-foreground">{t('history_import.filtered_empty')}</p>
             )}
             {showPicker && (
               <>
-                <Label htmlFor="history-import-target">{t('history_import.target')}</Label>
-                <Select
-                  value={target}
-                  disabled={busy}
-                  onValueChange={(value) => {
-                    setTarget(value)
-                    setReviewItems([])
-                  }}>
-                  <SelectTrigger id="history-import-target">
-                    <SelectValue placeholder={t('history_import.target')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {agents?.items.map((agent) => (
-                      <SelectItem key={agent.id} value={agent.id} disabled={agent.type !== 'pi'}>
-                        {agent.name}
-                        {agent.type !== 'pi' ? ' · ' + t('history_import.unsupported_target') : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!agents?.items.some((agent) => agent.type === 'pi') && (
-                  <p role="status">{t('history_import.no_target')}</p>
-                )}
-                <Button variant="ghost" disabled={busy} onClick={() => void refetch()}>
-                  {t('common.refresh')}
-                </Button>
-                <Label htmlFor="history-import-root">{t('history_import.storage')}</Label>
-                <div className="flex gap-2">
-                  <Input
-                    ref={rootInput}
-                    id="history-import-root"
-                    value={root}
-                    placeholder={t('history_import.default_location')}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Select
+                    value={target}
                     disabled={busy}
-                    onChange={(event) => {
-                      setRoot(event.target.value)
-                      setScan(undefined)
-                      setSelections([])
-
+                    onValueChange={(value) => {
+                      setTarget(value)
                       setReviewItems([])
-                    }}
-                  />
+                    }}>
+                    <SelectTrigger aria-label={t('history_import.target')}>
+                      <SelectValue placeholder={t('history_import.target')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {targets?.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button
-                    variant="outline"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t('common.refresh')}
+                    title={t('common.refresh')}
                     disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        const directory = await chooseFolder()
-                        if (directory) {
-                          setRoot(directory)
+                    onClick={() => void refetch()}>
+                    <RotateCw size={16} />
+                  </Button>
+                </div>
+                {targets?.length === 0 && <p role="status">{t('history_import.no_target')}</p>}
+                <details className="text-sm" open={error || undefined}>
+                  <summary className="cursor-pointer text-muted-foreground">{t('history_import.storage')}</summary>
+                  <div className="space-y-3 pt-3">
+                    <Label className="sr-only" htmlFor="history-import-root">
+                      {t('history_import.storage')}
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        ref={rootInput}
+                        id="history-import-root"
+                        value={root}
+                        placeholder={t('history_import.default_location')}
+                        disabled={busy}
+                        onChange={(event) => {
+                          setRoot(event.target.value)
                           setScan(undefined)
                           setSelections([])
 
                           setReviewItems([])
-                        }
-                      })
-                    }>
-                    {t('history_import.folder')}
-                  </Button>
-                  <Button
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        setReviewItems([])
-                        setSelections([])
-                        setScan(undefined)
-                        const found = await ipcApi.request('conversation_import.discover', {
-                          source,
-                          ...(root ? { root } : {})
-                        })
-                        setScan(found)
-                        setResults((current) => current?.filter((result) => result.status !== 'filtered'))
-                      })
-                    }>
-                    {t('history_import.scan')}
-                  </Button>
-                </div>
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async () => {
+                            const directory = await chooseFolder()
+                            if (directory) {
+                              setRoot(directory)
+                              setScan(undefined)
+                              setSelections([])
+
+                              setReviewItems([])
+                            }
+                          })
+                        }>
+                        {t('history_import.folder')}
+                      </Button>
+                      <Button
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async () => {
+                            setReviewItems([])
+                            setSelections([])
+                            setScan(undefined)
+                            const found = await ipcApi.request('conversation_import.discover', {
+                              source,
+                              ...(root ? { root } : {})
+                            })
+                            setDisplayLimit(100)
+                            setScan(found)
+                            setResults((current) => current?.filter((result) => result.status !== 'filtered'))
+                          })
+                        }>
+                        {t('history_import.scan')}
+                      </Button>
+                    </div>
+                  </div>
+                </details>
                 {scan && (
                   <>
-                    <SearchInput
-                      aria-label={t('common.search')}
-                      placeholder={t('common.search')}
-                      value={filter}
-                      disabled={busy}
-                      onChange={(event) => setFilter(event.target.value)}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      {t('history_import.selection', { selected: selections.length, total: scan.candidates.length })}
-                    </p>
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id="history-select-all"
                         checked={
-                          visibleCandidates.length > 0 && visibleSelected === visibleCandidates.length
+                          matchingCandidates.length > 0 && matchingSelected === matchingCandidates.length
                             ? true
-                            : visibleSelected > 0
+                            : matchingSelected > 0
                               ? 'indeterminate'
                               : false
                         }
-                        disabled={
-                          busy || !visibleCandidates.length || (selections.length >= 100 && visibleSelected === 0)
-                        }
+                        disabled={busy || !matchingCandidates.length}
                         onCheckedChange={(checked) => {
-                          const visibleRefs = new Set(visibleCandidates.map((item) => item.ref))
+                          const matchingRefs = new Set(matchingCandidates.map((item) => item.ref))
                           setSelections((current) =>
                             checked === true
                               ? [
                                   ...current,
-                                  ...visibleCandidates
+                                  ...matchingCandidates
                                     .filter((item) => !selectedRefs.has(item.ref))
                                     .map((item) => ({ ref: item.ref }))
-                                ].slice(0, 100)
-                              : current.filter((item) => !visibleRefs.has(item.ref))
+                                ]
+                              : current.filter((item) => !matchingRefs.has(item.ref))
                           )
                           setReviewItems([])
                         }}
                       />
                       <Label htmlFor="history-select-all">{t('common.select_all')}</Label>
+                      <div className="ml-auto flex min-w-0 items-center justify-end gap-2" inert={busy}>
+                        <CollapsibleSearchBar
+                          value={filter}
+                          onSearch={(value) => {
+                            setFilter(value)
+                            setDisplayLimit(100)
+                          }}
+                          maxWidth={180}
+                        />
+                      </div>
+                      <span className="shrink-0 text-xs text-muted-foreground" aria-live="polite">
+                        {t('common.selected')} {selections.length} / {scan.candidates.length}
+                      </span>
                     </div>
-                    <div className="space-y-3">
+                    {visibleCandidates.length === 0 && !filteredTotal && (
+                      <p className="py-4 text-center text-sm text-muted-foreground">{t('common.no_results')}</p>
+                    )}
+                    <div className="divide-y">
                       {visibleCandidates.map((item) => (
                         <div
                           key={item.ref}
-                          className="flex min-h-20 items-center gap-3 rounded-lg border bg-card px-4 py-3 text-card-foreground transition-shadow hover:shadow-md motion-reduce:transition-none"
+                          className="flex min-h-10 items-center gap-3 px-2 py-2 hover:bg-muted/50 data-[selected=true]:bg-muted/40"
                           data-selected={selectedRefs.has(item.ref)}>
                           <Checkbox
                             id={item.ref}
-                            checked={selections.some((s) => s.ref === item.ref)}
-                            disabled={busy || (selections.length >= 100 && !selections.some((s) => s.ref === item.ref))}
+                            checked={selectedRefs.has(item.ref)}
+                            disabled={busy}
                             onCheckedChange={(checked) => {
                               setSelections((current) =>
                                 checked === true
@@ -440,13 +477,12 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                               setReviewItems([])
                             }}
                           />
-                          <Label htmlFor={item.ref} className="block min-w-0 flex-1 cursor-pointer space-y-2">
-                            <span className="block truncate text-sm font-medium" title={item.title}>
-                              {item.title}
-                            </span>
-                            <span className="block truncate text-xs text-muted-foreground" title={item.sourcePath}>
-                              {item.sourcePath}
-                            </span>
+                          <Label
+                            htmlFor={item.ref}
+                            className="block min-w-0 flex-1 cursor-pointer"
+                            title={item.sourcePath}>
+                            <span className="block truncate text-sm font-medium">{item.title}</span>
+                            <span className="sr-only">{item.sourcePath}</span>
                           </Label>
                         </div>
                       ))}
@@ -464,49 +500,60 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                   </p>
                   <p>{t(resultLabels[result.status])}</p>
                   {result.preview && (
-                    <>
-                      <p className="text-sm text-muted-foreground">
-                        {t('history_import.details', {
-                          count: result.preview.messageCount,
-                          models: result.preview.models.join(', '),
-                          start: result.preview.startedAt ?? '',
-                          end: result.preview.endedAt ?? ''
-                        })}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {t('history_import.losses', {
-                          skipped: result.preview.skippedRecords,
-                          downgraded: result.preview.downgradedParts
-                        })}
-                      </p>
-                      {result.preview.diagnostics.some(({ severity }) => severity === 'warning') && (
-                        <Accordion type="single" collapsible>
-                          <AccordionItem value="warnings">
-                            <AccordionTrigger className="text-warning">{t('history_import.warnings')}</AccordionTrigger>
-                            <AccordionContent className="space-y-3">
-                              {result.preview.diagnostics
-                                .filter(({ severity }) => severity === 'warning')
-                                .map((diagnostic, index) => (
-                                  <div key={index} className="space-y-1">
-                                    <p>
-                                      {t(
-                                        problem(diagnostic.code) === 'history_import.problems.unsupported'
-                                          ? 'history_import.warning_unsupported'
-                                          : problem(diagnostic.code)
-                                      )}
-                                    </p>
-                                    <p className="break-all text-xs text-muted-foreground">
-                                      {diagnostic.path}
-                                      {diagnostic.line !== undefined &&
-                                        ' · ' + t('history_import.line', { line: diagnostic.line })}
-                                    </p>
-                                  </div>
-                                ))}
-                            </AccordionContent>
-                          </AccordionItem>
-                        </Accordion>
-                      )}
-                    </>
+                    <details
+                      className="text-sm"
+                      open={
+                        result.preview.skippedRecords > 0 ||
+                        result.preview.downgradedParts > 0 ||
+                        result.preview.diagnostics.some(({ severity }) => severity === 'warning')
+                      }>
+                      <summary className="cursor-pointer text-muted-foreground">{t('common.more')}</summary>
+                      <div className="space-y-2 pt-2">
+                        <p className="text-sm text-muted-foreground">
+                          {t('history_import.details', {
+                            count: result.preview.messageCount,
+                            models: result.preview.models.join(', '),
+                            start: result.preview.startedAt ?? '',
+                            end: result.preview.endedAt ?? ''
+                          })}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {t('history_import.losses', {
+                            skipped: result.preview.skippedRecords,
+                            downgraded: result.preview.downgradedParts
+                          })}
+                        </p>
+                        {result.preview.diagnostics.some(({ severity }) => severity === 'warning') && (
+                          <Accordion type="single" collapsible>
+                            <AccordionItem value="warnings">
+                              <AccordionTrigger className="text-warning">
+                                {t('history_import.warnings')}
+                              </AccordionTrigger>
+                              <AccordionContent className="space-y-3">
+                                {result.preview.diagnostics
+                                  .filter(({ severity }) => severity === 'warning')
+                                  .map((diagnostic, index) => (
+                                    <div key={index} className="space-y-1">
+                                      <p>
+                                        {t(
+                                          problem(diagnostic.code) === 'history_import.problems.unsupported'
+                                            ? 'history_import.warning_unsupported'
+                                            : problem(diagnostic.code)
+                                        )}
+                                      </p>
+                                      <p className="break-all text-xs text-muted-foreground">
+                                        {diagnostic.path}
+                                        {diagnostic.line !== undefined &&
+                                          ' · ' + t('history_import.line', { line: diagnostic.line })}
+                                      </p>
+                                    </div>
+                                  ))}
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
+                        )}
+                      </div>
+                    </details>
                   )}
                   {result.initialization === 'failed' && (
                     <Button
@@ -576,7 +623,8 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             if (importButton.current && !importButton.current.disabled) importButton.current.focus()
-            else rootInput.current?.focus()
+            else if (rootInput.current?.closest('details')?.open) rootInput.current.focus()
+            else rootInput.current?.closest('details')?.querySelector('summary')?.focus()
           }}>
           <DialogHeader>
             <DialogTitle ref={errorTitle} tabIndex={-1}>
