@@ -192,6 +192,7 @@ const ThinkingBlock: React.FC<Props> = ({
         }}>
         <ThinkingEffect
           thinkingTimeText={<ThinkingTimeSeconds isThinking={isThinking} />}
+          isExpanded={effectiveExpanded}
           trailing={
             isThinking ? (
               <>

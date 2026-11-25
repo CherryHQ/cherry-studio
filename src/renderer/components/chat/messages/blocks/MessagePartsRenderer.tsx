@@ -119,6 +119,7 @@ import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
 import RetryStatusBlock from './RetryStatusBlock'
 import { SubagentStatusContext } from './SubagentStatusContext'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
+import { normalizeThinkingPreview } from './thinkingPreview'
 import {
   getToolFoldTitle,
   hasToolIntent,
@@ -844,6 +845,7 @@ function renderPart(
           content={reasoningPart.text || ''}
           livePart={isReasoningStreaming ? reasoningPart : undefined}
           isStreaming={isReasoningStreaming}
+          showTitlePreview
         />
       )
     }
@@ -1287,22 +1289,22 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
   return result
 }
 
-function hasVisibleReasoningInCompletedHistory(entries: readonly PartEntry[], messageId: string): boolean {
-  // Mirror renderNestedHistory's disclosure filtering: a process segment hides
-  // all of its reasoning when any of its renderable tools carries an intent.
-  // The outer sync must use the same visible-reasoning rule, otherwise a
-  // history that displays only tool steps would still sync and override manual state.
-  if (!entries.some((entry) => isReasoningMessagePart(entry.part))) return false
+function getCompletedReasoningPreview(entries: readonly PartEntry[], messageId: string): string | undefined {
+  if (!entries.some((entry) => isReasoningMessagePart(entry.part))) return undefined
 
+  // Match the history disclosure: a tool intent hides reasoning in its own segment.
+  const previews: string[] = []
   for (const item of groupNestedHistoryEntries(entries)) {
-    if (item.kind !== 'process') continue
-    if (!item.entries.some((entry) => isReasoningMessagePart(entry.part))) continue
-    const toolItems = buildToolRenderItems(item.entries, messageId, true)
-    if (toolItems.length === 0) return true
-    if (!toolItems.some(hasToolIntent)) return true
-  }
+    if (item.kind !== 'process' || !item.entries.some((entry) => isReasoningMessagePart(entry.part))) continue
+    if (buildToolRenderItems(item.entries, messageId, true).some(hasToolIntent)) continue
 
-  return false
+    for (const { part } of item.entries) {
+      if (part.type !== 'reasoning') continue
+      const preview = normalizeThinkingPreview(part.text || '')
+      if (preview) previews.push(preview)
+    }
+  }
+  return previews.join(' ') || undefined
 }
 
 function renderNestedHistory(
@@ -1651,11 +1653,9 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   if (!completedLayout) return null
 
   const completedHistoryEntries = completedLayout.historyEntries
-  const completedHasVisibleReasoning = hasVisibleReasoningInCompletedHistory(completedHistoryEntries, message.id)
-  // Preference-driven sync target for the outer group. Undefined for tool-only
-  // histories (including reasoning hidden behind tool intents) so toggling the
-  // thinking setting leaves manual tool state alone.
-  const reasoningSyncTarget = completedHasVisibleReasoning ? !thoughtAutoCollapse : undefined
+  const completedReasoningPreview = getCompletedReasoningPreview(completedHistoryEntries, message.id)
+  // Tool-only histories keep their own disclosure state when the thinking setting changes.
+  const reasoningSyncTarget = completedReasoningPreview === undefined ? undefined : !thoughtAutoCollapse
 
   const renderCompletedHistory = (isExpanded: boolean) =>
     isExpanded
@@ -1730,6 +1730,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         outcome={completedHasError ? 'error' : 'success'}
         defaultExpanded={reasoningSyncTarget === true || (!completedHistoryIsOversized && expandToolSteps)}
         syncExpanded={reasoningSyncTarget}
+        reasoningPreview={completedReasoningPreview}
         message={message}
         toolItems={completedToolItems}>
         {renderCompletedHistory}
