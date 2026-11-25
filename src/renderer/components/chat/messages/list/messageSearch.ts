@@ -8,6 +8,7 @@ import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import type { MessageListItem } from '../types'
 import { groupMessageListItems } from '../utils/messageGroupKey'
 import { isAssistantMultiModelGroup } from '../utils/messageGroupLayout'
+import { getMessageListPartId } from '../utils/messageListItem'
 
 interface MessageSearchDocument {
   messageId: string
@@ -98,7 +99,7 @@ function projectMessageSearchDocuments(
       return [
         {
           messageId: message.id,
-          partId: `${message.id}-part-${entry.index}`,
+          partId: getMessageListPartId(message, entry.index),
           role: message.role,
           text: getPartSearchText(entry.part, message.role === 'assistant' || options.renderUserTextAsMarkdown),
           sourcePart: entry.part

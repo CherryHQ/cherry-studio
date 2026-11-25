@@ -66,6 +66,7 @@ export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.ext
   id: z.string(),
   /** Session ID this message belongs to */
   sessionId: z.string(),
+  partIds: z.array(z.string()).optional(),
   siblings: z.array(z.string()).optional(),
   historyActions: AgentSessionHistoryActionsSchema.optional(),
   searchableText: z.string(),

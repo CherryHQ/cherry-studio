@@ -21,7 +21,9 @@ import type { StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManag
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { MessageSnapshot } from '@shared/data/types/message'
+import { IpcChannel } from '@shared/IpcChannel'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { AgentSessionRuntimeService } from '../AgentSessionRuntimeService'
@@ -832,9 +834,27 @@ it('keeps queued input unwritten through nested pause holds, then sends it once 
   first.dispose()
   await Promise.resolve()
   expect(f.starts).toHaveLength(0)
+  const observed = new Map<string, string>()
+  MockApplicationUtils.setService('WindowManager', {
+    broadcast(channel: IpcChannel, effects: DataApiDataChangeEffect[]) {
+      if (channel !== IpcChannel.DataApi_DataChanged) return
+      if (
+        effects.some(
+          (effect) =>
+            effect.endpoint === '/agent-sessions/:sessionId/messages' &&
+            effect.kind === 'membership' &&
+            effect.routeParams?.sessionId === 'root'
+        )
+      ) {
+        for (const row of messages.listSessionMessages('root', { deferToolOutputs: true }).items)
+          observed.set(row.id, row.status)
+      }
+    }
+  })
   last.dispose()
   await vi.waitFor(() => expect(f.starts).toHaveLength(1))
   const reply = f.starts[0].request.messageId!
+  expect(observed.get(reply)).toBe('pending')
   expect(messages.getSessionMessage('root', reply).messageSnapshot).toEqual(snapshot)
   expect(
     dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, reply)).get()?.parentId

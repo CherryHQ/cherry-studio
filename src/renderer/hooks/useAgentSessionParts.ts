@@ -70,6 +70,7 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
     id: row.id,
     role: row.role,
     parts: row.data.parts ?? [],
+    partIds: row.partIds,
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined
   }
 }
@@ -164,11 +165,16 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [sessionId]
   )
   const membership = useHistoryPageProjection(pages, sessionMembership, keepMembership)
-  const replyHistory = useHistoryRowUpdates(pages, membership.byId, sessionRows, readRow, writePage)
+  const rows = useHistoryRowUpdates(pages, membership.byId, sessionRows, readRow, writePage)
+  const membershipUncertain = isRefreshing || !!error
+  const replyHistory = useMemo(() => ({ ...rows, membershipUncertain }), [rows, membershipUncertain])
   useDataChange(
     '/agent-sessions/:sessionId/messages',
     (effects) => {
-      if (enabled) applyHistoryChanges(effects, replyHistory, mutate)
+      if (!enabled) return
+      if (error && effects.some((effect) => effect.entityIds?.some((id) => !rows.has(id)))) {
+        void mutate()
+      } else applyHistoryChanges(effects, rows, mutate)
     },
     { routeParams: { sessionId } }
   )

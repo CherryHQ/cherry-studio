@@ -15,6 +15,7 @@ const pageReads = new WeakMap<object, Map<string, Read>>()
 
 export interface ReplyHistory {
   loaded: boolean
+  membershipUncertain?: boolean
   has(id: string): boolean
   get(id: string): Row | undefined
   refreshRow(id: string): Promise<void>

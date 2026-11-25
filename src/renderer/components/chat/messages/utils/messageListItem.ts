@@ -62,6 +62,10 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
   }
 }
 
+export function getMessageListPartId(message: Pick<MessageListItem, 'id' | 'partIds'>, index: number): string {
+  return message.partIds?.[index] ?? `${message.id}-part-${index}`
+}
+
 export function getMessageListItemModel(message: MessageListItem): Model | undefined {
   if (message.model) {
     return {

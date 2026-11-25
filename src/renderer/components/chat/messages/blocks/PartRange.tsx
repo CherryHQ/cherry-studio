@@ -10,27 +10,73 @@ function Cell<T>({ item, render, last }: { item: T; render: Render<T>; last: boo
 }
 const PartCell = React.memo(Cell) as typeof Cell
 
-function PartRangeView<T>({ range, render, last = false }: { range?: Range<T>; render: Render<T>; last?: boolean }) {
-  if (!range) return null
-  if (range.size <= 32) {
-    const cells: React.ReactNode[] = []
-    function visit(node: Range<T>, atEnd: boolean) {
-      if ('item' in node) cells.push(<PartCell key={node.key} item={node.item} render={render} last={atEnd} />)
-      else {
-        visit(node.left, false)
-        visit(node.right, atEnd)
-      }
+type CellValue<T> = { key: string; item: T }
+type Partition<T> = { key: string; cells: CellValue<T>[] } | { key: string; groups: CellRange<T>[] }
+export type CellRange<T> = Range<T> | Partition<T>
+
+function partition<T>(range: CellRange<T>): Partition<T> {
+  if ('groups' in range || 'cells' in range) return range
+  if (range.size > 32 && 'left' in range) return { key: range.key, groups: [range.left, range.right] }
+  const cells: CellValue<T>[] = []
+  function visit(node: Range<T>) {
+    if ('item' in node) cells.push(node)
+    else {
+      visit(node.left)
+      visit(node.right)
     }
-    visit(range, last)
-    return cells
   }
-  if ('item' in range) return render(range.item, last)
-  return (
-    <>
-      <PartRange key={range.left.key} range={range.left} render={render} />
-      <PartRange key={range.right.key} range={range.right} render={render} last={last} />
-    </>
-  )
+  visit(range)
+  return { key: range.key, cells }
+}
+
+/** Keep each surviving cell's mounted parent as completed grouping combines or removes neighbors. */
+export function reconcileResultCells<T>(
+  previous: CellRange<unknown> | undefined,
+  entries: readonly T[],
+  getKey: (entry: T) => string
+): Partition<T> | undefined {
+  if (!entries.length) return
+  const cells = entries.map((item) => ({ key: getKey(item), item }))
+  if (!previous) return { key: cells[0].key, cells }
+  const positions = new Map(cells.map((cell, index) => [cell.key, index]))
+  let next = 0
+  function replace(range: CellRange<unknown>, last: boolean): Partition<T> | undefined {
+    const group = partition(range)
+    if ('groups' in group) {
+      const groups = group.groups.flatMap(
+        (child, index) => replace(child, last && index === group.groups.length - 1) ?? []
+      )
+      return groups.length ? { key: group.key, groups } : undefined
+    }
+    const start = next
+    for (const cell of group.cells) {
+      const position = positions.get(cell.key)
+      if (position !== undefined && position >= next) next = position + 1
+    }
+    if (last) next = cells.length
+    return start < next ? { key: group.key, cells: cells.slice(start, next) } : undefined
+  }
+  return replace(previous, true)
+}
+
+function PartRangeView<T>({
+  range,
+  render,
+  last = false
+}: {
+  range?: CellRange<T>
+  render: Render<T>
+  last?: boolean
+}) {
+  if (!range) return null
+  const group = partition(range)
+  if ('groups' in group)
+    return group.groups.map((child, index) => (
+      <PartRange key={child.key} range={child} render={render} last={last && index === group.groups.length - 1} />
+    ))
+  return group.cells.map(({ key, item }, index) => (
+    <PartCell key={key} item={item} render={render} last={last && index === group.cells.length - 1} />
+  ))
 }
 export const PartRange = React.memo(PartRangeView) as typeof PartRangeView
 

@@ -23,30 +23,40 @@ const SQLITE_INARRAY_CHUNK = 500
 export type AgentSessionMessageData = AgentSessionMessageStoredData & { parts?: CherryMessagePart[] }
 export type WithAgentSessionMessageParts<T extends { data: AgentSessionMessageStoredData }> = Omit<T, 'data'> & {
   data: T['data'] & { parts: CherryMessagePart[] }
+  partIds?: string[]
 }
 export type AgentSessionMessageRecord = WithAgentSessionMessageParts<AgentSessionMessageRow>
 
 /** Attaches each message's ordered parts; the part table is the only persisted body source. */
 export function attachAgentSessionMessagePartsTx<T extends { id: string; data: AgentSessionMessageStoredData }>(
   db: DbOrTx,
-  rows: T[]
+  rows: T[],
+  includePartIds = false
 ): WithAgentSessionMessageParts<T>[] {
-  const partsByMessageId = new Map<string, CherryMessagePart[]>()
+  const bodies = new Map(
+    rows.map(({ id }) => [
+      id,
+      { parts: [] as CherryMessagePart[], partIds: includePartIds ? ([] as string[]) : undefined }
+    ])
+  )
   const ids = rows.map((row) => row.id)
   for (let index = 0; index < ids.length; index += SQLITE_INARRAY_CHUNK) {
     const stored = db
-      .select({ messageId: messageParts.messageId, payload: messageParts.payload })
+      .select({ id: messageParts.id, messageId: messageParts.messageId, payload: messageParts.payload })
       .from(messageParts)
       .where(inArray(messageParts.messageId, ids.slice(index, index + SQLITE_INARRAY_CHUNK)))
       .orderBy(asc(messageParts.messageId), asc(messageParts.seq))
       .all()
     for (const part of stored) {
-      const parts = partsByMessageId.get(part.messageId)
-      if (parts) parts.push(part.payload)
-      else partsByMessageId.set(part.messageId, [part.payload])
+      const body = bodies.get(part.messageId)!
+      body.partIds?.push(part.id)
+      body.parts.push(part.payload)
     }
   }
-  return rows.map((row) => ({ ...row, data: { ...row.data, parts: partsByMessageId.get(row.id) ?? [] } }))
+  return rows.map((row) => {
+    const { partIds, parts } = bodies.get(row.id)!
+    return { ...row, ...(partIds && { partIds }), data: { ...row.data, parts } }
+  })
 }
 
 /** Splits assembled data into the container's stored metadata and its ordered body parts. */

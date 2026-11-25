@@ -80,7 +80,7 @@ export function useHistoryReplies(
         const result = handoff?.topicId === topicId ? handoff?.attempts.get(execution.attemptId) : undefined
         if (id && history.loaded && (result || ready)) {
           const row = history.get(id)
-          if (!row) return []
+          if (!row && (result?.accepted || !history.membershipUncertain)) return []
           if (historyOwns(row, result)) return []
         }
         return [message]

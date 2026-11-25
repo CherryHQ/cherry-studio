@@ -109,7 +109,8 @@ describe('Agent message tree', () => {
         }
       ]
     }
-    service.saveMessage({ sessionId, message: { role: 'assistant', data } })
+    const partIds = [crypto.randomUUID()]
+    const answer = service.saveMessage({ sessionId, partIds, message: { role: 'assistant', data } })
     const user = service.saveMessage({
       sessionId,
       message: { role: 'user', data: { parts: [{ type: 'text', text: 'user text' }] } }
@@ -117,6 +118,8 @@ describe('Agent message tree', () => {
     const page = service.listSessionMessages(sessionId, { deferToolOutputs: true })
     expect(page.items[0].data).toEqual(user.data)
     expect(page.items[1].data.parts).toEqual(data.parts)
+    expect(page.items[1].partIds).toEqual(partIds)
+    expect(service.getSessionMessage(sessionId, answer.id, { deferToolOutputs: true }).partIds).toEqual(partIds)
   })
 
   it('keeps both sibling paths and routes late output to the captured parent without changing selection', () => {

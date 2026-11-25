@@ -6310,18 +6310,21 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       expect(getEntry(service).currentTurn.assistantMessageId).toBe(reservedContext?.assistantMessageId)
-      expect(mocks.saveMessage).toHaveBeenLastCalledWith({
-        sessionId: 'session-1',
-        parentId: 'user-2',
-        message: {
-          id: reservedContext?.assistantMessageId,
-          role: 'assistant',
-          status: 'pending',
-          data: { parts: [] },
-          modelId: baseTurnInput.modelId,
-          messageSnapshot: continuationSnapshot
-        }
-      })
+      expect(mocks.saveMessage).toHaveBeenLastCalledWith(
+        {
+          sessionId: 'session-1',
+          parentId: 'user-2',
+          message: {
+            id: reservedContext?.assistantMessageId,
+            role: 'assistant',
+            status: 'pending',
+            data: { parts: [] },
+            modelId: baseTurnInput.modelId,
+            messageSnapshot: continuationSnapshot
+          }
+        },
+        { publishDataChange: true }
+      )
 
       const continuationTurnId = getEntry(service).currentTurn.turnId
       onTurnTerminal.mockClear()
@@ -6838,18 +6841,21 @@ describe('AgentSessionRuntimeService', () => {
 
     await (service as any).startNextTurn(entry)
 
-    expect(mocks.saveMessage).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      parentId: 'user-2',
-      message: {
-        id: expect.any(String),
-        messageSnapshot: undefined,
-        role: 'assistant',
-        status: 'pending',
-        data: { parts: [] },
-        modelId: 'claude-code::claude-sonnet-4-5'
-      }
-    })
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      {
+        sessionId: 'session-1',
+        parentId: 'user-2',
+        message: {
+          id: expect.any(String),
+          messageSnapshot: undefined,
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: [] },
+          modelId: 'claude-code::claude-sonnet-4-5'
+        }
+      },
+      { publishDataChange: true }
+    )
     expect(mocks.startRuntimeTurn).toHaveBeenCalledWith({
       taskIds: ['user-2'],
       topicId: 'agent-session:session-1',
@@ -6891,9 +6897,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.startRuntimeTurn.mockClear()
     await (service as any).startNextTurn(entry)
     const expectedModel = headless ? baseTurnInput.modelId : switchedModelId
-    expect(mocks.saveMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ message: expect.objectContaining({ modelId: expectedModel }) })
-    )
+    expect(mocks.saveMessage.mock.lastCall?.[0]).toMatchObject({ message: { modelId: expectedModel } })
     expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: expectedModel }))
     mocks.getSessionById.mockReturnValue(undefined)
   })
@@ -6914,18 +6918,21 @@ describe('AgentSessionRuntimeService', () => {
     mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', model: null })
     await (service as any).startNextTurn(entry)
 
-    expect(mocks.saveMessage).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      parentId: 'user-2',
-      message: {
-        id: expect.any(String),
-        messageSnapshot: undefined,
-        role: 'assistant',
-        status: 'pending',
-        data: { parts: [] },
-        modelId: switchedModelId
-      }
-    })
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      {
+        sessionId: 'session-1',
+        parentId: 'user-2',
+        message: {
+          id: expect.any(String),
+          messageSnapshot: undefined,
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: [] },
+          modelId: switchedModelId
+        }
+      },
+      { publishDataChange: true }
+    )
     expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(
       expect.objectContaining({
         modelId: switchedModelId

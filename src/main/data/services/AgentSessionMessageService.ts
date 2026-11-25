@@ -1745,7 +1745,8 @@ export class AgentSessionMessageService {
       .prepare()
     const storedRows = attachAgentSessionMessagePartsTx(
       database,
-      pageRows.map(({ id }) => readRow.get({ id })!)
+      pageRows.map(({ id }) => readRow.get({ id })!),
+      options.deferToolOutputs
     )
     const items = this.toHistoryMessages(database, sessionId, storedRows, options.deferToolOutputs)
     const tail = pageRows[pageRows.length - 1]
@@ -1783,10 +1784,15 @@ export class AgentSessionMessageService {
         entity.data.parts = projectMessagePartsForRenderer(
           entity.data.parts,
           buildAgentSessionTopicId(sessionId),
-          entity.id
+          entity.id,
+          row.partIds
         )
       }
-      return { ...entity, siblings: siblingsByParent.get(row.parentId) ?? [] }
+      return {
+        ...entity,
+        ...(row.partIds && { partIds: row.partIds }),
+        siblings: siblingsByParent.get(row.parentId) ?? []
+      }
     })
   }
 
@@ -1837,7 +1843,7 @@ export class AgentSessionMessageService {
   ): AgentSessionMessageEntity {
     const database = application.get('DbService').getDb()
     this.assertActiveSession(database, sessionId)
-    const row = this.findExistingMessageRow(database, sessionId, messageId)
+    const row = this.findExistingMessageRow(database, sessionId, messageId, options.deferToolOutputs)
     if (!row || row.role === 'root') throw DataApiErrorFactory.notFound('Message', messageId)
     if (options.deferToolOutputs) return this.toHistoryMessages(database, sessionId, [row], true)[0]
     return this.rowToEntity(hydrateAgentSessionMessageRowsTx(database, [row])[0])
@@ -2401,7 +2407,12 @@ export class AgentSessionMessageService {
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
   }
 
-  private findExistingMessageRow(db: DbOrTx, sessionId: string, messageId: string): SessionMessage | null {
+  private findExistingMessageRow(
+    db: DbOrTx,
+    sessionId: string,
+    messageId: string,
+    includePartIds = false
+  ): SessionMessage | null {
     const rows = db
       .select()
       .from(sessionMessagesTable)
@@ -2409,7 +2420,7 @@ export class AgentSessionMessageService {
       .limit(1)
       .all()
 
-    return attachAgentSessionMessagePartsTx(db, rows)[0] ?? null
+    return attachAgentSessionMessagePartsTx(db, rows, includePartIds)[0] ?? null
   }
 
   private withParts(db: DbOrTx, row: SessionMessageRow): SessionMessage {

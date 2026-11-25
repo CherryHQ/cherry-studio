@@ -6,6 +6,7 @@ import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ProjectionReaderProvider } from '@renderer/hooks/agent/ProjectionReaderProvider'
+import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import { ipcApi } from '@renderer/ipc'
 import { MessageProjectionService } from '@renderer/services/aiTransport/MessageProjectionService'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
@@ -13,6 +14,7 @@ import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerF
 import type { ChildPartPlacement, LivePartPatch } from '@shared/ai/messageProjection'
 import type { AiToolResultResponse } from '@shared/ai/transport'
 import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
+import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { CherryTextMetaSchema } from '@shared/data/types/uiParts'
 
@@ -787,6 +789,66 @@ describe('MessagePartsRenderer', () => {
       stop()
     })
 
+    it.each([
+      { count: 70, withProcess: true, images: 0 },
+      { count: 70, withProcess: false, images: 0 },
+      { count: 31, withProcess: false, images: 2 }
+    ])(
+      'keeps selected text mounted through a committed correction ($count texts, $images images, process $withProcess)',
+      async ({ count, withProcess, images }) => {
+        const ipc = projectionIpc()
+        const store = new MessageProjectionService()
+        const target = { kind: 'topic', topicId: 'agent-session:s' } as const
+        const stop = store.subscribe(target, () => {})
+        const parts: CherryMessagePart[] = [
+          ...(withProcess ? [toolPart('read') as CherryMessagePart] : []),
+          ...Array.from({ length: count }, (_, i) => ({ type: 'text' as const, text: 'line ' + i })),
+          ...Array.from({ length: images }, (_, i) => ({
+            type: 'file' as const,
+            url: 'https://example.org/' + i + '.png',
+            mediaType: 'image/png'
+          }))
+        ]
+        const ids = parts.map(() => crypto.randomUUID())
+        await act(async () =>
+          ipc.attachments[0].resolve({
+            ...target,
+            revision: 0,
+            executions: [],
+            messages: [{ id: 'msg-1', role: 'assistant', parts, partIds: ids }]
+          })
+        )
+        const reader = store.partsFor(target)
+        const display = (body: CherryMessagePart[], message: MessageListItem) => (
+          <ProjectionReaderProvider reader={reader}>{renderPartsTree(body, message)}</ProjectionReaderProvider>
+        )
+        activateTurn('streaming')
+        const mounted = render(display(parts, msg({ status: 'pending', partIds: ids })))
+        const selected = screen.getByText('line 0')
+        const selection = window.getSelection()!
+        selection.selectAllChildren(selected)
+        const lastText = parts.length - images - 1
+        const last = screen.getByText('line ' + (count - 1))
+        const committed = toAgentSessionUIMessage({
+          id: 'msg-1',
+          role: 'assistant',
+          status: 'success',
+          partIds: ids,
+          data: { parts: parts.with(lastText, { type: 'text', text: 'committed line' }) }
+        } as AgentSessionMessageEntity)
+        finishTurn('done')
+        mounted.rerender(display(committed.parts, msg({ partIds: committed.partIds })))
+        if (withProcess) expect(screen.getByTestId('completed-process-trigger')).toBeInTheDocument()
+        if (images) expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-single', 'false')
+        expect(screen.getByText('committed line')).toBe(last)
+        expect(screen.getByText('line 0')).toBe(selected)
+        expect(selection.toString()).toBe('line 0')
+        expect(last.closest('[data-message-part-id]')).toHaveAttribute('data-message-part-id', ids[lastText])
+        mounted.unmount()
+        stop()
+      }
+    )
+
     it('replaces an empty addressed block’s placeholder on its first suffix without a whole-row refresh', async () => {
       const ipc = projectionIpc()
       const store = new MessageProjectionService()
@@ -1096,15 +1158,16 @@ describe('MessagePartsRenderer', () => {
       const user = userEvent.setup()
       const parts: CherryMessagePart[] = [{ type: 'text', text: 'one\ntwo\nthree\nfour\nfive\nsix' }]
       const toggle = () => screen.getByRole('button', { name: /Expand|Collapse/ })
-      const first = renderParts(parts, msg({ role: 'user' }))
+      const message = msg({ role: 'user', partIds: ['stored-user-text'] })
+      const first = renderParts(parts, message)
       await user.click(toggle())
       expect(toggle()).toHaveAttribute('aria-expanded', 'true')
       first.unmount()
-      const restored = renderParts(parts, msg({ role: 'user' }))
+      const restored = renderParts(parts, message)
       expect(toggle()).toHaveAttribute('aria-expanded', 'true')
       await user.click(toggle())
       restored.unmount()
-      const collapsed = renderParts(parts, msg({ role: 'user' }))
+      const collapsed = renderParts(parts, message)
       expect(toggle()).toHaveAttribute('aria-expanded', 'false')
       await user.click(toggle())
       collapsed.unmount()
