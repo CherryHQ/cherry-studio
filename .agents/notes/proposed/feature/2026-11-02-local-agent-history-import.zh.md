@@ -254,7 +254,7 @@ Claude Code 的真实用户任务包括非空的用户正文，或明确的用�
 
 历史工具仍以静态文本保存。读取时将受支持的工具调用和结果标记转成已完成的展示项，放入现有“已处理”折叠区，旧导入记录也适用。有调用 ID 时关联工具结果，不能误当成用户发言。无法关联的结果保留为有标签的历史说明。不导入待执行工具、审批或生成状态。明确完成、失败和中断的消息分别使用 `success`、`error` 和 `paused`。
 
-正常浏览时，将连续、已完成且只有历史过程内容的记录合并到一个“已处理”。用户消息、回答正文和未完成记录会断开分组。保留记录顺序和每条原消息 ID。分页时分组锚点保持稳定；多选和截图仍保留原始单条记录。分组只改变显示，不改写存储，也不执行历史工具。
+正常浏览时，同一用户任务中连续的助手回复、思考和历史工具记录合并显示。工具活动放入“已处理”，回答正文显示在同一条回复中。下一条用户消息开始新的一组。保留记录顺序和每条原消息 ID。分页时分组锚点保持稳定；多选和截图仍保留原始单条记录。分组只改变显示，不改写存储，也不执行历史工具。
 
 将选定的来源分支转换为平面的智能体会话。有明确活动分支时使用它；否则在预览中选择。其他分支列为未导入项。能独立还原的子代理会话作为独立候选项，归入选中的目标智能体。不能串联互斥分支。
 
@@ -393,7 +393,7 @@ main
 - AC13 — Codex 索引和事件不产生重复正文，共享根会话 ID 不会合并不同线程。（验证：unit missing-index and fork fixtures）
 - AC14 — OpenCode 正确读取支持结构及 WAL 已提交数据，并明确拒绝未知结构。（验证：unit real SQLite fixtures）
 - AC15 — WorkBuddy 仅支持已声明的桌面结构和记录样本，初步证据为 Windows 5.9.3 与运行时 2.165.0。未支持版本和未验证内容有明确诊断；仅有安装版本号不能证明兼容。（验证：unit versioned adapter fixtures）
-- AC16 — 历史工具调用和结果作为已完成工具项折叠到“已处理”，旧导入记录也适用。连续、已完成且只有过程内容的记录合为一组；用户消息、回答正文和未完成记录会断开分组。分页、多选和截图保留原消息身份。打开、导入或展开历史不会执行工具、发起审批或自动生成。（验证：unit runtime boundaries, renderer grouping/paging/selection/capture and Electron）
+- AC16 — 历史工具调用和结果作为已完成工具项折叠到“已处理”，旧导入记录也适用。同一导入任务的工具活动和回答正文放在同一条回复中。下一条用户消息开始新的一组。分页、多选和截图保留原消息身份。打开、导入或展开历史不会执行工具、发起审批或自动生成。（验证：unit runtime boundaries, renderer grouping/paging/selection/capture and Electron）
 - AC17 — 首次续聊使用目标智能体配置，模型输入中导入历史位于新用户消息之前，包含已接受的时钟偏差场景；导入前说明不支持的目标运行时，初始化失败可重试且不重复历史。（验证：unit captured model input with controlled time, target-runtime compatibility, and recovery faults）
 - AC18 — 保留原生搜索、编辑、单条删除、分支、回收和恢复。分支按新 ID 复制消息来源，不复制会话导入身份。编辑保留仍存在消息的来源；消息、尾部、会话或智能体删除在事务内清理关联状态。初始化重试不能恢复已删内容。（验证：unit existing data-service integration, native edit/fork and initialization-retry fixtures）
 - AC19 — 最终导入实现不引入结构迁移。现有完整及精简备份保留必要的 app_state 记录、消息、归属和工作目录。缺少原生历史时可靠重建或明确阻止续聊。旧草稿 profile 保持原样，不承诺其备份直接转换。（验证：schema-diff check, populated-database import and backup/restore fixtures）
