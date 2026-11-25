@@ -139,6 +139,7 @@ export function resolveRequiredNativeFileSupport(
 
   for (const message of messages) {
     if (typeof message !== 'object' || message === null) continue
+
     const parts: readonly unknown[] =
       'parts' in message && Array.isArray(message.parts)
         ? message.parts
