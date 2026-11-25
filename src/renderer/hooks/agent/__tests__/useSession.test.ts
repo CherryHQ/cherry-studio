@@ -369,7 +369,7 @@ describe('useSessions', () => {
       refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn().mockResolvedValue(undefined)
     }))
-    mockUseMutation.mockImplementation((method: string, path: string) => ({
+    mockUseMutation.mockImplementation((method, path) => ({
       trigger:
         method === 'POST' && path === '/pins'
           ? pinTrigger

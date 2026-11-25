@@ -416,7 +416,7 @@ describe('ChatContent', () => {
       role: 'user',
       data: { parts: [{ type: 'text', text: 'hello' }] }
     })
-    mockUseMutation.mockImplementation((method: string, path: string) => ({
+    mockUseMutation.mockImplementation((method, path) => ({
       trigger:
         method === 'PATCH' && path === '/messages/:id'
           ? patchAwaitingInput
@@ -886,7 +886,7 @@ describe('ChatContent', () => {
       reservedMessages: [reservedAssistant]
     })
 
-    mockUseMutation.mockImplementation((method: string, path: string) => ({
+    mockUseMutation.mockImplementation((method, path) => ({
       trigger: method === 'POST' && path === '/messages/:id/siblings' ? createSiblingTrigger : vi.fn(),
       isLoading: false,
       error: undefined
@@ -1046,7 +1046,7 @@ describe('ChatContent', () => {
     const refresh = vi.fn().mockResolvedValue([])
 
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
-    mockUseMutation.mockImplementation((method: string, path: string) => ({
+    mockUseMutation.mockImplementation((method, path) => ({
       trigger: method === 'POST' && path === '/messages/:id/siblings' ? createSiblingTrigger : vi.fn(),
       isLoading: false,
       error: undefined
@@ -1121,7 +1121,7 @@ describe('ChatContent', () => {
     })
 
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
-    mockUseMutation.mockImplementation((method: string, path: string) => ({
+    mockUseMutation.mockImplementation((method, path) => ({
       trigger: method === 'POST' && path === '/messages/:id/siblings' ? createSiblingTrigger : vi.fn(),
       isLoading: false,
       error: undefined
@@ -1228,7 +1228,7 @@ describe('ChatContent', () => {
       ]
     })
 
-    mockUseMutation.mockImplementation((method: string, path: string) => ({
+    mockUseMutation.mockImplementation((method, path) => ({
       trigger: method === 'POST' && path === '/messages/:id/siblings' ? createSiblingTrigger : vi.fn(),
       isLoading: false,
       error: undefined

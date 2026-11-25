@@ -72,7 +72,7 @@ function wireMutations(overrides?: {
   const postTrigger = overrides?.postTrigger ?? vi.fn(async () => MODEL_PIN_A)
   const deleteTrigger = overrides?.deleteTrigger ?? vi.fn(async () => undefined)
 
-  mockUseMutation.mockImplementation((method: string, path: string, options?: { refresh?: unknown }) => {
+  mockUseMutation.mockImplementation((method, path, options) => {
     if (method === 'POST' && path === '/pins') {
       expect(options?.refresh).toEqual(['/pins'])
       return {

@@ -30,7 +30,7 @@ it('sends explicit user input and request controls without opening a chunk strea
           parentAnchorId: 'branch',
           mentionedModels: ['p::m'],
           fastMode: true,
-          serviceTier: 'priority'
+          serviceTier: 'fast'
         }
       }
     )
@@ -43,7 +43,7 @@ it('sends explicit user input and request controls without opening a chunk strea
       userMessageParts: [{ type: 'text', text: 'question' }],
       mentionedModelIds: ['p::m'],
       fastMode: true,
-      serviceTier: 'priority',
+      serviceTier: 'fast',
       reasoningEffort: undefined
     }
   ])

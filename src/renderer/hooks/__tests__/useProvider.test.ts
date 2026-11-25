@@ -161,7 +161,7 @@ describe('useProviders', () => {
 
   it('should expose create mutation loading and error state', () => {
     const mockError = new Error('Create mutation failed')
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: vi.fn(),
       isLoading: _method === 'POST' && path === '/providers',
       error: _method === 'POST' && path === '/providers' ? mockError : undefined
@@ -237,7 +237,7 @@ describe('useProviderMutations', () => {
 
   it('should enable a provider through the generic PATCH mutation', async () => {
     const patchTrigger = vi.fn().mockResolvedValue({})
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'PATCH' && path === '/providers/:providerId' ? patchTrigger : vi.fn().mockResolvedValue(undefined),
       isLoading: false,
@@ -290,7 +290,7 @@ describe('useProviderMutations', () => {
 
   it('should update API keys via dedicated PUT api-keys resource', async () => {
     const replaceKeysTrigger = vi.fn().mockResolvedValue({})
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'PUT' && path === '/providers/:providerId/api-keys'
           ? replaceKeysTrigger
@@ -326,7 +326,7 @@ describe('useProviderMutations', () => {
 
   it('should call addApiKey trigger with providerId param and body', async () => {
     const addKeyTrigger = vi.fn().mockResolvedValue({})
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'POST' && path === '/providers/:providerId/api-keys'
           ? addKeyTrigger
@@ -349,7 +349,7 @@ describe('useProviderMutations', () => {
 
   it('should build correct addApiKey params for hyphenated provider IDs', async () => {
     const addKeyTrigger = vi.fn().mockResolvedValue({})
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'POST' && path === '/providers/:providerId/api-keys'
           ? addKeyTrigger
@@ -372,7 +372,7 @@ describe('useProviderMutations', () => {
 
   it('should call deleteApiKey trigger with providerId and keyId params', async () => {
     const deleteKeyTrigger = vi.fn().mockResolvedValue(undefined)
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'DELETE' && path === '/providers/:providerId/api-keys/:keyId'
           ? deleteKeyTrigger
@@ -392,7 +392,7 @@ describe('useProviderMutations', () => {
 
   it('should build correct deleteApiKey params for hyphenated provider IDs', async () => {
     const deleteKeyTrigger = vi.fn().mockResolvedValue(undefined)
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'DELETE' && path === '/providers/:providerId/api-keys/:keyId'
           ? deleteKeyTrigger
@@ -414,7 +414,7 @@ describe('useProviderMutations', () => {
     const apiKey = 'sk-should-not-reach-logs'
     const error = new Error(`Post failed for ${apiKey}`)
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'POST' && path === '/providers/:providerId/api-keys'
           ? vi.fn().mockRejectedValue(error)
@@ -433,7 +433,7 @@ describe('useProviderMutations', () => {
 
   it('should log and rethrow deleteApiKey errors', async () => {
     const error = new Error('Delete failed')
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'DELETE' && path === '/providers/:providerId/api-keys/:keyId'
           ? vi.fn().mockRejectedValue(error)
@@ -469,7 +469,7 @@ describe('useProviderMutations', () => {
     const apiKey = 'sk-should-not-reach-logs'
     const error = new Error(`API key update failed for ${apiKey}`)
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'PUT' && path === '/providers/:providerId/api-keys'
           ? vi.fn().mockRejectedValue(error)
@@ -490,7 +490,7 @@ describe('useProviderMutations', () => {
 
   it('should call updateApiKey trigger with providerId, keyId and body', async () => {
     const updateKeyTrigger = vi.fn().mockResolvedValue({})
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'PATCH' && path === '/providers/:providerId/api-keys/:keyId'
           ? updateKeyTrigger
@@ -515,7 +515,7 @@ describe('useProviderMutations', () => {
     const apiKey = 'sk-should-not-reach-logs'
     const error = new Error(`API key update failed for ${apiKey}`)
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'PATCH' && path === '/providers/:providerId/api-keys/:keyId'
           ? vi.fn().mockRejectedValue(error)
@@ -535,7 +535,7 @@ describe('useProviderMutations', () => {
   })
 
   it('should expose isUpdating and isDeleting loading states', () => {
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: vi.fn(),
       isLoading: _method === 'PATCH' && path === '/providers/:providerId',
       error: undefined
@@ -548,7 +548,7 @@ describe('useProviderMutations', () => {
   })
 
   it('should expose isAddingApiKey and isDeletingApiKey loading states', () => {
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: vi.fn(),
       isLoading: _method === 'POST' && path === '/providers/:providerId/api-keys',
       error: undefined
@@ -562,7 +562,7 @@ describe('useProviderMutations', () => {
 
   it('should expose addApiKeyError and deleteApiKeyError', () => {
     const mockError = new Error('Key error')
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: vi.fn(),
       isLoading: false,
       error: _method === 'POST' && path === '/providers/:providerId/api-keys' ? mockError : undefined
@@ -628,7 +628,7 @@ describe('useProviderActions', () => {
 
   it('should call updateTrigger with providerId param and body', async () => {
     const updateTrigger = vi.fn().mockResolvedValue({})
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: _method === 'PATCH' && path === '/providers/:providerId' ? updateTrigger : vi.fn().mockResolvedValue({}),
       isLoading: false,
       error: undefined
@@ -645,7 +645,7 @@ describe('useProviderActions', () => {
 
   it('should call deleteTrigger with providerId param', async () => {
     const deleteTrigger = vi.fn().mockResolvedValue(undefined)
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'DELETE' && path === '/providers/:providerId' ? deleteTrigger : vi.fn().mockResolvedValue({}),
       isLoading: false,
@@ -663,7 +663,7 @@ describe('useProviderActions', () => {
 
   it('should log and rethrow updateProviderById errors', async () => {
     const error = new Error('Patch failed')
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'PATCH' && path === '/providers/:providerId'
           ? vi.fn().mockRejectedValue(error)
@@ -681,7 +681,7 @@ describe('useProviderActions', () => {
 
   it('should log and rethrow deleteProviderById errors', async () => {
     const error = new Error('Delete failed')
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger:
         _method === 'DELETE' && path === '/providers/:providerId'
           ? vi.fn().mockRejectedValue(error)

@@ -132,7 +132,7 @@ describe('useModelMutations', () => {
 
   it('should log and rethrow createModel errors', async () => {
     const error = new Error('Create failed')
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: path === '/models' ? vi.fn().mockRejectedValue(error) : vi.fn(),
       isLoading: false,
       error: undefined
@@ -222,7 +222,7 @@ describe('useModelMutations', () => {
 
   it('should call DELETE mutation trigger with uniqueModelId param when deleteModel is invoked', async () => {
     const deleteTrigger = vi.fn().mockResolvedValue(undefined)
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: path === '/models/:uniqueModelId*' && _method === 'DELETE' ? deleteTrigger : vi.fn(),
       isLoading: false,
       error: undefined
@@ -239,7 +239,7 @@ describe('useModelMutations', () => {
 
   it('should call PATCH mutation trigger with uniqueModelId param and body when updateModel is invoked', async () => {
     const updateTrigger = vi.fn().mockResolvedValue({})
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: path === '/models/:uniqueModelId*' && _method === 'PATCH' ? updateTrigger : vi.fn(),
       isLoading: false,
       error: undefined
@@ -259,7 +259,7 @@ describe('useModelMutations', () => {
 
   it('should call bulk DELETE mutation trigger with query ids when deleteModels is invoked', async () => {
     const bulkDeleteTrigger = vi.fn().mockResolvedValue(undefined)
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: path === '/models' && _method === 'DELETE' ? bulkDeleteTrigger : vi.fn(),
       isLoading: false,
       error: undefined
@@ -277,7 +277,7 @@ describe('useModelMutations', () => {
 
   it('should preserve commas inside model ids when deleteModels is invoked', async () => {
     const bulkDeleteTrigger = vi.fn().mockResolvedValue(undefined)
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: path === '/models' && _method === 'DELETE' ? bulkDeleteTrigger : vi.fn(),
       isLoading: false,
       error: undefined
@@ -295,7 +295,7 @@ describe('useModelMutations', () => {
 
   it('should call bulk PATCH mutation trigger with the full item array when updateModels is invoked', async () => {
     const bulkUpdateTrigger = vi.fn().mockResolvedValue([])
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: path === '/models' && _method === 'PATCH' ? bulkUpdateTrigger : vi.fn(),
       isLoading: false,
       error: undefined
@@ -316,7 +316,7 @@ describe('useModelMutations', () => {
 
   it('should log and rethrow deleteModel errors', async () => {
     const error = new Error('Delete failed')
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: path === '/models/:uniqueModelId*' && _method === 'DELETE' ? vi.fn().mockRejectedValue(error) : vi.fn(),
       isLoading: false,
       error: undefined
@@ -331,7 +331,7 @@ describe('useModelMutations', () => {
 
   it('should log and rethrow updateModel errors', async () => {
     const error = new Error('Patch failed')
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: path === '/models/:uniqueModelId*' && _method === 'PATCH' ? vi.fn().mockRejectedValue(error) : vi.fn(),
       isLoading: false,
       error: undefined
@@ -346,7 +346,7 @@ describe('useModelMutations', () => {
 
   it('should log and rethrow updateModels errors', async () => {
     const error = new Error('Bulk patch failed')
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: path === '/models' && _method === 'PATCH' ? vi.fn().mockRejectedValue(error) : vi.fn(),
       isLoading: false,
       error: undefined
@@ -362,7 +362,7 @@ describe('useModelMutations', () => {
 
   it('should log and rethrow deleteModels errors', async () => {
     const error = new Error('Bulk delete failed')
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: path === '/models' && _method === 'DELETE' ? vi.fn().mockRejectedValue(error) : vi.fn(),
       isLoading: false,
       error: undefined
@@ -378,7 +378,7 @@ describe('useModelMutations', () => {
 
   it('should build uniqueModelId param correctly for simple IDs', async () => {
     const deleteTrigger = vi.fn().mockResolvedValue(undefined)
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: path === '/models/:uniqueModelId*' && _method === 'DELETE' ? deleteTrigger : vi.fn(),
       isLoading: false,
       error: undefined
@@ -395,7 +395,7 @@ describe('useModelMutations', () => {
 
   it('should build uniqueModelId param correctly for model IDs containing slashes', async () => {
     const deleteTrigger = vi.fn().mockResolvedValue(undefined)
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: path === '/models/:uniqueModelId*' && _method === 'DELETE' ? deleteTrigger : vi.fn(),
       isLoading: false,
       error: undefined
@@ -414,7 +414,7 @@ describe('useModelMutations', () => {
 
   it.each(['?', '#'])('should reject model IDs containing reserved route character %s', async (char) => {
     const deleteTrigger = vi.fn().mockResolvedValue(undefined)
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: path === '/models/:uniqueModelId*' && _method === 'DELETE' ? deleteTrigger : vi.fn(),
       isLoading: false,
       error: undefined
@@ -432,7 +432,7 @@ describe('useModelMutations', () => {
   })
 
   it('should expose mutation loading states', () => {
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: vi.fn(),
       isLoading: _method === 'POST' && path === '/models',
       error: undefined
@@ -448,7 +448,7 @@ describe('useModelMutations', () => {
   })
 
   it('should expose bulk delete loading state', () => {
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+    mockUseMutation.mockImplementation((_method, path) => ({
       trigger: vi.fn(),
       isLoading: _method === 'DELETE' && path === '/models',
       error: undefined

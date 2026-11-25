@@ -475,7 +475,7 @@ describe('useMiniApps', () => {
     it('should call the patch mutation trigger with the new status', async () => {
       const mockTrigger = vi.fn().mockResolvedValue({ success: true })
       const { mockUseMutation } = await import('@test-mocks/renderer/useDataApi')
-      mockUseMutation.mockImplementation((method: string, path: string) => {
+      mockUseMutation.mockImplementation((method, path) => {
         if (method === 'PATCH' && path === '/mini-apps/:appId') {
           return { trigger: mockTrigger, isLoading: false, error: undefined }
         }

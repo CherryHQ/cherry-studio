@@ -318,7 +318,7 @@ describe('AgentBrowserRuntimeHost', () => {
   })
 
   it.each(['switch', 'close'] as const)('keeps a running guest after tab %s until its turn ends', async (action) => {
-    const key = topicStreamStatusCacheKey('agent-session:session-a') as const
+    const key = topicStreamStatusCacheKey('agent-session:session-a')
     const status = { activeExecutions: [], awaitingApprovalAnchors: [] }
     cacheService.setShared(key, { ...status, status: 'streaming' })
     runtime.ensure('session-a', 'https://example.com/')
@@ -352,7 +352,7 @@ describe('AgentBrowserRuntimeHost', () => {
   })
 
   it('can create a guest after switching away during a pending turn and retain it when switching back', async () => {
-    const key = topicStreamStatusCacheKey('agent-session:session-a') as const
+    const key = topicStreamStatusCacheKey('agent-session:session-a')
     const status = { activeExecutions: [], awaitingApprovalAnchors: [] }
     cacheService.setShared(key, { ...status, status: 'pending' })
     const view = render(<Harness visible={false} />)
