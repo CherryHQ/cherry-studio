@@ -1,4 +1,15 @@
-import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ComponentProps,
+  lazy,
+  type ReactNode,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
@@ -109,6 +120,7 @@ type MessageGroupLayerProps = ComponentProps<typeof MessageGroup> & {
   railGutterPx: number
   sidePaddingPx: number
   messageEndInsetPx: number
+  messageHead?: ReactNode
 }
 
 function MessageGroupLayer({
@@ -119,6 +131,7 @@ function MessageGroupLayer({
   railGutterPx,
   sidePaddingPx,
   messageEndInsetPx,
+  messageHead,
   messages,
   partsByMessageId,
   ...messageGroupProps
@@ -142,6 +155,7 @@ function MessageGroupLayer({
             paddingLeft: sidePaddingPx + railGutterPx,
             paddingRight: sidePaddingPx + messageEndInsetPx + railGutterPx
           }}>
+          {messageHead}
           <MessageGroup key={groupKey} {...messageGroupProps} messages={messages} partsByMessageId={partsByMessageId} />
         </NarrowLayout>
       </div>
@@ -183,7 +197,8 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
     previous.registerMessageElement === next.registerMessageElement &&
     previous.isLatestAssistantGroup === next.isLatestAssistantGroup &&
     previous.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
-    previous.messageTail === next.messageTail
+    previous.messageTail === next.messageTail &&
+    previous.messageHead === next.messageHead
   )
 })
 
@@ -205,7 +220,16 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   // message column; this component both writes it (via the resize observer
   // below) and renders from it.
   const { setForceWideLayout, railGutterPx, setRailGutterPx, sidePaddingPx, messageEndInsetPx } = useChatLayoutMode()
-  const { topic, messages, beforeList, afterMessages, messageTail, hasOlder = false, messageNavigation } = data
+  const {
+    topic,
+    messages,
+    beforeList,
+    afterMessages,
+    messageHead,
+    messageTail,
+    hasOlder = false,
+    messageNavigation
+  } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
@@ -849,6 +873,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
                 messageTail && groupMessages.some((message) => message.id === messageTail.messageId)
                   ? messageTail
                   : undefined
+              const groupMessageHead = messageHead?.messageId === groupMessages[0]?.id ? messageHead.content : undefined
               const props: MessageGroupLayerProps = {
                 groupKey: key,
                 isLive: index >= firstLiveGroupIndex,
@@ -860,6 +885,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
                 isLatestAssistantGroup: key === latestAssistantGroupKey,
                 directAssistantModelsByUserId,
                 messageTail: groupMessageTail,
+                messageHead: groupMessageHead,
                 messages: groupMessages,
                 partsByMessageId:
                   index < firstLiveGroupIndex && streamingLayers
