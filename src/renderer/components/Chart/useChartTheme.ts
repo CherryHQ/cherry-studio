@@ -59,6 +59,7 @@ function subscribeToThemeTokens(onStoreChange: () => void): () => void {
 }
 
 function createChartTheme(snapshot: string): ChartTheme {
+  // SAFETY: Private readThemeSnapshot serializes these same THEME_TOKENS with string CSS values; no external JSON enters this decoder.
   const values = JSON.parse(snapshot) as Record<ThemeToken, string>
   const canvas = document.createElement('canvas')
   canvas.width = 1

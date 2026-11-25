@@ -10,6 +10,7 @@ type OptionObject = Record<string, unknown>
 export function toOptionObject(value: unknown): OptionObject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
 
+  // SAFETY: The container is a non-null, nonarray object; every field stays unknown rather than being claimed as a validated ECharts option.
   return value as OptionObject
 }
 
