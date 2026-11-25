@@ -1963,7 +1963,6 @@
   "history_import.line": "Riga {{line}}",
   "history_import.losses": "Record ignorati: {{skipped}} · Blocchi convertiti: {{downgraded}}",
   "history_import.no_target": "Crea o configura un agente dal normale flusso, poi torna e aggiorna.",
-  "history_import.preview": "Anteprima",
   "history_import.problems.branch": "Seleziona un ramo. L’assenza della cronologia padre impedisce l’importazione.",
   "history_import.problems.changed": "L’origine o la verifica dell’importazione è cambiata o scaduta. Riprova a importare.",
   "history_import.problems.close_source": "Impossibile leggere questo database in sicurezza. Fornisci una copia offline coerente con un formato di journal supportato.",

@@ -1965,7 +1965,6 @@
   "history_import.line": "Linia {{line}}",
   "history_import.losses": "Înregistrări omise: {{skipped}} · Blocuri convertite: {{downgraded}}",
   "history_import.no_target": "Creează sau configurează un agent prin fluxul obișnuit, apoi revino și reîmprospătează.",
-  "history_import.preview": "Previzualizare",
   "history_import.problems.branch": "Selectează o ramură. Istoricul părinte lipsă împiedică importul.",
   "history_import.problems.changed": "Sursa sau verificarea importului s-a modificat ori a expirat. Încercați din nou importul.",
   "history_import.problems.close_source": "Baza de date nu poate fi citită în siguranță. Furnizați o copie offline consecventă cu un format de jurnal compatibil.",

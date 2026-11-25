@@ -1963,7 +1963,6 @@
   "history_import.line": "บรรทัด {{line}}",
   "history_import.losses": "ข้ามบันทึก: {{skipped}} · แปลงบล็อกเนื้อหา: {{downgraded}}",
   "history_import.no_target": "สร้างหรือตั้งค่าเอเจนต์ ตามขั้นตอนปกติ แล้วกลับมารีเฟรช",
-  "history_import.preview": "ดูตัวอย่าง",
   "history_import.problems.branch": "เลือกแขนง ไม่สามารถนำเข้าได้หากประวัติหลักขาดหาย",
   "history_import.problems.changed": "ต้นทางหรือผลการตรวจสอบการนำเข้าเปลี่ยนแปลงหรือหมดอายุ โปรดลองนำเข้าอีกครั้ง",
   "history_import.problems.close_source": "ไม่สามารถอ่านฐานข้อมูลนี้ได้อย่างปลอดภัย โปรดจัดเตรียมสำเนาออฟไลน์ที่สอดคล้องกันและมีรูปแบบบันทึกที่รองรับ",

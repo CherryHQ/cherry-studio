@@ -1963,7 +1963,6 @@
   "history_import.line": "第 {{line}} 行",
   "history_import.losses": "略過記錄：{{skipped}} · 降級內容區塊：{{downgraded}}",
   "history_import.no_target": "請先正常建立或設定智慧體，再返回重新整理。",
-  "history_import.preview": "預覽",
   "history_import.problems.branch": "請選擇分支。缺少父級歷史時無法匯入。",
   "history_import.problems.changed": "來源或匯入檢查已變更或過期，請重新匯入。",
   "history_import.problems.close_source": "無法安全讀取此資料庫。請提供日誌配置受支援的一致離線副本。",

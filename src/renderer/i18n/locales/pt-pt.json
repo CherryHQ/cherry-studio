@@ -1963,7 +1963,6 @@
   "history_import.line": "Linha {{line}}",
   "history_import.losses": "Registos ignorados: {{skipped}} · Blocos convertidos: {{downgraded}}",
   "history_import.no_target": "Crie ou configure um agente pelo processo habitual, depois volte e atualize.",
-  "history_import.preview": "Pré-visualizar",
   "history_import.problems.branch": "Selecione um ramo. Não é possível importar sem o histórico principal.",
   "history_import.problems.changed": "A origem ou a verificação de importação foi alterada ou expirou. Tente importar novamente.",
   "history_import.problems.close_source": "Não é possível ler esta base de dados em segurança. Forneça uma cópia offline consistente com um formato de registo compatível.",

@@ -1963,7 +1963,6 @@
   "history_import.line": "Dòng {{line}}",
   "history_import.losses": "Bản ghi bỏ qua: {{skipped}} · Khối đã chuyển đổi: {{downgraded}}",
   "history_import.no_target": "Tạo hoặc cấu hình tác nhân theo quy trình thông thường, rồi quay lại và làm mới.",
-  "history_import.preview": "Xem trước",
   "history_import.problems.branch": "Chọn một nhánh. Không thể nhập nếu thiếu lịch sử cha.",
   "history_import.problems.changed": "Nguồn hoặc kết quả kiểm tra nhập đã thay đổi hoặc hết hạn. Hãy thử nhập lại.",
   "history_import.problems.close_source": "Không thể đọc cơ sở dữ liệu này an toàn. Hãy cung cấp bản sao ngoại tuyến nhất quán với định dạng nhật ký được hỗ trợ.",

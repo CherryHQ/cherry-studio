@@ -1965,7 +1965,6 @@
   "history_import.line": "Řádek {{line}}",
   "history_import.losses": "Přeskočené záznamy: {{skipped}} · Převedené bloky obsahu: {{downgraded}}",
   "history_import.no_target": "Vytvořte nebo nastavte agenta obvyklým způsobem. Pak se sem vraťte a obnovte seznam.",
-  "history_import.preview": "Náhled",
   "history_import.problems.branch": "Vyberte větev. Chybějící historii nadřazené větve nelze importovat.",
   "history_import.problems.changed": "Zdroj nebo výsledek kontroly importu se změnil nebo již není platný. Zkuste import znovu.",
   "history_import.problems.close_source": "Databázi nelze bezpečně přečíst. Použijte konzistentní offline kopii s podporovaným uspořádáním žurnálu.",

@@ -1987,7 +1987,6 @@
   "history_import.line": "Wiersz {{line}}",
   "history_import.losses": "Pominięte wpisy: {{skipped}} · Przekonwertowane bloki treści: {{downgraded}}",
   "history_import.no_target": "Utwórz lub skonfiguruj agenta w ustawieniach agentów, a następnie wróć tutaj i odśwież listę.",
-  "history_import.preview": "Podgląd",
   "history_import.problems.branch": "Wybierz gałąź. Nie można zaimportować brakującej historii gałęzi nadrzędnej.",
   "history_import.problems.changed": "Źródło lub wynik kontroli importu uległ zmianie albo stracił ważność. Ponów import.",
   "history_import.problems.close_source": "Nie można bezpiecznie odczytać bazy danych. Podaj spójną kopię offline z obsługiwanym układem dziennika.",

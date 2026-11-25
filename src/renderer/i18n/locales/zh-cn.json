@@ -1963,7 +1963,6 @@
   "history_import.line": "第 {{line}} 行",
   "history_import.losses": "跳过记录：{{skipped}} · 降级内容块：{{downgraded}}",
   "history_import.no_target": "请通过正常智能体流程创建或配置智能体，再返回刷新。",
-  "history_import.preview": "预览",
   "history_import.problems.branch": "请选择分支。缺少父级历史时无法导入。",
   "history_import.problems.changed": "来源或导入校验已变化或过期，请重新导入。",
   "history_import.problems.close_source": "无法安全读取此数据库。请提供日志布局受支持的一致离线副本。",

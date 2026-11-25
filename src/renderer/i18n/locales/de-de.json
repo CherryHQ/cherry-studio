@@ -1963,7 +1963,6 @@
   "history_import.line": "Zeile {{line}}",
   "history_import.losses": "Übersprungene Einträge: {{skipped}} · Umgewandelte Blöcke: {{downgraded}}",
   "history_import.no_target": "Erstellen oder konfigurieren Sie einen Agenten auf dem üblichen Weg. Kehren Sie zurück und aktualisieren Sie die Liste.",
-  "history_import.preview": "Vorschau",
   "history_import.problems.branch": "Wählen Sie einen Zweig. Fehlender übergeordneter Verlauf verhindert den Import.",
   "history_import.problems.changed": "Die Quelle oder Importprüfung wurde geändert oder ist abgelaufen. Starte den Import erneut.",
   "history_import.problems.close_source": "Diese Datenbank kann nicht sicher gelesen werden. Stellen Sie eine konsistente Offline-Kopie mit unterstütztem Journalformat bereit.",
