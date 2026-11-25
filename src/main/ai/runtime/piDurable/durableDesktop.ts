@@ -15,6 +15,7 @@ import { buildPiMcpToolName, isPiToolDisabled } from '../pi/piMcpExtension'
 import { loadPiSdk } from '../pi/piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
+import { resolveDurableCompaction } from './durableCompaction'
 import { createDurableMcp } from './durableMcp'
 import { buildDurablePrompt } from './durablePrompt'
 import { withDurableShellTimeout } from './durableShellTimeout'
@@ -31,12 +32,14 @@ export async function prepareDurableDesktop(
     input.knowledgeBaseIds
   )
   await warmAgentMcpToolCatalogs(discovery.agent.mcps ?? [])
-  const snapshot = await capturePiConnectionSnapshot(
+  const captured = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
     input.modelId,
     input.knowledgeBaseIds
   )
+  const compaction = resolveDurableCompaction(captured.model.contextWindow)
+  const snapshot = { ...captured, signature: captured.signature + JSON.stringify(compaction) }
   const { session, agent } = snapshot
   const cwd = session.workspace.path
   await prepareAgentSessionWorkspaceDirectory(session)
@@ -135,6 +138,7 @@ export async function prepareDurableDesktop(
       shellEnv: mergePiShellExecutionEnv(env)
     })
     const agentConfig: AgentChange = {
+      compaction,
       ...(namespace && { extensions: registry.snapshot().installed() }),
       tools: {
         remove: registry
@@ -180,7 +184,10 @@ export async function prepareDurableDesktop(
         permissionMode = mode
         const names = (current.agent.disabledTools ?? []).map(normalizePiDisabledToolId)
         disabled = active ? new Set([...disabled, ...names]) : new Set(names)
-        return { signature: current.signature, permissionChanged }
+        return {
+          signature: current.signature + JSON.stringify(resolveDurableCompaction(current.model.contextWindow)),
+          permissionChanged
+        }
       },
       async close() {
         await mcp.close()
