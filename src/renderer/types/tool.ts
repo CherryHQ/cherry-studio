@@ -6,7 +6,7 @@ export interface BaseTool {
   id: string
   name: string
   description?: string
-  type: ToolType
+  type: Exclude<ToolType, 'mcp'>
 }
 
 export type { McpTool } from '@shared/types/mcp'

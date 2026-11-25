@@ -1,4 +1,5 @@
 import type OpenAI from '@cherrystudio/openai'
+import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 
 export type Usage = OpenAI.Completions.CompletionUsage & {
   thoughts_tokens?: number
@@ -18,7 +19,7 @@ export interface MessageUiState {
   foldSelected?: boolean
   /** Active reply when browsing was saved; ignore the selection after branch navigation. */
   foldSelectedBranchId?: string | null
-  multiModelMessageStyle?: string
+  multiModelMessageStyle?: MultiModelMessageStyle
   useful?: boolean
   disclosures?: Record<string, boolean>
 }
