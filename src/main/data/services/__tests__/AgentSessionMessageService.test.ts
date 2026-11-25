@@ -149,10 +149,10 @@ describe('AgentSessionMessageService', () => {
     const data = {
       parts: [{ type: 'text' as const, text: '# AGENTS.md instructions\n\n<INSTRUCTIONS>Notes</INSTRUCTIONS>' }]
     }
-    dbh.db
-      .insert(agentSessionMessageTable)
-      .values({ id: USER_MESSAGE_ID, sessionId: SESSION_ID, role: 'user', data, status: 'success' })
-      .run()
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', data, status: 'success' }
+    })
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).role).toBe('user')
     application
       .get('DbService')
