@@ -52,7 +52,7 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>, route?: string):
     // recovery copy via i18nKey/detailI18nKey. IpcError.from would keep only the
     // English message and drop those fields, so expose them as AI_REQUEST_FAILED
     // with the full serialized error (like exposeAiError) for the toast/composer.
-    if (route && error instanceof Error && typeof (error as Record<string, unknown>).i18nKey === 'string') {
+    if (route && error instanceof Error && 'i18nKey' in error && typeof error.i18nKey === 'string') {
       return await exposeAiError(route, () => {
         throw error
       })
