@@ -2702,6 +2702,30 @@ describe('OpenClawService gateway status state machine', () => {
       expect(fs.existsSync(path.join(configDir, 'openclaw.json'))).toBe(false)
     })
 
+    it('preserves legacy, active, and backup files when per-model binding validation rejects sync', async () => {
+      schemaCapabilitySpy.mockResolvedValueOnce(createRuntimeConfigSchema(['contextWindow']))
+      const files = {
+        'openclaw.cherry.json': '{"legacy":true}',
+        'openclaw.json': '{"active":true}',
+        'openclaw.json.bak': 'prior backup'
+      }
+      for (const [name, content] of Object.entries(files)) fs.writeFileSync(path.join(configDir, name), content)
+      const result = await service.syncProviderConfig(
+        {
+          ...legacyProvider,
+          models: [
+            { id: 'gpt-4o', name: 'GPT-4o' },
+            { id: 'gpt-4o-mini', name: 'GPT-4o mini', apiKey: 'sk-bound' }
+          ]
+        },
+        legacyModel
+      )
+      expect(result.success).toBe(false)
+      expect('message' in result && result.message).toContain('per-model API keys')
+      for (const [name, content] of Object.entries(files))
+        expect(fs.readFileSync(path.join(configDir, name), 'utf-8')).toBe(content)
+    })
+
     it('reads legacy config when both legacy and primary config files exist', async () => {
       const legacyPath = path.join(configDir, 'openclaw.cherry.json')
       const primaryPath = path.join(configDir, 'openclaw.json')

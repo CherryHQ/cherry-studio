@@ -1470,22 +1470,16 @@ export class OpenClawService extends BaseService {
         fs.mkdirSync(openclawConfigDir(), { recursive: true })
       }
 
-      // Migrate legacy openclaw.cherry.json → openclaw.json
-      if (fs.existsSync(openclawLegacyConfigPath())) {
-        if (fs.existsSync(openclawConfigPath())) {
-          fs.renameSync(openclawConfigPath(), openclawConfigBakPath())
-          logger.info('Migrated openclaw.json → openclaw.json.bak')
-        }
-        fs.renameSync(openclawLegacyConfigPath(), openclawConfigPath())
-        logger.info('Migrated openclaw.cherry.json → openclaw.json')
-      }
+      // Read the legacy candidate in place. Rejected syncs must not alter active files or backups.
+      const hasLegacyConfig = fs.existsSync(openclawLegacyConfigPath())
+      const sourceConfigPath = hasLegacyConfig ? openclawLegacyConfigPath() : openclawConfigPath()
 
       // Read existing config. An unparseable file aborts the sync instead of
       // being rebuilt from scratch — silently replacing it would destroy any
       // hand-edited OpenClaw config the user could otherwise repair.
       let config: OpenClawConfig = {}
-      if (fs.existsSync(openclawConfigPath())) {
-        const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
+      if (fs.existsSync(sourceConfigPath)) {
+        const content = fs.readFileSync(sourceConfigPath, 'utf-8')
         try {
           config = JSON.parse(content)
         } catch {
@@ -1643,6 +1637,11 @@ export class OpenClawService extends BaseService {
       try {
         await atomicWriteFile(candidatePath, serialized, { mode: OPENCLAW_CONFIG_FILE_MODE })
         await this.assertConfigValid(runtime, candidatePath)
+        // Promote legacy files only after all binding and runtime validation succeeds.
+        if (hasLegacyConfig) {
+          if (fs.existsSync(openclawConfigPath())) fs.renameSync(openclawConfigPath(), openclawConfigBakPath())
+          fs.renameSync(openclawLegacyConfigPath(), openclawConfigPath())
+        }
         await atomicWriteFile(openclawConfigPath(), serialized, { mode: OPENCLAW_CONFIG_FILE_MODE })
         this.gatewayAuthToken = token
       } finally {
