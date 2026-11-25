@@ -4,7 +4,7 @@ import { asSchema, type JSONSchema7, type ToolSet } from 'ai'
 export interface WireToolDef {
   name: string
   description?: string
-  input_schema: unknown
+  input_schema: JSONSchema7
 }
 
 /**

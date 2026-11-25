@@ -52,15 +52,7 @@ function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
  * this, a truncated reply is indistinguishable from a real completion.
  */
 function streamInterruptedError(): Error & { status: number } {
-  const error = new Error('Upstream idle timeout exceeded') as Error & {
-    status: number
-    cause?: string
-  }
-
-  error.status = 504
-  error.cause = 'UPSTREAM_IDLE_TIMEOUT'
-
-  return error
+  return Object.assign(new Error('Upstream idle timeout exceeded'), { status: 504, cause: 'UPSTREAM_IDLE_TIMEOUT' })
 }
 
 export async function processMessage(config: MessageConfig): Promise<Response> {
@@ -101,6 +93,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Internal routing selects the Anthropic dialect, but the gateway envelope does not decode every MessageCreateParams field; preserve the existing normalization boundary.
     const anthropicParams = params as MessageCreateParams
     const normalization = normalizeAnthropicToolHistory(anthropicParams.messages)
 

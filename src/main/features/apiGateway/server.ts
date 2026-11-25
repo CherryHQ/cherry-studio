@@ -2,6 +2,7 @@ import type { Server as HttpServer } from 'http'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 
 import { buildApp } from './app'
 import { McpSessionStore } from './McpSessionStore'
@@ -60,7 +61,7 @@ export class ApiGateway {
       try {
         await this.listen(host === '0.0.0.0' ? '::' : '::1', this.boundPort)
       } catch (error) {
-        const code = (error as NodeJS.ErrnoException).code
+        const code = getErrorCode(error)
 
         if (code !== 'EAFNOSUPPORT' && code !== 'EADDRNOTAVAIL') throw error
         logger.info('IPv6 unavailable; listening on IPv4 only', { code })

@@ -86,7 +86,10 @@ async function estimateConvertedRequest(
 
     if (body.system !== undefined) request.system = body.system
 
-    if (wireTools !== undefined) request.tools = wireTools as MessageCountTokensParams['tools']
+    if (wireTools !== undefined) {
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Generation sends these canonical JSONSchema7 tools unchanged; their roots are not guaranteed to satisfy Anthropic's object-only SDK declaration.
+      request.tools = wireTools as MessageCountTokensParams['tools']
+    }
 
     const remote = await tryRemoteAnthropicCount(
       request,

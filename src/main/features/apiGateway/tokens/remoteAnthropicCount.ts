@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import Anthropic, { type ClientOptions } from '@anthropic-ai/sdk'
 import type { MessageCountTokensParams } from '@anthropic-ai/sdk/resources'
 
 import { loggerService } from '@logger'
@@ -34,13 +34,12 @@ export async function tryRemoteAnthropicCount(
   try {
     const cfg = await providerToAiSdkConfig(provider, model)
 
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Provider settings remain a heterogeneous union; this legacy four-field SDK view is not a decoder, and unsupported configurations keep the existing local fallback.
     const settings = cfg.providerSettings as {
-      baseURL?: string
-      apiKey?: string
-      headers?: Record<string, string>
-      // The proxy-aware `customFetch` (+ any provider signing wrapper) `providerToAiSdkConfig`
-      // installs — reused so count traffic honours the app proxy / relay auth, not bypasses it.
-      fetch?: typeof globalThis.fetch
+      baseURL?: ClientOptions['baseURL']
+      apiKey?: ClientOptions['apiKey']
+      headers?: ClientOptions['defaultHeaders']
+      fetch?: ClientOptions['fetch']
     }
 
     const apiKey = settings.apiKey
