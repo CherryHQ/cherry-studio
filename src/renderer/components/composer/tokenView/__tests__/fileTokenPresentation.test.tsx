@@ -2,9 +2,8 @@ import { render } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { describe, expect, it } from 'vitest'
 
-import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, FILE_TYPE } from '@shared/types/file'
 
 import { getFileTokenPresentation } from '../fileTokenPresentation'
 

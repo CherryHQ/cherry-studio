@@ -10,7 +10,7 @@ Status: proposed
 
 去掉专用记忆 MCP 工具，不会自动让原生文件编辑变得安全。并发会话可能覆盖未读到的修改，多文件整理失败也可能留下不完整的内容或链接。除模型选择内容外，还需要程序强制执行读取、保存、备份、恢复和后台调度。
 
-现有[记忆概述](../../../../docs/dev/references/memory/overview.md)、[智能体提示词构建器](../../../../src/main/ai/agents/prompt.ts)和[智能体记忆 MCP 实现](../../../../src/main/ai/mcp/servers/agentMemory.ts)说明了当前接入方式。本提案定义文件记忆的后续方案；知识库和独立的 `@cherry/memory` 知识图谱 MCP 继续作为独立能力。
+现有[记忆概述](../../../../docs/dev/references/memory/overview.md)、[智能体提示词构建器](../../../../src/main/ai/agents/prompt/promptContext.ts)和[智能体记忆 MCP 实现](../../../../src/main/ai/mcp/servers/agentMemory.ts)说明了当前接入方式。本提案定义文件记忆的后续方案；知识库和独立的 `@cherry/memory` 知识图谱 MCP 继续作为独立能力。
 
 ## 提案
 
@@ -198,7 +198,7 @@ SHA-256 是内容指纹，不是次数或按时间递增的版本。`A -> B -> A
 
 | 现有接入位置 | 所需改动 |
 |---|---|
-| [智能体目录初始化](../../../../src/main/ai/agents/agentDataDirectory.ts)、[提示词构建器](../../../../src/main/ai/agents/prompt.ts)、[内置智能体配置](../../../../src/main/ai/agents/builtin/BuiltinAgentProvisioner.ts) | 协调新布局、符合资格的入口加载、模板和 FACT/JOURNAL 切换 |
+| [智能体目录初始化](../../../../src/main/ai/agents/agentDataDirectory.ts)、[提示词构建器](../../../../src/main/ai/agents/prompt/promptContext.ts)、[内置智能体配置](../../../../src/main/ai/agents/builtin/BuiltinAgentProvisioner.ts) | 协调新布局、符合资格的入口加载、模板和 FACT/JOURNAL 切换 |
 | [路径注册](../../../../src/main/core/paths/pathRegistry.ts)与已有文件、IPC 能力 | 注册根目录，提供统一受控读取、保存和恢复模块 |
 | 上述 Pi 与 Claude Code 适配层 | 将受支持原生操作交给该模块，保留真实读取与审批的关联 |
 | 上述任务与状态能力 | 增加 Dreaming 私有处理标记、任务处理器、调度、取消和反馈 |

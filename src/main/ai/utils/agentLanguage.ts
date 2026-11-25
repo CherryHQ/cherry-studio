@@ -1,6 +1,7 @@
 import { application } from '@application'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
+import type { Assistant } from '@shared/data/types/assistant'
 
 /** Trimmed, non-empty, length-bounded label via the shared schema; null when invalid. */
 function normalizeAgentLanguage(value: unknown): string | null {
@@ -15,7 +16,10 @@ function normalizeAgentLanguage(value: unknown): string | null {
  *   explicitly opts out; anything else inherits the global value.
  * - Global `agent.language` preference: valid label = default; null/invalid = none.
  */
-function resolveEffectiveAgentLanguage(agent: AgentEntity, globalLanguage: string | null | undefined): string | null {
+function resolveEffectiveAgentLanguage(
+  agent: Pick<AgentEntity, 'configuration'>,
+  globalLanguage: string | null | undefined
+): string | null {
   const perAgent = agent.configuration?.language
 
   if (perAgent === null) return null
@@ -31,6 +35,20 @@ function resolveEffectiveAgentLanguage(agent: AgentEntity, globalLanguage: strin
  *
  * Values are human-readable language labels (e.g. "English", "ไทย"), not app locale codes.
  */
-export function getEffectiveAgentLanguage(agent: AgentEntity): string | null {
+export function getEffectiveAgentLanguage(agent: Pick<AgentEntity, 'configuration'>): string | null {
   return resolveEffectiveAgentLanguage(agent, application.get('PreferenceService').get('agent.language'))
+}
+
+/**
+ * Resolve an Assistant's `settings.replyLanguage` with the Agent options: `custom` names the language,
+ * `inherit` follows the live `agent.language` preference, and `off` or an unset value adds no constraint.
+ */
+export function getEffectiveAssistantLanguage(assistant: Pick<Assistant, 'settings'>): string | null {
+  const replyLanguage = assistant.settings.replyLanguage
+  if (!replyLanguage || replyLanguage.mode === 'off') return null
+  return normalizeAgentLanguage(
+    replyLanguage.mode === 'custom'
+      ? replyLanguage.language
+      : application.get('PreferenceService').get('agent.language')
+  )
 }
