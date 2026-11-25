@@ -42,6 +42,7 @@ function normalizeWheelDelta(delta: number, deltaMode: number, pageSize: number)
 interface Props {
   messages: MessageListItem[]
   partsByMessageId?: Record<string, CherryMessagePart[]> | null
+  quoteTopicId?: string
   captureMode?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
   isLatestAssistantGroup?: boolean
@@ -71,6 +72,7 @@ function pickPreferredSelectedMessage(
 const MessageGroup = ({
   messages,
   partsByMessageId,
+  quoteTopicId,
   captureMode = false,
   registerMessageElement,
   isLatestAssistantGroup = false,
@@ -373,9 +375,13 @@ const MessageGroup = ({
             key={message.id}
             trigger={gridPopoverTrigger}
             content={
-              <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl}>
+              <SelectionContextMenu
+                openBrowserUrl={actions.openBrowserUrl}
+                quoteTopicId={quoteTopicId}
+                replyDisabled={isMultiSelectMode}>
                 <MessageWrapper
                   tabIndex={0}
+                  data-message-id={message.id}
                   className={classNames([
                     'in-popover',
                     {
@@ -396,6 +402,8 @@ const MessageGroup = ({
     },
     [
       actions.openBrowserUrl,
+      isMultiSelectMode,
+      quoteTopicId,
       isGrid,
       isGrouped,
       isMultiModelGroup,
