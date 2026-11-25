@@ -91,6 +91,7 @@ export function applyInitData(initData: InferenceInitData): void {
 }
 
 export async function getMlxAsr(): Promise<typeof MlxAsrRuntime> {
+  // SAFETY: projectRequire resolves the fixed package off the initialized app root; the URL import loses its declaration association.
   mlxAsr ??= (await import(
     pathToFileURL(projectRequire().resolve('@cherrystudio/mlx-asr')).href
   )) as typeof MlxAsrRuntime
@@ -137,6 +138,7 @@ export function getSherpa(): any {
 export function cacheResource<T extends DisposableResource>(key: string, load: () => Promise<T>): Promise<T> {
   const existing = cachedResources.get(key)
 
+  // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Callers must keep one loader result type per cache key; the heterogeneous cache cannot validate that association.
   if (existing !== undefined) return existing as Promise<T>
   const promise = load()
   cachedResources.set(key, promise)

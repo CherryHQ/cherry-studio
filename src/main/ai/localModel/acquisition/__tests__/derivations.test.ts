@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { applyDerivation, dictTextFromInferenceYml } from '../derivations'
+import { dictTextFromInferenceYml } from '../derivations'
 
 describe('dictTextFromInferenceYml', () => {
   it('reproduces PaddleOCR dict format: leading blank slot, entries, trailing space slot', () => {
@@ -20,12 +20,13 @@ describe('dictTextFromInferenceYml', () => {
   it('throws when the yml has no PostProcess.character_dict', () => {
     expect(() => dictTextFromInferenceYml('PostProcess:\n  name: CTCLabelDecode\n')).toThrow('character_dict')
   })
-})
 
-describe('applyDerivation', () => {
-  it('routes a declared derivation to its implementation', () => {
-    const yml = ['PostProcess:', '  name: CTCLabelDecode', '  character_dict:', '  - a'].join('\n')
+  it('preserves numeric and null dictionary entries and their decoder positions', () => {
+    const yml = 'PostProcess:\n  character_dict:\n    - 7\n    - null\n    - false\n'
+    expect(dictTextFromInferenceYml(yml)).toBe('\n7\nnull\nfalse\n')
+  })
 
-    expect(applyDerivation('paddle_dict_from_inference_yml', yml)).toBe('\na\n')
+  it('rejects an empty dictionary instead of emitting only the two reserved slots', () => {
+    expect(() => dictTextFromInferenceYml('PostProcess:\n  character_dict: []\n')).toThrow('character_dict')
   })
 })

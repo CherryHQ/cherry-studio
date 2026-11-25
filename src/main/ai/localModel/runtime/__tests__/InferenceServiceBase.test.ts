@@ -1,3 +1,6 @@
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
+
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -320,11 +323,38 @@ describe('InferenceServiceBase dispatch', () => {
     }
   )
 
+  it('rejects a queued cancellation with its original TimeoutError instead of resolving an absent result', async () => {
+    // Use the queue's dependency instance to exercise its actual instanceof check.
+    const queueRequire = createRequire(createRequire(import.meta.url).resolve('p-queue'))
+    const { TimeoutError } = await import(pathToFileURL(queueRequire.resolve('p-timeout')).href)
+    const { service, adapter } = await createService()
+    const controller = new AbortController()
+    const reason = new TimeoutError('caller deadline elapsed')
+    const blocking = service.block()
+
+    try {
+      await waitUntil(() => childStates[0]?.waitSignals.length === 1, 'first request in flight')
+      const queued = expectRejected(service.ping(controller.signal), (error) => expect(error).toBe(reason))
+      controller.abort(reason)
+      childStates[0].release()
+
+      await expect(blocking).resolves.toBe('released')
+      await queued
+      expect(adapter.spawns[0].child.killed).toBe(false)
+      expect(adapter.spawns).toHaveLength(1)
+      expect(
+        adapter.spawns[0].child.frames.filter((frame) => frame.kind === 'request').map((frame) => frame.method)
+      ).toEqual(['wait'])
+    } finally {
+      childStates[0]?.release()
+      await service.terminate()
+    }
+  })
+
   it('resolves a method whose output is void instead of reading it as a failure', async () => {
     const { service } = await createService()
 
-    // `load` (the embedding download) returns void; a sentinel on the queue's own
-    // `T | void` result type would reject every completed download.
+    // `load` returns void; rejecting an undefined result would reject successful downloads.
     await expect(service.nothing()).resolves.toBeUndefined()
   })
 

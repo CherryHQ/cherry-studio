@@ -599,6 +599,7 @@ export const LOCAL_MODEL_BUNDLES = {
   }
 } as const satisfies Record<LocalModelBundleId, ModelBundle>
 
+// SAFETY: LOCAL_MODEL_BUNDLES is a literal satisfying the exhaustive bundle-ID record; Object.keys enumerates those own string keys.
 export const ALL_MODEL_BUNDLE_IDS = Object.keys(LOCAL_MODEL_BUNDLES) as readonly LocalModelBundleId[]
 
 export function getModelBundle(id: LocalModelBundleId): ModelBundle {

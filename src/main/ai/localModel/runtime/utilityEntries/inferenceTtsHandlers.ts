@@ -34,6 +34,7 @@ async function loadModel(modelDir: string): Promise<TtsModel> {
   await disposeTts()
 
   try {
+    // SAFETY: The trusted host appPath resolves the pinned mlx-tts package whose public exports match the imported declarations; loading stays after native binding initialization.
     runtime ??= (await import(
       pathToFileURL(createRequire(`${appPath}/`).resolve('@cherrystudio/mlx-tts')).href
     )) as typeof MlxTtsRuntime

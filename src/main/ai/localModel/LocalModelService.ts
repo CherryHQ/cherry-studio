@@ -21,6 +21,7 @@ const logger = loggerService.withContext('LocalModelService')
 @Injectable('LocalModelService')
 @ServicePhase(Phase.BeforeReady)
 export class LocalModelService extends BaseService {
+  // SAFETY: The closed bundle catalog supplies every LocalModelBundleId, and this map constructs one installer for each ID.
   private readonly installers = Object.fromEntries(
     ALL_MODEL_BUNDLE_IDS.map((id) => {
       const bundle = getModelBundle(id)

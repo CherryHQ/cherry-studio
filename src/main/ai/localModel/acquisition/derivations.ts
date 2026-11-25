@@ -1,6 +1,11 @@
 import { parse } from 'yaml'
+import * as z from 'zod'
 
 import type { BundleFileDerivation } from '../catalog/types'
+
+const dictionaryConfigSchema = z.object({
+  PostProcess: z.object({ character_dict: z.array(z.unknown()).min(1) })
+})
 
 /**
  * Transforms applied to a fetched file before it lands on disk, for the cases where a
@@ -19,14 +24,13 @@ import type { BundleFileDerivation } from '../catalog/types'
  * byte-for-byte.
  */
 export function dictTextFromInferenceYml(yml: string): string {
-  const config = parse(yml) as { PostProcess?: { character_dict?: unknown } } | null
-  const characters = config?.PostProcess?.character_dict
+  const config = dictionaryConfigSchema.safeParse(parse(yml))
 
-  if (!Array.isArray(characters) || characters.length === 0) {
+  if (!config.success) {
     throw new Error('inference.yml is missing PostProcess.character_dict')
   }
 
-  return `\n${characters.map(String).join('\n')}\n`
+  return `\n${config.data.PostProcess.character_dict.map(String).join('\n')}\n`
 }
 
 const DERIVATIONS: Record<BundleFileDerivation, (fetched: string) => string> = {

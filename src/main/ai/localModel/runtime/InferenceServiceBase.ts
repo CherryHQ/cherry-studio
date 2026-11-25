@@ -108,23 +108,25 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
     const generation = this.modelGenerations.get(modelId) ?? 0
     signal?.throwIfAborted()
 
-    // PQueue adds void only for its own signal cancellation; this queue handles cancellation inside the task.
-    return (await this.queue.add(async () => {
-      signal?.throwIfAborted()
-      this.assertModelAvailable(modelId, generation)
+    return this.queue.add(
+      async () => {
+        signal?.throwIfAborted()
+        this.assertModelAvailable(modelId, generation)
 
-      if (this.residentModelId !== null && this.residentModelId !== modelId) {
-        await this.client.stop()
-        this.residentModelId = null
-      }
+        if (this.residentModelId !== null && this.residentModelId !== modelId) {
+          await this.client.stop()
+          this.residentModelId = null
+        }
 
-      await this.restartIfRuntimeChanged()
-      signal?.throwIfAborted()
-      this.assertModelAvailable(modelId, generation)
-      this.residentModelId = modelId
+        await this.restartIfRuntimeChanged()
+        signal?.throwIfAborted()
+        this.assertModelAvailable(modelId, generation)
+        this.residentModelId = modelId
 
-      return operation()
-    })) as T
+        return operation()
+      },
+      { throwOnTimeout: true }
+    )
   }
 
   private async request<M extends keyof Contract['methods'] & string>(

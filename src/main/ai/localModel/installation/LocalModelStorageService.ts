@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 import { KeyedMutex } from '@shared/utils/async'
 
 import {
@@ -196,7 +197,7 @@ export class LocalModelStorageService {
       try {
         entries = await fs.promises.readdir(dir)
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
+        if (getErrorCode(error) === 'ENOENT') continue
         throw error
       }
 
