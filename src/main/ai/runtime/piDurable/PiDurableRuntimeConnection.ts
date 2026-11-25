@@ -780,9 +780,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     await projection.flush()
     // A sibling can keep the shared backend alive across the parent's reconnect.
     // Existing children need fresh policy too, sized from their own native model.
-    const usage = await handle.contextUsage()
-    if (usage.status !== 'confirmed') throw new Error('Child context policy is unavailable')
-    await handle.durable.configure({ compaction: resolveDurableCompaction(usage.value.contextWindow) })
+    let usage = await handle.contextUsage()
+    if (usage.status === 'unknown') usage = await handle.contextUsage()
+    // Measurement can be invalidated by a concurrent child commit. Do not lose
+    // a valid steer for that passive-read race; retain its existing policy and
+    // let the next continuation refresh it.
+    if (usage.status === 'confirmed')
+      await handle.durable.configure({ compaction: resolveDurableCompaction(usage.value.contextWindow) })
     const { sessionId } = projection.context
     const id = randomUUID()
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })

@@ -2353,6 +2353,24 @@ describe('desktop Pi Durable connection', () => {
     unsubscribe()
   })
 
+  it('accepts child steering when concurrent commits invalidate policy measurements', async () => {
+    const connection = await finishedChild()
+    const view = (await connection.childProjection('spawn'))!
+    const updates: string[] = []
+    const unsubscribe = view.subscribe((update) => updates.push(JSON.stringify(update)))
+    const [child] = await connection['childResources']()
+    const usage = vi.spyOn(child.handle, 'contextUsage')
+    const invalidated = {
+      status: 'unknown',
+      error: { operation: 'contextUsage', code: 'context-changed', message: 'changed' }
+    } as const
+    usage.mockResolvedValueOnce(invalidated).mockResolvedValueOnce(invalidated)
+    await connection.messageChild(view.snapshot().contextId, 'continue after concurrent commit')
+    await expect.poll(() => updates.join(), CHILD_WAIT).toContain('child continued answer')
+    expect(usage).toHaveBeenCalledTimes(2)
+    unsubscribe()
+  })
+
   // Catches close skipping a finished child whose release flush failed while close waited for it.
   it('flushes a finished child on close after its release flush fails', async () => {
     const connection = await finishedChild()
