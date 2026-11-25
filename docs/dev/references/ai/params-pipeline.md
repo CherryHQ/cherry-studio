@@ -68,6 +68,12 @@ unrecognized. Normalization can relax the constraints sent to the provider. MCP
 tools still validate against the original schema, and gateway callers validate
 their own tools.
 
+On `google-generate-content`, Gemini 3 and 4 requests omit Google signatures
+from historical assistant text and client tool calls when the stored source
+model identity differs from the target. The identity includes the provider
+connection. The request retains the text, tool call, and tool result. The
+Google adapter suppresses signature backfill for marked tool calls.
+
 ## RequestFeature
 
 The composition unit is `RequestFeature`
