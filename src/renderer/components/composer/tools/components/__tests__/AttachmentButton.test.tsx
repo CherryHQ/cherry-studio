@@ -2,7 +2,8 @@ import { act, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
-import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { type FileMetadata } from '@renderer/types/file'
+import { FILE_TYPE } from '@shared/types/file'
 
 import { AttachmentToolRuntime } from '../AttachmentButton'
 

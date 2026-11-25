@@ -21,7 +21,7 @@ sources:
   - packages/agent-behavior/src
   - packages/agent-runtime-pi/src
   - packages/agent-runtime-pi-durable/src
-  - src/main/ai/runtime/agentPrompt.ts
+  - src/main/ai/agents/prompt
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
   - src/main/ai/messages/readConversation.ts
   - src/main/ai/mcp/servers/cherryAutonomyTools.ts
@@ -182,7 +182,7 @@ Live scoped-memory entries are delivered by the runtime hooks described in
 connection's stable prompt and legacy identity files. Entry loading does not
 grant controlled file-write capability.
 
-`src/main/ai/runtime/agentPrompt.ts` is the single materializer for Cherry-owned Agent prompt policy. Every runtime passes the same Agent, workspace, agent-data path, channel state, and resolved citation guidance into `buildAgentRuntimePrompt()`, then maps its `{ base, append }` result into the runtime SDK.
+`src/main/ai/agents/prompt/buildAgentPrompt.ts` assembles the shared Agent prompt. Each runtime supplies the Agent, workspace, agent-data path, and references to tools the session can call, then maps `{ base, append }` into its SDK.
 
 The common materializer owns Cherry policy content, semantic authority, and the ordering of blocks carried through its `append` result:
 
@@ -909,7 +909,7 @@ Allowed in v1:
   passed explicitly as `sessionDir`. The resume token is the pi session id;
   reopen resolves it by scanning this directory for `*_<id>.jsonl`, so the
   directory can be relocated without invalidating stored tokens.
-- Cherry's runtime-neutral Agent prompt, materialized by `buildAgentRuntimePrompt()` and injected
+- Cherry's runtime-neutral Agent prompt, materialized by `buildAgentPrompt()` and injected
   through `systemPromptOverride` and `appendSystemPromptOverride`. The materializer uses
   `PromptBuilder` for workspace `system.md` and the current agent data directory's `SOUL.md`,
   `USER.md`, and `memory/FACT.md`, and adds the same instruction authority, channel security,

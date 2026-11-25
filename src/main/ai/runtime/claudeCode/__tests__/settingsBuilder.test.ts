@@ -133,7 +133,7 @@ vi.mock(import('@main/ai/memory/memoryRuntime'), async (importOriginal) => ({
   openRuntimeMemoryGuard: () => ({ assertActive: () => {}, check: async () => {}, dispose: () => {} })
 }))
 
-vi.mock('@main/ai/agents/prompt', () => ({
+vi.mock('@main/ai/agents/prompt/promptContext', () => ({
   PromptBuilder: vi.fn(function () {
     return {
       buildPromptParts: mocks.buildPrompt,

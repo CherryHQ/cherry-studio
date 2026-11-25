@@ -10,7 +10,7 @@ Agent file memory currently keeps durable facts in each Agent's `memory/FACT.md`
 
 Removing a dedicated memory MCP tool does not make native file edits safe. Concurrent sessions can overwrite unseen changes, and a failed multi-file reorganization can leave content or links incomplete. The feature needs program-enforced reads, saves, backups, recovery, and background scheduling alongside model-driven content selection.
 
-The existing [memory overview](../../../../docs/dev/references/memory/overview.md), [Agent prompt builder](../../../../src/main/ai/agents/prompt.ts), and [Agent memory MCP implementation](../../../../src/main/ai/mcp/servers/agentMemory.ts) describe the current integration. This Spec defines its successor for file memory; the Knowledge Base and the independent `@cherry/memory` knowledge-graph MCP remain separate.
+The existing [memory overview](../../../../docs/dev/references/memory/overview.md), [Agent prompt builder](../../../../src/main/ai/agents/prompt/promptContext.ts), and [Agent memory MCP implementation](../../../../src/main/ai/mcp/servers/agentMemory.ts) describe the current integration. This Spec defines its successor for file memory; the Knowledge Base and the independent `@cherry/memory` knowledge-graph MCP remain separate.
 
 ## Proposal
 
@@ -198,7 +198,7 @@ Back up and inspect old FACT before migration. Move complete common facts into t
 
 | Existing integration | Required change |
 |---|---|
-| [Agent directory setup](../../../../src/main/ai/agents/agentDataDirectory.ts), [prompt builder](../../../../src/main/ai/agents/prompt.ts), [built-in provisioning](../../../../src/main/ai/agents/builtin/BuiltinAgentProvisioner.ts) | Coordinate new layout, eligible entry loading, templates, and FACT/JOURNAL cutover |
+| [Agent directory setup](../../../../src/main/ai/agents/agentDataDirectory.ts), [prompt builder](../../../../src/main/ai/agents/prompt/promptContext.ts), [built-in provisioning](../../../../src/main/ai/agents/builtin/BuiltinAgentProvisioner.ts) | Coordinate new layout, eligible entry loading, templates, and FACT/JOURNAL cutover |
 | [Path registry](../../../../src/main/core/paths/pathRegistry.ts) and existing file/IPC facilities | Register roots and provide the shared controlled read/save/recovery owner |
 | Pi and Claude Code adapters above | Route supported native operations through that owner and preserve actual read/approval bindings |
 | Existing job and state facilities above | Add Dreaming's owner-private markers, handler, scheduling, cancellation, and feedback |

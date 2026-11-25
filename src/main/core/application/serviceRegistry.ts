@@ -4,6 +4,7 @@ import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
+import { ArtifactBackfillService } from '@main/ai/agents/ArtifactBackfillService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AgentImportService } from '@main/ai/agentSession/import/AgentImportService'
@@ -132,6 +133,7 @@ export const services = {
   WindowManager,
   UtilityProcessManager,
   DbService,
+  ArtifactBackfillService,
   CacheService,
   DataApiService,
   IpcApiService,

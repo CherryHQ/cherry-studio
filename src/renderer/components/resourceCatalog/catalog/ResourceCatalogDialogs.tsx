@@ -16,6 +16,7 @@ import { AssistantLibraryDialog } from './AssistantLibraryDialog'
 type ResourceCatalogDialogsProps = {
   dialogs: ReturnType<typeof useResourceCatalogController>['dialogs']
   onOpenAssistantChat?: (assistantId: string) => void
+  onOpenAgentChat?: (agentId: string) => void
   onRefetch: ReturnType<typeof useResourceCatalogController>['refetch']
   resourceType: Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
 }
@@ -23,6 +24,7 @@ type ResourceCatalogDialogsProps = {
 export function ResourceCatalogDialogs({
   dialogs,
   onOpenAssistantChat,
+  onOpenAgentChat,
   onRefetch,
   resourceType
 }: ResourceCatalogDialogsProps) {
@@ -63,6 +65,9 @@ export function ResourceCatalogDialogs({
         modelFilter={dialogs.createDialogKind === 'agent' ? undefined : (candidate) => !isNonChatModel(candidate)}
         onOpenChange={dialogs.handleCreateDialogOpenChange}
         onSubmit={dialogs.handleSubmitCreateResource}
+        onStartConversation={(id) =>
+          (dialogs.createDialogKind === 'agent' ? onOpenAgentChat : onOpenAssistantChat)?.(id)
+        }
       />
       <ResourceEditDialogHost
         target={dialogs.editDialogTarget}
