@@ -81,6 +81,7 @@ Cherry Studio 内置 **60+ 家服务商**，本页提供总览表，找到目标
 | **ocoolAI** | 国内聚合 | [ocoolai.com](https://one.ocoolai.com/) | — |
 | **Poe** | Quora 旗下 AI 集市 | [poe.com](https://poe.com/) | — |
 | **Vercel AI Gateway** | Vercel 旗下网关 | [vercel.com/ai](https://vercel.com/ai) | — |
+| **ProxyStacks Relay** | 全球与亚太低延迟多协议网关（OpenAI + Responses + Anthropic） | [proxystacks.com](https://proxystacks.com/) | — |
 
 ## 超低延迟 / 高吞吐推理服务
 
