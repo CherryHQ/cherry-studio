@@ -1424,4 +1424,52 @@ describe('SkillService authoring and remote updates', () => {
     await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo edited\n')
     await expect(fs.promises.access(path.join(backupPath, 'SKILL.md'))).resolves.toBeUndefined()
   })
+
+  it('retires superseded stashes when the destination already matches the committed baseline', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const committedDir = path.join(root, 'committed-stash-retire')
+    const obsoleteDir = path.join(root, 'obsolete-stash-retire')
+    await writeSkill(committedDir, { supportingContent: 'echo committed\n' })
+    await writeSkill(obsoleteDir, { supportingContent: 'echo obsolete\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    // Committed replacement plus an obsolete backup and an even older stash.
+    await fs.promises.cp(committedDir, destPath, { recursive: true })
+    await fs.promises.cp(obsoleteDir, backupPath, { recursive: true })
+    const baseline = await installer.computeContentHash(committedDir)
+    const stashPath = `${backupPath}.stash-${Date.now()}-retire`
+    await fs.promises.cp(obsoleteDir, stashPath, { recursive: true })
+
+    await installer.recoverInterruptedInstallWithBaseline(destPath, baseline)
+
+    // The committed replacement survives while the obsolete backup and stash are retired,
+    // so a later sweep cannot promote the stash over a fresh edit or after uninstall.
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo committed\n'
+    )
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    const remaining = (await fs.promises.readdir(skillsRoot)).filter((name) => name.startsWith('.writer.bak.stash-'))
+    expect(remaining).toEqual([])
+  })
+
+  it('removes recovery markers when uninstalling so a stale copy cannot resurrect the skill', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const committedDir = path.join(root, 'committed-uninstall-markers')
+    await writeSkill(committedDir, { supportingContent: 'echo committed\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(committedDir, destPath, { recursive: true })
+    await fs.promises.cp(committedDir, backupPath, { recursive: true })
+    const stashPath = `${backupPath}.stash-${Date.now()}-uninstall`
+    await fs.promises.cp(committedDir, stashPath, { recursive: true })
+
+    await installer.uninstall(destPath)
+
+    await expect(fs.promises.lstat(destPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    const remaining = (await fs.promises.readdir(skillsRoot)).filter((name) => name.startsWith('.writer.bak.stash-'))
+    expect(remaining).toEqual([])
+  })
 })

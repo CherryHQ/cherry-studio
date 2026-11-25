@@ -412,6 +412,9 @@ export class SkillInstaller {
       // obsolete trees. Delete the backup via the cleanup marker first so a partial
       // deletion leaves a `.cleanup` (swept by deletion) rather than a `.bak`
       // (which the generic sweep would restore over the good replacement).
+      // Stashes from earlier retries are superseded once the destination matches
+      // the committed baseline: promoting one later would overwrite a fresh edit
+      // or resurrect the skill after uninstall, so retire them here.
       if (cleanupExists) await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
       if (backupExists) {
         try {
@@ -432,12 +435,14 @@ export class SkillInstaller {
               backupPath,
               error: error instanceof Error ? error.message : String(error)
             })
+            await this.removeAllStashedBackups(destPath)
             logger.info('Recovered interrupted skill install by keeping matching replacement', { destPath })
             return
           }
         }
         await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
       }
+      await this.removeAllStashedBackups(destPath)
       logger.info('Recovered interrupted skill install by keeping matching replacement', { destPath })
       return
     }
@@ -449,6 +454,7 @@ export class SkillInstaller {
       }
       await fs.promises.rename(backupPath, destPath)
       if (cleanupExists) await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+      await this.removeAllStashedBackups(destPath)
       logger.info('Recovered interrupted skill install by restoring matching backup', { destPath })
       return
     }
@@ -460,6 +466,7 @@ export class SkillInstaller {
       }
       await fs.promises.rename(cleanupPath, destPath)
       if (backupExists) await this.safeRemoveDirectory(backupPath, 'uncommitted skill folder')
+      await this.removeAllStashedBackups(destPath)
       logger.info('Recovered interrupted skill install by restoring matching cleanup', { destPath })
       return
     }
@@ -601,6 +608,10 @@ export class SkillInstaller {
 
   /**
    * Remove a skill folder.
+   *
+   * Recovery markers (`.bak`, `.cleanup`, `.bak.stash-*`) are removed as well so
+   * a later startup sweep cannot promote a stale copy over a fresh install or
+   * resurrect the skill after uninstall.
    */
   async uninstall(skillPath: string): Promise<void> {
     try {
@@ -613,6 +624,9 @@ export class SkillInstaller {
       }
       logger.warn('Skill folder already deleted', { skillPath })
     }
+    await this.safeRemoveDirectory(this.getBackupPath(skillPath), 'obsolete skill backup')
+    await this.safeRemoveDirectory(this.getCleanupPath(skillPath), 'committed skill backup')
+    await this.removeAllStashedBackups(skillPath)
   }
 
   /** Compute the versioned full-directory hash persisted as the install baseline. */
