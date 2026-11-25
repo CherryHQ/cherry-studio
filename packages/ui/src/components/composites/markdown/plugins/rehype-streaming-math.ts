@@ -97,7 +97,10 @@ export const rehypeStreamingMath: Plugin<[Pluggable], Root> = function (mathRend
         const cause = failure.cause
 
         const limit =
-          cause?.name === 'ParseError' &&
+          cause !== null &&
+          typeof cause === 'object' &&
+          'name' in cause &&
+          cause.name === 'ParseError' &&
           'position' in cause &&
           typeof cause.position === 'number' &&
           Number.isFinite(cause.position)

@@ -379,7 +379,7 @@ const MARKDOWN_COMPONENTS = {
 
 const MARKDOWN_COMPONENTS_WITH_STYLE = {
   ...MARKDOWN_COMPONENTS,
-  style: MarkdownShadowDomRenderer
+  style: (props: MarkdownRendererProps<'style'>) => <MarkdownShadowDomRenderer {...props} />
 } satisfies Partial<Components>
 
 interface UseMarkdownComponentsOptions {
