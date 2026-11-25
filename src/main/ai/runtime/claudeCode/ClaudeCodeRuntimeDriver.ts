@@ -1257,7 +1257,7 @@ async function materializeUserContent(
   }
 
   if (firstPartyImageParts.length > 0) {
-    const userMessage = { id: message.id, role: 'user', parts: routedParts } as CherryUIMessage
+    const userMessage: CherryUIMessage = { id: message.id, role: 'user', parts: routedParts }
     const attachments = supportsAttachmentReads ? turnAttachments : collectFileAttachments([userMessage])
 
     const [prepared] = await prepareChatMessages([userMessage], {
