@@ -30,13 +30,7 @@ export class CacheBatchSpanProcessor extends BatchSpanProcessor {
       attributes: span.attributes,
       links: span.links,
       events: span.events,
-      duration: span.duration,
-      ended: span.ended,
-      resource: span.resource,
-      instrumentationScope: span.instrumentationScope,
-      droppedAttributesCount: span.droppedAttributesCount,
-      droppedEventsCount: span.droppedEventsCount,
-      droppedLinksCount: span.droppedLinksCount
-    } as ReadableSpan)
+      ended: span.ended
+    })
   }
 }

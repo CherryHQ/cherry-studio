@@ -1,7 +1,7 @@
-import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
+import type { TraceSpanSnapshot } from '../core/spanConvert'
 
 export interface TraceStore {
-  createSpan: (span: ReadableSpan) => void
-  endSpan: (span: ReadableSpan) => void
+  createSpan: (span: TraceSpanSnapshot) => void
+  endSpan: (span: TraceSpanSnapshot) => void
   clear: () => void
 }

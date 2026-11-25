@@ -9,14 +9,13 @@ import {
 } from '@earendil-works/pi-telemetry'
 import { ROOT_CONTEXT, SpanStatusCode, TraceFlags, trace, type Span, type Tracer } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
-import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 import * as z from 'zod'
 
 import { loggerService } from '@logger'
 
 import { TRACER_NAME } from '../../constants'
 import type { AgentRuntimeTraceContext } from '../../core/AiTurnTrace'
-import { convertSpanToSpanEntity } from '../../core/spanConvert'
+import { convertSpanToSpanEntity, type TraceSpanSnapshot } from '../../core/spanConvert'
 import { observabilitySinks } from '../../sinks/ObservabilitySinkRegistry'
 
 const logger = loggerService.withContext('PiTelemetry')
@@ -189,7 +188,8 @@ export function createPiTelemetry(
 
           if ('attributes' in span && 'startTime' in span) {
             try {
-              const entity = convertSpanToSpanEntity(span as Span & ReadableSpan)
+              // SAFETY: The application SDK tracer creates recording spans with these snapshot fields; the guards exclude API no-op spans, not arbitrary injected implementations.
+              const entity = convertSpanToSpanEntity(span as Span & TraceSpanSnapshot)
               const values = entity.attributes ?? {}
               const input = options.attributes ?? {}
               entity.topicId = owner.topicId

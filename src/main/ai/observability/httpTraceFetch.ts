@@ -1,5 +1,5 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
-import { context, type Exception, type Span, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
+import { context, type Span, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -42,7 +42,7 @@ interface TraceErrorFields {
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Fetch and stream rejections are unparsed; project only OTel's primitive exception fields without stringifying the original value.
-function projectTraceException(error: unknown): { exception: Exception; message?: string } {
+function projectTraceException(error: unknown) {
   if (typeof error === 'string') return { exception: error, message: error }
 
   const fields: TraceErrorFields = {}

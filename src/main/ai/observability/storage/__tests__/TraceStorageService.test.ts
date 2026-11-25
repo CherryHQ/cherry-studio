@@ -195,8 +195,10 @@ describe('TraceStorageService', () => {
     await service._doInit()
 
     // 1. In-flight span from createSpan must not be ended.
-    service.createSpan(spanSnapshot({ spanId: 'live', traceId: 'trace-live', ended: false }))
-    expect(service['store'].getSpan('live')?.isEnd).toBe(false)
+    const started = spanSnapshot({ spanId: 'live', traceId: 'trace-live', ended: false })
+    delete started.endTime
+    service.createSpan(started)
+    expect(service['store'].getSpan('live')).toMatchObject({ isEnd: false, startTime: 1000, endTime: null })
 
     // 2. endSpan must mark the entity ended.
     service.endSpan(spanSnapshot({ spanId: 'live', traceId: 'trace-live', ended: true }))
@@ -213,6 +215,18 @@ describe('TraceStorageService', () => {
     expect(cappedStore.getSpan('live')).toBeUndefined()
     expect(cappedStore.getSpan('newer')).toBeDefined()
   })
+
+  it.each([{ modelName: 42 }, { modelName: ['model-a', 'model-b'] }])(
+    'keeps non-string model names in attributes without claiming a top-level name: %j',
+    (attributes) => {
+      const snapshot = spanSnapshot({ spanId: 'typed', traceId: 'trace-typed', ended: false })
+      const entity = convertSpanToSpanEntity({ ...snapshot, attributes })
+
+      expect(entity.modelName).toBeUndefined()
+      expect(entity.attributes).toEqual(attributes)
+      expect(entity.endTime).toBe(0)
+    }
+  )
 
   // The AiTurnTrace end-patch builds entities with `convertSpanToSpanEntity` and writes them via
   // `writeSpanEntity` → `saveEntity` (no explicit isEnd override like createSpan/endSpan have).
