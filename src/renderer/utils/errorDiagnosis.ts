@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
@@ -174,6 +176,13 @@ function buildContextHint(errorInfo: Partial<SerializedError>, context?: Diagnos
   return `## Context\nCherry Studio is an AI chat app connecting to LLM providers (OpenAI, Anthropic, Google, Ollama, etc.) with API keys. Error occurred during ${source || 'chat'}.\n`
 }
 
+const diagnosisResponseSchema = z.object({
+  summary: z.string().min(1),
+  category: z.string().nullish(),
+  explanation: z.string().nullish(),
+  steps: z.array(z.union([z.string(), z.object({ text: z.string() })]))
+})
+
 function parseResponse(raw: string): DiagnosisResult {
   // Strip markdown code blocks if AI wraps response in ```json ... ```
   let cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/, '')
@@ -187,11 +196,13 @@ function parseResponse(raw: string): DiagnosisResult {
     }
   }
 
-  const parsed = JSON.parse(cleaned) as DiagnosisResult
+  const result = diagnosisResponseSchema.safeParse(JSON.parse(cleaned))
 
-  if (!parsed.summary || !Array.isArray(parsed.steps)) {
+  if (!result.success) {
     throw new Error('Invalid diagnosis response format')
   }
+
+  const parsed = result.data
 
   return {
     summary: parsed.summary,

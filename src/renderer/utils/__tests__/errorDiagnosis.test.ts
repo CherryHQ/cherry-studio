@@ -135,6 +135,34 @@ required service tier.`,
       await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Free diagnosis model is unavailable')
     })
 
+    it.each([
+      { summary: 42, steps: [] },
+      { summary: 'Failure', steps: [42] },
+      { summary: 'Failure', steps: [{}] },
+      { summary: 'Failure', category: {}, steps: [] },
+      { summary: 'Failure', explanation: [], steps: [] }
+    ])('rejects malformed diagnostic fields instead of persisting them: %j', async (response) => {
+      mockFetchGenerate.mockResolvedValue(JSON.stringify(response))
+      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Free diagnosis model is unavailable')
+    })
+
+    it('normalizes supported step forms and missing optional diagnostic text', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({
+          summary: 'Failure',
+          category: null,
+          explanation: '',
+          steps: ['Retry', { text: 'Check access' }]
+        })
+      )
+      await expect(diagnoseError(makeError(), 'en')).resolves.toEqual({
+        summary: 'Failure',
+        category: 'unknown',
+        explanation: 'Failure',
+        steps: [{ text: 'Retry' }, { text: 'Check access' }]
+      })
+    })
+
     it('uses persisted Qwen without falling back to the default model', async () => {
       const defaultModel = { id: 'dashscope::deepseek-v3', name: 'DeepSeek V3', providerId: 'dashscope' }
       mockReadDefaultModel.mockResolvedValueOnce(defaultModel as any)
